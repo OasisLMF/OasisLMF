@@ -12,13 +12,11 @@ __all__ = [
 import inspect
 import itertools
 import logging
-import os
 import time
 
 from functools import wraps
 from logging.handlers import RotatingFileHandler
 
-import oasis_utils
 
 def read_log_config(config_parser):
     '''

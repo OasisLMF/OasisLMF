@@ -20,11 +20,11 @@ import os
 
 import pyodbc
 
-import oasis_log_utils
-import oasis_utils
+from .log import oasis_log
 
 DB_CONFIG = {}
 CONN_STRING = ""
+
 
 def bcp(table, outfile):
     """
@@ -38,9 +38,9 @@ def bcp(table, outfile):
 
 
 def read_db_config(config_parser):
-    '''
+    """
     Read an Oasis standard db config
-    '''
+    """
 
     global DB_CONFIG, CONN_STRING
 
@@ -56,24 +56,24 @@ def read_db_config(config_parser):
         DB_CONFIG['username'], DB_CONFIG['password'])
 
 
-@oasis_log_utils.oasis_log()
+@oasis_log()
 def execute(sql, *parameters):
-    '''
+    """
     Execute a SQL statement with specified parameters.
-    '''
+    """
     conn = pyodbc.connect(CONN_STRING)
     conn.autocommit = True
     cursor = conn.cursor()
-    row = cursor.execute(sql, parameters)
+    cursor.execute(sql, parameters)
     conn.commit()
 
 
-@oasis_log_utils.oasis_log()
+@oasis_log()
 def fetch_one(sql, *parameters):
-    '''
+    """
     Execute a SQL statement with specified parameters, and return a
     single row.
-    '''
+    """
     conn = pyodbc.connect(CONN_STRING)
     conn.autocommit = True
     cursor = conn.cursor()
@@ -83,12 +83,12 @@ def fetch_one(sql, *parameters):
     return row
 
 
-@oasis_log_utils.oasis_log()
+@oasis_log()
 def fetchall(sql, *parameters):
-    '''
+    """
     Execute a SQL statement with specified parameters, and return
     all rows.
-    '''
+    """
     conn = pyodbc.connect(CONN_STRING)
     conn.autocommit = True
     cursor = conn.cursor()
@@ -99,15 +99,17 @@ def fetchall(sql, *parameters):
     return rows
 
 
-@oasis_log_utils.oasis_log()
+@oasis_log()
 def check_connection():
-    ''' Run a simple query against the Flamingo database '''
+    """
+    Run a simple query against the Flamingo database
+    """
     try:
         db_summary = "PORT={};SERVER={};DATABASE={}".format(
             DB_CONFIG['port'], DB_CONFIG['server'], DB_CONFIG['database'])
         logging.getLogger().info(
             "Checking connection: {}".format(db_summary))
-        rows = fetchall("SELECT * FROM version")
+        fetchall("SELECT * FROM version")
     except Exception as e:
         logging.getLogger().error(
             "Failed to connect to database: {}".format(db_summary))

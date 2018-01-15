@@ -29,4 +29,3 @@ def compress_data(s):
         raise OasisException(str(e))
 
     return compressed
-

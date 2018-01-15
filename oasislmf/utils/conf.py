@@ -6,31 +6,24 @@
 
 from __future__ import print_function
 
-__all__= [
+import io
+import socket
+import subprocess
+import sys
+
+from .exceptions import OasisException
+
+__all__ = [
     'load_ini_file',
     'replace_in_file',
     'run_mono_executable',
 ]
-
-import difflib
-import io
-import os
-import re
-import socket
-import subprocess
-import sys
-import time
-import zlib
-
-from .exceptions import OasisException
 
 
 def load_ini_file(ini_file_path):
     """
     Reads an INI file and returns it as a dictionary.
     """
-    lines = None
-
     try:
         with io.open(ini_file_path, 'r', encoding='utf-8') as f:
             lines = map(lambda l: l.strip(), filter(lambda l: l and not l.startswith('['), f.read().split('\n')))
@@ -49,7 +42,7 @@ def load_ini_file(ini_file_path):
                 try:
                     di[k] = conv(di[k])
                     break
-                except:
+                except:  # noqa: 722
                     continue
     return di
 
@@ -91,7 +84,7 @@ def run_mono_executable(
         else ''
     )
     cmd_str = 'mono {} {}'.format(executable_path, args_str).strip()
-    
+
     try:
         retcode = subprocess.call(cmd_str, shell=True)
         if retcode < 0:

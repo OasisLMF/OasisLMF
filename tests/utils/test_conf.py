@@ -20,7 +20,7 @@ class LoadInIFile(TestCase):
 
             self.assertTrue(conf['a'])
             self.assertFalse(conf['b'])
-            
+
     def test_values_are_int___values_are_correctly_converted_to_int_value(self):
         with NamedTemporaryFile(mode='w') as f:
             f.writelines([
