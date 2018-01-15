@@ -60,7 +60,7 @@ setup(
         '': ['__pycache__', '*.py[co]'],
     },
     license='BSD 3-Clause',
-    description='Tools for creating and interacting wth oasis LMF models',
+    description='Core loss modelling framework.',
     long_description=get_readme(),
     url='https://github.com/OasisLMF/oasislmf',
     author='OasisLMF',
