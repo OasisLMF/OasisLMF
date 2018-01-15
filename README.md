@@ -1,2 +1,2 @@
-# OasisLmf
+# OasisLMF
 Core loss modelling framework.
