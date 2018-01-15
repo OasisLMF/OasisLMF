@@ -22,7 +22,7 @@ def get_version():
     """
     Return package version as listed in `__version__` in `init.py`.
     """
-    with open(os.path.join(os.path.dirname(__file__), 'oasis_lmf', '__init__.py')) as init_py:
+    with open(os.path.join(os.path.dirname(__file__), 'oasislmf', '__init__.py')) as init_py:
         return re.search('__version__ = [\'"]([^\'"]+)[\'"]', init_py.read()).group(1)
 
 
