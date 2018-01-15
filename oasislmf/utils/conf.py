@@ -37,32 +37,20 @@ def load_ini_file(ini_file_path):
     except IOError as e:
         raise OasisException(str(e))
 
-    di = dict([line.replace(' ', '').split('=') for line in lines])
+    di = dict(map(lambda kv: (kv[0].strip(), kv[1].strip()), (line.split('=') for line in lines)))
 
     for k in di:
-        if di[k] in ['True', 'False']:
-            di[k] = bool(di[k])
+        if di[k].lower() == 'true':
+            di[k] = True
+        elif di[k].lower() == 'false':
+            di[k] = False
         else:
-            if di[k] != u'':
+            for conv in (int, float, socket.inet_aton):
                 try:
-                    socket.inet_aton(di[k])
+                    di[k] = conv(di[k])
+                    break
                 except:
-                    pass
-                else:
                     continue
-                if re.match(r'[-+]?\d+\.\d+', di[k]):
-                    di[k] = float(di[k])
-                else:
-                    i = 0
-                    try:
-                        i = int(di[k])
-                    except ValueError as e:
-                        pass
-                    else:
-                        di[k] = i
-            else:
-                di[k] = None
-
     return di
 
 
