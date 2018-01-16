@@ -1,6 +1,8 @@
 from random import random
 from unittest import TestCase
 
+from mock import Mock, patch
+
 from oasislmf.utils.log import oasis_log
 
 
@@ -53,3 +55,25 @@ class OasisLog(TestCase):
         self.assertEqual(1, len(callable.calls))
         self.assertEqual(('first', ), callable.calls[0]['args'])
         self.assertEqual({'second': 'second'}, callable.calls[0]['kwargs'])
+
+    def test_wrapped_funtion_is_called___debug_logging_is_called(self):
+        logger_mock = Mock()
+
+        with patch('oasislmf.utils.log.logging.getLogger', Mock(return_value=logger_mock)):
+            callable = create_callable()
+
+            wrapped = oasis_log(callable)
+            wrapped('first', second='second')
+
+            self.assertGreater(logger_mock.debug.call_count, 0)
+
+    def test_wrapped_funtion_is_called___info_logging_is_called(self):
+        logger_mock = Mock()
+
+        with patch('oasislmf.utils.log.logging.getLogger', Mock(return_value=logger_mock)):
+            callable = create_callable()
+
+            wrapped = oasis_log(callable)
+            wrapped('first', second='second')
+
+            self.assertGreater(logger_mock.info.call_count, 0)
