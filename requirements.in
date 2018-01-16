@@ -5,3 +5,4 @@ flake8
 pytest
 mock
 tox
+hypothesis

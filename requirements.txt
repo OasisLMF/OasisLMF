@@ -4,10 +4,12 @@
 #
 #    pip-compile --output-file requirements.txt requirements.in
 #
-attrs==17.4.0             # via pytest
+attrs==17.4.0             # via hypothesis, pytest
 click==6.7                # via pip-tools
+coverage==4.4.2           # via hypothesis
 first==2.0.1              # via pip-tools
 flake8==3.5.0
+hypothesis==3.44.16
 mccabe==0.6.1             # via flake8
 mock==2.0.0
 pbr==3.1.1                # via mock

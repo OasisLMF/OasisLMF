@@ -2,6 +2,8 @@ import zlib
 
 from .exceptions import OasisException
 
+CHUNK_SIZE = 5 * 10 ** 8  # 500 Mb
+
 
 def compress_data(s):
     """
@@ -14,15 +16,14 @@ def compress_data(s):
     with a modification to set block/chunk size to 500 Mb (5 x 10^8 bytes).
     """
 
-    compressed = ''
+    compressed = b''
     begin = 0
-    chunk_size = 5 * 10 ** 8  # 500 Mb
     compressor = zlib.compressobj()
 
     try:
         while begin < len(s):
-            compressed += compressor.compress(s[begin:begin + chunk_size])
-            begin += chunk_size
+            compressed += compressor.compress(s[begin:begin + CHUNK_SIZE])
+            begin += CHUNK_SIZE
 
         compressed += compressor.flush()
     except zlib.error as e:
