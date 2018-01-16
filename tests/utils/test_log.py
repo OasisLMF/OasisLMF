@@ -1,9 +1,13 @@
+import logging
+from logging.handlers import RotatingFileHandler
 from random import random
 from unittest import TestCase
 
+from hypothesis import given
+from hypothesis.strategies import sampled_from
 from mock import Mock, patch
 
-from oasislmf.utils.log import oasis_log
+from oasislmf.utils.log import oasis_log, read_log_config
 
 
 def create_callable(result=None):
@@ -77,3 +81,26 @@ class OasisLog(TestCase):
             wrapped('first', second='second')
 
             self.assertGreater(logger_mock.info.call_count, 0)
+
+
+class ReadLogConfig(TestCase):
+    @given(sampled_from([logging.CRITICAL, logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG]))
+    def test_log_config_is_loaded___logger_is_updated(self, level):
+        with patch('logging.root', logging.RootLogger(logging.NOTSET)):
+            read_log_config({
+                'LOG_FILE': '/tmp/log_file.txt',
+                'LOG_LEVEL': level,
+                'LOG_MAX_SIZE_IN_BYTES': 100,
+                'LOG_BACKUP_COUNT': 10,
+            })
+
+            logger = logging.getLogger()
+
+            self.assertEqual(level, logger.level)
+
+            self.assertEqual(1, len(logger.handlers))
+            handler = logger.handlers[0]
+            self.assertIsInstance(handler, RotatingFileHandler)
+            self.assertEqual('/tmp/log_file.txt', handler.baseFilename)
+            self.assertEqual(100, handler.maxBytes)
+            self.assertEqual(10, handler.backupCount)
