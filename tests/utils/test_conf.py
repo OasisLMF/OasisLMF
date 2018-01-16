@@ -3,6 +3,8 @@ from unittest import TestCase
 
 from tempfile import NamedTemporaryFile
 
+from mock import patch, Mock
+
 from oasislmf.utils.conf import load_ini_file, replace_in_file
 from oasislmf.utils.exceptions import OasisException
 
@@ -78,6 +80,13 @@ class LoadInIFile(TestCase):
             self.assertEqual('first.value', conf['a'])
             self.assertEqual('another value', conf['b'])
 
+    def test_io_error_is_raised_when_opening_file___exception_is_converted_to_oasis_exception(self):
+        def raising_function(*args, **kwargs):
+            raise IOError()
+
+        with patch('io.open', Mock(side_effect=raising_function)), self.assertRaises(OasisException):
+            load_ini_file('file_name')
+
 
 class ReplaceInFile(TestCase):
     def test_more_var_names_are_given_than_values___error_is_raised(self):
@@ -115,3 +124,17 @@ class ReplaceInFile(TestCase):
             data = output_file.read()
 
             self.assertEqual('some_var first_val\n', data)
+
+    def test_io_error_is_raised_when_opening_file___exception_is_converted_to_oasis_exception(self):
+        def raising_function(*args, **kwargs):
+            raise IOError()
+
+        with patch('io.open', Mock(side_effect=raising_function)), self.assertRaises(OasisException):
+            replace_in_file('in', 'out', ['first_arg', 'second_arg'], ['first_val', 'second_val'])
+
+    def test_os_error_is_raised_when_opening_file___exception_is_converted_to_oasis_exception(self):
+        def raising_function(*args, **kwargs):
+            raise OSError()
+
+        with patch('io.open', Mock(side_effect=raising_function)), self.assertRaises(OasisException):
+            replace_in_file('in', 'out', ['first_arg', 'second_arg'], ['first_val', 'second_val'])

@@ -50,10 +50,10 @@ def replace_in_file(source_file_path, target_file_path, var_names, var_values):
         raise OasisException('Number of variable names does not equal the number of variable values to replace - please check and try again.')
 
     try:
-        with open(source_file_path, 'r') as f:
+        with io.open(source_file_path, 'r') as f:
             lines = f.readlines()
 
-        with open(target_file_path, 'w') as f:
+        with io.open(target_file_path, 'w') as f:
             for i in range(len(lines)):
                 outline = inline = lines[i]
                 present_var_names = filter(lambda var_name: var_name in inline, var_names)
