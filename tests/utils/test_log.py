@@ -10,6 +10,12 @@ from mock import Mock, patch
 from oasislmf.utils.log import oasis_log, read_log_config
 
 
+class MockLogger(object):
+    def __init__(self):
+        self.debug = Mock()
+        self.info = Mock()
+
+
 def create_callable(result=None):
     def _callable(*args, **kwargs):
         if not hasattr(_callable, 'calls'):
@@ -60,19 +66,8 @@ class OasisLog(TestCase):
         self.assertEqual(('first', ), callable.calls[0]['args'])
         self.assertEqual({'second': 'second'}, callable.calls[0]['kwargs'])
 
-    def test_wrapped_funtion_is_called___debug_logging_is_called(self):
-        logger_mock = Mock()
-
-        with patch('oasislmf.utils.log.logging.getLogger', Mock(return_value=logger_mock)):
-            callable = create_callable()
-
-            wrapped = oasis_log(callable)
-            wrapped('first', second='second')
-
-            self.assertGreater(logger_mock.debug.call_count, 0)
-
-    def test_wrapped_funtion_is_called___info_logging_is_called(self):
-        logger_mock = Mock()
+    def test_wrapped_function_is_called___info_logging_is_called(self):
+        logger_mock = MockLogger()
 
         with patch('oasislmf.utils.log.logging.getLogger', Mock(return_value=logger_mock)):
             callable = create_callable()
@@ -81,6 +76,24 @@ class OasisLog(TestCase):
             wrapped('first', second='second')
 
             self.assertGreater(logger_mock.info.call_count, 0)
+
+    def test_wrapped_function_is_called___args_and_kwargs_are_logged_to_debug_excluding_self(self):
+        logger_mock = MockLogger()
+
+        with patch('oasislmf.utils.log.logging.getLogger', Mock(return_value=logger_mock)):
+            class FakeObj(object):
+                @oasis_log
+                def method(self, first, second=None):
+                    pass
+
+            FakeObj().method('a', second='b')
+
+            logger_mock.debug.assert_any_call("    first == a")
+            logger_mock.debug.assert_any_call("    second == b")
+
+            for args in logger_mock.debug.call_args_list:
+                if 'self' in args[0][0]:
+                    self.fail('"self" was logged')
 
 
 class ReadLogConfig(TestCase):
