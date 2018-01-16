@@ -6,7 +6,7 @@
 #
 attrs==17.4.0             # via hypothesis, pytest
 click==6.7                # via pip-tools
-coverage==4.4.2           # via hypothesis
+coverage==4.4.2
 first==2.0.1              # via pip-tools
 flake8==3.5.0
 hypothesis==3.44.16
@@ -19,6 +19,7 @@ py==1.5.2                 # via pytest, tox
 pycodestyle==2.3.1        # via flake8
 pyflakes==1.6.0           # via flake8
 pyodbc==4.0.21
+pytest-cov==2.5.1
 pytest==3.3.2
 six==1.11.0
 tox==2.9.1
