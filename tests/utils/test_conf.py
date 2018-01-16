@@ -3,7 +3,8 @@ from unittest import TestCase
 
 from tempfile import NamedTemporaryFile
 
-from oasislmf.utils.conf import load_ini_file
+from oasislmf.utils.conf import load_ini_file, replace_in_file
+from oasislmf.utils.exceptions import OasisException
 
 
 class LoadInIFile(TestCase):
@@ -76,3 +77,41 @@ class LoadInIFile(TestCase):
 
             self.assertEqual('first.value', conf['a'])
             self.assertEqual('another value', conf['b'])
+
+
+class ReplaceInFile(TestCase):
+    def test_more_var_names_are_given_than_values___error_is_raised(self):
+        with self.assertRaises(OasisException):
+            replace_in_file('first_path', 'second_path', ['fist_arg', 'second_arg'], ['first_val'])
+
+    def test_more_var_values_are_given_than_values___error_is_raised(self):
+        with self.assertRaises(OasisException):
+            replace_in_file('first_path', 'second_path', ['fist_arg'], ['first_val', 'second_val'])
+
+    def test_input_file_does_not_include_any_var_names___file_is_unchanged(self):
+        with NamedTemporaryFile(mode='w') as input_file, NamedTemporaryFile(mode='r') as output_file:
+            input_file.writelines([
+                'some_var some_val\n',
+            ])
+            input_file.flush()
+
+            replace_in_file(input_file.name, output_file.name, ['first_arg', 'second_arg'], ['first_val', 'second_val'])
+
+            output_file.seek(0)
+            data = output_file.read()
+
+            self.assertEqual('some_var some_val\n', data)
+
+    def test_input_file_includes_some_var_names___input_names_are_replaced_with_values(self):
+        with NamedTemporaryFile(mode='w') as input_file, NamedTemporaryFile(mode='r') as output_file:
+            input_file.writelines([
+                'some_var first_arg\n',
+            ])
+            input_file.flush()
+
+            replace_in_file(input_file.name, output_file.name, ['first_arg', 'second_arg'], ['first_val', 'second_val'])
+
+            output_file.seek(0)
+            data = output_file.read()
+
+            self.assertEqual('some_var first_val\n', data)
