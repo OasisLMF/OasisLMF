@@ -1,0 +1,7 @@
+#!/usr/bin/env
+import sys
+
+from oasislmf.cmd import RootCmd
+
+if __name__ == '__main__':
+    sys.exit(RootCmd().run())
