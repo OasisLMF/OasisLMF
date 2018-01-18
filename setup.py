@@ -60,6 +60,7 @@ setup(
             'requirements-package.in',
             'LICENSE',
         ],
+        'oasislmf/_data/': ['*']
     },
     exclude_package_data={
         '': ['__pycache__', '*.py[co]'],
