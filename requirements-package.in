@@ -1,2 +1,8 @@
 six
 pyodbc
+requests
+requests-toolbelt
+shutilwhich
+jsonpickle
+geopy
+-e git+https://github.com/wildfish/argparsetree.git#egg=argparsetree

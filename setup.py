@@ -13,9 +13,14 @@ def get_readme():
         return readme.read()
 
 
-def get_requirements():
+def get_install_requirements():
     with open(os.path.join(os.path.dirname(__file__), 'requirements-package.in')) as reqs:
-        return reqs.readlines()
+        return [r for r in reqs.readlines() if not r.startswith('-e')]
+
+
+def get_dependency_links():
+    with open(os.path.join(os.path.dirname(__file__), 'requirements-package.in')) as reqs:
+        return [r[3:] for r in reqs.readlines() if r.startswith('-e')]
 
 
 def get_version():
@@ -59,6 +64,7 @@ setup(
     exclude_package_data={
         '': ['__pycache__', '*.py[co]'],
     },
+    scripts=['bin/oasislmf-cli'],
     license='BSD 3-Clause',
     description='Core loss modelling framework.',
     long_description=get_readme(),
@@ -66,7 +72,8 @@ setup(
     author='OasisLMF',
     author_email=' oasis@oasislmf.org',
     keywords='oasis lmf loss modeling framework',
-    install_requires=get_requirements(),
+    install_requires=get_install_requirements(),
+    dependency_links=get_dependency_links(),
     classifiers=[
         'Development Status :: 4 - Beta',
         'License :: OSI Approved :: BSD License',

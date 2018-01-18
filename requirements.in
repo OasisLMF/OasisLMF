@@ -8,3 +8,4 @@ tox
 hypothesis
 coverage
 pytest-cov
+responses

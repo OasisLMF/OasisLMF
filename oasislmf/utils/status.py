@@ -1,0 +1,10 @@
+# Celery task status
+STATUS_PENDING = "PENDING"
+STATUS_RUNNING = "RUNNING"
+STATUS_SUCCESS = "SUCCESS"
+STATUS_FAILURE = "FAILURE"
+
+# Keys lookup status strings.
+KEYS_STATUS_SUCCESS = "success"
+KEYS_STATUS_FAIL = "fail"
+KEYS_STATUS_NOMATCH = "nomatch"
