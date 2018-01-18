@@ -1,8 +1,8 @@
 from unittest import TestCase
 
-from geopy import distance
 from hypothesis import given
 from hypothesis.strategies import floats, one_of, sampled_from
+from mock import patch
 
 from oasislmf.utils.geo import valid_latitude, valid_longitude, valid_lonlat, get_geodesic_distance
 
@@ -24,10 +24,7 @@ def invalid_longitudes():
 
 
 def geo_distance_methods():
-    return sampled_from([
-        ('vincenty', distance.vincenty),
-        ('great_circle', distance.great_circle),
-    ])
+    return sampled_from(['vincenty', 'great_circle'])
 
 
 def distance_units():
@@ -93,14 +90,35 @@ class ValidLonLat(TestCase):
 class GetGeodesicDistance(TestCase):
     @given(valid_longitudes(), valid_latitudes(), valid_longitudes(), valid_latitudes(), geo_distance_methods(), distance_units())
     def test_all_parameters_are_valid___geopy_value_is_returned_for_correct_method(self, lon1, lat1, lon2, lat2, method, units):
-        method_name, fn = method
-        unit_name, prop = units
+        class FakeGeodesicResult(object):
+            def __init__(self, method, p1, p2):
+                self.method = method
+                self.p1 = p1
+                self.p2 = p2
+                self.props = []
+
+            def __getattr__(self, item):
+                if item in self.__dict__:
+                    return self.__dict__[item]
+                else:
+                    self.props.append(item)
+                    return self
+
+        class FakeGeodesicCalc(object):
+            def vincenty(self, p1, p2):
+                return FakeGeodesicResult('vincenty', p1, p2)
+
+            def great_circle(self, p1, p2):
+                return FakeGeodesicResult('great_circle', p1, p2)
+
+        unit_name, unit_prop = units
         p1 = (lon1, lat1)
         p2 = (lon2, lat2)
 
-        res = get_geodesic_distance(lon1, lat1, lon2, lat2, method_name, unit_name)
+        with patch('oasislmf.utils.geo.distance', FakeGeodesicCalc()):
+            res = get_geodesic_distance(lon1, lat1, lon2, lat2, method, unit_name)
 
-        self.assertEqual(
-            res,
-            getattr(fn(p1, p2), prop),
-        )
+            self.assertEqual(res.method, method)
+            self.assertEqual(res.p1, p1)
+            self.assertEqual(res.p2, p2)
+            self.assertEqual(res.props, [unit_prop])

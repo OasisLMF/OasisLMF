@@ -7,3 +7,6 @@ flake8
 
 # run tests
 tox
+
+# get full coverage stats
+coverage report -i oasislmf/*/*.py oasislmf/*.py
