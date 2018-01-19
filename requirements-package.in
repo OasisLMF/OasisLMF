@@ -5,4 +5,5 @@ requests-toolbelt
 shutilwhich
 jsonpickle
 geopy
+pytz
 -e git+https://github.com/wildfish/argparsetree.git#egg=argparsetree

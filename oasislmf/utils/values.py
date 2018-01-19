@@ -1,13 +1,14 @@
 from datetime import datetime
 
+import pytz
 
 NONE_VALUES = [None, '', 'n/a', 'N/A', 'null', 'Null', 'NULL']
 
 
-def get_timestamp(thedate=None):
+def get_timestamp(thedate=None, fmt='%Y%m%d%H%M%S'):
     """ Get a timestamp """
     d = thedate if thedate else datetime.now()
-    return d.strftime('%Y%m%d%H%M%S')
+    return d.strftime(fmt)
 
 
 def get_utctimestamp(thedate=None, fmt='%Y-%b-%d %H:%M:%S'):
@@ -17,15 +18,15 @@ def get_utctimestamp(thedate=None, fmt='%Y-%b-%d %H:%M:%S'):
 
         YYYY-MMM-DD HH:MM:SS
     """
-    d = thedate if thedate else datetime.now()
-    return d.utcnow().strftime(fmt)
+    d = thedate.astimezone(pytz.utc) if thedate else datetime.utcnow()
+    return d.strftime(fmt)
 
 
 def to_string(val):
     """
     Converts value to string, with possible additional formatting.
     """
-    return str(val) if None else ''
+    return '' if val is None else str(val)
 
 
 def to_int(val):
