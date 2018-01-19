@@ -13,6 +13,7 @@ from requests import RequestException
 
 from oasislmf.api_client.client import OasisAPIClient
 from oasislmf.utils.exceptions import OasisException
+from oasislmf.utils.status import STATUS_FAILURE, STATUS_PENDING, STATUS_SUCCESS
 
 
 class ClientHealthCheck(TestCase):
@@ -265,3 +266,60 @@ class RunAnalysis(TestCase):
             rsps.add(responses.POST, 'http://localhost:8001/analysis/foo', status=200, body=b'{"location": "output-location"}')
 
             self.assertEqual('output-location', client.run_analysis({'analysis': 'data'}, 'foo'))
+
+
+class GetAnalysisStatus(TestCase):
+    def test_request_is_not_ok___exception_is_raised(self):
+        client = OasisAPIClient('http://localhost:8001')
+
+        with responses.RequestsMock() as rsps:
+            rsps.add(responses.GET, 'http://localhost:8001/analysis_status/foo', status=400)
+
+            with self.assertRaises(OasisException):
+                client.get_analysis_status('foo')
+
+    def test_request_status_is_failure___exception_is_raised(self):
+        client = OasisAPIClient('http://localhost:8001')
+
+        with responses.RequestsMock() as rsps:
+            rsps.add(
+                responses.GET,
+                'http://localhost:8001/analysis_status/foo',
+                status=200,
+                body=json.dumps({'status': STATUS_FAILURE, 'message': 'oops'}).encode()
+            )
+
+            with self.assertRaises(OasisException):
+                client.get_analysis_status('foo')
+
+    def test_request_status_is_pending___result_status_is_pending_location_is_empty(self):
+        client = OasisAPIClient('http://localhost:8001')
+
+        with responses.RequestsMock() as rsps:
+            rsps.add(
+                responses.GET,
+                'http://localhost:8001/analysis_status/foo',
+                status=200,
+                body=json.dumps({'status': STATUS_PENDING}).encode()
+            )
+
+            status, outputs_location = client.get_analysis_status('foo')
+
+            self.assertEqual(status, STATUS_PENDING)
+            self.assertEqual(outputs_location, '')
+
+    def test_request_status_is_success___result_status_is_success_location_is_from_response_body(self):
+        client = OasisAPIClient('http://localhost:8001')
+
+        with responses.RequestsMock() as rsps:
+            rsps.add(
+                responses.GET,
+                'http://localhost:8001/analysis_status/foo',
+                status=200,
+                body=json.dumps({'status': STATUS_SUCCESS, 'outputs_location': 'outputs-location'}).encode()
+            )
+
+            status, outputs_location = client.get_analysis_status('foo')
+
+            self.assertEqual(status, STATUS_SUCCESS)
+            self.assertEqual(outputs_location, 'outputs-location')

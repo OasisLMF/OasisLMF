@@ -180,8 +180,26 @@ class OasisAPIClient(object):
 
         return analysis_status_location
 
+    def get_analysis_status(self, analysis_status_location):
+        response = requests.get(self.build_uri('/analysis_status/' + analysis_status_location))
+        if response.status_code != 200:
+            raise OasisException("GET analysis status failed: {}".format(response.status_code))
+
+        self._logger.debug("Response: {}".format(response.json()))
+        status = response.json()['status']
+        self._logger.debug("Analysis status: " + status)
+
+        if status == STATUS_FAILURE:
+            error_message = "Analysis failed: {}".format(response.json()['message'])
+            self._logger.error(error_message)
+            raise OasisException(error_message)
+        elif status == STATUS_SUCCESS:
+            return status, response.json()['outputs_location']
+        else:
+            return status, ''
+
     @oasis_log
-    def run_analysis_and_poll(self, analysis_settings_json, input_location, outputs_directory):
+    def run_analysis_and_poll(self, analysis_settings_json, input_location, outputs_directory, analysis_poll_interval=5):
         """
         Run an analysis to completion or failure.
         Args:
@@ -191,136 +209,43 @@ class OasisAPIClient(object):
         Returns:
             The location of the uploaded inputs.
         """
-        frame = inspect.currentframe()
-        func_name = inspect.getframeinfo(frame)[2]
-        self._logger.info("STARTED: {}".format(func_name))
-        args, _, _, values = inspect.getargvalues(frame)
-        for i in args:
-            if i == 'self':
-                continue
-            self._logger.info("{}={}".format(i, values[i]))
+        analysis_status_location = self.run_analysis(analysis_settings_json, input_location)
 
-        start = time.time()
-
-        request_url = "/analysis/" + input_location
-        response = requests.post(
-            self._oasis_api_url + request_url,
-            json=analysis_settings_json)
-        if response.status_code != 200:
-            self._logger.error(
-                "POST {} failed: {}".format(
-                    request_url, str(response.status_code)))
-            raise Exception("Failed to start analysis")
-        analysis_status_location = response.json()['location']
-        status = STATUS_PENDING
         self._logger.info("Analysis started")
-        analysis_poll_interval_in_seconds = 5
-        request_url = "/analysis_status/"
 
-        while True:
-            self._logger.debug(
-                "Polling analysis status for: {}".format(
-                    analysis_status_location))
-            response = requests.get(
-                self._oasis_api_url + request_url + analysis_status_location)
-            if response.status_code != 200:
-                raise Exception(
-                    "GET analysis status failed: {}".format(
-                        response.status_code))
+        status, outputs_location = self.get_analysis_status(analysis_status_location)
+        while status == STATUS_PENDING:
+            time.sleep(analysis_poll_interval)
+            status, outputs_location = self.get_analysis_status(analysis_status_location)
 
-            self._logger.debug("Response: {}".format(response.json()))
-            status = response.json()['status']
-            message = response.json()['message']
-            self._logger.debug("Analysis status: " + status)
-            if status == STATUS_SUCCESS:
-                break
-            if status == STATUS_FAILURE:
-                error_message = "Analysis failed: {}".format(message)
-                self._logger.error(error_message)
-                raise Exception(error_message)
-            time.sleep(analysis_poll_interval_in_seconds)
-        outputs_location = response.json()['outputs_location']
         self._logger.debug("Analysis completed")
-        func_name = func_name
 
         self._logger.debug("Downloading outputs")
-        outputs_file = os.path.join(
-            outputs_directory, outputs_location + ".tar.gz")
+        outputs_file = os.path.join(outputs_directory, outputs_location + ".tar.gz")
         self.download_outputs(outputs_location, outputs_file)
         self._logger.debug("Downloaded outputs")
 
+        # cleanup
+        self.delete_exposure(input_location)
+        self.delete_outputs(outputs_location)
+
+    def delete_exposure(self, input_location):
         self._logger.debug("Deleting exposure")
-        response = requests.delete(
-            self._oasis_api_url + "/exposure/" + input_location)
+        response = requests.delete(self.build_uri('/exposure/' + input_location))
         if response.status_code != 200:
             # Do not fail if tidy up fails
-            self._logger.warn(
-                "DELETE /exposure failed: {}".format(
-                    str(response.status_code)))
-        self._logger.debug("Deleted exposure")
+            self._logger.warning("DELETE /exposure failed: {}".format(str(response.status_code)))
+        else:
+            self._logger.debug("Deleted exposure")
 
+    def delete_outputs(self, outputs_location):
         self._logger.info("Deleting outputs")
-        response = requests.delete(
-            self._oasis_api_url + "/outputs/" + outputs_location)
+        response = requests.delete(self._oasis_api_url + "/outputs/" + outputs_location)
         if response.status_code != 200:
             # Do not fail if tidy up fails
-            self._logger.warn(
-                "DELETE /outputs failed: {}".format(str(response.status_code)))
-        self._logger.info("Deleted outputs")
-
-        end = time.time()
-        self._logger.debug("COMPLETED: OasisApiClient.run_analysis in {}s".format(round(end - start, 2)))
-
-    @oasis_log
-    def get_analysis_status(self, analysis_status_location):
-        '''
-        Get the status of an analysis.
-        Args:
-            ``analysis_status_location``: Analysis status location
-        Returns:
-            The analysis status, status message and outputs location
-        '''
-        frame = inspect.currentframe()
-        func_name = inspect.getframeinfo(frame)[2]
-        self._logger.info("STARTED: {}".format(func_name))
-        args, _, _, values = inspect.getargvalues(frame)
-        for i in args:
-            if i == 'self':
-                continue
-            self._logger.info("{}={}".format(i, values[i]))
-
-        outputs_location = ""
-        start = time.time()
-        request_url = "/analysis_status/"
-
-        self._logger.debug(
-            "Polling analysis status for: {}".format(
-                analysis_status_location))
-        response = requests.get(
-            self._oasis_api_url + request_url + analysis_status_location)
-        if not response.ok:
-            raise Exception(
-                "GET analysis status failed: {}".format(
-                    response.status_code))
-
-        self._logger.debug("Response: {}".format(response.json()))
-        status = response.json()['status']
-        message = response.json()['message']
-        self._logger.debug("Analysis status: " + status)
-        if status == STATUS_SUCCESS:
-            outputs_location = response.json()['outputs_location']
-            self._logger.debug("Analysis completed")
-        if status == STATUS_FAILURE:
-                error_message = "Analysis failed: {}".format(message)
-                self._logger.error(error_message)
-                raise Exception(error_message)
-
-        end = time.time()
-        self._logger.debug(
-            "COMPLETED: OasisApiClient.run_analysis in {}s".format(
-                round(end - start, 2)))
-
-        return status, message, outputs_location
+            self._logger.warning("DELETE /outputs failed: {}".format(str(response.status_code)))
+        else:
+            self._logger.info("Deleted outputs")
 
     @oasis_log
     def get_output_files(self, outputs_location, outputs_directory, input_location):
