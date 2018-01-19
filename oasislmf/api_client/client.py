@@ -77,7 +77,6 @@ class OasisAPIClient(object):
 
     DOWNLOAD_CHUCK_SIZE_IN_BYTES = 1024
 
-    @oasis_log
     def __init__(self, oasis_api_url, logger=None):
         """
         Construct the client.
@@ -117,10 +116,8 @@ class OasisAPIClient(object):
         """
         try:
             self.check_inputs_directory(directory, do_il)
-            if do_validation:
-                self._validate_inputs(directory)
             self.create_binary_files(directory, do_il)
-            self._create_tar_file(directory)
+            self.create_binary_tar_file(directory)
 
             self._logger.debug("Uploading inputs")
             tar_file = 'inputs.tar.gz'
@@ -432,13 +429,10 @@ class OasisAPIClient(object):
             )
             return False
 
-    def _validate_inputs(self, directory):
-        ''' Validate the input files.'''
-        # TODO
-        pass
-
-    def _create_tar_file(self, directory):
-        ''' Package the binaries in a gzipped tar. '''
+    def create_binary_tar_file(self, directory):
+        """
+        Package the binaries in a gzipped tar.
+        """
         original_cwd = os.getcwd()
         os.chdir(directory)
 
@@ -447,6 +441,7 @@ class OasisAPIClient(object):
                 bin_file = file + ".bin"
                 if os.path.exists(bin_file):
                     tar.add(bin_file)
+
         os.chdir(original_cwd)
 
     def _clean_directory(self, directory_to_check):

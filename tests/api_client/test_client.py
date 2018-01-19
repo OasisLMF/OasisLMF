@@ -1,5 +1,6 @@
 import json
 import string
+import tarfile
 from itertools import chain
 from random import choice
 from tempfile import NamedTemporaryFile
@@ -11,7 +12,7 @@ from unittest import TestCase
 import os
 import responses
 from hypothesis import given
-from hypothesis.strategies import integers
+from hypothesis.strategies import integers, lists, sampled_from
 from mock import patch, Mock
 from requests import RequestException
 
@@ -440,3 +441,41 @@ class DownloadExposures(TestCase):
         client.download_exposure('foo', 'local_filename')
 
         client.download_resource.assert_called_once_with('/exposure/foo', 'local_filename')
+
+
+def tar_file_targets():
+    targets = chain(OasisAPIClient.GUL_INPUTS_FILES, OasisAPIClient.IL_INPUTS_FILES, OasisAPIClient.OPTIONAL_INPUTS_FILES)
+    return lists(
+        sampled_from([target + '.bin' for target in targets]),
+        min_size=1,
+        unique=True,
+    )
+
+
+class CreateBinaryTarFile(TestCase):
+    def test_directory_only_contains_excluded_files___tar_is_empty(self):
+        client = OasisAPIClient('http://localhost:8001')
+
+        with TemporaryDirectory() as d:
+            with open(os.path.join(d, 'another_file'), 'w') as f:
+                f.write('file data')
+
+            client.create_binary_tar_file(d)
+
+            with tarfile.open(os.path.join(d, client.TAR_FILE), 'r:gz') as tar:
+                self.assertEqual(0, len(tar.getnames()))
+
+    @given(tar_file_targets())
+    def test_directory_contains_some_target_files___target_files_are_included(self, targets):
+        client = OasisAPIClient('http://localhost:8001')
+
+        with TemporaryDirectory() as d:
+            for target in targets:
+                with open(os.path.join(d, target), 'w') as f:
+                    f.write(target)
+
+            client.create_binary_tar_file(d)
+
+            with tarfile.open(os.path.join(d, client.TAR_FILE), 'r:gz') as tar:
+                self.assertEqual(len(targets), len(tar.getnames()))
+                self.assertEqual(set(targets), set(tar.getnames()))
