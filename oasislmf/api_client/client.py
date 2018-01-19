@@ -230,17 +230,17 @@ class OasisAPIClient(object):
         self.delete_outputs(outputs_location)
 
     def delete_exposure(self, input_location):
-        self._logger.debug("Deleting exposure")
+        self._logger.info("Deleting exposure")
         response = requests.delete(self.build_uri('/exposure/' + input_location))
         if response.status_code != 200:
             # Do not fail if tidy up fails
             self._logger.warning("DELETE /exposure failed: {}".format(str(response.status_code)))
         else:
-            self._logger.debug("Deleted exposure")
+            self._logger.info("Deleted exposure")
 
     def delete_outputs(self, outputs_location):
         self._logger.info("Deleting outputs")
-        response = requests.delete(self._oasis_api_url + "/outputs/" + outputs_location)
+        response = requests.delete(self.build_uri("/outputs/" + outputs_location))
         if response.status_code != 200:
             # Do not fail if tidy up fails
             self._logger.warning("DELETE /outputs failed: {}".format(str(response.status_code)))

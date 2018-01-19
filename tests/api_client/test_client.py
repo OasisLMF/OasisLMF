@@ -323,3 +323,47 @@ class GetAnalysisStatus(TestCase):
 
             self.assertEqual(status, STATUS_SUCCESS)
             self.assertEqual(outputs_location, 'outputs-location')
+
+
+class DeleteOutputs(TestCase):
+    def test_response_is_not_ok___warning_is_logged(self):
+        client = OasisAPIClient('http://localhost:8001', Mock())
+
+        with responses.RequestsMock() as rsps:
+            rsps.add(responses.DELETE, 'http://localhost:8001/outputs/foo', status=400)
+
+            client.delete_outputs('foo')
+
+            client._logger.warning.assert_called_with("DELETE /outputs failed: 400")
+
+    def test_response_is_ok___info_is_logged(self):
+        client = OasisAPIClient('http://localhost:8001', Mock())
+
+        with responses.RequestsMock() as rsps:
+            rsps.add(responses.DELETE, 'http://localhost:8001/outputs/foo', status=200)
+
+            client.delete_outputs('foo')
+
+            client._logger.info.assert_called_with('Deleted outputs')
+
+
+class DeleteExposure(TestCase):
+    def test_response_is_not_ok___warning_is_logged(self):
+        client = OasisAPIClient('http://localhost:8001', Mock())
+
+        with responses.RequestsMock() as rsps:
+            rsps.add(responses.DELETE, 'http://localhost:8001/exposure/foo', status=400)
+
+            client.delete_exposure('foo')
+
+            client._logger.warning.assert_called_with("DELETE /exposure failed: 400")
+
+    def test_response_is_ok___info_is_logged(self):
+        client = OasisAPIClient('http://localhost:8001', Mock())
+
+        with responses.RequestsMock() as rsps:
+            rsps.add(responses.DELETE, 'http://localhost:8001/exposure/foo', status=200)
+
+            client.delete_exposure('foo')
+
+            client._logger.info.assert_called_with('Deleted exposure')
