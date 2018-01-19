@@ -1,3 +1,4 @@
+import json
 from itertools import chain
 from pathlib2 import Path
 from backports.tempfile import TemporaryDirectory
@@ -241,3 +242,26 @@ class CheckConversionTools(TestCase):
 
         with self.assertRaises(OasisException):
             client.check_conversion_tools()
+
+
+class RunAnalysis(TestCase):
+    def test_request_response_is_not_ok___exception_is_raised(self):
+        client = OasisAPIClient('http://localhost:8001')
+
+        with responses.RequestsMock() as rsps:
+            rsps.add(responses.POST, 'http://localhost:8001/analysis/foo', status=400)
+
+            with self.assertRaises(OasisException):
+                client.run_analysis({'analysis': 'data'}, 'foo')
+
+            self.assertEqual(1, len(rsps.calls))
+            self.assertEqual('http://localhost:8001/analysis/foo', rsps.calls[0].request.url)
+            self.assertEqual({'analysis': 'data'}, json.loads(rsps.calls[0].request.body.decode()))
+
+    def test_request_response_is_ok___response_location_is_returned(self):
+        client = OasisAPIClient('http://localhost:8001')
+
+        with responses.RequestsMock() as rsps:
+            rsps.add(responses.POST, 'http://localhost:8001/analysis/foo', status=200, body=b'{"location": "output-location"}')
+
+            self.assertEqual('output-location', client.run_analysis({'analysis': 'data'}, 'foo'))

@@ -166,33 +166,18 @@ class OasisAPIClient(object):
         Returns:
             The location of analysis status, to poll.
         """
-        frame = inspect.currentframe()
-        func_name = inspect.getframeinfo(frame)[2]
-        self._logger.info("STARTED: {}".format(func_name))
-        args, _, _, values = inspect.getargvalues(frame)
-        for i in args:
-            if i == 'self':
-                continue
-            self._logger.info("{}={}".format(i, values[i]))
-
-        start = time.time()
-
-        request_url = "/analysis/" + input_location
         response = requests.post(
-            self._oasis_api_url + request_url,
-            json=analysis_settings_json)
+            self.build_uri("/analysis/" + input_location),
+            json=analysis_settings_json,
+        )
+
         if not response.ok:
-            self._logger.error(
-                "POST {} failed: {}".format(
-                    request_url, str(response.status_code)))
-            raise Exception("Failed to start analysis")
+            self._logger.error("POST {} failed: {}".format(response.request.url, str(response.status_code)))
+            raise OasisException("Failed to start analysis")
+
         analysis_status_location = response.json()['location']
         self._logger.info("Analysis started")
 
-        end = time.time()
-        self._logger.debug(
-            "COMPLETED: OasisApiClient.run_analysis in {}s".format(
-                round(end - start, 2)))
         return analysis_status_location
 
     @oasis_log
