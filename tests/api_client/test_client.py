@@ -197,3 +197,47 @@ class CheckInputDirectory(TestCase):
                 client.check_inputs_directory(d, False)
             except Exception as e:
                 self.fail('Exception was raised {}: {}'.format(type(e), e))
+
+
+class CheckConversionTools(TestCase):
+    def test_conversion_tools_are_set_correctly(self):
+        client = OasisAPIClient('http://localhost:8001')
+
+        self.assertEqual(
+            client.CONVERSION_TOOLS,
+            {
+                'coverages': 'coveragetobin',
+                'events': 'evetobin',
+                'fm_policytc': 'fmpolicytctobin',
+                'fm_profile': 'fmprofiletobin',
+                'fm_programme': 'fmprogrammetobin',
+                'fm_xref': 'fmxreftobin',
+                'fmsummaryxref': 'fmsummaryxreftobin',
+                'gulsummaryxref': 'gulsummaryxreftobin',
+                'items': "itemtobin"
+            }
+        )
+
+    def test_conversion_tools_are_empty___result_is_true(self):
+        client = OasisAPIClient('http://localhost:8001')
+        client.CONVERSION_TOOLS = {}
+
+        self.assertTrue(client.check_conversion_tools())
+
+    def test_conversion_tools_all_exist___result_is_true(self):
+        client = OasisAPIClient('http://localhost:8001')
+        client.CONVERSION_TOOLS = {
+            'py': 'python'
+        }
+
+        self.assertTrue(client.check_conversion_tools())
+
+    def test_some_conversion_tools_are_missing___error_is_raised(self):
+        client = OasisAPIClient('http://localhost:8001')
+        client.CONVERSION_TOOLS = {
+            'py': 'python',
+            'missing': 'missing_executable_foo_bar_boo',
+        }
+
+        with self.assertRaises(OasisException):
+            client.check_conversion_tools()

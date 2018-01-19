@@ -97,10 +97,11 @@ class OasisAPIClient(object):
         for tool in six.itervalues(self.CONVERSION_TOOLS):
             self._logger.debug(shutilwhich.which(tool))
             if shutilwhich.which(str(tool)) is None:
-                error_message = "Failed to find conversion tool: {}"\
-                                .format(tool)
+                error_message = "Failed to find conversion tool: {}".format(tool)
                 self._logger.error(error_message)
-                raise Exception(error_message)
+                raise OasisException(error_message)
+
+        return True
 
     @oasis_log
     def upload_inputs_from_directory(self, directory, do_il=True, do_validation=False, do_clean=True):
