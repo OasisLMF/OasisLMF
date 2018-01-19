@@ -6,4 +6,6 @@ shutilwhich
 jsonpickle
 geopy
 pytz
+pathlib2
+backports.tempfile
 -e git+https://github.com/wildfish/argparsetree.git#egg=argparsetree

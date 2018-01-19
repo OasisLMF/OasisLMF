@@ -5,7 +5,10 @@ import logging
 from itertools import chain
 
 import six
+from six.moves import urllib
 from requests import RequestException
+
+from oasislmf.utils.exceptions import OasisException
 
 __all__ = [
     'OasisAPIClient'
@@ -86,6 +89,9 @@ class OasisAPIClient(object):
         self._oasis_api_url = oasis_api_url
         self._logger = logger or logging.getLogger()
 
+    def build_uri(self, path):
+        return urllib.parse.urljoin(self._oasis_api_url, path)
+
     def check_conversion_tools(self):
         # Check that the conversion tools are available
         for tool in six.itervalues(self.CONVERSION_TOOLS):
@@ -108,53 +114,45 @@ class OasisAPIClient(object):
         Returns:
             The location of the uploaded inputs.
         """
-        frame = inspect.currentframe()
-        func_name = inspect.getframeinfo(frame)[2]
-        self._logger.info("STARTED: {}".format(func_name))
-        args, _, _, values = inspect.getargvalues(frame)
-        for i in args:
-            if i == 'self':
-                continue
-            self._logger.info("{}={}".format(i, values[i]))
-        start = time.time()
+        try:
+            self.check_inputs_directory(directory, do_il)
+            if do_validation:
+                self._validate_inputs(directory)
+            self.create_binary_files(directory, do_il)
+            self._create_tar_file(directory)
 
-        self.check_inputs_directory(directory, do_il)
-        if do_validation:
-            self._validate_inputs(directory)
-        self.create_binary_files(directory, do_il)
-        self._create_tar_file(directory)
+            self._logger.debug("Uploading inputs")
+            tar_file = 'inputs.tar.gz'
+            inputs_tar_to_upload = os.path.join(directory, tar_file)
 
-        self._logger.debug("Uploading inputs")
-        tar_file = 'inputs.tar.gz'
-        inputs_tar_to_upload = os.path.join(directory, tar_file)
-        inputs_multipart_data = MultipartEncoder(
-            fields={
-                'file': (tar_file,
-                         open(inputs_tar_to_upload, 'rb'),
-                         'text/plain')})
-        request_url = "/exposure"
-        response = requests.post(
-            self._oasis_api_url + request_url,
-            data=inputs_multipart_data,
-            headers={'Content-Type': inputs_multipart_data.content_type})
-        if not response.ok:
-            self._logger.error(
-                "POST {} failed: {}, {}".format(
-                    request_url, str(response.status_code), str(response.json)))
-            raise Exception("Failed to save exposure.")
-        exposure_location = response.json()['exposures'][0]['location']
-        self._logger.debug("Uploaded exposure. Location: " + exposure_location)
+            with open(inputs_tar_to_upload, 'rb') as f:
+                inputs_multipart_data = MultipartEncoder(
+                    fields={
+                        'file': (tar_file, f, 'text/plain')
+                    }
+                )
 
-        # Tidy up
-        if do_clean:
-            self._clean_directory(directory)
+                response = requests.post(
+                    self.build_uri('/exposure'),
+                    data=inputs_multipart_data,
+                    headers={'Content-Type': inputs_multipart_data.content_type}
+                )
 
-        end = time.time()
-        self._logger.info(
-            "COMPLETED: {} in {}s".format(func_name, round(end - start, 2)))
+            if not response.ok:
+                self._logger.error(
+                    "POST {} failed: {}, {}".format(response.request.url, str(response.status_code), str(response.json))
+                )
+                raise Exception("Failed to save exposure.")
 
-        # Return the location of the uploaded inputs
-        return exposure_location
+            exposure_location = response.json()['exposures'][0]['location']
+            self._logger.debug("Uploaded exposure. Location: " + exposure_location)
+
+            # Return the location of the uploaded inputs
+            return exposure_location
+        finally:
+            # Tidy up
+            if do_clean:
+                self._clean_directory(directory)
 
     @oasis_log
     def run_analysis(self, analysis_settings_json, input_location):
@@ -575,25 +573,21 @@ class OasisAPIClient(object):
         """
         file_path = os.path.join(directory_to_check, self.TAR_FILE)
         if os.path.exists(file_path):
-            raise Exception(
-                "Inputs tar file already exists: {}".format(file_path))
+            raise OasisException("Inputs tar file already exists: {}".format(file_path))
 
         if do_il:
-            input_files = self.GUL_INPUTS_FILES + self.IL_INPUTS_FILES
+            input_files = chain(self.GUL_INPUTS_FILES, self.IL_INPUTS_FILES)
         else:
             input_files = self.GUL_INPUTS_FILES
 
         for input_file in input_files:
-            file_path = os.path.join(
-                directory_to_check, input_file + ".csv")
+            file_path = os.path.join(directory_to_check, input_file + ".csv")
             if not os.path.exists(file_path):
-                raise Exception(
-                    "Failed to find {}".format(file_path))
-            file_path = os.path.join(
-                directory_to_check, input_file + ".bin")
+                raise OasisException("Failed to find {}".format(file_path))
+
+            file_path = os.path.join(directory_to_check, input_file + ".bin")
             if os.path.exists(file_path):
-                raise Exception(
-                    "Binary file already exists: {}".format(file_path))
+                raise OasisException("Binary file already exists: {}".format(file_path))
 
     @oasis_log
     def health_check(self, poll_attempts=1, retry_delay=5):
