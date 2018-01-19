@@ -229,147 +229,59 @@ class OasisAPIClient(object):
         self.delete_exposure(input_location)
         self.delete_outputs(outputs_location)
 
-    def delete_exposure(self, input_location):
-        self._logger.info("Deleting exposure")
-        response = requests.delete(self.build_uri('/exposure/' + input_location))
+    def delete_resource(self, url):
+        response = requests.delete(self.build_uri(url))
         if response.status_code != 200:
-            # Do not fail if tidy up fails
-            self._logger.warning("DELETE /exposure failed: {}".format(str(response.status_code)))
+            self._logger.warning("DELETE {} failed: {}".format(response.request.url, response.status_code))
         else:
-            self._logger.info("Deleted exposure")
-
-    def delete_outputs(self, outputs_location):
-        self._logger.info("Deleting outputs")
-        response = requests.delete(self.build_uri("/outputs/" + outputs_location))
-        if response.status_code != 200:
-            # Do not fail if tidy up fails
-            self._logger.warning("DELETE /outputs failed: {}".format(str(response.status_code)))
-        else:
-            self._logger.info("Deleted outputs")
+            self._logger.info("Deleted {}".format(response.request.url))
 
     @oasis_log
-    def get_output_files(self, outputs_location, outputs_directory, input_location):
-        frame = inspect.currentframe()
-        func_name = inspect.getframeinfo(frame)[2]
-        self._logger.info("STARTED: {}".format(func_name))
-        args, _, _, values = inspect.getargvalues(frame)
-        for i in args:
-            if i == 'self':
-                continue
-            self._logger.info("{}={}".format(i, values[i]))
-        start = time.time()
+    def delete_exposure(self, input_location):
+        self._logger.info("Deleting exposure")
+        self.delete_resource('/exposure/' + input_location)
 
-        self._logger.debug("Downloading outputs")
-        outputs_file = os.path.join(
-            outputs_directory, outputs_location + ".tar.gz")
-        download_outputs_status = self.download_outputs(outputs_location, outputs_file)
-        self._logger.debug("Downloaded outputs")
-
-        self._logger.debug("Deleting exposure")
-        response = requests.delete(
-            self._oasis_api_url + "/exposure/" + input_location)
-        if not response.ok:
-            # Do not fail if tidy up fails
-            self._logger.warn(
-                "DELETE /exposure failed: {}".format(
-                    str(response.status_code)))
-        self._logger.debug("Deleted exposure")
-
+    @oasis_log
+    def delete_outputs(self, outputs_location):
         self._logger.info("Deleting outputs")
-        response = requests.delete(
-            self._oasis_api_url + "/outputs/" + outputs_location)
-        if not response.ok:
-            # Do not fail if tidy up fails
-            self._logger.warn(
-                "DELETE /outputs failed: {}".format(str(response.status_code)))
-        self._logger.info("Deleted outputs")
+        self.delete_resource('/outputs/' + outputs_location)
 
-        end = time.time()
-        self._logger.debug(
-            "COMPLETED: OasisApiClient.run_analysis in {}s".format(
-                round(end - start, 2)))
-        return download_outputs_status
+    def download_resource(self, url, localfile):
+        if os.path.exists(localfile):
+            error_message = 'Local file alreday exists: {}'.format(localfile)
+            self._logger.error(error_message)
+            raise OasisException(error_message)
+
+        response = requests.get(self.build_uri(url), stream=True)
+        if not response.ok:
+            exception_message = 'GET {} failed: {}'.format(response.request.url, response.status_code)
+            self._logger.error(exception_message)
+            raise OasisException(exception_message)
+
+        with open(localfile, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=self.DOWNLOAD_CHUCK_SIZE_IN_BYTES):
+                if chunk:
+                    f.write(chunk)
 
     @oasis_log
     def download_exposure(self, exposure_location, localfile):
-        '''
+        """
         Download exposure data to a specified local file.
         Args:
             ``exposure_location`` (string): The location of the exposure resource.
             ``localfile` (string): The localfile to download to.
-        '''
-        frame = inspect.currentframe()
-        func_name = inspect.getframeinfo(frame)[2]
-        self._logger.info("STARTED: {}".format(func_name))
-        args, _, _, values = inspect.getargvalues(frame)
-        for i in args:
-            if i == 'self':
-                continue
-            self._logger.info("{}={}".format(i, values[i]))
-        start = time.time()
-
-        response = requests.get(
-            self._oasis_api_url + "/exposure/" + exposure_location,
-            stream=True)
-        if not response.ok:
-            exception_message = "GET /exposure failed: {}".format(
-                str(response.status_code))
-            self._logger.error(exception_message)
-            raise Exception(exception_message)
-
-        with open(localfile, 'wb') as f:
-            for chunk in response.iter_content(
-                    chunk_size=self.DOWNLOAD_CHUCK_SIZE_IN_BYTES):
-                if chunk:
-                    f.write(chunk)
-
-        end = time.time()
-        self._logger.info(
-            "COMPLETED: {} in {}s".format(
-                func_name, round(end - start, 2)))
+        """
+        self.download_resource('/exposure/' + exposure_location, localfile)
 
     @oasis_log
     def download_outputs(self, outputs_location, localfile):
-        '''
+        """
         Download outputs data to a specified local file.
         Args:
             ``outputs_location`` (string): The location of the outputs resource.
             ``localfile`` (string): The localfile to download to.
-        '''
-        frame = inspect.currentframe()
-        func_name = inspect.getframeinfo(frame)[2]
-        self._logger.info("STARTED: {}".format(func_name))
-        args, _, _, values = inspect.getargvalues(frame)
-        for i in args:
-            if i == 'self':
-                continue
-            self._logger.info("{}={}".format(i, values[i]))
-        start = time.time()
-
-        if os.path.exists(localfile):
-            error_message = 'Local file alreday exists: {}'.format(localfile)
-            self._logger.error(error_message)
-            raise Exception(error_message)
-
-        response = requests.get(
-            self._oasis_api_url + "/outputs/" + outputs_location,
-            stream=True)
-        if not response.ok:
-            exception_message = "GET /outputs failed: {}".format(
-                str(response.status_code))
-            self._logger.error(exception_message)
-            raise Exception(exception_message)
-
-        with open(localfile, 'wb') as f:
-            for chunk in response.iter_content(
-                    chunk_size=self.DOWNLOAD_CHUCK_SIZE_IN_BYTES):
-                if chunk:
-                    f.write(chunk)
-
-        end = time.time()
-        self._logger.info(
-            "COMPLETED: {} in {}s".format(
-                func_name, round(end - start, 2)))
+        """
+        self.download_resource('/outputs/' + outputs_location, localfile)
 
     @oasis_log
     def create_analysis_settings_json(self, directory):

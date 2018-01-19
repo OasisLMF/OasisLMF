@@ -1,5 +1,9 @@
 import json
+import string
 from itertools import chain
+from random import choice
+from tempfile import NamedTemporaryFile
+
 from pathlib2 import Path
 from backports.tempfile import TemporaryDirectory
 from unittest import TestCase
@@ -325,45 +329,114 @@ class GetAnalysisStatus(TestCase):
             self.assertEqual(outputs_location, 'outputs-location')
 
 
+class DeleteResource(TestCase):
+    def test_response_is_not_ok___warning_is_logged(self):
+        client = OasisAPIClient('http://localhost:8001', Mock())
+
+        with responses.RequestsMock() as rsps:
+            rsps.add(responses.DELETE, 'http://localhost:8001/foo', status=400)
+
+            client.delete_resource('foo')
+
+            client._logger.warning.assert_called_with("DELETE http://localhost:8001/foo failed: 400")
+
+    def test_response_is_ok___info_is_logged(self):
+        client = OasisAPIClient('http://localhost:8001', Mock())
+
+        with responses.RequestsMock() as rsps:
+            rsps.add(responses.DELETE, 'http://localhost:8001/foo', status=200)
+
+            client.delete_resource('foo')
+
+            client._logger.info.assert_called_with('Deleted http://localhost:8001/foo')
+
+
 class DeleteOutputs(TestCase):
-    def test_response_is_not_ok___warning_is_logged(self):
-        client = OasisAPIClient('http://localhost:8001', Mock())
+    def test_delete_resource_is_called_with_the_correct_parameters(self):
+        client = OasisAPIClient('http://localhost:8001')
+        client.delete_resource = Mock()
+
+        client.delete_outputs('foo')
+
+        client.delete_resource.assert_called_once_with('/outputs/foo')
+
+
+class DeleteExposures(TestCase):
+    def test_delete_resource_is_called_with_the_correct_parameters(self):
+        client = OasisAPIClient('http://localhost:8001')
+        client.delete_resource = Mock()
+
+        client.delete_exposure('foo')
+
+        client.delete_resource.assert_called_once_with('/exposure/foo')
+
+
+class DownloadResource(TestCase):
+    def test_local_file_already_exists___exception_is_raised_and_file_is_unchanged(self):
+        client = OasisAPIClient('http://localhost:8001')
+
+        with NamedTemporaryFile('w+') as f:
+            f.write('foobarboo')
+            f.flush()
+
+            with self.assertRaises(OasisException):
+                client.download_resource('foo', f.name)
+
+            f.seek(0)
+            self.assertEqual('foobarboo', f.read())
+
+    def test_response_is_not_ok___exception_is_raised_and_file_is_not_created(self):
+        client = OasisAPIClient('http://localhost:8001')
+
+        with NamedTemporaryFile('w') as f:
+            local_filename = f.name
 
         with responses.RequestsMock() as rsps:
-            rsps.add(responses.DELETE, 'http://localhost:8001/outputs/foo', status=400)
+            rsps.add(responses.GET, 'http://localhost:8001/foo', status=400)
 
-            client.delete_outputs('foo')
+            with self.assertRaises(OasisException):
+                client.download_resource('foo', local_filename)
 
-            client._logger.warning.assert_called_with("DELETE /outputs failed: 400")
+            self.assertFalse(os.path.exists(local_filename))
 
-    def test_response_is_ok___info_is_logged(self):
-        client = OasisAPIClient('http://localhost:8001', Mock())
+    def test_response_is_ok___file_is_created_with_correct_content(self):
+        client = OasisAPIClient('http://localhost:8001')
+        client.DOWNLOAD_CHUCK_SIZE_IN_BYTES = 10
 
-        with responses.RequestsMock() as rsps:
-            rsps.add(responses.DELETE, 'http://localhost:8001/outputs/foo', status=200)
+        expected_content = ''.join(choice(string.ascii_letters) for i in range(2 * client.DOWNLOAD_CHUCK_SIZE_IN_BYTES)).encode()
 
-            client.delete_outputs('foo')
-
-            client._logger.info.assert_called_with('Deleted outputs')
-
-
-class DeleteExposure(TestCase):
-    def test_response_is_not_ok___warning_is_logged(self):
-        client = OasisAPIClient('http://localhost:8001', Mock())
+        with NamedTemporaryFile('w') as f:
+            local_filename = f.name
 
         with responses.RequestsMock() as rsps:
-            rsps.add(responses.DELETE, 'http://localhost:8001/exposure/foo', status=400)
+            rsps.add(responses.GET, 'http://localhost:8001/foo', status=200, body=expected_content)
 
-            client.delete_exposure('foo')
+            client.download_resource('foo', local_filename)
 
-            client._logger.warning.assert_called_with("DELETE /exposure failed: 400")
+            self.assertTrue(os.path.exists(local_filename))
 
-    def test_response_is_ok___info_is_logged(self):
-        client = OasisAPIClient('http://localhost:8001', Mock())
+            with open(local_filename, 'rb') as f:
+                dld_content = f.read()
 
-        with responses.RequestsMock() as rsps:
-            rsps.add(responses.DELETE, 'http://localhost:8001/exposure/foo', status=200)
+            os.remove(local_filename)
+            self.assertEqual(expected_content, dld_content)
 
-            client.delete_exposure('foo')
 
-            client._logger.info.assert_called_with('Deleted exposure')
+class DownloadOutputs(TestCase):
+    def test_download_resource_is_called_with_the_correct_parameters(self):
+        client = OasisAPIClient('http://localhost:8001')
+        client.download_resource = Mock()
+
+        client.download_outputs('foo', 'local_filename')
+
+        client.download_resource.assert_called_once_with('/outputs/foo', 'local_filename')
+
+
+class DownloadExposures(TestCase):
+    def test_download_resource_is_called_with_the_correct_parameters(self):
+        client = OasisAPIClient('http://localhost:8001')
+        client.download_resource = Mock()
+
+        client.download_exposure('foo', 'local_filename')
+
+        client.download_resource.assert_called_once_with('/exposure/foo', 'local_filename')
