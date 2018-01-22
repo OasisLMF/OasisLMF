@@ -8,6 +8,7 @@ from backports.tempfile import TemporaryDirectory
 from unittest import TestCase
 
 import os
+import subprocess
 
 from copy import deepcopy
 from hypothesis import given
@@ -82,6 +83,14 @@ class CreateBinaryFiles(TestCase):
             self.assertEqual(len(standard) + len(il), len(glob.glob(os.path.join(bin_dir, '*.bin'))))
             for filename in (f + '.bin' for f in chain(standard, il)):
                 self.assertTrue(os.path.exists(os.path.join(bin_dir, filename)))
+
+    def test_subprocess_raises___oasis_exception_is_raised(self):
+        with TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
+            Path(os.path.join(csv_dir, 'events.csv')).touch()
+
+            with patch('oasislmf.model_execution.bin.subprocess.check_call', Mock(side_effect=subprocess.CalledProcessError(1, ''))):
+                with self.assertRaises(OasisException):
+                    create_binary_files(csv_dir, bin_dir, do_il=True)
 
 
 class CreateBinaryTarFile(TestCase):
@@ -257,6 +266,20 @@ class PrepareModelRunDirectory(TestCase):
             self.assertTrue(os.path.exists(os.path.join(d, 'static')))
             self.assertTrue(os.path.exists(os.path.join(d, 'work')))
 
+    def test_directory_has_some_exisitng_directories___other_child_directories_are_created(self):
+        with TemporaryDirectory() as d:
+            os.mkdir(os.path.join(d, 'fifo'))
+            os.mkdir(os.path.join(d, 'input'))
+
+            prepare_model_run_directory(d)
+
+            self.assertTrue(os.path.exists(os.path.join(d, 'fifo')))
+            self.assertTrue(os.path.exists(os.path.join(d, 'input')))
+            self.assertTrue(os.path.exists(os.path.join(d, 'input', 'csv')))
+            self.assertTrue(os.path.exists(os.path.join(d, 'output')))
+            self.assertTrue(os.path.exists(os.path.join(d, 'static')))
+            self.assertTrue(os.path.exists(os.path.join(d, 'work')))
+
     def test_input_directory_is_supplied___input_files_are_copied_to_input_csv(self):
         with TemporaryDirectory() as output_path, TemporaryDirectory() as input_path:
             Path(os.path.join(input_path, 'a_file.csv')).touch()
@@ -280,6 +303,15 @@ class PrepareModelRunDirectory(TestCase):
             Path(os.path.join(input_path, 'linked_file')).touch()
 
             prepare_model_run_directory(output_path, model_data_src_path=input_path)
+
+            self.assertTrue(os.path.exists(os.path.join(output_path, 'static', 'linked_file')))
+
+    def test_model_data_src_is_supplied_sym_link_raises___input_is_copied_from_static(self):
+        with TemporaryDirectory() as output_path, TemporaryDirectory() as input_path:
+            Path(os.path.join(input_path, 'linked_file')).touch()
+
+            with patch('os.symlink', Mock(side_effect=OSError())):
+                prepare_model_run_directory(output_path, model_data_src_path=input_path)
 
             self.assertTrue(os.path.exists(os.path.join(output_path, 'static', 'linked_file')))
 
