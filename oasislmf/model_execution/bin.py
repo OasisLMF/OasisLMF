@@ -116,11 +116,29 @@ def prepare_model_run_directory(
                 except Exception:
                     shutil.copytree(model_data_src_path, os.path.join(model_data_dest_path, filename))
 
-    except (OSError, shutil.Error) as e:
+    except OSError as e:
         raise OasisException(e)
 
 
-def prepare_model_run_inputs(analysis_settings, run_directory, model_data_path):
+def _prepare_input_bin(run_directory, bin_name, model_settings, setting_key=None):
+    bin_file_path = os.path.join(run_directory, 'input', '{}.bin'.format(bin_name))
+    if not os.path.exists(bin_file_path):
+        setting_val = model_settings.get(setting_key)
+
+        if not setting_val:
+            model_data_bin_file_path = os.path.join(run_directory, 'static', '{}.bin'.format(bin_name))
+        else:
+            # Format for data file names
+            setting_val = setting_val.replace(' ', '_').lower()
+            model_data_bin_file_path = os.path.join(run_directory, 'static', '{}_{}.bin'.format(bin_name, setting_val))
+
+        if not os.path.exists(model_data_bin_file_path):
+            raise OasisException('Could not find {} data file: {}'.format(bin_name, model_data_bin_file_path))
+
+        shutil.copyfile(model_data_bin_file_path, bin_file_path)
+
+
+def prepare_model_run_inputs(analysis_settings, run_directory):
     """
     Sets up binary files in the model inputs directory.
 
@@ -130,58 +148,14 @@ def prepare_model_run_inputs(analysis_settings, run_directory, model_data_path):
     :param run_directory: model run directory
     :type run_directory: str
     """
-
-    # If an events file has not been included in the analysis input,
-    # then use the default file with all events from the model data.
     try:
-        rdp = run_directory
+        model_settings = analysis_settings.get('model_settings', {})
 
-        analysis_events_file_path = os.path.join(rdp, 'input', 'events.bin')
-        if not os.path.exists(analysis_events_file_path):
-            event_set = analysis_settings["model_settings"]["event_set"]
-            if not event_set:
-                model_data_events_file_path = os.path.join(
-                    rdp, 'static', 'events.bin')
-            else:
-                # Format for data file names
-                event_set = event_set.replace(' ', '_').lower()
-                model_data_events_file_path = os.path.join(
-                    rdp, 'static', 'events_{}.bin'.format(event_set))
-            if not os.path.exists(model_data_events_file_path):
-                raise OasisException(
-                    "Could not find events data file: {}".format(model_data_events_file_path)
-                )
-            shutil.copyfile(model_data_events_file_path, analysis_events_file_path)
-
-        # If a return periods file has not been included in the analysis input,
-        # then use the default from the model data.
-        analysis_returnperiods_file_path = os.path.join(rdp, 'input', 'returnperiods.bin')
-        model_data_returnperiods_file_path = os.path.join(rdp, 'static', 'returnperiods.bin')
-        if not os.path.exists(analysis_returnperiods_file_path):
-            shutil.copy2(model_data_returnperiods_file_path, os.path.join(rdp, 'input'))
-
-        # Copy the occurrence file from 'static' to 'input'
-        analysis_occurrence_file_path = os.path.join(rdp, 'input', 'occurrence.bin')
-        try:
-            occurrence_id = analysis_settings["model_settings"]["event_occurrence_id"]
-        except KeyError:
-            model_data_occurrence_file_path = os.path.join(rdp, 'static', 'occurrence.bin')
-        else:
-            occurrence_id = occurrence_id.replace(' ', '_').lower()
-            model_data_occurrence_file_path = os.path.join(rdp, 'static', 'occurrence{}.bin'.format(occurrence_id))
-
-        if not os.path.exists(analysis_events_file_path):
-            raise OasisException(
-                "Could not find occurrence data file: {}".format(model_data_occurrence_file_path)
-            )
-        else:
-            shutil.copyfile(model_data_occurrence_file_path, analysis_occurrence_file_path)
-
-        # Copy the periods file from 'static' to 'input'
-        model_data_periods_file_path = os.path.join(rdp, 'static', 'periods.bin')
-        if os.path.exists(model_data_periods_file_path):
-            shutil.copy2(model_data_periods_file_path, os.path.join(rdp, 'input'))
-    except (OSError, IOError, shutil.Error) as e:
+        _prepare_input_bin(run_directory, 'events', model_settings, setting_key='event_set')
+        _prepare_input_bin(run_directory, 'returnperiods', model_settings)
+        _prepare_input_bin(run_directory, 'occurrence', model_settings, setting_key='event_occurrence_id')
+        _prepare_input_bin(run_directory, 'periods', model_settings)
+    except (OSError, IOError) as e:
         raise OasisException(e)
 
 

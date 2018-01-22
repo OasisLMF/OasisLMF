@@ -12,12 +12,12 @@ import os
 from copy import deepcopy
 from hypothesis import given
 from hypothesis.strategies import sampled_from, lists
-from mock import patch
+from mock import patch, Mock
 from pathlib2 import Path
 
 from oasislmf.model_execution.bin import create_binary_files, INPUT_FILES, create_binary_tar_file, TAR_FILE, \
     check_conversion_tools, check_inputs_directory, GUL_INPUT_FILES, OPTIONAL_INPUT_FILES, IL_INPUT_FILES, \
-    prepare_model_run_directory
+    prepare_model_run_directory, prepare_model_run_inputs
 from oasislmf.utils.exceptions import OasisException
 
 ECHO_CONVERSION_INPUT_FILES = {k: ChainMap({'conversion_tool': 'echo'}, v) for k, v in INPUT_FILES.items()}
@@ -282,3 +282,180 @@ class PrepareModelRunDirectory(TestCase):
             prepare_model_run_directory(output_path, model_data_src_path=input_path)
 
             self.assertTrue(os.path.exists(os.path.join(output_path, 'static', 'linked_file')))
+
+
+class PrepareModelRunInputs(TestCase):
+    def make_fake_bins(self, d):
+        os.mkdir(os.path.join(d, 'input'))
+        os.mkdir(os.path.join(d, 'static'))
+        Path(os.path.join(d, 'static', 'events.bin')).touch()
+        Path(os.path.join(d, 'static', 'returnperiods.bin')).touch()
+        Path(os.path.join(d, 'static', 'occurrence.bin')).touch()
+        Path(os.path.join(d, 'static', 'periods.bin')).touch()
+
+    def test_prepare_input_bin_raises___oasis_exception_is_raised(self):
+        with patch('oasislmf.model_execution.bin._prepare_input_bin', Mock(side_effect=OSError('os error'))):
+            with self.assertRaises(OasisException):
+                prepare_model_run_inputs({}, 'some_dir')
+
+    def test_events_bin_already_exists___existing_bin_is_uncahnged(self):
+        with TemporaryDirectory() as d:
+            self.make_fake_bins(d)
+
+            with open(os.path.join(d, 'input', 'events.bin'), 'w') as events_file:
+                events_file.write('events bin')
+                events_file.flush()
+
+                prepare_model_run_inputs({}, d)
+
+            with open(os.path.join(d, 'input', 'events.bin'), 'r') as new_events_file:
+                self.assertEqual('events bin', new_events_file.read())
+
+    def test_events_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
+        with TemporaryDirectory() as d:
+            self.make_fake_bins(d)
+
+            with open(os.path.join(d, 'static', 'events.bin'), 'w') as events_file:
+                events_file.write('events bin')
+                events_file.flush()
+
+                prepare_model_run_inputs({}, d)
+
+            with open(os.path.join(d, 'input', 'events.bin'), 'r') as new_events_file:
+                self.assertEqual('events bin', new_events_file.read())
+
+    def test_events_bin_doesnt_not_exist_event_set_is_specified___event_set_specific_bin_is_copied_from_static(self):
+        with TemporaryDirectory() as d:
+            self.make_fake_bins(d)
+
+            with open(os.path.join(d, 'static', 'events_from_set.bin'), 'w') as events_file:
+                events_file.write('events from set bin')
+                events_file.flush()
+
+                prepare_model_run_inputs({'model_settings': {'event_set': 'from set'}}, d)
+
+            with open(os.path.join(d, 'input', 'events.bin'), 'r') as new_events_file:
+                self.assertEqual('events from set bin', new_events_file.read())
+
+    def test_no_events_bin_exists___oasis_exception_is_raised(self):
+        with TemporaryDirectory() as d:
+            self.make_fake_bins(d)
+            os.remove(os.path.join(d, 'static', 'events.bin'))
+
+            with self.assertRaises(OasisException):
+                prepare_model_run_inputs({}, d)
+
+    def test_returnperiods_bin_already_exists___existing_bin_is_uncahnged(self):
+        with TemporaryDirectory() as d:
+            self.make_fake_bins(d)
+
+            with open(os.path.join(d, 'input', 'returnperiods.bin'), 'w') as returnperiods_file:
+                returnperiods_file.write('returnperiods bin')
+                returnperiods_file.flush()
+
+                prepare_model_run_inputs({}, d)
+
+            with open(os.path.join(d, 'input', 'returnperiods.bin'), 'r') as new_returnperiods_file:
+                self.assertEqual('returnperiods bin', new_returnperiods_file.read())
+
+    def test_returnperiods_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
+        with TemporaryDirectory() as d:
+            self.make_fake_bins(d)
+
+            with open(os.path.join(d, 'static', 'returnperiods.bin'), 'w') as returnperiods_file:
+                returnperiods_file.write('returnperiods bin')
+                returnperiods_file.flush()
+
+                prepare_model_run_inputs({}, d)
+
+            with open(os.path.join(d, 'input', 'returnperiods.bin'), 'r') as new_returnperiods_file:
+                self.assertEqual('returnperiods bin', new_returnperiods_file.read())
+
+    def test_no_returnperiods_bin_exists___oasis_exception_is_raised(self):
+        with TemporaryDirectory() as d:
+            self.make_fake_bins(d)
+            os.remove(os.path.join(d, 'static', 'returnperiods.bin'))
+
+            with self.assertRaises(OasisException):
+                prepare_model_run_inputs({}, d)
+
+    def test_occurrence_bin_already_exists___existing_bin_is_uncahnged(self):
+        with TemporaryDirectory() as d:
+            self.make_fake_bins(d)
+
+            with open(os.path.join(d, 'input', 'occurrence.bin'), 'w') as occurrence_file:
+                occurrence_file.write('occurrence bin')
+                occurrence_file.flush()
+
+                prepare_model_run_inputs({}, d)
+
+            with open(os.path.join(d, 'input', 'occurrence.bin'), 'r') as new_occurrence_file:
+                self.assertEqual('occurrence bin', new_occurrence_file.read())
+
+    def test_occurrence_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
+        with TemporaryDirectory() as d:
+            self.make_fake_bins(d)
+
+            with open(os.path.join(d, 'static', 'occurrence.bin'), 'w') as occurrence_file:
+                occurrence_file.write('occurrence bin')
+                occurrence_file.flush()
+
+                prepare_model_run_inputs({}, d)
+
+            with open(os.path.join(d, 'input', 'occurrence.bin'), 'r') as new_occurrence_file:
+                self.assertEqual('occurrence bin', new_occurrence_file.read())
+
+    def test_occurrence_bin_doesnt_not_exist_event_set_is_specified___event_occurrence_id_specific_bin_is_copied_from_static(self):
+        with TemporaryDirectory() as d:
+            self.make_fake_bins(d)
+
+            with open(os.path.join(d, 'static', 'occurrence_occurrence_id.bin'), 'w') as occurrence_file:
+                occurrence_file.write('occurrence occurrence id bin')
+                occurrence_file.flush()
+
+                prepare_model_run_inputs({'model_settings': {'event_occurrence_id': 'occurrence id'}}, d)
+
+            with open(os.path.join(d, 'input', 'occurrence.bin'), 'r') as new_occurrence_file:
+                self.assertEqual('occurrence occurrence id bin', new_occurrence_file.read())
+
+    def test_no_occurrence_bin_exists___oasis_exception_is_raised(self):
+        with TemporaryDirectory() as d:
+            self.make_fake_bins(d)
+            os.remove(os.path.join(d, 'static', 'occurrence.bin'))
+
+            with self.assertRaises(OasisException):
+                prepare_model_run_inputs({}, d)
+
+    def test_periods_bin_already_exists___existing_bin_is_uncahnged(self):
+        with TemporaryDirectory() as d:
+            self.make_fake_bins(d)
+
+            with open(os.path.join(d, 'input', 'periods.bin'), 'w') as periods_file:
+                periods_file.write('periods bin')
+                periods_file.flush()
+
+                prepare_model_run_inputs({}, d)
+
+            with open(os.path.join(d, 'input', 'periods.bin'), 'r') as new_periods_file:
+                self.assertEqual('periods bin', new_periods_file.read())
+
+    def test_periods_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
+        with TemporaryDirectory() as d:
+            self.make_fake_bins(d)
+
+            with open(os.path.join(d, 'static', 'periods.bin'), 'w') as periods_file:
+                periods_file.write('periods bin')
+                periods_file.flush()
+
+                prepare_model_run_inputs({}, d)
+
+            with open(os.path.join(d, 'input', 'periods.bin'), 'r') as new_periods_file:
+                self.assertEqual('periods bin', new_periods_file.read())
+
+    def test_no_periods_bin_exists___oasis_exception_is_raised(self):
+        with TemporaryDirectory() as d:
+            self.make_fake_bins(d)
+            os.remove(os.path.join(d, 'static', 'periods.bin'))
+
+            with self.assertRaises(OasisException):
+                prepare_model_run_inputs({}, d)
