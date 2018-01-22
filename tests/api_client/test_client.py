@@ -84,6 +84,56 @@ class RunAnalysis(TestCase):
             self.assertEqual('output-location', client.run_analysis({'analysis': 'data'}, 'foo'))
 
 
+class RunAnalysisAndPoll(TestCase):
+    analysis_status_location = 'analysis_status_location'
+    analysis_output_location = 'analysis_output_location'
+    input_location = 'input_location'
+    output_location = 'input_location'
+    analysis_settings = {'analysis': 'settings'}
+
+    def get_mocked_client(self):
+        client = OasisAPIClient('http://localhost:8001')
+        client.run_analysis = Mock(return_value=self.analysis_status_location)
+        client.get_analysis_status = Mock(return_value=(STATUS_SUCCESS, self.analysis_output_location))
+        client.download_outputs = Mock()
+        client.delete_exposure = Mock()
+        client.delete_outputs = Mock()
+        return client
+
+    def test_data_is_ready_at_first_status_call___data_is_downloaded_and_cleaned_correctly_never_sleeping(self):
+        with patch('oasislmf.api_client.client.time.sleep') as sleep_mock:
+            client = self.get_mocked_client()
+
+            client.run_analysis_and_poll(self.analysis_settings, self.input_location, self.output_location)
+
+            client.run_analysis.assert_called_once_with(self.analysis_settings, self.input_location)
+            client.get_analysis_status.assert_called_once_with(self.analysis_status_location)
+            sleep_mock.assert_not_called()
+            client.download_outputs.assert_called_once_with(self.analysis_output_location, os.path.join(self.output_location, self.analysis_output_location + '.tar.gz'))
+            client.delete_exposure.assert_called_once_with(self.input_location)
+            client.delete_outputs.assert_called_once_with(self.analysis_output_location)
+
+    @given(integers(min_value=1, max_value=10), integers(min_value=1, max_value=10))
+    def test_data_is_ready_after_multiple_status_calls___data_is_downloaded_and_ceaned_correctly_sleeping_after_every_pending_call(self, pending_calls, poll_time):
+        with patch('oasislmf.api_client.client.time.sleep') as sleep_mock:
+            client = self.get_mocked_client()
+            client.get_analysis_status = Mock(side_effect=[(STATUS_PENDING, '')] * pending_calls + [(STATUS_SUCCESS, self.analysis_output_location)])
+
+            client.run_analysis_and_poll(self.analysis_settings, self.input_location, self.output_location, analysis_poll_interval=poll_time)
+
+            client.run_analysis.assert_called_once_with(self.analysis_settings, self.input_location)
+
+            self.assertEqual(pending_calls + 1, client.get_analysis_status.call_count)
+            self.assertEqual([(self.analysis_status_location, )] * (pending_calls + 1), [args[0] for args in client.get_analysis_status.call_args_list])
+
+            self.assertEqual(pending_calls, sleep_mock.call_count)
+            self.assertEqual([(poll_time, )] * pending_calls, [args[0] for args in sleep_mock.call_args_list])
+
+            client.download_outputs.assert_called_once_with(self.analysis_output_location, os.path.join(self.output_location, self.analysis_output_location + '.tar.gz'))
+            client.delete_exposure.assert_called_once_with(self.input_location)
+            client.delete_outputs.assert_called_once_with(self.analysis_output_location)
+
+
 class GetAnalysisStatus(TestCase):
     def test_request_is_not_ok___exception_is_raised(self):
         client = OasisAPIClient('http://localhost:8001')
