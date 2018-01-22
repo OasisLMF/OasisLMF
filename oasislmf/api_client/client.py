@@ -4,9 +4,8 @@
 import logging
 from itertools import chain
 
-import six
-from six.moves import urllib
 from requests import RequestException
+from six.moves import urllib
 
 from oasislmf.utils.exceptions import OasisException
 
@@ -19,14 +18,11 @@ __all__ = [
 import csv
 import inspect
 import os
-import subprocess
-import tarfile
 import time
 
 # Python 3rd party imports
 import jsonpickle
 import requests
-import shutilwhich
 
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 
@@ -55,20 +51,6 @@ class OasisAPIClient(object):
         'events'
     ]
 
-    CONVERSION_TOOLS = {
-        'coverages': 'coveragetobin',
-        'events': 'evetobin',
-        'fm_policytc': 'fmpolicytctobin',
-        'fm_profile': 'fmprofiletobin',
-        'fm_programme': 'fmprogrammetobin',
-        'fm_xref': 'fmxreftobin',
-        'fmsummaryxref': 'fmsummaryxreftobin',
-        'gulsummaryxref': 'gulsummaryxreftobin',
-        'items': "itemtobin"
-    }
-
-    TAR_FILE = "inputs.tar.gz"
-
     # Analysis settings files
     GENERAL_SETTINGS_FILE = "general_settings.csv"
     MODEL_SETTINGS_FILE = "model_settings.csv"
@@ -90,17 +72,6 @@ class OasisAPIClient(object):
 
     def build_uri(self, path):
         return urllib.parse.urljoin(self._oasis_api_url, path)
-
-    def check_conversion_tools(self):
-        # Check that the conversion tools are available
-        for tool in six.itervalues(self.CONVERSION_TOOLS):
-            self._logger.debug(shutilwhich.which(tool))
-            if shutilwhich.which(str(tool)) is None:
-                error_message = "Failed to find conversion tool: {}".format(tool)
-                self._logger.error(error_message)
-                raise OasisException(error_message)
-
-        return True
 
     @oasis_log
     def upload_inputs_from_directory(self, directory, do_il=True, do_validation=False, do_clean=True):
@@ -257,8 +228,7 @@ class OasisAPIClient(object):
 
         with open(localfile, 'wb') as f:
             for chunk in response.iter_content(chunk_size=self.DOWNLOAD_CHUCK_SIZE_IN_BYTES):
-                if chunk:
-                    f.write(chunk)
+                f.write(chunk)
 
     @oasis_log
     def download_exposure(self, exposure_location, localfile):
@@ -351,65 +321,6 @@ class OasisAPIClient(object):
         return json
 
     @oasis_log
-    def create_binary_files(self, directory, do_il):
-        '''
-        Create the binary files.
-        Args:
-            ``directory`` (string): the directory containing the CSV files.
-            ``do_il`` (bool): do insured loss. If True, FM file must be present.
-        Returns:
-            None
-        '''
-        if do_il:
-            input_files = chain(self.GUL_INPUTS_FILES, self.IL_INPUTS_FILES, self.OPTIONAL_INPUTS_FILES)
-        else:
-            input_files = chain(self.GUL_INPUTS_FILES, self.OPTIONAL_INPUTS_FILES)
-
-        for input_file in input_files:
-            conversion_tool = self.CONVERSION_TOOLS[input_file]
-            input_file_path = os.path.join(directory, input_file + ".csv")
-            if not os.path.exists(input_file_path):
-                continue
-
-            output_file_path = os.path.join(directory, input_file + ".bin")
-            command = "{} < {} > {}".format(
-                conversion_tool, input_file_path, output_file_path)
-            self._logger.debug("Running command: {}".format(command))
-            proc = subprocess.Popen(command, shell=True)
-            proc.wait()
-            if proc.returncode != 0:
-                raise Exception(
-                    "Failed to convert {}: {}".format(input_file_path, command))
-
-    @oasis_log
-    def check_inputs_directory(self, directory_to_check, do_il):
-        """
-        Check that all the required csv files are present in the directory.
-        Args:
-            ``directory`` (string): the directory containing the CSV files.
-            ``do_il`` (bool): do insured loss. If True, FM file must be present.
-        Returns:
-            None
-        """
-        file_path = os.path.join(directory_to_check, self.TAR_FILE)
-        if os.path.exists(file_path):
-            raise OasisException("Inputs tar file already exists: {}".format(file_path))
-
-        if do_il:
-            input_files = chain(self.GUL_INPUTS_FILES, self.IL_INPUTS_FILES)
-        else:
-            input_files = self.GUL_INPUTS_FILES
-
-        for input_file in input_files:
-            file_path = os.path.join(directory_to_check, input_file + ".csv")
-            if not os.path.exists(file_path):
-                raise OasisException("Failed to find {}".format(file_path))
-
-            file_path = os.path.join(directory_to_check, input_file + ".bin")
-            if os.path.exists(file_path):
-                raise OasisException("Binary file already exists: {}".format(file_path))
-
-    @oasis_log
     def health_check(self, poll_attempts=1, retry_delay=5):
         for attempt in range(poll_attempts):
             try:
@@ -428,21 +339,6 @@ class OasisAPIClient(object):
                 )
             )
             return False
-
-    def create_binary_tar_file(self, directory):
-        """
-        Package the binaries in a gzipped tar.
-        """
-        original_cwd = os.getcwd()
-        os.chdir(directory)
-
-        with tarfile.open(self.TAR_FILE, "w:gz") as tar:
-            for file in chain(self.GUL_INPUTS_FILES, self.IL_INPUTS_FILES, self.OPTIONAL_INPUTS_FILES):
-                bin_file = file + ".bin"
-                if os.path.exists(bin_file):
-                    tar.add(bin_file)
-
-        os.chdir(original_cwd)
 
     def _clean_directory(self, directory_to_check):
         ''' Clean the tar and binary files. '''
