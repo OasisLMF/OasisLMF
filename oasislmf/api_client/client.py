@@ -15,13 +15,10 @@ __all__ = [
 
 
 # Python 2 standard imports
-import csv
-import inspect
 import os
 import time
 
 # Python 3rd party imports
-import jsonpickle
 import requests
 
 from requests_toolbelt.multipart.encoder import MultipartEncoder
@@ -32,31 +29,6 @@ from ..utils.status import STATUS_PENDING, STATUS_SUCCESS, STATUS_FAILURE
 
 
 class OasisAPIClient(object):
-
-    GUL_INPUTS_FILES = [
-        'coverages',
-        'gulsummaryxref',
-        'items'
-    ]
-
-    IL_INPUTS_FILES = [
-        'fm_policytc',
-        'fm_profile',
-        'fm_programme',
-        'fm_xref',
-        'fmsummaryxref'
-    ]
-
-    OPTIONAL_INPUTS_FILES = [
-        'events'
-    ]
-
-    # Analysis settings files
-    GENERAL_SETTINGS_FILE = "general_settings.csv"
-    MODEL_SETTINGS_FILE = "model_settings.csv"
-    GUL_SUMMARIES_FILE = "gul_summaries.csv"
-    IL_SUMMARIES_FILE = "il_summaries.csv"
-
     DOWNLOAD_CHUCK_SIZE_IN_BYTES = 1024
 
     def __init__(self, oasis_api_url, logger=None):
@@ -251,76 +223,6 @@ class OasisAPIClient(object):
         self.download_resource('/outputs/' + outputs_location, localfile)
 
     @oasis_log
-    def create_analysis_settings_json(self, directory):
-        '''
-        Generate an analysis settings JSON from a set of
-        CSV files in a specified directory.
-        Args:
-            ``directory`` (string): the directory containing the CSV files.
-        Returns:
-            The analysis settings JSON.
-        '''
-        frame = inspect.currentframe()
-        func_name = inspect.getframeinfo(frame)[2]
-        self._logger.info("STARTED: {}".format(func_name))
-        args, _, _, values = inspect.getargvalues(frame)
-        for i in args:
-            if i == 'self':
-                continue
-            self._logger.info("{}={}".format(i, values[i]))
-        start = time.time()
-
-        if not os.path.exists(directory):
-            error_message = "Directory does not exist: {}".format(directory)
-            self._logger.error(error_message)
-            raise Exception(error_message)
-
-        general_settings_file = os.path.join(
-            directory, self.GENERAL_SETTINGS_FILE)
-        model_settings_file = os.path.join(
-            directory, self.MODEL_SETTINGS_FILE)
-        gul_summaries_file = os.path.join(
-            directory, self.GUL_SUMMARIES_FILE)
-        il_summaries_file = os.path.join(
-            directory, self.IL_SUMMARIES_FILE)
-
-        for file in [general_settings_file, model_settings_file, gul_summaries_file, il_summaries_file]:
-            if not os.path.exists(directory):
-                error_message = "File does not exist: {}".format(directory)
-                self._logger.error(error_message)
-                raise Exception(error_message)
-
-        general_settings = dict()
-        with open(general_settings_file, 'rb') as csvfile:
-            reader = csv.reader(csvfile)
-            for row in reader:
-                general_settings[row[0]] = \
-                    eval("{}('{}')".format(row[2], row[1]))
-
-        model_settings = dict()
-        with open(model_settings_file, 'rb') as csvfile:
-            reader = csv.reader(csvfile)
-            for row in reader:
-                model_settings[row[0]] = \
-                    eval("{}('{}')".format(row[2], row[1]))
-
-        gul_summaries = self._get_summaries(gul_summaries_file)
-        il_summaries = self._get_summaries(il_summaries_file)
-
-        analysis_settings = general_settings
-        analysis_settings['model_settings'] = model_settings
-        analysis_settings['gul_summaries'] = gul_summaries
-        analysis_settings['il_summaries'] = il_summaries
-        json = jsonpickle.encode(analysis_settings)
-        self._logger.info("Analysis settings json: {}".format(json))
-
-        end = time.time()
-        self._logger.info(
-            "COMPLETED: {} in {}s".format(func_name, round(end - start, 2)))
-
-        return json
-
-    @oasis_log
     def health_check(self, poll_attempts=1, retry_delay=5):
         for attempt in range(poll_attempts):
             try:
@@ -341,7 +243,9 @@ class OasisAPIClient(object):
             return False
 
     def _clean_directory(self, directory_to_check):
-        ''' Clean the tar and binary files. '''
+        """
+        Clean the tar and binary files.
+        """
         file_path = os.path.join(directory_to_check, self.TAR_FILE)
         if os.path.exists(file_path):
             os.remove(file_path)
@@ -349,24 +253,3 @@ class OasisAPIClient(object):
             file_path = os.path.join(directory_to_check, file + ".bin")
             if os.path.exists(file_path):
                 os.remove(file_path)
-
-    def _get_summaries(self, summary_file):
-        ''' Get a list representation of a summary file. '''
-        summaries_dict = dict()
-        with open(summary_file, 'rb') as csvfile:
-            reader = csv.reader(csvfile)
-            for row in reader:
-                id = int(row[0])
-                if id not in list(summaries_dict.keys):
-                    summaries_dict[id] = dict()
-                    summaries_dict[id]['leccalc'] = dict()
-                if row[1].startswith('leccalc'):
-                    summaries_dict[id]['leccalc'][row[1]] = bool(row[2])
-                else:
-                    summaries_dict[id][row[1]] = bool(row[2])
-        summaries = list()
-        for id in summaries_dict.keys():
-            summaries_dict[id]['id'] = id
-            summaries.append(summaries_dict[id])
-
-        return summaries

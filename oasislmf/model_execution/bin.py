@@ -26,23 +26,7 @@ import shutil
 import subprocess
 
 from ..utils.exceptions import OasisException
-
-INPUT_FILES = {
-    'items': {'name': 'items', 'type': 'gul', 'conversion_tool': 'itemtobin'},
-    'coverages': {'name': 'coverages', 'type': 'gul', 'conversion_tool': 'coveragetobin'},
-    'gulsummaryxref': {'name': 'gulsummaryxref', 'type': 'gul', 'conversion_tool': 'gulsummaryxreftobin'},
-    'events': {'name': 'events', 'type': 'optional', 'conversion_tool': 'evetobin'},
-    'fm_policytc': {'name': 'fm_policytc', 'type': 'il', 'conversion_tool': 'fmpolicytctobin'},
-    'fm_profile': {'name': 'fm_profile', 'type': 'il', 'conversion_tool': 'fmprofiletobin'},
-    'fm_programme': {'name': 'fm_programme', 'type': 'il', 'conversion_tool': 'fmprogrammetobin'},
-    'fm_xref': {'name': 'fm_xref', 'type': 'il', 'conversion_tool': 'fmxreftobin'},
-    'fmsummaryxref': {'name': 'fmsummaryxref', 'type': 'il', 'conversion_tool': 'fmsummaryxreftobin'}
-}
-GUL_INPUT_FILES = [target for target in INPUT_FILES.values() if target['type'] == 'gul']
-IL_INPUT_FILES = [target for target in INPUT_FILES.values() if target['type'] == 'il']
-OPTIONAL_INPUT_FILES = [target for target in INPUT_FILES.values() if target['type'] == 'optional']
-
-TAR_FILE = 'inputs.tar.gz'
+from .files import TAR_FILE, INPUT_FILES
 
 
 def prepare_model_run_directory(
@@ -173,9 +157,9 @@ def check_inputs_directory(directory_to_check, do_il):
         raise OasisException("Inputs tar file already exists: {}".format(file_path))
 
     if do_il:
-        input_files = (f['name'] for f in INPUT_FILES.values() if f['type'] != 'optional')
+        input_files = (f['name'] for f in six.itervalues(INPUT_FILES) if f['type'] != 'optional')
     else:
-        input_files = (f['name'] for f in INPUT_FILES.values() if f['type'] not in ['optional', 'il'])
+        input_files = (f['name'] for f in six.itervalues(INPUT_FILES) if f['type'] not in ['optional', 'il'])
 
     for input_file in input_files:
         file_path = os.path.join(directory_to_check, input_file + ".csv")

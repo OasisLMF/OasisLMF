@@ -2,6 +2,7 @@ import glob
 import tarfile
 from tempfile import NamedTemporaryFile
 
+import six
 from chainmap import ChainMap
 from itertools import chain
 from backports.tempfile import TemporaryDirectory
@@ -16,9 +17,9 @@ from hypothesis.strategies import sampled_from, lists
 from mock import patch, Mock
 from pathlib2 import Path
 
-from oasislmf.model_execution.bin import create_binary_files, INPUT_FILES, create_binary_tar_file, TAR_FILE, \
-    check_conversion_tools, check_inputs_directory, GUL_INPUT_FILES, OPTIONAL_INPUT_FILES, IL_INPUT_FILES, \
-    prepare_model_run_directory, prepare_model_run_inputs
+from oasislmf.model_execution.files import GUL_INPUT_FILES, OPTIONAL_INPUT_FILES, IL_INPUT_FILES, TAR_FILE, INPUT_FILES
+from oasislmf.model_execution.bin import create_binary_files, create_binary_tar_file, check_conversion_tools, \
+    check_inputs_directory, prepare_model_run_directory, prepare_model_run_inputs
 from oasislmf.utils.exceptions import OasisException
 
 ECHO_CONVERSION_INPUT_FILES = {k: ChainMap({'conversion_tool': 'echo'}, v) for k, v in INPUT_FILES.items()}
@@ -26,7 +27,7 @@ ECHO_CONVERSION_INPUT_FILES = {k: ChainMap({'conversion_tool': 'echo'}, v) for k
 
 def standard_input_files(min_size=0):
     return lists(
-        sampled_from([target['name'] for target in chain(GUL_INPUT_FILES, OPTIONAL_INPUT_FILES)]),
+        sampled_from([target['name'] for target in chain(six.itervalues(GUL_INPUT_FILES), six.itervalues(OPTIONAL_INPUT_FILES))]),
         min_size=min_size,
         unique=True,
     )
@@ -34,7 +35,7 @@ def standard_input_files(min_size=0):
 
 def il_input_files(min_size=0):
     return lists(
-        sampled_from([target['name'] for target in IL_INPUT_FILES]),
+        sampled_from([target['name'] for target in six.itervalues(IL_INPUT_FILES)]),
         min_size=min_size,
         unique=True,
     )
@@ -42,7 +43,7 @@ def il_input_files(min_size=0):
 
 def tar_file_targets(min_size=0):
     return lists(
-        sampled_from([target['name'] + '.bin' for target in INPUT_FILES.values()]),
+        sampled_from([target['name'] + '.bin' for target in six.itervalues(INPUT_FILES)]),
         min_size=min_size,
         unique=True,
     )
@@ -155,7 +156,7 @@ class CheckInputDirectory(TestCase):
 
     def test_do_is_is_false_non_il_input_files_are_present___no_exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for input_file in GUL_INPUT_FILES:
+            for input_file in six.itervalues(GUL_INPUT_FILES):
                 Path(os.path.join(d, input_file['name'] + '.csv')).touch()
 
             try:
@@ -170,7 +171,7 @@ class CheckInputDirectory(TestCase):
 
     def test_do_il_is_true_gul_input_files_are_missing__exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for p in IL_INPUT_FILES:
+            for p in six.itervalues(IL_INPUT_FILES):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
 
             with self.assertRaises(OasisException):
@@ -178,7 +179,7 @@ class CheckInputDirectory(TestCase):
 
     def test_do_il_is_true_il_input_files_are_missing__exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for p in GUL_INPUT_FILES:
+            for p in six.itervalues(GUL_INPUT_FILES):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
 
             with self.assertRaises(OasisException):
@@ -186,7 +187,7 @@ class CheckInputDirectory(TestCase):
 
     def test_do_il_is_true_all_input_files_are_present___no_exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for p in chain(GUL_INPUT_FILES, IL_INPUT_FILES):
+            for p in chain(six.itervalues(GUL_INPUT_FILES), six.itervalues(IL_INPUT_FILES)):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
 
             try:
@@ -196,10 +197,10 @@ class CheckInputDirectory(TestCase):
 
     def test_do_il_is_false_il_bin_files_are_present___no_exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for p in chain(GUL_INPUT_FILES, IL_INPUT_FILES):
+            for p in chain(six.itervalues(GUL_INPUT_FILES), six.itervalues(IL_INPUT_FILES)):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
 
-            for p in IL_INPUT_FILES:
+            for p in six.itervalues(IL_INPUT_FILES):
                 Path(os.path.join(d, p['name'] + '.bin')).touch()
 
             try:
@@ -209,10 +210,10 @@ class CheckInputDirectory(TestCase):
 
     def test_do_il_is_false_gul_bin_files_are_present___exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for p in chain(GUL_INPUT_FILES, IL_INPUT_FILES):
+            for p in chain(six.itervalues(GUL_INPUT_FILES), six.itervalues(IL_INPUT_FILES)):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
 
-            for p in GUL_INPUT_FILES:
+            for p in six.itervalues(GUL_INPUT_FILES):
                 Path(os.path.join(d, p['name'] + '.bin')).touch()
 
             with self.assertRaises(OasisException):
@@ -220,10 +221,10 @@ class CheckInputDirectory(TestCase):
 
     def test_do_il_is_true_gul_bin_files_are_present___exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for p in chain(GUL_INPUT_FILES, IL_INPUT_FILES):
+            for p in chain(six.itervalues(GUL_INPUT_FILES), six.itervalues(IL_INPUT_FILES)):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
 
-            for p in GUL_INPUT_FILES:
+            for p in six.itervalues(GUL_INPUT_FILES):
                 Path(os.path.join(d, p['name'] + '.bin')).touch()
 
             with self.assertRaises(OasisException):
@@ -231,10 +232,10 @@ class CheckInputDirectory(TestCase):
 
     def test_do_il_is_true_il_bin_files_are_present___exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for p in chain(GUL_INPUT_FILES, IL_INPUT_FILES):
+            for p in chain(six.itervalues(GUL_INPUT_FILES), six.itervalues(IL_INPUT_FILES)):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
 
-            for p in IL_INPUT_FILES:
+            for p in six.itervalues(IL_INPUT_FILES):
                 Path(os.path.join(d, p['name'] + '.bin')).touch()
 
             with self.assertRaises(OasisException):
@@ -242,10 +243,10 @@ class CheckInputDirectory(TestCase):
 
     def test_do_il_is_true_no_bin_files_are_present___no_exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for p in chain(GUL_INPUT_FILES, IL_INPUT_FILES):
+            for p in chain(six.itervalues(GUL_INPUT_FILES), six.itervalues(IL_INPUT_FILES)):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
 
-            for p in IL_INPUT_FILES:
+            for p in six.itervalues(IL_INPUT_FILES):
                 Path(os.path.join(d, p['name'] + '.bin')).touch()
 
             try:
