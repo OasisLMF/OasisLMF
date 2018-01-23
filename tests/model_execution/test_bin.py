@@ -120,22 +120,60 @@ class CreateBinaryTarFile(TestCase):
 
 
 class CheckConversionTools(TestCase):
-    def test_conversion_tools_all_exist___result_is_true(self):
+    def test_do_il_is_false_il_tools_are_missing___result_is_true(self):
+        existing_conversions = deepcopy(INPUT_FILES)
+        for value in six.itervalues(existing_conversions):
+            if value['type'] == 'il':
+                value['conversion_tool'] = 'missing_executable'
+            else:
+                value['conversion_tool'] = 'python'
+
+        with patch('oasislmf.model_execution.bin.INPUT_FILES', existing_conversions):
+            self.assertTrue(check_conversion_tools())
+
+    def test_do_il_is_false_il_tools_are_present_but_non_il_are_missing___errors_is_raised(self):
+        existing_conversions = deepcopy(INPUT_FILES)
+        for value in six.itervalues(existing_conversions):
+            if value['type'] == 'il':
+                value['conversion_tool'] = 'pytohn'
+            else:
+                value['conversion_tool'] = 'missing_executable'
+
+        with patch('oasislmf.model_execution.bin.INPUT_FILES', existing_conversions):
+            with self.assertRaises(OasisException):
+                check_conversion_tools()
+
+    def test_do_il_is_true_il_tools_are_missing___error_is_raised(self):
+        existing_conversions = deepcopy(INPUT_FILES)
+        for value in six.itervalues(existing_conversions):
+            if value['type'] == 'il':
+                value['conversion_tool'] = 'missing_executable'
+            else:
+                value['conversion_tool'] = 'python'
+
+        with patch('oasislmf.model_execution.bin.INPUT_FILES', existing_conversions):
+            with self.assertRaises(OasisException):
+                check_conversion_tools(do_il=True)
+
+    def test_do_il_is_true_non_il_are_missing___errror_is_raised(self):
+        existing_conversions = deepcopy(INPUT_FILES)
+        for value in six.itervalues(existing_conversions):
+            if value['type'] == 'il':
+                value['conversion_tool'] = 'pytohn'
+            else:
+                value['conversion_tool'] = 'missing_executable'
+
+        with patch('oasislmf.model_execution.bin.INPUT_FILES', existing_conversions):
+            with self.assertRaises(OasisException):
+                check_conversion_tools(do_il=True)
+
+    def test_do_il_is_true_conversion_tools_all_exist___result_is_true(self):
         existing_conversions = deepcopy(INPUT_FILES)
         for value in existing_conversions.values():
             value['conversion_tool'] = 'python'
 
         with patch('oasislmf.model_execution.bin.INPUT_FILES', existing_conversions):
-            self.assertTrue(check_conversion_tools())
-
-    def test_some_conversion_tools_are_missing___error_is_raised(self):
-        missing_conversions = deepcopy(INPUT_FILES)
-        for value in missing_conversions.values():
-            value['conversion_tool'] = 'missing_executable'
-
-        with patch('oasislmf.model_execution.bin.INPUT_FILES', missing_conversions):
-            with self.assertRaises(OasisException):
-                check_conversion_tools()
+            self.assertTrue(check_conversion_tools(do_il=True))
 
 
 class CheckInputDirectory(TestCase):

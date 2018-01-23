@@ -6,7 +6,10 @@ import logging
 from requests import RequestException
 from six.moves import urllib
 
-from oasislmf.utils.exceptions import OasisException
+from ..model_execution.files import TAR_FILE
+from ..model_execution.bin import create_binary_tar_file, create_binary_files, check_inputs_directory, \
+    cleanup_bin_directory, check_conversion_tools
+from ..utils.exceptions import OasisException
 
 __all__ = [
     'OasisAPIClient'
@@ -15,6 +18,7 @@ __all__ = [
 
 # Python 2 standard imports
 import os
+import io
 import time
 
 # Python 3rd party imports
@@ -45,30 +49,38 @@ class OasisAPIClient(object):
         return urllib.parse.urljoin(self._oasis_api_url, path)
 
     @oasis_log
-    def upload_inputs_from_directory(self, directory, do_il=True, do_validation=False, do_clean=True):
+    def upload_inputs_from_directory(self, directory, do_il=False, do_build=False, do_clean=False):
         """
         Upload the CSV files from a specified directory.
-        Args:
-            ``directory`` (string): the directory containting the CSVs.
-            ``do_il``: if True, require files for insured loss (IL) calculation.
-            ``do_validation`` (bool): if True, validate the data intrgrity
-            ``do_clean`` (bool): if True, remove the tar and bin files
-        Returns:
-            The location of the uploaded inputs.
+
+        :param directory: the directory containting the CSVs.
+        :type directory: str
+
+        :param do_il: if True, require files for insured loss (IL) calculation.
+        :type do_il: bool
+
+        :param do_build: if True, the input tar will be built
+        :type do_build: bool
+
+        :param do_clean: if True, remove the tar and bin files
+        :type do_clean: bool
+
+        :return: The location of the uploaded inputs.
         """
         try:
-            self.check_inputs_directory(directory, do_il)
-            self.create_binary_files(directory, do_il)
-            self.create_binary_tar_file(directory)
+            if do_build:
+                check_inputs_directory(directory, do_il=do_il)
+                check_conversion_tools(do_il=do_il)
+                create_binary_files(directory, directory, do_il=do_il)
+                create_binary_tar_file(directory)
 
             self._logger.debug("Uploading inputs")
-            tar_file = 'inputs.tar.gz'
-            inputs_tar_to_upload = os.path.join(directory, tar_file)
+            inputs_tar_to_upload = os.path.join(directory, TAR_FILE)
 
-            with open(inputs_tar_to_upload, 'rb') as f:
+            with io.open(inputs_tar_to_upload, 'rb') as f:
                 inputs_multipart_data = MultipartEncoder(
                     fields={
-                        'file': (tar_file, f, 'text/plain')
+                        'file': (TAR_FILE, f, 'text/plain')
                     }
                 )
 
@@ -82,7 +94,7 @@ class OasisAPIClient(object):
                 self._logger.error(
                     "POST {} failed: {}, {}".format(response.request.url, str(response.status_code), str(response.json))
                 )
-                raise Exception("Failed to save exposure.")
+                raise OasisException("Failed to save exposure.")
 
             exposure_location = response.json()['exposures'][0]['location']
             self._logger.debug("Uploaded exposure. Location: " + exposure_location)
@@ -92,7 +104,7 @@ class OasisAPIClient(object):
         finally:
             # Tidy up
             if do_clean:
-                self._clean_directory(directory)
+                cleanup_bin_directory(directory)
 
     @oasis_log
     def run_analysis(self, analysis_settings_json, input_location):

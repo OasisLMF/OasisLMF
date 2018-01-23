@@ -3,15 +3,18 @@ import os
 import string
 from random import choice
 from tempfile import NamedTemporaryFile
+from backports.tempfile import TemporaryDirectory
 from unittest import TestCase
 
 import responses
 from hypothesis import given
 from hypothesis.strategies import integers
 from mock import patch, Mock
+from pathlib2 import Path
 from requests import RequestException
 
 from oasislmf.api_client.client import OasisAPIClient
+from oasislmf.model_execution.files import TAR_FILE
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.status import STATUS_FAILURE, STATUS_PENDING, STATUS_SUCCESS
 
@@ -302,3 +305,128 @@ class DownloadExposures(TestCase):
         client.download_exposure('foo', 'local_filename')
 
         client.download_resource.assert_called_once_with('/exposure/foo', 'local_filename')
+
+
+def fake_build_tar_fn(d):
+    with open(os.path.join(d, TAR_FILE), 'wb') as f:
+        f.write(''.join(choice(string.ascii_letters) for i in range(100)).encode())
+
+
+class UploadInputsFromDirectory(TestCase):
+    @patch('oasislmf.api_client.client.create_binary_tar_file')
+    @patch('oasislmf.api_client.client.create_binary_files')
+    @patch('oasislmf.api_client.client.check_conversion_tools')
+    @patch('oasislmf.api_client.client.check_inputs_directory')
+    def test_do_build_is_false___bin_building_functions_are_not_called(self, check_mock, check_tools_mock, create_bin_mock, create_tar_mock):
+        with TemporaryDirectory() as d, responses.RequestsMock() as rsps:
+            Path(os.path.join(d, TAR_FILE)).touch()
+            rsps.add(responses.POST, url='http://localhost:8001/exposure', body=json.dumps({'exposures': [{'location': 'exposure_location'}]}).encode())
+
+            client = OasisAPIClient('http://localhost:8001')
+            client.upload_inputs_from_directory(d, do_build=False)
+
+            check_mock.assert_not_called()
+            check_tools_mock.assert_not_called()
+            create_bin_mock.assert_not_called()
+            create_tar_mock.assert_not_called()
+
+    @patch('oasislmf.api_client.client.create_binary_tar_file')
+    @patch('oasislmf.api_client.client.create_binary_files')
+    @patch('oasislmf.api_client.client.check_conversion_tools')
+    @patch('oasislmf.api_client.client.check_inputs_directory')
+    def test_do_build_is_true_do_il_is_false___bin_building_functions_are_called_with_correct_args(self, check_mock, check_tools_mock, create_bin_mock, create_tar_mock):
+        create_tar_mock.side_effect = fake_build_tar_fn
+
+        with TemporaryDirectory() as d, responses.RequestsMock() as rsps:
+            rsps.add(responses.POST, url='http://localhost:8001/exposure', body=json.dumps({'exposures': [{'location': 'exposure_location'}]}).encode())
+
+            client = OasisAPIClient('http://localhost:8001')
+            client.upload_inputs_from_directory(d, do_build=True)
+
+            check_mock.assert_called_once_with(d, do_il=False)
+            check_tools_mock.assert_called_once_with(do_il=False)
+            create_bin_mock.assert_called_once_with(d, d, do_il=False)
+            create_tar_mock.assert_called_once_with(d)
+
+    @patch('oasislmf.api_client.client.create_binary_tar_file')
+    @patch('oasislmf.api_client.client.create_binary_files')
+    @patch('oasislmf.api_client.client.check_conversion_tools')
+    @patch('oasislmf.api_client.client.check_inputs_directory')
+    def test_do_build_is_true_do_il_is_true___bin_building_functions_are_called_with_correct_args(self, check_mock, check_tools_mock, create_bin_mock, create_tar_mock):
+        create_tar_mock.side_effect = fake_build_tar_fn
+
+        with TemporaryDirectory() as d, responses.RequestsMock() as rsps:
+            rsps.add(responses.POST, url='http://localhost:8001/exposure', body=json.dumps({'exposures': [{'location': 'exposure_location'}]}).encode())
+
+            client = OasisAPIClient('http://localhost:8001')
+            client.upload_inputs_from_directory(d, do_build=True, do_il=True)
+
+            check_mock.assert_called_once_with(d, do_il=True)
+            check_tools_mock.assert_called_once_with(do_il=True)
+            create_bin_mock.assert_called_once_with(d, d, do_il=True)
+            create_tar_mock.assert_called_once_with(d)
+
+    def test_tar_file_exists___correct_file_is_posted(self):
+        with TemporaryDirectory() as d, responses.RequestsMock() as rsps:
+            Path(os.path.join(d, TAR_FILE)).touch()
+
+            rsps.add(responses.POST, url='http://localhost:8001/exposure', body=json.dumps({'exposures': [{'location': 'exposure_location'}]}).encode())
+
+            client = OasisAPIClient('http://localhost:8001')
+            client.upload_inputs_from_directory(d)
+
+            self.assertEqual(1, len(rsps.calls))
+
+            request = rsps.calls[0].request
+            self.assertEqual(request.url, 'http://localhost:8001/exposure')
+
+            multipart_data = request.body.fields['file']
+            self.assertEqual('inputs.tar.gz', multipart_data[0])
+            self.assertEqual(os.path.join(d, TAR_FILE), multipart_data[1].name)
+            self.assertEqual('text/plain', multipart_data[2])
+
+    def test_tar_file_exists___exposure_location_from_result_is_returned(self):
+        with TemporaryDirectory() as d, responses.RequestsMock() as rsps:
+            Path(os.path.join(d, TAR_FILE)).touch()
+
+            rsps.add(responses.POST, url='http://localhost:8001/exposure', body=json.dumps({'exposures': [{'location': 'exposure_location'}]}).encode())
+
+            client = OasisAPIClient('http://localhost:8001')
+            result = client.upload_inputs_from_directory(d)
+
+            self.assertEqual('exposure_location', result)
+
+    def test_response_from_server_is_not_ok___oasis_error_is_raised(self):
+        with TemporaryDirectory() as d, responses.RequestsMock() as rsps:
+            Path(os.path.join(d, TAR_FILE)).touch()
+
+            rsps.add(responses.POST, status=400, url='http://localhost:8001/exposure', body=json.dumps({'exposures': [{'location': 'exposure_location'}]}).encode())
+
+            client = OasisAPIClient('http://localhost:8001')
+
+            with self.assertRaises(OasisException):
+                client.upload_inputs_from_directory(d)
+
+    @patch('oasislmf.api_client.client.cleanup_bin_directory')
+    def test_do_clean_is_false___clean_bin_directory_is_not_called(self, clean_mock):
+        with TemporaryDirectory() as d, responses.RequestsMock() as rsps:
+            Path(os.path.join(d, TAR_FILE)).touch()
+
+            rsps.add(responses.POST, url='http://localhost:8001/exposure', body=json.dumps({'exposures': [{'location': 'exposure_location'}]}).encode())
+
+            client = OasisAPIClient('http://localhost:8001')
+            client.upload_inputs_from_directory(d)
+
+            clean_mock.assert_not_called()
+
+    @patch('oasislmf.api_client.client.cleanup_bin_directory')
+    def test_do_clean_is_true___clean_bin_directory_ia_called_on_the_correct_directory(self, clean_mock):
+        with TemporaryDirectory() as d, responses.RequestsMock() as rsps:
+            Path(os.path.join(d, TAR_FILE)).touch()
+
+            rsps.add(responses.POST, url='http://localhost:8001/exposure', body=json.dumps({'exposures': [{'location': 'exposure_location'}]}).encode())
+
+            client = OasisAPIClient('http://localhost:8001')
+            client.upload_inputs_from_directory(d, do_clean=True)
+
+            clean_mock.assert_called_once_with(d)

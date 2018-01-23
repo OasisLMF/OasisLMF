@@ -144,7 +144,7 @@ def prepare_model_run_inputs(analysis_settings, run_directory):
         raise OasisException(e)
 
 
-def check_inputs_directory(directory_to_check, do_il):
+def check_inputs_directory(directory_to_check, do_il=False):
     """
     Check that all the required csv files are present in the directory.
     Args:
@@ -222,9 +222,14 @@ def create_binary_tar_file(directory):
     os.chdir(original_cwd)
 
 
-def check_conversion_tools():
+def check_conversion_tools(do_il=False):
     # Check that the conversion tools are available
-    for input_file in six.itervalues(INPUT_FILES):
+    if do_il:
+        input_files = six.itervalues(INPUT_FILES)
+    else:
+        input_files = (f for f in six.itervalues(INPUT_FILES) if f['type'] != 'il')
+
+    for input_file in input_files:
         tool = input_file['conversion_tool']
         if shutilwhich.which(tool) is None:
             error_message = "Failed to find conversion tool: {}".format(tool)
