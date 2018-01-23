@@ -49,12 +49,15 @@ class OasisAPIClient(object):
         return urllib.parse.urljoin(self._oasis_api_url, path)
 
     @oasis_log
-    def upload_inputs_from_directory(self, directory, do_il=False, do_build=False, do_clean=False):
+    def upload_inputs_from_directory(self, directory, bin_directory=None, do_il=False, do_build=False, do_clean=False):
         """
         Upload the CSV files from a specified directory.
 
         :param directory: the directory containting the CSVs.
         :type directory: str
+
+        :param bin_directory: the directory to build the binary files in, if not set ``directory`` is used
+        :type bin_directory: str
 
         :param do_il: if True, require files for insured loss (IL) calculation.
         :type do_il: bool
@@ -67,15 +70,17 @@ class OasisAPIClient(object):
 
         :return: The location of the uploaded inputs.
         """
+        bin_directory = bin_directory or directory
+
         try:
             if do_build:
                 check_inputs_directory(directory, do_il=do_il)
                 check_conversion_tools(do_il=do_il)
-                create_binary_files(directory, directory, do_il=do_il)
-                create_binary_tar_file(directory)
+                create_binary_files(directory, bin_directory, do_il=do_il)
+                create_binary_tar_file(bin_directory)
 
             self._logger.debug("Uploading inputs")
-            inputs_tar_to_upload = os.path.join(directory, TAR_FILE)
+            inputs_tar_to_upload = os.path.join(bin_directory, TAR_FILE)
 
             with io.open(inputs_tar_to_upload, 'rb') as f:
                 inputs_multipart_data = MultipartEncoder(
@@ -104,7 +109,7 @@ class OasisAPIClient(object):
         finally:
             # Tidy up
             if do_clean:
-                cleanup_bin_directory(directory)
+                cleanup_bin_directory(bin_directory)
 
     @oasis_log
     def run_analysis(self, analysis_settings_json, input_location):

@@ -1,102 +1,82 @@
 import csv
 import json
 import os
-import uuid
 
 import shutil
 from collections import Counter
 from multiprocessing.pool import ThreadPool
 
+import six
 from argparsetree import BaseCommand
+from backports.tempfile import TemporaryDirectory
 
+from ..utils.exceptions import OasisException
 from ..utils.conf import replace_in_file
 from ..api_client.client import OasisAPIClient
 from .base import OasisBaseCommand
+from .cleaners import PathCleaner
 
 
-class TestModelApi(OasisBaseCommand):
+class TestModelApiCmd(OasisBaseCommand):
     description = 'Tests a model api server'
 
     def add_args(self, parser):
         parser.add_argument(
-            '-s', '--api_server_url', type=str, required=True,
-            help='Oasis API server URL (including protocol and port), e.g. http://localhost:8001'
+            'api_server_url', type=str,
+            help='Oasis API server URL (including protocol and port), e.g. http://localhost:8001',
         )
 
         parser.add_argument(
-            '-a', '--analysis_settings_json_file', type=str, required=True,
+            '-a', '--analysis-settings-file', type=PathCleaner('Analysis settings'), default='./analysis_settings.json',
             help="Analysis settings JSON file (absolute or relative file path)"
         )
 
         parser.add_argument(
-            '-i', '--input_data_directory', type=str, required=True,
+            '-i', '--input-directory', type=PathCleaner('Input directory'), default='./input',
             help="Input data directory (absolute or relative file path)"
         )
 
         parser.add_argument(
-            '-o', '--output_data_directory', type=str, required=True,
+            '-o', '--output-directory', type=PathCleaner('Output directory', required=False), default='./output',
             help="Output data directory (absolute or relative file path)"
         )
 
         parser.add_argument(
-            '-n', '--num_analyses', metavar='N', type=int, default='1',
+            '-n', '--num-analyses', metavar='N', type=int, default='1',
             help='The number of analyses to run.'
         )
 
         parser.add_argument(
-            '-c', '--health_check_attempts', type=int, default=1,
+            '-c', '--health-check-attempts', type=int, default=1,
             help='The maximum number of health check attempts.'
         )
 
-    def check_input(self, input_data_directory, analysis_settings_json_file):
-        """
-        Checks that the paths for the input data directory and analysis settings
-        JSON file all exist. Raises exceptions which cause the script to exit if
-        one of these is missing.
-        """
-
-        if not os.path.exists(input_data_directory):
-            raise Exception("Input data directory {} does not exist".format(input_data_directory), 'input_data_directory')
-
-        if not os.path.exists(analysis_settings_json_file):
-            raise Exception("Analysis settings JSON file path {} does not exist".format(analysis_settings_json_file), 'analysis_settings_json_file')
-
-        return True
-
-    def load_analysis_settings_json(self, analysis_settings_json_file):
+    def load_analysis_settings_json(self, analysis_settings_file):
         """
         Loads the analysis settings JSON file into a dict, also creates a separate
         boolean ``do_il`` for doing insured loss calculations.
         """
 
-        with open(analysis_settings_json_file) as f:
+        with open(analysis_settings_file) as f:
             analysis_settings = json.load(f)
 
-        do_il = bool(analysis_settings['analysis_settings']["il_output"])
+        if isinstance(analysis_settings['analysis_settings']['il_output'], six.string_types):
+            do_il = analysis_settings['analysis_settings']["il_output"].lower() == 'true'
+        else:
+            do_il = bool(analysis_settings['analysis_settings']["il_output"])
 
         return analysis_settings, do_il
 
-    def run_analysis(self, client, input_data_directory, output_data_directory, analysis_settings, do_il, counter):
+    def run_analysis(self, client, input_directory, output_directory, analysis_settings, do_il, counter):
         """
         Invokes model analysis in the client - is used as a worker function for
         threads.
         """
         try:
-
-            upload_directory = os.path.join(os.getcwd(), 'upload', str(uuid.uuid1()))
-
-            shutil.copytree(
-                os.path.join(input_data_directory, 'csv'),
-                upload_directory
-            )
-
-            input_location = client.upload_inputs_from_directory(
-                upload_directory, do_il, do_validation=False
-            )
-            client.run_analysis_and_poll(
-                analysis_settings, input_location, output_data_directory
-            )
-            counter['completed'] += 1
+            with TemporaryDirectory() as upload_directory:
+                input_location = client.upload_inputs_from_directory(input_directory, bin_directory=upload_directory, do_il=do_il, do_build=True)
+                client.run_analysis_and_poll(analysis_settings, input_location, output_directory)
+                counter['completed'] += 1
 
         except Exception as e:
             client._logger.exception("Model API test failed: {}".format(str(e)))
@@ -104,49 +84,30 @@ class TestModelApi(OasisBaseCommand):
 
     def action(self, args):
         # get client
-        client = OasisAPIClient(args['api_server_url'], self.logger)
+        client = OasisAPIClient(args.api_server_url, self.logger)
 
         # Do a server healthcheck
-        if not client.health_check(args['health_check_attempts']):
-            return 1
-
-        # Validate the input data directory path and analysis settings JSON
-        # file path.
-        input_data_directory = args['input_data_directory']
-        analysis_settings_json_file = args['analysis_settings_json_file']
-        output_data_directory = args['output_data_directory']
-
-        try:
-            self.logger.info('Checking input data exist.')
-            self.check_input(input_data_directory, analysis_settings_json_file)
-            self.logger.info('OK')
-        except Exception as e:
-            self.logger.info(str(e))
-            self.logger.info('Check input data directory and analysis settings JSON file exist, and try again.')
-            return 1
+        if not client.health_check(args.health_check_attempts):
+            raise OasisException('Health check failed for {}.'.format(args.api_server_url))
 
         # Make output directory if it does not exist
-        if not os.path.exists(output_data_directory):
-            self.logger.info('Output data directory {} does not exist, creating one in working directory'.format(
-                output_data_directory))
-            output_data_directory = 'output'
-            if not os.path.exists(output_data_directory):
-                os.mkdir(output_data_directory)
+        if not os.path.exists(args.output_directory):
+            os.mkdir(args.output_directory)
 
         # Load analysis settings JSON file and set up boolean for doing insured
         # loss calculations
-        self.logger.info('Loading analysis settings JSON file: ', end='')
-        analysis_settings, do_il = self.load_analysis_settings_json(args['analysis_settings_json_file'])
-        self.logger.info('OK: analysis_settings={}, do_il={}'.format(analysis_settings, do_il))
+        self.logger.info('Loading analysis settings JSON file:')
+        analysis_settings, do_il = self.load_analysis_settings_json(args.analysis_settings_file)
+        self.logger.info('  OK: analysis_settings={}, do_il={}'.format(analysis_settings, do_il))
 
         # Prepare and run analyses
-        self.logger.info('Running {} analyses'.format(args['num_analyses']))
+        self.logger.info('Running {} analyses'.format(args.num_analyses))
         counter = Counter()
 
-        threads = ThreadPool(processes=args['num_analyses'])
+        threads = ThreadPool(processes=args.num_analyses)
         threads.map(
             self.run_analysis,
-            ((client, input_data_directory, output_data_directory, analysis_settings, do_il, counter) for i in range(args['num_analyses']))
+            ((client, args.input_directory, args.output_directory, analysis_settings, do_il, counter) for i in range(args.num_analyses))
         )
         threads.close()
         threads.join()
@@ -180,7 +141,7 @@ class GenerateModelTesterDockerFileCmd(OasisBaseCommand):
         )
 
         parser.add_argument(
-            '--model_vesion_file', type=str, required=True,
+            '--model_version_file', type=str, required=True,
             help='Model version file path (relative or absolute path of model version file)'
         )
 
@@ -239,9 +200,9 @@ class GenerateModelTesterDockerFileCmd(OasisBaseCommand):
             return 0
 
 
-class Test(BaseCommand):
+class TestCmd(BaseCommand):
     description = 'Test models and keys servers'
     sub_commands = {
-        'model-api': TestModelApi,
+        'model-api': TestModelApiCmd,
         'gen-model-tester-dockerfile': GenerateModelTesterDockerFileCmd,
     }

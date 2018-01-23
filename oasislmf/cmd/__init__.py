@@ -1,9 +1,1 @@
-from argparsetree import BaseCommand
-
-from .test import Test
-
-
-class RootCmd(BaseCommand):
-    sub_commands = {
-        'test': Test
-    }
+from .root import RootCmd  # noqa
