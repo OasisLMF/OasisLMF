@@ -2,7 +2,6 @@
     Provides a simple class to build Oasis API clients.
 """
 import logging
-from itertools import chain
 
 from requests import RequestException
 from six.moves import urllib
@@ -241,15 +240,3 @@ class OasisAPIClient(object):
                 )
             )
             return False
-
-    def _clean_directory(self, directory_to_check):
-        """
-        Clean the tar and binary files.
-        """
-        file_path = os.path.join(directory_to_check, self.TAR_FILE)
-        if os.path.exists(file_path):
-            os.remove(file_path)
-        for file in chain(self.GUL_INPUTS_FILES, self.IL_INPUTS_FILES, self.OPTIONAL_INPUTS_FILES):
-            file_path = os.path.join(directory_to_check, file + ".bin")
-            if os.path.exists(file_path):
-                os.remove(file_path)

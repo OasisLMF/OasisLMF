@@ -10,6 +10,7 @@ from __future__ import print_function
 import glob
 import logging
 import tarfile
+from itertools import chain
 
 import shutilwhich
 import six
@@ -231,3 +232,13 @@ def check_conversion_tools():
             raise OasisException(error_message)
 
     return True
+
+
+def cleanup_bin_directory(directory):
+    """
+    Clean the tar and binary files.
+    """
+    for file in chain([TAR_FILE], (f + '.bin' for f in six.iterkeys(INPUT_FILES))):
+        file_path = os.path.join(directory, file)
+        if os.path.exists(file_path):
+            os.remove(file_path)

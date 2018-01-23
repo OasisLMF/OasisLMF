@@ -19,7 +19,7 @@ from pathlib2 import Path
 
 from oasislmf.model_execution.files import GUL_INPUT_FILES, OPTIONAL_INPUT_FILES, IL_INPUT_FILES, TAR_FILE, INPUT_FILES
 from oasislmf.model_execution.bin import create_binary_files, create_binary_tar_file, check_conversion_tools, \
-    check_inputs_directory, prepare_model_run_directory, prepare_model_run_inputs
+    check_inputs_directory, prepare_model_run_directory, prepare_model_run_inputs, cleanup_bin_directory
 from oasislmf.utils.exceptions import OasisException
 
 ECHO_CONVERSION_INPUT_FILES = {k: ChainMap({'conversion_tool': 'echo'}, v) for k, v in INPUT_FILES.items()}
@@ -492,3 +492,18 @@ class PrepareModelRunInputs(TestCase):
 
             with self.assertRaises(OasisException):
                 prepare_model_run_inputs({}, d)
+
+
+class CleanBinDirectory(TestCase):
+    def test_output_and_bin_input_files_are_removed(self):
+        with TemporaryDirectory() as d:
+            Path(os.path.join(d, TAR_FILE)).touch()
+
+            for f in six.iterkeys(INPUT_FILES):
+                Path(os.path.join(d, f + '.bin')).touch()
+
+            cleanup_bin_directory(d)
+
+            self.assertFalse(os.path.exists(os.path.join(d, TAR_FILE)))
+            for f in six.iterkeys(INPUT_FILES):
+                self.assertFalse(os.path.exists(os.path.join(d, f + '.bin')))
