@@ -1,41 +1,7 @@
-FROM coreoasis/ktools:R_0_0_0_3
-
-RUN apt update && apt upgrade -y && apt install -y \
-    unixodbc \
-    unixodbc-dev \
-    python-pip \
-    vim \
-    tree \
-    iputils-ping \
-    curl
-
-RUN useradd -ms /bin/bash oasisapi-client
-
-RUN mkdir /var/log/oasis
-RUN chown oasisapi-client /var/log/oasis
-RUN touch /var/log/oasis/oasisapi_client.log
-RUN chmod -R 744 /var/log/oasis
-
-RUN mkdir /home/oasisapi_client
-RUN chown oasisapi-client /home/oasisapi_client
-COPY ./requirements.txt /home/oasisapi_client/
-COPY ./oasis_utils /home/oasisapi_client/oasis_utils
-COPY ./__init__.py /home/oasisapi_client/
-COPY ./OasisAPIClient.py /home/oasisapi_client/
-COPY ./model_api_tester.py /home/oasisapi_client/
-COPY ./run_api_test_analysis.sh /home/oasisapi_client
-
-RUN pip install -r /home/oasisapi_client/oasis_utils/requirements.txt
-RUN pip install -r /home/oasisapi_client/requirements.txt
+FROM coreoasis/oasislmf-cli:%CLI_VERSION%
 
 RUN mkdir /home/oasisapi_client/%MODEL_ID%
 RUN mkdir /home/oasisapi_client/%MODEL_ID%/data
 COPY %LOCAL_MODEL_DATA_PATH%/ /home/oasisapi_client/%MODEL_ID%/data/
 
-RUN chown -R oasisapi-client /home/oasisapi_client
-RUN chmod 744 /home/oasisapi_client
-
-USER oasisapi-client
-WORKDIR /home/oasisapi_client
-
-ENTRYPOINT ./run_api_test_analysis.sh %OASIS_API_SERVER_URL% %MODEL_KEYS_SERVER_URL% %SUPPLIER_ID% %MODEL_ID% %MODEL_VERSION%; tail -f /var/log/oasis/oasisapi_client.log
+CMD ["test", "test-model", "-a", "%MODEL_ID%/data/analysis_settings.json", "-i", "%MODEL_ID%/data/input", "-o", "%{MODEL_ID}%/data/output", "%OASIS_API_SERVER_URL%"]

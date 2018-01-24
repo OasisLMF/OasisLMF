@@ -298,10 +298,11 @@ class TestModelApiCmdRun(TestCase):
             cmd = self.get_command(analysis_directory=self.directory, extras={'num-analyses': num_analyses})
             cmd._logger = Mock()
 
-            cmd.run()
+            res = cmd.run()
 
             pool_mock.assert_called_once_with(processes=num_analyses)
 
+            self.assertEqual(0, res)
             self.assertEqual(1, pool_mock_object.map.call_count)
             fn = pool_mock_object.map.call_args[0][0]
             args = list(pool_mock_object.map.call_args[0][1])

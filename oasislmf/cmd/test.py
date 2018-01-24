@@ -2,7 +2,6 @@ import csv
 import json
 import os
 
-import shutil
 from collections import Counter
 from multiprocessing.pool import ThreadPool
 
@@ -10,6 +9,7 @@ import six
 from argparsetree import BaseCommand
 from backports.tempfile import TemporaryDirectory
 
+from .. import __version__
 from ..utils.exceptions import OasisException
 from ..utils.conf import replace_in_file
 from ..api_client.client import OasisAPIClient
@@ -121,8 +121,8 @@ class GenerateModelTesterDockerFileCmd(OasisBaseCommand):
     description = 'Generates a new a model testing dockerfile from the supplied template'
 
     var_names = [
+        'CLI_VERSION',
         'OASIS_API_SERVER_URL',
-        'MODEL_KEYS_SERVER_URL',
         'SUPPLIER_ID',
         'MODEL_ID',
         'MODEL_VERSION',
@@ -131,73 +131,48 @@ class GenerateModelTesterDockerFileCmd(OasisBaseCommand):
 
     def add_args(self, parser):
         parser.add_argument(
-            '-s', '--api_server_url', type=str, required=True,
+            'api_server_url', type=str,
             help='Oasis API server URL (including protocol and port), e.g. http://localhost:8001'
         )
 
         parser.add_argument(
-            '-k', '--key_server_url', type=str, required=True,
-            help='Key server URL (including protocol and port), e.g. http://localhost:8001'
-        )
-
-        parser.add_argument(
-            '--model_version_file', type=str, required=True,
-            help='Model version file path (relative or absolute path of model version file)'
-        )
-
-        parser.add_argument(
-            '-d', '--model_data_path', type=str, required=True,
+            '--model-data-directory', type=PathCleaner('Model data path', required=False), default='./model_data',
             help='Model data path (relative or absolute path of model version file)'
         )
 
         parser.add_argument(
-            '-o', '--output_path', type=str, required=True, default='.',
-            help='Path to the output directory (relative or absolute path of model version file)'
+            '--model-version-file', type=PathCleaner('Model version file', required=False), default=None,
+            help='Model version file path (relative or absolute path of model version file), by default <model-data-path>/ModelVersion.csv is used'
         )
 
     def action(self, args):
-        model_version_file_path = os.path.abspath(args['model_version_file_path'])
-        with open(model_version_file_path) as f:
+        dockerfile_src = os.path.join(os.path.dirname(__file__), os.path.pardir, '_data', 'Dockerfile.model_api_tester')
+
+        version_file = args.model_version_file or os.path.join(args.model_data_directory, 'ModelVersion.csv')
+        with open(version_file) as f:
             supplier_id, model_id, model_version = map(lambda s: s.strip(), next(csv.reader(f)))
 
-        dockerfile = 'Dockerfile.{}_{}_model_api_tester'.format(supplier_id.lower(), model_id.lower())
-        if args['target_dockerfile_dir'] != '.':
-            dockerfile = os.path.join(os.path.abspath(args['target_dockerfile_dir']), dockerfile)
+        dockerfile_dst = os.path.join(
+            args.model_data_directory,
+            'Dockerfile.{}_{}_model_api_tester'.format(supplier_id.lower(), model_id.lower()),
+        )
 
-        if os.path.exists(dockerfile):
-            os.remove(dockerfile)
+        replace_in_file(
+            dockerfile_src,
+            dockerfile_dst,
+            ['%{}%'.format(s) for s in self.var_names],
+            [
+                __version__,
+                args.api_server_url,
+                supplier_id,
+                model_id,
+                model_version,
+                args.model_data_directory,
+            ]
+        )
 
-        oasisapi_server_url = args['oasisapi_server_url'].strip('/')
-        model_keys_server_url = args['model_keys_server_url'].strip('/')
-
-        local_model_data_path = os.path.abspath(args['local_model_data_path'])
-        dest_data_folder = os.path.abspath(os.path.join('tests', 'data'))
-
-        if local_model_data_path != dest_data_folder:
-            if os.path.exists(dest_data_folder):
-                shutil.rmtree(dest_data_folder)
-            shutil.copytree(local_model_data_path, dest_data_folder)
-
-        try:
-            replace_in_file(
-                'Dockerfile.model_api_tester',
-                dockerfile,
-                map(lambda s: '%{}%'.format(s), self.var_names),
-                [
-                    oasisapi_server_url,
-                    model_keys_server_url,
-                    supplier_id,
-                    model_id,
-                    model_version,
-                    local_model_data_path
-                ]
-            )
-        except Exception as e:
-            print(str(e))
-            return 1
-        else:
-            print('\nFile "{}" created in working directory.\n'.format(dockerfile))
-            return 0
+        self.logger.info('File created at {}.'.format(dockerfile_dst))
+        return 0
 
 
 class TestCmd(BaseCommand):

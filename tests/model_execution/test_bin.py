@@ -292,6 +292,19 @@ class CheckInputDirectory(TestCase):
             except Exception as e:
                 self.fail('Exception was raised {}: {}'.format(type(e), e))
 
+    def test_do_il_is_true_bin_files_are_present_but_check_bin_files_are_true___no_exception_is_raised(self):
+        with TemporaryDirectory() as d:
+            for p in six.itervalues(INPUT_FILES):
+                Path(os.path.join(d, p['name'] + '.csv')).touch()
+
+            for p in six.itervalues(INPUT_FILES):
+                Path(os.path.join(d, p['name'] + '.bin')).touch()
+
+            try:
+                check_inputs_directory(d, do_il=True, check_binaries=False)
+            except Exception as e:
+                self.fail('Exception was raised {}: {}'.format(type(e), e))
+
 
 class PrepareModelRunDirectory(TestCase):
     def test_directory_is_empty___child_directories_are_created(self):

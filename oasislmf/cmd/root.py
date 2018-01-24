@@ -1,11 +1,15 @@
-from oasislmf.utils.exceptions import OasisException
+from ..utils.exceptions import OasisException
 from .base import OasisBaseCommand
 from .test import TestCmd
+from .version import VersionCmd
+from .bin import BinCmd
 
 
 class RootCmd(OasisBaseCommand):
     sub_commands = {
-        'test': TestCmd
+        'test': TestCmd,
+        'version': VersionCmd,
+        'bin': BinCmd,
     }
 
     def run(self, args=None):

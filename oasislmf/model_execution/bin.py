@@ -144,7 +144,7 @@ def prepare_model_run_inputs(analysis_settings, run_directory):
         raise OasisException(e)
 
 
-def check_inputs_directory(directory_to_check, do_il=False):
+def check_inputs_directory(directory_to_check, do_il=False, check_binaries=True):
     """
     Check that all the required csv files are present in the directory.
     Args:
@@ -167,9 +167,10 @@ def check_inputs_directory(directory_to_check, do_il=False):
         if not os.path.exists(file_path):
             raise OasisException("Failed to find {}".format(file_path))
 
-        file_path = os.path.join(directory_to_check, input_file + ".bin")
-        if os.path.exists(file_path):
-            raise OasisException("Binary file already exists: {}".format(file_path))
+        if check_binaries:
+            file_path = os.path.join(directory_to_check, input_file + ".bin")
+            if os.path.exists(file_path):
+                raise OasisException("Binary file already exists: {}".format(file_path))
 
 
 def create_binary_files(csv_directory, bin_directory, do_il=False):
