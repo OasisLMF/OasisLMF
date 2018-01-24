@@ -1,17 +1,21 @@
+import json
 from unittest import TestCase
 
 import os
 
 import shutil
 import six
+from hypothesis import given
+from hypothesis.strategies import sampled_from
 from mock import Mock
 from backports.tempfile import mkdtemp, TemporaryDirectory
 from pathlib2 import Path
 
 from oasislmf.cmd import RootCmd
+from oasislmf.cmd.test import TestModelApiCmd
 
 
-class TestModelApiCmd(TestCase):
+class TestModelApiCmdBaseTest(TestCase):
     def setUp(self):
         self.directory = mkdtemp()
         self._orig_cwd = os.getcwd()
@@ -27,6 +31,80 @@ class TestModelApiCmd(TestCase):
 
         os.chdir(d)
 
+
+class TestModelApiCmdLoadAnalysisSettingsJson(TestModelApiCmdBaseTest):
+    def test_do_il_is_true___result_has_input_dict_and_do_il_is_true(self):
+        conf = {
+            'analysis_settings': {
+                'il_output': True,
+                'foo': 'bar',
+            }
+        }
+
+        filename = os.path.join(self.directory, 'analysis_settings.json')
+        with open(filename, 'w') as f:
+            json.dump(conf, f)
+
+        res_conf, do_il = TestModelApiCmd().load_analysis_settings_json(filename)
+
+        self.assertEqual(conf, res_conf)
+        self.assertTrue(do_il)
+
+    def test_do_il_is_false___result_has_input_dict_and_do_il_is_false(self):
+        conf = {
+            'analysis_settings': {
+                'il_output': False,
+                'foo': 'bar',
+            }
+        }
+
+        filename = os.path.join(self.directory, 'analysis_settings.json')
+        with open(filename, 'w') as f:
+            json.dump(conf, f)
+
+        res_conf, do_il = TestModelApiCmd().load_analysis_settings_json(filename)
+
+        self.assertEqual(conf, res_conf)
+        self.assertFalse(do_il)
+
+    @given(sampled_from(['true', 'TRUE', 'True']))
+    def test_do_il_is_string_true___result_has_input_dict_and_do_il_is_true(self, do_il_in):
+        conf = {
+            'analysis_settings': {
+                'il_output': do_il_in,
+                'foo': 'bar',
+            }
+        }
+
+        filename = os.path.join(self.directory, 'analysis_settings.json')
+        with open(filename, 'w') as f:
+            json.dump(conf, f)
+
+        res_conf, do_il = TestModelApiCmd().load_analysis_settings_json(filename)
+
+        self.assertEqual(conf, res_conf)
+        self.assertTrue(do_il)
+
+    @given(sampled_from(['false', 'FALSE', 'False']))
+    def test_do_il_is_string_false___result_has_input_dict_and_do_il_is_false(self, do_il_in):
+        conf = {
+            'analysis_settings': {
+                'il_output': do_il_in,
+                'foo': 'bar',
+            }
+        }
+
+        filename = os.path.join(self.directory, 'analysis_settings.json')
+        with open(filename, 'w') as f:
+            json.dump(conf, f)
+
+        res_conf, do_il = TestModelApiCmd().load_analysis_settings_json(filename)
+
+        self.assertEqual(conf, res_conf)
+        self.assertFalse(do_il)
+
+
+class TestModelApiCmdRun(TestModelApiCmdBaseTest):
     def get_command(self, api_server_url='http://localhost:8001', analysis_directory=None, extras=None):
         kwargs = {}
 
