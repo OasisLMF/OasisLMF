@@ -1,4 +1,6 @@
 import json
+from collections import Counter
+from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
 import os
@@ -6,16 +8,142 @@ import os
 import shutil
 import six
 from hypothesis import given
-from hypothesis.strategies import sampled_from
-from mock import Mock
+from hypothesis.strategies import sampled_from, text, dictionaries, booleans, integers
+from mock import Mock, ANY
 from backports.tempfile import mkdtemp, TemporaryDirectory
 from pathlib2 import Path
 
+from oasislmf.api_client.client import OasisAPIClient
 from oasislmf.cmd import RootCmd
 from oasislmf.cmd.test import TestModelApiCmd
+from oasislmf.utils.exceptions import OasisException
 
 
-class TestModelApiCmdBaseTest(TestCase):
+class TestModelApiCmdLoadAnalysisSettingsJson(TestCase):
+    def test_do_il_is_true___result_has_input_dict_and_do_il_is_true(self):
+        conf = {
+            'analysis_settings': {
+                'il_output': True,
+                'foo': 'bar',
+            }
+        }
+
+        with NamedTemporaryFile('w') as f:
+            json.dump(conf, f)
+            f.flush()
+
+            res_conf, do_il = TestModelApiCmd().load_analysis_settings_json(f.name)
+
+            self.assertEqual(conf, res_conf)
+            self.assertTrue(do_il)
+
+    def test_do_il_is_false___result_has_input_dict_and_do_il_is_false(self):
+        conf = {
+            'analysis_settings': {
+                'il_output': False,
+                'foo': 'bar',
+            }
+        }
+
+        with NamedTemporaryFile('w') as f:
+            json.dump(conf, f)
+            f.flush()
+
+            res_conf, do_il = TestModelApiCmd().load_analysis_settings_json(f.name)
+
+            self.assertEqual(conf, res_conf)
+            self.assertFalse(do_il)
+
+    @given(sampled_from(['true', 'TRUE', 'True']))
+    def test_do_il_is_string_true___result_has_input_dict_and_do_il_is_true(self, do_il_in):
+        conf = {
+            'analysis_settings': {
+                'il_output': do_il_in,
+                'foo': 'bar',
+            }
+        }
+
+        with NamedTemporaryFile('w') as f:
+            json.dump(conf, f)
+            f.flush()
+
+            res_conf, do_il = TestModelApiCmd().load_analysis_settings_json(f.name)
+
+            self.assertEqual(conf, res_conf)
+            self.assertTrue(do_il)
+
+    @given(sampled_from(['false', 'FALSE', 'False']))
+    def test_do_il_is_string_false___result_has_input_dict_and_do_il_is_false(self, do_il_in):
+        conf = {
+            'analysis_settings': {
+                'il_output': do_il_in,
+                'foo': 'bar',
+            }
+        }
+
+        with NamedTemporaryFile('w') as f:
+            json.dump(conf, f)
+            f.flush()
+
+            res_conf, do_il = TestModelApiCmd().load_analysis_settings_json(f.name)
+
+            self.assertEqual(conf, res_conf)
+            self.assertFalse(do_il)
+
+
+class TestModelApiCmdRunAnalysis(TestCase):
+    @given(text(), text(), dictionaries(text(), text()), booleans(), integers(min_value=0, max_value=5), integers(min_value=0, max_value=5))
+    def test_no_errors_are_raised___completed_is_incremented(self, input_dir, output_dir, settings, do_il, initial_complete, initial_failed):
+        client = OasisAPIClient('http://localhost:8001')
+        client.upload_inputs_from_directory = Mock(return_value='input_location')
+        client.run_analysis_and_poll = Mock()
+
+        counter = Counter({
+            'completed': initial_complete,
+            'failed': initial_failed,
+        })
+
+        TestModelApiCmd().run_analysis(client, input_dir, output_dir, settings, do_il, counter)
+
+        self.assertEqual(initial_complete + 1, counter['completed'])
+        self.assertEqual(initial_failed, counter['failed'])
+        client.upload_inputs_from_directory.assert_called_once_with(input_dir, bin_directory=ANY, do_il=do_il, do_build=True)
+        client.run_analysis_and_poll.assert_called_once_with(settings, 'input_location', output_dir)
+
+    @given(text(), text(), dictionaries(text(), text()), booleans(), integers(min_value=0, max_value=5), integers(min_value=0, max_value=5))
+    def test_uploading_raises_an_error___failed_counter_is_incremented(self, input_dir, output_dir, settings, do_il, initial_complete, initial_failed):
+        client = OasisAPIClient('http://localhost:8001')
+        client.upload_inputs_from_directory = Mock(side_effect=OasisException())
+        client.run_analysis_and_poll = Mock()
+
+        counter = Counter({
+            'completed': initial_complete,
+            'failed': initial_failed,
+        })
+
+        TestModelApiCmd().run_analysis(client, input_dir, output_dir, settings, do_il, counter)
+
+        self.assertEqual(initial_complete, counter['completed'])
+        self.assertEqual(initial_failed + 1, counter['failed'])
+
+    @given(text(), text(), dictionaries(text(), text()), booleans(), integers(min_value=0, max_value=5), integers(min_value=0, max_value=5))
+    def test_run_and_poll_raises_an_error___failed_counter_is_incremented(self, input_dir, output_dir, settings, do_il, initial_complete, initial_failed):
+        client = OasisAPIClient('http://localhost:8001')
+        client.upload_inputs_from_directory = Mock()
+        client.run_analysis_and_poll = Mock(side_effect=OasisException())
+
+        counter = Counter({
+            'completed': initial_complete,
+            'failed': initial_failed,
+        })
+
+        TestModelApiCmd().run_analysis(client, input_dir, output_dir, settings, do_il, counter)
+
+        self.assertEqual(initial_complete, counter['completed'])
+        self.assertEqual(initial_failed + 1, counter['failed'])
+
+
+class TestModelApiCmdRun(TestCase):
     def setUp(self):
         self.directory = mkdtemp()
         self._orig_cwd = os.getcwd()
@@ -31,80 +159,6 @@ class TestModelApiCmdBaseTest(TestCase):
 
         os.chdir(d)
 
-
-class TestModelApiCmdLoadAnalysisSettingsJson(TestModelApiCmdBaseTest):
-    def test_do_il_is_true___result_has_input_dict_and_do_il_is_true(self):
-        conf = {
-            'analysis_settings': {
-                'il_output': True,
-                'foo': 'bar',
-            }
-        }
-
-        filename = os.path.join(self.directory, 'analysis_settings.json')
-        with open(filename, 'w') as f:
-            json.dump(conf, f)
-
-        res_conf, do_il = TestModelApiCmd().load_analysis_settings_json(filename)
-
-        self.assertEqual(conf, res_conf)
-        self.assertTrue(do_il)
-
-    def test_do_il_is_false___result_has_input_dict_and_do_il_is_false(self):
-        conf = {
-            'analysis_settings': {
-                'il_output': False,
-                'foo': 'bar',
-            }
-        }
-
-        filename = os.path.join(self.directory, 'analysis_settings.json')
-        with open(filename, 'w') as f:
-            json.dump(conf, f)
-
-        res_conf, do_il = TestModelApiCmd().load_analysis_settings_json(filename)
-
-        self.assertEqual(conf, res_conf)
-        self.assertFalse(do_il)
-
-    @given(sampled_from(['true', 'TRUE', 'True']))
-    def test_do_il_is_string_true___result_has_input_dict_and_do_il_is_true(self, do_il_in):
-        conf = {
-            'analysis_settings': {
-                'il_output': do_il_in,
-                'foo': 'bar',
-            }
-        }
-
-        filename = os.path.join(self.directory, 'analysis_settings.json')
-        with open(filename, 'w') as f:
-            json.dump(conf, f)
-
-        res_conf, do_il = TestModelApiCmd().load_analysis_settings_json(filename)
-
-        self.assertEqual(conf, res_conf)
-        self.assertTrue(do_il)
-
-    @given(sampled_from(['false', 'FALSE', 'False']))
-    def test_do_il_is_string_false___result_has_input_dict_and_do_il_is_false(self, do_il_in):
-        conf = {
-            'analysis_settings': {
-                'il_output': do_il_in,
-                'foo': 'bar',
-            }
-        }
-
-        filename = os.path.join(self.directory, 'analysis_settings.json')
-        with open(filename, 'w') as f:
-            json.dump(conf, f)
-
-        res_conf, do_il = TestModelApiCmd().load_analysis_settings_json(filename)
-
-        self.assertEqual(conf, res_conf)
-        self.assertFalse(do_il)
-
-
-class TestModelApiCmdRun(TestModelApiCmdBaseTest):
     def get_command(self, api_server_url='http://localhost:8001', analysis_directory=None, extras=None):
         kwargs = {}
 
