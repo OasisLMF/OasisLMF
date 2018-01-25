@@ -15,12 +15,7 @@ def get_readme():
 
 def get_install_requirements():
     with open(os.path.join(os.path.dirname(__file__), 'requirements-package.in')) as reqs:
-        return [r for r in reqs.readlines() if not r.startswith('-e')]
-
-
-def get_dependency_links():
-    with open(os.path.join(os.path.dirname(__file__), 'requirements-package.in')) as reqs:
-        return [r[3:] for r in reqs.readlines() if r.startswith('-e')]
+        return reqs.readlines()
 
 
 def get_version():
@@ -74,7 +69,6 @@ setup(
     author_email=' oasis@oasislmf.org',
     keywords='oasis lmf loss modeling framework',
     install_requires=get_install_requirements(),
-    dependency_links=get_dependency_links(),
     classifiers=[
         'Development Status :: 4 - Beta',
         'License :: OSI Approved :: BSD License',

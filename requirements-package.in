@@ -9,4 +9,4 @@ pytz
 pathlib2
 backports.tempfile
 chainmap
--e git+https://github.com/wildfish/argparsetree.git#egg=argparsetree
+argparsetree

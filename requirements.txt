@@ -4,7 +4,7 @@
 #
 #    pip-compile --output-file requirements.txt requirements.in
 #
--e git+https://github.com/wildfish/argparsetree.git#egg=argparsetree
+argparsetree==0.0.1
 attrs==17.4.0             # via hypothesis, pytest
 backports.tempfile==1.0
 backports.weakref==1.0.post1  # via backports.tempfile
