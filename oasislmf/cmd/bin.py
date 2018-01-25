@@ -77,6 +77,8 @@ class CheckCmd(OasisBaseCommand):
 
 
 class BinCmd(OasisBaseCommand):
+    description = 'Build binary files'
+
     sub_commands = {
         'build': BuildCmd,
         'clean': CleanCmd,
