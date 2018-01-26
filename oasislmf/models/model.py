@@ -1,5 +1,6 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from __future__ import unicode_literals
+
 import json
 
 __all__ = [
@@ -29,7 +30,6 @@ class OasisModel(object):
     and transformation files for the source -> canonical and canonical
     -> model exposure transforms, etc.
     """
-
     def __init__(
         self,
         model_supplier_id,
@@ -59,6 +59,15 @@ class OasisModel(object):
                 self._resources['oasis_files_pipeline'].source_exposures_file = f
 
         self._resources['canonical_exposures_profile'] = self.load_canonical_profile(**self._resources)
+
+    def __str__(self):
+        return '{}: {}'.format(self.__repr__(), self.key)
+
+    def __repr__(self):
+        return '{}: {}'.format(self.__class__, self.__dict__)
+
+    def _repr_pretty_(self, p, cycle):
+        p.text(str(self) if not cycle else '...')
 
     @classmethod
     def load_canonical_profile(cls, canonical_exposures_profile_json=None, canonical_exposures_profile_json_path=None, **kwargs):
@@ -116,7 +125,7 @@ class OasisModel(object):
         return self._model_version_id
 
     @property
-    def resources(self, key=None):
+    def resources(self):
         """
         Model resources dictionary property.
 
@@ -133,31 +142,16 @@ class OasisModel(object):
                       the resources dict. If no ``key`` is given then the
                       entire existing dict is cleared.
         """
-        return self._resources[key] if key else self._resources
+        return self._resources
 
     @resources.setter
-    def resources(self, key=None, val=None):
-        if key:
-            self._resources.update({key: val})
-        else:
-            self._resources.clear()
-            self._resources.update(val)
+    def resources(self, val=None):
+        self._resources.clear()
+        self._resources.update(val)
 
     @resources.deleter
-    def resources(self, key=None):
-        if key:
-            del self._resources[key]
-        else:
-            self._resources.clear()
-
-    def __str__(self):
-        return '{}: {}'.format(self.__repr__(), self.key)
-
-    def __repr__(self):
-        return '{}: {}'.format(self.__class__, self.__dict__)
-
-    def _repr_pretty_(self, p, cycle):
-        p.text(str(self) if not cycle else '...')
+    def resources(self):
+        self._resources.clear()
 
 
 class OasisModelFactory(object):

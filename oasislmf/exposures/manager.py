@@ -25,7 +25,7 @@ __author__ = "Sandeep Murthy"
 __copyright__ = "2017, Oasis Loss Modelling Framework"
 
 
-class OasisExposuresManagerInterface(Interface):
+class OasisExposuresManagerInterface(Interface):  # pragma: no cover
     """
     An interface for defining the behaviour of an Oasis exposures manager.
     """
@@ -166,20 +166,6 @@ class OasisExposuresManagerInterface(Interface):
         """
         pass
 
-    def load_canonical_profile(self, oasis_model, **kwargs):
-        """
-        Loads a JSON file representing the canonical exposures profile for a
-        given ``oasis_model``.
-
-        All the required resources must be provided either in the model object
-        resources dict or the ``kwargs`` dict.
-
-        It is up to the specific implementation of this class of how these
-        resources will be named in ``kwargs`` and how they will be used to
-        effect the transformation.
-        """
-        pass
-
     def generate_items_file(self, oasis_model, **kwargs):
         """
         Generates an items file for the given ``oasis_model``.
@@ -217,13 +203,13 @@ class OasisExposuresManagerInterface(Interface):
 
 
 class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
-    def __init__(self, models=None):
+    def __init__(self, oasis_models=None):
         """
         Class constructor.
 
-        :param models: A list of Oasis model objects with resources provided in the model objects'
+        :param oasis_models: A list of Oasis model objects with resources provided in the model objects'
             resources dictionaries.
-        :type models: ``list(OasisModel)``
+        :type oasis_models: ``list(OasisModel)``
         """
         self.logger = logging.getLogger()
 
@@ -236,23 +222,24 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         self.logger.debug('Adding models')
         self._models = {}
 
-        self.add_models(models)
+        self.add_models(oasis_models)
 
         self.logger.debug('Exposures manager {} finished initialising'.format(self))
 
-    def add_model(self, model):
+    def add_model(self, oasis_model):
         """
         Adds model to the manager and sets up its resources.
         """
-        self._models[model.key] = model
+        self._models[oasis_model.key] = oasis_model
 
-        return model
+        return oasis_model
 
     def add_models(self, oasis_models):
         """
         Adds a list of Oasis model objects to the manager.
         """
-        map(lambda model: self.add_model(model), oasis_models)
+        for model in oasis_models or []:
+            self.add_model(model)
 
     def update_model(self, oasis_model):
         """
