@@ -63,7 +63,7 @@ class ModelInit(TestCase):
         pipeline = FakePipeline()
 
         with self.assertRaises(OasisException):
-             self.create_model(resources={'oasis_files_pipeline': pipeline})
+            self.create_model(resources={'oasis_files_pipeline': pipeline})
 
     def test_exposure_file_path_is_not_supplied___source_exposure_file_is_not_set_on_pipeline(self):
         model = self.create_model()

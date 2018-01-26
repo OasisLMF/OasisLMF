@@ -1185,23 +1185,21 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
                 self.logger.info('Generating canonical exposures file {}'.format(target_file_path))
 
-                canonical_exposures_file = self.transform_source_to_canonical(oasis_model, with_model_resources=False,
-                                                                              **kwargs)
+                self.transform_source_to_canonical(oasis_model, with_model_resources=False, **kwargs)
 
                 target_file_path = os.path.join(oasis_files_path, 'modexp-{}.csv'.format(utcnow))
                 kwargs['model_exposures_file_path'] = target_file_path
 
                 self.logger.info('Generating model exposures file {}'.format(target_file_path))
 
-                model_exposures_file = self.transform_canonical_to_model(oasis_model, with_model_resources=False,
-                                                                         **kwargs)
+                self.transform_canonical_to_model(oasis_model, with_model_resources=False, **kwargs)
 
                 target_file_path = os.path.join(oasis_files_path, 'oasiskeys-{}.csv'.format(utcnow))
                 kwargs['keys_file_path'] = target_file_path
 
                 self.logger.info('Generating keys file {}'.format(target_file_path))
 
-                keys_file = self.get_keys(oasis_model, with_model_resources=False, **kwargs)
+                self.get_keys(oasis_model, with_model_resources=False, **kwargs)
 
                 self.logger.info('Checking for canonical exposures profile source for model')
 

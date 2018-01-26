@@ -10,7 +10,6 @@ __copyright__ = "2017, Oasis Loss Modelling Framework"
 
 
 class OasisFilesPipeline(object):
-
     def __init__(
         self,
         model_key=None,
@@ -45,6 +44,15 @@ class OasisFilesPipeline(object):
             'gulsummaryxref_file'
         ]
 
+    def __str__(self):
+        return '{}: {}'.format(self.__repr__(), self.model_key)
+
+    def __repr__(self):
+        return '{}: {}'.format(self.__class__, self.__dict__)
+
+    def _repr_pretty_(self, p, cycle):
+        p.text(str(self) if not cycle else '...')
+
     @property
     def model_key(self):
         """
@@ -53,7 +61,6 @@ class OasisFilesPipeline(object):
             :getter: Gets the key of model to which the pipeline is attached.
         """
         return self._model_key
-
 
     @property
     def source_exposures_file(self):
@@ -65,11 +72,9 @@ class OasisFilesPipeline(object):
         """
         return self._source_exposures_file
 
-
     @source_exposures_file.setter
     def source_exposures_file(self, f):
         self._source_exposures_file = f
-
 
     @property
     def canonical_exposures_file(self):
@@ -81,11 +86,9 @@ class OasisFilesPipeline(object):
         """
         return self._canonical_exposures_file
 
-
     @canonical_exposures_file.setter
     def canonical_exposures_file(self, f):
         self._canonical_exposures_file = f
-
 
     @property
     def model_exposures_file(self):
@@ -97,11 +100,9 @@ class OasisFilesPipeline(object):
         """
         return self._model_exposures_file
 
-
     @model_exposures_file.setter
     def model_exposures_file(self, f):
         self._model_exposures_file = f
-
 
     @property
     def keys_file(self):
@@ -113,11 +114,9 @@ class OasisFilesPipeline(object):
         """
         return self._keys_file
 
-
     @keys_file.setter
     def keys_file(self, f):
         self._keys_file = f
-
 
     @property
     def items_file(self):
@@ -129,11 +128,9 @@ class OasisFilesPipeline(object):
         """
         return self._items_file
 
-
     @items_file.setter
     def items_file(self, f):
         self._items_file = self.oasis_files['items'] = f
-
 
     @property
     def coverages_file(self):
@@ -145,11 +142,9 @@ class OasisFilesPipeline(object):
         """
         return self._coverages_file
 
-
     @coverages_file.setter
     def coverages_file(self, f):
         self._coverages_file = self.oasis_files['coverages'] = f
-
 
     @property
     def gulsummaryxref_file(self):
@@ -161,11 +156,9 @@ class OasisFilesPipeline(object):
         """
         return self._gulsummaryxref_file
 
-
     @gulsummaryxref_file.setter
     def gulsummaryxref_file(self, f):
         self._gulsummaryxref_file = self.oasis_files['gulsummaryxref'] = f
-
 
     @property
     def oasis_files(self):
@@ -177,7 +170,6 @@ class OasisFilesPipeline(object):
         """
         return self._oasis_files
 
-
     def clear(self):
         """
         Clears all file attributes in the pipeline.
@@ -186,15 +178,3 @@ class OasisFilesPipeline(object):
             lambda f: setattr(self, f, None),
             self._file_attrib_names
         )
-
-
-    def __str__(self):
-        return '{}: {}'.format(self.__repr__(), self.model_key)
-
-
-    def __repr__(self):
-        return '{}: {}'.format(self.__class__, self.__dict__)
-
-
-    def _repr_pretty_(self, p, cycle):
-       p.text(str(self) if not cycle else '...')

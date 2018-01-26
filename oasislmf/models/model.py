@@ -85,7 +85,6 @@ class OasisModel(object):
         """
         return self._key
 
-
     @property
     def supplier_id(self):
         """
@@ -96,7 +95,6 @@ class OasisModel(object):
         """
         return self._supplier_id
 
-
     @property
     def model_id(self):
         """
@@ -104,9 +102,8 @@ class OasisModel(object):
 
             :getter: Gets the model ID
             :type: string
-        """        
+        """
         return self._model_id
-
 
     @property
     def model_version_id(self):
@@ -118,7 +115,6 @@ class OasisModel(object):
         """
         return self._model_version_id
 
-    
     @property
     def resources(self, key=None):
         """
@@ -139,7 +135,6 @@ class OasisModel(object):
         """
         return self._resources[key] if key else self._resources
 
-    
     @resources.setter
     def resources(self, key=None, val=None):
         if key:
@@ -148,7 +143,6 @@ class OasisModel(object):
             self._resources.clear()
             self._resources.update(val)
 
-
     @resources.deleter
     def resources(self, key=None):
         if key:
@@ -156,24 +150,20 @@ class OasisModel(object):
         else:
             self._resources.clear()
 
-
     def __str__(self):
         return '{}: {}'.format(self.__repr__(), self.key)
-
 
     def __repr__(self):
         return '{}: {}'.format(self.__class__, self.__dict__)
 
-
     def _repr_pretty_(self, p, cycle):
-       p.text(str(self) if not cycle else '...')
+        p.text(str(self) if not cycle else '...')
 
 
 class OasisModelFactory(object):
     """
     Factory class for creating Oasis model objects.
     """
-    
     @classmethod
     def create(
         cls,

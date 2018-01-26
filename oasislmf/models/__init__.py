@@ -1,1 +1,1 @@
-from .model import *
+from .model import OasisModel  # noqa

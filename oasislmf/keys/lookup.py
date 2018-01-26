@@ -13,9 +13,6 @@ import os
 import pandas as pd
 import sys
 
-if os.getcwd().split(os.path.sep)[-1] == 'keys':
-    sys.path.insert(0, os.path.abspath(os.pardir))
-
 from ..utils.exceptions import OasisException
 
 
@@ -39,7 +36,6 @@ class OasisKeysLookupFactory(object):
                 f, fieldnames=['supplier_id', 'model_id', 'model_version_id']
             ).next()
 
-
     @classmethod
     def get_lookup_package(cls, lookup_package_path):
         """
@@ -56,7 +52,6 @@ class OasisKeysLookupFactory(object):
         sys.path.pop(0)
         return lookup_package
 
-
     @classmethod
     def get_lookup_class_instance(cls, lookup_package, keys_data_path, model_info):
         """
@@ -70,7 +65,6 @@ class OasisKeysLookupFactory(object):
             model_name=model_info['model_id'],
             model_version=model_info['model_version_id']
         )
-
 
     @classmethod
     def get_model_exposures(cls, model_exposures=None, model_exposures_file_path=None):
@@ -92,14 +86,13 @@ class OasisKeysLookupFactory(object):
 
         return loc_df
 
-
     @classmethod
     def write_oasis_keys_file(cls, records, output_file_path):
         """
         Writes an Oasis keys file from an iterable of keys records.
         """
         with io.open(output_file_path, 'w', encoding='utf-8') as f:
-            f.write('LocID,PerilID,CoverageID,AreaPerilID,VulnerabilityID\n'.decode())            
+            f.write('LocID,PerilID,CoverageID,AreaPerilID,VulnerabilityID\n'.decode())
             n = 0
             for r in records:
                 n += 1
@@ -107,7 +100,6 @@ class OasisKeysLookupFactory(object):
                 f.write(line)
 
         return f, n
-
 
     @classmethod
     def write_list_keys_file(cls, records, output_file_path):
@@ -117,11 +109,10 @@ class OasisKeysLookupFactory(object):
         n = 0
         with io.open(output_file_path, 'w', encoding='utf-8') as f:
             for r in records:
-               f.write('{},\n'.format(json.dumps(r, sort_keys=True, indent=4, separators=(',', ': '))).decode())
-               n += 1
+                f.write('{},\n'.format(json.dumps(r, sort_keys=True, indent=4, separators=(',', ': '))).decode())
+                n += 1
 
         return f, n
-
 
     @classmethod
     def create(
@@ -147,7 +138,6 @@ class OasisKeysLookupFactory(object):
         lookup_package = cls.get_lookup_package(lookup_package_path)
         klc = cls.get_lookup_class_instance(lookup_package, model_keys_data_path, model_info)
         return model_info, klc
-
 
     @classmethod
     def get_keys(
@@ -192,7 +182,6 @@ class OasisKeysLookupFactory(object):
                 else:
                     yield record_container
 
-
     @classmethod
     def save_keys(
         cls,
@@ -225,9 +214,9 @@ class OasisKeysLookupFactory(object):
         if not any([model_exposures, model_exposures_file_path]):
             raise OasisException('No model exposures or model exposures file path provided')
 
-        model_exposures_file_path = os.path.abspath(model_exposures_file_path) if model_exposures_file_path else None    
+        model_exposures_file_path = os.path.abspath(model_exposures_file_path) if model_exposures_file_path else None
         output_file_path = os.path.abspath(output_file_path)
-        
+
         keys = cls.get_keys(
             lookup=lookup,
             model_exposures=model_exposures,
