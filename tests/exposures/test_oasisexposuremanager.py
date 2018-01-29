@@ -33,3 +33,28 @@ class OasisExposureManagerAddModel(TestCase):
             first.key: first,
             second.key: second,
         }, manager.models)
+
+
+class OasisExposureManagerDeleteModels(TestCase):
+    def test_models_is_not_in_manager___no_model_is_removed(self):
+        manager = OasisExposuresManager([
+            OasisModel('supplier', 'model', 'version'),
+            OasisModel('supplier2', 'model2', 'version2'),
+        ])
+        expected = manager.models
+
+        manager.delete_models([OasisModel('supplier3', 'model3', 'version3')])
+
+        self.assertEqual(expected, manager.models)
+
+    def test_models_exist_in_manager___models_are_removed(self):
+        models = [
+            OasisModel('supplier', 'model', 'version'),
+            OasisModel('supplier2', 'model2', 'version2'),
+            OasisModel('supplier3', 'model3', 'version3'),
+        ]
+
+        manager = OasisExposuresManager(models)
+        manager.delete_models(models[1:])
+
+        self.assertEqual({models[0].key: models[0]}, manager.models)

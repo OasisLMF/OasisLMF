@@ -19,7 +19,6 @@ from ..keys.lookup import OasisKeysLookupFactory as oklf
 from ..utils.exceptions import OasisException
 from ..utils.mono import run_mono_executable
 from ..utils.values import get_utctimestamp
-from .pipeline import OasisFilesPipeline
 
 __author__ = "Sandeep Murthy"
 __copyright__ = "2017, Oasis Loss Modelling Framework"
@@ -39,12 +38,6 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
     def add_model(self, oasis_model):
         """
         Adds Oasis model object to the manager and sets up its resources.
-        """
-        pass
-
-    def update_model(self, oasis_model):
-        """
-        Updates an existing Oasis model object in the manager.
         """
         pass
 
@@ -241,46 +234,21 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         for model in oasis_models or []:
             self.add_model(model)
 
-    def update_model(self, oasis_model):
-        """
-        Updates an existing Oasis model object in the manager.
-        """
-        omr = oasis_model.resources
-
-        if 'source_exposures_file_path' in omr:
-            with io.open(omr['source_exposures_file_path'], 'r', encoding='utf-8') as f:
-                omr['oasis_files_pipeline'].source_exposures_file = f
-
-        if (
-                'canonical_exposures_profile_json' in omr or
-                'canonical_exposures_profile_json_path' in omr
-        ):
-            self.load_canonical_profile(oasis_model)
-
-        self._models[oasis_model.key] = oasis_model
-
-        return oasis_model
-
-    def update_models(self, models):
-        """
-        Updates a list of existing Oasis model objects in the manager.
-        """
-        for model in models:
-            self.add_model(model)
-
     def delete_model(self, oasis_model):
         """
         Deletes an existing Oasis model object in the manager.
         """
-        oasis_model.resources['oasis_files_pipeline'].clear()
+        if oasis_model.key in self._models:
+            oasis_model.resources['oasis_files_pipeline'].clear()
 
-        del self._models[oasis_model.key]
+            del self._models[oasis_model.key]
 
     def delete_models(self, oasis_models):
         """
         Deletes a list of existing Oasis model objects in the manager.
         """
-        map(lambda model: self.delete_model(model), oasis_models)
+        for model in oasis_models:
+            self.delete_model(model)
 
     @property
     def keys_lookup_factory(self):
@@ -314,21 +282,12 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         return self._models[key] if key else self._models
 
     @models.setter
-    def models(self, key=None, val=None):
-        if key:
-            model = val
-            if 'oasis_files_pipeline' not in model.resources:
-                model.resources['oasis_files_pipeline'] = OasisFilesPipeline.create()
-                self._models[key] = model
-        else:
-            self._models.clear()
-            self._models.update(val)
+    def models(self, val):
+        self._models.clear()
+        self._models.update(val)
 
     @models.deleter
-    def models(self, key=None):
-        if key:
-            del self._models[key]
-        else:
+    def models(self):
             self._models.clear()
 
     def transform_source_to_canonical(self, oasis_model, with_model_resources=True, **kwargs):
