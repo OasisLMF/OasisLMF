@@ -58,7 +58,7 @@ class OasisModel(object):
             with io.open(self._resources['source_exposures_file_path'], 'r', encoding='utf-8') as f:
                 self._resources['oasis_files_pipeline'].source_exposures_file = f
 
-        self._resources['canonical_exposures_profile'] = self.load_canonical_profile(**self._resources)
+        self.load_canonical_profile(oasis_model=self)
 
     def __str__(self):
         return '{}: {}'.format(self.__repr__(), self.key)
@@ -70,19 +70,27 @@ class OasisModel(object):
         p.text(str(self) if not cycle else '...')
 
     @classmethod
-    def load_canonical_profile(cls, canonical_exposures_profile_json=None, canonical_exposures_profile_json_path=None, **kwargs):
+    def load_canonical_profile(cls, oasis_model=None, canonical_exposures_profile_json=None, canonical_exposures_profile_json_path=None):
         """
         Loads a JSON string or JSON file representation of the canonical
         exposures profile for a given ``oasis_model``, stores this in the
         model object's resources dict, and returns the object.
         """
+        if oasis_model:
+            canonical_exposures_profile_json = canonical_exposures_profile_json or oasis_model.resources['canonical_exposures_profile_json']
+            canonical_exposures_profile_json_path = canonical_exposures_profile_json_path or oasis_model.resources['canonical_exposures_profile_json_path']
+
+        profile = None
         if canonical_exposures_profile_json:
-            return json.loads(canonical_exposures_profile_json)
+            profile = json.loads(canonical_exposures_profile_json)
         elif canonical_exposures_profile_json_path:
             with io.open(canonical_exposures_profile_json_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                 profile = json.load(f)
 
-        return None
+        if oasis_model:
+            oasis_model.resources['canonical_exposures_profile'] = profile
+
+        return profile
 
     @property
     def key(self):
