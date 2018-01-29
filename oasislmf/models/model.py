@@ -77,15 +77,15 @@ class OasisModel(object):
         model object's resources dict, and returns the object.
         """
         if oasis_model:
-            canonical_exposures_profile_json = canonical_exposures_profile_json or oasis_model.resources['canonical_exposures_profile_json']
-            canonical_exposures_profile_json_path = canonical_exposures_profile_json_path or oasis_model.resources['canonical_exposures_profile_json_path']
+            canonical_exposures_profile_json = canonical_exposures_profile_json or oasis_model.resources.get('canonical_exposures_profile_json')
+            canonical_exposures_profile_json_path = canonical_exposures_profile_json_path or oasis_model.resources.get('canonical_exposures_profile_json_path')
 
-        profile = None
+        profile = {}
         if canonical_exposures_profile_json:
             profile = json.loads(canonical_exposures_profile_json)
         elif canonical_exposures_profile_json_path:
             with io.open(canonical_exposures_profile_json_path, 'r', encoding='utf-8') as f:
-                 profile = json.load(f)
+                profile = json.load(f)
 
         if oasis_model:
             oasis_model.resources['canonical_exposures_profile'] = profile
