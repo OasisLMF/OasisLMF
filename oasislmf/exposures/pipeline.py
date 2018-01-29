@@ -13,25 +13,25 @@ class OasisFilesPipeline(object):
     def __init__(
         self,
         model_key=None,
-        source_exposures_file=None,
-        canonical_exposures_file=None,
-        model_exposures_file=None,
-        keys_file=None
+        source_exposures_path=None,
+        canonical_exposures_path=None,
+        model_exposures_path=None,
+        keys_file_path=None
     ):
         self._model_key = model_key
-        self._source_exposures_file = source_exposures_file
-        self._canonical_exposures_file = canonical_exposures_file
-        self._model_exposures_file = model_exposures_file
-        self._keys_file = keys_file
+        self._source_exposures_path = source_exposures_path
+        self._canonical_exposures_path = canonical_exposures_path
+        self._model_exposures_path = model_exposures_path
+        self._keys_file_path = keys_file_path
 
-        self._items_file = None
-        self._coverages_file = None
-        self._gulsummaryxref_file = None
+        self._items_path = None
+        self._coverages_path = None
+        self._gulsummaryxref_path = None
 
         self._oasis_files = {
-            'items': self._items_file,
-            'coverages': self._coverages_file,
-            'gulsummaryxref': self._gulsummaryxref_file
+            'items': self._items_path,
+            'coverages': self._coverages_path,
+            'gulsummaryxref': self._gulsummaryxref_path
         }
 
         self._file_attrib_names = [
@@ -63,60 +63,60 @@ class OasisFilesPipeline(object):
         return self._model_key
 
     @property
-    def source_exposures_file(self):
+    def source_exposures_path(self):
         """
         Source exposures file property.
 
             :getter: Gets the actual file object
             :setter: Sets the file to the specified file object
         """
-        return self._source_exposures_file
+        return self._source_exposures_path
 
-    @source_exposures_file.setter
-    def source_exposures_file(self, f):
-        self._source_exposures_file = f
+    @source_exposures_path.setter
+    def source_exposures_path(self, f):
+        self._source_exposures_path = f
 
     @property
-    def canonical_exposures_file(self):
+    def canonical_exposures_path(self):
         """
         Canonical exposures file property.
 
             :getter: Gets the actual file object
             :setter: Sets the file to the specified file object
         """
-        return self._canonical_exposures_file
+        return self._canonical_exposures_path
 
-    @canonical_exposures_file.setter
-    def canonical_exposures_file(self, f):
-        self._canonical_exposures_file = f
+    @canonical_exposures_path.setter
+    def canonical_exposures_path(self, f):
+        self._canonical_exposures_path = f
 
     @property
-    def model_exposures_file(self):
+    def model_exposures_path(self):
         """
         Model exposures file property.
 
             :getter: Gets the actual file object
             :setter: Sets the file to the specified file object
         """
-        return self._model_exposures_file
+        return self._model_exposures_path
 
-    @model_exposures_file.setter
-    def model_exposures_file(self, f):
-        self._model_exposures_file = f
+    @model_exposures_path.setter
+    def model_exposures_path(self, f):
+        self._model_exposures_path = f
 
     @property
-    def keys_file(self):
+    def keys_file_path(self):
         """
         Oasis keys file property.
 
             :getter: Gets the actual file object
             :setter: Sets the file to the specified file object
         """
-        return self._keys_file
+        return self._keys_file_path
 
-    @keys_file.setter
-    def keys_file(self, f):
-        self._keys_file = f
+    @keys_file_path.setter
+    def keys_file_path(self, f):
+        self._keys_file_path = f
 
     @property
     def items_file(self):
@@ -126,39 +126,39 @@ class OasisFilesPipeline(object):
             :getter: Gets the actual file object
             :setter: Sets the file to the specified file object
         """
-        return self._items_file
+        return self._items_path
 
     @items_file.setter
     def items_file(self, f):
-        self._items_file = self.oasis_files['items'] = f
+        self._items_path = self.oasis_files['items'] = f
 
     @property
-    def coverages_file(self):
+    def coverages_path(self):
         """
         Oasis coverages file property.
 
             :getter: Gets the actual file object
             :setter: Sets the file to the specified file object
         """
-        return self._coverages_file
+        return self._coverages_path
 
-    @coverages_file.setter
-    def coverages_file(self, f):
-        self._coverages_file = self.oasis_files['coverages'] = f
+    @coverages_path.setter
+    def coverages_path(self, f):
+        self._coverages_path = self.oasis_files['coverages'] = f
 
     @property
-    def gulsummaryxref_file(self):
+    def gulsummaryxref_path(self):
         """
         GUL summary file property.
 
             :getter: Gets the actual file object
             :setter: Sets the file to the specified file object
         """
-        return self._gulsummaryxref_file
+        return self._gulsummaryxref_path
 
-    @gulsummaryxref_file.setter
-    def gulsummaryxref_file(self, f):
-        self._gulsummaryxref_file = self.oasis_files['gulsummaryxref'] = f
+    @gulsummaryxref_path.setter
+    def gulsummaryxref_path(self, f):
+        self._gulsummaryxref_path = self.oasis_files['gulsummaryxref'] = f
 
     @property
     def oasis_files(self):

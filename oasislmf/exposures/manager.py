@@ -6,6 +6,7 @@ import os
 import io
 
 import shutil
+import json
 
 import six
 
@@ -17,7 +18,7 @@ __all__ = [
 from interface import Interface, implements
 import pandas as pd
 
-from ..keys.lookup import OasisKeysLookupFactory as oklf
+from ..keys.lookup import OasisKeysLookupFactory
 from ..utils.exceptions import OasisException
 from ..utils.mono import run_mono_executable
 from ..utils.values import get_utctimestamp
@@ -139,7 +140,8 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         pass
 
-    def get_keys(self, oasis_model, **kwargs):
+    @classmethod
+    def get_keys(cls, oasis_model=None, **kwargs):
         """
         Generates the Oasis keys CSV file for a given model object, with
         headers
@@ -158,6 +160,15 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         class in ``oasis_utils`` (a submodule of `omdk`) namely
 
             ``oasis_utils.oasis_keys_lookup_service_utils.KeysLookupServiceFactory``
+        """
+        pass
+
+    @classmethod
+    def load_canonical_profile(cls, oasis_model=None, **kwargs):
+        """
+        Loads a JSON string or JSON file representation of the canonical
+        exposures profile for a given ``oasis_model``, stores this in the
+        model object's resources dict, and returns the object.
         """
         pass
 
@@ -209,10 +220,6 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         self.logger = logging.getLogger()
 
         self.logger.debug('Exposures manager {} initialising'.format(self))
-
-        self.logger.debug('Creating keys lookup service factory for exposures manager {}'.format(self))
-        self._keys_lookup_factory = oklf()
-        self.logger.debug('Created keys lookup service factory {} for exposures manager {}'.format(self._keys_lookup_factory, self))
 
         self.logger.debug('Adding models')
         self._models = {}
@@ -437,7 +444,38 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         return oasis_model
 
-    def get_keys(self, oasis_model, with_model_resources=True, **kwargs):
+    @classmethod
+    def load_canonical_profile(
+            cls,
+            oasis_model=None,
+            canonical_exposures_profile_json=None,
+            canonical_exposures_profile_json_path=None,
+            **kwargs):
+        """
+        Loads a JSON string or JSON file representation of the canonical
+        exposures profile for a given ``oasis_model``, stores this in the
+        model object's resources dict, and returns the object.
+        """
+        if oasis_model:
+            canonical_exposures_profile_json = canonical_exposures_profile_json or oasis_model.resources.get(
+                'canonical_exposures_profile_json')
+            canonical_exposures_profile_json_path = canonical_exposures_profile_json_path or oasis_model.resources.get(
+                'canonical_exposures_profile_json_path')
+
+        profile = {}
+        if canonical_exposures_profile_json:
+            profile = json.loads(canonical_exposures_profile_json)
+        elif canonical_exposures_profile_json_path:
+            with io.open(canonical_exposures_profile_json_path, 'r', encoding='utf-8') as f:
+                profile = json.load(f)
+
+        if oasis_model:
+            oasis_model.resources['canonical_exposures_profile'] = profile
+
+        return profile
+
+    @classmethod
+    def get_keys(cls, oasis_model=None, model_exposures_file_path=None, lookup=None, keys_file_path=None, **kwargs):
         """
         Generates the Oasis keys CSV file for a given model object, with
         headers
@@ -448,45 +486,47 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         By default it is assumed that all the resources required for the
         transformation are present in the model object's resources dict,
-        specifically its transforms files pipeline  - this is indicated by the
-        optional ``with_model_resources`` variable which is ``True`` by
-        default. In this case the generated file is stored in the appropriate
-        attribute of the model object's transforms files pipeline, the
-        manager's model dict is updated, and the model object returned.
+        if the model is supplied. These can be overridden by providing the
+        relevant optional parameters.
 
-        If not then ``with_model_resources`` should be set to ``False``, in
-        which case all the resources required for the transformation should be
-        present in the optional ``kwargs`` dict as named arguments. In this
-        case only the generated canonical file is returned.
+        If no model is supplied then the optional paramenters must be
+        supplied.
+
+        If the model is supplied the result key file path is stored in the
+        models ``file_pipeline.keyfile_path`` property.
+
+        :param oasis_model: The model to get keys for
+        :type oasis_model: ``OasisModel``
+
+        :param keys_file_path: Path to the keys file, required if ``oasis_model`` is ``None``
+        :type keys_file_path: str
+
+        :param lookup: Path to the keys lookup service to use, required if ``oasis_model`` is ``None``
+        :type lookup: str
+
+        :param model_exposures_file_path: Path to the exposures file, required if ``oasis_model`` is ``None``
+        :type model_exposures_file_path: str
+
+        :return: The path to the generated keys file
         """
-        omr = oasis_model.resources
-        tfp = omr['oasis_files_pipeline']
-
-        if not with_model_resources:
-            model_exposures_file_path = kwargs.get('model_exposures_file_path')
-            lookup = kwargs['lookup']
-            keys_file_path = kwargs['keys_file_path']
-        else:
-            model_exposures_file_path = tfp.model_exposures_file.name if tfp.model_exposures_file else None
-            lookup = omr['lookup']
-            keys_file_path = tfp.keys_file.name
+        if oasis_model:
+            model_exposures_file_path = model_exposures_file_path or oasis_model.files_pipeline.model_exposures_path
+            lookup = lookup or oasis_model.resources.get('lookup')
+            keys_file_path = keys_file_path or oasis_model.files_pipeline.keys_file_path
 
         model_exposures_file_path = os.path.abspath(model_exposures_file_path)
         keys_file_path = os.path.abspath(keys_file_path)
 
-        oasis_keys_file, _ = self.keys_lookup_factory.save_keys(
+        oasis_keys_path, _ = OasisKeysLookupFactory().save_keys(
             lookup=lookup,
             model_exposures_file_path=model_exposures_file_path,
             output_file_path=keys_file_path,
-            format='oasis_keys'
         )
 
-        if not with_model_resources:
-            return oasis_keys_file
+        if oasis_model:
+            oasis_model.files_pipeline.keys_file_path = oasis_keys_path
 
-        tfp.keys_file = oasis_keys_file
-
-        return oasis_model
+        return oasis_keys_path
 
     def generate_items_file(self, oasis_model, with_model_resources=True, **kwargs):
         """
