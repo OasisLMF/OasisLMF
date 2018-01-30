@@ -101,3 +101,14 @@ class OasisModelInit(TestCase):
             profile = model.resources['canonical_exposures_profile']
 
             self.assertEqual(expected, profile)
+
+    @given(dictionaries(text(), text()), dictionaries(text(), text()))
+    def test_canonical_exposures_profile_set___profile_is_not_updated(self, expected, new):
+        model = fake_model(resources={
+            'canonical_exposures_profile': expected,
+            'canonical_exposures_profile_json': json.dumps(new),
+        })
+
+        profile = model.resources['canonical_exposures_profile']
+
+        self.assertEqual(expected, profile)

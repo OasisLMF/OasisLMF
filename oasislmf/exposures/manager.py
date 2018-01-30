@@ -540,14 +540,14 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             kwargs.setdefault('canonical_exposures_profile', oasis_model.resources.get('canonical_exposures_profile'))
             kwargs.setdefault('canonical_exposures_profile_json', oasis_model.resources.get('canonical_exposures_profile_json'))
             kwargs.setdefault('canonical_exposures_profile_json_path', oasis_model.resources.get('canonical_exposures_profile_json_path'))
-            kwargs.setdefault('items_file_path', oasis_model.file_pipeline.items_file_path)
+            kwargs.setdefault('items_file_path', oasis_model.files_pipeline.items_file_path)
             kwargs.setdefault('items_timestamped_file_path', oasis_model.resources.get('items_timestamped_file_path'))
             kwargs.setdefault('coverages_file_path', oasis_model.resources.get('coverages_file_path'))
             kwargs.setdefault('coverages_timestamped_file_path', oasis_model.resources.get('coverages_timestamped_file_path'))
             kwargs.setdefault('gulsummaryxref_file_path', oasis_model.resources.get('canonical_exposures_file_path'))
             kwargs.setdefault('gulsummaryxref_timestamped_file_path', oasis_model.resources.get('gulsummaryxref_timestamped_file_path'))
 
-        if 'canonical_exposures_profile' not in kwargs:
+        if not kwargs.get('canonical_exposures_profile'):
             kwargs['canonical_exposures_profile'] = cls.load_canonical_profile(
                 oasis_model=oasis_model,
                 canonical_exposures_profile_json=kwargs.get('canonical_exposures_profile_json'),
@@ -606,15 +606,15 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         columns = ['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id']
         items_df = pd.DataFrame(columns=columns)
 
-        items_df = items_df.append(
+        items_df = items_df.append([
             {
                 'item_id': item_id,
                 'coverage_id': item_id,
                 'areaperil_id': item['areaperilid'],
                 'vulnerability_id': item['vulnerabilityid'],
                 'group_id': item_id
-            } for item_id, item in cls.load_item_records(**kwargs)
-        )
+            } for item_id, item, tiv in cls.load_item_records(**kwargs)
+        ])
         items_df = items_df.astype(int)
 
         items_df.to_csv(

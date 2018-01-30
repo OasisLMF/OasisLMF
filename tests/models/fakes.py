@@ -1,5 +1,3 @@
-from hypothesis.strategies import text
-
 from oasislmf.models import OasisModel
 
 

@@ -58,7 +58,8 @@ class OasisModel(object):
             with io.open(self._resources['source_exposures_file_path'], 'r', encoding='utf-8') as f:
                 self._resources['oasis_files_pipeline'].source_exposures_file = f
 
-        self.load_canonical_profile()
+        if self._resources.get('canonical_exposures_profile') is None:
+            self.load_canonical_profile()
 
     def __str__(self):
         return '{}: {}'.format(self.__repr__(), self.key)

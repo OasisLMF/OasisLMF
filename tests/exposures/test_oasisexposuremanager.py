@@ -2,6 +2,7 @@ import csv
 import json
 import string
 from tempfile import NamedTemporaryFile
+from backports.tempfile import TemporaryDirectory
 from unittest import TestCase
 
 import os
@@ -188,6 +189,20 @@ def canonical_exposure_data(num_rows, min_value=None, max_value=None):
     )
 
 
+def write_input_files(keys_data, keys_file, exposure_data, exposures_file, profile_element_name='profile_element'):
+    keys_writer = csv.writer(keys_file)
+    keys_writer.writerows(
+        [('LocID', 'PerilID', 'CoverageID', 'AreaPerilID', 'VulnerabilityID')] + keys_data
+    )
+    keys_file.flush()
+
+    exposures_writer = csv.writer(exposures_file)
+    exposures_writer.writerows(
+        [('ROW_ID', profile_element_name)] + exposure_data
+    )
+    exposures_file.flush()
+
+
 class OasisExposureManagerGenerateItemsFiles(TestCase):
     @given(text(alphabet=string.ascii_letters, min_size=1), oasis_keys_data(10), canonical_exposure_data(10, min_value=1))
     def test_row_in_keys_data_is_missing_from_exposure_data___oasis_exception_is_raised(self, profile_element_name, keys_data, exposure_data):
@@ -196,21 +211,11 @@ class OasisExposureManagerGenerateItemsFiles(TestCase):
             profile_element_name: {'ProfileElementName': profile_element_name, 'FieldName': 'TIV', 'CoverageTypeID': 1}
         }
 
-        with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposure_file:
-            keys_writer = csv.writer(keys_file)
-            keys_writer.writerows(
-                [('LocID', 'PerilID', 'CoverageID', 'AreaPerilID', 'VulnerabilityID')] + keys_data
-            )
-            keys_file.flush()
-
-            exposure_writer = csv.writer(exposure_file)
-            exposure_writer.writerows(
-                [('ROW_ID', profile_element_name)] + exposure_data
-            )
-            exposure_file.flush()
+        with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file:
+            write_input_files(keys_data, keys_file, exposure_data, exposures_file, profile_element_name)
 
             with self.assertRaises(OasisException):
-                list(OasisExposuresManager.load_item_records(exposure_file.name, keys_file.name, profile))
+                list(OasisExposuresManager.load_item_records(exposures_file.name, keys_file.name, profile))
 
     @given(text(alphabet=string.ascii_letters, min_size=1), oasis_keys_data(10), canonical_exposure_data(10, min_value=1))
     def test_row_in_keys_data_is_in_exposure_data_twice___oasis_exception_is_raised(self, profile_element_name, keys_data, exposure_data):
@@ -219,21 +224,11 @@ class OasisExposureManagerGenerateItemsFiles(TestCase):
             profile_element_name: {'ProfileElementName': profile_element_name, 'FieldName': 'TIV', 'CoverageTypeID': 1}
         }
 
-        with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposure_file:
-            keys_writer = csv.writer(keys_file)
-            keys_writer.writerows(
-                [('LocID', 'PerilID', 'CoverageID', 'AreaPerilID', 'VulnerabilityID')] + keys_data
-            )
-            keys_file.flush()
-
-            exposure_writer = csv.writer(exposure_file)
-            exposure_writer.writerows(
-                [('ROW_ID', profile_element_name)] + exposure_data
-            )
-            exposure_file.flush()
+        with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file:
+            write_input_files(keys_data, keys_file, exposure_data, exposures_file, profile_element_name)
 
             with self.assertRaises(OasisException):
-                list(OasisExposuresManager.load_item_records(exposure_file.name, keys_file.name, profile))
+                list(OasisExposuresManager.load_item_records(exposures_file.name, keys_file.name, profile))
 
     @given(text(alphabet=string.ascii_letters, min_size=1), oasis_keys_data(10), canonical_exposure_data(10, min_value=1))
     def test_each_row_has_a_single_row_per_element_with_each_row_having_a_positive_value_for_the_profile_element___each_row_is_present(self, profile_element_name, keys_data, exposure_data):
@@ -249,22 +244,12 @@ class OasisExposureManagerGenerateItemsFiles(TestCase):
                 zipped_data[1][1],
             ))
 
-        with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposure_file:
-            keys_writer = csv.writer(keys_file)
-            keys_writer.writerows(
-                [('LocID', 'PerilID', 'CoverageID', 'AreaPerilID', 'VulnerabilityID')] + keys_data
-            )
-            keys_file.flush()
-
-            exposure_writer = csv.writer(exposure_file)
-            exposure_writer.writerows(
-                [('ROW_ID', profile_element_name)] + exposure_data
-            )
-            exposure_file.flush()
+        with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file:
+            write_input_files(keys_data, keys_file, exposure_data, exposures_file, profile_element_name)
 
             result = list(
                 OasisExposuresManager.load_item_records(
-                    exposure_file.name,
+                    exposures_file.name,
                     keys_file.name,
                     profile,
                 )
@@ -293,22 +278,12 @@ class OasisExposureManagerGenerateItemsFiles(TestCase):
                     zipped_exposure[1],
                 ))
 
-        with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposure_file:
-            keys_writer = csv.writer(keys_file)
-            keys_writer.writerows(
-                [('LocID', 'PerilID', 'CoverageID', 'AreaPerilID', 'VulnerabilityID')] + keys_data
-            )
-            keys_file.flush()
-
-            exposure_writer = csv.writer(exposure_file)
-            exposure_writer.writerows(
-                [('ROW_ID', profile_element_name)] + exposure_data
-            )
-            exposure_file.flush()
+        with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file:
+            write_input_files(keys_data, keys_file, exposure_data, exposures_file, profile_element_name)
 
             result = list(
                 OasisExposuresManager.load_item_records(
-                    exposure_file.name,
+                    exposures_file.name,
                     keys_file.name,
                     profile,
                 )
@@ -319,3 +294,85 @@ class OasisExposureManagerGenerateItemsFiles(TestCase):
             self.assertEqual(expected_row[0], result_row[0])
             self.assertEqual(expected_row[1], tuple(result_row[1]))
             self.assertEqual(expected_row[2], int(result_row[2]))
+
+
+class OasisExposuresManagerGenerateItemFiles(TestCase):
+    @given(oasis_keys_data(10), canonical_exposure_data(10, min_value=1))
+    def test_paths_are_stored_in_the_model___model_paths_are_used(self, keys_data, exposure_data):
+        expected = [
+            {
+                'item_id': str(item_id + 1),
+                'coverage_id': str(item_id + 1),
+                'areaperil_id': str(item[3]),
+                'vulnerability_id': str(item[4]),
+                'group_id': str(item_id + 1),
+            } for item_id, item in enumerate(keys_data)
+        ]
+
+        profile = {
+            'profile_element': {'ProfileElementName': 'profile_element', 'FieldName': 'TIV', 'CoverageTypeID': 1}
+        }
+
+        with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file, TemporaryDirectory() as out_dir:
+            write_input_files(keys_data, keys_file, exposure_data, exposures_file)
+
+            model = fake_model(resources={
+                'items_timestamped_file_path': os.path.join(out_dir, 'items_timestamped.csv'),
+                'canonical_exposures_profile': profile,
+            })
+            model.files_pipeline.keys_file_path = keys_file.name
+            model.files_pipeline.canonical_exposures_path = exposures_file.name
+            model.files_pipeline.items_file_path = os.path.join(out_dir, 'items.csv')
+
+            OasisExposuresManager.generate_items_file(oasis_model=model)
+
+            with open(os.path.join(out_dir, 'items_timestamped.csv'), 'r') as f:
+                result = list(csv.DictReader(f))
+                self.assertEqual(expected, result)
+
+            with open(os.path.join(out_dir, 'items.csv'), 'r') as f:
+                result = list(csv.DictReader(f))
+                self.assertEqual(expected, result)
+
+    @given(oasis_keys_data(10), canonical_exposure_data(10, min_value=1))
+    def test_paths_are_stored_in_the_kwargs___model_paths_are_used(self, keys_data, exposure_data):
+        expected = [
+            {
+                'item_id': str(item_id + 1),
+                'coverage_id': str(item_id + 1),
+                'areaperil_id': str(item[3]),
+                'vulnerability_id': str(item[4]),
+                'group_id': str(item_id + 1),
+            } for item_id, item in enumerate(keys_data)
+        ]
+
+        profile = {
+            'profile_element': {'ProfileElementName': 'profile_element', 'FieldName': 'TIV', 'CoverageTypeID': 1}
+        }
+
+        with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file, TemporaryDirectory() as out_dir:
+            write_input_files(keys_data, keys_file, exposure_data, exposures_file)
+
+            model = fake_model(resources={
+
+            })
+            model.files_pipeline.keys_file_path = keys_file.name
+            model.files_pipeline.canonical_exposures_path = exposures_file.name
+            model.files_pipeline.items_file_path = os.path.join(out_dir, 'items_stamped.csv')
+
+            OasisExposuresManager.generate_items_file(
+                oasis_model=model,
+                canonical_exposures_profile=profile,
+                items_timestamped_file_path=os.path.join(out_dir, 'items_timestamped.csv'),
+                keys_file_path=keys_file.name,
+                canonical_exposures_path=exposures_file.name,
+                items_file_path=os.path.join(out_dir, 'items.csv'),
+            )
+
+            with open(os.path.join(out_dir, 'items_timestamped.csv'), 'r') as f:
+                result = list(csv.DictReader(f))
+                self.assertEqual(expected, result)
+
+            with open(os.path.join(out_dir, 'items.csv'), 'r') as f:
+                result = list(csv.DictReader(f))
+                self.assertEqual(expected, result)
