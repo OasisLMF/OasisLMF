@@ -646,16 +646,13 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         columns = ['coverage_id', 'tiv']
         coverages_df = pd.DataFrame(columns=columns)
-        coverages_df.append(
+
+        coverages_df = coverages_df.append([
             {
                 'coverage_id': item_id,
                 'tiv': item_tiv,
-            } for item_id, item, item_tiv in cls.load_item_records(
-                kwargs.get('canonical_exposures_file_path'),
-                kwargs.get('keys_file_path'),
-                kwargs.get('canonical_exposures_profile')
-            )
-        )
+            } for item_id, item, item_tiv in cls.load_item_records(**kwargs)
+        ])
 
         coverages_df = coverages_df.astype(int)
 

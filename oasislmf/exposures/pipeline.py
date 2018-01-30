@@ -119,7 +119,7 @@ class OasisFilesPipeline(object):
         self._keys_file_path = f
 
     @property
-    def items_file(self):
+    def items_file_path(self):
         """
         Oasis items file property.
 
@@ -128,8 +128,8 @@ class OasisFilesPipeline(object):
         """
         return self._items_path
 
-    @items_file.setter
-    def items_file(self, f):
+    @items_file_path.setter
+    def items_file_path(self, f):
         self._items_path = self.oasis_files['items'] = f
 
     @property

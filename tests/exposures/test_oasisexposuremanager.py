@@ -353,19 +353,14 @@ class OasisExposuresManagerGenerateItemFiles(TestCase):
         with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file, TemporaryDirectory() as out_dir:
             write_input_files(keys_data, keys_file, exposure_data, exposures_file)
 
-            model = fake_model(resources={
-
-            })
-            model.files_pipeline.keys_file_path = keys_file.name
-            model.files_pipeline.canonical_exposures_path = exposures_file.name
-            model.files_pipeline.items_file_path = os.path.join(out_dir, 'items_stamped.csv')
+            model = fake_model()
 
             OasisExposuresManager.generate_items_file(
                 oasis_model=model,
                 canonical_exposures_profile=profile,
                 items_timestamped_file_path=os.path.join(out_dir, 'items_timestamped.csv'),
                 keys_file_path=keys_file.name,
-                canonical_exposures_path=exposures_file.name,
+                canonical_exposures_file_path=exposures_file.name,
                 items_file_path=os.path.join(out_dir, 'items.csv'),
             )
 
@@ -374,5 +369,76 @@ class OasisExposuresManagerGenerateItemFiles(TestCase):
                 self.assertEqual(expected, result)
 
             with open(os.path.join(out_dir, 'items.csv'), 'r') as f:
+                result = list(csv.DictReader(f))
+                self.assertEqual(expected, result)
+
+
+class OasisExposuresManagerGenerateCoveragesFiles(TestCase):
+    @given(oasis_keys_data(10), canonical_exposure_data(10, min_value=1))
+    def test_paths_are_stored_in_the_model___model_paths_are_used(self, keys_data, exposure_data):
+        expected = [
+            {
+                'coverage_id': str(item_id + 1),
+                'tiv': str(item[1]),
+            } for item_id, item in enumerate(exposure_data)
+        ]
+
+        profile = {
+            'profile_element': {'ProfileElementName': 'profile_element', 'FieldName': 'TIV', 'CoverageTypeID': 1}
+        }
+
+        with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file, TemporaryDirectory() as out_dir:
+            write_input_files(keys_data, keys_file, exposure_data, exposures_file)
+
+            model = fake_model(resources={
+                'coverages_timestamped_file_path': os.path.join(out_dir, 'coverages_stamped.csv'),
+                'coverages_file_path': os.path.join(out_dir, 'coverages.csv'),
+                'canonical_exposures_profile': profile,
+            })
+            model.files_pipeline.keys_file_path = keys_file.name
+            model.files_pipeline.canonical_exposures_path = exposures_file.name
+
+            OasisExposuresManager.generate_coverages_file(oasis_model=model)
+
+            with open(os.path.join(out_dir, 'coverages_stamped.csv'), 'r') as f:
+                result = list(csv.DictReader(f))
+                self.assertEqual(expected, result)
+
+            with open(os.path.join(out_dir, 'coverages.csv'), 'r') as f:
+                result = list(csv.DictReader(f))
+                self.assertEqual(expected, result)
+
+    @given(oasis_keys_data(10), canonical_exposure_data(10, min_value=1))
+    def test_paths_are_stored_in_the_kwargs___model_paths_are_used(self, keys_data, exposure_data):
+        expected = [
+            {
+                'coverage_id': str(item_id + 1),
+                'tiv': str(item[1]),
+            } for item_id, item in enumerate(exposure_data)
+        ]
+
+        profile = {
+            'profile_element': {'ProfileElementName': 'profile_element', 'FieldName': 'TIV', 'CoverageTypeID': 1}
+        }
+
+        with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file, TemporaryDirectory() as out_dir:
+            write_input_files(keys_data, keys_file, exposure_data, exposures_file)
+
+            model = fake_model()
+
+            OasisExposuresManager.generate_coverages_file(
+                oasis_model=model,
+                canonical_exposures_profile=profile,
+                coverages_timestamped_file_path=os.path.join(out_dir, 'coverages_timestamped.csv'),
+                keys_file_path=keys_file.name,
+                canonical_exposures_file_path=exposures_file.name,
+                coverages_file_path=os.path.join(out_dir, 'coverages.csv'),
+            )
+
+            with open(os.path.join(out_dir, 'coverages_timestamped.csv'), 'r') as f:
+                result = list(csv.DictReader(f))
+                self.assertEqual(expected, result)
+
+            with open(os.path.join(out_dir, 'coverages.csv'), 'r') as f:
                 result = list(csv.DictReader(f))
                 self.assertEqual(expected, result)
