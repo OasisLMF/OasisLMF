@@ -142,3 +142,26 @@ class OasisExposureManagerGetKeys(TestCase):
             )
             self.assertEqual(model.files_pipeline.keys_file_path, keys)
             self.assertEqual(res, keys)
+
+    @given(
+        text(min_size=1, alphabet=string.ascii_letters), text(min_size=1, alphabet=string.ascii_letters), text(min_size=1, alphabet=string.ascii_letters),
+        text(min_size=1, alphabet=string.ascii_letters), text(min_size=1, alphabet=string.ascii_letters), text(min_size=1, alphabet=string.ascii_letters),
+    )
+    def test_model_and_kwargs_are_supplied___lookup_keys_file_and_exposures_file_from_kwargs_are_used(self, model_lookup, model_keys, model_exposure, lookup, keys, exposure):
+        model = self.create_model(lookup=model_lookup, keys_file_path=model_keys, exposures_file_path=model_exposure)
+
+        with patch('oasislmf.exposures.manager.OasisKeysLookupFactory.save_keys', Mock(return_value=(keys, 1))) as oklf_mock:
+            res = OasisExposuresManager.get_keys(oasis_model=model)
+
+            oklf_mock.assert_called_once_with(
+                lookup=lookup,
+                model_exposures_file_path=os.path.abspath(exposure),
+                output_file_path=os.path.abspath(keys),
+            )
+            self.assertEqual(model.files_pipeline.keys_file_path, keys)
+            self.assertEqual(res, keys)
+
+
+class OasisExposureManagerGenerateItemsFiles(TestCase):
+    def test_ksdlaj(self):
+        OasisExposuresManager()
