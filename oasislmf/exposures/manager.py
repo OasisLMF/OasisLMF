@@ -544,7 +544,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             kwargs.setdefault('items_timestamped_file_path', oasis_model.resources.get('items_timestamped_file_path'))
             kwargs.setdefault('coverages_file_path', oasis_model.resources.get('coverages_file_path'))
             kwargs.setdefault('coverages_timestamped_file_path', oasis_model.resources.get('coverages_timestamped_file_path'))
-            kwargs.setdefault('gulsummaryxref_file_path', oasis_model.resources.get('canonical_exposures_file_path'))
+            kwargs.setdefault('gulsummaryxref_file_path', oasis_model.resources.get('gulsummaryxref_file_path'))
             kwargs.setdefault('gulsummaryxref_timestamped_file_path', oasis_model.resources.get('gulsummaryxref_timestamped_file_path'))
 
         if not kwargs.get('canonical_exposures_profile'):
@@ -685,17 +685,13 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         columns = ['coverage_id', 'summary_id', 'summaryset_id']
         gulsummaryxref_df = pd.DataFrame(columns=columns)
-        gulsummaryxref_df = gulsummaryxref_df.append(
+        gulsummaryxref_df = gulsummaryxref_df.append([
             {
                 'coverage_id': item_id,
                 'summary_id': 1,
                 'summaryset_id': 1
-            } for item_id, item, item_tiv in cls.load_item_records(
-                kwargs.get('canonical_exposures_file_path'),
-                kwargs.get('keys_file_path'),
-                kwargs.get('canonical_exposures_profile')
-            )
-        )
+            } for item_id, item, item_tiv in cls.load_item_records(**kwargs)
+        ])
 
         gulsummaryxref_df = gulsummaryxref_df.astype(int)
 
