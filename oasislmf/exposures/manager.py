@@ -172,25 +172,29 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         pass
 
-    def generate_items_file(self, oasis_model, **kwargs):
+    @classmethod
+    def generate_items_file(cls, oasis_model=None, **kwargs):
         """
         Generates an items file for the given ``oasis_model``.
         """
         pass
 
-    def generate_coverages_file(self, oasis_model, **kwargs):
+    @classmethod
+    def generate_coverages_file(cls, oasis_model=None, **kwargs):
         """
         Generates a coverages file for the given ``oasis_model``.
         """
         pass
 
-    def generate_gulsummaryxref_file(self, oasis_model, **kwargs):
+    @classmethod
+    def generate_gulsummaryxref_file(cls, oasis_model=None, **kwargs):
         """
         Generates a gulsummaryxref file for the given ``oasis_model``.
         """
         pass
 
-    def generate_oasis_files(self, oasis_model, **kwargs):
+    @classmethod
+    def generate_oasis_files(cls, oasis_model=None, **kwargs):
         """
         For a given ``oasis_model`` generates the standard Oasis files, namely
 
@@ -570,26 +574,23 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         )
 
         ii = 0
-        for ki in keys_df:
+        for i in range(len(keys_df)):
+            ki = keys_df.iloc[i]
+
             ci_df = canexp_df[canexp_df['row_id'] == ki['locid']]
 
             if ci_df.empty:
                 raise OasisException(
-                    "No matching canonical exposure item found in canonical exposures data frame for keys item {}.".format(
-                        ki)
+                    "No matching canonical exposure item found in canonical exposures data frame for keys item {}.".format(ki)
                 )
             elif len(ci_df) > 1:
                 raise OasisException(
-                    "Duplicate canonical exposure items found in canonical exposures data frame for keys item {}.".format(
-                        ki)
+                    "Duplicate canonical exposure items found in canonical exposures data frame for keys item {}.".format(ki)
                 )
 
             ci = ci_df.iloc[0]
 
-            tiv_field = next(filter(
-                lambda f: f['CoverageTypeID'] == ki['coveragetype'],
-                tiv_fields
-            ))
+            tiv_field = next(f for f in tiv_fields if f['CoverageTypeID'] == ki['coveragetype'])
 
             if ci[tiv_field['ProfileElementName'].lower()] > 0:
                 ii += 1

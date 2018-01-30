@@ -1,3 +1,4 @@
+import csv
 import json
 import string
 from tempfile import NamedTemporaryFile
@@ -5,10 +6,11 @@ from unittest import TestCase
 
 import os
 from hypothesis import given
-from hypothesis.strategies import text, dictionaries
+from hypothesis.strategies import text, dictionaries, lists, tuples, integers, just
 from mock import patch, Mock
 
 from oasislmf.exposures.manager import OasisExposuresManager
+from oasislmf.utils.exceptions import OasisException
 from ..models.fakes import fake_model
 
 
@@ -151,7 +153,12 @@ class OasisExposureManagerGetKeys(TestCase):
         model = self.create_model(lookup=model_lookup, keys_file_path=model_keys, exposures_file_path=model_exposure)
 
         with patch('oasislmf.exposures.manager.OasisKeysLookupFactory.save_keys', Mock(return_value=(keys, 1))) as oklf_mock:
-            res = OasisExposuresManager.get_keys(oasis_model=model)
+            res = OasisExposuresManager.get_keys(
+                oasis_model=model,
+                lookup=lookup,
+                model_exposures_file_path=exposure,
+                keys_file_path=keys,
+            )
 
             oklf_mock.assert_called_once_with(
                 lookup=lookup,
@@ -162,6 +169,153 @@ class OasisExposureManagerGetKeys(TestCase):
             self.assertEqual(res, keys)
 
 
+def oasis_keys_data(num_rows):
+    return lists(
+        tuples(
+            integers(min_value=-10, max_value=10),
+            just(1),
+            integers(min_value=-10, max_value=10),
+            integers(min_value=-10, max_value=10),
+        ), min_size=num_rows, max_size=num_rows
+    ).map(
+        lambda l: [(i + 1, ) + row for i, row in enumerate(l)]
+    )
+
+
+def canonical_exposure_data(num_rows, min_value=None, max_value=None):
+    return lists(tuples(integers(min_value=min_value, max_value=max_value)), min_size=num_rows, max_size=num_rows).map(
+        lambda l: [(i + 1, ) + row for i, row in enumerate(l)]
+    )
+
+
 class OasisExposureManagerGenerateItemsFiles(TestCase):
-    def test_ksdlaj(self):
-        OasisExposuresManager()
+    @given(text(alphabet=string.ascii_letters, min_size=1), oasis_keys_data(10), canonical_exposure_data(10, min_value=1))
+    def test_row_in_keys_data_is_missing_from_exposure_data___oasis_exception_is_raised(self, profile_element_name, keys_data, exposure_data):
+        exposure_data.pop()
+        profile = {
+            profile_element_name: {'ProfileElementName': profile_element_name, 'FieldName': 'TIV', 'CoverageTypeID': 1}
+        }
+
+        with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposure_file:
+            keys_writer = csv.writer(keys_file)
+            keys_writer.writerows(
+                [('LocID', 'PerilID', 'CoverageID', 'AreaPerilID', 'VulnerabilityID')] + keys_data
+            )
+            keys_file.flush()
+
+            exposure_writer = csv.writer(exposure_file)
+            exposure_writer.writerows(
+                [('ROW_ID', profile_element_name)] + exposure_data
+            )
+            exposure_file.flush()
+
+            with self.assertRaises(OasisException):
+                list(OasisExposuresManager.load_item_records(exposure_file.name, keys_file.name, profile))
+
+    @given(text(alphabet=string.ascii_letters, min_size=1), oasis_keys_data(10), canonical_exposure_data(10, min_value=1))
+    def test_row_in_keys_data_is_in_exposure_data_twice___oasis_exception_is_raised(self, profile_element_name, keys_data, exposure_data):
+        exposure_data.append(exposure_data[-1])
+        profile = {
+            profile_element_name: {'ProfileElementName': profile_element_name, 'FieldName': 'TIV', 'CoverageTypeID': 1}
+        }
+
+        with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposure_file:
+            keys_writer = csv.writer(keys_file)
+            keys_writer.writerows(
+                [('LocID', 'PerilID', 'CoverageID', 'AreaPerilID', 'VulnerabilityID')] + keys_data
+            )
+            keys_file.flush()
+
+            exposure_writer = csv.writer(exposure_file)
+            exposure_writer.writerows(
+                [('ROW_ID', profile_element_name)] + exposure_data
+            )
+            exposure_file.flush()
+
+            with self.assertRaises(OasisException):
+                list(OasisExposuresManager.load_item_records(exposure_file.name, keys_file.name, profile))
+
+    @given(text(alphabet=string.ascii_letters, min_size=1), oasis_keys_data(10), canonical_exposure_data(10, min_value=1))
+    def test_each_row_has_a_single_row_per_element_with_each_row_having_a_positive_value_for_the_profile_element___each_row_is_present(self, profile_element_name, keys_data, exposure_data):
+        profile = {
+            profile_element_name: {'ProfileElementName': profile_element_name, 'FieldName': 'TIV', 'CoverageTypeID': 1}
+        }
+
+        expected = []
+        for i, zipped_data in enumerate(zip(keys_data, exposure_data)):
+            expected.append((
+                i + 1,
+                zipped_data[0],
+                zipped_data[1][1],
+            ))
+
+        with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposure_file:
+            keys_writer = csv.writer(keys_file)
+            keys_writer.writerows(
+                [('LocID', 'PerilID', 'CoverageID', 'AreaPerilID', 'VulnerabilityID')] + keys_data
+            )
+            keys_file.flush()
+
+            exposure_writer = csv.writer(exposure_file)
+            exposure_writer.writerows(
+                [('ROW_ID', profile_element_name)] + exposure_data
+            )
+            exposure_file.flush()
+
+            result = list(
+                OasisExposuresManager.load_item_records(
+                    exposure_file.name,
+                    keys_file.name,
+                    profile,
+                )
+            )
+
+        self.assertEqual(len(expected), len(result))
+        for expected_row, result_row in zip(expected, result):
+            self.assertEqual(expected_row[0], result_row[0])
+            self.assertEqual(expected_row[1], tuple(result_row[1]))
+            self.assertEqual(expected_row[2], int(result_row[2]))
+
+    @given(text(alphabet=string.ascii_letters, min_size=1), oasis_keys_data(10), canonical_exposure_data(10, min_value=1))
+    def test_each_row_has_a_single_row_per_element_with_each_row_having_a_any_value_for_the_profile_element___rows_with_profile_elements_gt_0_are_present(self, profile_element_name, keys_data, exposure_data):
+        profile = {
+            profile_element_name: {'ProfileElementName': profile_element_name, 'FieldName': 'TIV', 'CoverageTypeID': 1}
+        }
+
+        expected = []
+        row_id = 0
+        for zipped_keys, zipped_exposure in zip(keys_data, exposure_data):
+            if zipped_exposure[1] > 0:
+                row_id += 1
+                expected.append((
+                    row_id,
+                    zipped_keys,
+                    zipped_exposure[1],
+                ))
+
+        with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposure_file:
+            keys_writer = csv.writer(keys_file)
+            keys_writer.writerows(
+                [('LocID', 'PerilID', 'CoverageID', 'AreaPerilID', 'VulnerabilityID')] + keys_data
+            )
+            keys_file.flush()
+
+            exposure_writer = csv.writer(exposure_file)
+            exposure_writer.writerows(
+                [('ROW_ID', profile_element_name)] + exposure_data
+            )
+            exposure_file.flush()
+
+            result = list(
+                OasisExposuresManager.load_item_records(
+                    exposure_file.name,
+                    keys_file.name,
+                    profile,
+                )
+            )
+
+        self.assertEqual(len(expected), len(result))
+        for expected_row, result_row in zip(expected, result):
+            self.assertEqual(expected_row[0], result_row[0])
+            self.assertEqual(expected_row[1], tuple(result_row[1]))
+            self.assertEqual(expected_row[2], int(result_row[2]))
