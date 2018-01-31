@@ -29,7 +29,7 @@ __copyright__ = "2017, Oasis Loss Modelling Framework"
 UNKNOWN_ID = -1
 
 
-class OasisBaseKeysLookup(object):
+class OasisBaseKeysLookup(object):  # pragma: no cover
     """
     A base class / interface that serves a template for model-specific keys
     lookup classes.
@@ -114,7 +114,6 @@ class OasisKeysLookupFactory(object):
     A factory class to load and run keys lookup services for different
     models/suppliers.
     """
-
     @classmethod
     def get_model_info(cls, model_version_file_path):
         """
@@ -163,13 +162,12 @@ class OasisKeysLookupFactory(object):
         either the path of the model exposures file or the string contents of
         such a file.
         """
-        loc_df = None
-
         if model_exposures_file_path:
-            with io.open(model_exposures_file_path, 'r', encoding='utf-8') as f:
-                loc_df = pd.read_csv(io.StringIO(f.read()))
+            loc_df = pd.read_csv(model_exposures_file_path)
         elif model_exposures:
             loc_df = pd.read_csv(io.StringIO(model_exposures))
+        else:
+            raise OasisException('Either model_exposures_file_path or model_exposures must be specified')
 
         loc_df = loc_df.where(loc_df.notnull(), None)
         loc_df.columns = map(str.lower, loc_df.columns)

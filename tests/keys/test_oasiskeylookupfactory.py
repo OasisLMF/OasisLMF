@@ -1,12 +1,16 @@
+import csv
 import string
+from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
 import os
+import io
 from backports.tempfile import TemporaryDirectory
 from hypothesis import given
-from hypothesis.strategies import text
+from hypothesis.strategies import text, integers, tuples, lists
 
 from oasislmf.keys.lookup import OasisKeysLookupFactory
+from oasislmf.utils.exceptions import OasisException
 
 
 class OasisKeysLookupFactoryCreate(TestCase):
@@ -71,3 +75,34 @@ class OasisKeysLookupFactoryCreate(TestCase):
             self.assertEqual(instance.model_name, model)
             self.assertEqual(instance.model_version, version)
             self.assertEqual(instance.keys_data_directory, keys_path)
+
+
+class OasisKeysLookupFactoryGetModelExposures(TestCase):
+    def test_no_file_or_exposures_are_provided___oasis_exception_is_raised(self):
+        with self.assertRaises(OasisException):
+            OasisKeysLookupFactory.get_model_exposures()
+
+    @given(lists(tuples(integers(min_value=0, max_value=100), integers(min_value=0, max_value=100))))
+    def test_file_is_provided___file_content_is_loaded(self, data):
+        data = [('first', 'second')] + data
+
+        with NamedTemporaryFile('w') as f:
+            csv.writer(f).writerows(data)
+            f.flush()
+
+            res = OasisKeysLookupFactory.get_model_exposures(model_exposures_file_path=f.name)
+            res = [tuple(res)] + [tuple(res.iloc[i]) for i in range(len(res))]
+
+            self.assertEqual(res, data)
+
+    @given(lists(tuples(integers(min_value=0, max_value=100), integers(min_value=0, max_value=100))))
+    def test_exposures_string_is_provided___file_content_is_loaded(self, data):
+        stream = io.StringIO()
+        data = [('first', 'second')] + data
+
+        csv.writer(stream).writerows(data)
+
+        res = OasisKeysLookupFactory.get_model_exposures(model_exposures=stream.getvalue())
+        res = [tuple(res)] + [tuple(res.iloc[i]) for i in range(len(res))]
+
+        self.assertEqual(res, data)
