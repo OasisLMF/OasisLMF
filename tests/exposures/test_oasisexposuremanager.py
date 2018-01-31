@@ -203,7 +203,7 @@ def write_input_files(keys_data, keys_file, exposure_data, exposures_file, profi
     exposures_file.flush()
 
 
-class OasisExposureManagerGenerateItemsFiles(TestCase):
+class OasisExposureManagerLoadMasterDataframe(TestCase):
     @given(text(alphabet=string.ascii_letters, min_size=1), oasis_keys_data(10), canonical_exposure_data(10, min_value=1))
     def test_row_in_keys_data_is_missing_from_exposure_data___oasis_exception_is_raised(self, profile_element_name, keys_data, exposure_data):
         exposure_data.pop()
@@ -215,7 +215,7 @@ class OasisExposureManagerGenerateItemsFiles(TestCase):
             write_input_files(keys_data, keys_file, exposure_data, exposures_file, profile_element_name)
 
             with self.assertRaises(OasisException):
-                list(OasisExposuresManager.load_item_records(exposures_file.name, keys_file.name, profile))
+                OasisExposuresManager.load_master_data_frame(exposures_file.name, keys_file.name, profile)
 
     @given(text(alphabet=string.ascii_letters, min_size=1), oasis_keys_data(10), canonical_exposure_data(10, min_value=1))
     def test_row_in_keys_data_is_in_exposure_data_twice___oasis_exception_is_raised(self, profile_element_name, keys_data, exposure_data):
@@ -228,7 +228,7 @@ class OasisExposureManagerGenerateItemsFiles(TestCase):
             write_input_files(keys_data, keys_file, exposure_data, exposures_file, profile_element_name)
 
             with self.assertRaises(OasisException):
-                list(OasisExposuresManager.load_item_records(exposures_file.name, keys_file.name, profile))
+                OasisExposuresManager.load_master_data_frame(exposures_file.name, keys_file.name, profile)
 
     @given(text(alphabet=string.ascii_letters, min_size=1), oasis_keys_data(10), canonical_exposure_data(10, min_value=1))
     def test_each_row_has_a_single_row_per_element_with_each_row_having_a_positive_value_for_the_profile_element___each_row_is_present(self, profile_element_name, keys_data, exposure_data):
@@ -247,19 +247,23 @@ class OasisExposureManagerGenerateItemsFiles(TestCase):
         with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file:
             write_input_files(keys_data, keys_file, exposure_data, exposures_file, profile_element_name)
 
-            result = list(
-                OasisExposuresManager.load_item_records(
-                    exposures_file.name,
-                    keys_file.name,
-                    profile,
-                )
+            result = OasisExposuresManager.load_master_data_frame(
+                exposures_file.name,
+                keys_file.name,
+                profile,
             )
 
         self.assertEqual(len(expected), len(result))
-        for expected_row, result_row in zip(expected, result):
-            self.assertEqual(expected_row[0], result_row[0])
-            self.assertEqual(expected_row[1], tuple(result_row[1]))
-            self.assertEqual(expected_row[2], int(result_row[2]))
+        for idx in range(len(result)):
+            row = result.iloc[idx]
+            self.assertEqual(idx + 1, row['item_id'])
+            self.assertEqual(idx + 1, row['coverage_id'])
+            self.assertEqual(exposure_data[idx][1], row['tiv'])
+            self.assertEqual(keys_data[idx][3], row['areaperil_id'])
+            self.assertEqual(keys_data[idx][4], row['vulnerability_id'])
+            self.assertEqual(idx + 1, row['group_id'])
+            self.assertEqual(1, row['summary_id'])
+            self.assertEqual(1, row['summaryset_id'])
 
     @given(text(alphabet=string.ascii_letters, min_size=1), oasis_keys_data(10), canonical_exposure_data(10, min_value=1))
     def test_each_row_has_a_single_row_per_element_with_each_row_having_a_any_value_for_the_profile_element___rows_with_profile_elements_gt_0_are_present(self, profile_element_name, keys_data, exposure_data):
@@ -281,24 +285,35 @@ class OasisExposureManagerGenerateItemsFiles(TestCase):
         with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file:
             write_input_files(keys_data, keys_file, exposure_data, exposures_file, profile_element_name)
 
-            result = list(
-                OasisExposuresManager.load_item_records(
-                    exposures_file.name,
-                    keys_file.name,
-                    profile,
-                )
+            result = OasisExposuresManager.load_master_data_frame(
+                exposures_file.name,
+                keys_file.name,
+                profile,
             )
 
         self.assertEqual(len(expected), len(result))
-        for expected_row, result_row in zip(expected, result):
-            self.assertEqual(expected_row[0], result_row[0])
-            self.assertEqual(expected_row[1], tuple(result_row[1]))
-            self.assertEqual(expected_row[2], int(result_row[2]))
+        for idx in range(len(result)):
+            row = result.iloc[idx]
+            self.assertEqual(idx + 1, row['item_id'])
+            self.assertEqual(idx + 1, row['coverage_id'])
+            self.assertEqual(exposure_data[idx][1], row['tiv'])
+            self.assertEqual(keys_data[idx][3], row['areaperil_id'])
+            self.assertEqual(keys_data[idx][4], row['vulnerability_id'])
+            self.assertEqual(idx + 1, row['group_id'])
+            self.assertEqual(1, row['summary_id'])
+            self.assertEqual(1, row['summaryset_id'])
 
 
-class OasisExposuresManagerGenerateItemFiles(TestCase):
-    @given(oasis_keys_data(10), canonical_exposure_data(10, min_value=1))
-    def test_paths_are_stored_in_the_model___model_paths_are_used(self, keys_data, exposure_data):
+class FileGenerationTestCast(TestCase):
+    def setUp(self):
+        self.items_filename = 'items.csv'
+        self.timestamped_items_filename = 'items_timestamped.csv'
+        self.coverages_filename = 'coverages.csv'
+        self.timestamped_coverages_filename = 'coverages_timestamped.csv'
+        self.gul_filename = 'gul.csv'
+        self.timestamped_gul_filename = 'gul_timestamped.csv'
+
+    def check_items_files(self, keys_data, out_dir):
         expected = [
             {
                 'item_id': str(item_id + 1),
@@ -309,6 +324,51 @@ class OasisExposuresManagerGenerateItemFiles(TestCase):
             } for item_id, item in enumerate(keys_data)
         ]
 
+        with open(os.path.join(out_dir, self.items_filename), 'r') as f:
+            result = list(csv.DictReader(f))
+            self.assertEqual(expected, result)
+
+        with open(os.path.join(out_dir, self.timestamped_items_filename), 'r') as f:
+            result = list(csv.DictReader(f))
+            self.assertEqual(expected, result)
+
+    def check_coverages_files(self, exposure_data, out_dir):
+        expected = [
+            {
+                'coverage_id': str(item_id + 1),
+                'tiv': str(item[1]),
+            } for item_id, item in enumerate(exposure_data)
+        ]
+
+        with open(os.path.join(out_dir, self.coverages_filename), 'r') as f:
+            result = list(csv.DictReader(f))
+            self.assertEqual(expected, result)
+
+        with open(os.path.join(out_dir, self.timestamped_coverages_filename), 'r') as f:
+            result = list(csv.DictReader(f))
+            self.assertEqual(expected, result)
+
+    def check_gul_files(self, exposure_data, out_dir):
+        expected = [
+            {
+                'coverage_id': str(item_id + 1),
+                'summary_id': '1',
+                'summaryset_id': '1',
+            } for item_id in range(len(exposure_data))
+        ]
+
+        with open(os.path.join(out_dir, self.gul_filename), 'r') as f:
+            result = list(csv.DictReader(f))
+            self.assertEqual(expected, result)
+
+        with open(os.path.join(out_dir, self.timestamped_gul_filename), 'r') as f:
+            result = list(csv.DictReader(f))
+            self.assertEqual(expected, result)
+
+
+class OasisExposuresManagerGenerateItemFiles(FileGenerationTestCast):
+    @given(oasis_keys_data(10), canonical_exposure_data(10, min_value=1))
+    def test_paths_are_stored_in_the_model___model_paths_are_used(self, keys_data, exposure_data):
         profile = {
             'profile_element': {'ProfileElementName': 'profile_element', 'FieldName': 'TIV', 'CoverageTypeID': 1}
         }
@@ -317,35 +377,19 @@ class OasisExposuresManagerGenerateItemFiles(TestCase):
             write_input_files(keys_data, keys_file, exposure_data, exposures_file)
 
             model = fake_model(resources={
-                'items_timestamped_file_path': os.path.join(out_dir, 'items_timestamped.csv'),
+                'items_file_path': os.path.join(out_dir, self.items_filename),
+                'items_timestamped_file_path': os.path.join(out_dir, self.timestamped_items_filename),
                 'canonical_exposures_profile': profile,
             })
             model.files_pipeline.keys_file_path = keys_file.name
             model.files_pipeline.canonical_exposures_path = exposures_file.name
-            model.files_pipeline.items_file_path = os.path.join(out_dir, 'items.csv')
 
             OasisExposuresManager.generate_items_file(oasis_model=model)
 
-            with open(os.path.join(out_dir, 'items_timestamped.csv'), 'r') as f:
-                result = list(csv.DictReader(f))
-                self.assertEqual(expected, result)
-
-            with open(os.path.join(out_dir, 'items.csv'), 'r') as f:
-                result = list(csv.DictReader(f))
-                self.assertEqual(expected, result)
+            self.check_items_files(keys_data, out_dir)
 
     @given(oasis_keys_data(10), canonical_exposure_data(10, min_value=1))
-    def test_paths_are_stored_in_the_kwargs___model_paths_are_used(self, keys_data, exposure_data):
-        expected = [
-            {
-                'item_id': str(item_id + 1),
-                'coverage_id': str(item_id + 1),
-                'areaperil_id': str(item[3]),
-                'vulnerability_id': str(item[4]),
-                'group_id': str(item_id + 1),
-            } for item_id, item in enumerate(keys_data)
-        ]
-
+    def test_paths_are_stored_in_the_kwargs___kwarg_paths_are_used(self, keys_data, exposure_data):
         profile = {
             'profile_element': {'ProfileElementName': 'profile_element', 'FieldName': 'TIV', 'CoverageTypeID': 1}
         }
@@ -360,29 +404,16 @@ class OasisExposuresManagerGenerateItemFiles(TestCase):
                 canonical_exposures_profile=profile,
                 keys_file_path=keys_file.name,
                 canonical_exposures_file_path=exposures_file.name,
-                items_file_path=os.path.join(out_dir, 'items.csv'),
-                items_timestamped_file_path=os.path.join(out_dir, 'items_timestamped.csv'),
+                items_file_path=os.path.join(out_dir, self.items_filename),
+                items_timestamped_file_path=os.path.join(out_dir, self.timestamped_items_filename),
             )
 
-            with open(os.path.join(out_dir, 'items_timestamped.csv'), 'r') as f:
-                result = list(csv.DictReader(f))
-                self.assertEqual(expected, result)
-
-            with open(os.path.join(out_dir, 'items.csv'), 'r') as f:
-                result = list(csv.DictReader(f))
-                self.assertEqual(expected, result)
+            self.check_items_files(keys_data, out_dir)
 
 
-class OasisExposuresManagerGenerateCoveragesFiles(TestCase):
+class OasisExposuresManagerGenerateCoveragesFiles(FileGenerationTestCast):
     @given(oasis_keys_data(10), canonical_exposure_data(10, min_value=1))
     def test_paths_are_stored_in_the_model___model_paths_are_used(self, keys_data, exposure_data):
-        expected = [
-            {
-                'coverage_id': str(item_id + 1),
-                'tiv': str(item[1]),
-            } for item_id, item in enumerate(exposure_data)
-        ]
-
         profile = {
             'profile_element': {'ProfileElementName': 'profile_element', 'FieldName': 'TIV', 'CoverageTypeID': 1}
         }
@@ -391,8 +422,8 @@ class OasisExposuresManagerGenerateCoveragesFiles(TestCase):
             write_input_files(keys_data, keys_file, exposure_data, exposures_file)
 
             model = fake_model(resources={
-                'coverages_timestamped_file_path': os.path.join(out_dir, 'coverages_timestamped.csv'),
-                'coverages_file_path': os.path.join(out_dir, 'coverages.csv'),
+                'coverages_file_path': os.path.join(out_dir, self.coverages_filename),
+                'coverages_timestamped_file_path': os.path.join(out_dir, self.timestamped_coverages_filename),
                 'canonical_exposures_profile': profile,
             })
             model.files_pipeline.keys_file_path = keys_file.name
@@ -400,23 +431,10 @@ class OasisExposuresManagerGenerateCoveragesFiles(TestCase):
 
             OasisExposuresManager.generate_coverages_file(oasis_model=model)
 
-            with open(os.path.join(out_dir, 'coverages_timestamped.csv'), 'r') as f:
-                result = list(csv.DictReader(f))
-                self.assertEqual(expected, result)
-
-            with open(os.path.join(out_dir, 'coverages.csv'), 'r') as f:
-                result = list(csv.DictReader(f))
-                self.assertEqual(expected, result)
+            self.check_coverages_files(exposure_data, out_dir)
 
     @given(oasis_keys_data(10), canonical_exposure_data(10, min_value=1))
-    def test_paths_are_stored_in_the_kwargs___model_paths_are_used(self, keys_data, exposure_data):
-        expected = [
-            {
-                'coverage_id': str(item_id + 1),
-                'tiv': str(item[1]),
-            } for item_id, item in enumerate(exposure_data)
-        ]
-
+    def test_paths_are_stored_in_the_kwargs___kwarg_paths_are_used(self, keys_data, exposure_data):
         profile = {
             'profile_element': {'ProfileElementName': 'profile_element', 'FieldName': 'TIV', 'CoverageTypeID': 1}
         }
@@ -431,30 +449,16 @@ class OasisExposuresManagerGenerateCoveragesFiles(TestCase):
                 canonical_exposures_profile=profile,
                 keys_file_path=keys_file.name,
                 canonical_exposures_file_path=exposures_file.name,
-                coverages_file_path=os.path.join(out_dir, 'coverages.csv'),
-                coverages_timestamped_file_path=os.path.join(out_dir, 'coverages_timestamped.csv'),
+                coverages_file_path=os.path.join(out_dir, self.coverages_filename),
+                coverages_timestamped_file_path=os.path.join(out_dir, self.timestamped_coverages_filename),
             )
 
-            with open(os.path.join(out_dir, 'coverages_timestamped.csv'), 'r') as f:
-                result = list(csv.DictReader(f))
-                self.assertEqual(expected, result)
-
-            with open(os.path.join(out_dir, 'coverages.csv'), 'r') as f:
-                result = list(csv.DictReader(f))
-                self.assertEqual(expected, result)
+            self.check_coverages_files(exposure_data, out_dir)
 
 
-class OasisExposuresManagerGenerateGulsummaryxrefFile(TestCase):
+class OasisExposuresManagerGenerateGulsummaryxrefFile(FileGenerationTestCast):
     @given(oasis_keys_data(10), canonical_exposure_data(10, min_value=1))
     def test_paths_are_stored_in_the_model___model_paths_are_used(self, keys_data, exposure_data):
-        expected = [
-            {
-                'coverage_id': str(item_id + 1),
-                'summary_id': '1',
-                'summaryset_id': '1',
-            } for item_id in range(len(exposure_data))
-        ]
-
         profile = {
             'profile_element': {'ProfileElementName': 'profile_element', 'FieldName': 'TIV', 'CoverageTypeID': 1}
         }
@@ -463,8 +467,8 @@ class OasisExposuresManagerGenerateGulsummaryxrefFile(TestCase):
             write_input_files(keys_data, keys_file, exposure_data, exposures_file)
 
             model = fake_model(resources={
-                'gulsummaryxref_file_path': os.path.join(out_dir, 'gul.csv'),
-                'gulsummaryxref_timestamped_file_path': os.path.join(out_dir, 'gul_timestamped.csv'),
+                'gulsummaryxref_file_path': os.path.join(out_dir, self.gul_filename),
+                'gulsummaryxref_timestamped_file_path': os.path.join(out_dir, self.timestamped_gul_filename),
                 'canonical_exposures_profile': profile,
             })
             model.files_pipeline.keys_file_path = keys_file.name
@@ -472,24 +476,67 @@ class OasisExposuresManagerGenerateGulsummaryxrefFile(TestCase):
 
             OasisExposuresManager.generate_gulsummaryxref_file(oasis_model=model)
 
-            with open(os.path.join(out_dir, 'gul_timestamped.csv'), 'r') as f:
-                result = list(csv.DictReader(f))
-                self.assertEqual(expected, result)
-
-            with open(os.path.join(out_dir, 'gul.csv'), 'r') as f:
-                result = list(csv.DictReader(f))
-                self.assertEqual(expected, result)
+            self.check_gul_files(exposure_data, out_dir)
 
     @given(oasis_keys_data(10), canonical_exposure_data(10, min_value=1))
-    def test_paths_are_stored_in_the_kwargs___model_paths_are_used(self, keys_data, exposure_data):
-        expected = [
-            {
-                'coverage_id': str(item_id + 1),
-                'summary_id': '1',
-                'summaryset_id': '1',
-            } for item_id in range(len(exposure_data))
-        ]
+    def test_paths_are_stored_in_the_kwargs___kwarg_paths_are_used(self, keys_data, exposure_data):
+        profile = {
+            'profile_element': {'ProfileElementName': 'profile_element', 'FieldName': 'TIV', 'CoverageTypeID': 1}
+        }
 
+        with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file, TemporaryDirectory() as out_dir:
+            write_input_files(keys_data, keys_file, exposure_data, exposures_file)
+
+            model = fake_model(resources={
+                'gulsummaryxref_file_path': os.path.join(out_dir, self.gul_filename),
+                'gulsummaryxref_timestamped_file_path': os.path.join(out_dir, self.timestamped_gul_filename),
+                'canonical_exposures_profile': profile,
+            })
+            model.files_pipeline.keys_file_path = keys_file.name
+            model.files_pipeline.canonical_exposures_path = exposures_file.name
+
+            OasisExposuresManager.generate_gulsummaryxref_file(
+                oasis_model=model,
+                canonical_exposures_profile=profile,
+                keys_file_path=keys_file.name,
+                canonical_exposures_file_path=exposures_file.name,
+                gulsummaryxref_file_path=os.path.join(out_dir, self.gul_filename),
+                gulsummaryxref_timestamped_file_path=os.path.join(out_dir, self.timestamped_gul_filename),
+            )
+
+            self.check_gul_files(exposure_data, out_dir)
+
+
+class OasisExposuresManagerGenerateOasisFiles(FileGenerationTestCast):
+    @given(oasis_keys_data(10), canonical_exposure_data(10, min_value=1))
+    def test_paths_are_stored_in_the_model___model_paths_are_used(self, keys_data, exposure_data):
+        profile = {
+            'profile_element': {'ProfileElementName': 'profile_element', 'FieldName': 'TIV', 'CoverageTypeID': 1}
+        }
+
+        with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file, TemporaryDirectory() as out_dir:
+            write_input_files(keys_data, keys_file, exposure_data, exposures_file)
+
+            model = fake_model(resources={
+                'items_file_path': os.path.join(out_dir, self.items_filename),
+                'items_timestamped_file_path': os.path.join(out_dir, self.timestamped_items_filename),
+                'coverages_file_path': os.path.join(out_dir, self.coverages_filename),
+                'coverages_timestamped_file_path': os.path.join(out_dir, self.timestamped_coverages_filename),
+                'gulsummaryxref_file_path': os.path.join(out_dir, self.gul_filename),
+                'gulsummaryxref_timestamped_file_path': os.path.join(out_dir, self.timestamped_gul_filename),
+                'canonical_exposures_profile': profile,
+            })
+            model.files_pipeline.keys_file_path = keys_file.name
+            model.files_pipeline.canonical_exposures_path = exposures_file.name
+
+            OasisExposuresManager.generate_oasis_files(oasis_model=model)
+
+            self.check_items_files(keys_data, out_dir)
+            self.check_coverages_files(exposure_data, out_dir)
+            self.check_gul_files(exposure_data, out_dir)
+
+    @given(oasis_keys_data(10), canonical_exposure_data(10, min_value=1))
+    def test_paths_are_stored_in_the_kwargs___kwarg_paths_are_used(self, keys_data, exposure_data):
         profile = {
             'profile_element': {'ProfileElementName': 'profile_element', 'FieldName': 'TIV', 'CoverageTypeID': 1}
         }
@@ -499,19 +546,19 @@ class OasisExposuresManagerGenerateGulsummaryxrefFile(TestCase):
 
             model = fake_model()
 
-            OasisExposuresManager.generate_gulsummaryxref_file(
+            OasisExposuresManager.generate_oasis_files(
                 oasis_model=model,
                 canonical_exposures_profile=profile,
                 keys_file_path=keys_file.name,
                 canonical_exposures_file_path=exposures_file.name,
-                gulsummaryxref_file_path=os.path.join(out_dir, 'gul.csv'),
-                gulsummaryxref_timestamped_file_path=os.path.join(out_dir, 'gul_timestamped.csv'),
+                items_file_path=os.path.join(out_dir, self.items_filename),
+                items_timestamped_file_path=os.path.join(out_dir, self.timestamped_items_filename),
+                coverages_file_path=os.path.join(out_dir, self.coverages_filename),
+                coverages_timestamped_file_path=os.path.join(out_dir, self.timestamped_coverages_filename),
+                gulsummaryxref_file_path=os.path.join(out_dir, self.gul_filename),
+                gulsummaryxref_timestamped_file_path=os.path.join(out_dir, self.timestamped_gul_filename),
             )
 
-            with open(os.path.join(out_dir, 'gul_timestamped.csv'), 'r') as f:
-                result = list(csv.DictReader(f))
-                self.assertEqual(expected, result)
-
-            with open(os.path.join(out_dir, 'gul.csv'), 'r') as f:
-                result = list(csv.DictReader(f))
-                self.assertEqual(expected, result)
+            self.check_items_files(keys_data, out_dir)
+            self.check_coverages_files(exposure_data, out_dir)
+            self.check_gul_files(exposure_data, out_dir)
