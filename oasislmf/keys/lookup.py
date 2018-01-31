@@ -179,15 +179,19 @@ class OasisKeysLookupFactory(object):
         """
         Writes an Oasis keys file from an iterable of keys records.
         """
-        with io.open(output_file_path, 'w', encoding='utf-8') as f:
-            f.write('LocID,PerilID,CoverageID,AreaPerilID,VulnerabilityID\n')
-            n = 0
-            for r in records:
-                n += 1
-                line = '{},{},{},{},{}\n'.format(r['id'], r['peril_id'], r['coverage'], r['area_peril_id'], r['vulnerability_id'])
-                f.write(line)
+        heading_row = {
+            'id': 'LocID',
+            'peril_id': 'PerilID',
+            'coverage': 'CoverageID',
+            'area_peril_id': 'AreaPerilID',
+            'vulnerability_id': 'VulnerabilityID',
+        }
 
-            return f.name, n
+        with io.open(output_file_path, 'w', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=['id', 'peril_id', 'coverage', 'area_peril_id', 'vulnerability_id'])
+            writer.writerows([heading_row] + records)
+
+            return f.name, len(records)
 
     @classmethod
     def write_list_keys_file(cls, records, output_file_path):

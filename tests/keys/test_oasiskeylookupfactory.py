@@ -7,7 +7,7 @@ import os
 import io
 from backports.tempfile import TemporaryDirectory
 from hypothesis import given
-from hypothesis.strategies import text, integers, tuples, lists
+from hypothesis.strategies import text, integers, tuples, lists, fixed_dictionaries
 
 from oasislmf.keys.lookup import OasisKeysLookupFactory
 from oasislmf.utils.exceptions import OasisException
@@ -106,3 +106,38 @@ class OasisKeysLookupFactoryGetModelExposures(TestCase):
         res = [tuple(res)] + [tuple(res.iloc[i]) for i in range(len(res))]
 
         self.assertEqual(res, data)
+
+
+class OasisKeysLookupFactoryWriteOasisKeyFiles(TestCase):
+    @given(lists(fixed_dictionaries({
+        'id': integers(),
+        'peril_id': integers(),
+        'coverage': integers(),
+        'area_peril_id': integers(),
+        'vulnerability_id': integers(),
+    })))
+    def test_records_are_given___records_are_written_to_csv_correctly(self, data):
+        expected_heading = {
+            'id': 'LocID',
+            'peril_id': 'PerilID',
+            'coverage': 'CoverageID',
+            'area_peril_id': 'AreaPerilID',
+            'vulnerability_id': 'VulnerabilityID',
+        }
+
+        with TemporaryDirectory() as d:
+            output_file = os.path.join(d, 'output.csv')
+
+            res_path, res_count = OasisKeysLookupFactory.write_oasis_keys_file(data, output_file)
+
+            expected_data = [
+                {k: str(v) for k, v in row.items()} for row in data
+            ]
+
+            with open(output_file) as f:
+                res_data = list(csv.DictReader(f, fieldnames=['id', 'peril_id', 'coverage', 'area_peril_id', 'vulnerability_id']))
+
+            self.assertEqual(res_count, len(data))
+            self.assertEqual(res_path, output_file)
+            self.assertEqual(res_data[0], expected_heading)
+            self.assertEqual(res_data[1:], expected_data)
