@@ -50,7 +50,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         pass
 
-    def start_files_pipeline(self, oasis_model, **kwargs):
+    def start_files_pipeline(self, oasis_model=None, oasis_files_path=None, source_exposures_path=None):
         """
         Starts the exposure transforms pipeline for the given ``oasis_model``,
         i.e. the generation of the canonical exposures files, keys file

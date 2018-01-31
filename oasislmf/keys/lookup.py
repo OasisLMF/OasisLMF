@@ -1,7 +1,12 @@
 # -*- coding: utf-8 -*-
 
+from __future__ import unicode_literals, absolute_import
+
+import re
+
 __all__ = [
-    'OasisKeysLookupFactory'
+    'OasisKeysLookupFactory',
+    'OasisBaseKeysLookup',
 ]
 
 import csv
@@ -13,10 +18,95 @@ import pandas as pd
 import sys
 
 from ..utils.exceptions import OasisException
+from ..utils.log import oasis_log
+from ..utils.status import KEYS_STATUS_NOMATCH, KEYS_STATUS_SUCCESS
 
 
 __author__ = "Sandeep Murthy"
 __copyright__ = "2017, Oasis Loss Modelling Framework"
+
+
+UNKNOWN_ID = -1
+
+
+class OasisBaseKeysLookup(object):
+    """
+    A base class / interface that serves a template for model-specific keys
+    lookup classes.
+    """
+    @oasis_log()
+    def __init__(
+        self,
+        keys_data_directory=None,
+        supplier=None,
+        model_name=None,
+        model_version=None
+    ):
+        """
+        Class constructor
+        """
+        if keys_data_directory is not None:
+            self.keys_data_directory = keys_data_directory
+        else:
+            self.keys_data_directory = os.path.join(os.sep, 'var', 'oasis', 'keys_data')
+
+        self.supplier = supplier
+        self.model_name = model_name
+        self.model_version = model_version
+
+    @oasis_log()
+    def process_locations(self, loc_df):
+        """
+        Process location rows - passed in as a pandas dataframe.
+        """
+        pass
+
+    def _get_location_record(self, raw_loc_item):
+        """
+        Returns a dict of standard location keys and values based on
+        a raw location item, which is a row in a Pandas dataframe.
+        """
+        pass
+
+    def _get_area_peril_id(self, record):
+        """
+        Get the area peril ID for a particular location record.
+        """
+        return UNKNOWN_ID, "Not implemented"
+
+    def _get_vulnerability_id(self, record):
+        """
+        Get the vulnerability ID for a particular location record.
+        """
+        return UNKNOWN_ID, "Not implemented"
+
+    @oasis_log()
+    def _get_area_peril_ids(self, loc_data, include_context=True):
+        """
+        Generates area peril IDs in two modes - if include_context is
+        True (default) it will generate location records/rows including
+        the area peril IDs, otherwise it will generate pairs of location
+        IDs and the corresponding area peril IDs.
+        """
+        pass
+
+    @oasis_log()
+    def _get_vulnerability_ids(self, loc_data, include_context=True):
+        """
+        Generates vulnerability IDs in two modes - if include_context is
+        True (default) it will generate location records/rows including
+        the area peril IDs, otherwise it will generate pairs of location
+        IDs and the corresponding vulnerability IDs.
+        """
+        pass
+
+    def _get_lookup_success(self, ap_id, vul_id):
+        """
+        Determine the status of the keys lookup.
+        """
+        if ap_id == UNKNOWN_ID or vul_id == UNKNOWN_ID:
+            return KEYS_STATUS_NOMATCH
+        return KEYS_STATUS_SUCCESS
 
 
 class OasisKeysLookupFactory(object):
@@ -31,9 +121,9 @@ class OasisKeysLookupFactory(object):
         Get model information from the model version file.
         """
         with io.open(model_version_file_path, 'r', encoding='utf-8') as f:
-            return csv.DictReader(
+            return next(csv.DictReader(
                 f, fieldnames=['supplier_id', 'model_id', 'model_version_id']
-            ).next()
+            ))
 
     @classmethod
     def get_lookup_package(cls, lookup_package_path):
@@ -43,12 +133,13 @@ class OasisKeysLookupFactory(object):
         `var/www/oasis` in the keys server Docker container) from the given
         path.
         """
-        parent_dir = os.path.abspath(os.path.join(lookup_package_path, os.pardir))
+        parent_dir = os.path.abspath(os.path.dirname(lookup_package_path))
+        package_name = re.sub(r'\.py$', '', os.path.basename(lookup_package_path))
+
         sys.path.insert(0, parent_dir)
-        package_name = lookup_package_path.split(os.path.sep)[-1]
         lookup_package = importlib.import_module(package_name)
-        importlib.reload(lookup_package)
         sys.path.pop(0)
+
         return lookup_package
 
     @classmethod
@@ -91,11 +182,11 @@ class OasisKeysLookupFactory(object):
         Writes an Oasis keys file from an iterable of keys records.
         """
         with io.open(output_file_path, 'w', encoding='utf-8') as f:
-            f.write('LocID,PerilID,CoverageID,AreaPerilID,VulnerabilityID\n'.decode())
+            f.write('LocID,PerilID,CoverageID,AreaPerilID,VulnerabilityID\n')
             n = 0
             for r in records:
                 n += 1
-                line = '{},{},{},{},{}\n'.format(r['id'], r['peril_id'], r['coverage'], r['area_peril_id'], r['vulnerability_id']).decode()
+                line = '{},{},{},{},{}\n'.format(r['id'], r['peril_id'], r['coverage'], r['area_peril_id'], r['vulnerability_id'])
                 f.write(line)
 
             return f.name, n
@@ -108,7 +199,7 @@ class OasisKeysLookupFactory(object):
         n = 0
         with io.open(output_file_path, 'w', encoding='utf-8') as f:
             for r in records:
-                f.write('{},\n'.format(json.dumps(r, sort_keys=True, indent=4, separators=(',', ': '))).decode())
+                f.write('{},\n'.format(json.dumps(r, sort_keys=True, indent=4, separators=(',', ': '))))
                 n += 1
 
             return f.name, n
@@ -118,7 +209,7 @@ class OasisKeysLookupFactory(object):
         cls,
         model_keys_data_path=None,
         model_version_file_path=None,
-        lookup_package_path=None
+        lookup_package_path=None,
     ):
         """
         Creates a keys lookup class instance for the given model and supplier -
@@ -128,11 +219,15 @@ class OasisKeysLookupFactory(object):
         model information from the model version file and `klc` is the lookup
         service class instance for the model.
         """
-        (
-            model_keys_data_path,
-            model_version_file_path,
-            lookup_package_path
-        ) = map(os.path.abspath, [model_keys_data_path, model_version_file_path, lookup_package_path])
+        if model_keys_data_path:
+            model_keys_data_path = os.path.abspath(model_keys_data_path)
+
+        if model_version_file_path:
+            model_version_file_path = os.path.abspath(model_version_file_path)
+
+        if lookup_package_path:
+            lookup_package_path = os.path.abspath(lookup_package_path)
+
         model_info = cls.get_model_info(model_version_file_path)
         lookup_package = cls.get_lookup_package(lookup_package_path)
         klc = cls.get_lookup_class_instance(lookup_package, model_keys_data_path, model_info)

@@ -1,4 +1,3 @@
-import csv
 import json
 import os
 
@@ -9,6 +8,7 @@ import six
 from argparsetree import BaseCommand
 from backports.tempfile import TemporaryDirectory
 
+from oasislmf.keys.lookup import OasisKeysLookupFactory
 from .. import __version__
 from ..utils.exceptions import OasisException
 from ..utils.conf import replace_in_file
@@ -149,12 +149,11 @@ class GenerateModelTesterDockerFileCmd(OasisBaseCommand):
         dockerfile_src = os.path.join(os.path.dirname(__file__), os.path.pardir, '_data', 'Dockerfile.model_api_tester')
 
         version_file = args.model_version_file or os.path.join(args.model_data_directory, 'ModelVersion.csv')
-        with open(version_file) as f:
-            supplier_id, model_id, model_version = map(lambda s: s.strip(), next(csv.reader(f)))
+        version_info = OasisKeysLookupFactory.get_model_info(version_file)
 
         dockerfile_dst = os.path.join(
             args.model_data_directory,
-            'Dockerfile.{}_{}_model_api_tester'.format(supplier_id.lower(), model_id.lower()),
+            'Dockerfile.{}_{}_model_api_tester'.format(version_info['supplier_id'].lower(), version_info['model_id'].lower()),
         )
 
         replace_in_file(
@@ -164,9 +163,9 @@ class GenerateModelTesterDockerFileCmd(OasisBaseCommand):
             [
                 __version__,
                 args.api_server_url,
-                supplier_id,
-                model_id,
-                model_version,
+                version_info['supplier_id'],
+                version_info['model_id'],
+                version_info['model_version_id'],
                 args.model_data_directory,
             ]
         )
