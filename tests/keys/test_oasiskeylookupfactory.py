@@ -1,4 +1,5 @@
 import csv
+import json
 import string
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
@@ -108,7 +109,7 @@ class OasisKeysLookupFactoryGetModelExposures(TestCase):
         self.assertEqual(res, data)
 
 
-class OasisKeysLookupFactoryWriteOasisKeyFiles(TestCase):
+class OasisKeysLookupFactoryWriteOasisKeyFile(TestCase):
     @given(lists(fixed_dictionaries({
         'id': integers(),
         'peril_id': integers(),
@@ -141,3 +142,25 @@ class OasisKeysLookupFactoryWriteOasisKeyFiles(TestCase):
             self.assertEqual(res_path, output_file)
             self.assertEqual(res_data[0], expected_heading)
             self.assertEqual(res_data[1:], expected_data)
+
+
+class OasisKeysLookupFactoryWriteListKeysFiles(TestCase):
+    @given(lists(fixed_dictionaries({
+        'id': integers(),
+        'peril_id': integers(),
+        'coverage': integers(),
+        'area_peril_id': integers(),
+        'vulnerability_id': integers(),
+    })))
+    def test_records_are_given___records_are_written_to_file_correctly(self, data):
+        with TemporaryDirectory() as d:
+            output_file = os.path.join(d, 'output')
+
+            res_path, res_count = OasisKeysLookupFactory.write_list_keys_file(data, output_file)
+
+            with open(output_file) as f:
+                result_data = json.loads('[{}]'.format(f.read().strip()[:-1]))
+
+            self.assertEqual(res_count, len(data))
+            self.assertEqual(res_path, output_file)
+            self.assertEqual(result_data, data)

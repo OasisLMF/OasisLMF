@@ -201,7 +201,7 @@ class OasisKeysLookupFactory(object):
         n = 0
         with io.open(output_file_path, 'w', encoding='utf-8') as f:
             for r in records:
-                f.write('{},\n'.format(json.dumps(r, sort_keys=True, indent=4, separators=(',', ': '))))
+                f.write('{},\n'.format(json.dumps(r, sort_keys=True, indent=4)))
                 n += 1
 
             return f.name, n
