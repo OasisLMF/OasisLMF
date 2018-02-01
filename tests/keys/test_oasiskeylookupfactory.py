@@ -9,7 +9,7 @@ import os
 import io
 from backports.tempfile import TemporaryDirectory
 from hypothesis import given
-from hypothesis.strategies import text, integers, tuples, lists, fixed_dictionaries, sampled_from
+from hypothesis.strategies import text, integers, tuples, lists, fixed_dictionaries, sampled_from, booleans
 from mock import Mock, patch
 
 from oasislmf.keys.lookup import OasisKeysLookupFactory
@@ -241,3 +241,39 @@ class OasisKeysLookupFactoryGetKeys(TestCase):
             res = list(OasisKeysLookupFactory.get_keys(self.lookup_instance, model_exposures_file_path='path', success_only=False))
 
             self.assertEqual(res, list(chain(*data)))
+
+
+class OasisKeysLookupFactoryWriteKeys(TestCase):
+    def create_fake_lookup(self):
+        self.lookup_instance = Mock()
+        return self.lookup_instance
+
+    def test_no_model_exposures_are_provided___oasis_exception_is_raised(self):
+        with self.assertRaises(OasisException):
+            list(OasisKeysLookupFactory.get_keys(self.create_fake_lookup()))
+
+    @given(
+        text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+        text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+        booleans(),
+        text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+    )
+    def test_produced_keys_are_passed_to_write_oasis_keys_file(self, exposures_path, exposures, success_only, output):
+        with patch('oasislmf.keys.lookup.OasisKeysLookupFactory.get_keys', Mock(return_value='got keys')) as get_keys_mock, \
+                patch('oasislmf.keys.lookup.OasisKeysLookupFactory.write_oasis_keys_file') as write_oasis_keys_file_mock:
+
+            OasisKeysLookupFactory.save_keys(
+                self.create_fake_lookup(),
+                output,
+                model_exposures_file_path=exposures_path,
+                model_exposures=exposures,
+                success_only=success_only,
+            )
+
+            get_keys_mock.assert_called_once_with(
+                self.lookup_instance,
+                model_exposures=exposures,
+                model_exposures_file_path=exposures_path,
+                success_only=success_only
+            )
+            write_oasis_keys_file_mock.assert_called_once_with('got keys', os.path.abspath(output))
