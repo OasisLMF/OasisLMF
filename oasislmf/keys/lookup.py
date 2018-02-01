@@ -163,7 +163,7 @@ class OasisKeysLookupFactory(object):
         such a file.
         """
         if model_exposures_file_path:
-            loc_df = pd.read_csv(model_exposures_file_path)
+            loc_df = pd.read_csv(os.path.abspath(model_exposures_file_path))
         elif model_exposures:
             loc_df = pd.read_csv(io.StringIO(model_exposures))
         else:
@@ -238,7 +238,7 @@ class OasisKeysLookupFactory(object):
     @classmethod
     def get_keys(
         cls,
-        lookup=None,
+        lookup,
         model_exposures=None,
         model_exposures_file_path=None,
         success_only=True
@@ -253,29 +253,21 @@ class OasisKeysLookupFactory(object):
         records with successful lookups should be returned (default), or all
         records.
         """
-        if not any([model_exposures, model_exposures_file_path]):
+        if not (model_exposures or model_exposures_file_path):
             raise OasisException('No model exposures provided')
 
-        model_loc_df = (
-            cls.get_model_exposures(
-                model_exposures_file_path=os.path.abspath(model_exposures_file_path)
-            ) if model_exposures_file_path
-            else cls.get_model_exposures(model_exposures=model_exposures)
+        model_loc_df = cls.get_model_exposures(
+            model_exposures_file_path=model_exposures_file_path,
+            model_exposures=model_exposures,
         )
 
         for record_container in lookup.process_locations(model_loc_df):
             if type(record_container) in [list, tuple, set]:
                 for r in record_container:
-                    if success_only:
-                        if r['status'].lower() == 'success':
-                            yield r
-                    else:
+                    if not success_only or r['status'].lower() == 'success':
                         yield r
             elif type(record_container) == dict:
-                if success_only:
-                    if record_container['status'].lower() == 'success':
-                        yield record_container
-                else:
+                if not success_only or record_container['status'].lower() == 'success':
                     yield record_container
 
     @classmethod
