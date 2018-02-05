@@ -7,6 +7,9 @@ from .bin import BinCmd
 
 
 class RootCmd(OasisBaseCommand):
+    """
+    The root oasislmf command
+    """
     sub_commands = {
         'test': TestCmd,
         'version': VersionCmd,

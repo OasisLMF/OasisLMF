@@ -5,7 +5,9 @@ from .base import OasisBaseCommand
 
 
 class BuildCmd(OasisBaseCommand):
-    description = 'Builds input binary files for model execution.'
+    """
+    Builds input binary files for model execution.
+    """
 
     def add_args(self, parser):
         super(BuildCmd, self).add_args(parser)

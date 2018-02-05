@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import io
 import json
 
@@ -73,9 +75,6 @@ class GenerateKeysCmd(OasisBaseCommand):
 
 
 class GenerateLossesCmd(OasisBaseCommand):
-    # !/usr/bin/env python
-    # -*- coding: utf-8 -*-
-
     """
     ``generate_losses.py`` is an executable script which, given Oasis files,
     model analysis settings JSON file, model data, and some other
@@ -186,10 +185,6 @@ class GenerateLossesCmd(OasisBaseCommand):
         parser.add_argument('-s', '--ktools-script-name', default=None, help='Relative or absolute path of the output file')
         parser.add_argument('-n', '--ktools-num-processes', default=2, help='Number of ktools calculation processes to use')
         parser.add_argument('-x', '--no-execute', action='store_false', help='Whether to execute generated ktools script')
-        parser.add_argument(
-            '-j', '--analysis-settings-json-file-path', default=None,
-            help='Model analysis settings JSON file path'
-        )
 
     def print_command(self, cmd):
         with io.open(self.command_file, "a", encoding='utf-8') as myfile:
@@ -725,9 +720,6 @@ class GenerateLossesCmd(OasisBaseCommand):
 
 
 class GenerateOasisFilesCmd(OasisBaseCommand):
-    # !/usr/bin/env python
-    # -*- coding: utf-8 -*-
-
     """
     ``generate_oasis_files.py`` is an executable script which can generate
     Oasis files (items, coverages, GUL summary) for a model, given the
@@ -1017,8 +1009,11 @@ class RunCmd(OasisBaseCommand):
         parser.add_argument('-n', '--ktools-num-processes', default=2, help='Number of ktools calculation processes to use')
 
     def action(self, args):
+        inputs = InputValues(args)
+        model_run_dir_path = as_path(inputs.get('model_run_dir_path', required=True), 'Model run path', preexists=False)
+
         self.logger.info('Creating temporary folder {} for Oasis files'.format(args.oasis_files_path))
-        args.oasis_files_path = os.path.join(args['model_run_dir_path'], 'tmp')
+        args.oasis_files_path = os.path.join(model_run_dir_path, 'tmp')
         if not os.path.exists(args.oasis_files_path):
             os.mkdir(args.oasis_files_path)
 
@@ -1030,7 +1025,7 @@ class RunCmd(OasisBaseCommand):
         gen_losses_cmd._logger = self.logger
         gen_losses_cmd.action(args)
 
-        shutil.rmtree(args['model_run_dir_path'])
+        shutil.rmtree(model_run_dir_path)
 
 
 class ModelsCmd(OasisBaseCommand):

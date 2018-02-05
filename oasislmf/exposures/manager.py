@@ -20,7 +20,6 @@ import pandas as pd
 
 from ..keys.lookup import OasisKeysLookupFactory
 from ..utils.exceptions import OasisException
-from ..utils.mono import run_mono_executable
 from ..utils.values import get_utctimestamp
 
 __author__ = "Sandeep Murthy"
@@ -322,60 +321,62 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         which case all the resources required for the transformation should be
         present in the optional ``kwargs`` dict as named arguments. In this
         case only the generated canonical exposures file is returned.
+
+        :todo: replace this with the python version
         """
-        omr = oasis_model.resources
-        tfp = omr['oasis_files_pipeline']
-
-        if not with_model_resources:
-            xtrans_path = kwargs['xtrans_path']
-            input_file_path = kwargs['source_exposures_file_path']
-            validation_file_path = kwargs['source_exposures_validation_file_path']
-            transformation_file_path = kwargs['source_to_canonical_exposures_transformation_file_path']
-            output_file_path = kwargs['canonical_exposures_file_path']
-        else:
-            xtrans_path = omr['xtrans_path']
-            input_file_path = tfp.source_exposures_file.name
-            validation_file_path = omr['source_exposures_validation_file_path']
-            transformation_file_path = omr['source_to_canonical_exposures_transformation_file_path']
-            output_file_path = tfp.canonical_exposures_file.name
-
-        (
-            xtrans_path,
-            input_file_path,
-            validation_file_path,
-            transformation_file_path,
-            output_file_path
-        ) = map(
-            os.path.abspath,
-            [
-                xtrans_path,
-                input_file_path,
-                validation_file_path,
-                transformation_file_path,
-                output_file_path
-            ]
-        )
-
-        xtrans_args = {
-            'd': validation_file_path,
-            'c': input_file_path,
-            't': transformation_file_path,
-            'o': output_file_path,
-            's': ''
-        }
-
-        try:
-            run_mono_executable(xtrans_path, xtrans_args)
-        except OasisException as e:
-            raise e
-
-        with io.open(output_file_path, 'r', encoding='utf-8') as f:
-            if not with_model_resources:
-                return f
-
-            tfp.canonical_exposures_file = f
-
-        return oasis_model
+        # omr = oasis_model.resources
+        # tfp = omr['oasis_files_pipeline']
+        #
+        # if not with_model_resources:
+        #     xtrans_path = kwargs['xtrans_path']
+        #     input_file_path = kwargs['source_exposures_file_path']
+        #     validation_file_path = kwargs['source_exposures_validation_file_path']
+        #     transformation_file_path = kwargs['source_to_canonical_exposures_transformation_file_path']
+        #     output_file_path = kwargs['canonical_exposures_file_path']
+        # else:
+        #     xtrans_path = omr['xtrans_path']
+        #     input_file_path = tfp.source_exposures_file.name
+        #     validation_file_path = omr['source_exposures_validation_file_path']
+        #     transformation_file_path = omr['source_to_canonical_exposures_transformation_file_path']
+        #     output_file_path = tfp.canonical_exposures_file.name
+        #
+        # (
+        #     xtrans_path,
+        #     input_file_path,
+        #     validation_file_path,
+        #     transformation_file_path,
+        #     output_file_path
+        # ) = map(
+        #     os.path.abspath,
+        #     [
+        #         xtrans_path,
+        #         input_file_path,
+        #         validation_file_path,
+        #         transformation_file_path,
+        #         output_file_path
+        #     ]
+        # )
+        #
+        # xtrans_args = {
+        #     'd': validation_file_path,
+        #     'c': input_file_path,
+        #     't': transformation_file_path,
+        #     'o': output_file_path,
+        #     's': ''
+        # }
+        #
+        # try:
+        #     run_mono_executable(xtrans_path, xtrans_args)
+        # except OasisException as e:
+        #     raise e
+        #
+        # with io.open(output_file_path, 'r', encoding='utf-8') as f:
+        #     if not with_model_resources:
+        #         return f
+        #
+        #     tfp.canonical_exposures_file = f
+        #
+        # return oasis_model
 
     def transform_canonical_to_model(self, oasis_model, with_model_resources=True, **kwargs):
         """
@@ -395,59 +396,61 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         which case all the resources required for the transformation should be
         present in the optional ``kwargs`` dict as named arguments. In this
         case only the generated canonical file is returned.
+
+        :todo: replace this with the python version
         """
-        omr = oasis_model.resources
-        tfp = omr['oasis_files_pipeline']
-
-        if not with_model_resources:
-            xtrans_path = kwargs['xtrans_path']
-            input_file_path = kwargs['canonical_exposures_file_path']
-            validation_file_path = kwargs['canonical_exposures_validation_file_path']
-            transformation_file_path = kwargs['canonical_to_model_exposures_transformation_file_path']
-            output_file_path = kwargs['model_exposures_file_path']
-        else:
-            xtrans_path = omr['xtrans_path']
-            input_file_path = tfp.canonical_exposures_file.name
-            validation_file_path = omr['canonical_exposures_validation_file_path']
-            transformation_file_path = omr['canonical_to_model_exposures_transformation_file_path']
-            output_file_path = tfp.model_exposures_file.name
-
-        (
-            xtrans_path,
-            input_file_path,
-            validation_file_path,
-            transformation_file_path,
-            output_file_path
-        ) = map(
-            os.path.abspath,
-            [
-                xtrans_path,
-                input_file_path,
-                validation_file_path,
-                transformation_file_path,
-                output_file_path
-            ]
-        )
-
-        xtrans_args = {
-            'd': validation_file_path,
-            'c': input_file_path,
-            't': transformation_file_path,
-            'o': output_file_path
-        }
-
-        try:
-            run_mono_executable(xtrans_path, xtrans_args)
-        except OasisException as e:
-            raise e
-
-        with io.open(output_file_path, 'r', encoding='utf-8') as f:
-            if not with_model_resources:
-                return f
-
-            tfp.model_exposures_file = f
-
-        return oasis_model
+        # omr = oasis_model.resources
+        # tfp = omr['oasis_files_pipeline']
+        #
+        # if not with_model_resources:
+        #     xtrans_path = kwargs['xtrans_path']
+        #     input_file_path = kwargs['canonical_exposures_file_path']
+        #     validation_file_path = kwargs['canonical_exposures_validation_file_path']
+        #     transformation_file_path = kwargs['canonical_to_model_exposures_transformation_file_path']
+        #     output_file_path = kwargs['model_exposures_file_path']
+        # else:
+        #     xtrans_path = omr['xtrans_path']
+        #     input_file_path = tfp.canonical_exposures_file.name
+        #     validation_file_path = omr['canonical_exposures_validation_file_path']
+        #     transformation_file_path = omr['canonical_to_model_exposures_transformation_file_path']
+        #     output_file_path = tfp.model_exposures_file.name
+        #
+        # (
+        #     xtrans_path,
+        #     input_file_path,
+        #     validation_file_path,
+        #     transformation_file_path,
+        #     output_file_path
+        # ) = map(
+        #     os.path.abspath,
+        #     [
+        #         xtrans_path,
+        #         input_file_path,
+        #         validation_file_path,
+        #         transformation_file_path,
+        #         output_file_path
+        #     ]
+        # )
+        #
+        # xtrans_args = {
+        #     'd': validation_file_path,
+        #     'c': input_file_path,
+        #     't': transformation_file_path,
+        #     'o': output_file_path
+        # }
+        #
+        # try:
+        #     run_mono_executable(xtrans_path, xtrans_args)
+        # except OasisException as e:
+        #     raise e
+        #
+        # with io.open(output_file_path, 'r', encoding='utf-8') as f:
+        #     if not with_model_resources:
+        #         return f
+        #
+        #     tfp.model_exposures_file = f
+        #
+        # return oasis_model
 
     @classmethod
     def load_canonical_profile(

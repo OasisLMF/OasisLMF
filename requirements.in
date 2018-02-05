@@ -10,3 +10,4 @@ coverage
 pytest-cov
 responses
 freezegun
+Sphinx
