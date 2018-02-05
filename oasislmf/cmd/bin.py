@@ -8,13 +8,15 @@ class BuildCmd(OasisBaseCommand):
     description = 'Builds input binary files for model execution.'
 
     def add_args(self, parser):
+        super(BuildCmd, self).add_args(parser)
+
         parser.add_argument(
-            'source', default='.', type=PathCleaner('Source', required=True), nargs='?',
+            'source', default='.', type=PathCleaner('Source', preexists=True), nargs='?',
             help='The csv source directory.'
         )
 
         parser.add_argument(
-            'destination', default=None, type=PathCleaner('Destination', required=False), nargs='?',
+            'destination', default=None, type=PathCleaner('Destination', preexists=False), nargs='?',
             help='The binary destination directory, by default this is the same as the source.'
         )
 
@@ -43,6 +45,8 @@ class CleanCmd(OasisBaseCommand):
     description = 'Cleans up all binary files.'
 
     def add_args(self, parser):
+        super(CleanCmd, self).add_args(parser)
+
         parser.add_argument(
             'target', default='.', type=PathCleaner('Target'), nargs='?',
             help='The directory to clean.'
@@ -56,6 +60,8 @@ class CheckCmd(OasisBaseCommand):
     description = 'Checks the required conversion tools and input files are present to build the input binaries.'
 
     def add_args(self, parser):
+        super(CheckCmd, self).add_args(parser)
+
         parser.add_argument(
             'target', default='.', type=PathCleaner('Target'), nargs='?',
             help='The directory to clean.'

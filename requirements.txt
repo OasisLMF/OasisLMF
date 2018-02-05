@@ -4,7 +4,7 @@
 #
 #    pip-compile --output-file requirements.txt requirements.in
 #
-argparsetree==0.0.1
+argparsetree==0.0.3
 attrs==17.4.0             # via hypothesis, pytest
 backports.tempfile==1.0
 backports.weakref==1.0.post1  # via backports.tempfile

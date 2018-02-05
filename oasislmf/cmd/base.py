@@ -1,7 +1,37 @@
+import json
 import logging
 
 import sys
+
+import os
 from argparsetree import BaseCommand
+
+from oasislmf.utils.exceptions import OasisException
+from .cleaners import PathCleaner
+
+
+class InputValues(object):
+    def __init__(self, args):
+        self.args = args
+
+        self.config = {}
+        if os.path.exists(args.config):
+            with open(args.config) as f:
+                self.config = json.load(f)
+
+    def get(self, name, default=None, required=False):
+        if name in self.args:
+            return self.args[name]
+
+        if name in self.config:
+            return self.config[name]
+
+        if required:
+            raise OasisException(
+                '{} could not be found in the command args or config file ({}) but is required'.format(name, self.args.config)
+            )
+
+        return default
 
 
 class OasisBaseCommand(BaseCommand):
@@ -11,9 +41,10 @@ class OasisBaseCommand(BaseCommand):
         super(OasisBaseCommand, self).__init__(*args, **kwargs)
 
     def add_args(self, parser):
+        parser.add_argument('-V', '--verbose', action='store_true', help='Use verbose logging.')
         parser.add_argument(
-            '-v', '--verbose_logging', action='store_true',
-            help='Use verbose logging.'
+            '-C', '--config', type=PathCleaner('Config file', preexists=False),
+            help='The oasislmf config to load', default='./oasislmf.json'
         )
 
     def parse_args(self):

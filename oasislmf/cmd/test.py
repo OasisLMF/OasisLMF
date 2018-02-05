@@ -21,6 +21,8 @@ class TestModelApiCmd(OasisBaseCommand):
     description = 'Tests a model api server'
 
     def add_args(self, parser):
+        super(TestModelApiCmd, self).add_args(parser)
+
         parser.add_argument(
             'api_server_url', type=str,
             help='Oasis API server URL (including protocol and port), e.g. http://localhost:8001',
@@ -37,7 +39,7 @@ class TestModelApiCmd(OasisBaseCommand):
         )
 
         parser.add_argument(
-            '-o', '--output-directory', type=PathCleaner('Output directory', required=False), default='./output',
+            '-o', '--output-directory', type=PathCleaner('Output directory', preexists=False), default='./output',
             help="Output data directory (absolute or relative file path)"
         )
 
@@ -130,18 +132,20 @@ class GenerateModelTesterDockerFileCmd(OasisBaseCommand):
     ]
 
     def add_args(self, parser):
+        super(GenerateModelTesterDockerFileCmd, self).add_args(parser)
+
         parser.add_argument(
             'api_server_url', type=str,
             help='Oasis API server URL (including protocol and port), e.g. http://localhost:8001'
         )
 
         parser.add_argument(
-            '--model-data-directory', type=PathCleaner('Model data path', required=False), default='./model_data',
+            '--model-data-directory', type=PathCleaner('Model data path', preexists=False), default='./model_data',
             help='Model data path (relative or absolute path of model version file)'
         )
 
         parser.add_argument(
-            '--model-version-file', type=PathCleaner('Model version file', required=False), default=None,
+            '--model-version-file', type=PathCleaner('Model version file', preexists=False), default=None,
             help='Model version file path (relative or absolute path of model version file), by default <model-data-path>/ModelVersion.csv is used'
         )
 
