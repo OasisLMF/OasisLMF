@@ -4,6 +4,8 @@ from __future__ import unicode_literals, absolute_import
 
 import re
 
+from six import StringIO
+
 __all__ = [
     'OasisKeysLookupFactory',
     'OasisBaseKeysLookup',
@@ -165,7 +167,7 @@ class OasisKeysLookupFactory(object):
         if model_exposures_file_path:
             loc_df = pd.read_csv(os.path.abspath(model_exposures_file_path))
         elif model_exposures:
-            loc_df = pd.read_csv(io.StringIO(model_exposures))
+            loc_df = pd.read_csv(StringIO(model_exposures))
         else:
             raise OasisException('Either model_exposures_file_path or model_exposures must be specified')
 
@@ -187,7 +189,7 @@ class OasisKeysLookupFactory(object):
             'vulnerability_id': 'VulnerabilityID',
         }
 
-        with io.open(output_file_path, 'w', encoding='utf-8') as f:
+        with open(output_file_path, 'w') as f:
             writer = csv.DictWriter(f, fieldnames=['id', 'peril_id', 'coverage', 'area_peril_id', 'vulnerability_id'])
             writer.writerow(heading_row)
 

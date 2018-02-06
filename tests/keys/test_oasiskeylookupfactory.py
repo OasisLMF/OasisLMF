@@ -1,3 +1,5 @@
+from __future__ import unicode_literals
+
 import csv
 import json
 import string
@@ -6,7 +8,8 @@ from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
 import os
-import io
+
+from six import StringIO
 from backports.tempfile import TemporaryDirectory
 from hypothesis import given
 from hypothesis.strategies import text, integers, tuples, lists, fixed_dictionaries, sampled_from, booleans
@@ -100,7 +103,7 @@ class OasisKeysLookupFactoryGetModelExposures(TestCase):
 
     @given(lists(tuples(integers(min_value=0, max_value=100), integers(min_value=0, max_value=100))))
     def test_exposures_string_is_provided___file_content_is_loaded(self, data):
-        stream = io.StringIO()
+        stream = StringIO()
         data = [('first', 'second')] + data
 
         csv.writer(stream).writerows(data)
