@@ -28,6 +28,12 @@ bin
 .. autocli:: oasislmf.cmd.bin.CleanCmd
    :noindex:
 
+config
+======
+
+.. autocli:: oasislmf.cmd.config.ConfigCmd
+   :noindex:
+
 model
 =====
 

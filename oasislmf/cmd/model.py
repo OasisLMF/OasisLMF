@@ -7,6 +7,7 @@ import os
 import subprocess
 
 import shutil
+from argparse import RawDescriptionHelpFormatter
 
 from oasislmf.exposures.manager import OasisExposuresManager
 from oasislmf.models.model import OasisModelFactory
@@ -19,7 +20,50 @@ from .base import OasisBaseCommand, InputValues
 
 
 class GenerateKeysCmd(OasisBaseCommand):
+    """
+    Generate and write Oasis keys (area peril ID, vulnerability ID) for a model.
+
+    The command line arguments can be supplied in the configuration file
+    (``oasislmf.json`` by default or specified with the ``--config`` flag).
+    Run ``oasislmf config --help`` for more information.
+
+    Keys records returned by an Oasis keys lookup service (see the PiWind
+    lookup service for reference) will be Python dicts with the following
+    structure
+    ::
+
+        {
+            "id": <loc. ID>,
+            "peril_id": <Oasis peril type ID - oasis_utils/oasis_utils.py>,
+            "coverage": <Oasis coverage type ID - see oasis_utils/oasis_utils.py>,
+            "area_peril_id": <area peril ID>,
+            "vulnerability_id": <vulnerability ID>,
+            "message": <lookup status message>,
+            "status": <lookup status code - see oasis_utils/oasis_utils.py>
+        }
+
+    The script can generate keys records in this format, and write them to file.
+
+    For model loss calculations however ``ktools`` requires a keys CSV file with
+    the following format
+    ::
+
+        LocID,PerilID,CoverageID,AreaPerilID,VulnerabilityID
+        ..
+        ..
+
+    where the headers correspond to the relevant Oasis keys record fields.
+    The script can also generate and write Oasis keys files.
+    """
+    formatter_class = RawDescriptionHelpFormatter
+
     def add_args(self, parser):
+        """
+        Adds arguments to the argument parser.
+
+        :param parser: The argument parser object
+        :type parser: ArgumentParser
+        """
         super(GenerateKeysCmd, self).add_args(parser)
 
         parser.add_argument(
@@ -50,6 +94,12 @@ class GenerateKeysCmd(OasisBaseCommand):
         )
 
     def action(self, args):
+        """
+        Adds arguments to the argument parser.
+
+        :param args: The arguments from the command line
+        :type args: Namespace
+        """
         inputs = InputValues(args)
         model_exposures_file_path = as_path(inputs.get('model_exposures_file_path', required=True), 'Model exposures')
         keys_data_path = as_path(inputs.get('keys_data_path', required=True), 'Keys data')
@@ -76,33 +126,19 @@ class GenerateKeysCmd(OasisBaseCommand):
 
 class GenerateLossesCmd(OasisBaseCommand):
     """
-    ``generate_losses.py`` is an executable script which, given Oasis files,
-    model analysis settings JSON file, model data, and some other
-    parameters, can generate losses using the installed ktools framework.
-    The script can be called directly from the command line given the
-    following arguments (in no particular order)
+    Generate losses using the installed ktools framework.
 
-    ::
+    Given Oasis files, model analysis settings JSON file, model data, and
+    some other parameters. can generate losses using the installed ktools framework.
 
-        ./generate_losses.py -o /path/to/oasis/files
-                             -j /path/to/analysis/settings/json/file
-                             -m /path/to/model/data
-                             -r /path/to/model/run/directory
-                             [-s <ktools script name (without file extension)>]
-                             [-n <number of ktools calculation processes to use>]
-                             [--execute | --no-execute]
-
-    When calling the script this way paths can be given relative to the
-    script, in particular, file paths should include the filename and
-    extension. The ktools script name should not contain any filetype
-    extension, and the model run directory can be placed anywhere in the
-    parent folder common to ``omdk`` and the model keys server repository.
+    The command line arguments can be supplied in the configuration file
+    (``oasislmf.json`` by default or specified with the ``--config`` flag).
+    Run ``oasislmf config --help`` for more information.
 
     The script creates a time-stamped folder in the model run directory and
     sets that as the new model run directory, copies the analysis settings
     JSON file into the run directory and creates the following folder
     structure
-
     ::
 
         ├── analysis_settings.json
@@ -117,41 +153,11 @@ class GenerateLossesCmd(OasisBaseCommand):
     are kept in the ``input`` subfolder and the losses are generated as CSV
     files in the ``output`` subfolder.
 
-    By default executing ``generate_losses.py`` will automatically execute
-    the ktools losses script it generates. If you don't want this provide
-    the (optional) ``--no-execute`` argument. The default here is automatic
-    execution.
-
-    It is also possible to run the script by defining these arguments in a
-    JSON configuration file and calling the script using the path to this
-    file using the option ``-f``. In this case the paths should be given
-    relative to the parent folder in which the model keys server repository
-    is located.
-
-    ::
-
-        ./generate_losses.py -f /path/to/model/resources/JSON/config/file'
-
-    The JSON file should contain the following keys (in no particular order)
-
-    ::
-
-        "oasis_files_path"
-        "analysis_settings_json_file_path"
-        "model_data_path"
-        "model_run_dir_path"
-        "ktools_script_name"
-        "ktools_num_processes"
-        "execute"
-
-    and the values of the path-related keys should be string paths, given
-    relative to the parent folder in which the model keys server repository
-    is located. The JSON file is usually placed in the model keys server
-    repository. The value of the (optional) ``"exectute"`` key should be
-    either ``true`` or ``false`` depending on whether you want the generated
-    ktools losses scripts to be automatically executed or not. The default
-    here is automatic execution.
+    By default executing the generated ktools losses script will automatically
+    execute, this can be overridden by providing the ``--no-execute`` flag.
     """
+    formatter_class = RawDescriptionHelpFormatter
+
     wait_proocessing_switches = {
         'full_uncertainty_aep': '-F',
         'wheatsheaf_aep': '-W',
@@ -173,6 +179,12 @@ class GenerateLossesCmd(OasisBaseCommand):
         super(GenerateLossesCmd, self).__init__(*args, **kwargs)
 
     def add_args(self, parser):
+        """
+        Adds arguments to the argument parser.
+
+        :param parser: The argument parser object
+        :type parser: ArgumentParser
+        """
         super(GenerateLossesCmd, self).add_args(parser)
 
         parser.add_argument('-o', '--oasis-files-path', default=None, help='Path to Oasis files')
@@ -182,15 +194,31 @@ class GenerateLossesCmd(OasisBaseCommand):
         )
         parser.add_argument('-m', '--model-data-path', default=None, help='Model data source path')
         parser.add_argument('-r', '--model-run-dir-path', default=None, help='Model run directory path')
-        parser.add_argument('-s', '--ktools-script-name', default=None, help='Relative or absolute path of the output file')
+        parser.add_argument(
+            '-s', '--ktools-script-name', default=None,
+            help='Name of the ktools output script (should not contain any filetype extension)'
+        )
         parser.add_argument('-n', '--ktools-num-processes', default=2, help='Number of ktools calculation processes to use')
         parser.add_argument('-x', '--no-execute', action='store_false', help='Whether to execute generated ktools script')
 
     def print_command(self, cmd):
+        """
+        Writes the supplied command to the end of the generated script
+
+        :param cmd: The command to append
+        """
         with io.open(self.command_file, "a", encoding='utf-8') as myfile:
             myfile.writelines(cmd + "\n")
 
     def leccalc_enabled(self, lec_options):
+        """
+        Checks if leccalc is enabled in the leccalc options
+
+        :param lec_options: The leccalc options from the analysis settings
+        :type lec_options: dict
+
+        :return: True is leccalc is enables, False otherwise.
+        """
         for option in lec_options["outputs"]:
             if lec_options["outputs"][option]:
                 return True
@@ -481,6 +509,15 @@ class GenerateLossesCmd(OasisBaseCommand):
             self.do_remove_fifos('gul', analysis_settings, process_id)
 
     def do_waits(self, wait_variable, wait_count):
+        """
+        Add waits to the script
+
+        :param wait_variable: The type of wait
+        :type wait_variable: str
+
+        :param wait_count: The number of processes to wait for
+        :type wait_count: int
+        """
         if wait_count > 0:
             cmd = 'wait'
             for pid in range(1, wait_count + 1):
@@ -490,18 +527,51 @@ class GenerateLossesCmd(OasisBaseCommand):
             self.print_command('')
 
     def do_pwaits(self):
+        """
+        Add pwaits to the script
+        """
         self.do_waits('pid', self.pid_monitor_count)
 
     def do_awaits(self):
+        """
+        Add awaits to the script
+        """
         self.do_waits('apid', self.apid_monitor_count)
 
     def do_lwaits(self):
+        """
+        Add lwaits to the script
+        """
         self.do_waits('lpid', self.lpid_monitor_count)
 
     def do_kwaits(self):
+        """
+        Add kwaits to the script
+        """
         self.do_waits('kpid', self.kpid_monitor_count)
 
     def get_getmodel_cmd(self, number_of_samples, gul_threshold, use_random_number_file, coverage_output, item_output):
+        """
+        Gets the getmodel ktools command
+
+        :param number_of_samples: The number of samples to run
+        :type number_of_samples: int
+
+        :param gul_threshold: The GUL threshold to use
+        :type gul_threshold: float
+
+        :param use_random_number_file: flag to use the random number file
+        :type use_random_number_file: bool
+
+        :param coverage_output: The coverage output
+        :type coverage_output: str
+
+        :param item_output: The item output
+        :type item_output: str
+
+        :return: The generated getmodel command
+        """
+
         cmd = 'getmodel | gulcalc -S{} -L{}'.format(number_of_samples, gul_threshold)
 
         if use_random_number_file:
@@ -516,8 +586,17 @@ class GenerateLossesCmd(OasisBaseCommand):
     def genbash(self, max_process_id=None, analysis_settings=None, get_getmodel_cmd=None):
         """
         Generates a bash script containing ktools calculation instructions for an
-        Oasis model, provided its analysis settings JSON file, the number of processes
-        to use, and the path and name of the output script.
+        Oasis model.
+
+        :param max_process_id: The number of processes to create
+        :type max_process_id: int
+
+        :param analysis_settings: The analysis settings
+        :type analysis_settings: dict
+
+        :param get_getmodel_cmd: Method for getting the getmodel command, by default
+            ``GenerateLossesCmd.get_getmodel_cmd`` is used.
+        :type get_getmodel_cmd: callable
         """
         get_getmodel_cmd = get_getmodel_cmd or self.get_getmodel_cmd
 
@@ -644,12 +723,19 @@ class GenerateLossesCmd(OasisBaseCommand):
             self.remove_workfolders('il', analysis_settings)
 
     def action(self, args):
+        """
+        Generate losses using the installed ktools framework.
+
+        :param args: The arguments from the command line
+        :type args: Namespace
+        """
         inputs = InputValues(args)
         oasis_files_path = as_path(inputs.get('oasis_files_path', required=True), 'Oasis files')
         analysis_settings_json_file_path = as_path(inputs.get('analysis_settings_json_file_path', required=True), 'Analysis settings file')
         model_data_path = as_path(inputs.get('model_data_path', required=True), 'Model data')
         model_run_dir_path = as_path(inputs.get('model_run_dir_path', required=True), 'Model run directory')
         ktools_script_name = inputs.get('ktools_script_name', default='run_ktools')
+        no_execute = inputs.get('no_execute', default=False)
 
         if not os.path.exists(model_run_dir_path):
             os.mkdir(model_run_dir_path)
@@ -707,7 +793,7 @@ class GenerateLossesCmd(OasisBaseCommand):
 
         self.logger.info('Generated ktools losses script {}'.format(self.command_file))
 
-        if not args.no_execute:
+        if not no_execute:
             try:
                 os.chdir(model_run_dir_path)
                 cmd_str = 'bash {}.sh'.format(ktools_script_name)
@@ -721,62 +807,18 @@ class GenerateLossesCmd(OasisBaseCommand):
 
 class GenerateOasisFilesCmd(OasisBaseCommand):
     """
-    ``generate_oasis_files.py`` is an executable script which can generate
-    Oasis files (items, coverages, GUL summary) for a model, given the
-    following arguments (in no particular order)
+    Generate Oasis files (items, coverages, GUL summary) for a model
 
-    ::
-
-        ./generate_oasis_files.py -k /path/to/keys/data
-                                  -v /path/to/model/version/csv/file
-                                  -l /path/to/lookup/service/package
-                                  -p /path/to/canonical/exposures/profile/JSON/file
-                                  -e /path/to/source/exposures/file
-                                  -a /path/to/source/exposures/validation/file
-                                  -b /path/to/source/to/canonical/exposures/transformation/file
-                                  -c /path/to/canonical/exposures/validation/file
-                                  -d /path/to/canonical/to/model/exposures/transformation/file
-                                  -x /path/to/xtrans/executable
-                                  -o /path/to/oasis/files/directory
-
-    When calling the script this way paths can be given relative to the
-    script, in particular, file paths should include the filename and
-    extension. The paths to the keys data, lookup service package, model
-    version file, canonical exposures profile JSON, source exposures file,
-    transformation and validation files, will usually be located in the
-    model keys server repository.
-
-    It is also possible to run the script by defining these arguments in a
-    JSON configuration file and calling the script using the path to this
-    file using the option ``-f``. In this case the paths should be given
-    relative to the parent folder in which the model keys server repository
-    is located.
-
-    ::
-
-        ./generate_oasis_files.py -f /path/to/model/resources/JSON/config/file
-
-    The JSON file contain the following keys (in no particular order)
-
-    ::
-
-        "keys_data_path"
-        "model_version_file_path"
-        "lookup_package_path"
-        "canonical_exposures_profile_json_path"
-        "source_exposures_file_path"
-        "source_exposures_validation_file_path"
-        "source_to_canonical_exposures_transformation_file_path"
-        "canonical_exposures_validation_file_path"
-        "canonical_to_model_exposures_transformation_file_path"
-        "xtrans_path"
-        "oasis_files_path"
-
-    and the values of these keys should be string paths, given relative to
-    the parent folder in which the model keys server repository is located.
-    The JSON file is usually placed in the model keys server repository.
+    The command line arguments can be supplied in the configuration file
+    (``oasislmf.json`` by default or specified with the ``--config`` flag).
     """
     def add_args(self, parser):
+        """
+        Adds arguments to the argument parser.
+
+        :param parser: The argument parser object
+        :type parser: ArgumentParser
+        """
         super(GenerateOasisFilesCmd, self).add_args(parser)
 
         parser.add_argument('oasis_files_path', default=None, help='Path to Oasis files', nargs='?')
@@ -806,6 +848,12 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         )
 
     def action(self, args):
+        """
+        Generate Oasis files (items, coverages, GUL summary) for a model
+
+        :param args: The arguments from the command line
+        :type args: Namespace
+        """
         inputs = InputValues(args)
         oasis_files_path = as_path(inputs.get('oasis_files_path', required=True), 'Oasis file', preexists=False)
         keys_data_path = as_path(inputs.get('keys_data_path', required=True), 'Keys data')
@@ -869,110 +917,18 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
 
 class RunCmd(OasisBaseCommand):
     """
-    ``run_model.py`` is an executable "master" script that can run models
-    end-to-end, i.e. generate losses given model resources, including keys
-    data, canonical exposure profiles, exposure transformation and
-    validation files, model data, analysis settings etc., given the
-    following arguments (in no particular order)
+    Run models end to end.
 
-    ::
-
-        ./run_model.py -k /path/to/keys/data/folder
-                       -v /path/to/model/version/file
-                       -l /path/to/model/keys/lookup/service/package
-                       -p /path/to/canonical/exposures/profile/JSON/file
-                       -e /path/to/source/exposures/file
-                       -a /path/to/source/exposures/validation/file
-                       -b /path/to/source/to/canonical/exposures/transformation/file
-                       -c /path/to/canonical/exposures/validation/file
-                       -d /path/to/canonical/to/model/exposures/transformation/file
-                       -x /path/to/xtrans/executable
-                       -j /path/to/analysis/settings/json/file
-                       -m /path/to/model/data
-                       -r /path/to/model/run/directory
-                       [-s <ktools script name (without file extension)>]
-                       [-n <number of ktools calculation processes to use>]
-
-    When calling the script this way paths can be given relative to the
-    script, in particular, file paths should include the filename and
-    extension. The paths to the keys data, lookup service package, model
-    version file, canonical exposures profile JSON, source exposures file,
-    transformation and validation files, and analysis settings JSON file,
-    will usually be located in the model keys server repository. The ktools
-    script name should not contain any filetype extension, and the model run
-    directory can be placed anywhere in the parent folder common to ``omdk``
-    and the model keys server repository.
-
-    It is also possible to run the script by defining these arguments in a
-    JSON configuration file and calling the script using the path to this
-    file using the option ``-f``. In this case the paths should be given
-    relative to the parent folder in which the model keys server repository
-    is located.
-
-    ::
-
-        ./run_model.py -f /path/to/model/resources/JSON/config/file'
-
-    The JSON file should contain the following keys (in no particular order)
-
-    ::
-
-        "keys_data_path"
-        "model_version_file_path"
-        "lookup_package_path"
-        "canonical_exposures_profile_json_path"
-        "source_exposures_file_path"
-        "source_exposures_validation_file_path"
-        "source_to_canonical_exposures_transformation_file_path"
-        "canonical_exposures_validation_file_path"
-        "canonical_to_model_exposures_transformation_file_path"
-        "xtrans_path"
-        "analysis_settings_json_file_path"
-        "model_data_path"
-        "model_run_dir_path"
-        "ktools_script_name"
-        "ktools_num_processes"
-
-    and the values of the path-related keys should be string paths, given
-    relative to the parent folder in which the model keys server repository
-    is located. The JSON file is usually placed in the model keys server
-    repository. The ``"ktools_script_name"`` and ``"ktools_num_processes"``
-    keys are optional - the script uses default values of ``run_ktools.sh``
-    and 2 respectively.
-
-    **NOTE**: For a given model the JSON script configuration files for
-    ``generate_oasis_files.py``, ``generate_losses.py`` and ``run_model.py``
-    should complement each other, except for ``generate_losses.py`` which
-    requires the path to Oasis files, not required by ``run_model.py``. You
-    can run any of these scripts against a single master script
-    configuration file, provided that the path to an actual set of Oasis
-    files is added in order to run ``generate_losses.py``
-
-    As an example, this is the master script configuration file for PiWind
-
-    ::
-
-        {
-            "keys_data_path": "OasisPiWind/keys_data/PiWind",
-            "model_version_file_path": "OasisPiWind/keys_data/PiWind/ModelVersion.csv",
-            "lookup_package_path": "OasisPiWind/src/keys_server",
-            "canonical_exposures_profile_json_path": "OasisPiWind/oasislmf-piwind-canonical-profile.json",
-            "source_exposures_file_path": "OasisPiWind/tests/data/SourceLocPiWind.csv",
-            "source_exposures_validation_file_path": "OasisPiWind/flamingo/PiWind/Files/ValidationFiles/Generic_Windstorm_SourceLoc.xsd",
-            "source_to_canonical_exposures_transformation_file_path": "OasisPiWind/flamingo/PiWind/Files/TransformationFiles/MappingMapToGeneric_Windstorm_CanLoc_A.xslt",
-            "canonical_exposures_validation_file_path": "OasisPiWind/flamingo/PiWind/Files/ValidationFiles/Generic_Windstorm_CanLoc_B.xsd",
-            "canonical_to_model_exposures_transformation_file_path": "OasisPiWind/flamingo/PiWind/Files/TransformationFiles/MappingMapTopiwind_modelloc.xslt",
-            "xtrans_path": "omdk/xtrans/xtrans.exe",
-            "oasis_files_path": "omdk/runs",
-            "analysis_settings_json_file_path": "OasisPiWind/analysis_settings.json",
-            "model_data_path": "OasisPiWind/model_data/PiWind",
-            "model_run_dir_path": "omdk/runs"
-        }
-
-    It can also be obtained from
-    `https://github.com/OasisLMF/OasisPiWind/blob/master/mdk-oasislmf-piwind.json <https://github.com/OasisLMF/OasisPiWind/blob/master/mdk-oasislmf-piwind.json>`_.
+    The command line arguments can be supplied in the configuration file
+    (``oasislmf.json`` by default or specified with the ``--config`` flag).
     """
     def add_args(self, parser):
+        """
+        Run models end to end.
+
+        :param parser: The argument parser object
+        :type parser: ArgumentParser
+        """
         super(RunCmd, self).add_args(parser)
 
         parser.add_argument('-k', '--keys-data-path', default=None, help='Path to Oasis files')
@@ -1005,10 +961,19 @@ class RunCmd(OasisBaseCommand):
         )
         parser.add_argument('-m', '--model-data-path', default=None, help='Model data source path')
         parser.add_argument('-r', '--model-run-dir-path', default=None, help='Model run directory path')
-        parser.add_argument('-s', '--ktools-script-name', default=None, help='Relative or absolute path of the output file')
+        parser.add_argument(
+            '-s', '--ktools-script-name', default=None,
+            help='Name of the ktools output script (should not contain any filetype extension)'
+        )
         parser.add_argument('-n', '--ktools-num-processes', default=2, help='Number of ktools calculation processes to use')
 
     def action(self, args):
+        """
+        Generate Oasis files (items, coverages, GUL summary) for a model
+
+        :param args: The arguments from the command line
+        :type args: Namespace
+        """
         inputs = InputValues(args)
         model_run_dir_path = as_path(inputs.get('model_run_dir_path', required=True), 'Model run path', preexists=False)
 

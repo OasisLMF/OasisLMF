@@ -19,6 +19,7 @@ Api Documentation
    api/cmd/base
    api/cmd/bin
    api/cmd/cleaners
+   api/cmd/config
    api/cmd/model
    api/cmd/root
    api/cmd/test
