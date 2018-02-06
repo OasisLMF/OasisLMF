@@ -28,7 +28,11 @@ __copyright__ = "2017, Oasis Loss Modelling Framework"
 
 class OasisExposuresManagerInterface(Interface):  # pragma: no cover
     """
-    An interface for defining the behaviour of an Oasis exposures manager.
+    Interface class form managing a collection of exposures.
+
+    :param oasis_models: A list of Oasis model objects with resources provided in the model objects'
+        resources dictionaries.
+    :type oasis_models: ``list(OasisModel)``
     """
 
     def __init__(self, oasis_models=None):
@@ -213,14 +217,8 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
 
 
 class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
-    def __init__(self, oasis_models=None):
-        """
-        Class constructor.
 
-        :param oasis_models: A list of Oasis model objects with resources provided in the model objects'
-            resources dictionaries.
-        :type oasis_models: ``list(OasisModel)``
-        """
+    def __init__(self, oasis_models=None):
         self.logger = logging.getLogger()
 
         self.logger.debug('Exposures manager {} initialising'.format(self))

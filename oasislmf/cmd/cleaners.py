@@ -35,7 +35,7 @@ class PathCleaner(object):
     """
     A callable that generates the absolute path of the input and
     checks if it exists if required
-    
+
     :param name: The name of the path (used for error reporting)
     :type name: str
 
