@@ -11,6 +11,10 @@ from .cleaners import PathCleaner
 
 
 class InputValues(object):
+    """
+    Helper class for accessing the input values from either
+    the command line or the configuration file.
+    """
     def __init__(self, args):
         self.args = args
 
@@ -20,6 +24,32 @@ class InputValues(object):
                 self.config = json.load(f)
 
     def get(self, name, default=None, required=False):
+        """
+        Gets the names parameter from the command line arguments.
+
+        If it is not set on the command line the configuration file
+        is checked.
+
+        If it is also not present in the configuration file then
+        ``default`` is returned unless ``required`` is false in which
+        case an ``OasisException`` is raised.
+
+        :param name: The name of the parameter to lookup
+        :type name: str
+
+        :param default: The default value to return if the name is not
+            found on the command line or in the configuration file.
+
+        :param required: Flag whether the value is required, if so and
+            the parameter is not found on the command line or in the
+            configuration file an error is raised.
+        :type required: bool
+
+        :raise OasisException: If the value is not found and ``required``
+            is True
+
+        :return: The found value or the default
+        """
         if name in self.args:
             return self.args[name]
 
@@ -35,12 +65,28 @@ class InputValues(object):
 
 
 class OasisBaseCommand(BaseCommand):
+    """
+    The base command to inherit from for each command.
+
+    2 additional arguments (``--verbose`` and ``--config``) are added to
+    the parser so that they are available for all commands.
+    """
     def __init__(self, *args, **kwargs):
         self._logger = None
         self.args = None
         super(OasisBaseCommand, self).__init__(*args, **kwargs)
 
     def add_args(self, parser):
+        """
+        Adds arguments to the argument parser. This is used to modify
+        which arguments are processed by the command.
+
+        2 global parameters (``--verbose`` and ``--config``) are added
+        so that they are available to all commands.
+
+        :param parser: The argument parser object
+        :type parser: ArgumentParser
+        """
         parser.add_argument('-V', '--verbose', action='store_true', help='Use verbose logging.')
         parser.add_argument(
             '-C', '--config', type=PathCleaner('Config file', preexists=False),
@@ -48,11 +94,19 @@ class OasisBaseCommand(BaseCommand):
         )
 
     def parse_args(self):
+        """
+        Parses the command line arguments and sets them in ``self.args``
+
+        :return: The arguments taken from the command line
+        """
         self.args = super(OasisBaseCommand, self).parse_args()
         return self.args
 
     @property
     def logger(self):
+        """
+        The logger to use for the command with the verbosity set
+        """
         if self._logger:
             return self._logger
 
