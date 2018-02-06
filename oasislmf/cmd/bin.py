@@ -10,6 +10,12 @@ class BuildCmd(OasisBaseCommand):
     """
 
     def add_args(self, parser):
+        """
+        Adds arguments to the argument parser.
+
+        :param parser: The argument parser object
+        :type parser: ArgumentParser
+        """
         super(BuildCmd, self).add_args(parser)
 
         parser.add_argument(
@@ -33,6 +39,12 @@ class BuildCmd(OasisBaseCommand):
         )
 
     def action(self, args):
+        """
+        Builds the input binary files
+
+        :param args: The arguments from the command line
+        :type args: Namespace
+        """
         destination = args.destination or args.source
 
         check_conversion_tools(do_il=args.do_il)
@@ -44,9 +56,17 @@ class BuildCmd(OasisBaseCommand):
 
 
 class CleanCmd(OasisBaseCommand):
-    description = 'Cleans up all binary files.'
+    """
+    Cleans up all binary files.
+    """
 
     def add_args(self, parser):
+        """
+        Adds arguments to the argument parser.
+
+        :param parser: The argument parser object
+        :type parser: ArgumentParser
+        """
         super(CleanCmd, self).add_args(parser)
 
         parser.add_argument(
@@ -55,13 +75,27 @@ class CleanCmd(OasisBaseCommand):
         )
 
     def action(self, args):
+        """
+        Deletes all input binary files
+
+        :param args: The arguments from the command line
+        :type args: Namespace
+        """
         cleanup_bin_directory(args.target)
 
 
 class CheckCmd(OasisBaseCommand):
-    description = 'Checks the required conversion tools and input files are present to build the input binaries.'
+    """
+    Checks the required conversion tools and input files are present to build the input binaries.
+    """
 
     def add_args(self, parser):
+        """
+        Adds arguments to the argument parser.
+
+        :param parser: The argument parser object
+        :type parser: ArgumentParser
+        """
         super(CheckCmd, self).add_args(parser)
 
         parser.add_argument(
@@ -80,12 +114,20 @@ class CheckCmd(OasisBaseCommand):
         )
 
     def action(self, args):
+        """
+        Checks the required conversion tools and input files are present to build the input binaries.
+
+        :param args: The arguments from the command line
+        :type args: Namespace
+        """
         check_inputs_directory(args.target, do_il=args.do_il, check_binaries=args.check_binaries)
         check_conversion_tools(do_il=args.do_il)
 
 
 class BinCmd(OasisBaseCommand):
-    description = 'Build binary files'
+    """
+    Build, clean and check input binary files
+    """
 
     sub_commands = {
         'build': BuildCmd,
