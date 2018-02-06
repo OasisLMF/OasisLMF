@@ -1,7 +1,7 @@
-========================
-``oasislmf.cmd.version``
-========================
+=======================
+``oasislmf.cmd.config``
+=======================
 
-.. automodule:: oasislmf.cmd.version
+.. automodule:: oasislmf.cmd.config
    :members:
    :undoc-members:

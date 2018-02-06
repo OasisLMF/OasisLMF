@@ -95,7 +95,7 @@ class GenerateKeysCmd(OasisBaseCommand):
 
     def action(self, args):
         """
-        Adds arguments to the argument parser.
+        Generate and write Oasis keys (area peril ID, vulnerability ID) for a model.
 
         :param args: The arguments from the command line
         :type args: Namespace

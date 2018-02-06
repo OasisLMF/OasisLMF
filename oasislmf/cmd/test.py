@@ -18,9 +18,17 @@ from .cleaners import PathCleaner
 
 
 class TestModelApiCmd(OasisBaseCommand):
-    description = 'Tests a model api server'
+    """
+    Tests a model api server
+    """
 
     def add_args(self, parser):
+        """
+        Adds arguments to the argument parser.
+
+        :param parser: The argument parser object
+        :type parser: ArgumentParser
+        """
         super(TestModelApiCmd, self).add_args(parser)
 
         parser.add_argument(
@@ -57,6 +65,12 @@ class TestModelApiCmd(OasisBaseCommand):
         """
         Loads the analysis settings JSON file into a dict, also creates a separate
         boolean ``do_il`` for doing insured loss calculations.
+
+        :param analysis_settings_file: Path to the analysis settings file to load
+        :type analysis_settings_file: str
+
+        :return: a 2 tuple containing the analysis settings dictionary and a bool
+            signifying whether il processing is enabled
         """
 
         with open(analysis_settings_file) as f:
@@ -73,6 +87,24 @@ class TestModelApiCmd(OasisBaseCommand):
         """
         Invokes model analysis in the client - is used as a worker function for
         threads.
+
+        :param client: The api client to use for the tests
+        :type client: OasisAPIClient
+
+        :param input_directory: The directory to gather the input files from
+        :type input_directory: str
+
+        :param output_directory: The directory to store output files in
+        :type output_directory: str
+
+        :param analysis_settings: The analysis settings dictionary
+        :type analysis_settings: dict
+
+        :param do_il: Flag whether to perform il processing
+        :type do_il: bool
+
+        :param counter: A counter object that will record the number of success and fails
+        :type counter: Counter
         """
         try:
             with TemporaryDirectory() as upload_directory:
@@ -85,6 +117,13 @@ class TestModelApiCmd(OasisBaseCommand):
             counter['failed'] += 1
 
     def action(self, args):
+        """
+        Runs the api checks for the model
+
+        :param args: The arguments from the command line
+        :type args: Namespace
+        """
+
         # get client
         client = OasisAPIClient(args.api_server_url, self.logger)
 
@@ -120,8 +159,11 @@ class TestModelApiCmd(OasisBaseCommand):
 
 
 class GenerateModelTesterDockerFileCmd(OasisBaseCommand):
-    description = 'Generates a new a model testing dockerfile from the supplied template'
+    """
+    Generates a new a model testing dockerfile from the supplied template
+    """
 
+    #: The names of the variables to replace in the docker file
     var_names = [
         'CLI_VERSION',
         'OASIS_API_SERVER_URL',
@@ -132,6 +174,12 @@ class GenerateModelTesterDockerFileCmd(OasisBaseCommand):
     ]
 
     def add_args(self, parser):
+        """
+        Adds arguments to the argument parser.
+
+        :param parser: The argument parser object
+        :type parser: ArgumentParser
+        """
         super(GenerateModelTesterDockerFileCmd, self).add_args(parser)
 
         parser.add_argument(
@@ -150,6 +198,12 @@ class GenerateModelTesterDockerFileCmd(OasisBaseCommand):
         )
 
     def action(self, args):
+        """
+        Generates a new a model testing dockerfile from the supplied template
+
+        :param args: The arguments from the command line
+        :type args: Namespace
+        """
         dockerfile_src = os.path.join(os.path.dirname(__file__), os.path.pardir, '_data', 'Dockerfile.model_api_tester')
 
         version_file = args.model_version_file or os.path.join(args.model_data_directory, 'ModelVersion.csv')
@@ -179,7 +233,10 @@ class GenerateModelTesterDockerFileCmd(OasisBaseCommand):
 
 
 class TestCmd(BaseCommand):
-    description = 'Test models and keys servers'
+    """
+    Test models and keys servers
+    """
+
     sub_commands = {
         'model-api': TestModelApiCmd,
         'gen-model-tester-dockerfile': GenerateModelTesterDockerFileCmd,
