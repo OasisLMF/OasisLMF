@@ -4,7 +4,6 @@ import logging
 import sys
 
 import os
-from argparse import RawDescriptionHelpFormatter
 
 from argparsetree import BaseCommand
 
