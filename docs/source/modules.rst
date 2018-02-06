@@ -2,6 +2,14 @@
 Api Documentation
 =================
 
+``oasislmf.api_client``
+-----------------------
+
+.. automodule:: oasislmf.api_client
+
+.. toctree::
+   api/api_client/client
+
 ``oasislmf.cmd``
 ----------------
 
