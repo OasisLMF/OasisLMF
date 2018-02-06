@@ -52,8 +52,9 @@ class InputValues(object):
 
         :return: The found value or the default
         """
-        if name in self.args:
-            return self.args[name]
+        cmd_value = getattr(self.args, name, None)
+        if cmd_value is not None:
+            return cmd_value
 
         if name in self.config:
             return self.config[name]
