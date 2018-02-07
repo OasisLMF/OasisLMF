@@ -20,11 +20,12 @@ class InputValues(object):
         self.args = args
 
         self.config = {}
+        self.config_dir = os.path.dirname(args.config)
         if os.path.exists(args.config):
             with open(args.config) as f:
                 self.config = json.load(f)
 
-    def get(self, name, default=None, required=False):
+    def get(self, name, default=None, required=False, is_path=False):
         """
         Gets the names parameter from the command line arguments.
 
@@ -46,24 +47,34 @@ class InputValues(object):
             configuration file an error is raised.
         :type required: bool
 
+        :param is_path: Flag whether the value should be treated as a path,
+            is so the value is processed as relative to the config file.
+        :type is_path: bool
+
         :raise OasisException: If the value is not found and ``required``
             is True
 
         :return: The found value or the default
         """
+        value = None
         cmd_value = getattr(self.args, name, None)
         if cmd_value is not None:
-            return cmd_value
+            value = cmd_value
+        elif name in self.config:
+            value = self.config[name]
 
-        if name in self.config:
-            return self.config[name]
-
-        if required:
+        if required and value is None:
             raise OasisException(
                 '{} could not be found in the command args or config file ({}) but is required'.format(name, self.args.config)
             )
 
-        return default
+        if value is None:
+            value = default
+
+        if is_path and value is not None:
+            value = os.path.realpath(os.path.join(self.config_dir, value))
+
+        return value
 
 
 class OasisBaseCommand(BaseCommand):

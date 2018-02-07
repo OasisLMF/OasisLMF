@@ -101,10 +101,10 @@ class GenerateKeysCmd(OasisBaseCommand):
         :type args: Namespace
         """
         inputs = InputValues(args)
-        model_exposures_file_path = as_path(inputs.get('model_exposures_file_path', required=True), 'Model exposures')
-        keys_data_path = as_path(inputs.get('keys_data_path', required=True), 'Keys data')
-        version_file_path = as_path(inputs.get('model_version_file_path', required=True), 'Version file')
-        lookup_package_path = as_path(inputs.get('lookup_package_path', required=True), 'Lookup package')
+        model_exposures_file_path = as_path(inputs.get('model_exposures_file_path', required=True, is_path=True), 'Model exposures')
+        keys_data_path = as_path(inputs.get('keys_data_path', required=True, is_path=True), 'Keys data')
+        version_file_path = as_path(inputs.get('model_version_file_path', required=True, is_path=True), 'Version file')
+        lookup_package_path = as_path(inputs.get('lookup_package_path', required=True, is_path=True), 'Lookup package')
 
         self.logger.info('Getting model info and creating lookup service instance')
         model_info, model_klc = OasisKeysLookupFactory.create(
@@ -730,10 +730,13 @@ class GenerateLossesCmd(OasisBaseCommand):
         :type args: Namespace
         """
         inputs = InputValues(args)
-        oasis_files_path = as_path(inputs.get('oasis_files_path', required=True), 'Oasis files')
-        analysis_settings_json_file_path = as_path(inputs.get('analysis_settings_json_file_path', required=True), 'Analysis settings file')
-        model_data_path = as_path(inputs.get('model_data_path', required=True), 'Model data')
-        model_run_dir_path = as_path(inputs.get('model_run_dir_path', required=True), 'Model run directory')
+        oasis_files_path = as_path(inputs.get('oasis_files_path', required=True, is_path=True), 'Oasis files')
+        analysis_settings_json_file_path = as_path(
+            inputs.get('analysis_settings_json_file_path', required=True, is_path=True),
+            'Analysis settings file'
+        )
+        model_data_path = as_path(inputs.get('model_data_path', required=True, is_path=True), 'Model data')
+        model_run_dir_path = as_path(inputs.get('model_run_dir_path', required=True, is_path=True), 'Model run directory')
         ktools_script_name = inputs.get('ktools_script_name', default='run_ktools')
         no_execute = inputs.get('no_execute', default=False)
 
@@ -855,25 +858,30 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         :type args: Namespace
         """
         inputs = InputValues(args)
-        oasis_files_path = as_path(inputs.get('oasis_files_path', required=True), 'Oasis file', preexists=False)
-        keys_data_path = as_path(inputs.get('keys_data_path', required=True), 'Keys data')
-        model_version_file_path = as_path(inputs.get('model_version_file_path', required=True), 'Model version file')
-        lookup_package_file_path = as_path(inputs.get('lookup_package_file_path', required=True), 'Lookup package file')
+        oasis_files_path = as_path(inputs.get('oasis_files_path', required=True, is_path=True), 'Oasis file', preexists=False)
+        keys_data_path = as_path(inputs.get('keys_data_path', required=True, is_path=True), 'Keys data')
+        model_version_file_path = as_path(inputs.get('model_version_file_path', required=True, is_path=True), 'Model version file')
+        lookup_package_file_path = as_path(inputs.get('lookup_package_file_path', required=True, is_path=True), 'Lookup package file')
         canonical_exposures_profile_json_path = as_path(
-            inputs.get('canonical_exposures_profile_json_path', required=True), 'Canonical exposures profile json'
+            inputs.get('canonical_exposures_profile_json_path', required=True, is_path=True),
+            'Canonical exposures profile json'
         )
-        source_exposures_file_path = as_path(inputs.get('source_exposures_file_path', required=True), 'Source exposures')
+        source_exposures_file_path = as_path(inputs.get('source_exposures_file_path', required=True, is_path=True), 'Source exposures')
         source_exposures_validation_file_path = as_path(
-            inputs.get('source_exposures_validation_file_path', required=True), 'Source exposures validation file'
+            inputs.get('source_exposures_validation_file_path', required=True, is_path=True),
+            'Source exposures validation file'
         )
         source_to_canonical_exposures_transformation_file_path = as_path(
-            inputs.get('source_to_canonical_exposures_transformation_file_path', required=True), 'Source to canonical exposures transformation'
+            inputs.get('source_to_canonical_exposures_transformation_file_path', required=True, is_path=True),
+            'Source to canonical exposures transformation'
         )
         canonical_exposures_validation_file_path = as_path(
-            inputs.get('canonical_exposures_validation_file_path', required=True), 'Canonical exposures validation file'
+            inputs.get('canonical_exposures_validation_file_path', required=True, is_path=True),
+            'Canonical exposures validation file'
         )
         canonical_to_model_exposures_transformation_file_path = as_path(
-            inputs.get('canonical_to_model_exposures_transformation_file_path', required=True), 'Canonical to model exposures transformation file'
+            inputs.get('canonical_to_model_exposures_transformation_file_path', required=True, is_path=True),
+            'Canonical to model exposures transformation file'
         )
 
         self.logger.info('Getting model info and creating lookup service instance')

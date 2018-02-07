@@ -4,6 +4,7 @@ from argparse import Namespace
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
+import os
 from hypothesis import given
 from hypothesis.strategies import text
 
@@ -85,3 +86,18 @@ class InputValuesGet(TestCase):
 
             with self.assertRaises(OasisException):
                 inputs.get('foo', required=True)
+
+    def test_variable_is_a_path___path_is_relative_to_config_file(self):
+        with NamedTemporaryFile('w') as conf_file:
+            json.dump({'foo': './some/path'}, conf_file)
+            conf_file.flush()
+
+            expected_result = os.path.join(os.path.dirname(conf_file.name), 'some', 'path')
+
+            args = Namespace(config=conf_file.name)
+
+            inputs = InputValues(args)
+
+            result = inputs.get('foo', required=True, is_path=True)
+
+            self.assertEqual(expected_result, result)
