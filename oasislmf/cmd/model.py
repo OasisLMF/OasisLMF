@@ -703,7 +703,7 @@ class GenerateLossesCmd(OasisBaseCommand):
         if gul_output:
             self.do_kats('gul', analysis_settings, max_process_id)
 
-            self.do_kwaits()
+        self.do_kwaits()
 
         self.print_command('')
         self.do_post_wait_processing('il', analysis_settings)
@@ -716,7 +716,7 @@ class GenerateLossesCmd(OasisBaseCommand):
             self.do_gul_remove_fifo(analysis_settings, max_process_id)
             self.remove_workfolders('gul', analysis_settings)
 
-            self.print_command('')
+        self.print_command('')
 
         if il_output:
             self.do_il_remove_fifo(analysis_settings, max_process_id)
