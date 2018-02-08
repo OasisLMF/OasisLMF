@@ -1,5 +1,7 @@
 from collections import Counter
 
+import os
+
 wait_proocessing_switches = {
     'full_uncertainty_aep': '-F',
     'wheatsheaf_aep': '-W',
@@ -471,6 +473,10 @@ def genbash(max_process_id, analysis_settings, filename, get_getmodel_cmd=None):
     use_random_number_file = False
     gul_output = False
     il_output = False
+
+    # remove the file if it already exists
+    if os.path.exists(filename):
+        os.remove(filename)
 
     gul_threshold = analysis_settings.get('gul_threshold', 0)
     number_of_samples = analysis_settings.get('number_of_samples', 0)

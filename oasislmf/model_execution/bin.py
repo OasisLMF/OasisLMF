@@ -31,10 +31,10 @@ from .files import TAR_FILE, INPUT_FILES
 
 
 def prepare_model_run_directory(
-        run_dir_path,
-        oasis_files_src_path=None,
-        analysis_settings_json_src_file_path=None,
-        model_data_src_path=None
+    run_dir_path,
+    oasis_files_src_path=None,
+    analysis_settings_json_src_file_path=None,
+    model_data_src_path=None
 ):
     """
     Ensures that the model run directory has the correct folder structure in
