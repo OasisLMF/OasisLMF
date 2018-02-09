@@ -27,7 +27,7 @@ import shutil
 import subprocess
 
 from ..utils.exceptions import OasisException
-from .files import TAR_FILE, INPUT_FILES
+from .files import TAR_FILE, INPUT_FILES, GUL_INPUT_FILES, IL_INPUT_FILES
 
 
 def prepare_model_run_directory(
@@ -207,6 +207,35 @@ def create_binary_files(csv_directory, bin_directory, do_il=False):
             subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
         except subprocess.CalledProcessError as e:
             raise OasisException(e)
+
+
+def check_binary_tar_file(tar_file_path, check_il=False):
+    """
+    Checks that all required files are present
+
+    :param tar_file_path: Path to the tar file to check
+    :type tar_file_path: str
+
+    :param check_il: Flag whether to check insured loss files
+    :type check_il: bool
+
+    :raises OasisException: If a required file is missing
+
+    :return: True if all required files are present
+    """
+    expected_members = ('{}.bin'.format(f['name']) for f in six.itervalues(GUL_INPUT_FILES))
+
+    if check_il:
+        expected_members = chain(expected_members, ('{}.bin'.format(f['name']) for f in six.itervalues(IL_INPUT_FILES)))
+
+    with tarfile.open(tar_file_path) as tar:
+        for member in expected_members:
+            try:
+                tar.getmember(member)
+            except KeyError:
+                raise OasisException('{} is missing from the tar file {}.'.format(member, tar_file_path))
+
+    return True
 
 
 def create_binary_tar_file(directory):

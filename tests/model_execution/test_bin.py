@@ -19,7 +19,8 @@ from pathlib2 import Path
 
 from oasislmf.model_execution.files import GUL_INPUT_FILES, OPTIONAL_INPUT_FILES, IL_INPUT_FILES, TAR_FILE, INPUT_FILES
 from oasislmf.model_execution.bin import create_binary_files, create_binary_tar_file, check_conversion_tools, \
-    check_inputs_directory, prepare_model_run_directory, prepare_model_run_inputs, cleanup_bin_directory
+    check_inputs_directory, prepare_model_run_directory, prepare_model_run_inputs, cleanup_bin_directory, \
+    check_binary_tar_file
 from oasislmf.utils.exceptions import OasisException
 
 ECHO_CONVERSION_INPUT_FILES = {k: ChainMap({'conversion_tool': 'echo'}, v) for k, v in INPUT_FILES.items()}
@@ -558,3 +559,48 @@ class CleanBinDirectory(TestCase):
             self.assertFalse(os.path.exists(os.path.join(d, TAR_FILE)))
             for f in six.iterkeys(INPUT_FILES):
                 self.assertFalse(os.path.exists(os.path.join(d, f + '.bin')))
+
+
+class CheckBinTarFile(TestCase):
+    def test_all_il_files_are_missing_check_il_is_false___result_is_true(self):
+        with TemporaryDirectory() as d:
+            tar_file_name = os.path.join(d, 'exposures.tar')
+
+            with tarfile.open(tar_file_name, 'w') as tar:
+                for f in six.itervalues(GUL_INPUT_FILES):
+                    Path(os.path.join(d, '{}.bin'.format(f['name']))).touch()
+
+                tar.add(d, arcname='/')
+
+            self.assertTrue(check_binary_tar_file(tar_file_name))
+
+    def test_all_files_are_present_check_il_is_true___result_is_true(self):
+        with TemporaryDirectory() as d:
+            tar_file_name = os.path.join(d, 'exposures.tar')
+
+            with tarfile.open(tar_file_name, 'w') as tar:
+                for f in six.itervalues(INPUT_FILES):
+                    Path(os.path.join(d, '{}.bin'.format(f['name']))).touch()
+
+                tar.add(d, arcname='/')
+
+            self.assertTrue(check_binary_tar_file(tar_file_name, check_il=True))
+
+    @given(
+        lists(sampled_from([f['name'] for f in chain(six.itervalues(GUL_INPUT_FILES), six.itervalues(IL_INPUT_FILES))]), min_size=1, unique=True)
+    )
+    def test_some_files_are_missing_check_il_is_true___error_is_raised(self, missing):
+        with TemporaryDirectory() as d:
+            tar_file_name = os.path.join(d, 'exposures.tar')
+
+            with tarfile.open(tar_file_name, 'w') as tar:
+                for f in six.itervalues(INPUT_FILES):
+                    if f['name'] in missing:
+                        continue
+
+                    Path(os.path.join(d, '{}.bin'.format(f['name']))).touch()
+
+                tar.add(d, arcname='/')
+
+            with self.assertRaises(OasisException):
+                check_binary_tar_file(tar_file_name, check_il=True)
