@@ -1,0 +1,26 @@
+{
+  "analysis_settings": {
+    "source_tag": "test_source",
+    "analysis_tag": "test_analysis",
+    "module_supplier_id": "OasisIM",
+    "model_version_id": "1",
+    "number_of_samples": 0,
+    "gul_threshold": 0,
+    "model_settings": {
+      "use_random_number_file": true,
+      "event_occurrence_file_id": 1
+    },
+    "gul_output": true,
+    "il_output": true,
+    "il_summaries": [
+      {
+        "id": 1,
+        "summarycalc": true,
+        "eltcalc": true,
+        "aalcalc": true,
+        "pltcalc": true,
+        "lec_output":false
+      }
+    ]
+  }
+}

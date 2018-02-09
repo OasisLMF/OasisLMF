@@ -1,6 +1,10 @@
+from __future__ import unicode_literals
+
 from collections import Counter
 
 import os
+import io
+
 
 wait_proocessing_switches = {
     'full_uncertainty_aep': '-F',
@@ -20,7 +24,7 @@ def print_command(command_file, cmd):
 
     :param cmd: The command to append
     """
-    with open(command_file, "a", encoding='utf-8') as myfile:
+    with io.open(command_file, "a", encoding='utf-8') as myfile:
         myfile.writelines(cmd + "\n")
 
 
@@ -67,13 +71,13 @@ def do_post_wait_processing(runtype, analysis_settings, filename, process_counte
                     )
 
                     process_counter['lpid_monitor_count'] += 1
-                    for option, value in leccalc['outputs'].items():
-                        if value:
-                            switch = wait_proocessing_switches.get(value, '')
+                    for option, active in sorted(leccalc['outputs'].items()):
+                        if active:
+                            switch = wait_proocessing_switches.get(option, '')
                             cmd = '{} {} output/{}_S{}_leccalc_{}.csv'.format(cmd, switch, runtype, summary_set,
                                                                               option)
 
-                    cmd = '{} &  lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+                    cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                     print_command(filename, cmd)
 
 
@@ -187,7 +191,7 @@ def do_kats(runtype, analysis_settings, max_process_id, filename, process_counte
 
                 cmd = 'kat'
                 for process_id in range(1, max_process_id + 1):
-                    cmd = '{} work/kat/{}_S{}_eltcalc_P{} '.format(cmd, runtype, summary_set, process_id)
+                    cmd = '{} work/kat/{}_S{}_eltcalc_P{}'.format(cmd, runtype, summary_set, process_id)
 
                 process_counter['kpid_monitor_count'] += 1
                 cmd = '{} > output/{}_S{}_eltcalc.csv & kpid{}=$!'.format(cmd, runtype, summary_set,
@@ -211,7 +215,7 @@ def do_kats(runtype, analysis_settings, max_process_id, filename, process_counte
 
                 cmd = 'kat'
                 for process_id in range(1, max_process_id + 1):
-                    cmd = "work/kat/{}_S{}_summarycalc_P{} ".format(cmd, runtype, summary_set, process_id)
+                    cmd = '{} work/kat/{}_S{}_summarycalc_P{}'.format(cmd, runtype, summary_set, process_id)
 
                 process_counter['kpid_monitor_count'] += 1
                 cmd = '{} > output/{}_S{}_summarycalc.csv & kpid{}=$!'.format(cmd, runtype, summary_set,
@@ -234,7 +238,7 @@ def do_summarycalcs(runtype, analysis_settings, process_id, filename):
     for summary in summaries:
         if 'id' in summary:
             summary_set = summary['id']
-            cmd = '{} -{0} fifo/{1}_S{0}_summary_P{2}'.format(cmd, summary_set, runtype, process_id)
+            cmd = '{0} -{1} fifo/{2}_S{1}_summary_P{3}'.format(cmd, summary_set, runtype, process_id)
 
     cmd = '{} < fifo/{}_P{} &'.format(cmd, runtype, process_id)
     print_command(filename, cmd)
@@ -249,7 +253,7 @@ def do_tees(runtype, analysis_settings, process_id, filename, process_counter):
         if 'id' in summary:
             process_counter['pid_monitor_count'] += 1
             summary_set = summary['id']
-            cmd = "tee < fifo/{}_S{}_summary_P{} ".format(runtype, summary_set, process_id)
+            cmd = 'tee < fifo/{}_S{}_summary_P{}'.format(runtype, summary_set, process_id)
 
             if summary.get('eltcalc'):
                 cmd = '{} fifo/{}_S{}_summaryeltcalc_P{}'.format(cmd, runtype, summary_set, process_id)
@@ -452,7 +456,7 @@ def get_getmodel_cmd(number_of_samples, gul_threshold, use_random_number_file, c
     return cmd
 
 
-def genbash(max_process_id, analysis_settings, filename, get_getmodel_cmd=None):
+def genbash(max_process_id, analysis_settings, filename, _get_getmodel_cmd=None):
     """
     Generates a bash script containing ktools calculation instructions for an
     Oasis model.
@@ -468,7 +472,7 @@ def genbash(max_process_id, analysis_settings, filename, get_getmodel_cmd=None):
     :type get_getmodel_cmd: callable
     """
     process_counter = Counter()
-    get_getmodel_cmd = get_getmodel_cmd or get_getmodel_cmd
+    _get_getmodel_cmd = _get_getmodel_cmd or get_getmodel_cmd
 
     use_random_number_file = False
     gul_output = False
@@ -527,7 +531,7 @@ def genbash(max_process_id, analysis_settings, filename, get_getmodel_cmd=None):
 
     for process_id in range(1, max_process_id + 1):
         if gul_output and il_output:
-            getmodel_cmd = get_getmodel_cmd(
+            getmodel_cmd = _get_getmodel_cmd(
                 number_of_samples,
                 gul_threshold,
                 use_random_number_file,
@@ -543,7 +547,7 @@ def genbash(max_process_id, analysis_settings, filename, get_getmodel_cmd=None):
             #  Now the mainprocessing
             if gul_output:
                 if 'gul_summaries' in analysis_settings:
-                    getmodel_cmd = get_getmodel_cmd(
+                    getmodel_cmd = _get_getmodel_cmd(
                         number_of_samples,
                         gul_threshold,
                         use_random_number_file,
@@ -557,7 +561,7 @@ def genbash(max_process_id, analysis_settings, filename, get_getmodel_cmd=None):
 
             if il_output:
                 if 'il_summaries' in analysis_settings:
-                    getmodel_cmd = get_getmodel_cmd(
+                    getmodel_cmd = _get_getmodel_cmd(
                         number_of_samples,
                         gul_threshold,
                         use_random_number_file,

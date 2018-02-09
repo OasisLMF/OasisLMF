@@ -2,3 +2,4 @@
 *.egg-info
 *.pyc
 Dockerfile
+tests/model_execution/kparse_output/
