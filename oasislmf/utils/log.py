@@ -3,6 +3,7 @@
 """
 Logging utils.
 """
+import os
 from six.moves import zip
 import six
 
@@ -34,6 +35,11 @@ def read_log_config(config_parser):
     log_level = config_parser['LOG_LEVEL']
     log_max_size_in_bytes = int(config_parser['LOG_MAX_SIZE_IN_BYTES'])
     log_backup_count = int(config_parser['LOG_BACKUP_COUNT'])
+
+    log_dir = os.path.dirname(log_file)
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+
     handler = RotatingFileHandler(
         log_file, maxBytes=log_max_size_in_bytes,
         backupCount=log_backup_count)
