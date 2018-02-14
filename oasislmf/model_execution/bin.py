@@ -82,10 +82,7 @@ def prepare_model_run_directory(
     """
     try:
         for subdir in ['fifo', 'output', 'static', 'work']:
-            path = os.path.join(run_dir_path, subdir)
-
-            if not os.path.exists(path):
-                os.mkdir(path)
+            Path(run_dir_path, subdir).mkdir(parents=True, exist_ok=True)
 
         if not inputs_archive:
             Path(run_dir_path, 'input', 'csv').mkdir(parents=True, exist_ok=True)
