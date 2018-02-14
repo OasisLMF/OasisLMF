@@ -1,4 +1,4 @@
-FROM python:3.6
+FROM coreoasis/ktools:R_0_0_0_23
 
 RUN useradd -ms /bin/bash oasisapi-client
 
@@ -15,7 +15,7 @@ RUN mkdir /home/oasisapi_client
 RUN chown oasisapi-client /home/oasisapi_client
 
 COPY . /tmp/oasislmf/
-RUN pip install -e git+https://github.com/wildfish/argparsetree.git#egg=argparsetree /tmp/oasislmf/
+RUN pip install /tmp/oasislmf/
 
 USER oasisapi-client
 WORKDIR /home/oasisapi_client

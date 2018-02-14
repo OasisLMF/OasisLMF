@@ -368,6 +368,19 @@ class PrepareModelRunDirectory(TestCase):
 
             self.assertTrue(os.path.exists(os.path.join(output_path, 'static', 'linked_file')))
 
+    def test_inputs_archive_is_supplied___archive_is_extracted_into_inputs(self):
+        with TemporaryDirectory() as output_path, TemporaryDirectory() as input_path:
+            tar_path = os.path.join(input_path, 'archive.tar')
+
+            with tarfile.open(tar_path, 'w') as tar:
+                archived_file_path = Path(input_path, 'archived_file')
+                archived_file_path.touch()
+                tar.add(str(archived_file_path), arcname='archived_file')
+
+            prepare_model_run_directory(output_path, inputs_archive=tar_path)
+
+            self.assertTrue(Path(output_path, 'input', 'archived_file').exists())
+
 
 class PrepareModelRunInputs(TestCase):
     def make_fake_bins(self, d):

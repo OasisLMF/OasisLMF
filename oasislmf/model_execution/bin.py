@@ -14,6 +14,7 @@ from itertools import chain
 
 import shutilwhich
 import six
+from pathlib2 import Path
 from six import itervalues
 
 __all__ = [
@@ -34,7 +35,8 @@ def prepare_model_run_directory(
     run_dir_path,
     oasis_files_src_path=None,
     analysis_settings_json_src_file_path=None,
-    model_data_src_path=None
+    model_data_src_path=None,
+    inputs_archive=None,
 ):
     """
     Ensures that the model run directory has the correct folder structure in
@@ -74,13 +76,22 @@ def prepare_model_run_directory(
 
     :param model_data_src_path: model data source path
     :type model_data_src_path: str
+
+    :param inputs_archive: path to a tar file containing input files
+    :type inputs_archive: str
     """
     try:
-        for subdir in ['fifo', 'input', os.path.join('input', 'csv'), 'output', 'static', 'work']:
+        for subdir in ['fifo', 'output', 'static', 'work']:
             path = os.path.join(run_dir_path, subdir)
 
             if not os.path.exists(path):
                 os.mkdir(path)
+
+        if not inputs_archive:
+            Path(run_dir_path, 'input', 'csv').mkdir(parents=True, exist_ok=True)
+        else:
+            with tarfile.open(inputs_archive) as input_tarfile:
+                input_tarfile.extractall(path=(os.path.join(run_dir_path, 'input')))
 
         if oasis_files_src_path:
             oasis_files_destpath = os.path.join(run_dir_path, 'input', 'csv')
