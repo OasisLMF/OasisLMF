@@ -4,13 +4,13 @@ import io
 import json
 
 import os
-import subprocess
 
 import shutil
 from argparse import RawDescriptionHelpFormatter
 
+from oasislmf.model_execution.bash import genbash
 from ..exposures.manager import OasisExposuresManager
-from ..model_execution.bash import genbash
+from ..model_execution.runner import run
 from ..models.model import OasisModelFactory
 from ..model_execution.bin import create_binary_files, prepare_model_run_directory, prepare_model_run_inputs
 from ..utils.exceptions import OasisException
@@ -159,6 +159,23 @@ class GenerateLossesCmd(OasisBaseCommand):
     """
     formatter_class = RawDescriptionHelpFormatter
 
+    def add_args(self, parser):
+        """
+        Adds arguments to the argument parser.
+
+        :param parser: The argument parser object
+        :type parser: ArgumentParser
+        """
+        super(GenerateLossesCmd, self).add_args(parser)
+
+        parser.add_argument('oasis_files_path', default=None, help='Path to Oasis files', nargs='?')
+        parser.add_argument('-j', '--analysis-settings-json-file-path', default=None, help='Relative or absolute path of the model analysis settings JSON file')
+        parser.add_argument('-m', '--model-data-path', default=None, help='Model data source path')
+        parser.add_argument('-r', '--model-run-dir-path', default=None, help='Model run directory path')
+        parser.add_argument('-s', '--ktools-script-name', default=None, help='Relative or absolute path of the output file')
+        parser.add_argument('-n', '--ktools-num-processes', default=-1, help='Number of ktools calculation processes to use')
+        parser.add_argument('-x', '--no-execute', action='store_true', help='Whether to execute generated ktools script')
+
     def action(self, args):
         """
         Generate losses using the installed ktools framework.
@@ -215,32 +232,16 @@ class GenerateLossesCmd(OasisBaseCommand):
         self.logger.info('Preparing model run inputs')
         prepare_model_run_inputs(analysis_settings, model_run_dir_path)
 
-        try:
+        script_path = os.path.join(model_run_dir_path, '{}.sh'.format(ktools_script_name))
+        if not no_execute:
             self.logger.info('Generating ktools losses script')
             genbash(
                 args.ktools_num_processes,
                 analysis_settings,
-                filename=os.path.join(model_run_dir_path, '{}.sh'.format(ktools_script_name)),
+                filename=script_path,
             )
-        except Exception as e:
-            raise OasisException(e)
-
-        try:
-            self.logger.info('Making ktools losses script executable')
-            subprocess.check_call('chmod +x {}'.format(self.command_file), stderr=subprocess.STDOUT, shell=True)
-        except (OSError, IOError) as e:
-            raise OasisException(e)
-
-        self.logger.info('Generated ktools losses script {}'.format(self.command_file))
-
-        if not no_execute:
-            try:
-                os.chdir(model_run_dir_path)
-                cmd_str = 'bash {}.sh'.format(ktools_script_name)
-                self.logger.info('Running ktools losses script {}'.format(self.command_file))
-                subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
-            except (OSError, IOError, subprocess.CalledProcessError) as e:
-                raise OasisException(e)
+        else:
+            run(analysis_settings, args.ktools_num_processes, filename=script_path)
 
         self.logger.info('Loss outputs generated in {}'.format(os.path.join(model_run_dir_path, 'output')))
 
