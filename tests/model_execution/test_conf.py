@@ -5,6 +5,7 @@ import uuid
 from unittest import TestCase
 
 import os
+import io
 
 from backports.tempfile import TemporaryDirectory
 from hypothesis import given
@@ -42,7 +43,7 @@ class CreateAnalysisSettingsJson(TestCase):
         with TemporaryDirectory() as d:
             self.create_fake_directory(d)
 
-            with open(os.path.join(d, GENERAL_SETTINGS_FILE), 'w') as f:
+            with io.open(os.path.join(d, GENERAL_SETTINGS_FILE), 'w', encoding='utf-8') as f:
                 f.writelines([
                     'first,1,int\n',
                     'second,foo,str\n',
@@ -59,7 +60,7 @@ class CreateAnalysisSettingsJson(TestCase):
         with TemporaryDirectory() as d:
             self.create_fake_directory(d)
 
-            with open(os.path.join(d, MODEL_SETTINGS_FILE), 'w') as f:
+            with io.open(os.path.join(d, MODEL_SETTINGS_FILE), 'w', encoding='utf-8') as f:
                 f.writelines([
                     'first,3,int\n',
                     'second,bar,str\n',
@@ -78,7 +79,7 @@ class CreateAnalysisSettingsJson(TestCase):
         with TemporaryDirectory() as d:
             self.create_fake_directory(d)
 
-            with open(os.path.join(d, GUL_SUMMARIES_FILE), 'w') as f:
+            with io.open(os.path.join(d, GUL_SUMMARIES_FILE), 'w', encoding='utf-8') as f:
                 f.writelines([
                     '1,leccalc_foo,TRUE\n',
                     '1,leccalc_bar,FALSE\n',
@@ -99,7 +100,7 @@ class CreateAnalysisSettingsJson(TestCase):
         with TemporaryDirectory() as d:
             self.create_fake_directory(d)
 
-            with open(os.path.join(d, IL_SUMMARIES_FILE), 'w') as f:
+            with io.open(os.path.join(d, IL_SUMMARIES_FILE), 'w', encoding='utf-8') as f:
                 f.writelines([
                     '1,leccalc_foo,TRUE\n',
                     '1,leccalc_bar,FALSE\n',

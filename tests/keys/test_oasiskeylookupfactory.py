@@ -8,6 +8,7 @@ from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
 import os
+import io
 
 from six import StringIO
 from backports.tempfile import TemporaryDirectory
@@ -21,11 +22,11 @@ from oasislmf.utils.exceptions import OasisException
 
 class OasisKeysLookupFactoryCreate(TestCase):
     def write_version_file(self, supplier, model, version, path):
-        with open(path, 'w') as f:
+        with io.open(path, 'w', encoding='utf-8') as f:
             f.write('{},{},{}'.format(supplier, model, version))
 
     def write_py_module(self, model, path):
-        with open(path, 'w') as f:
+        with io.open(path, 'w', encoding='utf-8') as f:
             f.writelines([
                 'from oasislmf.keys.lookup import OasisBaseKeysLookup\n',
                 'class {}KeysLookup(OasisBaseKeysLookup):\n'.format(model),
@@ -140,7 +141,7 @@ class OasisKeysLookupFactoryWriteOasisKeyFile(TestCase):
                 {k: str(v) for k, v in row.items()} for row in data
             ]
 
-            with open(output_file) as f:
+            with io.open(output_file, encoding='utf-8') as f:
                 res_data = list(csv.DictReader(f, fieldnames=['id', 'peril_id', 'coverage', 'area_peril_id', 'vulnerability_id']))
 
             self.assertEqual(res_count, len(data))
@@ -163,7 +164,7 @@ class OasisKeysLookupFactoryWriteListKeysFiles(TestCase):
 
             res_path, res_count = OasisKeysLookupFactory.write_list_keys_file(data, output_file)
 
-            with open(output_file) as f:
+            with io.open(output_file, encoding='utf-8') as f:
                 result_data = json.loads('[{}]'.format(f.read().strip()[:-1]))
 
             self.assertEqual(res_count, len(data))

@@ -1,6 +1,9 @@
+from __future__ import unicode_literals
+
 import hashlib
 import json
 import os
+import io
 import shutil
 from unittest import TestCase
 
@@ -23,7 +26,7 @@ class Genbash(TestCase):
 
     def md5(self, fname):
         hash_md5 = hashlib.md5()
-        with open(fname, "rb") as f:
+        with io.open(fname, "rb") as f:
             for chunk in iter(lambda: f.read(4096), b""):
                 hash_md5.update(chunk)
         return hash_md5.hexdigest()
@@ -32,7 +35,7 @@ class Genbash(TestCase):
         input_filename = os.path.join(KPARSE_INPUT_FOLDER, "{}.json".format(name))
         output_filename = os.path.join(KPARSE_OUTPUT_FOLDER, "{}_{}_partition.sh".format(name, num_partitions))
 
-        with open(input_filename) as file:
+        with io.open(input_filename, encoding='utf-8') as file:
             analysis_settings = json.load(file)['analysis_settings']
 
         genbash(

@@ -1,5 +1,6 @@
 import json
 import os
+import io
 
 from collections import Counter
 from multiprocessing.pool import ThreadPool
@@ -73,7 +74,7 @@ class TestModelApiCmd(OasisBaseCommand):
             signifying whether il processing is enabled
         """
 
-        with open(analysis_settings_file) as f:
+        with io.open(analysis_settings_file, encoding='utf-8') as f:
             analysis_settings = json.load(f)
 
         if isinstance(analysis_settings['analysis_settings']['il_output'], six.string_types):

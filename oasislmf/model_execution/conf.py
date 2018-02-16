@@ -1,7 +1,10 @@
+from __future__ import unicode_literals
+
 import csv
 import json
 import logging
 import os
+import io
 from collections import defaultdict
 
 import six
@@ -17,7 +20,7 @@ def _get_summaries(summary_file):
     """
     summaries_dict = defaultdict(lambda: {'leccalc': {}})
 
-    with open(summary_file, 'r') as csvfile:
+    with io.open(summary_file, 'r', encoding='utf-8') as csvfile:
         reader = csv.reader(csvfile)
         for row in reader:
             id = int(row[0])
@@ -62,13 +65,13 @@ def create_analysis_settings_json(directory):
             raise OasisException(error_message)
 
     general_settings = dict()
-    with open(general_settings_file, 'r') as csvfile:
+    with io.open(general_settings_file, 'r', encoding='utf-8') as csvfile:
         reader = csv.reader(csvfile)
         for row in reader:
             general_settings[row[0]] = eval("{}('{}')".format(row[2], row[1]))
 
     model_settings = dict()
-    with open(model_settings_file, 'r') as csvfile:
+    with io.open(model_settings_file, 'r', encoding='utf-8') as csvfile:
         reader = csv.reader(csvfile)
         for row in reader:
             model_settings[row[0]] = eval("{}('{}')".format(row[2], row[1]))

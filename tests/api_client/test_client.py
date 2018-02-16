@@ -1,5 +1,8 @@
+from __future__ import unicode_literals
+
 import json
 import os
+import io
 import string
 from random import choice
 from tempfile import NamedTemporaryFile
@@ -280,7 +283,7 @@ class DownloadResource(TestCase):
 
             self.assertTrue(os.path.exists(local_filename))
 
-            with open(local_filename, 'rb') as f:
+            with io.open(local_filename, 'rb') as f:
                 dld_content = f.read()
 
             os.remove(local_filename)
@@ -308,7 +311,7 @@ class DownloadExposures(TestCase):
 
 
 def fake_build_tar_fn(d):
-    with open(os.path.join(d, TAR_FILE), 'wb') as f:
+    with io.open(os.path.join(d, TAR_FILE), 'wb') as f:
         f.write(''.join(choice(string.ascii_letters) for i in range(100)).encode())
 
 

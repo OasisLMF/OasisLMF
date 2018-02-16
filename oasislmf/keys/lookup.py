@@ -3,6 +3,7 @@
 from __future__ import unicode_literals, absolute_import
 
 import re
+from collections import OrderedDict
 
 from six import StringIO
 
@@ -181,23 +182,24 @@ class OasisKeysLookupFactory(object):
         """
         Writes an Oasis keys file from an iterable of keys records.
         """
-        heading_row = {
-            'id': 'LocID',
-            'peril_id': 'PerilID',
-            'coverage': 'CoverageID',
-            'area_peril_id': 'AreaPerilID',
-            'vulnerability_id': 'VulnerabilityID',
-        }
+        heading_row = OrderedDict([
+            ('id', 'LocID'),
+            ('peril_id', 'PerilID'),
+            ('coverage', 'CoverageID'),
+            ('area_peril_id', 'AreaPerilID'),
+            ('vulnerability_id', 'VulnerabilityID'),
+        ])
 
-        with open(output_file_path, 'w') as f:
-            writer = csv.DictWriter(f, fieldnames=['id', 'peril_id', 'coverage', 'area_peril_id', 'vulnerability_id'])
-            writer.writerow(heading_row)
+        pd.DataFrame(
+            data=[heading_row] + records,
+        ).to_csv(
+            output_file_path,
+            index=False,
+            encoding='utf-8',
+            header=False,
+        )
 
-            count = 0
-            for count, record in enumerate(records, start=1):
-                writer.writerow(record)
-
-            return f.name, count
+        return output_file_path, len(records)
 
     @classmethod
     def write_list_keys_file(cls, records, output_file_path):

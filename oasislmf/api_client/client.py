@@ -285,7 +285,7 @@ class OasisAPIClient(object):
             self._logger.error(exception_message)
             raise OasisException(exception_message)
 
-        with open(localfile, 'wb') as f:
+        with io.open(localfile, 'wb') as f:
             for chunk in response.iter_content(chunk_size=self.DOWNLOAD_CHUCK_SIZE_IN_BYTES):
                 f.write(chunk)
 

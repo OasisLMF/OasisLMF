@@ -4,6 +4,7 @@ import logging
 import sys
 
 import os
+import io
 
 from argparsetree import BaseCommand
 
@@ -22,7 +23,7 @@ class InputValues(object):
         self.config = {}
         self.config_dir = os.path.dirname(args.config)
         if os.path.exists(args.config):
-            with open(args.config) as f:
+            with io.open(args.config, encoding='utf-8') as f:
                 self.config = json.load(f)
 
     def get(self, name, default=None, required=False, is_path=False):

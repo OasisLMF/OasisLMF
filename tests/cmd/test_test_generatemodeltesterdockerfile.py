@@ -1,7 +1,10 @@
+from __future__ import unicode_literals
+
 import string
 from unittest import TestCase
 
 import os
+import io
 
 import six
 from backports.tempfile import TemporaryDirectory
@@ -60,10 +63,10 @@ class GenerateModelTesterDockerfileRun(TestCase):
     )
     def test_version_file_is_not_specified___version_file_from_data_directory_is_used(self, server_url, org, model, model_version):
         with TemporaryDirectory() as d:
-            with open(os.path.join(d, 'ModelVersion.csv'), 'w') as version_file:
+            with io.open(os.path.join(d, 'ModelVersion.csv'), 'w', encoding='utf-8') as version_file:
                 version_file.write('{},{},{}'.format(org, model, model_version))
 
-            with open(os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pardir, 'oasislmf', '_data', 'Dockerfile.model_api_tester')) as tpl_file:
+            with io.open(os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pardir, 'oasislmf', '_data', 'Dockerfile.model_api_tester'), encoding='utf-8') as tpl_file:
                 tpl_content = tpl_file.read()
                 expected = tpl_content.replace(
                     '%CLI_VERSION%', __version__,
@@ -82,7 +85,7 @@ class GenerateModelTesterDockerfileRun(TestCase):
             cmd = self.get_command(api_server_url=server_url, extras={'model-data-directory': d})
             res = cmd.run()
 
-            with open(os.path.join(d, 'Dockerfile.{}_{}_model_api_tester'.format(org.lower(), model.lower()))) as docker_file:
+            with io.open(os.path.join(d, 'Dockerfile.{}_{}_model_api_tester'.format(org.lower(), model.lower())), encoding='utf-8') as docker_file:
                 docker_content = docker_file.read()
 
             self.assertEqual(0, res)
@@ -96,10 +99,10 @@ class GenerateModelTesterDockerfileRun(TestCase):
     )
     def test_version_file_is_specified___specified_version_is_used(self, server_url, org, model, model_version):
         with TemporaryDirectory() as d:
-            with open(os.path.join(d, 'other_version_file.csv'), 'w') as version_file:
+            with io.open(os.path.join(d, 'other_version_file.csv'), 'w', encoding='utf-8') as version_file:
                 version_file.write('{},{},{}'.format(org, model, model_version))
 
-            with open(os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pardir, 'oasislmf', '_data', 'Dockerfile.model_api_tester')) as tpl_file:
+            with io.open(os.path.join(os.path.dirname(__file__), os.path.pardir, os.path.pardir, 'oasislmf', '_data', 'Dockerfile.model_api_tester'), encoding='utf-8') as tpl_file:
                 tpl_content = tpl_file.read()
                 expected = tpl_content.replace(
                     '%CLI_VERSION%', __version__,
@@ -121,7 +124,7 @@ class GenerateModelTesterDockerfileRun(TestCase):
             })
             res = cmd.run()
 
-            with open(os.path.join(d, 'Dockerfile.{}_{}_model_api_tester'.format(org.lower(), model.lower()))) as docker_file:
+            with io.open(os.path.join(d, 'Dockerfile.{}_{}_model_api_tester'.format(org.lower(), model.lower())), encoding='utf-8') as docker_file:
                 docker_content = docker_file.read()
 
             self.assertEqual(0, res)

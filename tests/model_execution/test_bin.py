@@ -1,3 +1,5 @@
+from __future__ import unicode_literals
+
 import glob
 import tarfile
 from tempfile import NamedTemporaryFile
@@ -9,6 +11,7 @@ from backports.tempfile import TemporaryDirectory
 from unittest import TestCase
 
 import os
+import io
 import subprocess
 
 from copy import deepcopy
@@ -53,7 +56,7 @@ def tar_file_targets(min_size=0):
 class CreateBinaryFiles(TestCase):
     def test_directory_only_contains_excluded_files___tar_is_empty(self):
         with TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
-            with open(os.path.join(csv_dir, 'another_file'), 'w') as f:
+            with io.open(os.path.join(csv_dir, 'another_file'), 'w', encoding='utf-8') as f:
                 f.write('file data')
 
             create_binary_files(csv_dir, bin_dir)
@@ -64,7 +67,7 @@ class CreateBinaryFiles(TestCase):
     def test_contains_il_and_standard_files_but_do_il_is_false___il_files_are_excluded(self, standard, il):
         with patch('oasislmf.model_execution.bin.INPUT_FILES', ECHO_CONVERSION_INPUT_FILES), TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
             for target in chain(standard, il):
-                with open(os.path.join(csv_dir, target + '.csv'), 'w') as f:
+                with io.open(os.path.join(csv_dir, target + '.csv'), 'w', encoding='utf-8') as f:
                     f.write(target)
 
             create_binary_files(csv_dir, bin_dir, do_il=False)
@@ -77,7 +80,7 @@ class CreateBinaryFiles(TestCase):
     def test_contains_il_and_standard_files_but_do_il_is_true___all_files_are_included(self, standard, il):
         with patch('oasislmf.model_execution.bin.INPUT_FILES', ECHO_CONVERSION_INPUT_FILES), TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
             for target in chain(standard, il):
-                with open(os.path.join(csv_dir, target + '.csv'), 'w') as f:
+                with io.open(os.path.join(csv_dir, target + '.csv'), 'w', encoding='utf-8') as f:
                     f.write(target)
 
             create_binary_files(csv_dir, bin_dir, do_il=True)
@@ -98,24 +101,24 @@ class CreateBinaryFiles(TestCase):
 class CreateBinaryTarFile(TestCase):
     def test_directory_only_contains_excluded_files___tar_is_empty(self):
         with TemporaryDirectory() as d:
-            with open(os.path.join(d, 'another_file'), 'w') as f:
+            with io.open(os.path.join(d, 'another_file'), 'w', encoding='utf-8') as f:
                 f.write('file data')
 
             create_binary_tar_file(d)
 
-            with tarfile.open(os.path.join(d, TAR_FILE), 'r:gz') as tar:
+            with tarfile.open(os.path.join(d, TAR_FILE), 'r:gz', encoding='utf-8') as tar:
                 self.assertEqual(0, len(tar.getnames()))
 
     @given(tar_file_targets(min_size=1))
     def test_directory_contains_some_target_files___target_files_are_included(self, targets):
         with TemporaryDirectory() as d:
             for target in targets:
-                with open(os.path.join(d, target), 'w') as f:
+                with io.open(os.path.join(d, target), 'w', encoding='utf-8') as f:
                     f.write(target)
 
             create_binary_tar_file(d)
 
-            with tarfile.open(os.path.join(d, TAR_FILE), 'r:gz') as tar:
+            with tarfile.open(os.path.join(d, TAR_FILE), 'r:gz', encoding='utf-8') as tar:
                 self.assertEqual(len(targets), len(tar.getnames()))
                 self.assertEqual(set(targets), set(tar.getnames()))
 
@@ -348,7 +351,7 @@ class PrepareModelRunDirectory(TestCase):
 
             prepare_model_run_directory(output_path, analysis_settings_json_src_file_path=input_file.name)
 
-            with open(os.path.join(output_path, 'analysis_settings.json')) as output_conf:
+            with io.open(os.path.join(output_path, 'analysis_settings.json'), encoding='utf-8') as output_conf:
                 self.assertEqual('conf stuff', output_conf.read())
 
     def test_model_data_src_is_supplied___symlink_to_output_dir_static_is_created(self):
@@ -372,7 +375,7 @@ class PrepareModelRunDirectory(TestCase):
         with TemporaryDirectory() as output_path, TemporaryDirectory() as input_path:
             tar_path = os.path.join(input_path, 'archive.tar')
 
-            with tarfile.open(tar_path, 'w') as tar:
+            with tarfile.open(tar_path, 'w', encoding='utf-8') as tar:
                 archived_file_path = Path(input_path, 'archived_file')
                 archived_file_path.touch()
                 tar.add(str(archived_file_path), arcname='archived_file')
@@ -400,39 +403,39 @@ class PrepareModelRunInputs(TestCase):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
 
-            with open(os.path.join(d, 'input', 'events.bin'), 'w') as events_file:
+            with io.open(os.path.join(d, 'input', 'events.bin'), 'w', encoding='utf-8') as events_file:
                 events_file.write('events bin')
                 events_file.flush()
 
                 prepare_model_run_inputs({}, d)
 
-            with open(os.path.join(d, 'input', 'events.bin'), 'r') as new_events_file:
+            with io.open(os.path.join(d, 'input', 'events.bin'), 'r', encoding='utf-8') as new_events_file:
                 self.assertEqual('events bin', new_events_file.read())
 
     def test_events_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
 
-            with open(os.path.join(d, 'static', 'events.bin'), 'w') as events_file:
+            with io.open(os.path.join(d, 'static', 'events.bin'), 'w', encoding='utf-8') as events_file:
                 events_file.write('events bin')
                 events_file.flush()
 
                 prepare_model_run_inputs({}, d)
 
-            with open(os.path.join(d, 'input', 'events.bin'), 'r') as new_events_file:
+            with io.open(os.path.join(d, 'input', 'events.bin'), 'r', encoding='utf-8') as new_events_file:
                 self.assertEqual('events bin', new_events_file.read())
 
     def test_events_bin_doesnt_not_exist_event_set_is_specified___event_set_specific_bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
 
-            with open(os.path.join(d, 'static', 'events_from_set.bin'), 'w') as events_file:
+            with io.open(os.path.join(d, 'static', 'events_from_set.bin'), 'w', encoding='utf-8') as events_file:
                 events_file.write('events from set bin')
                 events_file.flush()
 
                 prepare_model_run_inputs({'model_settings': {'event_set': 'from set'}}, d)
 
-            with open(os.path.join(d, 'input', 'events.bin'), 'r') as new_events_file:
+            with io.open(os.path.join(d, 'input', 'events.bin'), 'r', encoding='utf-8') as new_events_file:
                 self.assertEqual('events from set bin', new_events_file.read())
 
     def test_no_events_bin_exists___oasis_exception_is_raised(self):
@@ -447,26 +450,26 @@ class PrepareModelRunInputs(TestCase):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
 
-            with open(os.path.join(d, 'input', 'returnperiods.bin'), 'w') as returnperiods_file:
+            with io.open(os.path.join(d, 'input', 'returnperiods.bin'), 'w', encoding='utf-8') as returnperiods_file:
                 returnperiods_file.write('returnperiods bin')
                 returnperiods_file.flush()
 
                 prepare_model_run_inputs({}, d)
 
-            with open(os.path.join(d, 'input', 'returnperiods.bin'), 'r') as new_returnperiods_file:
+            with io.open(os.path.join(d, 'input', 'returnperiods.bin'), 'r', encoding='utf-8') as new_returnperiods_file:
                 self.assertEqual('returnperiods bin', new_returnperiods_file.read())
 
     def test_returnperiods_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
 
-            with open(os.path.join(d, 'static', 'returnperiods.bin'), 'w') as returnperiods_file:
+            with io.open(os.path.join(d, 'static', 'returnperiods.bin'), 'w', encoding='utf-8') as returnperiods_file:
                 returnperiods_file.write('returnperiods bin')
                 returnperiods_file.flush()
 
                 prepare_model_run_inputs({}, d)
 
-            with open(os.path.join(d, 'input', 'returnperiods.bin'), 'r') as new_returnperiods_file:
+            with io.open(os.path.join(d, 'input', 'returnperiods.bin'), 'r', encoding='utf-8') as new_returnperiods_file:
                 self.assertEqual('returnperiods bin', new_returnperiods_file.read())
 
     def test_no_returnperiods_bin_exists___oasis_exception_is_raised(self):
@@ -481,39 +484,39 @@ class PrepareModelRunInputs(TestCase):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
 
-            with open(os.path.join(d, 'input', 'occurrence.bin'), 'w') as occurrence_file:
+            with io.open(os.path.join(d, 'input', 'occurrence.bin'), 'w', encoding='utf-8') as occurrence_file:
                 occurrence_file.write('occurrence bin')
                 occurrence_file.flush()
 
                 prepare_model_run_inputs({}, d)
 
-            with open(os.path.join(d, 'input', 'occurrence.bin'), 'r') as new_occurrence_file:
+            with io.open(os.path.join(d, 'input', 'occurrence.bin'), 'r', encoding='utf-8') as new_occurrence_file:
                 self.assertEqual('occurrence bin', new_occurrence_file.read())
 
     def test_occurrence_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
 
-            with open(os.path.join(d, 'static', 'occurrence.bin'), 'w') as occurrence_file:
+            with io.open(os.path.join(d, 'static', 'occurrence.bin'), 'w', encoding='utf-8') as occurrence_file:
                 occurrence_file.write('occurrence bin')
                 occurrence_file.flush()
 
                 prepare_model_run_inputs({}, d)
 
-            with open(os.path.join(d, 'input', 'occurrence.bin'), 'r') as new_occurrence_file:
+            with io.open(os.path.join(d, 'input', 'occurrence.bin'), 'r', encoding='utf-8') as new_occurrence_file:
                 self.assertEqual('occurrence bin', new_occurrence_file.read())
 
     def test_occurrence_bin_doesnt_not_exist_event_set_is_specified___event_occurrence_id_specific_bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
 
-            with open(os.path.join(d, 'static', 'occurrence_occurrence_id.bin'), 'w') as occurrence_file:
+            with io.open(os.path.join(d, 'static', 'occurrence_occurrence_id.bin'), 'w', encoding='utf-8') as occurrence_file:
                 occurrence_file.write('occurrence occurrence id bin')
                 occurrence_file.flush()
 
                 prepare_model_run_inputs({'model_settings': {'event_occurrence_id': 'occurrence id'}}, d)
 
-            with open(os.path.join(d, 'input', 'occurrence.bin'), 'r') as new_occurrence_file:
+            with io.open(os.path.join(d, 'input', 'occurrence.bin'), 'r', encoding='utf-8') as new_occurrence_file:
                 self.assertEqual('occurrence occurrence id bin', new_occurrence_file.read())
 
     def test_no_occurrence_bin_exists___oasis_exception_is_raised(self):
@@ -528,26 +531,26 @@ class PrepareModelRunInputs(TestCase):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
 
-            with open(os.path.join(d, 'input', 'periods.bin'), 'w') as periods_file:
+            with io.open(os.path.join(d, 'input', 'periods.bin'), 'w', encoding='utf-8') as periods_file:
                 periods_file.write('periods bin')
                 periods_file.flush()
 
                 prepare_model_run_inputs({}, d)
 
-            with open(os.path.join(d, 'input', 'periods.bin'), 'r') as new_periods_file:
+            with io.open(os.path.join(d, 'input', 'periods.bin'), 'r', encoding='utf-8') as new_periods_file:
                 self.assertEqual('periods bin', new_periods_file.read())
 
     def test_periods_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
 
-            with open(os.path.join(d, 'static', 'periods.bin'), 'w') as periods_file:
+            with io.open(os.path.join(d, 'static', 'periods.bin'), 'w', encoding='utf-8') as periods_file:
                 periods_file.write('periods bin')
                 periods_file.flush()
 
                 prepare_model_run_inputs({}, d)
 
-            with open(os.path.join(d, 'input', 'periods.bin'), 'r') as new_periods_file:
+            with io.open(os.path.join(d, 'input', 'periods.bin'), 'r', encoding='utf-8') as new_periods_file:
                 self.assertEqual('periods bin', new_periods_file.read())
 
     def test_no_periods_bin_exists___oasis_exception_is_raised(self):
@@ -579,7 +582,7 @@ class CheckBinTarFile(TestCase):
         with TemporaryDirectory() as d:
             tar_file_name = os.path.join(d, 'exposures.tar')
 
-            with tarfile.open(tar_file_name, 'w') as tar:
+            with tarfile.open(tar_file_name, 'w', encoding='utf-8') as tar:
                 for f in six.itervalues(GUL_INPUT_FILES):
                     Path(os.path.join(d, '{}.bin'.format(f['name']))).touch()
 
@@ -591,7 +594,7 @@ class CheckBinTarFile(TestCase):
         with TemporaryDirectory() as d:
             tar_file_name = os.path.join(d, 'exposures.tar')
 
-            with tarfile.open(tar_file_name, 'w') as tar:
+            with tarfile.open(tar_file_name, 'w', encoding='utf-8') as tar:
                 for f in six.itervalues(INPUT_FILES):
                     Path(os.path.join(d, '{}.bin'.format(f['name']))).touch()
 
@@ -606,7 +609,7 @@ class CheckBinTarFile(TestCase):
         with TemporaryDirectory() as d:
             tar_file_name = os.path.join(d, 'exposures.tar')
 
-            with tarfile.open(tar_file_name, 'w') as tar:
+            with tarfile.open(tar_file_name, 'w', encoding='utf-8') as tar:
                 for f in six.itervalues(INPUT_FILES):
                     if f['name'] in missing:
                         continue

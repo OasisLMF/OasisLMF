@@ -1,3 +1,5 @@
+from __future__ import unicode_literals
+
 import csv
 import json
 import string
@@ -6,6 +8,7 @@ from backports.tempfile import TemporaryDirectory
 from unittest import TestCase
 
 import os
+import io
 from hypothesis import given
 from hypothesis.strategies import text, dictionaries, lists, tuples, integers, just
 from mock import patch, Mock
@@ -324,11 +327,11 @@ class FileGenerationTestCast(TestCase):
             } for item_id, item in enumerate(keys_data)
         ]
 
-        with open(os.path.join(out_dir, self.items_filename), 'r') as f:
+        with io.open(os.path.join(out_dir, self.items_filename), 'r', encoding='utf-8') as f:
             result = list(csv.DictReader(f))
             self.assertEqual(expected, result)
 
-        with open(os.path.join(out_dir, self.timestamped_items_filename), 'r') as f:
+        with io.open(os.path.join(out_dir, self.timestamped_items_filename), 'r', encoding='utf-8') as f:
             result = list(csv.DictReader(f))
             self.assertEqual(expected, result)
 
@@ -340,11 +343,11 @@ class FileGenerationTestCast(TestCase):
             } for item_id, item in enumerate(exposure_data)
         ]
 
-        with open(os.path.join(out_dir, self.coverages_filename), 'r') as f:
+        with io.open(os.path.join(out_dir, self.coverages_filename), 'r', encoding='utf-8') as f:
             result = list(csv.DictReader(f))
             self.assertEqual(expected, result)
 
-        with open(os.path.join(out_dir, self.timestamped_coverages_filename), 'r') as f:
+        with io.open(os.path.join(out_dir, self.timestamped_coverages_filename), 'r', encoding='utf-8') as f:
             result = list(csv.DictReader(f))
             self.assertEqual(expected, result)
 
@@ -357,11 +360,11 @@ class FileGenerationTestCast(TestCase):
             } for item_id in range(len(exposure_data))
         ]
 
-        with open(os.path.join(out_dir, self.gul_filename), 'r') as f:
+        with io.open(os.path.join(out_dir, self.gul_filename), 'r', encoding='utf-8') as f:
             result = list(csv.DictReader(f))
             self.assertEqual(expected, result)
 
-        with open(os.path.join(out_dir, self.timestamped_gul_filename), 'r') as f:
+        with io.open(os.path.join(out_dir, self.timestamped_gul_filename), 'r', encoding='utf-8') as f:
             result = list(csv.DictReader(f))
             self.assertEqual(expected, result)
 
