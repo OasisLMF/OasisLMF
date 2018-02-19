@@ -1,29 +1,27 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import logging
-
-import os
-import io
-
-import shutil
-import json
-
-import six
 
 __all__ = [
     'OasisExposuresManagerInterface',
     'OasisExposuresManager'
 ]
 
-from interface import Interface, implements
+__author__ = "Sandeep Murthy"
+__copyright__ = "2017-2020, Oasis Loss Modelling Framework"
+
+import io
+import json
+import logging
+import os
+import shutil
+
 import pandas as pd
+import six
+
+from interface import Interface, implements
 
 from ..keys.lookup import OasisKeysLookupFactory
 from ..utils.exceptions import OasisException
 from ..utils.values import get_utctimestamp
-
-__author__ = "Sandeep Murthy"
-__copyright__ = "2017, Oasis Loss Modelling Framework"
 
 
 class OasisExposuresManagerInterface(Interface):  # pragma: no cover
@@ -250,7 +248,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         Deletes an existing Oasis model object in the manager.
         """
         if oasis_model.key in self._models:
-            oasis_model.resources['oasis_files_pipeline'].clear()
+            oasis_model.resources.get('oasis_files_pipeline').clear()
 
             del self._models[oasis_model.key]
 
@@ -376,6 +374,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         #
         # return oasis_model
 
+
     def transform_canonical_to_model(self, oasis_model, with_model_resources=True, **kwargs):
         """
         Transforms the canonical exposures/locations file for a given
@@ -463,10 +462,8 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         model object's resources dict, and returns the object.
         """
         if oasis_model:
-            canonical_exposures_profile_json = canonical_exposures_profile_json or oasis_model.resources.get(
-                'canonical_exposures_profile_json')
-            canonical_exposures_profile_json_path = canonical_exposures_profile_json_path or oasis_model.resources.get(
-                'canonical_exposures_profile_json_path')
+            canonical_exposures_profile_json = canonical_exposures_profile_json or oasis_model.resources.get('canonical_exposures_profile_json')
+            canonical_exposures_profile_json_path = canonical_exposures_profile_json_path or oasis_model.resources.get('canonical_exposures_profile_json_path')
 
         profile = {}
         if canonical_exposures_profile_json:
@@ -476,7 +473,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 profile = json.load(f)
 
         if oasis_model:
-            oasis_model.resources['canonical_exposures_profile'] = profile
+            oasis_model.resources.get('canonical_exposures_profile') = profile
 
         return profile
 
@@ -567,15 +564,15 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
     @classmethod
     def load_master_data_frame(cls, canonical_exposures_file_path, keys_file_path, canonical_exposures_profile, **kwargs):
         with io.open(canonical_exposures_file_path, 'r', encoding='utf-8') as cf:
-            canexp_df = pd.read_csv(cf)
+            canexp_df = pd.read_csv(cf, float_precision='high')
             canexp_df = canexp_df.where(canexp_df.notnull(), None)
-            canexp_df.columns = map(str.lower, canexp_df.columns)
+            canexp_df.columns = canexp_df.columns.str.lower()
 
         with io.open(keys_file_path, 'r', encoding='utf-8') as kf:
-            keys_df = pd.read_csv(kf)
+            keys_df = pd.read_csv(kf, float_precision='high')
             keys_df = keys_df.rename(columns={'CoverageID': 'CoverageType'})
             keys_df = keys_df.where(keys_df.notnull(), None)
-            keys_df.columns = map(str.lower, keys_df.columns)
+            keys_df.columns = keys_df.columns.str.lower()
 
         tiv_fields = sorted(
             filter(lambda v: v.get('FieldName') == 'TIV', six.itervalues(canonical_exposures_profile))
@@ -747,7 +744,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             ``oasis_model`` (``omdk.models.OasisModel.OasisModel``): The model object with its
             Oasis files pipeline cleared.
         """
-        oasis_model.resources['oasis_files_pipeline'].clear()
+        oasis_model.resources.get('oasis_files_pipeline').clear()
 
         return oasis_model
 

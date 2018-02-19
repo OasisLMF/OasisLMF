@@ -2,10 +2,10 @@
 
 import io
 import json
-
 import os
-
 import shutil
+import subprocess
+
 from argparse import RawDescriptionHelpFormatter
 
 from oasislmf.model_execution.bash import genbash
