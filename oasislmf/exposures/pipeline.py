@@ -1,13 +1,8 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 __all__ = [
     'OasisFilesPipeline'
 ]
-
-__author__ = "Sandeep Murthy"
-__copyright__ = "2017, Oasis Loss Modelling Framework"
-
 
 class OasisFilesPipeline(object):
     def __init__(
@@ -34,15 +29,15 @@ class OasisFilesPipeline(object):
             'gulsummaryxref': self._gulsummaryxref_path
         }
 
-        self._file_attrib_names = [
+        self._file_attrib_names = (
             'source_exposures_file',
             'canonical_exposures_file',
             'model_exposures_file',
             'keys_file',
             'items_file',
             'coverages_file',
-            'gulsummaryxref_file'
-        ]
+            'gulsummaryxref_file',
+        )
 
     def __str__(self):
         return '{}: {}'.format(self.__repr__(), self.model_key)

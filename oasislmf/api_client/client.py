@@ -338,7 +338,7 @@ class OasisAPIClient(object):
                 resp = requests.get('{}/healthcheck'.format(self._oasis_api_url))
                 if resp.status_code == 200:
                     return True
-            except RequestException as e:
+            except RequestException:
                 pass
         else:
             self._logger.error(

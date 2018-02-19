@@ -1,22 +1,18 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
-from oasislmf.exposures.manager import OasisExposuresManager
-
 __all__ = [
     'OasisModel',
     'OasisModelFactory'
 ]
 
-import os
 import io
+import os
+
+from oasislmf.exposures.manager import OasisExposuresManager
 
 from ..utils.exceptions import OasisException
 from ..exposures.pipeline import OasisFilesPipeline
-
-
-__author__ = "Sandeep Murthy"
-__copyright__ = "2017, Oasis Loss Modelling Framework"
 
 
 class OasisModel(object):

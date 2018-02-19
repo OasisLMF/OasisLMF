@@ -1,29 +1,24 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import logging
-
-import os
-import io
-
-import shutil
-import json
-
-import six
 
 __all__ = [
     'OasisExposuresManagerInterface',
     'OasisExposuresManager'
 ]
 
-from interface import Interface, implements
+import io
+import json
+import logging
+import os
+import shutil
+
 import pandas as pd
+import six
+
+from interface import Interface, implements
 
 from ..keys.lookup import OasisKeysLookupFactory
 from ..utils.exceptions import OasisException
 from ..utils.values import get_utctimestamp
-
-__author__ = "Sandeep Murthy"
-__copyright__ = "2017, Oasis Loss Modelling Framework"
 
 
 class OasisExposuresManagerInterface(Interface):  # pragma: no cover
@@ -53,69 +48,11 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         pass
 
-    @classmethod
-    def start_files_pipeline(cls, oasis_model=None, oasis_files_path=None, source_exposures_path=None):
-        """
-        Starts the exposure transforms pipeline for the given ``oasis_model``,
-        i.e. the generation of the canonical exposures files, keys file
-        and finally the Oasis files.
-
-        All the required resources must be provided either in the model object
-        resources dict or the ``kwargs`` dict.
-
-        It is up to the specific implementation of a manager of whether to
-        use the model object resources dict or additional optional arguments
-        in ``kwargs`` for this process.
-
-        In a standard implementation of the manager the call to
-        `start_files_pipeline` should trigger calls to the individual methods for
-        performing file transformations in a normal sequence, e.g.
-
-            `transform_source_to_canonical`
-            `transform_canonical_to_model`
-            `transform_model_to_keys`
-            `load_canonical_profile`
-            `generate_oasis_files`
-
-        and the generated files should be stored as attributes in the given
-        model object's transforms files pipeline.
-        """
-        pass
-
-    def clear_files_pipeline(self, oasis_model, **kwargs):
-        """
-        Clears the exposure transforms files pipeline for the given
-        ``oasis_model`` optionally using additional arguments in the ``kwargs``
-        dict.
-
-        All the required resources must be provided either in the model object
-        resources dict or the ``kwargs`` dict.
-
-        In the design of the exposure transform framework a model's files
-        pipeline is an object value in its resources dict with the key
-        ``transforms_files_pipeline`` and is thereby accessible with
-
-            `oasis_model.resources['transforms_files_pipeline']`
-
-        This returns an object of type
-
-            `exposure_transforms.OasisExposureTransformsFilesPipeline`
-
-        which stores the different files in the transformation stages for the
-        model as property attributes, e.g.
-
-            `oasis_model.resources['transforms_files_pipeline'].source_exposures_file`
-
-        A standard implementation could either assign a new object of this
-        type in the call to ``clear_files_pipeline``, or set some subset of the
-        file attributes of this pipelines object to null.
-        """
-        pass
 
     def transform_source_to_canonical(self, oasis_model, **kwargs):
         """
-        Transforms the source exposures/locations file for a given
-        ``oasis_model`` object to a canonical/standard Oasis format.
+        Transforms the source exposures/locations for a given ``oasis_model``
+        object to a canonical/standard Oasis format.
 
         All the required resources must be provided either in the model object
         resources dict or the ``kwargs`` dict.
@@ -131,8 +68,8 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
 
     def transform_canonical_to_model(self, oasis_model, **kwargs):
         """
-        Transforms the canonical exposures/locations file for a given
-        ``oasis_model`` object to a format understood by Oasis keys lookup
+        Transforms the canonical exposures/locations for a given ``oasis_model``
+        object to a format understood by Oasis keys lookup
         services.
 
         All the required resources must be provided either in the model object
@@ -376,6 +313,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         #
         # return oasis_model
 
+
     def transform_canonical_to_model(self, oasis_model, with_model_resources=True, **kwargs):
         """
         Transforms the canonical exposures/locations file for a given
@@ -463,10 +401,8 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         model object's resources dict, and returns the object.
         """
         if oasis_model:
-            canonical_exposures_profile_json = canonical_exposures_profile_json or oasis_model.resources.get(
-                'canonical_exposures_profile_json')
-            canonical_exposures_profile_json_path = canonical_exposures_profile_json_path or oasis_model.resources.get(
-                'canonical_exposures_profile_json_path')
+            canonical_exposures_profile_json = canonical_exposures_profile_json or oasis_model.resources.get('canonical_exposures_profile_json')
+            canonical_exposures_profile_json_path = canonical_exposures_profile_json_path or oasis_model.resources.get('canonical_exposures_profile_json_path')
 
         profile = {}
         if canonical_exposures_profile_json:
@@ -567,15 +503,15 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
     @classmethod
     def load_master_data_frame(cls, canonical_exposures_file_path, keys_file_path, canonical_exposures_profile, **kwargs):
         with io.open(canonical_exposures_file_path, 'r', encoding='utf-8') as cf:
-            canexp_df = pd.read_csv(cf)
+            canexp_df = pd.read_csv(cf, float_precision='high')
             canexp_df = canexp_df.where(canexp_df.notnull(), None)
-            canexp_df.columns = map(str.lower, canexp_df.columns)
+            canexp_df.columns = canexp_df.columns.str.lower()
 
         with io.open(keys_file_path, 'r', encoding='utf-8') as kf:
-            keys_df = pd.read_csv(kf)
+            keys_df = pd.read_csv(kf, float_precision='high')
             keys_df = keys_df.rename(columns={'CoverageID': 'CoverageType'})
             keys_df = keys_df.where(keys_df.notnull(), None)
-            keys_df.columns = map(str.lower, keys_df.columns)
+            keys_df.columns = keys_df.columns.str.lower()
 
         tiv_fields = sorted(
             filter(lambda v: v.get('FieldName') == 'TIV', six.itervalues(canonical_exposures_profile))
@@ -747,7 +683,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             ``oasis_model`` (``omdk.models.OasisModel.OasisModel``): The model object with its
             Oasis files pipeline cleared.
         """
-        oasis_model.resources['oasis_files_pipeline'].clear()
+        oasis_model.resources.get('oasis_files_pipeline').clear()
 
         return oasis_model
 

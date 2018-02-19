@@ -2,32 +2,28 @@
 
 from __future__ import unicode_literals, absolute_import
 
-import re
-from collections import OrderedDict
-
-from six import StringIO
-
 __all__ = [
     'OasisKeysLookupFactory',
     'OasisBaseKeysLookup',
 ]
 
 import csv
+import importlib
 import io
 import json
-import importlib
 import os
-import pandas as pd
+import re
 import sys
+
+from collections import OrderedDict
+
+import pandas as pd
+
+from six import StringIO
 
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.status import KEYS_STATUS_NOMATCH, KEYS_STATUS_SUCCESS
-
-
-__author__ = "Sandeep Murthy"
-__copyright__ = "2017, Oasis Loss Modelling Framework"
-
 
 UNKNOWN_ID = -1
 
@@ -166,14 +162,14 @@ class OasisKeysLookupFactory(object):
         such a file.
         """
         if model_exposures_file_path:
-            loc_df = pd.read_csv(os.path.abspath(model_exposures_file_path))
+            loc_df = pd.read_csv(os.path.abspath(model_exposures_file_path), float_precision='high')
         elif model_exposures:
-            loc_df = pd.read_csv(StringIO(model_exposures))
+            loc_df = pd.read_csv(StringIO(model_exposures), float_precision='high')
         else:
             raise OasisException('Either model_exposures_file_path or model_exposures must be specified')
 
         loc_df = loc_df.where(loc_df.notnull(), None)
-        loc_df.columns = map(str.lower, loc_df.columns)
+        loc_df.columns = loc_df.columns.str.lower()
 
         return loc_df
 
