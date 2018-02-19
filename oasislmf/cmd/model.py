@@ -4,7 +4,6 @@ import io
 import json
 import os
 import shutil
-import subprocess
 
 from argparse import RawDescriptionHelpFormatter
 

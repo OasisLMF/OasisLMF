@@ -187,7 +187,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         Deletes an existing Oasis model object in the manager.
         """
         if oasis_model.key in self._models:
-            oasis_model.resources.get('oasis_files_pipeline').clear()
+            oasis_model.resources['oasis_files_pipeline'].clear()
 
             del self._models[oasis_model.key]
 
@@ -412,7 +412,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 profile = json.load(f)
 
         if oasis_model:
-            oasis_model.resources.get('canonical_exposures_profile') = profile
+            oasis_model.resources['canonical_exposures_profile'] = profile
 
         return profile
 
