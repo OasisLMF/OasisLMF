@@ -4,10 +4,6 @@ __all__ = [
     'OasisFilesPipeline'
 ]
 
-__author__ = "Sandeep Murthy"
-__copyright__ = "2017-2020, Oasis Loss Modelling Framework"
-
-
 class OasisFilesPipeline(object):
     def __init__(
         self,

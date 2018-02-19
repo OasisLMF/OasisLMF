@@ -5,9 +5,6 @@ __all__ = [
     'OasisExposuresManager'
 ]
 
-__author__ = "Sandeep Murthy"
-__copyright__ = "2017-2020, Oasis Loss Modelling Framework"
-
 import io
 import json
 import logging
