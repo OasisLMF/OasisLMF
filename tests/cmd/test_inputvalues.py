@@ -92,7 +92,9 @@ class InputValuesGet(TestCase):
             json.dump({'foo': './some/path'}, conf_file)
             conf_file.flush()
 
-            expected_result = os.path.join(os.path.dirname(conf_file.name), 'some', 'path')
+            expected_result = os.path.abspath(
+                os.path.join(os.path.dirname(conf_file.name), 'some', 'path')
+            )
 
             args = Namespace(config=conf_file.name)
 

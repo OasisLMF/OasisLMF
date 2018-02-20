@@ -73,7 +73,7 @@ class InputValues(object):
             value = default
 
         if is_path and value is not None:
-            value = os.path.realpath(os.path.join(self.config_dir, value))
+            value = os.path.abspath(os.path.join(self.config_dir, value))
 
         return value
 
