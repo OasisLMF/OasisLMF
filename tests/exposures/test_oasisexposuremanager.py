@@ -76,7 +76,7 @@ class OasisExposureManagerDeleteModels(TestCase):
 
 class OasisExposureManagerLoadCanonicalProfile(TestCase):
     def test_model_and_kwargs_are_not_set___result_is_empty_dict(self):
-        profile = OasisExposuresManager.load_canonical_profile()
+        profile = OasisExposuresManager().load_canonical_profile()
 
         self.assertEqual({}, profile)
 
@@ -84,7 +84,7 @@ class OasisExposureManagerLoadCanonicalProfile(TestCase):
     def test_model_is_set_with_profile_json___models_profile_is_set_to_expected_json(self, expected):
         model = fake_model(resources={'canonical_exposures_profile_json': json.dumps(expected)})
 
-        profile = OasisExposuresManager.load_canonical_profile(oasis_model=model)
+        profile = OasisExposuresManager().load_canonical_profile(oasis_model=model)
 
         self.assertEqual(expected, profile)
         self.assertEqual(expected, model.resources['canonical_exposures_profile'])
@@ -93,7 +93,7 @@ class OasisExposureManagerLoadCanonicalProfile(TestCase):
     def test_model_is_set_with_profile_json_and_profile_json_is_passed_through_kwargs___kwargs_profile_is_used(self, model_profile, kwargs_profile):
         model = fake_model(resources={'canonical_exposures_profile_json': json.dumps(model_profile)})
 
-        profile = OasisExposuresManager.load_canonical_profile(oasis_model=model, canonical_exposures_profile_json=json.dumps(kwargs_profile))
+        profile = OasisExposuresManager().load_canonical_profile(oasis_model=model, canonical_exposures_profile_json=json.dumps(kwargs_profile))
 
         self.assertEqual(kwargs_profile, profile)
         self.assertEqual(kwargs_profile, model.resources['canonical_exposures_profile'])
@@ -106,7 +106,7 @@ class OasisExposureManagerLoadCanonicalProfile(TestCase):
 
             model = fake_model(resources={'canonical_exposures_profile_json_path': f.name})
 
-            profile = OasisExposuresManager.load_canonical_profile(oasis_model=model)
+            profile = OasisExposuresManager().load_canonical_profile(oasis_model=model)
 
             self.assertEqual(expected, profile)
             self.assertEqual(expected, model.resources['canonical_exposures_profile'])
@@ -121,7 +121,7 @@ class OasisExposureManagerLoadCanonicalProfile(TestCase):
 
             model = fake_model(resources={'canonical_exposures_profile_json_path': model_file.name})
 
-            profile = OasisExposuresManager.load_canonical_profile(oasis_model=model, canonical_exposures_profile_json_path=kwargs_file.name)
+            profile = OasisExposuresManager().load_canonical_profile(oasis_model=model, canonical_exposures_profile_json_path=kwargs_file.name)
 
             self.assertEqual(kwargs_profile, profile)
             self.assertEqual(kwargs_profile, model.resources['canonical_exposures_profile'])
@@ -139,7 +139,7 @@ class OasisExposureManagerGetKeys(TestCase):
         model = self.create_model(lookup=lookup, keys_file_path=keys, exposures_file_path=exposure)
 
         with patch('oasislmf.exposures.manager.OasisKeysLookupFactory.save_keys', Mock(return_value=(keys, 1))) as oklf_mock:
-            res = OasisExposuresManager.get_keys(oasis_model=model)
+            res = OasisExposuresManager().get_keys(oasis_model=model)
 
             oklf_mock.assert_called_once_with(
                 lookup=lookup,
@@ -157,7 +157,7 @@ class OasisExposureManagerGetKeys(TestCase):
         model = self.create_model(lookup=model_lookup, keys_file_path=model_keys, exposures_file_path=model_exposure)
 
         with patch('oasislmf.exposures.manager.OasisKeysLookupFactory.save_keys', Mock(return_value=(keys, 1))) as oklf_mock:
-            res = OasisExposuresManager.get_keys(
+            res = OasisExposuresManager().get_keys(
                 oasis_model=model,
                 lookup=lookup,
                 model_exposures_file_path=exposure,
@@ -218,7 +218,7 @@ class OasisExposureManagerLoadMasterDataframe(TestCase):
             write_input_files(keys_data, keys_file, exposure_data, exposures_file, profile_element_name)
 
             with self.assertRaises(OasisException):
-                OasisExposuresManager.load_master_data_frame(exposures_file.name, keys_file.name, profile)
+                OasisExposuresManager().load_master_data_frame(exposures_file.name, keys_file.name, profile)
 
     @given(text(alphabet=string.ascii_letters, min_size=1), oasis_keys_data(10), canonical_exposure_data(10, min_value=1))
     def test_row_in_keys_data_is_in_exposure_data_twice___oasis_exception_is_raised(self, profile_element_name, keys_data, exposure_data):
@@ -231,7 +231,7 @@ class OasisExposureManagerLoadMasterDataframe(TestCase):
             write_input_files(keys_data, keys_file, exposure_data, exposures_file, profile_element_name)
 
             with self.assertRaises(OasisException):
-                OasisExposuresManager.load_master_data_frame(exposures_file.name, keys_file.name, profile)
+                OasisExposuresManager().load_master_data_frame(exposures_file.name, keys_file.name, profile)
 
     @given(text(alphabet=string.ascii_letters, min_size=1), oasis_keys_data(10), canonical_exposure_data(10, min_value=1))
     def test_each_row_has_a_single_row_per_element_with_each_row_having_a_positive_value_for_the_profile_element___each_row_is_present(self, profile_element_name, keys_data, exposure_data):
@@ -250,7 +250,7 @@ class OasisExposureManagerLoadMasterDataframe(TestCase):
         with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file:
             write_input_files(keys_data, keys_file, exposure_data, exposures_file, profile_element_name)
 
-            result = OasisExposuresManager.load_master_data_frame(
+            result = OasisExposuresManager().load_master_data_frame(
                 exposures_file.name,
                 keys_file.name,
                 profile,
@@ -288,7 +288,7 @@ class OasisExposureManagerLoadMasterDataframe(TestCase):
         with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file:
             write_input_files(keys_data, keys_file, exposure_data, exposures_file, profile_element_name)
 
-            result = OasisExposuresManager.load_master_data_frame(
+            result = OasisExposuresManager().load_master_data_frame(
                 exposures_file.name,
                 keys_file.name,
                 profile,
@@ -387,7 +387,7 @@ class OasisExposuresManagerGenerateItemFiles(FileGenerationTestCast):
             model.files_pipeline.keys_file_path = keys_file.name
             model.files_pipeline.canonical_exposures_path = exposures_file.name
 
-            OasisExposuresManager.generate_items_file(oasis_model=model)
+            OasisExposuresManager().generate_items_file(oasis_model=model)
 
             self.check_items_files(keys_data, out_dir)
 
@@ -402,7 +402,7 @@ class OasisExposuresManagerGenerateItemFiles(FileGenerationTestCast):
 
             model = fake_model()
 
-            OasisExposuresManager.generate_items_file(
+            OasisExposuresManager().generate_items_file(
                 oasis_model=model,
                 canonical_exposures_profile=profile,
                 keys_file_path=keys_file.name,
@@ -432,7 +432,7 @@ class OasisExposuresManagerGenerateCoveragesFiles(FileGenerationTestCast):
             model.files_pipeline.keys_file_path = keys_file.name
             model.files_pipeline.canonical_exposures_path = exposures_file.name
 
-            OasisExposuresManager.generate_coverages_file(oasis_model=model)
+            OasisExposuresManager().generate_coverages_file(oasis_model=model)
 
             self.check_coverages_files(exposure_data, out_dir)
 
@@ -447,7 +447,7 @@ class OasisExposuresManagerGenerateCoveragesFiles(FileGenerationTestCast):
 
             model = fake_model()
 
-            OasisExposuresManager.generate_coverages_file(
+            OasisExposuresManager().generate_coverages_file(
                 oasis_model=model,
                 canonical_exposures_profile=profile,
                 keys_file_path=keys_file.name,
@@ -477,7 +477,7 @@ class OasisExposuresManagerGenerateGulsummaryxrefFile(FileGenerationTestCast):
             model.files_pipeline.keys_file_path = keys_file.name
             model.files_pipeline.canonical_exposures_path = exposures_file.name
 
-            OasisExposuresManager.generate_gulsummaryxref_file(oasis_model=model)
+            OasisExposuresManager().generate_gulsummaryxref_file(oasis_model=model)
 
             self.check_gul_files(exposure_data, out_dir)
 
@@ -498,7 +498,7 @@ class OasisExposuresManagerGenerateGulsummaryxrefFile(FileGenerationTestCast):
             model.files_pipeline.keys_file_path = keys_file.name
             model.files_pipeline.canonical_exposures_path = exposures_file.name
 
-            OasisExposuresManager.generate_gulsummaryxref_file(
+            OasisExposuresManager().generate_gulsummaryxref_file(
                 oasis_model=model,
                 canonical_exposures_profile=profile,
                 keys_file_path=keys_file.name,
@@ -532,7 +532,7 @@ class OasisExposuresManagerGenerateOasisFiles(FileGenerationTestCast):
             model.files_pipeline.keys_file_path = keys_file.name
             model.files_pipeline.canonical_exposures_path = exposures_file.name
 
-            OasisExposuresManager.generate_oasis_files(oasis_model=model)
+            OasisExposuresManager().generate_oasis_files(oasis_model=model)
 
             self.check_items_files(keys_data, out_dir)
             self.check_coverages_files(exposure_data, out_dir)
@@ -549,7 +549,7 @@ class OasisExposuresManagerGenerateOasisFiles(FileGenerationTestCast):
 
             model = fake_model()
 
-            OasisExposuresManager.generate_oasis_files(
+            OasisExposuresManager().generate_oasis_files(
                 oasis_model=model,
                 canonical_exposures_profile=profile,
                 keys_file_path=keys_file.name,

@@ -4,6 +4,7 @@ __all__ = [
     'OasisFilesPipeline'
 ]
 
+
 class OasisFilesPipeline(object):
     def __init__(
         self,

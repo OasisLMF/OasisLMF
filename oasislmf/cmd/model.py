@@ -350,7 +350,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             os.mkdir(oasis_files_path)
 
         self.logger.info('Generating Oasis files for model')
-        oasis_files = OasisExposuresManager.start_files_pipeline(
+        oasis_files = OasisExposuresManager().start_files_pipeline(
             oasis_model=model,
             oasis_files_path=oasis_files_path,
             source_exposures_path=source_exposures_file_path,

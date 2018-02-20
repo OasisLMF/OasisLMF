@@ -72,7 +72,7 @@ class OasisModel(object):
         exposures profile for a given ``oasis_model``, stores this in the
         model object's resources dict, and returns the object.
         """
-        return OasisExposuresManager.load_canonical_profile(
+        return OasisExposuresManager().load_canonical_profile(
             oasis_model=self,
             canonical_exposures_profile_json=canonical_exposures_profile_json,
             canonical_exposures_profile_json_path=canonical_exposures_profile_json_path,

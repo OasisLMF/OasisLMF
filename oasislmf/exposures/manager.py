@@ -48,7 +48,6 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         pass
 
-
     def transform_source_to_canonical(self, oasis_model, **kwargs):
         """
         Transforms the source exposures/locations for a given ``oasis_model``
@@ -81,8 +80,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         pass
 
-    @classmethod
-    def get_keys(cls, oasis_model=None, **kwargs):
+    def get_keys(self, oasis_model=None, **kwargs):
         """
         Generates the Oasis keys CSV file for a given model object, with
         headers
@@ -104,8 +102,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         pass
 
-    @classmethod
-    def load_canonical_profile(cls, oasis_model=None, **kwargs):
+    def load_canonical_profile(self, oasis_model=None, **kwargs):
         """
         Loads a JSON string or JSON file representation of the canonical
         exposures profile for a given ``oasis_model``, stores this in the
@@ -113,29 +110,25 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         pass
 
-    @classmethod
-    def generate_items_file(cls, oasis_model=None, **kwargs):
+    def generate_items_file(self, oasis_model=None, **kwargs):
         """
         Generates an items file for the given ``oasis_model``.
         """
         pass
 
-    @classmethod
-    def generate_coverages_file(cls, oasis_model=None, **kwargs):
+    def generate_coverages_file(self, oasis_model=None, **kwargs):
         """
         Generates a coverages file for the given ``oasis_model``.
         """
         pass
 
-    @classmethod
-    def generate_gulsummaryxref_file(cls, oasis_model=None, **kwargs):
+    def generate_gulsummaryxref_file(self, oasis_model=None, **kwargs):
         """
         Generates a gulsummaryxref file for the given ``oasis_model``.
         """
         pass
 
-    @classmethod
-    def generate_oasis_files(cls, oasis_model=None, **kwargs):
+    def generate_oasis_files(self, oasis_model=None, **kwargs):
         """
         For a given ``oasis_model`` generates the standard Oasis files, namely
 
@@ -313,7 +306,6 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         #
         # return oasis_model
 
-
     def transform_canonical_to_model(self, oasis_model, with_model_resources=True, **kwargs):
         """
         Transforms the canonical exposures/locations file for a given
@@ -388,9 +380,8 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         #
         # return oasis_model
 
-    @classmethod
     def load_canonical_profile(
-            cls,
+            self,
             oasis_model=None,
             canonical_exposures_profile_json=None,
             canonical_exposures_profile_json_path=None,
@@ -416,8 +407,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         return profile
 
-    @classmethod
-    def get_keys(cls, oasis_model=None, model_exposures_file_path=None, lookup=None, keys_file_path=None, **kwargs):
+    def get_keys(self, oasis_model=None, model_exposures_file_path=None, lookup=None, keys_file_path=None, **kwargs):
         """
         Generates the Oasis keys CSV file for a given model object, with
         headers
@@ -470,8 +460,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         return oasis_keys_path
 
-    @classmethod
-    def _process_default_kwargs(cls, oasis_model=None, **kwargs):
+    def _process_default_kwargs(self, oasis_model=None, **kwargs):
         if oasis_model:
             kwargs.setdefault('canonical_exposures_file_path', oasis_model.files_pipeline.canonical_exposures_path)
             kwargs.setdefault('keys_file_path', oasis_model.files_pipeline.keys_file_path)
@@ -492,7 +481,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             kwargs.setdefault('canonical_to_model_exposures_transformation_file_path', oasis_model.resources.get('canonical_to_model_exposures_transformation_file_path'))
 
         if not kwargs.get('canonical_exposures_profile'):
-            kwargs['canonical_exposures_profile'] = cls.load_canonical_profile(
+            kwargs['canonical_exposures_profile'] = self.load_canonical_profile(
                 oasis_model=oasis_model,
                 canonical_exposures_profile_json=kwargs.get('canonical_exposures_profile_json'),
                 canonical_exposures_profile_json_path=kwargs.get('canonical_exposures_profile_json_path'),
@@ -500,8 +489,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         return kwargs
 
-    @classmethod
-    def load_master_data_frame(cls, canonical_exposures_file_path, keys_file_path, canonical_exposures_profile, **kwargs):
+    def load_master_data_frame(self, canonical_exposures_file_path, keys_file_path, canonical_exposures_profile, **kwargs):
         with io.open(canonical_exposures_file_path, 'r', encoding='utf-8') as cf:
             canexp_df = pd.read_csv(cf, float_precision='high')
             canexp_df = canexp_df.where(canexp_df.notnull(), None)
@@ -563,8 +551,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         return result
 
-    @classmethod
-    def _write_csvs(cls, data_frame, file_path, timestamped_file_path, columns):
+    def _write_csvs(self, data_frame, file_path, timestamped_file_path, columns):
         data_frame.to_csv(
             columns=columns,
             path_or_buf=file_path,
@@ -581,17 +568,16 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             index=False
         )
 
-    @classmethod
-    def generate_items_file(cls, oasis_model=None, data_frame=None, **kwargs):
+    def generate_items_file(self, oasis_model=None, data_frame=None, **kwargs):
         """
         Generates an items file for the given ``oasis_model``.
         """
-        kwargs = cls._process_default_kwargs(oasis_model=oasis_model, **kwargs)
+        kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
 
         if data_frame is None:
-            data_frame = cls.load_master_data_frame(**kwargs)
+            data_frame = self.load_master_data_frame(**kwargs)
 
-        cls._write_csvs(
+        self._write_csvs(
             data_frame,
             kwargs['items_file_path'],
             kwargs['items_timestamped_file_path'],
@@ -603,17 +589,16 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         return kwargs['items_file_path']
 
-    @classmethod
-    def generate_coverages_file(cls, oasis_model=None, data_frame=None, **kwargs):
+    def generate_coverages_file(self, oasis_model=None, data_frame=None, **kwargs):
         """
         Generates a coverages file for the given ``oasis_model``.
         """
-        kwargs = cls._process_default_kwargs(oasis_model=oasis_model, **kwargs)
+        kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
 
         if data_frame is None:
-            data_frame = cls.load_master_data_frame(**kwargs)
+            data_frame = self.load_master_data_frame(**kwargs)
 
-        cls._write_csvs(
+        self._write_csvs(
             data_frame,
             kwargs['coverages_file_path'],
             kwargs['coverages_timestamped_file_path'],
@@ -625,17 +610,16 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         return kwargs.get('coverages_file_path')
 
-    @classmethod
-    def generate_gulsummaryxref_file(cls, oasis_model=None, data_frame=None, **kwargs):
+    def generate_gulsummaryxref_file(self, oasis_model=None, data_frame=None, **kwargs):
         """
         Generates a gulsummaryxref file for the given ``oasis_model``.
         """
-        kwargs = cls._process_default_kwargs(oasis_model=oasis_model, **kwargs)
+        kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
 
         if data_frame is None:
-            data_frame = cls.load_master_data_frame(**kwargs)
+            data_frame = self.load_master_data_frame(**kwargs)
 
-        cls._write_csvs(
+        self._write_csvs(
             data_frame,
             kwargs['gulsummaryxref_file_path'],
             kwargs['gulsummaryxref_timestamped_file_path'],
@@ -647,8 +631,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         return kwargs['gulsummaryxref_timestamped_file_path']
 
-    @classmethod
-    def generate_oasis_files(cls, oasis_model=None, **kwargs):
+    def generate_oasis_files(self, oasis_model=None, **kwargs):
         """
         For a given ``oasis_model`` generates the standard Oasis files, namely
 
@@ -657,12 +640,12 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             ``gulsummaryxref.csv``
 
         """
-        kwargs = cls._process_default_kwargs(oasis_model=oasis_model, **kwargs)
-        data_frame = cls.load_master_data_frame(**kwargs)
+        kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
+        data_frame = self.load_master_data_frame(**kwargs)
 
-        cls.generate_items_file(oasis_model=oasis_model, data_frame=data_frame, **kwargs)
-        cls.generate_coverages_file(oasis_model=oasis_model, data_frame=data_frame, **kwargs)
-        cls.generate_gulsummaryxref_file(oasis_model=oasis_model, data_frame=data_frame, **kwargs)
+        self.generate_items_file(oasis_model=oasis_model, data_frame=data_frame, **kwargs)
+        self.generate_coverages_file(oasis_model=oasis_model, data_frame=data_frame, **kwargs)
+        self.generate_gulsummaryxref_file(oasis_model=oasis_model, data_frame=data_frame, **kwargs)
 
         return {
             'items_file_path': kwargs['items_file_path'],
@@ -687,8 +670,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         return oasis_model
 
-    @classmethod
-    def start_files_pipeline(cls, oasis_model=None, oasis_files_path=None, source_exposures_path=None, logger=None):
+    def start_files_pipeline(self, oasis_model=None, oasis_files_path=None, source_exposures_path=None, logger=None):
         """
         Starts the oasis files pipeline for the given Oasis model object,
         which is the generation of the Oasis items, coverages and GUL summary
@@ -727,7 +709,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             raise OasisException("Source exposures file {} does not exist on the filesysem.".format(source_exposures_path))
 
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-        kwargs = cls._process_default_kwargs(
+        kwargs = self._process_default_kwargs(
             oasis_model=oasis_model,
             items_file_path=os.path.join(oasis_files_path, 'items.csv'),
             items_timestamped_file_path=os.path.join(oasis_files_path, 'items-{}.csv'.format(utcnow)),
@@ -742,17 +724,17 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         )
 
         if not os.path.exists(kwargs['source_exposures_file_path']):
-            cls.logger.info('Copying source exposures file to model output files directory')
+            self.logger.info('Copying source exposures file to model output files directory')
             shutil.copy(source_exposures_path, kwargs['source_exposures_file_path'])
 
         logger.info('Generating canonical exposures file {canonical_exposures_file_path}'.format(**kwargs))
-        cls.transform_source_to_canonical(**kwargs)
+        self.transform_source_to_canonical(**kwargs)
 
         logger.info('Generating model exposures file {model_exposures_file_path}'.format(**kwargs))
-        cls.transform_canonical_to_model(**kwargs)
+        self.transform_canonical_to_model(**kwargs)
 
         logger.info('Generating keys file {keys_file_path}'.format(**kwargs))
-        cls.get_keys(oasis_model=oasis_model, **kwargs)
+        self.get_keys(oasis_model=oasis_model, **kwargs)
 
         logger.info('Generating Oasis files for model')
-        return cls.generate_oasis_files(oasis_model=oasis_model, **kwargs)
+        return self.generate_oasis_files(oasis_model=oasis_model, **kwargs)
