@@ -79,7 +79,7 @@ class GenerateKeysCmd(OasisBaseCommand):
             help='Model version file path',
         )
         parser.add_argument(
-            '-l', '--lookup-package-file-path', default=None,
+            '-l', '--lookup-package-path', default=None,
             help='Keys data directory path',
         )
         parser.add_argument(
@@ -183,7 +183,9 @@ class GenerateLossesCmd(OasisBaseCommand):
         :type args: Namespace
         """
         inputs = InputValues(args)
-        oasis_files_path = as_path(inputs.get('oasis_files_path', required=True, is_path=True), 'Oasis files')
+
+        default_oasis_files_path = 'OasisFiles-{}'.format(get_utctimestamp(fmt='%Y%m%d%H%M%S'))
+        oasis_files_path = as_path(inputs.get('oasis_files_path', is_path=True, default=default_oasis_files_path), 'Oasis file', preexists=False)
         analysis_settings_json_file_path = as_path(
             inputs.get('analysis_settings_json_file_path', required=True, is_path=True),
             'Analysis settings file'
@@ -264,7 +266,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         parser.add_argument('oasis_files_path', default=None, help='Path to Oasis files', nargs='?')
         parser.add_argument('-k', '--keys-data-path', default=None, help='Path to Oasis files')
         parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
-        parser.add_argument('-l', '--lookup-package-file-path', default=None, help='Keys data directory path')
+        parser.add_argument('-l', '--lookup-package-path', default=None, help='Keys data directory path')
         parser.add_argument(
             '-p', '--canonical-exposures-profile-json-path', default=None,
             help='Path of the supplier canonical exposures profile JSON file'
@@ -295,10 +297,12 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         :type args: Namespace
         """
         inputs = InputValues(args)
-        oasis_files_path = as_path(inputs.get('oasis_files_path', required=True, is_path=True), 'Oasis file', preexists=False)
+
+        default_oasis_files_path = 'OasisFiles-{}'.format(get_utctimestamp(fmt='%Y%m%d%H%M%S'))
+        oasis_files_path = as_path(inputs.get('oasis_files_path', is_path=True, default=default_oasis_files_path), 'Oasis file', preexists=False)
         keys_data_path = as_path(inputs.get('keys_data_path', required=True, is_path=True), 'Keys data')
         model_version_file_path = as_path(inputs.get('model_version_file_path', required=True, is_path=True), 'Model version file')
-        lookup_package_file_path = as_path(inputs.get('lookup_package_file_path', required=True, is_path=True), 'Lookup package file')
+        lookup_package_file_path = as_path(inputs.get('lookup_package_path', required=True, is_path=True), 'Lookup package file')
         canonical_exposures_profile_json_path = as_path(
             inputs.get('canonical_exposures_profile_json_path', required=True, is_path=True),
             'Canonical exposures profile json'
