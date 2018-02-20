@@ -1,4 +1,4 @@
-FROM coreoasis/ktools:R_0_0_0_23
+FROM coreoasis/ktools:R_0_0_0_178
 
 RUN useradd -ms /bin/bash oasisapi-client
 
