@@ -10,7 +10,6 @@ from argparse import RawDescriptionHelpFormatter
 from oasislmf.model_execution.bash import genbash
 from ..exposures.manager import OasisExposuresManager
 from ..model_execution.runner import run
-from ..models.model import OasisModelFactory
 from ..model_execution.bin import create_binary_files, prepare_model_run_directory, prepare_model_run_inputs
 from ..utils.exceptions import OasisException
 from ..utils.values import get_utctimestamp
@@ -334,7 +333,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         self.logger.info('\t{}, {}'.format(model_info, model_klc))
 
         self.logger.info('Creating Oasis model object')
-        model = OasisModelFactory.create(
+        model = OasisExposuresManager().create(
             model_supplier_id=model_info['supplier_id'],
             model_id=model_info['model_id'],
             model_version_id=model_info['model_version_id'],
