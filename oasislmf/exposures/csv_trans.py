@@ -18,7 +18,7 @@ from lxml import etree
 
 
 class Translator(object):
-    def __init__(self, input_path, output_path, xsd_path, xslt_path, append_row_nums=False, chunk_size=5000, flg_verbose=False, logger=None):
+    def __init__(self, input_path, output_path, xsd_path, xslt_path, append_row_nums=False, chunk_size=5000, logger=None):
         self.logger = logger or logging.getLogger()
         self.threshold = 100000000
         # Max file size for file_ReadAll() method, in bytes [100MB]

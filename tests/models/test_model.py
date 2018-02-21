@@ -73,7 +73,7 @@ class OasisModelInit(TestCase):
 
             pipeline = model.resources['oasis_files_pipeline']
 
-            self.assertEqual(f.name, pipeline.source_exposures_file.name)
+            self.assertEqual(f.name, pipeline.source_exposures_path)
 
     def test_canonical_exposures_profile_not_set___canonical_exposures_profile_in_none(self):
         model = fake_model()

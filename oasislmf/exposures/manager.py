@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-
 __all__ = [
     'OasisExposuresManagerInterface',
     'OasisExposuresManager'
@@ -19,6 +18,7 @@ from interface import Interface, implements
 from ..keys.lookup import OasisKeysLookupFactory
 from ..utils.exceptions import OasisException
 from ..utils.values import get_utctimestamp
+from .csv_trans import Translator
 
 
 class OasisExposuresManagerInterface(Interface):  # pragma: no cover
@@ -48,7 +48,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         pass
 
-    def transform_source_to_canonical(self, oasis_model, **kwargs):
+    def transform_source_to_canonical(self, oasis_model=None, **kwargs):
         """
         Transforms the source exposures/locations for a given ``oasis_model``
         object to a canonical/standard Oasis format.
@@ -65,7 +65,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         pass
 
-    def transform_canonical_to_model(self, oasis_model, **kwargs):
+    def transform_canonical_to_model(self, oasis_model=None, **kwargs):
         """
         Transforms the canonical exposures/locations for a given ``oasis_model``
         object to a format understood by Oasis keys lookup
@@ -231,7 +231,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
     def models(self):
         self._models.clear()
 
-    def transform_source_to_canonical(self, oasis_model, with_model_resources=True, **kwargs):
+    def transform_source_to_canonical(self, oasis_model=None, **kwargs):
         """
         Transforms the source exposures/locations file for a given
         ``oasis_model`` object to a canonical/standard Oasis format.
@@ -249,64 +249,23 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         which case all the resources required for the transformation should be
         present in the optional ``kwargs`` dict as named arguments. In this
         case only the generated canonical exposures file is returned.
-
-        :todo: replace this with the python version
         """
-        # omr = oasis_model.resources
-        # tfp = omr['oasis_files_pipeline']
-        #
-        # if not with_model_resources:
-        #     xtrans_path = kwargs['xtrans_path']
-        #     input_file_path = kwargs['source_exposures_file_path']
-        #     validation_file_path = kwargs['source_exposures_validation_file_path']
-        #     transformation_file_path = kwargs['source_to_canonical_exposures_transformation_file_path']
-        #     output_file_path = kwargs['canonical_exposures_file_path']
-        # else:
-        #     xtrans_path = omr['xtrans_path']
-        #     input_file_path = tfp.source_exposures_file.name
-        #     validation_file_path = omr['source_exposures_validation_file_path']
-        #     transformation_file_path = omr['source_to_canonical_exposures_transformation_file_path']
-        #     output_file_path = tfp.canonical_exposures_file.name
-        #
-        # (
-        #     xtrans_path,
-        #     input_file_path,
-        #     validation_file_path,
-        #     transformation_file_path,
-        #     output_file_path
-        # ) = map(
-        #     os.path.abspath,
-        #     [
-        #         xtrans_path,
-        #         input_file_path,
-        #         validation_file_path,
-        #         transformation_file_path,
-        #         output_file_path
-        #     ]
-        # )
-        #
-        # xtrans_args = {
-        #     'd': validation_file_path,
-        #     'c': input_file_path,
-        #     't': transformation_file_path,
-        #     'o': output_file_path,
-        #     's': ''
-        # }
-        #
-        # try:
-        #     run_mono_executable(xtrans_path, xtrans_args)
-        # except OasisException as e:
-        #     raise e
-        #
-        # with io.open(output_file_path, 'r', encoding='utf-8') as f:
-        #     if not with_model_resources:
-        #         return f
-        #
-        #     tfp.canonical_exposures_file = f
-        #
-        # return oasis_model
+        kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
 
-    def transform_canonical_to_model(self, oasis_model, with_model_resources=True, **kwargs):
+        input_file_path = os.path.abspath(kwargs['source_exposures_file_path'])
+        validation_file_path = os.path.abspath(kwargs['source_exposures_validation_file_path'])
+        transformation_file_path = os.path.abspath(kwargs['source_to_canonical_exposures_transformation_file_path'])
+        output_file_path = os.path.abspath(kwargs['canonical_exposures_file_path'])
+
+        translator = Translator(input_file_path, output_file_path, validation_file_path, transformation_file_path, append_row_nums=False)
+        translator()
+
+        if oasis_model:
+            oasis_model.files_pipeline.canonical_exposures_file = output_file_path
+
+        return output_file_path
+
+    def transform_canonical_to_model(self, oasis_model=None, **kwargs):
         """
         Transforms the canonical exposures/locations file for a given
         ``oasis_model`` object to a format understood by Oasis keys lookup
@@ -324,61 +283,21 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         which case all the resources required for the transformation should be
         present in the optional ``kwargs`` dict as named arguments. In this
         case only the generated canonical file is returned.
-
-        :todo: replace this with the python version
         """
-        # omr = oasis_model.resources
-        # tfp = omr['oasis_files_pipeline']
-        #
-        # if not with_model_resources:
-        #     xtrans_path = kwargs['xtrans_path']
-        #     input_file_path = kwargs['canonical_exposures_file_path']
-        #     validation_file_path = kwargs['canonical_exposures_validation_file_path']
-        #     transformation_file_path = kwargs['canonical_to_model_exposures_transformation_file_path']
-        #     output_file_path = kwargs['model_exposures_file_path']
-        # else:
-        #     xtrans_path = omr['xtrans_path']
-        #     input_file_path = tfp.canonical_exposures_file.name
-        #     validation_file_path = omr['canonical_exposures_validation_file_path']
-        #     transformation_file_path = omr['canonical_to_model_exposures_transformation_file_path']
-        #     output_file_path = tfp.model_exposures_file.name
-        #
-        # (
-        #     xtrans_path,
-        #     input_file_path,
-        #     validation_file_path,
-        #     transformation_file_path,
-        #     output_file_path
-        # ) = map(
-        #     os.path.abspath,
-        #     [
-        #         xtrans_path,
-        #         input_file_path,
-        #         validation_file_path,
-        #         transformation_file_path,
-        #         output_file_path
-        #     ]
-        # )
-        #
-        # xtrans_args = {
-        #     'd': validation_file_path,
-        #     'c': input_file_path,
-        #     't': transformation_file_path,
-        #     'o': output_file_path
-        # }
-        #
-        # try:
-        #     run_mono_executable(xtrans_path, xtrans_args)
-        # except OasisException as e:
-        #     raise e
-        #
-        # with io.open(output_file_path, 'r', encoding='utf-8') as f:
-        #     if not with_model_resources:
-        #         return f
-        #
-        #     tfp.model_exposures_file = f
-        #
-        # return oasis_model
+        kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
+
+        input_file_path = os.path.abspath(kwargs['canonical_exposures_file_path'])
+        validation_file_path = os.path.abspath(kwargs['canonical_exposures_validation_file_path'])
+        transformation_file_path = os.path.abspath(kwargs['canonical_to_model_exposures_transformation_file_path'])
+        output_file_path = os.path.abspath(kwargs['model_exposures_file_path'])
+
+        translator = Translator(input_file_path, output_file_path, validation_file_path, transformation_file_path, append_row_nums=True)
+        translator()
+
+        if oasis_model:
+            oasis_model.files_pipeline.model_exposures_file_path = output_file_path
+
+        return output_file_path
 
     def load_canonical_profile(
             self,
@@ -462,6 +381,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
     def _process_default_kwargs(self, oasis_model=None, **kwargs):
         if oasis_model:
+            kwargs.setdefault('model_exposures_file_path', oasis_model.files_pipeline.model_exposures_path)
             kwargs.setdefault('canonical_exposures_file_path', oasis_model.files_pipeline.canonical_exposures_path)
             kwargs.setdefault('keys_file_path', oasis_model.files_pipeline.keys_file_path)
             kwargs.setdefault('canonical_exposures_profile', oasis_model.resources.get('canonical_exposures_profile'))

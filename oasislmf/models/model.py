@@ -6,7 +6,6 @@ __all__ = [
     'OasisModelFactory'
 ]
 
-import io
 import os
 
 from oasislmf.exposures.manager import OasisExposuresManager
@@ -51,8 +50,7 @@ class OasisModel(object):
             raise OasisException('Oasis files pipeline object for model {} is not of type {}'.format(self, OasisFilesPipeline))
 
         if 'source_exposures_file_path' in self._resources:
-            with io.open(self._resources['source_exposures_file_path'], 'r', encoding='utf-8') as f:
-                self._resources['oasis_files_pipeline'].source_exposures_file = f
+            self._resources['oasis_files_pipeline'].source_exposures_path = self._resources['source_exposures_file_path']
 
         if self._resources.get('canonical_exposures_profile') is None:
             self.load_canonical_profile()
