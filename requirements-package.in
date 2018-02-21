@@ -12,3 +12,4 @@ chainmap
 argparsetree
 python-interface
 pandas
+lxml
