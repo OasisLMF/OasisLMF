@@ -18,6 +18,8 @@ from interface import Interface, implements
 from ..keys.lookup import OasisKeysLookupFactory
 from ..utils.exceptions import OasisException
 from ..utils.values import get_utctimestamp
+from ..models import OasisModel
+from .pipeline import OasisFilesPipeline
 from .csv_trans import Translator
 
 
@@ -145,6 +147,9 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         pass
 
+    def create(self, model_supplier_id, model_id, model_version_id, resources=None):
+        pass
+
 
 class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
@@ -269,7 +274,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         translator()
 
         if oasis_model:
-            oasis_model.files_pipeline.canonical_exposures_file = output_file_path
+            oasis_model.resources['oasis_files_pipeline'].canonical_exposures_file = output_file_path
 
         return output_file_path
 
@@ -311,7 +316,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         translator()
 
         if oasis_model:
-            oasis_model.files_pipeline.model_exposures_file_path = output_file_path
+            oasis_model.resources['oasis_files_pipeline'].model_exposures_file_path = output_file_path
 
         return output_file_path
 
@@ -377,9 +382,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         :return: The path to the generated keys file
         """
         if oasis_model:
-            model_exposures_file_path = model_exposures_file_path or oasis_model.files_pipeline.model_exposures_path
+            model_exposures_file_path = model_exposures_file_path or oasis_model.resources['oasis_files_pipeline'].model_exposures_path
             lookup = lookup or oasis_model.resources.get('lookup')
-            keys_file_path = keys_file_path or oasis_model.files_pipeline.keys_file_path
+            keys_file_path = keys_file_path or oasis_model.resources['oasis_files_pipeline'].keys_file_path
 
         model_exposures_file_path = os.path.abspath(model_exposures_file_path)
         keys_file_path = os.path.abspath(keys_file_path)
@@ -391,15 +396,15 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         )
 
         if oasis_model:
-            oasis_model.files_pipeline.keys_file_path = oasis_keys_path
+            oasis_model.resources['oasis_files_pipeline'].keys_file_path = oasis_keys_path
 
         return oasis_keys_path
 
     def _process_default_kwargs(self, oasis_model=None, **kwargs):
         if oasis_model:
-            kwargs.setdefault('model_exposures_file_path', oasis_model.files_pipeline.model_exposures_path)
-            kwargs.setdefault('canonical_exposures_file_path', oasis_model.files_pipeline.canonical_exposures_path)
-            kwargs.setdefault('keys_file_path', oasis_model.files_pipeline.keys_file_path)
+            kwargs.setdefault('model_exposures_file_path', oasis_model.resources['oasis_files_pipeline'].model_exposures_path)
+            kwargs.setdefault('canonical_exposures_file_path', oasis_model.resources['oasis_files_pipeline'].canonical_exposures_path)
+            kwargs.setdefault('keys_file_path', oasis_model.resources['oasis_files_pipeline'].keys_file_path)
             kwargs.setdefault('canonical_exposures_profile', oasis_model.resources.get('canonical_exposures_profile'))
             kwargs.setdefault('canonical_exposures_profile_json', oasis_model.resources.get('canonical_exposures_profile_json'))
             kwargs.setdefault('canonical_exposures_profile_json_path', oasis_model.resources.get('canonical_exposures_profile_json_path'))
@@ -521,7 +526,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         )
 
         if oasis_model:
-            oasis_model.files_pipeline.items_file_path = kwargs['items_file_path']
+            oasis_model.resources['oasis_files_pipeline'].items_file_path = kwargs['items_file_path']
 
         return kwargs['items_file_path']
 
@@ -542,7 +547,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         )
 
         if oasis_model:
-            oasis_model.files_pipeline.coverages_file = kwargs.get('coverages_file_path')
+            oasis_model.resources['oasis_files_pipeline'].coverages_file = kwargs.get('coverages_file_path')
 
         return kwargs.get('coverages_file_path')
 
@@ -563,7 +568,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         )
 
         if oasis_model:
-            oasis_model.files_pipeline.gulsummaryxref_path = kwargs['gulsummaryxref_timestamped_file_path']
+            oasis_model.resources['oasis_files_pipeline'].gulsummaryxref_path = kwargs['gulsummaryxref_timestamped_file_path']
 
         return kwargs['gulsummaryxref_timestamped_file_path']
 
@@ -637,7 +642,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         logger.info('Checking for source exposures file')
         if oasis_model and not source_exposures_path:
-            source_exposures_path = oasis_model.files_pipeline.source_exposures_path or None
+            source_exposures_path = oasis_model.resources['oasis_files_pipeline'].source_exposures_path or None
 
         if not source_exposures_path:
             raise OasisException("No source exposures file provided.")
@@ -674,3 +679,28 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         logger.info('Generating Oasis files for model')
         return self.generate_oasis_files(oasis_model=oasis_model, **kwargs)
+
+    def create(self, model_supplier_id, model_id, model_version_id, resources=None):
+        model = OasisModel(
+            model_supplier_id,
+            model_id,
+            model_version_id,
+            resources=resources,
+        )
+
+        # set default resources
+        model.resources.setdefault('oasis_files_path', os.path.join('Files', model.key.replace('/', '-')))
+        model.resources['oasis_files_path'] = os.path.abspath(model.resources['oasis_files_path'])
+
+        model.resources.setdefault('oasis_files_pipeline', OasisFilesPipeline(model_key=model.key))
+        if not isinstance(model.resources['oasis_files_pipeline'], OasisFilesPipeline):
+            raise OasisException(
+                'Oasis files pipeline object for model {} is not of type {}'.format(model, OasisFilesPipeline))
+
+        if 'source_exposures_file_path' in model.resources:
+            model.resources['oasis_files_pipeline'].source_exposures_path = model.resources['source_exposures_file_path']
+
+        if model.resources.get('canonical_exposures_profile') is None:
+            self.load_canonical_profile(oasis_model=model)
+
+        return model

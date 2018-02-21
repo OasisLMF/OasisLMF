@@ -14,6 +14,7 @@ from hypothesis.strategies import text, dictionaries, lists, tuples, integers, j
 from mock import patch, Mock
 
 from oasislmf.exposures.manager import OasisExposuresManager
+from oasislmf.exposures.pipeline import OasisFilesPipeline
 from oasislmf.utils.exceptions import OasisException
 from ..models.fakes import fake_model
 
@@ -130,8 +131,8 @@ class OasisExposureManagerLoadCanonicalProfile(TestCase):
 class OasisExposureManagerGetKeys(TestCase):
     def create_model(self, lookup='lookup', keys_file_path='key_file_path', exposures_file_path='exposures_file_path'):
         model = fake_model(resources={'lookup': lookup})
-        model.files_pipeline.keys_file_path = keys_file_path
-        model.files_pipeline.model_exposures_path = exposures_file_path
+        model.resources['oasis_files_pipeline'].keys_file_path = keys_file_path
+        model.resources['oasis_files_pipeline'].model_exposures_path = exposures_file_path
         return model
 
     @given(text(min_size=1, alphabet=string.ascii_letters), text(min_size=1, alphabet=string.ascii_letters), text(min_size=1, alphabet=string.ascii_letters))
@@ -146,7 +147,7 @@ class OasisExposureManagerGetKeys(TestCase):
                 model_exposures_file_path=os.path.abspath(exposure),
                 output_file_path=os.path.abspath(keys),
             )
-            self.assertEqual(model.files_pipeline.keys_file_path, keys)
+            self.assertEqual(model.resources['oasis_files_pipeline'].keys_file_path, keys)
             self.assertEqual(res, keys)
 
     @given(
@@ -169,7 +170,7 @@ class OasisExposureManagerGetKeys(TestCase):
                 model_exposures_file_path=os.path.abspath(exposure),
                 output_file_path=os.path.abspath(keys),
             )
-            self.assertEqual(model.files_pipeline.keys_file_path, keys)
+            self.assertEqual(model.resources['oasis_files_pipeline'].keys_file_path, keys)
             self.assertEqual(res, keys)
 
 
@@ -384,8 +385,8 @@ class OasisExposuresManagerGenerateItemFiles(FileGenerationTestCase):
                 'items_timestamped_file_path': os.path.join(out_dir, self.timestamped_items_filename),
                 'canonical_exposures_profile': profile,
             })
-            model.files_pipeline.keys_file_path = keys_file.name
-            model.files_pipeline.canonical_exposures_path = exposures_file.name
+            model.resources['oasis_files_pipeline'].keys_file_path = keys_file.name
+            model.resources['oasis_files_pipeline'].canonical_exposures_path = exposures_file.name
 
             OasisExposuresManager().generate_items_file(oasis_model=model)
 
@@ -429,8 +430,8 @@ class OasisExposuresManagerGenerateCoveragesFiles(FileGenerationTestCase):
                 'coverages_timestamped_file_path': os.path.join(out_dir, self.timestamped_coverages_filename),
                 'canonical_exposures_profile': profile,
             })
-            model.files_pipeline.keys_file_path = keys_file.name
-            model.files_pipeline.canonical_exposures_path = exposures_file.name
+            model.resources['oasis_files_pipeline'].keys_file_path = keys_file.name
+            model.resources['oasis_files_pipeline'].canonical_exposures_path = exposures_file.name
 
             OasisExposuresManager().generate_coverages_file(oasis_model=model)
 
@@ -474,8 +475,8 @@ class OasisExposuresManagerGenerateGulsummaryxrefFile(FileGenerationTestCase):
                 'gulsummaryxref_timestamped_file_path': os.path.join(out_dir, self.timestamped_gul_filename),
                 'canonical_exposures_profile': profile,
             })
-            model.files_pipeline.keys_file_path = keys_file.name
-            model.files_pipeline.canonical_exposures_path = exposures_file.name
+            model.resources['oasis_files_pipeline'].keys_file_path = keys_file.name
+            model.resources['oasis_files_pipeline'].canonical_exposures_path = exposures_file.name
 
             OasisExposuresManager().generate_gulsummaryxref_file(oasis_model=model)
 
@@ -495,8 +496,8 @@ class OasisExposuresManagerGenerateGulsummaryxrefFile(FileGenerationTestCase):
                 'gulsummaryxref_timestamped_file_path': os.path.join(out_dir, self.timestamped_gul_filename),
                 'canonical_exposures_profile': profile,
             })
-            model.files_pipeline.keys_file_path = keys_file.name
-            model.files_pipeline.canonical_exposures_path = exposures_file.name
+            model.resources['oasis_files_pipeline'].keys_file_path = keys_file.name
+            model.resources['oasis_files_pipeline'].canonical_exposures_path = exposures_file.name
 
             OasisExposuresManager().generate_gulsummaryxref_file(
                 oasis_model=model,
@@ -529,8 +530,8 @@ class OasisExposuresManagerGenerateOasisFiles(FileGenerationTestCase):
                 'gulsummaryxref_timestamped_file_path': os.path.join(out_dir, self.timestamped_gul_filename),
                 'canonical_exposures_profile': profile,
             })
-            model.files_pipeline.keys_file_path = keys_file.name
-            model.files_pipeline.canonical_exposures_path = exposures_file.name
+            model.resources['oasis_files_pipeline'].keys_file_path = keys_file.name
+            model.resources['oasis_files_pipeline'].canonical_exposures_path = exposures_file.name
 
             OasisExposuresManager().generate_oasis_files(oasis_model=model)
 
@@ -607,7 +608,7 @@ class OasisExposuresTransformSourceToCanonical(TestCase):
             'source_exposures_validation_file_path': source_exposures_validation_file_path,
             'source_to_canonical_exposures_transformation_file_path': source_to_canonical_exposures_transformation_file_path,
         })
-        model.files_pipeline.canonical_exposures_path = canonical_exposures_file_path
+        model.resources['oasis_files_pipeline'].canonical_exposures_path = canonical_exposures_file_path
 
         trans_call_mock = Mock()
         with patch('oasislmf.exposures.manager.Translator', Mock(return_value=trans_call_mock)) as trans_mock:
@@ -667,8 +668,8 @@ class OasisExposuresTransformCanonicalToModel(TestCase):
             'canonical_exposures_validation_file_path': canonical_exposures_validation_file_path,
             'canonical_to_model_exposures_transformation_file_path': canonical_to_model_exposures_transformation_file_path,
         })
-        model.files_pipeline.canonical_exposures_path = canonical_exposures_file_path
-        model.files_pipeline.model_exposures_file_path = model_exposures_file_path
+        model.resources['oasis_files_pipeline'].canonical_exposures_path = canonical_exposures_file_path
+        model.resources['oasis_files_pipeline'].model_exposures_file_path = model_exposures_file_path
 
         trans_call_mock = Mock()
         with patch('oasislmf.exposures.manager.Translator', Mock(return_value=trans_call_mock)) as trans_mock:
@@ -687,3 +688,104 @@ class OasisExposuresTransformCanonicalToModel(TestCase):
                 append_row_nums=True,
             )
             trans_call_mock.assert_called_once_with()
+
+
+class OasisExposureManagerCreate(TestCase):
+    @given(text(), text(), text())
+    def test_supplier_model_and_version_are_supplied___correct_key_is_created(self, supplier, model_id, version):
+        model = fake_model(supplier=supplier, model=model_id, version=version)
+
+        self.assertEqual('{}/{}/{}'.format(supplier, model_id, version), model.key)
+
+    def test_oasis_file_path_is_given___path_is_stored_as_absolute_path(self):
+        model = fake_model(resources={'oasis_files_path': 'some_path'})
+
+        result = model.resources['oasis_files_path']
+        expected = os.path.abspath('some_path')
+
+        self.assertEqual(expected, result)
+
+    def test_oasis_file_path_is_not_given___path_is_abs_path_of_default(self):
+        model = fake_model()
+
+        result = model.resources['oasis_files_path']
+        expected = os.path.abspath(os.path.join('Files', model.key.replace('/', '-')))
+
+        self.assertEqual(expected, result)
+
+    def test_file_pipeline_is_not_supplied___default_pipeline_is_set(self):
+        model = fake_model()
+
+        pipeline = model.resources['oasis_files_pipeline']
+
+        self.assertIsInstance(pipeline, OasisFilesPipeline)
+        self.assertEqual(pipeline.model_key, model.key)
+
+    def test_file_pipeline_is_supplied___pipeline_is_unchanged(self):
+        pipeline = OasisFilesPipeline()
+
+        model = fake_model(resources={'oasis_files_pipeline': pipeline})
+
+        self.assertIs(pipeline, model.resources['oasis_files_pipeline'])
+
+    def test_pipeline_is_not_a_pipeline_instance___oasis_exception_is_raised(self):
+        class FakePipeline(object):
+            pass
+
+        pipeline = FakePipeline()
+
+        with self.assertRaises(OasisException):
+            fake_model(resources={'oasis_files_pipeline': pipeline})
+
+    def test_exposure_file_path_is_not_supplied___source_exposure_file_is_not_set_on_pipeline(self):
+        model = fake_model()
+
+        pipeline = model.resources['oasis_files_pipeline']
+
+        self.assertIsNone(pipeline.source_exposures_path)
+
+    def test_exposure_file_path_is_supplied___source_exposure_file_is_set_on_pipeline(self):
+        with NamedTemporaryFile() as f:
+            model = fake_model(resources={'source_exposures_file_path': f.name})
+
+            pipeline = model.resources['oasis_files_pipeline']
+
+            self.assertEqual(f.name, pipeline.source_exposures_path)
+
+    def test_canonical_exposures_profile_not_set___canonical_exposures_profile_in_none(self):
+        model = fake_model()
+
+        profile = model.resources['canonical_exposures_profile']
+
+        self.assertEqual({}, profile)
+
+    @given(dictionaries(text(), text()))
+    def test_canonical_exposures_profile_json_set___canonical_exposures_profile_matches_json(self, expected):
+        model = fake_model(resources={'canonical_exposures_profile_json': json.dumps(expected)})
+
+        profile = model.resources['canonical_exposures_profile']
+
+        self.assertEqual(expected, profile)
+
+    @given(dictionaries(text(), text()))
+    def test_canonical_exposures_profile_path_set___canonical_exposures_profile_matches_json(self, expected):
+        with NamedTemporaryFile('w') as f:
+            json.dump(expected, f)
+            f.flush()
+
+            model = fake_model(resources={'canonical_exposures_profile_json_path': f.name})
+
+            profile = model.resources['canonical_exposures_profile']
+
+            self.assertEqual(expected, profile)
+
+    @given(dictionaries(text(), text()), dictionaries(text(), text()))
+    def test_canonical_exposures_profile_set___profile_is_not_updated(self, expected, new):
+        model = fake_model(resources={
+            'canonical_exposures_profile': expected,
+            'canonical_exposures_profile_json': json.dumps(new),
+        })
+
+        profile = model.resources['canonical_exposures_profile']
+
+        self.assertEqual(expected, profile)

@@ -6,13 +6,6 @@ __all__ = [
     'OasisModelFactory'
 ]
 
-import os
-
-from oasislmf.exposures.manager import OasisExposuresManager
-
-from ..utils.exceptions import OasisException
-from ..exposures.pipeline import OasisFilesPipeline
-
 
 class OasisModel(object):
     """
@@ -41,20 +34,6 @@ class OasisModel(object):
         self._key = '{}/{}/{}'.format(model_supplier_id, model_id, model_version_id)
         self._resources = resources if resources else {}
 
-        # set default resources
-        self._resources.setdefault('oasis_files_path', os.path.join('Files', self._key.replace('/', '-')))
-        self._resources['oasis_files_path'] = os.path.abspath(self._resources['oasis_files_path'])
-
-        self._resources.setdefault('oasis_files_pipeline', OasisFilesPipeline(model_key=self._key))
-        if not isinstance(self._resources['oasis_files_pipeline'], OasisFilesPipeline):
-            raise OasisException('Oasis files pipeline object for model {} is not of type {}'.format(self, OasisFilesPipeline))
-
-        if 'source_exposures_file_path' in self._resources:
-            self._resources['oasis_files_pipeline'].source_exposures_path = self._resources['source_exposures_file_path']
-
-        if self._resources.get('canonical_exposures_profile') is None:
-            self.load_canonical_profile()
-
     def __str__(self):
         return '{}: {}'.format(self.__repr__(), self.key)
 
@@ -63,18 +42,6 @@ class OasisModel(object):
 
     def _repr_pretty_(self, p, cycle):
         p.text(str(self) if not cycle else '...')
-
-    def load_canonical_profile(self, canonical_exposures_profile_json=None, canonical_exposures_profile_json_path=None):
-        """
-        Loads a JSON string or JSON file representation of the canonical
-        exposures profile for a given ``oasis_model``, stores this in the
-        model object's resources dict, and returns the object.
-        """
-        return OasisExposuresManager().load_canonical_profile(
-            oasis_model=self,
-            canonical_exposures_profile_json=canonical_exposures_profile_json,
-            canonical_exposures_profile_json_path=canonical_exposures_profile_json_path,
-        )
 
     @property
     def key(self):
@@ -144,14 +111,6 @@ class OasisModel(object):
     @resources.deleter
     def resources(self):
         self._resources.clear()
-
-    @property
-    def files_pipeline(self):
-        return self.resources.get('oasis_files_pipeline')
-
-    @files_pipeline.setter
-    def files_pipeline(self, value):
-        self.resources['oasis_files_pipeline'] = value
 
 
 class OasisModelFactory(object):
