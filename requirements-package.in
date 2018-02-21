@@ -4,7 +4,6 @@ requests
 requests-toolbelt
 shutilwhich
 jsonpickle
-geopy
 pytz
 pathlib2
 backports.tempfile
