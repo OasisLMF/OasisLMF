@@ -233,22 +233,30 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
     def transform_source_to_canonical(self, oasis_model=None, **kwargs):
         """
-        Transforms the source exposures/locations file for a given
-        ``oasis_model`` object to a canonical/standard Oasis format.
+        Transforms the canonical exposures/locations file for a given
+        ``oasis_model`` object to a format understood by Oasis keys lookup
+        services.
 
-        By default it is assumed that all the resources required for the
-        transformation are present in the model object's resources dict,
-        specifically its transforms files pipeline  - this is indicated by the
-        optional ``with_model_resources`` variable which is ``True`` by
-        default. In this case the generated file is stored in the appropriate
-        attribute of the model object's oasis files pipeline, which is in
-        turn a key in the manager's models dict. The models dict is updated,
-        and the model object returned.
+        By default parameters supplied to this function fill be used if present
+        otherwise they will be taken from the `oasis_model` resources dictionary
+        if the model is supplied.
 
-        If not then ``with_model_resources`` should be set to ``False``, in
-        which case all the resources required for the transformation should be
-        present in the optional ``kwargs`` dict as named arguments. In this
-        case only the generated canonical exposures file is returned.
+        :param oasis_model: The model to get keys for
+        :type oasis_model: ``OasisModel``
+
+        :param source_exposures_file_path: Path to the source exposures file
+        :type source_exposures_file_path: str
+
+        :param source_exposures_validation_file_path: Path to the exposure validation file
+        :type source_exposures_validation_file_path: str
+
+        :param source_to_canonical_exposures_transformation_file_path: Path to the exposure transformation file
+        :type source_to_canonical_exposures_transformation_file_path: str
+
+        :param canonical_exposures_file_path: Path to the output canonical exposure file
+        :type canonical_exposures_file_path: str
+
+        :return: The path to the output canonical exposure file
         """
         kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
 
@@ -271,18 +279,26 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         ``oasis_model`` object to a format understood by Oasis keys lookup
         services.
 
-        By default it is assumed that all the resources required for the
-        transformation are present in the model object's resources dict,
-        specifically its transforms files pipeline  - this is indicated by the
-        optional ``with_model_resources`` variable which is ``True`` by
-        default. In this case the generated file is stored in the appropriate
-        attribute of the model object's transforms files pipeline, the
-        manager's model dict is updated, and the model object returned.
+        By default parameters supplied to this function fill be used if present
+        otherwise they will be taken from the `oasis_model` resources dictionary
+        if the model is supplied.
 
-        If not then ``with_model_resources`` should be set to ``False``, in
-        which case all the resources required for the transformation should be
-        present in the optional ``kwargs`` dict as named arguments. In this
-        case only the generated canonical file is returned.
+        :param oasis_model: The model to get keys for
+        :type oasis_model: ``OasisModel``
+
+        :param canonical_exposures_file_path: Path to the canonical exposures file
+        :type canonical_exposures_file_path: str
+
+        :param canonical_exposures_validation_file_path: Path to the exposure validation file
+        :type canonical_exposures_validation_file_path: str
+
+        :param canonical_to_model_exposures_transformation_file_path: Path to the exposure transformation file
+        :type canonical_to_model_exposures_transformation_file_path: str
+
+        :param model_exposures_file_path: Path to the output model exposure file
+        :type model_exposures_file_path: str
+
+        :return: The path to the output model exposure file
         """
         kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
 
