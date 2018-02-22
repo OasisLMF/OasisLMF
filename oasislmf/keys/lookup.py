@@ -241,7 +241,7 @@ class OasisKeysLookupFactory(object):
     @classmethod
     def get_keys(
         cls,
-        lookup,
+        lookup=None,
         model_exposures=None,
         model_exposures_file_path=None,
         success_only=True
@@ -266,7 +266,7 @@ class OasisKeysLookupFactory(object):
 
         for record in lookup.process_locations(model_loc_df):
             if success_only:
-                if r['status'].lower() == 'success':
+                if record['status'].lower() == 'success':
                     yield record
             else:
                 yield record
@@ -274,8 +274,8 @@ class OasisKeysLookupFactory(object):
     @classmethod
     def save_keys(
         cls,
-        lookup,
-        output_file_path,
+        lookup=None,
+        output_file_path=None,
         model_exposures=None,
         model_exposures_file_path=None,
         success_only=True

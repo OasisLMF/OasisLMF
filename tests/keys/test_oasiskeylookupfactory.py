@@ -205,7 +205,7 @@ class OasisKeysLookupFactoryGetKeys(TestCase):
         with patch('oasislmf.keys.lookup.OasisKeysLookupFactory.get_model_exposures'):
             self.create_fake_lookup(return_value=data)
 
-            res = list(OasisKeysLookupFactory.get_keys(self.lookup_instance, model_exposures_file_path='path'))
+            res = list(OasisKeysLookupFactory.get_keys(lookup=self.lookup_instance, model_exposures_file_path='path'))
 
             self.assertEqual(res, data)
 
@@ -236,8 +236,9 @@ class OasisKeysLookupFactoryWriteKeys(TestCase):
             )
 
             get_keys_mock.assert_called_once_with(
-                self.lookup_instance,
+                lookup=self.lookup_instance,
                 model_exposures=exposures,
                 model_exposures_file_path=exposures_path,
+                success_only=True
             )
             write_oasis_keys_file_mock.assert_called_once_with(['got keys'], os.path.abspath(output))
