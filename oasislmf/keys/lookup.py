@@ -264,14 +264,8 @@ class OasisKeysLookupFactory(object):
             model_exposures=model_exposures,
         )
 
-        for record_container in lookup.process_locations(model_loc_df):
-            if type(record_container) in [list, tuple, set]:
-                for r in record_container:
-                    if not success_only or r['status'].lower() == 'success':
-                        yield r
-            elif type(record_container) == dict:
-                if not success_only or record_container['status'].lower() == 'success':
-                    yield record_container
+        for record in lookup.process_locations(model_loc_df):
+            yield record_container
 
     @classmethod
     def save_keys(
@@ -310,4 +304,4 @@ class OasisKeysLookupFactory(object):
             success_only=success_only
         )
 
-        return cls.write_oasis_keys_file(keys, output_file_path)
+        return cls.write_oasis_keys_file(list(keys), output_file_path)
