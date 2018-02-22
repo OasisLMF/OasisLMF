@@ -338,6 +338,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             model_id=model_info['model_id'],
             model_version_id=model_info['model_version_id'],
             resources={
+                'lookup': model_klc,
                 'oasis_files_path': oasis_files_path,
                 'canonical_exposures_profile_json_path': canonical_exposures_profile_json_path,
                 'source_exposures_validation_file_path': source_exposures_validation_file_path,

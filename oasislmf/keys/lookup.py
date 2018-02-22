@@ -298,7 +298,7 @@ class OasisKeysLookupFactory(object):
         output_file_path = os.path.abspath(output_file_path)
 
         keys = cls.get_keys(
-            lookup,
+            lookup=lookup,
             model_exposures=model_exposures,
             model_exposures_file_path=model_exposures_file_path,
             success_only=success_only
