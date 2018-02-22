@@ -187,6 +187,7 @@ class OasisKeysLookupFactory(object):
         ])
 
         pd.DataFrame(
+            columns=heading_row.keys(),
             data=[heading_row] + records,
         ).to_csv(
             output_file_path,

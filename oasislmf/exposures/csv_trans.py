@@ -6,7 +6,6 @@ __all__ = [
     'Translator'
 ]
 
-import argparse
 import csv
 import io
 import os
@@ -228,65 +227,3 @@ class Translator(object):
     def print_xml(self, etree_obj):
         self.logger.debug('___________________________________________')
         self.logger.debug(etree.tostring(etree_obj, pretty_print=True))
-
-
-def parse_args():
-    parser = argparse.ArgumentParser(prog='')
-    parser.add_argument(
-        '-c', '--input', required=True, type=str,
-        dest='input_file_path', action='store', default=1,
-        help='Input file path.'
-    )
-    parser.add_argument(
-        '-o', '--output', required=True, type=str,
-        dest='output_file_path', action='store', default=1,
-        help='output file path for writing CVS/UPX data.'
-    )
-    parser.add_argument(
-        '-t', '--xslt', required=True, type=str,
-        dest='transformation_file_path', action='store', default=1,
-        help='xslt file path.'
-    )
-    parser.add_argument(
-        '-d', '--xls', required=True, type=str,
-        dest='validation_file_path', action='store', default=1,
-        help='xsd file path.'
-    )
-    parser.add_argument(
-        '-s', '--sequ', required=False,
-        dest='row_flag', action='store_true', default=False,
-        help='Boolean to append ROW_ID to output file'
-    )
-    parser.add_argument(
-        '-l', '--linebatch', required=False, type=int,
-        dest='lines', action='store', default=50000,
-        help='Number of lines to process in each iteration'
-    )
-    parser.add_argument(
-        '-v', '--verbose', required=False,
-        dest='verbose', action='store_true', default=False,
-        help='Set verbose mode for debugging.'
-    )
-    return parser.parse_args()
-
-
-if __name__ == "__main__":
-
-    args = parse_args()
-    xtrans_args = {
-        'd': args.validation_file_path,
-        'c': args.input_file_path,
-        't': args.transformation_file_path,
-        'o': args.output_file_path,
-        's': ''
-    }
-    if args.row_flag:
-        xtrans_args['s'] = 's'
-
-    print(args)
-
-    Translator(
-        xtrans_args,
-        chunk_size=args.lines,
-        flg_verbose=args.verbose
-    )()
