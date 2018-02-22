@@ -3,7 +3,6 @@ from __future__ import unicode_literals
 import csv
 import json
 import string
-from itertools import chain
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
@@ -13,7 +12,7 @@ import io
 from six import StringIO
 from backports.tempfile import TemporaryDirectory
 from hypothesis import given
-from hypothesis.strategies import text, integers, tuples, lists, fixed_dictionaries, sampled_from, booleans
+from hypothesis.strategies import text, integers, tuples, lists, fixed_dictionaries, sampled_from
 from mock import Mock, patch
 
 from oasislmf.keys.lookup import OasisKeysLookupFactory
@@ -191,7 +190,7 @@ class OasisKeysLookupFactoryGetKeys(TestCase):
             self.lookup_instance.process_locations.assert_called_once_with(result)
 
     @given(text(min_size=1, max_size=10, alphabet=string.ascii_letters), text(min_size=1, max_size=10, alphabet=string.ascii_letters))
-    def test_model_exposures_are_provided___exposures_are_passed_to_get_model_exposures_result_is_passed_to_lokkup_process_locations(self, exposures, result):
+    def test_model_exposures_are_provided___exposures_are_passed_to_get_model_exposures_result_is_passed_to_lookup_process_locations(self, exposures, result):
         with patch('oasislmf.keys.lookup.OasisKeysLookupFactory.get_model_exposures', Mock(return_value=result)):
             list(OasisKeysLookupFactory.get_keys(self.create_fake_lookup(), model_exposures=exposures))
 
@@ -202,49 +201,13 @@ class OasisKeysLookupFactoryGetKeys(TestCase):
         'id': integers(),
         'status': sampled_from(['success', 'failure'])
     })))
-    def test_entries_are_dictionaries_success_only_is_true___non_successes_are_excluded(self, data):
+    def test_entries_are_dictionaries___all_entries_are_included(self, data):
         with patch('oasislmf.keys.lookup.OasisKeysLookupFactory.get_model_exposures'):
             self.create_fake_lookup(return_value=data)
 
             res = list(OasisKeysLookupFactory.get_keys(self.lookup_instance, model_exposures_file_path='path'))
-
-            self.assertEqual(res, [d for d in data if d['status'] == 'success'])
-
-    @given(lists(fixed_dictionaries({
-        'id': integers(),
-        'status': sampled_from(['success', 'failure'])
-    })))
-    def test_entries_are_dictionaries_success_only_is_false___all_entruies_are_included(self, data):
-        with patch('oasislmf.keys.lookup.OasisKeysLookupFactory.get_model_exposures'):
-            self.create_fake_lookup(return_value=data)
-
-            res = list(OasisKeysLookupFactory.get_keys(self.lookup_instance, model_exposures_file_path='path', success_only=False))
 
             self.assertEqual(res, data)
-
-    @given(lists(lists(fixed_dictionaries({
-        'id': integers(),
-        'status': sampled_from(['success', 'failure'])
-    }))))
-    def test_entries_are_lists_success_only_is_true___non_successes_are_excluded(self, data):
-        with patch('oasislmf.keys.lookup.OasisKeysLookupFactory.get_model_exposures'):
-            self.create_fake_lookup(return_value=data)
-
-            res = list(OasisKeysLookupFactory.get_keys(self.lookup_instance, model_exposures_file_path='path'))
-
-            self.assertEqual(res, [d for d in chain(*data) if d['status'] == 'success'])
-
-    @given(lists(lists(fixed_dictionaries({
-        'id': integers(),
-        'status': sampled_from(['success', 'failure'])
-    }))))
-    def test_entries_are_lists_success_only_is_false___all_entruies_are_included(self, data):
-        with patch('oasislmf.keys.lookup.OasisKeysLookupFactory.get_model_exposures'):
-            self.create_fake_lookup(return_value=data)
-
-            res = list(OasisKeysLookupFactory.get_keys(self.lookup_instance, model_exposures_file_path='path', success_only=False))
-
-            self.assertEqual(res, list(chain(*data)))
 
 
 class OasisKeysLookupFactoryWriteKeys(TestCase):
@@ -259,11 +222,10 @@ class OasisKeysLookupFactoryWriteKeys(TestCase):
     @given(
         text(min_size=1, max_size=10, alphabet=string.ascii_letters),
         text(min_size=1, max_size=10, alphabet=string.ascii_letters),
-        booleans(),
         text(min_size=1, max_size=10, alphabet=string.ascii_letters),
     )
-    def test_produced_keys_are_passed_to_write_oasis_keys_file(self, exposures_path, exposures, success_only, output):
-        with patch('oasislmf.keys.lookup.OasisKeysLookupFactory.get_keys', Mock(return_value='got keys')) as get_keys_mock, \
+    def test_produced_keys_are_passed_to_write_oasis_keys_file(self, exposures_path, exposures, output):
+        with patch('oasislmf.keys.lookup.OasisKeysLookupFactory.get_keys', Mock(return_value=['got keys'])) as get_keys_mock, \
                 patch('oasislmf.keys.lookup.OasisKeysLookupFactory.write_oasis_keys_file') as write_oasis_keys_file_mock:
 
             OasisKeysLookupFactory.save_keys(
@@ -271,13 +233,11 @@ class OasisKeysLookupFactoryWriteKeys(TestCase):
                 output,
                 model_exposures_file_path=exposures_path,
                 model_exposures=exposures,
-                success_only=success_only,
             )
 
             get_keys_mock.assert_called_once_with(
                 self.lookup_instance,
                 model_exposures=exposures,
                 model_exposures_file_path=exposures_path,
-                success_only=success_only
             )
-            write_oasis_keys_file_mock.assert_called_once_with('got keys', os.path.abspath(output))
+            write_oasis_keys_file_mock.assert_called_once_with(['got keys'], os.path.abspath(output))
