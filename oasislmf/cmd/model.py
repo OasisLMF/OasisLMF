@@ -88,6 +88,9 @@ class GenerateKeysCmd(OasisBaseCommand):
         parser.add_argument(
             '-e', '--model-exposures-file-path', default=None, help='Keys records file output format',
         )
+        parser.add_argument(
+            '-s', '--successes-only', action='store_true', help='Only record successful entries',
+        )
 
     def action(self, args):
         """
@@ -112,9 +115,10 @@ class GenerateKeysCmd(OasisBaseCommand):
 
         self.logger.info('Saving keys records to file')
         f, n = OasisKeysLookupFactory.save_keys(
-            model_klc,
+            lookup=model_klc,
             model_exposures_file_path=model_exposures_file_path,
             output_file_path=args.output_file_path,
+            success_only=args.successes_only
         )
         self.logger.info('{} keys records saved to file {}'.format(n, f))
 
