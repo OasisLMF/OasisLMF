@@ -91,6 +91,7 @@ class GenerateKeysCmd(OasisBaseCommand):
         parser.add_argument(
             '-s', '--successes-only', action='store_true', help='Only record successful entries',
         )
+        parser.set_defaults(successes_only=False)
 
     def action(self, args):
         """
