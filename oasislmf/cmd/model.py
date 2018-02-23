@@ -437,6 +437,8 @@ class RunCmd(OasisBaseCommand):
             if not os.path.exists(model_run_dir_path):
                 os.mkdir(model_run_dir_path)
 
+        args.model_run_dir_path = model_run_dir_path
+
         args.oasis_files_path = os.path.join(model_run_dir_path, 'tmp')
         self.logger.info('Creating temporary folder {} for Oasis files'.format(args.oasis_files_path))
         os.mkdir(args.oasis_files_path)
@@ -450,7 +452,6 @@ class RunCmd(OasisBaseCommand):
         gen_losses_cmd.action(args)
 
         shutil.rmtree(model_run_dir_path)
-        shutil.rmtree(args.oasis_files_path)
 
 
 class ModelsCmd(OasisBaseCommand):
