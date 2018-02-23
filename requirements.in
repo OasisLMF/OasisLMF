@@ -2,6 +2,7 @@
 
 pip-tools
 discover
+configparser
 flake8
 pytest
 mock

@@ -66,7 +66,7 @@ setup(
     description='Core loss modelling framework.',
     long_description=get_readme(),
     url='https://github.com/OasisLMF/oasislmf',
-    author='OasisLMF',
+    author='Dan Bate,Sandeep Murthy',
     author_email="Dan Bate <dan.bate@wildfish.com>,Sandeep Murthy <sandeep.murthy@oasislmf.org>",
     keywords='oasis lmf loss modeling framework',
     install_requires=get_install_requirements(),
