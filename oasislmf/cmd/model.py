@@ -428,10 +428,18 @@ class RunCmd(OasisBaseCommand):
         inputs = InputValues(args)
         model_run_dir_path = as_path(inputs.get('model_run_dir_path', required=False), 'Model run path', preexists=False)
 
-        self.logger.info('Creating temporary folder {} for Oasis files'.format(args.oasis_files_path))
+        if not model_run_dir_path:
+            utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
+            model_run_dir_path = os.path.join(os.getcwd(), 'runs', 'ProgOasis-{}'.format(utcnow))
+            self.logger.info('No model run dir. provided - creating a timestamped run dir. in working directory as {}'.format(model_run_dir_path))
+            os.mkdir(model_run_dir_path)
+        else:
+            if not os.path.exists(model_run_dir_path):
+                os.mkdir(model_run_dir_path)
+
         args.oasis_files_path = os.path.join(model_run_dir_path, 'tmp')
-        if not os.path.exists(args.oasis_files_path):
-            os.mkdir(args.oasis_files_path)
+        self.logger.info('Creating temporary folder {} for Oasis files'.format(args.oasis_files_path))
+        os.mkdir(args.oasis_files_path)
 
         gen_oasis_files_cmd = GenerateOasisFilesCmd()
         gen_oasis_files_cmd._logger = self.logger
