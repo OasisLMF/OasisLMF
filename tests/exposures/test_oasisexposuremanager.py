@@ -591,7 +591,7 @@ class OasisExposuresTransformSourceToCanonical(TestCase):
                 os.path.abspath(canonical_exposures_file_path),
                 os.path.abspath(source_exposures_validation_file_path),
                 os.path.abspath(source_to_canonical_exposures_transformation_file_path),
-                append_row_nums=False,
+                append_row_nums=True,
             )
             trans_call_mock.assert_called_once_with()
 
@@ -624,7 +624,7 @@ class OasisExposuresTransformSourceToCanonical(TestCase):
                 os.path.abspath(canonical_exposures_file_path),
                 os.path.abspath(source_exposures_validation_file_path),
                 os.path.abspath(source_to_canonical_exposures_transformation_file_path),
-                append_row_nums=False,
+                append_row_nums=True,
             )
             trans_call_mock.assert_called_once_with()
 
@@ -652,7 +652,7 @@ class OasisExposuresTransformCanonicalToModel(TestCase):
                 os.path.abspath(model_exposures_file_path),
                 os.path.abspath(canonical_exposures_validation_file_path),
                 os.path.abspath(canonical_to_model_exposures_transformation_file_path),
-                append_row_nums=True,
+                append_row_nums=False,
             )
             trans_call_mock.assert_called_once_with()
 
@@ -685,7 +685,7 @@ class OasisExposuresTransformCanonicalToModel(TestCase):
                 os.path.abspath(model_exposures_file_path),
                 os.path.abspath(canonical_exposures_validation_file_path),
                 os.path.abspath(canonical_to_model_exposures_transformation_file_path),
-                append_row_nums=True,
+                append_row_nums=False,
             )
             trans_call_mock.assert_called_once_with()
 

@@ -91,6 +91,7 @@ class GenerateKeysCmd(OasisBaseCommand):
         parser.add_argument(
             '-s', '--successes-only', action='store_true', help='Only record successful entries',
         )
+        parser.set_defaults(successes_only=False)
 
     def action(self, args):
         """
@@ -115,10 +116,10 @@ class GenerateKeysCmd(OasisBaseCommand):
 
         self.logger.info('Saving keys records to file')
         f, n = OasisKeysLookupFactory.save_keys(
-            model_klc,
+            lookup=model_klc,
             model_exposures_file_path=model_exposures_file_path,
             output_file_path=args.output_file_path,
-            success_only=args.success_only,
+            success_only=args.successes_only
         )
         self.logger.info('{} keys records saved to file {}'.format(n, f))
 
@@ -183,7 +184,7 @@ class GenerateLossesCmd(OasisBaseCommand):
         """
         inputs = InputValues(args)
 
-        default_oasis_files_path = 'OasisFiles-{}'.format(get_utctimestamp(fmt='%Y%m%d%H%M%S'))
+        default_oasis_files_path = os.path.abspath('OasisFiles-{}'.format(get_utctimestamp(fmt='%Y%m%d%H%M%S')))
         oasis_files_path = as_path(inputs.get('oasis_files_path', is_path=True, default=default_oasis_files_path), 'Oasis file', preexists=False)
         analysis_settings_json_file_path = as_path(
             inputs.get('analysis_settings_json_file_path', required=True, is_path=True),
@@ -297,7 +298,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         """
         inputs = InputValues(args)
 
-        default_oasis_files_path = 'OasisFiles-{}'.format(get_utctimestamp(fmt='%Y%m%d%H%M%S'))
+        default_oasis_files_path = os.path.abspath('OasisFiles-{}'.format(get_utctimestamp(fmt='%Y%m%d%H%M%S')))
         oasis_files_path = as_path(inputs.get('oasis_files_path', is_path=True, default=default_oasis_files_path), 'Oasis file', preexists=False)
         keys_data_path = as_path(inputs.get('keys_data_path', required=True, is_path=True), 'Keys data')
         model_version_file_path = as_path(inputs.get('model_version_file_path', required=True, is_path=True), 'Model version file')
@@ -338,6 +339,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             model_id=model_info['model_id'],
             model_version_id=model_info['model_version_id'],
             resources={
+                'lookup': model_klc,
                 'oasis_files_path': oasis_files_path,
                 'canonical_exposures_profile_json_path': canonical_exposures_profile_json_path,
                 'source_exposures_validation_file_path': source_exposures_validation_file_path,
