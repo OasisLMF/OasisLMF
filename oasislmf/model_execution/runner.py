@@ -14,6 +14,6 @@ def run(analysis_settings, number_of_processes=-1, filename='run_ktools.sh'):
 
     genbash(number_of_processes, analysis_settings, filename)
     try:
-        subprocess.check_call(['bash', 'run_ktools.sh'])
+        subprocess.check_call(['bash', filename])
     except subprocess.CalledProcessError as e:
-        raise OasisException('Error running ktools: {}'.format(e.stderr))
+        raise OasisException('Error running ktools: {}'.format(str(e)))
