@@ -356,7 +356,7 @@ class GenerateLossesCmd(OasisBaseCommand):
         prepare_model_run_inputs(analysis_settings, model_run_dir_path)
 
         script_path = os.path.join(model_run_dir_path, '{}.sh'.format(ktools_script_name))
-        if not no_execute:
+        if no_execute:
             self.logger.info('Generating ktools losses script')
             genbash(
                 args.ktools_num_processes,
