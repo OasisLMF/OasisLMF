@@ -457,8 +457,6 @@ class RunCmd(OasisBaseCommand):
         gen_losses_cmd._logger = self.logger
         gen_losses_cmd.action(args)
 
-        shutil.rmtree(model_run_dir_path)
-
 
 class ModelsCmd(OasisBaseCommand):
     sub_commands = {
