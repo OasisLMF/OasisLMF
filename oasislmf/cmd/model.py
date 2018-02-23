@@ -363,7 +363,10 @@ class GenerateLossesCmd(OasisBaseCommand):
                 analysis_settings,
                 filename=script_path,
             )
+            self.logger.info('Making ktools losses script executable')
+            subprocess.check_call("chmod +x {}".format(script_path), stderr=subprocess.STDOUT, shell=True)
         else:
+            os.chdir(model_run_dir_path)
             run(analysis_settings, args.ktools_num_processes, filename=script_path)
 
         self.logger.info('Loss outputs generated in {}'.format(os.path.join(model_run_dir_path, 'output')))
