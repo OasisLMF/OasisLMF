@@ -303,18 +303,19 @@ class GenerateLossesCmd(OasisBaseCommand):
         """
         inputs = InputValues(args)
 
-        utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-        default_oasis_files_path = os.path.join(os.getcwd(), 'runs', 'OasisFiles-{}'.format(utcnow))
-        oasis_files_path = as_path(inputs.get('oasis_files_path', is_path=True, default=default_oasis_files_path), 'Oasis file', preexists=False)
+        oasis_files_path = as_path(inputs.get('oasis_files_path', required=True, is_path=True), 'Oasis files', preexists=True)
+
+        model_run_dir_path = as_path(inputs.get('model_run_dir_path', required=False, is_path=True), 'Model run directory', preexists=False)
+
         analysis_settings_json_file_path = as_path(
             inputs.get('analysis_settings_json_file_path', required=True, is_path=True),
             'Analysis settings file'
         )
         model_data_path = as_path(inputs.get('model_data_path', required=True, is_path=True), 'Model data')
-        model_run_dir_path = as_path(inputs.get('model_run_dir_path', required=False, is_path=True), 'Model run directory')
+        
         ktools_script_name = inputs.get('ktools_script_name', default='run_ktools')
         no_execute = inputs.get('no_execute', default=False)
-
+        
         if not model_run_dir_path:
             utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
             model_run_dir_path = os.path.join(os.getcwd(), 'runs', 'ProgOasis-{}'.format(utcnow))
