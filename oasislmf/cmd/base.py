@@ -23,7 +23,7 @@ class InputValues(object):
         self.config = {}
         self.config_dir = os.path.dirname(args.config)
         if os.path.exists(args.config):
-            with io.open(args.config, encoding='utf-8') as f:
+            with io.open(args.config, 'r', encoding='utf-8') as f:
                 self.config = json.load(f)
 
     def get(self, name, default=None, required=False, is_path=False):
@@ -73,7 +73,8 @@ class InputValues(object):
             value = default
 
         if is_path and value is not None:
-            value = os.path.abspath(os.path.join(self.config_dir, value))
+            p = os.path.join(self.config_dir, value)
+            value = os.path.abspath(p) if not os.path.isabs(value) else p
 
         return value
 

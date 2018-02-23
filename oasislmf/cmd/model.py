@@ -124,129 +124,6 @@ class GenerateKeysCmd(OasisBaseCommand):
         self.logger.info('{} keys records saved to file {}'.format(n, f))
 
 
-class GenerateLossesCmd(OasisBaseCommand):
-    """
-    Generate losses using the installed ktools framework.
-
-    Given Oasis files, model analysis settings JSON file, model data, and
-    some other parameters. can generate losses using the installed ktools framework.
-
-    The command line arguments can be supplied in the configuration file
-    (``oasislmf.json`` by default or specified with the ``--config`` flag).
-    Run ``oasislmf config --help`` for more information.
-
-    The script creates a time-stamped folder in the model run directory and
-    sets that as the new model run directory, copies the analysis settings
-    JSON file into the run directory and creates the following folder
-    structure
-    ::
-
-        ├── analysis_settings.json
-        ├── fifo/
-        ├── input/
-        ├── output/
-        ├── static/
-        └── work/
-
-    Depending on the OS type the model data is symlinked (Linux, Darwin) or
-    copied (Cygwin, Windows) into the ``static`` subfolder. The input files
-    are kept in the ``input`` subfolder and the losses are generated as CSV
-    files in the ``output`` subfolder.
-
-    By default executing the generated ktools losses script will automatically
-    execute, this can be overridden by providing the ``--no-execute`` flag.
-    """
-    formatter_class = RawDescriptionHelpFormatter
-
-    def add_args(self, parser):
-        """
-        Adds arguments to the argument parser.
-
-        :param parser: The argument parser object
-        :type parser: ArgumentParser
-        """
-        super(GenerateLossesCmd, self).add_args(parser)
-
-        parser.add_argument('oasis_files_path', default=None, help='Path to Oasis files', nargs='?')
-        parser.add_argument('-j', '--analysis-settings-json-file-path', default=None, help='Relative or absolute path of the model analysis settings JSON file')
-        parser.add_argument('-m', '--model-data-path', default=None, help='Model data source path')
-        parser.add_argument('-r', '--model-run-dir-path', default=None, help='Model run directory path')
-        parser.add_argument('-s', '--ktools-script-name', default=None, help='Relative or absolute path of the output file')
-        parser.add_argument('-n', '--ktools-num-processes', default=-1, help='Number of ktools calculation processes to use')
-        parser.add_argument('-x', '--no-execute', action='store_true', help='Whether to execute generated ktools script')
-
-    def action(self, args):
-        """
-        Generate losses using the installed ktools framework.
-
-        :param args: The arguments from the command line
-        :type args: Namespace
-        """
-        inputs = InputValues(args)
-
-        default_oasis_files_path = os.path.abspath('OasisFiles-{}'.format(get_utctimestamp(fmt='%Y%m%d%H%M%S')))
-        oasis_files_path = as_path(inputs.get('oasis_files_path', is_path=True, default=default_oasis_files_path), 'Oasis file', preexists=False)
-        analysis_settings_json_file_path = as_path(
-            inputs.get('analysis_settings_json_file_path', required=True, is_path=True),
-            'Analysis settings file'
-        )
-        model_data_path = as_path(inputs.get('model_data_path', required=True, is_path=True), 'Model data')
-        model_run_dir_path = as_path(inputs.get('model_run_dir_path', required=True, is_path=True), 'Model run directory')
-        ktools_script_name = inputs.get('ktools_script_name', default='run_ktools')
-        no_execute = inputs.get('no_execute', default=False)
-
-        if not os.path.exists(model_run_dir_path):
-            os.mkdir(model_run_dir_path)
-
-        utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-        model_run_dir_path = os.path.join(args['model_run_dir_path'], 'ProgOasis-{}'.format(utcnow))
-        self.logger.info('Creating time-stamped model run folder {}'.format(model_run_dir_path))
-        os.mkdir(model_run_dir_path)
-
-        self.logger.info(
-            'Preparing model run directory {} - copying Oasis files, analysis settings JSON file and linking model data'.format(model_run_dir_path)
-        )
-        prepare_model_run_directory(
-            model_run_dir_path,
-            oasis_files_path,
-            analysis_settings_json_file_path,
-            model_data_path
-        )
-
-        self.logger.info('Converting Oasis files to ktools binary files')
-        oasis_files_path = os.path.join(model_run_dir_path, 'input', 'csv')
-        binary_files_path = os.path.join(model_run_dir_path, 'input')
-        create_binary_files(oasis_files_path, binary_files_path)
-
-        analysis_settings_json_file_path = os.path.join(model_run_dir_path, 'analysis_settings.json')
-        try:
-            self.logger.info('Reading analysis settings JSON file')
-            with io.open(analysis_settings_json_file_path, 'r', encoding='utf-8') as f:
-                analysis_settings = json.load(f)
-                if 'analysis_settings' in analysis_settings:
-                    analysis_settings = analysis_settings['analysis_settings']
-        except (IOError, TypeError, ValueError):
-            raise OasisException('Invalid analysis settings JSON file or file path: {}.'.format(analysis_settings_json_file_path))
-
-        self.logger.info('Loaded analysis settings JSON: {}'.format(analysis_settings))
-
-        self.logger.info('Preparing model run inputs')
-        prepare_model_run_inputs(analysis_settings, model_run_dir_path)
-
-        script_path = os.path.join(model_run_dir_path, '{}.sh'.format(ktools_script_name))
-        if not no_execute:
-            self.logger.info('Generating ktools losses script')
-            genbash(
-                args.ktools_num_processes,
-                analysis_settings,
-                filename=script_path,
-            )
-        else:
-            run(analysis_settings, args.ktools_num_processes, filename=script_path)
-
-        self.logger.info('Loss outputs generated in {}'.format(os.path.join(model_run_dir_path, 'output')))
-
-
 class GenerateOasisFilesCmd(OasisBaseCommand):
     """
     Generate Oasis files (items, coverages, GUL summary) for a model
@@ -365,6 +242,130 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         self.logger.info('Generated Oasis files for model: {}'.format(oasis_files))
 
 
+class GenerateLossesCmd(OasisBaseCommand):
+    """
+    Generate losses using the installed ktools framework.
+
+    Given Oasis files, model analysis settings JSON file, model data, and
+    some other parameters. can generate losses using the installed ktools framework.
+
+    The command line arguments can be supplied in the configuration file
+    (``oasislmf.json`` by default or specified with the ``--config`` flag).
+    Run ``oasislmf config --help`` for more information.
+
+    The script creates a time-stamped folder in the model run directory and
+    sets that as the new model run directory, copies the analysis settings
+    JSON file into the run directory and creates the following folder
+    structure
+    ::
+
+        ├── analysis_settings.json
+        ├── fifo/
+        ├── input/
+        ├── output/
+        ├── static/
+        └── work/
+
+    Depending on the OS type the model data is symlinked (Linux, Darwin) or
+    copied (Cygwin, Windows) into the ``static`` subfolder. The input files
+    are kept in the ``input`` subfolder and the losses are generated as CSV
+    files in the ``output`` subfolder.
+
+    By default executing the generated ktools losses script will automatically
+    execute, this can be overridden by providing the ``--no-execute`` flag.
+    """
+    formatter_class = RawDescriptionHelpFormatter
+
+    def add_args(self, parser):
+        """
+        Adds arguments to the argument parser.
+
+        :param parser: The argument parser object
+        :type parser: ArgumentParser
+        """
+        super(GenerateLossesCmd, self).add_args(parser)
+
+        parser.add_argument('oasis_files_path', default=None, help='Path to Oasis files', nargs='?')
+        parser.add_argument('-j', '--analysis-settings-json-file-path', default=None, help='Relative or absolute path of the model analysis settings JSON file')
+        parser.add_argument('-m', '--model-data-path', default=None, help='Model data source path')
+        parser.add_argument('-r', '--model-run-dir-path', default=None, help='Model run directory path')
+        parser.add_argument('-s', '--ktools-script-name', default=None, help='Relative or absolute path of the output file')
+        parser.add_argument('-n', '--ktools-num-processes', default=-1, help='Number of ktools calculation processes to use')
+        parser.add_argument('-x', '--no-execute', action='store_true', help='Whether to execute generated ktools script')
+
+    def action(self, args):
+        """
+        Generate losses using the installed ktools framework.
+
+        :param args: The arguments from the command line
+        :type args: Namespace
+        """
+        inputs = InputValues(args)
+
+        default_oasis_files_path = os.path.abspath('OasisFiles-{}'.format(get_utctimestamp(fmt='%Y%m%d%H%M%S')))
+        oasis_files_path = as_path(inputs.get('oasis_files_path', is_path=True, default=default_oasis_files_path), 'Oasis file', preexists=False)
+        analysis_settings_json_file_path = as_path(
+            inputs.get('analysis_settings_json_file_path', required=True, is_path=True),
+            'Analysis settings file'
+        )
+        model_data_path = as_path(inputs.get('model_data_path', required=True, is_path=True), 'Model data')
+        model_run_dir_path = as_path(inputs.get('model_run_dir_path', required=False, is_path=True), 'Model run directory')
+        ktools_script_name = inputs.get('ktools_script_name', default='run_ktools')
+        no_execute = inputs.get('no_execute', default=False)
+
+        if not model_run_dir_path:
+            utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
+            model_run_dir_path = os.path.join(os.getcwd(), 'runs', 'ProgOasis-{}'.format(utcnow))
+            self.logger.info('No model run dir. provided - creating a timestamped run dir. in working directory as {}'.format(model_run_dir_path))
+            os.mkdir(model_run_dir_path)
+        else:
+            if not os.path.exists(model_run_dir_path):
+                os.mkdir(model_run_dir_path)
+
+        self.logger.info(
+            'Preparing model run directory {} - copying Oasis files, analysis settings JSON file and linking model data'.format(model_run_dir_path)
+        )
+        prepare_model_run_directory(
+            model_run_dir_path,
+            oasis_files_path,
+            analysis_settings_json_file_path,
+            model_data_path
+        )
+
+        self.logger.info('Converting Oasis files to ktools binary files')
+        oasis_files_path = os.path.join(model_run_dir_path, 'input', 'csv')
+        binary_files_path = os.path.join(model_run_dir_path, 'input')
+        create_binary_files(oasis_files_path, binary_files_path)
+
+        analysis_settings_json_file_path = os.path.join(model_run_dir_path, 'analysis_settings.json')
+        try:
+            self.logger.info('Reading analysis settings JSON file')
+            with io.open(analysis_settings_json_file_path, 'r', encoding='utf-8') as f:
+                analysis_settings = json.load(f)
+                if 'analysis_settings' in analysis_settings:
+                    analysis_settings = analysis_settings['analysis_settings']
+        except (IOError, TypeError, ValueError):
+            raise OasisException('Invalid analysis settings JSON file or file path: {}.'.format(analysis_settings_json_file_path))
+
+        self.logger.info('Loaded analysis settings JSON: {}'.format(analysis_settings))
+
+        self.logger.info('Preparing model run inputs')
+        prepare_model_run_inputs(analysis_settings, model_run_dir_path)
+
+        script_path = os.path.join(model_run_dir_path, '{}.sh'.format(ktools_script_name))
+        if not no_execute:
+            self.logger.info('Generating ktools losses script')
+            genbash(
+                args.ktools_num_processes,
+                analysis_settings,
+                filename=script_path,
+            )
+        else:
+            run(analysis_settings, args.ktools_num_processes, filename=script_path)
+
+        self.logger.info('Loss outputs generated in {}'.format(os.path.join(model_run_dir_path, 'output')))
+
+
 class RunCmd(OasisBaseCommand):
     """
     Run models end to end.
@@ -425,7 +426,7 @@ class RunCmd(OasisBaseCommand):
         :type args: Namespace
         """
         inputs = InputValues(args)
-        model_run_dir_path = as_path(inputs.get('model_run_dir_path', required=True), 'Model run path', preexists=False)
+        model_run_dir_path = as_path(inputs.get('model_run_dir_path', required=False), 'Model run path', preexists=False)
 
         self.logger.info('Creating temporary folder {} for Oasis files'.format(args.oasis_files_path))
         args.oasis_files_path = os.path.join(model_run_dir_path, 'tmp')
@@ -446,7 +447,7 @@ class RunCmd(OasisBaseCommand):
 class ModelsCmd(OasisBaseCommand):
     sub_commands = {
         'generate-keys': GenerateKeysCmd,
-        'generate-losses': GenerateLossesCmd,
         'generate-oasis-files': GenerateOasisFilesCmd,
+        'generate-losses': GenerateLossesCmd,
         'run': RunCmd,
     }

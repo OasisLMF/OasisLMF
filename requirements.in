@@ -1,6 +1,7 @@
 -r ./requirements-package.in
 
 pip-tools
+discover
 flake8
 pytest
 mock
