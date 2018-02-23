@@ -553,14 +553,6 @@ class PrepareModelRunInputs(TestCase):
             with io.open(os.path.join(d, 'input', 'periods.bin'), 'r', encoding='utf-8') as new_periods_file:
                 self.assertEqual('periods bin', new_periods_file.read())
 
-    def test_no_periods_bin_exists___oasis_exception_is_raised(self):
-        with TemporaryDirectory() as d:
-            self.make_fake_bins(d)
-            os.remove(os.path.join(d, 'static', 'periods.bin'))
-
-            with self.assertRaises(OasisException):
-                prepare_model_run_inputs({}, d)
-
 
 class CleanBinDirectory(TestCase):
     def test_output_and_bin_input_files_are_removed(self):
