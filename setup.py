@@ -62,14 +62,14 @@ class PostInstallKtools(install):
 
     def __init__(self, *args, **kwargs):
         self.ktools_components = []
-        super(PostInstallKtools, self).__init__(*args, **kwargs)
+        install.__init__(self, *args, **kwargs)
 
     def run(self):
         self.install_ktools()
-        super(PostInstallKtools, self).run()
+        install.run(self)
 
     def get_outputs(self):
-        return super(PostInstallKtools, self).get_outputs() + self.ktools_components
+        return install.get_outputs(self) + self.ktools_components
 
     def fetch_ktools_tar(self, location):
         self.announce('Retrieving ktools {}'.format(KTOOLS_VERSION), INFO)
@@ -86,7 +86,8 @@ class PostInstallKtools(install):
     def unpack_tar(self, tar_location, extract_location):
         self.announce('Unpacking ktools', INFO)
         with tarfile.open(tar_location) as tar:
-            os.makedirs(extract_location, exist_ok=True)
+            if not os.path.exists(extract_location):
+                os.makedirs(extract_location)
             tar.extractall(extract_location)
 
     def build_ktools(self, extract_location):
