@@ -1,7 +1,6 @@
 from __future__ import print_function, division
 
 import glob
-import json
 import os
 import io
 import re
@@ -22,6 +21,7 @@ except ImportError:
 
 KTOOLS_VERSION = '0_0_392_0'
 SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
+
 
 def get_readme():
     with io.open(os.path.join(SCRIPT_DIR, 'README.rst'), encoding='utf-8') as readme:
@@ -120,7 +120,6 @@ class PostInstallKtools(install):
             self.ktools_components = list(self.add_ktools_to_path(build_dir))
 
 
-
 # allow setup.py to be run from any path
 os.chdir(os.path.normpath(os.path.join(os.path.abspath(__file__), os.pardir)))
 
@@ -143,18 +142,6 @@ if sys.argv[-1] == 'publish':
     sys.exit()
 
 
-class LazyScripts(object):
-    @property
-    def _scripts(self):
-        return ['bin/oasislmf'] + list(glob.glob('ktools/bin/*'))
-
-    def __len__(self):
-        return len(self._scripts)
-
-    def __iter__(self):
-        return iter(self._scripts)
-
-
 setup(
     name='oasislmf',
     version=version,
@@ -170,7 +157,7 @@ setup(
     exclude_package_data={
         '': ['__pycache__', '*.py[co]'],
     },
-    scripts=LazyScripts(),
+    scripts=['bin/oasislmf'],
     license='BSD 3-Clause',
     description='Core loss modelling framework.',
     long_description=readme,

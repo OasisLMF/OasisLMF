@@ -5,7 +5,6 @@ from .base import OasisBaseCommand
 from .test import TestCmd
 from .version import VersionCmd
 from .bin import BinCmd
-from .ktools import KtoolsCmd
 
 
 class RootCmd(OasisBaseCommand):
