@@ -9,9 +9,10 @@ import shutil
 import sys
 import tarfile
 from contextlib import contextmanager
+from distutils.log import INFO
 from tempfile import mkdtemp
 
-from setuptools import find_packages, setup, Extension
+from setuptools import find_packages, setup
 from setuptools.command.install import install
 
 try:
@@ -19,19 +20,16 @@ try:
 except ImportError:
     from urllib import urlretrieve
 
-# allow setup.py to be run from any path
-os.chdir(os.path.normpath(os.path.join(os.path.abspath(__file__), os.pardir)))
-
 KTOOLS_VERSION = '0_0_392_0'
-
+SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 
 def get_readme():
-    with io.open(os.path.join(os.path.dirname(__file__), 'README.rst'), encoding='utf-8') as readme:
+    with io.open(os.path.join(SCRIPT_DIR, 'README.rst'), encoding='utf-8') as readme:
         return readme.read()
 
 
 def get_install_requirements():
-    with io.open(os.path.join(os.path.dirname(__file__), 'requirements-package.in'), encoding='utf-8') as reqs:
+    with io.open(os.path.join(SCRIPT_DIR, 'requirements-package.in'), encoding='utf-8') as reqs:
         return reqs.readlines()
 
 
@@ -39,7 +37,7 @@ def get_version():
     """
     Return package version as listed in `__version__` in `init.py`.
     """
-    with io.open(os.path.join(os.path.dirname(__file__), 'oasislmf', '__init__.py'), encoding='utf-8') as init_py:
+    with io.open(os.path.join(SCRIPT_DIR, 'oasislmf', '__init__.py'), encoding='utf-8') as init_py:
         return re.search('__version__ = [\'"]([^\'"]+)[\'"]', init_py.read()).group(1)
 
 
@@ -51,8 +49,80 @@ def temp_dir():
 
 
 version = get_version()
+reqs = get_install_requirements()
+readme = get_readme()
 
-ktools_module = Extension('oasislmf.ktools', ['ktools/ktools.cpp', 'ktools/src/hello.cpp'])
+
+class PostInstallKtools(install):
+    command_name = 'install'
+    user_options = install.user_options + [
+        ('ktools', None, 'Only install ktools components'),
+    ]
+    boolean_options = install.boolean_options + ['ktools']
+
+    def __init__(self, *args, **kwargs):
+        self.ktools_components = []
+        super(PostInstallKtools, self).__init__(*args, **kwargs)
+
+    def run(self):
+        self.install_ktools()
+        super(PostInstallKtools, self).run()
+
+    def get_outputs(self):
+        return super(PostInstallKtools, self).get_outputs() + self.ktools_components
+
+    def fetch_ktools_tar(self, location):
+        self.announce('Retrieving ktools {}'.format(KTOOLS_VERSION), INFO)
+
+        def _report(block_count, block_size, total_size, end='\r'):
+            bar_size = 40
+            filled = bar_size * (block_count * block_size) // total_size
+
+            print('[{}{}]'.format('#' * filled, ' ' * (bar_size - filled)), end=end)
+
+        urlretrieve('https://github.com/OasisLMF/ktools/archive/OASIS_{}.tar.gz'.format(KTOOLS_VERSION), location, _report)
+        _report(1, 1, 1, end=' Done\n')
+
+    def unpack_tar(self, tar_location, extract_location):
+        self.announce('Unpacking ktools', INFO)
+        with tarfile.open(tar_location) as tar:
+            os.makedirs(extract_location, exist_ok=True)
+            tar.extractall(extract_location)
+
+    def build_ktools(self, extract_location):
+        self.announce('Building ktools', INFO)
+        build_dir = os.path.join(extract_location, 'ktools-OASIS_{}'.format(KTOOLS_VERSION))
+
+        os.system('cd {build_dir} && ./autogen.sh && ./configure && make && make check'.format(build_dir=build_dir))
+        return build_dir
+
+    def add_ktools_to_path(self, build_dir):
+        print('Installing ktools')
+
+        for p in glob.glob(os.path.join(build_dir, 'src', '*', '*')):
+            split = p.split(os.path.sep)
+
+            # if the file name is the same as the directory we have found a
+            # component executable
+            if split[-1] == split[-2]:
+                component_path = os.path.join(self.install_scripts, split[-1])
+                shutil.copy(p, component_path)
+                yield component_path
+
+    def install_ktools(self):
+        with temp_dir() as d:
+            local_tar_path = os.path.join(d, 'ktools.tar.gz')
+            local_extract_path = os.path.join(d, 'extracted')
+
+            self.fetch_ktools_tar(local_tar_path)
+            self.unpack_tar(local_tar_path, local_extract_path)
+            build_dir = self.build_ktools(local_extract_path)
+            self.ktools_components = list(self.add_ktools_to_path(build_dir))
+
+
+
+# allow setup.py to be run from any path
+os.chdir(os.path.normpath(os.path.join(os.path.abspath(__file__), os.pardir)))
 
 
 if sys.argv[-1] == 'publish':
@@ -73,79 +143,16 @@ if sys.argv[-1] == 'publish':
     sys.exit()
 
 
-class PostInstallKtools(install):
-    command_name = 'install'
-    user_options = install.user_options + [
-        ('ktools', None, 'Only install ktools components'),
-    ]
-    boolean_options = install.boolean_options + ['ktools']
+class LazyScripts(object):
+    @property
+    def _scripts(self):
+        return ['bin/oasislmf'] + list(glob.glob('ktools/bin/*'))
 
-    def __init__(self, *args, **kwargs):
-        self.ktools = False
-        super(PostInstallKtools, self).__init__(*args, **kwargs)
+    def __len__(self):
+        return len(self._scripts)
 
-    def run(self):
-        if not self.ktools:
-            super(PostInstallKtools, self).run()
-        self.install_ktools()
-
-    def fetch_ktools_tar(self, location):
-        print('Retrieving ktools {}'.format(KTOOLS_VERSION))
-
-        def _report(block_count, block_size, total_size, end='\r'):
-            bar_size = 40
-            filled = bar_size * (block_count * block_size) // total_size
-
-            print('[{}{}]'.format('#' * filled, ' ' * (bar_size - filled)), end=end)
-
-        urlretrieve('https://github.com/OasisLMF/ktools/archive/OASIS_{}.tar.gz'.format(KTOOLS_VERSION), location, _report)
-        _report(1, 1, 1, end=' Done\n')
-
-    def unpack_tar(self, tar_location, extract_location):
-        print('Unpacking ktools')
-        with tarfile.open(tar_location) as tar:
-            os.mkdir(extract_location)
-            tar.extractall(extract_location)
-
-    def build_ktools(self, extract_location):
-        print('Building ktools')
-        build_dir = os.path.join(extract_location, 'ktools-OASIS_{}'.format(KTOOLS_VERSION))
-
-        os.system('cd {build_dir} && ./autogen.sh && ./configure && make && make check'.format(build_dir=build_dir))
-        return build_dir
-
-    def add_ktools_to_path(self, build_dir):
-        print('Installing ktools')
-        components_file = os.path.join(self.install_scripts, '.ktools_components')
-        components = set()
-
-        # check if we already have any components installed so that they are not lost on future uninstall
-        if os.path.exists(components_file):
-            with open(components_file) as f:
-                components = set(json.load(f))
-
-        for p in glob.glob(os.path.join(build_dir, 'src', '*', '*')):
-            split = p.split(os.path.sep)
-
-            # if the file name is the same as the directory we have found a
-            # component executable
-            if split[-1] == split[-2]:
-                shutil.copy(p, os.path.join(self.install_scripts, split[-1]))
-                components.add(split[-1])
-
-        # store all the installed components so that they can be uninstalled later
-        with open(components_file, 'w') as f:
-            json.dump(list(components), f)
-
-    def install_ktools(self):
-        with temp_dir() as d:
-            local_tar_path = os.path.join(d, 'ktools.tar.gz')
-            local_extract_path = os.path.join(d, 'extracted')
-
-            self.fetch_ktools_tar(local_tar_path)
-            self.unpack_tar(local_tar_path, local_extract_path)
-            build_dir = self.build_ktools(local_extract_path)
-            self.add_ktools_to_path(build_dir)
+    def __iter__(self):
+        return iter(self._scripts)
 
 
 setup(
@@ -163,15 +170,15 @@ setup(
     exclude_package_data={
         '': ['__pycache__', '*.py[co]'],
     },
-    scripts=['bin/oasislmf'],
+    scripts=LazyScripts(),
     license='BSD 3-Clause',
     description='Core loss modelling framework.',
-    long_description=get_readme(),
+    long_description=readme,
     url='https://github.com/OasisLMF/oasislmf',
     author='OasisLMF',
     author_email=' oasis@oasislmf.org',
     keywords='oasis lmf loss modeling framework',
-    install_requires=get_install_requirements(),
+    install_requires=reqs,
     classifiers=[
         'Development Status :: 4 - Beta',
         'License :: OSI Approved :: BSD License',
