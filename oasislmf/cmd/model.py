@@ -105,6 +105,9 @@ class GenerateKeysCmd(OasisBaseCommand):
         keys_data_path = as_path(inputs.get('keys_data_path', required=True, is_path=True), 'Keys data')
         version_file_path = as_path(inputs.get('model_version_file_path', required=True, is_path=True), 'Version file')
         lookup_package_path = as_path(inputs.get('lookup_package_path', required=True, is_path=True), 'Lookup package')
+        utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
+        output_file_path = as_path(inputs.get('output_file_path', default='keys-{}'.format(utcnow), required=False, is_path=True), 'Output file path')
+        successes_only = inputs.get('successes_only', default=True)
 
         self.logger.info('Getting model info and creating lookup service instance')
         model_info, model_klc = OasisKeysLookupFactory.create(
@@ -118,8 +121,8 @@ class GenerateKeysCmd(OasisBaseCommand):
         f, n = OasisKeysLookupFactory.save_keys(
             lookup=model_klc,
             model_exposures_file_path=model_exposures_file_path,
-            output_file_path=args.output_file_path,
-            success_only=args.successes_only
+            output_file_path=output_file_path,
+            success_only=successes_only
         )
         self.logger.info('{} keys records saved to file {}'.format(n, f))
 
