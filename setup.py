@@ -135,7 +135,6 @@ if sys.argv[-1] == 'publish':
     print('  git tag -a {v} -m \'version {v}\''.format(v=version))
     print('  git push --tags')
     shutil.rmtree('dist')
-    shutil.rmtree('build')
     shutil.rmtree('oasislmf.egg-info')
     sys.exit()
 
