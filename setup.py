@@ -126,20 +126,17 @@ os.chdir(os.path.normpath(os.path.join(os.path.abspath(__file__), os.pardir)))
 
 
 if sys.argv[-1] == 'publish':
-    if os.system('pip freeze | grep wheel'):
-        print('wheel not installed.\nUse `pip install wheel`.\nExiting.')
-        sys.exit()
     if os.system('pip freeze | grep twine'):
         print('twine not installed.\nUse `pip install twine`.\nExiting.')
         sys.exit()
-    os.system('python setup.py sdist bdist_wheel')
+    os.system('python setup.py sdist')
     os.system('twine upload dist/*')
     print('You probably want to also tag the version now:')
     print('  git tag -a {v} -m \'version {v}\''.format(v=version))
     print('  git push --tags')
     shutil.rmtree('dist')
     shutil.rmtree('build')
-    shutil.rmtree('oasis_lmf.egg-info')
+    shutil.rmtree('oasislmf.egg-info')
     sys.exit()
 
 
