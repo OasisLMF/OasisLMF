@@ -67,8 +67,10 @@ class GenerateKeysCmd(OasisBaseCommand):
         """
         super(GenerateKeysCmd, self).add_args(parser)
 
+
+        parser.add_argument('-o', '--oasis-files-path', default=None, help='Path to Oasis files')
         parser.add_argument(
-            'output-file-path', type=PathCleaner('Output file', preexists=False),
+            '-o', '--output-file-path', default=None,
             help='Keys records output file path',
         )
         parser.add_argument(
@@ -145,7 +147,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         """
         super(GenerateOasisFilesCmd, self).add_args(parser)
 
-        parser.add_argument('oasis_files_path', default=None, help='Path to Oasis files', nargs='?')
+        parser.add_argument('-o', '--oasis-files-path', default=None, help='Path to Oasis files')
         parser.add_argument('-k', '--keys-data-path', default=None, help='Path to Oasis files')
         parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
         parser.add_argument('-l', '--lookup-package-path', default=None, help='Keys data directory path')
@@ -290,7 +292,7 @@ class GenerateLossesCmd(OasisBaseCommand):
         """
         super(GenerateLossesCmd, self).add_args(parser)
 
-        parser.add_argument('oasis_files_path', default=None, help='Path to Oasis files', nargs='?')
+        parser.add_argument('-o', '--oasis-files-path', default=None, help='Path to Oasis files')
         parser.add_argument('-j', '--analysis-settings-json-file-path', default=None, help='Relative or absolute path of the model analysis settings JSON file')
         parser.add_argument('-m', '--model-data-path', default=None, help='Model data source path')
         parser.add_argument('-r', '--model-run-dir-path', default=None, help='Model run directory path')

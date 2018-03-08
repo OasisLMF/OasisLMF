@@ -85,7 +85,7 @@ class PostInstallKtools(install):
             except URLError as e:
                 self.announce('Failed to get ktools tar (attempt {})'.format(i + 1), WARN)
                 last_error = e
-                sleep(1)
+                sleep(cooldown)
         else:
             self.announce('Failed to get ktools tar after {} attempts'.format(attempts), ERROR)
             if last_error:
