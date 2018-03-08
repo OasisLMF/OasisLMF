@@ -92,12 +92,12 @@ should be ran ensuring the development dependencies are kept up to
 Model keys lookup dependencies
 ------------------------------
 
-When using the Oasis model development kit (MDK) subcommands
+When using the Oasis model development kit (MDK) subcommands::
 
     oasislmf model {generate-keys, generate-oasis-files, generate-losses, run}
 
 for a specific model (e.g. PiWind) you may first need to install the Python requirements specific to the
-keys lookup service for that model, e.g. Pandas and Shapely for the [PiWind keys lookup](https://github.com/OasisLMF/OasisPiWind/blob/master/src/keys_server/PiWind/requirements.txt), otherwise you will encounter command failures.
+keys lookup service for that model, e.g. Pandas and Shapely for the `PiWind keys lookup <https://github.com/OasisLMF/OasisPiWind/blob/master/src/keys_server/PiWind/requirements.txt>`_, otherwise you will encounter command failures.
 
 Testing
 -------
