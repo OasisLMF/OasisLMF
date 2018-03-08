@@ -107,8 +107,7 @@ class GenerateKeysCmd(OasisBaseCommand):
         keys_data_path = as_path(inputs.get('keys_data_path', required=True, is_path=True), 'Keys data')
         version_file_path = as_path(inputs.get('model_version_file_path', required=True, is_path=True), 'Version file')
         lookup_package_path = as_path(inputs.get('lookup_package_path', required=True, is_path=True), 'Lookup package')
-        utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-        output_file_path = as_path(inputs.get('output_file_path', default='keys-{}'.format(utcnow), required=False, is_path=True), 'Output file path', preexists=False)
+
         output_format = inputs.get('output_format', default='oasis_keys')
         successes_only = inputs.get('successes_only', default=True)
 
@@ -118,6 +117,9 @@ class GenerateKeysCmd(OasisBaseCommand):
             model_version_file_path=version_file_path,
             lookup_package_path=lookup_package_path,
         )
+        utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
+        default_output_file_name = '{}-{}-{}-keys-{}.csv'.format(model_info['supplier_id'], model_info['model_id'], model_info['model_version_id'], utcnow)
+        output_file_path = as_path(inputs.get('output_file_path', default=default_output_file_name.format(utcnow), required=False, is_path=True), 'Output file path', preexists=False)
         self.logger.info('\t{}, {}'.format(model_info, model_klc))
 
         self.logger.info('Saving keys records to file')
