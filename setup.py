@@ -8,16 +8,18 @@ import shutil
 import sys
 import tarfile
 from contextlib import contextmanager
-from distutils.log import INFO
+from distutils.log import INFO, WARN, ERROR
 from tempfile import mkdtemp
+from time import sleep
 
 from setuptools import find_packages, setup
 from setuptools.command.install import install
 
 try:
-    from urllib.request import urlretrieve
+    from urllib.request import urlopen
+    from urllib.error import URLError
 except ImportError:
-    from urllib import urlretrieve
+    from urllib2 import urlopen, URLError
 
 KTOOLS_VERSION = '0_0_392_0'
 SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -71,17 +73,26 @@ class PostInstallKtools(install):
     def get_outputs(self):
         return install.get_outputs(self) + self.ktools_components
 
-    def fetch_ktools_tar(self, location):
+    def fetch_ktools_tar(self, location, attempts=3, timeout=5, cooldown=1):
         self.announce('Retrieving ktools {}'.format(KTOOLS_VERSION), INFO)
 
-        def _report(block_count, block_size, total_size, end='\r'):
-            bar_size = 40
-            filled = bar_size * (block_count * block_size) // total_size
+        last_error = None
+        request = None
+        for i in range(attempts):
+            try:
+                request = urlopen('https://github.com/OasisLMF/ktools/archive/OASIS_{}.tar.gz'.format(KTOOLS_VERSION), timeout=timeout * 1000)
+                break
+            except URLError as e:
+                self.announce('Failed to get ktools tar (attempt {})'.format(i + 1), WARN)
+                last_error = e
+                sleep(1)
+        else:
+            self.announce('Failed to get ktools tar after {} attempts'.format(attempts), ERROR)
+            if last_error:
+                raise last_error
 
-            print('[{}{}]'.format('#' * filled, ' ' * (bar_size - filled)), end=end)
-
-        urlretrieve('https://github.com/OasisLMF/ktools/archive/OASIS_{}.tar.gz'.format(KTOOLS_VERSION), location, _report)
-        _report(1, 1, 1, end=' Done\n')
+        with open(location, 'wb') as f:
+            f.write(request.read())
 
     def unpack_tar(self, tar_location, extract_location):
         self.announce('Unpacking ktools', INFO)
