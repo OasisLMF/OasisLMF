@@ -6,12 +6,10 @@ __all__ = [
     'Translator'
 ]
 
-import csv
 import io
 import os
+import numpy as np
 import pandas as pd
-
-from itertools import islice
 
 from lxml import etree
 
@@ -20,21 +18,17 @@ class Translator(object):
     def __init__(self, input_path, output_path, xsd_path, xslt_path, append_row_nums=False, chunk_size=5000, logger=None):
         self.logger = logger or logging.getLogger()
         self.threshold = 100000000
-        # Max file size for file_ReadAll() method, in bytes [100MB]
 
         self.xsd = etree.parse(xsd_path)   # validation file
-        self.xslt = etree.parse(xslt_path)  # transform file
-        self.fpath_input = input_path        # file_in.csv
-        self.fpath_output = output_path       # file_out.csv
+        self.xslt = etree.parse(xslt_path) # transform file
+        self.fpath_input = input_path      # file_in.csv
+        self.fpath_output = output_path    # file_out.csv
         self.ext = os.path.splitext(self.fpath_output)[1]
 
-        # Row Control Vars
-        self.row_nums = append_row_nums  # Is 's' or 'S' as well?
-        self.row_limit = chunk_size    # MAX number of CSV input rows
-        self.row_start = 1             # Start of input file segment to process
-        self.row_end = self.row_limit  # end of input file segment to process
-        self.row_header_in = None      # CSV col header
-        self.row_header_out = None     # CSV col header Post Transform
+        self.row_nums = append_row_nums  # Add 'ROW_ID' field to output
+        self.row_limit = chunk_size      # MAX number of CSV input rows
+        self.row_header_in = None        # CSV col header
+        self.row_header_out = None       # CSV col header Post Transform
 
         # Input Validation
         if (self.ext == ''):
@@ -44,34 +38,30 @@ class Translator(object):
 # --- Main loop --------------------------------------------------------------#
 
     def __call__(self):
+        csv_reader = pd.read_csv(self.fpath_input, iterator=True, dtype=np.unicode_)
+        for data, first_row_number, last_row_number in self.next_file_slice(csv_reader):
+            self.logger.debug('--- lines[%d .. %d] -------------------------------', first_row_number, last_row_number)
 
-        # read input CSV header
-        with io.open(self.fpath_input, 'r') as fd_input:
-            self.row_header_in = self.read_file_slice(fd_input, 0, 0)[0]
+            # Convert CSV -> XML
+            xml_input_slice = self.csv_to_xml(
+                self.row_header_in,
+                data
+            )
+            self.print_xml(xml_input_slice)
 
-            for data, first_row_number, last_row_number in self.next_file_slice(fd_input):
-                self.logger.debug('--- lines[%d .. %d] -------------------------------', first_row_number, last_row_number)
+            # Transform
+            xml_output = self.xml_transform(xml_input_slice, self.xslt)
+            self.print_xml(xml_output)
 
-                # Convert CSV -> XML
-                xml_input_slice = self.csv_to_xml(
-                    self.row_header_in,
-                    data
-                )
-                self.print_xml(xml_input_slice)
+            # Validate Output
+            self.logger.info(self.xml_validate(xml_output, self.xsd))
 
-                # Transform
-                xml_output = self.xml_transform(xml_input_slice, self.xslt)
-                self.print_xml(xml_output)
-
-                # Validate Output
-                self.logger.info(self.xml_validate(xml_output, self.xsd))
-
-                # Convert transform XML back to CSV
-                self.xml_to_csv(
-                    xml_output,          # XML etree
-                    first_row_number,  # First Row in this slice
-                    last_row_number    # Last Row in this slice
-                )
+            # Convert transform XML back to CSV
+            self.xml_to_csv(
+                xml_output,          # XML etree
+                first_row_number,  # First Row in this slice
+                last_row_number    # Last Row in this slice
+            )
 
 # --- Transform Functions ----------------------------------------------------#
 # https://pymotw.com/2/xml/etree/ElementTree/create.html
@@ -88,13 +78,6 @@ class Translator(object):
             for i in range(0, len(row)):
                 rec.set(self.row_header_in[i], row[i])
         return root
-
-    def csv_insert_row_nums(self, csv_data, r_start, r_end):
-        row_index = range(r_start, r_end)
-        row_total = r_end - r_start
-        if(row_total != len(csv_data)):
-            raise TypeError('Size mismatch between row numbering and dataset')
-        return [[row_index[i]] + csv_data[i] for i in range(0, row_total)]
 
     # --- XML Funcs --- #
     def xml_to_csv(self, xml_elementTree, row_first, row_last):
@@ -114,11 +97,9 @@ class Translator(object):
         #     class csv.DictWriter(csvfile ... )
         #     see: https://docs.python.org/2/library/csv.html
 
-        line_counter = row_first
+        line_counter = row_first+1
 
         for rec in root:
-            # print([rec.get(key) for key in self.row_header_out])
-
             # Convert Row record to python dict() Object
             rec_d = rec.attrib
 
@@ -130,12 +111,6 @@ class Translator(object):
             # Append to output file
             self.print_dict(rec_d)
             self.append_file_row(self.row_header_out, rec_d)
-
-        # guard for correct Row numbering
-        if ((self.row_nums) and (line_counter != row_last)):
-            self.logger.error('Line_count: %d, Row_last: %d', line_counter, row_last)
-
-            raise KeyError('Row_ID missmatch')
 
     # http://lxml.de/2.0/validation.html
     # If valid   -> Return True
@@ -164,35 +139,24 @@ class Translator(object):
 # --- File I/O Functions -----------------------------------------------------#
 
     # Generator Function which processes and returns batches of the input CSV
-    def next_file_slice(self, file_object):
+    # http://pandas.pydata.org/pandas-docs/stable/io.html#io-chunking
+    # https://pandas.pydata.org/pandas-docs/stable/generated/pandas.read_csv.html
+    #
+    # file_reader = pandas.read_csv( ... ,iterator=True)
+    def next_file_slice(self, file_reader):
         while True:
-            csv_chunk = self.read_file_slice(
-                file_object,
-                self.row_start,
-                self.row_end
-            )
-
-            # Exit check for EOF
-            rowsInChunk = len(csv_chunk)
-
-            if (rowsInChunk == 0):
-                break
-            else:
-                slice_start = self.row_start
-                slice_end = self.row_start + rowsInChunk
-
-                self.row_start += self.row_limit
-                self.row_end += self.row_limit
-                yield csv_chunk, slice_start, slice_end
-
-    # Return Line numbers of a file between [l_start .. l_end]
-    def read_file_slice(self, file_obj, l_start, l_end):
-        # return pointer to start of file
-        file_obj.seek(0)
-        input_reader = csv.reader(file_obj, delimiter=',')
-        # create iterator for the file slice
-        file_slice = islice(input_reader, l_start, l_end + 1)
-        return [line for line in file_slice]
+            try:
+                df_slice = file_reader.get_chunk(self.row_limit)
+                if(not self.row_header_in):
+                    self.row_header_in = df_slice.columns.values.tolist()
+                yield (
+                    df_slice.values.tolist(),
+                    df_slice.first_valid_index(),
+                    df_slice.last_valid_index()
+                )
+            except StopIteration:
+                self.logger.info('End of input file')
+                break;
 
     # Function to append output as its processed in batches
     #
