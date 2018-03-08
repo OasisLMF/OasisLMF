@@ -8,6 +8,7 @@ __all__ = [
 
 import io
 import os
+import numpy as np
 import pandas as pd
 
 from lxml import etree
@@ -37,7 +38,7 @@ class Translator(object):
 # --- Main loop --------------------------------------------------------------#
 
     def __call__(self):
-        csv_reader = pd.read_csv(self.fpath_input, iterator=True)
+        csv_reader = pd.read_csv(self.fpath_input, iterator=True, dtype=np.unicode_)
         for data, first_row_number, last_row_number in self.next_file_slice(csv_reader):
             self.logger.debug('--- lines[%d .. %d] -------------------------------', first_row_number, last_row_number)
 
@@ -75,7 +76,7 @@ class Translator(object):
             rec = etree.SubElement(root, 'rec')
             # Iter over columns and set attributs
             for i in range(0, len(row)):
-                rec.set(self.row_header_in[i], str(row[i]).decode('utf-8'))
+                rec.set(self.row_header_in[i], row[i])
         return root
 
     # --- XML Funcs --- #
@@ -143,18 +144,19 @@ class Translator(object):
     #
     # file_reader = pandas.read_csv( ... ,iterator=True)
     def next_file_slice(self, file_reader):
-        try:
-            df_slice = file_reader.get_chunk(self.row_limit)
-            if(not self.row_header_in):
-                self.row_header_in = df_slice.columns.values.tolist()
-            yield (
-                df_slice.values.tolist(), 
-                df_slice.first_valid_index(),
-                df_slice.last_valid_index()
-            )    
-        except StopIteration:
-            self.logger.info('End of input file')
-            return
+        while True:
+            try:
+                df_slice = file_reader.get_chunk(self.row_limit)
+                if(not self.row_header_in):
+                    self.row_header_in = df_slice.columns.values.tolist()
+                yield (
+                    df_slice.values.tolist(), 
+                    df_slice.first_valid_index(),
+                    df_slice.last_valid_index()
+                )        
+            except StopIteration:
+                self.logger.info('End of input file')
+                break;
 
     # Function to append output as its processed in batches
     #
