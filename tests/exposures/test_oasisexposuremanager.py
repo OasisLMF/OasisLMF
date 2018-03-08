@@ -330,10 +330,12 @@ class FileGenerationTestCase(TestCase):
 
         with io.open(os.path.join(out_dir, self.items_filename), 'r', encoding='utf-8') as f:
             result = list(csv.DictReader(f))
+            map(lambda rec: map(lambda key: rec.update({key:str(int(float(rec[key])))}), rec), result)
             self.assertEqual(expected, result)
 
         with io.open(os.path.join(out_dir, self.timestamped_items_filename), 'r', encoding='utf-8') as f:
             result = list(csv.DictReader(f))
+            map(lambda rec: map(lambda key: rec.update({key:str(int(float(rec[key])))}), rec), result)
             self.assertEqual(expected, result)
 
     def check_coverages_files(self, exposure_data, out_dir):
@@ -346,10 +348,12 @@ class FileGenerationTestCase(TestCase):
 
         with io.open(os.path.join(out_dir, self.coverages_filename), 'r', encoding='utf-8') as f:
             result = list(csv.DictReader(f))
+            map(lambda rec: map(lambda key: rec.update({key:str(int(float(rec[key])))}), rec), result)
             self.assertEqual(expected, result)
 
         with io.open(os.path.join(out_dir, self.timestamped_coverages_filename), 'r', encoding='utf-8') as f:
             result = list(csv.DictReader(f))
+            map(lambda rec: map(lambda key: rec.update({key:str(int(float(rec[key])))}), rec), result)
             self.assertEqual(expected, result)
 
     def check_gul_files(self, exposure_data, out_dir):
@@ -363,10 +367,12 @@ class FileGenerationTestCase(TestCase):
 
         with io.open(os.path.join(out_dir, self.gul_filename), 'r', encoding='utf-8') as f:
             result = list(csv.DictReader(f))
+            map(lambda rec: map(lambda key: rec.update({key:str(int(float(rec[key])))}), rec), result)
             self.assertEqual(expected, result)
 
         with io.open(os.path.join(out_dir, self.timestamped_gul_filename), 'r', encoding='utf-8') as f:
             result = list(csv.DictReader(f))
+            map(lambda rec: map(lambda key: rec.update({key:str(int(float(rec[key])))}), rec), result)
             self.assertEqual(expected, result)
 
 

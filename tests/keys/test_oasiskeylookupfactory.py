@@ -161,10 +161,10 @@ class OasisKeysLookupFactoryWriteListKeysFiles(TestCase):
         with TemporaryDirectory() as d:
             output_file = os.path.join(d, 'output')
 
-            res_path, res_count = OasisKeysLookupFactory.write_list_keys_file(data, output_file)
+            res_path, res_count = OasisKeysLookupFactory.write_json_keys_file(data, output_file)
 
             with io.open(output_file, encoding='utf-8') as f:
-                result_data = json.loads('[{}]'.format(f.read().strip()[:-1]))
+                result_data = json.load(f)
 
             self.assertEqual(res_count, len(data))
             self.assertEqual(res_path, output_file)
