@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
-import json
-import logging
 
 __all__ = [
     'Translator'
 ]
 
+
 import io
+import json
+import logging
 import os
+
 import numpy as np
 import pandas as pd
 
