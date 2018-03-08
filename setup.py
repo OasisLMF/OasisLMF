@@ -16,6 +16,15 @@ from setuptools import find_packages, setup
 from setuptools.command.install import install
 
 try:
+    from wheel.bdist_wheel import bdist_wheel
+    bdist_wheel_user_options = bdist_wheel.user_options
+except ImportError:
+    from distutils.cmd import Command as bdist_wheel
+    bdist_wheel_user_options = [
+        ('dist-dir=', 'd', "directory to put final built distributions in"),
+    ]
+
+try:
     from urllib.request import urlopen
     from urllib.error import URLError
 except ImportError:
@@ -132,6 +141,15 @@ class PostInstallKtools(install):
             self.ktools_components = list(self.add_ktools_to_path(build_dir))
 
 
+class BdistWheel(bdist_wheel):
+    user_options = bdist_wheel_user_options
+
+    def run(self):
+        # we cant build a wheel and the package needs to be installed
+        # from source so we currently make the bdist_wheel command fail
+        sys.exit(1)
+
+
 # allow setup.py to be run from any path
 os.chdir(os.path.normpath(os.path.join(os.path.abspath(__file__), os.pardir)))
 
@@ -184,5 +202,8 @@ setup(
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
     ],
-    cmdclass={'install': PostInstallKtools},
+    cmdclass={
+        'install': PostInstallKtools,
+        'bdist_wheel': BdistWheel,
+    },
 )
