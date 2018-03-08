@@ -199,16 +199,15 @@ class OasisKeysLookupFactory(object):
         return output_file_path, len(records)
 
     @classmethod
-    def write_list_keys_file(cls, records, output_file_path):
+    def write_json_keys_file(cls, records, output_file_path):
         """
         Writes the keys records as a simple list to file.
         """
         with io.open(output_file_path, 'w', encoding='utf-8') as f:
-            count = 0
-            for count, record in enumerate(records, start=1):
-                f.write('{},\n'.format(json.dumps(record, sort_keys=True, indent=4)))
+            f.write(json.dumps(records, sort_keys=True, indent=4, ensure_ascii=False).decode())
 
-            return f.name, count
+            return output_file_path, len(records)
+
 
     @classmethod
     def create(
@@ -277,6 +276,7 @@ class OasisKeysLookupFactory(object):
         cls,
         lookup=None,
         output_file_path=None,
+        output_format='oasis_keys',
         model_exposures=None,
         model_exposures_file_path=None,
         success_only=True
@@ -288,7 +288,7 @@ class OasisKeysLookupFactory(object):
         factory class), the path of the model location file, the path of
         output file, and the format of the output file which can be an
         Oasis keys file (``oasis_keys``) or a simple listing of the records
-        to file (``list_keys``).
+        to file (``json_keys``).
 
         The optional keyword argument ``success_only`` indicates whether only
         records with successful lookups should be returned (default), or all
@@ -309,4 +309,9 @@ class OasisKeysLookupFactory(object):
             success_only=success_only
         )
 
-        return cls.write_oasis_keys_file(list(keys), output_file_path)
+        if output_format == 'json_keys':
+            return cls.write_json_keys_file(list(keys), output_file_path)
+        elif output_format == 'oasis_keys':
+            return cls.write_oasis_keys_file(list(keys), output_file_path)
+        else:
+            raise OasisException("Unrecognised keys file output format - valid formats are 'oasis_keys' or 'json_keys'")

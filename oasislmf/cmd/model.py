@@ -84,7 +84,7 @@ class GenerateKeysCmd(OasisBaseCommand):
             help='Keys data directory path',
         )
         parser.add_argument(
-            '-t', '--output-format', choices=['oasis_keys', 'list_keys'],
+            '-t', '--output-format', choices=['oasis_keys', 'json_keys'],
             help='Keys records file output format',
         )
         parser.add_argument(
@@ -107,8 +107,8 @@ class GenerateKeysCmd(OasisBaseCommand):
         keys_data_path = as_path(inputs.get('keys_data_path', required=True, is_path=True), 'Keys data')
         version_file_path = as_path(inputs.get('model_version_file_path', required=True, is_path=True), 'Version file')
         lookup_package_path = as_path(inputs.get('lookup_package_path', required=True, is_path=True), 'Lookup package')
-        utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-        output_file_path = as_path(inputs.get('output_file_path', default='keys-{}'.format(utcnow), required=False, is_path=True), 'Output file path')
+
+        output_format = inputs.get('output_format', default='oasis_keys')
         successes_only = inputs.get('successes_only', default=True)
 
         self.logger.info('Getting model info and creating lookup service instance')
@@ -119,11 +119,17 @@ class GenerateKeysCmd(OasisBaseCommand):
         )
         self.logger.info('\t{}, {}'.format(model_info, model_klc))
 
+        utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
+        default_output_file_name = '{}-{}-{}-keys-{}.{}'.format(model_info['supplier_id'].lower(), model_info['model_id'].lower(), model_info['model_version_id'], utcnow, 'csv' if output_format == 'oasis_keys' else 'json')
+           
+        output_file_path = as_path(inputs.get('output_file_path', default=default_output_file_name.format(utcnow), required=False, is_path=True), 'Output file path', preexists=False)
+
         self.logger.info('Saving keys records to file')
         f, n = OasisKeysLookupFactory.save_keys(
             lookup=model_klc,
             model_exposures_file_path=model_exposures_file_path,
             output_file_path=output_file_path,
+            output_format=output_format,
             success_only=successes_only
         )
         self.logger.info('{} keys records saved to file {}'.format(n, f))
