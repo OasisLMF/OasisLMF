@@ -210,9 +210,9 @@ class OasisKeysLookupFactory(object):
             count = 0
             for count, record in enumerate(records, start=1):
                 if count < n:
-                    f.write('{},\n'.format(json.dumps(record, sort_keys=True, indent=4)))
+                    f.write('\t{},\n'.format(json.dumps(record, sort_keys=True, indent=4)))
                 else:
-                    f.write('{}\n'.format(json.dumps(record, sort_keys=True, indent=4)))
+                    f.write('\t{}\n'.format(json.dumps(record, sort_keys=True, indent=4)))
             
             f.write(']\n')
             

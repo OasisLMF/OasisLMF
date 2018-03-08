@@ -118,7 +118,7 @@ class GenerateKeysCmd(OasisBaseCommand):
             lookup_package_path=lookup_package_path,
         )
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-        default_output_file_name = '{}-{}-{}-keys-{}.csv'.format(model_info['supplier_id'], model_info['model_id'], model_info['model_version_id'], utcnow)
+        default_output_file_name = '{}-{}-{}-keys-{}.csv'.format(model_info['supplier_id'].lower(), model_info['model_id'].lower(), model_info['model_version_id'], utcnow)
         output_file_path = as_path(inputs.get('output_file_path', default=default_output_file_name.format(utcnow), required=False, is_path=True), 'Output file path', preexists=False)
         self.logger.info('\t{}, {}'.format(model_info, model_klc))
 
