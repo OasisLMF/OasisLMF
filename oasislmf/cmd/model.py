@@ -84,7 +84,7 @@ class GenerateKeysCmd(OasisBaseCommand):
             help='Keys data directory path',
         )
         parser.add_argument(
-            '-t', '--output-format', choices=['oasis_keys', 'list_keys'],
+            '-t', '--output-format', choices=['oasis_keys', 'json_keys'],
             help='Keys records file output format',
         )
         parser.add_argument(
