@@ -150,10 +150,10 @@ class Translator(object):
                 if(not self.row_header_in):
                     self.row_header_in = df_slice.columns.values.tolist()
                 yield (
-                    df_slice.values.tolist(), 
+                    df_slice.values.tolist(),
                     df_slice.first_valid_index(),
                     df_slice.last_valid_index()
-                )        
+                )
             except StopIteration:
                 self.logger.info('End of input file')
                 break;
