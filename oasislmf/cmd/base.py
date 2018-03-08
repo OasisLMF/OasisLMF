@@ -126,16 +126,15 @@ class OasisBaseCommand(BaseCommand):
             return self._logger
 
         if self.args:
-            self._logger = logging.getLogger()
-
             if self.args.verbose:
                 log_level = logging.DEBUG
                 log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
             else:
                 log_level = logging.INFO
-                log_format = ' %(message)s'
+                log_format = '%(message)s'
 
             logging.basicConfig(stream=sys.stdout, level=log_level, format=log_format)
+            self._logger = logging.getLogger()
             return self._logger
         else:
             return logging.getLogger()

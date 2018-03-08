@@ -147,7 +147,7 @@ def prepare_model_run_inputs(analysis_settings, run_directory):
         _prepare_input_bin(run_directory, 'events', model_settings, setting_key='event_set')
         _prepare_input_bin(run_directory, 'returnperiods', model_settings)
         _prepare_input_bin(run_directory, 'occurrence', model_settings, setting_key='event_occurrence_id')
-        
+
         if os.path.exists(os.path.join(run_directory, 'static', 'periods.bin')):
             _prepare_input_bin(run_directory, 'periods', model_settings)
     except (OSError, IOError) as e:

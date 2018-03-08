@@ -3,12 +3,12 @@
 import io
 import json
 import os
-import shutil
+import subprocess
 
 from argparse import RawDescriptionHelpFormatter
 
-from oasislmf.model_execution.bash import genbash
 from ..exposures.manager import OasisExposuresManager
+from ..model_execution.bash import genbash
 from ..model_execution.runner import run
 from ..model_execution.bin import create_binary_files, prepare_model_run_directory, prepare_model_run_inputs
 from ..utils.exceptions import OasisException
@@ -312,10 +312,10 @@ class GenerateLossesCmd(OasisBaseCommand):
             'Analysis settings file'
         )
         model_data_path = as_path(inputs.get('model_data_path', required=True, is_path=True), 'Model data')
-        
+
         ktools_script_name = inputs.get('ktools_script_name', default='run_ktools')
         no_execute = inputs.get('no_execute', default=False)
-        
+
         if not model_run_dir_path:
             utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
             model_run_dir_path = os.path.join(os.getcwd(), 'runs', 'ProgOasis-{}'.format(utcnow))
