@@ -97,7 +97,7 @@ class Translator(object):
         #     class csv.DictWriter(csvfile ... )
         #     see: https://docs.python.org/2/library/csv.html
 
-        line_counter = row_first
+        line_counter = row_first+1
 
         for rec in root:
             # Convert Row record to python dict() Object
