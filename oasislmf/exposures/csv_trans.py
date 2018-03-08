@@ -4,7 +4,6 @@ __all__ = [
     'Translator'
 ]
 
-
 import io
 import json
 import logging
