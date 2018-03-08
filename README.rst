@@ -55,7 +55,13 @@ by running::
 
 Alternatively you can install the latest development version using::
 
-    pip install -s git+https://git@github.com/OasisLMF/OasisLMF
+    pip install git+https://git@github.com/OasisLMF/OasisLMF
+
+(over HTTPS) or::
+
+    pip install git+ssh://git@github.com/OasisLMF/OasisLMF
+
+(over SSH).
 
 Development
 ===========
