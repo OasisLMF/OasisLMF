@@ -7,6 +7,8 @@ import subprocess
 
 from argparse import RawDescriptionHelpFormatter
 
+from pathlib2 import Path
+
 from ..exposures.manager import OasisExposuresManager
 from ..model_execution.bash import genbash
 from ..model_execution.runner import run
@@ -232,8 +234,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         self.logger.info('\t{}'.format(model))
 
         self.logger.info('Setting up Oasis files directory for model {}'.format(model.key))
-        if not os.path.exists(oasis_files_path):
-            os.mkdir(oasis_files_path)
+        Path(oasis_files_path).mkdir(parents=True, exist_ok=True)
 
         self.logger.info('Generating Oasis files for model')
         oasis_files = OasisExposuresManager().start_files_pipeline(
@@ -323,10 +324,10 @@ class GenerateLossesCmd(OasisBaseCommand):
             utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
             model_run_dir_path = os.path.join(os.getcwd(), 'runs', 'ProgOasis-{}'.format(utcnow))
             self.logger.info('No model run dir. provided - creating a timestamped run dir. in working directory as {}'.format(model_run_dir_path))
-            os.mkdir(model_run_dir_path)
+            Path(model_run_dir_path).mkdir(parents=True, exist_ok=True)
         else:
             if not os.path.exists(model_run_dir_path):
-                os.mkdir(model_run_dir_path)
+                Path(model_run_dir_path).mkdir(parents=True, exist_ok=True)
 
         self.logger.info(
             'Preparing model run directory {} - copying Oasis files, analysis settings JSON file and linking model data'.format(model_run_dir_path)
@@ -441,16 +442,16 @@ class RunCmd(OasisBaseCommand):
             utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
             model_run_dir_path = os.path.join(os.getcwd(), 'runs', 'ProgOasis-{}'.format(utcnow))
             self.logger.info('No model run dir. provided - creating a timestamped run dir. in working directory as {}'.format(model_run_dir_path))
-            os.mkdir(model_run_dir_path)
+            Path(model_run_dir_path).mkdir(parents=True, exist_ok=True)
         else:
             if not os.path.exists(model_run_dir_path):
-                os.mkdir(model_run_dir_path)
+                Path(model_run_dir_path).mkdir(parents=True, exist_ok=True)
 
         args.model_run_dir_path = model_run_dir_path
 
         args.oasis_files_path = os.path.join(model_run_dir_path, 'tmp')
         self.logger.info('Creating temporary folder {} for Oasis files'.format(args.oasis_files_path))
-        os.mkdir(args.oasis_files_path)
+        Path(args.oasis_files_path).mkdir(parents=True, exist_ok=True)
 
         gen_oasis_files_cmd = GenerateOasisFilesCmd()
         gen_oasis_files_cmd._logger = self.logger
