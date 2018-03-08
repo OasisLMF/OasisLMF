@@ -313,6 +313,6 @@ class OasisKeysLookupFactory(object):
         if output_format == 'list_keys':
             return cls.write_list_keys_file(list(keys), output_file_path)
         elif output_format == 'oasis_keys':
-            return cls.write_output_keys_file(list(keys), output_file_path)
+            return cls.write_oasis_keys_file(list(keys), output_file_path)
         else:
             raise OasisException("Unrecognised keys file output format - valid formats are 'oasis_keys' or 'list_keys'")
