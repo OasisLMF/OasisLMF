@@ -67,8 +67,6 @@ class GenerateKeysCmd(OasisBaseCommand):
         """
         super(GenerateKeysCmd, self).add_args(parser)
 
-
-        parser.add_argument('-o', '--oasis-files-path', default=None, help='Path to Oasis files')
         parser.add_argument(
             '-o', '--output-file-path', default=None,
             help='Keys records output file path',
