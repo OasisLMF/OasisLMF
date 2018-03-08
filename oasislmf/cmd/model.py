@@ -108,7 +108,7 @@ class GenerateKeysCmd(OasisBaseCommand):
         version_file_path = as_path(inputs.get('model_version_file_path', required=True, is_path=True), 'Version file')
         lookup_package_path = as_path(inputs.get('lookup_package_path', required=True, is_path=True), 'Lookup package')
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-        output_file_path = as_path(inputs.get('output_file_path', default='keys-{}'.format(utcnow), required=False, is_path=True), 'Output file path')
+        output_file_path = as_path(inputs.get('output_file_path', default='keys-{}'.format(utcnow), required=False, is_path=True), 'Output file path', preexists=False)
         output_format = inputs.get('output_format', default='oasis_keys')
         successes_only = inputs.get('successes_only', default=True)
 
