@@ -1,5 +1,5 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
 """
     Utilities for running system or file-related commands, and other OS-related utilities.
 """

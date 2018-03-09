@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import zlib
 
 from .exceptions import OasisException
