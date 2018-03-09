@@ -8,7 +8,7 @@ from hypothesis import given
 from hypothesis.extra.pytz import timezones
 from hypothesis.strategies import datetimes, decimals, floats, integers, one_of, sampled_from
 
-from oasislmf.utils.values import get_timestamp, get_utctimestamp, to_string, NONE_VALUES, to_int, to_float
+from oasislmf.utils.values import get_timestamp, get_utctimestamp, to_string, NULL_VALUES, to_int, to_float
 
 
 class GetTimestamp(TestCase):
@@ -73,7 +73,7 @@ class ToString(TestCase):
 
 
 class ToInt(TestCase):
-    @given(sampled_from(NONE_VALUES))
+    @given(sampled_from(NULL_VALUES))
     def test_value_is_one_of_the_none_values___result_is_none(self, value):
         res = to_int(value)
 
@@ -87,7 +87,7 @@ class ToInt(TestCase):
 
 
 class ToFloat(TestCase):
-    @given(sampled_from(NONE_VALUES))
+    @given(sampled_from(NULL_VALUES))
     def test_value_is_one_of_the_none_values___result_is_none(self, value):
         res = to_float(value)
 

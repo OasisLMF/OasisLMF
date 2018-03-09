@@ -2,7 +2,7 @@ from datetime import datetime
 
 import pytz
 
-NONE_VALUES = [None, '', 'n/a', 'N/A', 'null', 'Null', 'NULL']
+NULL_VALUES = [None, '', 'n/a', 'N/A', 'null', 'Null', 'NULL']
 
 
 def get_timestamp(thedate=None, fmt='%Y%m%d%H%M%S'):
@@ -33,11 +33,11 @@ def to_int(val):
     """
     Parse a string to int
     """
-    return None if val in NONE_VALUES else int(val)
+    return None if val in NULL_VALUES else int(val)
 
 
 def to_float(val):
     """
     Parse a string to float
     """
-    return None if val in NONE_VALUES else float(val)
+    return None if val in NULL_VALUES else float(val)
