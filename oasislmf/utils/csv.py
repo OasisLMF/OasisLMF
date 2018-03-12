@@ -5,7 +5,7 @@ import io
 import pandas as pd
 
 
-def filter_csv(csv_filepath, csv_field_meta=None):
+def read_csv(csv_filepath, csv_meta=None):
     """
     Filters the rows of a CSV file using validator functions defined in a
     custom meta dictionary, and returns dicts (one per row).
@@ -16,10 +16,10 @@ def filter_csv(csv_filepath, csv_field_meta=None):
     
     for i in range(len(df)):
         r = df.loc[i].to_dict()
-        if not csv_field_meta:
+        if not csv_meta:
             yield r
         else:
             yield {
-                k: csv_field_meta[k]['validator'](r[csv_field_meta[k]['csv_header']]) for k in csv_field_meta
+                k: csv_meta[k]['validator'](r[csv_meta[k]['csv_header']]) for k in csv_meta
             }
 
