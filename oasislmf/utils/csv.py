@@ -15,7 +15,7 @@ def read_csv(csv_filepath, csv_meta=None):
         df = df.where(df.notnull(), None)
     
     for i in range(len(df)):
-        r = df.loc[i].to_dict()
+        r = df.iloc[i].to_dict()
         if not csv_meta:
             yield r
         else:
