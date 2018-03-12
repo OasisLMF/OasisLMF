@@ -1,19 +1,25 @@
 from __future__ import absolute_import
 
-import csv
 import io
 
+import pandas as pd
 
-def get_csv_rows_as_dicts(csv_filepath, csv_field_meta=None):
+
+def read_csv(csv_filepath, csv_meta=None):
     """
-    Generic method that generates a dictionary for each line in a CSV
-    file using the CSV headers as keys.
+    Filters the rows of a CSV file using validator functions defined in a
+    custom meta dictionary, and returns dicts (one per row).
     """
-    with io.open(csv_filepath, encoding='utf-8') as f:
-        for row_dict in csv.DictReader(f):
-            if not csv_field_meta:
-                yield row_dict
-            else:
-                yield {
-                    k: csv_field_meta[k]['validator'](row_dict[csv_field_meta[k]['csv_header']]) for k in csv_field_meta
-                }
+    with io.open(csv_filepath, 'r', encoding='utf-8') as f:
+        df = pd.read_csv(io.StringIO(f.read().decode()), float_precision='high')
+        df = df.where(df.notnull(), None)
+    
+    for i in range(len(df)):
+        r = df.loc[i].to_dict()
+        if not csv_meta:
+            yield r
+        else:
+            yield {
+                k: csv_meta[k]['validator'](r[csv_meta[k]['csv_header']]) for k in csv_meta
+            }
+

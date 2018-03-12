@@ -1,7 +1,7 @@
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
-from oasislmf.utils.csv import get_csv_rows_as_dicts
+from oasislmf.utils.csv import read_csv
 
 
 class GetCsvRowsAsDicts(TestCase):
@@ -12,7 +12,7 @@ class GetCsvRowsAsDicts(TestCase):
             ])
             f.flush()
 
-            self.assertEqual(0, len(list(get_csv_rows_as_dicts(f.name))))
+            self.assertEqual(0, len(list(read_csv(f.name))))
 
     def test_no_meta_is_given___base_csv_data_is_given(self):
         with NamedTemporaryFile('w') as f:
@@ -23,7 +23,7 @@ class GetCsvRowsAsDicts(TestCase):
             ])
             f.flush()
 
-            data = list(get_csv_rows_as_dicts(f.name))
+            data = list(read_csv(f.name))
 
             self.assertEqual(
                 data, [
@@ -47,7 +47,7 @@ class GetCsvRowsAsDicts(TestCase):
             ])
             f.flush()
 
-            data = list(get_csv_rows_as_dicts(f.name, csv_field_meta={
+            data = list(read_csv(f.name, csv_meta={
                 'FIRST': {'validator': str.upper, 'csv_header': 'first'},
                 'SECOND': {'validator': int, 'csv_header': 'second'},
             }))
