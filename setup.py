@@ -164,6 +164,7 @@ class Publish(Command):
         ('wheel', None, 'Publish the wheel'),
         ('sdist', None, 'Publish the sdist tar'),
         ('no-clean', None, 'Don\'t clean the build artifacts'),
+        ('sign', None, 'Sign the artifacts using GPG')
     ]
     boolean_options = ['wheel', 'sdist']
 
@@ -171,6 +172,7 @@ class Publish(Command):
         self.wheel = False
         self.sdist = False
         self.no_clean = False
+        self.sign = False
 
     def finalize_options(self):
         if not (self.wheel or self.sdist):
@@ -187,6 +189,10 @@ class Publish(Command):
 
         if self.wheel:
             os.system('python setup.py bdist_wheel')
+
+        if self.sign:
+            for p in glob.glob('dist/*'):
+                os.system('gpg --detach-sign -a {}'.format(p))
 
         os.system('twine upload dist/*')
         print('You probably want to also tag the version now:')
