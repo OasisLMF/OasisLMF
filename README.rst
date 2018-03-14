@@ -45,8 +45,8 @@ To build native Windows 64-bit executables;
 Search for 'mingw', gcc', 'make' and 'diffutils' to find all of the relevant packages (Only 'gcc' illustrated below).
 ![alt text](docs/img/cygwin1.jpg "Add-in packages")
 
-Install With Pip
-----------------
+Install With ``pip``
+--------------------
 
 The latest released version of the package can be installed using pip
 by running::
