@@ -63,6 +63,10 @@ Alternatively you can install the latest development version using::
 
 (over SSH).
 
+You can also install from a specific branch ``<branch name>`` using::
+
+    pip install -e {git+ssh,git+https}://git@github.com/OasisLMF/OasisLMF.git@<branch name>#egg=oasislmf
+
 Development
 ===========
 
