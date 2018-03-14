@@ -117,3 +117,38 @@ To test against your currently installed version of python run::
 To run the full test suite run::
 
     ./runtests.sh
+
+Publishing
+==========
+
+Before publishing the latest version of the package make you sure increment the ``__version__`` value in ``oasislmf/__init__.py``, and commit the change. You'll also need to install the ``twine`` Python package which ``setuptools`` uses for publishing packages on PyPI. If publishing wheels then you'll also need to install the ``wheel`` Python package.
+
+Using the ``publish`` subcommand in ``setup.py``
+------------------------------------------------
+
+The distribution format can be either a source distribution or a platform-specific wheel. To publish the source distribution package run::
+
+    python setup.py publish --sdist
+
+or to publish the platform specific wheel run::
+
+    python setup.py publish --wheel
+
+Manually publishing, with a GPG signature
+-----------------------------------------
+
+The first step is to create the distribution package with the desired format: for the source distribution run::
+
+    python setup.py sdist
+
+which will create a ``.tar.gz`` file in the ``dist`` subfolder, or for the platform specific wheel run::
+
+    python setup.py bdist_wheel
+
+which will create ``.whl`` file in the ``dist`` subfolder. To attach a GPG signature using your default private key you can then run::
+
+    gpg --detach-sign -a dist/<package file name>.{tar.gz,whl}
+
+This will create ``.asc`` signature file named ``<package file name>.{tar.gz,whl}.asc`` in ``dist``. You can just publish the package with the signature using::
+
+    twine upload dist/<package file name>.{tar.gz,whl} dist/<package file name>.{tar.gz,whl}.asc
