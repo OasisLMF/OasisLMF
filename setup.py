@@ -12,17 +12,8 @@ from distutils.log import INFO, WARN, ERROR
 from tempfile import mkdtemp
 from time import sleep
 
-from setuptools import find_packages, setup
+from setuptools import find_packages, setup, Command
 from setuptools.command.install import install
-
-try:
-    from wheel.bdist_wheel import bdist_wheel
-    bdist_wheel_user_options = bdist_wheel.user_options
-except ImportError:
-    from distutils.cmd import Command as bdist_wheel
-    bdist_wheel_user_options = [
-        ('dist-dir=', 'd', "directory to put final built distributions in"),
-    ]
 
 try:
     from urllib.request import urlopen
@@ -120,6 +111,9 @@ class PostInstallKtools(install):
     def add_ktools_to_path(self, build_dir):
         print('Installing ktools')
 
+        if not os.path.exists(self.install_scripts):
+            os.makedirs(self.install_scripts)
+
         for p in glob.glob(os.path.join(build_dir, 'src', '*', '*')):
             split = p.split(os.path.sep)
 
@@ -141,31 +135,74 @@ class PostInstallKtools(install):
             self.ktools_components = list(self.add_ktools_to_path(build_dir))
 
 
-class BdistWheel(bdist_wheel):
-    user_options = bdist_wheel_user_options
+try:
+    from wheel.bdist_wheel import bdist_wheel
 
-    def run(self):
-        # we cant build a wheel and the package needs to be installed
-        # from source so we currently make the bdist_wheel command fail
-        sys.exit(1)
+    class BdistWheel(bdist_wheel):
+        command_name = 'bdist_wheel'
+        user_options = bdist_wheel.user_options
 
+        def finalize_options(self):
+            bdist_wheel.finalize_options(self)
+            self.root_is_pure = False
+
+        def get_tag(self):
+            python, abi, plat = bdist_wheel.get_tag(self)
+            python, abi = 'py2.py3', 'none'
+            return python, abi, plat
+
+except ImportError:
+    BdistWheel = None
 
 # allow setup.py to be run from any path
 os.chdir(os.path.normpath(os.path.join(os.path.abspath(__file__), os.pardir)))
 
 
-if sys.argv[-1] == 'publish':
-    if os.system('pip freeze | grep twine'):
-        print('twine not installed.\nUse `pip install twine`.\nExiting.')
-        sys.exit()
-    os.system('python setup.py sdist')
-    os.system('twine upload dist/*')
-    print('You probably want to also tag the version now:')
-    print('  git tag -a {v} -m \'version {v}\''.format(v=version))
-    print('  git push --tags')
-    shutil.rmtree('dist')
-    shutil.rmtree('oasislmf.egg-info')
-    sys.exit()
+class Publish(Command):
+    command_name = 'publish'
+    user_options = [
+        ('wheel', None, 'Publish the wheel'),
+        ('sdist', None, 'Publish the sdist tar'),
+        ('no-clean', None, 'Don\'t clean the build artifacts'),
+        ('sign', None, 'Sign the artifacts using GPG')
+    ]
+    boolean_options = ['wheel', 'sdist']
+
+    def initialize_options(self):
+        self.wheel = False
+        self.sdist = False
+        self.no_clean = False
+        self.sign = False
+
+    def finalize_options(self):
+        if not (self.wheel or self.sdist):
+            self.announce('Either --wheel and/or --sdist must be provided', ERROR)
+            sys.exit(1)
+
+    def run(self):
+        if os.system('pip freeze | grep twine'):
+            self.announce('twine not installed.\nUse `pip install twine`.\nExiting.', WARN)
+            sys.exit(1)
+
+        if self.sdist:
+            os.system('python setup.py sdist')
+
+        if self.wheel:
+            os.system('python setup.py bdist_wheel')
+
+        if self.sign:
+            for p in glob.glob('dist/*'):
+                os.system('gpg --detach-sign -a {}'.format(p))
+
+        os.system('twine upload dist/*')
+        print('You probably want to also tag the version now:')
+        print('  git tag -a {v} -m \'version {v}\''.format(v=version))
+        print('  git push --tags')
+
+        if not self.no_clean:
+            shutil.rmtree('dist')
+            shutil.rmtree('build')
+            shutil.rmtree('oasislmf.egg-info')
 
 
 setup(
@@ -205,5 +242,6 @@ setup(
     cmdclass={
         'install': PostInstallKtools,
         'bdist_wheel': BdistWheel,
+        'publish': Publish,
     },
 )
