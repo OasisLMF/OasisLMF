@@ -88,7 +88,6 @@ class OasisBaseCommand(BaseCommand):
     """
     def __init__(self, *args, **kwargs):
         self._logger = None
-        self.args = None
         super(OasisBaseCommand, self).__init__(*args, **kwargs)
 
     def add_args(self, parser):
@@ -114,27 +113,21 @@ class OasisBaseCommand(BaseCommand):
 
         :return: The arguments taken from the command line
         """
-        self.args = super(OasisBaseCommand, self).parse_args()
-        return self.args
+        args = super(OasisBaseCommand, self).parse_args()
+        self.setup_logger(args)
+        return args
 
-    @property
-    def logger(self):
+    def setup_logger(self, args):
         """
         The logger to use for the command with the verbosity set
         """
-        if self._logger:
-            return self._logger
-
-        if self.args:
-            if self.args.verbose:
-                log_level = logging.DEBUG
-                log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-            else:
-                log_level = logging.INFO
-                log_format = '%(message)s'
-
-            logging.basicConfig(stream=sys.stdout, level=log_level, format=log_format)
-            self._logger = logging.getLogger()
-            return self._logger
+        if args.verbose:
+            log_level = logging.DEBUG
+            log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         else:
-            return logging.getLogger()
+            log_level = logging.INFO
+            log_format = '%(message)s'
+
+        logging.basicConfig(stream=sys.stdout, level=log_level, format=log_format)
+        self.logger = logging.getLogger()
+        return self.logger
