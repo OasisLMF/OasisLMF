@@ -1,6 +1,11 @@
 CHANGELOG
 =========
 
+`1.0.1`_ (beta)
+---------------
+
+* Add console logging
+
 `1.0.0`_ (beta)
 ---------------
 
