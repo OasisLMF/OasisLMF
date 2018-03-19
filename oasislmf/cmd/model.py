@@ -91,7 +91,7 @@ class GenerateKeysCmd(OasisBaseCommand):
             '-e', '--model-exposures-file-path', default=None, help='Keys records file output format',
         )
         parser.add_argument(
-            '-s', '--successes-only', action='store_true', help='Only record successful entries',
+            '-s', '--successes-only', action='store_true', help='Generate lookup records only for successful exposure lookups',
         )
         parser.set_defaults(successes_only=False)
 
