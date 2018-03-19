@@ -28,6 +28,7 @@ CHANGELOG
   method to use ``pandas`` instead of ``csv``, and rename to ``read_csv``, and update
   CSV utils tests
 
+.. _`1.0.1`: https://github.com/OasisLMF/OasisLMF/compare/7de227d...master^^
 .. _`1.0.0`: https://github.com/OasisLMF/OasisLMF/commit/d632528dffcc79098d350402d91738afed676c9c
 .. _`0.0.9`: https://github.com/OasisLMF/OasisLMF/commit/de56ffface46ee672e5f0e96c86a77ff7df67dcf
 .. _`0.0.8`: https://github.com/OasisLMF/OasisLMF/commit/1b8398a2029dac678cf6708eae04f9c80b9db531
