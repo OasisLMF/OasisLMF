@@ -1,5 +1,6 @@
 include README.rst
 include LICENSE
+include CHANGELOG.rst
 include setup.cfg
 include requirements-package.in
 recursive-exclude * __pycache__
