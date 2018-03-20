@@ -196,6 +196,28 @@ class OasisKeysLookupFactory(object):
             header=False,
         )
 
+    @classmethod
+    def write_oasis_keys_error_file(cls, records, output_file_path):
+        """
+        Writes an Oasis keys error file from an iterable of keys records.
+        """
+        heading_row = OrderedDict([
+            ('id', 'LocID'),
+            ('peril_id', 'PerilID'),
+            ('coverage', 'CoverageID'),
+            ('message', 'Message'),
+        ])
+
+        pd.DataFrame(
+            columns=heading_row.keys(),
+            data=[heading_row] + records,
+        ).to_csv(
+            output_file_path,
+            index=False,
+            encoding='utf-8',
+            header=False,
+        )
+
         return output_file_path, len(records)
 
     @classmethod
