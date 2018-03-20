@@ -11,7 +11,7 @@ def read_csv(csv_filepath, csv_meta=None):
     custom meta dictionary, and returns dicts (one per row).
     """
     with io.open(csv_filepath, 'r', encoding='utf-8') as f:
-        df = pd.read_csv(io.StringIO(f.read().decode()), float_precision='high')
+        df = pd.read_csv(io.StringIO(f.read()), float_precision='high')
         df = df.where(df.notnull(), None)
     
     for i in range(len(df)):
