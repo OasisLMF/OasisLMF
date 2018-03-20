@@ -474,21 +474,22 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
             canexp_item = canexp_item.iloc[0]
 
-            tiv_field = next(f for f in tiv_fields if f['CoverageTypeID'] == keys_item['coveragetype'])
-            tiv_lookup = tiv_field['ProfileElementName'].lower()
-            tiv_value = canexp_item[tiv_lookup]
-            if tiv_value > 0:
-                item_id += 1
-                result = result.append([{
-                    'item_id': item_id,
-                    'coverage_id': item_id,
-                    'tiv': tiv_value,
-                    'areaperil_id': keys_item['areaperilid'],
-                    'vulnerability_id': keys_item['vulnerabilityid'],
-                    'group_id': item_id,
-                    'summary_id': 1,
-                    'summaryset_id': 1,
-                }])
+            tiv_field_matches = filter(lambda f: f['CoverageTypeID'] == keys_item['coveragetype'], tiv_fields)
+            for tiv_field in tiv_field_matches:
+                tiv_lookup = tiv_field['ProfileElementName'].lower()
+                tiv_value = canexp_item[tiv_lookup]
+                if tiv_value > 0:
+                    item_id += 1
+                    result = result.append([{
+                        'item_id': item_id,
+                        'coverage_id': item_id,
+                        'tiv': tiv_value,
+                        'areaperil_id': keys_item['areaperilid'],
+                        'vulnerability_id': keys_item['vulnerabilityid'],
+                        'group_id': item_id,
+                        'summary_id': 1,
+                        'summaryset_id': 1,
+                    }])
 
         int_columns = ['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id', 'summary_id', 'summaryset_id']
         for col in int_columns:
