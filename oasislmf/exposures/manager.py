@@ -402,7 +402,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             keys_error_file_path = keys_error_file_path or oasis_model.resources['oasis_files_pipeline'].keys_error_file_path
 
         model_exposures_file_path, keys_file_path, keys_error_file_path = map(
-            lambda p: os.path.abspath(p) if not os.path.abs(p) else p,
+            lambda p: os.path.abspath(p) if not os.path.isabs(p) else p,
             [model_exposures_file_path, keys_file_path, keys_error_file_path]
         )
 
