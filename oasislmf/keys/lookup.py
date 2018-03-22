@@ -330,7 +330,7 @@ class OasisKeysLookupFactory(object):
         if not (model_exposures or model_exposures_file_path):
             raise OasisException('No model exposures or model exposures file path provided')
 
-        keys_file_paths, keys_error_file_path = map(lambda p: os.path.abspath(p) if not os.path.isabs(p) else p, [keys_file_path, keys_error_file_path])
+        keys_file_path, keys_error_file_path = map(lambda p: os.path.abspath(p) if not os.path.isabs(p) else p, [keys_file_path, keys_error_file_path])
 
         keys = cls.get_keys(
             lookup=lookup,
