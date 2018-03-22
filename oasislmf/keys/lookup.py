@@ -343,11 +343,11 @@ class OasisKeysLookupFactory(object):
             [[KEYS_STATUS_SUCCESS],[KEYS_STATUS_FAIL, KEYS_STATUS_NOMATCH]]
         )
 
-        if output_format == 'json':
+        if keys_format == 'json':
             if keys_error_file_path:
                 return cls.write_json_keys_file(successes, keys_file_path), len(successes), cls.write_json_keys_file(nonsuccesses, keys_error_file_path), len(nonsuccesses)
             return cls.write_json_keys_file(successes, keys_file_path), len(successes)
-        elif output_format == 'oasis':
+        elif keys_format == 'oasis':
             if keys_error_file_path:
                 return cls.write_oasis_keys_file(successes, keys_file_path), len(successes), cls.write_oasis_keys_error_file(nonsuccesses, keys_error_file_path), len(nonsuccesses)
             return cls.write_oasis_keys_file(successes, keys_file_path), len(successes)
