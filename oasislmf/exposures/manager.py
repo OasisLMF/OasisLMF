@@ -396,7 +396,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         :return: The path to the generated keys file
         """
         if oasis_model:
-            model_exposures_file_path = model_exposures_file_path or oasis_model.resources['oasis_files_pipeline'].model_exposures_path
+            model_exposures_file_path = model_exposures_file_path or oasis_model.resources['oasis_files_pipeline'].model_exposures_file_path
             lookup = lookup or oasis_model.resources.get('lookup')
             keys_file_path = keys_file_path or oasis_model.resources['oasis_files_pipeline'].keys_file_path
             keys_error_file_path = keys_error_file_path or oasis_model.resources['oasis_files_pipeline'].keys_error_file_path
@@ -421,8 +421,8 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
     def _process_default_kwargs(self, oasis_model=None, **kwargs):
         if oasis_model:
-            kwargs.setdefault('model_exposures_file_path', oasis_model.resources['oasis_files_pipeline'].model_exposures_path)
-            kwargs.setdefault('canonical_exposures_file_path', oasis_model.resources['oasis_files_pipeline'].canonical_exposures_path)
+            kwargs.setdefault('model_exposures_file_path', oasis_model.resources['oasis_files_pipeline'].model_exposures_file_path)
+            kwargs.setdefault('canonical_exposures_file_path', oasis_model.resources['oasis_files_pipeline'].canonical_exposures_file_path)
             kwargs.setdefault('keys_file_path', oasis_model.resources['oasis_files_pipeline'].keys_file_path)
             kwargs.setdefault('keys_error_file_path', oasis_model.resources['oasis_files_pipeline'].keys_error_file_path)
             kwargs.setdefault('canonical_exposures_profile', oasis_model.resources.get('canonical_exposures_profile'))
