@@ -196,6 +196,8 @@ class OasisKeysLookupFactory(object):
             header=False,
         )
 
+        return output_file_path, len(records)
+
     @classmethod
     def write_oasis_keys_error_file(cls, records, output_file_path):
         """
