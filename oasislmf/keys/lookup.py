@@ -332,18 +332,18 @@ class OasisKeysLookupFactory(object):
         if not (model_exposures or model_exposures_file_path):
             raise OasisException('No model exposures or model exposures file path provided')
 
-        keys_file_path, keys_error_file_path = map(lambda p: os.path.abspath(p) if not os.path.isabs(p) else p, [keys_file_path, keys_error_file_path])
+        keys_file_path, keys_error_file_path, model_exposures_file_path = map(lambda p: os.path.abspath(p) if not os.path.isabs(p) else p, [keys_file_path, keys_error_file_path, model_exposures_file_path])
 
-        keys = cls.get_keys(
+        keys = list(cls.get_keys(
             lookup=lookup,
             model_exposures=model_exposures,
             model_exposures_file_path=model_exposures_file_path,
             success_only=(True if not keys_error_file_path else False)
-        )
-        successes, nonsuccesses = map(
-            lambda stl: list(k for k in keys if k['status'] in stl),
-            [[KEYS_STATUS_SUCCESS],[KEYS_STATUS_FAIL, KEYS_STATUS_NOMATCH]]
-        )
+        ))
+        successes = []
+        nonsuccesses = []
+        for k in keys:
+            successes.append(k) if k['status'] == KEYS_STATUS_SUCCESS else nonsuccesses.append(k)
 
         if keys_format == 'json':
             if keys_error_file_path:
