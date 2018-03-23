@@ -58,7 +58,10 @@ class GenerateKeysCmd(OasisBaseCommand):
     The command can also generate and write Oasis keys files. It will also
     optionally write an Oasis keys error file, which is a file containing
     keys records for locations with unsuccessful lookups (locations with
-    a failing or non-matching lookup).
+    a failing or non-matching lookup). It has the format
+    ::
+
+        LocID,PerilID,CoverageID,Message
     """
     formatter_class = RawDescriptionHelpFormatter
 
