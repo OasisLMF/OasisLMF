@@ -84,29 +84,17 @@ class TestModelApiCmd(OasisBaseCommand):
 
         return analysis_settings, do_il
 
-    def run_analysis(self, client, input_directory, output_directory, analysis_settings, do_il, counter):
+    def run_analysis(self, args):
         """
         Invokes model analysis in the client - is used as a worker function for
         threads.
 
-        :param client: The api client to use for the tests
-        :type client: OasisAPIClient
-
-        :param input_directory: The directory to gather the input files from
-        :type input_directory: str
-
-        :param output_directory: The directory to store output files in
-        :type output_directory: str
-
-        :param analysis_settings: The analysis settings dictionary
-        :type analysis_settings: dict
-
-        :param do_il: Flag whether to perform il processing
-        :type do_il: bool
-
-        :param counter: A counter object that will record the number of success and fails
-        :type counter: Counter
+        :param args: a tuple containing (client, input_directory, output_directory,
+            analysis_settings, do_il, counter)
+        :type args: tuple
         """
+        client, input_directory, output_directory, analysis_settings, do_il, counter = args
+
         try:
             with TemporaryDirectory() as upload_directory:
                 input_location = client.upload_inputs_from_directory(input_directory, bin_directory=upload_directory, do_il=do_il, do_build=True)
@@ -148,7 +136,7 @@ class TestModelApiCmd(OasisBaseCommand):
         
         threads = ThreadPool(processes=args.num_analyses)
         threads.map(
-            lambda args: self.run_analysis(*args),
+            self.run_analysis,
             ((client, args.input_directory, args.output_directory, analysis_settings, do_il, counter) for i in range(args.num_analyses))
         )
         
