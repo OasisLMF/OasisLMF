@@ -145,12 +145,13 @@ class TestModelApiCmd(OasisBaseCommand):
         # Prepare and run analyses
         self.logger.info('Running {} analyses'.format(args.num_analyses))
         counter = Counter()
-
+        
         threads = ThreadPool(processes=args.num_analyses)
         threads.map(
-            self.run_analysis,
+            lambda args: self.run_analysis(*args),
             ((client, args.input_directory, args.output_directory, analysis_settings, do_il, counter) for i in range(args.num_analyses))
         )
+        
         threads.close()
         threads.join()
 
