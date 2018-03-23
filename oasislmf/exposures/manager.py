@@ -396,21 +396,21 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         :return: The path to the generated keys file
         """
         if oasis_model:
-            model_exposures_file_path = model_exposures_file_path or oasis_model.resources['oasis_files_pipeline'].model_exposures_file_path
-            lookup = lookup or oasis_model.resources.get('lookup')
-            keys_file_path = keys_file_path or oasis_model.resources['oasis_files_pipeline'].keys_file_path
-            keys_error_file_path = keys_error_file_path or oasis_model.resources['oasis_files_pipeline'].keys_error_file_path
+            _model_exposures_file_path = model_exposures_file_path or oasis_model.resources['oasis_files_pipeline'].model_exposures_file_path
+            _lookup = lookup or oasis_model.resources.get('lookup')
+            _keys_file_path = keys_file_path or oasis_model.resources['oasis_files_pipeline'].keys_file_path
+            _keys_error_file_path = keys_error_file_path or oasis_model.resources['oasis_files_pipeline'].keys_error_file_path
 
-        model_exposures_file_path, keys_file_path, keys_error_file_path = map(
+        _model_exposures_file_path, _keys_file_path, _keys_error_file_path = map(
             lambda p: os.path.abspath(p) if not os.path.isabs(p) else p,
-            [model_exposures_file_path, keys_file_path, keys_error_file_path]
+            [_model_exposures_file_path, _keys_file_path, _keys_error_file_path]
         )
 
         _keys_file_path, _, _keys_error_file_path, _ = OasisKeysLookupFactory().save_keys(
-            keys_file_path=keys_file_path,
-            keys_error_file_path=keys_error_file_path,
+            keys_file_path=_keys_file_path,
+            keys_error_file_path=_keys_error_file_path,
             lookup=lookup,
-            model_exposures_file_path=model_exposures_file_path,
+            model_exposures_file_path=_model_exposures_file_path,
         )
 
         if oasis_model:
@@ -700,7 +700,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         logger.info('Generating model exposures file {model_exposures_file_path}'.format(**kwargs))
         self.transform_canonical_to_model(**kwargs)
 
-        logger.info('Generating keys file {keys_file_path}'.format(**kwargs))
+        logger.info('Generating keys file {keys_file_path} and keys error file {keys_error_file_path}'.format(**kwargs))
         self.get_keys(oasis_model=oasis_model, **kwargs)
 
         logger.info('Generating Oasis files for model')
