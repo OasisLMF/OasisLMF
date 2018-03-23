@@ -409,7 +409,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         _keys_file_path, _, _keys_error_file_path, _ = OasisKeysLookupFactory().save_keys(
             keys_file_path=_keys_file_path,
             keys_error_file_path=_keys_error_file_path,
-            lookup=lookup,
+            lookup=_lookup,
             model_exposures_file_path=_model_exposures_file_path,
         )
 
