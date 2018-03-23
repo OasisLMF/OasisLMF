@@ -125,7 +125,7 @@ class OasisFilesPipeline(object):
             :getter: Gets the file path
             :setter: Sets the current file path to the specified file path
         """
-        return self._keys_file_path
+        return self._keys_error_file_path
 
     @keys_error_file_path.setter
     def keys_error_file_path(self, p):
