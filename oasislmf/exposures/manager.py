@@ -729,4 +729,6 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         if model.resources.get('canonical_exposures_profile') is None:
             self.load_canonical_profile(oasis_model=model)
 
+        self.add_model(model)
+
         return model
