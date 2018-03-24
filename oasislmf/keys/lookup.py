@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from __future__ import unicode_literals, absolute_import
+from __future__ import unicode_literals, absolute_import, print_function
 
 __all__ = [
     'OasisKeysLookupFactory',
@@ -285,7 +285,7 @@ class OasisKeysLookupFactory(object):
 
         model_loc_df = cls.get_model_exposures(
             model_exposures_file_path=model_exposures_file_path,
-            model_exposures=model_exposures,
+            model_exposures=model_exposures
         )
 
         for record in lookup.process_locations(model_loc_df):
@@ -332,14 +332,18 @@ class OasisKeysLookupFactory(object):
         if not (model_exposures or model_exposures_file_path):
             raise OasisException('No model exposures or model exposures file path provided')
 
-        keys_file_path, keys_error_file_path, model_exposures_file_path = map(lambda p: os.path.abspath(p) if not os.path.isabs(p) else p, [keys_file_path, keys_error_file_path, model_exposures_file_path])
-
+        keys_file_path, keys_error_file_path, model_exposures_file_path = map(
+            lambda p: os.path.abspath(p) if p and not os.path.isabs(p) else p,
+            [keys_file_path, keys_error_file_path, model_exposures_file_path]
+        )
+        print('keys_file_path={}, keys_error_file_path={}'.format(keys_file_path, keys_error_file_path))
         keys = cls.get_keys(
             lookup=lookup,
             model_exposures=model_exposures,
             model_exposures_file_path=model_exposures_file_path,
             success_only=(True if not keys_error_file_path else False)
         )
+        print('keys={}'.format(keys))
         successes = []
         nonsuccesses = []
         for k in keys:
