@@ -22,7 +22,8 @@ from .base import OasisBaseCommand, InputValues
 
 class GenerateKeysCmd(OasisBaseCommand):
     """
-    Generate and write Oasis keys (area peril ID, vulnerability ID) for a model.
+    Generate Oasis keys records (location records with area peril ID and
+    vulnerability ID) for a model, and also writes them to file.
 
     The command line arguments can be supplied in the configuration file
     (``oasislmf.json`` by default or specified with the ``--config`` flag).
@@ -35,15 +36,15 @@ class GenerateKeysCmd(OasisBaseCommand):
 
         {
             "id": <loc. ID>,
-            "peril_id": <Oasis peril type ID - oasis_utils/oasis_utils.py>,
-            "coverage": <Oasis coverage type ID - see oasis_utils/oasis_utils.py>,
+            "peril_id": <Oasis peril type ID - oasislmf/utils/peril.py>,
+            "coverage": <Oasis coverage type ID - see oasislmf/utils/coverage.py>,
             "area_peril_id": <area peril ID>,
             "vulnerability_id": <vulnerability ID>,
             "message": <lookup status message>,
-            "status": <lookup status code - see oasis_utils/oasis_utils.py>
+            "status": <lookup status code - see oasislmf/utils/status.py>
         }
 
-    The script can generate keys records in this format, and write them to file.
+    The command can generate keys records in this format, and write them to file.
 
     For model loss calculations however ``ktools`` requires a keys CSV file with
     the following format
@@ -54,7 +55,13 @@ class GenerateKeysCmd(OasisBaseCommand):
         ..
 
     where the headers correspond to the relevant Oasis keys record fields.
-    The script can also generate and write Oasis keys files.
+    The command can also generate and write Oasis keys files. It will also
+    optionally write an Oasis keys error file, which is a file containing
+    keys records for locations with unsuccessful lookups (locations with
+    a failing or non-matching lookup). It has the format
+    ::
+
+        LocID,PerilID,CoverageID,Message
     """
     formatter_class = RawDescriptionHelpFormatter
 
@@ -68,11 +75,15 @@ class GenerateKeysCmd(OasisBaseCommand):
         super(GenerateKeysCmd, self).add_args(parser)
 
         parser.add_argument(
-            '-o', '--output-file-path', default=None,
-            help='Keys records output file path',
+            '-k', '--keys-file-path', default=None,
+            help='Keys file path',
         )
         parser.add_argument(
-            '-k', '--keys-data-path', default=None,
+            '-e', '--keys-error-file-path', default=None,
+            help='Keys error file path',
+        )
+        parser.add_argument(
+            '-d', '--keys-data-path', default=None,
             help='Keys data directory path',
         )
         parser.add_argument(
@@ -84,16 +95,12 @@ class GenerateKeysCmd(OasisBaseCommand):
             help='Keys data directory path',
         )
         parser.add_argument(
-            '-t', '--output-format', choices=['oasis_keys', 'json_keys'],
-            help='Keys records file output format',
+            '-f', '--keys-format', choices=['oasis', 'json'],
+            help='Keys records / files output format',
         )
         parser.add_argument(
-            '-e', '--model-exposures-file-path', default=None, help='Keys records file output format',
+            '-x', '--model-exposures-file-path', default=None, help='Keys records file output format',
         )
-        parser.add_argument(
-            '-s', '--successes-only', action='store_true', help='Generate lookup records only for successful exposure lookups',
-        )
-        parser.set_defaults(successes_only=False)
 
     def action(self, args):
         """
@@ -105,34 +112,37 @@ class GenerateKeysCmd(OasisBaseCommand):
         inputs = InputValues(args)
         model_exposures_file_path = as_path(inputs.get('model_exposures_file_path', required=True, is_path=True), 'Model exposures')
         keys_data_path = as_path(inputs.get('keys_data_path', required=True, is_path=True), 'Keys data')
-        version_file_path = as_path(inputs.get('model_version_file_path', required=True, is_path=True), 'Version file')
+        model_version_file_path = as_path(inputs.get('model_version_file_path', required=True, is_path=True), 'Model version file')
         lookup_package_path = as_path(inputs.get('lookup_package_path', required=True, is_path=True), 'Lookup package')
 
-        output_format = inputs.get('output_format', default='oasis_keys')
-        successes_only = inputs.get('successes_only', default=True)
+        keys_format = inputs.get('keys_format', default='oasis')
 
         self.logger.info('Getting model info and creating lookup service instance')
         model_info, model_klc = OasisKeysLookupFactory.create(
             model_keys_data_path=keys_data_path,
-            model_version_file_path=version_file_path,
+            model_version_file_path=model_version_file_path,
             lookup_package_path=lookup_package_path,
         )
         self.logger.info('\t{}, {}'.format(model_info, model_klc))
 
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-        default_output_file_name = '{}-{}-{}-keys-{}.{}'.format(model_info['supplier_id'].lower(), model_info['model_id'].lower(), model_info['model_version_id'], utcnow, 'csv' if output_format == 'oasis_keys' else 'json')
 
-        output_file_path = as_path(inputs.get('output_file_path', default=default_output_file_name.format(utcnow), required=False, is_path=True), 'Output file path', preexists=False)
+        default_keys_file_name = '{}-{}-{}-keys-{}.{}'.format(model_info['supplier_id'].lower(), model_info['model_id'].lower(), model_info['model_version_id'], utcnow, 'csv' if keys_format == 'oasis' else 'json')
+        default_keys_error_file_name = '{}-{}-{}-keys-errors-{}.{}'.format(model_info['supplier_id'].lower(), model_info['model_id'].lower(), model_info['model_version_id'], utcnow, 'csv' if keys_format == 'oasis' else 'json')
+           
+        keys_file_path = as_path(inputs.get('keys_file_path', default=default_keys_file_name.format(utcnow), required=False, is_path=True), 'Keys file path', preexists=False)
+        keys_error_file_path = as_path(inputs.get('keys_error_file_path', default=default_keys_error_file_name.format(utcnow), required=False, is_path=True), 'Keys error file path', preexists=False)
 
         self.logger.info('Saving keys records to file')
-        f, n = OasisKeysLookupFactory.save_keys(
+        f1, n1, f2, n2 = OasisKeysLookupFactory.save_keys(
             lookup=model_klc,
             model_exposures_file_path=model_exposures_file_path,
-            output_file_path=output_file_path,
-            output_format=output_format,
-            success_only=successes_only
+            keys_file_path=keys_file_path,
+            keys_error_file_path=keys_error_file_path,
+            keys_format=keys_format
         )
-        self.logger.info('{} keys records saved to file {}'.format(n, f))
+        self.logger.info('{} keys records with successful lookups saved to keys file {}'.format(n1, f1))
+        self.logger.info('{} keys records with unsuccessful lookups saved to keys error file {}'.format(n2, f2))
 
 
 class GenerateOasisFilesCmd(OasisBaseCommand):

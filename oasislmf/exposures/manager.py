@@ -1,4 +1,6 @@
+from __future__ import print_function
 # -*- coding: utf-8 -*-
+
 __all__ = [
     'OasisExposuresManagerInterface',
     'OasisExposuresManager'
@@ -84,11 +86,17 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
 
     def get_keys(self, oasis_model=None, **kwargs):
         """
-        Generates the Oasis keys CSV file for a given model object, with
-        headers
+        Generates the Oasis keys and keys error files for a given model object.
+        The keys file is a CSV file containing keys lookup information for
+        locations with successful lookups, and has the following headers::
 
-            ``LocID,PerilID,CoverageID,AreaPerilID,VulnerabilityID``
+            LocID,PerilID,CoverageID,AreaPerilID,VulnerabilityID
 
+        while the keys error file is a CSV file containing keys lookup
+        information for locations with unsuccessful lookups (failures,
+        no matches) and has the following headers::
+
+            LocID,PerilID,CoverageID,Message
 
         All the required resources must be provided either in the model object
         resources dict or the ``kwargs`` dict.
@@ -347,14 +355,19 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         return profile
 
-    def get_keys(self, oasis_model=None, model_exposures_file_path=None, lookup=None, keys_file_path=None, **kwargs):
+    def get_keys(self, oasis_model=None, model_exposures_file_path=None, lookup=None, keys_file_path=None, keys_error_file_path=None, **kwargs):
         """
-        Generates the Oasis keys CSV file for a given model object, with
-        headers
+        Generates the Oasis keys and keys error files for a given model object.
+        The keys file is a CSV file containing keys lookup information for
+        locations with successful lookups, and has the following headers::
 
-            ``LocID,PerilID,CoverageID,AreaPerilID,VulnerabilityID``
+            LocID,PerilID,CoverageID,AreaPerilID,VulnerabilityID
 
-        using the lookup service defined for this model.
+        while the keys error file is a CSV file containing keys lookup
+        information for locations with unsuccessful lookups (failures,
+        no matches) and has the following headers::
+
+            LocID,PerilID,CoverageID,Message
 
         By default it is assumed that all the resources required for the
         transformation are present in the model object's resources dict,
@@ -373,6 +386,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         :param keys_file_path: Path to the keys file, required if ``oasis_model`` is ``None``
         :type keys_file_path: str
 
+        :param keys_error_file_path: Path to the keys error file, required if ``oasis_model`` is ``None``
+        :type keys_error_file_path: str
+
         :param lookup: Path to the keys lookup service to use, required if ``oasis_model`` is ``None``
         :type lookup: str
 
@@ -382,29 +398,35 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         :return: The path to the generated keys file
         """
         if oasis_model:
-            model_exposures_file_path = model_exposures_file_path or oasis_model.resources['oasis_files_pipeline'].model_exposures_path
-            lookup = lookup or oasis_model.resources.get('lookup')
-            keys_file_path = keys_file_path or oasis_model.resources['oasis_files_pipeline'].keys_file_path
+            _model_exposures_file_path = model_exposures_file_path or oasis_model.resources['oasis_files_pipeline'].model_exposures_file_path
+            _lookup = lookup or oasis_model.resources.get('lookup')
+            _keys_file_path = keys_file_path or oasis_model.resources['oasis_files_pipeline'].keys_file_path
+            _keys_error_file_path = keys_error_file_path or oasis_model.resources['oasis_files_pipeline'].keys_error_file_path
 
-        model_exposures_file_path = os.path.abspath(model_exposures_file_path)
-        keys_file_path = os.path.abspath(keys_file_path)
+        _model_exposures_file_path, _keys_file_path, _keys_error_file_path = map(
+            lambda p: os.path.abspath(p) if p and not os.path.isabs(p) else p,
+            [_model_exposures_file_path, _keys_file_path, _keys_error_file_path]
+        )
 
-        oasis_keys_path, _ = OasisKeysLookupFactory().save_keys(
-            lookup=lookup,
-            model_exposures_file_path=model_exposures_file_path,
-            output_file_path=keys_file_path,
+        _keys_file_path, _, _keys_error_file_path, _ = OasisKeysLookupFactory().save_keys(
+            keys_file_path=_keys_file_path,
+            keys_error_file_path=_keys_error_file_path,
+            lookup=_lookup,
+            model_exposures_file_path=_model_exposures_file_path,
         )
 
         if oasis_model:
-            oasis_model.resources['oasis_files_pipeline'].keys_file_path = oasis_keys_path
+            oasis_model.resources['oasis_files_pipeline'].keys_file_path = _keys_file_path
+            oasis_model.resources['oasis_files_pipeline'].keys_error_file_path = _keys_error_file_path
 
-        return oasis_keys_path
+        return _keys_file_path, _keys_error_file_path
 
     def _process_default_kwargs(self, oasis_model=None, **kwargs):
         if oasis_model:
-            kwargs.setdefault('model_exposures_file_path', oasis_model.resources['oasis_files_pipeline'].model_exposures_path)
-            kwargs.setdefault('canonical_exposures_file_path', oasis_model.resources['oasis_files_pipeline'].canonical_exposures_path)
+            kwargs.setdefault('model_exposures_file_path', oasis_model.resources['oasis_files_pipeline'].model_exposures_file_path)
+            kwargs.setdefault('canonical_exposures_file_path', oasis_model.resources['oasis_files_pipeline'].canonical_exposures_file_path)
             kwargs.setdefault('keys_file_path', oasis_model.resources['oasis_files_pipeline'].keys_file_path)
+            kwargs.setdefault('keys_error_file_path', oasis_model.resources['oasis_files_pipeline'].keys_error_file_path)
             kwargs.setdefault('canonical_exposures_profile', oasis_model.resources.get('canonical_exposures_profile'))
             kwargs.setdefault('canonical_exposures_profile_json', oasis_model.resources.get('canonical_exposures_profile_json'))
             kwargs.setdefault('canonical_exposures_profile_json_path', oasis_model.resources.get('canonical_exposures_profile_json_path'))
@@ -446,7 +468,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             filter(lambda v: v.get('FieldName') == 'TIV', six.itervalues(canonical_exposures_profile))
         )
 
-        result = pd.DataFrame(columns=[
+        columns = [
             'item_id',
             'coverage_id',
             'tiv',
@@ -455,7 +477,11 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             'group_id',
             'summary_id',
             'summaryset_id'
-        ])
+        ]
+        result = pd.DataFrame(columns=columns, dtype=object)
+
+        for col in columns:
+            result[col] = result[col].astype(int) if col != 'tiv' else result[col]
 
         item_id = 0
         for i in range(len(keys_df)):
@@ -466,10 +492,6 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             if canexp_item.empty:
                 raise OasisException(
                     "No matching canonical exposure item found in canonical exposures data frame for keys item {}.".format(keys_item)
-                )
-            elif len(canexp_item) > 1:
-                raise OasisException(
-                    "Duplicate canonical exposure items found in canonical exposures data frame for keys item {}.".format(keys_item)
                 )
 
             canexp_item = canexp_item.iloc[0]
@@ -491,9 +513,6 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                         'summaryset_id': 1,
                     }])
 
-        int_columns = ['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id', 'summary_id', 'summaryset_id']
-        for col in int_columns:
-            result[col] = result[col].astype(int)
         return result
 
     def _write_csvs(self, data_frame, file_path, timestamped_file_path, columns):
@@ -665,6 +684,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             canonical_exposures_file_path=os.path.join(oasis_files_path, 'canexp-{}.csv'.format(utcnow)),
             model_exposures_file_path=os.path.join(oasis_files_path, 'modexp-{}.csv'.format(utcnow)),
             keys_file_path=os.path.join(oasis_files_path, 'oasiskeys-{}.csv'.format(utcnow)),
+            keys_error_file_path=os.path.join(oasis_files_path, 'oasiskeys-error-{}.csv'.format(utcnow)),
             source_exposures_file_path=os.path.join(oasis_files_path, os.path.basename(source_exposures_path))
         )
 
@@ -678,7 +698,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         logger.info('Generating model exposures file {model_exposures_file_path}'.format(**kwargs))
         self.transform_canonical_to_model(**kwargs)
 
-        logger.info('Generating keys file {keys_file_path}'.format(**kwargs))
+        logger.info('Generating keys file {keys_file_path} and keys error file {keys_error_file_path}'.format(**kwargs))
         self.get_keys(oasis_model=oasis_model, **kwargs)
 
         logger.info('Generating Oasis files for model')
@@ -706,5 +726,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         if model.resources.get('canonical_exposures_profile') is None:
             self.load_canonical_profile(oasis_model=model)
+
+        self.add_model(model)
 
         return model
