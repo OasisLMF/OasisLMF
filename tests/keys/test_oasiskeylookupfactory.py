@@ -14,7 +14,15 @@ import pandas as pd
 from backports.tempfile import TemporaryDirectory
 from hypothesis import given
 from hypothesis.strategies import (
-    booleans, fixed_dictionaries, integers, just, lists, sampled_from, text, tuples,)
+    booleans,
+    fixed_dictionaries,
+    integers,
+    just,
+    lists,
+    sampled_from,
+    text,
+    tuples,
+)
 from mock import Mock, patch
 from six import StringIO
 from tempfile import NamedTemporaryFile
@@ -39,11 +47,7 @@ from oasislmf.utils.status import (
 )
 from oasislmf.utils.exceptions import OasisException
 
-coverage_codes = [BUILDING_COVERAGE_CODE, CONTENTS_COVERAGE_CODE, OTHER_STRUCTURES_COVERAGE_CODE, TIME_COVERAGE_CODE]
-
-perils = [PERIL_ID_FLOOD, PERIL_ID_QUAKE, PERIL_ID_QUAKE, PERIL_ID_WIND]
-
-keys_status_flags = [KEYS_STATUS_FAIL, KEYS_STATUS_NOMATCH, KEYS_STATUS_SUCCESS]
+from tests import keys_data
 
 
 class OasisKeysLookupFactoryCreate(TestCase):
@@ -144,24 +148,8 @@ class OasisKeysLookupFactoryGetModelExposures(TestCase):
 class OasisKeysLookupFactoryWriteOasisKeysFiles(TestCase):
 
     @given(
-        successes=lists(fixed_dictionaries({
-            'id': integers(),
-            'peril_id': sampled_from(perils),
-            'coverage': sampled_from(coverage_codes),
-            'area_peril_id': integers(),
-            'vulnerability_id': integers(),
-            'status': sampled_from([KEYS_STATUS_SUCCESS]),
-            'message': sampled_from(['Success'])
-        }), min_size=1, max_size=10),
-        nonsuccesses=lists(fixed_dictionaries({
-            'id': integers(),
-            'peril_id': sampled_from(perils),
-            'coverage': sampled_from(coverage_codes),
-            'area_peril_id': integers(),
-            'vulnerability_id': integers(),
-            'status': sampled_from([KEYS_STATUS_FAIL, KEYS_STATUS_NOMATCH]),
-            'message': sampled_from(['Unsuccessful'])
-        }), min_size=1, max_size=10)
+        successes=keys_data(status=KEYS_STATUS_SUCCESS, min_size=5, max_size=5),
+        nonsuccesses=keys_data(status='unsuccessful', min_size=5, max_size=5)
     )
     def test_records_are_given___records_are_written_to_oasis_keys_files_correctly(self, successes, nonsuccesses):
 
@@ -202,24 +190,8 @@ class OasisKeysLookupFactoryWriteOasisKeysFiles(TestCase):
 
 class OasisKeysLookupFactoryWriteJsonFiles(TestCase):
     @given(
-        successes=lists(fixed_dictionaries({
-            'id': integers(),
-            'peril_id': sampled_from(perils),
-            'coverage': sampled_from(coverage_codes),
-            'area_peril_id': integers(),
-            'vulnerability_id': integers(),
-            'status': just(KEYS_STATUS_SUCCESS),
-            'message': just('Success')
-        }), max_size=10),
-        nonsuccesses=lists(fixed_dictionaries({
-            'id': integers(),
-            'peril_id': sampled_from(perils),
-            'coverage': sampled_from(coverage_codes),
-            'area_peril_id': integers(),
-            'vulnerability_id': integers(),
-            'status': sampled_from([KEYS_STATUS_FAIL, KEYS_STATUS_NOMATCH]),
-            'message': just('Unsuccessful')
-        }), max_size=10)
+        successes=keys_data(status=KEYS_STATUS_SUCCESS),
+        nonsuccesses=keys_data(status='unsuccessful')
     )
     def test_records_are_given___records_are_written_to_json_keys_files_correctly(self, successes, nonsuccesses):
 
@@ -302,15 +274,7 @@ class OasisKeysLookupFactoryWriteKeys(TestCase):
             list(OasisKeysLookupFactory.get_keys(self.create_fake_lookup()))
 
     @given(
-        data=lists(fixed_dictionaries({
-            'id': integers(),
-            'peril_id': sampled_from(perils),
-            'coverage': sampled_from(coverage_codes),
-            'area_peril_id': integers(),
-            'vulnerability_id': integers(),
-            'status': just(KEYS_STATUS_SUCCESS),
-            'message': text(min_size=1, max_size=100, alphabet=string.ascii_letters)
-        }), min_size=1, max_size=10)
+        data=keys_data(status=KEYS_STATUS_SUCCESS, min_size=10, max_size=10)
     )
     def test_produced_keys_are_passed_to_write_oasis_keys_file(self, data):
         with TemporaryDirectory() as d,\

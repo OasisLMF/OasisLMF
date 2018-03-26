@@ -1,4 +1,6 @@
+from __future__ import print_function
 # -*- coding: utf-8 -*-
+
 __all__ = [
     'OasisExposuresManagerInterface',
     'OasisExposuresManager'
@@ -402,7 +404,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             _keys_error_file_path = keys_error_file_path or oasis_model.resources['oasis_files_pipeline'].keys_error_file_path
 
         _model_exposures_file_path, _keys_file_path, _keys_error_file_path = map(
-            lambda p: os.path.abspath(p) if not os.path.isabs(p) else p,
+            lambda p: os.path.abspath(p) if p and not os.path.isabs(p) else p,
             [_model_exposures_file_path, _keys_file_path, _keys_error_file_path]
         )
 
@@ -466,7 +468,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             filter(lambda v: v.get('FieldName') == 'TIV', six.itervalues(canonical_exposures_profile))
         )
 
-        result = pd.DataFrame(columns=[
+        columns = [
             'item_id',
             'coverage_id',
             'tiv',
@@ -475,7 +477,11 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             'group_id',
             'summary_id',
             'summaryset_id'
-        ])
+        ]
+        result = pd.DataFrame(columns=columns, dtype=object)
+
+        for col in columns:
+            result[col] = result[col].astype(int) if col != 'tiv' else result[col]
 
         item_id = 0
         for i in range(len(keys_df)):
@@ -486,10 +492,6 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             if canexp_item.empty:
                 raise OasisException(
                     "No matching canonical exposure item found in canonical exposures data frame for keys item {}.".format(keys_item)
-                )
-            elif len(canexp_item) > 1:
-                raise OasisException(
-                    "Duplicate canonical exposure items found in canonical exposures data frame for keys item {}.".format(keys_item)
                 )
 
             canexp_item = canexp_item.iloc[0]
@@ -511,10 +513,6 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                         'summaryset_id': 1,
                     }])
 
-        int_columns = ['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id', 'summary_id', 'summaryset_id']
-        for col in int_columns:
-            result[col] = result[col].astype(int)
-        
         return result
 
     def _write_csvs(self, data_frame, file_path, timestamped_file_path, columns):
