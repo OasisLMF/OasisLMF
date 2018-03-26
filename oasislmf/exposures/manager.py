@@ -494,7 +494,6 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         int_columns = ['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id', 'summary_id', 'summaryset_id']
         for col in int_columns:
             result[col] = result[col].astype(int)
-        
         return result
 
     def _write_csvs(self, data_frame, file_path, timestamped_file_path, columns):

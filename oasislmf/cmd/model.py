@@ -16,7 +16,7 @@ from ..model_execution.bin import create_binary_files, prepare_model_run_directo
 from ..utils.exceptions import OasisException
 from ..utils.values import get_utctimestamp
 from ..keys.lookup import OasisKeysLookupFactory
-from .cleaners import PathCleaner, as_path
+from .cleaners import as_path
 from .base import OasisBaseCommand, InputValues
 
 
@@ -121,7 +121,7 @@ class GenerateKeysCmd(OasisBaseCommand):
 
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
         default_output_file_name = '{}-{}-{}-keys-{}.{}'.format(model_info['supplier_id'].lower(), model_info['model_id'].lower(), model_info['model_version_id'], utcnow, 'csv' if output_format == 'oasis_keys' else 'json')
-           
+
         output_file_path = as_path(inputs.get('output_file_path', default=default_output_file_name.format(utcnow), required=False, is_path=True), 'Output file path', preexists=False)
 
         self.logger.info('Saving keys records to file')
