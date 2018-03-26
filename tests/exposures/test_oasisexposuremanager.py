@@ -255,7 +255,7 @@ class OasisExposureManagerLoadMasterDataframe(TestCase):
     @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
         profile_element_name=text(alphabet=string.ascii_letters, min_size=1),
-        keys=keys_data(status=KEYS_STATUS_SUCCESS, size=10),
+        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=10),
         exposures=canonical_exposure_data(10, min_value=1)
     )
     def test_row_in_keys_data_is_missing_from_exposure_data___oasis_exception_is_raised(
@@ -279,7 +279,7 @@ class OasisExposureManagerLoadMasterDataframe(TestCase):
     @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
         profile_element_name=text(alphabet=string.ascii_letters, min_size=1),
-        keys=keys_data(status=KEYS_STATUS_SUCCESS, size=10),
+        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=10),
         exposures=canonical_exposure_data(num_rows=10, min_value=1)
     )
     def test_each_row_has_a_single_row_per_element_with_each_row_having_a_positive_value_for_the_profile_element___each_row_is_present(
@@ -325,7 +325,7 @@ class OasisExposureManagerLoadMasterDataframe(TestCase):
     @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
         profile_element_name=text(alphabet=string.ascii_letters, min_size=1),
-        keys=keys_data(status=KEYS_STATUS_SUCCESS, size=10),
+        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=10),
         exposures=canonical_exposure_data(num_rows=10, min_value=1)
     )
     def test_each_row_has_a_single_row_per_element_with_each_row_having_any_value_for_the_profile_element___rows_with_profile_elements_gt_0_are_present(
@@ -435,7 +435,7 @@ class OasisExposuresManagerGenerateItemsFile(FileGenerationTestCase):
 
     @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
-        keys=keys_data(status=KEYS_STATUS_SUCCESS, min_size=10),
+        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), min_size=10),
         exposures=canonical_exposure_data(10, min_value=1)
     )
     def test_paths_are_stored_in_the_model___model_paths_are_used(self, keys, exposures):
@@ -465,7 +465,7 @@ class OasisExposuresManagerGenerateItemsFile(FileGenerationTestCase):
 
     @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
-        keys=keys_data(status=KEYS_STATUS_SUCCESS, min_size=10),
+        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), min_size=10),
         exposures=canonical_exposure_data(10, min_value=1)
     )
     def test_paths_are_stored_in_the_kwargs___kwarg_paths_are_used(self, keys, exposures):
@@ -494,7 +494,7 @@ class OasisExposuresManagerGenerateCoveragesFile(FileGenerationTestCase):
 
     @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
-        keys=keys_data(status=KEYS_STATUS_SUCCESS, min_size=10),
+        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), min_size=10),
         exposures=canonical_exposure_data(10, min_value=1)
     )
     def test_paths_are_stored_in_the_model___model_paths_are_used(self, keys, exposures):
@@ -519,7 +519,7 @@ class OasisExposuresManagerGenerateCoveragesFile(FileGenerationTestCase):
 
     @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
-        keys=keys_data(status=KEYS_STATUS_SUCCESS, min_size=10),
+        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), min_size=10),
         exposures=canonical_exposure_data(10, min_value=1)
     )
     def test_paths_are_stored_in_the_kwargs___kwarg_paths_are_used(self, keys, exposures):
@@ -548,7 +548,7 @@ class OasisExposuresManagerGenerateGulsummaryxrefFile(FileGenerationTestCase):
 
     @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
-        keys=keys_data(status=KEYS_STATUS_SUCCESS, min_size=10),
+        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), min_size=10),
         exposures=canonical_exposure_data(10, min_value=1)
     )
     def test_paths_are_stored_in_the_model___model_paths_are_used(self, keys, exposures):
@@ -573,7 +573,7 @@ class OasisExposuresManagerGenerateGulsummaryxrefFile(FileGenerationTestCase):
 
     @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
-        keys=keys_data(status=KEYS_STATUS_SUCCESS, min_size=10),
+        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), min_size=10),
         exposures=canonical_exposure_data(10, min_value=1)
     )
     def test_paths_are_stored_in_the_kwargs___kwarg_paths_are_used(self, keys, exposures):
@@ -607,7 +607,7 @@ class OasisExposuresManagerGenerateGulsummaryxrefFile(FileGenerationTestCase):
 class OasisExposuresManagerGenerateOasisFiles(FileGenerationTestCase):
     @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
-        keys=keys_data(status=KEYS_STATUS_SUCCESS, min_size=10),
+        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), min_size=10),
         exposures=canonical_exposure_data(10, min_value=1)
     )
     def test_paths_are_stored_in_the_model___model_paths_are_used(self, keys, exposures):
@@ -638,7 +638,7 @@ class OasisExposuresManagerGenerateOasisFiles(FileGenerationTestCase):
 
     @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
-        keys=keys_data(status=KEYS_STATUS_SUCCESS, min_size=10),
+        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), min_size=10),
         exposures=canonical_exposure_data(10, min_value=1)
     )
     def test_paths_are_stored_in_the_kwargs___kwarg_paths_are_used(self, keys, exposures):

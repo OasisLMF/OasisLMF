@@ -148,8 +148,8 @@ class OasisKeysLookupFactoryGetModelExposures(TestCase):
 class OasisKeysLookupFactoryWriteOasisKeysFiles(TestCase):
 
     @given(
-        successes=keys_data(status=KEYS_STATUS_SUCCESS, min_size=5, max_size=5),
-        nonsuccesses=keys_data(status='unsuccessful', min_size=5, max_size=5)
+        successes=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=5),
+        nonsuccesses=keys_data(from_statuses=sampled_from([KEYS_STATUS_FAIL, KEYS_STATUS_NOMATCH]), size=5)
     )
     def test_records_are_given___records_are_written_to_oasis_keys_files_correctly(self, successes, nonsuccesses):
 
@@ -190,8 +190,8 @@ class OasisKeysLookupFactoryWriteOasisKeysFiles(TestCase):
 
 class OasisKeysLookupFactoryWriteJsonFiles(TestCase):
     @given(
-        successes=keys_data(status=KEYS_STATUS_SUCCESS),
-        nonsuccesses=keys_data(status='unsuccessful')
+        successes=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=5),
+        nonsuccesses=keys_data(from_statuses=sampled_from([KEYS_STATUS_FAIL, KEYS_STATUS_NOMATCH]), size=5)
     )
     def test_records_are_given___records_are_written_to_json_keys_files_correctly(self, successes, nonsuccesses):
 
@@ -274,7 +274,7 @@ class OasisKeysLookupFactoryWriteKeys(TestCase):
             list(OasisKeysLookupFactory.get_keys(self.create_fake_lookup()))
 
     @given(
-        data=keys_data(status=KEYS_STATUS_SUCCESS, min_size=10, max_size=10)
+        data=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=10)
     )
     def test_produced_keys_are_passed_to_write_oasis_keys_file(self, data):
         with TemporaryDirectory() as d,\

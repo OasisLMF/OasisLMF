@@ -52,69 +52,39 @@ keys_status_flags = [KEYS_STATUS_FAIL, KEYS_STATUS_NOMATCH, KEYS_STATUS_SUCCESS]
 peril_ids = [PERIL_ID_FLOOD, PERIL_ID_QUAKE, PERIL_ID_QUAKE, PERIL_ID_WIND]
 
 
-def keys_data(peril_id=PERIL_ID_WIND, coverage_type_id=BUILDING_COVERAGE_CODE, status=None, size=None, min_size=1, max_size=10):
-
-    def keys_records(
-        from_ids=integers(min_value=1, max_value=(size if size else max_size)),
-        from_peril_ids=sampled_from(peril_ids),
-        from_coverage_type_ids=sampled_from(coverage_type_ids),
-        from_area_peril_ids=integers(min_value=1, max_value=(size if size else max_size)),
-        from_vulnerability_ids=integers(min_value=1, max_value=(size if size else max_size)),
-        from_statuses=sampled_from(keys_status_flags),
-        from_messages=text(min_size=1, max_size=100, alphabet=string.ascii_letters),
-        min_size=1,
-        max_size=10
-    ):
-        return lists(fixed_dictionaries({
-            'id': from_ids,
-            'peril_id': from_peril_ids,
-            'coverage': from_coverage_type_ids,
-            'area_peril_id': from_area_peril_ids,
-            'vulnerability_id': from_vulnerability_ids,
-            'status': from_statuses,
-            'message': from_messages
-        }), min_size=min_size, max_size=max_size)
-
-    if status and status in keys_status_flags and peril_id and coverage_type_id:
-        return keys_records(from_peril_ids=just(peril_id), from_coverage_type_ids=just(coverage_type_id), from_area_peril_ids=just(0), from_vulnerability_ids=just(0), from_statuses=just(status), min_size=(size if size else min_size), max_size=(size if size else max_size))
-
-    elif status and status in keys_status_flags and peril_id and not coverage_type_id:
-        return keys_records(from_peril_ids=just(peril_id), from_coverage_type_ids=sampled_from(coverage_type_ids), from_area_peril_ids=just(0), from_vulnerability_ids=just(0), from_statuses=just(status), min_size=(size if size else min_size), max_size=(size if size else max_size))
-
-    elif status and status in keys_status_flags and not peril_id and coverage_type_id:
-        return keys_records(from_peril_ids=sampled_from(peril_ids), from_coverage_type_ids=coverage_type_id, from_area_peril_ids=just(0), from_vulnerability_ids=just(0), from_statuses=just(status), min_size=(size if size else min_size), max_size=(size if size else max_size))
-
-    elif status and status in keys_status_flags and not (peril_id or coverage_type_id):
-        return keys_records(from_peril_ids=sampled_from(peril_ids), from_coverage_type_ids=sampled_from(coverage_type_ids), from_area_peril_ids=just(0), from_vulnerability_ids=just(0), from_statuses=sampled_from([KEYS_STATUS_FAIL, KEYS_STATUS_NOMATCH]), min_size=(size if size else min_size), max_size=(size if size else max_size))
-
-    elif status and status not in keys_status_flags and peril_id and coverage_type_id:
-        return keys_records(from_peril_ids=just(peril_id), from_coverage_type_ids=just(coverage_type_id), from_area_peril_ids=just(0), from_vulnerability_ids=just(0), from_statuses=sampled_from([KEYS_STATUS_FAIL, KEYS_STATUS_NOMATCH]), min_size=(size if size else min_size), max_size=(size if size else max_size))
-
-    elif status and status not in keys_status_flags and peril_id and not coverage_type_id:
-        return keys_records(from_peril_ids=just(peril_id), from_coverage_type_ids=sampled_from(coverage_type_ids), from_area_peril_ids=just(0), from_vulnerability_ids=just(0), from_statuses=sampled_from([KEYS_STATUS_FAIL, KEYS_STATUS_NOMATCH]), min_size=(size if size else min_size), max_size=(size if size else max_size))
-
-    elif status and status not in keys_status_flags and not peril_id and coverage_type_id:
-        return keys_records(from_peril_ids=sampled_from(peril_ids), from_coverage_type_ids=just(coverage_type_id), from_area_peril_ids=just(0), from_vulnerability_ids=just(0), from_statuses=sampled_from([KEYS_STATUS_FAIL, KEYS_STATUS_NOMATCH]), min_size=(size if size else min_size), max_size=(size if size else max_size))
-
-    elif status and status not in keys_status_flags and not (peril_id or coverage_type_id):
-        return keys_records(from_peril_ids=sampled_from(peril_ids), from_coverage_type_ids=sampled_from(coverage_type_ids), from_area_peril_ids=just(0), from_vulnerability_ids=just(0), from_statuses=sampled_from([KEYS_STATUS_FAIL, KEYS_STATUS_NOMATCH]), min_size=(size if size else min_size), max_size=(size if size else max_size))
-
-    elif not status and peril_id and coverage_type_id:
-        return keys_records(from_peril_ids=just(peril_id), from_coverage_type_ids=just(coverage_type_id), from_area_peril_ids=just(0), from_vulnerability_ids=just(0), min_size=(size if size else min_size), max_size=(size if size else max_size))
-
-    elif not status and peril_id and not coverage_type_id:
-        return keys_records(from_peril_ids=just(peril_id), from_coverage_type_ids=sampled_from(coverage_type_ids), from_area_peril_ids=just(0), from_vulnerability_ids=just(0), min_size=(size if size else min_size), max_size=(size if size else max_size))
-
-    elif not status and not peril_id and coverage_type_id:
-        return keys_records(from_peril_ids=sampled_from(peril_ids), from_coverage_type_ids=just(coverage_type_id), from_area_peril_ids=just(0), from_vulnerability_ids=just(0), min_size=(size if size else min_size), max_size=(size if size else max_size))
-
-    elif not (status or peril_id or coverage_type_id):
-        return keys_records(from_area_peril_ids=just(0), from_vulnerability_ids=just(0), min_size=(size if size else min_size), max_size=(size if size else max_size))
-
-
 def canonical_exposure_data(num_rows=10, min_value=None, max_value=None):
     return lists(tuples(integers(min_value=min_value, max_value=max_value)), min_size=num_rows, max_size=num_rows).map(
         lambda l: [(i + 1, 1.0) for i, _ in enumerate(l)]
+    )
+
+
+def keys_data(
+    from_ids=integers(min_value=1, max_value=10),
+    from_peril_ids=just(PERIL_ID_WIND),
+    from_coverage_type_ids=just(BUILDING_COVERAGE_CODE),
+    from_area_peril_ids=integers(min_value=1, max_value=10),
+    from_vulnerability_ids=integers(min_value=1, max_value=10),
+    from_statuses=sampled_from(keys_status_flags),
+    from_messages=text(min_size=1, max_size=100, alphabet=string.ascii_letters),
+    size=None,
+    min_size=1,
+    max_size=10
+):
+
+    return lists(
+        fixed_dictionaries(
+            {
+                'id': from_ids,
+                'peril_id': from_peril_ids,
+                'coverage': from_coverage_type_ids,
+                'area_peril_id': from_area_peril_ids,
+                'vulnerability_id': from_vulnerability_ids,
+                'status': from_statuses,
+                'message': from_messages
+            }
+        ),
+        min_size=(size if size else min_size),
+        max_size=(size if size else max_size)
     )
 
 
