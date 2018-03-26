@@ -103,7 +103,7 @@ class TestModelApiCmdRunAnalysis(TestCase):
             'failed': initial_failed,
         })
 
-        TestModelApiCmd().run_analysis(client, input_dir, output_dir, settings, do_il, counter)
+        TestModelApiCmd().run_analysis((client, input_dir, output_dir, settings, do_il, counter))
 
         self.assertEqual(initial_complete + 1, counter['completed'])
         self.assertEqual(initial_failed, counter['failed'])
@@ -121,7 +121,7 @@ class TestModelApiCmdRunAnalysis(TestCase):
             'failed': initial_failed,
         })
 
-        TestModelApiCmd().run_analysis(client, input_dir, output_dir, settings, do_il, counter)
+        TestModelApiCmd().run_analysis((client, input_dir, output_dir, settings, do_il, counter))
 
         self.assertEqual(initial_complete, counter['completed'])
         self.assertEqual(initial_failed + 1, counter['failed'])
@@ -137,7 +137,7 @@ class TestModelApiCmdRunAnalysis(TestCase):
             'failed': initial_failed,
         })
 
-        TestModelApiCmd().run_analysis(client, input_dir, output_dir, settings, do_il, counter)
+        TestModelApiCmd().run_analysis((client, input_dir, output_dir, settings, do_il, counter))
 
         self.assertEqual(initial_complete, counter['completed'])
         self.assertEqual(initial_failed + 1, counter['failed'])
@@ -306,6 +306,7 @@ class TestModelApiCmdRun(TestCase):
             self.assertEqual(1, pool_mock_object.map.call_count)
             fn = pool_mock_object.map.call_args[0][0]
             args = list(pool_mock_object.map.call_args[0][1])
+
             self.assertEqual(fn.__name__, 'run_analysis')
             self.assertIsInstance(fn.__self__, TestModelApiCmd)
             self.assertEqual(args, [(ANY, cmd.args.input_directory, cmd.args.output_directory, settings, do_il, ANY)] * num_analyses)

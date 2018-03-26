@@ -4,7 +4,6 @@ __all__ = [
     'Translator'
 ]
 
-import io
 import json
 import logging
 import os
@@ -20,10 +19,10 @@ class Translator(object):
         self.logger = logger or logging.getLogger()
         self.threshold = 100000000
 
-        self.xsd = etree.parse(xsd_path)   # validation file
-        self.xslt = etree.parse(xslt_path) # transform file
-        self.fpath_input = input_path      # file_in.csv
-        self.fpath_output = output_path    # file_out.csv
+        self.xsd = etree.parse(xsd_path)    # validation file
+        self.xslt = etree.parse(xslt_path)  # transform file
+        self.fpath_input = input_path       # file_in.csv
+        self.fpath_output = output_path     # file_out.csv
         self.ext = os.path.splitext(self.fpath_output)[1]
 
         self.row_nums = append_row_nums  # Add 'ROW_ID' field to output
@@ -77,7 +76,7 @@ class Translator(object):
             rec = etree.SubElement(root, 'rec')
             # Iter over columns and set attributs
             for i in range(0, len(row)):
-                rec.set(self.row_header_in[i], row[i])
+                rec.set(self.row_header_in[i], str(row[i]))
         return root
 
     # --- XML Funcs --- #
@@ -98,7 +97,7 @@ class Translator(object):
         #     class csv.DictWriter(csvfile ... )
         #     see: https://docs.python.org/2/library/csv.html
 
-        line_counter = row_first+1
+        line_counter = row_first + 1
 
         for rec in root:
             # Convert Row record to python dict() Object
@@ -157,7 +156,7 @@ class Translator(object):
                 )
             except StopIteration:
                 self.logger.info('End of input file')
-                break;
+                break
 
     # Function to append output as its processed in batches
     #

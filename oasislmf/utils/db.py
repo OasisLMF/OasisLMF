@@ -113,5 +113,6 @@ def check_connection():
     except Exception as e:
         logging.getLogger().error(
             "Failed to connect to database: {}".format(db_summary))
+        logging.getLogger().error(e)
         return False
     return True

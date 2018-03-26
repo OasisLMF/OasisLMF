@@ -430,7 +430,7 @@ class FileGenerationTestCase(TestCase):
                 result = pd.read_csv(f2).T.to_dict().values()
                 self.assertEqual(expected, result)
 
-
+                
 class OasisExposuresManagerGenerateItemsFile(FileGenerationTestCase):
 
     @settings(suppress_health_check=[HealthCheck.too_slow])
