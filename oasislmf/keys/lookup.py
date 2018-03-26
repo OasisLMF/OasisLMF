@@ -208,7 +208,6 @@ class OasisKeysLookupFactory(object):
 
             return output_file_path, len(records)
 
-
     @classmethod
     def create(
         cls,
