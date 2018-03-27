@@ -487,7 +487,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             kwargs.setdefault('fm_profile_file_path', oasis_model.resources['oasis_files_pipeline'].fm_profile_file_path)
             kwargs.setdefault('fm_policytc_file_path', oasis_model.resources['oasis_files_pipeline'].fm_programme_file_path)
             kwargs.setdefault('fm_xref_file_path', oasis_model.resources['oasis_files_pipeline'].fm_xref_file_path)
-            kwargs.setdefault('fm_summaryxref_file_path', oasis_model.resources['oasis_files_pipeline'].fm_summaryxref_file_path)
+            kwargs.setdefault('fmsummaryxref_file_path', oasis_model.resources['oasis_files_pipeline'].fmsummaryxref_file_path)
 
         if not kwargs.get('canonical_exposures_profile'):
             kwargs['canonical_exposures_profile'] = self.load_canonical_profile(
@@ -708,7 +708,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             'fm_profile_file_path': kwargs['fm_profile_file_path'],
             'fm_programme_file_path': kwargs['fm_programme_file_path'],
             'fm_xref_file_path': kwargs['fm_xref_file_path'],
-            'fm_summaryxref_file_path': kwargs['fm_summaryxref_file_path']
+            'fmsummaryxref_file_path': kwargs['fmsummaryxref_file_path']
         }
 
     def generate_oasis_files(self, oasis_model=None, include_fm=False, **kwargs):
@@ -791,7 +791,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             fm_profile_file_path=os.path.join(oasis_files_path, 'fm_profile.csv'),
             fm_programme_file_path=os.path.join(oasis_files_path, 'fm_programme.csv'),
             fm_xref_file_path=os.path.join(oasis_files_path, 'fm_xref.csv'),
-            fm_summaryxref_file_path=os.path.join(oasis_files_path, 'fm_summaryxref.csv')
+            fmsummaryxref_file_path=os.path.join(oasis_files_path, 'fmsummaryxref.csv')
         )
 
         if not os.path.exists(kwargs['source_exposures_file_path']):

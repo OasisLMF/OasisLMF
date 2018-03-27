@@ -174,9 +174,9 @@ class OasisExposureManagerGetKeys(TestCase):
     ):
         model = fake_model(resources={'lookup': lookup})
 
-        model.resources['files_pipeline'].keys_file_path = keys_file_path
-        model.resources['files_pipeline'].keys_error_file_path = keys_error_file_path
-        model.resources['files_pipeline'].model_exposures_file_path = model_exposures_file_path
+        model.resources['oasis_files_pipeline'].keys_file_path = keys_file_path
+        model.resources['oasis_files_pipeline'].keys_error_file_path = keys_error_file_path
+        model.resources['oasis_files_pipeline'].model_exposures_file_path = model_exposures_file_path
 
         return model
 
@@ -205,9 +205,9 @@ class OasisExposureManagerGetKeys(TestCase):
                 keys_error_file_path=os.path.abspath(keys_errors)
             )
 
-            self.assertEqual(model.resources['files_pipeline'].keys_file_path, keys)
+            self.assertEqual(model.resources['oasis_files_pipeline'].keys_file_path, keys)
             self.assertEqual(res_keys_file_path, keys)
-            self.assertEqual(model.resources['files_pipeline'].keys_error_file_path, keys_errors)
+            self.assertEqual(model.resources['oasis_files_pipeline'].keys_error_file_path, keys_errors)
             self.assertEqual(res_keys_error_file_path, keys_errors)
 
     @given(
@@ -249,9 +249,9 @@ class OasisExposureManagerGetKeys(TestCase):
                 keys_error_file_path=os.path.abspath(keys_errors)
             )
 
-            self.assertEqual(model.resources['files_pipeline'].keys_file_path, keys)
+            self.assertEqual(model.resources['oasis_files_pipeline'].keys_file_path, keys)
             self.assertEqual(res_keys_file_path, keys)
-            self.assertEqual(model.resources['files_pipeline'].keys_error_file_path, keys_errors)
+            self.assertEqual(model.resources['oasis_files_pipeline'].keys_error_file_path, keys_errors)
             self.assertEqual(res_keys_error_file_path, keys_errors)
 
 
@@ -442,9 +442,9 @@ class OasisExposuresManagerGenerateItemsFile(FileGenerationTestCase):
             write_input_files(keys, keys_file.name, exposures, exposures_file.name)
 
             model = fake_model(resources={'canonical_exposures_profile': profile})
-            model.resources['files_pipeline'].keys_file_path = keys_file.name
-            model.resources['files_pipeline'].canonical_exposures_file_path = exposures_file.name
-            model.resources['files_pipeline'].items_file_path = os.path.join(out_dir, self.items_filename)
+            model.resources['oasis_files_pipeline'].keys_file_path = keys_file.name
+            model.resources['oasis_files_pipeline'].canonical_exposures_file_path = exposures_file.name
+            model.resources['oasis_files_pipeline'].items_file_path = os.path.join(out_dir, self.items_filename)
 
             OasisExposuresManager().generate_items_file(oasis_model=model)
 
@@ -492,9 +492,9 @@ class OasisExposuresManagerGenerateCoveragesFile(FileGenerationTestCase):
             write_input_files(keys, keys_file.name, exposures, exposures_file.name)
 
             model = fake_model(resources={'canonical_exposures_profile': profile})
-            model.resources['files_pipeline'].keys_file_path = keys_file.name
-            model.resources['files_pipeline'].canonical_exposures_file_path = exposures_file.name
-            model.resources['files_pipeline'].coverages_file_path = os.path.join(out_dir, self.coverages_filename)
+            model.resources['oasis_files_pipeline'].keys_file_path = keys_file.name
+            model.resources['oasis_files_pipeline'].canonical_exposures_file_path = exposures_file.name
+            model.resources['oasis_files_pipeline'].coverages_file_path = os.path.join(out_dir, self.coverages_filename)
 
             OasisExposuresManager().generate_coverages_file(oasis_model=model)
 
@@ -542,9 +542,9 @@ class OasisExposuresManagerGenerateGulsummaryxrefFile(FileGenerationTestCase):
             write_input_files(keys, keys_file.name, exposures, exposures_file.name)
 
             model = fake_model(resources={'canonical_exposures_profile': profile})
-            model.resources['files_pipeline'].keys_file_path = keys_file.name
-            model.resources['files_pipeline'].canonical_exposures_file_path = exposures_file.name
-            model.resources['files_pipeline'].gulsummaryxref_file_path = os.path.join(out_dir, self.gulsummaryxref_filename)
+            model.resources['oasis_files_pipeline'].keys_file_path = keys_file.name
+            model.resources['oasis_files_pipeline'].canonical_exposures_file_path = exposures_file.name
+            model.resources['oasis_files_pipeline'].gulsummaryxref_file_path = os.path.join(out_dir, self.gulsummaryxref_filename)
 
             OasisExposuresManager().generate_gulsummaryxref_file(oasis_model=model)
 
@@ -590,11 +590,11 @@ class OasisExposuresManagerGenerateOasisFiles(FileGenerationTestCase):
             write_input_files(keys, keys_file.name, exposures, exposures_file.name)
 
             model = fake_model(resources={'canonical_exposures_profile': profile})
-            model.resources['files_pipeline'].keys_file_path = keys_file.name
-            model.resources['files_pipeline'].canonical_exposures_file_path = exposures_file.name
-            model.resources['files_pipeline'].items_file_path = os.path.join(out_dir, self.items_filename)
-            model.resources['files_pipeline'].coverages_file_path = os.path.join(out_dir, self.coverages_filename)
-            model.resources['files_pipeline'].gulsummaryxref_file_path = os.path.join(out_dir, self.gulsummaryxref_filename)
+            model.resources['oasis_files_pipeline'].keys_file_path = keys_file.name
+            model.resources['oasis_files_pipeline'].canonical_exposures_file_path = exposures_file.name
+            model.resources['oasis_files_pipeline'].items_file_path = os.path.join(out_dir, self.items_filename)
+            model.resources['oasis_files_pipeline'].coverages_file_path = os.path.join(out_dir, self.coverages_filename)
+            model.resources['oasis_files_pipeline'].gulsummaryxref_file_path = os.path.join(out_dir, self.gulsummaryxref_filename)
 
             OasisExposuresManager().generate_oasis_files(oasis_model=model)
 
@@ -682,7 +682,7 @@ class OasisExposuresTransformSourceToCanonical(TestCase):
             'source_exposures_validation_file_path': source_exposures_validation_file_path,
             'source_to_canonical_exposures_transformation_file_path': source_to_canonical_exposures_transformation_file_path,
         })
-        model.resources['files_pipeline'].canonical_exposures_path = canonical_exposures_file_path
+        model.resources['oasis_files_pipeline'].canonical_exposures_path = canonical_exposures_file_path
 
         trans_call_mock = Mock()
         with patch('oasislmf.exposures.manager.Translator', Mock(return_value=trans_call_mock)) as trans_mock:
@@ -752,8 +752,8 @@ class OasisExposuresTransformCanonicalToModel(TestCase):
             'canonical_exposures_validation_file_path': canonical_exposures_validation_file_path,
             'canonical_to_model_exposures_transformation_file_path': canonical_to_model_exposures_transformation_file_path,
         })
-        model.resources['files_pipeline'].canonical_exposures_path = canonical_exposures_file_path
-        model.resources['files_pipeline'].model_exposures_file_path = model_exposures_file_path
+        model.resources['oasis_files_pipeline'].canonical_exposures_path = canonical_exposures_file_path
+        model.resources['oasis_files_pipeline'].model_exposures_file_path = model_exposures_file_path
 
         trans_call_mock = Mock()
         with patch('oasislmf.exposures.manager.Translator', Mock(return_value=trans_call_mock)) as trans_mock:
@@ -800,7 +800,7 @@ class OasisExposureManagerCreate(TestCase):
     def test_file_pipeline_is_not_supplied___default_pipeline_is_set(self):
         model = fake_model()
 
-        pipeline = model.resources['files_pipeline']
+        pipeline = model.resources['oasis_files_pipeline']
 
         self.assertIsInstance(pipeline, OasisFilesPipeline)
         self.assertEqual(pipeline.model_key, model.key)
@@ -808,9 +808,9 @@ class OasisExposureManagerCreate(TestCase):
     def test_file_pipeline_is_supplied___pipeline_is_unchanged(self):
         pipeline = OasisFilesPipeline()
 
-        model = fake_model(resources={'files_pipeline': pipeline})
+        model = fake_model(resources={'oasis_files_pipeline': pipeline})
 
-        self.assertIs(pipeline, model.resources['files_pipeline'])
+        self.assertIs(pipeline, model.resources['oasis_files_pipeline'])
 
     def test_pipeline_is_not_a_pipeline_instance___oasis_exception_is_raised(self):
         class FakePipeline(object):
@@ -819,7 +819,7 @@ class OasisExposureManagerCreate(TestCase):
         pipeline = FakePipeline()
 
         with self.assertRaises(OasisException):
-            fake_model(resources={'files_pipeline': pipeline})
+            fake_model(resources={'oasis_files_pipeline': pipeline})
 
     def test_canonical_exposures_profile_not_set___canonical_exposures_profile_in_none(self):
         model = fake_model()

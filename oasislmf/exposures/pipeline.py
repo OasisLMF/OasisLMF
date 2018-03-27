@@ -242,7 +242,7 @@ class OasisFilesPipeline(object):
             :getter: Gets the actual file object
             :setter: Sets the file to the specified file object
         """
-        return self._fmfmsummaryxref_file_path
+        return self._fmsummaryxref_file_path
 
     @fmsummaryxref_file_path.setter
     def fmsummaryxref_file_path(self, f):
