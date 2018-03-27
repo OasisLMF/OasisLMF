@@ -671,7 +671,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         if not os.path.exists(kwargs['source_exposures_file_path']):
             self.logger.info('Copying source exposures file to input files directory')
-            shutil.copy2(source_exposures_file_path, oasis_model.resources['oasis_file_path'])
+            shutil.copy2(source_exposures_file_path, oasis_files_path)
 
         logger.info('Generating canonical exposures file {canonical_exposures_file_path}'.format(**kwargs))
         self.transform_source_to_canonical(**kwargs)
