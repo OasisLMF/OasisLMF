@@ -1,4 +1,3 @@
-from __future__ import print_function
 # -*- coding: utf-8 -*-
 
 __all__ = [
@@ -138,13 +137,43 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         pass
 
+    def generate_fm_policytc_file(self, oasis_model=None, **kwargs):
+        """
+        Generates an FM policy T & C file for the given ``oasis_model``.
+        """
+        pass
+
+    def generate_fm_profile_file(self, oasis_model=None, **kwargs):
+        """
+        Generates an FM profile file for the given ``oasis_model``.
+        """
+        pass
+
+    def generate_fm_programme_file(self, oasis_model=None, **kwargs):
+        """
+        Generates a FM programme file for the given ``oasis_model``.
+        """
+        pass
+
+    def generate_fm_xref_file(self, oasis_model=None, **kwargs):
+        """
+        Generates a FM xref file for the given ``oasis_model``.
+        """
+        pass
+
+    def generate_fmsummaryxref_file(self, oasis_model=None, **kwargs):
+        """
+        Generates a FM summaryxref file for the given ``oasis_model``.
+        """
+        pass
+
     def generate_oasis_files(self, oasis_model=None, **kwargs):
         """
-        For a given ``oasis_model`` generates the standard Oasis files, namely
+        For a given ``oasis_model`` generates the standard Oasis files, namely::
 
-            ``items.csv``
-            ``coverages.csv``
-            ``gulsummaryxref.csv``
+            items.csv
+            coverages.csv
+            gulsummaryxref.csv
 
         All the required resources must be provided either in the model object
         resources dict or the ``kwargs`` dict.
@@ -155,7 +184,23 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         pass
 
+    def generate_fm_files(self, oasis_model=None, **kwargs):
+        """
+        Generate FM files, namely::
+
+            fm_policytc.csv
+            fm_profile.csv
+            fm_programme.csv
+            fm_xref.csv
+            fmsummaryxref.csv
+        """
+        pass
+
     def create(self, model_supplier_id, model_id, model_version_id, resources=None):
+        """
+        Creates and returns an Oasis model with the provisioned resources if
+        a resources dict was provided.
+        """
         pass
 
 
@@ -438,6 +483,11 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             kwargs.setdefault('items_file_path', oasis_model.resources['oasis_files_pipeline'].items_file_path)
             kwargs.setdefault('coverages_file_path', oasis_model.resources['oasis_files_pipeline'].coverages_file_path)
             kwargs.setdefault('gulsummaryxref_file_path', oasis_model.resources['oasis_files_pipeline'].gulsummaryxref_file_path)
+            kwargs.setdefault('fm_policytc_file_path', oasis_model.resources['oasis_files_pipeline'].fm_policytc_file_path)
+            kwargs.setdefault('fm_profile_file_path', oasis_model.resources['oasis_files_pipeline'].fm_profile_file_path)
+            kwargs.setdefault('fm_policytc_file_path', oasis_model.resources['oasis_files_pipeline'].fm_programme_file_path)
+            kwargs.setdefault('fm_xref_file_path', oasis_model.resources['oasis_files_pipeline'].fm_xref_file_path)
+            kwargs.setdefault('fm_summaryxref_file_path', oasis_model.resources['oasis_files_pipeline'].fm_summaryxref_file_path)
 
         if not kwargs.get('canonical_exposures_profile'):
             kwargs['canonical_exposures_profile'] = self.load_canonical_profile(
@@ -448,7 +498,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         return kwargs
 
-    def load_master_data_frame(self, canonical_exposures_file_path, keys_file_path, canonical_exposures_profile, **kwargs):
+    def load_exposure_master_data_frame(self, canonical_exposures_file_path, keys_file_path, canonical_exposures_profile, **kwargs):
         with io.open(canonical_exposures_file_path, 'r', encoding='utf-8') as cf:
             canexp_df = pd.read_csv(cf, float_precision='high')
             canexp_df = canexp_df.where(canexp_df.notnull(), None)
@@ -511,6 +561,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         return result
 
+    def load_fm_master_data_frame(self, canonical_exposures_file_path, keys_file_path, canonical_exposures_profile, **kwargs):
+        pass
+
     def _write_csvs(self, columns, data_frame, file_path):
         data_frame.to_csv(
             columns=columns,
@@ -527,7 +580,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
 
         if data_frame is None:
-            data_frame = self.load_master_data_frame(**kwargs)
+            data_frame = self.load_exposure_master_data_frame(**kwargs)
 
         self._write_csvs(
             ['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id'],
@@ -547,7 +600,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
 
         if data_frame is None:
-            data_frame = self.load_master_data_frame(**kwargs)
+            data_frame = self.load_exposure_master_data_frame(**kwargs)
 
         self._write_csvs(
             ['coverage_id', 'tiv'],
@@ -567,7 +620,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
 
         if data_frame is None:
-            data_frame = self.load_master_data_frame(**kwargs)
+            data_frame = self.load_exposure_master_data_frame(**kwargs)
 
         self._write_csvs(
             ['coverage_id', 'summary_id', 'summaryset_id'],
@@ -580,17 +633,46 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         return kwargs['gulsummaryxref_file_path']
 
-    def generate_oasis_files(self, oasis_model=None, **kwargs):
+    def generate_fm_policytc_file(self, oasis_model=None, **kwargs):
         """
-        For a given ``oasis_model`` generates the standard Oasis files, namely
+        Generates an FM policy T & C file for the given ``oasis_model``.
+        """
+        pass
 
-            ``items.csv``
-            ``coverages.csv``
-            ``gulsummaryxref.csv``
+    def generate_fm_profile_file(self, oasis_model=None, **kwargs):
+        """
+        Generates an FM profile file for the given ``oasis_model``.
+        """
+        pass
 
+    def generate_fm_programme_file(self, oasis_model=None, **kwargs):
+        """
+        Generates a FM programme file for the given ``oasis_model``.
+        """
+        pass
+
+    def generate_fm_xref_file(self, oasis_model=None, **kwargs):
+        """
+        Generates a FM xref file for the given ``oasis_model``.
+        """
+        pass
+
+    def generate_fmsummaryxref_file(self, oasis_model=None, **kwargs):
+        """
+        Generates a FM summaryxref file for the given ``oasis_model``.
+        """
+        pass
+
+    def generate_exposure_files(self, oasis_model=None, **kwargs):
+        """
+        Generates the standard Oasis files, namely::
+
+            items.csv
+            coverages.csv
+            gulsummaryxref.csv
         """
         kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
-        data_frame = self.load_master_data_frame(**kwargs)
+        data_frame = self.load_exposure_master_data_frame(**kwargs)
 
         self.generate_items_file(oasis_model=oasis_model, data_frame=data_frame, **kwargs)
         self.generate_coverages_file(oasis_model=oasis_model, data_frame=data_frame, **kwargs)
@@ -602,9 +684,46 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             'gulsummaryxref_file_path': kwargs['gulsummaryxref_file_path']
         }
 
-    def clear_files_pipeline(self, oasis_model, **kwargs):
+    def generate_fm_files(self, oasis_model=None, **kwargs):
         """
-        Clears the oasis files pipeline for the given Oasis model object.
+        Generate Oasis FM files, namely::
+
+            fm_policytc.csv
+            fm_profile.csv
+            fm_programm.ecsv
+            fm_xref.csv
+            fm_summaryxref.csv
+        """
+        kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
+        data_frame = self.load_fm_exposure_master_data_frame(**kwargs)
+
+        self.generate_fm_policytc_file(oasis_model=oasis_model, data_frame=data_frame, **kwargs)
+        self.generate_fm_profile_file(oasis_model=oasis_model, data_frame=data_frame, **kwargs)
+        self.generate_fm_programme_file(oasis_model=oasis_model, data_frame=data_frame, **kwargs)
+        self.generate_fm_xref_file(oasis_model=oasis_model, data_frame=data_frame, **kwargs)
+        self.generate_fmsummaryxref_file(oasis_model=oasis_model, data_frame=data_frame, **kwargs)
+
+        return {
+            'fm_policytc_file_path': kwargs['fm_policytc_file_path'],
+            'fm_profile_file_path': kwargs['fm_profile_file_path'],
+            'fm_programme_file_path': kwargs['fm_programme_file_path'],
+            'fm_xref_file_path': kwargs['fm_xref_file_path'],
+            'fm_summaryxref_file_path': kwargs['fm_summaryxref_file_path']
+        }
+
+    def generate_oasis_files(self, oasis_model=None, include_fm=False, **kwargs):
+        exposure_files = self.generate_exposure_files(oasis_model=oasis_model, **kwargs)
+
+        if not include_fm:
+            return exposure_files
+
+        fm_files = self.generate_fm_files(oasis_model=oasis_model, **kwargs)
+
+        return {k:v for k, v in exposure_files.items() + fm_files.items()}
+
+    def clear_oasis_files_pipeline(self, oasis_model, **kwargs):
+        """
+        Clears the files pipeline for the given Oasis model object.
 
         Args:
             ``oasis_model`` (``omdk.models.OasisModel.OasisModel``): The model object.
@@ -613,19 +732,20 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         Returns:
             ``oasis_model`` (``omdk.models.OasisModel.OasisModel``): The model object with its
-            Oasis files pipeline cleared.
+            files pipeline cleared.
         """
         oasis_model.resources.get('oasis_files_pipeline').clear()
 
         return oasis_model
 
-    def start_files_pipeline(self, oasis_model=None, oasis_files_path=None, source_exposures_file_path=None, logger=None):
+    def start_oasis_files_pipeline(self, oasis_model=None, oasis_files_path=None, include_fm=False, source_exposures_file_path=None, logger=None):
         """
-        Starts the oasis files pipeline for the given Oasis model object,
+        Starts the files pipeline for the given Oasis model object,
         which is the generation of the Oasis items, coverages and GUL summary
-        files from the source exposures file, canonical exposures profile,
-        and associated validation files and transformation files for the
-        source and intermediate files (canonical exposures, model exposures).
+        files, and possibly the FM files, from the source exposures file,
+        canonical exposures profile, and associated validation files and
+        transformation files for the source and intermediate files (canonical
+        exposures, model exposures).
 
         Args:
             ``oasis_model`` (``omdk.models.OasisModel.OasisModel``): The model object.
@@ -666,7 +786,12 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             keys_error_file_path=os.path.join(oasis_files_path, 'oasiskeys-errors-{}.csv'.format(utcnow)),
             items_file_path=os.path.join(oasis_files_path, 'items.csv'),
             coverages_file_path=os.path.join(oasis_files_path, 'coverages.csv'),
-            gulsummaryxref_file_path=os.path.join(oasis_files_path, 'gulsummaryxref.csv')
+            gulsummaryxref_file_path=os.path.join(oasis_files_path, 'gulsummaryxref.csv'),
+            fm_policytc_file_path=os.path.join(oasis_files_path, 'fm_policytc.csv'),
+            fm_profile_file_path=os.path.join(oasis_files_path, 'fm_profile.csv'),
+            fm_programme_file_path=os.path.join(oasis_files_path, 'fm_programme.csv'),
+            fm_xref_file_path=os.path.join(oasis_files_path, 'fm_xref.csv'),
+            fm_summaryxref_file_path=os.path.join(oasis_files_path, 'fm_summaryxref.csv')
         )
 
         if not os.path.exists(kwargs['source_exposures_file_path']):
@@ -682,8 +807,8 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         logger.info('Generating keys file {keys_file_path} and keys error file {keys_error_file_path}'.format(**kwargs))
         self.get_keys(oasis_model=oasis_model, **kwargs)
 
-        logger.info('Generating Oasis files for model')
-        return self.generate_oasis_files(oasis_model=oasis_model, **kwargs)
+        logger.info('Generating Oasis files (exposures=True, FM files={})'.format(include_fm))
+        return self.generate_oasis_files(oasis_model=oasis_model, include_fm=include_fm, **kwargs)
 
     def create(self, model_supplier_id, model_id, model_version_id, resources=None):
         model = OasisModel(

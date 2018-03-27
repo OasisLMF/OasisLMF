@@ -147,7 +147,8 @@ class GenerateKeysCmd(OasisBaseCommand):
 
 class GenerateOasisFilesCmd(OasisBaseCommand):
     """
-    Generate Oasis files (items, coverages, GUL summary) for a model
+    Generate Oasis files: items, coverages, GUL summary (exposure files) +
+    optionally also FM files (policy TC, profile, programme, xref, summaryxref)
 
     The command line arguments can be supplied in the configuration file
     (``oasislmf.json`` by default or specified with the ``--config`` flag).
@@ -186,6 +187,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             '-d', '--canonical-to-model-exposures-transformation-file-path', default=None,
             help='Canonical exposures validation file (XSD) path'
         )
+        parser.add_argument('-i', '--include_fm', action='store_false', help='Whether to generate FM files')
 
     def action(self, args):
         """
@@ -224,6 +226,8 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             'Canonical to model exposures transformation file'
         )
 
+        include_fm = inputs.get('include_fm', default=False)
+
         self.logger.info('Getting model info and creating lookup service instance')
         model_info, model_klc = OasisKeysLookupFactory.create(
             model_keys_data_path=keys_data_path,
@@ -256,6 +260,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         self.logger.info('Generating Oasis files for model')
         oasis_files = OasisExposuresManager().start_files_pipeline(
             oasis_model=model,
+            include_fm=include_fm,
             logger=self.logger,
         )
 
