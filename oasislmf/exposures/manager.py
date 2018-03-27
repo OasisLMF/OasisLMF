@@ -119,54 +119,6 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         pass
 
-    def generate_items_file(self, oasis_model=None, **kwargs):
-        """
-        Generates an items file for the given ``oasis_model``.
-        """
-        pass
-
-    def generate_coverages_file(self, oasis_model=None, **kwargs):
-        """
-        Generates a coverages file for the given ``oasis_model``.
-        """
-        pass
-
-    def generate_gulsummaryxref_file(self, oasis_model=None, **kwargs):
-        """
-        Generates a gulsummaryxref file for the given ``oasis_model``.
-        """
-        pass
-
-    def generate_fm_policytc_file(self, oasis_model=None, **kwargs):
-        """
-        Generates an FM policy T & C file for the given ``oasis_model``.
-        """
-        pass
-
-    def generate_fm_profile_file(self, oasis_model=None, **kwargs):
-        """
-        Generates an FM profile file for the given ``oasis_model``.
-        """
-        pass
-
-    def generate_fm_programme_file(self, oasis_model=None, **kwargs):
-        """
-        Generates a FM programme file for the given ``oasis_model``.
-        """
-        pass
-
-    def generate_fm_xref_file(self, oasis_model=None, **kwargs):
-        """
-        Generates a FM xref file for the given ``oasis_model``.
-        """
-        pass
-
-    def generate_fmsummaryxref_file(self, oasis_model=None, **kwargs):
-        """
-        Generates a FM summaryxref file for the given ``oasis_model``.
-        """
-        pass
-
     def generate_oasis_files(self, oasis_model=None, **kwargs):
         """
         For a given ``oasis_model`` generates the standard Oasis files, namely::
@@ -181,18 +133,6 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         It is up to the specific implementation of this class of how these
         resources will be named in ``kwargs`` and how they will be used to
         effect the transformation.
-        """
-        pass
-
-    def generate_fm_files(self, oasis_model=None, **kwargs):
-        """
-        Generate FM files, namely::
-
-            fm_policytc.csv
-            fm_profile.csv
-            fm_programme.csv
-            fm_xref.csv
-            fmsummaryxref.csv
         """
         pass
 
