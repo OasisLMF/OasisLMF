@@ -650,7 +650,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         logger.info('Checking for source exposures file')
         if oasis_model and not source_exposures_file_path:
-            source_exposures_file_path = oasis_model.resources['source_exposures_file_path'] if 'source_exposures_file_path' in model.resources else None
+            source_exposures_file_path = oasis_model.resources['source_exposures_file_path'] if 'source_exposures_file_path' in oasis_model.resources else None
         if not source_exposures_file_path:
             raise OasisException('No source exposures file path provided in arguments or model resources')
         elif not os.path.exists(source_exposures_file_path):
