@@ -311,14 +311,14 @@ class OasisExposureManagerLoadMasterDataframe(TestCase):
             )
         self.assertEqual(len(expected), len(result))
 
-        for idx in range(len(result)):
-            row = {k:(int(v) if k != 'tiv' else v) for k, v in result.iloc[idx].to_dict().items()}
-            self.assertEqual(idx + 1, row['item_id'])
-            self.assertEqual(idx + 1, row['coverage_id'])
-            self.assertEqual(exposures[idx][1], row['tiv'])
-            self.assertEqual(keys[idx]['area_peril_id'], row['areaperil_id'])
-            self.assertEqual(keys[idx]['vulnerability_id'], row['vulnerability_id'])
-            self.assertEqual(idx + 1, row['group_id'])
+        for i in range(len(result)):
+            row = {k:(int(v) if k != 'tiv' else v) for k, v in result.iloc[i].to_dict().items()}
+            self.assertEqual(i + 1, row['item_id'])
+            self.assertEqual(i + 1, row['coverage_id'])
+            self.assertEqual(exposures[i][1], row['tiv'])
+            self.assertEqual(keys[i]['area_peril_id'], row['areaperil_id'])
+            self.assertEqual(keys[i]['vulnerability_id'], row['vulnerability_id'])
+            self.assertEqual(i + 1, row['group_id'])
             self.assertEqual(1, row['summary_id'])
             self.assertEqual(1, row['summaryset_id'])
 
@@ -360,14 +360,14 @@ class OasisExposureManagerLoadMasterDataframe(TestCase):
             )
 
         self.assertEqual(len(expected), len(result))
-        for idx in range(len(result)):
-            row = {k:(int(v) if k != 'tiv' else v) for k, v in result.iloc[idx].to_dict().items()}
-            self.assertEqual(idx + 1, row['item_id'])
-            self.assertEqual(idx + 1, row['coverage_id'])
-            self.assertEqual(exposures[idx][1], row['tiv'])
-            self.assertEqual(keys[idx]['area_peril_id'], row['areaperil_id'])
-            self.assertEqual(keys[idx]['vulnerability_id'], row['vulnerability_id'])
-            self.assertEqual(idx + 1, row['group_id'])
+        for i in range(len(result)):
+            row = {k:(int(v) if k != 'tiv' else v) for k, v in result.iloc[i].to_dict().items()}
+            self.assertEqual(i + 1, row['item_id'])
+            self.assertEqual(i + 1, row['coverage_id'])
+            self.assertEqual(exposures[i][1], row['tiv'])
+            self.assertEqual(keys[i]['area_peril_id'], row['areaperil_id'])
+            self.assertEqual(keys[i]['vulnerability_id'], row['vulnerability_id'])
+            self.assertEqual(i + 1, row['group_id'])
             self.assertEqual(1, row['summary_id'])
             self.assertEqual(1, row['summaryset_id'])
 
