@@ -240,11 +240,12 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             resources={
                 'lookup': model_klc,
                 'oasis_files_path': oasis_files_path,
-                'canonical_exposures_profile_json_path': canonical_exposures_profile_json_path,
+                'source_exposures_file_path': source_exposures_file_path,
                 'source_exposures_validation_file_path': source_exposures_validation_file_path,
                 'source_to_canonical_exposures_transformation_file_path': source_to_canonical_exposures_transformation_file_path,
+                'canonical_exposures_profile_json_path': canonical_exposures_profile_json_path,
                 'canonical_exposures_validation_file_path': canonical_exposures_validation_file_path,
-                'canonical_to_model_exposures_transformation_file_path': canonical_to_model_exposures_transformation_file_path,
+                'canonical_to_model_exposures_transformation_file_path': canonical_to_model_exposures_transformation_file_path
             }
         )
         self.logger.info('\t{}'.format(model))
@@ -255,8 +256,6 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         self.logger.info('Generating Oasis files for model')
         oasis_files = OasisExposuresManager().start_files_pipeline(
             oasis_model=model,
-            oasis_files_path=oasis_files_path,
-            source_exposures_path=source_exposures_file_path,
             logger=self.logger,
         )
 

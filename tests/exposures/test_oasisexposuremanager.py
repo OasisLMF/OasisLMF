@@ -375,13 +375,10 @@ class OasisExposureManagerLoadMasterDataframe(TestCase):
 class FileGenerationTestCase(TestCase):
     def setUp(self):
         self.items_filename = 'items.csv'
-        self.timestamped_items_filename = 'items_timestamped.csv'
         self.coverages_filename = 'coverages.csv'
-        self.timestamped_coverages_filename = 'coverages_timestamped.csv'
-        self.gul_filename = 'gul.csv'
-        self.timestamped_gul_filename = 'gul_timestamped.csv'
+        self.gulsummaryxref_filename = 'gulsummaryxref.csv'
 
-    def check_items_files(self, keys, out_dir):
+    def check_items_file(self, keys, out_dir):
         expected = [
             {
                 'item_id': i + 1,
@@ -392,14 +389,11 @@ class FileGenerationTestCase(TestCase):
             } for i, key in enumerate(keys)
         ]
 
-        with io.open(os.path.join(out_dir, self.items_filename), 'r', encoding='utf-8') as f1:
-            with io.open(os.path.join(out_dir, self.timestamped_items_filename), 'r', encoding='utf-8') as f2:
-                result = pd.read_csv(f1).T.to_dict().values()
-                self.assertEqual(expected, result)
-                result = pd.read_csv(f2).T.to_dict().values()
-                self.assertEqual(expected, result)
+        with io.open(os.path.join(out_dir, self.items_filename), 'r', encoding='utf-8') as f:
+            result = pd.read_csv(f).T.to_dict().values()
+            self.assertEqual(expected, result)
 
-    def check_coverages_files(self, exposures, out_dir):
+    def check_coverages_file(self, exposures, out_dir):
         expected = [
             {
                 'coverage_id': item_id + 1,
@@ -407,14 +401,11 @@ class FileGenerationTestCase(TestCase):
             } for item_id, item in enumerate(exposures)
         ]
 
-        with io.open(os.path.join(out_dir, self.coverages_filename), 'r', encoding='utf-8') as f1:
-            with io.open(os.path.join(out_dir, self.timestamped_coverages_filename), 'r', encoding='utf-8') as f2:
-                result = pd.read_csv(f1).T.to_dict().values()
-                self.assertEqual(expected, result)
-                result = pd.read_csv(f2).T.to_dict().values()
-                self.assertEqual(expected, result)
+        with io.open(os.path.join(out_dir, self.coverages_filename), 'r', encoding='utf-8') as f:
+            result = pd.read_csv(f).T.to_dict().values()
+            self.assertEqual(expected, result)
 
-    def check_gul_files(self, exposures, out_dir):
+    def check_gul_file(self, exposures, out_dir):
         expected = [
             {
                 'coverage_id': item_id + 1,
@@ -423,14 +414,11 @@ class FileGenerationTestCase(TestCase):
             } for item_id in range(len(exposures))
         ]
 
-        with io.open(os.path.join(out_dir, self.gul_filename), 'r', encoding='utf-8') as f1:
-            with io.open(os.path.join(out_dir, self.timestamped_gul_filename), 'r', encoding='utf-8') as f2:
-                result = pd.read_csv(f1).T.to_dict().values()
-                self.assertEqual(expected, result)
-                result = pd.read_csv(f2).T.to_dict().values()
-                self.assertEqual(expected, result)
+        with io.open(os.path.join(out_dir, self.gulsummaryxref_filename), 'r', encoding='utf-8') as f:
+            result = pd.read_csv(f).T.to_dict().values()
+            self.assertEqual(expected, result)
 
-                
+
 class OasisExposuresManagerGenerateItemsFile(FileGenerationTestCase):
 
     @settings(suppress_health_check=[HealthCheck.too_slow])
@@ -451,17 +439,14 @@ class OasisExposuresManagerGenerateItemsFile(FileGenerationTestCase):
                 exposures_file_path=exposures_file.name
             )
 
-            model = fake_model(resources={
-                'items_file_path': os.path.join(out_dir, self.items_filename),
-                'items_timestamped_file_path': os.path.join(out_dir, self.timestamped_items_filename),
-                'canonical_exposures_profile': profile,
-            })
+            model = fake_model(resources={'canonical_exposures_profile': profile})
             model.resources['oasis_files_pipeline'].keys_file_path = keys_file.name
             model.resources['oasis_files_pipeline'].canonical_exposures_file_path = exposures_file.name
+            model.resources['oasis_files_pipeline'].items_file_path = os.path.join(out_dir, self.items_filename)
 
             OasisExposuresManager().generate_items_file(oasis_model=model)
 
-            self.check_items_files(keys, out_dir)
+            self.check_items_file(keys, out_dir)
 
     @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
@@ -483,11 +468,10 @@ class OasisExposuresManagerGenerateItemsFile(FileGenerationTestCase):
                 canonical_exposures_profile=profile,
                 keys_file_path=keys_file.name,
                 canonical_exposures_file_path=exposures_file.name,
-                items_file_path=os.path.join(out_dir, self.items_filename),
-                items_timestamped_file_path=os.path.join(out_dir, self.timestamped_items_filename),
+                items_file_path=os.path.join(out_dir, self.items_filename)
             )
 
-            self.check_items_files(keys, out_dir)
+            self.check_items_file(keys, out_dir)
 
 
 class OasisExposuresManagerGenerateCoveragesFile(FileGenerationTestCase):
@@ -505,17 +489,14 @@ class OasisExposuresManagerGenerateCoveragesFile(FileGenerationTestCase):
         with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file, TemporaryDirectory() as out_dir:
             write_input_files(keys, keys_file.name, exposures, exposures_file.name)
 
-            model = fake_model(resources={
-                'coverages_file_path': os.path.join(out_dir, self.coverages_filename),
-                'coverages_timestamped_file_path': os.path.join(out_dir, self.timestamped_coverages_filename),
-                'canonical_exposures_profile': profile,
-            })
+            model = fake_model(resources={'canonical_exposures_profile': profile})
             model.resources['oasis_files_pipeline'].keys_file_path = keys_file.name
             model.resources['oasis_files_pipeline'].canonical_exposures_file_path = exposures_file.name
+            model.resources['oasis_files_pipeline'].coverages_file_path = os.path.join(out_dir, self.coverages_filename)
 
             OasisExposuresManager().generate_coverages_file(oasis_model=model)
 
-            self.check_coverages_files(exposures, out_dir)
+            self.check_coverages_file(exposures, out_dir)
 
     @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
@@ -537,11 +518,10 @@ class OasisExposuresManagerGenerateCoveragesFile(FileGenerationTestCase):
                 canonical_exposures_profile=profile,
                 keys_file_path=keys_file.name,
                 canonical_exposures_file_path=exposures_file.name,
-                coverages_file_path=os.path.join(out_dir, self.coverages_filename),
-                coverages_timestamped_file_path=os.path.join(out_dir, self.timestamped_coverages_filename),
+                coverages_file_path=os.path.join(out_dir, self.coverages_filename)
             )
 
-            self.check_coverages_files(exposures, out_dir)
+            self.check_coverages_file(exposures, out_dir)
 
 
 class OasisExposuresManagerGenerateGulsummaryxrefFile(FileGenerationTestCase):
@@ -559,17 +539,14 @@ class OasisExposuresManagerGenerateGulsummaryxrefFile(FileGenerationTestCase):
         with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file, TemporaryDirectory() as out_dir:
             write_input_files(keys, keys_file.name, exposures, exposures_file.name)
 
-            model = fake_model(resources={
-                'gulsummaryxref_file_path': os.path.join(out_dir, self.gul_filename),
-                'gulsummaryxref_timestamped_file_path': os.path.join(out_dir, self.timestamped_gul_filename),
-                'canonical_exposures_profile': profile,
-            })
+            model = fake_model(resources={'canonical_exposures_profile': profile})
             model.resources['oasis_files_pipeline'].keys_file_path = keys_file.name
             model.resources['oasis_files_pipeline'].canonical_exposures_file_path = exposures_file.name
+            model.resources['oasis_files_pipeline'].gulsummaryxref_file_path = os.path.join(out_dir, self.gulsummaryxref_filename)
 
             OasisExposuresManager().generate_gulsummaryxref_file(oasis_model=model)
 
-            self.check_gul_files(exposures, out_dir)
+            self.check_gul_file(exposures, out_dir)
 
     @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
@@ -584,24 +561,16 @@ class OasisExposuresManagerGenerateGulsummaryxrefFile(FileGenerationTestCase):
         with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file, TemporaryDirectory() as out_dir:
             write_input_files(keys, keys_file.name, exposures, exposures_file.name)
 
-            model = fake_model(resources={
-                'gulsummaryxref_file_path': os.path.join(out_dir, self.gul_filename),
-                'gulsummaryxref_timestamped_file_path': os.path.join(out_dir, self.timestamped_gul_filename),
-                'canonical_exposures_profile': profile,
-            })
-            model.resources['oasis_files_pipeline'].keys_file_path = keys_file.name
-            model.resources['oasis_files_pipeline'].canonical_exposures_file_path = exposures_file.name
-
+            model = fake_model()
             OasisExposuresManager().generate_gulsummaryxref_file(
                 oasis_model=model,
                 canonical_exposures_profile=profile,
                 keys_file_path=keys_file.name,
                 canonical_exposures_file_path=exposures_file.name,
-                gulsummaryxref_file_path=os.path.join(out_dir, self.gul_filename),
-                gulsummaryxref_timestamped_file_path=os.path.join(out_dir, self.timestamped_gul_filename),
+                gulsummaryxref_file_path=os.path.join(out_dir, self.gulsummaryxref_filename)
             )
 
-            self.check_gul_files(exposures, out_dir)
+            self.check_gul_file(exposures, out_dir)
 
 
 class OasisExposuresManagerGenerateOasisFiles(FileGenerationTestCase):
@@ -618,23 +587,18 @@ class OasisExposuresManagerGenerateOasisFiles(FileGenerationTestCase):
         with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file, TemporaryDirectory() as out_dir:
             write_input_files(keys, keys_file.name, exposures, exposures_file.name)
 
-            model = fake_model(resources={
-                'items_file_path': os.path.join(out_dir, self.items_filename),
-                'items_timestamped_file_path': os.path.join(out_dir, self.timestamped_items_filename),
-                'coverages_file_path': os.path.join(out_dir, self.coverages_filename),
-                'coverages_timestamped_file_path': os.path.join(out_dir, self.timestamped_coverages_filename),
-                'gulsummaryxref_file_path': os.path.join(out_dir, self.gul_filename),
-                'gulsummaryxref_timestamped_file_path': os.path.join(out_dir, self.timestamped_gul_filename),
-                'canonical_exposures_profile': profile,
-            })
+            model = fake_model(resources={'canonical_exposures_profile': profile})
             model.resources['oasis_files_pipeline'].keys_file_path = keys_file.name
             model.resources['oasis_files_pipeline'].canonical_exposures_file_path = exposures_file.name
+            model.resources['oasis_files_pipeline'].items_file_path = os.path.join(out_dir, self.items_filename)
+            model.resources['oasis_files_pipeline'].coverages_file_path = os.path.join(out_dir, self.coverages_filename)
+            model.resources['oasis_files_pipeline'].gulsummaryxref_file_path = os.path.join(out_dir, self.gulsummaryxref_filename)
 
             OasisExposuresManager().generate_oasis_files(oasis_model=model)
 
-            self.check_items_files(keys, out_dir)
-            self.check_coverages_files(exposures, out_dir)
-            self.check_gul_files(exposures, out_dir)
+            self.check_items_file(keys, out_dir)
+            self.check_coverages_file(exposures, out_dir)
+            self.check_gul_file(exposures, out_dir)
 
     @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
@@ -657,16 +621,13 @@ class OasisExposuresManagerGenerateOasisFiles(FileGenerationTestCase):
                 keys_file_path=keys_file.name,
                 canonical_exposures_file_path=exposures_file.name,
                 items_file_path=os.path.join(out_dir, self.items_filename),
-                items_timestamped_file_path=os.path.join(out_dir, self.timestamped_items_filename),
                 coverages_file_path=os.path.join(out_dir, self.coverages_filename),
-                coverages_timestamped_file_path=os.path.join(out_dir, self.timestamped_coverages_filename),
-                gulsummaryxref_file_path=os.path.join(out_dir, self.gul_filename),
-                gulsummaryxref_timestamped_file_path=os.path.join(out_dir, self.timestamped_gul_filename),
+                gulsummaryxref_file_path=os.path.join(out_dir, self.gulsummaryxref_filename)
             )
 
-            self.check_items_files(keys, out_dir)
-            self.check_coverages_files(exposures, out_dir)
-            self.check_gul_files(exposures, out_dir)
+            self.check_items_file(keys, out_dir)
+            self.check_coverages_file(exposures, out_dir)
+            self.check_gul_file(exposures, out_dir)
 
 
 class OasisExposuresTransformSourceToCanonical(TestCase):
@@ -865,7 +826,7 @@ class OasisExposureManagerCreate(TestCase):
 
         self.assertEqual({}, profile)
 
-    @given(dictionaries(text(), text()))
+    @given(expected=dictionaries(text(), text()))
     def test_canonical_exposures_profile_json_set___canonical_exposures_profile_matches_json(self, expected):
         model = fake_model(resources={'canonical_exposures_profile_json': json.dumps(expected)})
 
@@ -873,7 +834,7 @@ class OasisExposureManagerCreate(TestCase):
 
         self.assertEqual(expected, profile)
 
-    @given(dictionaries(text(), text()))
+    @given(expected=dictionaries(text(), text()))
     def test_canonical_exposures_profile_path_set___canonical_exposures_profile_matches_json(self, expected):
         with NamedTemporaryFile('w') as f:
             json.dump(expected, f)
@@ -885,7 +846,7 @@ class OasisExposureManagerCreate(TestCase):
 
             self.assertEqual(expected, profile)
 
-    @given(dictionaries(text(), text()), dictionaries(text(), text()))
+    @given(expected=dictionaries(text(), text()), new=dictionaries(text(), text()))
     def test_canonical_exposures_profile_set___profile_is_not_updated(self, expected, new):
         model = fake_model(resources={
             'canonical_exposures_profile': expected,

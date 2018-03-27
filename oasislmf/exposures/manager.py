@@ -423,25 +423,21 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
     def _process_default_kwargs(self, oasis_model=None, **kwargs):
         if oasis_model:
-            kwargs.setdefault('model_exposures_file_path', oasis_model.resources['oasis_files_pipeline'].model_exposures_file_path)
-            kwargs.setdefault('canonical_exposures_file_path', oasis_model.resources['oasis_files_pipeline'].canonical_exposures_file_path)
-            kwargs.setdefault('keys_file_path', oasis_model.resources['oasis_files_pipeline'].keys_file_path)
-            kwargs.setdefault('keys_error_file_path', oasis_model.resources['oasis_files_pipeline'].keys_error_file_path)
-            kwargs.setdefault('canonical_exposures_profile', oasis_model.resources.get('canonical_exposures_profile'))
-            kwargs.setdefault('canonical_exposures_profile_json', oasis_model.resources.get('canonical_exposures_profile_json'))
-            kwargs.setdefault('canonical_exposures_profile_json_path', oasis_model.resources.get('canonical_exposures_profile_json_path'))
-            kwargs.setdefault('items_file_path', oasis_model.resources.get('items_file_path'))
-            kwargs.setdefault('items_timestamped_file_path', oasis_model.resources.get('items_timestamped_file_path'))
-            kwargs.setdefault('coverages_file_path', oasis_model.resources.get('coverages_file_path'))
-            kwargs.setdefault('coverages_timestamped_file_path', oasis_model.resources.get('coverages_timestamped_file_path'))
-            kwargs.setdefault('gulsummaryxref_file_path', oasis_model.resources.get('gulsummaryxref_file_path'))
-            kwargs.setdefault('gulsummaryxref_timestamped_file_path', oasis_model.resources.get('gulsummaryxref_timestamped_file_path'))
             kwargs.setdefault('source_exposures_file_path', oasis_model.resources.get('source_exposures_file_path'))
             kwargs.setdefault('source_exposures_validation_file_path', oasis_model.resources.get('source_exposures_validation_file_path'))
             kwargs.setdefault('source_to_canonical_exposures_transformation_file_path', oasis_model.resources.get('source_to_canonical_exposures_transformation_file_path'))
-            kwargs.setdefault('canonical_exposures_file_path', oasis_model.resources.get('canonical_exposures_file_path'))
+            kwargs.setdefault('canonical_exposures_profile', oasis_model.resources.get('canonical_exposures_profile'))
+            kwargs.setdefault('canonical_exposures_profile_json', oasis_model.resources.get('canonical_exposures_profile_json'))
+            kwargs.setdefault('canonical_exposures_profile_json_path', oasis_model.resources.get('canonical_exposures_profile_json_path'))
+            kwargs.setdefault('canonical_exposures_file_path', oasis_model.resources['oasis_files_pipeline'].canonical_exposures_file_path)
             kwargs.setdefault('canonical_exposures_validation_file_path', oasis_model.resources.get('canonical_exposures_validation_file_path'))
             kwargs.setdefault('canonical_to_model_exposures_transformation_file_path', oasis_model.resources.get('canonical_to_model_exposures_transformation_file_path'))
+            kwargs.setdefault('model_exposures_file_path', oasis_model.resources['oasis_files_pipeline'].model_exposures_file_path)
+            kwargs.setdefault('keys_file_path', oasis_model.resources['oasis_files_pipeline'].keys_file_path)
+            kwargs.setdefault('keys_error_file_path', oasis_model.resources['oasis_files_pipeline'].keys_error_file_path)
+            kwargs.setdefault('items_file_path', oasis_model.resources['oasis_files_pipeline'].items_file_path)
+            kwargs.setdefault('coverages_file_path', oasis_model.resources['oasis_files_pipeline'].coverages_file_path)
+            kwargs.setdefault('gulsummaryxref_file_path', oasis_model.resources['oasis_files_pipeline'].gulsummaryxref_file_path)
 
         if not kwargs.get('canonical_exposures_profile'):
             kwargs['canonical_exposures_profile'] = self.load_canonical_profile(
@@ -515,18 +511,10 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         return result
 
-    def _write_csvs(self, data_frame, file_path, timestamped_file_path, columns):
+    def _write_csvs(self, columns, data_frame, file_path):
         data_frame.to_csv(
             columns=columns,
             path_or_buf=file_path,
-            encoding='utf-8',
-            chunksize=1000,
-            index=False
-        )
-
-        data_frame.to_csv(
-            columns=columns,
-            path_or_buf=timestamped_file_path,
             encoding='utf-8',
             chunksize=1000,
             index=False
@@ -542,10 +530,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             data_frame = self.load_master_data_frame(**kwargs)
 
         self._write_csvs(
+            ['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id'],
             data_frame,
-            kwargs['items_file_path'],
-            kwargs['items_timestamped_file_path'],
-            ['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id']
+            kwargs['items_file_path']
         )
 
         if oasis_model:
@@ -563,10 +550,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             data_frame = self.load_master_data_frame(**kwargs)
 
         self._write_csvs(
+            ['coverage_id', 'tiv'],
             data_frame,
-            kwargs['coverages_file_path'],
-            kwargs['coverages_timestamped_file_path'],
-            ['coverage_id', 'tiv']
+            kwargs['coverages_file_path']
         )
 
         if oasis_model:
@@ -584,16 +570,15 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             data_frame = self.load_master_data_frame(**kwargs)
 
         self._write_csvs(
+            ['coverage_id', 'summary_id', 'summaryset_id'],
             data_frame,
-            kwargs['gulsummaryxref_file_path'],
-            kwargs['gulsummaryxref_timestamped_file_path'],
-            ['coverage_id', 'summary_id', 'summaryset_id']
+            kwargs['gulsummaryxref_file_path']
         )
 
         if oasis_model:
-            oasis_model.resources['oasis_files_pipeline'].gulsummaryxref_path = kwargs['gulsummaryxref_timestamped_file_path']
+            oasis_model.resources['oasis_files_pipeline'].gulsummaryxref_path = kwargs['gulsummaryxref_file_path']
 
-        return kwargs['gulsummaryxref_timestamped_file_path']
+        return kwargs['gulsummaryxref_file_path']
 
     def generate_oasis_files(self, oasis_model=None, **kwargs):
         """
@@ -634,7 +619,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         return oasis_model
 
-    def start_files_pipeline(self, oasis_model=None, oasis_files_path=None, source_exposures_path=None, logger=None):
+    def start_files_pipeline(self, oasis_model=None, oasis_files_path=None, source_exposures_file_path=None, logger=None):
         """
         Starts the oasis files pipeline for the given Oasis model object,
         which is the generation of the Oasis items, coverages and GUL summary
@@ -664,33 +649,29 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             raise OasisException('Output directory {} does not exist on the filesystem.'.format(oasis_files_path))
 
         logger.info('Checking for source exposures file')
-        if oasis_model and not source_exposures_path:
-            source_exposures_path = oasis_model.resources['oasis_files_pipeline'].source_exposures_path or None
-
-        if not source_exposures_path:
-            raise OasisException("No source exposures file provided.")
-        elif not os.path.exists(source_exposures_path):
-            raise OasisException("Source exposures file {} does not exist on the filesysem.".format(source_exposures_path))
+        if oasis_model and not source_exposures_file_path:
+            source_exposures_file_path = oasis_model.resources['source_exposures_file_path'] if 'source_exposures_file_path' in model.resources else None
+        if not source_exposures_file_path:
+            raise OasisException('No source exposures file path provided in arguments or model resources')
+        elif not os.path.exists(source_exposures_file_path):
+            raise OasisException("Source exposures file path {} does not exist on the filesysem.".format(source_exposures_file_path))
 
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
         kwargs = self._process_default_kwargs(
             oasis_model=oasis_model,
-            items_file_path=os.path.join(oasis_files_path, 'items.csv'),
-            items_timestamped_file_path=os.path.join(oasis_files_path, 'items-{}.csv'.format(utcnow)),
-            coverages_file_path=os.path.join(oasis_files_path, 'coverages.csv'),
-            coverages_timestamped_file_path=os.path.join(oasis_files_path, 'coverages-{}.csv'.format(utcnow)),
-            gulsummaryxref_file_path=os.path.join(oasis_files_path, 'gulsummaryxref.csv'),
-            gulsummaryxref_timestamped_file_path=os.path.join(oasis_files_path, 'gulsummaryxref-{}.csv'.format(utcnow)),
+            source_exposures_file_path=os.path.join(oasis_files_path, os.path.basename(source_exposures_file_path)),
             canonical_exposures_file_path=os.path.join(oasis_files_path, 'canexp-{}.csv'.format(utcnow)),
             model_exposures_file_path=os.path.join(oasis_files_path, 'modexp-{}.csv'.format(utcnow)),
             keys_file_path=os.path.join(oasis_files_path, 'oasiskeys-{}.csv'.format(utcnow)),
-            keys_error_file_path=os.path.join(oasis_files_path, 'oasiskeys-error-{}.csv'.format(utcnow)),
-            source_exposures_file_path=os.path.join(oasis_files_path, os.path.basename(source_exposures_path))
+            keys_error_file_path=os.path.join(oasis_files_path, 'oasiskeys-errors-{}.csv'.format(utcnow)),
+            items_file_path=os.path.join(oasis_files_path, 'items.csv'),
+            coverages_file_path=os.path.join(oasis_files_path, 'coverages.csv'),
+            gulsummaryxref_file_path=os.path.join(oasis_files_path, 'gulsummaryxref.csv')
         )
 
         if not os.path.exists(kwargs['source_exposures_file_path']):
-            self.logger.info('Copying source exposures file to model output files directory')
-            shutil.copy(source_exposures_path, kwargs['source_exposures_file_path'])
+            self.logger.info('Copying source exposures file to input files directory')
+            shutil.copy2(source_exposures_file_path, oasis_model.resources['oasis_file_path'])
 
         logger.info('Generating canonical exposures file {canonical_exposures_file_path}'.format(**kwargs))
         self.transform_source_to_canonical(**kwargs)
@@ -709,20 +690,18 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             model_supplier_id,
             model_id,
             model_version_id,
-            resources=resources,
+            resources=resources
         )
 
         # set default resources
         model.resources.setdefault('oasis_files_path', os.path.join('Files', model.key.replace('/', '-')))
-        model.resources['oasis_files_path'] = os.path.abspath(model.resources['oasis_files_path'])
+        if not os.path.isabs(model.resources.get('oasis_files_path')):
+            model.resources['oasis_files_path'] = os.path.abspath(model.resources['oasis_files_path'])
 
         model.resources.setdefault('oasis_files_pipeline', OasisFilesPipeline(model_key=model.key))
         if not isinstance(model.resources['oasis_files_pipeline'], OasisFilesPipeline):
             raise OasisException(
                 'Oasis files pipeline object for model {} is not of type {}'.format(model, OasisFilesPipeline))
-
-        if 'source_exposures_file_path' in model.resources:
-            model.resources['oasis_files_pipeline'].source_exposures_path = model.resources['source_exposures_file_path']
 
         if model.resources.get('canonical_exposures_profile') is None:
             self.load_canonical_profile(oasis_model=model)
