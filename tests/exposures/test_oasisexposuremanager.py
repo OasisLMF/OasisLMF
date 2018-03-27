@@ -432,12 +432,7 @@ class OasisExposuresManagerGenerateItemsFile(FileGenerationTestCase):
         }
 
         with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file, TemporaryDirectory() as out_dir:
-            write_input_files(
-                keys=keys,
-                keys_file_path=keys_file.name,
-                exposures=exposures,
-                exposures_file_path=exposures_file.name
-            )
+            write_input_files(keys, keys_file.name, exposures, exposures_file.name)
 
             model = fake_model(resources={'canonical_exposures_profile': profile})
             model.resources['oasis_files_pipeline'].keys_file_path = keys_file.name
