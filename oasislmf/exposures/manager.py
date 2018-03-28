@@ -783,7 +783,8 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             fmsummaryxref_file_path=os.path.join(oasis_files_path, 'fmsummaryxref.csv')
         )
 
-        if not os.path.exists(kwargs['source_exposures_file_path']):
+        source_exposures_file_path = kwargs.get('source_exposures_file_path')
+        if not os.path.exists(source_exposures_file_path):
             self.logger.info('\nCopying source exposures file to input files directory')
             shutil.copy2(source_exposures_file_path, oasis_files_path)
 
