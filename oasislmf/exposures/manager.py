@@ -111,7 +111,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         pass
 
-    def load_canonical_profile(self, oasis_model=None, **kwargs):
+    def load_canonical_exposures_profile(self, oasis_model=None, **kwargs):
         """
         Loads a JSON string or JSON file representation of the canonical
         exposures profile for a given ``oasis_model``, stores this in the
@@ -119,20 +119,33 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         pass
 
-    def generate_oasis_files(self, oasis_model=None, **kwargs):
+    def load_canonical_account_profile(self, oasis_model=None, **kwargs):
         """
-        For a given ``oasis_model`` generates the standard Oasis files, namely::
+        Loads a JSON string or JSON file representation of the canonical
+        account profile for a given ``oasis_model``, stores this in the
+        model object's resources dict, and returns the object.
+        """
+        pass
+
+    def generate_oasis_files(self, oasis_model=None, include_fm=False, **kwargs):
+        """
+        Generates the standard Oasis files, namely::
 
             items.csv
             coverages.csv
             gulsummaryxref.csv
 
-        All the required resources must be provided either in the model object
-        resources dict or the ``kwargs`` dict.
+        If ``include_fm`` is ``True`` the method also generate Oasis FM files,
+        namely::
 
-        It is up to the specific implementation of this class of how these
-        resources will be named in ``kwargs`` and how they will be used to
-        effect the transformation.
+            fm_policytc.csv
+            fm_profile.csv
+            fm_programm.ecsv
+            fm_xref.csv
+            fm_summaryxref.csv
+
+        The required resources must be provided either via the model object
+        resources dict or ``kwargs``.
         """
         pass
 
@@ -313,7 +326,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         return output_file_path
 
-    def load_canonical_profile(
+    def load_canonical_exposures_profile(
             self,
             oasis_model=None,
             canonical_exposures_profile_json=None,
@@ -337,6 +350,33 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         if oasis_model:
             oasis_model.resources['canonical_exposures_profile'] = profile
+
+        return profile
+
+    def load_canonical_account_profile(
+            self,
+            oasis_model=None,
+            canonical_account_profile_json=None,
+            canonical_account_profile_json_path=None,
+            **kwargs):
+        """
+        Loads a JSON string or JSON file representation of the canonical
+        exposures profile for a given ``oasis_model``, stores this in the
+        model object's resources dict, and returns the object.
+        """
+        if oasis_model:
+            canonical_account_profile_json = canonical_account_profile_json or oasis_model.resources.get('canonical_account_profile_json')
+            canonical_account_profile_json_path = canonical_account_profile_json_path or oasis_model.resources.get('canonical_account_profile_json_path')
+
+        profile = {}
+        if canonical_account_profile_json:
+            profile = json.loads(canonical_account_profile_json)
+        elif canonical_account_profile_json_path:
+            with io.open(canonical_account_profile_json_path, 'r', encoding='utf-8') as f:
+                profile = json.load(f)
+
+        if oasis_model:
+            oasis_model.resources['canonical_account_profile'] = profile
 
         return profile
 
@@ -414,6 +454,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             kwargs.setdefault('canonical_exposures_profile', oasis_model.resources.get('canonical_exposures_profile'))
             kwargs.setdefault('canonical_exposures_profile_json', oasis_model.resources.get('canonical_exposures_profile_json'))
             kwargs.setdefault('canonical_exposures_profile_json_path', oasis_model.resources.get('canonical_exposures_profile_json_path'))
+            kwargs.setdefault('canonical_account_profile', oasis_model.resources.get('canonical_account_profile'))
+            kwargs.setdefault('canonical_account_profile_json', oasis_model.resources.get('canonical_account_profile_json'))
+            kwargs.setdefault('canonical_account_profile_json_path', oasis_model.resources.get('canonical_account_profile_json_path'))
             kwargs.setdefault('canonical_exposures_file_path', oasis_model.resources['oasis_files_pipeline'].canonical_exposures_file_path)
             kwargs.setdefault('canonical_exposures_validation_file_path', oasis_model.resources.get('canonical_exposures_validation_file_path'))
             kwargs.setdefault('canonical_to_model_exposures_transformation_file_path', oasis_model.resources.get('canonical_to_model_exposures_transformation_file_path'))
@@ -430,10 +473,17 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             kwargs.setdefault('fmsummaryxref_file_path', oasis_model.resources['oasis_files_pipeline'].fmsummaryxref_file_path)
 
         if not kwargs.get('canonical_exposures_profile'):
-            kwargs['canonical_exposures_profile'] = self.load_canonical_profile(
+            kwargs['canonical_exposures_profile'] = self.load_canonical_exposures_profile(
                 oasis_model=oasis_model,
                 canonical_exposures_profile_json=kwargs.get('canonical_exposures_profile_json'),
                 canonical_exposures_profile_json_path=kwargs.get('canonical_exposures_profile_json_path'),
+            )
+
+        if not kwargs.get('canonical_account_profile'):
+            kwargs['canonical_account_profile'] = self.load_canonical_account_profile(
+                oasis_model=oasis_model,
+                canonical_account_profile_json=kwargs.get('canonical_account_profile_json'),
+                canonical_account_profile_json_path=kwargs.get('canonical_account_profile_json_path'),
             )
 
         return kwargs
@@ -719,7 +769,6 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
         kwargs = self._process_default_kwargs(
             oasis_model=oasis_model,
-            source_exposures_file_path=os.path.join(oasis_files_path, os.path.basename(source_exposures_file_path)),
             canonical_exposures_file_path=os.path.join(oasis_files_path, 'canexp-{}.csv'.format(utcnow)),
             model_exposures_file_path=os.path.join(oasis_files_path, 'modexp-{}.csv'.format(utcnow)),
             keys_file_path=os.path.join(oasis_files_path, 'oasiskeys-{}.csv'.format(utcnow)),
@@ -769,7 +818,10 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 'Oasis files pipeline object for model {} is not of type {}'.format(model, OasisFilesPipeline))
 
         if model.resources.get('canonical_exposures_profile') is None:
-            self.load_canonical_profile(oasis_model=model)
+            self.load_canonical_exposures_profile(oasis_model=model)
+
+        if model.resources.get('canonical_account_profile') is None:
+            self.load_canonical_account_profile(oasis_model=model)
 
         self.add_model(model)
 

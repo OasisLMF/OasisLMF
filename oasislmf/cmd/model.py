@@ -110,10 +110,10 @@ class GenerateKeysCmd(OasisBaseCommand):
         :type args: Namespace
         """
         inputs = InputValues(args)
-        model_exposures_file_path = as_path(inputs.get('model_exposures_file_path', required=True, is_path=True), 'Model exposures')
-        keys_data_path = as_path(inputs.get('keys_data_path', required=True, is_path=True), 'Keys data')
-        model_version_file_path = as_path(inputs.get('model_version_file_path', required=True, is_path=True), 'Model version file')
-        lookup_package_path = as_path(inputs.get('lookup_package_path', required=True, is_path=True), 'Lookup package')
+        model_exposures_file_path = as_path(inputs.get('model_exposures_file_path', required=True, is_path=True), 'Model exposures file path')
+        keys_data_path = as_path(inputs.get('keys_data_path', required=True, is_path=True), 'Keys data path')
+        model_version_file_path = as_path(inputs.get('model_version_file_path', required=True, is_path=True), 'Model version file path')
+        lookup_package_path = as_path(inputs.get('lookup_package_path', required=True, is_path=True), 'Lookup package path')
 
         keys_format = inputs.get('keys_format', default='oasis')
 
@@ -162,12 +162,16 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         """
         super(GenerateOasisFilesCmd, self).add_args(parser)
 
-        parser.add_argument('-o', '--oasis-files-path', default=None, help='Path to Oasis files')
-        parser.add_argument('-k', '--keys-data-path', default=None, help='Path to Oasis files')
+        parser.add_argument('-o', '--oasis-files-path', default=None, help='Oasis files path')
+        parser.add_argument('-k', '--keys-data-path', default=None, help='Keys data path')
         parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
-        parser.add_argument('-l', '--lookup-package-path', default=None, help='Keys data directory path')
+        parser.add_argument('-l', '--lookup-package-path', default=None, help='Lookup package path')
         parser.add_argument(
-            '-p', '--canonical-exposures-profile-json-path', default=None,
+            '-t', '--canonical-account-profile-json-path', default=None,
+            help='Path of the supplier canonical account profile JSON file'
+        )
+        parser.add_argument(
+            '-x', '--canonical-exposures-profile-json-path', default=None,
             help='Path of the supplier canonical exposures profile JSON file'
         )
         parser.add_argument('-e', '--source-exposures-file-path', default=None, help='Source exposures file path')
@@ -200,30 +204,34 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
 
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
         default_oasis_files_path = os.path.join(os.getcwd(), 'runs', 'OasisFiles-{}'.format(utcnow))
-        oasis_files_path = as_path(inputs.get('oasis_files_path', is_path=True, default=default_oasis_files_path), 'Oasis file', preexists=False)
-        keys_data_path = as_path(inputs.get('keys_data_path', required=True, is_path=True), 'Keys data')
-        model_version_file_path = as_path(inputs.get('model_version_file_path', required=True, is_path=True), 'Model version file')
-        lookup_package_file_path = as_path(inputs.get('lookup_package_path', required=True, is_path=True), 'Lookup package file')
+        oasis_files_path = as_path(inputs.get('oasis_files_path', is_path=True, default=default_oasis_files_path), 'Oasis files path', preexists=False)
+        keys_data_path = as_path(inputs.get('keys_data_path', required=True, is_path=True), 'Keys data path')
+        model_version_file_path = as_path(inputs.get('model_version_file_path', required=True, is_path=True), 'Model version file path')
+        lookup_package_file_path = as_path(inputs.get('lookup_package_path', required=True, is_path=True), 'Lookup package path')
+        canonical_account_profile_json_path = as_path(
+            inputs.get('canonical_account_profile_json_path', required=True, is_path=True),
+            'Canonical account profile json'
+        )
         canonical_exposures_profile_json_path = as_path(
             inputs.get('canonical_exposures_profile_json_path', required=True, is_path=True),
             'Canonical exposures profile json'
         )
-        source_exposures_file_path = as_path(inputs.get('source_exposures_file_path', required=True, is_path=True), 'Source exposures')
+        source_exposures_file_path = as_path(inputs.get('source_exposures_file_path', required=True, is_path=True), 'Source exposures file path')
         source_exposures_validation_file_path = as_path(
             inputs.get('source_exposures_validation_file_path', required=True, is_path=True),
-            'Source exposures validation file'
+            'Source exposures validation file path'
         )
         source_to_canonical_exposures_transformation_file_path = as_path(
             inputs.get('source_to_canonical_exposures_transformation_file_path', required=True, is_path=True),
-            'Source to canonical exposures transformation'
+            'Source to canonical exposures transformation file path'
         )
         canonical_exposures_validation_file_path = as_path(
             inputs.get('canonical_exposures_validation_file_path', required=True, is_path=True),
-            'Canonical exposures validation file'
+            'Canonical exposures validation file  path'
         )
         canonical_to_model_exposures_transformation_file_path = as_path(
             inputs.get('canonical_to_model_exposures_transformation_file_path', required=True, is_path=True),
-            'Canonical to model exposures transformation file'
+            'Canonical to model exposures transformation file path'
         )
 
         include_fm = inputs.get('include_fm', default=False)
@@ -247,6 +255,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
                 'source_exposures_file_path': source_exposures_file_path,
                 'source_exposures_validation_file_path': source_exposures_validation_file_path,
                 'source_to_canonical_exposures_transformation_file_path': source_to_canonical_exposures_transformation_file_path,
+                'canonical_account_profile_json_path': canonical_account_profile_json_path,
                 'canonical_exposures_profile_json_path': canonical_exposures_profile_json_path,
                 'canonical_exposures_validation_file_path': canonical_exposures_validation_file_path,
                 'canonical_to_model_exposures_transformation_file_path': canonical_to_model_exposures_transformation_file_path
@@ -310,13 +319,13 @@ class GenerateLossesCmd(OasisBaseCommand):
         """
         super(GenerateLossesCmd, self).add_args(parser)
 
-        parser.add_argument('-o', '--oasis-files-path', default=None, help='Path to Oasis files')
-        parser.add_argument('-j', '--analysis-settings-json-file-path', default=None, help='Relative or absolute path of the model analysis settings JSON file')
-        parser.add_argument('-m', '--model-data-path', default=None, help='Model data source path')
+        parser.add_argument('-o', '--oasis-files-path', default=None, help='Oasis files path')
+        parser.add_argument('-j', '--analysis-settings-json-file-path', default=None, help='Analysis settings JSON file path')
+        parser.add_argument('-m', '--model-data-path', default=None, help='Model data path')
         parser.add_argument('-r', '--model-run-dir-path', default=None, help='Model run directory path')
-        parser.add_argument('-s', '--ktools-script-name', default=None, help='Relative or absolute path of the output file')
+        parser.add_argument('-s', '--ktools-script-name', default=None, help='Ktools calc. script file path')
         parser.add_argument('-n', '--ktools-num-processes', default=-1, help='Number of ktools calculation processes to use')
-        parser.add_argument('-x', '--no-execute', action='store_true', help='Whether to execute generated ktools script')
+        parser.add_argument('-u', '--no-execute', action='store_true', help='Whether to execute generated ktools script')
 
     def action(self, args):
         """
@@ -327,15 +336,15 @@ class GenerateLossesCmd(OasisBaseCommand):
         """
         inputs = InputValues(args)
 
-        oasis_files_path = as_path(inputs.get('oasis_files_path', required=True, is_path=True), 'Oasis files', preexists=True)
+        oasis_files_path = as_path(inputs.get('oasis_files_path', required=True, is_path=True), 'Oasis files path', preexists=True)
 
         model_run_dir_path = as_path(inputs.get('model_run_dir_path', required=False, is_path=True), 'Model run directory', preexists=False)
 
         analysis_settings_json_file_path = as_path(
             inputs.get('analysis_settings_json_file_path', required=True, is_path=True),
-            'Analysis settings file'
+            'Analysis settings JSON file'
         )
-        model_data_path = as_path(inputs.get('model_data_path', required=True, is_path=True), 'Model data')
+        model_data_path = as_path(inputs.get('model_data_path', required=True, is_path=True), 'Model data path')
 
         ktools_script_name = inputs.get('ktools_script_name', default='run_ktools')
         no_execute = inputs.get('no_execute', default=False)
@@ -412,9 +421,9 @@ class RunCmd(OasisBaseCommand):
         """
         super(RunCmd, self).add_args(parser)
 
-        parser.add_argument('-k', '--keys-data-path', default=None, help='Path to Oasis files')
+        parser.add_argument('-k', '--keys-data-path', default=None, help='Oasis files path')
         parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
-        parser.add_argument('-l', '--lookup-package-file-path', default=None, help='Keys data directory path')
+        parser.add_argument('-l', '--lookup-package-file-path', default=None, help='Keys data path')
         parser.add_argument(
             '-p', '--canonical-exposures-profile-json-path', default=None,
             help='Path of the supplier canonical exposures profile JSON file'
@@ -440,7 +449,7 @@ class RunCmd(OasisBaseCommand):
             '-j', '--analysis-settings-json-file-path', default=None,
             help='Model analysis settings JSON file path'
         )
-        parser.add_argument('-m', '--model-data-path', default=None, help='Model data source path')
+        parser.add_argument('-m', '--model-data-path', default=None, help='Model data path')
         parser.add_argument('-r', '--model-run-dir-path', default=None, help='Model run directory path')
         parser.add_argument(
             '-s', '--ktools-script-name', default=None,
