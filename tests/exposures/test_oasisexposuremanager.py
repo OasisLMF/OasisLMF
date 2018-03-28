@@ -390,8 +390,9 @@ class FileGenerationTestCase(TestCase):
         ]
 
         with io.open(os.path.join(out_dir, self.items_filename), 'r', encoding='utf-8') as f:
-            result = pd.read_csv(f).T.to_dict().values()
-            self.assertEqual(expected, result)
+            result = list(pd.read_csv(f).T.to_dict().values())
+        
+        self.assertEqual(expected, result)
 
     def check_coverages_file(self, exposures, out_dir):
         expected = [
@@ -402,8 +403,9 @@ class FileGenerationTestCase(TestCase):
         ]
 
         with io.open(os.path.join(out_dir, self.coverages_filename), 'r', encoding='utf-8') as f:
-            result = pd.read_csv(f).T.to_dict().values()
-            self.assertEqual(expected, result)
+            result = list(pd.read_csv(f).T.to_dict().values())
+        
+        self.assertEqual(expected, result)
 
     def check_gul_file(self, exposures, out_dir):
         expected = [
@@ -415,8 +417,9 @@ class FileGenerationTestCase(TestCase):
         ]
 
         with io.open(os.path.join(out_dir, self.gulsummaryxref_filename), 'r', encoding='utf-8') as f:
-            result = pd.read_csv(f).T.to_dict().values()
-            self.assertEqual(expected, result)
+            result = list(pd.read_csv(f).T.to_dict().values())
+        
+        self.assertEqual(expected, result)
 
 
 class OasisExposuresManagerGenerateItemsFile(FileGenerationTestCase):

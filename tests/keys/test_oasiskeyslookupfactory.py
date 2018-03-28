@@ -12,7 +12,10 @@ from unittest import TestCase
 import pandas as pd
 
 from backports.tempfile import TemporaryDirectory
-from hypothesis import given
+from hypothesis import (
+    given,
+    reproduce_failure,
+)
 from hypothesis.strategies import (
     booleans,
     fixed_dictionaries,
@@ -178,8 +181,8 @@ class OasisKeysLookupFactoryWriteOasisKeysFiles(TestCase):
                 written_successes = [dict((oasis_keys_file_to_record_metadict[k], r[k]) for k in r) for r in pd.read_csv(f1).T.to_dict().values()]
                 written_nonsuccesses = [dict((oasis_keys_error_file_to_record_metadict[k], r[k]) for k in r) for r in pd.read_csv(f2).T.to_dict().values()]
 
-            success_matches = filter(lambda r: (r['id'] == ws['id'] for ws in written_successes), successes)
-            nonsuccess_matches = filter(lambda r: (r['id'] == ws['id'] for ws in written_nonsuccesses), nonsuccesses)
+            success_matches = list(filter(lambda r: (r['id'] == ws['id'] for ws in written_successes), successes))
+            nonsuccess_matches = list(filter(lambda r: (r['id'] == ws['id'] for ws in written_nonsuccesses), nonsuccesses))
 
             self.assertEqual(successes_count, len(successes))
             self.assertEqual(success_matches, successes)
@@ -285,12 +288,12 @@ class OasisKeysLookupFactoryWriteKeys(TestCase):
             OasisKeysLookupFactory.save_keys(
                 lookup=self.create_fake_lookup(),
                 keys_file_path=keys_file_path,
-                model_exposures=json.dumps(data).decode()
+                model_exposures=json.dumps(data)
             )
 
             get_keys_mock.assert_called_once_with(
                 lookup=self.lookup_instance,
-                model_exposures=json.dumps(data).decode(),
+                model_exposures=json.dumps(data),
                 model_exposures_file_path=None,
                 success_only=True
             )
