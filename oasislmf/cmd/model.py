@@ -117,7 +117,7 @@ class GenerateKeysCmd(OasisBaseCommand):
 
         keys_format = inputs.get('keys_format', default='oasis')
 
-        self.logger.info('Getting model info and creating lookup service instance')
+        self.logger.info('\nGetting model info and creating lookup service instance')
         model_info, model_klc = OasisKeysLookupFactory.create(
             model_keys_data_path=keys_data_path,
             model_version_file_path=model_version_file_path,
@@ -133,7 +133,7 @@ class GenerateKeysCmd(OasisBaseCommand):
         keys_file_path = as_path(inputs.get('keys_file_path', default=default_keys_file_name.format(utcnow), required=False, is_path=True), 'Keys file path', preexists=False)
         keys_error_file_path = as_path(inputs.get('keys_error_file_path', default=default_keys_error_file_name.format(utcnow), required=False, is_path=True), 'Keys error file path', preexists=False)
 
-        self.logger.info('Saving keys records to file')
+        self.logger.info('\nSaving keys records to file')
         f1, n1, f2, n2 = OasisKeysLookupFactory.save_keys(
             lookup=model_klc,
             model_exposures_file_path=model_exposures_file_path,
@@ -141,7 +141,7 @@ class GenerateKeysCmd(OasisBaseCommand):
             keys_error_file_path=keys_error_file_path,
             keys_format=keys_format
         )
-        self.logger.info('{} keys records with successful lookups saved to keys file {}'.format(n1, f1))
+        self.logger.info('\n{} keys records with successful lookups saved to keys file {}'.format(n1, f1))
         self.logger.info('{} keys records with unsuccessful lookups saved to keys error file {}'.format(n2, f2))
 
 
@@ -236,7 +236,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
 
         include_fm = inputs.get('include_fm', default=False)
 
-        self.logger.info('Getting model info and creating lookup service instance')
+        self.logger.info('\nGetting model info and creating lookup service instance')
         model_info, model_klc = OasisKeysLookupFactory.create(
             model_keys_data_path=keys_data_path,
             model_version_file_path=model_version_file_path,
@@ -244,7 +244,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         )
         self.logger.info('\t{}, {}'.format(model_info, model_klc))
 
-        self.logger.info('Creating Oasis model object')
+        self.logger.info('\nCreating Oasis model object')
         model = OasisExposuresManager().create(
             model_supplier_id=model_info['supplier_id'],
             model_id=model_info['model_id'],
@@ -263,17 +263,17 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         )
         self.logger.info('\t{}'.format(model))
 
-        self.logger.info('Setting up Oasis files directory for model {}'.format(model.key))
+        self.logger.info('\nSetting up Oasis files directory for model {}'.format(model.key))
         Path(oasis_files_path).mkdir(parents=True, exist_ok=True)
 
-        self.logger.info('Generating Oasis files for model')
+        self.logger.info('\nGenerating Oasis files for model')
         oasis_files = OasisExposuresManager().start_oasis_files_pipeline(
             oasis_model=model,
             include_fm=include_fm,
             logger=self.logger,
         )
 
-        self.logger.info('Generated Oasis files for model: {}'.format(oasis_files))
+        self.logger.info('\nGenerated Oasis files for model: {}'.format(oasis_files))
 
 
 class GenerateLossesCmd(OasisBaseCommand):
@@ -352,14 +352,14 @@ class GenerateLossesCmd(OasisBaseCommand):
         if not model_run_dir_path:
             utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
             model_run_dir_path = os.path.join(os.getcwd(), 'runs', 'ProgOasis-{}'.format(utcnow))
-            self.logger.info('No model run dir. provided - creating a timestamped run dir. in working directory as {}'.format(model_run_dir_path))
+            self.logger.info('\nNo model run dir. provided - creating a timestamped run dir. in working directory as {}'.format(model_run_dir_path))
             Path(model_run_dir_path).mkdir(parents=True, exist_ok=True)
         else:
             if not os.path.exists(model_run_dir_path):
                 Path(model_run_dir_path).mkdir(parents=True, exist_ok=True)
 
         self.logger.info(
-            'Preparing model run directory {} - copying Oasis files, analysis settings JSON file and linking model data'.format(model_run_dir_path)
+            '\nPreparing model run directory {} - copying Oasis files, analysis settings JSON file and linking model data'.format(model_run_dir_path)
         )
         prepare_model_run_directory(
             model_run_dir_path,
@@ -368,14 +368,14 @@ class GenerateLossesCmd(OasisBaseCommand):
             model_data_path
         )
 
-        self.logger.info('Converting Oasis files to ktools binary files')
+        self.logger.info('\nConverting Oasis files to ktools binary files')
         oasis_files_path = os.path.join(model_run_dir_path, 'input', 'csv')
         binary_files_path = os.path.join(model_run_dir_path, 'input')
         create_binary_files(oasis_files_path, binary_files_path)
 
         analysis_settings_json_file_path = os.path.join(model_run_dir_path, 'analysis_settings.json')
         try:
-            self.logger.info('Reading analysis settings JSON file')
+            self.logger.info('\nReading analysis settings JSON file')
             with io.open(analysis_settings_json_file_path, 'r', encoding='utf-8') as f:
                 analysis_settings = json.load(f)
                 if 'analysis_settings' in analysis_settings:
@@ -383,26 +383,26 @@ class GenerateLossesCmd(OasisBaseCommand):
         except (IOError, TypeError, ValueError):
             raise OasisException('Invalid analysis settings JSON file or file path: {}.'.format(analysis_settings_json_file_path))
 
-        self.logger.info('Loaded analysis settings JSON: {}'.format(analysis_settings))
+        self.logger.info('\nLoaded analysis settings JSON: {}'.format(analysis_settings))
 
-        self.logger.info('Preparing model run inputs')
+        self.logger.info('\nPreparing model run inputs')
         prepare_model_run_inputs(analysis_settings, model_run_dir_path)
 
         script_path = os.path.join(model_run_dir_path, '{}.sh'.format(ktools_script_name))
         if no_execute:
-            self.logger.info('Generating ktools losses script')
+            self.logger.info('\nGenerating ktools losses script')
             genbash(
                 args.ktools_num_processes,
                 analysis_settings,
                 filename=script_path,
             )
-            self.logger.info('Making ktools losses script executable')
+            self.logger.info('\nMaking ktools losses script executable')
             subprocess.check_call("chmod +x {}".format(script_path), stderr=subprocess.STDOUT, shell=True)
         else:
             os.chdir(model_run_dir_path)
             run(analysis_settings, args.ktools_num_processes, filename=script_path)
 
-        self.logger.info('Loss outputs generated in {}'.format(os.path.join(model_run_dir_path, 'output')))
+        self.logger.info('\nLoss outputs generated in {}'.format(os.path.join(model_run_dir_path, 'output')))
 
 
 class RunCmd(OasisBaseCommand):
@@ -470,7 +470,7 @@ class RunCmd(OasisBaseCommand):
         if not model_run_dir_path:
             utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
             model_run_dir_path = os.path.join(os.getcwd(), 'runs', 'ProgOasis-{}'.format(utcnow))
-            self.logger.info('No model run dir. provided - creating a timestamped run dir. in working directory as {}'.format(model_run_dir_path))
+            self.logger.info('\nNo model run dir. provided - creating a timestamped run dir. in working directory as {}'.format(model_run_dir_path))
             Path(model_run_dir_path).mkdir(parents=True, exist_ok=True)
         else:
             if not os.path.exists(model_run_dir_path):
@@ -479,7 +479,7 @@ class RunCmd(OasisBaseCommand):
         args.model_run_dir_path = model_run_dir_path
 
         args.oasis_files_path = os.path.join(model_run_dir_path, 'tmp')
-        self.logger.info('Creating temporary folder {} for Oasis files'.format(args.oasis_files_path))
+        self.logger.info('\nCreating temporary folder {} for Oasis files'.format(args.oasis_files_path))
         Path(args.oasis_files_path).mkdir(parents=True, exist_ok=True)
 
         gen_oasis_files_cmd = GenerateOasisFilesCmd()
