@@ -748,7 +748,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             of the canonical exposures file, the model exposures
         """
         logger = logger or logging.getLogger()
-        logger.info('Checking output files directory exists for model')
+        logger.info('\nChecking output files directory exists for model')
 
         if oasis_model and not oasis_files_path:
             oasis_files_path = oasis_model.resources.get('oasis_files_path')
@@ -758,7 +758,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         elif not os.path.exists(oasis_files_path):
             raise OasisException('Output directory {} does not exist on the filesystem.'.format(oasis_files_path))
 
-        logger.info('Checking for source exposures file')
+        logger.info('\nChecking for source exposures file')
         if oasis_model and not source_exposures_file_path:
             source_exposures_file_path = oasis_model.resources['source_exposures_file_path'] if 'source_exposures_file_path' in oasis_model.resources else None
         if not source_exposures_file_path:
@@ -784,19 +784,19 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         )
 
         if not os.path.exists(kwargs['source_exposures_file_path']):
-            self.logger.info('Copying source exposures file to input files directory')
+            self.logger.info('\nCopying source exposures file to input files directory')
             shutil.copy2(source_exposures_file_path, oasis_files_path)
 
-        logger.info('Generating canonical exposures file {canonical_exposures_file_path}'.format(**kwargs))
+        logger.info('\nGenerating canonical exposures file {canonical_exposures_file_path}'.format(**kwargs))
         self.transform_source_to_canonical(**kwargs)
 
-        logger.info('Generating model exposures file {model_exposures_file_path}'.format(**kwargs))
+        logger.info('\nGenerating model exposures file {model_exposures_file_path}'.format(**kwargs))
         self.transform_canonical_to_model(**kwargs)
 
-        logger.info('Generating keys file {keys_file_path} and keys error file {keys_error_file_path}'.format(**kwargs))
+        logger.info('\nGenerating keys file {keys_file_path} and keys error file {keys_error_file_path}'.format(**kwargs))
         self.get_keys(oasis_model=oasis_model, **kwargs)
 
-        logger.info('Generating Oasis files (exposures=True, FM files={})'.format(include_fm))
+        logger.info('\nGenerating Oasis files (exposures=True, FM files={})'.format(include_fm))
         return self.generate_oasis_files(oasis_model=oasis_model, include_fm=include_fm, **kwargs)
 
     def create(self, model_supplier_id, model_id, model_version_id, resources=None):
