@@ -8,7 +8,6 @@ import json
 import logging
 import os
 
-import numpy as np
 import pandas as pd
 
 from lxml import etree
@@ -38,7 +37,7 @@ class Translator(object):
 # --- Main loop --------------------------------------------------------------#
 
     def __call__(self):
-        csv_reader = pd.read_csv(self.fpath_input, iterator=True, dtype=np.unicode_)
+        csv_reader = pd.read_csv(self.fpath_input, iterator=True, dtype=object, encoding='utf-8')
         for data, first_row_number, last_row_number in self.next_file_slice(csv_reader):
             self.logger.debug('--- lines[%d .. %d] -------------------------------', first_row_number, last_row_number)
 
@@ -76,7 +75,7 @@ class Translator(object):
             rec = etree.SubElement(root, 'rec')
             # Iter over columns and set attributs
             for i in range(0, len(row)):
-                rec.set(self.row_header_in[i], str(row[i]))
+                rec.set(self.row_header_in[i], row[i])
         return root
 
     # --- XML Funcs --- #
@@ -150,7 +149,7 @@ class Translator(object):
                 if(not self.row_header_in):
                     self.row_header_in = df_slice.columns.values.tolist()
                 yield (
-                    df_slice.values.tolist(),
+                    df_slice.fillna("").values.astype("unicode").tolist(),
                     df_slice.first_valid_index(),
                     df_slice.last_valid_index()
                 )
@@ -174,7 +173,6 @@ class Translator(object):
             index=False,
         )
 
-    # WARNING: This will overwrite the file path
     def write_file_header(self, row_names):
         pd.DataFrame(columns=row_names).to_csv(
             self.fpath_output,
