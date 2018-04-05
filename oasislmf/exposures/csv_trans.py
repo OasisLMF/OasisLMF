@@ -75,7 +75,7 @@ class Translator(object):
             rec = etree.SubElement(root, 'rec')
             # Iter over columns and set attributs
             for i in range(0, len(row)):
-                rec.set(self.row_header_in[i], str(row[i]))
+                rec.set(self.row_header_in[i], row[i])
         return root
 
     # --- XML Funcs --- #
