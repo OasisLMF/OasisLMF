@@ -530,14 +530,14 @@ def genbash(max_process_id, analysis_settings, filename, _get_getmodel_cmd=get_g
     for process_id in range(1, max_process_id + 1):
         if gul_output and il_output:
 
-            default_args = dict(
+              getmodel_args = dict(
                 number_of_samples      = number_of_samples,
                 gul_threshold          = gul_threshold,
                 use_random_number_file = use_random_number_file,
                 coverage_output        = 'fifo/gul_P{}'.format(process_id),
                 item_output            = '-'
             )
-            getmodel_args = default_args.update(extra_args)
+            getmodel_args.update(extra_args)
             getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
             print_command(
                 filename,
@@ -547,14 +547,14 @@ def genbash(max_process_id, analysis_settings, filename, _get_getmodel_cmd=get_g
             #  Now the mainprocessing
             if gul_output:
                 if 'gul_summaries' in analysis_settings:
-                    default_args = dict(
+                    getmodel_args = dict(
                         number_of_samples      = number_of_samples,
                         gul_threshold          = gul_threshold,
                         use_random_number_file = use_random_number_file,
                         coverage_output        = '-',
                         item_output            = ''
                     )
-                    getmodel_args = default_args.update(extra_args)
+                    getmodel_args.update(extra_args)
                     getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
                     print_command(
                         filename,
@@ -563,14 +563,14 @@ def genbash(max_process_id, analysis_settings, filename, _get_getmodel_cmd=get_g
 
             if il_output:
                 if 'il_summaries' in analysis_settings:
-                    default_args = dict(
+                    getmodel_args = dict(
                         number_of_samples      = number_of_samples,
                         gul_threshold          = gul_threshold,
                         use_random_number_file = use_random_number_file,
                         coverage_output        = '',
                         item_output            = '-'
                     )
-                    getmodel_args = default_args.update(extra_args)
+                    getmodel_args.update(extra_args)
                     getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
                     print_command(
                         filename,
