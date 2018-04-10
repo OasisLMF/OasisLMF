@@ -530,7 +530,7 @@ def genbash(max_process_id, analysis_settings, filename, _get_getmodel_cmd=get_g
     for process_id in range(1, max_process_id + 1):
         if gul_output and il_output:
 
-              getmodel_args = dict(
+            getmodel_args = dict(
                 number_of_samples      = number_of_samples,
                 gul_threshold          = gul_threshold,
                 use_random_number_file = use_random_number_file,
