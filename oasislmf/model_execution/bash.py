@@ -455,7 +455,6 @@ def get_getmodel_cmd(number_of_samples, gul_threshold, use_random_number_file, c
 
     return cmd
 
-
 def genbash(max_process_id, analysis_settings, filename, _get_getmodel_cmd=get_getmodel_cmd, extra_args={}):
     """
     Generates a bash script containing ktools calculation instructions for an
@@ -538,7 +537,7 @@ def genbash(max_process_id, analysis_settings, filename, _get_getmodel_cmd=get_g
                 coverage_output        = 'fifo/gul_P{}'.format(process_id),
                 item_output            = '-'
             )
-            getmodel_args = {**default_args, **extra_args}
+            getmodel_args = default_args.update(extra_args)
             getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
             print_command(
                 filename,
@@ -555,7 +554,7 @@ def genbash(max_process_id, analysis_settings, filename, _get_getmodel_cmd=get_g
                         coverage_output        = '-',
                         item_output            = ''
                     )
-                    getmodel_args = {**default_args, **extra_args}
+                    getmodel_args = default_args.update(extra_args)
                     getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
                     print_command(
                         filename,
@@ -571,7 +570,7 @@ def genbash(max_process_id, analysis_settings, filename, _get_getmodel_cmd=get_g
                         coverage_output        = '',
                         item_output            = '-'
                     )
-                    getmodel_args = {**default_args, **extra_args}
+                    getmodel_args = default_args.update(extra_args)
                     getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
                     print_command(
                         filename,
