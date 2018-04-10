@@ -456,7 +456,7 @@ def get_getmodel_cmd(number_of_samples, gul_threshold, use_random_number_file, c
     return cmd
 
 
-def genbash(max_process_id, analysis_settings, filename, _get_getmodel_cmd=None):
+def genbash(max_process_id, analysis_settings, filename, _get_getmodel_cmd=get_getmodel_cmd, extra_args={}):
     """
     Generates a bash script containing ktools calculation instructions for an
     Oasis model.
@@ -472,7 +472,6 @@ def genbash(max_process_id, analysis_settings, filename, _get_getmodel_cmd=None)
     :type get_getmodel_cmd: callable
     """
     process_counter = Counter()
-    _get_getmodel_cmd = _get_getmodel_cmd or get_getmodel_cmd
 
     use_random_number_file = False
     gul_output = False
@@ -531,14 +530,15 @@ def genbash(max_process_id, analysis_settings, filename, _get_getmodel_cmd=None)
 
     for process_id in range(1, max_process_id + 1):
         if gul_output and il_output:
-            getmodel_cmd = _get_getmodel_cmd(
-                number_of_samples,
-                gul_threshold,
-                use_random_number_file,
-                'fifo/gul_P{}'.format(process_id),
-                '-'
-            )
 
+            default_args = dict(
+                number_of_samples      = number_of_samples,
+                gul_threshold          = gul_threshold,
+                use_random_number_file = use_random_number_file,
+                coverage_output        = 'fifo/gul_P{}'.format(process_id),
+                item_output            = '-'
+            )
+            getmodel_cmd = _get_getmodel_cmd({**default_args, **extra_args})
             print_command(
                 filename,
                 'eve {0} {1} | {2} | fmcalc > fifo/il_P{0}  &'.format(process_id, max_process_id, getmodel_cmd)
@@ -547,13 +547,14 @@ def genbash(max_process_id, analysis_settings, filename, _get_getmodel_cmd=None)
             #  Now the mainprocessing
             if gul_output:
                 if 'gul_summaries' in analysis_settings:
-                    getmodel_cmd = _get_getmodel_cmd(
-                        number_of_samples,
-                        gul_threshold,
-                        use_random_number_file,
-                        '-',
-                        '')
-
+                    default_args = dict(
+                        number_of_samples      = number_of_samples,
+                        gul_threshold          = gul_threshold,
+                        use_random_number_file = use_random_number_file,
+                        coverage_output        = '-',
+                        item_output            = ''
+                    )
+                    getmodel_cmd = _get_getmodel_cmd({**default_args, **extra_args})
                     print_command(
                         filename,
                         'eve {0} {1} | {2} > fifo/gul_P{0}  &'.format(process_id, max_process_id, getmodel_cmd)
@@ -561,14 +562,14 @@ def genbash(max_process_id, analysis_settings, filename, _get_getmodel_cmd=None)
 
             if il_output:
                 if 'il_summaries' in analysis_settings:
-                    getmodel_cmd = _get_getmodel_cmd(
-                        number_of_samples,
-                        gul_threshold,
-                        use_random_number_file,
-                        '',
-                        '-'
+                    default_args = dict(
+                        number_of_samples      = number_of_samples,
+                        gul_threshold          = gul_threshold,
+                        use_random_number_file = use_random_number_file,
+                        coverage_output        = '',
+                        item_output            = '-'
                     )
-
+                    getmodel_cmd = _get_getmodel_cmd({**default_args, **extra_args})
                     print_command(
                         filename,
                         "eve {0} {1} | {2} | fmcalc > fifo/il_P{0}  &".format(process_id, max_process_id, getmodel_cmd)
