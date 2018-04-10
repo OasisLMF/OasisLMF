@@ -538,7 +538,8 @@ def genbash(max_process_id, analysis_settings, filename, _get_getmodel_cmd=get_g
                 coverage_output        = 'fifo/gul_P{}'.format(process_id),
                 item_output            = '-'
             )
-            getmodel_cmd = _get_getmodel_cmd(*{**default_args, **extra_args})
+            getmodel_args = {**default_args, **extra_args}
+            getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
             print_command(
                 filename,
                 'eve {0} {1} | {2} | fmcalc > fifo/il_P{0}  &'.format(process_id, max_process_id, getmodel_cmd)
@@ -554,7 +555,8 @@ def genbash(max_process_id, analysis_settings, filename, _get_getmodel_cmd=get_g
                         coverage_output        = '-',
                         item_output            = ''
                     )
-                    getmodel_cmd = _get_getmodel_cmd({**default_args, **extra_args})
+                    getmodel_args = {**default_args, **extra_args}
+                    getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
                     print_command(
                         filename,
                         'eve {0} {1} | {2} > fifo/gul_P{0}  &'.format(process_id, max_process_id, getmodel_cmd)
@@ -569,7 +571,8 @@ def genbash(max_process_id, analysis_settings, filename, _get_getmodel_cmd=get_g
                         coverage_output        = '',
                         item_output            = '-'
                     )
-                    getmodel_cmd = _get_getmodel_cmd({**default_args, **extra_args})
+                    getmodel_args = {**default_args, **extra_args}
+                    getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
                     print_command(
                         filename,
                         "eve {0} {1} | {2} | fmcalc > fifo/il_P{0}  &".format(process_id, max_process_id, getmodel_cmd)
