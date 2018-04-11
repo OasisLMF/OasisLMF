@@ -553,8 +553,8 @@ def genbash(max_process_id, analysis_settings, filename, _get_getmodel_cmd=get_g
                         'number_of_samples'      : number_of_samples,
                         'gul_threshold'          : gul_threshold,
                         'use_random_number_file' : use_random_number_file,
-                        'coverage_output'        : 'fifo/gul_P{}'.format(process_id),
-                        'item_output'            : '-',
+                        'coverage_output'        : '-'.format(process_id),
+                        'item_output'            : '',
                         'process_id'             : process_id,
                         'max_process_id'         : max_process_id
                     }
@@ -571,7 +571,7 @@ def genbash(max_process_id, analysis_settings, filename, _get_getmodel_cmd=get_g
                         'number_of_samples'      : number_of_samples,
                         'gul_threshold'          : gul_threshold,
                         'use_random_number_file' : use_random_number_file,
-                        'coverage_output'        : 'fifo/gul_P{}'.format(process_id),
+                        'coverage_output'        : ''.format(process_id),
                         'item_output'            : '-',
                         'process_id'             : process_id,
                         'max_process_id'         : max_process_id
