@@ -6,6 +6,7 @@ __all__ = [
 ]
 
 import io
+import itertools
 import json
 import logging
 import os
@@ -506,6 +507,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         columns = [
             'item_id',
+            'canloc_id',
             'coverage_id',
             'tiv',
             'areaperil_id',
@@ -540,6 +542,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                     item_id += 1
                     result = result.append([{
                         'item_id': item_id,
+                        'canloc_id': canexp_item['row_id'],
                         'coverage_id': item_id,
                         'tiv': tiv_value,
                         'areaperil_id': keys_item['areaperilid'],
@@ -550,9 +553,107 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                     }])
 
         return result
+    
+    def load_fm_master_data_frame(self, canonical_exposures_file_path, keys_file_path, items_file_path, canonical_exposures_profile, canonical_account_profile, **kwargs):
 
-    def load_fm_master_data_frame(self, canonical_exposures_file_path, keys_file_path, canonical_exposures_profile, **kwargs):
-        pass
+        exp_mdf = self.load_exposure_master_data_frame(canonical_exposures_file_path, keys_file_path, canonical_exposures_profile)
+
+        with io.open(canonical_exposures_file_path, 'r', encoding='utf-8') as cf:
+            canexp_df = pd.read_csv(cf, float_precision='high')
+            canexp_df = canexp_df.where(canexp_df.notnull(), None)
+            canexp_df.columns = canexp_df.columns.str.lower()
+        
+        columns = [
+            'itemid', 'canlocid', 'levelid', 'layerid', 'aggid', 'policytcid', 'deductible',
+            'limit', 'share', 'deductibletype', 'calcrule', 'tiv', 'fm_level'
+        ]
+
+        cep = canonical_exposures_profile
+        cap = canonical_account_profile
+
+        fm_term_fields = {
+            fm_level.lower(): {
+                gi['ProfileElementName'].lower(): gi for gi in list(g)
+            } for fm_level, g in itertools.groupby(
+                sorted(
+                   [v for v in cep.values() + cap.values() if 'FMLevel' in v and v['FMTermType'].lower() in ['tiv', 'deductible', 'limit']], 
+                    key=lambda d: d['FMLevelOrder']
+                ),
+                key=lambda f: f['FMLevel']
+            )
+        }
+
+        fm_levels = sorted(fm_term_fields, key=lambda f: fm_term_fields[f].values()[0]['FMLevelOrder'])
+
+        grouped_fm_term_fields = {
+            fm_level: {
+                k:{gi['FMTermType'].lower():gi for gi in list(g)} for k, g in itertools.groupby(sorted(fm_term_fields[fm_level].values(), key=lambda f: f['ProfileElementName']), key=lambda f: f['FMTermGroupID'])
+            } for fm_level in fm_levels
+        }
+
+        preset_data = list(
+            itertools.product(
+                fm_levels,
+                zip(list(exp_mdf.item_id.values), list(exp_mdf.canloc_id.values), list(exp_mdf.tiv.values)))
+        )
+        fm_data = [
+            {
+                k:v for k, v in zip(columns, [item_id,canloc_id,None,None, None,None,None,None,None,None,None,tiv,fm_level])
+            } for fm_level, (item_id, canloc_id, tiv) in preset_data
+        ]
+
+        fm_df = pd.DataFrame(columns=columns, data=fm_data)
+
+        for i in range(len(fm_df)):
+            fm_item = fm_df.iloc[i]
+            canexp_item = canexp_df[canexp_df['row_id'] == fm_item['canlocid']]
+
+            if fm_item['fm_level'] == 'coverage':
+                for gid in grouped_fm_term_fields['coverage']:
+                    tiv_field_name = grouped_fm_term_fields['coverage'][gid]['tiv']['ProfileElementName'].lower()
+                    if tiv_field_name in canexp_item and float(canexp_item[tiv_field_name]) == float(fm_item['tiv']):
+                        limit_field_name = grouped_fm_term_fields['coverage'][gid]['limit']['ProfileElementName'].lower()
+                        limit_val = float(canexp_item[limit_field_name])
+                        fm_df.at[i,'limit'] = limit_val if limit_val > 1 else (limit_val * float(fm_item['tiv']))
+
+                        ded_field_name = grouped_fm_term_fields['coverage'][gid]['deductible']['ProfileElementName'].lower()
+                        ded_val = float(canexp_item[ded_field_name])
+                        fm_df.at[i,'deductible'] = ded_val if ded_val > 1 else (ded_val * float(fm_item['tiv']))
+
+                        ded_type = grouped_fm_term_fields['coverage'][gid]['deductible']['DeductibleType'] if 'DeductibleType' in grouped_fm_term_fields['coverage'][gid]['deductible'] else u'B'
+                        fm_df.at[i,'deductibletype'] = ded_type
+
+                        break
+            else:
+                limit_field_name = grouped_fm_term_fields[fm_item['fm_level']][1]['limit']['ProfileElementName'].lower() if 'limit' in grouped_fm_term_fields[fm_item['fm_level']][1] else None
+                limit_val = float(canexp_item[limit_field_name]) if limit_field_name and limit_field_name in canexp_item else 0
+                fm_df.at[i,'limit'] = limit_val if limit_val > 1 else (limit_val * float(fm_item['tiv']))
+
+                ded_field_name = grouped_fm_term_fields[fm_item['fm_level']][1]['deductible']['ProfileElementName'].lower() if 'deductible' in grouped_fm_term_fields[fm_item['fm_level']][1] else None
+                ded_val = float(canexp_item[ded_field_name]) if ded_field_name and ded_field_name in canexp_item else 0
+                fm_df.at[i,'deductible'] = ded_val if ded_val > 1 else (ded_val * float(fm_item['tiv']))
+                
+                ded_type = grouped_fm_term_fields['coverage'][1]['deductible']['DeductibleType'] if 'DeductibleType' in grouped_fm_term_fields['coverage'][1]['deductible'] else u'B'
+                fm_df.at[i,'deductibletype'] = ded_type
+
+            share_prop_of_lim = 0   # temporary logic
+            fm_df.at[i, 'share'] = share_prop_of_lim
+
+            if limit_val == share_prop_of_lim == 0 and ded_type == 'B':
+                calc_rule = 12
+            elif limit_val == 0 and share_prop_of_lim > 0 and ded_type == 'B':
+                calc_rule = 15
+            elif limit_val > 0 and share_prop_of_lim == 0 and ded_type == 'B':
+                calc_rule = 1
+            elif ded_type == 'MI':
+                calc_rule = 11
+            elif ded_type == 'MA':
+                calc_rule = 10
+            else:
+                calc_rule = 2
+
+            fm_df.at[i, 'calcrule'] = calc_rule
+
 
     def _write_csvs(self, columns, data_frame, file_path):
         data_frame.to_csv(
@@ -769,6 +870,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
         kwargs = self._process_default_kwargs(
             oasis_model=oasis_model,
+            source_exposures_file_path=source_exposures_file_path,
             canonical_exposures_file_path=os.path.join(oasis_files_path, 'canexp-{}.csv'.format(utcnow)),
             model_exposures_file_path=os.path.join(oasis_files_path, 'modexp-{}.csv'.format(utcnow)),
             keys_file_path=os.path.join(oasis_files_path, 'oasiskeys-{}.csv'.format(utcnow)),
