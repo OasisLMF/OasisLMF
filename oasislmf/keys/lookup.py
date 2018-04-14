@@ -228,7 +228,7 @@ class OasisKeysLookupFactory(object):
         Writes the keys records as a simple list to file.
         """
         with io.open(output_file_path, 'w', encoding='utf-8') as f:
-            f.write(json.dumps(records, sort_keys=True, indent=4, ensure_ascii=False))
+            f.write(u'{}'.format(json.dumps(records, sort_keys=True, indent=4, ensure_ascii=False)))
 
             return output_file_path, len(records)
 
