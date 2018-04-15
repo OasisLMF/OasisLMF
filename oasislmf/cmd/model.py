@@ -79,7 +79,7 @@ class GenerateKeysCmd(OasisBaseCommand):
             help='Keys file path',
         )
         parser.add_argument(
-            '-e', '--keys-error-file-path', default=None,
+            '-e', '--keys-errors-file-path', default=None,
             help='Keys error file path',
         )
         parser.add_argument(
@@ -128,17 +128,17 @@ class GenerateKeysCmd(OasisBaseCommand):
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
 
         default_keys_file_name = '{}-{}-{}-keys-{}.{}'.format(model_info['supplier_id'].lower(), model_info['model_id'].lower(), model_info['model_version_id'], utcnow, 'csv' if keys_format == 'oasis' else 'json')
-        default_keys_error_file_name = '{}-{}-{}-keys-errors-{}.{}'.format(model_info['supplier_id'].lower(), model_info['model_id'].lower(), model_info['model_version_id'], utcnow, 'csv' if keys_format == 'oasis' else 'json')
+        default_keys_errors_file_name = '{}-{}-{}-keys-errors-{}.{}'.format(model_info['supplier_id'].lower(), model_info['model_id'].lower(), model_info['model_version_id'], utcnow, 'csv' if keys_format == 'oasis' else 'json')
            
         keys_file_path = as_path(inputs.get('keys_file_path', default=default_keys_file_name.format(utcnow), required=False, is_path=True), 'Keys file path', preexists=False)
-        keys_error_file_path = as_path(inputs.get('keys_error_file_path', default=default_keys_error_file_name.format(utcnow), required=False, is_path=True), 'Keys error file path', preexists=False)
+        keys_errors_file_path = as_path(inputs.get('keys_errors_file_path', default=default_keys_errors_file_name.format(utcnow), required=False, is_path=True), 'Keys errors file path', preexists=False)
 
         self.logger.info('\nSaving keys records to file')
         f1, n1, f2, n2 = OasisKeysLookupFactory.save_keys(
             lookup=model_klc,
             model_exposures_file_path=model_exposures_file_path,
             keys_file_path=keys_file_path,
-            keys_error_file_path=keys_error_file_path,
+            keys_errors_file_path=keys_errors_file_path,
             keys_format=keys_format
         )
         self.logger.info('\n{} keys records with successful lookups saved to keys file {}'.format(n1, f1))
@@ -175,6 +175,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             help='Path of the supplier canonical exposures profile JSON file'
         )
         parser.add_argument('-e', '--source-exposures-file-path', default=None, help='Source exposures file path')
+        parser.add_argument('-t', '--source-account-file-path', default=None, help='Source account file path')
         parser.add_argument(
             '-a', '--source-exposures-validation-file-path', default=None,
             help='Source exposures validation file (XSD) path'
@@ -217,6 +218,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             'Canonical exposures profile json'
         )
         source_exposures_file_path = as_path(inputs.get('source_exposures_file_path', required=True, is_path=True), 'Source exposures file path')
+        source_account_file_path = as_path(inputs.get('source_account_file_path', required=False, is_path=True), 'Source account file path')
         source_exposures_validation_file_path = as_path(
             inputs.get('source_exposures_validation_file_path', required=True, is_path=True),
             'Source exposures validation file path'
@@ -236,6 +238,9 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
 
         include_fm = inputs.get('include_fm', default=False)
 
+        if include_fm and not source_account_file_path:
+            raise OasisException('FM option indicated but no source account file provided')
+
         self.logger.info('\nGetting model info and creating lookup service instance')
         model_info, model_klc = OasisKeysLookupFactory.create(
             model_keys_data_path=keys_data_path,
@@ -253,6 +258,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
                 'lookup': model_klc,
                 'oasis_files_path': oasis_files_path,
                 'source_exposures_file_path': source_exposures_file_path,
+                'source_account_file_path': source_account_file_path,
                 'source_exposures_validation_file_path': source_exposures_validation_file_path,
                 'source_to_canonical_exposures_transformation_file_path': source_to_canonical_exposures_transformation_file_path,
                 'canonical_account_profile_json_path': canonical_account_profile_json_path,
@@ -445,6 +451,7 @@ class RunCmd(OasisBaseCommand):
             '-d', '--canonical-to-model-exposures-transformation-file-path', default=None,
             help='Canonical exposures validation file (XSD) path'
         )
+        parser.add_argument('-i', '--include_fm', action='store_false', help='Whether to generate FM files')
         parser.add_argument(
             '-j', '--analysis-settings-json-file-path', default=None,
             help='Model analysis settings JSON file path'
@@ -465,6 +472,7 @@ class RunCmd(OasisBaseCommand):
         :type args: Namespace
         """
         inputs = InputValues(args)
+
         model_run_dir_path = as_path(inputs.get('model_run_dir_path', required=False), 'Model run path', preexists=False)
 
         if not model_run_dir_path:
