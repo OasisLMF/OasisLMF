@@ -334,12 +334,26 @@ class OasisFilesPipeline(object):
 
     def clear(self, files_subsets=[]):
         """
-        Clears all file path attributes in the pipeline.
+        Clears file path attributes in the pipeline.
+
+            :param files_subsets: List of files subset labels (if empty)
+                                  then all files subsets are cleared)::
+
+                'source_files': source exposures file path + source account
+                                file path
+                'intermediate_files': canonical exposures file path, model
+                                      exposures file path, keys file path,
+                                      keys errors file path
+                'gul_files': GUL files
+                'fm_files': FM files
+                `oasis_files`: GUL files + GM files
+
+            :type files_subsets: list
         """
         if not files_subsets:
             filenames = self.source_files.keys() + self.intermediate_files.keys() + self.oasis_files.keys()
         else:
-            filenames = [fn for files_subset in files_subsets for fn in getattr(pip, files_subset)]
+            filenames = list(set([fn for files_subset in files_subsets for fn in getattr(pip, files_subset)]))
 
         map(
             lambda p: setattr(self, '{}_file_path'.format(p), None),
