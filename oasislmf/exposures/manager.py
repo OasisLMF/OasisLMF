@@ -513,7 +513,14 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         return kwargs
 
-    def load_exposure_master_data_frame(self, canonical_exposures_file_path, keys_file_path, canonical_exposures_profile, **kwargs):
+    def load_gul_master_data_frame(
+        self,
+        oasis_model=None,
+        canonical_exposures_file_path=None,
+        keys_file_path=None,
+        canonical_exposures_profile=None,
+        **kwargs
+    ):
         with io.open(canonical_exposures_file_path, 'r', encoding='utf-8') as cf:
             canexp_df = pd.read_csv(cf, float_precision='high')
             canexp_df = canexp_df.where(canexp_df.notnull(), None)
@@ -540,10 +547,10 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             'summary_id',
             'summaryset_id'
         ]
-        result = pd.DataFrame(columns=columns, dtype=object)
+        gulm_df = pd.DataFrame(columns=columns, dtype=object)
 
         for col in columns:
-            result[col] = result[col].astype(int) if col != 'tiv' else result[col]
+            gulm_df[col] = gulm_df[col].astype(int) if col != 'tiv' else gulm_df[col]
 
         item_id = 0
         for i in range(len(keys_df)):
@@ -564,7 +571,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 tiv_value = canexp_item[tiv_lookup]
                 if tiv_value > 0:
                     item_id += 1
-                    result = result.append([{
+                    result = gulm_df.append([{
                         'item_id': item_id,
                         'canloc_id': canexp_item['row_id'],
                         'coverage_id': item_id,
@@ -576,16 +583,36 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                         'summaryset_id': 1,
                     }])
 
-        return result
+        if oasis_model:
+            oasis_model.resources['canonical_exposures_data_frame'] = canexp_df
+            oasis_model.resources['gul_master_data_frame'] = gulm_df
+
+        return canexp_df, gulm_df
     
-    def load_fm_master_data_frame(self, canonical_exposures_file_path, keys_file_path, items_file_path, canonical_exposures_profile, canonical_account_profile, **kwargs):
+    def load_fm_master_data_frame(
+        self,
+        oasis_model=None,
+        canonical_exposures_profile=None,
+        canonical_account_profile=None,
+        canonical_exposures_file_path=None,
+        canonical_account_file_path=None,
+        keys_file_path=None,
+        items_file_path=None,
+        **kwargs
+    ):
 
-        exp_mdf = self.load_exposure_master_data_frame(canonical_exposures_file_path, keys_file_path, canonical_exposures_profile)
+        canexp_df = oasis_model.resources['canonical_exposures_data_frame'] or kwargs['canonical_exposures_data_frame']
+        gulm_df = oasis_model.resources['gul_master_data_frame'] or kwargs['gul_master_data_frame']
 
-        with io.open(canonical_exposures_file_path, 'r', encoding='utf-8') as cf:
-            canexp_df = pd.read_csv(cf, float_precision='high')
+
+        with io.open(canonical_exposures_file_path, 'r', encoding='utf-8') as cef, io.open(canonical_account_file_path, 'r', encoding='utf-8') as caf:
+            canexp_df = pd.read_csv(cef, float_precision='high')
             canexp_df = canexp_df.where(canexp_df.notnull(), None)
             canexp_df.columns = canexp_df.columns.str.lower()
+
+            canacc_df = pd.read_csv(caf, float_precision='high')
+            canacc_df = canacc_df.where(canacc_df.notnull(), None)
+            canacc_df.columns = canacc_df.columns.str.lower()
         
         columns = [
             'itemid', 'canlocid', 'levelid', 'layerid', 'aggid', 'policytcid', 'deductible',
@@ -618,7 +645,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         preset_data = list(
             itertools.product(
                 fm_levels,
-                zip(list(exp_mdf.item_id.values), list(exp_mdf.canloc_id.values), list(exp_mdf.tiv.values)))
+                zip(list(gulm_df.item_id.values), list(gulm_df.canloc_id.values), list(gulm_df.tiv.values)))
         )
         fm_data = [
             {
@@ -656,18 +683,20 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 ded_field_name = grouped_fm_term_fields[fm_item['fm_level']][1]['deductible']['ProfileElementName'].lower() if 'deductible' in grouped_fm_term_fields[fm_item['fm_level']][1] else None
                 ded_val = float(canexp_item[ded_field_name]) if ded_field_name and ded_field_name in canexp_item else 0
                 fm_df.at[i,'deductible'] = ded_val if ded_val > 1 else (ded_val * float(fm_item['tiv']))
-                
+
                 ded_type = grouped_fm_term_fields['coverage'][1]['deductible']['DeductibleType'] if 'DeductibleType' in grouped_fm_term_fields['coverage'][1]['deductible'] else u'B'
                 fm_df.at[i,'deductibletype'] = ded_type
 
-            share_prop_of_lim = 0   # temporary logic
-            fm_df.at[i, 'share'] = share_prop_of_lim
+            share_field_name = grouped_fm_term_fields['account'][1]['limit']['ProfileElementName'].lower() if 'limit' in grouped_fm_term_fields['account'][1] else None
+            share_val = float(canexp_item[share_field_name]) if share_field_name and share_field_name in canexp_item else 0
+            fm_df.at[i,'share'] = share_val
 
-            if limit_val == share_prop_of_lim == 0 and ded_type == 'B':
+
+            if limit_val == share_val == 0 and ded_type == 'B':
                 calc_rule = 12
-            elif limit_val == 0 and share_prop_of_lim > 0 and ded_type == 'B':
+            elif limit_val == 0 and share_val > 0 and ded_type == 'B':
                 calc_rule = 15
-            elif limit_val > 0 and share_prop_of_lim == 0 and ded_type == 'B':
+            elif limit_val > 0 and share_val == 0 and ded_type == 'B':
                 calc_rule = 1
             elif ded_type == 'MI':
                 calc_rule = 11
@@ -688,18 +717,17 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             index=False
         )
 
-    def generate_items_file(self, oasis_model=None, data_frame=None, **kwargs):
+    def generate_items_file(self, oasis_model=None, **kwargs):
         """
         Generates an items file for the given ``oasis_model``.
         """
         kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
 
-        if data_frame is None:
-            data_frame = self.load_exposure_master_data_frame(**kwargs)
+        gulm_df = oasis_model.resources['gul_master_data_frame'] or kwargs['gul_master_data_frame']
 
         self._write_csvs(
             ['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id'],
-            data_frame,
+            gulm_df,
             kwargs['items_file_path']
         )
 
@@ -708,18 +736,17 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         return kwargs['items_file_path']
 
-    def generate_coverages_file(self, oasis_model=None, data_frame=None, **kwargs):
+    def generate_coverages_file(self, oasis_model=None, **kwargs):
         """
         Generates a coverages file for the given ``oasis_model``.
         """
         kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
 
-        if data_frame is None:
-            data_frame = self.load_exposure_master_data_frame(**kwargs)
+        gulm_df = oasis_model.resources['gul_master_data_frame'] or kwargs['gul_master_data_frame']
 
         self._write_csvs(
             ['coverage_id', 'tiv'],
-            data_frame,
+            gulm_df,
             kwargs['coverages_file_path']
         )
 
@@ -728,18 +755,17 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         return kwargs.get('coverages_file_path')
 
-    def generate_gulsummaryxref_file(self, oasis_model=None, data_frame=None, **kwargs):
+    def generate_gulsummaryxref_file(self, oasis_model=None, **kwargs):
         """
         Generates a gulsummaryxref file for the given ``oasis_model``.
         """
         kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
 
-        if data_frame is None:
-            data_frame = self.load_exposure_master_data_frame(**kwargs)
+        gulm_df = oasis_model.resources['gul_master_data_frame'] or kwargs['gul_master_data_frame']
 
         self._write_csvs(
             ['coverage_id', 'summary_id', 'summaryset_id'],
-            data_frame,
+            gulm_df,
             kwargs['gulsummaryxref_file_path']
         )
 
@@ -787,11 +813,15 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             gulsummaryxref.csv
         """
         kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
-        data_frame = self.load_exposure_master_data_frame(**kwargs)
+        canexp_df, gulm_df = self.load_gul_master_data_frame(oasis_model=oasis_model, **kwargs)
 
-        self.generate_items_file(oasis_model=oasis_model, data_frame=data_frame, **kwargs)
-        self.generate_coverages_file(oasis_model=oasis_model, data_frame=data_frame, **kwargs)
-        self.generate_gulsummaryxref_file(oasis_model=oasis_model, data_frame=data_frame, **kwargs)
+        if not oasis_model:
+            kwargs['canonical_exposures_data_frame'] = canexp_df
+            kwargs['gul_master_data_frame'] = gulm_df
+
+        self.generate_items_file(oasis_model=oasis_model, **kwargs)
+        self.generate_coverages_file(oasis_model=oasis_model, **kwargs)
+        self.generate_gulsummaryxref_file(oasis_model=oasis_model, **kwargs)
 
         return {
             'items_file_path': kwargs['items_file_path'],
@@ -810,13 +840,13 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             fm_summaryxref.csv
         """
         kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
-        data_frame = self.load_fm_exposure_master_data_frame(**kwargs)
+        self.load_fm_exposure_master_data_frame(**kwargs)
 
-        self.generate_fm_policytc_file(oasis_model=oasis_model, data_frame=data_frame, **kwargs)
-        self.generate_fm_profile_file(oasis_model=oasis_model, data_frame=data_frame, **kwargs)
-        self.generate_fm_programme_file(oasis_model=oasis_model, data_frame=data_frame, **kwargs)
-        self.generate_fm_xref_file(oasis_model=oasis_model, data_frame=data_frame, **kwargs)
-        self.generate_fmsummaryxref_file(oasis_model=oasis_model, data_frame=data_frame, **kwargs)
+        self.generate_fm_policytc_file(oasis_model=oasis_model, **kwargs)
+        self.generate_fm_profile_file(oasis_model=oasis_model, **kwargs)
+        self.generate_fm_programme_file(oasis_model=oasis_model, **kwargs)
+        self.generate_fm_xref_file(oasis_model=oasis_model, **kwargs)
+        self.generate_fmsummaryxref_file(oasis_model=oasis_model, **kwargs)
 
         return {
             'fm_policytc_file_path': kwargs['fm_policytc_file_path'],
