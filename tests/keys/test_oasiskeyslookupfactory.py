@@ -14,7 +14,9 @@ import pandas as pd
 from backports.tempfile import TemporaryDirectory
 from hypothesis import (
     given,
+    HealthCheck,
     reproduce_failure,
+    settings,
 )
 from hypothesis.strategies import (
     booleans,
@@ -54,6 +56,7 @@ from tests import keys_data
 
 
 class OasisKeysLookupFactoryCreate(TestCase):
+
     def write_version_file(self, supplier, model, version, path):
         with io.open(path, 'w', encoding='utf-8') as f:
             f.write('{},{},{}'.format(supplier, model, version))
@@ -118,6 +121,7 @@ class OasisKeysLookupFactoryCreate(TestCase):
 
 
 class OasisKeysLookupFactoryGetModelExposures(TestCase):
+
     def test_no_file_or_exposures_are_provided___oasis_exception_is_raised(self):
         with self.assertRaises(OasisException):
             OasisKeysLookupFactory.get_model_exposures()
@@ -150,6 +154,7 @@ class OasisKeysLookupFactoryGetModelExposures(TestCase):
 
 class OasisKeysLookupFactoryWriteOasisKeysFiles(TestCase):
 
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
         successes=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=5),
         nonsuccesses=keys_data(from_statuses=sampled_from([KEYS_STATUS_FAIL, KEYS_STATUS_NOMATCH]), size=5)
@@ -192,6 +197,8 @@ class OasisKeysLookupFactoryWriteOasisKeysFiles(TestCase):
 
 
 class OasisKeysLookupFactoryWriteJsonFiles(TestCase):
+
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
         successes=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=5),
         nonsuccesses=keys_data(from_statuses=sampled_from([KEYS_STATUS_FAIL, KEYS_STATUS_NOMATCH]), size=5)
@@ -217,6 +224,7 @@ class OasisKeysLookupFactoryWriteJsonFiles(TestCase):
 
 
 class OasisKeysLookupFactoryGetKeys(TestCase):
+
     def create_fake_lookup(self, return_value=None):
         self.lookup_instance = Mock()
         self.lookup_instance.process_locations = Mock(return_value=return_value or [])
@@ -268,6 +276,7 @@ class OasisKeysLookupFactoryGetKeys(TestCase):
 
 
 class OasisKeysLookupFactoryWriteKeys(TestCase):
+
     def create_fake_lookup(self):
         self.lookup_instance = Mock()
         return self.lookup_instance
@@ -276,6 +285,7 @@ class OasisKeysLookupFactoryWriteKeys(TestCase):
         with self.assertRaises(OasisException):
             list(OasisKeysLookupFactory.get_keys(self.create_fake_lookup()))
 
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
         data=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=10)
     )

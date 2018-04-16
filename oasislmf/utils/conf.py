@@ -32,7 +32,8 @@ def load_ini_file(ini_file_path):
         elif di[k].lower() == 'false':
             di[k] = False
         else:
-            for conv in (int, float, socket.inet_aton):
+            ipf = lambda s: socket.inet_ntoa(socket.inet_aton(s))
+            for conv in (int, float, ipf, str):
                 try:
                     di[k] = conv(di[k])
                     break

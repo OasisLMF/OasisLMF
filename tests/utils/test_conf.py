@@ -52,7 +52,7 @@ class LoadInIFile(TestCase):
             self.assertEqual(1.1, conf['a'])
             self.assertEqual(2.2, conf['b'])
 
-    def test_values_are_ip_addresses___values_are_converted_into_byte_format(self):
+    def test_values_are_ip_addresses___values_are_converted_into_ip_string_format(self):
         with NamedTemporaryFile(mode='w') as f:
             f.writelines([
                 '[section]\n',
@@ -63,8 +63,10 @@ class LoadInIFile(TestCase):
 
             conf = load_ini_file(f.name)
 
-            self.assertEqual(socket.inet_aton('127.0.0.1'), conf['a'])
-            self.assertEqual(socket.inet_aton('127.127.127.127'), conf['b'])
+            ipf = lambda s: socket.inet_ntoa(socket.inet_aton(s))
+
+            self.assertEqual(ipf('127.0.0.1'), conf['a'])
+            self.assertEqual(ipf('127.127.127.127'), conf['b'])
 
     def test_values_are_string_values___values_are_unchanged(self):
         with NamedTemporaryFile(mode='w') as f:
