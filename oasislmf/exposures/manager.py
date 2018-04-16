@@ -54,7 +54,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
 
     def transform_source_to_canonical(self, oasis_model=None, **kwargs):
         """
-        Transforms the source exposures/locations for a given ``oasis_model``
+        Transforms a source exposures/locations for a given ``oasis_model``
         object to a canonical/standard Oasis format.
 
         All the required resources must be provided either in the model object
@@ -72,8 +72,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
     def transform_canonical_to_model(self, oasis_model=None, **kwargs):
         """
         Transforms the canonical exposures/locations for a given ``oasis_model``
-        object to a format understood by Oasis keys lookup
-        services.
+        object to a format suitable for an Oasis model keys lookup service.
 
         All the required resources must be provided either in the model object
         resources dict or the ``kwargs`` dict.
@@ -128,22 +127,25 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         pass
 
+    def generate_gul_files(self, oasis_model=None, **kwargs):
+        """
+        Generates Oasis GUL files.
+
+        The required resources must be provided either via the model object
+        resources dict or ``kwargs``.
+        """
+
+    def generate_fm_files(self, oasis_model=None, **kwargs):
+        """
+        Generates Oasis FM files.
+
+        The required resources must be provided either via the model object
+        resources dict or ``kwargs``.
+        """
+
     def generate_oasis_files(self, oasis_model=None, include_fm=False, **kwargs):
         """
-        Generates the standard Oasis files, namely::
-
-            items.csv
-            coverages.csv
-            gulsummaryxref.csv
-
-        If ``include_fm`` is ``True`` the method also generate Oasis FM files,
-        namely::
-
-            fm_policytc.csv
-            fm_profile.csv
-            fm_programm.ecsv
-            fm_xref.csv
-            fm_summaryxref.csv
+        Generates the full set of Oasis files, which should be GUL + FM + any extras
 
         The required resources must be provided either via the model object
         resources dict or ``kwargs``.
@@ -243,60 +245,78 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
     def models(self):
         self._models.clear()
 
-    def transform_source_to_canonical(self, oasis_model=None, **kwargs):
+    def transform_source_to_canonical(self, oasis_model=None, source_type='exposures', **kwargs):
         """
-        Transforms the canonical exposures/locations file for a given
-        ``oasis_model`` object to a format understood by Oasis keys lookup
-        services.
+        Transforms a canonical exposures/locations file for a given
+        ``oasis_model`` object to a canonical/standard Oasis format.
+
+        It can also transform a source account file to a canonical account
+        file, if the optional argument ``source_type`` has the value of ``account``.
+        The default ``source_type`` is ``exposures``.
 
         By default parameters supplied to this function fill be used if present
         otherwise they will be taken from the `oasis_model` resources dictionary
         if the model is supplied.
 
-        :param oasis_model: The model to get keys for
-        :type oasis_model: ``OasisModel``
+        :param oasis_model: An optional Oasis model object
+        :type oasis_model: ``oasislmf.models.model.OasisModel``
 
-        :param source_exposures_file_path: Path to the source exposures file
+        :param source_exposures_file_path: Source exposures file path (if ``source_type`` is ``exposures``)
         :type source_exposures_file_path: str
 
-        :param source_exposures_validation_file_path: Path to the exposure validation file
+        :param source_exposures_validation_file_path: Source exposures validation file (if ``source_type`` is ``exposures``)
         :type source_exposures_validation_file_path: str
 
-        :param source_to_canonical_exposures_transformation_file_path: Path to the exposure transformation file
+        :param source_to_canonical_exposures_transformation_file_path: Source exposures transformation file (if ``source_type`` is ``exposures``)
         :type source_to_canonical_exposures_transformation_file_path: str
 
-        :param canonical_exposures_file_path: Path to the output canonical exposure file
+        :param canonical_exposures_file_path: Path to the output canonical exposure file (if ``source_type`` is ``exposures``)
         :type canonical_exposures_file_path: str
 
-        :return: The path to the output canonical exposure file
+        :param source_account_file_path: Source account file path (if ``source_type`` is ``account``)
+        :type source_exposures_file_path: str
+
+        :param source_account_validation_file_path: Source account validation file (if ``source_type`` is ``account``)
+        :type source_exposures_validation_file_path: str
+
+        :param source_to_canonical_account_transformation_file_path: Source account transformation file (if ``source_type`` is ``account``)
+        :type source_to_canonical_account_transformation_file_path: str
+
+        :param canonical_account_file_path: Path to the output canonical account file (if ``source_type`` is ``account``)
+        :type canonical_account_file_path: str
+
+        :return: The path to the output canonical file
         """
         kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
 
-        input_file_path = os.path.abspath(kwargs['source_exposures_file_path'])
-        validation_file_path = os.path.abspath(kwargs['source_exposures_validation_file_path'])
-        transformation_file_path = os.path.abspath(kwargs['source_to_canonical_exposures_transformation_file_path'])
-        output_file_path = os.path.abspath(kwargs['canonical_exposures_file_path'])
+        input_file_path = os.path.abspath(kwargs['source_account_file_path']) if source_type == 'account' else os.path.abspath(kwargs['source_exposures_file_path'])
+        validation_file_path = os.path.abspath(kwargs['source_account_validation_file_path']) if source_type == 'account' else os.path.abspath(kwargs['source_exposures_validation_file_path'])
+        transformation_file_path = os.path.abspath(kwargs['source_to_canonical_account_transformation_file_path']) if source_type == 'account' else os.path.abspath(kwargs['source_to_canonical_exposures_transformation_file_path'])
+        output_file_path = os.path.abspath(kwargs['canonical_account_file_path']) if source_type == 'account' else os.path.abspath(kwargs['canonical_exposures_file_path'])
 
         translator = Translator(input_file_path, output_file_path, validation_file_path, transformation_file_path, append_row_nums=True)
         translator()
 
         if oasis_model:
-            oasis_model.resources['oasis_files_pipeline'].canonical_exposures_file = output_file_path
+            if source_type == 'account':
+                oasis_model.resources['oasis_files_pipeline'].canonical_account_file_path = output_file_path
+            else:
+                oasis_model.resources['oasis_files_pipeline'].canonical_exposures_file_path = output_file_path
 
         return output_file_path
 
     def transform_canonical_to_model(self, oasis_model=None, **kwargs):
         """
         Transforms the canonical exposures/locations file for a given
-        ``oasis_model`` object to a format understood by Oasis keys lookup
-        services.
+        ``oasis_model`` object to a format suitable for an Oasis model keys
+        lookup service.
 
         By default parameters supplied to this function fill be used if present
         otherwise they will be taken from the `oasis_model` resources dictionary
         if the model is supplied.
 
         :param oasis_model: The model to get keys for
-        :type oasis_model: ``OasisModel``
+        :type oasis_model: ``oasislmf.models.model.OasisModel``
 
         :param canonical_exposures_file_path: Path to the canonical exposures file
         :type canonical_exposures_file_path: str
@@ -332,7 +352,8 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             oasis_model=None,
             canonical_exposures_profile_json=None,
             canonical_exposures_profile_json_path=None,
-            **kwargs):
+            **kwargs
+        ):
         """
         Loads a JSON string or JSON file representation of the canonical
         exposures profile for a given ``oasis_model``, stores this in the
@@ -359,7 +380,8 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             oasis_model=None,
             canonical_account_profile_json=None,
             canonical_account_profile_json_path=None,
-            **kwargs):
+            **kwargs
+        ):
         """
         Loads a JSON string or JSON file representation of the canonical
         exposures profile for a given ``oasis_model``, stores this in the
@@ -450,6 +472,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
     def _process_default_kwargs(self, oasis_model=None, **kwargs):
         if oasis_model:
             kwargs.setdefault('source_exposures_file_path', oasis_model.resources.get('source_exposures_file_path'))
+            kwargs.setdefault('source_account_file_path', oasis_model.resources.get('source_account_file_path'))
             kwargs.setdefault('source_exposures_validation_file_path', oasis_model.resources.get('source_exposures_validation_file_path'))
             kwargs.setdefault('source_to_canonical_exposures_transformation_file_path', oasis_model.resources.get('source_to_canonical_exposures_transformation_file_path'))
             kwargs.setdefault('canonical_exposures_profile', oasis_model.resources.get('canonical_exposures_profile'))
@@ -458,6 +481,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             kwargs.setdefault('canonical_account_profile', oasis_model.resources.get('canonical_account_profile'))
             kwargs.setdefault('canonical_account_profile_json', oasis_model.resources.get('canonical_account_profile_json'))
             kwargs.setdefault('canonical_account_profile_json_path', oasis_model.resources.get('canonical_account_profile_json_path'))
+            kwargs.setdefault('canonical_account_file_path', oasis_model.resources['oasis_files_pipeline'].canonical_account_file_path)
             kwargs.setdefault('canonical_exposures_file_path', oasis_model.resources['oasis_files_pipeline'].canonical_exposures_file_path)
             kwargs.setdefault('canonical_exposures_validation_file_path', oasis_model.resources.get('canonical_exposures_validation_file_path'))
             kwargs.setdefault('canonical_to_model_exposures_transformation_file_path', oasis_model.resources.get('canonical_to_model_exposures_transformation_file_path'))
@@ -480,7 +504,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 canonical_exposures_profile_json_path=kwargs.get('canonical_exposures_profile_json_path'),
             )
 
-        if not kwargs.get('canonical_account_profile'):
+        if kwargs.get('include_fm') and not kwargs.get('canonical_account_profile'):
             kwargs['canonical_account_profile'] = self.load_canonical_account_profile(
                 oasis_model=oasis_model,
                 canonical_account_profile_json=kwargs.get('canonical_account_profile_json'),
@@ -754,9 +778,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         """
         pass
 
-    def generate_exposure_files(self, oasis_model=None, **kwargs):
+    def generate_gul_files(self, oasis_model=None, **kwargs):
         """
-        Generates the standard Oasis files, namely::
+        Generates the standard Oasis GUL files, namely::
 
             items.csv
             coverages.csv
@@ -803,14 +827,14 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         }
 
     def generate_oasis_files(self, oasis_model=None, include_fm=False, **kwargs):
-        exposure_files = self.generate_exposure_files(oasis_model=oasis_model, **kwargs)
+        gul_files = self.generate_gul_files(oasis_model=oasis_model, **kwargs)
 
         if not include_fm:
-            return exposure_files
+            return gul_files
 
         fm_files = self.generate_fm_files(oasis_model=oasis_model, **kwargs)
 
-        return {k:v for k, v in exposure_files.items() + fm_files.items()}
+        return {k:v for k, v in gul_files.items() + fm_files.items()}
 
     def clear_oasis_files_pipeline(self, oasis_model, **kwargs):
         """
@@ -829,24 +853,42 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         return oasis_model
 
-    def start_oasis_files_pipeline(self, oasis_model=None, oasis_files_path=None, include_fm=False, source_exposures_file_path=None, logger=None):
+    def start_oasis_files_pipeline(
+        self,
+        oasis_model=None,
+        oasis_files_path=None, 
+        include_fm=False,
+        source_exposures_file_path=None,
+        source_account_file_path=None,
+        logger=None
+    ):
         """
         Starts the files pipeline for the given Oasis model object,
         which is the generation of the Oasis items, coverages and GUL summary
         files, and possibly the FM files, from the source exposures file,
-        canonical exposures profile, and associated validation files and
-        transformation files for the source and intermediate files (canonical
-        exposures, model exposures).
+        source account file, canonical exposures profile, and associated
+        validation files and transformation files for the source and
+        intermediate files (canonical exposures, model exposures).
 
-        Args:
-            ``oasis_model`` (``omdk.models.OasisModel.OasisModel``): The model object.
+        :param oasis_model: The Oasis model object
+        :type oasis_model: `oasislmf.models.model.OasisModel`
 
-            ``with_model_resources``: (``bool``): Indicates whether to look for
-            resources in the model object's resources dictionary or in ``**kwargs``.
+        :param oasis_files_path: Path where generated Oasis files should be
+                                 written
+        :type oasis_files_path: str
 
-            ``**kwargs`` (arbitrary keyword arguments): If ``with_model_resources``
-            is ``False`` then the filesystem paths (including filename and extension)
-            of the canonical exposures file, the model exposures
+        :param include_fm: Boolean indicating whether FM files should be
+                           generated
+        :param include_fm: bool
+
+        :param source_exposures_file_path: Path to the source exposures file
+        :type source_exposures_file_path: str
+
+        :param source_account_file_path: Path to the source account file
+        :type source_account_file_path: str
+
+        :param logger: Logger object
+        :type logger: `logging.Logger`
         """
         logger = logger or logging.getLogger()
         logger.info('\nChecking output files directory exists for model')
@@ -861,17 +903,29 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         logger.info('\nChecking for source exposures file')
         if oasis_model and not source_exposures_file_path:
-            source_exposures_file_path = oasis_model.resources['source_exposures_file_path'] if 'source_exposures_file_path' in oasis_model.resources else None
+            source_exposures_file_path = oasis_model.resources.get('source_exposures_file_path')
         if not source_exposures_file_path:
             raise OasisException('No source exposures file path provided in arguments or model resources')
         elif not os.path.exists(source_exposures_file_path):
             raise OasisException("Source exposures file path {} does not exist on the filesysem.".format(source_exposures_file_path))
 
+        if include_fm:
+            logger.info('\nChecking for source account file')
+            if oasis_model and not source_account_file_path:
+                source_account_file_path = oasis_model.resources.get('source_account_file_path')
+            if not source_account_file_path:
+                raise OasisException('FM option indicated but no source account file path provided in arguments or model resources')
+            elif not os.path.exists(source_account_file_path):
+                raise OasisException("Source account file path {} does not exist on the filesysem.".format(source_account_file_path))
+
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
         kwargs = self._process_default_kwargs(
             oasis_model=oasis_model,
+            include_fm=include_fm,
             source_exposures_file_path=source_exposures_file_path,
+            source_account_file_path=source_account_file_path,
             canonical_exposures_file_path=os.path.join(oasis_files_path, 'canexp-{}.csv'.format(utcnow)),
+            canonical_account_file_path=os.path.join(oasis_files_path, 'canacc-{}.csv'.format(utcnow)),
             model_exposures_file_path=os.path.join(oasis_files_path, 'modexp-{}.csv'.format(utcnow)),
             keys_file_path=os.path.join(oasis_files_path, 'oasiskeys-{}.csv'.format(utcnow)),
             keys_errors_file_path=os.path.join(oasis_files_path, 'oasiskeys-errors-{}.csv'.format(utcnow)),
@@ -890,8 +944,18 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             self.logger.info('\nCopying source exposures file to input files directory')
             shutil.copy2(source_exposures_file_path, oasis_files_path)
 
+        if include_fm:
+            source_account_file_path = kwargs.get('source_account_file_path')
+            if not os.path.exists(source_exposures_file_path):
+                self.logger.info('\nCopying source exposures file to input files directory')
+                shutil.copy2(source_account_file_path, oasis_files_path)
+
         logger.info('\nGenerating canonical exposures file {canonical_exposures_file_path}'.format(**kwargs))
         self.transform_source_to_canonical(**kwargs)
+
+        if include_fm:
+            logger.info('\nGenerating canonical account file {canonical_account_file_path}'.format(**kwargs))
+            self.transform_source_to_canonical(source_type='account', **kwargs)
 
         logger.info('\nGenerating model exposures file {model_exposures_file_path}'.format(**kwargs))
         self.transform_canonical_to_model(**kwargs)
@@ -923,8 +987,13 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         if model.resources.get('canonical_exposures_profile') is None:
             self.load_canonical_exposures_profile(oasis_model=model)
 
-        if model.resources.get('canonical_account_profile') is None:
-            self.load_canonical_account_profile(oasis_model=model)
+        if (
+            model.resources.get('canonical_account_profile_json_path') or
+            model.resources.get('canonical_account_profile_json') or
+            model.resources.get('canonical_account_profile')
+        ) and model.get('source_account_file_path'):
+            if model.resources.get('canonical_account_profile') is None:
+                self.load_canonical_account_profile(oasis_model=model)
 
         self.add_model(model)
 
