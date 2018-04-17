@@ -1,6 +1,12 @@
 CHANGELOG
 =========
 
+`1.1.10`_ (beta)
+----------------
+
+* Hotfix for utils INI file loading method - fix parsing of IP
+  strings
+
 `1.0.9`_ (beta)
 ---------------
 
@@ -28,7 +34,7 @@ CHANGELOG
 
 * Add console logging
 
-
+.. _`1.1.10`: https://github.com/OasisLMF/OasisLMF/compare/a969192...master
 .. _`1.0.9`: https://github.com/OasisLMF/OasisLMF/compare/17c691b...master
 .. _`1.0.8`: https://github.com/OasisLMF/OasisLMF/compare/8eeaeaf...master^
 .. _`1.0.6`: https://github.com/OasisLMF/OasisLMF/compare/9578398...master
