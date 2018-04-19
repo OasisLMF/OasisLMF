@@ -185,6 +185,21 @@ def get_share(canexp_item, canacc_item, fm_item, canonical_profiles_grouped_fm_t
     return share_val
 
 
+def get_calc_rule(limit_val, share_val, ded_type):
+    if limit_val == share_val == 0 and ded_type == 'BB':
+        return 12
+    elif limit_val == 0 and share_val > 0 and ded_type == 'B':
+        return 15
+    elif limit_val > 0 and share_val == 0 and ded_type == 'B':
+        return 1
+    elif ded_type == 'MI':
+        return 11
+    elif ded_type == 'MA':
+        return 10
+    else:
+        return 2
+
+
 def get_fm_terms(canexp_item, canacc_item, fm_item, canonical_profiles_grouped_fm_terms):
 
     gfmt = canonical_profiles_grouped_fm_terms
@@ -200,7 +215,8 @@ def get_fm_terms(canexp_item, canacc_item, fm_item, canonical_profiles_grouped_f
         'limit': 0,
         'deductible': 0,
         'deductible_type': u'B',
-        'share': 0
+        'share': 0,
+        'calc_rule': 2
     }
     
     if is_coverage_level:
@@ -240,19 +256,9 @@ def get_fm_terms(canexp_item, canacc_item, fm_item, canonical_profiles_grouped_f
         share_val = float(can_item[share_field_name]) if share_field_name in can_item else 0
         fm_terms['share'] = share_val
 
+    calc_rule = get_calc_rule(fm_terms['limit'], fm_terms['share'], fm_terms['deductible_type'])
+    fm_terms['calc_rule'] = calc_rule
+
     return fm_terms
 
 
-def get_calc_rule(limit_val, share_val, ded_type):
-    if limit_val == share_val == 0 and ded_type == 'BB':
-        return 12
-    elif limit_val == 0 and share_val > 0 and ded_type == 'B':
-        return 15
-    elif limit_val > 0 and share_val == 0 and ded_type == 'B':
-        return 1
-    elif ded_type == 'MI':
-        return 11
-    elif ded_type == 'MA':
-        return 10
-    else:
-        return 2
