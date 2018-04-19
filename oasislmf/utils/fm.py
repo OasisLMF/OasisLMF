@@ -1,7 +1,14 @@
 # -*- coding: utf-8 -*-
 
 __all__ = [
-    'get_calc_rule'
+    'canonical_profiles_fm_terms',
+    'canonical_profiles_grouped_fm_terms',
+    'get_calc_rule',
+    'get_deductible',
+    'get_deductible_type',
+    'get_fm_terms',
+    'get_limit',
+    'get_share'
 ]
 
 import io
