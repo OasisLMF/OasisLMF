@@ -664,13 +664,11 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
             fm_terms = get_fm_terms(canexp_item, canacc_item, fm_item, gfmt)
 
-            calc_rule = get_calc_rule(fm_terms['limit'], fm_terms['share'], fm_terms['deductible_type'])
-
             fm_df.at[i, 'limit'] = fm_terms['limit']
             fm_df.at[i, 'deductible'] = fm_terms['deductible']
             fm_df.at[i, 'deductibletype'] = fm_terms['deductible_type']
             fm_df.at[i, 'share'] = fm_terms['share']
-            fm_df.at[i, 'calcrule'] = calc_rule
+            fm_df.at[i, 'calcrule'] = fm_terms['calc_rule']
 
     def _write_csvs(self, columns, data_frame, file_path):
         data_frame.to_csv(
