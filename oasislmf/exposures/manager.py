@@ -19,6 +19,12 @@ from interface import Interface, implements
 
 from ..keys.lookup import OasisKeysLookupFactory
 from ..utils.exceptions import OasisException
+from ..utils.fm import (
+    canonical_profiles_fm_terms,
+    canonical_profiles_grouped_fm_terms,
+    get_calc_rule,
+    get_fm_terms,
+)
 from ..utils.values import get_utctimestamp
 from ..models import OasisModel
 from .pipeline import OasisFilesPipeline
@@ -615,98 +621,56 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             canacc_df.columns = canacc_df.columns.str.lower()
         
         columns = [
-            'itemid', 'canlocid', 'levelid', 'layerid', 'aggid', 'policytcid', 'deductible',
-            'limit', 'share', 'deductibletype', 'calcrule', 'tiv', 'fm_level'
+            'itemid', 'canlocid', 'fm_level', 'layerid', 'aggid', 'policytcid', 'deductible',
+            'limit', 'share', 'deductibletype', 'calcrule', 'tiv'
         ]
 
         cep = canonical_exposures_profile
         cap = canonical_account_profile
 
-        fm_term_fields = {
-            fm_level.lower(): {
-                gi['ProfileElementName'].lower(): gi for gi in list(g)
-            } for fm_level, g in itertools.groupby(
-                sorted(
-                   [v for v in cep.values() + cap.values() if 'FMLevel' in v and v['FMTermType'].lower() in ['tiv', 'deductible', 'limit']], 
-                    key=lambda d: d['FMLevelOrder']
-                ),
-                key=lambda f: f['FMLevel']
-            )
-        }
+        gfmt = canonical_profiles_grouped_fm_terms(canonical_profiles=[cep, cap])
 
-        fm_levels = sorted(fm_term_fields, key=lambda f: fm_term_fields[f].values()[0]['FMLevelOrder'])
-
-        grouped_fm_term_fields = {
-            fm_level: {
-                k:{gi['FMTermType'].lower():gi for gi in list(g)} for k, g in itertools.groupby(sorted(fm_term_fields[fm_level].values(), key=lambda f: f['ProfileElementName']), key=lambda f: f['FMTermGroupID'])
-            } for fm_level in fm_levels
-        }
+        fm_levels = sorted(gfmt.keys())
 
         preset_data = list(
             itertools.product(
                 fm_levels,
-                zip(list(gulm_df.item_id.values), list(gulm_df.canloc_id.values), list(gulm_df.tiv.values)))
+                zip(list(gulm_df.item_id.values), list(gulm_df.canloc_id.values), [1]*len(gulm_df), list(gulm_df.tiv.values)))
         )
-        fm_data = [
+
+        layer_ids = [(i + 1) for i in range(len(canacc_df.policynum.values))]
+
+        if max(layer_ids) > 1:
+            preset_data.extend([
+                (t[1][0], (t[1][1][0], t[1][1][1], t[0], t[1][1][3]))
+                for t in itertools.product(layer_ids[1:], preset_data[-len(gulm_df):])
+            ])
+
+        data = [
             {
-                k:v for k, v in zip(columns, [item_id,canloc_id,None,None, None,None,None,None,None,None,None,tiv,fm_level])
-            } for fm_level, (item_id, canloc_id, tiv) in preset_data
+                k:v for k, v in zip(columns, [item_id,canloc_id,fm_levels.index([fml for fml in fm_levels if fml == fm_level][0]) + 1,layer_id, None,None,None,None,None,None,None,tiv])
+            } for fm_level, (item_id, canloc_id, layer_id, tiv) in preset_data
         ]
 
-        fm_df = pd.DataFrame(columns=columns, data=fm_data)
+        fm_df = pd.DataFrame(columns=columns, data=data)
 
         for i in range(len(fm_df)):
             fm_item = fm_df.iloc[i]
+            level_id = fm_item['fm_level']
             canexp_item = canexp_df[canexp_df['row_id'] == fm_item['canlocid']]
+            tiv = fm_item['tiv']
+            item_layer = list(canacc_df[canacc_df['accntnum'] == int(canexp_item['accntnum'])]['policynum'].values)[int(fm_item['layerid']) - 1]
+            canacc_item = canacc_df[canacc_df['accntnum'] == int(canexp_item['accntnum'])][canacc_df['policynum'] == item_layer]
 
-            if fm_item['fm_level'] == 'coverage':
-                for gid in grouped_fm_term_fields['coverage']:
-                    tiv_field_name = grouped_fm_term_fields['coverage'][gid]['tiv']['ProfileElementName'].lower()
-                    if tiv_field_name in canexp_item and float(canexp_item[tiv_field_name]) == float(fm_item['tiv']):
-                        limit_field_name = grouped_fm_term_fields['coverage'][gid]['limit']['ProfileElementName'].lower()
-                        limit_val = float(canexp_item[limit_field_name])
-                        fm_df.at[i,'limit'] = limit_val if limit_val > 1 else (limit_val * float(fm_item['tiv']))
+            fm_terms = get_fm_terms(canexp_item, canacc_item, fm_item, gfmt)
 
-                        ded_field_name = grouped_fm_term_fields['coverage'][gid]['deductible']['ProfileElementName'].lower()
-                        ded_val = float(canexp_item[ded_field_name])
-                        fm_df.at[i,'deductible'] = ded_val if ded_val > 1 else (ded_val * float(fm_item['tiv']))
+            calc_rule = get_calc_rule(fm_terms['limit'], fm_terms['share'], fm_terms['deductible_type'])
 
-                        ded_type = grouped_fm_term_fields['coverage'][gid]['deductible']['DeductibleType'] if 'DeductibleType' in grouped_fm_term_fields['coverage'][gid]['deductible'] else u'B'
-                        fm_df.at[i,'deductibletype'] = ded_type
-
-                        break
-            else:
-                limit_field_name = grouped_fm_term_fields[fm_item['fm_level']][1]['limit']['ProfileElementName'].lower() if 'limit' in grouped_fm_term_fields[fm_item['fm_level']][1] else None
-                limit_val = float(canexp_item[limit_field_name]) if limit_field_name and limit_field_name in canexp_item else 0
-                fm_df.at[i,'limit'] = limit_val if limit_val > 1 else (limit_val * float(fm_item['tiv']))
-
-                ded_field_name = grouped_fm_term_fields[fm_item['fm_level']][1]['deductible']['ProfileElementName'].lower() if 'deductible' in grouped_fm_term_fields[fm_item['fm_level']][1] else None
-                ded_val = float(canexp_item[ded_field_name]) if ded_field_name and ded_field_name in canexp_item else 0
-                fm_df.at[i,'deductible'] = ded_val if ded_val > 1 else (ded_val * float(fm_item['tiv']))
-
-                ded_type = grouped_fm_term_fields['coverage'][1]['deductible']['DeductibleType'] if 'DeductibleType' in grouped_fm_term_fields['coverage'][1]['deductible'] else u'B'
-                fm_df.at[i,'deductibletype'] = ded_type
-
-            share_field_name = grouped_fm_term_fields['account'][1]['limit']['ProfileElementName'].lower() if 'limit' in grouped_fm_term_fields['account'][1] else None
-            share_val = float(canexp_item[share_field_name]) if share_field_name and share_field_name in canexp_item else 0
-            fm_df.at[i,'share'] = share_val
-
-
-            if limit_val == share_val == 0 and ded_type == 'B':
-                calc_rule = 12
-            elif limit_val == 0 and share_val > 0 and ded_type == 'B':
-                calc_rule = 15
-            elif limit_val > 0 and share_val == 0 and ded_type == 'B':
-                calc_rule = 1
-            elif ded_type == 'MI':
-                calc_rule = 11
-            elif ded_type == 'MA':
-                calc_rule = 10
-            else:
-                calc_rule = 2
-
+            fm_df.at[i, 'limit'] = fm_terms['limit']
+            fm_df.at[i, 'deductible'] = fm_terms['deductible']
+            fm_df.at[i, 'deductibletype'] = fm_terms['deductible_type']
+            fm_df.at[i, 'share'] = fm_terms['share']
             fm_df.at[i, 'calcrule'] = calc_rule
-
 
     def _write_csvs(self, columns, data_frame, file_path):
         data_frame.to_csv(
@@ -993,7 +957,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         logger.info('\nGenerating keys file {keys_file_path} and keys errors file {keys_errors_file_path}'.format(**kwargs))
         self.get_keys(oasis_model=oasis_model, **kwargs)
 
-        logger.info('\nGenerating Oasis files (exposures=True, FM files={})'.format(include_fm))
+        logger.info('\nGenerating Oasis files (GUL=True, FM={})'.format(include_fm))
         return self.generate_oasis_files(oasis_model=oasis_model, include_fm=include_fm, **kwargs)
 
     def create(self, model_supplier_id, model_id, model_version_id, resources=None):
