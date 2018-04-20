@@ -269,7 +269,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         self.logger.info('\t{}, {}'.format(model_info, model_klc))
 
         self.logger.info('\nCreating Oasis model object')
-        model = OasisExposuresManager().create(
+        model = OasisExposuresManager().create_model(
             model_supplier_id=model_info['supplier_id'],
             model_id=model_info['model_id'],
             model_version_id=model_info['model_version_id'],
@@ -483,7 +483,7 @@ class RunCmd(OasisBaseCommand):
         )
         parser.add_argument(
             '-f', '--canonical-to-model-exposures-transformation-file-path', default=None,
-            help='Canonical exposures validation file (XSD) path'
+            help='Canonical -> model exposures file validation file (XSD) path'
         )
         parser.add_argument('-i', '--include_fm', action='store_false', help='Whether to generate FM files')
         parser.add_argument(
