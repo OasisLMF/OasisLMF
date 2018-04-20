@@ -670,6 +670,18 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             fm_df.at[i, 'share'] = fm_terms['share']
             fm_df.at[i, 'calcrule'] = fm_terms['calc_rule']
 
+        policytc_df = fm_df.drop([col for col in columns if not col in ['limit', 'deductible', 'share', 'calcrule']], axis=1).drop_duplicates()
+        policytc_ids = {
+            u'{}'.format(tuple(policytc_row)):policytc_id for policytc_row, policytc_id in zip(policytc_df.values, [(i + 1) for i in range(len(policytc_df))])
+        }
+
+        for i in range(len(fm_df)):
+            fm_item = fm_df.iloc[i]
+            t = tuple(fm_item[k] for k in ('deductible', 'limit', 'share', 'calcrule'))
+            policytc_id = policytc_ids[u'{}'.format(t)]
+            fm_df.at[i, 'policytcid'] = policytc_id
+
+
     def _write_csvs(self, columns, data_frame, file_path):
         data_frame.to_csv(
             columns=columns,
