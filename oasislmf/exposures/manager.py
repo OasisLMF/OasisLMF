@@ -23,7 +23,10 @@ from ..utils.fm import (
     canonical_profiles_fm_terms,
     canonical_profiles_grouped_fm_terms,
     get_calc_rule,
-    get_fm_terms,
+    get_deductible,
+    get_deductible_type,
+    get_limit,
+    get_share
 )
 from ..utils.values import get_utctimestamp
 from ..models import OasisModel
@@ -650,38 +653,31 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         data = [
             {
-                k:v for k, v in zip(columns, [item_id,canloc_id,fm_levels.index([fml for fml in fm_levels if fml == fm_level][0]) + 1,layer_id, None,None,None,None,None,None,None,tiv])
+                k:v for k, v in zip(
+                    columns,
+                    [item_id,canloc_id,fm_levels.index([fml for fml in fm_levels if fml == fm_level][0]) + 1,layer_id, 0,0,0.0,0.0,0.0,u'B',2,tiv])
             } for fm_level, (item_id, canloc_id, layer_id, tiv) in preset_data
         ]
 
         fm_df = pd.DataFrame(columns=columns, data=data)
 
-        for i in range(len(fm_df)):
-            fm_item = fm_df.iloc[i]
-            level_id = fm_item['fm_level']
-            canexp_item = canexp_df[canexp_df['row_id'] == fm_item['canlocid']]
-            tiv = fm_item['tiv']
-            item_layer = list(canacc_df[canacc_df['accntnum'] == int(canexp_item['accntnum'])]['policynum'].values)[int(fm_item['layerid']) - 1]
-            canacc_item = canacc_df[canacc_df['accntnum'] == int(canexp_item['accntnum'])][canacc_df['policynum'] == item_layer]
+        for col in columns:
+            if col in ['itemid', 'canlocid', 'fm_level', 'layerid', 'aggid', 'policytcid', 'calcrule']:
+                fm_df[col] = fm_df[col].astype(int)
+            elif col in ['limit', 'deductible', 'share', 'tiv']:
+                fm_df[col] = fm_df[col].astype(float)
+            elif col in ['deductibletype']:
+                fm_df[col] = fm_df[col].astype(str)
 
-            fm_terms = get_fm_terms(canexp_item, canacc_item, fm_item, gfmt)
+        fm_df['index'] = fm_df.index
 
-            fm_df.at[i, 'limit'] = fm_terms['limit']
-            fm_df.at[i, 'deductible'] = fm_terms['deductible']
-            fm_df.at[i, 'deductibletype'] = fm_terms['deductible_type']
-            fm_df.at[i, 'share'] = fm_terms['share']
-            fm_df.at[i, 'calcrule'] = fm_terms['calc_rule']
+        fm_df['limit'] = fm_df['index'].apply(lambda i: get_limit(canexp_df, canacc_df, fm_df, i))
+        fm_df['deductible'] = fm_df['index'].apply(lambda i: get_deductible(canexp_df, canacc_df, fm_df, i))
+        fm_df['deductibletype'] = fm_df['index'].apply(lambda i: get_deductible_type(canexp_df, canacc_df, fm_df, i))
+        fm_df['share'] = fm_df['index'].apply(lambda i: get_share(canexp_df, canacc_df, fm_df, i))
+        fm_df['calcrule'] = fm_df['index'].apply(lambda i: get_calc_rule(canexp_df, canacc_df, fm_df, gfmt, i))
 
-        policytc_df = fm_df.drop([col for col in columns if not col in ['limit', 'deductible', 'share', 'calcrule']], axis=1).drop_duplicates()
-        policytc_ids = {
-            u'{}'.format(tuple(policytc_row)):policytc_id for policytc_row, policytc_id in zip(policytc_df.values, [(i + 1) for i in range(len(policytc_df))])
-        }
-
-        for i in range(len(fm_df)):
-            fm_item = fm_df.iloc[i]
-            t = tuple(fm_item[k] for k in ('deductible', 'limit', 'share', 'calcrule'))
-            policytc_id = policytc_ids[u'{}'.format(t)]
-            fm_df.at[i, 'policytcid'] = policytc_id
+        fm_df['policytcid'] = fm_df['index'].apply(lambda i: get_policytc_id(fm_df, i))
 
 
     def _write_csvs(self, columns, data_frame, file_path):
