@@ -140,6 +140,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         The required resources must be provided either via the model object
         resources dict or ``kwargs``.
         """
+        pass
 
     def generate_fm_files(self, oasis_model=None, **kwargs):
         """
@@ -148,6 +149,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         The required resources must be provided either via the model object
         resources dict or ``kwargs``.
         """
+        pass
 
     def generate_oasis_files(self, oasis_model=None, include_fm=False, **kwargs):
         """
@@ -158,7 +160,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         pass
 
-    def create(self, model_supplier_id, model_id, model_version_id, resources=None):
+    def create_model(self, model_supplier_id, model_id, model_version_id, resources=None):
         """
         Creates and returns an Oasis model with the provisioned resources if
         a resources dict was provided.
@@ -632,11 +634,11 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         fm_levels = sorted(gfmt.keys())
 
-        preset_data = list(
-            itertools.product(
+        preset_data = [
+            p for p in itertools.product(
                 fm_levels,
                 zip(list(gulm_df.item_id.values), list(gulm_df.canloc_id.values), [1]*len(gulm_df), list(gulm_df.tiv.values)))
-        )
+        ]
 
         layer_ids = [(i + 1) for i in range(len(canacc_df.policynum.values))]
 
@@ -814,7 +816,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             fm_summaryxref.csv
         """
         kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
-        self.load_fm_exposure_master_data_frame(**kwargs)
+        self.load_fm_exposure_master_data_frame(oasis_model=oasis_model, **kwargs)
 
         self.generate_fm_policytc_file(oasis_model=oasis_model, **kwargs)
         self.generate_fm_profile_file(oasis_model=oasis_model, **kwargs)
@@ -970,7 +972,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         logger.info('\nGenerating Oasis files (GUL=True, FM={})'.format(include_fm))
         return self.generate_oasis_files(oasis_model=oasis_model, include_fm=include_fm, **kwargs)
 
-    def create(self, model_supplier_id, model_id, model_version_id, resources=None):
+    def create_model(self, model_supplier_id, model_id, model_version_id, resources=None):
         model = OasisModel(
             model_supplier_id,
             model_id,
