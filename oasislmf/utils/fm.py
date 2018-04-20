@@ -81,12 +81,12 @@ def get_limit(canexp_item, canacc_item, fm_item, canonical_profiles_grouped_fm_t
         limit_field = gfmt[fm_level][1]['limit'] if 'limit' in gfmt[fm_level][1] else None
 
     if not limit_field:
-        return 0
+        return 0.0
 
     can_item = canexp_item if limit_field['ProfileType'].lower() == 'loc' else canacc_item
     
     limit_field_name = limit_field['ProfileElementName'].lower()
-    limit_val = float(can_item[limit_field_name]) if limit_field_name in can_item else 0
+    limit_val = float(can_item[limit_field_name]) if limit_field_name in can_item else 0.0
 
     return limit_val
 
@@ -115,12 +115,12 @@ def get_deductible(canexp_item, canacc_item, fm_item, canonical_profiles_grouped
         ded_field = gfmt[fm_level][1]['deductible'] if 'deductible' in gfmt[fm_level][1] else None
 
     if not ded_field:
-        return 0
+        return 0.0
 
     can_item = canexp_item if ded_field['ProfileType'].lower() == 'loc' else canacc_item
     
     ded_field_name = ded_field['ProfileElementName'].lower()
-    ded_val = float(can_item[ded_field_name]) if ded_field_name in can_item else 0
+    ded_val = float(can_item[ded_field_name]) if ded_field_name in can_item else 0.0
 
     return ded_val
 
@@ -175,12 +175,12 @@ def get_share(canexp_item, canacc_item, fm_item, canonical_profiles_grouped_fm_t
         share_field = gfmt[fm_level][1]['share'] if 'share' in gfmt[fm_level][1] else None
 
     if not share_field:
-        return 0
+        return 0.0
 
     can_item = canexp_item if share_field['ProfileType'].lower() == 'loc' else canacc_item
     
     share_field_name = share_field['ProfileElementName'].lower()
-    share_val = float(can_item[share_field_name]) if share_field_name in can_item else 0
+    share_val = float(can_item[share_field_name]) if share_field_name in can_item else 0.0
 
     return share_val
 
@@ -212,11 +212,12 @@ def get_fm_terms(canexp_item, canacc_item, fm_item, canonical_profiles_grouped_f
     can_item = None
     
     fm_terms = {
-        'limit': 0,
-        'deductible': 0,
+        'tiv': tiv,
+        'limit': 0.0,
+        'deductible': 0.0,
         'deductible_type': u'B',
-        'share': 0,
-        'calc_rule': 2
+        'share': 0.0,
+        'calc_rule': 2,
     }
     
     if is_coverage_level:
@@ -239,13 +240,13 @@ def get_fm_terms(canexp_item, canacc_item, fm_item, canonical_profiles_grouped_f
     if limit_field:
         can_item = canexp_item if limit_field['ProfileType'].lower() == 'loc' else canacc_item
         limit_field_name = limit_field['ProfileElementName'].lower()
-        limit_val = float(can_item[limit_field_name]) if limit_field_name in can_item else 0
+        limit_val = float(can_item[limit_field_name]) if limit_field_name in can_item else 0.0
         fm_terms['limit'] = limit_val
 
     if ded_field:
         can_item = canexp_item if ded_field['ProfileType'].lower() == 'loc' else canacc_item
         ded_field_name = ded_field['ProfileElementName'].lower()
-        ded_val = float(can_item[ded_field_name]) if ded_field_name in can_item else 0
+        ded_val = float(can_item[ded_field_name]) if ded_field_name in can_item else 0.0
         fm_terms['deductible'] = ded_val
 
     fm_terms['deductible_type'] = ded_type
@@ -253,7 +254,7 @@ def get_fm_terms(canexp_item, canacc_item, fm_item, canonical_profiles_grouped_f
     if share_field:
         can_item = canexp_item if share_field['ProfileType'].lower() == 'loc' else canacc_item
         share_field_name = share_field['ProfileElementName'].lower()
-        share_val = float(can_item[share_field_name]) if share_field_name in can_item else 0
+        share_val = float(can_item[share_field_name]) if share_field_name in can_item else 0.0
         fm_terms['share'] = share_val
 
     calc_rule = get_calc_rule(fm_terms['limit'], fm_terms['share'], fm_terms['deductible_type'])
