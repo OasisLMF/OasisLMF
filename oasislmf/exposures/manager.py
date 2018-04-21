@@ -701,26 +701,25 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         task_q = queue.Queue()
 
-        for t in tasks:
-            task_q.put(t)
+        for task in tasks:
+            task_q.put(task)
 
-        class FMTempTableTermColumnWorker(threading.Thread):
-            def __init__(self, task_q, result_q, stopper):
-                super(self.__class__, self).__init__()
-                self.task_q = task_q
-                self.result_q = result_q
-                self.stopper = stopper
+        def run_fm_calc(task_q, result_q, stopper):
+            while not stopper.is_set():
+                try:
+                    column, func, gfmt_copy, canexp_df_copy, canacc_df_copy, fm_df_copy = task_q.get_nowait()
+                except queue.Empty:
+                    break
+                else:
+                    result = fm_df_copy['index'].apply(lambda i: func(gfmt_copy, canexp_df_copy, canacc_df_copy, fm_df_copy, i))
+                    result_q.put((column, result,))
+                    task_q.task_done()
 
-            def run(self):
-                while not self.stopper.is_set():
-                    try:
-                        column, func, gfmt_copy, canexp_df_copy, canacc_df_copy, fm_df_copy = self.task_q.get_nowait()
-                    except queue.Empty:
-                        break
-                    else:
-                        result = fm_df_copy['index'].apply(lambda i: func(gfmt_copy, canexp_df_copy, canacc_df_copy, fm_df_copy, i))
-                        self.result_q.put((column, result,))
-                        self.task_q.task_done()
+        result_q = queue.Queue()
+
+        stopper = threading.Event()
+
+        workers = [threading.Thread(target=run_fm_calc, args=(task_q, result_q, stopper,)) for c in fm_term_columns]
 
         class SignalHandler(object):
             def __init__(self, stopper, workers):
@@ -734,12 +733,6 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                     worker.join()
 
                 sys.exit(0)
-
-        result_q = queue.Queue()
-
-        stopper = threading.Event()
-
-        workers = [FMTempTableTermColumnWorker(task_q, result_q, stopper) for c in fm_term_columns]
 
         handler = SignalHandler(stopper, workers)
         signal.signal(signal.SIGINT, handler)
@@ -760,7 +753,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
     def write_items_file(self, gul_master_data_frame, items_file_path):
         """
-        Generates an items file for the given ``oasis_model``.
+        Generates an items file.
         """
         gulm_df = gul_master_data_frame
 
@@ -776,7 +769,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
     def write_coverages_file(self, gul_master_data_frame, coverages_file_path):
         """
-        Generates a coverages file for the given ``oasis_model``.
+        Generates a coverages file.
         """
         gulm_df = gul_master_data_frame
 
@@ -792,7 +785,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
     def write_gulsummaryxref_file(self, gul_master_data_frame, gulsummaryxref_file_path):
         """
-        Generates a gulsummaryxref file for the given ``oasis_model``.
+        Generates a gulsummaryxref file.
         """
         gulm_df = gul_master_data_frame
 
@@ -808,7 +801,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
     def write_fm_policytc_file(self, fm_master_data_frame, fm_policytc_file_path):
         """
-        Generates an FM policy T & C file for the given ``oasis_model``.
+        Generates an FM policy T & C file.
         """
         fm_df = fm_master_data_frame
 
@@ -824,25 +817,25 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
     def write_fm_profile_file(self, fm_master_data_frame, fm_profile_file_path):
         """
-        Generates an FM profile file for the given ``oasis_model``.
+        Generates an FM profile file.
         """
         pass
 
     def write_fm_programme_file(self, fm_master_data_frame, fm_programme_file_path):
         """
-        Generates a FM programme file for the given ``oasis_model``.
+        Generates a FM programme file.
         """
         pass
 
     def write_fm_xref_file(self, fm_master_data_frame, fm_xref_file_path):
         """
-        Generates a FM xref file for the given ``oasis_model``.
+        Generates a FM xref file.
         """
         pass
 
     def write_fmsummaryxref_file(self, fm_master_data_frame, fmsummaryxref_file_path):
         """
-        Generates a FM summaryxref file for the given ``oasis_model``.
+        Generates a FM summaryxref file.
         """
         pass
 
