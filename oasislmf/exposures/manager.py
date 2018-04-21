@@ -5,6 +5,7 @@ __all__ = [
     'OasisExposuresManager'
 ]
 
+import copy
 import io
 import itertools
 import json
@@ -12,6 +13,9 @@ import logging
 import os
 import shutil
 import time
+
+from queue import Queue
+from threading import Thread
 
 import pandas as pd
 import six
@@ -680,11 +684,45 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         fm_df['index'] = fm_df.index
 
-        fm_df['limit'] = fm_df['index'].apply(lambda i: get_limit(gfmt, canexp_df, canacc_df, fm_df, i))
-        fm_df['deductible'] = fm_df['index'].apply(lambda i: get_deductible(gfmt, canexp_df, canacc_df, fm_df, i))
-        fm_df['deductible_type'] = fm_df['index'].apply(lambda i: get_deductible_type(gfmt, canexp_df, canacc_df, fm_df, i))
-        fm_df['share'] = fm_df['index'].apply(lambda i: get_share(gfmt, canexp_df, canacc_df, fm_df, i))
-        fm_df['calcrule_id'] = fm_df['index'].apply(lambda i: get_calc_rule(gfmt, canexp_df, canacc_df, fm_df, i))
+        fm_term_columns = ('limit', 'deductible', 'deductible_type','share', 'calcrule_id')
+
+        columns_funcs = zip(
+            fm_term_columns,
+            (get_limit, get_deductible, get_deductible_type, get_share, get_calc_rule)
+        )
+
+        tasks = [
+            (column, func, copy.deepcopy(gfmt), canexp_df.copy(deep=True), canacc_df.copy(deep=True), fm_df.copy(deep=True))
+            for column, func in columns_funcs
+        ]
+
+        results = {column:None for column in fm_term_columns}
+
+        queue = Queue()
+
+        class FMTempTableTermColumnWorker(Thread):
+            def __init__(self, queue):
+                Thread.__init__(self)
+                self.queue = queue
+
+            def run(self):
+                global results
+                while True:
+                    # Get the work from the queue and expand the tuple
+                    column, func, gfmt_copy, canexp_df_copy, canacc_df_copy, fm_df_copy = self.queue.get()
+                    results[column] = fm_df_copy['index'].apply(lambda i: func(gfmt_copy, canexp_df_copy, canacc_df_copy, fm_df_copy, i))
+                    self.queue.task_done()
+
+        for i in range(len(tasks)):
+            worker = FMTempTableTermColumnWorker(queue)
+            worker.daemon = True
+            worker.start()
+
+        for t in tasks:
+            queue.put(t)
+
+        for column in results:
+            fm_df[column] = results[column]
 
         fm_df['policytc_id'] = fm_df['index'].apply(lambda i: get_policytc_id(fm_df, i))
 
