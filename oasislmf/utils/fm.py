@@ -12,8 +12,8 @@ __all__ = [
     'get_fm_terms',
     'get_limit',
     'get_limit_by_item',
-    'get_policytc_ids',
     'get_policytc_id',
+    'get_policytc_ids',
     'get_share',
     'get_share_by_item'
 ]
@@ -37,9 +37,9 @@ def canonical_profiles_fm_terms(canonical_profiles=[], canonical_profiles_paths=
     cp = dict((k,v) for p in canonical_profiles for k, v in p.items())
 
     return {
-        fm_level: {
+        level_id: {
             gi['ProfileElementName'].lower(): gi for gi in list(g)
-        } for fm_level, g in itertools.groupby(
+        } for level_id, g in itertools.groupby(
             sorted(
                [v for v in cp.values() if 'FMLevel' in v and v['FMTermType'].lower() in ['tiv', 'deductible', 'limit', 'share']], 
                 key=lambda d: d['FMLevel']
@@ -58,21 +58,23 @@ def canonical_profiles_grouped_fm_terms(canonical_profiles=[], canonical_profile
     fm_levels = sorted(fm_terms.keys())
 
     return {
-        fm_level: {
-            k:{gi['FMTermType'].lower():gi for gi in list(g)} for k, g in itertools.groupby(sorted(fm_terms[fm_level].values(), key=lambda f: f['ProfileElementName']), key=lambda f: f['FMTermGroupID'])
-        } for fm_level in fm_levels
+        level_id: {
+            k:{gi['FMTermType'].lower():gi for gi in list(g)} for k, g in itertools.groupby(sorted(fm_terms[level_id].values(), key=lambda f: f['ProfileElementName']), key=lambda f: f['FMTermGroupID'])
+        } for level_id in fm_levels
     }
 
 
-def get_calc_rule(canexp_df, canacc_df, fmitems_df, canonical_profiles_grouped_fm_terms, row_index):
+def get_calc_rule(canonical_profiles_grouped_fm_terms, canexp_df, canacc_df, fmitems_df, row_index):
+
+    gfmt = canonical_profiles_grouped_fm_terms
 
     fm_item = fmitems_df.xs(row_index)
-    fm_level = fm_item['fm_level']
-    canexp_item = canexp_df[canexp_df['row_id'] == fm_item['canlocid']]
-    item_layer = list(canacc_df[canacc_df['accntnum'] == int(canexp_item['accntnum'])]['policynum'].values)[int(fm_item['layerid']) - 1]
+    level_id = fm_item['level_id']
+    canexp_item = canexp_df[canexp_df['row_id'] == fm_item['canloc_id']]
+    item_layer = list(canacc_df[canacc_df['accntnum'] == int(canexp_item['accntnum'])]['policynum'].values)[int(fm_item['layer_id']) - 1]
     canacc_item = canacc_df[canacc_df['accntnum'] == int(canexp_item['accntnum'])][canacc_df['policynum'] == item_layer]
 
-    fm_terms = get_fm_terms(canexp_item, canacc_item, fm_item, canonical_profiles_grouped_fm_terms)
+    fm_terms = get_fm_terms(gfmt, canexp_item, canacc_item, fm_item)
 
     return fm_terms['calc_rule']
 
@@ -92,39 +94,41 @@ def get_calc_rule_by_value(limit, share, ded_type):
         return 2
 
 
-def get_deductible(canexp_df, canacc_df, fmitems_df, row_index):
-
-    fm_item = fmitems_df.xs(row_index)
-    fm_level = fm_item['fm_level']
-    canexp_item = canexp_df[canexp_df['row_id'] == fm_item['canlocid']]
-    item_layer = list(canacc_df[canacc_df['accntnum'] == int(canexp_item['accntnum'])]['policynum'].values)[int(fm_item['layerid']) - 1]
-    canacc_item = canacc_df[canacc_df['accntnum'] == int(canexp_item['accntnum'])][canacc_df['policynum'] == item_layer]
-
-    return get_deductible_by_item(canexp_item, canacc_item, fm_item, gfmt)
-
-
-def get_deductible_by_item(canexp_item, canacc_item, fm_item, canonical_profiles_grouped_fm_terms):
+def get_deductible(canonical_profiles_grouped_fm_terms, canexp_df, canacc_df, fmitems_df, row_index):
 
     gfmt = canonical_profiles_grouped_fm_terms
 
-    fm_level = fm_item['fm_level']
+    fm_item = fmitems_df.xs(row_index)
+    level_id = fm_item['level_id']
+    canexp_item = canexp_df[canexp_df['row_id'] == fm_item['canloc_id']]
+    item_layer = list(canacc_df[canacc_df['accntnum'] == int(canexp_item['accntnum'])]['policynum'].values)[int(fm_item['layer_id']) - 1]
+    canacc_item = canacc_df[canacc_df['accntnum'] == int(canexp_item['accntnum'])][canacc_df['policynum'] == item_layer]
+
+    return get_deductible_by_item(gfmt, canexp_item, canacc_item, fm_item)
+
+
+def get_deductible_by_item(canonical_profiles_grouped_fm_terms, canexp_item, canacc_item, fm_item):
+
+    gfmt = canonical_profiles_grouped_fm_terms
+
+    level_id = fm_item['level_id']
     tiv = fm_item['tiv']
 
-    is_coverage_level = any('tiv' in gfmt[fm_level][gid] for gid in gfmt[fm_level])
+    is_coverage_level = any('tiv' in gfmt[level_id][gid] for gid in gfmt[level_id])
 
     can_item = None
     ded_field = None
 
     if is_coverage_level:
-        for gid in gfmt[fm_level]:
-            tiv_field = gfmt[fm_level][gid]['tiv']
+        for gid in gfmt[level_id]:
+            tiv_field = gfmt[level_id][gid]['tiv']
             tiv_field_name = tiv_field['ProfileElementName'].lower()
 
             if tiv_field_name in canexp_item and float(canexp_item[tiv_field_name]) == float(tiv):
-                ded_field = gfmt[fm_level][gid]['deductible'] if 'deductible' in gfmt[fm_level][gid] else None
+                ded_field = gfmt[level_id][gid]['deductible'] if 'deductible' in gfmt[level_id][gid] else None
                 break
     else:
-        ded_field = gfmt[fm_level][1]['deductible'] if 'deductible' in gfmt[fm_level][1] else None
+        ded_field = gfmt[level_id][1]['deductible'] if 'deductible' in gfmt[level_id][1] else None
 
     if not ded_field:
         return 0.0
@@ -136,51 +140,53 @@ def get_deductible_by_item(canexp_item, canacc_item, fm_item, canonical_profiles
 
     return ded_val
 
-def get_deductible_type(canexp_df, canacc_df, fmitems_df, row_index):
-
-    fm_item = fmitems_df.xs(row_index)
-    fm_level = fm_item['fm_level']
-    canexp_item = canexp_df[canexp_df['row_id'] == fm_item['canlocid']]
-    item_layer = list(canacc_df[canacc_df['accntnum'] == int(canexp_item['accntnum'])]['policynum'].values)[int(fm_item['layerid']) - 1]
-    canacc_item = canacc_df[canacc_df['accntnum'] == int(canexp_item['accntnum'])][canacc_df['policynum'] == item_layer]
-
-    return get_deductible_type_by_item(canexp_item, canacc_item, fm_item, gfmt)
-
-
-def get_deductible_type_by_item(canexp_item, canacc_item, fm_item, canonical_profiles_grouped_fm_terms):
+def get_deductible_type(canonical_profiles_grouped_fm_terms, canexp_df, canacc_df, fmitems_df, row_index):
 
     gfmt = canonical_profiles_grouped_fm_terms
 
-    fm_level = fm_item['fm_level']
+    fm_item = fmitems_df.xs(row_index)
+    level_id = fm_item['level_id']
+    canexp_item = canexp_df[canexp_df['row_id'] == fm_item['canloc_id']]
+    item_layer = list(canacc_df[canacc_df['accntnum'] == int(canexp_item['accntnum'])]['policynum'].values)[int(fm_item['layer_id']) - 1]
+    canacc_item = canacc_df[canacc_df['accntnum'] == int(canexp_item['accntnum'])][canacc_df['policynum'] == item_layer]
+
+    return get_deductible_type_by_item(gfmt, canexp_item, canacc_item, fm_item)
+
+
+def get_deductible_type_by_item(canonical_profiles_grouped_fm_terms, canexp_item, canacc_item, fm_item):
+
+    gfmt = canonical_profiles_grouped_fm_terms
+
+    level_id = fm_item['level_id']
     tiv = fm_item['tiv']
 
-    is_coverage_level = any('tiv' in gfmt[fm_level][gid] for gid in gfmt[fm_level])
+    is_coverage_level = any('tiv' in gfmt[level_id][gid] for gid in gfmt[level_id])
 
     can_item = None
     ded_field = None
 
     if is_coverage_level:
-        for gid in gfmt[fm_level]:
-            tiv_field = gfmt[fm_level][gid]['tiv']
+        for gid in gfmt[level_id]:
+            tiv_field = gfmt[level_id][gid]['tiv']
             tiv_field_name = tiv_field['ProfileElementName'].lower()
 
             if tiv_field_name in canexp_item and float(canexp_item[tiv_field_name]) == float(tiv):
-                ded_field = gfmt[fm_level][gid]['deductible'] if 'deductible' in gfmt[fm_level][gid] else None
+                ded_field = gfmt[level_id][gid]['deductible'] if 'deductible' in gfmt[level_id][gid] else None
                 break
     else:
-        ded_field = gfmt[fm_level][1]['deductible'] if 'deductible' in gfmt[fm_level][1] else None
+        ded_field = gfmt[level_id][1]['deductible'] if 'deductible' in gfmt[level_id][1] else None
 
     return ded_field['DeductibleType'] if ded_field else u'B'
 
 
-def get_fm_terms(canexp_item, canacc_item, fm_item, canonical_profiles_grouped_fm_terms):
+def get_fm_terms(canonical_profiles_grouped_fm_terms, canexp_item, canacc_item, fm_item):
 
     gfmt = canonical_profiles_grouped_fm_terms
 
-    fm_level = fm_item['fm_level']
+    level_id = fm_item['level_id']
     tiv = fm_item['tiv']
 
-    is_coverage_level = any('tiv' in gfmt[fm_level][gid] for gid in gfmt[fm_level])
+    is_coverage_level = any('tiv' in gfmt[level_id][gid] for gid in gfmt[level_id])
 
     can_item = None
     
@@ -194,21 +200,21 @@ def get_fm_terms(canexp_item, canacc_item, fm_item, canonical_profiles_grouped_f
     }
     
     if is_coverage_level:
-        for gid in gfmt[fm_level]:
-            tiv_field = gfmt[fm_level][gid]['tiv']
+        for gid in gfmt[level_id]:
+            tiv_field = gfmt[level_id][gid]['tiv']
             tiv_field_name = tiv_field['ProfileElementName'].lower()
 
             if tiv_field_name in canexp_item and float(canexp_item[tiv_field_name]) == float(tiv):
-                limit_field = gfmt[fm_level][gid]['limit'] if 'limit' in gfmt[fm_level][gid] else None
-                ded_field = gfmt[fm_level][gid]['deductible'] if 'deductible' in gfmt[fm_level][gid] else None
+                limit_field = gfmt[level_id][gid]['limit'] if 'limit' in gfmt[level_id][gid] else None
+                ded_field = gfmt[level_id][gid]['deductible'] if 'deductible' in gfmt[level_id][gid] else None
                 ded_type = ded_field['DeductibleType'] if ded_field else u'B'
-                share_field = gfmt[fm_level][gid]['share'] if 'share' in gfmt[fm_level][gid] else None
+                share_field = gfmt[level_id][gid]['share'] if 'share' in gfmt[level_id][gid] else None
                 break
     else:
-            limit_field = gfmt[fm_level][1]['limit'] if 'limit' in gfmt[fm_level][1] else None
-            ded_field = gfmt[fm_level][1]['deductible'] if 'deductible' in gfmt[fm_level][1] else None
+            limit_field = gfmt[level_id][1]['limit'] if 'limit' in gfmt[level_id][1] else None
+            ded_field = gfmt[level_id][1]['deductible'] if 'deductible' in gfmt[level_id][1] else None
             ded_type = ded_field['DeductibleType'] if ded_field else u'B'
-            share_field = gfmt[fm_level][1]['share'] if 'share' in gfmt[fm_level][1] else None
+            share_field = gfmt[level_id][1]['share'] if 'share' in gfmt[level_id][1] else None
 
     if limit_field:
         can_item = canexp_item if limit_field['ProfileType'].lower() == 'loc' else canacc_item
@@ -236,39 +242,41 @@ def get_fm_terms(canexp_item, canacc_item, fm_item, canonical_profiles_grouped_f
     return fm_terms
 
 
-def get_limit(canexp_df, canacc_df, fmitems_df, row_index):
+def get_limit(canonical_profiles_grouped_fm_terms, canexp_df, canacc_df, fmitems_df, row_index):
+
+    gfmt  = canonical_profiles_grouped_fm_terms
 
     fm_item = fmitems_df.xs(row_index)
-    fm_level = fm_item['fm_level']
-    canexp_item = canexp_df[canexp_df['row_id'] == fm_item['canlocid']]
-    item_layer = list(canacc_df[canacc_df['accntnum'] == int(canexp_item['accntnum'])]['policynum'].values)[int(fm_item['layerid']) - 1]
+    level_id = fm_item['level_id']
+    canexp_item = canexp_df[canexp_df['row_id'] == fm_item['canloc_id']]
+    item_layer = list(canacc_df[canacc_df['accntnum'] == int(canexp_item['accntnum'])]['policynum'].values)[int(fm_item['layer_id']) - 1]
     canacc_item = canacc_df[canacc_df['accntnum'] == int(canexp_item['accntnum'])][canacc_df['policynum'] == item_layer]
 
-    return get_limit_by_item(canexp_item, canacc_item, fm_item, gfmt)
+    return get_limit_by_item(gfmt, canexp_item, canacc_item, fm_item)
 
 
-def get_limit_by_item(canexp_item, canacc_item, fm_item, canonical_profiles_grouped_fm_terms):
+def get_limit_by_item(canonical_profiles_grouped_fm_terms, canexp_item, canacc_item, fm_item):
 
     gfmt = canonical_profiles_grouped_fm_terms
 
-    fm_level = fm_item['fm_level']
+    level_id = fm_item['level_id']
     tiv = fm_item['tiv']
 
-    is_coverage_level = any('tiv' in gfmt[fm_level][gid] for gid in gfmt[fm_level])
+    is_coverage_level = any('tiv' in gfmt[level_id][gid] for gid in gfmt[level_id])
 
     can_item = None
     limit_field = None
 
     if is_coverage_level:
-        for gid in gfmt[fm_level]:
-            tiv_field = gfmt[fm_level][gid]['tiv']
+        for gid in gfmt[level_id]:
+            tiv_field = gfmt[level_id][gid]['tiv']
             tiv_field_name = tiv_field['ProfileElementName'].lower()
 
             if tiv_field_name in canexp_item and float(canexp_item[tiv_field_name]) == float(tiv):
-                limit_field = gfmt[fm_level][gid]['limit'] if 'limit' in gfmt[fm_level][gid] else None
+                limit_field = gfmt[level_id][gid]['limit'] if 'limit' in gfmt[level_id][gid] else None
                 break
     else:
-        limit_field = gfmt[fm_level][1]['limit'] if 'limit' in gfmt[fm_level][1] else None
+        limit_field = gfmt[level_id][1]['limit'] if 'limit' in gfmt[level_id][1] else None
 
     if not limit_field:
         return 0.0
@@ -284,14 +292,14 @@ def get_limit_by_item(canexp_item, canacc_item, fm_item, canonical_profiles_grou
 def get_policytc_id(fmitems_df, row_index):
 
     columns = [
-        col for col in fmitems_df.columns if not col in ['limit', 'deductible', 'share', 'calcrule']
+        col for col in fmitems_df.columns if not col in ['limit', 'deductible', 'share', 'calcrule_id']
     ]
 
     policytc_df = fmitems_df.drop(columns, axis=1).drop_duplicates()
     for col in policytc_df.columns:
-        policytc_df[col] = policytc_df[col].astype(float) if col != 'calcrule' else policytc_df[col].astype(int)
+        policytc_df[col] = policytc_df[col].astype(float) if col != 'calcrule_id' else policytc_df[col].astype(int)
 
-    policytc_rows = [tuple(policytc_df.loc[i][col] if col != 'calcrule' else int(policytc_df.loc[i][col]) for col in policytc_df.columns) for i in policytc_df.index]
+    policytc_rows = [tuple(policytc_df.loc[i][col] if col != 'calcrule_id' else int(policytc_df.loc[i][col]) for col in policytc_df.columns) for i in policytc_df.index]
 
     policytc_ids = {
         u'{}'.format(tuple(policytc_row)):policytc_id for policytc_row, policytc_id in zip(policytc_rows, range(1, len(policytc_df) + 1))
@@ -307,14 +315,14 @@ def get_policytc_id(fmitems_df, row_index):
 
 def get_policytc_ids(fmitems_df):
     columns = [
-        col for col in fmitems_df.columns if not col in ['limit', 'deductible', 'share', 'calcrule']
+        col for col in fmitems_df.columns if not col in ['limit', 'deductible', 'share', 'calcrule_id']
     ]
 
     policytc_df = fmitems_df.drop(columns, axis=1).drop_duplicates()
     for col in policytc_df.columns:
-        policytc_df[col] = policytc_df[col].astype(float) if col != 'calcrule' else policytc_df[col].astype(int)
+        policytc_df[col] = policytc_df[col].astype(float) if col != 'calcrule_id' else policytc_df[col].astype(int)
 
-    policytc_rows = [tuple(policytc_df.loc[i][col] if col != 'calcrule' else int(policytc_df.loc[i][col]) for col in policytc_df.columns) for i in policytc_df.index]
+    policytc_rows = [tuple(policytc_df.loc[i][col] if col != 'calcrule_id' else int(policytc_df.loc[i][col]) for col in policytc_df.columns) for i in policytc_df.index]
 
     policytc_ids = {
         u'{}'.format(tuple(policytc_row)):policytc_id for policytc_row, policytc_id in zip(policytc_rows, range(1, len(policytc_df) + 1))
@@ -323,39 +331,41 @@ def get_policytc_ids(fmitems_df):
     return policytc_ids
 
 
-def get_share(canexp_df, canacc_df, fmitems_df, row_index):
-
-    fm_item = fmitems_df.xs(row_index)
-    fm_level = fm_item['fm_level']
-    canexp_item = canexp_df[canexp_df['row_id'] == fm_item['canlocid']]
-    item_layer = list(canacc_df[canacc_df['accntnum'] == int(canexp_item['accntnum'])]['policynum'].values)[int(fm_item['layerid']) - 1]
-    canacc_item = canacc_df[canacc_df['accntnum'] == int(canexp_item['accntnum'])][canacc_df['policynum'] == item_layer]
-
-    return get_share_by_item(canexp_item, canacc_item, fm_item, gfmt)
-
-
-def get_share_by_item(canexp_item, canacc_item, fm_item, canonical_profiles_grouped_fm_terms):
+def get_share(canonical_profiles_grouped_fm_terms, canexp_df, canacc_df, fmitems_df, row_index):
 
     gfmt = canonical_profiles_grouped_fm_terms
 
-    fm_level = fm_item['fm_level']
+    fm_item = fmitems_df.xs(row_index)
+    level_id = fm_item['level_id']
+    canexp_item = canexp_df[canexp_df['row_id'] == fm_item['canloc_id']]
+    item_layer = list(canacc_df[canacc_df['accntnum'] == int(canexp_item['accntnum'])]['policynum'].values)[int(fm_item['layer_id']) - 1]
+    canacc_item = canacc_df[canacc_df['accntnum'] == int(canexp_item['accntnum'])][canacc_df['policynum'] == item_layer]
+
+    return get_share_by_item(gfmt, canexp_item, canacc_item, fm_item)
+
+
+def get_share_by_item(canonical_profiles_grouped_fm_terms, canexp_item, canacc_item, fm_item):
+
+    gfmt = canonical_profiles_grouped_fm_terms
+
+    level_id = fm_item['level_id']
     tiv = fm_item['tiv']
 
-    is_coverage_level = any('tiv' in gfmt[fm_level][gid] for gid in gfmt[fm_level])
+    is_coverage_level = any('tiv' in gfmt[level_id][gid] for gid in gfmt[level_id])
 
     can_item = None
     share_field = None
 
     if is_coverage_level:
-        for gid in gfmt[fm_level]:
-            tiv_field = gfmt[fm_level][gid]['tiv']
+        for gid in gfmt[level_id]:
+            tiv_field = gfmt[level_id][gid]['tiv']
             tiv_field_name = tiv_field['ProfileElementName'].lower()
 
             if tiv_field_name in canexp_item and float(canexp_item[tiv_field_name]) == float(tiv):
-                share_field = gfmt[fm_level][gid]['share'] if 'share' in gfmt[fm_level][gid] else None
+                share_field = gfmt[level_id][gid]['share'] if 'share' in gfmt[level_id][gid] else None
                 break
     else:
-        share_field = gfmt[fm_level][1]['share'] if 'share' in gfmt[fm_level][1] else None
+        share_field = gfmt[level_id][1]['share'] if 'share' in gfmt[level_id][1] else None
 
     if not share_field:
         return 0.0

@@ -4,6 +4,7 @@ import io
 import json
 import os
 import subprocess
+import sys
 
 from argparse import RawDescriptionHelpFormatter
 
@@ -254,6 +255,8 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
 
         include_fm = inputs.get('include_fm', default=False)
 
+        self.logger.info('\nGenerate FM files: {}'.format(include_fm))
+
         if include_fm and not (canonical_account_profile_json_path or source_account_file_path):
             raise OasisException(
                 'FM option indicated but missing either the canonical account profile JSON path or '
@@ -458,9 +461,10 @@ class RunCmd(OasisBaseCommand):
         parser.add_argument(
             '-q', '--canonical-account-profile-json-path', default=None,
             help='Supplier canonical account profile JSON path'
+        )
         
         parser.add_argument('-x', '--source-exposures-file-path', default=None, help='Source exposures file path')
-        parser.add_argument('-y', '--source-account-file-path', default=None, help='Source account file path'))
+        parser.add_argument('-y', '--source-account-file-path', default=None, help='Source account file path')
         parser.add_argument(
             '-a', '--source-exposures-validation-file-path', default=None,
             help='Source exposures file validation file (XSD) path'
@@ -485,7 +489,8 @@ class RunCmd(OasisBaseCommand):
             '-f', '--canonical-to-model-exposures-transformation-file-path', default=None,
             help='Canonical -> model exposures file validation file (XSD) path'
         )
-        parser.add_argument('-i', '--include_fm', action='store_false', help='Whether to generate FM files')
+        parser.add_argument('-i', '--include_fm', action='store_true', help='Generate FM files - False if absent')
+
         parser.add_argument(
             '-j', '--analysis-settings-json-file-path', default=None,
             help='Model analysis settings JSON file path'
