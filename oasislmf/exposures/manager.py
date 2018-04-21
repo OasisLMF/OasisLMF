@@ -11,11 +11,14 @@ import itertools
 import json
 import logging
 import os
+import queue
 import shutil
+import signal
+import sys
+import threading
 import time
 
-from queue import Queue
-from threading import Thread
+
 
 import pandas as pd
 import six
@@ -696,33 +699,59 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             for column, func in columns_funcs
         ]
 
-        results = {column:None for column in fm_term_columns}
-
-        queue = Queue()
-
-        class FMTempTableTermColumnWorker(Thread):
-            def __init__(self, queue):
-                Thread.__init__(self)
-                self.queue = queue
-
-            def run(self):
-                global results
-                while True:
-                    # Get the work from the queue and expand the tuple
-                    column, func, gfmt_copy, canexp_df_copy, canacc_df_copy, fm_df_copy = self.queue.get()
-                    results[column] = fm_df_copy['index'].apply(lambda i: func(gfmt_copy, canexp_df_copy, canacc_df_copy, fm_df_copy, i))
-                    self.queue.task_done()
-
-        for i in range(len(tasks)):
-            worker = FMTempTableTermColumnWorker(queue)
-            worker.daemon = True
-            worker.start()
+        task_q = queue.Queue()
 
         for t in tasks:
-            queue.put(t)
+            task_q.put(t)
 
-        for column in results:
-            fm_df[column] = results[column]
+        class FMTempTableTermColumnWorker(threading.Thread):
+            def __init__(self, task_q, result_q, stopper):
+                super(self.__class__, self).__init__()
+                self.task_q = task_q
+                self.result_q = result_q
+                self.stopper = stopper
+
+            def run(self):
+                while not self.stopper.is_set():
+                    try:
+                        column, func, gfmt_copy, canexp_df_copy, canacc_df_copy, fm_df_copy = self.task_q.get_nowait()
+                    except queue.Empty:
+                        break
+                    else:
+                        result = fm_df_copy['index'].apply(lambda i: func(gfmt_copy, canexp_df_copy, canacc_df_copy, fm_df_copy, i))
+                        self.result_q.put((column, result,))
+                        self.task_q.task_done()
+
+        class SignalHandler(object):
+            def __init__(self, stopper, workers):
+                self.stopper = stopper
+                self.workers = workers
+
+            def __call__(self, signum, frame):
+                self.stopper.set()
+
+                for worker in self.workers:
+                    worker.join()
+
+                sys.exit(0)
+
+        result_q = queue.Queue()
+
+        stopper = threading.Event()
+
+        workers = [FMTempTableTermColumnWorker(task_q, result_q, stopper) for c in fm_term_columns]
+
+        handler = SignalHandler(stopper, workers)
+        signal.signal(signal.SIGINT, handler)
+
+        for worker in workers:
+            worker.start()
+
+        task_q.join()
+
+        while not result_q.empty():
+            column, result = result_q.get_nowait()
+            fm_df[column] = result
 
         fm_df['policytc_id'] = fm_df['index'].apply(lambda i: get_policytc_id(fm_df, i))
 
@@ -1042,10 +1071,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         gul_files = self.write_gul_files(oasis_model=oasis_model, **kwargs)
 
         if not include_fm:
-            total_time -= (time.time() - start_time) / 60
-            logger.info('\nOasis files (GUL) generated for model in {} minutes'.format(total_time))
-
-            return oasis_files
+            return gul_files
 
         logger.info('\nGenerating FM files')
         fm_files = self.write_fm_files(oasis_model=oasis_model, **kwargs)
