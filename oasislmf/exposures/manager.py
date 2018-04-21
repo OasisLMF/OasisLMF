@@ -55,55 +55,77 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
     def __init__(self, oasis_models=None):
         """
         Class constructor.
+
+        :param oasis_models: An optional list of Oasis model objects
+        :type oasis_models: list
         """
         pass
 
     def add_model(self, oasis_model):
         """
         Adds Oasis model object to the manager and sets up its resources.
+
+        :param oasis_model: An Oasis model object 
+        :type oasis_model: oasislmf.models.model.OasisModel
         """
         pass
 
     def delete_model(self, oasis_model):
         """
         Deletes an existing Oasis model object in the manager.
+
+        :param oasis_model: An Oasis model object 
+        :type oasis_model: oasislmf.models.model.OasisModel
         """
         pass
 
     def transform_source_to_canonical(self, oasis_model=None, **kwargs):
         """
         Transforms a source exposures/locations for a given ``oasis_model``
-        object to a canonical/standard Oasis format.
+        or set of keyword arguments to a canonical/standard Oasis format.
 
         All the required resources must be provided either in the model object
-        resources dict or the ``kwargs`` dict.
+        resources dict or the keyword arguments.
 
         It is up to the specific implementation of this class of how these
-        resources will be named in ``kwargs`` and how they will be used to
+        resources will be named and how they will be used to
         effect the transformation.
 
         The transform is generic by default, but could be supplier specific if
         required.
+
+        :param oasis_model: An Oasis model object 
+        :type oasis_model: oasislmf.models.model.OasisModel
+
+        :param kwargs: Optional keyword arguments
         """
         pass
 
     def transform_canonical_to_model(self, oasis_model=None, **kwargs):
         """
         Transforms the canonical exposures/locations for a given ``oasis_model``
-        object to a format suitable for an Oasis model keys lookup service.
+        or set of keyword arguments object to a format suitable for an Oasis
+        model keys lookup service.
 
         All the required resources must be provided either in the model object
-        resources dict or the ``kwargs`` dict.
+        resources dict or the keyword arguments.
 
         It is up to the specific implementation of this class of how these
-        resources will be named in ``kwargs`` and how they will be used to
+        resources will be named and how they will be used to
         effect the transformation.
+
+        :param oasis_model: An Oasis model object 
+        :type oasis_model: oasislmf.models.model.OasisModel
+
+        :param kwargs: Optional keyword arguments
         """
         pass
 
     def get_keys(self, oasis_model=None, **kwargs):
         """
-        Generates the Oasis keys and keys error files for a given model object.
+        Generates the Oasis keys and keys error files for a given
+        ``oasis_model`` or set of keyword arguments.
+
         The keys file is a CSV file containing keys lookup information for
         locations with successful lookups, and has the following headers::
 
@@ -116,67 +138,112 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
             LocID,PerilID,CoverageID,Message
 
         All the required resources must be provided either in the model object
-        resources dict or the ``kwargs`` dict.
+        resources dict or the keyword arguments.
 
         It is up to the specific implementation of this class of how these
-        resources will be named in ``kwargs`` and how they will be used to
+        resources will be named and how they will be used to
         effect the transformation.
 
         A "standard" implementation should use the lookup service factory
         class in ``oasis_utils`` (a submodule of `omdk`) namely
 
             ``oasis_utils.oasis_keys_lookup_service_utils.KeysLookupServiceFactory``
+
+        :param oasis_model: An Oasis model object 
+        :type oasis_model: oasislmf.models.model.OasisModel
+
+        :param kwargs: Optional keyword arguments
         """
         pass
 
     def load_canonical_exposures_profile(self, oasis_model=None, **kwargs):
         """
         Loads a JSON string or JSON file representation of the canonical
-        exposures profile for a given ``oasis_model``, stores this in the
-        model object's resources dict, and returns the object.
+        exposures profile for a given ``oasis_model`` or set of keyword
+        arguments.
+
+        :param oasis_model: An Oasis model object 
+        :type oasis_model: oasislmf.models.model.OasisModel
+
+        :param kwargs: Optional keyword arguments
         """
         pass
 
     def load_canonical_account_profile(self, oasis_model=None, **kwargs):
         """
         Loads a JSON string or JSON file representation of the canonical
-        account profile for a given ``oasis_model``, stores this in the
-        model object's resources dict, and returns the object.
+        account profile for a given ``oasis_model`` or set of keyword
+        arguments.
+
+        :param oasis_model: An Oasis model object 
+        :type oasis_model: oasislmf.models.model.OasisModel
+
+        :param kwargs: Optional keyword arguments
         """
         pass
 
     def write_gul_files(self, oasis_model=None, **kwargs):
         """
-        Generates Oasis GUL files.
+        Writes Oasis GUL files for a given ``oasis_model`` or set of keyword
+        arguments.
 
         The required resources must be provided either via the model object
-        resources dict or ``kwargs``.
+        resources dict or the keyword arguments.
+
+        :param oasis_model: An Oasis model object 
+        :type oasis_model: oasislmf.models.model.OasisModel
+
+        :param kwargs: Optional keyword arguments
         """
         pass
 
     def write_fm_files(self, oasis_model=None, **kwargs):
         """
-        Generates Oasis FM files.
+        Writes Oasis FM files for a given ``oasis_model`` or set of keyword
+        arguments.
 
         The required resources must be provided either via the model object
-        resources dict or ``kwargs``.
+        resources dict or the keyword arguments.
+
+        :param oasis_model: An Oasis model object 
+        :type oasis_model: oasislmf.models.model.OasisModel
+
+        :param kwargs: Optional keyword arguments
         """
         pass
 
     def write_oasis_files(self, oasis_model=None, include_fm=False, **kwargs):
         """
-        Generates the full set of Oasis files, which includes GUL files and
-        possibly also the FM files, if ``include_fm`` is ``True``.
+        Writes the full set of Oasis files, which includes GUL files and
+        possibly also the FM files (if ``include_fm`` is ``True``) for a given
+        ``oasis_model`` or set of keyword arguments.
 
         The required resources must be provided either via the model object
-        resources dict or ``kwargs``.
+        resources dict or the keyword arguments.
+
+        :param oasis_model: An Oasis model object 
+        :type oasis_model: oasislmf.models.model.OasisModel
+
+        :param kwargs: Optional keyword arguments
         """
         pass
 
     def create_model(self, model_supplier_id, model_id, model_version_id, resources=None):
         """
-        Creates and returns an Oasis model with the provisioned resources if
-        a resources dict was provided.
+        Creates an Oasis model object, with attached resources if a resources
+        dict was provided.
+
+        :param model_supplier_id: The model supplier ID
+        :type model_supplier_id: str
+
+        :param model_id: The model ID
+        :type model_id: str
+
+        :param model_version_id: The model version ID or string
+        :type model_version_id: str
+
+        :param resources: Optional dictionary of model resources
+        :type resources: dict
         """
         pass
 
@@ -531,6 +598,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             kwargs.setdefault('gulsummaryxref_file_path', ofp.gulsummaryxref_file_path)
 
             kwargs.setdefault('fm_master_data_frame', omr.get('fm_master_data_frame'))
+
             kwargs.setdefault('fm_policytc_file_path', ofp.fm_policytc_file_path)
             kwargs.setdefault('fm_profile_file_path', ofp.fm_profile_file_path)
             kwargs.setdefault('fm_policytc_file_path', ofp.fm_programme_file_path)
@@ -559,6 +627,10 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         canonical_exposures_file_path,
         keys_file_path
     ):
+        """
+        Generates a pandas dataframe containing all the columns required to
+        write the GUL files.
+        """
         with io.open(canonical_exposures_file_path, 'r', encoding='utf-8') as cf, io.open(keys_file_path, 'r', encoding='utf-8') as kf:
             canexp_df = pd.read_csv(cf, float_precision='high')
             canexp_df = canexp_df.where(canexp_df.notnull(), None)
@@ -632,7 +704,10 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         canonical_account_profile,
         canonical_account_file_path
     ):
-
+        """
+        Generates a pandas dataframe containing all the columns required to
+        write the FM files.
+        """
         canexp_df = canonical_exposures_data_frame
         gulm_df = gul_master_data_frame
 
@@ -753,7 +828,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
     def write_items_file(self, gul_master_data_frame, items_file_path):
         """
-        Generates an items file.
+        Writes an items file.
         """
         gulm_df = gul_master_data_frame
 
@@ -769,7 +844,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
     def write_coverages_file(self, gul_master_data_frame, coverages_file_path):
         """
-        Generates a coverages file.
+        Writes a coverages file.
         """
         gulm_df = gul_master_data_frame
 
@@ -785,7 +860,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
     def write_gulsummaryxref_file(self, gul_master_data_frame, gulsummaryxref_file_path):
         """
-        Generates a gulsummaryxref file.
+        Writes a gulsummaryxref file.
         """
         gulm_df = gul_master_data_frame
 
@@ -801,7 +876,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
     def write_fm_policytc_file(self, fm_master_data_frame, fm_policytc_file_path):
         """
-        Generates an FM policy T & C file.
+        Writes an FM policy T & C file.
         """
         fm_df = fm_master_data_frame
 
@@ -817,31 +892,31 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
     def write_fm_profile_file(self, fm_master_data_frame, fm_profile_file_path):
         """
-        Generates an FM profile file.
+        Writes an FM profile file.
         """
         pass
 
     def write_fm_programme_file(self, fm_master_data_frame, fm_programme_file_path):
         """
-        Generates a FM programme file.
+        Writes a FM programme file.
         """
         pass
 
     def write_fm_xref_file(self, fm_master_data_frame, fm_xref_file_path):
         """
-        Generates a FM xref file.
+        Writes a FM xref file.
         """
         pass
 
     def write_fmsummaryxref_file(self, fm_master_data_frame, fmsummaryxref_file_path):
         """
-        Generates a FM summaryxref file.
+        Writes an FM summaryxref file.
         """
         pass
 
     def write_gul_files(self, oasis_model=None, **kwargs):
         """
-        Generates the standard Oasis GUL files, namely::
+        Writes the standard Oasis GUL files, namely::
 
             items.csv
             coverages.csv
@@ -924,6 +999,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         }
 
     def write_oasis_files(self, oasis_model=None, include_fm=False, **kwargs):
+        """
+        Writes the Oasis files - GUL + FM (if ``include_fm`` is ``True``).
+        """
         gul_files = self.write_gul_files(oasis_model=oasis_model, **kwargs)
 
         if not include_fm:
@@ -938,15 +1016,6 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
     def clear_oasis_files_pipeline(self, oasis_model, **kwargs):
         """
         Clears the files pipeline for the given Oasis model object.
-
-        Args:
-            ``oasis_model`` (``omdk.models.OasisModel.OasisModel``): The model object.
-
-            ``**kwargs`` (arbitary keyword arguments):
-
-        Returns:
-            ``oasis_model`` (``omdk.models.OasisModel.OasisModel``): The model object with its
-            files pipeline cleared.
         """
         oasis_model.resources.get('oasis_files_pipeline').clear()
 
@@ -970,7 +1039,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         intermediate files (canonical exposures, model exposures).
 
         :param oasis_model: The Oasis model object
-        :type oasis_model: `oasislmf.models.model.OasisModel`
+        :type oasis_model: oasislmf.models.model.OasisModel
 
         :param oasis_files_path: Path where generated Oasis files should be
                                  written
@@ -987,7 +1056,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         :type source_account_file_path: str
 
         :param logger: Logger object
-        :type logger: `logging.Logger`
+        :type logger: logging.Logger
+
+        :return: A dictionary of Oasis files (GUL + FM (if FM option indicated))
         """
         logger = logger or logging.getLogger()
 
