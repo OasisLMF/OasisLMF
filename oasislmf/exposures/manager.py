@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import shutil
+import sys
 
 import pandas as pd
 import six
@@ -26,6 +27,7 @@ from ..utils.fm import (
     get_deductible,
     get_deductible_type,
     get_limit,
+    get_policytc_id,
     get_share
 )
 from ..utils.values import get_utctimestamp
@@ -136,7 +138,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         pass
 
-    def generate_gul_files(self, oasis_model=None, **kwargs):
+    def write_gul_files(self, oasis_model=None, **kwargs):
         """
         Generates Oasis GUL files.
 
@@ -145,7 +147,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         pass
 
-    def generate_fm_files(self, oasis_model=None, **kwargs):
+    def write_fm_files(self, oasis_model=None, **kwargs):
         """
         Generates Oasis FM files.
 
@@ -154,9 +156,10 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         pass
 
-    def generate_oasis_files(self, oasis_model=None, include_fm=False, **kwargs):
+    def write_oasis_files(self, oasis_model=None, include_fm=False, **kwargs):
         """
-        Generates the full set of Oasis files, which should be GUL + FM + any extras
+        Generates the full set of Oasis files, which includes GUL files and
+        possibly also the FM files, if ``include_fm`` is ``True``.
 
         The required resources must be provided either via the model object
         resources dict or ``kwargs``.
@@ -462,9 +465,8 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             _keys_file_path = keys_file_path or oasis_model.resources['oasis_files_pipeline'].keys_file_path
             _keys_errors_file_path = keys_errors_file_path or oasis_model.resources['oasis_files_pipeline'].keys_errors_file_path
 
-        _model_exposures_file_path, _keys_file_path, _keys_errors_file_path = map(
-            lambda p: os.path.abspath(p) if p and not os.path.isabs(p) else p,
-            [_model_exposures_file_path, _keys_file_path, _keys_errors_file_path]
+        _model_exposures_file_path, _keys_file_path, _keys_errors_file_path = tuple(
+            os.path.abspath(p) if p and not os.path.isabs(p) else p for p in [_model_exposures_file_path, _keys_file_path, _keys_errors_file_path]
         )
 
         _keys_file_path, _, _keys_errors_file_path, _ = OasisKeysLookupFactory().save_keys(
@@ -480,33 +482,53 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         return _keys_file_path, _keys_errors_file_path
 
-    def _process_default_kwargs(self, oasis_model=None, **kwargs):
+    def _process_default_kwargs(self, oasis_model=None, include_fm=False, **kwargs):
         if oasis_model:
-            kwargs.setdefault('source_exposures_file_path', oasis_model.resources.get('source_exposures_file_path'))
-            kwargs.setdefault('source_account_file_path', oasis_model.resources.get('source_account_file_path'))
-            kwargs.setdefault('source_exposures_validation_file_path', oasis_model.resources.get('source_exposures_validation_file_path'))
-            kwargs.setdefault('source_to_canonical_exposures_transformation_file_path', oasis_model.resources.get('source_to_canonical_exposures_transformation_file_path'))
-            kwargs.setdefault('canonical_exposures_profile', oasis_model.resources.get('canonical_exposures_profile'))
-            kwargs.setdefault('canonical_exposures_profile_json', oasis_model.resources.get('canonical_exposures_profile_json'))
-            kwargs.setdefault('canonical_exposures_profile_json_path', oasis_model.resources.get('canonical_exposures_profile_json_path'))
-            kwargs.setdefault('canonical_account_profile', oasis_model.resources.get('canonical_account_profile'))
-            kwargs.setdefault('canonical_account_profile_json', oasis_model.resources.get('canonical_account_profile_json'))
-            kwargs.setdefault('canonical_account_profile_json_path', oasis_model.resources.get('canonical_account_profile_json_path'))
-            kwargs.setdefault('canonical_account_file_path', oasis_model.resources['oasis_files_pipeline'].canonical_account_file_path)
-            kwargs.setdefault('canonical_exposures_file_path', oasis_model.resources['oasis_files_pipeline'].canonical_exposures_file_path)
-            kwargs.setdefault('canonical_exposures_validation_file_path', oasis_model.resources.get('canonical_exposures_validation_file_path'))
-            kwargs.setdefault('canonical_to_model_exposures_transformation_file_path', oasis_model.resources.get('canonical_to_model_exposures_transformation_file_path'))
-            kwargs.setdefault('model_exposures_file_path', oasis_model.resources['oasis_files_pipeline'].model_exposures_file_path)
-            kwargs.setdefault('keys_file_path', oasis_model.resources['oasis_files_pipeline'].keys_file_path)
-            kwargs.setdefault('keys_errors_file_path', oasis_model.resources['oasis_files_pipeline'].keys_errors_file_path)
-            kwargs.setdefault('items_file_path', oasis_model.resources['oasis_files_pipeline'].items_file_path)
-            kwargs.setdefault('coverages_file_path', oasis_model.resources['oasis_files_pipeline'].coverages_file_path)
-            kwargs.setdefault('gulsummaryxref_file_path', oasis_model.resources['oasis_files_pipeline'].gulsummaryxref_file_path)
-            kwargs.setdefault('fm_policytc_file_path', oasis_model.resources['oasis_files_pipeline'].fm_policytc_file_path)
-            kwargs.setdefault('fm_profile_file_path', oasis_model.resources['oasis_files_pipeline'].fm_profile_file_path)
-            kwargs.setdefault('fm_policytc_file_path', oasis_model.resources['oasis_files_pipeline'].fm_programme_file_path)
-            kwargs.setdefault('fm_xref_file_path', oasis_model.resources['oasis_files_pipeline'].fm_xref_file_path)
-            kwargs.setdefault('fmsummaryxref_file_path', oasis_model.resources['oasis_files_pipeline'].fmsummaryxref_file_path)
+            omr = oasis_model.resources
+            ofp = omr['oasis_files_pipeline']
+
+            kwargs.setdefault('source_exposures_file_path', omr.get('source_exposures_file_path'))
+            kwargs.setdefault('source_account_file_path', omr.get('source_account_file_path'))
+
+            kwargs.setdefault('source_exposures_validation_file_path', omr.get('source_exposures_validation_file_path'))
+            kwargs.setdefault('source_account_validation_file_path', omr.get('source_account_validation_file_path'))
+
+            kwargs.setdefault('source_to_canonical_exposures_transformation_file_path', omr.get('source_to_canonical_exposures_transformation_file_path'))
+            kwargs.setdefault('source_to_canonical_account_transformation_file_path', omr.get('source_to_canonical_account_transformation_file_path'))
+
+            kwargs.setdefault('canonical_exposures_profile', omr.get('canonical_exposures_profile'))
+            kwargs.setdefault('canonical_account_profile', omr.get('canonical_account_profile'))
+
+            kwargs.setdefault('canonical_exposures_profile_json', omr.get('canonical_exposures_profile_json'))
+            kwargs.setdefault('canonical_account_profile_json', omr.get('canonical_account_profile_json'))
+
+            kwargs.setdefault('canonical_exposures_profile_json_path', omr.get('canonical_exposures_profile_json_path'))
+            kwargs.setdefault('canonical_account_profile_json_path', omr.get('canonical_account_profile_json_path'))
+
+            kwargs.setdefault('canonical_exposures_file_path', ofp.canonical_exposures_file_path)
+            kwargs.setdefault('canonical_account_file_path', ofp.canonical_account_file_path)
+
+            kwargs.setdefault('canonical_exposures_validation_file_path', omr.get('canonical_exposures_validation_file_path'))
+            kwargs.setdefault('canonical_to_model_exposures_transformation_file_path', omr.get('canonical_to_model_exposures_transformation_file_path'))
+
+            kwargs.setdefault('model_exposures_file_path', ofp.model_exposures_file_path)
+
+            kwargs.setdefault('keys_file_path', ofp.keys_file_path)
+            kwargs.setdefault('keys_errors_file_path', ofp.keys_errors_file_path)
+
+            kwargs.setdefault('canonical_exposures_data_frame', omr.get('canonical_exposures_data_frame'))
+            kwargs.setdefault('gul_master_data_frame', omr.get('gul_master_data_frame'))
+
+            kwargs.setdefault('items_file_path', ofp.items_file_path)
+            kwargs.setdefault('coverages_file_path', ofp.coverages_file_path)
+            kwargs.setdefault('gulsummaryxref_file_path', ofp.gulsummaryxref_file_path)
+
+            kwargs.setdefault('fm_master_data_frame', omr.get('fm_master_data_frame'))
+            kwargs.setdefault('fm_policytc_file_path', ofp.fm_policytc_file_path)
+            kwargs.setdefault('fm_profile_file_path', ofp.fm_profile_file_path)
+            kwargs.setdefault('fm_policytc_file_path', ofp.fm_programme_file_path)
+            kwargs.setdefault('fm_xref_file_path', ofp.fm_xref_file_path)
+            kwargs.setdefault('fmsummaryxref_file_path', ofp.fmsummaryxref_file_path)
 
         if not kwargs.get('canonical_exposures_profile'):
             kwargs['canonical_exposures_profile'] = self.load_canonical_exposures_profile(
@@ -515,7 +537,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 canonical_exposures_profile_json_path=kwargs.get('canonical_exposures_profile_json_path'),
             )
 
-        if kwargs.get('include_fm') and not kwargs.get('canonical_account_profile'):
+        if include_fm and not kwargs.get('canonical_account_profile'):
             kwargs['canonical_account_profile'] = self.load_canonical_account_profile(
                 oasis_model=oasis_model,
                 canonical_account_profile_json=kwargs.get('canonical_account_profile_json'),
@@ -526,25 +548,24 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
     def load_gul_master_data_frame(
         self,
-        oasis_model=None,
-        canonical_exposures_file_path=None,
-        keys_file_path=None,
-        canonical_exposures_profile=None,
-        **kwargs
+        canonical_exposures_profile,
+        canonical_exposures_file_path,
+        keys_file_path
     ):
-        with io.open(canonical_exposures_file_path, 'r', encoding='utf-8') as cf:
+        with io.open(canonical_exposures_file_path, 'r', encoding='utf-8') as cf, io.open(keys_file_path, 'r', encoding='utf-8') as kf:
             canexp_df = pd.read_csv(cf, float_precision='high')
             canexp_df = canexp_df.where(canexp_df.notnull(), None)
             canexp_df.columns = canexp_df.columns.str.lower()
 
-        with io.open(keys_file_path, 'r', encoding='utf-8') as kf:
             keys_df = pd.read_csv(kf, float_precision='high')
             keys_df = keys_df.rename(columns={'CoverageID': 'CoverageType'})
             keys_df = keys_df.where(keys_df.notnull(), None)
             keys_df.columns = keys_df.columns.str.lower()
 
+        cep = canonical_exposures_profile
+
         tiv_fields = sorted(
-            filter(lambda v: v.get('FieldName') == 'TIV', six.itervalues(canonical_exposures_profile))
+            [v for v in six.itervalues(cep) if v.get('FieldName') == 'TIV']
         )
 
         columns = [
@@ -582,7 +603,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 tiv_value = canexp_item[tiv_lookup]
                 if tiv_value > 0:
                     item_id += 1
-                    result = gulm_df.append([{
+                    gulm_df = gulm_df.append([{
                         'item_id': item_id,
                         'canloc_id': canexp_item['row_id'],
                         'coverage_id': item_id,
@@ -594,40 +615,28 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                         'summaryset_id': 1,
                     }])
 
-        if oasis_model:
-            oasis_model.resources['canonical_exposures_data_frame'] = canexp_df
-            oasis_model.resources['gul_master_data_frame'] = gulm_df
-
         return canexp_df, gulm_df
     
     def load_fm_master_data_frame(
         self,
-        oasis_model=None,
-        canonical_exposures_profile=None,
-        canonical_account_profile=None,
-        canonical_exposures_file_path=None,
-        canonical_account_file_path=None,
-        keys_file_path=None,
-        items_file_path=None,
-        **kwargs
+        canonical_exposures_data_frame,
+        gul_master_data_frame,
+        canonical_exposures_profile,
+        canonical_account_profile,
+        canonical_account_file_path
     ):
 
-        canexp_df = oasis_model.resources['canonical_exposures_data_frame'] or kwargs['canonical_exposures_data_frame']
-        gulm_df = oasis_model.resources['gul_master_data_frame'] or kwargs['gul_master_data_frame']
+        canexp_df = canonical_exposures_data_frame
+        gulm_df = gul_master_data_frame
 
-
-        with io.open(canonical_exposures_file_path, 'r', encoding='utf-8') as cef, io.open(canonical_account_file_path, 'r', encoding='utf-8') as caf:
-            canexp_df = pd.read_csv(cef, float_precision='high')
-            canexp_df = canexp_df.where(canexp_df.notnull(), None)
-            canexp_df.columns = canexp_df.columns.str.lower()
-
-            canacc_df = pd.read_csv(caf, float_precision='high')
+        with io.open(canonical_account_file_path, 'r', encoding='utf-8') as f:
+            canacc_df = pd.read_csv(f, float_precision='high')
             canacc_df = canacc_df.where(canacc_df.notnull(), None)
             canacc_df.columns = canacc_df.columns.str.lower()
         
         columns = [
-            'itemid', 'canlocid', 'fm_level', 'layerid', 'aggid', 'policytcid', 'deductible',
-            'limit', 'share', 'deductibletype', 'calcrule', 'tiv'
+            'item_id', 'canloc_id', 'level_id', 'layer_id', 'agg_id', 'policytc_id', 'deductible',
+            'limit', 'share', 'deductible_type', 'calcrule_id', 'tiv'
         ]
 
         cep = canonical_exposures_profile
@@ -655,128 +664,122 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             {
                 k:v for k, v in zip(
                     columns,
-                    [item_id,canloc_id,fm_levels.index([fml for fml in fm_levels if fml == fm_level][0]) + 1,layer_id, 0,0,0.0,0.0,0.0,u'B',2,tiv])
-            } for fm_level, (item_id, canloc_id, layer_id, tiv) in preset_data
+                    [item_id,canloc_id,fm_levels.index([fml for fml in fm_levels if fml == level_id][0]) + 1,layer_id,1,0,0.0,0.0,0.0,u'B',2,tiv])
+            } for level_id, (item_id, canloc_id, layer_id, tiv) in preset_data
         ]
 
         fm_df = pd.DataFrame(columns=columns, data=data)
 
         for col in columns:
-            if col in ['itemid', 'canlocid', 'fm_level', 'layerid', 'aggid', 'policytcid', 'calcrule']:
+            if col in ['item_id', 'canloc_id', 'level_id', 'layer_id', 'agg_id', 'policytc_id', 'calcrule_id']:
                 fm_df[col] = fm_df[col].astype(int)
             elif col in ['limit', 'deductible', 'share', 'tiv']:
                 fm_df[col] = fm_df[col].astype(float)
-            elif col in ['deductibletype']:
+            elif col in ['deductible_type']:
                 fm_df[col] = fm_df[col].astype(str)
 
         fm_df['index'] = fm_df.index
 
-        fm_df['limit'] = fm_df['index'].apply(lambda i: get_limit(canexp_df, canacc_df, fm_df, i))
-        fm_df['deductible'] = fm_df['index'].apply(lambda i: get_deductible(canexp_df, canacc_df, fm_df, i))
-        fm_df['deductibletype'] = fm_df['index'].apply(lambda i: get_deductible_type(canexp_df, canacc_df, fm_df, i))
-        fm_df['share'] = fm_df['index'].apply(lambda i: get_share(canexp_df, canacc_df, fm_df, i))
-        fm_df['calcrule'] = fm_df['index'].apply(lambda i: get_calc_rule(canexp_df, canacc_df, fm_df, gfmt, i))
+        fm_df['limit'] = fm_df['index'].apply(lambda i: get_limit(gfmt, canexp_df, canacc_df, fm_df, i))
+        fm_df['deductible'] = fm_df['index'].apply(lambda i: get_deductible(gfmt, canexp_df, canacc_df, fm_df, i))
+        fm_df['deductible_type'] = fm_df['index'].apply(lambda i: get_deductible_type(gfmt, canexp_df, canacc_df, fm_df, i))
+        fm_df['share'] = fm_df['index'].apply(lambda i: get_share(gfmt, canexp_df, canacc_df, fm_df, i))
+        fm_df['calcrule_id'] = fm_df['index'].apply(lambda i: get_calc_rule(gfmt, canexp_df, canacc_df, fm_df, i))
 
-        fm_df['policytcid'] = fm_df['index'].apply(lambda i: get_policytc_id(fm_df, i))
+        fm_df['policytc_id'] = fm_df['index'].apply(lambda i: get_policytc_id(fm_df, i))
+
+        return fm_df
 
 
-    def _write_csvs(self, columns, data_frame, file_path):
-        data_frame.to_csv(
-            columns=columns,
-            path_or_buf=file_path,
+    def write_items_file(self, gul_master_data_frame, items_file_path):
+        """
+        Generates an items file for the given ``oasis_model``.
+        """
+        gulm_df = gul_master_data_frame
+
+        gulm_df.to_csv(
+            columns=['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id'],
+            path_or_buf=items_file_path,
             encoding='utf-8',
             chunksize=1000,
             index=False
         )
 
-    def generate_items_file(self, oasis_model=None, **kwargs):
-        """
-        Generates an items file for the given ``oasis_model``.
-        """
-        kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
+        return items_file_path
 
-        gulm_df = oasis_model.resources['gul_master_data_frame'] or kwargs['gul_master_data_frame']
-
-        self._write_csvs(
-            ['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id'],
-            gulm_df,
-            kwargs['items_file_path']
-        )
-
-        if oasis_model:
-            oasis_model.resources['oasis_files_pipeline'].items_file_path = kwargs['items_file_path']
-
-        return kwargs['items_file_path']
-
-    def generate_coverages_file(self, oasis_model=None, **kwargs):
+    def write_coverages_file(self, gul_master_data_frame, coverages_file_path):
         """
         Generates a coverages file for the given ``oasis_model``.
         """
-        kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
+        gulm_df = gul_master_data_frame
 
-        gulm_df = oasis_model.resources['gul_master_data_frame'] or kwargs['gul_master_data_frame']
-
-        self._write_csvs(
-            ['coverage_id', 'tiv'],
-            gulm_df,
-            kwargs['coverages_file_path']
+        gulm_df.to_csv(
+            columns=['coverage_id', 'tiv'],
+            path_or_buf=coverages_file_path,
+            encoding='utf-8',
+            chunksize=1000,
+            index=False
         )
 
-        if oasis_model:
-            oasis_model.resources['oasis_files_pipeline'].coverages_file = kwargs.get('coverages_file_path')
+        return coverages_file_path
 
-        return kwargs.get('coverages_file_path')
-
-    def generate_gulsummaryxref_file(self, oasis_model=None, **kwargs):
+    def write_gulsummaryxref_file(self, gul_master_data_frame, gulsummaryxref_file_path):
         """
         Generates a gulsummaryxref file for the given ``oasis_model``.
         """
-        kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
+        gulm_df = gul_master_data_frame
 
-        gulm_df = oasis_model.resources['gul_master_data_frame'] or kwargs['gul_master_data_frame']
-
-        self._write_csvs(
-            ['coverage_id', 'summary_id', 'summaryset_id'],
-            gulm_df,
-            kwargs['gulsummaryxref_file_path']
+        gulm_df.to_csv(
+            columns=['coverage_id', 'summary_id', 'summaryset_id'],
+            path_or_buf=gulsummaryxref_file_path,
+            encoding='utf-8',
+            chunksize=1000,
+            index=False
         )
 
-        if oasis_model:
-            oasis_model.resources['oasis_files_pipeline'].gulsummaryxref_path = kwargs['gulsummaryxref_file_path']
+        return gulsummaryxref_file_path
 
-        return kwargs['gulsummaryxref_file_path']
-
-    def generate_fm_policytc_file(self, oasis_model=None, **kwargs):
+    def write_fm_policytc_file(self, fm_master_data_frame, fm_policytc_file_path):
         """
         Generates an FM policy T & C file for the given ``oasis_model``.
         """
-        pass
+        fm_df = fm_master_data_frame
 
-    def generate_fm_profile_file(self, oasis_model=None, **kwargs):
+        fm_df.to_csv(
+            columns=['layer_id', 'level_id', 'agg_id', 'policytc_id'],
+            path_or_buf=fm_policytc_file_path,
+            encoding='utf-8',
+            chunksize=1000,
+            index=False
+        )
+
+        return fm_policytc_file_path
+
+    def write_fm_profile_file(self, fm_master_data_frame, fm_profile_file_path):
         """
         Generates an FM profile file for the given ``oasis_model``.
         """
         pass
 
-    def generate_fm_programme_file(self, oasis_model=None, **kwargs):
+    def write_fm_programme_file(self, fm_master_data_frame, fm_programme_file_path):
         """
         Generates a FM programme file for the given ``oasis_model``.
         """
         pass
 
-    def generate_fm_xref_file(self, oasis_model=None, **kwargs):
+    def write_fm_xref_file(self, fm_master_data_frame, fm_xref_file_path):
         """
         Generates a FM xref file for the given ``oasis_model``.
         """
         pass
 
-    def generate_fmsummaryxref_file(self, oasis_model=None, **kwargs):
+    def write_fmsummaryxref_file(self, fm_master_data_frame, fmsummaryxref_file_path):
         """
         Generates a FM summaryxref file for the given ``oasis_model``.
         """
         pass
 
-    def generate_gul_files(self, oasis_model=None, **kwargs):
+    def write_gul_files(self, oasis_model=None, **kwargs):
         """
         Generates the standard Oasis GUL files, namely::
 
@@ -785,23 +788,33 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             gulsummaryxref.csv
         """
         kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
-        canexp_df, gulm_df = self.load_gul_master_data_frame(oasis_model=oasis_model, **kwargs)
 
-        if not oasis_model:
-            kwargs['canonical_exposures_data_frame'] = canexp_df
-            kwargs['gul_master_data_frame'] = gulm_df
+        canonical_exposures_profile = kwargs.get('canonical_exposures_profile')
+        canonical_exposures_file_path = kwargs.get('canonical_exposures_file_path')
+        keys_file_path = kwargs.get('keys_file_path')
+        
+        canexp_df, gulm_df = self.load_gul_master_data_frame(canonical_exposures_profile, canonical_exposures_file_path, keys_file_path)
 
-        self.generate_items_file(oasis_model=oasis_model, **kwargs)
-        self.generate_coverages_file(oasis_model=oasis_model, **kwargs)
-        self.generate_gulsummaryxref_file(oasis_model=oasis_model, **kwargs)
+        if oasis_model:
+            oasis_model.resources['canonical_exposures_data_frame'] = canexp_df
+            oasis_model.resources['gul_master_data_frame'] = gulm_df
+
+        items_file_path = kwargs.get('items_file_path')
+        self.write_items_file(gulm_df, items_file_path)
+
+        coverages_file_path = kwargs.get('coverages_file_path')
+        self.write_coverages_file(gulm_df, coverages_file_path)
+
+        gulsummaryxref_file_path = kwargs.get('gulsummaryxref_file_path')
+        self.write_gulsummaryxref_file(gulm_df, gulsummaryxref_file_path)
 
         return {
-            'items_file_path': kwargs['items_file_path'],
-            'coverages_file_path': kwargs['coverages_file_path'],
-            'gulsummaryxref_file_path': kwargs['gulsummaryxref_file_path']
+            'items_file_path': items_file_path,
+            'coverages_file_path': coverages_file_path,
+            'gulsummaryxref_file_path': gulsummaryxref_file_path
         }
 
-    def generate_fm_files(self, oasis_model=None, **kwargs):
+    def write_fm_files(self, oasis_model=None, **kwargs):
         """
         Generate Oasis FM files, namely::
 
@@ -811,32 +824,56 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             fm_xref.csv
             fm_summaryxref.csv
         """
-        kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
-        self.load_fm_exposure_master_data_frame(oasis_model=oasis_model, **kwargs)
+        omr = oasis_model.resources
 
-        self.generate_fm_policytc_file(oasis_model=oasis_model, **kwargs)
-        self.generate_fm_profile_file(oasis_model=oasis_model, **kwargs)
-        self.generate_fm_programme_file(oasis_model=oasis_model, **kwargs)
-        self.generate_fm_xref_file(oasis_model=oasis_model, **kwargs)
-        self.generate_fmsummaryxref_file(oasis_model=oasis_model, **kwargs)
+        if oasis_model:
+            canexp_df, gulm_df = omr.get('canonical_exposures_data_frame'), omr.get('gul_master_data_frame')
+        else:
+            canexp_df, gulm_df = kwargs.get('canonical_exposures_data_frame'), kwargs.get('gul_master_data_frame')
+
+        canonical_exposures_profile = kwargs.get('canonical_exposures_profile')
+        canonical_account_profile = kwargs.get('canonical_account_profile')
+        canonical_account_file_path = kwargs.get('canonical_account_file_path')
+
+        fm_df = self.load_fm_master_data_frame(canexp_df, gulm_df, canonical_exposures_profile, canonical_account_profile, canonical_account_file_path)
+
+        if oasis_model:
+            oasis_model.resources['fm_master_data_frame'] = fm_df
+
+        fm_policytc_file_path = kwargs.get('fm_policytc_file_path')
+        self.write_fm_policytc_file(fm_df, fm_policytc_file_path)
+
+        fm_profile_file_path = kwargs.get('fm_profile_file_path')
+        self.write_fm_profile_file(fm_df, fm_profile_file_path)
+
+        fm_programme_file_path = kwargs.get('fm_programme_file_path')
+        self.write_fm_programme_file(fm_df, fm_programme_file_path)
+
+        fm_xref_file_path = kwargs.get('fm_xref_file_path')
+        self.write_fm_xref_file(fm_df, fm_xref_file_path)
+
+        fmsummaryxref_file_path = kwargs.get('fmsummaryxref_file_path')
+        self.write_fmsummaryxref_file(fm_df, fmsummaryxref_file_path)
 
         return {
-            'fm_policytc_file_path': kwargs['fm_policytc_file_path'],
-            'fm_profile_file_path': kwargs['fm_profile_file_path'],
-            'fm_programme_file_path': kwargs['fm_programme_file_path'],
-            'fm_xref_file_path': kwargs['fm_xref_file_path'],
-            'fmsummaryxref_file_path': kwargs['fmsummaryxref_file_path']
+            'fm_policytc_file_path': fm_policytc_file_path,
+            'fm_profile_file_path': fm_profile_file_path,
+            'fm_programme_file_path': fm_programme_file_path,
+            'fm_xref_file_path': fm_xref_file_path,
+            'fmsummaryxref_file_path': fmsummaryxref_file_path
         }
 
-    def generate_oasis_files(self, oasis_model=None, include_fm=False, **kwargs):
-        gul_files = self.generate_gul_files(oasis_model=oasis_model, **kwargs)
+    def write_oasis_files(self, oasis_model=None, include_fm=False, **kwargs):
+        gul_files = self.write_gul_files(oasis_model=oasis_model, **kwargs)
 
         if not include_fm:
             return gul_files
 
-        fm_files = self.generate_fm_files(oasis_model=oasis_model, **kwargs)
+        fm_files = self.write_fm_files(oasis_model=oasis_model, **kwargs)
 
-        return {k:v for k, v in gul_files.items() + fm_files.items()}
+        oasis_files = {k:v for k, v in gul_files.items() + fm_files.items()}
+
+        return oasis_files
 
     def clear_oasis_files_pipeline(self, oasis_model, **kwargs):
         """
@@ -942,31 +979,29 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         )
 
         source_exposures_file_path = kwargs.get('source_exposures_file_path')
-        if not os.path.exists(source_exposures_file_path):
-            self.logger.info('\nCopying source exposures file to input files directory')
-            shutil.copy2(source_exposures_file_path, oasis_files_path)
+        self.logger.info('\nCopying source exposures file to input files directory')
+        shutil.copy2(source_exposures_file_path, oasis_files_path)
 
         if include_fm:
             source_account_file_path = kwargs.get('source_account_file_path')
-            if not os.path.exists(source_exposures_file_path):
-                self.logger.info('\nCopying source exposures file to input files directory')
-                shutil.copy2(source_account_file_path, oasis_files_path)
+            self.logger.info('\nCopying source exposures file to input files directory')
+            shutil.copy2(source_account_file_path, oasis_files_path)
 
         logger.info('\nGenerating canonical exposures file {canonical_exposures_file_path}'.format(**kwargs))
-        self.transform_source_to_canonical(**kwargs)
+        self.transform_source_to_canonical(oasis_model=oasis_model, **kwargs)
 
         if include_fm:
             logger.info('\nGenerating canonical account file {canonical_account_file_path}'.format(**kwargs))
-            self.transform_source_to_canonical(source_type='account', **kwargs)
+            self.transform_source_to_canonical(oasis_model=oasis_model, source_type='account', **kwargs)
 
         logger.info('\nGenerating model exposures file {model_exposures_file_path}'.format(**kwargs))
-        self.transform_canonical_to_model(**kwargs)
+        self.transform_canonical_to_model(oasis_model=oasis_model, **kwargs)
 
         logger.info('\nGenerating keys file {keys_file_path} and keys errors file {keys_errors_file_path}'.format(**kwargs))
         self.get_keys(oasis_model=oasis_model, **kwargs)
 
         logger.info('\nGenerating Oasis files (GUL=True, FM={})'.format(include_fm))
-        return self.generate_oasis_files(oasis_model=oasis_model, include_fm=include_fm, **kwargs)
+        return self.write_oasis_files(oasis_model=oasis_model, include_fm=include_fm, **kwargs)
 
     def create_model(self, model_supplier_id, model_id, model_version_id, resources=None):
         model = OasisModel(
@@ -993,7 +1028,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             model.resources.get('canonical_account_profile_json_path') or
             model.resources.get('canonical_account_profile_json') or
             model.resources.get('canonical_account_profile')
-        ) and model.get('source_account_file_path'):
+        ) and model.resources.get('source_account_file_path'):
             if model.resources.get('canonical_account_profile') is None:
                 self.load_canonical_account_profile(oasis_model=model)
 
