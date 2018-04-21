@@ -11,7 +11,7 @@ import json
 import logging
 import os
 import shutil
-import sys
+import time
 
 import pandas as pd
 import six
@@ -930,8 +930,8 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         :type logger: `logging.Logger`
         """
         logger = logger or logging.getLogger()
-        logger.info('\nChecking output files directory exists for model')
 
+        logger.info('\nChecking output files directory exists for model')
         if oasis_model and not oasis_files_path:
             oasis_files_path = oasis_model.resources.get('oasis_files_path')
 
@@ -984,7 +984,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         if include_fm:
             source_account_file_path = kwargs.get('source_account_file_path')
-            self.logger.info('\nCopying source exposures file to input files directory')
+            self.logger.info('\nCopying source account file to input files directory')
             shutil.copy2(source_account_file_path, oasis_files_path)
 
         logger.info('\nGenerating canonical exposures file {canonical_exposures_file_path}'.format(**kwargs))
@@ -1000,8 +1000,21 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         logger.info('\nGenerating keys file {keys_file_path} and keys errors file {keys_errors_file_path}'.format(**kwargs))
         self.get_keys(oasis_model=oasis_model, **kwargs)
 
-        logger.info('\nGenerating Oasis files (GUL=True, FM={})'.format(include_fm))
-        return self.write_oasis_files(oasis_model=oasis_model, include_fm=include_fm, **kwargs)
+        logger.info('\nGenerating GUL files')
+        gul_files = self.write_gul_files(oasis_model=oasis_model, **kwargs)
+
+        if not include_fm:
+            total_time -= (time.time() - start_time) / 60
+            logger.info('\nOasis files (GUL) generated for model in {} minutes'.format(total_time))
+
+            return oasis_files
+
+        logger.info('\nGenerating FM files')
+        fm_files = self.write_fm_files(oasis_model=oasis_model, **kwargs)
+
+        oasis_files = {k:v for k, v in gul_files.items() + fm_files.items()}
+
+        return oasis_files
 
     def create_model(self, model_supplier_id, model_id, model_version_id, resources=None):
         model = OasisModel(
@@ -1012,7 +1025,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         )
 
         # set default resources
-        model.resources.setdefault('oasis_files_path', os.path.join('Files', model.key.replace('/', '-')))
+        model.resources.setdefault('oasis_files_path', os.path.abspath(os.path.join('Files', model.key.replace('/', '-'))))
         if not os.path.isabs(model.resources.get('oasis_files_path')):
             model.resources['oasis_files_path'] = os.path.abspath(model.resources['oasis_files_path'])
 
