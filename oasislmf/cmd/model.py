@@ -4,7 +4,7 @@ import io
 import json
 import os
 import subprocess
-import sys
+import time
 
 from argparse import RawDescriptionHelpFormatter
 
@@ -118,6 +118,9 @@ class GenerateKeysCmd(OasisBaseCommand):
 
         keys_format = inputs.get('keys_format', default='oasis')
 
+        start_time = time.time()
+        self.logger.info('\nStarting keys files generation (@ {})'.format(get_utctimestamp()))
+
         self.logger.info('\nGetting model info and creating lookup service instance')
         model_info, model_klc = OasisKeysLookupFactory.create(
             model_keys_data_path=keys_data_path,
@@ -144,6 +147,10 @@ class GenerateKeysCmd(OasisBaseCommand):
         )
         self.logger.info('\n{} keys records with successful lookups saved to keys file {}'.format(n1, f1))
         self.logger.info('{} keys records with unsuccessful lookups saved to keys error file {}'.format(n2, f2))
+
+        total_time = time.time() - start_time
+        total_time_str = '{} seconds'.format(round(total_time, 3)) if total_time < 60 else '{} minutes'.format(round(total_time / 60, 3))
+        self.logger.info('\nFinished keys files generation ({})'.format(total_time_str))
 
 
 class GenerateOasisFilesCmd(OasisBaseCommand):
@@ -255,6 +262,9 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
 
         include_fm = inputs.get('include_fm', default=False)
 
+        start_time = time.time()
+        self.logger.info('\nStarting Oasis files generation (@ {})'.format(get_utctimestamp()))
+
         self.logger.info('\nGenerate FM files: {}'.format(include_fm))
 
         if include_fm and not (canonical_account_profile_json_path or source_account_file_path):
@@ -304,6 +314,10 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         )
 
         self.logger.info('\nGenerated Oasis files for model: {}'.format(oasis_files))
+
+        total_time = time.time() - start_time
+        total_time_str = '{} seconds'.format(round(total_time, 3)) if total_time < 60 else '{} minutes'.format(round(total_time / 60, 3))
+        self.logger.info('\nFinished Oasis files generation ({})'.format(total_time_str))
 
 
 class GenerateLossesCmd(OasisBaseCommand):
@@ -379,6 +393,9 @@ class GenerateLossesCmd(OasisBaseCommand):
         ktools_script_name = inputs.get('ktools_script_name', default='run_ktools')
         no_execute = inputs.get('no_execute', default=False)
 
+        start_time = time.time()
+        self.logger.info('\nStarting loss generation (@ {})'.format(get_utctimestamp()))
+
         if not model_run_dir_path:
             utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
             model_run_dir_path = os.path.join(os.getcwd(), 'runs', 'ProgOasis-{}'.format(utcnow))
@@ -433,6 +450,10 @@ class GenerateLossesCmd(OasisBaseCommand):
             run(analysis_settings, args.ktools_num_processes, filename=script_path)
 
         self.logger.info('\nLoss outputs generated in {}'.format(os.path.join(model_run_dir_path, 'output')))
+
+        total_time = time.time() - start_time
+        total_time_str = '{} seconds'.format(round(total_time, 3)) if total_time < 60 else '{} minutes'.format(round(total_time / 60, 3))
+        self.logger.info('\nFinished loss generation ({})'.format(total_time_str))
 
 
 class RunCmd(OasisBaseCommand):
@@ -514,6 +535,9 @@ class RunCmd(OasisBaseCommand):
 
         model_run_dir_path = as_path(inputs.get('model_run_dir_path', required=False), 'Model run path', preexists=False)
 
+        start_time = time.time()
+        self.logger.info('\nStarting model run (@ {})'.format(get_utctimestamp()))
+
         if not model_run_dir_path:
             utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
             model_run_dir_path = os.path.join(os.getcwd(), 'runs', 'ProgOasis-{}'.format(utcnow))
@@ -536,6 +560,10 @@ class RunCmd(OasisBaseCommand):
         gen_losses_cmd = GenerateLossesCmd()
         gen_losses_cmd._logger = self.logger
         gen_losses_cmd.action(args)
+
+        total_time = time.time() - start_time
+        total_time_str = '{} seconds'.format(round(total_time, 3)) if total_time < 60 else '{} minutes'.format(round(total_time / 60, 3))
+        self.logger.info('\nFinished model run ({})'.format(total_time_str))
 
 
 class ModelsCmd(OasisBaseCommand):

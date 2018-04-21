@@ -140,6 +140,7 @@ def get_deductible_by_item(canonical_profiles_grouped_fm_terms, canexp_item, can
 
     return ded_val
 
+
 def get_deductible_type(canonical_profiles_grouped_fm_terms, canexp_df, canacc_df, fmitems_df, row_index):
 
     gfmt = canonical_profiles_grouped_fm_terms
