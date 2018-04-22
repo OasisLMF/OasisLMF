@@ -714,15 +714,15 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             canacc_df = canacc_df.where(canacc_df.notnull(), None)
             canacc_df.columns = canacc_df.columns.str.lower()
         
-        columns = [
+        columns = (
             'item_id', 'canloc_id', 'level_id', 'layer_id', 'agg_id', 'policytc_id', 'deductible',
-            'limit', 'share', 'deductible_type', 'calcrule_id', 'tiv'
-        ]
+            'limit', 'share', 'deductible_type', 'calcrule_id', 'tiv',
+        )
 
         cep = canonical_exposures_profile
         cap = canonical_account_profile
 
-        gfmt = canonical_profiles_grouped_fm_terms(canonical_profiles=[cep, cap])
+        gfmt = canonical_profiles_grouped_fm_terms(canonical_profiles=(cep, cap,))
 
         fm_levels = sorted(gfmt.keys())
 
@@ -732,30 +732,31 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 zip(list(gulm_df.item_id.values), list(gulm_df.canloc_id.values), [1]*len(gulm_df), list(gulm_df.tiv.values)))
         ]
 
-        layer_ids = [(i + 1) for i in range(len(canacc_df.policynum.values))]
+        layer_ids = tuple((i + 1) for i in range(len(canacc_df.policynum.values)))
 
         if max(layer_ids) > 1:
             preset_data.extend([
                 (t[1][0], (t[1][1][0], t[1][1][1], t[0], t[1][1][3]))
                 for t in itertools.product(layer_ids[1:], preset_data[-len(gulm_df):])
             ])
+            preset_data = tuple(preset_data)
 
-        data = [
+        data = tuple(
             {
                 k:v for k, v in zip(
                     columns,
                     [item_id,canloc_id,fm_levels.index([fml for fml in fm_levels if fml == level_id][0]) + 1,layer_id,1,0,0.0,0.0,0.0,u'B',2,tiv])
             } for level_id, (item_id, canloc_id, layer_id, tiv) in preset_data
-        ]
+        )
 
-        fm_df = pd.DataFrame(columns=columns, data=data)
+        fm_df = pd.DataFrame(columns=list(columns), data=list(data))
 
         for col in columns:
-            if col in ['item_id', 'canloc_id', 'level_id', 'layer_id', 'agg_id', 'policytc_id', 'calcrule_id']:
+            if col in ('item_id', 'canloc_id', 'level_id', 'layer_id', 'agg_id', 'policytc_id', 'calcrule_id',):
                 fm_df[col] = fm_df[col].astype(int)
-            elif col in ['limit', 'deductible', 'share', 'tiv']:
+            elif col in ('limit', 'deductible', 'share', 'tiv',):
                 fm_df[col] = fm_df[col].astype(float)
-            elif col in ['deductible_type']:
+            elif col in ('deductible_type',):
                 fm_df[col] = fm_df[col].astype(str)
 
         fm_df['index'] = fm_df.index
@@ -764,16 +765,16 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         threaded_fm_calc_funcs = (get_limit, get_deductible, get_deductible_type, get_share,)
 
-        threaded_fm_calc_task_funcs = [
+        threaded_fm_calc_task_funcs = tuple(
             lambda calc_func, gfmt, fm_df_copy, canexp_df, canacc_df: fm_df_copy['index'].apply(
                 lambda i: calc_func(copy.deepcopy(gfmt), canexp_df.copy(deep=True), canacc_df.copy(deep=True), fm_df_copy, i)
             ) for calc_func in threaded_fm_calc_funcs
-        ]
+        )
 
-        threaded_fm_calc_tasks = [
+        threaded_fm_calc_tasks = tuple(
             ThreadedTask(task_func, args=(calc_func, gfmt, fm_df.copy(deep=True), canexp_df, canacc_df,), key=column) for
             column, task_func, calc_func in zip(threaded_fm_calc_columns, threaded_fm_calc_task_funcs, threaded_fm_calc_funcs)
-        ]
+        )
 
         for column, result in aggregate_tasks(threaded_fm_calc_tasks):
             fm_df[column] = result

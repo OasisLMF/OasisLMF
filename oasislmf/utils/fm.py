@@ -25,7 +25,7 @@ import json
 from .exceptions import OasisException
 
 
-def canonical_profiles_fm_terms(canonical_profiles=[], canonical_profiles_paths=[]):
+def canonical_profiles_fm_terms(canonical_profiles=(), canonical_profiles_paths=()):
     if not (canonical_profiles or canonical_profiles_paths):
         raise OasisException('A list of canonical profiles (loc. or acc.) or a list of canonical profiles paths must be provided')
 
@@ -49,7 +49,7 @@ def canonical_profiles_fm_terms(canonical_profiles=[], canonical_profiles_paths=
     }
 
 
-def canonical_profiles_grouped_fm_terms(canonical_profiles=[], canonical_profiles_paths=[]):
+def canonical_profiles_grouped_fm_terms(canonical_profiles=(), canonical_profiles_paths=()):
     if not (canonical_profiles or canonical_profiles_paths):
         raise OasisException('A list of canonical profiles (loc. or acc.) or a list of canonical profiles paths must be provided')
 
