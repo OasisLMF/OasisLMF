@@ -757,23 +757,25 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         fm_df['index'] = fm_df.index
 
-        fm_term_columns = ('limit', 'deductible', 'deductible_type','share', 'calcrule_id',)
+        threaded_fm_calc_columns = ('limit', 'deductible', 'deductible_type', 'share',)
 
-        column_funcs = (get_limit, get_deductible, get_deductible_type, get_share, get_calc_rule,)
+        threaded_fm_calc_funcs = (get_limit, get_deductible, get_deductible_type, get_share,)
 
-        task_funcs = [
-            lambda column_func, gfmt, fm_df_copy, canexp_df, canacc_df: fm_df_copy['index'].apply(
-                lambda i: column_func(copy.deepcopy(gfmt), canexp_df.copy(deep+True), canacc_df.copy(deep+True), fm_df_copy, i)
-            ) for column_func in column_funcs
+        threaded_fm_calc_task_funcs = [
+            lambda calc_func, gfmt, fm_df_copy, canexp_df, canacc_df: fm_df_copy['index'].apply(
+                lambda i: calc_func(copy.deepcopy(gfmt), canexp_df.copy(deep=True), canacc_df.copy(deep=True), fm_df_copy, i)
+            ) for calc_func in threaded_fm_calc_funcs
         ]
 
-        tasks = [
-            (fm_term_column, task_func, (column_func, gfmt, fm_df.copy(deep=True), canexp_df, canacc_df,))
-            for fm_term_column, task_func, column_func in zip(fm_term_columns, column_funcs, task_funcs)
+        threaded_fm_calc_tasks = [
+            (column, task_func, (calc_func, gfmt, fm_df.copy(deep=True), canexp_df, canacc_df,))
+            for column, task_func, calc_func in zip(threaded_fm_calc_columns, threaded_fm_calc_task_funcs, threaded_fm_calc_funcs)
         ]
 
-        for column, result in aggregate_tasks(tasks):
+        for column, result in aggregate_tasks(threaded_fm_calc_tasks):
             fm_df[column] = result
+
+        fm_df['calcrule_id'] = fm_df['index'].apply(lambda i: get_calc_rule(gfmt, canexp_df, canacc_df, fm_df, i))
 
         fm_df['policytc_id'] = fm_df['index'].apply(lambda i: get_policytc_id(fm_df, i))
 
