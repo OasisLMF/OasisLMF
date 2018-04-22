@@ -11,14 +11,9 @@ import itertools
 import json
 import logging
 import os
-import queue
 import shutil
-import signal
 import sys
-import threading
 import time
-
-
 
 import pandas as pd
 import six
@@ -26,9 +21,9 @@ import six
 from interface import Interface, implements
 
 from ..keys.lookup import OasisKeysLookupFactory
+from ..utils.concurrency import aggregate_tasks
 from ..utils.exceptions import OasisException
 from ..utils.fm import (
-    canonical_profiles_fm_terms,
     canonical_profiles_grouped_fm_terms,
     get_calc_rule,
     get_deductible,
@@ -762,63 +757,22 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         fm_df['index'] = fm_df.index
 
-        fm_term_columns = ('limit', 'deductible', 'deductible_type','share', 'calcrule_id')
+        fm_term_columns = ('limit', 'deductible', 'deductible_type','share', 'calcrule_id',)
 
-        columns_funcs = zip(
-            fm_term_columns,
-            (get_limit, get_deductible, get_deductible_type, get_share, get_calc_rule)
-        )
+        column_funcs = (get_limit, get_deductible, get_deductible_type, get_share, get_calc_rule,)
 
-        tasks = [
-            (column, func, copy.deepcopy(gfmt), canexp_df.copy(deep=True), canacc_df.copy(deep=True), fm_df.copy(deep=True))
-            for column, func in columns_funcs
+        task_funcs = [
+            lambda column_func, gfmt, fm_df_copy, canexp_df, canacc_df: fm_df_copy['index'].apply(
+                lambda i: column_func(copy.deepcopy(gfmt), canexp_df.copy(deep+True), canacc_df.copy(deep+True), fm_df_copy, i)
+            ) for column_func in column_funcs
         ]
 
-        task_q = queue.Queue()
+        tasks = [
+            (fm_term_column, task_func, (column_func, gfmt, fm_df.copy(deep=True), canexp_df, canacc_df,))
+            for fm_term_column, task_func, column_func in zip(fm_term_columns, column_funcs, task_funcs)
+        ]
 
-        for task in tasks:
-            task_q.put(task)
-
-        def run_fm_calc(task_q, result_q, stopper):
-            while not stopper.is_set():
-                try:
-                    column, func, gfmt_copy, canexp_df_copy, canacc_df_copy, fm_df_copy = task_q.get_nowait()
-                except queue.Empty:
-                    break
-                else:
-                    result = fm_df_copy['index'].apply(lambda i: func(gfmt_copy, canexp_df_copy, canacc_df_copy, fm_df_copy, i))
-                    result_q.put((column, result,))
-                    task_q.task_done()
-
-        result_q = queue.Queue()
-
-        stopper = threading.Event()
-
-        workers = [threading.Thread(target=run_fm_calc, args=(task_q, result_q, stopper,)) for c in fm_term_columns]
-
-        class SignalHandler(object):
-            def __init__(self, stopper, workers):
-                self.stopper = stopper
-                self.workers = workers
-
-            def __call__(self, signum, frame):
-                self.stopper.set()
-
-                for worker in self.workers:
-                    worker.join()
-
-                sys.exit(0)
-
-        handler = SignalHandler(stopper, workers)
-        signal.signal(signal.SIGINT, handler)
-
-        for worker in workers:
-            worker.start()
-
-        task_q.join()
-
-        while not result_q.empty():
-            column, result = result_q.get_nowait()
+        for column, result in aggregate_tasks(tasks):
             fm_df[column] = result
 
         fm_df['policytc_id'] = fm_df['index'].apply(lambda i: get_policytc_id(fm_df, i))
@@ -1060,11 +1014,17 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         :return: A dictionary of Oasis files (GUL + FM (if FM option indicated))
         """
+        if oasis_model:
+            omr = oasis_model.resources
+            ofp = omr['oasis_files_pipeline']
+
+            ofp.clear()
+
         logger = logger or logging.getLogger()
 
         logger.info('\nChecking output files directory exists for model')
         if oasis_model and not oasis_files_path:
-            oasis_files_path = oasis_model.resources.get('oasis_files_path')
+            oasis_files_path = omr.get('oasis_files_path')
 
         if not oasis_files_path:
             raise OasisException('No output directory provided.'.format(oasis_model))
@@ -1073,7 +1033,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         logger.info('\nChecking for source exposures file')
         if oasis_model and not source_exposures_file_path:
-            source_exposures_file_path = oasis_model.resources.get('source_exposures_file_path')
+            source_exposures_file_path = omr.get('source_exposures_file_path')
         if not source_exposures_file_path:
             raise OasisException('No source exposures file path provided in arguments or model resources')
         elif not os.path.exists(source_exposures_file_path):
@@ -1082,7 +1042,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         if include_fm:
             logger.info('\nChecking for source account file')
             if oasis_model and not source_account_file_path:
-                source_account_file_path = oasis_model.resources.get('source_account_file_path')
+                source_account_file_path = omr.get('source_account_file_path')
             if not source_account_file_path:
                 raise OasisException('FM option indicated but no source account file path provided in arguments or model resources')
             elif not os.path.exists(source_account_file_path):
