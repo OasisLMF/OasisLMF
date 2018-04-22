@@ -26,10 +26,6 @@ class SignalHandler(object):
         sys.exit(0)
 
 
-def slice_task():
-    pass
-
-
 def aggregate_tasks(tasks):
     
     task_q = queue.Queue()
@@ -65,3 +61,7 @@ def aggregate_tasks(tasks):
     while not result_q.empty():
         result_label, result = result_q.get_nowait()
         yield result_label, result
+
+
+def slice_task():
+    pass
