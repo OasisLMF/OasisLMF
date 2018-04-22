@@ -23,7 +23,7 @@ from interface import Interface, implements
 from ..keys.lookup import OasisKeysLookupFactory
 from ..utils.concurrency import (
     aggregate_tasks,
-    Task,
+    ThreadedTask,
 )
 from ..utils.exceptions import OasisException
 from ..utils.fm import (
@@ -771,7 +771,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         ]
 
         threaded_fm_calc_tasks = [
-            Task(task_func, args=(calc_func, gfmt, fm_df.copy(deep=True), canexp_df, canacc_df,), key=column) for
+            ThreadedTask(task_func, args=(calc_func, gfmt, fm_df.copy(deep=True), canexp_df, canacc_df,), key=column) for
             column, task_func, calc_func in zip(threaded_fm_calc_columns, threaded_fm_calc_task_funcs, threaded_fm_calc_funcs)
         ]
 
