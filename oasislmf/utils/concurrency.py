@@ -8,6 +8,7 @@ import threading
 __all__ = [
     'aggregate_tasks',
     'SignalHandler',
+    'Task',
     'slice_task'
 ]
 
@@ -26,7 +27,71 @@ class SignalHandler(object):
         sys.exit(0)
 
 
+class Task(object):
+    def __init__(self, func, args=(), key=None):
+        self._func = func
+        self._args = args
+        self._key = key if key else func.__name__
+        self._result = None
+        self._is_done = False
+
+    @property
+    def func(self):
+        """
+        Task function/method property - getter only.
+
+            :getter: Gets the task function/method object
+        """
+        return self._func
+
+    @property
+    def args(self):
+        """
+        Task function/method arguments property - getter only.
+
+            :getter: Gets the task function/method arguments
+        """
+        return self._args
+
+    @property
+    def key(self):
+        """
+        Task function/method key - getter only.
+
+            :getter: Gets the task function/method key
+        """
+        return self._key
+
+    @property
+    def result(self):
+        """
+        Task function/method result property.
+
+            :getter: Gets the task function/method result (produced by calling
+                     the function on the defined arguments)
+            :setter: Sets the task function/method result
+        """
+        return self._result
+
+    @result.setter
+    def result(self, r):
+        self._result = r
+        self._is_done = True
+
+    @property
+    def is_done(self):
+        """
+        Task function/method status property - getter only.
+
+            :getter: Gets the task function/method status
+        """
+        return self._is_done
+
+
 def aggregate_tasks(tasks):
+    """
+    Given 
+    """
     
     task_q = queue.Queue()
 
@@ -36,12 +101,12 @@ def aggregate_tasks(tasks):
     def run(task_q, result_q, stopper):
         while not stopper.is_set():
             try:
-                result_label, func, args = task_q.get_nowait()
+                task = task_q.get_nowait()
             except queue.Empty:
                 break
             else:
-                result = func(*args)
-                result_q.put((result_label, result,))
+                task.result = task.func(*task.args) if task.args else task.func()
+                result_q.put((task.key, task.result,))
                 task_q.task_done()
 
     result_q = queue.Queue()
@@ -59,9 +124,9 @@ def aggregate_tasks(tasks):
     task_q.join()
 
     while not result_q.empty():
-        result_label, result = result_q.get_nowait()
-        yield result_label, result
+        key, result = result_q.get_nowait()
+        yield key, result
 
 
-def slice_task():
+def slice_task(tasks):
     pass

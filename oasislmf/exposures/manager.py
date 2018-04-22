@@ -21,7 +21,10 @@ import six
 from interface import Interface, implements
 
 from ..keys.lookup import OasisKeysLookupFactory
-from ..utils.concurrency import aggregate_tasks
+from ..utils.concurrency import (
+    aggregate_tasks,
+    Task,
+)
 from ..utils.exceptions import OasisException
 from ..utils.fm import (
     canonical_profiles_grouped_fm_terms,
@@ -768,8 +771,8 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         ]
 
         threaded_fm_calc_tasks = [
-            (column, task_func, (calc_func, gfmt, fm_df.copy(deep=True), canexp_df, canacc_df,))
-            for column, task_func, calc_func in zip(threaded_fm_calc_columns, threaded_fm_calc_task_funcs, threaded_fm_calc_funcs)
+            Task(task_func, args=(calc_func, gfmt, fm_df.copy(deep=True), canexp_df, canacc_df,), key=column) for
+            column, task_func, calc_func in zip(threaded_fm_calc_columns, threaded_fm_calc_task_funcs, threaded_fm_calc_funcs)
         ]
 
         for column, result in aggregate_tasks(threaded_fm_calc_tasks):
