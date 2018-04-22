@@ -6,11 +6,11 @@ import sys
 import threading
 
 __all__ = [
-    'aggregate_tasks',
+    'aggregate',
     'SignalHandler',
     'Task',
     'ThreadedTask',
-    'slice_task'
+    'slice'
 ]
 
 
@@ -120,14 +120,14 @@ class ThreadedTask(Task):
         return self._thread.isAlive()
 
 
-def aggregate_tasks(tasks):
+def aggregate(threaded_tasks):
     """
     Given 
     """
     
     task_q = queue.Queue()
 
-    for task in tasks:
+    for task in threaded_tasks:
         task_q.put(task)
 
     def run(task_q, result_q, stopper):
@@ -145,13 +145,13 @@ def aggregate_tasks(tasks):
 
     stopper = threading.Event()
 
-    for task in tasks:
+    for task in threaded_tasks:
         task.thread = threading.Thread(target=run, args=(task_q, result_q, stopper,))
 
-    handler = SignalHandler(stopper, tasks)
+    handler = SignalHandler(stopper, threaded_tasks)
     signal.signal(signal.SIGINT, handler)
 
-    for task in tasks:
+    for task in threaded_tasks:
         task.start()
 
     task_q.join()
@@ -161,5 +161,5 @@ def aggregate_tasks(tasks):
         yield key, result
 
 
-def slice_task(tasks):
+def slice(task, slices=2):
     pass
