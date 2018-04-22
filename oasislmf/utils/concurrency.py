@@ -9,20 +9,19 @@ __all__ = [
     'aggregate',
     'SignalHandler',
     'Task',
-    'ThreadedTask',
     'slice'
 ]
 
 
 class SignalHandler(object):
-    def __init__(self, stopper, threaded_tasks):
+    def __init__(self, stopper, threads):
         self.stopper = stopper
-        self.threaded_tasks = threaded_tasks
+        self.threads = threads
 
     def __call__(self, signum, frame):
         self.stopper.set()
 
-        for task in self.threaded_tasks:
+        for task in self.threads:
             task.join()
 
         sys.exit(0)
@@ -89,45 +88,14 @@ class Task(object):
         return self._is_done
 
 
-class ThreadedTask(Task):
-
-    def __init__(self, func, thread=None, args=(), key=None):
-        super(self.__class__, self).__init__(func, args=args, key=key)
-        self._thread = thread
-
-    @property
-    def thread(self):
-        """
-        Task function/method thread property.
-
-            :getter: Gets the thread object
-            :setter: Sets the thread object
-        """
-        return self._thread
-
-    @thread.setter
-    def thread(self, t):
-        self._thread = t
-
-    def start(self):
-        self._thread.start()
-
-    def join(self):
-        self._thread.join()
-
-    @property
-    def is_done(self):
-        return self._thread.isAlive()
-
-
-def aggregate(threaded_tasks):
+def aggregate(tasks):
     """
     Given 
     """
     
     task_q = queue.Queue()
 
-    for task in threaded_tasks:
+    for task in tasks:
         task_q.put(task)
 
     def run(task_q, result_q, stopper):
@@ -145,14 +113,13 @@ def aggregate(threaded_tasks):
 
     stopper = threading.Event()
 
-    for task in threaded_tasks:
-        task.thread = threading.Thread(target=run, args=(task_q, result_q, stopper,))
+    threads = tuple(threading.Thread(target=run, args=(task_q, result_q, stopper,)) for task in tasks)
 
-    handler = SignalHandler(stopper, threaded_tasks)
+    handler = SignalHandler(stopper, threads)
     signal.signal(signal.SIGINT, handler)
 
-    for task in threaded_tasks:
-        task.start()
+    for thread in threads:
+        thread.start()
 
     task_q.join()
 
