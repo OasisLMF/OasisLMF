@@ -5,6 +5,8 @@ import signal
 import sys
 import threading
 
+from .exceptions import OasisException
+
 __all__ = [
     'aggregate',
     'SignalHandler',
@@ -90,7 +92,8 @@ class Task(object):
 
 def aggregate(tasks):
     """
-    Given 
+    Executes several tasks concurrently, puts the results into a queue,
+    and generates these back to the caller.
     """
     
     task_q = queue.Queue()
