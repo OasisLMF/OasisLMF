@@ -211,10 +211,10 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         pass
 
-    def write_oasis_files(self, oasis_model=None, include_fm=False, **kwargs):
+    def write_oasis_files(self, oasis_model=None, fm=False, **kwargs):
         """
         Writes the full set of Oasis files, which includes GUL files and
-        possibly also the FM files (if ``include_fm`` is ``True``) for a given
+        possibly also the FM files (if ``fm`` is ``True``) for a given
         ``oasis_model`` or set of keyword arguments.
 
         The required resources must be provided either via the model object
@@ -555,7 +555,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         return _keys_file_path, _keys_errors_file_path
 
-    def _process_default_kwargs(self, oasis_model=None, include_fm=False, **kwargs):
+    def _process_default_kwargs(self, oasis_model=None, fm=False, **kwargs):
         if oasis_model:
             omr = oasis_model.resources
             ofp = omr['oasis_files_pipeline']
@@ -611,7 +611,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 canonical_exposures_profile_json_path=kwargs.get('canonical_exposures_profile_json_path'),
             )
 
-        if include_fm and not kwargs.get('canonical_account_profile'):
+        if fm and not kwargs.get('canonical_account_profile'):
             kwargs['canonical_account_profile'] = self.load_canonical_account_profile(
                 oasis_model=oasis_model,
                 canonical_account_profile_json=kwargs.get('canonical_account_profile_json'),
@@ -1006,13 +1006,13 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             'fmsummaryxref_file_path': fmsummaryxref_file_path
         }
 
-    def write_oasis_files(self, oasis_model=None, include_fm=False, **kwargs):
+    def write_oasis_files(self, oasis_model=None, fm=False, **kwargs):
         """
-        Writes the Oasis files - GUL + FM (if ``include_fm`` is ``True``).
+        Writes the Oasis files - GUL + FM (if ``fm`` is ``True``).
         """
         gul_files = self.write_gul_files(oasis_model=oasis_model, **kwargs)
 
-        if not include_fm:
+        if not fm:
             return gul_files
 
         fm_files = self.write_fm_files(oasis_model=oasis_model, **kwargs)
@@ -1033,7 +1033,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         self,
         oasis_model=None,
         oasis_files_path=None, 
-        include_fm=False,
+        fm=False,
         source_exposures_file_path=None,
         source_account_file_path=None,
         logger=None
@@ -1053,9 +1053,8 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                                  written
         :type oasis_files_path: str
 
-        :param include_fm: Boolean indicating whether FM files should be
-                           generated
-        :param include_fm: bool
+        :param fm: Boolean indicating whether FM files should be generated
+        :param fm: bool
 
         :param source_exposures_file_path: Path to the source exposures file
         :type source_exposures_file_path: str
@@ -1093,7 +1092,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         elif not os.path.exists(source_exposures_file_path):
             raise OasisException("Source exposures file path {} does not exist on the filesysem.".format(source_exposures_file_path))
 
-        if include_fm:
+        if fm:
             logger.info('\nChecking for source account file')
             if oasis_model and not source_account_file_path:
                 source_account_file_path = omr.get('source_account_file_path')
@@ -1105,7 +1104,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
         kwargs = self._process_default_kwargs(
             oasis_model=oasis_model,
-            include_fm=include_fm,
+            fm=fm,
             source_exposures_file_path=source_exposures_file_path,
             source_account_file_path=source_account_file_path,
             canonical_exposures_file_path=os.path.join(oasis_files_path, 'canexp-{}.csv'.format(utcnow)),
@@ -1124,18 +1123,18 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         )
 
         source_exposures_file_path = kwargs.get('source_exposures_file_path')
-        self.logger.info('\nCopying source exposures file to input files directory')
+        self.logger.info('\nCopying source exposures file {source_exposures_file_path} to input files directory'.format(**kwargs))
         shutil.copy2(source_exposures_file_path, oasis_files_path)
 
-        if include_fm:
+        if fm:
             source_account_file_path = kwargs.get('source_account_file_path')
-            self.logger.info('\nCopying source account file to input files directory')
+            self.logger.info('\nCopying source account file {source_account_file_path} to input files directory'.format(**kwargs))
             shutil.copy2(source_account_file_path, oasis_files_path)
 
         logger.info('\nGenerating canonical exposures file {canonical_exposures_file_path}'.format(**kwargs))
         self.transform_source_to_canonical(oasis_model=oasis_model, **kwargs)
 
-        if include_fm:
+        if fm:
             logger.info('\nGenerating canonical account file {canonical_account_file_path}'.format(**kwargs))
             self.transform_source_to_canonical(oasis_model=oasis_model, source_type='account', **kwargs)
 
@@ -1148,7 +1147,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         logger.info('\nGenerating GUL files')
         gul_files = self.write_gul_files(oasis_model=oasis_model, **kwargs)
 
-        if not include_fm:
+        if not fm:
             return gul_files
 
         logger.info('\nGenerating FM files')
