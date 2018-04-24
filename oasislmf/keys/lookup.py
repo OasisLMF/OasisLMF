@@ -199,9 +199,9 @@ class OasisKeysLookupFactory(object):
         return output_file_path, len(records)
 
     @classmethod
-    def write_oasis_keys_error_file(cls, records, output_file_path):
+    def write_oasis_keys_errors_file(cls, records, output_file_path):
         """
-        Writes an Oasis keys error file from an iterable of keys records.
+        Writes an Oasis keys errors file from an iterable of keys records.
         """
         heading_row = OrderedDict([
             ('id', 'LocID'),
@@ -299,7 +299,7 @@ class OasisKeysLookupFactory(object):
         cls,
         lookup=None,
         keys_file_path=None,
-        keys_error_file_path=None,
+        keys_errors_file_path=None,
         keys_format='oasis',
         model_exposures=None,
         model_exposures_file_path=None,
@@ -320,29 +320,29 @@ class OasisKeysLookupFactory(object):
         field whose value will be `success`, otherwise the record will have
         a `status` field value of `failure` or `nomatch`.
 
-        If ``keys_error_file_path`` is not present then the method returns a
+        If ``keys_errors_file_path`` is not present then the method returns a
         pair ``(p, n)`` where ``p`` is the keys file path and ``n`` is the
         number of "successful" keys records written to the keys file, otherwise
         it returns a quadruple ``(p1, n1, p2, n2)`` where ``p1`` is the keys
         file path, ``n1`` is the number of "successful" keys records written to
-        the keys file, ``p2`` is the keys error file path and ``n2`` is the
-        number of "unsuccessful" keys records written to keys error file.
+        the keys file, ``p2`` is the keys errors file path and ``n2`` is the
+        number of "unsuccessful" keys records written to keys errors file.
         """
         if not (model_exposures or model_exposures_file_path):
             raise OasisException('No model exposures or model exposures file path provided')
 
-        keys_file_path, keys_error_file_path, model_exposures_file_path = map(
+        keys_file_path, keys_errors_file_path, model_exposures_file_path = map(
             lambda p: os.path.abspath(p) if p and not os.path.isabs(p) else p,
-            [keys_file_path, keys_error_file_path, model_exposures_file_path]
+            [keys_file_path, keys_errors_file_path, model_exposures_file_path]
         )
-        print('keys_file_path={}, keys_error_file_path={}'.format(keys_file_path, keys_error_file_path))
+
         keys = cls.get_keys(
             lookup=lookup,
             model_exposures=model_exposures,
             model_exposures_file_path=model_exposures_file_path,
-            success_only=(True if not keys_error_file_path else False)
+            success_only=(True if not keys_errors_file_path else False)
         )
-        print('keys={}'.format(keys))
+
         successes = []
         nonsuccesses = []
         for k in keys:
@@ -351,13 +351,13 @@ class OasisKeysLookupFactory(object):
         if keys_format == 'json':
             if keys_error_file_path:
                 fp1, n1 = cls.write_json_keys_file(successes, keys_file_path)
-                fp2, n2 = cls.write_json_keys_file(nonsuccesses, keys_error_file_path)
+                fp2, n2 = cls.write_json_keys_file(nonsuccesses, keys_errors_file_path)
                 return fp1, n1, fp2, n2
             return cls.write_json_keys_file(successes, keys_file_path)
         elif keys_format == 'oasis':
-            if keys_error_file_path:
+            if keys_errors_file_path:
                 fp1, n1 = cls.write_oasis_keys_file(successes, keys_file_path)
-                fp2, n2 = cls.write_oasis_keys_error_file(nonsuccesses, keys_error_file_path)
+                fp2, n2 = cls.write_oasis_keys_errors_file(nonsuccesses, keys_errors_file_path)
                 return fp1, n1, fp2, n2
             return cls.write_oasis_keys_file(successes, keys_file_path)
         else:
