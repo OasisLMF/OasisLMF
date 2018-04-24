@@ -33,7 +33,7 @@ class Task(object):
     def __init__(self, func, args=(), key=None):
         self._func = func
         self._args = args
-        self._key = key if key else func.__name__
+        self._key = key if key is not None else func.__name__
         self._result = None
         self._is_done = False
 
@@ -90,7 +90,7 @@ class Task(object):
         return self._is_done
 
 
-def aggregate(tasks):
+def aggregate(tasks, pool_size=None):
     """
     Executes several tasks concurrently, puts the results into a queue,
     and generates these back to the caller.
@@ -98,10 +98,13 @@ def aggregate(tasks):
     
     task_q = queue.Queue()
 
+    num_tasks = 0
+
     for task in tasks:
         task_q.put(task)
+        num_tasks += 1
 
-    def run(task_q, result_q, stopper):
+    def run(i, task_q, result_q, stopper):
         while not stopper.is_set():
             try:
                 task = task_q.get_nowait()
@@ -116,7 +119,9 @@ def aggregate(tasks):
 
     stopper = threading.Event()
 
-    threads = tuple(threading.Thread(target=run, args=(task_q, result_q, stopper,)) for task in tasks)
+    pool_size = num_tasks if pool_size is None else pool_size
+
+    threads = tuple(threading.Thread(target=run, args=(i, task_q, result_q, stopper,)) for i in range(pool_size))
 
     handler = SignalHandler(stopper, threads)
     signal.signal(signal.SIGINT, handler)
