@@ -208,7 +208,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             '-f', '--canonical-to-model-exposures-transformation-file-path', default=None,
             help='Canonical exposures file validation file (XSD) path'
         )
-        parser.add_argument('-i', '--include_fm', action='store_false', help='Whether to generate FM files')
+        parser.add_argument('--fm', action='store_true', help='Generate FM files - False if absent')
 
     def action(self, args):
         """
@@ -260,14 +260,14 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             'Canonical to model exposures transformation file path'
         )
 
-        include_fm = inputs.get('include_fm', default=False)
+        fm = inputs.get('fm', default=False)
 
         start_time = time.time()
         self.logger.info('\nStarting Oasis files generation (@ {})'.format(get_utctimestamp()))
 
-        self.logger.info('\nGenerate FM files: {}'.format(include_fm))
+        self.logger.info('\nGenerate FM files: {}'.format(fm))
 
-        if include_fm and not (canonical_account_profile_json_path or source_account_file_path):
+        if fm and not (canonical_account_profile_json_path or source_account_file_path):
             raise OasisException(
                 'FM option indicated but missing either the canonical account profile JSON path or '
                 'the source account file path'
@@ -309,7 +309,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         self.logger.info('\nGenerating Oasis files for model')
         oasis_files = OasisExposuresManager().start_oasis_files_pipeline(
             oasis_model=model,
-            include_fm=include_fm,
+            fm=fm,
             logger=self.logger
         )
 
@@ -510,7 +510,7 @@ class RunCmd(OasisBaseCommand):
             '-f', '--canonical-to-model-exposures-transformation-file-path', default=None,
             help='Canonical -> model exposures file validation file (XSD) path'
         )
-        parser.add_argument('-i', '--include_fm', action='store_true', help='Generate FM files - False if absent')
+        parser.add_argument('--fm', action='store_true', help='Generate FM files - False if absent')
 
         parser.add_argument(
             '-j', '--analysis-settings-json-file-path', default=None,
