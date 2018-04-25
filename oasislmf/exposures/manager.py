@@ -789,19 +789,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         fm_df['calcrule_id'] = fm_df['index'].apply(lambda i: fm_terms[i]['calcrule_id'])
 
-        policytc_ids_dict = get_policytc_ids(fm_df)
+        policytc_ids = get_policytc_ids(fm_df)
 
-        threaded_tasks = (
-            Task(get_policytc_id, args=(fm_df.iloc[i], policytc_ids_dict), key=i)
-            for i in fm_df['index']
-        )
-
-        policytc_ids = []
-
-        for i, result in aggregate(threaded_tasks, pool_size=100):
-            policytc_ids.append((i, result))
-
-        fm_df['policytc_id'] = [result for i, result in sorted(policytc_ids, key=lambda t: t[0])]
+        fm_df['policytc_id'] = fm_df['index'].apply(lambda i: get_policytc_id(fm_df.iloc[i], policytc_ids))
 
         return fm_df
 
