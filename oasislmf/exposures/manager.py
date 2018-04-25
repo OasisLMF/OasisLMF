@@ -28,13 +28,9 @@ from ..utils.concurrency import (
 from ..utils.exceptions import OasisException
 from ..utils.fm import (
     canonical_profiles_grouped_fm_terms,
-    get_calc_rule,
-    get_deductible,
-    get_deductible_type,
-    get_limit,
+    get_fm_terms,
     get_policytc_id,
     get_policytc_ids,
-    get_share,
 )
 from ..utils.values import get_utctimestamp
 from ..models import OasisModel
@@ -778,58 +774,34 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         if preset_only:
             return fm_df
 
-        """threaded_calc_columns = ('limit', 'deductible', 'deductible_type', 'share',)
-
-        threaded_calc_funcs = (get_limit, get_deductible, get_deductible_type, get_share,)
-
-        threaded_calc_task_funcs = tuple(
-            lambda calc_func, gfmt, fm_df_copy, canexp_df, canacc_df: fm_df_copy['index'].apply(
-                lambda i: calc_func(copy.deepcopy(gfmt), canexp_df.copy(deep=True), canacc_df.copy(deep=True), fm_df_copy, i)
-            ) for calc_func in threaded_calc_funcs
-        )
-
-        threaded_calc_tasks = tuple(
-            Task(task_func, args=(calc_func, gfmt, fm_df.copy(deep=True), canexp_df, canacc_df,), key=column)
-            for column, task_func, calc_func in zip(threaded_calc_columns, threaded_calc_task_funcs, threaded_calc_funcs)
-        )
-
-        for column, result in aggregate(threaded_calc_tasks):
-            fm_df[column] = result
-        """
-
-        task_funcs = {
-            'limit': {'func': get_limit, 'results': []},
-            'deductible': {'func': get_deductible, 'results': []},
-            'deductible_type': {'func': get_deductible_type, 'results': []},
-            'share': {'func': get_share, 'results': []}
+        fm_terms = {
+            i: get_fm_terms(gfmt, get_canexp_item(i), get_canacc_item(i), fm_df.iloc[i])
+            for i in fm_df['index']
         }
 
-        threaded_tasks = (
-            Task(task_funcs[column]['func'], args=(gfmt, get_canexp_item(i), get_canacc_item(i), fm_df.iloc[i]), key=(column, i))
-            for i, column in itertools.product(fm_df['index'], task_funcs)
-        )
+        fm_df['limit'] = fm_df['index'].apply(lambda i: fm_terms[i]['limit'])
 
-        for (column, i), result in aggregate(threaded_tasks, pool_size=100):
-            task_funcs[column]['results'].append((i, result))
+        fm_df['deductible'] = fm_df['index'].apply(lambda i: fm_terms[i]['deductible'])
 
-        for column in task_funcs:
-            fm_df[column] = [result for i, result in sorted(task_funcs[column]['results'], key=lambda t: t[0])]
+        fm_df['deductible_type'] = fm_df['index'].apply(lambda i: fm_terms[i]['deductible_type'])
 
-        fm_df['calcrule_id'] = fm_df['index'].apply(lambda i: get_calc_rule(fm_df.iloc[i]['limit'], fm_df.iloc[i]['share'], fm_df.iloc[i]['deductible_type']))
+        fm_df['share'] = fm_df['index'].apply(lambda i: fm_terms[i]['share'])
 
-        policytc_ids = get_policytc_ids(fm_df)
+        fm_df['calcrule_id'] = fm_df['index'].apply(lambda i: fm_terms[i]['calcrule_id'])
 
-        task_funcs['policytc_id'] = {'func': get_policytc_id, 'results': []}
+        policytc_ids_dict = get_policytc_ids(fm_df)
 
         threaded_tasks = (
-            Task(get_policytc_id, args=(fm_df.iloc[i], policytc_ids), key=i)
+            Task(get_policytc_id, args=(fm_df.iloc[i], policytc_ids_dict), key=i)
             for i in fm_df['index']
         )
 
-        for i, result in aggregate(threaded_tasks, pool_size=100):
-            task_funcs['policytc_id']['results'].append((i, result))
+        policytc_ids = []
 
-        fm_df['policytc_id'] = [result for i, result in sorted(task_funcs['policytc_id']['results'], key=lambda t: t[0])]
+        for i, result in aggregate(threaded_tasks, pool_size=100):
+            policytc_ids.append((i, result))
+
+        fm_df['policytc_id'] = [result for i, result in sorted(policytc_ids, key=lambda t: t[0])]
 
         return fm_df
 
