@@ -785,7 +785,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         def build_fm_terms(result):
             result_q.put(result)
 
-        pool = Pool(10)
+        pool = Pool(100)
 
         for i in fm_df['index']:
             pool.apply_async(get_fm_terms, args=(gfmt, get_canexp_item(i), get_canacc_item(i), fm_df.iloc[i],), callback=build_fm_terms)
