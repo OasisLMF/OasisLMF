@@ -18,16 +18,14 @@ import time
 import pandas as pd
 import six
 
-from interface import Interface, implements
-from multiprocessing import (
-    current_process,
-    Pool,
+from interface import (
+    Interface,
+    implements,
 )
-from queue import Queue
 
 from ..keys.lookup import OasisKeysLookupFactory
 from ..utils.concurrency import (
-    aggregate,
+    multiprocess,
     Task,
 )
 from ..utils.exceptions import OasisException
@@ -779,23 +777,14 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         if preset_only:
             return fm_df
 
-        result_q = Queue()
-        fm_terms = {}
+        concurrent_tasks = (
+            Task(get_fm_terms, args=(gfmt, get_canexp_item(i), get_canacc_item(i), fm_df.iloc[i],), key=i)
+            for i in fm_df['index']
+        )
 
-        def build_fm_terms(result):
-            result_q.put(result)
-
-        pool = Pool(100)
-
-        for i in fm_df['index']:
-            pool.apply_async(get_fm_terms, args=(gfmt, get_canexp_item(i), get_canacc_item(i), fm_df.iloc[i],), callback=build_fm_terms)
-
-        pool.close()
-        pool.join()
-
-        while not result_q.empty():
-            result = result_q.get_nowait()
-            fm_terms[result['index']] = result
+        fm_terms = {
+            result['index']:result for result in multiprocess(concurrent_tasks, pool_size=100)
+        }
 
         fm_df['limit'] = fm_df['index'].apply(lambda i: fm_terms[i]['limit'])
 

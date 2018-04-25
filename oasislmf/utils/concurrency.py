@@ -1,17 +1,25 @@
 # -*- coding: utf-8 -*-
 
-import queue
-import signal
 import sys
-import threading
+
+from multiprocessing import Pool
+from queue import Queue
+from signal import (
+    signal,
+    SIGINT,
+)
+from threading import (
+    Event,
+    Thread,
+)
 
 from .exceptions import OasisException
 
 __all__ = [
-    'aggregate',
     'SignalHandler',
     'Task',
-    'slice'
+    'multiprocess',
+    'thread'
 ]
 
 
@@ -90,13 +98,13 @@ class Task(object):
         return self._is_done
 
 
-def aggregate(tasks, pool_size=None):
+def thread(tasks, pool_size=10):
     """
-    Executes several tasks concurrently, puts the results into a queue,
-    and generates these back to the caller.
+    Executes several tasks concurrently via ``threading`` threads, puts the
+    results into a queue, and generates these back to the caller.
     """
     
-    task_q = queue.Queue()
+    task_q = Queue()
 
     num_tasks = 0
 
@@ -115,16 +123,14 @@ def aggregate(tasks, pool_size=None):
                 result_q.put((task.key, task.result,))
                 task_q.task_done()
 
-    result_q = queue.Queue()
+    result_q = Queue()
 
-    stopper = threading.Event()
+    stopper = Event()
 
-    pool_size = num_tasks if pool_size is None else pool_size
-
-    threads = tuple(threading.Thread(target=run, args=(i, task_q, result_q, stopper,)) for i in range(pool_size))
+    threads = tuple(Thread(target=run, args=(i, task_q, result_q, stopper,)) for i in range(pool_size))
 
     handler = SignalHandler(stopper, threads)
-    signal.signal(signal.SIGINT, handler)
+    signal(SIGINT, handler)
 
     for thread in threads:
         thread.start()
@@ -136,5 +142,26 @@ def aggregate(tasks, pool_size=None):
         yield key, result
 
 
-def slice(task, slices=2):
-    pass
+def multiprocess(tasks, pool_size=10):
+    """
+    Executes several tasks concurrently via Python ``multiprocessing``
+    processes, puts the results into a queue, and generates these back to the
+    caller.
+    """
+
+    pool = Pool(pool_size)
+
+    result_q = Queue()
+
+    def build_results(result):
+        result_q.put(result)
+
+    for task in tasks:
+        pool.apply_async(task.func, args=task.args, callback=build_results)
+
+    pool.close()
+    pool.join()
+
+    while not result_q.empty():
+        result = result_q.get_nowait()
+        yield result
