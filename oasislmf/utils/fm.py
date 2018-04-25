@@ -147,6 +147,7 @@ def get_fm_terms(canonical_profiles_grouped_fm_terms, canexp_item, canacc_item, 
     can_item = None
     
     fm_terms = {
+        'index': fm_item['index'],
         'item_id': fm_item['item_id'],
         'tiv': tiv,
         'limit': 0.0,
