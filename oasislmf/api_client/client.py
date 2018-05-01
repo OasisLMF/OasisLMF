@@ -213,7 +213,9 @@ class OasisAPIClient(object):
         self._logger.info("Analysis started")
 
         status, outputs_location = self.get_analysis_status(analysis_status_location)
-        while status == STATUS_PENDING:
+        # Poll until the analysis has completed successfully.
+        # If the analysis fails then an exception will be raised.
+        while status != STATUS_SUCCESS:
             time.sleep(analysis_poll_interval)
             status, outputs_location = self.get_analysis_status(analysis_status_location)
 
