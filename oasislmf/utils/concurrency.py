@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import sys
+import types
 
 from multiprocessing import Pool
 from queue import Queue
@@ -154,7 +155,11 @@ def multiprocess(tasks, pool_size=10):
     result_q = Queue()
 
     def build_results(result):
-        result_q.put(result)
+        if type(result) in (types.GeneratorType, list, tuple, set):
+            for r in result:
+                result_q.put(r)
+        else:
+            result_q.put(result)
 
     for task in tasks:
         pool.apply_async(task.func, args=task.args, callback=build_results)

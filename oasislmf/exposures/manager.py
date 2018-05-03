@@ -31,7 +31,7 @@ from ..utils.concurrency import (
 from ..utils.exceptions import OasisException
 from ..utils.fm import (
     canonical_profiles_grouped_fm_terms,
-    get_fm_terms,
+    get_fm_terms_by_level_as_list,
     get_policytc_id,
     get_policytc_ids,
 )
@@ -727,7 +727,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         gfmt = canonical_profiles_grouped_fm_terms(canonical_profiles=(cep, cap,))
 
-        fm_levels = sorted(gfmt.keys())
+        fm_levels = tuple(sorted(gfmt.keys()))
 
         preset_data = [
             p for p in itertools.product(
@@ -754,17 +754,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             } for level_id, (item_id, canexp_id, canacc_id, layer_id, tiv) in preset_data
         )
 
-        fm_df = pd.DataFrame(columns=list(columns), data=list(data))
+        fm_df = pd.DataFrame(columns=list(columns), data=list(data), dtype=object)
 
-        for col in columns:
-            if col in ('item_id', 'canexp_id', 'canacc_id', 'level_id', 'layer_id', 'agg_id', 'policytc_id', 'calcrule_id',):
-                fm_df[col] = fm_df[col].astype(int)
-            elif col in ('limit', 'deductible', 'share', 'tiv',):
-                fm_df[col] = fm_df[col].astype(float)
-            elif col in ('deductible_type',):
-                fm_df[col] = fm_df[col].astype(str)
-
-        fm_df['index'] = fm_df.index
+        fm_df['index'] = pd.Series(data=list(fm_df.index), dtype=object)
 
         get_canexp_item = lambda i: canexp_df.iloc[fm_df.iloc[i]['canexp_id']]
 
@@ -772,18 +764,19 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         get_canacc_item = lambda i: canacc_df[canacc_df['accntnum'] == get_canexp_item(i)['accntnum']][canacc_df['policynum'] == get_item_layer(i)]
 
-        fm_df['canacc_id'] = fm_df['index'].apply(lambda i: int(get_canacc_item(i)['accntnum']))
+        fm_df['canacc_id'] = pd.Series(data=fm_df['index'].apply(lambda i: int(get_canacc_item(i)['accntnum'])), dtype=object)
 
         if preset_only:
             return fm_df
 
         concurrent_tasks = (
-            Task(get_fm_terms, args=(gfmt, get_canexp_item(i), get_canacc_item(i), fm_df.iloc[i],), key=i)
-            for i in fm_df['index']
+            Task(get_fm_terms_by_level_as_list, args=(level_id, copy.deepcopy(gfmt), canexp_df.copy(deep=True), canacc_df.copy(deep=True), fm_df.copy(deep=True),), key=level_id)
+            for level_id in fm_levels
         )
 
+        
         fm_terms = {
-            result['index']:result for result in multiprocess(concurrent_tasks, pool_size=100)
+            result['index']:result for result in multiprocess(concurrent_tasks, pool_size=len(fm_levels))
         }
 
         fm_df['limit'] = fm_df['index'].apply(lambda i: fm_terms[i]['limit'])
