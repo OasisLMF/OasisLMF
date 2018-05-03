@@ -770,7 +770,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             return fm_df
 
         concurrent_tasks = (
-            Task(get_fm_terms_by_level_as_list, args=(level_id, copy.deepcopy(gfmt), canexp_df.copy(deep=True), canacc_df.copy(deep=True), fm_df.copy(deep=True),), key=level_id)
+            Task(get_fm_terms_by_level_as_list, args=(level_id, gfmt, canexp_df, canacc_df, fm_df,), key=level_id)
             for level_id in fm_levels
         )
 

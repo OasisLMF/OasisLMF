@@ -19,6 +19,8 @@ import io
 import itertools
 import json
 
+import pandas as pd
+
 from .exceptions import OasisException
 
 
