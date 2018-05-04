@@ -779,16 +779,6 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             result['index']:result for result in multiprocess(concurrent_tasks, pool_size=len(fm_levels))
         }
 
-        """fm_df['limit'] = fm_df['index'].apply(lambda i: fm_terms[i]['limit'])
-
-        fm_df['deductible'] = fm_df['index'].apply(lambda i: fm_terms[i]['deductible'])
-
-        fm_df['deductible_type'] = fm_df['index'].apply(lambda i: fm_terms[i]['deductible_type'])
-
-        fm_df['share'] = fm_df['index'].apply(lambda i: fm_terms[i]['share'])
-
-        fm_df['calcrule_id'] = fm_df['index'].apply(lambda i: fm_terms[i]['calcrule_id'])"""
-
         def set_col(col, fm_df, fm_terms_copy):
             fm_df[col] = fm_df['index'].apply(lambda i: fm_terms_copy[i][col])
 
@@ -799,7 +789,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             for col in fm_terms_cols
         )
 
-        multiprocess(concurrent_tasks, pool_size=len(fm_terms_cols))
+        multiprocess(concurrent_tasks, pool_size=len(fm_terms_cols), callback=False)
 
         policytc_ids = get_policytc_ids(fm_df)
 
