@@ -143,7 +143,7 @@ def thread(tasks, pool_size=10):
         yield key, result
 
 
-def multiprocess(tasks, pool_size=10):
+def multiprocess(tasks, pool_size=10, callback=True):
     """
     Executes several tasks concurrently via Python ``multiprocessing``
     processes, puts the results into a queue, and generates these back to the
@@ -162,11 +162,12 @@ def multiprocess(tasks, pool_size=10):
             result_q.put(result)
 
     for task in tasks:
-        pool.apply_async(task.func, args=task.args, callback=build_results)
+        pool.apply_async(task.func, args=task.args, callback=(build_results if callback else None))
 
     pool.close()
     pool.join()
 
-    while not result_q.empty():
-        result = result_q.get_nowait()
-        yield result
+    if callback:
+        while not result_q.empty():
+            result = result_q.get_nowait()
+            yield result

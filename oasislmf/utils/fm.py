@@ -4,7 +4,7 @@ __all__ = [
     'canonical_profiles_fm_terms',
     'canonical_profiles_grouped_fm_terms',
     'get_calc_rule',
-    'get_fm_terms',
+    'get_fm_terms_by_item',
     'get_fm_terms_by_level',
     'get_fm_terms_by_level_as_list',
     'get_policytc_id',
@@ -75,7 +75,7 @@ def get_calc_rule(limit, share, ded_type):
         return 2
 
 
-def get_fm_terms(canonical_profiles_grouped_fm_terms, canexp_item, canacc_item, fm_item):
+def get_fm_terms_by_item(canonical_profiles_grouped_fm_terms, canexp_item, canacc_item, fm_item):
 
     gfmt = canonical_profiles_grouped_fm_terms
 
