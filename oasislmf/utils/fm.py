@@ -4,15 +4,11 @@ __all__ = [
     'canonical_profiles_fm_terms',
     'canonical_profiles_grouped_fm_terms',
     'get_calc_rule',
-    'get_deductible',
-    'get_deductible_type',
     'get_fm_terms',
     'get_fm_terms_by_level',
     'get_fm_terms_by_level_as_list',
-    'get_limit',
     'get_policytc_id',
-    'get_policytc_ids',
-    'get_share'
+    'get_policytc_ids'
 ]
 
 import io
@@ -77,66 +73,6 @@ def get_calc_rule(limit, share, ded_type):
         return 10
     else:
         return 2
-
-
-def get_deductible(canonical_profiles_grouped_fm_terms, canexp_item, canacc_item, fm_item):
-
-    gfmt = canonical_profiles_grouped_fm_terms
-
-    level_id = fm_item['level_id']
-    tiv = fm_item['tiv']
-
-    is_coverage_level = any('tiv' in gfmt[level_id][gid] for gid in gfmt[level_id])
-
-    can_item = None
-    ded_field = None
-
-    if is_coverage_level:
-        for gid in gfmt[level_id]:
-            tiv_field = gfmt[level_id][gid]['tiv']
-            tiv_field_name = tiv_field['ProfileElementName'].lower()
-
-            if tiv_field_name in canexp_item and float(canexp_item[tiv_field_name]) == float(tiv):
-                ded_field = gfmt[level_id][gid]['deductible'] if 'deductible' in gfmt[level_id][gid] else None
-                break
-    else:
-        ded_field = gfmt[level_id][1]['deductible'] if 'deductible' in gfmt[level_id][1] else None
-
-    if not ded_field:
-        return 0.0
-
-    can_item = canexp_item if ded_field['ProfileType'].lower() == 'loc' else canacc_item
-    
-    ded_field_name = ded_field['ProfileElementName'].lower()
-    ded_val = float(can_item[ded_field_name]) if ded_field_name in can_item else 0.0
-
-    return ded_val
-
-
-def get_deductible_type(canonical_profiles_grouped_fm_terms, canexp_item, canacc_item, fm_item):
-
-    gfmt = canonical_profiles_grouped_fm_terms
-
-    level_id = fm_item['level_id']
-    tiv = fm_item['tiv']
-
-    is_coverage_level = any('tiv' in gfmt[level_id][gid] for gid in gfmt[level_id])
-
-    can_item = None
-    ded_field = None
-
-    if is_coverage_level:
-        for gid in gfmt[level_id]:
-            tiv_field = gfmt[level_id][gid]['tiv']
-            tiv_field_name = tiv_field['ProfileElementName'].lower()
-
-            if tiv_field_name in canexp_item and float(canexp_item[tiv_field_name]) == float(tiv):
-                ded_field = gfmt[level_id][gid]['deductible'] if 'deductible' in gfmt[level_id][gid] else None
-                break
-    else:
-        ded_field = gfmt[level_id][1]['deductible'] if 'deductible' in gfmt[level_id][1] else None
-
-    return ded_field['DeductibleType'] if ded_field else u'B'
 
 
 def get_fm_terms(canonical_profiles_grouped_fm_terms, canexp_item, canacc_item, fm_item):
@@ -345,40 +281,6 @@ def get_fm_terms_by_level_as_list(level_id, canonical_profiles_grouped_fm_terms,
     return list(get_fm_terms_by_level(level_id, canonical_profiles_grouped_fm_terms, canexp_df, canacc_df, fm_df))
 
 
-def get_limit(canonical_profiles_grouped_fm_terms, canexp_item, canacc_item, fm_item):
-
-    gfmt = canonical_profiles_grouped_fm_terms
-
-    level_id = fm_item['level_id']
-    tiv = fm_item['tiv']
-
-    is_coverage_level = any('tiv' in gfmt[level_id][gid] for gid in gfmt[level_id])
-
-    can_item = None
-    limit_field = None
-
-    if is_coverage_level:
-        for gid in gfmt[level_id]:
-            tiv_field  = gfmt[level_id][gid]['tiv']
-            tiv_field_name = tiv_field['ProfileElementName'].lower()
-
-            if tiv_field_name in canexp_item and float(canexp_item[tiv_field_name]) == float(tiv):
-                limit_field = gfmt[level_id][gid]['limit'] if 'limit' in gfmt[level_id][gid] else None
-                break
-    else:
-        limit_field = gfmt[level_id][1]['limit'] if 'limit' in gfmt[level_id][1] else None
-
-    if not limit_field:
-        return 0.0
-
-    can_item = canexp_item if limit_field['ProfileType'].lower() == 'loc' else canacc_item
-    
-    limit_field_name = limit_field['ProfileElementName'].lower()
-    limit_val = float(can_item[limit_field_name]) if limit_field_name in can_item else 0.0
-
-    return limit_val
-
-
 def get_policytc_id(fm_item, policytc_ids):
 
     for i in policytc_ids:
@@ -416,35 +318,4 @@ def get_policytc_ids(fm_df):
 
     return policytc_ids
 
-def get_share(canonical_profiles_grouped_fm_terms, canexp_item, canacc_item, fm_item):
 
-    gfmt = canonical_profiles_grouped_fm_terms
-
-    level_id = fm_item['level_id']
-    tiv = fm_item['tiv']
-
-    is_coverage_level = any('tiv' in gfmt[level_id][gid] for gid in gfmt[level_id])
-
-    can_item = None
-    share_field = None
-
-    if is_coverage_level:
-        for gid in gfmt[level_id]:
-            tiv_field = gfmt[level_id][gid]['tiv']
-            tiv_field_name = tiv_field['ProfileElementName'].lower()
-
-            if tiv_field_name in canexp_item and float(canexp_item[tiv_field_name]) == float(tiv):
-                share_field = gfmt[level_id][gid]['share'] if 'share' in gfmt[level_id][gid] else None
-                break
-    else:
-        share_field = gfmt[level_id][1]['share'] if 'share' in gfmt[level_id][1] else None
-
-    if not share_field:
-        return 0.0
-
-    can_item = canexp_item if share_field['ProfileType'].lower() == 'loc' else canacc_item
-    
-    share_field_name = share_field['ProfileElementName'].lower()
-    share_val = float(can_item[share_field_name]) if share_field_name in can_item else 0.0
-
-    return share_val
