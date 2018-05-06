@@ -641,13 +641,16 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         keys_df.columns = keys_df.columns.str.lower()
         keys_df['index'] = pd.Series(data=list(keys_df.index), dtype=object)
 
+        merged_df = pd.merge(canexp_df, keys_df, left_on='row_id', right_on='locid')
+        merged_df['index'] = pd.Series(data=list(merged_df.index), dtype=object)
+
         cep = canonical_exposures_profile
 
-        tiv_fields = sorted(
+        tiv_fields = tuple(sorted(
             [v for v in six.itervalues(cep) if v.get('FieldName') == 'TIV']
-        )
+        ))
 
-        columns = [
+        columns = (
             'item_id',
             'canexp_id',
             'coverage_id',
@@ -656,41 +659,35 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             'vulnerability_id',
             'group_id',
             'summary_id',
-            'summaryset_id'
-        ]
-        gulm_df = pd.DataFrame(columns=columns, dtype=object)
+            'summaryset_id',
+        )
+        gulm_df = pd.DataFrame(columns=list(columns), dtype=object)
 
         for col in columns:
             gulm_df[col] = gulm_df[col].astype(int) if col != 'tiv' else gulm_df[col]
 
         item_id = 0
-        for i, keys_item in keys_df.iterrows():
-            canexp_item = canexp_df[canexp_df['row_id'] == keys_item['locid']]
+        for _, item in merged_df.iterrows():
 
-            if canexp_item.empty:
-                raise OasisException(
-                    "No matching canonical exposure item found in canonical exposures data frame for keys item {}.".format(keys_item)
-                )
+            positive_tiv_fields = tuple(f for f in tiv_fields if f['CoverageTypeID'] == item['coveragetype'] and item[f['ProfileElementName'].lower()] > 0)
 
-            canexp_item = canexp_item.iloc[0]
+            if not positive_tiv_fields:
+                continue
 
-            tiv_field_matches = filter(lambda f: f['CoverageTypeID'] == keys_item['coveragetype'], tiv_fields)
-            for tiv_field in tiv_field_matches:
-                tiv_lookup = tiv_field['ProfileElementName'].lower()
-                tiv_value = canexp_item[tiv_lookup]
-                if tiv_value > 0:
-                    item_id += 1
-                    gulm_df = gulm_df.append([{
-                        'item_id': item_id,
-                        'canexp_id': canexp_item['index'],
-                        'coverage_id': item_id,
-                        'tiv': tiv_value,
-                        'areaperil_id': keys_item['areaperilid'],
-                        'vulnerability_id': keys_item['vulnerabilityid'],
-                        'group_id': item_id,
-                        'summary_id': 1,
-                        'summaryset_id': 1,
-                    }])
+            for f in positive_tiv_fields:
+                item_id += 1
+                tiv = item[f['ProfileElementName'].lower()]
+                gulm_df = gulm_df.append([{
+                    'item_id': item_id,
+                    'canexp_id': item['index'],
+                    'coverage_id': item_id,
+                    'tiv': tiv,
+                    'areaperil_id': item['areaperilid'],
+                    'vulnerability_id': item['vulnerabilityid'],
+                    'group_id': item_id,
+                    'summary_id': 1,
+                    'summaryset_id': 1
+                }])
 
         return gulm_df, canexp_df
     
