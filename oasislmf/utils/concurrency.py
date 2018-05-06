@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+import multiprocessing
+import queue
 import sys
 import types
 
@@ -20,7 +22,7 @@ __all__ = [
     'SignalHandler',
     'Task',
     'multiprocess',
-    'thread'
+    'multithread'
 ]
 
 
@@ -99,7 +101,7 @@ class Task(object):
         return self._is_done
 
 
-def thread(tasks, pool_size=10):
+def multithread(tasks, pool_size=10):
     """
     Executes several tasks concurrently via ``threading`` threads, puts the
     results into a queue, and generates these back to the caller.
@@ -121,7 +123,11 @@ def thread(tasks, pool_size=10):
                 break
             else:
                 task.result = task.func(*task.args) if task.args else task.func()
-                result_q.put((task.key, task.result,))
+                if type(task.result) in (types.GeneratorType, list, tuple, set):
+                    for r in task.result:
+                        result_q.put((task.key, r,))
+                else:
+                    result_q.put((task.key, task.result,))
                 task_q.task_done()
 
     result_q = Queue()
