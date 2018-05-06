@@ -634,11 +634,12 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         
         canexp_df = canexp_df.where(canexp_df.notnull(), None)
         canexp_df.columns = canexp_df.columns.str.lower()
-        canexp_df['index'] = canexp_df.index
+        canexp_df['index'] = pd.Series(data=list(canexp_df.index), dtype=object)
 
         keys_df = keys_df.rename(columns={'CoverageID': 'CoverageType'})
         keys_df = keys_df.where(keys_df.notnull(), None)
         keys_df.columns = keys_df.columns.str.lower()
+        keys_df['index'] = pd.Series(data=list(keys_df.index), dtype=object)
 
         cep = canonical_exposures_profile
 
@@ -663,9 +664,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             gulm_df[col] = gulm_df[col].astype(int) if col != 'tiv' else gulm_df[col]
 
         item_id = 0
-        for i in range(len(keys_df)):
-            keys_item = keys_df.iloc[i]
-
+        for i, keys_item in keys_df.iterrows():
             canexp_item = canexp_df[canexp_df['row_id'] == keys_item['locid']]
 
             if canexp_item.empty:
@@ -716,6 +715,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         
         canacc_df = canacc_df.where(canacc_df.notnull(), None)
         canacc_df.columns = canacc_df.columns.str.lower()
+        canacc_df['index'] = pd.Series(data=list(canacc_df.index), dtype=object)
         
         columns = (
             'item_id', 'canexp_id', 'canacc_id', 'level_id', 'layer_id', 'agg_id', 'policytc_id', 'deductible',
@@ -764,17 +764,16 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         get_canacc_item = lambda i: canacc_df[canacc_df['accntnum'] == get_canexp_item(i)['accntnum']][canacc_df['policynum'] == get_item_layer(i)]
 
-        fm_df['canacc_id'] = pd.Series(data=fm_df['index'].apply(lambda i: int(get_canacc_item(i)['accntnum'])), dtype=object)
+        fm_df['canacc_id'] = pd.Series(data=fm_df['index'].apply(lambda i: int(get_canacc_item(i)['index'])), dtype=object)
 
         if preset_only:
-            return fm_df
+            return fm_df, canacc_df
 
         concurrent_tasks = (
-            Task(get_fm_terms_by_level_as_list, args=(level_id, copy.deepcopy(gfmt), canexp_df.copy(deep=True), canacc_df.copy(deep=True), fm_df.copy(deep=True),), key=level_id)
+            Task(get_fm_terms_by_level_as_list, args=(level_id, gfmt[level_id], canexp_df.copy(deep=True), canacc_df.copy(deep=True), pd.DataFrame(fm_df.where(fm_df['level_id'] == level_id).drop_duplicates().dropna(), dtype=object),), key=level_id)
             for level_id in fm_levels
         )
 
-        
         fm_terms = {
             result['index']:result for result in multiprocess(concurrent_tasks, pool_size=len(fm_levels))
         }
@@ -791,7 +790,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         fm_df['policytc_id'] = fm_df['index'].apply(lambda i: get_policytc_id(fm_df.iloc[i], policytc_ids))
 
-        return fm_df
+        return fm_df, canacc_df
 
 
     def write_items_file(self, gul_master_data_frame, items_file_path):
@@ -938,7 +937,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         canonical_account_profile = kwargs.get('canonical_account_profile')
         canonical_account_file_path = kwargs.get('canonical_account_file_path')
 
-        fm_df = self.load_fm_master_data_frame(canexp_df, gulm_df, canonical_exposures_profile, canonical_account_profile, canonical_account_file_path)
+        fm_df, _ = self.load_fm_master_data_frame(canexp_df, gulm_df, canonical_exposures_profile, canonical_account_profile, canonical_account_file_path)
 
         if oasis_model:
             oasis_model.resources['fm_master_data_frame'] = fm_df

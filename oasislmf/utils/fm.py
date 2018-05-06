@@ -139,21 +139,15 @@ def get_fm_terms_by_item(canonical_profiles_grouped_fm_terms, canexp_item, canac
     return fm_terms
 
 
-def get_coverage_level_terms(coverage_level_id, coverage_level_grouped_fm_terms, canexp_df, canacc_df, fm_df):
+def get_coverage_level_terms(coverage_level_id, coverage_level_grouped_fm_terms, canexp_df, canacc_df, level_fm_df):
 
     clgfmt = coverage_level_grouped_fm_terms
 
-    get_canexp_item = lambda i: canexp_df.iloc[int(fm_df.iloc[i]['canexp_id'])]
+    get_canexp_item = lambda i: canexp_df.iloc[int(level_fm_df.loc[i]['canexp_id'])]
 
-    get_item_layer = lambda i: list(canacc_df[canacc_df['accntnum'] == get_canexp_item(i)['accntnum']]['policynum'].values)[int(fm_df.iloc[i]['layer_id']) - 1]
+    get_canacc_item = lambda i: canacc_df.iloc[int(level_fm_df.loc[i]['canacc_id'])]
 
-    get_canacc_item = lambda i: canacc_df[canacc_df['accntnum'] == get_canexp_item(i)['accntnum']][canacc_df['policynum'] == get_item_layer(i)]
-
-    coverage_level_fm_df = pd.DataFrame(fm_df.where(fm_df['level_id'] == coverage_level_id).drop_duplicates().dropna(), dtype=object)
-
-    for i in range(len(coverage_level_fm_df)):
-        fm_item = coverage_level_fm_df.iloc[i]
-
+    for i, fm_item in level_fm_df.iterrows():
         tiv = fm_item['tiv']
 
         canexp_item = get_canexp_item(i)
@@ -173,6 +167,7 @@ def get_coverage_level_terms(coverage_level_id, coverage_level_grouped_fm_terms,
         can_item = None
 
         fm_terms = {
+            'level_id': coverage_level_id,
             'index': int(fm_item['index']),
             'item_id': int(fm_item['item_id']),
             'tiv': tiv,
@@ -208,32 +203,32 @@ def get_coverage_level_terms(coverage_level_id, coverage_level_grouped_fm_terms,
         yield fm_terms
 
 
-def get_fm_terms_by_level(level_id, canonical_profiles_grouped_fm_terms, canexp_df, canacc_df, fm_df):
+def get_fm_terms_by_level(level_id, level_grouped_fm_terms, canexp_df, canacc_df, level_fm_df):
 
-    gfmt = canonical_profiles_grouped_fm_terms
+    lgfmt = level_grouped_fm_terms
 
-    is_coverage_level = lambda level_id: any('tiv' in gfmt[level_id][gid] for gid in gfmt[level_id])
+    is_coverage_level = lambda level_id: any('tiv' in lgfmt[gid] for gid in lgfmt)
 
     if is_coverage_level(level_id):
-        for fmt in get_coverage_level_terms(level_id, gfmt[level_id], canexp_df, canacc_df, fm_df):
+        for fmt in get_coverage_level_terms(level_id, lgfmt, canexp_df, canacc_df, level_fm_df):
             yield fmt
     else:
-        limit_field = gfmt[level_id][1]['limit'] if 'limit' in gfmt[level_id][1] else None
-        ded_field = gfmt[level_id][1]['deductible'] if 'deductible' in gfmt[level_id][1] else None
+        limit_field = lgfmt[1]['limit'] if 'limit' in lgfmt[1] else None
+        limit_field_name = limit_field['ProfileElementName'].lower() if limit_field else None
+
+        ded_field = lgfmt[1]['deductible'] if 'deductible' in lgfmt[1] else None
+        ded_field_name = ded_field['ProfileElementName'].lower() if ded_field else None
+
         ded_type = ded_field['DeductibleType'] if ded_field else u'B'
-        share_field = gfmt[level_id][1]['share'] if 'share' in gfmt[level_id][1] else None
 
-        level_fm_df = pd.DataFrame(fm_df.where(fm_df['level_id'] == level_id).drop_duplicates().dropna(), dtype=object)
+        share_field = lgfmt[1]['share'] if 'share' in lgfmt[1] else None
+        share_field_name = share_field['ProfileElementName'].lower() if share_field else None
 
-        get_canexp_item = lambda i: canexp_df.iloc[int(level_fm_df.iloc[i]['canexp_id'])]
+        get_canexp_item = lambda i: canexp_df.iloc[int(level_fm_df.loc[i]['canexp_id'])]
 
-        get_item_layer = lambda i: list(canacc_df[canacc_df['accntnum'] == get_canexp_item(i)['accntnum']]['policynum'].values)[int(level_fm_df.iloc[i]['layer_id']) - 1]
+        get_canacc_item = lambda i: canacc_df.iloc[int(level_fm_df.loc[i]['canacc_id'])]
 
-        get_canacc_item = lambda i: canacc_df[canacc_df['accntnum'] == get_canexp_item(i)['accntnum']][canacc_df['policynum'] == get_item_layer(i)]
-
-        for i in range(len(level_fm_df)):
-
-            fm_item = level_fm_df.iloc[i]
+        for i, fm_item in level_fm_df.iterrows():
 
             canexp_item = get_canexp_item(i)
             canacc_item = get_canacc_item(i)
@@ -254,22 +249,19 @@ def get_fm_terms_by_level(level_id, canonical_profiles_grouped_fm_terms, canexp_
 
             if limit_field:
                 can_item = canexp_item if limit_field['ProfileType'].lower() == 'loc' else canacc_item
-                limit_field_name = limit_field['ProfileElementName'].lower()
-                limit_val = float(can_item[limit_field_name]) if limit_field_name in can_item else 0.0
+                limit_val = float(can_item[limit_field_name])
                 fm_terms['limit'] = limit_val
 
             if ded_field:
                 can_item = canexp_item if ded_field['ProfileType'].lower() == 'loc' else canacc_item
-                ded_field_name = ded_field['ProfileElementName'].lower()
-                ded_val = float(can_item[ded_field_name]) if ded_field_name in can_item else 0.0
+                ded_val = float(can_item[ded_field_name])
                 fm_terms['deductible'] = ded_val
 
             fm_terms['deductible_type'] = ded_type
 
             if share_field:
                 can_item = canexp_item if share_field['ProfileType'].lower() == 'loc' else canacc_item
-                share_field_name = share_field['ProfileElementName'].lower()
-                share_val = float(can_item[share_field_name]) if share_field_name in can_item else 0.0
+                share_val = float(can_item[share_field_name])
                 fm_terms['share'] = share_val
 
             fm_terms['calcrule_id'] = get_calc_rule(fm_terms['limit'], fm_terms['share'], fm_terms['deductible_type'])
@@ -277,27 +269,27 @@ def get_fm_terms_by_level(level_id, canonical_profiles_grouped_fm_terms, canexp_
             yield fm_terms
 
 
-def get_fm_terms_by_level_as_list(level_id, canonical_profiles_grouped_fm_terms, canexp_df, canacc_df, fm_df):
-    return list(get_fm_terms_by_level(level_id, canonical_profiles_grouped_fm_terms, canexp_df, canacc_df, fm_df))
+def get_fm_terms_by_level_as_list(level_id, level_grouped_fm_terms, canexp_df, canacc_df, level_fm_df):
+    return list(get_fm_terms_by_level(level_id, level_grouped_fm_terms, canexp_df, canacc_df, level_fm_df))
 
 
 def get_policytc_id(fm_item, policytc_ids):
 
-    for i in policytc_ids:
-        if (
-            fm_item['limit'] == policytc_ids[i]['limit'] and
-            fm_item['deductible'] == policytc_ids[i]['deductible'] and
-            fm_item['share'] == policytc_ids[i]['share'] and
-            fm_item['calcrule_id'] == policytc_ids[i]['calcrule_id']
-        ):
-            return i
+    terms = {
+        'limit': fm_item['limit'],
+        'deductible': fm_item['deductible'],
+        'share': fm_item['share'],
+        'calcrule_id': fm_item['calcrule_id']
+    }
 
-    return
+    for i, v in policytc_ids.items():
+        if terms == v:
+            return i
 
 def get_policytc_ids(fm_df):
 
     columns = [
-        col for col in fm_df.columns if not col in ['limit', 'deductible', 'share', 'calcrule_id']
+        col for col in fm_df.columns if not col in ('limit', 'deductible', 'share', 'calcrule_id',)
     ]
 
     policytc_df = fm_df.drop(columns, axis=1).drop_duplicates()
@@ -305,7 +297,7 @@ def get_policytc_ids(fm_df):
     for col in policytc_df.columns:
         policytc_df[col] = policytc_df[col].astype(float) if col != 'calcrule_id' else policytc_df[col].astype(int)
 
-    policytc_df['index'] = range(1, len(policytc_df) + 1)
+    policytc_df['index'] = list(range(1, len(policytc_df) + 1))
 
     policytc_ids = {
         i: {
