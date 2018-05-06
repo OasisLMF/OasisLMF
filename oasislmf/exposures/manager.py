@@ -26,6 +26,7 @@ from interface import (
 from ..keys.lookup import OasisKeysLookupFactory
 from ..utils.concurrency import (
     multiprocess,
+    multithread,
     Task,
 )
 from ..utils.exceptions import OasisException
@@ -898,19 +899,22 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             oasis_model.resources['canonical_exposures_data_frame'] = canexp_df
             oasis_model.resources['gul_master_data_frame'] = gulm_df
 
-        items_file_path = kwargs.get('items_file_path')
-        self.write_items_file(gulm_df, items_file_path)
+        gul_files = {
+            'items': kwargs.get('items_file_path'),
+            'coverages': kwargs.get('coverages_file_path'),
+            'gulsummaryxref': kwargs.get('gulsummaryxref_file_path')
+        }
 
-        coverages_file_path = kwargs.get('coverages_file_path')
-        self.write_coverages_file(gulm_df, coverages_file_path)
+        concurrent_tasks = (
+            Task(getattr(self, 'write_{}_file'.format(gf)), args=(gulm_df, gul_files[gf],), key=gf)
+            for gf in gul_files
+        )
 
-        gulsummaryxref_file_path = kwargs.get('gulsummaryxref_file_path')
-        self.write_gulsummaryxref_file(gulm_df, gulsummaryxref_file_path)
+        for _, _ in multithread(concurrent_tasks, pool_size=len(gul_files)):
+            pass
 
         return {
-            'items_file_path': items_file_path,
-            'coverages_file_path': coverages_file_path,
-            'gulsummaryxref_file_path': gulsummaryxref_file_path
+            '{}_file_path'.format(gf): gul_files[gf] for gf in gul_files
         }
 
     def write_fm_files(self, oasis_model=None, **kwargs):
