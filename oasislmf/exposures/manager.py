@@ -887,6 +887,10 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             coverages.csv
             gulsummaryxref.csv
         """
+        if oasis_model:
+            omr = oasis_model.resources
+            ofp = omr['oasis_files_pipeline']
+
         kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
 
         canonical_exposures_profile = kwargs.get('canonical_exposures_profile')
@@ -896,26 +900,27 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         gulm_df, canexp_df = self.load_gul_master_data_frame(canonical_exposures_profile, canonical_exposures_file_path, keys_file_path)
 
         if oasis_model:
-            oasis_model.resources['canonical_exposures_data_frame'] = canexp_df
-            oasis_model.resources['gul_master_data_frame'] = gulm_df
+            omr['canonical_exposures_data_frame'] = canexp_df
+            omr['gul_master_data_frame'] = gulm_df
 
-        gul_files = {
-            'items': kwargs.get('items_file_path'),
-            'coverages': kwargs.get('coverages_file_path'),
-            'gulsummaryxref': kwargs.get('gulsummaryxref_file_path')
-        }
+        gul_files = (
+            ofp.gul_files if oasis_model
+            else {
+                'items': kwargs.get('items_file_path'),
+                'coverages': kwargs.get('coverages_file_path'),
+                'gulsummaryxref': kwargs.get('gulsummaryxref_file_path')
+            }
+        )
 
         concurrent_tasks = (
-            Task(getattr(self, 'write_{}_file'.format(gf)), args=(gulm_df, gul_files[gf],), key=gf)
-            for gf in gul_files
+            Task(getattr(self, 'write_{}_file'.format(f)), args=(gulm_df, gul_files[f],), key=f)
+            for f in gul_files
         )
 
         for _, _ in multithread(concurrent_tasks, pool_size=len(gul_files)):
             pass
 
-        return {
-            '{}_file_path'.format(gf): gul_files[gf] for gf in gul_files
-        }
+        return gul_files
 
     def write_fm_files(self, oasis_model=None, **kwargs):
         """
@@ -927,7 +932,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             fm_xref.csv
             fm_summaryxref.csv
         """
-        omr = oasis_model.resources
+        if oasis_model:
+            omr = oasis_model.resources
+            ofp = omr['oasis_files_pipeline']
 
         if oasis_model:
             canexp_df, gulm_df = omr.get('canonical_exposures_data_frame'), omr.get('gul_master_data_frame')
@@ -938,33 +945,32 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         canonical_account_profile = kwargs.get('canonical_account_profile')
         canonical_account_file_path = kwargs.get('canonical_account_file_path')
 
-        fm_df, _ = self.load_fm_master_data_frame(canexp_df, gulm_df, canonical_exposures_profile, canonical_account_profile, canonical_account_file_path)
+        fm_df, canacc_df = self.load_fm_master_data_frame(canexp_df, gulm_df, canonical_exposures_profile, canonical_account_profile, canonical_account_file_path)
 
         if oasis_model:
-            oasis_model.resources['fm_master_data_frame'] = fm_df
+            omr['canonical_account_data_frame'] = canacc_df
+            omr['fm_master_data_frame'] = fm_df
 
-        fm_policytc_file_path = kwargs.get('fm_policytc_file_path')
-        self.write_fm_policytc_file(fm_df, fm_policytc_file_path)
+        fm_files = (
+            ofp.fm_files if oasis_model
+            else  {
+                'fm_policytc': kwargs.get('fm_policytc_file_path'),
+                'fm_profile': kwargs.get('fm_profile_file_path'),
+                'fm_programme': kwargs.get('fm_programme_file_path'),
+                'fm_xref': kwargs.get('fm_xref_file_path'),
+                'fmsummaryxref': kwargs.get('fmsummaryxref_file_path')
+            }
+        )
 
-        fm_profile_file_path = kwargs.get('fm_profile_file_path')
-        self.write_fm_profile_file(fm_df, fm_profile_file_path)
+        concurrent_tasks = (
+            Task(getattr(self, 'write_{}_file'.format(f)), args=(fm_df, fm_files[f],), key=f)
+            for f in fm_files
+        )
 
-        fm_programme_file_path = kwargs.get('fm_programme_file_path')
-        self.write_fm_programme_file(fm_df, fm_programme_file_path)
+        for _, _ in multithread(concurrent_tasks, pool_size=len(fm_files)):
+            pass
 
-        fm_xref_file_path = kwargs.get('fm_xref_file_path')
-        self.write_fm_xref_file(fm_df, fm_xref_file_path)
-
-        fmsummaryxref_file_path = kwargs.get('fmsummaryxref_file_path')
-        self.write_fmsummaryxref_file(fm_df, fmsummaryxref_file_path)
-
-        return {
-            'fm_policytc_file_path': fm_policytc_file_path,
-            'fm_profile_file_path': fm_profile_file_path,
-            'fm_programme_file_path': fm_programme_file_path,
-            'fm_xref_file_path': fm_xref_file_path,
-            'fmsummaryxref_file_path': fmsummaryxref_file_path
-        }
+        return fm_files
 
     def write_oasis_files(self, oasis_model=None, fm=False, **kwargs):
         """
@@ -1035,18 +1041,20 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         logger = logger or logging.getLogger()
 
-        logger.info('\nChecking output files directory exists for model')
+        logger.info('\nChecking Oasis files directory exists for model')
         if oasis_model and not oasis_files_path:
             oasis_files_path = omr.get('oasis_files_path')
 
         if not oasis_files_path:
-            raise OasisException('No output directory provided.'.format(oasis_model))
+            raise OasisException('No Oasis files directory provided.'.format(oasis_model))
         elif not os.path.exists(oasis_files_path):
-            raise OasisException('Output directory {} does not exist on the filesystem.'.format(oasis_files_path))
+            raise OasisException('Oasis files directory {} does not exist on the filesystem.'.format(oasis_files_path))
+
+        logger.info('Oasis files directory is {}'.format(oasis_files_path))
 
         logger.info('\nChecking for source exposures file')
         if oasis_model and not source_exposures_file_path:
-            source_exposures_file_path = omr.get('source_exposures_file_path')
+            source_exposures_file_path = omr.get('source_exposures_file_path') or ofp.source_exposures_file_path
         if not source_exposures_file_path:
             raise OasisException('No source exposures file path provided in arguments or model resources')
         elif not os.path.exists(source_exposures_file_path):
@@ -1055,40 +1063,81 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         if fm:
             logger.info('\nChecking for source account file')
             if oasis_model and not source_account_file_path:
-                source_account_file_path = omr.get('source_account_file_path')
+                source_account_file_path = omr.get('source_account_file_path') or ofp.source_account_file_path
             if not source_account_file_path:
                 raise OasisException('FM option indicated but no source account file path provided in arguments or model resources')
             elif not os.path.exists(source_account_file_path):
                 raise OasisException("Source account file path {} does not exist on the filesysem.".format(source_account_file_path))
 
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
+
+        canonical_exposures_file_path = os.path.join(oasis_files_path, 'canexp-{}.csv'.format(utcnow))
+        canonical_account_file_path = os.path.join(oasis_files_path, 'canacc-{}.csv'.format(utcnow))
+
+        model_exposures_file_path = os.path.join(oasis_files_path, 'modexp-{}.csv'.format(utcnow))
+
+        keys_file_path = os.path.join(oasis_files_path, 'oasiskeys-{}.csv'.format(utcnow))
+        keys_errors_file_path = os.path.join(oasis_files_path, 'oasiskeys-errors-{}.csv'.format(utcnow))
+
+        items_file_path = os.path.join(oasis_files_path, 'items.csv')
+        coverages_file_path = os.path.join(oasis_files_path, 'coverages.csv')
+        gulsummaryxref_file_path = os.path.join(oasis_files_path, 'gulsummaryxref.csv')
+
+        fm_policytc_file_path = os.path.join(oasis_files_path, 'fm_policytc.csv')
+        fm_profile_file_path = os.path.join(oasis_files_path, 'fm_profile.csv')
+        fm_programme_file_path=os.path.join(oasis_files_path, 'fm_programme.csv')
+        fm_xref_file_path = os.path.join(oasis_files_path, 'fm_xref.csv')
+        fmsummaryxref_file_path = os.path.join(oasis_files_path, 'fmsummaryxref.csv')
+
+        if oasis_model:
+            ofp.source_exposures_file_path = source_exposures_file_path
+            ofp.source_account_file_path = source_account_file_path
+
+            ofp.canonical_exposures_file_path = canonical_exposures_file_path
+            ofp.canonical_account_file_path = canonical_exposures_file_path
+
+            ofp.model_exposures_file_path = model_exposures_file_path
+
+            ofp.keys_file_path = keys_file_path
+            ofp.keys_errors_file_path = keys_errors_file_path
+
+            ofp.items_file_path = items_file_path
+            ofp.coverages_file_path = coverages_file_path
+            ofp.gulsummaryxref_file_path = gulsummaryxref_file_path
+
+            ofp.fm_policytc_file_path = fm_policytc_file_path
+            ofp.fm_profile_file_path = fm_profile_file_path
+            ofp.fm_programme_file_path = fm_programme_file_path
+            ofp.fm_xref_file_path = fm_xref_file_path
+            ofp.fmsummaryxref_file_path = fmsummaryxref_file_path
+
         kwargs = self._process_default_kwargs(
             oasis_model=oasis_model,
             fm=fm,
             source_exposures_file_path=source_exposures_file_path,
             source_account_file_path=source_account_file_path,
-            canonical_exposures_file_path=os.path.join(oasis_files_path, 'canexp-{}.csv'.format(utcnow)),
-            canonical_account_file_path=os.path.join(oasis_files_path, 'canacc-{}.csv'.format(utcnow)),
-            model_exposures_file_path=os.path.join(oasis_files_path, 'modexp-{}.csv'.format(utcnow)),
-            keys_file_path=os.path.join(oasis_files_path, 'oasiskeys-{}.csv'.format(utcnow)),
-            keys_errors_file_path=os.path.join(oasis_files_path, 'oasiskeys-errors-{}.csv'.format(utcnow)),
-            items_file_path=os.path.join(oasis_files_path, 'items.csv'),
-            coverages_file_path=os.path.join(oasis_files_path, 'coverages.csv'),
-            gulsummaryxref_file_path=os.path.join(oasis_files_path, 'gulsummaryxref.csv'),
-            fm_policytc_file_path=os.path.join(oasis_files_path, 'fm_policytc.csv'),
-            fm_profile_file_path=os.path.join(oasis_files_path, 'fm_profile.csv'),
-            fm_programme_file_path=os.path.join(oasis_files_path, 'fm_programme.csv'),
-            fm_xref_file_path=os.path.join(oasis_files_path, 'fm_xref.csv'),
-            fmsummaryxref_file_path=os.path.join(oasis_files_path, 'fmsummaryxref.csv')
+            canonical_exposures_file_path=canonical_exposures_file_path,
+            canonical_account_file_path=canonical_account_file_path,
+            model_exposures_file_path=model_exposures_file_path,
+            keys_file_path=keys_file_path,
+            keys_errors_file_path=keys_errors_file_path,
+            items_file_path=items_file_path,
+            coverages_file_path=coverages_file_path,
+            gulsummaryxref_file_path=gulsummaryxref_file_path,
+            fm_policytc_file_path=fm_policytc_file_path,
+            fm_profile_file_path=fm_profile_file_path,
+            fm_programme_file_path=fm_programme_file_path,
+            fm_xref_file_path=fm_xref_file_path,
+            fmsummaryxref_file_path=fmsummaryxref_file_path
         )
 
         source_exposures_file_path = kwargs.get('source_exposures_file_path')
-        self.logger.info('\nCopying source exposures file {source_exposures_file_path} to input files directory'.format(**kwargs))
+        self.logger.info('\nCopying source exposures file {source_exposures_file_path} to Oasis files directory'.format(**kwargs))
         shutil.copy2(source_exposures_file_path, oasis_files_path)
 
         if fm:
             source_account_file_path = kwargs.get('source_account_file_path')
-            self.logger.info('\nCopying source account file {source_account_file_path} to input files directory'.format(**kwargs))
+            self.logger.info('\nCopying source account file {source_account_file_path} to Oasis files directory'.format(**kwargs))
             shutil.copy2(source_account_file_path, oasis_files_path)
 
         logger.info('\nGenerating canonical exposures file {canonical_exposures_file_path}'.format(**kwargs))
@@ -1113,7 +1162,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         logger.info('\nGenerating FM files')
         fm_files = self.write_fm_files(oasis_model=oasis_model, **kwargs)
 
-        oasis_files = {k:v for k, v in gul_files.items() + fm_files.items()}
+        oasis_files = ofp.oasis_files if oasis_model else {k:v for k, v in gul_files.items() + fm_files.items()}
 
         return oasis_files
 
