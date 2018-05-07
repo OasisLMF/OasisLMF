@@ -950,6 +950,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         if oasis_model:
             omr['canonical_account_data_frame'] = canacc_df
             omr['fm_master_data_frame'] = fm_df
+        else:
+            kwargs['canonical_account_data_frame'] = canacc_df
+            kwargs['fm_master_data_frame'] = fm_df
 
         fm_files = (
             ofp.fm_files if oasis_model

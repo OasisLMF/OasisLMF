@@ -104,6 +104,7 @@ def get_fm_terms_by_item(canonical_profiles_grouped_fm_terms, canexp_item, canac
     can_item = None
 
     fm_terms = {
+        'level_id': level_id,
         'index': fm_item['index'],
         'item_id': fm_item['item_id'],
         'tiv': tiv,
