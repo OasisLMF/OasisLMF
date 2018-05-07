@@ -549,8 +549,8 @@ class RunCmd(OasisBaseCommand):
 
         args.model_run_dir_path = model_run_dir_path
 
-        args.oasis_files_path = os.path.join(model_run_dir_path, 'tmp')
-        self.logger.info('\nCreating temporary folder {} for Oasis files'.format(args.oasis_files_path))
+        args.oasis_files_path = os.path.join(model_run_dir_path, 'input', 'csv')
+        self.logger.info('\nCreating Oasis files directory {}'.format(args.oasis_files_path))
         Path(args.oasis_files_path).mkdir(parents=True, exist_ok=True)
 
         gen_oasis_files_cmd = GenerateOasisFilesCmd()
