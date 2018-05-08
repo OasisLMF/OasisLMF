@@ -1,12 +1,17 @@
 # -*- coding: utf-8 -*-
 
 import multiprocessing
-import queue
+
+try:
+    from queue import Queue, Empty
+except ImportError:
+    from Queue import Queue, Empty
+
 import sys
 import types
 
 from multiprocessing import Pool
-from queue import Queue
+
 from signal import (
     signal,
     SIGINT,
@@ -119,7 +124,7 @@ def multithread(tasks, pool_size=10):
         while not stopper.is_set():
             try:
                 task = task_q.get_nowait()
-            except queue.Empty:
+            except Empty:
                 break
             else:
                 task.result = task.func(*task.args) if task.args else task.func()

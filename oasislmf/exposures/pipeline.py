@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from itertools import chain
 
 __all__ = [
     'OasisFilesPipeline'
@@ -63,7 +64,7 @@ class OasisFilesPipeline(object):
             'fmsummaryxref': self._fmsummaryxref_file_path
         }
 
-        self._oasis_files = {k:v for k, v in self._gul_files.items() + self._fm_files.items()}
+        self._oasis_files = {k:v for k, v in chain(self._gul_files.items(), self._fm_files.items())}
 
     def __str__(self):
         return '{}: {}'.format(self.__repr__(), self.model_key)
@@ -234,8 +235,13 @@ class OasisFilesPipeline(object):
         return self._fm_policytc_file_path
 
     @fm_policytc_file_path.setter
+<<<<<<< HEAD
     def fm_policytc_file_path(self, p):
         self._fm_policytc_file_path = self.fm_files['fm_policytc'] = self.oasis_files['fm_policytc'] = p
+=======
+    def fm_policytc_file_path(self, f):
+        self._fm_policytc_file_path = self.fm_files['fm_policytc'] = self.oasis_files['fm_policytc'] = f
+>>>>>>> a4040b0cf4f823e9b3600a617d00f895e52a5fa7
 
     @property
     def fm_profile_file_path(self):
