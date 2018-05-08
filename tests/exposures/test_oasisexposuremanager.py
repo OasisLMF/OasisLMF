@@ -635,63 +635,6 @@ class OasisExposuresManagerGenerateGulsummaryxrefFile(ExposureFileGenerationTest
             self.check_gul_file(exposures, out_dir)
 
 
-class OasisExposuresManagerGenerateExposureFiles(ExposureFileGenerationTestCase):
-    @settings(suppress_health_check=[HealthCheck.too_slow])
-    @given(
-        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), min_size=10),
-        exposures=canonical_exposure_data(10, min_value=1)
-    )
-    def test_paths_are_stored_in_the_model___model_paths_are_used(self, keys, exposures):
-        profile = {
-            'profile_element': {'ProfileElementName': 'profile_element', 'FieldName': 'TIV', 'CoverageTypeID': 1}
-        }
-
-        with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file, TemporaryDirectory() as out_dir:
-            write_input_files(keys, keys_file.name, exposures, exposures_file.name)
-
-            model = fake_model(resources={'canonical_exposures_profile': profile})
-            model.resources['oasis_files_pipeline'].keys_file_path = keys_file.name
-            model.resources['oasis_files_pipeline'].canonical_exposures_file_path = exposures_file.name
-            model.resources['oasis_files_pipeline'].items_file_path = os.path.join(out_dir, self.items_filename)
-            model.resources['oasis_files_pipeline'].coverages_file_path = os.path.join(out_dir, self.coverages_filename)
-            model.resources['oasis_files_pipeline'].gulsummaryxref_file_path = os.path.join(out_dir, self.gulsummaryxref_filename)
-
-            OasisExposuresManager().generate_exposure_files(oasis_model=model)
-
-            self.check_items_file(keys, out_dir)
-            self.check_coverages_file(exposures, out_dir)
-            self.check_gul_file(exposures, out_dir)
-
-    @settings(suppress_health_check=[HealthCheck.too_slow])
-    @given(
-        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), min_size=10),
-        exposures=canonical_exposure_data(10, min_value=1)
-    )
-    def test_paths_are_stored_in_the_kwargs___kwarg_paths_are_used(self, keys, exposures):
-        profile = {
-            'profile_element': {'ProfileElementName': 'profile_element', 'FieldName': 'TIV', 'CoverageTypeID': 1}
-        }
-
-        with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file, TemporaryDirectory() as out_dir:
-            write_input_files(keys, keys_file.name, exposures, exposures_file.name)
-
-            model = fake_model()
-
-            OasisExposuresManager().generate_exposure_files(
-                oasis_model=model,
-                canonical_exposures_profile=profile,
-                keys_file_path=keys_file.name,
-                canonical_exposures_file_path=exposures_file.name,
-                items_file_path=os.path.join(out_dir, self.items_filename),
-                coverages_file_path=os.path.join(out_dir, self.coverages_filename),
-                gulsummaryxref_file_path=os.path.join(out_dir, self.gulsummaryxref_filename)
-            )
-
-            self.check_items_file(keys, out_dir)
-            self.check_coverages_file(exposures, out_dir)
-            self.check_gul_file(exposures, out_dir)
-
-
 class OasisExposuresTransformSourceToCanonical(TestCase):
     @given(
         source_exposures_file_path=text(),
