@@ -350,7 +350,7 @@ class OasisFilesPipeline(object):
         return self._oasis_files
 
 
-    def clear(self, files_subsets=[]):
+    def clear(self, files_subsets=None):
         """
         Clears file path attributes in the pipeline.
 
@@ -369,7 +369,7 @@ class OasisFilesPipeline(object):
             :type files_subsets: list
         """
         if not files_subsets:
-            filenames = self.source_files.keys() + self.intermediate_files.keys() + self.oasis_files.keys()
+            filenames = chain(self.source_files.keys(), self.intermediate_files.keys(), self.oasis_files.keys())
         else:
             filenames = list(set([fn for files_subset in files_subsets for fn in getattr(pip, files_subset)]))
 
