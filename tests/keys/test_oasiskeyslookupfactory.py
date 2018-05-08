@@ -177,12 +177,12 @@ class OasisKeysLookupFactoryWriteOasisKeysFiles(TestCase):
 
         with TemporaryDirectory() as d:
             keys_file_path = os.path.join(d, 'keys.csv')
-            keys_error_file_path = os.path.join(d, 'keys-errors.csv')
+            keys_errors_file_path = os.path.join(d, 'keys-errors.csv')
 
             _, successes_count = OasisKeysLookupFactory.write_oasis_keys_file(successes, keys_file_path)
-            _, nonsuccesses_count = OasisKeysLookupFactory.write_oasis_keys_error_file(nonsuccesses, keys_error_file_path)
+            _, nonsuccesses_count = OasisKeysLookupFactory.write_oasis_keys_errors_file(nonsuccesses, keys_errors_file_path)
 
-            with io.open(keys_file_path, 'r', encoding='utf-8') as f1, io.open(keys_error_file_path, 'r', encoding='utf-8') as f2:
+            with io.open(keys_file_path, 'r', encoding='utf-8') as f1, io.open(keys_errors_file_path, 'r', encoding='utf-8') as f2:
                 written_successes = [dict((oasis_keys_file_to_record_metadict[k], r[k]) for k in r) for r in pd.read_csv(f1).T.to_dict().values()]
                 written_nonsuccesses = [dict((oasis_keys_error_file_to_record_metadict[k], r[k]) for k in r) for r in pd.read_csv(f2).T.to_dict().values()]
 
@@ -207,12 +207,12 @@ class OasisKeysLookupFactoryWriteJsonFiles(TestCase):
 
         with TemporaryDirectory() as d:
             keys_file_path = os.path.join(d, 'keys.json')
-            keys_error_file_path = os.path.join(d, 'keys-errors.json')
+            keys_errors_file_path = os.path.join(d, 'keys-errors.json')
 
             _, successes_count = OasisKeysLookupFactory.write_json_keys_file(successes, keys_file_path)
-            _, nonsuccesses_count = OasisKeysLookupFactory.write_json_keys_file(nonsuccesses, keys_error_file_path)
+            _, nonsuccesses_count = OasisKeysLookupFactory.write_json_keys_file(nonsuccesses, keys_errors_file_path)
 
-            with io.open(keys_file_path, 'r', encoding='utf-8') as f1, io.open(keys_error_file_path, 'r', encoding='utf-8') as f2:
+            with io.open(keys_file_path, 'r', encoding='utf-8') as f1, io.open(keys_errors_file_path, 'r', encoding='utf-8') as f2:
                 written_successes = json.load(f1)
                 written_nonsuccesses = json.load(f2)
 
