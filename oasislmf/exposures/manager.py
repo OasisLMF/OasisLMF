@@ -533,27 +533,27 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         :return: The path to the generated keys file
         """
         if oasis_model:
-            _model_exposures_file_path = model_exposures_file_path or oasis_model.resources['oasis_files_pipeline'].model_exposures_file_path
-            _lookup = lookup or oasis_model.resources.get('lookup')
-            _keys_file_path = keys_file_path or oasis_model.resources['oasis_files_pipeline'].keys_file_path
-            _keys_errors_file_path = keys_errors_file_path or oasis_model.resources['oasis_files_pipeline'].keys_errors_file_path
+            model_exposures_file_path = model_exposures_file_path or oasis_model.resources['oasis_files_pipeline'].model_exposures_file_path
+            lookup = lookup or oasis_model.resources.get('lookup')
+            keys_file_path = keys_file_path or oasis_model.resources['oasis_files_pipeline'].keys_file_path
+            keys_errors_file_path = keys_errors_file_path or oasis_model.resources['oasis_files_pipeline'].keys_errors_file_path
 
-        _model_exposures_file_path, _keys_file_path, _keys_errors_file_path = tuple(
-            os.path.abspath(p) if p and not os.path.isabs(p) else p for p in [_model_exposures_file_path, _keys_file_path, _keys_errors_file_path]
+        model_exposures_file_path, keys_file_path, keys_errors_file_path = tuple(
+            os.path.abspath(p) if p and not os.path.isabs(p) else p for p in [model_exposures_file_path, keys_file_path, keys_errors_file_path]
         )
 
-        _keys_file_path, _, _keys_errors_file_path, _ = OasisKeysLookupFactory().save_keys(
-            keys_file_path=_keys_file_path,
-            keys_errors_file_path=_keys_errors_file_path,
-            lookup=_lookup,
-            model_exposures_file_path=_model_exposures_file_path,
+        keys_file_path, _, keys_errors_file_path, _ = OasisKeysLookupFactory().save_keys(
+            keys_file_path=keys_file_path,
+            keys_errors_file_path=keys_errors_file_path,
+            lookup=lookup,
+            model_exposures_file_path=model_exposures_file_path,
         )
 
         if oasis_model:
-            oasis_model.resources['oasis_files_pipeline'].keys_file_path = _keys_file_path
-            oasis_model.resources['oasis_files_pipeline'].keys_errors_file_path = _keys_errors_file_path
+            oasis_model.resources['oasis_files_pipeline'].keys_file_path = keys_file_path
+            oasis_model.resources['oasis_files_pipeline'].keys_errors_file_path = keys_errors_file_path
 
-        return _keys_file_path, _keys_errors_file_path
+        return keys_file_path, keys_errors_file_path
 
     def _process_default_kwargs(self, oasis_model=None, fm=False, **kwargs):
         if oasis_model:
