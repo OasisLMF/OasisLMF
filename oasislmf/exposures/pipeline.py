@@ -234,8 +234,8 @@ class OasisFilesPipeline(object):
         return self._fm_policytc_file_path
 
     @fm_policytc_file_path.setter
-    def fm_policytc_file_path(self, f):
-        self._fm_policytc_file_path = self.fm_files['fm_policytc'] = self.oasis_files['fm_policytc'] = f
+    def fm_policytc_file_path(self, p):
+        self._fm_policytc_file_path = self.fm_files['fm_policytc'] = self.oasis_files['fm_policytc'] = p
 
     @property
     def fm_profile_file_path(self):
@@ -248,8 +248,8 @@ class OasisFilesPipeline(object):
         return self._fm_profile_file_path
 
     @fm_profile_file_path.setter
-    def fm_profile_file_path(self, f):
-        self._fm_profile_file_path = self.fm_files['fm_profile'] = self.oasis_files['fm_profile'] = f
+    def fm_profile_file_path(self, p):
+        self._fm_profile_file_path = self.fm_files['fm_profile'] = self.oasis_files['fm_profile'] = p
 
     @property
     def fm_programme_file_path(self):
@@ -262,8 +262,8 @@ class OasisFilesPipeline(object):
         return self._fm_programme_file_path
 
     @fm_programme_file_path.setter
-    def fm_programme_file_path(self, f):
-        self._fm_programme_file_path = self.fm_files['fm_programme'] = self.oasis_files['fm_programme'] = f
+    def fm_programme_file_path(self, p):
+        self._fm_programme_file_path = self.fm_files['fm_programme'] = self.oasis_files['fm_programme'] = p
 
     @property
     def fm_xref_file_path(self):
@@ -276,8 +276,8 @@ class OasisFilesPipeline(object):
         return self._fm_xref_file_path
 
     @fm_xref_file_path.setter
-    def fm_xref_file_path(self, f):
-        self._fm_xref_file_path = self.fm_files['fm_xref'] = self.oasis_files['fm_xref'] = f
+    def fm_xref_file_path(self, p):
+        self._fm_xref_file_path = self.fm_files['fm_xref'] = self.oasis_files['fm_xref'] = p
 
     @property
     def fmsummaryxref_file_path(self):
@@ -290,8 +290,8 @@ class OasisFilesPipeline(object):
         return self._fmsummaryxref_file_path
 
     @fmsummaryxref_file_path.setter
-    def fmsummaryxref_file_path(self, f):
-        self._fmsummaryxref_file_path = self.fm_files['fmsummaryxref'] = self.oasis_files['fmsummaryxref'] = f
+    def fmsummaryxref_file_path(self, p):
+        self._fmsummaryxref_file_path = self.fm_files['fmsummaryxref'] = self.oasis_files['fmsummaryxref'] = p
 
     @property
     def source_files(self):
