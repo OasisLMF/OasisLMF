@@ -57,6 +57,57 @@ def canonical_exposure_data(num_rows=10, min_value=None, max_value=None):
         lambda l: [(i + 1, 1.0) for i, _ in enumerate(l)]
     )
 
+def gul_items_data(
+    from_item_ids=integers(min_value=1, max_value=10),
+    from_canexp_ids=integers(min_value=0, max_value=9),
+    from_canacc_ids=integers(min_value=0, max_value=9),
+    from_coverage_type_ids=sampled_from(coverage_type_ids),
+    from_tivs=floats(min_value=0.0, allow_nan=False, allow_infinity=False),
+    from_area_peril_ids=integers(min_value=1, max_value=10),
+    from_vulnerability_ids=integers(min_value=1, max_value=10),
+    from_group_ids=integers(min_value=1, max_value=10),
+    from_summary_ids=integers(min_value=1, max_value=10),
+    from_summaryset_ids=integers(min_value=1, max_value=10),
+    with_fm=False,
+    size=None,
+    min_size=1,
+    max_size=10
+):
+    return lists(
+        fixed_dictionaries(
+            {
+                'item_id': from_item_ids,
+                'canexp_id': from_canexp_ids,
+                'coverage_id': from_coverage_type_ids,
+                'tiv': from_tivs,
+                'area_peril_id': from_area_peril_ids,
+                'vulnerability_id': from_vulnerability_ids,
+                'group_id': from_group_ids,
+                'summary_id': from_summary_ids,
+                'summaryset_id': from_summaryset_ids
+            }
+        ),
+        min_size=(size if size else min_size),
+        max_size=(size if size else max_size)
+    ) if not with_fm else lists(
+        fixed_dictionaries(
+            {
+                'item_id': from_item_ids,
+                'canexp_id': from_canexp_ids,
+                'canacc_id': from_canacc_ids,
+                'coverage_id': from_coverage_type_ids,
+                'tiv': from_tivs,
+                'area_peril_id': from_area_peril_ids,
+                'vulnerability_id': from_vulnerability_ids,
+                'group_id': from_group_ids,
+                'summary_id': from_summary_ids,
+                'summaryset_id': from_summaryset_ids
+            }
+        ),
+        min_size=(size if size else min_size),
+        max_size=(size if size else max_size)
+    )
+
 
 def keys_data(
     from_ids=integers(min_value=1, max_value=10),
