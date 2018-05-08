@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from itertools import chain
 
 __all__ = [
     'OasisFilesPipeline'
@@ -63,7 +64,7 @@ class OasisFilesPipeline(object):
             'fmsummaryxref': self._fmsummaryxref_file_path
         }
 
-        self._oasis_files = {k:v for k, v in self._gul_files.items() + self._fm_files.items()}
+        self._oasis_files = {k:v for k, v in chain(self._gul_files.items(), self._fm_files.items())}
 
     def __str__(self):
         return '{}: {}'.format(self.__repr__(), self.model_key)
