@@ -986,7 +986,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         fm_files = self.write_fm_files(oasis_model=oasis_model, **kwargs)
 
-        oasis_files = {k:v for k, v in gul_files.items() + fm_files.items()}
+        oasis_files = {k:v for k, v in itertools.chain(gul_files.items(), fm_files.items())}
 
         return oasis_files
 
@@ -1165,7 +1165,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         logger.info('\nGenerating FM files')
         fm_files = self.write_fm_files(oasis_model=oasis_model, **kwargs)
 
-        oasis_files = ofp.oasis_files if oasis_model else {k:v for k, v in gul_files.items() + fm_files.items()}
+        oasis_files = ofp.oasis_files if oasis_model else {k:v for k, v in itertools.chain(gul_files.items(), fm_files.items())}
 
         return oasis_files
 
