@@ -3,6 +3,8 @@ from __future__ import unicode_literals
 __all__ = [
     'canonical_exposure_data',
     'coverage_type_ids',
+    'fm_items_data',
+    'gul_items_data',
     'keys_data',
     'keys_status_flags',
     'peril_ids',
@@ -46,16 +48,63 @@ from oasislmf.utils.status import (
     KEYS_STATUS_SUCCESS,
 )
 
-coverage_type_ids = [BUILDING_COVERAGE_CODE, CONTENTS_COVERAGE_CODE, OTHER_STRUCTURES_COVERAGE_CODE, TIME_COVERAGE_CODE]
+coverage_type_ids = (BUILDING_COVERAGE_CODE, CONTENTS_COVERAGE_CODE, OTHER_STRUCTURES_COVERAGE_CODE, TIME_COVERAGE_CODE,)
 
-keys_status_flags = [KEYS_STATUS_FAIL, KEYS_STATUS_NOMATCH, KEYS_STATUS_SUCCESS]
+keys_status_flags = (KEYS_STATUS_FAIL, KEYS_STATUS_NOMATCH, KEYS_STATUS_SUCCESS,)
 
-peril_ids = [PERIL_ID_FLOOD, PERIL_ID_QUAKE, PERIL_ID_QUAKE, PERIL_ID_WIND]
+peril_ids = (PERIL_ID_FLOOD, PERIL_ID_QUAKE, PERIL_ID_QUAKE, PERIL_ID_WIND,)
+
+calcrule_ids = (1, 2, 10, 11, 12, 15,)
 
 
 def canonical_exposure_data(num_rows=10, min_value=None, max_value=None):
     return lists(tuples(integers(min_value=min_value, max_value=max_value)), min_size=num_rows, max_size=num_rows).map(
         lambda l: [(i + 1, 1.0) for i, _ in enumerate(l)]
+    )
+
+        columns = (
+            'item_id', 'canexp_id', 'canacc_id', 'level_id', 'layer_id', 'agg_id', 'policytc_id', 'deductible',
+            'limit', 'share', 'deductible_type', 'calcrule_id', 'tiv',
+        )
+
+def fm_items_data(
+    from_item_ids=integers(min_value=1, max_value=10),
+    from_canexp_ids=integers(min_value=0, max_value=9),
+    from_canacc_ids=integers(min_value=0, max_value=9),
+    from_level_ids=integers(min_value=1, max_value=10),
+    from_layer_ids=integers(min_value=1, max_value=10),
+    from_agg_ids=integers(min_value=1, max_value=10),
+    from_policytc_ids=integers(min_value=1, max_value=10),
+    from_deductibles=floats(min_value=0.0, allow_nan=False, allow_infinity=False),
+    from_limits=floats(min_value=0.0, allow_nan=False, allow_infinity=False),
+    from_shares=floats(min_value=0.0, allow_nan=False, allow_infinity=False),
+    from_deductible_types=text(alphabet=string.ascii_letters, min_size=1, max_size=10),
+    from_calcrule_ids=sampled_from(calcrule_ids),
+    from_tivs=floats(min_value=0.0, allow_nan=False, allow_infinity=False),
+    size=None,
+    min_size=1,
+    max_size=10
+):
+    return lists(
+        fixed_dictionaries(
+            {
+                'item_id': from_item_ids,
+                'canexp_id': from_canexp_ids,
+                'canacc_id': from_canacc_ids,
+                'level_id': from_level_ids,
+                'layer_id': from_layer_ids,
+                'agg_id': from_agg_ids,
+                'policytc_id': from_policytc_ids,
+                'deductible': from_deductibles,
+                'limit': from_limits,
+                'share': from_shares,
+                'deductible_type': from_deductible_types,
+                'calcrule_id': from_calcrule_ids,
+                'tiv': from_tivs
+            }
+        ),
+        min_size=(size if size else min_size),
+        max_size=(size if size else max_size)
     )
 
 def gul_items_data(
