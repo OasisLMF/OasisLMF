@@ -121,11 +121,15 @@ def keys_data(
     min_size=1,
     max_size=10
 ):
+    def _add_ids(l):
+        for i, data in enumerate(l):
+            data['id'] = i + 1
+
+        return l
 
     return lists(
         fixed_dictionaries(
             {
-                'id': from_ids,
                 'peril_id': from_peril_ids,
                 'coverage': from_coverage_type_ids,
                 'area_peril_id': from_area_peril_ids,
@@ -136,7 +140,7 @@ def keys_data(
         ),
         min_size=(size if size else min_size),
         max_size=(size if size else max_size)
-    )
+    ).map(_add_ids)
 
 
 def write_input_files(

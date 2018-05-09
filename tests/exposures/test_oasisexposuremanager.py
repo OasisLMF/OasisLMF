@@ -481,10 +481,11 @@ class OasisExposureManagerLoadGulMasterDataframe(TestCase):
                 exposures_file.name,
                 keys_file.name,
             )
-        self.assertEqual(len(expected), len(result))
+        self.assertEqual(len(expected), len(result[0]))
+        self.assertEqual(len(expected), len(result[1]))
 
-        for i in range(len(result)):
-            row = {k:(int(v) if k != 'tiv' else v) for k, v in result.iloc[i].to_dict().items()}
+        for i in range(len(result[0])):
+            row = {k:(int(v) if k != 'tiv' else v) for k, v in result[0].iloc[i].to_dict().items()}
             self.assertEqual(i + 1, row['item_id'])
             self.assertEqual(i + 1, row['coverage_id'])
             self.assertEqual(exposures[i][1], row['tiv'])
@@ -493,6 +494,12 @@ class OasisExposureManagerLoadGulMasterDataframe(TestCase):
             self.assertEqual(i + 1, row['group_id'])
             self.assertEqual(1, row['summary_id'])
             self.assertEqual(1, row['summaryset_id'])
+
+        for i in range(len(result[1])):
+            row = {k: (int(v) if k != 'tiv' else v) for k, v in result[1].iloc[i].to_dict().items()}
+            self.assertEqual(i + 1, row['row_id'])
+            self.assertEqual(i, row['index'])
+            self.assertEqual(exposures[i][1], row[profile_element_name.lower()])
 
     @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
@@ -531,9 +538,11 @@ class OasisExposureManagerLoadGulMasterDataframe(TestCase):
                 keys_file.name,
             )
 
-        self.assertEqual(len(expected), len(result))
-        for i in range(len(result)):
-            row = {k:(int(v) if k != 'tiv' else v) for k, v in result.iloc[i].to_dict().items()}
+        self.assertEqual(len(expected), len(result[0]))
+        self.assertEqual(len(expected), len(result[1]))
+
+        for i in range(len(result[0])):
+            row = {k:(int(v) if k != 'tiv' else v) for k, v in result[0].iloc[i].to_dict().items()}
             self.assertEqual(i + 1, row['item_id'])
             self.assertEqual(i + 1, row['coverage_id'])
             self.assertEqual(exposures[i][1], row['tiv'])
@@ -542,6 +551,12 @@ class OasisExposureManagerLoadGulMasterDataframe(TestCase):
             self.assertEqual(i + 1, row['group_id'])
             self.assertEqual(1, row['summary_id'])
             self.assertEqual(1, row['summaryset_id'])
+
+        for i in range(len(result[1])):
+            row = {k: (int(v) if k != 'tiv' else v) for k, v in result[1].iloc[i].to_dict().items()}
+            self.assertEqual(i + 1, row['row_id'])
+            self.assertEqual(i, row['index'])
+            self.assertEqual(exposures[i][1], row[profile_element_name.lower()])
 
 
 class OasisExposuresTransformSourceToCanonical(TestCase):
