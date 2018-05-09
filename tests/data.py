@@ -25,6 +25,7 @@ from hypothesis.strategies import (
     sampled_from,
     text,
     tuples,
+    floats,
 )
 
 from oasislmf.utils.coverage import (
