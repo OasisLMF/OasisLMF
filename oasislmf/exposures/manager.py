@@ -890,6 +890,10 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             coverages.csv
             gulsummaryxref.csv
         """
+        if oasis_model:
+            omr = oasis_model.resources
+            ofp = omr['oasis_files_pipeline']
+
         kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
 
         canonical_exposures_profile = kwargs.get('canonical_exposures_profile')
@@ -899,14 +903,17 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         gulm_df, canexp_df = self.load_gul_master_data_frame(canonical_exposures_profile, canonical_exposures_file_path, keys_file_path)
 
         if oasis_model:
-            oasis_model.resources['canonical_exposures_data_frame'] = canexp_df
-            oasis_model.resources['gul_master_data_frame'] = gulm_df
+            omr['canonical_exposures_data_frame'] = canexp_df
+            omr['gul_master_data_frame'] = gulm_df
 
-        gul_files = {
-            'items': kwargs.get('items_file_path'),
-            'coverages': kwargs.get('coverages_file_path'),
-            'gulsummaryxref': kwargs.get('gulsummaryxref_file_path')
-        }
+        gul_files = (
+            ofp.gul_files if oasis_model
+            else {
+                 'items': kwargs.get('items_file_path'),
+                 'coverages': kwargs.get('coverages_file_path'),
+                 'gulsummaryxref': kwargs.get('gulsummaryxref_file_path')
+            }
+        )
 
         concurrent_tasks = (
             Task(getattr(self, 'write_{}_file'.format(f)), args=(gulm_df, gul_files[f],), key=f)
