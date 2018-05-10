@@ -406,10 +406,7 @@ class OasisExposuresManagerWriteOasisFiles(ExposureFileGenerationTestCase):
         with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file, TemporaryDirectory() as out_dir:
             write_input_files(keys, keys_file.name, exposures, exposures_file.name)
 
-            model = fake_model()
-
             OasisExposuresManager().write_oasis_files(
-                oasis_model=model,
                 canonical_exposures_profile=profile,
                 keys_file_path=keys_file.name,
                 canonical_exposures_file_path=exposures_file.name,
