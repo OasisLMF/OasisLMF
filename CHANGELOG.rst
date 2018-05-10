@@ -1,6 +1,11 @@
 CHANGELOG
 =========
 
+`1.1.11`_ (beta)
+----------------
+
+* Hotfix for get_analysis_status - fixes issue in client api
+
 `1.1.10`_ (beta)
 ----------------
 
