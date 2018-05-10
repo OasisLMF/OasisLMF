@@ -62,11 +62,6 @@ def canonical_exposure_data(num_rows=10, min_value=None, max_value=None):
         lambda l: [(i + 1, 1.0) for i, _ in enumerate(l)]
     )
 
-        columns = (
-            'item_id', 'canexp_id', 'canacc_id', 'level_id', 'layer_id', 'agg_id', 'policytc_id', 'deductible',
-            'limit', 'share', 'deductible_type', 'calcrule_id', 'tiv',
-        )
-
 def fm_items_data(
     from_item_ids=integers(min_value=1, max_value=10),
     from_canexp_ids=integers(min_value=0, max_value=9),
