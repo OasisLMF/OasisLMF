@@ -1,14 +1,18 @@
 from __future__ import unicode_literals
 
 __all__ = [
-    'canonical_exposure_data',
+    'canonical_accounts_data',
+    'canonical_exposures_data',
+    'calcrule_ids',
     'coverage_type_ids',
+    'deductible_types',
     'fm_items_data',
     'gul_items_data',
     'keys_data',
     'keys_status_flags',
     'peril_ids',
-    'write_input_files'
+    'write_canonical_files',
+    'write_keys_files'
 ]
 
 import string
@@ -24,6 +28,7 @@ from hypothesis.strategies import (
     integers,
     just,
     lists,
+    nothing,
     sampled_from,
     text,
     tuples,
@@ -48,42 +53,142 @@ from oasislmf.utils.status import (
     KEYS_STATUS_SUCCESS,
 )
 
+calcrule_ids = (1, 2, 10, 11, 12, 15,)
+
 coverage_type_ids = (BUILDING_COVERAGE_CODE, CONTENTS_COVERAGE_CODE, OTHER_STRUCTURES_COVERAGE_CODE, TIME_COVERAGE_CODE,)
+
+deductible_types = ('B', 'MA', 'MI',)
 
 keys_status_flags = (KEYS_STATUS_FAIL, KEYS_STATUS_NOMATCH, KEYS_STATUS_SUCCESS,)
 
 peril_ids = (PERIL_ID_FLOOD, PERIL_ID_QUAKE, PERIL_ID_QUAKE, PERIL_ID_WIND,)
 
-calcrule_ids = (1, 2, 10, 11, 12, 15,)
 
+def canonical_accounts_data(
+    from_account_nums=integers(min_value=1, max_value=10**5),
+    from_policy_nums=text(alphabet=string.ascii_letters, min_size=2, max_size=10),
+    from_policy_types=integers(min_value=1, max_value=10),
+    from_attachment_points=floats(min_value=0.0, max_value=10**6),
+    from_layer_limits=floats(min_value=0.0, max_value=10**6),
+    from_blanket_limits=floats(min_value=0.0, max_value=10**6),
+    from_blanket_deductibles=floats(min_value=0.0, max_value=10**6),
+    size=None,
+    min_size=0,
+    max_size=10
+):
+    def _add_ids(l):
+        for i, r in enumerate(l):
+            r['row_id'] = i + 1
 
-def canonical_exposure_data(num_rows=10, min_value=None, max_value=None):
-    return lists(tuples(integers(min_value=min_value, max_value=max_value)), min_size=num_rows, max_size=num_rows).map(
-        lambda l: [(i + 1, 1.0) for i, _ in enumerate(l)]
-    )
+        return l
+
+    return lists(
+        fixed_dictionaries(
+            {
+                'accntnum': from_account_nums,
+                'policynum': from_policy_nums,
+                'policytype': from_policy_types,
+                'undcovamt': from_attachment_points,
+                'partof': from_layer_limits,
+                'blandedamt': from_blanket_deductibles,
+                'blanlimamt': from_blanket_limits
+            }
+        ),
+        min_size=(size if size is not None else min_size),
+        max_size=(size if size is not None else max_size)
+    ).map(_add_ids) if size is not None and size > 0 else lists(nothing())
+
+def canonical_exposures_data(
+    from_account_nums=integers(min_value=1, max_value=10**5),
+    from_building_classes=integers(min_value=1, max_value=3),
+    from_building_schemes=text(alphabet=string.ascii_letters, min_size=1, max_size=3),
+    from_cities=text(alphabet=string.ascii_letters, min_size=2, max_size=20),
+    from_countries=text(alphabet=string.ascii_letters, min_size=2, max_size=20),
+    from_cresta_ids=text(alphabet=string.ascii_letters, min_size=1, max_size=10),
+    from_deductibles1=floats(min_value=0.0, max_value=5*10**5),
+    from_deductibles2=floats(min_value=0.0, max_value=5*10**5),
+    from_latitudes=floats(min_value=0.0, max_value=90.0),
+    from_limits1=floats(min_value=0.0, max_value=5*10**5),
+    from_limits2=floats(min_value=0.0, max_value=5*10**5),
+    from_location_nums=integers(min_value=1, max_value=10**12),
+    from_longitudes=floats(min_value=-180.0, max_value=180.0),
+    from_num_builings=integers(min_value=1, max_value=10),
+    from_num_stories=integers(min_value=1, max_value=10),
+    from_occ_schemes=text(alphabet=string.ascii_letters, min_size=1, max_size=3),
+    from_occ_types=text(alphabet=string.ascii_letters, min_size=1, max_size=3),
+    from_postal_codes=text(alphabet=string.ascii_letters, min_size=6, max_size=8),
+    from_states=text(alphabet=string.ascii_letters, min_size=2, max_size=20),
+    from_tivs1=floats(min_value=0.0, max_value=10**6),
+    from_tivs2=floats(min_value=0.0, max_value=10**6),
+    from_years_built=integers(min_value=1900, max_value=2018),
+    from_years_upgraded=integers(min_value=1900, max_value=2018),
+    size=None,
+    min_size=0,
+    max_size=10
+):
+    def _add_ids(l):
+        for i, r in enumerate(l):
+            r['row_id'] = r['locnum'] = i + 1
+
+        return l
+
+    return lists(
+        fixed_dictionaries(
+            {
+                'accntnum': from_account_nums,
+                'bldgclass': from_building_classes,
+                'bldgscheme': from_building_schemes,
+                'city': from_cities,
+                'country': from_countries,
+                'cresta': from_cresta_ids,
+                'latitude': from_latitudes,
+                'longitude': from_longitudes,
+                'numbldgs': from_num_builings,
+                'numstories': from_num_stories,
+                'occscheme': from_occ_schemes,
+                'occtype': from_occ_types,
+                'postalcode': from_postal_codes,
+                'state': from_states,
+                'wscv1ded': from_deductibles1,
+                'wscv1limit': from_limits1,
+                'wscv1val': from_tivs1,
+                'wscv2ded': from_deductibles2,
+                'wscv2limit': from_limits2,
+                'wscv2val': from_tivs2,
+                'yearbuilt': from_years_built,
+                'yearupgrad': from_years_upgraded
+            }
+        ),
+        min_size=(size if size is not None else min_size),
+        max_size=(size if size is not None else max_size)
+    ).map(_add_ids) if size is not None and size > 0 else lists(nothing())
 
 def fm_items_data(
-    from_item_ids=integers(min_value=1, max_value=10),
     from_canexp_ids=integers(min_value=0, max_value=9),
     from_canacc_ids=integers(min_value=0, max_value=9),
     from_level_ids=integers(min_value=1, max_value=10),
     from_layer_ids=integers(min_value=1, max_value=10),
     from_agg_ids=integers(min_value=1, max_value=10),
     from_policytc_ids=integers(min_value=1, max_value=10),
-    from_deductibles=floats(min_value=0.0, allow_nan=False, allow_infinity=False),
-    from_limits=floats(min_value=0.0, allow_nan=False, allow_infinity=False),
-    from_shares=floats(min_value=0.0, allow_nan=False, allow_infinity=False),
-    from_deductible_types=text(alphabet=string.ascii_letters, min_size=1, max_size=10),
+    from_deductibles=floats(min_value=0.0, max_value=5*10**5),
+    from_limits=floats(min_value=0.0, max_value=5*10**5),
+    from_shares=floats(min_value=0.0, max_value=5*10**5),
+    from_deductible_types=sampled_from(deductible_types),
     from_calcrule_ids=sampled_from(calcrule_ids),
-    from_tivs=floats(min_value=0.0, allow_nan=False, allow_infinity=False),
+    from_tivs=floats(min_value=1.0, max_value=10**6),
     size=None,
-    min_size=1,
+    min_size=0,
     max_size=10
 ):
+    def _add_ids(l):
+        for i, r in enumerate(l):
+            r['item_id'] = i + 1
+
+        return l
+
     return lists(
         fixed_dictionaries(
             {
-                'item_id': from_item_ids,
                 'canexp_id': from_canexp_ids,
                 'canacc_id': from_canacc_ids,
                 'level_id': from_level_ids,
@@ -98,16 +203,15 @@ def fm_items_data(
                 'tiv': from_tivs
             }
         ),
-        min_size=(size if size else min_size),
-        max_size=(size if size else max_size)
-    )
+        min_size=(size if size is not None else min_size),
+        max_size=(size if size is not None else max_size)
+    ).map(_add_ids) if size is not None and size > 0 else lists(nothing())
 
 def gul_items_data(
-    from_item_ids=integers(min_value=1, max_value=10),
     from_canexp_ids=integers(min_value=0, max_value=9),
     from_canacc_ids=integers(min_value=0, max_value=9),
     from_coverage_type_ids=sampled_from(coverage_type_ids),
-    from_tivs=floats(min_value=0.0, allow_nan=False, allow_infinity=False),
+    from_tivs=floats(min_value=1.0, max_value=10**6),
     from_area_peril_ids=integers(min_value=1, max_value=10),
     from_vulnerability_ids=integers(min_value=1, max_value=10),
     from_group_ids=integers(min_value=1, max_value=10),
@@ -115,13 +219,19 @@ def gul_items_data(
     from_summaryset_ids=integers(min_value=1, max_value=10),
     with_fm=False,
     size=None,
-    min_size=1,
+    min_size=0,
     max_size=10
 ):
+
+    def _add_ids(l):
+        for i, r in enumerate(l):
+            r['item_id'] = i + 1
+
+        return l
+
     return lists(
         fixed_dictionaries(
             {
-                'item_id': from_item_ids,
                 'canexp_id': from_canexp_ids,
                 'coverage_id': from_coverage_type_ids,
                 'tiv': from_tivs,
@@ -134,10 +244,9 @@ def gul_items_data(
         ),
         min_size=(size if size else min_size),
         max_size=(size if size else max_size)
-    ) if not with_fm else lists(
+    ).map(_add_ids) if not with_fm else lists(
         fixed_dictionaries(
             {
-                'item_id': from_item_ids,
                 'canexp_id': from_canexp_ids,
                 'canacc_id': from_canacc_ids,
                 'coverage_id': from_coverage_type_ids,
@@ -149,13 +258,12 @@ def gul_items_data(
                 'summaryset_id': from_summaryset_ids
             }
         ),
-        min_size=(size if size else min_size),
-        max_size=(size if size else max_size)
-    )
+        min_size=(size if size is not None else min_size),
+        max_size=(size if size is not None else max_size)
+    ).map(_add_ids) if size is not None and size > 0 else lists(nothing())
 
 
 def keys_data(
-    from_ids=integers(min_value=1, max_value=10),
     from_peril_ids=just(PERIL_ID_WIND),
     from_coverage_type_ids=just(BUILDING_COVERAGE_CODE),
     from_area_peril_ids=integers(min_value=1, max_value=10),
@@ -163,7 +271,7 @@ def keys_data(
     from_statuses=sampled_from(keys_status_flags),
     from_messages=text(min_size=1, max_size=100, alphabet=string.ascii_letters),
     size=None,
-    min_size=1,
+    min_size=0,
     max_size=10
 ):
     def _add_ids(l):
@@ -183,24 +291,24 @@ def keys_data(
                 'message': from_messages
             }
         ),
-        min_size=(size if size else min_size),
-        max_size=(size if size else max_size)
-    ).map(_add_ids)
+        min_size=(size if size is not None else min_size),
+        max_size=(size if size is not None else max_size)
+    ).map(_add_ids) if size is not None and size > 0 else lists(nothing())
 
 
-def write_input_files(
+def write_keys_files(
     keys,
     keys_file_path,
-    exposures,
-    exposures_file_path,
-    profile_element_name='profile_element'
+    keys_errors=None,
+    keys_errors_file_path=None
 ):
+
     heading_row = OrderedDict([
         ('id', 'LocID'),
         ('peril_id', 'PerilID'),
         ('coverage', 'CoverageID'),
         ('area_peril_id', 'AreaPerilID'),
-        ('vulnerability_id', 'VulnerabilityID'),
+        ('vulnerability_id', 'VulnerabilityID')
     ])
 
     pd.DataFrame(
@@ -213,18 +321,90 @@ def write_input_files(
         header=False
     )
 
+    if keys_errors and keys_errors_file_path:
+        heading_row = OrderedDict([
+            ('id', 'LocID'),
+            ('peril_id', 'PerilID'),
+            ('coverage', 'CoverageID'),
+            ('message', 'Message'),
+        ])
+
+        pd.DataFrame(
+            columns=heading_row.keys(),
+            data=[heading_row]+keys_errors,
+        ).to_csv(
+            path_or_buf=keys_errors_file_path,
+            index=False,
+            encoding='utf-8',
+            header=False
+        )
+
+def write_canonical_files(
+    canonical_exposures,
+    canonical_exposures_file_path,
+    canonical_accounts=None,
+    canonical_accounts_file_path=None
+):
+
     heading_row = OrderedDict([
         ('row_id', 'ROW_ID'),
-        (profile_element_name, 'ProfileElementName'),
+        ('accntnum', 'ACCNTNUM'),
+        ('locnum', 'LOCNUM'),
+        ('postalcode', 'POSTALCODE'),
+        ('cresta', 'CRESTA'),
+        ('city', 'CITY'),
+        ('state', 'STATE'),
+        ('country', 'COUNTRY'),
+        ('latitude', 'LATITUDE'),
+        ('longitude', 'LONGITUDE'),
+        ('bldgscheme', 'BLDGSCHEME'),
+        ('bldgclass', 'BLDGCLASS'),
+        ('occscheme', 'OCCSCHEME'),
+        ('occtype', 'OCCTYPE'),
+        ('yearbuilt', 'YEARBUILT'),
+        ('yearupgrad', 'YEARUPGRAD'),
+        ('numstories', 'NUMSTORIES'),
+        ('numbldgs', 'NUMBLDGS'),
+        ('wscv1val', 'WSCV1VAL'),
+        ('wscv2val', 'WSCV2VAL'),
+        ('wscv1limit', 'WSCV1LIMIT'),
+        ('wscv2limit', 'WSCV2LIMIT'),
+        ('wscv1ded', 'WSCV1DED'),
+        ('wscv2ded', 'WSCV2DED')
     ])
-    exposures_df = pd.DataFrame(
+
+    canexp_df = pd.DataFrame(
         columns=heading_row.keys(),
-        data=exposures
+        data=[heading_row]+canonical_exposures
     )
-    exposures_df[profile_element_name] = exposures_df[profile_element_name].astype(float)
-    exposures_df.to_csv(
-        path_or_buf=exposures_file_path,
+    
+    canexp_df.to_csv(
+        path_or_buf=canonical_exposures_file_path,
         index=False,
         encoding='utf-8',
-        header=True
+        header=False
     )
+
+    if canonical_accounts_data and canonical_accounts_file_path:
+        heading_row = OrderedDict([
+            ('row_id', 'ROW_ID'),
+            ('accntnum', 'ACCNTNUM'),
+            ('policynum', 'POLICYNUM'),
+            ('policytype', 'POLICYTYPE'),
+            ('undcovamt', 'UNDCOVAMT'),
+            ('partof', 'PARTOF'),
+            ('blandedamt', 'BLANDEDAMT'),
+            ('blanlimamt', 'BLANLIMAMT')
+        ])
+
+        canacc_df = pd.DataFrame(
+            columns=heading_row.keys(),
+            data=[heading_row]+canonical_accounts
+        )
+
+        canacc_df.to_csv(
+            path_or_buf=canonical_accounts_file_path,
+            index=False,
+            encoding='utf-8',
+            header=False
+        )

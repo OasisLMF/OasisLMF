@@ -630,70 +630,91 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         Generates a pandas dataframe containing all the columns required to
         write the GUL files.
         """
-        with io.open(canonical_exposures_file_path, 'r', encoding='utf-8') as cf, io.open(keys_file_path, 'r', encoding='utf-8') as kf:
-            canexp_df, keys_df = pd.read_csv(cf, float_precision='high'), pd.read_csv(kf, float_precision='high')
-        
-        canexp_df = canexp_df.where(canexp_df.notnull(), None)
-        canexp_df.columns = canexp_df.columns.str.lower()
-        canexp_df['index'] = pd.Series(data=list(canexp_df.index), dtype=object)
+        try:
+            with io.open(canonical_exposures_file_path, 'r', encoding='utf-8') as cf, io.open(keys_file_path, 'r', encoding='utf-8') as kf:
+                canexp_df, keys_df = pd.read_csv(cf, float_precision='high'), pd.read_csv(kf, float_precision='high')
 
-        keys_df = keys_df.rename(columns={'CoverageID': 'CoverageType'})
-        keys_df = keys_df.where(keys_df.notnull(), None)
-        keys_df.columns = keys_df.columns.str.lower()
-        keys_df['index'] = pd.Series(data=list(keys_df.index), dtype=object)
+            if len(canexp_df) == 0:
+                raise OasisException('No canonical exposure items found - please check the canonical exposures (loc) file')
 
-        merged_df = pd.merge(canexp_df, keys_df, left_on='row_id', right_on='locid')
-        merged_df['index'] = pd.Series(data=list(merged_df.index), dtype=object)
+            if len(keys_df) == 0:
+                raise OasisException('No keys items found - please check the model exposures (loc) file')
+            
+            canexp_df = canexp_df.where(canexp_df.notnull(), None)
+            canexp_df.columns = canexp_df.columns.str.lower()
+            canexp_df['index'] = pd.Series(data=list(canexp_df.index), dtype=object)
 
-        if len(merged_df) != len(canexp_df) or len(merged_df) != len(keys_df):
-            raise OasisException("Missing entry in canonical exposure or keys.")
+            keys_df = keys_df.rename(columns={'CoverageID': 'CoverageType'})
+            keys_df = keys_df.where(keys_df.notnull(), None)
+            keys_df.columns = keys_df.columns.str.lower()
+            keys_df['index'] = pd.Series(data=list(keys_df.index), dtype=object)
 
-        cep = canonical_exposures_profile
+            merged_df = pd.merge(canexp_df, keys_df, left_on='row_id', right_on='locid')
 
-        tiv_fields = tuple(sorted(
-            [v for v in six.itervalues(cep) if v.get('FieldName') == 'TIV']
-        ))
+            if len(merged_df) == 0:
+                raise OasisException('No matching keys items found for canonical exposure items - please check the model exposures (loc) file')
 
-        columns = (
-            'item_id',
-            'canexp_id',
-            'coverage_id',
-            'tiv',
-            'areaperil_id',
-            'vulnerability_id',
-            'group_id',
-            'summary_id',
-            'summaryset_id',
-        )
-        gulm_df = pd.DataFrame(columns=list(columns), dtype=object)
+            merged_df['index'] = pd.Series(data=list(merged_df.index), dtype=object)
 
-        for col in columns:
-            gulm_df[col] = gulm_df[col].astype(int) if col != 'tiv' else gulm_df[col]
+            cep = canonical_exposures_profile
 
-        item_id = 0
-        for _, item in merged_df.iterrows():
+            tiv_fields = tuple(sorted(
+                [v for v in six.itervalues(cep) if v.get('FieldName') == 'TIV'],
+                key=lambda d: d['FMTermGroupID']
+            ))
 
-            positive_tiv_fields = tuple(f for f in tiv_fields if f['CoverageTypeID'] == item['coveragetype'] and item[f['ProfileElementName'].lower()] > 0)
+            if not tiv_fields:
+                raise OasisException('No TIV fields found in the canonical exposures profile - please check the canonical exposures (loc) profile')
 
-            if not positive_tiv_fields:
-                continue
+            columns = (
+                'item_id',
+                'canexp_id',
+                'coverage_id',
+                'tiv',
+                'areaperil_id',
+                'vulnerability_id',
+                'group_id',
+                'summary_id',
+                'summaryset_id',
+            )
+            gulm_df = pd.DataFrame(columns=list(columns), dtype=object)
 
-            for f in positive_tiv_fields:
-                item_id += 1
-                tiv = item[f['ProfileElementName'].lower()]
-                gulm_df = gulm_df.append([{
-                    'item_id': item_id,
-                    'canexp_id': item['index'],
-                    'coverage_id': item_id,
-                    'tiv': tiv,
-                    'areaperil_id': item['areaperilid'],
-                    'vulnerability_id': item['vulnerabilityid'],
-                    'group_id': item_id,
-                    'summary_id': 1,
-                    'summaryset_id': 1
-                }])
+            item_id = 0
+            zero_tiv_items = 0
+            for _, item in merged_df.iterrows():
 
-        return gulm_df, canexp_df
+                positive_tiv_fields = tuple(f for f in tiv_fields if f['CoverageTypeID'] == item['coveragetype'] and item[f['ProfileElementName'].lower()] > 0)
+
+                if not positive_tiv_fields:
+                    zero_tiv_items += 1
+                    continue
+
+                for f in positive_tiv_fields:
+                    item_id += 1
+                    tiv = item[f['ProfileElementName'].lower()]
+                    gulm_df = gulm_df.append([{
+                        'item_id': item_id,
+                        'canexp_id': item['row_id'] - 1,
+                        'coverage_id': item_id,
+                        'tiv': tiv,
+                        'areaperil_id': item['areaperilid'],
+                        'vulnerability_id': item['vulnerabilityid'],
+                        'group_id': item_id,
+                        'summary_id': 1,
+                        'summaryset_id': 1
+                    }])
+        except (KeyError, IndexError, IOError, OasisException, OSError, TypeError, ValueError) as e:
+            raise OasisException(e)
+        else:
+            if zero_tiv_items == len(merged_df):
+                raise OasisException('All canonical exposure items have zero TIVs - please check the canonical exposures (loc) file')
+
+            for col in gulm_df.columns:
+                gulm_df[col] = gulm_df[col].astype(float) if col == 'tiv' else gulm_df[col].astype(int)
+
+            gulm_df.index = range(len(gulm_df))
+
+            return gulm_df, canexp_df
     
     def load_fm_master_data_frame(
         self,
@@ -708,91 +729,93 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         Generates a pandas dataframe containing all the columns required to
         write the FM files.
         """
-        canexp_df = canonical_exposures_data_frame
-        gulm_df = gul_master_data_frame
+        try:
+            canexp_df = canonical_exposures_data_frame
+            gulm_df = gul_master_data_frame
 
-        with io.open(canonical_account_file_path, 'r', encoding='utf-8') as f:
-            canacc_df = pd.read_csv(f, float_precision='high')
-        
-        canacc_df = canacc_df.where(canacc_df.notnull(), None)
-        canacc_df.columns = canacc_df.columns.str.lower()
-        canacc_df['index'] = pd.Series(data=list(canacc_df.index), dtype=object)
-        
-        columns = (
-            'item_id', 'canexp_id', 'canacc_id', 'level_id', 'layer_id', 'agg_id', 'policytc_id', 'deductible',
-            'limit', 'share', 'deductible_type', 'calcrule_id', 'tiv',
-        )
-
-        cep = canonical_exposures_profile
-        cap = canonical_account_profile
-
-        gfmt = canonical_profiles_grouped_fm_terms(canonical_profiles=(cep, cap,))
-
-        fm_levels = tuple(sorted(gfmt.keys()))
-
-        preset_data = [
-            p for p in itertools.product(
-                fm_levels,
-                zip(tuple(gulm_df.item_id.values), tuple(gulm_df.canexp_id.values), (-1,)*len(gulm_df), (1,)*len(gulm_df), tuple(gulm_df.tiv.values))
+            with io.open(canonical_account_file_path, 'r', encoding='utf-8') as f:
+                canacc_df = pd.read_csv(f, float_precision='high')
+            
+            canacc_df = canacc_df.where(canacc_df.notnull(), None)
+            canacc_df.columns = canacc_df.columns.str.lower()
+            canacc_df['index'] = pd.Series(data=list(canacc_df.index), dtype=object)
+            
+            columns = (
+                'item_id', 'canexp_id', 'canacc_id', 'level_id', 'layer_id', 'agg_id', 'policytc_id', 'deductible',
+                'limit', 'share', 'deductible_type', 'calcrule_id', 'tiv',
             )
-        ]
 
-        layer_ids = tuple(range(1, len(canacc_df.policynum.values) + 1))
+            cep = canonical_exposures_profile
+            cap = canonical_account_profile
 
-        if max(layer_ids) > 1:
-            preset_data.extend([
-                (t[1][0], (t[1][1][0], t[1][1][1], t[1][1][2], t[0], t[1][1][4]))
-                for t in itertools.product(layer_ids[1:], preset_data[-len(gulm_df):])
-            ])
-        
-        preset_data = tuple(preset_data)
+            gfmt = canonical_profiles_grouped_fm_terms(canonical_profiles=(cep, cap,))
 
-        data = tuple(
-            {
-                k:v for k, v in zip(
-                    columns,
-                    [item_id,canexp_id,canacc_id,fm_levels.index([fml for fml in fm_levels if fml == level_id][0]) + 1,layer_id,1,0,0.0,0.0,0.0,u'B',2,tiv])
-            } for level_id, (item_id, canexp_id, canacc_id, layer_id, tiv) in preset_data
-        )
+            fm_levels = tuple(sorted(gfmt.keys()))
 
-        fm_df = pd.DataFrame(columns=list(columns), data=list(data), dtype=object)
+            preset_data = [
+                p for p in itertools.product(
+                    fm_levels,
+                    zip(tuple(gulm_df.item_id.values), tuple(gulm_df.canexp_id.values), (-1,)*len(gulm_df), (1,)*len(gulm_df), tuple(gulm_df.tiv.values))
+                )
+            ]
 
-        fm_df['index'] = pd.Series(data=list(fm_df.index), dtype=object)
+            layer_ids = tuple(range(1, len(canacc_df.policynum.values) + 1))
 
-        get_canexp_item = lambda i: canexp_df.iloc[fm_df.iloc[i]['canexp_id']]
+            if max(layer_ids) > 1:
+                preset_data.extend([
+                    (t[1][0], (t[1][1][0], t[1][1][1], t[1][1][2], t[0], t[1][1][4]))
+                    for t in itertools.product(layer_ids[1:], preset_data[-len(gulm_df):])
+                ])
+            
+            preset_data = tuple(preset_data)
 
-        get_item_layer = lambda i: list(canacc_df[canacc_df['accntnum'] == get_canexp_item(i)['accntnum']]['policynum'].values)[int(fm_df.iloc[i]['layer_id']) - 1]
+            data = tuple(
+                {
+                    k:v for k, v in zip(
+                        columns,
+                        [item_id,canexp_id,canacc_id,fm_levels.index([fml for fml in fm_levels if fml == level_id][0]) + 1,layer_id,1,0,0.0,0.0,0.0,u'B',2,tiv])
+                } for level_id, (item_id, canexp_id, canacc_id, layer_id, tiv) in preset_data
+            )
 
-        get_canacc_item = lambda i: canacc_df[canacc_df['accntnum'] == get_canexp_item(i)['accntnum']][canacc_df['policynum'] == get_item_layer(i)]
+            fm_df = pd.DataFrame(columns=list(columns), data=list(data), dtype=object)
 
-        fm_df['canacc_id'] = pd.Series(data=fm_df['index'].apply(lambda i: int(get_canacc_item(i)['index'])), dtype=object)
+            fm_df['index'] = pd.Series(data=list(fm_df.index), dtype=object)
 
-        if preset_only:
+            get_canexp_item = lambda i: canexp_df.iloc[fm_df.iloc[i]['canexp_id']]
+
+            get_item_layer = lambda i: list(canacc_df[canacc_df['accntnum'] == get_canexp_item(i)['accntnum']]['policynum'].values)[int(fm_df.iloc[i]['layer_id']) - 1]
+
+            get_canacc_item = lambda i: canacc_df[canacc_df['accntnum'] == get_canexp_item(i)['accntnum']][canacc_df['policynum'] == get_item_layer(i)]
+
+            fm_df['canacc_id'] = pd.Series(data=fm_df['index'].apply(lambda i: int(get_canacc_item(i)['index'])), dtype=object)
+
+            if preset_only:
+                return fm_df, canacc_df
+
+            concurrent_tasks = (
+                Task(get_fm_terms_by_level_as_list, args=(level_id, gfmt[level_id], canexp_df.copy(deep=True), canacc_df.copy(deep=True), pd.DataFrame(fm_df.where(fm_df['level_id'] == level_id).drop_duplicates().dropna(), dtype=object),), key=level_id)
+                for level_id in fm_levels
+            )
+
+            fm_terms = {
+                result['index']:result for result in multiprocess(concurrent_tasks, pool_size=len(fm_levels))
+            }
+
+            def set_col(col):
+                fm_df[col] = fm_df['index'].apply(lambda i: fm_terms[i][col])
+
+            fm_terms_cols = ('limit', 'deductible', 'deductible_type', 'share', 'calcrule_id',)
+
+            for col in fm_terms_cols:
+                set_col(col)
+
+            policytc_ids = get_policytc_ids(fm_df)
+
+            fm_df['policytc_id'] = fm_df['index'].apply(lambda i: get_policytc_id(fm_df.iloc[i], policytc_ids))
+        except (KeyError, IndexError, IOError, OSError, TypeError, ValueError) as e:
+            raise OasisException(e)
+        else:
             return fm_df, canacc_df
-
-        concurrent_tasks = (
-            Task(get_fm_terms_by_level_as_list, args=(level_id, gfmt[level_id], canexp_df.copy(deep=True), canacc_df.copy(deep=True), pd.DataFrame(fm_df.where(fm_df['level_id'] == level_id).drop_duplicates().dropna(), dtype=object),), key=level_id)
-            for level_id in fm_levels
-        )
-
-        fm_terms = {
-            result['index']:result for result in multiprocess(concurrent_tasks, pool_size=len(fm_levels))
-        }
-
-        def set_col(col):
-            fm_df[col] = fm_df['index'].apply(lambda i: fm_terms[i][col])
-
-        fm_terms_cols = ('limit', 'deductible', 'deductible_type', 'share', 'calcrule_id',)
-
-        for col in fm_terms_cols:
-            set_col(col)
-
-        policytc_ids = get_policytc_ids(fm_df)
-
-        fm_df['policytc_id'] = fm_df['index'].apply(lambda i: get_policytc_id(fm_df.iloc[i], policytc_ids))
-
-        return fm_df, canacc_df
-
 
     def write_items_file(self, gul_master_data_frame, items_file_path):
         """
@@ -800,13 +823,16 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         """
         gulm_df = gul_master_data_frame
 
-        gulm_df.to_csv(
-            columns=['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id'],
-            path_or_buf=items_file_path,
-            encoding='utf-8',
-            chunksize=1000,
-            index=False
-        )
+        try:
+            gulm_df.to_csv(
+                columns=['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id'],
+                path_or_buf=items_file_path,
+                encoding='utf-8',
+                chunksize=1000,
+                index=False
+            )
+        except (IOError, OSError) as e:
+            raise OasisException(e)
 
         return items_file_path
 
@@ -816,13 +842,16 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         """
         gulm_df = gul_master_data_frame
 
-        gulm_df.to_csv(
-            columns=['coverage_id', 'tiv'],
-            path_or_buf=coverages_file_path,
-            encoding='utf-8',
-            chunksize=1000,
-            index=False
-        )
+        try:
+            gulm_df.to_csv(
+                columns=['coverage_id', 'tiv'],
+                path_or_buf=coverages_file_path,
+                encoding='utf-8',
+                chunksize=1000,
+                index=False
+            )
+        except (IOError, OSError) as e:
+            raise OasisException(e)
 
         return coverages_file_path
 
@@ -832,13 +861,16 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         """
         gulm_df = gul_master_data_frame
 
-        gulm_df.to_csv(
-            columns=['coverage_id', 'summary_id', 'summaryset_id'],
-            path_or_buf=gulsummaryxref_file_path,
-            encoding='utf-8',
-            chunksize=1000,
-            index=False
-        )
+        try:
+            gulm_df.to_csv(
+                columns=['coverage_id', 'summary_id', 'summaryset_id'],
+                path_or_buf=gulsummaryxref_file_path,
+                encoding='utf-8',
+                chunksize=1000,
+                index=False
+            )
+        except (IOError, OSError) as e:
+            raise OasisException(e)
 
         return gulsummaryxref_file_path
 
@@ -848,13 +880,16 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         """
         fm_df = fm_master_data_frame
 
-        fm_df.to_csv(
-            columns=['layer_id', 'level_id', 'agg_id', 'policytc_id'],
-            path_or_buf=fm_policytc_file_path,
-            encoding='utf-8',
-            chunksize=1000,
-            index=False
-        )
+        try:
+            fm_df.to_csv(
+                columns=['layer_id', 'level_id', 'agg_id', 'policytc_id'],
+                path_or_buf=fm_policytc_file_path,
+                encoding='utf-8',
+                chunksize=1000,
+                index=False
+            )
+        except (IOError, OSError) as e:
+            raise OasisException(e)
 
         return fm_policytc_file_path
 
@@ -882,7 +917,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         """
         pass
 
-    def write_gul_files(self, oasis_model=None, **kwargs):
+    def write_gul_files(self, oasis_model=None, num_keys_errors=0, **kwargs):
         """
         Writes the standard Oasis GUL files, namely::
 

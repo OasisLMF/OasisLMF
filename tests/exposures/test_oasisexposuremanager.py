@@ -10,6 +10,8 @@ from collections import OrderedDict
 from unittest import TestCase
 
 import pandas as pd
+import pytest
+import six
 
 from backports.tempfile import TemporaryDirectory
 from tempfile import NamedTemporaryFile
@@ -23,6 +25,7 @@ from hypothesis import (
 from hypothesis.strategies import (
     dictionaries,
     integers,
+    floats,
     just,
     lists,
     text,
@@ -41,9 +44,13 @@ from oasislmf.utils.status import (
 from ..models.fakes import fake_model
 
 from tests import (
-    canonical_exposure_data,
+    canonical_accounts_data,
+    canonical_exposures_data,
+    fm_items_data,
+    gul_items_data,
     keys_data,
-    write_input_files,
+    write_canonical_files,
+    write_keys_files,
 )
 
 
@@ -316,244 +323,458 @@ class OasisExposureManagerGetKeys(TestCase):
             self.assertEqual(res_keys_error_file_path, keys_errors)
 
 
-class ExposureFileGenerationTestCase(TestCase):
-    def setUp(self):
-        self.items_filename = 'items.csv'
-        self.coverages_filename = 'coverages.csv'
-        self.gulsummaryxref_filename = 'gulsummaryxref.csv'
+class GulFileGenerationTestCase(TestCase):
 
-    def check_items_file(self, keys, out_dir):
-        expected = [
+    def check_items_file(self, gul_master_data_frame, items_file_path):
+        expected = tuple(
             {
-                'item_id': i + 1,
-                'coverage_id': i + 1,
-                'areaperil_id': key['area_peril_id'],
-                'vulnerability_id': key['vulnerability_id'],
-                'group_id': i + 1,
-            } for i, key in enumerate(keys)
-        ]
+                k:item[k] for k in ('item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id',)
+            } for _, item in gul_master_data_frame.iterrows()
+        )
 
-        with io.open(os.path.join(out_dir, self.items_filename), 'r', encoding='utf-8') as f:
-            result = list(pd.read_csv(f).T.to_dict().values())
-        
+        with io.open(items_file_path, 'r', encoding='utf-8') as f:
+            result = tuple(pd.read_csv(f).T.to_dict().values())
+
         self.assertEqual(expected, result)
 
-    def check_coverages_file(self, exposures, out_dir):
-        expected = [
+    def check_coverages_file(self, gul_master_data_frame, coverages_file_path):
+        expected = tuple(
             {
-                'coverage_id': item_id + 1,
-                'tiv': item[1],
-            } for item_id, item in enumerate(exposures)
-        ]
+                k:item[k] for k in ('coverage_id', 'tiv',)
+            } for _, item in gul_master_data_frame.iterrows()
+        )
 
-        with io.open(os.path.join(out_dir, self.coverages_filename), 'r', encoding='utf-8') as f:
-            result = list(pd.read_csv(f).T.to_dict().values())
-        
+        with io.open(coverages_file_path, 'r', encoding='utf-8') as f:
+            result = tuple(pd.read_csv(f).T.to_dict().values())
+
         self.assertEqual(expected, result)
 
-    def check_gul_file(self, exposures, out_dir):
-        expected = [
+    def check_gulsummaryxref_file(self, gul_master_data_frame, gulsummaryxref_file_path):
+        expected = tuple(
             {
-                'coverage_id': item_id + 1,
-                'summary_id': 1,
-                'summaryset_id': 1,
-            } for item_id in range(len(exposures))
-        ]
+                k:item[k] for k in ('coverage_id', 'summary_id', 'summaryset_id',)
+            } for _, item in gul_master_data_frame.iterrows()
+        )
 
-        with io.open(os.path.join(out_dir, self.gulsummaryxref_filename), 'r', encoding='utf-8') as f:
-            result = list(pd.read_csv(f).T.to_dict().values())
-        
+        with io.open(gulsummaryxref_file_path, 'r', encoding='utf-8') as f:
+            result = tuple(pd.read_csv(f).T.to_dict().values())
+
         self.assertEqual(expected, result)
 
 
-class OasisExposuresManagerWriteOasisFiles(ExposureFileGenerationTestCase):
-    @settings(suppress_health_check=[HealthCheck.too_slow])
+class OasisExposuresManagerWriteGulFiles(GulFileGenerationTestCase):
+
+    @pytest.mark.flaky
+    @settings(deadline=300, suppress_health_check=[HealthCheck.too_slow])
     @given(
-        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), min_size=10),
-        exposures=canonical_exposure_data(10, min_value=1)
+        exposures=canonical_exposures_data(
+            from_tivs1=just(1.0),
+            from_tivs2=just(0.0),
+            size=10
+        ),
+        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=10),
     )
-    def test_paths_are_stored_in_the_model___model_paths_are_used(self, keys, exposures):
+    def test_paths_are_stored_in_the_model___model_paths_are_used(self, exposures, keys):
         profile = {
-            'profile_element': {'ProfileElementName': 'profile_element', 'FieldName': 'TIV', 'CoverageTypeID': 1}
+            u'WSCV1VAL': {
+                u'CoverageTypeID': 1,
+                u'FMLevel': 1,
+                u'FMLevelName': u'Coverage',
+                u'FMTermGroupID': 1,
+                u'FMTermType': u'TIV',
+                u'FieldName': u'TIV',
+                u'PerilID': 1,
+                u'ProfileElementName': u'WSCV1VAL',
+                u'ProfileType': u'Loc'
+            },
+            u'WSCV2VAL': {
+                u'CoverageTypeID': 1,
+                u'FMLevel': 1,
+                u'FMLevelName': u'Coverage',
+                u'FMTermGroupID': 1,
+                u'FMTermType': u'TIV',
+                u'FieldName': u'TIV',
+                u'PerilID': 1,
+                u'ProfileElementName': u'WSCV2VAL',
+                u'ProfileType': u'Loc'
+            }
         }
 
+        oasis_model = fake_model(resources={'canonical_exposures_profile': profile})
+
         with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file, TemporaryDirectory() as out_dir:
-            write_input_files(keys, keys_file.name, exposures, exposures_file.name)
+            write_canonical_files(exposures, exposures_file.name)
+            write_keys_files(keys, keys_file.name)
 
-            model = fake_model(resources={'canonical_exposures_profile': profile})
-            model.resources['oasis_files_pipeline'].keys_file_path = keys_file.name
-            model.resources['oasis_files_pipeline'].canonical_exposures_file_path = exposures_file.name
-            model.resources['oasis_files_pipeline'].items_file_path = os.path.join(out_dir, self.items_filename)
-            model.resources['oasis_files_pipeline'].coverages_file_path = os.path.join(out_dir, self.coverages_filename)
-            model.resources['oasis_files_pipeline'].gulsummaryxref_file_path = os.path.join(out_dir, self.gulsummaryxref_filename)
+            omr = oasis_model.resources
+            ofp = omr['oasis_files_pipeline']
 
-            OasisExposuresManager().write_oasis_files(oasis_model=model)
+            ofp.keys_file_path = keys_file.name
+            ofp.canonical_exposures_file_path = exposures_file.name
 
-            self.check_items_file(keys, out_dir)
-            self.check_coverages_file(exposures, out_dir)
-            self.check_gul_file(exposures, out_dir)
+            ofp.items_file_path = os.path.join(out_dir, 'items.csv')
+            ofp.coverages_file_path = os.path.join(out_dir, 'coverages.csv')
+            ofp.gulsummaryxref_file_path = os.path.join(out_dir, 'gulsummaryxref.csv')
 
-    @settings(suppress_health_check=[HealthCheck.too_slow])
+            gul_files = OasisExposuresManager().write_gul_files(oasis_model=oasis_model)
+
+            gulm_df = omr['gul_master_data_frame']
+
+            self.check_items_file(gulm_df, gul_files['items'])
+            self.check_coverages_file(gulm_df, gul_files['coverages'])
+            self.check_gulsummaryxref_file(gulm_df, gul_files['gulsummaryxref'])
+
+    @pytest.mark.flaky
+    @settings(deadline=300, suppress_health_check=[HealthCheck.too_slow])
     @given(
-        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), min_size=10),
-        exposures=canonical_exposure_data(10, min_value=1)
+        exposures=canonical_exposures_data(
+            from_tivs1=just(1.0),
+            from_tivs2=just(0.0),
+            size=10
+        ),
+        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=10)
     )
-    def test_paths_are_stored_in_the_kwargs___kwarg_paths_are_used(self, keys, exposures):
+    def test_paths_are_stored_in_the_kwargs___kwarg_paths_are_used(self, exposures, keys):
         profile = {
-            'profile_element': {'ProfileElementName': 'profile_element', 'FieldName': 'TIV', 'CoverageTypeID': 1}
+            u'WSCV1VAL': {
+                u'CoverageTypeID': 1,
+                u'FMLevel': 1,
+                u'FMLevelName': u'Coverage',
+                u'FMTermGroupID': 1,
+                u'FMTermType': u'TIV',
+                u'FieldName': u'TIV',
+                u'PerilID': 1,
+                u'ProfileElementName': u'WSCV1VAL',
+                u'ProfileType': u'Loc'
+            },
+            u'WSCV2VAL': {
+                u'CoverageTypeID': 1,
+                u'FMLevel': 1,
+                u'FMLevelName': u'Coverage',
+                u'FMTermGroupID': 1,
+                u'FMTermType': u'TIV',
+                u'FieldName': u'TIV',
+                u'PerilID': 1,
+                u'ProfileElementName': u'WSCV2VAL',
+                u'ProfileType': u'Loc'
+            }
         }
 
-        with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file, TemporaryDirectory() as out_dir:
-            write_input_files(keys, keys_file.name, exposures, exposures_file.name)
+        manager = OasisExposuresManager()
 
-            OasisExposuresManager().write_oasis_files(
+        with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file, TemporaryDirectory() as out_dir:
+            write_canonical_files(exposures, exposures_file.name)
+            write_keys_files(keys, keys_file.name)
+
+            gulm_df, _ = manager.load_gul_master_data_frame(profile, exposures_file.name, keys_file.name)
+
+            gul_files = manager.write_gul_files(
                 canonical_exposures_profile=profile,
                 keys_file_path=keys_file.name,
                 canonical_exposures_file_path=exposures_file.name,
-                items_file_path=os.path.join(out_dir, self.items_filename),
-                coverages_file_path=os.path.join(out_dir, self.coverages_filename),
-                gulsummaryxref_file_path=os.path.join(out_dir, self.gulsummaryxref_filename)
+                items_file_path=os.path.join(out_dir, 'items.csv'),
+                coverages_file_path=os.path.join(out_dir, 'coverages.csv'),
+                gulsummaryxref_file_path=os.path.join(out_dir, 'gulsummaryxref.csv')
             )
 
-            self.check_items_file(keys, out_dir)
-            self.check_coverages_file(exposures, out_dir)
-            self.check_gul_file(exposures, out_dir)
+            self.check_items_file(gulm_df, gul_files['items'])
+            self.check_coverages_file(gulm_df, gul_files['coverages'])
+            self.check_gulsummaryxref_file(gulm_df, gul_files['gulsummaryxref'])
 
 
 class OasisExposureManagerLoadGulMasterDataframe(TestCase):
-    @settings(suppress_health_check=[HealthCheck.too_slow])
+
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
-        profile_element_name=text(alphabet=string.ascii_letters, min_size=1),
-        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=10),
-        exposures=canonical_exposure_data(10, min_value=1)
+        exposures=canonical_exposures_data(size=0),
+        keys=keys_data(size=10)
     )
-    def test_row_in_keys_data_is_missing_from_exposure_data___oasis_exception_is_raised(
+    def test_no_canonical_items__oasis_exception_is_raised(
         self,
-        profile_element_name,
-        keys,
-        exposures
+        exposures,
+        keys
     ):
-        matching_exposures = [e for e in exposures if e[0] in map(lambda k: k['id'], keys)]
-        exposures.pop(exposures.index(matching_exposures[0]))
         profile = {
-            profile_element_name: {'ProfileElementName': profile_element_name, 'FieldName': 'TIV', 'CoverageTypeID': 1}
+            u'WSCV1VAL': {
+                u'CoverageTypeID': 1,
+                u'FMLevel': 1,
+                u'FMLevelName': u'Coverage',
+                u'FMTermGroupID': 1,
+                u'FMTermType': u'TIV',
+                u'FieldName': u'TIV',
+                u'PerilID': 1,
+                u'ProfileElementName': u'WSCV1VAL',
+                u'ProfileType': u'Loc'
+            },
+            u'WSCV2VAL': {
+                u'CoverageTypeID': 1,
+                u'FMLevel': 1,
+                u'FMLevelName': u'Coverage',
+                u'FMTermGroupID': 1,
+                u'FMTermType': u'TIV',
+                u'FieldName': u'TIV',
+                u'PerilID': 1,
+                u'ProfileElementName': u'WSCV2VAL',
+                u'ProfileType': u'Loc'
+            }
         }
 
-        with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file:
-            write_input_files(keys, keys_file.name, exposures, exposures_file.name, profile_element_name=profile_element_name)
+        with NamedTemporaryFile('w') as exposures_file, NamedTemporaryFile('w') as keys_file:
+            write_canonical_files(exposures, exposures_file.name)
+            write_keys_files(keys, keys_file.name)
 
             with self.assertRaises(OasisException):
                 OasisExposuresManager().load_gul_master_data_frame(profile, exposures_file.name, keys_file.name)
 
-    @settings(suppress_health_check=[HealthCheck.too_slow])
+    @pytest.mark.flaky
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
-        profile_element_name=text(alphabet=string.ascii_letters, min_size=1),
-        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=10),
-        exposures=canonical_exposure_data(num_rows=10, min_value=1)
+        exposures=canonical_exposures_data(size=10),
+        keys=keys_data(size=0)
     )
-    def test_each_row_has_a_single_row_per_element_with_each_row_having_a_positive_value_for_the_profile_element___each_row_is_present(
+    def test_no_keys_items__oasis_exception_is_raised(
         self,
-        profile_element_name,
-        keys,
-        exposures
+        exposures,
+        keys
     ):
         profile = {
-            profile_element_name: {'ProfileElementName': profile_element_name, 'FieldName': 'TIV', 'CoverageTypeID': 1}
+            u'WSCV1VAL': {
+                u'CoverageTypeID': 1,
+                u'FMLevel': 1,
+                u'FMLevelName': u'Coverage',
+                u'FMTermGroupID': 1,
+                u'FMTermType': u'TIV',
+                u'FieldName': u'TIV',
+                u'PerilID': 1,
+                u'ProfileElementName': u'WSCV1VAL',
+                u'ProfileType': u'Loc'
+            },
+            u'WSCV2VAL': {
+                u'CoverageTypeID': 1,
+                u'FMLevel': 1,
+                u'FMLevelName': u'Coverage',
+                u'FMTermGroupID': 1,
+                u'FMTermType': u'TIV',
+                u'FieldName': u'TIV',
+                u'PerilID': 1,
+                u'ProfileElementName': u'WSCV2VAL',
+                u'ProfileType': u'Loc'
+            }
         }
 
-        expected = []
-        keys_values_tuples = map(lambda li: tuple(filter(lambda v: type(v) == int, li)), [k.values() for k in keys])
-        for i, zipped_data in enumerate(zip(keys_values_tuples, exposures)):
-            expected.append((
-                i + 1,
-                zipped_data[0],
-                zipped_data[1][1],
-            ))
+        with NamedTemporaryFile('w') as exposures_file, NamedTemporaryFile('w') as keys_file:
+            write_canonical_files(exposures, exposures_file.name)
+            write_keys_files(keys, keys_file.name)
 
-        with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file:
-            write_input_files(keys, keys_file.name, exposures, exposures_file.name, profile_element_name=profile_element_name)
+            with self.assertRaises(OasisException):
+                OasisExposuresManager().load_gul_master_data_frame(profile, exposures_file.name, keys_file.name)
 
-            result = OasisExposuresManager().load_gul_master_data_frame(
-                profile,
-                exposures_file.name,
-                keys_file.name,
-            )
-        self.assertEqual(len(expected), len(result[0]))
-        self.assertEqual(len(expected), len(result[1]))
-
-        for i in range(len(result[0])):
-            row = {k:(int(v) if k != 'tiv' else v) for k, v in result[0].iloc[i].to_dict().items()}
-            self.assertEqual(i + 1, row['item_id'])
-            self.assertEqual(i + 1, row['coverage_id'])
-            self.assertEqual(exposures[i][1], row['tiv'])
-            self.assertEqual(keys[i]['area_peril_id'], row['areaperil_id'])
-            self.assertEqual(keys[i]['vulnerability_id'], row['vulnerability_id'])
-            self.assertEqual(i + 1, row['group_id'])
-            self.assertEqual(1, row['summary_id'])
-            self.assertEqual(1, row['summaryset_id'])
-
-        for i in range(len(result[1])):
-            row = {k: (int(v) if k != 'tiv' else v) for k, v in result[1].iloc[i].to_dict().items()}
-            self.assertEqual(i + 1, row['row_id'])
-            self.assertEqual(i, row['index'])
-            self.assertEqual(exposures[i][1], row[profile_element_name.lower()])
-
-    @settings(suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
-        profile_element_name=text(alphabet=string.ascii_letters, min_size=1),
-        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=10),
-        exposures=canonical_exposure_data(num_rows=10, min_value=1)
+        exposures=canonical_exposures_data(size=10),
+        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=10)
     )
-    def test_each_row_has_a_single_row_per_element_with_each_row_having_any_value_for_the_profile_element___rows_with_profile_elements_gt_0_are_present(
+    def test_canonical_items_dont_match_any_keys_items__oasis_exception_is_raised(
         self,
-        profile_element_name,
-        keys,
-        exposures
+        exposures,
+        keys
     ):
         profile = {
-            profile_element_name: {'ProfileElementName': profile_element_name, 'FieldName': 'TIV', 'CoverageTypeID': 1}
+            u'WSCV1VAL': {
+                u'CoverageTypeID': 1,
+                u'FMLevel': 1,
+                u'FMLevelName': u'Coverage',
+                u'FMTermGroupID': 1,
+                u'FMTermType': u'TIV',
+                u'FieldName': u'TIV',
+                u'PerilID': 1,
+                u'ProfileElementName': u'WSCV1VAL',
+                u'ProfileType': u'Loc'
+            },
+            u'WSCV2VAL': {
+                u'CoverageTypeID': 1,
+                u'FMLevel': 1,
+                u'FMLevelName': u'Coverage',
+                u'FMTermGroupID': 1,
+                u'FMTermType': u'TIV',
+                u'FieldName': u'TIV',
+                u'PerilID': 1,
+                u'ProfileElementName': u'WSCV2VAL',
+                u'ProfileType': u'Loc'
+            }
         }
 
-        expected = []
-        keys_values_tuples = map(lambda li: tuple(filter(lambda v: type(v) == int, li)), [k.values() for k in keys])
-        row_id = 0
-        for zipped_keys, zipped_exposure in zip(keys_values_tuples, exposures):
-            if zipped_exposure[1] > 0:
-                row_id += 1
-                expected.append((
-                    row_id,
-                    zipped_keys,
-                    zipped_exposure[1],
-                ))
+        l = len(exposures)
+        for key in keys:
+            key['id'] += l
 
-        with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file:
-            write_input_files(keys, keys_file.name, exposures, exposures_file.name, profile_element_name=profile_element_name)
+        with NamedTemporaryFile('w') as exposures_file, NamedTemporaryFile('w') as keys_file:
+            write_canonical_files(exposures, exposures_file.name)
+            write_keys_files(keys, keys_file.name)
 
-            result = OasisExposuresManager().load_gul_master_data_frame(
-                profile,
-                exposures_file.name,
-                keys_file.name,
-            )
+            with self.assertRaises(OasisException):
+                OasisExposuresManager().load_gul_master_data_frame(profile, exposures_file.name, keys_file.name)
 
-        self.assertEqual(len(expected), len(result[0]))
-        self.assertEqual(len(expected), len(result[1]))
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @given(
+        exposures=canonical_exposures_data(size=10),
+        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=10)
+    )
+    def test_canonical_profile_doesnt_have_any_tiv_fields__oasis_exception_is_raised(
+        self,
+        exposures,
+        keys
+    ):
+        profile = {
+            u'WSCV1LIMIT': {
+                u'CoverageTypeID': 1,
+                u'FMLevel': 1,
+                u'FMLevelName': u'Coverage',
+                u'FMTermGroupID': 1,
+                u'FMTermType': u'Limit',
+                u'FieldName': u'CoverageLimit',
+                u'PerilID': 1,
+                u'ProfileElementName': u'WSCV1LIMIT',
+                u'ProfileType': u'Loc'
+            }
+        }
 
-        for i in range(len(result[0])):
-            row = {k:(int(v) if k != 'tiv' else v) for k, v in result[0].iloc[i].to_dict().items()}
-            self.assertEqual(i + 1, row['item_id'])
-            self.assertEqual(i + 1, row['coverage_id'])
-            self.assertEqual(exposures[i][1], row['tiv'])
-            self.assertEqual(keys[i]['area_peril_id'], row['areaperil_id'])
-            self.assertEqual(keys[i]['vulnerability_id'], row['vulnerability_id'])
-            self.assertEqual(i + 1, row['group_id'])
-            self.assertEqual(1, row['summary_id'])
-            self.assertEqual(1, row['summaryset_id'])
+        with NamedTemporaryFile('w') as exposures_file, NamedTemporaryFile('w') as keys_file:
+            write_canonical_files(exposures, exposures_file.name)
+            write_keys_files(keys, keys_file.name)
 
-        for i in range(len(result[1])):
-            row = {k: (int(v) if k != 'tiv' else v) for k, v in result[1].iloc[i].to_dict().items()}
-            self.assertEqual(i + 1, row['row_id'])
-            self.assertEqual(i, row['index'])
-            self.assertEqual(exposures[i][1], row[profile_element_name.lower()])
+            with self.assertRaises(OasisException):
+                OasisExposuresManager().load_gul_master_data_frame(profile, exposures_file.name, keys_file.name)
+
+    @settings(deadline=300, suppress_health_check=[HealthCheck.too_slow])
+    @given(
+        exposures=canonical_exposures_data(
+            from_tivs1=just(0.0),
+            from_tivs2=just(0.0),
+            size=10
+        ),
+        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=10)
+    )
+    def test_canonical_items_dont_have_any_positive_tivs__oasis_exception_is_raised(
+        self,
+        exposures,
+        keys
+    ):
+        profile = {
+            u'WSCV1VAL': {
+                u'CoverageTypeID': 1,
+                u'FMLevel': 1,
+                u'FMLevelName': u'Coverage',
+                u'FMTermGroupID': 1,
+                u'FMTermType': u'TIV',
+                u'FieldName': u'TIV',
+                u'PerilID': 1,
+                u'ProfileElementName': u'WSCV1VAL',
+                u'ProfileType': u'Loc'
+            },
+            u'WSCV2VAL': {
+                u'CoverageTypeID': 1,
+                u'FMLevel': 1,
+                u'FMLevelName': u'Coverage',
+                u'FMTermGroupID': 1,
+                u'FMTermType': u'TIV',
+                u'FieldName': u'TIV',
+                u'PerilID': 1,
+                u'ProfileElementName': u'WSCV2VAL',
+                u'ProfileType': u'Loc'
+            }
+        }
+
+        with NamedTemporaryFile('w') as exposures_file, NamedTemporaryFile('w') as keys_file:
+            write_canonical_files(exposures, exposures_file.name)
+            write_keys_files(keys, keys_file.name)
+
+            with self.assertRaises(OasisException):
+                OasisExposuresManager().load_gul_master_data_frame(profile, exposures_file.name, keys_file.name)
+
+
+    @settings(deadline=300, suppress_health_check=[HealthCheck.too_slow])
+    @given(
+        exposures=canonical_exposures_data(
+            from_tivs1=just(1.0),
+            from_tivs2=just(0.0),
+            size=10
+        ),
+        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=5)
+    )
+    def test_at_least_some_canonical_items_have_matching_keys_items_and_at_least_one_positive_tiv_and_gul_items_are_generated(
+        self,
+        exposures,
+        keys
+    ):
+        profile = {
+            u'WSCV1VAL': {
+                u'CoverageTypeID': 1,
+                u'FMLevel': 1,
+                u'FMLevelName': u'Coverage',
+                u'FMTermGroupID': 1,
+                u'FMTermType': u'TIV',
+                u'FieldName': u'TIV',
+                u'PerilID': 1,
+                u'ProfileElementName': u'WSCV1VAL',
+                u'ProfileType': u'Loc'
+            },
+            u'WSCV2VAL': {
+                u'CoverageTypeID': 1,
+                u'FMLevel': 1,
+                u'FMLevelName': u'Coverage',
+                u'FMTermGroupID': 1,
+                u'FMTermType': u'TIV',
+                u'FieldName': u'TIV',
+                u'PerilID': 1,
+                u'ProfileElementName': u'WSCV2VAL',
+                u'ProfileType': u'Loc'
+            }
+        }
+
+        for k in keys:
+            k['id'] += 5
+
+        with NamedTemporaryFile('w') as exposures_file, NamedTemporaryFile('w') as keys_file:
+            write_canonical_files(exposures, exposures_file.name)
+            write_keys_files(keys, keys_file.name)
+
+            matching_canonical_and_keys_item_ids = set(k['id'] for k in keys).intersection([e['row_id'] for e in exposures])
+
+            gulm_df, canexp_df = OasisExposuresManager().load_gul_master_data_frame(profile, exposures_file.name, keys_file.name)
+
+        get_canonical_item = lambda i: (
+            [e for e in exposures if e['row_id'] == i + 1][0] if len([e for e in exposures if e['row_id'] == i + 1]) == 1
+            else None
+        )
+
+        get_keys_item = lambda i: (
+            [k for k in keys if k['id'] == i + 1][0] if len([k for k in keys if k['id'] == i + 1]) == 1
+            else None
+        )
+
+        tiv_elements = tuple(sorted(
+            [v['ProfileElementName'].lower() for v in six.itervalues(profile) if v.get('FieldName') == 'TIV']
+        ))
+
+        for i, gul_item in enumerate(gulm_df.T.to_dict().values()):
+            canonical_item = get_canonical_item(int(gul_item['canexp_id']))
+            self.assertIsNotNone(canonical_item)
+
+            positive_tiv_element = [t for t in tiv_elements if t in canonical_item.keys() and canonical_item[t] > 0][0]
+            self.assertEqual(canonical_item[positive_tiv_element], gul_item['tiv'])
+
+            keys_item = get_keys_item(int(gul_item['canexp_id']))
+            self.assertIsNotNone(keys_item)
+
+            self.assertEqual(keys_item['area_peril_id'], gul_item['areaperil_id'])
+            self.assertEqual(keys_item['vulnerability_id'], gul_item['vulnerability_id'])
+
+            self.assertEqual(i + 1, gul_item['item_id'])
+
+            self.assertEqual(i + 1, gul_item['coverage_id'])
+
+            self.assertEqual(i + 1, gul_item['group_id'])
 
 
 class OasisExposuresTransformSourceToCanonical(TestCase):
