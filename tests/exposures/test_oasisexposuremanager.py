@@ -365,7 +365,7 @@ class GulFileGenerationTestCase(TestCase):
 class OasisExposuresManagerWriteGulFiles(GulFileGenerationTestCase):
 
     @pytest.mark.flaky
-    @settings(deadline=300, suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(
             from_tivs1=just(1.0),
@@ -425,7 +425,7 @@ class OasisExposuresManagerWriteGulFiles(GulFileGenerationTestCase):
             self.check_gulsummaryxref_file(gulm_df, gul_files['gulsummaryxref'])
 
     @pytest.mark.flaky
-    @settings(deadline=300, suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(
             from_tivs1=just(1.0),
@@ -646,7 +646,7 @@ class OasisExposureManagerLoadGulMasterDataframe(TestCase):
             with self.assertRaises(OasisException):
                 OasisExposuresManager().load_gul_master_data_frame(profile, exposures_file.name, keys_file.name)
 
-    @settings(deadline=300, suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(
             from_tivs1=just(0.0),
@@ -693,7 +693,8 @@ class OasisExposureManagerLoadGulMasterDataframe(TestCase):
                 OasisExposuresManager().load_gul_master_data_frame(profile, exposures_file.name, keys_file.name)
 
 
-    @settings(deadline=300, suppress_health_check=[HealthCheck.too_slow])
+    @pytest.mark.flaky
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(
             from_tivs1=just(1.0),
