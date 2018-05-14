@@ -323,7 +323,7 @@ class OasisExposureManagerGetKeys(TestCase):
             self.assertEqual(res_keys_error_file_path, keys_errors)
 
 
-class GulFileGenerationTestCase(TestCase):
+class GulFilesGenerationTestCase(TestCase):
 
     def check_items_file(self, gul_master_data_frame, items_file_path):
         expected = tuple(
@@ -362,7 +362,11 @@ class GulFileGenerationTestCase(TestCase):
         self.assertEqual(expected, result)
 
 
-class OasisExposuresManagerWriteGulFiles(GulFileGenerationTestCase):
+class FmFilesGenerationTestCase(TestCase):
+    pass
+
+
+class OasisExposuresManagerWriteGulFiles(GulFilesGenerationTestCase):
 
     @pytest.mark.flaky
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
@@ -480,6 +484,10 @@ class OasisExposuresManagerWriteGulFiles(GulFileGenerationTestCase):
             self.check_items_file(gulm_df, gul_files['items'])
             self.check_coverages_file(gulm_df, gul_files['coverages'])
             self.check_gulsummaryxref_file(gulm_df, gul_files['gulsummaryxref'])
+
+
+class OasisExposuresManagerWriteFmFiles(FmFilesGenerationTestCase):
+    pass
 
 
 class OasisExposureManagerLoadGulMasterDataframe(TestCase):
@@ -776,6 +784,10 @@ class OasisExposureManagerLoadGulMasterDataframe(TestCase):
             self.assertEqual(i + 1, gul_item['coverage_id'])
 
             self.assertEqual(i + 1, gul_item['group_id'])
+
+
+class OasisExposureManagerLoadFmMasterDataframe(TestCase):
+    pass
 
 
 class OasisExposuresTransformSourceToCanonical(TestCase):

@@ -24,10 +24,10 @@ from threading import (
 from .exceptions import OasisException
 
 __all__ = [
-    'SignalHandler',
-    'Task',
     'multiprocess',
-    'multithread'
+    'multithread',
+    'SignalHandler',
+    'Task'
 ]
 
 

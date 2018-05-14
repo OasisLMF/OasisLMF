@@ -353,3 +353,22 @@ class GetCalcruleID(TestCase):
 
         share = limit
         self.assertEqual(get_calcrule_id(limit, share, deductible_type), 2)
+
+
+class GetFmTermsByItem(TestCase):
+    pass
+
+class GetCoverageLevelTerms(TestCase):
+    pass
+
+class GetFmTermsByLevel(TestCase):
+    pass
+
+class GetFmTermsByLevelAsList(TestCase):
+    pass
+
+class GetPolicyTcId(TestCase):
+    pass
+
+class GetPolicyTcIds(TestCase):
+    pass
