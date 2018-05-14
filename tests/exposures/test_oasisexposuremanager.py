@@ -173,18 +173,18 @@ class OasisExposureManagerLoadCanonicalExposuresProfile(TestCase):
 
 class OasisExposureManagerLoadCanonicalAccountProfile(TestCase):
     def test_model_and_kwargs_are_not_set___result_is_empty_dict(self):
-        profile = OasisExposuresManager().load_canonical_account_profile()
+        profile = OasisExposuresManager().load_canonical_accounts_profile()
 
         self.assertEqual({}, profile)
 
     @given(expected=dictionaries(text(), text()))
     def test_model_is_set_with_profile_json___models_profile_is_set_to_expected_json(self, expected):
-        model = fake_model(resources={'canonical_account_profile_json': json.dumps(expected)})
+        model = fake_model(resources={'canonical_accounts_profile_json': json.dumps(expected)})
 
-        profile = OasisExposuresManager().load_canonical_account_profile(oasis_model=model)
+        profile = OasisExposuresManager().load_canonical_accounts_profile(oasis_model=model)
 
         self.assertEqual(expected, profile)
-        self.assertEqual(expected, model.resources['canonical_account_profile'])
+        self.assertEqual(expected, model.resources['canonical_accounts_profile'])
 
     @given(model_profile=dictionaries(text(), text()), kwargs_profile=dictionaries(text(), text()))
     def test_model_is_set_with_profile_json_and_profile_json_is_passed_through_kwargs___kwargs_profile_is_used(
@@ -192,12 +192,12 @@ class OasisExposureManagerLoadCanonicalAccountProfile(TestCase):
         model_profile,
         kwargs_profile
     ):
-        model = fake_model(resources={'canonical_account_profile_json': json.dumps(model_profile)})
+        model = fake_model(resources={'canonical_accounts_profile_json': json.dumps(model_profile)})
 
-        profile = OasisExposuresManager().load_canonical_account_profile(oasis_model=model, canonical_account_profile_json=json.dumps(kwargs_profile))
+        profile = OasisExposuresManager().load_canonical_accounts_profile(oasis_model=model, canonical_accounts_profile_json=json.dumps(kwargs_profile))
 
         self.assertEqual(kwargs_profile, profile)
-        self.assertEqual(kwargs_profile, model.resources['canonical_account_profile'])
+        self.assertEqual(kwargs_profile, model.resources['canonical_accounts_profile'])
 
     @given(expected=dictionaries(text(), text()))
     def test_model_is_set_with_profile_json_path___models_profile_is_set_to_expected_json(self, expected):
@@ -205,12 +205,12 @@ class OasisExposureManagerLoadCanonicalAccountProfile(TestCase):
             json.dump(expected, f)
             f.flush()
 
-            model = fake_model(resources={'canonical_account_profile_json_path': f.name})
+            model = fake_model(resources={'canonical_accounts_profile_json_path': f.name})
 
-            profile = OasisExposuresManager().load_canonical_account_profile(oasis_model=model)
+            profile = OasisExposuresManager().load_canonical_accounts_profile(oasis_model=model)
 
             self.assertEqual(expected, profile)
-            self.assertEqual(expected, model.resources['canonical_account_profile'])
+            self.assertEqual(expected, model.resources['canonical_accounts_profile'])
 
     @given(model_profile=dictionaries(text(), text()), kwargs_profile=dictionaries(text(), text()))
     def test_model_is_set_with_profile_json_path_and_profile_json_path_is_passed_through_kwargs___kwargs_profile_is_used(
@@ -224,12 +224,12 @@ class OasisExposureManagerLoadCanonicalAccountProfile(TestCase):
             json.dump(kwargs_profile, kwargs_file)
             kwargs_file.flush()
 
-            model = fake_model(resources={'canonical_account_profile_json_path': model_file.name})
+            model = fake_model(resources={'canonical_accounts_profile_json_path': model_file.name})
 
-            profile = OasisExposuresManager().load_canonical_account_profile(oasis_model=model, canonical_account_profile_json_path=kwargs_file.name)
+            profile = OasisExposuresManager().load_canonical_accounts_profile(oasis_model=model, canonical_accounts_profile_json_path=kwargs_file.name)
 
             self.assertEqual(kwargs_profile, profile)
-            self.assertEqual(kwargs_profile, model.resources['canonical_account_profile'])
+            self.assertEqual(kwargs_profile, model.resources['canonical_accounts_profile'])
 
 
 class OasisExposureManagerGetKeys(TestCase):

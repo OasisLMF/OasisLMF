@@ -11,18 +11,18 @@ class OasisFilesPipeline(object):
         self,
         model_key=None,
         source_exposures_file_path=None,
-        source_account_file_path=None,
+        source_accounts_file_path=None,
         canonical_exposures_file_path=None,
-        canonical_account_file_path=None,
+        canonical_accounts_file_path=None,
         model_exposures_file_path=None,
         keys_file_path=None,
         keys_errors_file_path=None
     ):
         self._model_key = model_key
         self._source_exposures_file_path = source_exposures_file_path
-        self._source_account_file_path = source_account_file_path
+        self._source_accounts_file_path = source_accounts_file_path
         self._canonical_exposures_file_path = canonical_exposures_file_path
-        self._canonical_account_file_path = canonical_account_file_path
+        self._canonical_accounts_file_path = canonical_accounts_file_path
         self._model_exposures_file_path = model_exposures_file_path
         self._keys_file_path = keys_file_path
         self._keys_errors_file_path = keys_errors_file_path
@@ -39,12 +39,12 @@ class OasisFilesPipeline(object):
 
         self._source_files = {
             'source_exposures': self._source_exposures_file_path,
-            'source_account': self._source_account_file_path 
+            'source_accounts': self._source_accounts_file_path 
         }
 
         self._intermediate_files = {
             'canonical_exposures': self._canonical_exposures_file_path,
-            'canonical_account': self._canonical_account_file_path,
+            'canonical_accounts': self._canonical_accounts_file_path,
             'model_exposures': self._model_exposures_file_path,
             'keys': self._keys_file_path,
             'keys_errors': self._keys_errors_file_path
@@ -99,18 +99,18 @@ class OasisFilesPipeline(object):
         self._source_exposures_file_path = self.source_files['source_exposures'] = p
 
     @property
-    def source_account_file_path(self):
+    def source_accounts_file_path(self):
         """
-        Source account file path property.
+        Source accounts file path property.
 
             :getter: Gets the file path
             :setter: Sets the current file path to the specified file path
         """
-        return self._source_account_file_path
+        return self._source_accounts_file_path
 
-    @source_account_file_path.setter
-    def source_account_file_path(self, p):
-        self._source_account_file_path = self.source_files['source_account'] = p
+    @source_accounts_file_path.setter
+    def source_accounts_file_path(self, p):
+        self._source_accounts_file_path = self.source_files['source_accounts'] = p
 
     @property
     def canonical_exposures_file_path(self):
@@ -127,18 +127,18 @@ class OasisFilesPipeline(object):
         self._canonical_exposures_file_path = self.intermediate_files['canonical_exposures'] = p
 
     @property
-    def canonical_account_file_path(self):
+    def canonical_accounts_file_path(self):
         """
-        Canonical account file path property.
+        Canonical accounts file path property.
 
             :getter: Gets the file path
             :setter: Sets the current file path to the specified file path
         """
-        return self._canonical_account_file_path
+        return self._canonical_accounts_file_path
 
-    @canonical_account_file_path.setter
-    def canonical_account_file_path(self, p):
-        self._canonical_account_file_path = self.intermediate_files['canonical_account'] = p
+    @canonical_accounts_file_path.setter
+    def canonical_accounts_file_path(self, p):
+        self._canonical_accounts_file_path = self.intermediate_files['canonical_accounts'] = p
 
     @property
     def model_exposures_file_path(self):
@@ -357,7 +357,7 @@ class OasisFilesPipeline(object):
             :param files_subsets: List of files subset labels (if empty)
                                   then all files subsets are cleared)::
 
-                'source_files': source exposures file path + source account
+                'source_files': source exposures file path + source accounts
                                 file path
                 'intermediate_files': canonical exposures file path, model
                                       exposures file path, keys file path,

@@ -179,26 +179,26 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             help='Path of the supplier canonical exposures profile JSON file'
         )
         parser.add_argument(
-            '-q', '--canonical-account-profile-json-path', default=None,
-            help='Path of the supplier canonical account profile JSON file'
+            '-q', '--canonical-accounts-profile-json-path', default=None,
+            help='Path of the supplier canonical accounts profile JSON file'
         )
         parser.add_argument('-x', '--source-exposures-file-path', default=None, help='Source exposures file path')
-        parser.add_argument('-y', '--source-account-file-path', default=None, help='Source account file path')
+        parser.add_argument('-y', '--source-accounts-file-path', default=None, help='Source accounts file path')
         parser.add_argument(
             '-a', '--source-exposures-validation-file-path', default=None,
             help='Source exposures file validation file (XSD) path'
         )
         parser.add_argument(
-            '-b', '--source-account-validation-file-path', default=None,
-            help='Source account file validation file (XSD) path'
+            '-b', '--source-accounts-validation-file-path', default=None,
+            help='Source accounts file validation file (XSD) path'
         )
         parser.add_argument(
             '-c', '--source-to-canonical-exposures-transformation-file-path', default=None,
             help='Source -> canonical exposures file transformation file (XSLT) path'
         )
         parser.add_argument(
-            '-d', '--source-to-canonical-account-transformation-file-path', default=None,
-            help='Source -> canonical account file transformation file (XSLT) path'
+            '-d', '--source-to-canonical-accounts-transformation-file-path', default=None,
+            help='Source -> canonical accounts file transformation file (XSLT) path'
         )
         parser.add_argument(
             '-e', '--canonical-exposures-validation-file-path', default=None,
@@ -229,27 +229,27 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             inputs.get('canonical_exposures_profile_json_path', required=True, is_path=True),
             'Supplier canonical exposures profile JSON path'
         )
-        canonical_account_profile_json_path = as_path(
-            inputs.get('canonical_account_profile_json_path', required=False, is_path=True),
-            'Supplier canonical account profile JSON path'
+        canonical_accounts_profile_json_path = as_path(
+            inputs.get('canonical_accounts_profile_json_path', required=False, is_path=True),
+            'Supplier canonical accounts profile JSON path'
         )
         source_exposures_file_path = as_path(inputs.get('source_exposures_file_path', required=True, is_path=True), 'Source exposures file path')
-        source_account_file_path = as_path(inputs.get('source_account_file_path', required=False, is_path=True), 'Source account file path')
+        source_accounts_file_path = as_path(inputs.get('source_accounts_file_path', required=False, is_path=True), 'Source accounts file path')
         source_exposures_validation_file_path = as_path(
             inputs.get('source_exposures_validation_file_path', required=True, is_path=True),
             'Source exposures file validation file path'
         )
-        source_account_validation_file_path = as_path(
-            inputs.get('source_account_validation_file_path', required=False, is_path=True),
-            'Source account file validation file path'
+        source_accounts_validation_file_path = as_path(
+            inputs.get('source_accounts_validation_file_path', required=False, is_path=True),
+            'Source accounts file validation file path'
         )
         source_to_canonical_exposures_transformation_file_path = as_path(
             inputs.get('source_to_canonical_exposures_transformation_file_path', required=True, is_path=True),
             'Source to canonical exposures file transformation file path'
         )
-        source_to_canonical_account_transformation_file_path = as_path(
-            inputs.get('source_to_canonical_account_transformation_file_path', required=False, is_path=True),
-            'Source to canonical account file transformation file path'
+        source_to_canonical_accounts_transformation_file_path = as_path(
+            inputs.get('source_to_canonical_accounts_transformation_file_path', required=False, is_path=True),
+            'Source to canonical accounts file transformation file path'
         )
         canonical_exposures_validation_file_path = as_path(
             inputs.get('canonical_exposures_validation_file_path', required=True, is_path=True),
@@ -267,10 +267,10 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
 
         self.logger.info('\nGenerate FM files: {}'.format(fm))
 
-        if fm and not (canonical_account_profile_json_path or source_account_file_path):
+        if fm and not (canonical_accounts_profile_json_path or source_accounts_file_path):
             raise OasisException(
-                'FM option indicated but missing either the canonical account profile JSON path or '
-                'the source account file path'
+                'FM option indicated but missing either the canonical accounts profile JSON path or '
+                'the source accounts file path'
             )
 
         self.logger.info('\nGetting model info and creating lookup service instance')
@@ -290,12 +290,12 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
                 'lookup': model_klc,
                 'oasis_files_path': oasis_files_path,
                 'source_exposures_file_path': source_exposures_file_path,
-                'source_account_file_path': source_account_file_path,
+                'source_accounts_file_path': source_accounts_file_path,
                 'source_exposures_validation_file_path': source_exposures_validation_file_path,
-                'source_account_validation_file_path': source_account_validation_file_path,
+                'source_accounts_validation_file_path': source_accounts_validation_file_path,
                 'source_to_canonical_exposures_transformation_file_path': source_to_canonical_exposures_transformation_file_path,
-                'source_to_canonical_account_transformation_file_path': source_to_canonical_account_transformation_file_path,
-                'canonical_account_profile_json_path': canonical_account_profile_json_path,
+                'source_to_canonical_accounts_transformation_file_path': source_to_canonical_accounts_transformation_file_path,
+                'canonical_accounts_profile_json_path': canonical_accounts_profile_json_path,
                 'canonical_exposures_profile_json_path': canonical_exposures_profile_json_path,
                 'canonical_exposures_validation_file_path': canonical_exposures_validation_file_path,
                 'canonical_to_model_exposures_transformation_file_path': canonical_to_model_exposures_transformation_file_path
@@ -480,27 +480,27 @@ class RunCmd(OasisBaseCommand):
             help='Supplier canonical exposures profile JSON path'
         )
         parser.add_argument(
-            '-q', '--canonical-account-profile-json-path', default=None,
-            help='Supplier canonical account profile JSON path'
+            '-q', '--canonical-accounts-profile-json-path', default=None,
+            help='Supplier canonical accounts profile JSON path'
         )
         
         parser.add_argument('-x', '--source-exposures-file-path', default=None, help='Source exposures file path')
-        parser.add_argument('-y', '--source-account-file-path', default=None, help='Source account file path')
+        parser.add_argument('-y', '--source-accounts-file-path', default=None, help='Source accounts file path')
         parser.add_argument(
             '-a', '--source-exposures-validation-file-path', default=None,
             help='Source exposures file validation file (XSD) path'
         )
         parser.add_argument(
-            '-b', '--source-account-validation-file-path', default=None,
-            help='Source account file validation file (XSD) path'
+            '-b', '--source-accounts-validation-file-path', default=None,
+            help='Source accounts file validation file (XSD) path'
         )
         parser.add_argument(
             '-c', '--source-to-canonical-exposures-transformation-file-path', default=None,
             help='Source -> canonical exposures file transformation file (XSLT) path'
         )
         parser.add_argument(
-            '-d', '--source-to-canonical-account-transformation-file-path', default=None,
-            help='Source -> canonical account file transformation file (XSLT) path'
+            '-d', '--source-to-canonical-accounts-transformation-file-path', default=None,
+            help='Source -> canonical accounts file transformation file (XSLT) path'
         )
         parser.add_argument(
             '-e', '--canonical-exposures-validation-file-path', default=None,

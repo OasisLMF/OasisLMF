@@ -326,7 +326,7 @@ peril_ids = (PERIL_ID_FLOOD, PERIL_ID_QUAKE, PERIL_ID_QUAKE, PERIL_ID_WIND,)
 
 
 def canonical_accounts_data(
-    from_account_nums=integers(min_value=1, max_value=10**5),
+    from_accounts_nums=integers(min_value=1, max_value=10**5),
     from_policy_nums=text(alphabet=string.ascii_letters, min_size=2, max_size=10),
     from_policy_types=integers(min_value=1, max_value=10),
     from_attachment_points=floats(min_value=0.0, max_value=10**6),
@@ -346,7 +346,7 @@ def canonical_accounts_data(
     return lists(
         fixed_dictionaries(
             {
-                'accntnum': from_account_nums,
+                'accntnum': from_accounts_nums,
                 'policynum': from_policy_nums,
                 'policytype': from_policy_types,
                 'undcovamt': from_attachment_points,
@@ -361,7 +361,7 @@ def canonical_accounts_data(
 
 
 def canonical_exposures_data(
-    from_account_nums=integers(min_value=1, max_value=10**5),
+    from_accounts_nums=integers(min_value=1, max_value=10**5),
     from_building_classes=integers(min_value=1, max_value=3),
     from_building_schemes=text(alphabet=string.ascii_letters, min_size=1, max_size=3),
     from_cities=text(alphabet=string.ascii_letters, min_size=2, max_size=20),
@@ -397,7 +397,7 @@ def canonical_exposures_data(
     return lists(
         fixed_dictionaries(
             {
-                'accntnum': from_account_nums,
+                'accntnum': from_accounts_nums,
                 'bldgclass': from_building_classes,
                 'bldgscheme': from_building_schemes,
                 'city': from_cities,
