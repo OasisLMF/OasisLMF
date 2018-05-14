@@ -31,7 +31,7 @@ from ..utils.concurrency import (
 )
 from ..utils.exceptions import OasisException
 from ..utils.fm import (
-    canonical_profiles_grouped_fm_terms,
+    canonical_profiles_fm_terms_grouped_by_level_and_term_type,
     get_fm_terms_by_level_as_list,
     get_policytc_id,
     get_policytc_ids,
@@ -748,7 +748,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             cep = canonical_exposures_profile
             cap = canonical_account_profile
 
-            gfmt = canonical_profiles_grouped_fm_terms(canonical_profiles=(cep, cap,))
+            gfmt = canonical_profiles_fm_terms_grouped_by_level_and_term_type(canonical_profiles=(cep, cap,))
 
             fm_levels = tuple(sorted(gfmt.keys()))
 

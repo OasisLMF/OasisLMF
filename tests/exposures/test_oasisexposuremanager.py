@@ -43,7 +43,7 @@ from oasislmf.utils.status import (
 )
 from ..models.fakes import fake_model
 
-from tests import (
+from tests.data import (
     canonical_accounts_data,
     canonical_exposures_data,
     fm_items_data,

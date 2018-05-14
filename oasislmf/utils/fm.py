@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 
 __all__ = [
-    'canonical_profiles_fm_terms',
-    'canonical_profiles_grouped_fm_terms',
-    'get_calc_rule',
+    'canonical_profiles_fm_terms_grouped_by_level',
+    'canonical_profiles_fm_terms_grouped_by_level_and_term_type',
+    'get_calcrule_id',
     'get_fm_terms_by_item',
     'get_fm_terms_by_level',
     'get_fm_terms_by_level_as_list',
@@ -20,13 +20,14 @@ import pandas as pd
 from .exceptions import OasisException
 
 
-def canonical_profiles_fm_terms(canonical_profiles=(), canonical_profiles_paths=()):
+def canonical_profiles_fm_terms_grouped_by_level(canonical_profiles=[], canonical_profiles_paths=[]):
+
     if not (canonical_profiles or canonical_profiles_paths):
         raise OasisException('A list of canonical profiles (loc. or acc.) or a list of canonical profiles paths must be provided')
 
     if not canonical_profiles:
-        for f in canonical_profiles_paths:
-            with io.open(canonical_profile_path, 'r', encoding='utf-8') as f:
+        for p in canonical_profiles_paths:
+            with io.open(p, 'r', encoding='utf-8') as f:
                 canonical_profiles.append(json.load(f))
 
     cp = dict((k,v) for p in canonical_profiles for k, v in p.items())
@@ -44,11 +45,12 @@ def canonical_profiles_fm_terms(canonical_profiles=(), canonical_profiles_paths=
     }
 
 
-def canonical_profiles_grouped_fm_terms(canonical_profiles=(), canonical_profiles_paths=()):
+def canonical_profiles_fm_terms_grouped_by_level_and_term_type(canonical_profiles=[], canonical_profiles_paths=[]):
+
     if not (canonical_profiles or canonical_profiles_paths):
         raise OasisException('A list of canonical profiles (loc. or acc.) or a list of canonical profiles paths must be provided')
 
-    fm_terms = canonical_profiles_fm_terms(canonical_profiles=canonical_profiles, canonical_profiles_paths=canonical_profiles_paths)
+    fm_terms = canonical_profiles_fm_terms_grouped_by_level(canonical_profiles=canonical_profiles, canonical_profiles_paths=canonical_profiles_paths)
 
     fm_levels = sorted(fm_terms.keys())
 
@@ -59,11 +61,11 @@ def canonical_profiles_grouped_fm_terms(canonical_profiles=(), canonical_profile
     }
 
 
-def get_calc_rule(limit, share, ded_type):
+def get_calcrule_id(limit, share, ded_type):
 
-    if limit == share == 0.0 and ded_type == 'B':
+    if limit == share == 0 and ded_type == 'B':
         return 12
-    elif limit == 0.0 and share > 0 and ded_type == 'B':
+    elif limit == 0 and share > 0 and ded_type == 'B':
         return 15
     elif limit > 0 and share == 0 and ded_type == 'B':
         return 1
@@ -135,7 +137,7 @@ def get_fm_terms_by_item(canonical_profiles_grouped_fm_terms, canexp_item, canac
         share_val = float(can_item[share_field_name]) if share_field_name in can_item else 0.0
         fm_terms['share'] = share_val
 
-    fm_terms['calcrule_id'] = get_calc_rule(fm_terms['limit'], fm_terms['share'], fm_terms['deductible_type'])
+    fm_terms['calcrule_id'] = get_calcrule_id(fm_terms['limit'], fm_terms['share'], fm_terms['deductible_type'])
 
     return fm_terms
 
@@ -199,7 +201,7 @@ def get_coverage_level_terms(coverage_level_id, coverage_level_grouped_fm_terms,
             share_val = float(can_item[share_field_name]) if share_field_name in can_item else 0.0
             fm_terms['share'] = share_val
 
-        fm_terms['calcrule_id'] = get_calc_rule(fm_terms['limit'], fm_terms['share'], fm_terms['deductible_type'])
+        fm_terms['calcrule_id'] = get_calcrule_id(fm_terms['limit'], fm_terms['share'], fm_terms['deductible_type'])
 
         yield fm_terms
 
@@ -265,12 +267,13 @@ def get_fm_terms_by_level(level_id, level_grouped_fm_terms, canexp_df, canacc_df
                 share_val = float(can_item[share_field_name])
                 fm_terms['share'] = share_val
 
-            fm_terms['calcrule_id'] = get_calc_rule(fm_terms['limit'], fm_terms['share'], fm_terms['deductible_type'])
+            fm_terms['calcrule_id'] = get_calcrule_id(fm_terms['limit'], fm_terms['share'], fm_terms['deductible_type'])
 
             yield fm_terms
 
 
 def get_fm_terms_by_level_as_list(level_id, level_grouped_fm_terms, canexp_df, canacc_df, level_fm_df):
+
     return list(get_fm_terms_by_level(level_id, level_grouped_fm_terms, canexp_df, canacc_df, level_fm_df))
 
 
@@ -310,5 +313,3 @@ def get_policytc_ids(fm_df):
     }
 
     return policytc_ids
-
-

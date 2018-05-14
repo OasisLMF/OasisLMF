@@ -2,7 +2,9 @@ from __future__ import unicode_literals
 
 __all__ = [
     'canonical_accounts_data',
+    'canonical_accounts_profile_piwind',
     'canonical_exposures_data',
+    'canonical_exposures_profile_piwind',
     'calcrule_ids',
     'coverage_type_ids',
     'deductible_types',
@@ -55,9 +57,268 @@ from oasislmf.utils.status import (
 
 calcrule_ids = (1, 2, 10, 11, 12, 15,)
 
+canonical_accounts_profile_piwind = {
+    'ACCNTNUM': {
+        'FieldName': 'AccountNumber',
+        'ProfileElementName': 'ACCNTNUM',
+        'ProfileType': 'Acc'
+    },
+    'BLANDEDAMT': {
+        'DeductibleType': 'B',
+        'FMLevel': 5,
+        'FMLevelName': 'Account',
+        'FMTermGroupID': 1,
+        'FMTermType': 'Deductible',
+        'FieldName': 'BlanketDeductible',
+        'ProfileElementName': 'BLANDEDAMT',
+        'ProfileType': 'Acc'
+    },
+    'BLANLIMAMT': {
+        'FMLevel': 6,
+        'FMLevelName': 'Layer',
+        'FMTermGroupID': 1,
+        'FMTermType': 'Share',
+        'FieldName': 'BlanketLimit',
+        'ProfileElementName': 'BLANLIMAMT',
+        'ProfileType': 'Acc'
+    },
+    'PARTOF': {
+        'FMLevel': 6,
+        'FMLevelName': 'Layer',
+        'FMTermGroupID': 1,
+        'FMTermType': 'Limit',
+        'FieldName': 'LayerLimit',
+        'ProfileElementName': 'PARTOF',
+        'ProfileType': 'Acc'
+    },
+    'POLICYNUM': {
+        'FieldName': 'PolicyNumber',
+        'ProfileElementName': 'POLICYNUM',
+        'ProfileType': 'Acc'
+    },
+    'POLICYTYPE': {
+        'FieldName': 'PolicyType',
+        'ProfileElementName': 'POLICYTYPE',
+        'ProfileType': 'Acc'
+    },
+    'ROW_ID': {
+        'FieldName': 'LocationID',
+        'ProfileElementName': 'ROW_ID',
+        'ProfileType': 'Acc'
+    },
+    'UNDCOVAMT': {
+        'DeductibleType': 'B',
+        'FMLevel': 6,
+        'FMLevelName': 'Layer',
+        'FMTermGroupID': 1,
+        'FMTermType': 'Deductible',
+        'FieldName': 'AttachmentPoint',
+        'ProfileElementName': 'UNDCOVAMT',
+        'ProfileType': 'Acc'
+    }
+}
+
+canonical_exposures_profile_piwind = {
+    'ACCNTNUM': {
+        'FieldName': 'AccountNumber',
+        'ProfileElementName': 'ACCNTNUM',
+        'ProfileType': 'Loc'
+    },
+    'ADDRMATCH': {},
+    'BLDGCLASS': {},
+    'BLDGSCHEME': {},
+    'CITY': {},
+    'CITYCODE': {},
+    'CNTRYCODE': {},
+    'CNTRYSCHEME': {},
+    'COND1DEDUCTIBLE': {
+        'DeductibleType': 'B',
+        'FMLevel': 4,
+        'FMLevelName': 'Sublimit',
+        'FMTermGroupID': 1,
+        'FMTermType': 'Deductible',
+        'FieldName': 'SubLimitDeductible',
+        'ProfileElementName': 'COND1DEDUCTIBLE',
+        'ProfileType': 'Loc'
+    },
+    'COND1LIMIT': {
+        'FMLevel': 4,
+        'FMLevelName': 'Sublimit',
+        'FMTermGroupID': 1,
+        'FMTermType': 'Limit',
+        'FieldName': 'SubLimitLimit',
+        'ProfileElementName': 'COND1LIMIT',
+        'ProfileType': 'Loc'
+    },
+    'COND1NAME': {
+        'FieldName': 'SubLimitReference',
+        'ProfileElementName': 'COND1NAME'
+    },
+    'COND1TYPE': {},
+    'COUNTRY': {},
+    'COUNTRYGEOID': {},
+    'COUNTY': {},
+    'COUNTYCODE': {},
+    'CRESTA': {},
+    'LATITUDE': {},
+    'LOCNUM': {},
+    'LONGITUDE': {},
+    'NUMBLDGS': {},
+    'NUMSTORIES': {},
+    'OCCSCHEME': {},
+    'OCCTYPE': {},
+    'POSTALCODE': {},
+    'ROOFGEOM': {},
+    'ROW_ID': {
+        'FieldName': 'LocationID',
+        'ProfileElementName': 'ROW_ID',
+        'ProfileType': 'Loc'
+    },
+    'STATE': {},
+    'STATECODE': {},
+    'WSCOMBINEDDED': {
+        'DeductibleType': 'B',
+        'FMLevel': 2,
+        'FMLevelName': 'Combined',
+        'FMTermGroupID': 1,
+        'FMTermType': 'Deductible',
+        'FieldName': 'CombinedDeductible',
+        'ProfileElementName': 'WSCOMBINEDDED',
+        'ProfileType': 'Loc'
+    },
+    'WSCOMBINEDLIM': {
+        'FMLevel': 2,
+        'FMLevelName': 'Combined',
+        'FMTermGroupID': 1,
+        'FMTermType': 'Limit',
+        'FieldName': 'CombinedLimit',
+        'ProfileElementName': 'WSCOMBINEDLIM',
+        'ProfileType': 'Loc'
+    },
+    'WSCV10DED': {},
+    'WSCV10LMT': {},
+    'WSCV10VAL': {},
+    'WSCV1DED': {
+        'CoverageTypeID': 1,
+        'DeductibleType': 'B',
+        'FMLevel': 1,
+        'FMLevelName': 'Coverage',
+        'FMTermGroupID': 1,
+        'FMTermType': 'Deductible',
+        'FieldName': 'CoverageDeductible',
+        'PerilID': 1,
+        'ProfileElementName': 'WSCV1DED',
+        'ProfileType': 'Loc'
+    },
+    'WSCV1LIMIT': {
+        'CoverageTypeID': 1,
+        'FMLevel': 1,
+        'FMLevelName': 'Coverage',
+        'FMTermGroupID': 1,
+        'FMTermType': 'Limit',
+        'FieldName': 'CoverageLimit',
+        'PerilID': 1,
+        'ProfileElementName': 'WSCV1LIMIT',
+        'ProfileType': 'Loc'
+    },
+    'WSCV1VAL': {
+        'CoverageTypeID': 1,
+        'FMLevel': 1,
+        'FMLevelName': 'Coverage',
+        'FMTermGroupID': 1,
+        'FMTermType': 'TIV',
+        'FieldName': 'TIV',
+        'PerilID': 1,
+        'ProfileElementName': 'WSCV1VAL',
+        'ProfileType': 'Loc'
+    },
+    'WSCV2DED': {},
+    'WSCV2LIMIT': {},
+    'WSCV2VAL': {},
+    'WSCV3DED': {},
+    'WSCV3LIMIT': {},
+    'WSCV3VAL': {},
+    'WSCV4DED': {
+        'CoverageTypeID': 1,
+        'DeductibleType': 'B',
+        'FMLevel': 1,
+        'FMLevelName': 'Coverage',
+        'FMTermGroupID': 2,
+        'FMTermType': 'Deductible',
+        'FieldName': 'CoverageDeductible',
+        'PerilID': 1,
+        'ProfileElementName': 'WSCV4DED',
+        'ProfileType': 'Loc'
+    },
+    'WSCV4LIMIT': {
+        'CoverageTypeID': 1,
+        'FMLevel': 1,
+        'FMLevelName': 'Coverage',
+        'FMTermGroupID': 2,
+        'FMTermType': 'Limit',
+        'FieldName': 'CoverageLimit',
+        'PerilID': 1,
+        'ProfileElementName': 'WSCV4LIMIT',
+        'ProfileType': 'Loc'
+    },
+    'WSCV4VAL': {
+        'CoverageTypeID': 1,
+        'FMLevel': 1,
+        'FMLevelName': 'Coverage',
+        'FMTermGroupID': 2,
+        'FMTermType': 'TIV',
+        'FieldName': 'TIV',
+        'PerilID': 1,
+        'ProfileElementName': 'WSCV4VAL',
+        'ProfileType': 'Loc'
+    },
+    'WSCV5DED': {},
+    'WSCV5LIMIT': {},
+    'WSCV5VAL': {},
+    'WSCV6DED': {},
+    'WSCV6LIMIT': {},
+    'WSCV6VAL': {},
+    'WSCV7DED': {},
+    'WSCV7LIMIT': {},
+    'WSCV7VAL': {},
+    'WSCV8DED': {},
+    'WSCV8LIMIT': {},
+    'WSCV8VAL': {},
+    'WSCV9DED': {},
+    'WSCV9LIMIT': {},
+    'WSCV9VAL': {},
+    'WSSITEDED': {
+        'DeductibleType': 'B',
+        'FMLevel': 3,
+        'FMLevelName': 'Site',
+        'FMTermGroupID': 1,
+        'FMTermType': 'Deductible',
+        'FieldName': 'SiteDeductible',
+        'ProfileElementName': 'WSSITEDED',
+        'ProfileType': 'Loc'
+    },
+    'WSSITELIM': {
+        'FMLevel': 3,
+        'FMLevelName': 'Site',
+        'FMTermGroupID': 1,
+        'FMTermType': 'Limit',
+        'FieldName': 'SiteLimit',
+        'ProfileElementName': 'WSSITELIM',
+        'ProfileType': 'Loc'
+    },
+    'YEARBUILT': {},
+    'YEARUPGRAD': {}
+}
+
 coverage_type_ids = (BUILDING_COVERAGE_CODE, CONTENTS_COVERAGE_CODE, OTHER_STRUCTURES_COVERAGE_CODE, TIME_COVERAGE_CODE,)
 
 deductible_types = ('B', 'MA', 'MI',)
+
+fm_level_names = ('Account', 'Combined', 'Coverage', 'Layer', 'Site', 'Sublimit',)
+
+fm_term_types = ('Deductible', 'Limit', 'Share', 'TIV',)
+
+fm_profile_types = ('acc', 'loc',)
 
 keys_status_flags = (KEYS_STATUS_FAIL, KEYS_STATUS_NOMATCH, KEYS_STATUS_SUCCESS,)
 
@@ -97,6 +358,7 @@ def canonical_accounts_data(
         min_size=(size if size is not None else min_size),
         max_size=(size if size is not None else max_size)
     ).map(_add_ids) if size is not None and size > 0 else lists(nothing())
+
 
 def canonical_exposures_data(
     from_account_nums=integers(min_value=1, max_value=10**5),
@@ -162,6 +424,7 @@ def canonical_exposures_data(
         min_size=(size if size is not None else min_size),
         max_size=(size if size is not None else max_size)
     ).map(_add_ids) if size is not None and size > 0 else lists(nothing())
+
 
 def fm_items_data(
     from_canexp_ids=integers(min_value=0, max_value=9),
@@ -338,6 +601,7 @@ def write_keys_files(
             encoding='utf-8',
             header=False
         )
+
 
 def write_canonical_files(
     canonical_exposures,
