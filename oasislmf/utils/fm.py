@@ -84,7 +84,24 @@ def get_fm_terms_by_item(canonical_profiles_grouped_fm_terms, canexp_item, canac
     level_id = fm_item['level_id']
     tiv = fm_item['tiv']
 
+    fm_terms = {
+        'level_id': level_id,
+        'index': fm_item['index'],
+        'item_id': fm_item['item_id'],
+        'tiv': tiv,
+        'limit': 0.0,
+        'deductible': 0.0,
+        'deductible_type': u'B',
+        'share': 0.0,
+        'calcrule_id': 2
+    }
+
     is_coverage_level = any('tiv' in gfmt[level_id][gid] for gid in gfmt[level_id])
+
+    limit_field = None
+    ded_field = None
+    ded_type = None
+    share_field = None
     
     if is_coverage_level:
         for gid in gfmt[level_id]:
@@ -104,18 +121,6 @@ def get_fm_terms_by_item(canonical_profiles_grouped_fm_terms, canexp_item, canac
             share_field = gfmt[level_id][1]['share'] if 'share' in gfmt[level_id][1] else None
 
     can_item = None
-
-    fm_terms = {
-        'level_id': level_id,
-        'index': fm_item['index'],
-        'item_id': fm_item['item_id'],
-        'tiv': tiv,
-        'limit': 0.0,
-        'deductible': 0.0,
-        'deductible_type': u'B',
-        'share': 0.0,
-        'calcrule_id': 2
-    }
 
     if limit_field:
         can_item = canexp_item if limit_field['ProfileType'].lower() == 'loc' else canacc_item
@@ -149,6 +154,11 @@ def get_coverage_level_terms(coverage_level_id, coverage_level_grouped_fm_terms,
     get_canexp_item = lambda i: canexp_df.iloc[int(level_fm_df.loc[i]['canexp_id'])]
 
     get_canacc_item = lambda i: canacc_df.iloc[int(level_fm_df.loc[i]['canacc_id'])]
+
+    limit_field = None
+    ded_field = None
+    ded_type = None
+    share_field = None
 
     for i, fm_item in level_fm_df.iterrows():
         tiv = fm_item['tiv']

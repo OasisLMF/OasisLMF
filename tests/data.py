@@ -5,10 +5,16 @@ __all__ = [
     'canonical_accounts_profile_piwind',
     'canonical_exposures_data',
     'canonical_exposures_profile_piwind',
+    'canonical_exposures_profile_piwind_simple',
     'calcrule_ids',
     'coverage_type_ids',
     'deductible_types',
+    'deductible_types_piwind',
     'fm_items_data',
+    'fm_level_names_piwind',
+    'fm_level_names_piwind_simple',
+    'fm_levels_piwind',
+    'fm_levels_piwind_simple',
     'gul_items_data',
     'keys_data',
     'keys_status_flags',
@@ -310,11 +316,126 @@ canonical_exposures_profile_piwind = {
     'YEARUPGRAD': {}
 }
 
+canonical_exposures_profile_piwind_simple = {
+    'ACCNTNUM': {
+        'FieldName': 'AccountNumber',
+        'ProfileElementName': 'ACCNTNUM',
+        'ProfileType': 'Loc'
+    },
+    'BLDGCLASS': {},
+    'BLDGSCHEME': {},
+    'CITY': {},
+    'COUNTRY': {},
+    'CRESTA': {},
+    'LATITUDE': {},
+    'LOCNUM': {},
+    'LONGITUDE': {},
+    'NUMBLDGS': {},
+    'NUMSTORIES': {},
+    'OCCSCHEME': {},
+    'OCCTYPE': {},
+    'POSTALCODE': {},
+    'ROW_ID': {
+        'FieldName': 'LocationID',
+        'ProfileElementName': 'ROW_ID',
+        'ProfileType': 'Loc'
+    },
+    'STATE': {},
+    'WSCV1DED': {
+        'CoverageTypeID': 1,
+        'DeductibleType': 'B',
+        'FMLevel': 1,
+        'FMLevelName': 'Coverage',
+        'FMTermGroupID': 1,
+        'FMTermType': 'Deductible',
+        'FieldName': 'CoverageDeductible',
+        'PerilID': 1,
+        'ProfileElementName': 'WSCV1DED',
+        'ProfileType': 'Loc'
+    },
+    'WSCV1LIMIT': {
+        'CoverageTypeID': 1,
+        'FMLevel': 1,
+        'FMLevelName': 'Coverage',
+        'FMTermGroupID': 1,
+        'FMTermType': 'Limit',
+        'FieldName': 'CoverageLimit',
+        'PerilID': 1,
+        'ProfileElementName': 'WSCV1LIMIT',
+        'ProfileType': 'Loc'
+    },
+    'WSCV1VAL': {
+        'CoverageTypeID': 1,
+        'FMLevel': 1,
+        'FMLevelName': 'Coverage',
+        'FMTermGroupID': 1,
+        'FMTermType': 'TIV',
+        'FieldName': 'TIV',
+        'PerilID': 1,
+        'ProfileElementName': 'WSCV1VAL',
+        'ProfileType': 'Loc'
+    },
+    'WSCV2DED': {
+        'CoverageTypeID': 1,
+        'DeductibleType': 'B',
+        'FMLevel': 1,
+        'FMLevelName': 'Coverage',
+        'FMTermGroupID': 2,
+        'FMTermType': 'Deductible',
+        'FieldName': 'CoverageDeductible',
+        'PerilID': 1,
+        'ProfileElementName': 'WSCV2DED',
+        'ProfileType': 'Loc'
+    },
+    'WSCV2LIMIT': {
+        'CoverageTypeID': 1,
+        'FMLevel': 1,
+        'FMLevelName': 'Coverage',
+        'FMTermGroupID': 2,
+        'FMTermType': 'Limit',
+        'FieldName': 'CoverageLimit',
+        'PerilID': 1,
+        'ProfileElementName': 'WSCV2LIMIT',
+        'ProfileType': 'Loc'
+    },
+    'WSCV2VAL': {
+        'CoverageTypeID': 1,
+        'FMLevel': 1,
+        'FMLevelName': 'Coverage',
+        'FMTermGroupID': 2,
+        'FMTermType': 'TIV',
+        'FieldName': 'TIV',
+        'PerilID': 1,
+        'ProfileElementName': 'WSCV2VAL',
+        'ProfileType': 'Loc'
+    },
+    'YEARBUILT': {},
+    'YEARUPGRAD': {}
+}
+
 coverage_type_ids = (BUILDING_COVERAGE_CODE, CONTENTS_COVERAGE_CODE, OTHER_STRUCTURES_COVERAGE_CODE, TIME_COVERAGE_CODE,)
 
 deductible_types = ('B', 'MA', 'MI',)
 
-fm_level_names = ('Account', 'Combined', 'Coverage', 'Layer', 'Site', 'Sublimit',)
+deductible_types_piwind = tuple(
+    t for t in set(t['DeductibleType'] if t.get('FMTermType') and t.get('FMTermType').lower() == 'deductible' else None for t in canonical_exposures_profile_piwind_simple.values() + canonical_accounts_profile_piwind.values()) if t
+)
+
+fm_levels_piwind = tuple(
+    t for t in set(t.get('FMLevel') for t in canonical_exposures_profile_piwind.values() + canonical_accounts_profile_piwind.values()) if t
+)
+
+fm_levels_piwind_simple = tuple(
+    t for t in set(t.get('FMLevel') for t in canonical_exposures_profile_piwind_simple.values() + canonical_accounts_profile_piwind.values()) if t
+)
+
+fm_level_names_piwind = tuple(
+    t[0] for t in sorted(set((t.get('FMLevelName'), t.get('FMLevel')) for t in canonical_exposures_profile_piwind.values() + canonical_accounts_profile_piwind.values()), key=lambda t: t[1]) if t[0]
+)
+
+fm_level_names_piwind_simple = tuple(
+    t[0] for t in sorted(set((t.get('FMLevelName'), t.get('FMLevel')) for t in canonical_exposures_profile_piwind_simple.values() + canonical_accounts_profile_piwind.values()), key=lambda t: t[1]) if t[0]
+)
 
 fm_term_types = ('Deductible', 'Limit', 'Share', 'TIV',)
 
@@ -337,7 +458,7 @@ def canonical_accounts_data(
     min_size=0,
     max_size=10
 ):
-    def _add_ids(l):
+    def _sequence(l):
         for i, r in enumerate(l):
             r['row_id'] = i + 1
 
@@ -357,21 +478,21 @@ def canonical_accounts_data(
         ),
         min_size=(size if size is not None else min_size),
         max_size=(size if size is not None else max_size)
-    ).map(_add_ids) if size is not None and size > 0 else lists(nothing())
+    ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
 
 
 def canonical_exposures_data(
-    from_accounts_nums=integers(min_value=1, max_value=10**5),
+    from_accounts_nums=integers(min_value=1, max_value=10**6),
     from_building_classes=integers(min_value=1, max_value=3),
     from_building_schemes=text(alphabet=string.ascii_letters, min_size=1, max_size=3),
     from_cities=text(alphabet=string.ascii_letters, min_size=2, max_size=20),
     from_countries=text(alphabet=string.ascii_letters, min_size=2, max_size=20),
     from_cresta_ids=text(alphabet=string.ascii_letters, min_size=1, max_size=10),
-    from_deductibles1=floats(min_value=0.0, max_value=5*10**5),
-    from_deductibles2=floats(min_value=0.0, max_value=5*10**5),
+    from_deductibles1=floats(min_value=0.0, allow_infinity=False),
+    from_deductibles2=floats(min_value=0.0, allow_infinity=False),
     from_latitudes=floats(min_value=0.0, max_value=90.0),
-    from_limits1=floats(min_value=0.0, max_value=5*10**5),
-    from_limits2=floats(min_value=0.0, max_value=5*10**5),
+    from_limits1=floats(min_value=0.0, allow_infinity=False),
+    from_limits2=floats(min_value=0.0, allow_infinity=False),
     from_location_nums=integers(min_value=1, max_value=10**12),
     from_longitudes=floats(min_value=-180.0, max_value=180.0),
     from_num_builings=integers(min_value=1, max_value=10),
@@ -380,15 +501,15 @@ def canonical_exposures_data(
     from_occ_types=text(alphabet=string.ascii_letters, min_size=1, max_size=3),
     from_postal_codes=text(alphabet=string.ascii_letters, min_size=6, max_size=8),
     from_states=text(alphabet=string.ascii_letters, min_size=2, max_size=20),
-    from_tivs1=floats(min_value=0.0, max_value=10**6),
-    from_tivs2=floats(min_value=0.0, max_value=10**6),
+    from_tivs1=floats(min_value=0.0, allow_infinity=False),
+    from_tivs2=floats(min_value=0.0, allow_infinity=False),
     from_years_built=integers(min_value=1900, max_value=2018),
     from_years_upgraded=integers(min_value=1900, max_value=2018),
     size=None,
     min_size=0,
     max_size=10
 ):
-    def _add_ids(l):
+    def _sequence(l):
         for i, r in enumerate(l):
             r['row_id'] = r['locnum'] = i + 1
 
@@ -423,28 +544,29 @@ def canonical_exposures_data(
         ),
         min_size=(size if size is not None else min_size),
         max_size=(size if size is not None else max_size)
-    ).map(_add_ids) if size is not None and size > 0 else lists(nothing())
+    ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
 
 
 def fm_items_data(
     from_canexp_ids=integers(min_value=0, max_value=9),
     from_canacc_ids=integers(min_value=0, max_value=9),
-    from_level_ids=integers(min_value=1, max_value=10),
+    from_level_ids=sampled_from(fm_levels_piwind),
     from_layer_ids=integers(min_value=1, max_value=10),
     from_agg_ids=integers(min_value=1, max_value=10),
     from_policytc_ids=integers(min_value=1, max_value=10),
-    from_deductibles=floats(min_value=0.0, max_value=5*10**5),
-    from_limits=floats(min_value=0.0, max_value=5*10**5),
-    from_shares=floats(min_value=0.0, max_value=5*10**5),
+    from_deductibles=floats(min_value=0.0, allow_infinity=False),
+    from_limits=floats(min_value=0.0, allow_infinity=False),
+    from_shares=floats(min_value=0.0, allow_infinity=False),
     from_deductible_types=sampled_from(deductible_types),
     from_calcrule_ids=sampled_from(calcrule_ids),
-    from_tivs=floats(min_value=1.0, max_value=10**6),
+    from_tivs=floats(min_value=1.0, allow_infinity=False),
     size=None,
     min_size=0,
     max_size=10
 ):
-    def _add_ids(l):
+    def _sequence(l):
         for i, r in enumerate(l):
+            r['canexp_id'] = i
             r['item_id'] = i + 1
 
         return l
@@ -468,16 +590,13 @@ def fm_items_data(
         ),
         min_size=(size if size is not None else min_size),
         max_size=(size if size is not None else max_size)
-    ).map(_add_ids) if size is not None and size > 0 else lists(nothing())
+    ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
 
 def gul_items_data(
     from_canexp_ids=integers(min_value=0, max_value=9),
-    from_canacc_ids=integers(min_value=0, max_value=9),
-    from_coverage_type_ids=sampled_from(coverage_type_ids),
     from_tivs=floats(min_value=1.0, max_value=10**6),
     from_area_peril_ids=integers(min_value=1, max_value=10),
     from_vulnerability_ids=integers(min_value=1, max_value=10),
-    from_group_ids=integers(min_value=1, max_value=10),
     from_summary_ids=integers(min_value=1, max_value=10),
     from_summaryset_ids=integers(min_value=1, max_value=10),
     with_fm=False,
@@ -486,9 +605,10 @@ def gul_items_data(
     max_size=10
 ):
 
-    def _add_ids(l):
+    def _sequence(l):
         for i, r in enumerate(l):
-            r['item_id'] = i + 1
+            r['from_canexp_id'] = i
+            r['item_id'] = r['coverage_id'] = r['group_id'] = i + 1
 
         return l
 
@@ -507,7 +627,7 @@ def gul_items_data(
         ),
         min_size=(size if size else min_size),
         max_size=(size if size else max_size)
-    ).map(_add_ids) if not with_fm else lists(
+    ).map(_sequence) if not with_fm else lists(
         fixed_dictionaries(
             {
                 'canexp_id': from_canexp_ids,
@@ -523,7 +643,7 @@ def gul_items_data(
         ),
         min_size=(size if size is not None else min_size),
         max_size=(size if size is not None else max_size)
-    ).map(_add_ids) if size is not None and size > 0 else lists(nothing())
+    ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
 
 
 def keys_data(
@@ -537,7 +657,7 @@ def keys_data(
     min_size=0,
     max_size=10
 ):
-    def _add_ids(l):
+    def _sequence(l):
         for i, data in enumerate(l):
             data['id'] = i + 1
 
@@ -556,51 +676,7 @@ def keys_data(
         ),
         min_size=(size if size is not None else min_size),
         max_size=(size if size is not None else max_size)
-    ).map(_add_ids) if size is not None and size > 0 else lists(nothing())
-
-
-def write_keys_files(
-    keys,
-    keys_file_path,
-    keys_errors=None,
-    keys_errors_file_path=None
-):
-
-    heading_row = OrderedDict([
-        ('id', 'LocID'),
-        ('peril_id', 'PerilID'),
-        ('coverage', 'CoverageID'),
-        ('area_peril_id', 'AreaPerilID'),
-        ('vulnerability_id', 'VulnerabilityID')
-    ])
-
-    pd.DataFrame(
-        columns=heading_row.keys(),
-        data=[heading_row]+keys,
-    ).to_csv(
-        path_or_buf=keys_file_path,
-        index=False,
-        encoding='utf-8',
-        header=False
-    )
-
-    if keys_errors and keys_errors_file_path:
-        heading_row = OrderedDict([
-            ('id', 'LocID'),
-            ('peril_id', 'PerilID'),
-            ('coverage', 'CoverageID'),
-            ('message', 'Message'),
-        ])
-
-        pd.DataFrame(
-            columns=heading_row.keys(),
-            data=[heading_row]+keys_errors,
-        ).to_csv(
-            path_or_buf=keys_errors_file_path,
-            index=False,
-            encoding='utf-8',
-            header=False
-        )
+    ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
 
 
 def write_canonical_files(
@@ -668,6 +744,50 @@ def write_canonical_files(
 
         canacc_df.to_csv(
             path_or_buf=canonical_accounts_file_path,
+            index=False,
+            encoding='utf-8',
+            header=False
+        )
+
+
+def write_keys_files(
+    keys,
+    keys_file_path,
+    keys_errors=None,
+    keys_errors_file_path=None
+):
+
+    heading_row = OrderedDict([
+        ('id', 'LocID'),
+        ('peril_id', 'PerilID'),
+        ('coverage', 'CoverageID'),
+        ('area_peril_id', 'AreaPerilID'),
+        ('vulnerability_id', 'VulnerabilityID')
+    ])
+
+    pd.DataFrame(
+        columns=heading_row.keys(),
+        data=[heading_row]+keys,
+    ).to_csv(
+        path_or_buf=keys_file_path,
+        index=False,
+        encoding='utf-8',
+        header=False
+    )
+
+    if keys_errors and keys_errors_file_path:
+        heading_row = OrderedDict([
+            ('id', 'LocID'),
+            ('peril_id', 'PerilID'),
+            ('coverage', 'CoverageID'),
+            ('message', 'Message'),
+        ])
+
+        pd.DataFrame(
+            columns=heading_row.keys(),
+            data=[heading_row]+keys_errors,
+        ).to_csv(
+            path_or_buf=keys_errors_file_path,
             index=False,
             encoding='utf-8',
             header=False
