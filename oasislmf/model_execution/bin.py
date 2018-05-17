@@ -90,8 +90,8 @@ def prepare_model_run_directory(
             with tarfile.open(inputs_archive) as input_tarfile:
                 input_tarfile.extractall(path=(os.path.join(run_dir_path, 'input')))
 
-        if oasis_files_src_path:
-            oasis_files_destpath = os.path.join(run_dir_path, 'input', 'csv')
+        oasis_files_destpath = os.path.join(run_dir_path, 'input', 'csv')
+        if oasis_files_src_path and oasis_files_src_path != oasis_files_destpath:
             for p in os.listdir(oasis_files_src_path):
                 shutil.copy2(os.path.join(oasis_files_src_path, p), oasis_files_destpath)
 

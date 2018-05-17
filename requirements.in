@@ -5,6 +5,7 @@ discover
 configparser
 flake8
 pytest
+pytest-ignore-flaky
 mock
 tox
 hypothesis
