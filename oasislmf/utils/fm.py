@@ -302,7 +302,7 @@ def get_policytc_ids(fm_df):
             'limit': policytc_df.iloc[i - 1]['limit'],
             'deductible': policytc_df.iloc[i - 1]['deductible'],
             'share': policytc_df.iloc[i - 1]['share'],
-            'calcrule_id': policytc_df.iloc[i - 1]['calcrule_id']
+            'calcrule_id': int(policytc_df.iloc[i - 1]['calcrule_id'])
         } for i in policytc_df['index']
     }
 

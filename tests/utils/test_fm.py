@@ -38,6 +38,7 @@ from oasislmf.utils.fm import (
     get_coverage_level_terms,
     get_fm_terms_by_item,
     get_fm_terms_by_level,
+    get_policytc_ids,
 )
 
 from tests.data import (
@@ -660,9 +661,31 @@ class GetFmTermsByLevel(TestCase):
                 self.assertEqual(calcrule_id, res['calcrule_id'])
 
 
-class GetPolicyTcId(TestCase):
-    pass
-
-
 class GetPolicyTcIds(TestCase):
-    pass
+    
+    @given(
+        fm_items=fm_items_data(
+            from_limits=sampled_from([50, 100]),
+            from_deductibles=sampled_from([25, 50]),
+            from_shares=sampled_from([0, 0.5]),
+            size=10
+        )
+    )
+    def test_get_policytc_ids(self, fm_items):
+
+        term_combs = {}
+
+        ptc_id = 0
+        for i, it in enumerate(fm_items):
+            t = (it['limit'], it['deductible'], it['share'], it['calcrule_id'],)
+            if t not in term_combs.values():
+                ptc_id += 1
+                term_combs[ptc_id] = t
+
+        fm_df = pd.DataFrame(data=fm_items, dtype=object)
+
+        policytc_ids = get_policytc_ids(fm_df)
+
+        for policytc_id, policytc_comb in policytc_ids.items():
+            t = dict(zip(('limit', 'deductible', 'share', 'calcrule_id',), term_combs[policytc_id]))
+            self.assertEqual(t, policytc_comb)
