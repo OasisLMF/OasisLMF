@@ -547,7 +547,7 @@ class GetCoverageLevelTerms(TestCase):
             cexp_it = exposures[it['canexp_id']]
             cacc_it = accounts[it['canacc_id']]
 
-            cf = [v for v in lgfmt.values() if cexp_it[v['tiv']['ProfileElementName'].lower()] == tiv][0]
+            cf = [v for v in lgfmt.values() if cexp_it.get(v['tiv']['ProfileElementName'].lower()) and cexp_it[v['tiv']['ProfileElementName'].lower()] == tiv][0]
 
             self.assertEqual(tiv, res['tiv'])
 

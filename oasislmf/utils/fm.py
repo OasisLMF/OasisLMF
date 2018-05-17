@@ -166,7 +166,7 @@ def get_coverage_level_terms(coverage_level_id, coverage_level_grouped_fm_terms,
         canexp_item = get_canexp_item(i)
         canacc_item = get_canacc_item(i)
 
-        cf = [v for v in clgfmt.values() if canexp_item[v['tiv']['ProfileElementName'].lower()] == tiv][0]
+        cf = [v for v in clgfmt.values() if canexp_item.get(v['tiv']['ProfileElementName'].lower()) and canexp_item[v['tiv']['ProfileElementName'].lower()] == tiv][0]
 
         fm_terms = {
             'level_id': coverage_level_id,

@@ -683,26 +683,26 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             zero_tiv_items = 0
             for _, item in merged_df.iterrows():
 
-                positive_tiv_fields = tuple(f for f in tiv_fields if f['CoverageTypeID'] == item['coveragetype'] and item[f['ProfileElementName'].lower()] > 0)
+                positive_tiv_field = [t for t in tiv_fields if item.get(t['ProfileElementName'].lower()) and item.get(t['ProfileElementName'].lower()) > 0 and t['CoverageTypeID'] == item['coveragetype']]
 
-                if not positive_tiv_fields:
+                if not positive_tiv_field:
                     zero_tiv_items += 1
                     continue
 
-                for f in positive_tiv_fields:
-                    item_id += 1
-                    tiv = item[f['ProfileElementName'].lower()]
-                    gulm_df = gulm_df.append([{
-                        'item_id': item_id,
-                        'canexp_id': item['row_id'] - 1,
-                        'coverage_id': item_id,
-                        'tiv': tiv,
-                        'areaperil_id': item['areaperilid'],
-                        'vulnerability_id': item['vulnerabilityid'],
-                        'group_id': item_id,
-                        'summary_id': 1,
-                        'summaryset_id': 1
-                    }])
+                positive_tiv_field = positive_tiv_field[0]
+                item_id += 1
+                tiv = item[positive_tiv_field['ProfileElementName'].lower()]
+                gulm_df = gulm_df.append([{
+                    'item_id': item_id,
+                    'canexp_id': item['row_id'] - 1,
+                    'coverage_id': item_id,
+                    'tiv': tiv,
+                    'areaperil_id': item['areaperilid'],
+                    'vulnerability_id': item['vulnerabilityid'],
+                    'group_id': item_id,
+                    'summary_id': 1,
+                    'summaryset_id': 1
+                }])
         except (KeyError, IndexError, IOError, OasisException, OSError, TypeError, ValueError) as e:
             raise OasisException(e)
         else:
