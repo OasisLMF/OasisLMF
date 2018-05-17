@@ -168,8 +168,6 @@ def get_coverage_level_terms(coverage_level_id, coverage_level_grouped_fm_terms,
 
         cf = [v for v in clgfmt.values() if canexp_item[v['tiv']['ProfileElementName'].lower()] == tiv][0]
 
-        can_item = None
-
         fm_terms = {
             'level_id': coverage_level_id,
             'index': int(fm_item['index']),
