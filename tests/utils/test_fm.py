@@ -37,6 +37,7 @@ from oasislmf.utils.fm import (
     get_calcrule_id,
     get_coverage_level_terms,
     get_fm_terms_by_item,
+    get_fm_terms_by_level,
 )
 
 from tests.data import (
@@ -477,14 +478,14 @@ class GetFmTermsByItem(TestCase):
             self.assertEqual(calcrule_id, fm_terms['calcrule_id'])
 
 
-class GetCoverageLevelTerms(TestCase):
+class GetFmTermsByLevel(TestCase):
 
     def setUp(self):
         self.exposures_profile = canonical_exposures_profile_piwind_simple
         self.accounts_profile = canonical_accounts_profile_piwind
-        self.coverage_level_profile = canonical_profiles_fm_terms_grouped_by_level_and_term_type(
+        self.grouped_profile = canonical_profiles_fm_terms_grouped_by_level_and_term_type(
             canonical_profiles=[self.exposures_profile, self.accounts_profile]
-        )[1]
+        )
 
     @given(
         exposures=canonical_exposures_data(
@@ -514,7 +515,7 @@ class GetCoverageLevelTerms(TestCase):
         ) 
     )
     def test_coverage_level_terms(self, exposures, accounts, fm_items):
-        lgfmt = self.coverage_level_profile
+        lgfmt = self.grouped_profile[1]
 
         exposures[0]['wscv2val'] = 50
 
@@ -535,8 +536,9 @@ class GetCoverageLevelTerms(TestCase):
 
         self.assertEqual(tuple(it['item_id'] for it in fm_items), tuple(r['item_id'] for r in results))
 
-        for i, it in enumerate(fm_items):
-            res = results[i]
+        for i, res in enumerate(results):
+            it = fm_items[i]
+
             self.assertEqual(it['level_id'], res['level_id'])
             self.assertEqual(it['index'], res['index'])
             self.assertEqual(it['item_id'], res['item_id'])
@@ -551,36 +553,116 @@ class GetCoverageLevelTerms(TestCase):
 
             self.assertEqual(tiv, res['tiv'])
 
-            limit = cexp_it[cf['limit']['ProfileElementName'].lower()]
+            le = cf['limit']['ProfileElementName'].lower() if cf.get('limit') else None
+            limit = cexp_it[le] if le and cexp_it.get(le) else (cacc_it[le] if le and cacc_it.get(le) else 0)
             self.assertEqual(limit, res['limit'])
 
-            ded = cexp_it[cf['deductible']['ProfileElementName'].lower()]
-            self.assertEqual(ded, res['deductible'])
+            de = cf['deductible']['ProfileElementName'].lower() if cf.get('deductible') else None
+            deductible = cexp_it[de] if de and cexp_it.get(de) else (cacc_it[de] if de and cacc_it.get(de) else 0)
+            self.assertEqual(deductible, res['deductible'])
 
             ded_type = it['deductible_type']
 
             self.assertEqual(ded_type, res['deductible_type'])
 
-            share_element_name = cf['share']['ProfileElementName'].lower() if cf.get('share') else None
-            share = 0
-            if share_element_name and share_element_name in cexp_it:
-                share = cexp_it[share_element_name]
-            elif share_element_name and share_element_name in cacc_it:
-                share = cacc_it[share_element_name]
+            se = cf['share']['ProfileElementName'].lower() if cf.get('share') else None
+            share = cexp_it[se] if se and cexp_it.get(se) else (cacc_it[se] if se and cacc_it.get(se) else 0)
             self.assertEqual(share, res['share'])
 
             calcrule_id = get_calcrule_id(limit, share, ded_type)
             self.assertEqual(calcrule_id, res['calcrule_id'])
 
+    @given(
+        exposures=canonical_exposures_data(
+            from_accounts_nums=just(10101),
+            from_tivs1=just(100),
+            from_limits1=floats(min_value=1, allow_infinity=False),
+            from_deductibles1=just(1),
+            from_tivs2=just(0),
+            from_limits2=just(0),
+            from_deductibles2=just(0),
+            size=10
+        ),
+        accounts=canonical_accounts_data(
+            from_accounts_nums=just(10101),
+            from_attachment_points=floats(min_value=1, allow_infinity=False),
+            from_blanket_deductibles=just(0),
+            from_blanket_limits=just(0.1),
+            from_layer_limits=floats(min_value=1, allow_infinity=False),
+            from_policy_types=just(1),
+            size=1
+        ),
+        fm_items=fm_items_data(
+            from_tivs=just(100),
+            from_deductible_types=just('B'),
+            size=11
+        ) 
+    )
+    def test_non_coverage_level_terms(self, exposures, accounts, fm_items):
+        gfmt = self.grouped_profile
 
-class GetFmTermsByLevel(TestCase):
-    pass
+        exposures[0]['wscv2val'] = 50
 
-class GetFmTermsByLevelAsList(TestCase):
-    pass
+        levels = sorted(gfmt.keys())
+        levels.remove(1)
+
+        for l in levels:
+            lgfmt = gfmt[l]
+            for i, it in enumerate(fm_items):
+                it['level_id'] = l
+                it['canexp_id'] = 0 if i in [0, 1] else it['canexp_id'] - 1
+                it['canacc_id'] = 0
+                it['index'] = i
+
+            results = list(get_fm_terms_by_level(
+                l,
+                lgfmt,
+                pd.DataFrame(data=exposures, dtype=object),
+                pd.DataFrame(data=accounts, dtype=object),
+                pd.DataFrame(data=fm_items, dtype=object)
+            ))
+
+            self.assertEqual(len(fm_items), len(results))
+
+            self.assertEqual(tuple(it['item_id'] for it in fm_items), tuple(r['item_id'] for r in results))
+
+            for i, res in enumerate(results):
+                it = fm_items[i]
+                self.assertEqual(it['level_id'], res['level_id'])
+                self.assertEqual(it['index'], res['index'])
+                self.assertEqual(it['item_id'], res['item_id'])
+
+                tiv = it['tiv']
+                self.assertEqual(tiv, res['tiv'])
+
+                cexp_it = exposures[it['canexp_id']]
+                cacc_it = accounts[it['canacc_id']]
+
+                self.assertEqual(tiv, res['tiv'])
+
+                le = lgfmt[1].get('limit')['ProfileElementName'].lower() if lgfmt[1].get('limit') else None
+                limit = cexp_it[le] if le and cexp_it.get(le) else (cacc_it[le] if le and cacc_it.get(le) else 0)
+                self.assertEqual(limit, res['limit'])
+
+                de = lgfmt[1].get('deductible')['ProfileElementName'].lower() if lgfmt[1].get('deductible') else None
+                deductible = cexp_it[de] if de and cexp_it.get(de) else (cacc_it[de] if de and cacc_it.get(de) else 0)
+                self.assertEqual(deductible, res['deductible'])
+
+                ded_type = it['deductible_type']
+
+                self.assertEqual(ded_type, res['deductible_type'])
+
+                se = lgfmt[1].get('share')['ProfileElementName'].lower() if lgfmt[1].get('share') else None
+                share = cexp_it[se] if se and cexp_it.get(se) else (cacc_it[se] if se and cacc_it.get(se) else 0)
+                self.assertEqual(share, res['share'])
+
+                calcrule_id = get_calcrule_id(limit, share, ded_type)
+                self.assertEqual(calcrule_id, res['calcrule_id'])
+
 
 class GetPolicyTcId(TestCase):
     pass
+
 
 class GetPolicyTcIds(TestCase):
     pass
