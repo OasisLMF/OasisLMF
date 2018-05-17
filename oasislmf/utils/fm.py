@@ -208,9 +208,7 @@ def get_fm_terms_by_level(level_id, level_grouped_fm_terms, canexp_df, canacc_df
 
     lgfmt = level_grouped_fm_terms
 
-    is_coverage_level = lambda level_id: any('tiv' in lgfmt[gid] for gid in lgfmt)
-
-    if is_coverage_level(level_id):
+    if level_id == 1:
         for fmt in get_coverage_level_terms(level_id, lgfmt, canexp_df, canacc_df, level_fm_df):
             yield fmt
     else:

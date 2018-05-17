@@ -35,6 +35,7 @@ from oasislmf.utils.fm import (
     canonical_profiles_fm_terms_grouped_by_level,
     canonical_profiles_fm_terms_grouped_by_level_and_term_type,
     get_calcrule_id,
+    get_coverage_level_terms,
     get_fm_terms_by_item,
 )
 
@@ -370,10 +371,9 @@ class GetFmTermsByItem(TestCase):
     def setUp(self):
         self.exposures_profile = canonical_exposures_profile_piwind_simple
         self.accounts_profile = canonical_accounts_profile_piwind
-        self.grouped_fm_terms = canonical_profiles_fm_terms_grouped_by_level_and_term_type(
+        self.grouped_profile = canonical_profiles_fm_terms_grouped_by_level_and_term_type(
             canonical_profiles=[self.exposures_profile, self.accounts_profile]
         )
-        self.manager = OasisExposuresManager()
 
     @given(
         exposures=canonical_exposures_data(
@@ -398,13 +398,13 @@ class GetFmTermsByItem(TestCase):
         fm_items=fm_items_data(
             from_level_ids=sampled_from(fm_levels_piwind_simple),
             from_tivs=just(100),
-            from_deductible_types=sampled_from(deductible_types_piwind),
+            from_deductible_types=just('B'),
             size=11
         )
     )
     def test_fm_terms_by_item(self, exposures, accounts, fm_items):
 
-        gfmt = self.grouped_fm_terms
+        gfmt = self.grouped_profile
 
         exposures[0]['wscv2val'] = 50
 
@@ -478,7 +478,100 @@ class GetFmTermsByItem(TestCase):
 
 
 class GetCoverageLevelTerms(TestCase):
-    pass
+
+    def setUp(self):
+        self.exposures_profile = canonical_exposures_profile_piwind_simple
+        self.accounts_profile = canonical_accounts_profile_piwind
+        self.coverage_level_profile = canonical_profiles_fm_terms_grouped_by_level_and_term_type(
+            canonical_profiles=[self.exposures_profile, self.accounts_profile]
+        )[1]
+
+    @given(
+        exposures=canonical_exposures_data(
+            from_accounts_nums=just(10101),
+            from_tivs1=just(100),
+            from_limits1=floats(min_value=1, allow_infinity=False),
+            from_deductibles1=just(1),
+            from_tivs2=just(0),
+            from_limits2=just(0),
+            from_deductibles2=just(0),
+            size=10
+        ),
+        accounts=canonical_accounts_data(
+            from_accounts_nums=just(10101),
+            from_attachment_points=floats(min_value=1, allow_infinity=False),
+            from_blanket_deductibles=just(0),
+            from_blanket_limits=just(0.1),
+            from_layer_limits=floats(min_value=1, allow_infinity=False),
+            from_policy_types=just(1),
+            size=1
+        ),
+        fm_items=fm_items_data(
+            from_level_ids=just(1),
+            from_tivs=just(100),
+            from_deductible_types=just('B'),
+            size=11
+        ) 
+    )
+    def test_coverage_level_terms(self, exposures, accounts, fm_items):
+        lgfmt = self.coverage_level_profile
+
+        exposures[0]['wscv2val'] = 50
+
+        for i, fm_item in enumerate(fm_items):
+            fm_item['canexp_id'] = 0 if i in [0, 1] else fm_item['canexp_id'] - 1
+            fm_item['canacc_id'] = 0
+            fm_item['index'] = i
+
+        results = list(get_coverage_level_terms(
+            1,
+            lgfmt,
+            pd.DataFrame(data=exposures, dtype=object),
+            pd.DataFrame(data=accounts, dtype=object),
+            pd.DataFrame(data=fm_items, dtype=object)
+        ))
+
+        self.assertEqual(len(fm_items), len(results))
+
+        self.assertEqual(tuple(it['item_id'] for it in fm_items), tuple(r['item_id'] for r in results))
+
+        for i, it in enumerate(fm_items):
+            res = results[i]
+            self.assertEqual(it['level_id'], res['level_id'])
+            self.assertEqual(it['index'], res['index'])
+            self.assertEqual(it['item_id'], res['item_id'])
+
+            tiv = it['tiv']
+            self.assertEqual(tiv, res['tiv'])
+
+            cexp_it = exposures[it['canexp_id']]
+            cacc_it = accounts[it['canacc_id']]
+
+            cf = [v for v in lgfmt.values() if cexp_it[v['tiv']['ProfileElementName'].lower()] == tiv][0]
+
+            self.assertEqual(tiv, res['tiv'])
+
+            limit = cexp_it[cf['limit']['ProfileElementName'].lower()]
+            self.assertEqual(limit, res['limit'])
+
+            ded = cexp_it[cf['deductible']['ProfileElementName'].lower()]
+            self.assertEqual(ded, res['deductible'])
+
+            ded_type = it['deductible_type']
+
+            self.assertEqual(ded_type, res['deductible_type'])
+
+            share_element_name = cf['share']['ProfileElementName'].lower() if cf.get('share') else None
+            share = 0
+            if share_element_name and share_element_name in cexp_it:
+                share = cexp_it[share_element_name]
+            elif share_element_name and share_element_name in cacc_it:
+                share = cacc_it[share_element_name]
+            self.assertEqual(share, res['share'])
+
+            calcrule_id = get_calcrule_id(limit, share, ded_type)
+            self.assertEqual(calcrule_id, res['calcrule_id'])
+
 
 class GetFmTermsByLevel(TestCase):
     pass
