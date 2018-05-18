@@ -624,7 +624,35 @@ class OasisExposureManagerLoadGulMasterDataframe(TestCase):
 
 
 class OasisExposureManagerLoadFmMasterDataframe(TestCase):
-    pass
+
+    def setUp(self):
+        self.exposures_profile = canonical_exposures_profile_piwind_simple
+        self.accounts_profile = canonical_accounts_profile_piwind
+        self.grouped_profile = canonical_profiles_fm_terms_grouped_by_level_and_term_type(
+            canonical_profiles=[self.exposures_profile, self.accounts_profile]
+        )
+
+    @given(
+        exposures=canonical_exposures_data(size=10),
+        guls=gul_items_data(size=10)
+
+    )
+    def test_no_canonical_accounts_items__oasis_exception_is_raised(
+        self,
+        exposures,
+        guls
+    ):
+        with NamedTemporaryFile('w') as accounts_file:
+            write_canonical_files(canonical_accounts=[], canonical_accounts_file_path=accounts_file.name)
+
+            with self.assertRaises(OasisException):
+                fm_df, canacc_df = OasisExposuresManager().load_fm_master_data_frame(
+                    pd.DataFrame(data=exposures),
+                    pd.DataFrame(data=guls),
+                    self.exposures_profile,
+                    self.accounts_profile,
+                    accounts_file.name
+                )
 
 
 class OasisExposuresTransformSourceToCanonical(TestCase):

@@ -678,52 +678,53 @@ def keys_data(
 
 
 def write_canonical_files(
-    canonical_exposures,
-    canonical_exposures_file_path,
+    canonical_exposures=None,
+    canonical_exposures_file_path=None,
     canonical_accounts=None,
     canonical_accounts_file_path=None
 ):
 
-    heading_row = OrderedDict([
-        ('row_id', 'ROW_ID'),
-        ('accntnum', 'ACCNTNUM'),
-        ('locnum', 'LOCNUM'),
-        ('postalcode', 'POSTALCODE'),
-        ('cresta', 'CRESTA'),
-        ('city', 'CITY'),
-        ('state', 'STATE'),
-        ('country', 'COUNTRY'),
-        ('latitude', 'LATITUDE'),
-        ('longitude', 'LONGITUDE'),
-        ('bldgscheme', 'BLDGSCHEME'),
-        ('bldgclass', 'BLDGCLASS'),
-        ('occscheme', 'OCCSCHEME'),
-        ('occtype', 'OCCTYPE'),
-        ('yearbuilt', 'YEARBUILT'),
-        ('yearupgrad', 'YEARUPGRAD'),
-        ('numstories', 'NUMSTORIES'),
-        ('numbldgs', 'NUMBLDGS'),
-        ('wscv1val', 'WSCV1VAL'),
-        ('wscv2val', 'WSCV2VAL'),
-        ('wscv1limit', 'WSCV1LIMIT'),
-        ('wscv2limit', 'WSCV2LIMIT'),
-        ('wscv1ded', 'WSCV1DED'),
-        ('wscv2ded', 'WSCV2DED')
-    ])
+    if canonical_exposures and canonical_exposures_file_path:
+        heading_row = OrderedDict([
+            ('row_id', 'ROW_ID'),
+            ('accntnum', 'ACCNTNUM'),
+            ('locnum', 'LOCNUM'),
+            ('postalcode', 'POSTALCODE'),
+            ('cresta', 'CRESTA'),
+            ('city', 'CITY'),
+            ('state', 'STATE'),
+            ('country', 'COUNTRY'),
+            ('latitude', 'LATITUDE'),
+            ('longitude', 'LONGITUDE'),
+            ('bldgscheme', 'BLDGSCHEME'),
+            ('bldgclass', 'BLDGCLASS'),
+            ('occscheme', 'OCCSCHEME'),
+            ('occtype', 'OCCTYPE'),
+            ('yearbuilt', 'YEARBUILT'),
+            ('yearupgrad', 'YEARUPGRAD'),
+            ('numstories', 'NUMSTORIES'),
+            ('numbldgs', 'NUMBLDGS'),
+            ('wscv1val', 'WSCV1VAL'),
+            ('wscv2val', 'WSCV2VAL'),
+            ('wscv1limit', 'WSCV1LIMIT'),
+            ('wscv2limit', 'WSCV2LIMIT'),
+            ('wscv1ded', 'WSCV1DED'),
+            ('wscv2ded', 'WSCV2DED')
+        ])
 
-    canexp_df = pd.DataFrame(
-        columns=heading_row.keys(),
-        data=[heading_row]+canonical_exposures
-    )
-    
-    canexp_df.to_csv(
-        path_or_buf=canonical_exposures_file_path,
-        index=False,
-        encoding='utf-8',
-        header=False
-    )
+        canexp_df = pd.DataFrame(
+            columns=heading_row.keys(),
+            data=[heading_row]+canonical_exposures
+        )
+        
+        canexp_df.to_csv(
+            path_or_buf=canonical_exposures_file_path,
+            index=False,
+            encoding='utf-8',
+            header=False
+        )
 
-    if canonical_accounts_data and canonical_accounts_file_path:
+    if canonical_accounts and canonical_accounts_file_path:
         heading_row = OrderedDict([
             ('row_id', 'ROW_ID'),
             ('accntnum', 'ACCNTNUM'),
