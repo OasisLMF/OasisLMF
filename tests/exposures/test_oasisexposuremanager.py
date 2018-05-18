@@ -1,6 +1,6 @@
 from __future__ import unicode_literals
 
-import csv
+import copy
 import io
 import json
 import os
@@ -36,6 +36,9 @@ from mock import patch, Mock
 from oasislmf.exposures.manager import OasisExposuresManager
 from oasislmf.exposures.pipeline import OasisFilesPipeline
 from oasislmf.utils.exceptions import OasisException
+from oasislmf.utils.fm import (
+    canonical_profiles_fm_terms_grouped_by_level_and_term_type
+)
 from oasislmf.utils.status import (
     KEYS_STATUS_FAIL,
     KEYS_STATUS_NOMATCH,
@@ -45,7 +48,9 @@ from ..models.fakes import fake_model
 
 from tests.data import (
     canonical_accounts_data,
+    canonical_accounts_profile_piwind,
     canonical_exposures_data,
+    canonical_exposures_profile_piwind_simple,
     fm_items_data,
     gul_items_data,
     keys_data,
@@ -379,30 +384,7 @@ class OasisExposuresManagerWriteGulFiles(GulFilesGenerationTestCase):
         keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=10),
     )
     def test_paths_are_stored_in_the_model___model_paths_are_used(self, exposures, keys):
-        profile = {
-            u'WSCV1VAL': {
-                u'CoverageTypeID': 1,
-                u'FMLevel': 1,
-                u'FMLevelName': u'Coverage',
-                u'FMTermGroupID': 1,
-                u'FMTermType': u'TIV',
-                u'FieldName': u'TIV',
-                u'PerilID': 1,
-                u'ProfileElementName': u'WSCV1VAL',
-                u'ProfileType': u'Loc'
-            },
-            u'WSCV2VAL': {
-                u'CoverageTypeID': 1,
-                u'FMLevel': 1,
-                u'FMLevelName': u'Coverage',
-                u'FMTermGroupID': 1,
-                u'FMTermType': u'TIV',
-                u'FieldName': u'TIV',
-                u'PerilID': 1,
-                u'ProfileElementName': u'WSCV2VAL',
-                u'ProfileType': u'Loc'
-            }
-        }
+        profile = canonical_exposures_profile_piwind_simple
 
         oasis_model = fake_model(resources={'canonical_exposures_profile': profile})
 
@@ -439,30 +421,7 @@ class OasisExposuresManagerWriteGulFiles(GulFilesGenerationTestCase):
         keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=10)
     )
     def test_paths_are_stored_in_the_kwargs___kwarg_paths_are_used(self, exposures, keys):
-        profile = {
-            u'WSCV1VAL': {
-                u'CoverageTypeID': 1,
-                u'FMLevel': 1,
-                u'FMLevelName': u'Coverage',
-                u'FMTermGroupID': 1,
-                u'FMTermType': u'TIV',
-                u'FieldName': u'TIV',
-                u'PerilID': 1,
-                u'ProfileElementName': u'WSCV1VAL',
-                u'ProfileType': u'Loc'
-            },
-            u'WSCV2VAL': {
-                u'CoverageTypeID': 1,
-                u'FMLevel': 1,
-                u'FMLevelName': u'Coverage',
-                u'FMTermGroupID': 1,
-                u'FMTermType': u'TIV',
-                u'FieldName': u'TIV',
-                u'PerilID': 1,
-                u'ProfileElementName': u'WSCV2VAL',
-                u'ProfileType': u'Loc'
-            }
-        }
+        profile = canonical_exposures_profile_piwind_simple
 
         manager = OasisExposuresManager()
 
@@ -502,30 +461,7 @@ class OasisExposureManagerLoadGulMasterDataframe(TestCase):
         exposures,
         keys
     ):
-        profile = {
-            u'WSCV1VAL': {
-                u'CoverageTypeID': 1,
-                u'FMLevel': 1,
-                u'FMLevelName': u'Coverage',
-                u'FMTermGroupID': 1,
-                u'FMTermType': u'TIV',
-                u'FieldName': u'TIV',
-                u'PerilID': 1,
-                u'ProfileElementName': u'WSCV1VAL',
-                u'ProfileType': u'Loc'
-            },
-            u'WSCV2VAL': {
-                u'CoverageTypeID': 1,
-                u'FMLevel': 1,
-                u'FMLevelName': u'Coverage',
-                u'FMTermGroupID': 1,
-                u'FMTermType': u'TIV',
-                u'FieldName': u'TIV',
-                u'PerilID': 1,
-                u'ProfileElementName': u'WSCV2VAL',
-                u'ProfileType': u'Loc'
-            }
-        }
+        profile = canonical_exposures_profile_piwind_simple
 
         with NamedTemporaryFile('w') as exposures_file, NamedTemporaryFile('w') as keys_file:
             write_canonical_files(exposures, exposures_file.name)
@@ -545,30 +481,7 @@ class OasisExposureManagerLoadGulMasterDataframe(TestCase):
         exposures,
         keys
     ):
-        profile = {
-            u'WSCV1VAL': {
-                u'CoverageTypeID': 1,
-                u'FMLevel': 1,
-                u'FMLevelName': u'Coverage',
-                u'FMTermGroupID': 1,
-                u'FMTermType': u'TIV',
-                u'FieldName': u'TIV',
-                u'PerilID': 1,
-                u'ProfileElementName': u'WSCV1VAL',
-                u'ProfileType': u'Loc'
-            },
-            u'WSCV2VAL': {
-                u'CoverageTypeID': 1,
-                u'FMLevel': 1,
-                u'FMLevelName': u'Coverage',
-                u'FMTermGroupID': 1,
-                u'FMTermType': u'TIV',
-                u'FieldName': u'TIV',
-                u'PerilID': 1,
-                u'ProfileElementName': u'WSCV2VAL',
-                u'ProfileType': u'Loc'
-            }
-        }
+        profile = canonical_exposures_profile_piwind_simple
 
         with NamedTemporaryFile('w') as exposures_file, NamedTemporaryFile('w') as keys_file:
             write_canonical_files(exposures, exposures_file.name)
@@ -587,30 +500,7 @@ class OasisExposureManagerLoadGulMasterDataframe(TestCase):
         exposures,
         keys
     ):
-        profile = {
-            u'WSCV1VAL': {
-                u'CoverageTypeID': 1,
-                u'FMLevel': 1,
-                u'FMLevelName': u'Coverage',
-                u'FMTermGroupID': 1,
-                u'FMTermType': u'TIV',
-                u'FieldName': u'TIV',
-                u'PerilID': 1,
-                u'ProfileElementName': u'WSCV1VAL',
-                u'ProfileType': u'Loc'
-            },
-            u'WSCV2VAL': {
-                u'CoverageTypeID': 1,
-                u'FMLevel': 1,
-                u'FMLevelName': u'Coverage',
-                u'FMTermGroupID': 1,
-                u'FMTermType': u'TIV',
-                u'FieldName': u'TIV',
-                u'PerilID': 1,
-                u'ProfileElementName': u'WSCV2VAL',
-                u'ProfileType': u'Loc'
-            }
-        }
+        profile = canonical_exposures_profile_piwind_simple
 
         l = len(exposures)
         for key in keys:
@@ -633,19 +523,12 @@ class OasisExposureManagerLoadGulMasterDataframe(TestCase):
         exposures,
         keys
     ):
-        profile = {
-            u'WSCV1LIMIT': {
-                u'CoverageTypeID': 1,
-                u'FMLevel': 1,
-                u'FMLevelName': u'Coverage',
-                u'FMTermGroupID': 1,
-                u'FMTermType': u'Limit',
-                u'FieldName': u'CoverageLimit',
-                u'PerilID': 1,
-                u'ProfileElementName': u'WSCV1LIMIT',
-                u'ProfileType': u'Loc'
-            }
-        }
+        profile = copy.deepcopy(canonical_exposures_profile_piwind_simple)
+
+        tivs = [profile[e]['ProfileElementName'] for e in profile if profile[e].get('FMTermType') and profile[e]['FMTermType'].lower() == 'tiv']
+
+        for t in tivs:
+            profile.pop(t)
 
         with NamedTemporaryFile('w') as exposures_file, NamedTemporaryFile('w') as keys_file:
             write_canonical_files(exposures, exposures_file.name)
@@ -668,30 +551,7 @@ class OasisExposureManagerLoadGulMasterDataframe(TestCase):
         exposures,
         keys
     ):
-        profile = {
-            u'WSCV1VAL': {
-                u'CoverageTypeID': 1,
-                u'FMLevel': 1,
-                u'FMLevelName': u'Coverage',
-                u'FMTermGroupID': 1,
-                u'FMTermType': u'TIV',
-                u'FieldName': u'TIV',
-                u'PerilID': 1,
-                u'ProfileElementName': u'WSCV1VAL',
-                u'ProfileType': u'Loc'
-            },
-            u'WSCV2VAL': {
-                u'CoverageTypeID': 1,
-                u'FMLevel': 1,
-                u'FMLevelName': u'Coverage',
-                u'FMTermGroupID': 1,
-                u'FMTermType': u'TIV',
-                u'FieldName': u'TIV',
-                u'PerilID': 1,
-                u'ProfileElementName': u'WSCV2VAL',
-                u'ProfileType': u'Loc'
-            }
-        }
+        profile = canonical_exposures_profile_piwind_simple 
 
         with NamedTemporaryFile('w') as exposures_file, NamedTemporaryFile('w') as keys_file:
             write_canonical_files(exposures, exposures_file.name)
@@ -716,30 +576,7 @@ class OasisExposureManagerLoadGulMasterDataframe(TestCase):
         exposures,
         keys
     ):
-        profile = {
-            u'WSCV1VAL': {
-                u'CoverageTypeID': 1,
-                u'FMLevel': 1,
-                u'FMLevelName': u'Coverage',
-                u'FMTermGroupID': 1,
-                u'FMTermType': u'TIV',
-                u'FieldName': u'TIV',
-                u'PerilID': 1,
-                u'ProfileElementName': u'WSCV1VAL',
-                u'ProfileType': u'Loc'
-            },
-            u'WSCV2VAL': {
-                u'CoverageTypeID': 1,
-                u'FMLevel': 1,
-                u'FMLevelName': u'Coverage',
-                u'FMTermGroupID': 1,
-                u'FMTermType': u'TIV',
-                u'FieldName': u'TIV',
-                u'PerilID': 1,
-                u'ProfileElementName': u'WSCV2VAL',
-                u'ProfileType': u'Loc'
-            }
-        }
+        profile = canonical_exposures_profile_piwind_simple 
 
         for k in keys:
             k['id'] += 5

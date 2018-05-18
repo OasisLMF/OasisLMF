@@ -616,27 +616,23 @@ def gul_items_data(
         fixed_dictionaries(
             {
                 'canexp_id': from_canexp_ids,
-                'coverage_id': from_coverage_type_ids,
                 'tiv': from_tivs,
                 'area_peril_id': from_area_peril_ids,
                 'vulnerability_id': from_vulnerability_ids,
-                'group_id': from_group_ids,
                 'summary_id': from_summary_ids,
                 'summaryset_id': from_summaryset_ids
             }
         ),
-        min_size=(size if size else min_size),
-        max_size=(size if size else max_size)
+        min_size=(size if size is not None else min_size),
+        max_size=(size if size is not None else min_size)
     ).map(_sequence) if not with_fm else lists(
         fixed_dictionaries(
             {
                 'canexp_id': from_canexp_ids,
                 'canacc_id': from_canacc_ids,
-                'coverage_id': from_coverage_type_ids,
                 'tiv': from_tivs,
                 'area_peril_id': from_area_peril_ids,
                 'vulnerability_id': from_vulnerability_ids,
-                'group_id': from_group_ids,
                 'summary_id': from_summary_ids,
                 'summaryset_id': from_summaryset_ids
             }

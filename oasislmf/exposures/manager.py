@@ -735,6 +735,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
             with io.open(canonical_accounts_file_path, 'r', encoding='utf-8') as f:
                 canacc_df = pd.read_csv(f, float_precision='high')
+
+            if len(canacc_df) == 0:
+                raise OasisException('No canonical accounts items')
             
             canacc_df = canacc_df.where(canacc_df.notnull(), None)
             canacc_df.columns = canacc_df.columns.str.lower()
