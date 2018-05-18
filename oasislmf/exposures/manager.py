@@ -918,7 +918,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         """
         pass
 
-    def write_gul_files(self, oasis_model=None, num_keys_errors=0, **kwargs):
+    def write_gul_files(self, oasis_model=None, **kwargs):
         """
         Writes the standard Oasis GUL files, namely::
 
@@ -1182,26 +1182,26 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             self.logger.info('\nCopying source accounts file {source_accounts_file_path} to Oasis files directory'.format(**kwargs))
             shutil.copy2(source_accounts_file_path, oasis_files_path)
 
-        logger.info('\nGenerating canonical exposures file {canonical_exposures_file_path}'.format(**kwargs))
+        logger.info('\nWriting canonical exposures file {canonical_exposures_file_path}'.format(**kwargs))
         self.transform_source_to_canonical(oasis_model=oasis_model, **kwargs)
 
         if fm:
-            logger.info('\nGenerating canonical accounts file {canonical_accounts_file_path}'.format(**kwargs))
+            logger.info('\nWriting canonical accounts file {canonical_accounts_file_path}'.format(**kwargs))
             self.transform_source_to_canonical(oasis_model=oasis_model, source_type='accounts', **kwargs)
 
-        logger.info('\nGenerating model exposures file {model_exposures_file_path}'.format(**kwargs))
+        logger.info('\nWriting model exposures file {model_exposures_file_path}'.format(**kwargs))
         self.transform_canonical_to_model(oasis_model=oasis_model, **kwargs)
 
-        logger.info('\nGenerating keys file {keys_file_path} and keys errors file {keys_errors_file_path}'.format(**kwargs))
+        logger.info('\nWriting keys file {keys_file_path} and keys errors file {keys_errors_file_path}'.format(**kwargs))
         self.get_keys(oasis_model=oasis_model, **kwargs)
 
-        logger.info('\nGenerating GUL files')
+        logger.info('\nWriting GUL files')
         gul_files = self.write_gul_files(oasis_model=oasis_model, **kwargs)
 
         if not fm:
             return gul_files
 
-        logger.info('\nGenerating FM files')
+        logger.info('\nWriting FM files')
         fm_files = self.write_fm_files(oasis_model=oasis_model, **kwargs)
 
         oasis_files = ofp.oasis_files if oasis_model else {k:v for k, v in itertools.chain(gul_files.items(), fm_files.items())}
