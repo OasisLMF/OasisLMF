@@ -458,11 +458,11 @@ def canonical_accounts_data(
     min_size=0,
     max_size=10
 ):
-    def _sequence(l):
-        for i, r in enumerate(l):
+    def _sequence(li):
+        for i, r in enumerate(li):
             r['row_id'] = i + 1
 
-        return l
+        return li
 
     return lists(
         fixed_dictionaries(
@@ -509,11 +509,11 @@ def canonical_exposures_data(
     min_size=0,
     max_size=10
 ):
-    def _sequence(l):
-        for i, r in enumerate(l):
+    def _sequence(li):
+        for i, r in enumerate(li):
             r['row_id'] = r['locnum'] = i + 1
 
-        return l
+        return li
 
     return lists(
         fixed_dictionaries(
@@ -564,12 +564,12 @@ def fm_items_data(
     min_size=0,
     max_size=10
 ):
-    def _sequence(l):
-        for i, r in enumerate(l):
+    def _sequence(li):
+        for i, r in enumerate(li):
             r['canexp_id'] = i
             r['item_id'] = i + 1
 
-        return l
+        return li
 
     return lists(
         fixed_dictionaries(
@@ -605,14 +605,16 @@ def gul_items_data(
     max_size=10
 ):
 
-    def _sequence(l):
-        for i, r in enumerate(l):
-            r['from_canexp_id'] = i
+    def _sequence(li):
+        for i, r in enumerate(li):
+            r['canexp_id'] = i
             r['item_id'] = r['coverage_id'] = r['group_id'] = i + 1
+            if with_fm:
+                r['canacc_id'] = i
 
-        return l
+        return li
 
-    return lists(
+    return (lists(
         fixed_dictionaries(
             {
                 'canexp_id': from_canexp_ids,
@@ -625,7 +627,7 @@ def gul_items_data(
         ),
         min_size=(size if size is not None else min_size),
         max_size=(size if size is not None else min_size)
-    ).map(_sequence) if not with_fm else lists(
+    ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())) if not with_fm else lists(
         fixed_dictionaries(
             {
                 'canexp_id': from_canexp_ids,
@@ -653,11 +655,11 @@ def keys_data(
     min_size=0,
     max_size=10
 ):
-    def _sequence(l):
-        for i, data in enumerate(l):
+    def _sequence(li):
+        for i, data in enumerate(li):
             data['id'] = i + 1
 
-        return l
+        return li
 
     return lists(
         fixed_dictionaries(
