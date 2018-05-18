@@ -671,7 +671,7 @@ class GetPolicyTcIds(TestCase):
             size=10
         )
     )
-    def test_get_policytc_ids(self, fm_items):
+    def test_policytc_ids(self, fm_items):
 
         term_combs = {}
 
