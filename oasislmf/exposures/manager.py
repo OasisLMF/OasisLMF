@@ -180,6 +180,38 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         pass
 
+    def generate_gul_items(self, canonical_exposures_profile, canonical_exposures_file_path, keys_file_path, **kwargs):
+        """
+        Generates GUL items using the given canonical exposures profile and
+        exposures file path + keys file path.
+
+        :param canonical_exposures_profile: Canonical exposures profile
+        :type canonical_exposures_profile: dict
+
+        :param canonical_exposures_file_path: Canonical exposures file path
+        :type canonical_exposures_file_path: str
+
+        :param keys_file_path: Keys file path
+        :type keys_file_path: str
+        """
+        pass
+
+    def generate_fm_items(self, canonical_exposures, gul_items, canonical_exposures_profile, canonical_accounts_profile, canonical_accounts_file_path, **kwargs):
+        """
+        Generates GUL items using the given canonical exposures profile and
+        exposures file path + keys file path.
+
+        :param canonical_exposures_profile: Canonical exposures profile
+        :type canonical_exposures_profile: dict
+
+        :param canonical_exposures_file_path: Canonical exposures file path
+        :type canonical_exposures_file_path: str
+
+        :param keys_file_path: Keys file path
+        :type keys_file_path: str
+        """
+        pass
+
     def write_gul_files(self, oasis_model=None, **kwargs):
         """
         Writes Oasis GUL files for a given ``oasis_model`` or set of keyword
@@ -618,6 +650,25 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             )
 
         return kwargs
+
+    def generate_gul_items(
+        self,
+        canonical_exposures_profile,
+        canonical_exposures_file_path,
+        keys_file_path
+    ):
+        pass
+
+    def generate_fm_items(
+        self,
+        canonical_exposures,
+        gul_items,
+        canonical_exposures_profile,
+        canonical_accounts_profile,
+        canonical_accounts_file_path,
+        preset_only=False
+    ):
+        pass
 
     def load_gul_master_data_frame(
         self,
