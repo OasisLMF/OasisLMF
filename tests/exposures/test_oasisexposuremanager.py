@@ -600,27 +600,29 @@ class OasisExposureManagerLoadGulMasterDataframe(TestCase):
         )
 
         tiv_elements = tuple(sorted(
-            [v['ProfileElementName'].lower() for v in six.itervalues(profile) if v.get('FieldName') == 'TIV']
+            [v for v in profile.itervalues() if v.get('FieldName') and v['FieldName'] == 'TIV'],
+            key=lambda v: v['FMTermGroupID']
         ))
 
-        for i, gul_item in enumerate(gulm_df.T.to_dict().values()):
-            canonical_item = get_canonical_item(int(gul_item['canexp_id']))
-            self.assertIsNotNone(canonical_item)
+        for i, gul_it in enumerate(gulm_df.T.to_dict().values()):
+            can_it = get_canonical_item(int(gul_it['canexp_id']))
+            self.assertIsNotNone(can_it)
 
-            positive_tiv_element = [t for t in tiv_elements if t in canonical_item.keys() and canonical_item[t] > 0][0]
-            self.assertEqual(canonical_item[positive_tiv_element], gul_item['tiv'])
+            keys_it = get_keys_item(int(gul_it['canexp_id']))
+            self.assertIsNotNone(keys_it)
 
-            keys_item = get_keys_item(int(gul_item['canexp_id']))
-            self.assertIsNotNone(keys_item)
+            positive_tiv_elements = [t for t in tiv_elements if can_it.get(t['ProfileElementName'].lower()) and can_it[t['ProfileElementName'].lower()] > 0 and t['CoverageTypeID'] == keys_it['coverage']]
+            for _, t in enumerate(positive_tiv_elements):
+                self.assertEqual(can_it[t['ProfileElementName'].lower()], gul_it['tiv'])
 
-            self.assertEqual(keys_item['area_peril_id'], gul_item['areaperil_id'])
-            self.assertEqual(keys_item['vulnerability_id'], gul_item['vulnerability_id'])
+            self.assertEqual(keys_it['area_peril_id'], gul_it['areaperil_id'])
+            self.assertEqual(keys_it['vulnerability_id'], gul_it['vulnerability_id'])
 
-            self.assertEqual(i + 1, gul_item['item_id'])
+            self.assertEqual(i + 1, gul_it['item_id'])
 
-            self.assertEqual(i + 1, gul_item['coverage_id'])
+            self.assertEqual(i + 1, gul_it['coverage_id'])
 
-            self.assertEqual(i + 1, gul_item['group_id'])
+            self.assertEqual(i + 1, gul_it['group_id'])
 
 
 class OasisExposureManagerLoadFmMasterDataframe(TestCase):

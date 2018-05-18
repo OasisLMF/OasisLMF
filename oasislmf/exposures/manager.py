@@ -16,7 +16,6 @@ import sys
 import time
 
 import pandas as pd
-import six
 
 from interface import (
     Interface,
@@ -658,13 +657,13 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
             cep = canonical_exposures_profile
 
-            tiv_fields = tuple(sorted(
-                [v for v in six.itervalues(cep) if v.get('FieldName') == 'TIV'],
-                key=lambda d: d['FMTermGroupID']
+            tiv_elements = tuple(sorted(
+                [v for v in cep.itervalues() if v.get('FieldName') and v['FieldName'] == 'TIV'],
+                key=lambda v: v['FMTermGroupID']
             ))
 
-            if not tiv_fields:
-                raise OasisException('No TIV fields found in the canonical exposures profile - please check the canonical exposures (loc) profile')
+            if not tiv_elements:
+                raise OasisException('No TIV elements found in the canonical exposures profile - please check the canonical exposures (loc) profile')
 
             columns = (
                 'item_id',
@@ -682,27 +681,26 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             item_id = 0
             zero_tiv_items = 0
             for _, item in merged_df.iterrows():
+                positive_tiv_elements = [t for t in tiv_elements if item.get(t['ProfileElementName'].lower()) and item[t['ProfileElementName'].lower()] > 0 and t['CoverageTypeID'] == item['coveragetype']]
 
-                positive_tiv_field = [t for t in tiv_fields if item.get(t['ProfileElementName'].lower()) and item.get(t['ProfileElementName'].lower()) > 0 and t['CoverageTypeID'] == item['coveragetype']]
-
-                if not positive_tiv_field:
+                if not positive_tiv_elements:
                     zero_tiv_items += 1
                     continue
 
-                positive_tiv_field = positive_tiv_field[0]
-                item_id += 1
-                tiv = item[positive_tiv_field['ProfileElementName'].lower()]
-                gulm_df = gulm_df.append([{
-                    'item_id': item_id,
-                    'canexp_id': item['row_id'] - 1,
-                    'coverage_id': item_id,
-                    'tiv': tiv,
-                    'areaperil_id': item['areaperilid'],
-                    'vulnerability_id': item['vulnerabilityid'],
-                    'group_id': item_id,
-                    'summary_id': 1,
-                    'summaryset_id': 1
-                }])
+                for _, t in enumerate(positive_tiv_elements):
+                    item_id += 1
+                    tiv = item[t['ProfileElementName'].lower()]
+                    gulm_df = gulm_df.append([{
+                        'item_id': item_id,
+                        'canexp_id': item['row_id'] - 1,
+                        'coverage_id': item_id,
+                        'tiv': tiv,
+                        'areaperil_id': item['areaperilid'],
+                        'vulnerability_id': item['vulnerabilityid'],
+                        'group_id': item_id,
+                        'summary_id': 1,
+                        'summaryset_id': 1
+                    }])
         except (KeyError, IndexError, IOError, OasisException, OSError, TypeError, ValueError) as e:
             raise OasisException(e)
         else:
