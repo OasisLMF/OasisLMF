@@ -892,15 +892,15 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
             canexp_df = canexp_df.where(canexp_df.notnull(), None)
             canexp_df.columns = canexp_df.columns.str.lower()
-            canexp_df['index'] = pd.Series(data=list(canexp_df.index), dtype=object)
+            canexp_df['index'] = pd.Series(data=list(canexp_df.index), dtype=int)
 
             keys_df = keys_df.rename(columns={'CoverageID': 'CoverageType'})
             keys_df = keys_df.where(keys_df.notnull(), None)
             keys_df.columns = keys_df.columns.str.lower()
-            keys_df['index'] = pd.Series(data=list(keys_df.index), dtype=object)
+            keys_df['index'] = pd.Series(data=list(keys_df.index), dtype=int)
 
             gul_items_df = pd.DataFrame(data=list(self.generate_gul_items(cep, canexp_df, keys_df)), dtype=object)
-            gul_items_df['index'] = pd.Series(data=list(gul_items_df.index), dtype=object)
+            gul_items_df['index'] = pd.Series(data=list(gul_items_df.index), dtype=int)
         except (KeyError, IndexError, IOError, OasisException, OSError, TypeError, ValueError) as e:
             raise
         else:
@@ -1061,12 +1061,12 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             
             canacc_df = canacc_df.where(canacc_df.notnull(), None)
             canacc_df.columns = canacc_df.columns.str.lower()
-            canacc_df['index'] = pd.Series(data=list(canacc_df.index), dtype=object)
+            canacc_df['index'] = pd.Series(data=list(canacc_df.index), dtype=int)
 
             fm_items = sorted([it for it in self.generate_fm_items(canexp_df, gul_items_df, cep, cap, canacc_df, preset_only=preset_only)], key=lambda it: it['item_id'])
             fm_items_df = pd.DataFrame(data=fm_items, dtype=object)
 
-            fm_items_df['index'] = pd.Series(data=list(fm_items_df.index), dtype=object)
+            fm_items_df['index'] = pd.Series(data=list(fm_items_df.index), dtype=int)
 
             policytc_ids = get_policytc_ids(fm_items_df)
             fm_items_df['policytc_id'] = fm_items_df['index'].apply(lambda i: get_policytc_id(fm_items_df.iloc[i], policytc_ids))
