@@ -1,6 +1,11 @@
 CHANGELOG
 =========
 
+`1.1.12`_ (beta)
+----------------
+
+* Add concurrency utils (threading + multiprocessing) to `utils` sub. pkg.
+
 `1.1.11`_ (beta)
 ----------------
 
@@ -39,6 +44,7 @@ CHANGELOG
 
 * Add console logging
 
+.. _`1.1.12`: https://github.com/OasisLMF/OasisLMF/compare/5045ca2...dev^
 .. _`1.1.10`: https://github.com/OasisLMF/OasisLMF/compare/a969192...master
 .. _`1.0.9`: https://github.com/OasisLMF/OasisLMF/compare/17c691b...master
 .. _`1.0.8`: https://github.com/OasisLMF/OasisLMF/compare/8eeaeaf...master^
