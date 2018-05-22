@@ -263,9 +263,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         fm = inputs.get('fm', default=False)
 
         start_time = time.time()
-        self.logger.info('\nStarting Oasis files generation (@ {})'.format(get_utctimestamp()))
-
-        self.logger.info('\nGenerate FM files: {}'.format(fm))
+        self.logger.info('\nStarting Oasis files generation (@ {}): GUL=True, FM={}'.format(get_utctimestamp(), fm))
 
         if fm and not (canonical_accounts_profile_json_path or source_accounts_file_path):
             raise OasisException(
