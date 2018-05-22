@@ -801,7 +801,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         canacc_df = canonical_accounts_df
 
         cangul_df = pd.merge(canexp_df, gul_items_df, left_on='index', right_on='canexp_id')
-        cangul_df['index'] = pd.Series(data=list(cangul_df.index), dtype=object)
+        cangul_df['index'] = pd.Series(data=list(cangul_df.index), dtype=int)
 
         keys = (
             'item_id', 'gul_item_id', 'canexp_id', 'canacc_id', 'level_id', 'layer_id', 'agg_id', 'policytc_id',
@@ -814,28 +814,21 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
             fm_levels = tuple(sorted(cgcp.keys()))
 
-            preset_data = [
-                p for p in itertools.product(
-                    fm_levels,
-                    zip((-1,)*len(cangul_df), tuple(cangul_df.item_id.values), tuple(cangul_df.canexp_id.values), (-1,)*len(cangul_df), (1,)*len(cangul_df), tuple(cangul_df.tiv_element.values), tuple(cangul_df.tiv.values), tuple(cangul_df.tiv_tgid.values))
-                )
-            ]
+            coverage_level_preset_data = zip(
+                tuple(cangul_df.item_id.values),     # FM item ID
+                tuple(cangul_df.item_id.values),     # GUL item ID
+                tuple(cangul_df.canexp_id.values),   # Can. exp. DF index
+                (-1,)*len(cangul_df),                # Can. acc. DF index 
+                (1,)*len(cangul_df),                 # coverage level ID,
+                (1,)*len(cangul_df),                 # layer ID
+                tuple(cangul_df.tiv_element.values), # TIV element
+                tuple(cangul_df.tiv.values),         # TIV value
+                tuple(cangul_df.tiv_tgid.values)     # TIV element profile term group ID
+            )
 
-            layer_ids = tuple(range(1, len(canacc_df.policynum.values) + 1))
+            get_can_item = lambda i: cangul_df.iloc[coverage_level_preset_data[i][2]]
 
-            if max(layer_ids) > 1:
-                preset_data.extend([
-                    (t[1][0], (t[1][1][0], t[1][1][1], t[1][1][2], t[1][1][3], t[0], t[1][1][5], t[1][1][6], t[1][1][7]))
-                    for t in itertools.product(layer_ids[1:], preset_data[-len(gul_items_df):])
-                ])
-
-            preset_data = tuple(preset_data)
-
-            n = len(preset_data)
-
-            get_can_item = lambda i: cangul_df.iloc[preset_data[i % n][1][2]]
-
-            get_item_layer = lambda i: list(canacc_df[canacc_df['accntnum'] == get_can_item(i)['accntnum']]['policynum'].values)[preset_data[i % n][1][4] - 1]
+            get_item_layer = lambda i: list(canacc_df[canacc_df['accntnum'] == get_can_item(i)['accntnum']]['policynum'].values)[coverage_level_preset_data[i][5] - 1]
 
             get_canacc_item = lambda i: canacc_df[canacc_df['accntnum'] == get_can_item(i)['accntnum']][canacc_df['policynum'] == get_item_layer(i)]
 
@@ -843,20 +836,48 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
             get_layer_id = lambda i: int(canacc_df[canacc_df['policynum'] == get_item_layer(i)]['index']) + 1
 
-            preset_items = {
+            coverage_level_preset_items = {
                 i: {
                     k:v for k, v in zip(
                         keys,
-                        [i + 1, gul_item_id,canexp_id,get_canacc_id(i),fm_levels.index([fml for fml in fm_levels if fml == level_id][0]) + 1,get_layer_id(i),1,0,0.0,0.0,0.0,u'B',2,tiv_element,tiv, tgid])
-                } for i, (level_id, (_, gul_item_id, canexp_id, _, _, tiv_element, tiv, tgid)) in enumerate(preset_data)
+                        [i + 1, gul_item_id, canexp_id, get_canacc_id(i), level_id, get_layer_id(i), 1, 0, 0.0, 0.0, 0.0, 'B', 2, tiv_element, tiv, tiv_tgid]
+                    )
+                } for i, (item_id, gul_item_id, canexp_id, _, level_id, layer_id, tiv_element, tiv, tiv_tgid) in enumerate(coverage_level_preset_data)
             }
 
+            preset_items = {
+                level_id: (coverage_level_preset_items if level_id == 1 else copy.deepcopy(coverage_level_preset_items)) for level_id in fm_levels
+            }
+
+            num_cov_items = len(coverage_level_preset_items)
+
+            for i, (level_id, item_id, it) in enumerate(itertools.chain((level_id, k, v) for level_id in fm_levels[1:] for k, v in preset_items[level_id].items())):
+                it['level_id'] = level_id
+                it['item_id'] = num_cov_items + i + 1
+
+            layer_ids = tuple(range(1, len(canacc_df.policynum.values) + 1))
+
+            max_level = max(fm_levels)
+
+            num_layer1_items = sum(len(preset_items[level_id]) for level_id in preset_items)
+
+            if max(layer_ids) > 1:
+                for layer_id, i, j in itertools.chain((layer_id, i, j) for layer_id in layer_ids[1:] for layer_id, (i, j) in itertools.product([layer_id], zip(range(num_cov_items), range((layer_id - 1) * num_cov_items, layer_id * num_cov_items)))):
+                    it = copy.deepcopy(preset_items[max_level][i])
+                    it['item_id'] = num_layer1_items + i + 1
+                    it['layer_id'] = layer_id
+                    level1_canacc_it = canacc_df.iloc[it['canacc_id']]
+                    accntnum = int(level1_canacc_it['accntnum'])
+                    canacc_it = canacc_df[(canacc_df['accntnum'] == accntnum) & (canacc_df['policynum'] == 'Layer{}'.format(it['layer_id']))].iloc[0]
+                    it['canacc_id'] = int(canacc_it['index'])
+                    preset_items[max_level][j] = it
+
             if preset_only:
-                for it in preset_items.itervalues():
+                for _, it in enumerate(itertools.chain(it for level_id in sorted(preset_items.keys()) for it in preset_items[level_id].itervalues())):
                     yield it
             else:
                 concurrent_tasks = (
-                    Task(get_fm_terms_by_level_as_list2, args=(copy.deepcopy(cgcp), copy.deepcopy(tuple(it for it in preset_items.itervalues() if it['level_id'] == level_id)), canexp_df.copy(deep=True), canacc_df.copy(deep=True),), key=level_id)
+                    Task(get_fm_terms_by_level_as_list2, args=(copy.deepcopy(cgcp), preset_items[level_id].values(), canexp_df.copy(deep=True), canacc_df.copy(deep=True),), key=level_id)
                     for level_id in fm_levels
                 )
                 for it in multiprocess(concurrent_tasks, pool_size=len(fm_levels)):
