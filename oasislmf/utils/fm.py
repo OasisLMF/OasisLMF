@@ -77,11 +77,11 @@ def get_calcrule_id(limit, share, ded_type):
         return 2
 
 
-def get_coverage_level_fm_terms(combined_grouped_canonical_profile, level_fm_items, canexp_df, canacc_df):
+def get_coverage_level_fm_terms(level_grouped_canonical_profile, level_fm_items, canexp_df, canacc_df):
 
-    lid = 1
+    lid = level_fm_items[0]['level_id']
 
-    lp = combined_grouped_canonical_profile[lid]
+    lp = level_grouped_canonical_profile
 
     can_df = pd.merge(canexp_df, canacc_df, left_on='accntnum', right_on='accntnum')
 
@@ -109,11 +109,11 @@ def get_coverage_level_fm_terms(combined_grouped_canonical_profile, level_fm_ite
         yield it
 
 
-def get_non_coverage_level_fm_terms(combined_grouped_canonical_profile, level_fm_items, canexp_df, canacc_df):
+def get_non_coverage_level_fm_terms(level_grouped_canonical_profile, level_fm_items, canexp_df, canacc_df):
 
     lid = level_fm_items[0]['level_id']
 
-    lp = combined_grouped_canonical_profile[lid]
+    lp = level_grouped_canonical_profile
 
     can_df = pd.merge(canexp_df, canacc_df, left_on='accntnum', right_on='accntnum')
 
@@ -145,13 +145,13 @@ def get_non_coverage_level_fm_terms(combined_grouped_canonical_profile, level_fm
         yield it
 
 
-def get_fm_terms_by_level_as_list(combined_grouped_canonical_profile, level_fm_items, canexp_df, canacc_df):
+def get_fm_terms_by_level_as_list(level_grouped_canonical_profile, level_fm_items, canexp_df, canacc_df):
 
     level_id = level_fm_items[0]['level_id']
 
     return (
-        list(get_coverage_level_fm_terms(combined_grouped_canonical_profile, level_fm_items, canexp_df, canacc_df)) if level_id == 1
-        else list(get_non_coverage_level_fm_terms(combined_grouped_canonical_profile, level_fm_items, canexp_df, canacc_df))
+        list(get_coverage_level_fm_terms(level_grouped_canonical_profile, level_fm_items, canexp_df, canacc_df)) if level_id == 1
+        else list(get_non_coverage_level_fm_terms(level_grouped_canonical_profile, level_fm_items, canexp_df, canacc_df))
     )
 
 

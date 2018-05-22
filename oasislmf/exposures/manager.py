@@ -877,7 +877,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                     yield it
             else:
                 concurrent_tasks = (
-                    Task(get_fm_terms_by_level_as_list, args=(copy.deepcopy(cgcp), preset_items[level_id].values(), canexp_df.copy(deep=True), canacc_df.copy(deep=True),), key=level_id)
+                    Task(get_fm_terms_by_level_as_list, args=(cgcp[level_id], preset_items[level_id].values(), canexp_df.copy(deep=True), canacc_df.copy(deep=True),), key=level_id)
                     for level_id in fm_levels
                 )
                 for it in multiprocess(concurrent_tasks, pool_size=len(fm_levels)):
