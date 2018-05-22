@@ -4,12 +4,9 @@ __all__ = [
     'canonical_profiles_fm_terms_grouped_by_level',
     'canonical_profiles_fm_terms_grouped_by_level_and_term_type',
     'get_calcrule_id',
-    'get_fm_terms_by_level',
     'get_fm_terms_by_level_as_list',
-    'get_coverage_level_terms',
     'get_coverage_level_fm_terms',
     'get_non_coverage_level_fm_terms',
-    'get_fm_terms_by_level_as_list2',
     'get_policytc_id',
     'get_policytc_ids'
 ]
@@ -80,130 +77,6 @@ def get_calcrule_id(limit, share, ded_type):
         return 2
 
 
-def get_coverage_level_terms(coverage_level_id, coverage_level_grouped_fm_terms, canexp_df, canacc_df, level_fm_df):
-
-    clgfmt = coverage_level_grouped_fm_terms
-
-    get_canexp_item = lambda i: canexp_df.iloc[int(level_fm_df.loc[i]['canexp_id'])]
-
-    get_canacc_item = lambda i: canacc_df.iloc[int(level_fm_df.loc[i]['canacc_id'])]
-
-    limit_field = None
-    ded_field = None
-    ded_type = None
-    share_field = None
-
-    for i, fm_item in level_fm_df.iterrows():
-        tiv = fm_item['tiv']
-
-        canexp_item = get_canexp_item(i)
-        canacc_item = get_canacc_item(i)
-
-        cf = [v for v in clgfmt.values() if canexp_item.get(v['tiv']['ProfileElementName'].lower()) and canexp_item[v['tiv']['ProfileElementName'].lower()] == tiv][0]
-
-        fm_terms = {
-            'level_id': coverage_level_id,
-            'index': int(fm_item['index']),
-            'item_id': int(fm_item['item_id']),
-            'tiv': tiv,
-            'limit': 0.0,
-            'deductible': 0.0,
-            'deductible_type': u'B',
-            'share': 0.0,
-            'calcrule_id': 2
-        }
-
-        if cf.get('limit'):
-            limit_field_name = cf['limit']['ProfileElementName'].lower()
-            limit_val = float(canexp_item.get(limit_field_name)) if canexp_item.get(limit_field_name) else 0.0
-            fm_terms['limit'] = limit_val
-
-        if cf.get('deductible'):
-            ded_field_name = cf['deductible']['ProfileElementName'].lower()
-            ded_val = float(canexp_item.get(ded_field_name)) if canexp_item.get(ded_field_name) else 0.0
-            fm_terms['deductible'] = ded_val
-
-            fm_terms['deductible_type'] = cf['deductible']['DeductibleType']
-
-        if cf.get('share'):
-            share_field_name = cf['share']['ProfileElementName'].lower()
-            share_val = float(canexp_item.get(share_field_name)) if canexp_item.get(share_field_name) else 0.0
-            fm_terms['share'] = share_val
-
-        fm_terms['calcrule_id'] = get_calcrule_id(fm_terms['limit'], fm_terms['share'], fm_terms['deductible_type'])
-
-        yield fm_terms
-
-
-def get_fm_terms_by_level(level_id, level_grouped_fm_terms, canexp_df, canacc_df, level_fm_df):
-
-    lgfmt = level_grouped_fm_terms
-
-    if level_id == 1:
-        for fmt in get_coverage_level_terms(level_id, lgfmt, canexp_df, canacc_df, level_fm_df):
-            yield fmt
-    else:
-        limit_field = lgfmt[1].get('limit')
-        limit_field_name = limit_field['ProfileElementName'].lower() if limit_field else None
-
-        ded_field = lgfmt[1].get('deductible')
-        ded_field_name = ded_field['ProfileElementName'].lower() if ded_field else None
-
-        ded_type = ded_field['DeductibleType'] if ded_field else u'B'
-
-        share_field = lgfmt[1].get('share')
-        share_field_name = share_field['ProfileElementName'].lower() if share_field else None
-
-        get_canexp_item = lambda i: canexp_df.iloc[int(level_fm_df.loc[i]['canexp_id'])]
-
-        get_canacc_item = lambda i: canacc_df.iloc[int(level_fm_df.loc[i]['canacc_id'])]
-
-        for i, fm_item in level_fm_df.iterrows():
-
-            canexp_item = get_canexp_item(i)
-            canacc_item = get_canacc_item(i)
-
-            can_item = None
-
-            fm_terms = {
-                'level_id': level_id,
-                'index': int(fm_item['index']),
-                'item_id': int(fm_item['item_id']),
-                'tiv': fm_item['tiv'],
-                'limit': 0.0,
-                'deductible': 0.0,
-                'deductible_type': u'B',
-                'share': 0.0,
-                'calcrule_id': 3
-            }
-
-            if limit_field:
-                can_item = canexp_item if limit_field['ProfileType'].lower() == 'loc' else canacc_item
-                limit_val = float(can_item[limit_field_name])
-                fm_terms['limit'] = limit_val
-
-            if ded_field:
-                can_item = canexp_item if ded_field['ProfileType'].lower() == 'loc' else canacc_item
-                ded_val = float(can_item[ded_field_name])
-                fm_terms['deductible'] = ded_val
-
-            fm_terms['deductible_type'] = ded_type
-
-            if share_field:
-                can_item = canexp_item if share_field['ProfileType'].lower() == 'loc' else canacc_item
-                share_val = float(can_item[share_field_name])
-                fm_terms['share'] = share_val
-
-            fm_terms['calcrule_id'] = get_calcrule_id(fm_terms['limit'], fm_terms['share'], fm_terms['deductible_type'])
-
-            yield fm_terms
-
-
-def get_fm_terms_by_level_as_list(level_id, level_grouped_fm_terms, canexp_df, canacc_df, level_fm_df):
-
-    return list(get_fm_terms_by_level(level_id, level_grouped_fm_terms, canexp_df, canacc_df, level_fm_df))
-
-
 def get_coverage_level_fm_terms(combined_grouped_canonical_profile, level_fm_items, canexp_df, canacc_df):
 
     lid = 1
@@ -272,7 +145,7 @@ def get_non_coverage_level_fm_terms(combined_grouped_canonical_profile, level_fm
         yield it
 
 
-def get_fm_terms_by_level_as_list2(combined_grouped_canonical_profile, level_fm_items, canexp_df, canacc_df):
+def get_fm_terms_by_level_as_list(combined_grouped_canonical_profile, level_fm_items, canexp_df, canacc_df):
 
     level_id = level_fm_items[0]['level_id']
 
