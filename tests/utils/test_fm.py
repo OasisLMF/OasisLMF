@@ -373,7 +373,7 @@ class GetFmTermsByLevel(TestCase):
     def setUp(self):
         self.exposures_profile = canonical_exposures_profile_piwind_simple
         self.accounts_profile = canonical_accounts_profile_piwind
-        self.grouped_profile = canonical_profiles_fm_terms_grouped_by_level_and_term_type(
+        self.combined_grouped_canonical_profile = canonical_profiles_fm_terms_grouped_by_level_and_term_type(
             canonical_profiles=[self.exposures_profile, self.accounts_profile]
         )
 
@@ -394,37 +394,45 @@ class GetFmTermsByLevel(TestCase):
             from_blanket_deductibles=just(0),
             from_blanket_limits=just(0.1),
             from_layer_limits=floats(min_value=1, allow_infinity=False),
+            from_policy_nums=just('Layer1'),
             from_policy_types=just(1),
             size=1
         ),
         fm_items=fm_items_data(
             from_level_ids=just(1),
+            from_canacc_ids=just(0),
+            from_layer_ids=just(1),
+            from_tiv_elements=just('wscv1val'),
+            from_tiv_tgids=just(1),
             from_tivs=just(100),
             from_deductible_types=just('B'),
+            from_shares=just(0),
             size=11
         ) 
     )
     def test_coverage_level_terms(self, exposures, accounts, fm_items):
-        lgfmt = self.grouped_profile[1]
+        lcgcp = self.combined_grouped_canonical_profile[1]
 
         exposures[0]['wscv2val'] = 50
 
         for i, fm_item in enumerate(fm_items):
             fm_item['canexp_id'] = 0 if i in [0, 1] else fm_item['canexp_id'] - 1
-            fm_item['canacc_id'] = 0
+            fm_item['tiv_element'] = 'wscv2val' if i == 1 else fm_item['tiv_element']
+            fm_item['tiv_tgid'] = 2 if i == 1 else 1
             fm_item['index'] = i
 
         results = list(get_coverage_level_fm_terms(
-            1,
-            lgfmt,
+            lcgcp,
+            fm_items,
             pd.DataFrame(data=exposures, dtype=object),
             pd.DataFrame(data=accounts, dtype=object),
-            pd.DataFrame(data=fm_items, dtype=object)
         ))
 
         self.assertEqual(len(fm_items), len(results))
 
         self.assertEqual(tuple(it['item_id'] for it in fm_items), tuple(r['item_id'] for r in results))
+
+        cacc_it = accounts[0]
 
         for i, res in enumerate(results):
             it = fm_items[i]
@@ -432,16 +440,21 @@ class GetFmTermsByLevel(TestCase):
             self.assertEqual(it['level_id'], res['level_id'])
             self.assertEqual(it['index'], res['index'])
             self.assertEqual(it['item_id'], res['item_id'])
+            self.assertEqual(it['gul_item_id'], res['gul_item_id'])
+
+            self.assertEqual(it['canexp_id'], res['canexp_id'])
+            self.assertEqual(it['canacc_id'], res['canacc_id'])
+            self.assertEqual(it['layer_id'], res['layer_id'])
+
+            self.assertEqual(it['tiv_element'], res['tiv_element'])
+            self.assertEqual(it['tiv_tgid'], res['tiv_tgid'])
 
             tiv = it['tiv']
             self.assertEqual(tiv, res['tiv'])
 
             cexp_it = exposures[it['canexp_id']]
-            cacc_it = accounts[it['canacc_id']]
 
-            cf = [v for v in lgfmt.values() if cexp_it.get(v['tiv']['ProfileElementName'].lower()) and cexp_it[v['tiv']['ProfileElementName'].lower()] == tiv][0]
-
-            self.assertEqual(tiv, res['tiv'])
+            cf = lcgcp[it['tiv_tgid']]
 
             le = cf['limit']['ProfileElementName'].lower() if cf.get('limit') else None
             limit = cexp_it[le] if le and cexp_it.get(le) else (cacc_it[le] if le and cacc_it.get(le) else 0)

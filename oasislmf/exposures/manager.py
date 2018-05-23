@@ -862,7 +862,11 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             num_layer1_items = sum(len(preset_items[level_id]) for level_id in preset_items)
 
             if max(layer_ids) > 1:
-                for layer_id, i, j in itertools.chain((layer_id, i, j) for layer_id in layer_ids[1:] for layer_id, (i, j) in itertools.product([layer_id], zip(range(num_cov_items), range((layer_id - 1) * num_cov_items, layer_id * num_cov_items)))):
+                layer_item_start_range = lambda layer_id: range((layer_id - 2) * num_cov_items, (layer_id - 1) * num_cov_items)
+                layer_item_end_range = lambda layer_id: range((layer_id - 1) * num_cov_items, layer_id * num_cov_items)
+                for layer_id, i, j in itertools.chain(
+                    (layer_id, i, j) for layer_id in layer_ids[1:] for layer_id, (i, j) in itertools.product([layer_id], zip(layer_item_start_range(layer_id), layer_item_end_range(layer_id)))
+                ):
                     it = copy.deepcopy(preset_items[max_level][i])
                     it['item_id'] = num_layer1_items + i + 1
                     it['layer_id'] = layer_id

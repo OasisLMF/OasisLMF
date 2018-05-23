@@ -19,6 +19,7 @@ __all__ = [
     'keys_data',
     'keys_status_flags',
     'peril_ids',
+    'tiv_elements_piwind',
     'write_canonical_files',
     'write_keys_files'
 ]
@@ -445,6 +446,8 @@ keys_status_flags = (KEYS_STATUS_FAIL, KEYS_STATUS_NOMATCH, KEYS_STATUS_SUCCESS,
 
 peril_ids = (PERIL_ID_FLOOD, PERIL_ID_QUAKE, PERIL_ID_QUAKE, PERIL_ID_WIND,)
 
+tiv_elements_piwind = tuple(v['ProfileElementName'].lower() for v in canonical_exposures_profile_piwind.itervalues() if v.get('FMTermType') and v.get('FMTermType').lower() == 'tiv')
+
 
 def canonical_accounts_data(
     from_accounts_nums=integers(min_value=1, max_value=10**5),
@@ -550,7 +553,7 @@ def canonical_exposures_data(
 def fm_items_data(
     from_canexp_ids=integers(min_value=0, max_value=9),
     from_canacc_ids=integers(min_value=0, max_value=9),
-    from_level_ids=sampled_from(fm_levels_piwind),
+    from_level_ids=integers(min_value=1, max_value=10),
     from_layer_ids=integers(min_value=1, max_value=10),
     from_agg_ids=integers(min_value=1, max_value=10),
     from_policytc_ids=integers(min_value=1, max_value=10),
@@ -559,6 +562,8 @@ def fm_items_data(
     from_shares=floats(min_value=0.0, allow_infinity=False),
     from_deductible_types=sampled_from(deductible_types),
     from_calcrule_ids=sampled_from(calcrule_ids),
+    from_tiv_elements=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
+    from_tiv_tgids=integers(min_value=1, max_value=10),
     from_tivs=floats(min_value=1.0, allow_infinity=False),
     size=None,
     min_size=0,
@@ -567,7 +572,7 @@ def fm_items_data(
     def _sequence(li):
         for i, r in enumerate(li):
             r['canexp_id'] = i
-            r['item_id'] = i + 1
+            r['item_id'] = r['gul_item_id'] = i + 1
 
         return li
 
@@ -585,6 +590,8 @@ def fm_items_data(
                 'share': from_shares,
                 'deductible_type': from_deductible_types,
                 'calcrule_id': from_calcrule_ids,
+                'tiv_element': from_tiv_elements,
+                'tiv_tgid': from_tiv_tgids,
                 'tiv': from_tivs
             }
         ),
@@ -594,6 +601,8 @@ def fm_items_data(
 
 def gul_items_data(
     from_canexp_ids=integers(min_value=0, max_value=9),
+    from_tiv_elements=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
+    from_tiv_tgids=integers(min_value=1, max_value=10),
     from_tivs=floats(min_value=1.0, max_value=10**6),
     from_area_peril_ids=integers(min_value=1, max_value=10),
     from_vulnerability_ids=integers(min_value=1, max_value=10),
@@ -618,6 +627,8 @@ def gul_items_data(
         fixed_dictionaries(
             {
                 'canexp_id': from_canexp_ids,
+                'tiv_element': from_tiv_elements,
+                'tiv_tgid': from_tiv_tgids,
                 'tiv': from_tivs,
                 'area_peril_id': from_area_peril_ids,
                 'vulnerability_id': from_vulnerability_ids,
