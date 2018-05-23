@@ -176,7 +176,7 @@ class OasisExposureManagerLoadCanonicalExposuresProfile(TestCase):
             self.assertEqual(kwargs_profile, model.resources['canonical_exposures_profile'])
 
 
-class OasisExposureManagerLoadCanonicalAccountProfile(TestCase):
+class OasisExposureManagerLoadCanonicalAccountsProfile(TestCase):
     def test_model_and_kwargs_are_not_set___result_is_empty_dict(self):
         profile = OasisExposuresManager().load_canonical_accounts_profile()
 
@@ -330,11 +330,11 @@ class OasisExposureManagerGetKeys(TestCase):
 
 class GulFilesGenerationTestCase(TestCase):
 
-    def check_items_file(self, gul_master_data_frame, items_file_path):
+    def check_items_file(self, gul_items_df, items_file_path):
         expected = tuple(
             {
                 k:item[k] for k in ('item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id',)
-            } for _, item in gul_master_data_frame.iterrows()
+            } for _, item in gul_items_df.iterrows()
         )
 
         with io.open(items_file_path, 'r', encoding='utf-8') as f:
@@ -342,11 +342,11 @@ class GulFilesGenerationTestCase(TestCase):
 
         self.assertEqual(expected, result)
 
-    def check_coverages_file(self, gul_master_data_frame, coverages_file_path):
+    def check_coverages_file(self, gul_items_df, coverages_file_path):
         expected = tuple(
             {
                 k:item[k] for k in ('coverage_id', 'tiv',)
-            } for _, item in gul_master_data_frame.iterrows()
+            } for _, item in gul_items_df.iterrows()
         )
 
         with io.open(coverages_file_path, 'r', encoding='utf-8') as f:
@@ -354,11 +354,11 @@ class GulFilesGenerationTestCase(TestCase):
 
         self.assertEqual(expected, result)
 
-    def check_gulsummaryxref_file(self, gul_master_data_frame, gulsummaryxref_file_path):
+    def check_gulsummaryxref_file(self, gul_items_df, gulsummaryxref_file_path):
         expected = tuple(
             {
                 k:item[k] for k in ('coverage_id', 'summary_id', 'summaryset_id',)
-            } for _, item in gul_master_data_frame.iterrows()
+            } for _, item in gul_items_df.iterrows()
         )
 
         with io.open(gulsummaryxref_file_path, 'r', encoding='utf-8') as f:
@@ -404,11 +404,11 @@ class OasisExposuresManagerWriteGulFiles(GulFilesGenerationTestCase):
 
             gul_files = OasisExposuresManager().write_gul_files(oasis_model=oasis_model)
 
-            gulm_df = omr['gul_master_data_frame']
+            gul_items_df = omr['gul_items_df']
 
-            self.check_items_file(gulm_df, gul_files['items'])
-            self.check_coverages_file(gulm_df, gul_files['coverages'])
-            self.check_gulsummaryxref_file(gulm_df, gul_files['gulsummaryxref'])
+            self.check_items_file(gul_items_df, gul_files['items'])
+            self.check_coverages_file(gul_items_df, gul_files['coverages'])
+            self.check_gulsummaryxref_file(gul_items_df, gul_files['gulsummaryxref'])
 
     @pytest.mark.flaky
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
@@ -429,7 +429,7 @@ class OasisExposuresManagerWriteGulFiles(GulFilesGenerationTestCase):
             write_canonical_files(exposures, exposures_file.name)
             write_keys_files(keys, keys_file.name)
 
-            gulm_df, _ = manager.load_gul_master_data_frame(profile, exposures_file.name, keys_file.name)
+            gul_items_df, _ = manager.load_gul_items(profile, exposures_file.name, keys_file.name)
 
             gul_files = manager.write_gul_files(
                 canonical_exposures_profile=profile,
@@ -440,16 +440,16 @@ class OasisExposuresManagerWriteGulFiles(GulFilesGenerationTestCase):
                 gulsummaryxref_file_path=os.path.join(out_dir, 'gulsummaryxref.csv')
             )
 
-            self.check_items_file(gulm_df, gul_files['items'])
-            self.check_coverages_file(gulm_df, gul_files['coverages'])
-            self.check_gulsummaryxref_file(gulm_df, gul_files['gulsummaryxref'])
+            self.check_items_file(gul_items_df, gul_files['items'])
+            self.check_coverages_file(gul_items_df, gul_files['coverages'])
+            self.check_gulsummaryxref_file(gul_items_df, gul_files['gulsummaryxref'])
 
 
 class OasisExposuresManagerWriteFmFiles(FmFilesGenerationTestCase):
     pass
 
 
-class OasisExposureManagerLoadGulMasterDataframe(TestCase):
+class OasisExposureManagerLoadGulItems(TestCase):
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
@@ -468,7 +468,7 @@ class OasisExposureManagerLoadGulMasterDataframe(TestCase):
             write_keys_files(keys, keys_file.name)
 
             with self.assertRaises(OasisException):
-                OasisExposuresManager().load_gul_master_data_frame(profile, exposures_file.name, keys_file.name)
+                OasisExposuresManager().load_gul_items(profile, exposures_file.name, keys_file.name)
 
     @pytest.mark.flaky
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
@@ -488,7 +488,7 @@ class OasisExposureManagerLoadGulMasterDataframe(TestCase):
             write_keys_files(keys, keys_file.name)
 
             with self.assertRaises(OasisException):
-                OasisExposuresManager().load_gul_master_data_frame(profile, exposures_file.name, keys_file.name)
+                OasisExposuresManager().load_gul_items(profile, exposures_file.name, keys_file.name)
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
@@ -511,7 +511,7 @@ class OasisExposureManagerLoadGulMasterDataframe(TestCase):
             write_keys_files(keys, keys_file.name)
 
             with self.assertRaises(OasisException):
-                OasisExposuresManager().load_gul_master_data_frame(profile, exposures_file.name, keys_file.name)
+                OasisExposuresManager().load_gul_items(profile, exposures_file.name, keys_file.name)
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
@@ -535,7 +535,7 @@ class OasisExposureManagerLoadGulMasterDataframe(TestCase):
             write_keys_files(keys, keys_file.name)
 
             with self.assertRaises(OasisException):
-                OasisExposuresManager().load_gul_master_data_frame(profile, exposures_file.name, keys_file.name)
+                OasisExposuresManager().load_gul_items(profile, exposures_file.name, keys_file.name)
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
@@ -558,7 +558,7 @@ class OasisExposureManagerLoadGulMasterDataframe(TestCase):
             write_keys_files(keys, keys_file.name)
 
             with self.assertRaises(OasisException):
-                OasisExposuresManager().load_gul_master_data_frame(profile, exposures_file.name, keys_file.name)
+                OasisExposuresManager().load_gul_items(profile, exposures_file.name, keys_file.name)
 
 
     @pytest.mark.flaky
@@ -576,7 +576,8 @@ class OasisExposureManagerLoadGulMasterDataframe(TestCase):
         exposures,
         keys
     ):
-        profile = canonical_exposures_profile_piwind_simple 
+        profile = canonical_exposures_profile_piwind_simple
+        gcep = canonical_profiles_fm_terms_grouped_by_level_and_term_type(canonical_profiles=(profile,))
 
         for k in keys:
             k['id'] += 5
@@ -587,7 +588,7 @@ class OasisExposureManagerLoadGulMasterDataframe(TestCase):
 
             matching_canonical_and_keys_item_ids = set(k['id'] for k in keys).intersection([e['row_id'] for e in exposures])
 
-            gulm_df, canexp_df = OasisExposuresManager().load_gul_master_data_frame(profile, exposures_file.name, keys_file.name)
+            gul_items_df, canexp_df = OasisExposuresManager().load_gul_items(profile, exposures_file.name, keys_file.name)
 
         get_canonical_item = lambda i: (
             [e for e in exposures if e['row_id'] == i + 1][0] if len([e for e in exposures if e['row_id'] == i + 1]) == 1
@@ -599,12 +600,18 @@ class OasisExposureManagerLoadGulMasterDataframe(TestCase):
             else None
         )
 
-        tiv_elements = tuple(sorted(
-            [v for v in profile.itervalues() if v.get('FieldName') and v['FieldName'] == 'TIV'],
-            key=lambda v: v['FMTermGroupID']
-        ))
+        tiv_elements = tuple(t for t in [gcep[1][gid].get('tiv') for gid in gcep[1]] if t)
 
-        for i, gul_it in enumerate(gulm_df.T.to_dict().values()):
+        fm_term_elements = {
+            tiv_tgid: {
+                term_type: (
+                    gcep[1][tiv_tgid][term_type]['ProfileElementName'].lower() if gcep[1][tiv_tgid].get(term_type) else None
+                ) if term_type != 'deductible_type' else gcep[1][tiv_tgid]['deductible']['DeductibleType']if gcep[1][tiv_tgid].get('deductible') else 'B'
+                for term_type in ('limit', 'deductible', 'deductible_type', 'share',)
+            } for tiv_tgid in gcep[1]
+        }
+
+        for i, gul_it in enumerate(gul_items_df.T.to_dict().values()):
             can_it = get_canonical_item(int(gul_it['canexp_id']))
             self.assertIsNotNone(can_it)
 
@@ -612,8 +619,22 @@ class OasisExposureManagerLoadGulMasterDataframe(TestCase):
             self.assertIsNotNone(keys_it)
 
             positive_tiv_elements = [t for t in tiv_elements if can_it.get(t['ProfileElementName'].lower()) and can_it[t['ProfileElementName'].lower()] > 0 and t['CoverageTypeID'] == keys_it['coverage']]
+
             for _, t in enumerate(positive_tiv_elements):
-                self.assertEqual(can_it[t['ProfileElementName'].lower()], gul_it['tiv'])
+                tiv_elm = t['ProfileElementName'].lower()
+                tiv_tgid = t['FMTermGroupID']
+                lim_elm = fm_term_elements[tiv_tgid]['limit']
+                ded_elm = fm_term_elements[tiv_tgid]['deductible']
+                ded_type = fm_term_elements[tiv_tgid]['deductible_type']
+                shr_elm = fm_term_elements[tiv_tgid]['share']
+
+                self.assertEqual(tiv_elm, gul_it['tiv_elm'])
+                self.assertEqual(can_it[tiv_elm], gul_it['tiv'])
+                
+                self.assertEqual(lim_elm, gul_it['lim_elm'])
+                self.assertEqual(ded_elm, gul_it['ded_elm'])
+                self.assertEqual(ded_type, gul_it['ded_type'])
+                self.assertEqual(shr_elm, gul_it['shr_elm'])
 
             self.assertEqual(keys_it['area_peril_id'], gul_it['areaperil_id'])
             self.assertEqual(keys_it['vulnerability_id'], gul_it['vulnerability_id'])

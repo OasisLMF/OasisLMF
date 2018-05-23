@@ -709,7 +709,7 @@ def write_canonical_files(
     canonical_accounts_file_path=None
 ):
 
-    if canonical_exposures and canonical_exposures_file_path:
+    if canonical_exposures_file_path:
         heading_row = OrderedDict([
             ('row_id', 'ROW_ID'),
             ('accntnum', 'ACCNTNUM'),
@@ -749,7 +749,7 @@ def write_canonical_files(
             header=False
         )
 
-    if canonical_accounts and canonical_accounts_file_path:
+    if canonical_accounts_file_path:
         heading_row = OrderedDict([
             ('row_id', 'ROW_ID'),
             ('accntnum', 'ACCNTNUM'),

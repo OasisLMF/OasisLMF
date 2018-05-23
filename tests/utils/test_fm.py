@@ -36,7 +36,6 @@ from oasislmf.utils.fm import (
     canonical_profiles_fm_terms_grouped_by_level_and_term_type,
     get_calcrule_id,
     get_coverage_level_fm_terms,
-    get_fm_terms_by_level_as_list,
     get_non_coverage_level_fm_terms,
     get_policytc_ids,
 )
@@ -417,13 +416,13 @@ class GetFmTermsByLevel(TestCase):
 
         exposures[0]['wscv2val'] = 50
 
-        for i, fm_item in enumerate(fm_items):
-            fm_item['canexp_id'] = 0 if i in [0, 1] else fm_item['canexp_id'] - 1
-            fm_item['tiv_elm'] = 'wscv2val' if i == 1 else fm_item['tiv_elm']
-            fm_item['tiv_tgid'] = 2 if i == 1 else 1
-            fm_item['lim_elm'] = 'wscv2limit' if i == 1 else fm_item['lim_elm']
-            fm_item['ded_elm'] = 'wscv2ded' if i == 1 else fm_item['ded_elm']
-            fm_item['index'] = i
+        for i, it in enumerate(fm_items):
+            it['canexp_id'] = 0 if i in [0, 1] else it['canexp_id'] - 1
+            it['tiv_elm'] = 'wscv2val' if i == 1 else it['tiv_elm']
+            it['tiv_tgid'] = 2 if i == 1 else 1
+            it['lim_elm'] = 'wscv2limit' if i == 1 else it['lim_elm']
+            it['ded_elm'] = 'wscv2ded' if i == 1 else it['ded_elm']
+            it['index'] = i
 
         results = list(get_coverage_level_fm_terms(
             lcgcp,
@@ -486,50 +485,72 @@ class GetFmTermsByLevel(TestCase):
         exposures=canonical_exposures_data(
             from_accounts_nums=just(10101),
             from_tivs1=just(100),
-            from_limits1=floats(min_value=1, allow_infinity=False),
-            from_deductibles1=just(1),
-            from_tivs2=just(0),
-            from_limits2=just(0),
-            from_deductibles2=just(0),
             size=10
         ),
         accounts=canonical_accounts_data(
             from_accounts_nums=just(10101),
-            from_attachment_points=floats(min_value=1, allow_infinity=False),
-            from_blanket_deductibles=just(0),
-            from_blanket_limits=just(0.1),
-            from_layer_limits=floats(min_value=1, allow_infinity=False),
+            from_attachment_points=just(1),
+            from_blanket_deductibles=just(1),
+            from_blanket_limits=just(1),
+            from_layer_limits=just(1),
+            from_policy_nums=just('Layer1'),
             from_policy_types=just(1),
             size=1
         ),
         fm_items=fm_items_data(
+            from_canacc_ids=just(0),
+            from_layer_ids=just(1),
+            from_tiv_elements=just('wscv1val'),
             from_tivs=just(100),
-            from_deductible_types=just('B'),
-            size=11
+            from_tiv_tgids=just(1),
+            size=10
         ) 
     )
     def test_non_coverage_level_terms(self, exposures, accounts, fm_items):
-        gfmt = self.grouped_profile
+        cgcp = self.combined_grouped_canonical_profile
 
-        exposures[0]['wscv2val'] = 50
-
-        levels = sorted(gfmt.keys())
+        levels = sorted(cgcp.keys())
         levels.remove(1)
 
+        cacc_it = accounts[0]
+
         for l in levels:
-            lgfmt = gfmt[l]
+            lcgcp = cgcp[l]
+
+            lim_fld = lcgcp[1].get('limit')
+            lim_elm = lim_fld['ProfileElementName'].lower() if lim_fld else None
+            ded_fld = lcgcp[1].get('deductible')
+            ded_elm = ded_fld['ProfileElementName'].lower() if ded_fld else None
+            ded_type = ded_fld['DeductibleType'] if ded_fld else 'B'
+            shr_fld = lcgcp[1].get('share')
+            shr_elm = shr_fld['ProfileElementName'].lower() if shr_fld else None
+
             for i, it in enumerate(fm_items):
                 it['level_id'] = l
-                it['canexp_id'] = 0 if i in [0, 1] else it['canexp_id'] - 1
-                it['canacc_id'] = 0
                 it['index'] = i
 
-            results = list(get_fm_terms_by_level(
-                l,
-                lgfmt,
+                cexp_it = exposures[it['canexp_id']]
+
+                if lim_fld and lim_fld['ProfileType'].lower() == 'loc':
+                    cexp_it[lim_elm] = 1
+                elif lim_fld and lim_fld['ProfileType'].lower() == 'acc':
+                    cacc_it[lim_elm] = 1
+
+                if ded_fld and ded_fld['ProfileType'].lower() == 'loc':
+                    cexp_it[ded_elm] = 1
+                elif ded_fld and ded_fld['ProfileType'].lower() == 'acc':
+                    cacc_it[ded_elm] = 1
+
+                if shr_fld and shr_fld['ProfileType'].lower() == 'loc':
+                    cexp_it[shr_elm] = 1
+                elif shr_fld and shr_fld['ProfileType'].lower() == 'acc':
+                    cacc_it[shr_elm] = 1
+
+            results = list(get_non_coverage_level_fm_terms(
+                lcgcp,
+                fm_items,
                 pd.DataFrame(data=exposures, dtype=object),
                 pd.DataFrame(data=accounts, dtype=object),
-                pd.DataFrame(data=fm_items, dtype=object)
             ))
 
             self.assertEqual(len(fm_items), len(results))
@@ -550,11 +571,11 @@ class GetFmTermsByLevel(TestCase):
 
                 self.assertEqual(tiv, res['tiv'])
 
-                le = lgfmt[1].get('limit')['ProfileElementName'].lower() if lgfmt[1].get('limit') else None
+                le = lcgcp[1].get('limit')['ProfileElementName'].lower() if lcgcp[1].get('limit') else None
                 limit = cexp_it[le] if le and cexp_it.get(le) else (cacc_it[le] if le and cacc_it.get(le) else 0)
                 self.assertEqual(limit, res['limit'])
 
-                de = lgfmt[1].get('deductible')['ProfileElementName'].lower() if lgfmt[1].get('deductible') else None
+                de = lcgcp[1].get('deductible')['ProfileElementName'].lower() if lcgcp[1].get('deductible') else None
                 deductible = cexp_it[de] if de and cexp_it.get(de) else (cacc_it[de] if de and cacc_it.get(de) else 0)
                 self.assertEqual(deductible, res['deductible'])
 
@@ -562,7 +583,7 @@ class GetFmTermsByLevel(TestCase):
 
                 self.assertEqual(ded_type, res['deductible_type'])
 
-                se = lgfmt[1].get('share')['ProfileElementName'].lower() if lgfmt[1].get('share') else None
+                se = lcgcp[1].get('share')['ProfileElementName'].lower() if lcgcp[1].get('share') else None
                 share = cexp_it[se] if se and cexp_it.get(se) else (cacc_it[se] if se and cacc_it.get(se) else 0)
                 self.assertEqual(share, res['share'])
 
@@ -591,9 +612,9 @@ class GetPolicyTcIds(TestCase):
                 ptc_id += 1
                 term_combs[ptc_id] = t
 
-        fm_df = pd.DataFrame(data=fm_items, dtype=object)
+        fm_items_df = pd.DataFrame(data=fm_items, dtype=object)
 
-        policytc_ids = get_policytc_ids(fm_df)
+        policytc_ids = get_policytc_ids(fm_items_df)
 
         for policytc_id, policytc_comb in policytc_ids.items():
             t = dict(zip(('limit', 'deductible', 'share', 'calcrule_id',), term_combs[policytc_id]))
