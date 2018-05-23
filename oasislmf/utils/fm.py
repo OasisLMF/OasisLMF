@@ -79,7 +79,7 @@ def get_calcrule_id(limit, share, ded_type):
 
 def get_coverage_level_fm_terms(level_grouped_canonical_profile, level_fm_items, canexp_df, canacc_df):
 
-    lid = level_fm_items[0]['level_id']
+    lid = 1
 
     lp = level_grouped_canonical_profile
 
@@ -89,20 +89,16 @@ def get_coverage_level_fm_terms(level_grouped_canonical_profile, level_fm_items,
 
     for _, it in enumerate(level_fm_items):
         can_item = get_can_item(it['canexp_id'], it['canacc_id'], it['layer_id'])
-        tgid = it['tiv_tgid'] if lid == 1 else 1
+        tgid = it['tiv_tgid']
 
-        lim_elm = lp[tgid].get('limit')
-        if lim_elm:
-            it['limit'] = float(can_item[lim_elm['ProfileElementName'].lower()])
+        limit = can_item.get(it['lim_elm']) or 0.0
+        it['limit'] = limit
 
-        ded_elm = lp[tgid].get('deductible')
-        if ded_elm:
-            it['deductible'] = float(can_item[ded_elm['ProfileElementName'].lower()])
-            it['deductible_type'] = ded_elm['DeductibleType']
-
-        shr_elm = lp[tgid].get('share')
-        if shr_elm:
-            it['share'] = float(can_item[shr_elm['ProfileElementName'].lower()])
+        deductible = can_item.get(it['ded_elm']) or 0.0
+        it['deductible'] = deductible
+    
+        share = can_item.get(it['shr_elm']) or 0.0
+        it['share'] = share
 
         it['calcrule_id'] = get_calcrule_id(it['limit'], it['share'], it['deductible_type'])
 
@@ -119,26 +115,23 @@ def get_non_coverage_level_fm_terms(level_grouped_canonical_profile, level_fm_it
 
     get_can_item = lambda canexp_id, canacc_id, layer_id: can_df[(can_df['row_id_x']==canexp_id+1) & (can_df['row_id_y']==canacc_id+1) & (can_df['policynum']=='Layer{}'.format(layer_id))].iloc[0]
 
-    lim_elm = lp[1].get('limit')
-    lim_elm_name = lim_elm['ProfileElementName'].lower() if lim_elm else None
-    ded_elm = lp[1].get('deductible')
-    ded_elm_name = ded_elm['ProfileElementName'].lower() if ded_elm else None
-    ded_type = ded_elm['DeductibleType'] if ded_elm else 'B'
-    shr_elm = lp[1].get('share')
-    shr_elm_name = shr_elm['ProfileElementName'].lower() if shr_elm else None
+    lim_fld = lp[1].get('limit')
+    lim_elm = lim_fld['ProfileElementName'].lower() if lim_fld else None
+    ded_fld = lp[1].get('deductible')
+    ded_elm = ded_fld['ProfileElementName'].lower() if ded_fld else None
+    ded_type = ded_fld['DeductibleType'] if ded_fld else 'B'
+    shr_fld = lp[1].get('share')
+    shr_elm = shr_fld['ProfileElementName'].lower() if shr_fld else None
     
     for _, it in enumerate(level_fm_items):
         can_item = get_can_item(it['canexp_id'], it['canacc_id'], it['layer_id'])
 
-        if lim_elm:
-            it['limit'] = float(can_item[lim_elm_name])
+        it['limit'] = can_item.get(lim_elm) or 0.0
 
-        if ded_elm:
-            it['deductible'] = float(can_item[ded_elm_name])
-            it['deductible_type'] = ded_type
+        it['deductible'] = can_item.get(ded_elm) or 0.0
+        it['deductible_type'] = ded_type
 
-        if shr_elm:
-            it['share'] = float(can_item[shr_elm_name])
+        it['share'] = can_item.get(shr_elm) or 0.0
 
         it['calcrule_id'] = get_calcrule_id(it['limit'], it['share'], it['deductible_type'])
 

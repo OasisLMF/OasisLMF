@@ -405,6 +405,8 @@ class GetFmTermsByLevel(TestCase):
             from_tiv_elements=just('wscv1val'),
             from_tiv_tgids=just(1),
             from_tivs=just(100),
+            from_limit_elements=just('wscv1limit'),
+            from_deductible_elements=just('wscv1ded'),
             from_deductible_types=just('B'),
             from_shares=just(0),
             size=11
@@ -417,8 +419,10 @@ class GetFmTermsByLevel(TestCase):
 
         for i, fm_item in enumerate(fm_items):
             fm_item['canexp_id'] = 0 if i in [0, 1] else fm_item['canexp_id'] - 1
-            fm_item['tiv_element'] = 'wscv2val' if i == 1 else fm_item['tiv_element']
+            fm_item['tiv_elm'] = 'wscv2val' if i == 1 else fm_item['tiv_elm']
             fm_item['tiv_tgid'] = 2 if i == 1 else 1
+            fm_item['lim_elm'] = 'wscv2limit' if i == 1 else fm_item['lim_elm']
+            fm_item['ded_elm'] = 'wscv2ded' if i == 1 else fm_item['ded_elm']
             fm_item['index'] = i
 
         results = list(get_coverage_level_fm_terms(
@@ -446,8 +450,11 @@ class GetFmTermsByLevel(TestCase):
             self.assertEqual(it['canacc_id'], res['canacc_id'])
             self.assertEqual(it['layer_id'], res['layer_id'])
 
-            self.assertEqual(it['tiv_element'], res['tiv_element'])
+            self.assertEqual(it['tiv_elm'], res['tiv_elm'])
             self.assertEqual(it['tiv_tgid'], res['tiv_tgid'])
+
+            self.assertEqual(it['lim_elm'], res['lim_elm'])
+            self.assertEqual(it['ded_elm'], res['ded_elm'])
 
             tiv = it['tiv']
             self.assertEqual(tiv, res['tiv'])

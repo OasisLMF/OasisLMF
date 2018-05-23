@@ -715,15 +715,23 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         cep = canonical_exposures_profile
 
+        gcep = canonical_profiles_fm_terms_grouped_by_level_and_term_type(canonical_profiles=(cep,))
+
         try:
             merged_df = pd.merge(canexp_df, keys_df, left_on='row_id', right_on='locid')
 
             merged_df['index'] = pd.Series(data=list(merged_df.index), dtype=object)
 
-            tiv_elements = tuple(sorted(
-                [v for v in cep.itervalues() if v.get('FieldName') and v['FieldName'] == 'TIV'],
-                key=lambda v: v['FMTermGroupID']
-            ))
+            tiv_elements = tuple(t for t in [gcep[1][gid].get('tiv') for gid in gcep[1]] if t)
+
+            fm_term_elements = {
+                tiv_tgid: {
+                    term_type: (
+                        gcep[1][tiv_tgid][term_type]['ProfileElementName'].lower() if gcep[1][tiv_tgid].get(term_type) else None
+                    ) if term_type != 'deductible_type' else gcep[1][tiv_tgid]['deductible']['DeductibleType']if gcep[1][tiv_tgid].get('deductible') else 'B'
+                    for term_type in ('limit', 'deductible', 'deductible_type', 'share',)
+                } for tiv_tgid in gcep[1]
+            }
 
             if not tiv_elements:
                 raise OasisException('No TIV elements found in the canonical exposures profile - please check the canonical exposures (loc) profile')
@@ -739,16 +747,20 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
                 for _, t in enumerate(positive_tiv_elements):
                     item_id += 1
-                    tiv_element = t['ProfileElementName'].lower()
-                    tiv = item[tiv_element]
+                    tiv_elm = t['ProfileElementName'].lower()
+                    tiv = item[tiv_elm]
                     tiv_tgid = t['FMTermGroupID']
                     yield {
                         'item_id': item_id,
                         'canexp_id': item['row_id'] - 1,
                         'coverage_id': item_id,
-                        'tiv_element': tiv_element,
+                        'tiv_elm': tiv_elm,
                         'tiv': tiv,
                         'tiv_tgid': tiv_tgid,
+                        'lim_elm': fm_term_elements[tiv_tgid]['limit'],
+                        'ded_elm': fm_term_elements[tiv_tgid]['deductible'],
+                        'ded_type': fm_term_elements[tiv_tgid]['deductible_type'],
+                        'shr_elm': fm_term_elements[tiv_tgid]['share'],
                         'areaperil_id': item['areaperilid'],
                         'vulnerability_id': item['vulnerabilityid'],
                         'group_id': item_id,
@@ -806,7 +818,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         keys = (
             'item_id', 'gul_item_id', 'canexp_id', 'canacc_id', 'level_id', 'layer_id', 'agg_id', 'policytc_id',
             'deductible', 'limit', 'share', 'deductible_type', 'calcrule_id',
-            'tiv_element', 'tiv', 'tiv_tgid',
+            'tiv_elm', 'tiv', 'tiv_tgid', 'lim_elm', 'ded_elm', 'ded_type', 'shr_elm'
         )
 
         try:
@@ -821,9 +833,13 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 (-1,)*len(cangul_df),                # Can. acc. DF index 
                 (1,)*len(cangul_df),                 # coverage level ID,
                 (1,)*len(cangul_df),                 # layer ID
-                tuple(cangul_df.tiv_element.values), # TIV element
+                tuple(cangul_df.tiv_elm.values),     # TIV element
                 tuple(cangul_df.tiv.values),         # TIV value
-                tuple(cangul_df.tiv_tgid.values)     # TIV element profile term group ID
+                tuple(cangul_df.tiv_tgid.values),    # TIV element profile term group ID
+                tuple(cangul_df.lim_elm.values),     # limit element
+                tuple(cangul_df.ded_elm.values),     # deductible element
+                tuple(cangul_df.ded_type.values),    # deductible type
+                tuple(cangul_df.shr_elm.values)      # share element
             )
 
             get_can_item = lambda i: cangul_df.iloc[coverage_level_preset_data[i][2]]
@@ -840,9 +856,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 i: {
                     k:v for k, v in zip(
                         keys,
-                        [i + 1, gul_item_id, canexp_id, get_canacc_id(i), level_id, get_layer_id(i), 1, 0, 0.0, 0.0, 0.0, 'B', 2, tiv_element, tiv, tiv_tgid]
+                        [i + 1, gul_item_id, canexp_id, get_canacc_id(i), level_id, get_layer_id(i), 1, 0, 0.0, 0.0, 0.0, 'B', 2, tiv_elm, tiv, tiv_tgid, lim_elm, ded_elm, ded_type, shr_elm]
                     )
-                } for i, (item_id, gul_item_id, canexp_id, _, level_id, layer_id, tiv_element, tiv, tiv_tgid) in enumerate(coverage_level_preset_data)
+                } for i, (item_id, gul_item_id, canexp_id, _, level_id, layer_id, tiv_elm, tiv, tiv_tgid, lim_elm, ded_elm, ded_type, shr_elm) in enumerate(coverage_level_preset_data)
             }
 
             preset_items = {
