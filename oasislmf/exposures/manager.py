@@ -523,7 +523,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             canonical_exposures_profile_json = canonical_exposures_profile_json or oasis_model.resources.get('canonical_exposures_profile_json')
             canonical_exposures_profile_json_path = canonical_exposures_profile_json_path or oasis_model.resources.get('canonical_exposures_profile_json_path')
 
-        profile = {}
+        profile = None
         if canonical_exposures_profile_json:
             profile = json.loads(canonical_exposures_profile_json)
         elif canonical_exposures_profile_json_path:
@@ -551,7 +551,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             canonical_accounts_profile_json = canonical_accounts_profile_json or oasis_model.resources.get('canonical_accounts_profile_json')
             canonical_accounts_profile_json_path = canonical_accounts_profile_json_path or oasis_model.resources.get('canonical_accounts_profile_json_path')
 
-        profile = {}
+        profile = None
         if canonical_accounts_profile_json:
             profile = json.loads(canonical_accounts_profile_json)
         elif canonical_accounts_profile_json_path:
@@ -878,10 +878,10 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             num_layer1_items = sum(len(preset_items[level_id]) for level_id in preset_items)
 
             if max(layer_ids) > 1:
-                layer_item_start_range = lambda layer_id: range((layer_id - 2) * num_cov_items, (layer_id - 1) * num_cov_items)
-                layer_item_end_range = lambda layer_id: range((layer_id - 1) * num_cov_items, layer_id * num_cov_items)
+                layer_item_start_rg = lambda layer_id: range((layer_id - 2) * num_cov_items, (layer_id - 1) * num_cov_items)
+                layer_item_end_rg = lambda layer_id: range((layer_id - 1) * num_cov_items, layer_id * num_cov_items)
                 for layer_id, i, j in itertools.chain(
-                    (layer_id, i, j) for layer_id in layer_ids[1:] for layer_id, (i, j) in itertools.product([layer_id], zip(layer_item_start_range(layer_id), layer_item_end_range(layer_id)))
+                    (layer_id, i, j) for layer_id in layer_ids[1:] for layer_id, (i, j) in itertools.product([layer_id], zip(layer_item_start_rg(layer_id), layer_item_end_rg(layer_id)))
                 ):
                     it = copy.deepcopy(preset_items[max_level][i])
                     it['item_id'] = num_layer1_items + i + 1
@@ -1424,13 +1424,10 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         # set default resources
         model.resources.setdefault('oasis_files_path', os.path.abspath(os.path.join('Files', model.key.replace('/', '-'))))
-        if not os.path.isabs(model.resources.get('oasis_files_path')):
+        if not os.path.isabs(model.resources['oasis_files_path']):
             model.resources['oasis_files_path'] = os.path.abspath(model.resources['oasis_files_path'])
 
-        model.resources.setdefault('oasis_files_pipeline', OasisFilesPipeline(model_key=model.key))
-        if not isinstance(model.resources['oasis_files_pipeline'], OasisFilesPipeline):
-            raise OasisException(
-                'Oasis files pipeline object for model {} is not of type {}'.format(model, OasisFilesPipeline))
+        model.resources['oasis_files_pipeline'] = OasisFilesPipeline(model_key=model.key)
 
         if model.resources.get('canonical_exposures_profile') is None:
             self.load_canonical_exposures_profile(oasis_model=model)

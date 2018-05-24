@@ -34,6 +34,7 @@ from hypothesis.strategies import (
 from mock import patch, Mock
 
 from oasislmf.exposures.manager import OasisExposuresManager
+from oasislmf.models.model import OasisModel
 from oasislmf.exposures.pipeline import OasisFilesPipeline
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.fm import (
@@ -116,10 +117,10 @@ class OasisExposureManagerDeleteModels(TestCase):
 
 
 class OasisExposureManagerLoadCanonicalExposuresProfile(TestCase):
-    def test_model_and_kwargs_are_not_set___result_is_empty_dict(self):
+    def test_model_and_kwargs_are_not_set___result_is_null(self):
         profile = OasisExposuresManager().load_canonical_exposures_profile()
 
-        self.assertEqual({}, profile)
+        self.assertEqual(None, profile)
 
     @given(expected=dictionaries(text(), text()))
     def test_model_is_set_with_profile_json___models_profile_is_set_to_expected_json(self, expected):
@@ -177,10 +178,10 @@ class OasisExposureManagerLoadCanonicalExposuresProfile(TestCase):
 
 
 class OasisExposureManagerLoadCanonicalAccountsProfile(TestCase):
-    def test_model_and_kwargs_are_not_set___result_is_empty_dict(self):
+    def test_model_and_kwargs_are_not_set___result_is_null(self):
         profile = OasisExposuresManager().load_canonical_accounts_profile()
 
-        self.assertEqual({}, profile)
+        self.assertEqual(None, profile)
 
     @given(expected=dictionaries(text(), text()))
     def test_model_is_set_with_profile_json___models_profile_is_set_to_expected_json(self, expected):
@@ -622,18 +623,21 @@ class OasisExposureManagerLoadGulItems(TestCase):
 
             for _, t in enumerate(positive_tiv_elements):
                 tiv_elm = t['ProfileElementName'].lower()
-                tiv_tgid = t['FMTermGroupID']
-                lim_elm = fm_term_elements[tiv_tgid]['limit']
-                ded_elm = fm_term_elements[tiv_tgid]['deductible']
-                ded_type = fm_term_elements[tiv_tgid]['deductible_type']
-                shr_elm = fm_term_elements[tiv_tgid]['share']
-
                 self.assertEqual(tiv_elm, gul_it['tiv_elm'])
+                
+                tiv_tgid = t['FMTermGroupID']
                 self.assertEqual(can_it[tiv_elm], gul_it['tiv'])
                 
+                lim_elm = fm_term_elements[tiv_tgid]['limit']
                 self.assertEqual(lim_elm, gul_it['lim_elm'])
+                
+                ded_elm = fm_term_elements[tiv_tgid]['deductible']
                 self.assertEqual(ded_elm, gul_it['ded_elm'])
+                
+                ded_type = fm_term_elements[tiv_tgid]['deductible_type']
                 self.assertEqual(ded_type, gul_it['ded_type'])
+                
+                shr_elm = fm_term_elements[tiv_tgid]['share']
                 self.assertEqual(shr_elm, gul_it['shr_elm'])
 
             self.assertEqual(keys_it['area_peril_id'], gul_it['areaperil_id'])
@@ -646,12 +650,12 @@ class OasisExposureManagerLoadGulItems(TestCase):
             self.assertEqual(i + 1, gul_it['group_id'])
 
 
-class OasisExposureManagerLoadFmMasterDataframe(TestCase):
+class OasisExposureManagerLoadFmItems(TestCase):
 
     def setUp(self):
         self.exposures_profile = canonical_exposures_profile_piwind_simple
         self.accounts_profile = canonical_accounts_profile_piwind
-        self.grouped_profile = canonical_profiles_fm_terms_grouped_by_level_and_term_type(
+        self.combined_grouped_canonical_profile = canonical_profiles_fm_terms_grouped_by_level_and_term_type(
             canonical_profiles=[self.exposures_profile, self.accounts_profile]
         )
 
@@ -669,7 +673,7 @@ class OasisExposureManagerLoadFmMasterDataframe(TestCase):
             write_canonical_files(canonical_accounts=[], canonical_accounts_file_path=accounts_file.name)
 
             with self.assertRaises(OasisException):
-                fm_df, canacc_df = OasisExposuresManager().load_fm_master_data_frame(
+                fm_df, canacc_df = OasisExposuresManager().load_fm_items(
                     pd.DataFrame(data=exposures),
                     pd.DataFrame(data=guls),
                     self.exposures_profile,
@@ -820,87 +824,337 @@ class OasisExposuresTransformCanonicalToModel(TestCase):
             trans_call_mock.assert_called_once_with()
 
 
-class OasisExposureManagerCreate(TestCase):
-    @given(supplier=text(), model_id=text(), version=text())
-    def test_supplier_model_and_version_are_supplied___correct_key_is_created(self, supplier, model_id, version):
-        model = fake_model(supplier=supplier, model=model_id, version=version)
+class OasisExposureManagerCreateModel(TestCase):
 
-        self.assertEqual('{}/{}/{}'.format(supplier, model_id, version), model.key)
+    @given(
+        supplier_id=text(min_size=1),
+        model_id=text(min_size=1),
+        version_id=text(min_size=1)
+    )
+    def test_supplier_and_model_and_version_only_are_supplied___correct_model_is_returned(
+        self,
+        supplier_id,
+        model_id,
+        version_id
+    ):
+        expected_key = '{}/{}/{}'.format(supplier_id, model_id, version_id)
+        
+        model = OasisExposuresManager().create_model(supplier_id, model_id, version_id)
 
-    def test_oasis_file_path_is_given___path_is_stored_as_absolute_path(self):
-        model = fake_model(resources={'oasis_files_path': 'some_path'})
+        self.assertTrue(isinstance(model, OasisModel))
 
-        result = model.resources['oasis_files_path']
-        expected = os.path.abspath('some_path')
+        self.assertEqual(expected_key, model.key)
 
-        self.assertEqual(expected, result)
+        expected_oasis_files_path = os.path.abspath(os.path.join('Files', expected_key.replace('/', '-')))
+        self.assertEquals(expected_oasis_files_path, model.resources['oasis_files_path'])
 
-    def test_oasis_file_path_is_not_given___path_is_abs_path_of_default(self):
-        model = fake_model()
+        self.assertTrue(isinstance(model.resources['oasis_files_pipeline'], OasisFilesPipeline))
 
-        result = model.resources['oasis_files_path']
-        expected = os.path.abspath(os.path.join('Files', model.key.replace('/', '-')))
+        self.assertIsNone(model.resources.get('canonical_exposures_profile'))
 
-        self.assertEqual(expected, result)
+    @given(
+        supplier_id=text(min_size=1),
+        model_id=text(min_size=1),
+        version_id=text(min_size=1),
+        oasis_files_path=text(min_size=1)
+    )
+    def test_supplier_and_model_and_version_and_absolute_oasis_files_path_only_are_supplied___correct_model_is_returned(
+        self,
+        supplier_id,
+        model_id,
+        version_id,
+        oasis_files_path
+    ):
+        expected_key = '{}/{}/{}'.format(supplier_id, model_id, version_id)
 
-    def test_file_pipeline_is_not_supplied___default_pipeline_is_set(self):
-        model = fake_model()
+        resources={'oasis_files_path': os.path.abspath(oasis_files_path)}
 
-        pipeline = model.resources['oasis_files_pipeline']
+        model = OasisExposuresManager().create_model(supplier_id, model_id, version_id, resources=resources)
 
-        self.assertIsInstance(pipeline, OasisFilesPipeline)
-        self.assertEqual(pipeline.model_key, model.key)
+        self.assertTrue(isinstance(model, OasisModel))
 
-    def test_file_pipeline_is_supplied___pipeline_is_unchanged(self):
-        pipeline = OasisFilesPipeline()
+        self.assertEqual(expected_key, model.key)
 
-        model = fake_model(resources={'oasis_files_pipeline': pipeline})
+        self.assertEqual(resources, model.resources)
 
-        self.assertIs(pipeline, model.resources['oasis_files_pipeline'])
+        self.assertTrue(isinstance(model.resources['oasis_files_pipeline'], OasisFilesPipeline))
 
-    def test_pipeline_is_not_a_pipeline_instance___oasis_exception_is_raised(self):
-        class FakePipeline(object):
-            pass
+        self.assertIsNone(model.resources.get('canonical_exposures_profile'))
 
-        pipeline = FakePipeline()
+    @given(
+        supplier_id=text(min_size=1),
+        model_id=text(min_size=1),
+        version_id=text(min_size=1),
+        oasis_files_path=text(min_size=1)
+    )
+    def test_supplier_and_model_and_version_and_relative_oasis_files_path_only_are_supplied___correct_model_is_returned_with_absolute_oasis_file_path(
+        self,
+        supplier_id,
+        model_id,
+        version_id,
+        oasis_files_path
+    ):
+        expected_key = '{}/{}/{}'.format(supplier_id, model_id, version_id)
 
-        with self.assertRaises(OasisException):
-            fake_model(resources={'oasis_files_pipeline': pipeline})
+        resources={'oasis_files_path': oasis_files_path}
 
-    def test_canonical_exposures_profile_not_set___canonical_exposures_profile_in_none(self):
-        model = fake_model()
+        model = OasisExposuresManager().create_model(supplier_id, model_id, version_id, resources=resources)
 
-        profile = model.resources['canonical_exposures_profile']
+        self.assertTrue(isinstance(model, OasisModel))
 
-        self.assertEqual({}, profile)
+        self.assertEqual(expected_key, model.key)
 
-    @given(expected=dictionaries(text(), text()))
-    def test_canonical_exposures_profile_json_set___canonical_exposures_profile_matches_json(self, expected):
-        model = fake_model(resources={'canonical_exposures_profile_json': json.dumps(expected)})
+        self.assertTrue(os.path.isabs(model.resources['oasis_files_path']))
+        self.assertEqual(os.path.abspath(resources['oasis_files_path']), model.resources['oasis_files_path'])
 
-        profile = model.resources['canonical_exposures_profile']
+        self.assertTrue(isinstance(model.resources['oasis_files_pipeline'], OasisFilesPipeline))
 
-        self.assertEqual(expected, profile)
+        self.assertIsNone(model.resources.get('canonical_exposures_profile'))
 
-    @given(expected=dictionaries(text(), text()))
-    def test_canonical_exposures_profile_path_set___canonical_exposures_profile_matches_json(self, expected):
-        with NamedTemporaryFile('w') as f:
-            json.dump(expected, f)
-            f.flush()
+    @given(
+        supplier_id=text(min_size=1),
+        model_id=text(min_size=1),
+        version_id=text(min_size=1),
+        canonical_exposures_profile=dictionaries(text(min_size=1), text(min_size=1))
+    )
+    def test_supplier_and_model_and_version_and_canonical_exposures_profile_only_are_supplied___correct_model_is_returned(
+        self,
+        supplier_id,
+        model_id,
+        version_id,
+        canonical_exposures_profile
+    ):
+        expected_key = '{}/{}/{}'.format(supplier_id, model_id, version_id)
 
-            model = fake_model(resources={'canonical_exposures_profile_json_path': f.name})
+        resources={'canonical_exposures_profile': canonical_exposures_profile}
 
-            profile = model.resources['canonical_exposures_profile']
+        model = OasisExposuresManager().create_model(supplier_id, model_id, version_id, resources=resources)
 
-            self.assertEqual(expected, profile)
+        self.assertTrue(isinstance(model, OasisModel))
 
-    @given(expected=dictionaries(text(), text()), new=dictionaries(text(), text()))
-    def test_canonical_exposures_profile_set___profile_is_not_updated(self, expected, new):
-        model = fake_model(resources={
-            'canonical_exposures_profile': expected,
-            'canonical_exposures_profile_json': json.dumps(new),
-        })
+        self.assertEqual(expected_key, model.key)
 
-        profile = model.resources['canonical_exposures_profile']
+        self.assertEqual(resources['canonical_exposures_profile'], model.resources['canonical_exposures_profile'])
 
-        self.assertEqual(expected, profile)
+        expected_oasis_files_path = os.path.abspath(os.path.join('Files', expected_key.replace('/', '-')))
+        self.assertEquals(expected_oasis_files_path, model.resources['oasis_files_path'])
+
+        self.assertTrue(isinstance(model.resources['oasis_files_pipeline'], OasisFilesPipeline))
+
+    @given(
+        supplier_id=text(min_size=1),
+        model_id=text(min_size=1),
+        version_id=text(min_size=1),
+        oasis_files_path=text(min_size=1),
+        canonical_exposures_profile=dictionaries(text(min_size=1), text(min_size=1))
+    )
+    def test_supplier_and_model_and_version_and_relative_oasis_files_path_and_canonical_exposures_profile_only_are_supplied___correct_model_is_returned(
+        self,
+        supplier_id,
+        model_id,
+        version_id,
+        oasis_files_path,
+        canonical_exposures_profile
+    ):
+        expected_key = '{}/{}/{}'.format(supplier_id, model_id, version_id)
+
+        resources={'oasis_files_path': oasis_files_path, 'canonical_exposures_profile': canonical_exposures_profile}
+
+        model = OasisExposuresManager().create_model(supplier_id, model_id, version_id, resources=resources)
+
+        self.assertTrue(isinstance(model, OasisModel))
+
+        self.assertEqual(expected_key, model.key)
+
+        self.assertTrue(os.path.isabs(model.resources['oasis_files_path']))
+        self.assertEqual(os.path.abspath(resources['oasis_files_path']), model.resources['oasis_files_path'])
+
+        self.assertEqual(resources['canonical_exposures_profile'], model.resources['canonical_exposures_profile'])
+
+        self.assertTrue(isinstance(model.resources['oasis_files_pipeline'], OasisFilesPipeline))
+
+    @given(
+        supplier_id=text(min_size=1),
+        model_id=text(min_size=1),
+        version_id=text(min_size=1),
+        oasis_files_path=text(min_size=1),
+        canonical_exposures_profile=dictionaries(text(min_size=1), text(min_size=1))
+    )
+    def test_supplier_and_model_and_version_and_absolute_oasis_files_path_and_canonical_exposures_profile_only_are_supplied___correct_model_is_returned(
+        self,
+        supplier_id,
+        model_id,
+        version_id,
+        oasis_files_path,
+        canonical_exposures_profile
+    ):
+        expected_key = '{}/{}/{}'.format(supplier_id, model_id, version_id)
+
+        resources={'oasis_files_path': os.path.abspath(oasis_files_path), 'canonical_exposures_profile': canonical_exposures_profile}
+
+        model = OasisExposuresManager().create_model(supplier_id, model_id, version_id, resources=resources)
+
+        self.assertTrue(isinstance(model, OasisModel))
+
+        self.assertEqual(expected_key, model.key)
+
+        self.assertEqual(resources['oasis_files_path'], model.resources['oasis_files_path'])
+
+        self.assertEqual(resources['canonical_exposures_profile'], model.resources['canonical_exposures_profile'])
+
+        self.assertTrue(isinstance(model.resources['oasis_files_pipeline'], OasisFilesPipeline))
+
+    @given(
+        supplier_id=text(min_size=1),
+        model_id=text(min_size=1),
+        version_id=text(min_size=1),
+        source_accounts_file_path=text(min_size=1)
+    )
+    def test_supplier_and_model_and_version_and_source_accounts_file_path_only_are_supplied___correct_model_is_returned(
+        self,
+        supplier_id,
+        model_id,
+        version_id,
+        source_accounts_file_path
+    ):
+        expected_key = '{}/{}/{}'.format(supplier_id, model_id, version_id)
+
+        resources={'source_accounts_file_path': source_accounts_file_path}
+        
+        model = OasisExposuresManager().create_model(supplier_id, model_id, version_id, resources=resources)
+
+        self.assertTrue(isinstance(model, OasisModel))
+
+        self.assertEqual(expected_key, model.key)
+
+        expected_oasis_files_path = os.path.abspath(os.path.join('Files', expected_key.replace('/', '-')))
+        self.assertEquals(expected_oasis_files_path, model.resources['oasis_files_path'])
+
+        self.assertTrue(isinstance(model.resources['oasis_files_pipeline'], OasisFilesPipeline))
+
+        self.assertEquals(resources['source_accounts_file_path'], model.resources['source_accounts_file_path'])
+
+        self.assertIsNone(model.resources.get('canonical_exposures_profile'))
+        self.assertIsNone(model.resources.get('canonical_accounts_profile'))
+
+    @given(
+        supplier_id=text(min_size=1),
+        model_id=text(min_size=1),
+        version_id=text(min_size=1),
+        source_accounts_file_path=text(min_size=1),
+        canonical_accounts_profile=dictionaries(text(min_size=1), text(min_size=1))
+    )
+    def test_supplier_and_model_and_version_and_source_accounts_file_path_and_canonical_accounts_profile_only_are_supplied___correct_model_is_returned(
+        self,
+        supplier_id,
+        model_id,
+        version_id,
+        source_accounts_file_path,
+        canonical_accounts_profile
+    ):
+        expected_key = '{}/{}/{}'.format(supplier_id, model_id, version_id)
+
+        resources={'source_accounts_file_path': source_accounts_file_path, 'canonical_accounts_profile': canonical_accounts_profile}
+        
+        model = OasisExposuresManager().create_model(supplier_id, model_id, version_id, resources=resources)
+
+        self.assertTrue(isinstance(model, OasisModel))
+
+        self.assertEqual(expected_key, model.key)
+
+        expected_oasis_files_path = os.path.abspath(os.path.join('Files', expected_key.replace('/', '-')))
+        self.assertEquals(expected_oasis_files_path, model.resources['oasis_files_path'])
+
+        self.assertTrue(isinstance(model.resources['oasis_files_pipeline'], OasisFilesPipeline))
+
+        self.assertIsNone(model.resources.get('canonical_exposures_profile'))
+
+        self.assertEqual(resources['source_accounts_file_path'], model.resources['source_accounts_file_path'])
+        
+        self.assertEqual(resources['canonical_accounts_profile'], model.resources['canonical_accounts_profile'])
+
+    @given(
+        supplier_id=text(min_size=1),
+        model_id=text(min_size=1),
+        version_id=text(min_size=1),
+        canonical_exposures_profile=dictionaries(text(min_size=1), text(min_size=1)),
+        source_accounts_file_path=text(min_size=1),
+        canonical_accounts_profile=dictionaries(text(min_size=1), text(min_size=1))
+    )
+    def test_supplier_and_model_and_version_and_canonical_exposures_profile_and_source_accounts_file_path_and_canonical_accounts_profile_only_are_supplied___correct_model_is_returned(
+        self,
+        supplier_id,
+        model_id,
+        version_id,
+        canonical_exposures_profile,
+        source_accounts_file_path,
+        canonical_accounts_profile
+    ):
+        expected_key = '{}/{}/{}'.format(supplier_id, model_id, version_id)
+
+        resources={
+            'canonical_exposures_profile': canonical_exposures_profile,
+            'source_accounts_file_path': source_accounts_file_path,
+            'canonical_accounts_profile': canonical_accounts_profile
+        }
+        
+        model = OasisExposuresManager().create_model(supplier_id, model_id, version_id, resources=resources)
+
+        self.assertTrue(isinstance(model, OasisModel))
+
+        self.assertEqual(expected_key, model.key)
+
+        expected_oasis_files_path = os.path.abspath(os.path.join('Files', expected_key.replace('/', '-')))
+        self.assertEquals(expected_oasis_files_path, model.resources['oasis_files_path'])
+
+        self.assertTrue(isinstance(model.resources['oasis_files_pipeline'], OasisFilesPipeline))
+
+        self.assertEqual(resources['canonical_exposures_profile'], model.resources.get('canonical_exposures_profile'))
+
+        self.assertEqual(resources['source_accounts_file_path'], model.resources['source_accounts_file_path'])
+        
+        self.assertEqual(resources['canonical_accounts_profile'], model.resources['canonical_accounts_profile'])
+
+    @given(
+        supplier_id=text(min_size=1),
+        model_id=text(min_size=1),
+        version_id=text(min_size=1),
+        oasis_files_path=text(min_size=1),
+        canonical_exposures_profile=dictionaries(text(min_size=1), text(min_size=1)),
+        source_accounts_file_path=text(min_size=1),
+        canonical_accounts_profile=dictionaries(text(min_size=1), text(min_size=1))
+    )
+    def test_supplier_and_model_and_version_and_absolute_oasis_files_path_and_canonical_exposures_profile_and_source_accounts_file_path_and_canonical_accounts_profile_only_are_supplied___correct_model_is_returned(
+        self,
+        supplier_id,
+        model_id,
+        version_id,
+        oasis_files_path,
+        canonical_exposures_profile,
+        source_accounts_file_path,
+        canonical_accounts_profile
+    ):
+        expected_key = '{}/{}/{}'.format(supplier_id, model_id, version_id)
+
+        resources={
+            'oasis_files_path': os.path.abspath(oasis_files_path),
+            'canonical_exposures_profile': canonical_exposures_profile,
+            'source_accounts_file_path': source_accounts_file_path,
+            'canonical_accounts_profile': canonical_accounts_profile
+        }
+        
+        model = OasisExposuresManager().create_model(supplier_id, model_id, version_id, resources=resources)
+
+        self.assertTrue(isinstance(model, OasisModel))
+
+        self.assertEqual(expected_key, model.key)
+
+        self.assertEquals(resources['oasis_files_path'], model.resources['oasis_files_path'])
+
+        self.assertTrue(isinstance(model.resources['oasis_files_pipeline'], OasisFilesPipeline))
+
+        self.assertEqual(resources['canonical_exposures_profile'], model.resources.get('canonical_exposures_profile'))
+
+        self.assertEqual(resources['source_accounts_file_path'], model.resources['source_accounts_file_path'])
+        
+        self.assertEqual(resources['canonical_accounts_profile'], model.resources['canonical_accounts_profile'])
