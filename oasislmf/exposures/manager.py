@@ -844,19 +844,17 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
             get_can_item = lambda i: cangul_df.iloc[coverage_level_preset_data[i][2]]
 
-            get_item_layer = lambda i: list(canacc_df[canacc_df['accntnum'] == get_can_item(i)['accntnum']]['policynum'].values)[coverage_level_preset_data[i][5] - 1]
+            #get_item_layer = lambda i: list(canacc_df[canacc_df['accntnum'] == get_can_item(i)['accntnum']]['policynum'].values)[coverage_level_preset_data[i][5] - 1]
 
-            get_canacc_item = lambda i: canacc_df[canacc_df['accntnum'] == get_can_item(i)['accntnum']][canacc_df['policynum'] == get_item_layer(i)]
+            get_canacc_item = lambda i: canacc_df[(canacc_df['accntnum'] == get_can_item(i)['accntnum']) & (canacc_df['policynum'].str.lower() == 'layer1')].iloc[0]
 
             get_canacc_id = lambda i: int(get_canacc_item(i)['index'])
-
-            get_layer_id = lambda i: int(canacc_df[canacc_df['policynum'] == get_item_layer(i)]['index']) + 1
 
             coverage_level_preset_items = {
                 i: {
                     k:v for k, v in zip(
                         keys,
-                        [i + 1, gul_item_id, canexp_id, get_canacc_id(i), level_id, get_layer_id(i), 1, 0, 0.0, 0.0, 0.0, 'B', 2, tiv_elm, tiv, tiv_tgid, lim_elm, ded_elm, ded_type, shr_elm]
+                        [i + 1, gul_item_id, canexp_id, get_canacc_id(i), level_id, layer_id, 1, 0, 0.0, 0.0, 0.0, 'B', 2, tiv_elm, tiv, tiv_tgid, lim_elm, ded_elm, ded_type, shr_elm]
                     )
                 } for i, (item_id, gul_item_id, canexp_id, _, level_id, layer_id, tiv_elm, tiv, tiv_tgid, lim_elm, ded_elm, ded_type, shr_elm) in enumerate(coverage_level_preset_data)
             }
