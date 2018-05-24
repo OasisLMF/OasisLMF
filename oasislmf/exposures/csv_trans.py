@@ -53,7 +53,7 @@ class Translator(object):
             self.print_xml(xml_output)
 
             # Validate Output
-            self.logger.info(self.xml_validate(xml_output, self.xsd))
+            self.logger.debug(self.xml_validate(xml_output, self.xsd))
 
             # Convert transform XML back to CSV
             self.xml_to_csv(
@@ -154,7 +154,7 @@ class Translator(object):
                     df_slice.last_valid_index()
                 )
             except StopIteration:
-                self.logger.info('End of input file')
+                self.logger.debug('End of input file')
                 break
 
     # Function to append output as its processed in batches
