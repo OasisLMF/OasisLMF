@@ -1012,6 +1012,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
             fm_items_df['index'] = pd.Series(data=list(fm_items_df.index), dtype=int)
 
+            if preset_only:
+                return fm_items_df, canacc_df
+
             policytc_ids = get_policytc_ids(fm_items_df)
             fm_items_df['policytc_id'] = fm_items_df['index'].apply(lambda i: get_policytc_id(fm_items_df.iloc[i], policytc_ids))
         except (KeyError, IndexError, IOError, OasisException, OSError, TypeError, ValueError) as e:
