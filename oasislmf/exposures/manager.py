@@ -827,19 +827,19 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             fm_levels = tuple(sorted(cgcp.keys()))
 
             coverage_level_preset_data = zip(
-                tuple(cangul_df.item_id.values),     # FM item ID
-                tuple(cangul_df.item_id.values),     # GUL item ID
-                tuple(cangul_df.canexp_id.values),   # Can. exp. DF index
-                (-1,)*len(cangul_df),                # Can. acc. DF index 
-                (1,)*len(cangul_df),                 # coverage level ID,
-                (1,)*len(cangul_df),                 # layer ID
-                tuple(cangul_df.tiv_elm.values),     # TIV element
-                tuple(cangul_df.tiv.values),         # TIV value
-                tuple(cangul_df.tiv_tgid.values),    # TIV element profile term group ID
-                tuple(cangul_df.lim_elm.values),     # limit element
-                tuple(cangul_df.ded_elm.values),     # deductible element
-                tuple(cangul_df.ded_type.values),    # deductible type
-                tuple(cangul_df.shr_elm.values)      # share element
+                tuple(cangul_df.item_id.values),     # 0 - FM item ID
+                tuple(cangul_df.item_id.values),     # 1 - GUL item ID
+                tuple(cangul_df.canexp_id.values),   # 2 - Can. exp. DF index
+                (-1,)*len(cangul_df),                # 3 - Can. acc. DF index
+                (1,)*len(cangul_df),                 # 4 - coverage level ID
+                (1,)*len(cangul_df),                 # 5 - layer ID
+                tuple(cangul_df.tiv_elm.values),     # 6 - TIV element
+                tuple(cangul_df.tiv.values),         # 7 - TIV value
+                tuple(cangul_df.tiv_tgid.values),    # 8 - TIV element profile term group ID
+                tuple(cangul_df.lim_elm.values),     # 9 - limit element
+                tuple(cangul_df.ded_elm.values),     # 10 - deductible element
+                tuple(cangul_df.ded_type.values),    # 11 - deductible type
+                tuple(cangul_df.shr_elm.values)      # 12 - share element
             )
 
             get_can_item = lambda i: cangul_df.iloc[coverage_level_preset_data[i][2]]
