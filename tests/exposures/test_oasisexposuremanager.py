@@ -659,10 +659,10 @@ class OasisExposureManagerLoadFmItems(TestCase):
             canonical_profiles=[self.exposures_profile, self.accounts_profile]
         )
 
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(size=10),
         guls=gul_items_data(size=10)
-
     )
     def test_no_canonical_accounts_items__oasis_exception_is_raised(
         self,
