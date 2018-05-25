@@ -396,7 +396,7 @@ class FmFilesGenerationTestCase(TestCase):
         self.assertEqual(expected, result)
 
 
-class OasisExposuresManagerWriteGulFiles(GulFilesGenerationTestCase):
+class OasisExposureManagerWriteGulFiles(GulFilesGenerationTestCase):
 
     @pytest.mark.flaky
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
@@ -468,7 +468,7 @@ class OasisExposuresManagerWriteGulFiles(GulFilesGenerationTestCase):
             self.check_gulsummaryxref_file(gul_items_df, gul_files['gulsummaryxref'])
 
 
-class OasisExposuresManagerWriteFmFiles(FmFilesGenerationTestCase):
+class OasisExposureManagerWriteFmFiles(FmFilesGenerationTestCase):
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(

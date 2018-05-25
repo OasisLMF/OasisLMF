@@ -1180,19 +1180,21 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             fm_xref.csv
             fm_summaryxref.csv
         """
+        kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
+
         if oasis_model:
             omr = oasis_model.resources
             ofp = omr['oasis_files_pipeline']
 
-        kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
-
-        canexp_df = kwargs.get('canonical_exposures_df')
-        gul_items_df = kwargs.get('gul_items_df')
-
-        canonical_exposures_profile = kwargs.get('canonical_exposures_profile')
-        canonical_accounts_profile = kwargs.get('canonical_accounts_profile')
-        
-        canonical_accounts_file_path = kwargs.get('canonical_accounts_file_path')
+            canexp_df, gul_items_df = omr['canonical_exposures_df'], omr['gul_items_df']
+            canonical_exposures_profile = omr['canonical_exposures_profile']
+            canonical_accounts_profile = omr['canonical_accounts_profile']
+            canonical_accounts_file_path = ofp.canonical_accounts_file_path
+        else:
+            canexp_df, gul_items_df = kwargs.get('canonical_exposures_df'), kwargs.get('gul_items_df')
+            canonical_exposures_profile = kwargs.get('canonical_exposures_profile')
+            canonical_accounts_profile = kwargs.get('canonical_accounts_profile')
+            canonical_accounts_file_path = kwargs.get('canonical_accounts_file_path')
 
         fm_items_df, canacc_df = self.load_fm_items(canexp_df, gul_items_df, canonical_exposures_profile, canonical_accounts_profile, canonical_accounts_file_path)
 
