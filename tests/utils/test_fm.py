@@ -428,7 +428,7 @@ class GetFmTermsByLevel(TestCase):
 
         results = list(get_coverage_level_fm_terms(
             lcgcp,
-            fm_items,
+            {i:it for i, it in enumerate(fm_items)},
             pd.DataFrame(data=exposures, dtype=object),
             pd.DataFrame(data=accounts, dtype=object),
         ))
@@ -552,7 +552,7 @@ class GetFmTermsByLevel(TestCase):
 
             results = list(get_non_coverage_level_fm_terms(
                 lcgcp,
-                fm_items,
+                {i:it for i, it in enumerate(fm_items)},
                 pd.DataFrame(data=exposures, dtype=object),
                 pd.DataFrame(data=accounts, dtype=object),
             ))

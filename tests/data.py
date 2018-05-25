@@ -624,7 +624,6 @@ def fm_items_data(
 
 def gul_items_data(
     from_canexp_ids=integers(min_value=0, max_value=9),
-    from_canacc_ids=integers(min_value=0, max_value=9),
     from_tiv_elements=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
     from_tiv_tgids=integers(min_value=1, max_value=10),
     from_tivs=floats(min_value=1.0, max_value=10**6),

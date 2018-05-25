@@ -14,6 +14,7 @@ __all__ = [
 import io
 import itertools
 import json
+import six
 
 import pandas as pd
 
@@ -87,9 +88,8 @@ def get_coverage_level_fm_terms(level_grouped_canonical_profile, level_fm_items,
 
     get_can_item = lambda canexp_id, canacc_id, layer_id: can_df[(can_df['row_id_x']==canexp_id+1) & (can_df['row_id_y']==canacc_id+1) & (can_df['policynum']=='Layer{}'.format(layer_id))].iloc[0]
 
-    for _, it in enumerate(level_fm_items):
+    for _, it in enumerate(six.itervalues(level_fm_items)):
         can_item = get_can_item(it['canexp_id'], it['canacc_id'], it['layer_id'])
-        tgid = it['tiv_tgid']
 
         limit = can_item.get(it['lim_elm']) or 0.0
         it['limit'] = limit
@@ -123,7 +123,7 @@ def get_non_coverage_level_fm_terms(level_grouped_canonical_profile, level_fm_it
     shr_fld = lp[1].get('share')
     shr_elm = shr_fld['ProfileElementName'].lower() if shr_fld else None
     
-    for _, it in enumerate(level_fm_items):
+    for _, it in enumerate(six.itervalues(level_fm_items)):
         can_item = get_can_item(it['canexp_id'], it['canacc_id'], it['layer_id'])
 
         it['limit'] = can_item.get(lim_elm) or 0.0

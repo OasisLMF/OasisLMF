@@ -887,7 +887,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                     it['layer_id'] = layer_id
                     level1_canacc_it = canacc_df.iloc[it['canacc_id']]
                     accntnum = int(level1_canacc_it['accntnum'])
-                    canacc_it = canacc_df[(canacc_df['accntnum'] == accntnum) & (canacc_df['policynum'] == 'Layer{}'.format(it['layer_id']))].iloc[0]
+                    canacc_it = canacc_df[(canacc_df['accntnum'] == accntnum) & (canacc_df['policynum'].str.lower() == 'layer{}'.format(it['layer_id']))].iloc[0]
                     it['canacc_id'] = int(canacc_it['index'])
                     preset_items[max_level][j] = it
 
@@ -896,7 +896,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                     yield it
             else:
                 concurrent_tasks = (
-                    Task(get_fm_terms_by_level_as_list, args=(cgcp[level_id], preset_items[level_id].values(), canexp_df.copy(deep=True), canacc_df.copy(deep=True),), key=level_id)
+                    Task(get_fm_terms_by_level_as_list, args=(cgcp[level_id], preset_items[level_id], canexp_df.copy(deep=True), canacc_df.copy(deep=True),), key=level_id)
                     for level_id in fm_levels
                 )
                 for it in multiprocess(concurrent_tasks, pool_size=len(fm_levels)):
