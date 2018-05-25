@@ -6,6 +6,7 @@ import json
 from unittest import TestCase
 
 import pandas as pd
+import pytest
 
 from hypothesis import (
     given,
@@ -376,6 +377,7 @@ class GetFmTermsByLevel(TestCase):
             canonical_profiles=[self.exposures_profile, self.accounts_profile]
         )
 
+    @settings(deadline=300, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(
             from_accounts_nums=just(10101),
@@ -481,6 +483,8 @@ class GetFmTermsByLevel(TestCase):
             calcrule_id = get_calcrule_id(limit, share, ded_type)
             self.assertEqual(calcrule_id, res['calcrule_id'])
 
+    @pytest.mark.flaky
+    @settings(deadline=300, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(
             from_accounts_nums=just(10101),
@@ -504,7 +508,7 @@ class GetFmTermsByLevel(TestCase):
             from_tivs=just(100),
             from_tiv_tgids=just(1),
             size=10
-        ) 
+        )
     )
     def test_non_coverage_level_terms(self, exposures, accounts, fm_items):
         cgcp = self.combined_grouped_canonical_profile
@@ -593,6 +597,8 @@ class GetFmTermsByLevel(TestCase):
 
 class GetPolicyTcIds(TestCase):
     
+    @pytest.mark.flaky
+    @settings(deadline=300, suppress_health_check=[HealthCheck.too_slow])
     @given(
         fm_items=fm_items_data(
             from_limits=sampled_from([50, 100]),

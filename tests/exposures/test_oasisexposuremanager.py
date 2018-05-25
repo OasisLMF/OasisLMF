@@ -2,6 +2,7 @@ from __future__ import unicode_literals
 
 import copy
 import io
+import itertools
 import json
 import os
 import string
@@ -681,6 +682,93 @@ class OasisExposureManagerLoadFmItems(TestCase):
                     accounts_file.name
                 )
 
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @given(
+        exposures=canonical_exposures_data(
+            from_accounts_nums=just(10101),
+            from_tivs1=just(100),
+            from_limits1=just(1),
+            from_deductibles1=just(1),
+            size=10
+        ),
+        accounts=canonical_accounts_data(
+            from_accounts_nums=just(10101),
+            from_attachment_points=floats(min_value=1, allow_infinity=False),
+            from_blanket_deductibles=just(0),
+            from_blanket_limits=just(0.1),
+            from_layer_limits=floats(min_value=1, allow_infinity=False),
+            from_policy_nums=just('Layer1'),
+            from_policy_types=just(1),
+            size=1
+        ),
+        guls=gul_items_data(
+            from_canacc_ids=just(0),
+            from_tiv_elements=just('wscv1val'),
+            from_tivs=just(100),
+            from_tiv_tgids=just(1),
+            from_limit_elements=just('wscv1limit'),
+            from_deductible_elements=just('wscv1ded'),
+            size=10
+        )
+    )
+    def test_with_one_top_level_layer_load_items_with_preset_data_only(
+        self,
+        exposures,
+        accounts,
+        guls
+    ):
+        cgcp = self.combined_grouped_canonical_profile
+
+        canexp_df, gul_items_df = (pd.DataFrame(data=its, dtype=object) for its in [exposures, guls])
+
+        for df in [canexp_df, gul_items_df]:
+            df = df.where(df.notnull(), None)
+            df.columns = df.columns.str.lower()
+        
+        canexp_df['index'] = pd.Series(data=list(canexp_df.index), dtype=int)
+        gul_items_df['index'] = pd.Series(data=list(gul_items_df.index), dtype=int)
+
+        with NamedTemporaryFile('w') as accounts_file:
+            write_canonical_files(canonical_accounts=accounts, canonical_accounts_file_path=accounts_file.name)
+
+            preset_fm_items = OasisExposuresManager().load_fm_items(
+                canexp_df,
+                gul_items_df,
+                self.exposures_profile,
+                self.accounts_profile,
+                accounts_file.name,
+                preset_only=True
+            )[0].T.to_dict().values()
+
+        num_top_level_layers = len(set(a['policynum'] for a in accounts))
+        bottom_levels = sorted(cgcp.keys())[:-1]
+
+        self.assertEquals(len(preset_fm_items), (len(bottom_levels) + num_top_level_layers) * len(guls))
+
+        for i, l, it in itertools.chain((i, l, it) for l in sorted(cgcp.keys()) for i, (l, it) in enumerate(itertools.product([l],(it for it in preset_fm_items if it['level_id'] == l)))):
+            self.assertEquals(it['level_id'], l)
+
+            self.assertEquals(guls[i]['canexp_id'], it['canexp_id'])
+
+            self.assertEquals(it['canacc_id'], 0)
+
+            self.assertEquals(it['layer_id'], 1)
+
+            self.assertEquals(guls[i]['item_id'], it['gul_item_id'])
+
+            self.assertEquals(guls[i]['tiv_elm'], it['tiv_elm'])
+            self.assertEquals(guls[i]['tiv_tgid'], it['tiv_tgid'])
+            self.assertEquals(guls[i]['tiv'], it['tiv'])
+
+            self.assertEquals(guls[i]['lim_elm'], it['lim_elm'])
+            self.assertEquals(guls[i]['ded_elm'], it['ded_elm'])
+            self.assertEquals(guls[i]['shr_elm'], it['shr_elm'])
+
+            self.assertEquals(it['limit'], 0)
+            self.assertEquals(it['deductible'], 0)
+            self.assertEquals(it['deductible_type'], 'B')
+            self.assertEquals(it['share'], 0)
+
 
 class OasisExposuresTransformSourceToCanonical(TestCase):
     @given(
@@ -895,6 +983,8 @@ class OasisExposureManagerCreateModel(TestCase):
         oasis_files_path
     ):
         expected_key = '{}/{}/{}'.format(supplier_id, model_id, version_id)
+
+        oasis_files_path = oasis_files_path.lstrip(os.path.sep)
 
         resources={'oasis_files_path': oasis_files_path}
 

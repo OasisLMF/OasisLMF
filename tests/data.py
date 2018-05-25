@@ -24,6 +24,8 @@ __all__ = [
     'write_keys_files'
 ]
 
+import itertools
+import six
 import string
 
 from collections import OrderedDict
@@ -419,23 +421,38 @@ coverage_type_ids = (BUILDING_COVERAGE_CODE, CONTENTS_COVERAGE_CODE, OTHER_STRUC
 deductible_types = ('B', 'MA', 'MI',)
 
 deductible_types_piwind = tuple(
-    t for t in set(t['DeductibleType'] if t.get('FMTermType') and t.get('FMTermType').lower() == 'deductible' else None for t in canonical_exposures_profile_piwind_simple.values() + canonical_accounts_profile_piwind.values()) if t
+    t for t in set(
+        t['DeductibleType'] if t.get('FMTermType') and t.get('FMTermType').lower() == 'deductible' else None 
+        for t in itertools.chain(six.itervalues(canonical_exposures_profile_piwind_simple), six.itervalues(canonical_accounts_profile_piwind))
+    ) if t
 )
 
 fm_levels_piwind = tuple(
-    t for t in set(t.get('FMLevel') for t in canonical_exposures_profile_piwind.values() + canonical_accounts_profile_piwind.values()) if t
+    t for t in set(
+        t.get('FMLevel')
+        for t in itertools.chain(six.itervalues(canonical_exposures_profile_piwind), six.itervalues(canonical_accounts_profile_piwind))
+    ) if t
 )
 
 fm_levels_piwind_simple = tuple(
-    t for t in set(t.get('FMLevel') for t in canonical_exposures_profile_piwind_simple.values() + canonical_accounts_profile_piwind.values()) if t
+    t for t in set(
+        t.get('FMLevel')
+        for t in itertools.chain(six.itervalues(canonical_exposures_profile_piwind_simple), six.itervalues(canonical_accounts_profile_piwind))
+    ) if t
 )
 
 fm_level_names_piwind = tuple(
-    t[0] for t in sorted(set((t.get('FMLevelName'), t.get('FMLevel')) for t in canonical_exposures_profile_piwind.values() + canonical_accounts_profile_piwind.values()), key=lambda t: t[1]) if t[0]
+    t[0] for t in sorted([t for t in set(
+        (t.get('FMLevelName'), t.get('FMLevel'))
+        for t in itertools.chain(six.itervalues(canonical_exposures_profile_piwind), six.itervalues(canonical_accounts_profile_piwind))
+    ) if t != (None,None)], key=lambda t: t[1])
 )
 
 fm_level_names_piwind_simple = tuple(
-    t[0] for t in sorted(set((t.get('FMLevelName'), t.get('FMLevel')) for t in canonical_exposures_profile_piwind_simple.values() + canonical_accounts_profile_piwind.values()), key=lambda t: t[1]) if t[0]
+    t[0] for t in sorted([t for t in set(
+        (t.get('FMLevelName'), t.get('FMLevel'))
+        for t in itertools.chain(six.itervalues(canonical_exposures_profile_piwind_simple), six.itervalues(canonical_accounts_profile_piwind))
+    ) if t != (None,None)], key=lambda t: t[1])
 )
 
 fm_term_types = ('Deductible', 'Limit', 'Share', 'TIV',)
@@ -446,7 +463,7 @@ keys_status_flags = (KEYS_STATUS_FAIL, KEYS_STATUS_NOMATCH, KEYS_STATUS_SUCCESS,
 
 peril_ids = (PERIL_ID_FLOOD, PERIL_ID_QUAKE, PERIL_ID_QUAKE, PERIL_ID_WIND,)
 
-tiv_elements_piwind = tuple(v['ProfileElementName'].lower() for v in canonical_exposures_profile_piwind.itervalues() if v.get('FMTermType') and v.get('FMTermType').lower() == 'tiv')
+tiv_elements_piwind = tuple(v['ProfileElementName'].lower() for v in canonical_exposures_profile_piwind.values() if v.get('FMTermType') and v.get('FMTermType').lower() == 'tiv')
 
 
 def canonical_accounts_data(
@@ -607,6 +624,7 @@ def fm_items_data(
 
 def gul_items_data(
     from_canexp_ids=integers(min_value=0, max_value=9),
+    from_canacc_ids=integers(min_value=0, max_value=9),
     from_tiv_elements=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
     from_tiv_tgids=integers(min_value=1, max_value=10),
     from_tivs=floats(min_value=1.0, max_value=10**6),
@@ -618,7 +636,6 @@ def gul_items_data(
     from_vulnerability_ids=integers(min_value=1, max_value=10),
     from_summary_ids=integers(min_value=1, max_value=10),
     from_summaryset_ids=integers(min_value=1, max_value=10),
-    with_fm=False,
     size=None,
     min_size=0,
     max_size=10
@@ -628,8 +645,6 @@ def gul_items_data(
         for i, r in enumerate(li):
             r['canexp_id'] = i
             r['item_id'] = r['coverage_id'] = r['group_id'] = i + 1
-            if with_fm:
-                r['canacc_id'] = i
 
         return li
 
@@ -637,7 +652,7 @@ def gul_items_data(
         fixed_dictionaries(
             {
                 'canexp_id': from_canexp_ids,
-                'tiv_element': from_tiv_elements,
+                'tiv_elm': from_tiv_elements,
                 'tiv_tgid': from_tiv_tgids,
                 'tiv': from_tivs,
                 'lim_elm': from_limit_elements,
@@ -652,21 +667,7 @@ def gul_items_data(
         ),
         min_size=(size if size is not None else min_size),
         max_size=(size if size is not None else min_size)
-    ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())) if not with_fm else lists(
-        fixed_dictionaries(
-            {
-                'canexp_id': from_canexp_ids,
-                'canacc_id': from_canacc_ids,
-                'tiv': from_tivs,
-                'area_peril_id': from_area_peril_ids,
-                'vulnerability_id': from_vulnerability_ids,
-                'summary_id': from_summary_ids,
-                'summaryset_id': from_summaryset_ids
-            }
-        ),
-        min_size=(size if size is not None else min_size),
-        max_size=(size if size is not None else max_size)
-    ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
+    ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing()))
 
 
 def keys_data(

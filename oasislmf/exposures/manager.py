@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import shutil
+import six
 import sys
 import time
 
@@ -826,7 +827,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
             fm_levels = tuple(sorted(cgcp.keys()))
 
-            coverage_level_preset_data = zip(
+            coverage_level_preset_data = list(zip(
                 tuple(cangul_df.item_id.values),     # 0 - FM item ID
                 tuple(cangul_df.item_id.values),     # 1 - GUL item ID
                 tuple(cangul_df.canexp_id.values),   # 2 - Can. exp. DF index
@@ -840,7 +841,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 tuple(cangul_df.ded_elm.values),     # 10 - deductible element
                 tuple(cangul_df.ded_type.values),    # 11 - deductible type
                 tuple(cangul_df.shr_elm.values)      # 12 - share element
-            )
+            ))
 
             get_can_item = lambda i: cangul_df.iloc[coverage_level_preset_data[i][2]]
 
@@ -891,7 +892,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                     preset_items[max_level][j] = it
 
             if preset_only:
-                for _, it in enumerate(itertools.chain(it for level_id in sorted(preset_items.keys()) for it in preset_items[level_id].itervalues())):
+                for _, it in enumerate(itertools.chain(it for level_id in sorted(preset_items.keys()) for it in six.itervalues(preset_items[level_id]))):
                     yield it
             else:
                 concurrent_tasks = (
