@@ -332,11 +332,15 @@ class OasisExposureManagerGetKeys(TestCase):
 
 class GulFilesGenerationTestCase(TestCase):
 
+    def setUp(self):
+        self.profile = canonical_exposures_profile_piwind_simple
+        self.manager = OasisExposuresManager()
+
     def check_items_file(self, gul_items_df, items_file_path):
         expected = tuple(
             {
-                k:item[k] for k in ('item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id',)
-            } for _, item in gul_items_df.iterrows()
+                k:it[k] for k in ('item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id',)
+            } for _, it in gul_items_df.iterrows()
         )
 
         with io.open(items_file_path, 'r', encoding='utf-8') as f:
@@ -347,8 +351,8 @@ class GulFilesGenerationTestCase(TestCase):
     def check_coverages_file(self, gul_items_df, coverages_file_path):
         expected = tuple(
             {
-                k:item[k] for k in ('coverage_id', 'tiv',)
-            } for _, item in gul_items_df.iterrows()
+                k:it[k] for k in ('coverage_id', 'tiv',)
+            } for _, it in gul_items_df.iterrows()
         )
 
         with io.open(coverages_file_path, 'r', encoding='utf-8') as f:
@@ -359,8 +363,8 @@ class GulFilesGenerationTestCase(TestCase):
     def check_gulsummaryxref_file(self, gul_items_df, gulsummaryxref_file_path):
         expected = tuple(
             {
-                k:item[k] for k in ('coverage_id', 'summary_id', 'summaryset_id',)
-            } for _, item in gul_items_df.iterrows()
+                k:it[k] for k in ('coverage_id', 'summary_id', 'summaryset_id',)
+            } for _, it in gul_items_df.iterrows()
         )
 
         with io.open(gulsummaryxref_file_path, 'r', encoding='utf-8') as f:
@@ -370,7 +374,26 @@ class GulFilesGenerationTestCase(TestCase):
 
 
 class FmFilesGenerationTestCase(TestCase):
-    pass
+
+    def setUp(self):
+        self.exposures_profile = canonical_exposures_profile_piwind_simple
+        self.accounts_profile = canonical_accounts_profile_piwind
+        self.combined_grouped_canonical_profile = canonical_profiles_fm_terms_grouped_by_level_and_term_type(
+            canonical_profiles=(self.exposures_profile, self.accounts_profile,)
+        )
+        self.manager = OasisExposuresManager()
+
+    def check_fm_policytc_file(self, fm_items_df, fm_policytc_file_path):
+        expected = tuple(
+            {
+                k:it[k] for k in ('layer_id', 'level_id', 'agg_id', 'policytc_id',)
+            } for _, it in fm_items_df.iterrows()
+        )
+
+        with io.open(fm_policytc_file_path, 'r', encoding='utf-8') as f:
+            result = tuple(pd.read_csv(f).T.to_dict().values())
+
+        self.assertEqual(expected, result)
 
 
 class OasisExposuresManagerWriteGulFiles(GulFilesGenerationTestCase):
@@ -386,7 +409,7 @@ class OasisExposuresManagerWriteGulFiles(GulFilesGenerationTestCase):
         keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=10),
     )
     def test_paths_are_stored_in_the_model___model_paths_are_used(self, exposures, keys):
-        profile = canonical_exposures_profile_piwind_simple
+        profile = self.profile
 
         model = fake_model(resources={'canonical_exposures_profile': profile})
 
@@ -404,7 +427,7 @@ class OasisExposuresManagerWriteGulFiles(GulFilesGenerationTestCase):
             ofp.coverages_file_path = os.path.join(out_dir, 'coverages.csv')
             ofp.gulsummaryxref_file_path = os.path.join(out_dir, 'gulsummaryxref.csv')
 
-            gul_files = OasisExposuresManager().write_gul_files(oasis_model=model)
+            gul_files = self.manager.write_gul_files(oasis_model=model)
 
             gul_items_df = omr['gul_items_df']
 
@@ -423,17 +446,15 @@ class OasisExposuresManagerWriteGulFiles(GulFilesGenerationTestCase):
         keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=10)
     )
     def test_paths_are_stored_in_the_kwargs___kwarg_paths_are_used(self, exposures, keys):
-        profile = canonical_exposures_profile_piwind_simple
-
-        manager = OasisExposuresManager()
+        profile = self.profile
 
         with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file, TemporaryDirectory() as out_dir:
             write_canonical_files(exposures, exposures_file.name)
             write_keys_files(keys, keys_file.name)
 
-            gul_items_df, _ = manager.load_gul_items(profile, exposures_file.name, keys_file.name)
+            gul_items_df, _ = self.manager.load_gul_items(profile, exposures_file.name, keys_file.name)
 
-            gul_files = manager.write_gul_files(
+            gul_files = self.manager.write_gul_files(
                 canonical_exposures_profile=profile,
                 keys_file_path=keys_file.name,
                 canonical_exposures_file_path=exposures_file.name,
@@ -448,7 +469,143 @@ class OasisExposuresManagerWriteGulFiles(GulFilesGenerationTestCase):
 
 
 class OasisExposuresManagerWriteFmFiles(FmFilesGenerationTestCase):
-    pass
+
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @given(
+        exposures=canonical_exposures_data(
+            from_accounts_nums=just(10101),
+            from_tivs1=just(100),
+            from_limits1=just(1),
+            from_deductibles1=just(1),
+            size=10
+        ),
+        accounts=canonical_accounts_data(
+            from_accounts_nums=just(10101),
+            from_attachment_points=floats(min_value=1, allow_infinity=False),
+            from_blanket_deductibles=just(0),
+            from_blanket_limits=just(0.1),
+            from_layer_limits=floats(min_value=1, allow_infinity=False),
+            from_policy_nums=just('Layer1'),
+            from_policy_types=just(1),
+            size=1
+        ),
+        guls=gul_items_data(
+            from_tiv_elements=just('wscv1val'),
+            from_tivs=just(100),
+            from_tiv_tgids=just(1),
+            from_limit_elements=just('wscv1limit'),
+            from_deductible_elements=just('wscv1ded'),
+            from_share_elements=just(None),
+            size=10
+        )
+    )
+    def test_paths_are_stored_in_the_model___model_paths_are_used(self, exposures, accounts, guls):
+        cep = self.exposures_profile
+        cap = self.accounts_profile
+        cgcp = self.combined_grouped_canonical_profile
+
+        for _, gul in enumerate(guls):
+            gul['ded_type'] = cgcp[1][gul['tiv_tgid']]['deductible']['DeductibleType'] if cgcp[1][gul['tiv_tgid']].get('deductible') else 'B'
+
+        canexp_df, gul_items_df = (pd.DataFrame(data=its, dtype=object) for its in [exposures, guls])
+
+        for df in [canexp_df, gul_items_df]:
+            df = df.where(df.notnull(), None)
+            df.columns = df.columns.str.lower()
+        
+        canexp_df['index'] = pd.Series(data=list(canexp_df.index), dtype=int)
+        gul_items_df['index'] = pd.Series(data=list(gul_items_df.index), dtype=int)
+
+        with NamedTemporaryFile('w') as accounts_file, TemporaryDirectory() as out_dir:
+            write_canonical_files(canonical_accounts=accounts, canonical_accounts_file_path=accounts_file.name)
+
+            model = fake_model(resources={
+                'canonical_exposures_df': canexp_df,
+                'gul_items_df': gul_items_df,
+                'canonical_exposures_profile': cep,
+                'canonical_accounts_profile': cap
+            })
+            omr = model.resources
+            ofp = omr['oasis_files_pipeline']
+            
+            ofp.canonical_accounts_file_path = accounts_file.name
+            ofp.fm_policytc_file_path = os.path.join(out_dir, 'fm_policytc.csv')
+
+            fm_files = self.manager.write_fm_files(oasis_model=model)
+
+            fm_items_df = omr['fm_items_df']
+
+            self.check_fm_policytc_file(fm_items_df, fm_files['fm_policytc'])
+
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @given(
+        exposures=canonical_exposures_data(
+            from_accounts_nums=just(10101),
+            from_tivs1=just(100),
+            from_limits1=just(1),
+            from_deductibles1=just(1),
+            size=10
+        ),
+        accounts=canonical_accounts_data(
+            from_accounts_nums=just(10101),
+            from_attachment_points=floats(min_value=1, allow_infinity=False),
+            from_blanket_deductibles=just(0),
+            from_blanket_limits=just(0.1),
+            from_layer_limits=floats(min_value=1, allow_infinity=False),
+            from_policy_nums=just('Layer1'),
+            from_policy_types=just(1),
+            size=1
+        ),
+        guls=gul_items_data(
+            from_tiv_elements=just('wscv1val'),
+            from_tivs=just(100),
+            from_tiv_tgids=just(1),
+            from_limit_elements=just('wscv1limit'),
+            from_deductible_elements=just('wscv1ded'),
+            from_share_elements=just(None),
+            size=10
+        )
+    )
+    def test_paths_are_stored_in_the_kwargs___kwarg_paths_are_used(self, exposures, accounts, guls):
+        cep = self.exposures_profile
+        cap = self.accounts_profile
+        cgcp = self.combined_grouped_canonical_profile
+
+        for _, gul in enumerate(guls):
+            gul['ded_type'] = cgcp[1][gul['tiv_tgid']]['deductible']['DeductibleType'] if cgcp[1][gul['tiv_tgid']].get('deductible') else 'B'
+
+        canexp_df, gul_items_df = (pd.DataFrame(data=its, dtype=object) for its in [exposures, guls])
+
+        for df in [canexp_df, gul_items_df]:
+            df = df.where(df.notnull(), None)
+            df.columns = df.columns.str.lower()
+        
+        canexp_df['index'] = pd.Series(data=list(canexp_df.index), dtype=int)
+        gul_items_df['index'] = pd.Series(data=list(gul_items_df.index), dtype=int)
+
+        with NamedTemporaryFile('w') as accounts_file, TemporaryDirectory() as out_dir:
+            write_canonical_files(canonical_accounts=accounts, canonical_accounts_file_path=accounts_file.name)
+
+            fm_items_df, canacc_df = self.manager.load_fm_items(
+                canexp_df,
+                gul_items_df,
+                cep,
+                cap,
+                accounts_file.name
+            )
+            
+            os.path.join(out_dir, 'fm_policytc.csv')
+
+            fm_files = self.manager.write_fm_files(
+                canonical_exposures_df=canexp_df,
+                gul_items_df=gul_items_df,
+                canonical_exposures_profile=cep,
+                canonical_accounts_profile=cap,
+                canonical_accounts_file_path=accounts_file.name,
+                fm_policytc_file_path=os.path.join(out_dir, 'fm_policytc.csv')
+            )
+
+            self.check_fm_policytc_file(fm_items_df, fm_files['fm_policytc'])
 
 
 class OasisExposureManagerLoadGulItems(TestCase):

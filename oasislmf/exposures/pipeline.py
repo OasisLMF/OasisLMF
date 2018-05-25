@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+
 from itertools import chain
 
 __all__ = [
