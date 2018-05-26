@@ -108,9 +108,10 @@ class Translator(object):
         if (xmlSchema.validate(xml_etree)):
             return True
         else:
-            self.logger.error('Input failed to Validate')
-            log = xmlSchema.error_log
-            self.logger.error(log.last_error)
+            if self.logger.isEnabledFor(logging.DEBUG):
+                self.logger.error('Input failed to Validate')
+                log = xmlSchema.error_log
+                self.logger.error(log.last_error)
             return False
 
     # http://lxml.de/xpathxslt.html#xslt
