@@ -7,7 +7,6 @@ __all__ = [
     'get_fm_terms_by_level_as_list',
     'get_coverage_level_fm_terms',
     'get_non_coverage_level_fm_terms',
-    'get_policytc_id',
     'get_policytc_ids'
 ]
 
@@ -147,19 +146,6 @@ def get_fm_terms_by_level_as_list(level_grouped_canonical_profile, level_fm_item
         else list(get_non_coverage_level_fm_terms(level_grouped_canonical_profile, level_fm_items, canexp_df, canacc_df))
     )
 
-
-def get_policytc_id(fm_item, policytc_ids):
-
-    terms = {
-        'limit': fm_item['limit'],
-        'deductible': fm_item['deductible'],
-        'share': fm_item['share'],
-        'calcrule_id': fm_item['calcrule_id']
-    }
-
-    for i, v in policytc_ids.items():
-        if terms == v:
-            return i
 
 def get_policytc_ids(fm_items_df):
 

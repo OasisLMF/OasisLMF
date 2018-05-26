@@ -33,7 +33,6 @@ from ..utils.exceptions import OasisException
 from ..utils.fm import (
     canonical_profiles_fm_terms_grouped_by_level_and_term_type,
     get_fm_terms_by_level_as_list,
-    get_policytc_id,
     get_policytc_ids,
 )
 from ..utils.values import get_utctimestamp
@@ -1010,15 +1009,16 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             canacc_df['index'] = pd.Series(data=list(canacc_df.index), dtype=int)
 
             fm_items = sorted([it for it in self.generate_fm_items(canexp_df, gul_items_df, cep, cap, canacc_df, preset_only=preset_only)], key=lambda it: it['item_id'])
-            fm_items_df = pd.DataFrame(data=fm_items, dtype=object)
 
+            fm_items_df = pd.DataFrame(data=fm_items, dtype=object)
             fm_items_df['index'] = pd.Series(data=list(fm_items_df.index), dtype=int)
 
             if preset_only:
                 return fm_items_df, canacc_df
 
             policytc_ids = get_policytc_ids(fm_items_df)
-            fm_items_df['policytc_id'] = fm_items_df['index'].apply(lambda i: get_policytc_id(fm_items_df.iloc[i], policytc_ids))
+            get_policytc_id = lambda i: [k for k in six.iterkeys(policytc_ids) if policytc_ids[k] == {k:fm_items[i][k] for k in ('limit', 'deductible', 'share', 'calcrule_id',)}][0]
+            fm_items_df['policytc_id'] = fm_items_df['index'].apply(lambda i: get_policytc_id(i))
         except (KeyError, IndexError, IOError, OasisException, OSError, TypeError, ValueError) as e:
             raise
         else:
