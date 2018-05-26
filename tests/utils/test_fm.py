@@ -1,4 +1,4 @@
-from __future__ import unicode_literals
+# -*- coding: utf-8 -*-
 
 import io
 import json
@@ -377,6 +377,7 @@ class GetFmTermsByLevel(TestCase):
             canonical_profiles=[self.exposures_profile, self.accounts_profile]
         )
 
+    @pytest.mark.flaky
     @settings(deadline=300, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(

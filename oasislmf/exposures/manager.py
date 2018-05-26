@@ -1288,8 +1288,6 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             omr = oasis_model.resources
             ofp = omr['oasis_files_pipeline']
 
-            ofp.clear()
-
         logger = logger or logging.getLogger()
 
         logger.info('\nChecking Oasis files directory exists for model')
@@ -1426,21 +1424,24 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         )
 
         # set default resources
-        model.resources.setdefault('oasis_files_path', os.path.abspath(os.path.join('Files', model.key.replace('/', '-'))))
-        if not os.path.isabs(model.resources['oasis_files_path']):
-            model.resources['oasis_files_path'] = os.path.abspath(model.resources['oasis_files_path'])
+        omr = model.resources
 
-        model.resources['oasis_files_pipeline'] = OasisFilesPipeline(model_key=model.key)
+        omr.setdefault('oasis_files_path', os.path.abspath(os.path.join('Files', model.key.replace('/', '-'))))
+        if not os.path.isabs(omr['oasis_files_path']):
+            omr['oasis_files_path'] = os.path.abspath(omr['oasis_files_path'])
 
-        if model.resources.get('canonical_exposures_profile') is None:
+        ofp = OasisFilesPipeline(model_key=model.key)
+        omr['oasis_files_pipeline'] = ofp
+
+        if omr.get('canonical_exposures_profile') is None:
             self.load_canonical_exposures_profile(oasis_model=model)
 
         if (
-            model.resources.get('canonical_accounts_profile_json_path') or
-            model.resources.get('canonical_accounts_profile_json') or
-            model.resources.get('canonical_accounts_profile')
-        ) and model.resources.get('source_accounts_file_path'):
-            if model.resources.get('canonical_accounts_profile') is None:
+            omr.get('canonical_accounts_profile_json_path') or
+            omr.get('canonical_accounts_profile_json') or
+            omr.get('canonical_accounts_profile')
+        ) and omr.get('source_accounts_file_path'):
+            if omr.get('canonical_accounts_profile') is None:
                 self.load_canonical_accounts_profile(oasis_model=model)
 
         self.add_model(model)
