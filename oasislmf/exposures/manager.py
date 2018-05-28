@@ -751,6 +751,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 tiv_elm = ptiv['ProfileElementName'].lower()
                 tiv = it[tiv_elm]
                 tiv_tgid = ptiv['FMTermGroupID']
+
                 yield {
                     'item_id': item_id,
                     'canexp_id': it['row_id'] - 1,
@@ -768,7 +769,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                     'summary_id': 1,
                     'summaryset_id': 1
                 }
-        except (KeyError, IndexError, TypeError, ValueError) as e:
+        except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
             raise OasisException(e)
         else:
             if zero_tiv_items == len(merged_df):
@@ -902,7 +903,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 num_ps = min(len(fm_levels), multiprocessing.cpu_count())
                 for it in multiprocess(concurrent_tasks, pool_size=num_ps):
                     yield it
-        except (KeyError, IndexError, TypeError, ValueError) as e:
+        except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
             raise OasisException(e)
 
     def load_gul_items(self, canonical_exposures_profile, canonical_exposures_file_path, keys_file_path):
