@@ -951,7 +951,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                     gul_items_df[col] = gul_items_df[col].astype(int)
                 elif col == 'tiv':
                     gul_items_df[col] = gul_items_df[col].astype(float)
-        except (IOError, MemoryError, OasisException, OSError) as e:
+        except (IOError, MemoryError, OasisException, OSError, TypeError, ValueError) as e:
             raise OasisException(e)
             
         return gul_items_df, canexp_df
@@ -1025,7 +1025,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                     fm_items_df[col] = fm_items_df[col].astype(int)
                 elif col in ('tiv', 'limit', 'deductible', 'share',):
                     fm_items_df[col] = fm_items_df[col].astype(float)
-        except (IOError, MemoryError, OasisException, OSError) as e:
+        except (IOError, MemoryError, OasisException, OSError, TypeError, ValueError) as e:
             raise OasisException(e)
 
         return fm_items_df, canacc_df
