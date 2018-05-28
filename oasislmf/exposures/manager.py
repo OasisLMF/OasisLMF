@@ -740,35 +740,34 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
             item_id = 0
             zero_tiv_items = 0
-            for _, item in merged_df.iterrows():
-                positive_tiv_elements = [t for t in tiv_elements if item.get(t['ProfileElementName'].lower()) and item[t['ProfileElementName'].lower()] > 0 and t['CoverageTypeID'] == item['coveragetype']]
-
-                if not positive_tiv_elements:
+            positive_tiv_elements = lambda it: [t for t in tiv_elements if it.get(t['ProfileElementName'].lower()) and it[t['ProfileElementName'].lower()] > 0 and t['CoverageTypeID'] == it['coveragetype']] or 0
+            
+            for it, ptiv in itertools.chain((it, ptiv) for _, it in merged_df.iterrows() for it, ptiv in itertools.product([it],positive_tiv_elements(it))):
+                if ptiv == 0:
                     zero_tiv_items += 1
                     continue
 
-                for _, t in enumerate(positive_tiv_elements):
-                    item_id += 1
-                    tiv_elm = t['ProfileElementName'].lower()
-                    tiv = item[tiv_elm]
-                    tiv_tgid = t['FMTermGroupID']
-                    yield {
-                        'item_id': item_id,
-                        'canexp_id': item['row_id'] - 1,
-                        'coverage_id': item_id,
-                        'tiv_elm': tiv_elm,
-                        'tiv': tiv,
-                        'tiv_tgid': tiv_tgid,
-                        'lim_elm': fm_term_elements[tiv_tgid]['limit'],
-                        'ded_elm': fm_term_elements[tiv_tgid]['deductible'],
-                        'ded_type': fm_term_elements[tiv_tgid]['deductible_type'],
-                        'shr_elm': fm_term_elements[tiv_tgid]['share'],
-                        'areaperil_id': item['areaperilid'],
-                        'vulnerability_id': item['vulnerabilityid'],
-                        'group_id': item_id,
-                        'summary_id': 1,
-                        'summaryset_id': 1
-                    }
+                item_id += 1
+                tiv_elm = ptiv['ProfileElementName'].lower()
+                tiv = it[tiv_elm]
+                tiv_tgid = ptiv['FMTermGroupID']
+                yield {
+                    'item_id': item_id,
+                    'canexp_id': it['row_id'] - 1,
+                    'coverage_id': item_id,
+                    'tiv_elm': tiv_elm,
+                    'tiv': tiv,
+                    'tiv_tgid': tiv_tgid,
+                    'lim_elm': fm_term_elements[tiv_tgid]['limit'],
+                    'ded_elm': fm_term_elements[tiv_tgid]['deductible'],
+                    'ded_type': fm_term_elements[tiv_tgid]['deductible_type'],
+                    'shr_elm': fm_term_elements[tiv_tgid]['share'],
+                    'areaperil_id': it['areaperilid'],
+                    'vulnerability_id': it['vulnerabilityid'],
+                    'group_id': item_id,
+                    'summary_id': 1,
+                    'summaryset_id': 1
+                }
         except (KeyError, IndexError, TypeError, ValueError) as e:
             raise OasisException(e)
         else:
