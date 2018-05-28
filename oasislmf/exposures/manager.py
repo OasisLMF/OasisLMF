@@ -10,6 +10,7 @@ import io
 import itertools
 import json
 import logging
+import multiprocessing
 import os
 import shutil
 import six
@@ -899,7 +900,8 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                     Task(get_fm_terms_by_level_as_list, args=(cgcp[level_id], preset_items[level_id], canexp_df.copy(deep=True), canacc_df.copy(deep=True),), key=level_id)
                     for level_id in fm_levels
                 )
-                for it in multiprocess(concurrent_tasks, pool_size=len(fm_levels)):
+                num_ps = min(len(fm_levels), multiprocessing.cpu_count())
+                for it in multiprocess(concurrent_tasks, pool_size=num_ps):
                     yield it
         except (KeyError, IndexError, IOError, OSError, TypeError, ValueError) as e:
             raise
@@ -1164,8 +1166,8 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             Task(getattr(self, 'write_{}_file'.format(f)), args=(gul_items_df.copy(deep=True), gul_files[f],), key=f)
             for f in gul_files
         )
-
-        for _, _ in multithread(concurrent_tasks, pool_size=len(gul_files)):
+        num_ps = min(len(gul_files), multiprocessing.cpu_count())
+        for _, _ in multithread(concurrent_tasks, pool_size=num_ps):
             pass
 
         return gul_files
@@ -1217,8 +1219,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             Task(getattr(self, 'write_{}_file'.format(f)), args=(fm_items_df, fm_files[f],), key=f)
             for f in fm_files
         )
-
-        for _, _ in multithread(concurrent_tasks, pool_size=len(fm_files)):
+        num_ps = min(len(fm_files), multiprocessing.cpu_count())
+        n = len(fm_files)
+        for _, _ in multithread(concurrent_tasks, pool_size=num_ps):
             pass
 
         return fm_files
