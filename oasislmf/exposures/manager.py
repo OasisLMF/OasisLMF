@@ -769,7 +769,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                         'summary_id': 1,
                         'summaryset_id': 1
                     }
-        except (KeyError, IndexError, IOError, OSError, TypeError, ValueError) as e:
+        except (KeyError, IndexError, TypeError, ValueError) as e:
             raise OasisException(e)
         else:
             if zero_tiv_items == len(merged_df):
@@ -903,8 +903,8 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 num_ps = min(len(fm_levels), multiprocessing.cpu_count())
                 for it in multiprocess(concurrent_tasks, pool_size=num_ps):
                     yield it
-        except (KeyError, IndexError, IOError, OSError, TypeError, ValueError) as e:
-            raise
+        except (KeyError, IndexError, TypeError, ValueError) as e:
+            raise OasisException(e)
 
     def load_gul_items(self, canonical_exposures_profile, canonical_exposures_file_path, keys_file_path):
         """
@@ -943,21 +943,18 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
             gul_items_df = pd.DataFrame(data=list(self.generate_gul_items(cep, canexp_df, keys_df)), dtype=object)
             gul_items_df['index'] = pd.Series(data=list(gul_items_df.index), dtype=int)
-        except (KeyError, IndexError, IOError, OasisException, OSError, TypeError, ValueError) as e:
-            raise
-        else:
-            try:
-                columns = list(gul_items_df.columns)
 
-                for col in columns:
-                    if col.endswith('id'):
-                        gul_items_df[col] = gul_items_df[col].astype(int)
-                    elif col == 'tiv':
-                        gul_items_df[col] = gul_items_df[col].astype(float)
-            except (KeyError, IndexError, IOError, OSError, TypeError, ValueError) as e:
-                raise
-            else:
-                return gul_items_df, canexp_df
+            columns = list(gul_items_df.columns)
+
+            for col in columns:
+                if col.endswith('id'):
+                    gul_items_df[col] = gul_items_df[col].astype(int)
+                elif col == 'tiv':
+                    gul_items_df[col] = gul_items_df[col].astype(float)
+        except (IOError, MemoryError, OasisException, OSError) as e:
+            raise OasisException(e)
+            
+        return gul_items_df, canexp_df
 
 
     def load_fm_items(
@@ -1021,20 +1018,17 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             policytc_ids = get_policytc_ids(fm_items_df)
             get_policytc_id = lambda i: [k for k in six.iterkeys(policytc_ids) if policytc_ids[k] == {k:fm_items[i][k] for k in ('limit', 'deductible', 'share', 'calcrule_id',)}][0]
             fm_items_df['policytc_id'] = fm_items_df['index'].apply(lambda i: get_policytc_id(i))
-        except (KeyError, IndexError, IOError, OasisException, OSError, TypeError, ValueError) as e:
-            raise
-        else:
-            try:
-                columns = list(fm_items_df.columns)
-                for col in columns:
-                    if col.endswith('id'):
-                        fm_items_df[col] = fm_items_df[col].astype(int)
-                    elif col in ('tiv', 'limit', 'deductible', 'share',):
-                        fm_items_df[col] = fm_items_df[col].astype(float)
-            except (KeyError, IndexError, IOError, OSError, TypeError, ValueError) as e:
-                raise
-            else:
-                return fm_items_df, canacc_df
+
+            columns = list(fm_items_df.columns)
+            for col in columns:
+                if col.endswith('id'):
+                    fm_items_df[col] = fm_items_df[col].astype(int)
+                elif col in ('tiv', 'limit', 'deductible', 'share',):
+                    fm_items_df[col] = fm_items_df[col].astype(float)
+        except (IOError, MemoryError, OasisException, OSError) as e:
+            raise OasisException(e)
+
+        return fm_items_df, canacc_df
 
 
     def write_items_file(self, gul_items_df, items_file_path):
