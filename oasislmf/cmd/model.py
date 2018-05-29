@@ -279,8 +279,10 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         )
         self.logger.info('\t{}, {}'.format(model_info, model_klc))
 
+        manager = OasisExposuresManager()
+
         self.logger.info('\nCreating Oasis model object')
-        model = OasisExposuresManager().create_model(
+        model = manager.create_model(
             model_supplier_id=model_info['supplier_id'],
             model_id=model_info['model_id'],
             model_version_id=model_info['model_version_id'],
@@ -305,13 +307,15 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         Path(oasis_files_path).mkdir(parents=True, exist_ok=True)
 
         self.logger.info('\nGenerating Oasis files for model')
-        oasis_files = OasisExposuresManager().start_oasis_files_pipeline(
+        oasis_files = manager.start_oasis_files_pipeline(
             oasis_model=model,
             fm=fm,
             logger=self.logger
         )
 
         self.logger.info('\nGenerated Oasis files for model: {}'.format(oasis_files))
+
+        manager.clear_oasis_files_pipeline(model)
 
         total_time = time.time() - start_time
         total_time_str = '{} seconds'.format(round(total_time, 3)) if total_time < 60 else '{} minutes'.format(round(total_time / 60, 3))
