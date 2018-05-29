@@ -1257,7 +1257,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         elif not os.path.exists(oasis_files_path):
             raise OasisException('Oasis files directory {} does not exist on the filesystem.'.format(oasis_files_path))
         
-        logger.info('Oasis files directory is {}'.format(oasis_files_path))
+        logger.info('\nOasis files directory: {}'.format(oasis_files_path))
 
         logger.info('\nChecking for source exposures file')
         source_exposures_file_path = kwargs.get('source_exposures_file_path')
@@ -1267,11 +1267,16 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         elif not os.path.exists(source_exposures_file_path):
             raise OasisException("Source exposures file path {} does not exist on the filesysem".format(source_exposures_file_path))
 
+        logger.info('\nFound source exposures file {source_exposures_file_path} - copying to Oasis files directory'.format(**kwargs))
+        shutil.copy2(source_exposures_file_path, oasis_files_path)
+
         logger.info('\nLoading canonical exposures profile')
         canonical_exposures_profile = kwargs.get('canonical_exposures_profile') or self.load_canonical_exposures_profile(oasis_model=oasis_model, **kwargs)
 
         if canonical_exposures_profile is None:
             raise OasisException('No canonical exposures profile provided')
+
+        logger.info('\nFound canonical exposures profile: {}'.format(canonical_exposures_profile))
 
         fm = kwargs.get('fm')
 
@@ -1287,11 +1292,16 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             elif not os.path.exists(source_accounts_file_path):
                 raise OasisException("Source accounts file path {} does not exist on the filesysem.".format(source_accounts_file_path))
 
+            logger.info('\nFound source accounts file {source_accounts_file_path} - copying to Oasis files directory'.format(**kwargs))
+            shutil.copy2(source_accounts_file_path, oasis_files_path)
+
             logger.info('\nLoading canonical accounts profile')
             canonical_accounts_profile = kwargs.get('canonical_accounts_file_path') or self.load_canonical_accounts_profile(oasis_model=oasis_model, **kwargs)
 
             if canonical_accounts_profile is None:
                 raise OasisException('FM option indicated by no canonical accounts profile provided')
+
+            logger.info('\nFound canonical accounts profile: {}'.format(canonical_accounts_profile))
 
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
 
@@ -1354,13 +1364,6 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             fm_xref_file_path=fm_xref_file_path,
             fmsummaryxref_file_path=fmsummaryxref_file_path
         )
-
-        logger.info('\nCopying source exposures file {source_exposures_file_path} to Oasis files directory'.format(**kwargs))
-        shutil.copy2(source_exposures_file_path, oasis_files_path)
-
-        if fm:
-            logger.info('\nCopying source accounts file {source_accounts_file_path} to Oasis files directory'.format(**kwargs))
-            shutil.copy2(source_accounts_file_path, oasis_files_path)
 
         logger.info('\nWriting canonical exposures file {canonical_exposures_file_path}'.format(**kwargs))
         self.transform_source_to_canonical(oasis_model=oasis_model, **kwargs)
