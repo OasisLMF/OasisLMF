@@ -910,15 +910,15 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
             canexp_df = canexp_df.where(canexp_df.notnull(), None)
             canexp_df.columns = canexp_df.columns.str.lower()
-            canexp_df['index'] = pd.Series(data=list(canexp_df.index), dtype=int)
+            canexp_df['index'] = pd.Series(data=canexp_df.index, dtype=int)
 
             keys_df = keys_df.rename(columns={'CoverageID': 'CoverageType'})
             keys_df = keys_df.where(keys_df.notnull(), None)
             keys_df.columns = keys_df.columns.str.lower()
-            keys_df['index'] = pd.Series(data=list(keys_df.index), dtype=int)
+            keys_df['index'] = pd.Series(data=keys_df.index, dtype=int)
 
             gul_items_df = pd.DataFrame(data=list(self.generate_gul_items(cep, canexp_df, keys_df)), dtype=object)
-            gul_items_df['index'] = pd.Series(data=list(gul_items_df.index), dtype=int)
+            gul_items_df['index'] = pd.Series(data=gul_items_df.index, dtype=int)
 
             columns = list(gul_items_df.columns)
 
@@ -981,12 +981,13 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             
             canacc_df = canacc_df.where(canacc_df.notnull(), None)
             canacc_df.columns = canacc_df.columns.str.lower()
-            canacc_df['index'] = pd.Series(data=list(canacc_df.index), dtype=int)
+            canacc_df['index'] = pd.Series(data=canacc_df.index, dtype=int)
 
-            fm_items = sorted([it for it in self.generate_fm_items(canexp_df, gul_items_df, cep, cap, canacc_df, preset_only=preset_only)], key=lambda it: it['item_id'])
+            fm_items = [it for it in self.generate_fm_items(canexp_df, gul_items_df, cep, cap, canacc_df, preset_only=preset_only)]
+            fm_items.sort(key=lambda it: it['item_id'])
 
             fm_items_df = pd.DataFrame(data=fm_items, dtype=object)
-            fm_items_df['index'] = pd.Series(data=list(fm_items_df.index), dtype=int)
+            fm_items_df['index'] = pd.Series(data=fm_items_df.index, dtype=int)
 
             if preset_only:
                 return fm_items_df, canacc_df
