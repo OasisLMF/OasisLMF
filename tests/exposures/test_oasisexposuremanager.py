@@ -1646,3 +1646,19 @@ class OasisExposureManagerStartOasisFilesPipeline(TestCase):
 
     def setUp(self):
         self.manager = OasisExposuresManager()
+        self.exposures_profile = canonical_exposures_profile_piwind_simple
+        self.accounts_profile = canonical_accounts_profile_piwind
+
+    def test_start_oasis_files_pipeline_with_model_and_no_oasis_files_path__oasis_exception_is_raised(self):
+        mgr = self.manager
+        model = fake_model(resources={})
+
+        with self.assertRaises(OasisException):
+            mgr.start_oasis_files_pipeline(oasis_model=model)
+
+    def test_start_oasis_files_pipeline_with_kwargs_and_no_oasis_files_path__oasis_exception_is_raised(self):
+        mgr = self.manager
+
+        with self.assertRaises(OasisException):
+            mgr.start_oasis_files_pipeline()
+
