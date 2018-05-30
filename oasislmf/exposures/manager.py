@@ -1246,7 +1246,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         if oasis_model:
             omr = oasis_model.resources
-            ofp = omr['oasis_files_pipeline']
+            ofp = omr.get('oasis_files_pipeline') or OasisFilesPipeline(model_key=oasis_model.key)
 
         logger = kwargs.get('logger') or logging.getLogger()
 
