@@ -1248,7 +1248,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             omr = oasis_model.resources
             ofp = omr['oasis_files_pipeline']
 
-        logger = kwargs.get('logger')
+        logger = kwargs.get('logger') or logging.getLogger()
 
         logger.info('\nChecking Oasis files directory exists for model')
         oasis_files_path = kwargs.get('oasis_files_path')
