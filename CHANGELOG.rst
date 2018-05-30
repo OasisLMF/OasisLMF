@@ -1,6 +1,13 @@
 CHANGELOG
 =========
 
+
+`1.1.13`_ (beta)
+----------------
+
+* Add performance improvement for exposure transforms 
+* Limit exposure validation messages to log level `DEBUG`
+
 `1.1.12`_ (beta)
 ----------------
 
@@ -44,10 +51,11 @@ CHANGELOG
 
 * Add console logging
 
-.. _`1.1.12`: https://github.com/OasisLMF/OasisLMF/compare/5045ca2...dev^
+.. _`1.1.13`: https://github.com/OasisLMF/OasisLMF/compare/33f96fd...dev
+.. _`1.1.12`: https://github.com/OasisLMF/OasisLMF/compare/5045ca2...dev
 .. _`1.1.10`: https://github.com/OasisLMF/OasisLMF/compare/a969192...master
 .. _`1.0.9`: https://github.com/OasisLMF/OasisLMF/compare/17c691b...master
-.. _`1.0.8`: https://github.com/OasisLMF/OasisLMF/compare/8eeaeaf...master^
+.. _`1.0.8`: https://github.com/OasisLMF/OasisLMF/compare/8eeaeaf...master
 .. _`1.0.6`: https://github.com/OasisLMF/OasisLMF/compare/9578398...master
 .. _`1.0.5`: https://github.com/OasisLMF/OasisLMF/compare/c87c782...master
-.. _`1.0.1`: https://github.com/OasisLMF/OasisLMF/compare/7de227d...master^^
+.. _`1.0.1`: https://github.com/OasisLMF/OasisLMF/compare/7de227d...master
