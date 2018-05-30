@@ -1656,9 +1656,156 @@ class OasisExposureManagerStartOasisFilesPipeline(TestCase):
         with self.assertRaises(OasisException):
             mgr.start_oasis_files_pipeline(oasis_model=model)
 
+    def test_start_oasis_files_pipeline_with_model_and_invalid_oasis_files_path__oasis_exception_is_raised(self):
+        mgr = self.manager
+
+        oasis_files_path = None
+        with TemporaryDirectory() as d:
+            oasis_files_path = d
+
+        model = fake_model(resources={'oasis_files_path': oasis_files_path})
+
+        with self.assertRaises(OasisException):
+            mgr.start_oasis_files_pipeline(oasis_model=model)
+
+    def test_start_oasis_files_pipeline_with_model_and_no_source_exposures_files_path__oasis_exception_is_raised(self):
+        mgr = self.manager
+
+        with TemporaryDirectory() as oasis_files_path:
+            model = fake_model(resources={'oasis_files_path': oasis_files_path})
+
+            with self.assertRaises(OasisException):
+                mgr.start_oasis_files_pipeline(oasis_model=model)
+
+    def test_start_oasis_files_pipeline_with_model_and_no_canonical_exposures_profile__oasis_exception_is_raised(self):
+        mgr = self.manager
+
+        with TemporaryDirectory() as oasis_files_path, NamedTemporaryFile('r') as source_exposures_file:
+            model = fake_model(resources={
+                'oasis_files_path': oasis_files_path,
+                'source_exposures_file_path': source_exposures_file.name
+            })
+
+            with self.assertRaises(OasisException):
+                mgr.start_oasis_files_pipeline(oasis_model=model)
+
+    def test_start_oasis_files_pipeline_with_model_and_fm_and_no_source_accounts_file_path__oasis_exception_is_raised(self):
+        mgr = self.manager
+        cep = self.exposures_profile
+
+        with TemporaryDirectory() as oasis_files_path, NamedTemporaryFile('r') as source_exposures_file:
+            model = fake_model(resources={
+                'oasis_files_path': oasis_files_path,
+                'source_exposures_file_path': source_exposures_file.name,
+                'canonical_exposures_profile': cep,
+                'fm': True
+            })
+
+            with self.assertRaises(OasisException):
+                mgr.start_oasis_files_pipeline(oasis_model=model)
+
+    def test_start_oasis_files_pipeline_with_model_and_fm_set_in_kwargs_and_no_source_accounts_file_path__oasis_exception_is_raised(self):
+        mgr = self.manager
+        cep = self.exposures_profile
+
+        with TemporaryDirectory() as oasis_files_path, NamedTemporaryFile('r') as source_exposures_file:
+            model = fake_model(resources={
+                'oasis_files_path': oasis_files_path,
+                'source_exposures_file_path': source_exposures_file.name,
+                'canonical_exposures_profile': cep
+            })
+
+            with self.assertRaises(OasisException):
+                mgr.start_oasis_files_pipeline(oasis_model=model, fm=True)
+
+    def test_start_oasis_files_pipeline_with_model_and_fm_and_no_canonical_accounts_profile__oasis_exception_is_raised(self):
+        mgr = self.manager
+        cep = self.exposures_profile
+
+        with TemporaryDirectory() as oasis_files_path, NamedTemporaryFile('r') as source_exposures_file:
+            model = fake_model(resources={
+                'oasis_files_path': oasis_files_path,
+                'source_exposures_file_path': source_exposures_file.name,
+                'canonical_exposures_profile': cep,
+                'fm': True
+            })
+
+            with self.assertRaises(OasisException):
+                mgr.start_oasis_files_pipeline(oasis_model=model)
+
+    def test_start_oasis_files_pipeline_with_model_and_fm_set_in_kwargs_and_no_canonical_accounts_profile__oasis_exception_is_raised(self):
+        mgr = self.manager
+        cep = self.exposures_profile
+
+        with TemporaryDirectory() as oasis_files_path, NamedTemporaryFile('r') as source_exposures_file:
+            model = fake_model(resources={
+                'oasis_files_path': oasis_files_path,
+                'source_exposures_file_path': source_exposures_file.name,
+                'canonical_exposures_profile': cep
+            })
+
+            with self.assertRaises(OasisException):
+                mgr.start_oasis_files_pipeline(oasis_model=model, fm=True)
+
     def test_start_oasis_files_pipeline_with_kwargs_and_no_oasis_files_path__oasis_exception_is_raised(self):
         mgr = self.manager
 
         with self.assertRaises(OasisException):
             mgr.start_oasis_files_pipeline()
 
+    def test_start_oasis_files_pipeline_with_kwargs_and_invalid_oasis_files_path__oasis_exception_is_raised(self):
+        mgr = self.manager
+
+        oasis_files_path = None
+        with TemporaryDirectory() as d:
+            oasis_files_path = d
+
+        with self.assertRaises(OasisException):
+            mgr.start_oasis_files_pipeline(oasis_files_path=oasis_files_path)
+
+    def test_start_oasis_files_pipeline_with_kwargs_and_no_source_exposures_files_path__oasis_exception_is_raised(self):
+        mgr = self.manager
+
+        with TemporaryDirectory() as oasis_files_path:
+
+            with self.assertRaises(OasisException):
+                mgr.start_oasis_files_pipeline(oasis_files_path=oasis_files_path)
+
+    def test_start_oasis_files_pipeline_with_kwargs_and_no_canonical_exposures_profile__oasis_exception_is_raised(self):
+        mgr = self.manager
+
+        with TemporaryDirectory() as oasis_files_path, NamedTemporaryFile('r') as source_exposures_file:
+
+            with self.assertRaises(OasisException):
+                mgr.start_oasis_files_pipeline(
+                    oasis_files_path=oasis_files_path,
+                    source_exposures_file_path=source_exposures_file.name
+                )
+
+    def test_start_oasis_files_pipeline_with_kwargs_and_fm_and_no_source_accounts_file_path__oasis_exception_is_raised(self):
+        mgr = self.manager
+        cep = self.exposures_profile
+
+        with TemporaryDirectory() as oasis_files_path, NamedTemporaryFile('r') as source_exposures_file:
+
+            with self.assertRaises(OasisException):
+                mgr.start_oasis_files_pipeline(
+                    oasis_files_path=oasis_files_path,
+                    source_exposures_file_path=source_exposures_file.name,
+                    canonical_exposures_profile=cep,
+                    fm=True
+                )
+
+    def test_start_oasis_files_pipeline_with_kwargs_and_fm_and_no_canonical_accounts_profile__oasis_exception_is_raised(self):
+        mgr = self.manager
+        cep = self.exposures_profile
+
+        with TemporaryDirectory() as oasis_files_path, NamedTemporaryFile('r') as source_exposures_file:
+
+            with self.assertRaises(OasisException):
+                mgr.start_oasis_files_pipeline(
+                    oasis_files_path=oasis_files_path,
+                    source_exposures_file_path=source_exposures_file.name,
+                    canonical_exposures_profile=cep,
+                    fm=True
+                )
