@@ -1,3 +1,7 @@
+.. image:: https://oasislmf.org/packages/oasis_theme_package/themes/oasis_theme/assets/src/oasis-lmf-colour.png
+    :title: Oasis LMF logo
+    :width: 250
+
 OasisLMF
 ========
 
