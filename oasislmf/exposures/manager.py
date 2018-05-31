@@ -460,9 +460,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             keys_df = keys_df.where(keys_df.notnull(), None)
             keys_df.columns = keys_df.columns.str.lower()
 
-        tiv_fields = sorted(
-            filter(lambda v: v.get('FieldName') == 'TIV', six.itervalues(canonical_exposures_profile))
-        )
+        tiv_fields = tuple(sorted(
+            [v for v in six.itervalues(canonical_exposures_profile) if v and v.get('FieldName').lower() == 'tiv']
+        ))
 
         columns = [
             'item_id',
@@ -492,7 +492,8 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
             canexp_item = canexp_item.iloc[0]
 
-            tiv_field_matches = filter(lambda f: f['CoverageTypeID'] == keys_item['coveragetype'], tiv_fields)
+            tiv_field_matches = tuple(t for t in tiv_fields if t['CoverageTypeID'] == keys_item['coveragetype'])
+
             for tiv_field in tiv_field_matches:
                 tiv_lookup = tiv_field['ProfileElementName'].lower()
                 tiv_value = canexp_item[tiv_lookup]

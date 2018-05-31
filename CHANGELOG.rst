@@ -2,6 +2,12 @@ CHANGELOG
 =========
 
 
+`1.1.14`_ (beta)
+----------------
+
+* Add MDK model subcommands for performing source -> canonical and canonical -> model file transformations
+* Python 3 compatibility fixes to replace map and filter statements everywhere by list comprehensions
+
 `1.1.13`_ (beta)
 ----------------
 
@@ -51,6 +57,7 @@ CHANGELOG
 
 * Add console logging
 
+.. _`1.1.14`: https://github.com/OasisLMF/OasisLMF/compare/f3e0ee8...master
 .. _`1.1.13`: https://github.com/OasisLMF/OasisLMF/compare/33f96fd...dev
 .. _`1.1.12`: https://github.com/OasisLMF/OasisLMF/compare/5045ca2...dev
 .. _`1.1.10`: https://github.com/OasisLMF/OasisLMF/compare/a969192...master

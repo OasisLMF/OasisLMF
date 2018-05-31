@@ -844,6 +844,7 @@ class OasisExposureManagerCreate(TestCase):
 
             self.assertEqual(expected, profile)
 
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(expected=dictionaries(text(), text()), new=dictionaries(text(), text()))
     def test_canonical_exposures_profile_set___profile_is_not_updated(self, expected, new):
         model = fake_model(resources={

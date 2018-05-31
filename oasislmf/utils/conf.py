@@ -20,7 +20,9 @@ def load_ini_file(ini_file_path):
     """
     try:
         with io.open(ini_file_path, 'r', encoding='utf-8') as f:
-            lines = map(lambda l: l.strip(), filter(lambda l: l and not l.startswith('['), f.read().split('\n')))
+            lines = [
+                l.strip() for l in [l for l in f.read().split('\n') if l and not l.startswith('[')]
+            ]
     except IOError as e:
         raise OasisException(str(e))
 
@@ -57,7 +59,9 @@ def replace_in_file(source_file_path, target_file_path, var_names, var_values):
         with io.open(target_file_path, 'w') as f:
             for i in range(len(lines)):
                 outline = inline = lines[i]
-                present_var_names = filter(lambda var_name: var_name in inline, var_names)
+
+                present_var_names = [v for v in var_names if v in inline]
+
                 if present_var_names:
                     for var_name in present_var_names:
                         var_value = var_values[var_names.index(var_name)]
