@@ -1216,8 +1216,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         """
         Clears the files pipeline for the given Oasis model object.
         """
-        omr = oasis_model.resources
-        omr['oasis_files_pipeline'].clear()
+        oasis_model.resources['oasis_files_pipeline'].clear()
 
         return oasis_model
 
@@ -1389,6 +1388,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         fm_files = self.write_fm_files(oasis_model=oasis_model, **kwargs)
 
         oasis_files = ofp.oasis_files if oasis_model else {k:v for k, v in itertools.chain(gul_files.items(), fm_files.items())}
+
+        if oasis_model:
+            ofp.clear()
 
         return oasis_files
 
