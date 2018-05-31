@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2015 rel. 4 (x64) (http://www.altova.com) by OasisLMF (Oasis Palm Tree Ltd.) -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified" attributeFormDefault="unqualified">
+	<xs:element name="root">
+		<xs:annotation>
+			<xs:documentation>Comment describing your root element</xs:documentation>
+		</xs:annotation>
+		<xs:complexType>
+			<xs:sequence>
+				<xs:element name="rec" maxOccurs="unbounded">
+					<xs:complexType>
+						<xs:attribute name="ROW_ID"/>
+						<xs:attribute name="ACCNTNUM"/>
+						<xs:attribute name="LOCNUM"/>
+						<xs:attribute name="POSTALCODE"/>
+						<xs:attribute name="COUNTY"/>
+						<xs:attribute name="COUNTYCODE"/>
+						<xs:attribute name="CRESTA"/>
+						<xs:attribute name="CITY"/>
+						<xs:attribute name="CITYCODE"/>
+						<xs:attribute name="STATE"/>
+						<xs:attribute name="STATECODE"/>
+						<xs:attribute name="ADDRMATCH"/>
+						<xs:attribute name="COUNTRY"/>
+						<xs:attribute name="COUNTRYGEOID"/>
+						<xs:attribute name="CNTRYSCHEME"/>
+						<xs:attribute name="CNTRYCODE"/>
+						<xs:attribute name="LATITUDE"/>
+						<xs:attribute name="LONGITUDE"/>
+						<xs:attribute name="BLDGSCHEME"/>
+						<xs:attribute name="BLDGCLASS"/>
+						<xs:attribute name="OCCSCHEME"/>
+						<xs:attribute name="OCCTYPE"/>
+						<xs:attribute name="YEARBUILT"/>
+						<xs:attribute name="YEARUPGRAD"/>
+						<xs:attribute name="NUMSTORIES"/>
+						<xs:attribute name="NUMBLDGS"/>
+						<xs:attribute name="WSCV1VAL"/>
+						<xs:attribute name="WSCV2VAL"/>
+						<xs:attribute name="WSCV3VAL"/>
+						<xs:attribute name="WSCV4VAL"/>
+						<xs:attribute name="WSCV5VAL"/>
+						<xs:attribute name="WSCV6VAL"/>
+						<xs:attribute name="WSCV7VAL"/>
+						<xs:attribute name="WSCV8VAL"/>
+						<xs:attribute name="WSCV9VAL"/>
+						<xs:attribute name="WSCV10VAL"/>
+						<xs:attribute name="WSCV1LIMIT"/>
+						<xs:attribute name="WSCV2LIMIT"/>
+						<xs:attribute name="WSCV3LIMIT"/>
+						<xs:attribute name="WSCV4LIMIT"/>
+						<xs:attribute name="WSCV5LIMIT"/>
+						<xs:attribute name="WSCV6LIMIT"/>
+						<xs:attribute name="WSCV7LIMIT"/>
+						<xs:attribute name="WSCV8LIMIT"/>
+						<xs:attribute name="WSCV9LIMIT"/>
+						<xs:attribute name="WSCV10LMT"/>
+						<xs:attribute name="WSCV1DED"/>
+						<xs:attribute name="WSCV2DED"/>
+						<xs:attribute name="WSCV3DED"/>
+						<xs:attribute name="WSCV4DED"/>
+						<xs:attribute name="WSCV5DED"/>
+						<xs:attribute name="WSCV6DED"/>
+						<xs:attribute name="WSCV7DED"/>
+						<xs:attribute name="WSCV8DED"/>
+						<xs:attribute name="WSCV9DED"/>
+						<xs:attribute name="WSCV10DED"/>
+						<xs:attribute name="WSSITELIM"/>
+						<xs:attribute name="WSSITEDED"/>
+						<xs:attribute name="WSCOMBINEDLIM"/>
+						<xs:attribute name="WSCOMBINEDDED"/>
+						<xs:attribute name="COND1TYPE"/>
+						<xs:attribute name="COND1NAME"/>
+						<xs:attribute name="COND1DEDUCTIBLE"/>
+						<xs:attribute name="COND1LIMIT"/>
+						<xs:attribute name="ROOFGEOM"/>
+					</xs:complexType>
+				</xs:element>
+			</xs:sequence>
+		</xs:complexType>
+	</xs:element>
+</xs:schema>

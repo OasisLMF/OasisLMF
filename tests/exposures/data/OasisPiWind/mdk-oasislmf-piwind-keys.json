@@ -1,0 +1,7 @@
+{
+    "keys_data_path": "keys_data/PiWind",
+    "model_version_file_path": "keys_data/PiWind/ModelVersion.csv", 
+    "lookup_package_path": "src/keys_server",
+    "model_exposures_file_path": "keys_data/PiWind/oasislmf_piwind_model_loc_test.csv",
+    "keys_format": "json"
+}

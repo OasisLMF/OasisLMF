@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+	<xs:element name="root">
+		<xs:complexType>
+			<xs:sequence>
+				<xs:element name="rec" maxOccurs="unbounded">
+					<xs:complexType>
+						<xs:attribute name="ROW_ID" type="xs:string"/>
+						<xs:attribute name="ACCNTNUM" type="xs:string"/>
+						<xs:attribute name="POLICYNUM" type="xs:string"/>
+						<xs:attribute name="POLICYTYPE" type="xs:string"/>
+						<xs:attribute name="UNDCOVAMT" type="xs:string"/>
+						<xs:attribute name="PARTOF" type="xs:string"/>
+						<xs:attribute name="MINDEDAMT" type="xs:string"/>
+						<xs:attribute name="MAXDEDAMT" type="xs:string"/>
+						<xs:attribute name="BLANDEDAMT" type="xs:string"/>
+						<xs:attribute name="BLANLIMAMT" type="xs:string"/>
+					</xs:complexType>
+				</xs:element>
+			</xs:sequence>
+		</xs:complexType>
+	</xs:element>
+</xs:schema>

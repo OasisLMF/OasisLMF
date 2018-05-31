@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- edited with XMLSpy v2015 rel. 4 (x64) (http://www.altova.com) by OasisLMF (Oasis Palm Tree Ltd.) -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified" attributeFormDefault="unqualified">
+	<xs:element name="root">
+		<xs:annotation>
+			<xs:documentation>Comment describing your root element</xs:documentation>
+		</xs:annotation>
+		<xs:complexType>
+			<xs:sequence>
+				<xs:element name="rec" maxOccurs="unbounded">
+					<xs:complexType>
+						<xs:attribute name="ROW_ID"/>
+						<xs:attribute name="POSTALCODE"/>
+						<xs:attribute name="COUNTY"/>
+						<xs:attribute name="COUNTYCODE"/>
+						<xs:attribute name="CRESTA"/>
+						<xs:attribute name="CITY"/>
+						<xs:attribute name="CITYCODE"/>
+						<xs:attribute name="STATE"/>
+						<xs:attribute name="STATECODE"/>
+						<xs:attribute name="ADDRMATCH"/>
+						<xs:attribute name="COUNTRY"/>
+						<xs:attribute name="COUNTRYGEOID"/>
+						<xs:attribute name="CNTRYSCHEME"/>
+						<xs:attribute name="CNTRYCODE"/>
+						<xs:attribute name="LATITUDE"/>
+						<xs:attribute name="LONGITUDE"/>
+						<xs:attribute name="BLDGSCHEME"/>
+						<xs:attribute name="BLDGCLASS"/>
+						<xs:attribute name="OCCSCHEME"/>
+						<xs:attribute name="OCCTYPE"/>
+						<xs:attribute name="YEARBUILT"/>
+						<xs:attribute name="YEARUPGRAD"/>
+						<xs:attribute name="NUMSTORIES"/>
+						<xs:attribute name="NUMBLDGS"/>
+						<xs:attribute name="COV1"/>
+						<xs:attribute name="COV2"/>
+						<xs:attribute name="COV3"/>
+						<xs:attribute name="COV4"/>
+						<xs:attribute name="COV5"/>
+						<xs:attribute name="COV6"/>
+						<xs:attribute name="COV7"/>
+						<xs:attribute name="COV8"/>
+						<xs:attribute name="COV9"/>
+						<xs:attribute name="COV10"/>
+						<xs:attribute name="BASEMENT"/>
+					</xs:complexType>
+				</xs:element>
+			</xs:sequence>
+		</xs:complexType>
+	</xs:element>
+</xs:schema>

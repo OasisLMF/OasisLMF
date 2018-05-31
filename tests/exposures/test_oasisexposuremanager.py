@@ -1747,6 +1747,12 @@ class OasisExposureManagerStartOasisFilesPipeline(TestCase):
             with self.assertRaises(OasisException):
                 mgr.start_oasis_files_pipeline(oasis_model=model, fm=True)
 
+    def test_start_oasis_files_pipeline_with_model_gul_only_all_resources_provided__all_gul_files_generated(self):
+        pass
+
+    def test_start_oasis_files_pipeline_with_model_fm_all_resources_provided__all_gul_and_fm_files_generated(self):
+        pass
+
     def test_start_oasis_files_pipeline_with_kwargs_and_no_oasis_files_path__oasis_exception_is_raised(self):
         mgr = self.manager
 
@@ -1809,3 +1815,9 @@ class OasisExposureManagerStartOasisFilesPipeline(TestCase):
                     canonical_exposures_profile=cep,
                     fm=True
                 )
+
+    def test_start_oasis_files_pipeline_with_kwargs_gul_only_all_resources_provided__all_gul_files_generated(self):
+        pass
+
+    def test_start_oasis_files_pipeline_with_kwargs_fm_all_resources_provided__all_gul_and_fm_files_generated(self):
+        pass
