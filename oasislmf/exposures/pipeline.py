@@ -187,7 +187,4 @@ class OasisFilesPipeline(object):
         """
         Clears all file path attributes in the pipeline.
         """
-        map(
-            lambda p: setattr(self, p, None),
-            self._file_paths
-        )
+        [setattr(self, p, None) for p in self._file_paths]
