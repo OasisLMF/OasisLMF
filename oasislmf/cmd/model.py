@@ -9,15 +9,163 @@ from argparse import RawDescriptionHelpFormatter
 
 from pathlib2 import Path
 
+from ..exposures.csv_trans import Translator
 from ..exposures.manager import OasisExposuresManager
+
 from ..model_execution.bash import genbash
 from ..model_execution.runner import run
 from ..model_execution.bin import create_binary_files, prepare_model_run_directory, prepare_model_run_inputs
+
 from ..utils.exceptions import OasisException
 from ..utils.values import get_utctimestamp
+
 from ..keys.lookup import OasisKeysLookupFactory
+
 from .cleaners import as_path
+
 from .base import OasisBaseCommand, InputValues
+
+
+class TransformSourceToCanonicalFileCmd(OasisBaseCommand):
+    """
+    Transform a supplier-specific source exposures/accounts file to a canonical
+    Oasis exposures/accounts file using an XSD validation file and an XSLT
+    transformation file.
+
+    Calling syntax is::
+
+        oasislmf model transform-source-to-canonical
+            -s <source file path>
+            -y <type of source file - exposures or accounts>
+            -v <validation file>
+            -x <transformation file>
+            -o <output file path>
+    """
+    formatter_class = RawDescriptionHelpFormatter
+
+    def add_args(self, parser):
+        """
+        Adds arguments to the argument parser.
+
+        :param parser: The argument parser object
+        :type parser: ArgumentParser
+        """
+        super(TransformSourceToCanonicalFileCmd, self).add_args(parser)
+
+        parser.add_argument(
+            '-s', '--source-file-path', default=None,
+            help='Source file path',
+        )
+        parser.add_argument(
+            '-y', '--source-file-type', default='exposures',
+            help='Type of source file - exposures or accounts',
+        )
+        parser.add_argument(
+            '-v', '--xsd-validation-file-path', default=None,
+            help='XSD validation file path',
+        )
+        parser.add_argument(
+            '-x', '--xslt-transformation-file-path', default=None,
+            help='XSLT transformation file path',
+        )
+        parser.add_argument(
+            '-o', '--output-file-path', default=None,
+            help='Output file path',
+        )
+
+    def action(self, args):
+        """
+        Transform a source exposures/accounts file to a canonical Oasis file.
+
+        :param args: The arguments from the command line
+        :type args: Namespace
+        """
+        inputs = InputValues(args)
+        
+        source_file_path = as_path(inputs.get('source_file_path', required=True, is_path=True), 'Source file path', preexists=True)
+        source_file_type = inputs.get('source_file_type', default='exposures')
+        
+        _sft = 'exp' if source_file_type == 'exposures' else 'acc'
+        _utc = get_utctimestamp(fmt='%Y%m%d%H%M%S')
+        
+        xsd_validation_file_path = as_path(inputs.get('xsd_validation_file_path', required=True, is_path=True), 'XSD validation file path', preexists=True)
+        xslt_transformation_file_path = as_path(inputs.get('xslt_transformation_file_path', required=True, is_path=True), 'XSLT transformation file path', preexists=True)
+        output_file_path = as_path(inputs.get('output_file_path', required=False, is_path=True, default='can{}-{}.csv'.format(_sft, _utc)), 'Output file path', preexists=False)
+
+        self.logger.info('Generating a canonical {} file {} from source {} file {}'.format(_sft, output_file_path, _sft, source_file_path))
+
+        translator = Translator(source_file_path, output_file_path, xsd_validation_file_path, xslt_transformation_file_path, append_row_nums=True)
+        translator()
+
+        self.logger.info('\nOutput file {} successfully generated'.format(output_file_path))
+
+
+class TransformCanonicalToModelFileCmd(OasisBaseCommand):
+    """
+    Transform a canonical Oasis exposures file to a model Oasis exposures file
+    using an XSD validation file and an XSLT transformation file. A model exposures
+    file is a simplified version of the canonical exposures file and provides the
+    input to an Oasis keys server for a model and its keys lookup class.
+
+    Calling syntax is::
+
+        oasislmf model transform-canonical-to-model
+            -c <canonical exposures file path>
+            -v <validation file>
+            -x <transformation file>
+            -o <output file path>
+    """
+    formatter_class = RawDescriptionHelpFormatter
+
+    def add_args(self, parser):
+        """
+        Adds arguments to the argument parser.
+
+        :param parser: The argument parser object
+        :type parser: ArgumentParser
+        """
+        super(TransformCanonicalToModelFileCmd, self).add_args(parser)
+
+        parser.add_argument(
+            '-c', '--canonical-exposures-file-path', default=None,
+            help='Canonical file path',
+        )
+        parser.add_argument(
+            '-v', '--xsd-validation-file-path', default=None,
+            help='XSD validation file path',
+        )
+        parser.add_argument(
+            '-x', '--xslt-transformation-file-path', default=None,
+            help='XSLT transformation file path',
+        )
+        parser.add_argument(
+            '-o', '--output-file-path', default=None,
+            help='Output file path',
+        )
+
+    def action(self, args):
+        """
+        Transform a source exposures/accounts file to a canonical Oasis file.
+
+        :param args: The arguments from the command line
+        :type args: Namespace
+        """
+        inputs = InputValues(args)
+        
+        canonical_exposures_file_path = as_path(inputs.get('canonical_exposures_file_path', required=True, is_path=True), 'Canonical exposures file path', preexists=True)
+
+        _utc = get_utctimestamp(fmt='%Y%m%d%H%M%S')
+        
+        xsd_validation_file_path = as_path(inputs.get('xsd_validation_file_path', required=True, is_path=True), 'XSD validation file path', preexists=True)
+        xslt_transformation_file_path = as_path(inputs.get('xslt_transformation_file_path', required=True, is_path=True), 'XSLT transformation file path', preexists=True)
+        output_file_path = as_path(inputs.get('output_file_path', required=False, is_path=True, default='modexp-{}.csv'.format(_utc)), 'Output file path', preexists=False)
+
+        self.logger.info('Generating a model exposures file {} from canonical exposures file {}'.format(output_file_path, canonical_exposures_file_path))
+
+        translator = Translator(canonical_exposures_file_path, output_file_path, xsd_validation_file_path, xslt_transformation_file_path, append_row_nums=True)
+        translator()
+
+        self.logger.info('\nOutput file {} successfully generated'.format(output_file_path))
 
 
 class GenerateKeysCmd(OasisBaseCommand):
@@ -479,6 +627,8 @@ class RunCmd(OasisBaseCommand):
 
 class ModelsCmd(OasisBaseCommand):
     sub_commands = {
+        'transform-source-to-canonical': TransformSourceToCanonicalFileCmd,
+        'transform-canonical-to-model': TransformCanonicalToModelFileCmd,
         'generate-keys': GenerateKeysCmd,
         'generate-oasis-files': GenerateOasisFilesCmd,
         'generate-losses': GenerateLossesCmd,
