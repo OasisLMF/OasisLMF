@@ -8,6 +8,7 @@ __all__ = [
 ]
 
 import csv
+import imp
 import importlib
 import io
 import json
@@ -131,11 +132,15 @@ class OasisKeysLookupFactory(object):
         `var/www/oasis` in the keys server Docker container) from the given
         path.
         """
+        if lookup_package_path and not os.path.isabs(lookup_package_path):
+            lookup_package_path = os.path.abspath(lookup_package_path)
+
         parent_dir = os.path.abspath(os.path.dirname(lookup_package_path))
         package_name = re.sub(r'\.py$', '', os.path.basename(lookup_package_path))
 
         sys.path.insert(0, parent_dir)
         lookup_package = importlib.import_module(package_name)
+        imp.reload(lookup_package)
         sys.path.pop(0)
 
         return lookup_package
@@ -247,14 +252,8 @@ class OasisKeysLookupFactory(object):
         model information from the model version file and `klc` is the lookup
         service class instance for the model.
         """
-        if model_keys_data_path:
-            model_keys_data_path = os.path.abspath(model_keys_data_path)
-
-        if model_version_file_path:
-            model_version_file_path = os.path.abspath(model_version_file_path)
-
-        if lookup_package_path:
-            lookup_package_path = os.path.abspath(lookup_package_path)
+        for p in [model_keys_data_path, model_version_file_path, lookup_package_path]:
+            p = os.path.abspath(p) if p and not os.path.isabs(p) else p
 
         model_info = cls.get_model_info(model_version_file_path)
         lookup_package = cls.get_lookup_package(lookup_package_path)
