@@ -163,6 +163,3 @@ This will create ``.asc`` signature file named ``<package file name>.{tar.gz,whl
 
 ## License
 The code in this project is licensed under BSD 3-clause license.
-    
-    
-    
