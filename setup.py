@@ -26,7 +26,7 @@ SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 
 
 def get_readme():
-    with io.open(os.path.join(SCRIPT_DIR, 'README.rst'), encoding='utf-8') as readme:
+    with io.open(os.path.join(SCRIPT_DIR, 'README.md'), encoding='utf-8') as readme:
         return readme.read()
 
 
