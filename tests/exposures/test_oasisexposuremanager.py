@@ -1024,7 +1024,7 @@ class OasisExposureManagerLoadFmItems(TestCase):
         exposures=canonical_exposures_data(size=10),
         guls=gul_items_data(size=10)
     )
-    def test_no_canonical_accounts_items__oasis_exception_is_raised(
+    def test_load_fm_items_with_no_canonical_accounts_items__oasis_exception_is_raised(
         self,
         exposures,
         guls
@@ -1070,7 +1070,7 @@ class OasisExposureManagerLoadFmItems(TestCase):
             size=10
         )
     )
-    def test_with_one_account_and_one_top_level_layer_load_items_with_preset_data_only(
+    def test_load_preset_fm_items_with_one_account_and_one_top_level_layer_load_items__returns_preset_data_only(
         self,
         exposures,
         accounts,
@@ -1087,8 +1087,11 @@ class OasisExposureManagerLoadFmItems(TestCase):
             df = df.where(df.notnull(), None)
             df.columns = df.columns.str.lower()
         
-        canexp_df['index'] = pd.Series(data=list(canexp_df.index), dtype=int)
-        gul_items_df['index'] = pd.Series(data=list(gul_items_df.index), dtype=int)
+        canexp_df['index'] = pd.Series(data=canexp_df.index, dtype=int)
+        canexp_df['accntnum'] = canexp_df['accntnum'].astype(int)
+
+        gul_items_df['index'] = pd.Series(data=gul_items_df.index, dtype=int)
+        gul_items_df['canexp_id'] = gul_items_df['canexp_id'].astype(int)
 
         with NamedTemporaryFile('w') as accounts_file:
             write_canonical_files(canonical_accounts=accounts, canonical_accounts_file_path=accounts_file.name)
@@ -1167,7 +1170,7 @@ class OasisExposureManagerLoadFmItems(TestCase):
             size=10
         )
     )
-    def test_with_one_account_and_one_top_level_layer_load_items_with_all_fm_terms_present(
+    def test_load_fm_items_with_one_account_and_one_top_level_layer__all_fm_terms_present(
         self,
         exposures,
         accounts,
@@ -1184,8 +1187,11 @@ class OasisExposureManagerLoadFmItems(TestCase):
             df = df.where(df.notnull(), None)
             df.columns = df.columns.str.lower()
         
-        canexp_df['index'] = pd.Series(data=list(canexp_df.index), dtype=int)
-        gul_items_df['index'] = pd.Series(data=list(gul_items_df.index), dtype=int)
+        canexp_df['index'] = pd.Series(data=canexp_df.index, dtype=int)
+        canexp_df['accntnum'] = canexp_df['accntnum'].astype(int)
+
+        gul_items_df['index'] = pd.Series(data=gul_items_df.index, dtype=int)
+        gul_items_df['canexp_id'] = gul_items_df['canexp_id'].astype(int)
 
         with NamedTemporaryFile('w') as accounts_file:
             write_canonical_files(canonical_accounts=accounts, canonical_accounts_file_path=accounts_file.name)
@@ -1278,7 +1284,7 @@ class OasisExposureManagerLoadFmItems(TestCase):
             size=10
         )
     )
-    def test_with_one_account_and_two_top_level_layers_load_items_with_all_fm_terms_present(
+    def test_load_fm_items_with_one_account_and_two_top_level_layers__all_fm_terms_present(
         self,
         exposures,
         accounts,
@@ -1298,8 +1304,11 @@ class OasisExposureManagerLoadFmItems(TestCase):
             df = df.where(df.notnull(), None)
             df.columns = df.columns.str.lower()
         
-        canexp_df['index'] = pd.Series(data=list(canexp_df.index), dtype=int)
-        gul_items_df['index'] = pd.Series(data=list(gul_items_df.index), dtype=int)
+        canexp_df['index'] = pd.Series(data=canexp_df.index, dtype=int)
+        canexp_df['accntnum'] = canexp_df['accntnum'].astype(int)
+
+        gul_items_df['index'] = pd.Series(data=gul_items_df.index, dtype=int)
+        gul_items_df['canexp_id'] = gul_items_df['canexp_id'].astype(int)
 
         with NamedTemporaryFile('w') as accounts_file:
             write_canonical_files(canonical_accounts=accounts, canonical_accounts_file_path=accounts_file.name)

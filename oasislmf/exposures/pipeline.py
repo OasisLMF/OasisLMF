@@ -358,21 +358,21 @@ class OasisFilesPipeline(object):
             :param files_subsets: List of files subset labels (if empty)
                                   then all files subsets are cleared)::
 
-                'source_files': source exposures file path + source accounts
+                'source': source exposures file path + source accounts
                                 file path
-                'intermediate_files': canonical exposures file path, model
+                'intermediate': canonical exposures file path, model
                                       exposures file path, keys file path,
                                       keys errors file path
-                'gul_files': GUL files
-                'fm_files': FM files
-                `oasis_files`: GUL files + GM files
+                'gul': GUL files
+                'fm': FM files
+                `oasis`: GUL files + GM files
 
             :type files_subsets: list
         """
         if not files_subsets:
-            filenames = chain(self.source_files.keys(), self.intermediate_files.keys(), self.oasis_files.keys())
+            filenames = chain(self.source_files, self.intermediate_files, self.oasis_files)
         else:
-            filenames = list(set([fn for files_subset in files_subsets for fn in getattr(pip, files_subset)]))
+            filenames = chain(fn for fsb in files_subsets for fn in getattr(self, '{}_files'.format(fsb)))
 
         map(
             lambda p: setattr(self, '{}_file_path'.format(p), None),

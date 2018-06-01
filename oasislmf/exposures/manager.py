@@ -696,8 +696,13 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         gcep = canonical_profiles_fm_terms_grouped_by_level_and_term_type(canonical_profiles=(cep,))
 
         try:
-            merged_df = pd.merge(canexp_df, keys_df, left_on='row_id', right_on='locid')
+            if not str(canexp_df['row_id'].dtype).startswith('int'):
+                canexp_df['row_id'] = canexp_df['row_id'].astype(int)
 
+            if not str(keys_df['locid'].dtype).startswith('int'):
+                keys_df['locid'] = keys_df['locid'].astype(int)
+
+            merged_df = pd.merge(canexp_df, keys_df, left_on='row_id', right_on='locid')
             merged_df['index'] = pd.Series(data=list(merged_df.index), dtype=object)
 
             tiv_elements = tuple(t for t in [gcep[1][gid].get('tiv') for gid in gcep[1]] if t)
@@ -790,13 +795,19 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         canexp_df = canonical_exposures_df
         canacc_df = canonical_accounts_df
 
+        if not str(canexp_df['index'].dtype).startswith('int'):
+            canexp_df['index'] = canexp_df['index'].astype(int)
+
+        if not str(gul_items_df['canexp_id'].dtype).startswith('int'):
+            gul_items_df['canexp_id'] = gul_items_df['canexp_id'].astype(int)
+
         cangul_df = pd.merge(canexp_df, gul_items_df, left_on='index', right_on='canexp_id')
-        cangul_df['index'] = pd.Series(data=list(cangul_df.index), dtype=int)
+        cangul_df['index'] = pd.Series(data=cangul_df.index, dtype=int)
 
         keys = (
             'item_id', 'gul_item_id', 'canexp_id', 'canacc_id', 'level_id', 'layer_id', 'agg_id', 'policytc_id',
             'deductible', 'limit', 'share', 'deductible_type', 'calcrule_id',
-            'tiv_elm', 'tiv', 'tiv_tgid', 'lim_elm', 'ded_elm', 'ded_type', 'shr_elm'
+            'tiv_elm', 'tiv', 'tiv_tgid', 'lim_elm', 'ded_elm', 'ded_type', 'shr_elm',
         )
 
         try:
@@ -910,15 +921,16 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
             canexp_df = canexp_df.where(canexp_df.notnull(), None)
             canexp_df.columns = canexp_df.columns.str.lower()
-            canexp_df['index'] = pd.Series(data=canexp_df.index)
+            canexp_df['index'] = pd.Series(data=canexp_df.index, dtype=int)
+            canexp_df['accntnum'] = canexp_df['accntnum'].astype(int)
 
             keys_df = keys_df.rename(columns={'CoverageID': 'CoverageType'})
             keys_df = keys_df.where(keys_df.notnull(), None)
             keys_df.columns = keys_df.columns.str.lower()
-            keys_df['index'] = pd.Series(data=keys_df.index)
+            keys_df['index'] = pd.Series(data=keys_df.index, dtype=int)
 
             gul_items_df = pd.DataFrame(data=list(self.generate_gul_items(cep, canexp_df, keys_df)), dtype=object)
-            gul_items_df['index'] = pd.Series(data=gul_items_df.index)
+            gul_items_df['index'] = pd.Series(data=gul_items_df.index, dtype=int)
 
             columns = list(gul_items_df.columns)
 
@@ -981,13 +993,13 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             
             canacc_df = canacc_df.where(canacc_df.notnull(), None)
             canacc_df.columns = canacc_df.columns.str.lower()
-            canacc_df['index'] = pd.Series(data=canacc_df.index)
+            canacc_df['index'] = pd.Series(data=canacc_df.index, dtype=int)
 
             fm_items = [it for it in self.generate_fm_items(canexp_df, gul_items_df, cep, cap, canacc_df, preset_only=preset_only)]
             fm_items.sort(key=lambda it: it['item_id'])
 
             fm_items_df = pd.DataFrame(data=fm_items, dtype=object)
-            fm_items_df['index'] = pd.Series(data=fm_items_df.index)
+            fm_items_df['index'] = pd.Series(data=fm_items_df.index, dtype=int)
 
             if preset_only:
                 return fm_items_df, canacc_df

@@ -30,7 +30,7 @@ def canonical_profiles_fm_terms_grouped_by_level(canonical_profiles=[], canonica
             with io.open(p, 'r', encoding='utf-8') as f:
                 canonical_profiles.append(json.load(f))
 
-    cp = dict((k,v) for p in canonical_profiles for k, v in p.items())
+    cp = {k:v for p in canonical_profiles for k, v in six.iteritems(p)}
 
     return {
         level_id: {
