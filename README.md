@@ -4,14 +4,16 @@
 
 # OasisLMF
 
-Core loss modelling framework, deployed as a PYPL Python package.
-The repository provides a Python toolkit for building, running and testing Oasis models end-to-end. 
-It includes:
--  an api client for interacting with the api server (in the ``api_client`` submodule)
--  a Python class framework for working with Oasis models and model resources as Python objects (the ``models`` submodule)
--  a Python class framework for managing model exposures and resources, and also for generating Oasis files from these (the ``exposures`` submodule)
--  a Python factory class for instantiating keys lookup services for models, and generating and saving keys outputs from these lookup services (the ``keys`` submodule)
--  a command line interface for creating and testing models. App optionscan be found by running ``oasiscli --help``
+The oasislmf Python package provides a Python toolkit for building, running and testing Oasis models end-to-end, including performing individual steps in this process. It includes:
+
+* a Python class framework for working with Oasis models and model resources as Python objects (the models subpackage)
+* a Python class framework for managing model exposures and resources, and also for generating Oasis files from these (the exposures subpackage)
+* a Python factory class for instantiating keys lookup services for models, and generating and saving keys outputs from these lookup services (the keys subpackage)
+* executable scripts, based on these class frameworks, for: 
+    * writing keys outputs from model lookup services (generate_keys.py)
+    * generating Oasis files from model source exposures and other resources (generate_oasis_files.py)
+    * generating losses for models (generate_losses.py)
+    * running all the above steps to run the model end-to-end (run_model.py).
 
 ## Installation
 
