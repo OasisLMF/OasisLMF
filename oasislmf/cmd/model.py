@@ -463,8 +463,6 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
 
         self.logger.info('\nGenerated Oasis files for model: {}'.format(oasis_files))
 
-        manager.clear_oasis_files_pipeline(model)
-
         total_time = time.time() - start_time
         total_time_str = '{} seconds'.format(round(total_time, 3)) if total_time < 60 else '{} minutes'.format(round(total_time / 60, 3))
         self.logger.info('\nFinished Oasis files generation ({})'.format(total_time_str))

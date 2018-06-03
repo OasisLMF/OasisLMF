@@ -1399,9 +1399,6 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         oasis_files = ofp.oasis_files if oasis_model else {k:v for k, v in itertools.chain(gul_files.items(), fm_files.items())}
 
-        if oasis_model:
-            ofp.clear()
-
         return oasis_files
 
     def create_model(self, model_supplier_id, model_id, model_version_id, resources=None):

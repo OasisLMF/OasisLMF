@@ -87,7 +87,7 @@ def get_coverage_level_fm_terms(level_grouped_canonical_profile, level_fm_items,
 
     get_can_item = lambda canexp_id, canacc_id, layer_id: can_df[(can_df['row_id_x']==canexp_id+1) & (can_df['row_id_y']==canacc_id+1) & (can_df['policynum']=='Layer{}'.format(layer_id))].iloc[0]
 
-    for _, it in enumerate(six.itervalues(level_fm_items)):
+    for it in six.itervalues(level_fm_items):
         can_item = get_can_item(it['canexp_id'], it['canacc_id'], it['layer_id'])
 
         limit = can_item.get(it['lim_elm']) or 0.0
@@ -122,7 +122,7 @@ def get_non_coverage_level_fm_terms(level_grouped_canonical_profile, level_fm_it
     shr_fld = lp[1].get('share')
     shr_elm = shr_fld['ProfileElementName'].lower() if shr_fld else None
     
-    for _, it in enumerate(six.itervalues(level_fm_items)):
+    for it in six.itervalues(level_fm_items):
         can_item = get_can_item(it['canexp_id'], it['canacc_id'], it['layer_id'])
 
         it['limit'] = can_item.get(lim_elm) or 0.0
@@ -158,7 +158,7 @@ def get_policytc_ids(fm_items_df):
     for col in policytc_df.columns:
         policytc_df[col] = policytc_df[col].astype(float) if col != 'calcrule_id' else policytc_df[col].astype(int)
 
-    policytc_df['index'] = list(range(1, len(policytc_df) + 1))
+    policytc_df['index'] = range(1, len(policytc_df) + 1)
 
     policytc_ids = {
         i: {
