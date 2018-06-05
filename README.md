@@ -161,7 +161,7 @@ This will create ``.asc`` signature file named ``<package file name>.{tar.gz,whl
 * <a href="https://oasislmf.github.io">General Oasis documentation</a>
 * <a href="http://localhost:8000/html/docs/oasis_cli.html">OasisLMF CLI</a>
 * <a href="http://localhost:8000/html/docs/oasis_cli.html">Model Developerment Kit (MDK)</a>
-* <a href="http://localhost:8000/html/OasisLmf/modules.html">Modules</a>
+* <a href="https://oasislmf.github.io/OasisLmf/modules.html">Modules</a>
 
 ## License
 The code in this project is licensed under BSD 3-clause license.
