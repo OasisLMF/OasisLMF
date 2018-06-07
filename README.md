@@ -10,9 +10,9 @@ The `oasislmf` Python package provides a Python toolkit for building, running an
 * a Python class framework for managing model exposures and resources, and also for generating Oasis files from these (the `oasislmf.exposures` subpackage)
 * a Python factory class for instantiating keys lookup services for models, and generating and saving keys outputs from these lookup services (the `oasislmf.keys` subpackage)
 * a command line interface for running models end-to-end, including performing individual steps: 
-    * generating keys from model lookup services, and writing them as files: `oasislmf model generate_keys`
-    * generating Oasis files (GUL only at present, FM to be added later) from source exposure files, canonical profiles, exposure validation and transformation files, and keys data files: `oasislmf model generate_oasis_files`
-    * generating losses from Oasis files and analysis settings: `oasislmf model generate_losses`
+    * generating keys from model lookup services, and writing them as files: `oasislmf model generate-keys`
+    * generating Oasis files (GUL only at present, FM to be added later) from source exposure files, canonical profiles, exposure validation and transformation files, and keys data files: `oasislmf model generate-oasis-files`
+    * generating losses from Oasis files and analysis settings: `oasislmf model generate-losses`
     * running a model end-to-end: `oasislmf model run`
 
 ## Installation
