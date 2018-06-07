@@ -4,7 +4,16 @@
 
 # OasisLMF
 
-Core loss modelling framework, deployed as a PYPL Python package.
+The oasislmf Python package provides a Python toolkit for building, running and testing Oasis models end-to-end, including performing individual steps in this process. It includes:
+
+* a Python class framework for working with Oasis models and model resources as Python objects (the models subpackage)
+* a Python class framework for managing model exposures and resources, and also for generating Oasis files from these (the exposures subpackage)
+* a Python factory class for instantiating keys lookup services for models, and generating and saving keys outputs from these lookup services (the keys subpackage)
+* executable scripts, based on these class frameworks, for: 
+    * writing keys outputs from model lookup services (generate_keys.py)
+    * generating Oasis files from model source exposures and other resources (generate_oasis_files.py)
+    * generating losses for models (generate_losses.py)
+    * running all the above steps to run the model end-to-end (run_model.py).
 
 ## Installation
 
@@ -150,9 +159,9 @@ This will create ``.asc`` signature file named ``<package file name>.{tar.gz,whl
 * <a href="https://github.com/OasisLMF/OasisLMF/issues">Issues</a>
 * <a href="https://github.com/OasisLMF/OasisLMF/releases">Releases</a>
 * <a href="https://oasislmf.github.io">General Oasis documentation</a>
+* <a href="http://localhost:8000/html/docs/oasis_cli.html">OasisLMF CLI</a>
+* <a href="http://localhost:8000/html/docs/oasis_cli.html">Model Developerment Kit (MDK)</a>
+* <a href="https://oasislmf.github.io/OasisLmf/modules.html">Modules</a>
 
 ## License
 The code in this project is licensed under BSD 3-clause license.
-    
-    
-    
