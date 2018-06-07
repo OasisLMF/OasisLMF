@@ -4,16 +4,16 @@
 
 # OasisLMF
 
-The oasislmf Python package provides a Python toolkit for building, running and testing Oasis models end-to-end, including performing individual steps in this process. It includes:
+The `oasislmf` Python package provides a Python toolkit for building, running and testing Oasis models end-to-end, including performing individual steps in this process. It includes:
 
-* a Python class framework for working with Oasis models and model resources as Python objects (the models subpackage)
-* a Python class framework for managing model exposures and resources, and also for generating Oasis files from these (the exposures subpackage)
-* a Python factory class for instantiating keys lookup services for models, and generating and saving keys outputs from these lookup services (the keys subpackage)
-* executable scripts, based on these class frameworks, for: 
-    * writing keys outputs from model lookup services (generate_keys.py)
-    * generating Oasis files from model source exposures and other resources (generate_oasis_files.py)
-    * generating losses for models (generate_losses.py)
-    * running all the above steps to run the model end-to-end (run_model.py).
+* a Python class framework for working with Oasis models and model resources as Python objects (the `oasislmf.models` subpackage)
+* a Python class framework for managing model exposures and resources, and also for generating Oasis files from these (the `oasislmf.exposures` subpackage)
+* a Python factory class for instantiating keys lookup services for models, and generating and saving keys outputs from these lookup services (the `oasislmf.keys` subpackage)
+* a command line interface for running models end-to-end, including performing individual steps: 
+    * generating keys from model lookup services, and writing them as files: `oasislmf model generate_keys`
+    * generating Oasis files (GUL only at present, FM to be added later) from source exposure files, canonical profiles, exposure validation and transformation files, and keys data files: `oasislmf model generate_oasis_files`
+    * generating losses from Oasis files and analysis settings: `oasislmf model generate_losses`
+    * running a model end-to-end: `oasislmf model run`
 
 ## Installation
 
@@ -103,7 +103,7 @@ When using the Oasis model development kit (MDK) subcommands::
     oasislmf model {generate-keys, generate-oasis-files, generate-losses, run}
 
 for a specific model you may first need to install the Python requirements specific to the
-keys lookup service for that model, e.g. Pandas and Shapely for the `PiWind keys lookup <https://github.com/OasisLMF/OasisPiWind/blob/master/src/keys_server/PiWind/requirements.txt>`_, otherwise you will encounter command failures.
+keys lookup service for that model, e.g. Pandas and Shapely for the <a href="https://github.com/OasisLMF/OasisPiWind/blob/master/src/keys_server/PiWind/requirements.txt" target="_blank">PiWind keys lookup</a>otherwise you will encounter command failures.
 
 ## Testing
 
