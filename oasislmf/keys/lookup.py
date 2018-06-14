@@ -634,9 +634,9 @@ class OasisPerilLookup(OasisBaseLookup):
 
         np = sum(1 if re.match(r'lon[1-9](\d+)?', k) else 0 for k in six.iterkeys(coords_cols))
 
-        area_lonlat_point_inferred_radius = peril_config.get('area_lonlat_point_inferred_radius') or 0.1
+        area_point_inferred_poly_radius = peril_config.get('area_point_inferred_poly_radius') or 0.01
 
-        other_props_cols = {'peril_id': self.peril_id, 'area_lonlat_point_inferred_radius': area_lonlat_point_inferred_radius}
+        other_props_cols = {'peril_id': self.peril_id, 'area_point_inferred_poly_radius': area_point_inferred_poly_radius}
 
         return tuple(
             (
@@ -656,10 +656,8 @@ class OasisPerilLookup(OasisBaseLookup):
             return tuple(peril_areas) if not isinstance(peril_areas, tuple) else peril_areas
         
         return tuple(
-            (
-                PerilArea(coordinates, peril_area_id=peril_area_id, **other_props) if len(coordinates) > 1
-                else PerilPoint(coordinates, peril_area_id=peril_area_id, **other_props)
-            ) for peril_area_id, coordinates, other_props in (areas or self.areas)
+            PerilArea(coordinates, peril_area_id=peril_area_id, **other_props)
+            for peril_area_id, coordinates, other_props in (areas or self.areas)
         )
 
     @oasis_log()

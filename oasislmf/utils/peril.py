@@ -126,10 +126,14 @@ class PerilArea(Polygon):
 
         _coords = tuple(c for c in coords if c != (0,0))
 
-        if len(_coords) <= 1:
-            raise OasisException('A peril area is defined by at least two different coordinate pairs - one or less given')
-
-        self.multipoint = MultiPoint(_coords)
+        if len(_coords) > 1:
+            self.multipoint = MultiPoint(_coords)
+        elif len(_coords) == 1:
+            x, y = _coords[0][0], _coords[0][1]
+            r = kwargs.get('area_point_inferred_poly_radius') or 0.01
+            self.multipoint = MultiPoint(
+                tuple((x + r*(-1)**i, y + r*(-1)**j) for i in range(2) for j in range(2))
+            )
 
         super(self.__class__, self).__init__(shell=self.multipoint.convex_hull.exterior.coords)
         
