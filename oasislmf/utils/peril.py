@@ -1,16 +1,17 @@
 # -*- coding: utf-8 -*-
 
 __all__ = [
-    'PerilArea',
     'DEFAULT_RTREE_INDEX_PROPS',
     'generate_index_entries',
     'get_peril_areas',
     'get_peril_areas_index',
     'get_rtree_index',
+    'PerilArea',
     'PERIL_ID_FLOOD',
     'PERIL_ID_QUAKE',
     'PERIL_ID_SURGE',
-    'PERIL_ID_WIND'
+    'PERIL_ID_WIND',
+    'PerilPoint'
 ]
 
 import io
@@ -125,20 +126,32 @@ class PerilArea(Polygon):
 
         _coords = tuple(c for c in coords if c != (0,0))
 
-        if len(_coords) > 1:
-            self.multipoint = MultiPoint(_coords)
-        elif len(_coords) == 1:
-            x, y = _coords[0][0], _coords[0][1]
-            r = kwargs.get('area_lonlat_point_inferred_radius') or 0.1
-            self.multipoint = MultiPoint(
-                tuple((x + r*(-1)**i, y + r*(-1)**j) for i in range(2) for j in range(2))
-            )
+        if len(_coords) <= 1:
+            raise OasisException('A peril area is defined by at least two different coordinate pairs - one or less given')
+
+        self.multipoint = MultiPoint(_coords)
 
         super(self.__class__, self).__init__(shell=self.multipoint.convex_hull.exterior.coords)
         
         self.coordinates = tuple(self.exterior.coords)
 
         self.centre = self.centroid.x, self.centroid.y
+
+        self.peril_id = kwargs.get('peril_id')
+
+        self.id = kwargs.get('area_peril_id') or kwargs.get('peril_area_id') or int(uuid.UUID(bytes=os.urandom(16)).hex[:16], 16)
+
+        for k, v in six.iteritems(kwargs):
+            setattr(self, k, v)
+
+
+class PerilPoint(Point):
+
+    def __init__(self, *args, **kwargs):
+
+        super(self.__class__, self).__init__(*args)
+        
+        self.coordinates = tuple(t for t in self.coords[0])
 
         self.peril_id = kwargs.get('peril_id')
 

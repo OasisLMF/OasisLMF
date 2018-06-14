@@ -18,7 +18,6 @@
         "sort_ascending": true,
         "peril_area_id_col": "area_peril_id",
         "area_lonlat_coords_cols": {},
-        "area_lonlat_point_inferred_radius": 0.1,
         "loc_to_global_areas_boundary_min_distance": 0,
         "rtree_index": {
             "buffering_capacity": 10,
