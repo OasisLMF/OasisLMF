@@ -227,8 +227,8 @@ class GenerateKeysCmd(OasisBaseCommand):
             help='Keys file path',
         )
         parser.add_argument(
-            '-e', '--keys-error-file-path', default=None,
-            help='Keys error file path',
+            '-e', '--keys-errors-file-path', default=None,
+            help='Keys errors file path',
         )
         parser.add_argument(
             '-d', '--keys-data-path', default=None,
@@ -276,17 +276,17 @@ class GenerateKeysCmd(OasisBaseCommand):
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
 
         default_keys_file_name = '{}-{}-{}-keys-{}.{}'.format(model_info['supplier_id'].lower(), model_info['model_id'].lower(), model_info['model_version_id'], utcnow, 'csv' if keys_format == 'oasis' else 'json')
-        default_keys_error_file_name = '{}-{}-{}-keys-errors-{}.{}'.format(model_info['supplier_id'].lower(), model_info['model_id'].lower(), model_info['model_version_id'], utcnow, 'csv' if keys_format == 'oasis' else 'json')
+        default_keys_errors_file_name = '{}-{}-{}-keys-errors-{}.{}'.format(model_info['supplier_id'].lower(), model_info['model_id'].lower(), model_info['model_version_id'], utcnow, 'csv' if keys_format == 'oasis' else 'json')
            
         keys_file_path = as_path(inputs.get('keys_file_path', default=default_keys_file_name.format(utcnow), required=False, is_path=True), 'Keys file path', preexists=False)
-        keys_error_file_path = as_path(inputs.get('keys_error_file_path', default=default_keys_error_file_name.format(utcnow), required=False, is_path=True), 'Keys error file path', preexists=False)
+        keys_errors_file_path = as_path(inputs.get('keys_errors_file_path', default=default_keys_errors_file_name.format(utcnow), required=False, is_path=True), 'Keys errors file path', preexists=False)
 
         self.logger.info('Saving keys records to file')
         f1, n1, f2, n2 = OasisKeysLookupFactory.save_keys(
             lookup=model_klc,
             model_exposures_file_path=model_exposures_file_path,
             keys_file_path=keys_file_path,
-            keys_error_file_path=keys_error_file_path,
+            keys_errors_file_path=keys_errors_file_path,
             keys_format=keys_format
         )
         self.logger.info('{} keys records with successful lookups saved to keys file {}'.format(n1, f1))

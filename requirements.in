@@ -1,15 +1,15 @@
 -r ./requirements-package.in
 
-pip-tools
-discover
 configparser
-flake8
-pytest
-mock
-tox
-hypothesis
 coverage
+discover
+flake8
+freezegun
+hypothesis
+mock
+pip-tools
+pytest
 pytest-cov
 responses
-freezegun
 Sphinx
+tox

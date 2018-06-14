@@ -1,0 +1,63 @@
+{
+    "model": {
+        "supplier_id": null,
+        "model_id": null,
+        "model_version": null
+    },
+    "peril": {
+        "peril": null,
+        "peril_id": null,
+        "file_path": null,
+        "file_type": "csv",
+        "float_precision_high": true,
+        "num_areas": null,
+        "cols": ["area_peril_id"],
+        "non_na_cols": ["area_peril_id"],
+        "col_dtypes": "infer",
+        "sort_col": "area_peril_id",
+        "sort_ascending": true,
+        "peril_area_id_col": "area_peril_id",
+        "area_lonlat_coords_cols": {},
+        "area_lonlat_point_inferred_radius": 0.1,
+        "loc_to_global_areas_boundary_min_distance": 0,
+        "rtree_index": {
+            "buffering_capacity": 10,
+            "custom_storage_callbacks": null,
+            "custom_storage_callbacks_size": 0,
+            "dat_extension": "dat",
+            "dimension": 2,
+            "filename": "",
+            "fill_factor": 0.7,
+            "idx_extension": "idx",
+            "index_capacity": 100,
+            "index_id": null,
+            "leaf_capacity": 100,
+            "near_minimum_overlap_factor": 32,
+            "overwrite": true,
+            "pagesize": 4096,
+            "point_pool_capacity": 500,
+            "region_pool_capacity": 1000,
+            "reinsert_factor": 0.3,
+            "split_distribution_factor": 0.4,
+            "storage": 0,
+            "tight_mbr": true,
+            "tpr_horizon": 20.0,
+            "type": 0,
+            "variant": 2,
+            "writethrough": false
+        }
+    },
+    "vulnerability": {
+        "file_path": null,
+        "file_type": "csv",
+        "float_precision_high": true,
+        "num_areas": null,
+        "cols": ["vulnerability_id"],
+        "non_na_cols": ["vulnerability_id"],
+        "key_cols": null,
+        "col_dtypes": "infer",
+        "sort_col": "vulnerability_id",
+        "sort_ascending": true,
+        "vulnerability_id_col": "vulnerability_id"
+    }
+}

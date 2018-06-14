@@ -169,12 +169,12 @@ class OasisExposureManagerGetKeys(TestCase):
         self,
         lookup='lookup',
         keys_file_path='key_file_path',
-        keys_error_file_path='keys_error_file_path',
+        keys_errors_file_path='keys_errors_file_path',
         model_exposures_file_path='model_exposures_file_path'
     ):
         model = fake_model(resources={'lookup': lookup})
         model.resources['oasis_files_pipeline'].keys_file_path = keys_file_path
-        model.resources['oasis_files_pipeline'].keys_error_file_path = keys_error_file_path
+        model.resources['oasis_files_pipeline'].keys_errors_file_path = keys_errors_file_path
         model.resources['oasis_files_pipeline'].model_exposures_file_path = model_exposures_file_path
         return model
 
@@ -191,21 +191,21 @@ class OasisExposureManagerGetKeys(TestCase):
         keys_errors,
         exposure
     ):
-        model = self.create_model(lookup=lookup, keys_file_path=keys, keys_error_file_path=keys_errors, model_exposures_file_path=exposure)
+        model = self.create_model(lookup=lookup, keys_file_path=keys, keys_errors_file_path=keys_errors, model_exposures_file_path=exposure)
 
         with patch('oasislmf.exposures.manager.OasisKeysLookupFactory.save_keys', Mock(return_value=(keys, 1, keys_errors, 1))) as oklf_mock:
-            res_keys_file_path, res_keys_error_file_path = OasisExposuresManager().get_keys(oasis_model=model)
+            res_keys_file_path, res_keys_errors_file_path = OasisExposuresManager().get_keys(oasis_model=model)
 
             oklf_mock.assert_called_once_with(
                 lookup=lookup,
                 model_exposures_file_path=os.path.abspath(exposure),
                 keys_file_path=os.path.abspath(keys),
-                keys_error_file_path=os.path.abspath(keys_errors)
+                keys_errors_file_path=os.path.abspath(keys_errors)
             )
             self.assertEqual(model.resources['oasis_files_pipeline'].keys_file_path, keys)
             self.assertEqual(res_keys_file_path, keys)
-            self.assertEqual(model.resources['oasis_files_pipeline'].keys_error_file_path, keys_errors)
-            self.assertEqual(res_keys_error_file_path, keys_errors)
+            self.assertEqual(model.resources['oasis_files_pipeline'].keys_errors_file_path, keys_errors)
+            self.assertEqual(res_keys_errors_file_path, keys_errors)
 
     @given(
         model_lookup=text(min_size=1, alphabet=string.ascii_letters), 
@@ -228,27 +228,27 @@ class OasisExposureManagerGetKeys(TestCase):
         keys_errors,
         exposure
     ):
-        model = self.create_model(lookup=model_lookup, keys_file_path=model_keys, keys_error_file_path=keys_errors, model_exposures_file_path=model_exposure)
+        model = self.create_model(lookup=model_lookup, keys_file_path=model_keys, keys_errors_file_path=keys_errors, model_exposures_file_path=model_exposure)
 
         with patch('oasislmf.exposures.manager.OasisKeysLookupFactory.save_keys', Mock(return_value=(keys, 1, keys_errors, 1))) as oklf_mock:
-            res_keys_file_path, res_keys_error_file_path = OasisExposuresManager().get_keys(
+            res_keys_file_path, res_keys_errors_file_path = OasisExposuresManager().get_keys(
                 oasis_model=model,
                 lookup=lookup,
                 model_exposures_file_path=exposure,
                 keys_file_path=keys,
-                keys_error_file_path=keys_errors
+                keys_errors_file_path=keys_errors
             )
 
             oklf_mock.assert_called_once_with(
                 lookup=lookup,
                 model_exposures_file_path=os.path.abspath(exposure),
                 keys_file_path=os.path.abspath(keys),
-                keys_error_file_path=os.path.abspath(keys_errors)
+                keys_errors_file_path=os.path.abspath(keys_errors)
             )
             self.assertEqual(model.resources['oasis_files_pipeline'].keys_file_path, keys)
             self.assertEqual(res_keys_file_path, keys)
-            self.assertEqual(model.resources['oasis_files_pipeline'].keys_error_file_path, keys_errors)
-            self.assertEqual(res_keys_error_file_path, keys_errors)
+            self.assertEqual(model.resources['oasis_files_pipeline'].keys_errors_file_path, keys_errors)
+            self.assertEqual(res_keys_errors_file_path, keys_errors)
 
 
 class OasisExposureManagerLoadMasterDataframe(TestCase):
