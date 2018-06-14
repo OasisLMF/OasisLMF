@@ -835,7 +835,7 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
         if not os.path.isabs(src_fp):
             src_fp = os.path.abspath(src_fp)
 
-        src_type = str.lower(vuln_config.get('file_type') or '') else 'csv'
+        src_type = str.lower(vuln_config.get('file_type') or '') or 'csv'
 
         float_precision = 'high' if vuln_config.get('float_precision_high') else None
 
