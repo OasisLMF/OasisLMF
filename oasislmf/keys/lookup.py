@@ -431,45 +431,6 @@ class OasisKeysLookupFactory(object):
             raise OasisException("Unrecognised keys file output format - valid formats are 'oasis' or 'json'")
 
 
-
-
-    def __init__(self, model_config=None, model_config_json=None, model_config_fp=None):
-        self.model_config = model_config or self.load_model_config(model_config_json=model_config_json, model_config_fp=model_config_fp)
-        self.supplier_id = self.model_config['model']['supplier_id']
-        self.model_id = self.model_config['model']['model_id']
-        self.model_version = self.model_config['model']['model_version']
-
-    def load_model_config(self, model_config_json=None, model_config_fp=None):
-        if model_config_json:
-            return json.loads(model_config_json)
-
-        if model_config_fp:
-            _model_config_fp = os.path.abspath(model_config_fp) if not os.path.isabs(model_config_fp) else model_config_fp
-            with io.open(_model_config_fp, 'r', encoding='utf-8') as f:
-                return json.load(f)
-
-    def lookup(self, loc, **kwargs):
-        """
-        Lookup for an individual location item, which could be a dict or a
-        Pandas series object.
-        """
-        pass
-
-    def bulk_lookup(self, locs, **kwargs):
-        """
-        Bulk vulnerability lookup for a generator, list, tuple or dict of
-        location items, which can be dicts or Pandas series objects.
-
-        Generates results using ``yield``.
-        """
-        _locs = (
-            enumerate(locs) if isinstance(locs, tuple) or isinstance(locs, list) or isinstance(locs, types.GeneratorType)
-            else six.iteritems(locs)
-        )
-        for _, loc in _locs:
-            yield self.lookup(loc)
-
-
 class OasisPerilAndVulnerabilityLookup(OasisBaseLookup):
     """
     Combined peril and vulnerability lookup
