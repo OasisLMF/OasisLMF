@@ -48,7 +48,6 @@ from ..utils.peril import (
     DEFAULT_RTREE_INDEX_PROPS,
     get_peril_areas_index,
     PerilArea,
-    PerilPoint,
 )
 from ..utils.status import (
     KEYS_STATUS_FAIL,
@@ -482,9 +481,12 @@ class OasisPerilAndVulnerabilityLookup(OasisBaseLookup):
             vulnerabilities=vulnerabilities
         )
 
+        self.loc_id_col = self.peril_lookup.loc_id_col
+
     def lookup(self, loc, loc_id_col='id'):
 
-        loc_id = loc.get(loc_id_col) or int(uuid.UUID(bytes=os.urandom(16)).hex[:16], 16)
+        _loc_id_col = self.loc_id_col or loc_id_col
+        loc_id = loc.get(_loc_id_col) or int(uuid.UUID(bytes=os.urandom(16)).hex[:16], 16)
 
         pa_lookup = self.peril_lookup.lookup(loc)
         past = pa_lookup['status']
@@ -504,7 +506,7 @@ class OasisPerilAndVulnerabilityLookup(OasisBaseLookup):
         message = '{}; {}'.format(pamsg, vlnmsg)
 
         return {
-            'id': loc_id,
+            _loc_id_col: loc_id,
             'peril_id': self.peril_id,
             self.peril_area_id_key: pa_lookup['peril_area_id'],
             self.vulnerability_id_key: vln_lookup['vulnerability_id'],
@@ -572,11 +574,17 @@ class OasisPerilLookup(OasisBaseLookup):
             self.loc_to_global_areas_boundary_min_distance = loc_to_global_areas_boundary_min_distance or self.config['peril']['loc_to_global_areas_boundary_min_distance']
 
         if self.config.get('locations'):
-            self.loc_coords_x_col = self.config['locations'].get('coords_x_col') or 'lon'
-            self.loc_coords_y_col = self.config['locations'].get('coords_y_col') or 'lat'
-            self.loc_coords_type = self.config['locations'].get('coords_type') or 'lonlat'
-            self.loc_x_bounds = tuple(self.config['locations'].get('coords_x_bounds')) or (-180, 180,)
-            self.loc_y_bounds = tuple(self.config['locations'].get('coords_y_bounds')) or (-90, 90,)
+            loc_config = self.config['locations']
+
+            self.loc_id_col = loc_config.get('id_col') or 'id'
+
+            self.loc_coords_type = loc_config.get('coords_type') or 'lonlat'
+
+            self.loc_coords_x_col = loc_config.get('coords_x_col') or 'lon'
+            self.loc_coords_y_col = loc_config.get('coords_y_col') or 'lat'
+
+            self.loc_x_bounds = tuple(loc_config.get('coords_x_bounds')) or (-180, 180,)
+            self.loc_y_bounds = tuple(loc_config.get('coords_y_bounds')) or (-90, 90,)
 
     @oasis_log()
     def get_areas(self, areas=None):
@@ -701,9 +709,11 @@ class OasisPerilLookup(OasisBaseLookup):
         peril_areas = self.peril_areas_dict
         idx = self.peril_areas_index
         boundary = self.peril_areas_boundary
-        loc_to_global_areas_boundary_min_distance = self.loc_to_global_areas_boundary_min_distance
+        loc_to_areas_min_dist = self.loc_to_global_areas_boundary_min_distance
 
-        loc_id = loc.get(loc_id_col) or int(uuid.UUID(bytes=os.urandom(16)).hex[:16], 16)
+        _loc_id_col = self.loc_id_col or loc_id_col
+
+        loc_id = loc.get(_loc_id_col) or int(uuid.UUID(bytes=os.urandom(16)).hex[:16], 16)
 
         loc_x_col = self.loc_coords_x_col
         loc_y_col = self.loc_coords_y_col
@@ -714,7 +724,7 @@ class OasisPerilLookup(OasisBaseLookup):
         y = loc.get(loc_y_col)
 
         _pa_lookup = lambda loc_id, x, y, st, paid, pabnds, msg: {
-            'id': loc_id,
+            _loc_id_col: loc_id,
             loc_x_col: x,
             loc_y_col: y,
             'peril_id': peril_id,
@@ -753,12 +763,12 @@ class OasisPerilLookup(OasisBaseLookup):
             else:
                 p = Point(x, y)
                 min_dist = p.distance(boundary)
-                if min_dist > loc_to_global_areas_boundary_min_distance:
+                if min_dist > loc_to_areas_min_dist:
                     msg = (
                         'Peril area lookup: location is {} units from the '
                         'peril areas global boundary -  the required minimum '
                         'distance is {} units'
-                        .format(min_dist, loc_to_global_areas_boundary_min_distance)
+                        .format(min_dist, loc_to_areas_min_dist)
                     )
                     return _pa_lookup(loc_id, x, y, KEYS_STATUS_FAIL, None, None, msg)
                 pabnds = peril_areas[paid].bounds
@@ -793,6 +803,9 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
 
         if vulnerabilities or self.config.get('vulnerability'):
             self.vulnerabilities = self.get_vulnerabilities(vulnerabilities=vulnerabilities)
+
+        if self.config.get('locations'):
+            self.loc_id_col = self.config['locations'].get('id_col') or 'id'
 
     @oasis_log()
     def get_vulnerabilities(self, vulnerabilities=None):
@@ -877,12 +890,13 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
         Vulnerability lookup for an individual location item, which could be a dict or a
         Pandas series.
         """
-        loc_id = loc.get(loc_id_col) or int(uuid.UUID(bytes=os.urandom(16)).hex[:16], 16)
+        _loc_id_col = self.loc_id_col or loc_id_col
+        loc_id = loc.get(_loc_id_col) or int(uuid.UUID(bytes=os.urandom(16)).hex[:16], 16)
         coverage = loc['coverage']
         class_1 = loc['class_1']
 
         vln_lookup = lambda loc_id, vlnst, vlnid, vlnmsg: {
-            'id': loc_id,
+            _loc_id_col: loc_id,
             'status': vlnst,
             'vulnerability_id': vlnid,
             'message': vlnmsg
