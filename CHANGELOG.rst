@@ -2,6 +2,11 @@ CHANGELOG
 =========
 
 
+`1.1.15`_ (beta)
+----------------
+
+* Add new lookup class framework in `keys` subpackage
+
 `1.1.14`_ (beta)
 ----------------
 
@@ -57,6 +62,7 @@ CHANGELOG
 
 * Add console logging
 
+.. _`1.1.15`: https://github.com/OasisLMF/OasisLMF/compare/18b34b9...master
 .. _`1.1.14`: https://github.com/OasisLMF/OasisLMF/compare/f3e0ee8...master
 .. _`1.1.13`: https://github.com/OasisLMF/OasisLMF/compare/33f96fd...dev
 .. _`1.1.12`: https://github.com/OasisLMF/OasisLMF/compare/5045ca2...dev

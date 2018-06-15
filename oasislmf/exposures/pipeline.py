@@ -13,14 +13,14 @@ class OasisFilesPipeline(object):
         canonical_exposures_file_path=None,
         model_exposures_file_path=None,
         keys_file_path=None,
-        keys_error_file_path=None
+        keys_errors_file_path=None
     ):
         self._model_key = model_key
         self._source_exposures_file_path = source_exposures_file_path
         self._canonical_exposures_file_path = canonical_exposures_file_path
         self._model_exposures_file_path = model_exposures_file_path
         self._keys_file_path = keys_file_path
-        self._keys_error_file_path = keys_error_file_path
+        self._keys_errors_file_path = keys_errors_file_path
 
         self._items_file_path = None
         self._coverages_file_path = None
@@ -37,7 +37,7 @@ class OasisFilesPipeline(object):
             'canonical_exposures_file_path',
             'model_exposures_file_path',
             'keys_file_path',
-            'keys_error_file_path',
+            'keys_errors_file_path',
             'items_file_path',
             'coverages_file_path',
             'gulsummaryxref_file_path',
@@ -118,18 +118,18 @@ class OasisFilesPipeline(object):
         self._keys_file_path = p
 
     @property
-    def keys_error_file_path(self):
+    def keys_errors_file_path(self):
         """
         Oasis keys error file path property.
 
             :getter: Gets the file path
             :setter: Sets the current file path to the specified file path
         """
-        return self._keys_error_file_path
+        return self._keys_errors_file_path
 
-    @keys_error_file_path.setter
-    def keys_error_file_path(self, p):
-        self._keys_error_file_path = p
+    @keys_errors_file_path.setter
+    def keys_errors_file_path(self, p):
+        self._keys_errors_file_path = p
 
     @property
     def items_file_path(self):
