@@ -17,9 +17,12 @@
         "sort_col": "area_peril_id",
         "sort_ascending": true,
         "peril_area_id_col": "area_peril_id",
-        "area_lonlat_coords_cols": {},
+        "area_poly_coords_cols": {
+            "x1": "longitude", "y1": "latitude"
+        },
+        "area_poly_coords_seq_start_idx": 1,
+        "area_reg_poly_radius": 0.00166,
         "loc_to_global_areas_boundary_min_distance": 0,
-        "area_point_inferred_poly_radius": 0.01,
         "rtree_index": {
             "buffering_capacity": 10,
             "custom_storage_callbacks": null,
@@ -59,5 +62,12 @@
         "sort_col": "vulnerability_id",
         "sort_ascending": true,
         "vulnerability_id_col": "vulnerability_id"
+    },
+    "locations": {
+        "coords_type": "lonlat",
+        "coordx_x_col": "longitude",
+        "coordx_y_col": "latitude",
+        "coords_x_bounds": [-180, 180],
+        "coords_y_bounds": [-90, 90]
     }
 }

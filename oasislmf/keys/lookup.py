@@ -63,7 +63,7 @@ class OasisBaseLookup(object):
 
     @oasis_log()
     def __init__(self, config=None, config_json=None, config_fp=None):
-        self.config = config or self.load_config(config_json=config_json, config_fp=config_fp) or {}
+        self.config = config or self.get_config(config_json=config_json, config_fp=config_fp) or {}
 
         mc = self.config.get('model') or {}
         self.supplier_id = mc.get('supplier_id')
@@ -71,7 +71,7 @@ class OasisBaseLookup(object):
         self.model_version = mc.get('model_version')
 
     @oasis_log()
-    def load_config(self, config_json=None, config_fp=None):
+    def get_config(self, config_json=None, config_fp=None):
         if config_json:
             return json.loads(config_json)
 
@@ -482,9 +482,9 @@ class OasisPerilAndVulnerabilityLookup(OasisBaseLookup):
             vulnerabilities=vulnerabilities
         )
 
-    def lookup(self, loc, loc_id_key='id'):
+    def lookup(self, loc, loc_id_col='id'):
 
-        loc_id = loc.get(loc_id_key) or int(uuid.UUID(bytes=os.urandom(16)).hex[:16], 16)
+        loc_id = loc.get(loc_id_col) or int(uuid.UUID(bytes=os.urandom(16)).hex[:16], 16)
 
         pa_lookup = self.peril_lookup.lookup(loc)
         past = pa_lookup['status']
@@ -552,13 +552,13 @@ class OasisPerilLookup(OasisBaseLookup):
         self.peril_id = peril_id or (self.config['peril'].get('peril_id') if self.config.get('peril') else None)
 
         if areas or peril_areas or self.config.get('peril'):
-            self.areas = self.load_areas(areas=areas)
+            self.areas = self.get_areas(areas=areas)
 
-            self.peril_areas = self.load_peril_areas(areas=self.areas, peril_areas=peril_areas)
+            self.peril_areas = self.get_peril_areas(areas=self.areas, peril_areas=peril_areas)
 
             self.peril_areas_dict = {pa.id: pa for _, pa in enumerate(self.peril_areas)}
 
-            self.peril_areas_index, self.peril_areas_index_props = self.load_peril_areas_index(
+            self.peril_areas_index, self.peril_areas_index_props = self.get_peril_areas_index(
                 peril_areas=self.peril_areas,
                 peril_areas_index=peril_areas_index,
                 peril_areas_index_props=peril_areas_index_props
@@ -571,12 +571,19 @@ class OasisPerilLookup(OasisBaseLookup):
 
             self.loc_to_global_areas_boundary_min_distance = loc_to_global_areas_boundary_min_distance or self.config['peril']['loc_to_global_areas_boundary_min_distance']
 
+        if self.config.get('locations'):
+            self.loc_coords_x_col = self.config['locations'].get('coords_x_col') or 'lon'
+            self.loc_coords_y_col = self.config['locations'].get('coords_y_col') or 'lat'
+            self.loc_coords_type = self.config['locations'].get('coords_type') or 'lonlat'
+            self.loc_x_bounds = tuple(self.config['locations'].get('coords_x_bounds')) or (-180, 180,)
+            self.loc_y_bounds = tuple(self.config['locations'].get('coords_y_bounds')) or (-90, 90,)
+
     @oasis_log()
-    def load_areas(self, areas=None):
+    def get_areas(self, areas=None):
 
         if not self.config:
             raise OasisException(
-                'No lookup configuration provided or set - use `load_config` '
+                'No lookup configuration provided or set - use `get_config` '
                 'on this instance to set it and provide either an actual '
                 'model config dict (use `model_config` argument), or a model '
                 'config JSON string (use `model_config_json` argument, or a '
@@ -625,32 +632,34 @@ class OasisPerilLookup(OasisBaseLookup):
             sort_ascending=sort_ascending
         )
 
-        coords_cols = peril_config.get('area_lonlat_coords_cols')
+        coords_cols = peril_config.get('area_poly_coords_cols')
 
         if not coords_cols:
             raise OasisException(
-                'No lon/lat coordinates have been provided to define areas'
+                'A sequence of coordinate pairs must be provided to define areas'
             )
 
-        np = sum(1 if re.match(r'lon[1-9](\d+)?', k) else 0 for k in six.iterkeys(coords_cols))
+        seq_start = peril_config.get('area_poly_coords_seq_start_idx') or 1
 
-        area_point_inferred_poly_radius = peril_config.get('area_point_inferred_poly_radius') or 0.01
+        len_seq = sum(1 if re.match(r'x(\d+)?', k) else 0 for k in six.iterkeys(coords_cols))
 
-        other_props_cols = {'peril_id': self.peril_id, 'area_point_inferred_poly_radius': area_point_inferred_poly_radius}
+        area_reg_poly_radius = peril_config.get('area_reg_poly_radius') or 0.00166
+
+        other_props = {'peril_id': self.peril_id, 'area_reg_poly_radius': area_reg_poly_radius}
 
         return tuple(
             (
                 ar[peril_area_id_col],
                 tuple(
-                    (ar.get(coords_cols['lon{}'.format(i)].lower()) or 0, ar.get(coords_cols['lat{}'.format(i)].lower()) or 0)
-                    for i in range(1, np + 1)
+                    (ar.get(coords_cols['x{}'.format(i)].lower()) or 0, ar.get(coords_cols['y{}'.format(i)].lower()) or 0)
+                    for i in range(seq_start, len_seq + 1)
                 ),
-                other_props_cols
+                other_props
             ) for _, ar in areas_df.iterrows()
         )
 
     @oasis_log()
-    def load_peril_areas(self, areas=None, peril_areas=None):
+    def get_peril_areas(self, areas=None, peril_areas=None):
 
         if peril_areas:
             return tuple(peril_areas) if not isinstance(peril_areas, tuple) else peril_areas
@@ -661,7 +670,7 @@ class OasisPerilLookup(OasisBaseLookup):
         )
 
     @oasis_log()
-    def load_peril_areas_index(self, peril_areas=None, peril_areas_index=None, peril_areas_index_props=None):
+    def get_peril_areas_index(self, peril_areas=None, peril_areas_index=None, peril_areas_index_props=None):
 
         if peril_areas_index:
             return peril_areas_index, peril_areas_index.properties.as_dict()
@@ -681,7 +690,7 @@ class OasisPerilLookup(OasisBaseLookup):
 
         return _peril_areas_index, _peril_areas_index_props
 
-    def lookup(self, loc, loc_id_key='id'):
+    def lookup(self, loc, loc_id_col='id'):
         """
         Area peril lookup for an individual lon/lat location item, which can be
         provided as a dict or a Pandas series. The data structure should contain
@@ -694,15 +703,20 @@ class OasisPerilLookup(OasisBaseLookup):
         boundary = self.peril_areas_boundary
         loc_to_global_areas_boundary_min_distance = self.loc_to_global_areas_boundary_min_distance
 
-        loc_id = loc.get(loc_id_key) or int(uuid.UUID(bytes=os.urandom(16)).hex[:16], 16)
+        loc_id = loc.get(loc_id_col) or int(uuid.UUID(bytes=os.urandom(16)).hex[:16], 16)
 
-        lon = loc.get('lon') or loc.get('longitude')
-        lat = loc.get('lat') or loc.get('latitude')
+        loc_x_col = self.loc_coords_x_col
+        loc_y_col = self.loc_coords_y_col
+        loc_x_bounds = self.loc_x_bounds
+        loc_y_bounds = self.loc_y_bounds
 
-        _pa_lookup = lambda loc_id, lon, lat, st, paid, pabnds, msg: {
+        x = loc.get(loc_x_col)
+        y = loc.get(loc_y_col)
+
+        _pa_lookup = lambda loc_id, x, y, st, paid, pabnds, msg: {
             'id': loc_id,
-            'lon': lon,
-            'lat': lat,
+            loc_x_col: x,
+            loc_y_col: y,
             'peril_id': peril_id,
             'status': st,
             'peril_area_id': paid,
@@ -712,22 +726,22 @@ class OasisPerilLookup(OasisBaseLookup):
         }
 
         try:
-            lon = float(lon)
-            lat = float(lat)
-            if not ((-180 <= lon <= 180) and (-90 <= lat <= 90)):
-                raise ValueError('lon/lat out of bounds')
+            x = float(x)
+            y = float(y)
+            if not ((loc_x_bounds[0] <= x <= loc_x_bounds[1]) and (loc_y_bounds[0] <= y <= loc_y_bounds[1])):
+                raise ValueError('{}/{} out of bounds'.format(loc_x_col, loc_y_col))
         except (ValueError, TypeError) as e:
             msg = (
-                'Peril area lookup: invalid lon/lat ({}, {}) - {}'
-                .format(lon, lat, str(e))
+                'Peril area lookup: invalid {}/{} ({}, {}) - {}'
+                .format(loc_x_col, loc_y_col, x, y, str(e))
             )
-            return _pa_lookup(loc_id, lon, lat, KEYS_STATUS_FAIL, None, None, msg)
+            return _pa_lookup(loc_id, x, y, KEYS_STATUS_FAIL, None, None, msg)
 
         st = KEYS_STATUS_NOMATCH
         msg = 'No peril area match'
         paid = None
         pabnds = None
-        point = lon, lat
+        point = x, y
 
         try:
             paid = list(idx.intersection(point))[0]
@@ -737,7 +751,7 @@ class OasisPerilLookup(OasisBaseLookup):
             except IndexError:
                 pass
             else:
-                p = Point(lon, lat)
+                p = Point(x, y)
                 min_dist = p.distance(boundary)
                 if min_dist > loc_to_global_areas_boundary_min_distance:
                     msg = (
@@ -746,20 +760,20 @@ class OasisPerilLookup(OasisBaseLookup):
                         'distance is {} units'
                         .format(min_dist, loc_to_global_areas_boundary_min_distance)
                     )
-                    return _pa_lookup(loc_id, lon, lat, KEYS_STATUS_FAIL, None, None, msg)
+                    return _pa_lookup(loc_id, x, y, KEYS_STATUS_FAIL, None, None, msg)
                 pabnds = peril_areas[paid].bounds
                 st = KEYS_STATUS_SUCCESS
                 msg = (
                     'Successful peril area lookup: {}'.format(paid)
                 )
         except RTreeError as e:
-            return _pa_lookup(loc_id, lon, lat, KEYS_STATUS_FAIL, None, None, str(e))
+            return _pa_lookup(loc_id, x, y, KEYS_STATUS_FAIL, None, None, str(e))
         else:
             pabnds = peril_areas[paid].bounds
             st = KEYS_STATUS_SUCCESS
             msg = 'Successful peril area lookup: {}'.format(paid)
 
-        return _pa_lookup(loc_id, lon, lat, st, paid, pabnds, msg)
+        return _pa_lookup(loc_id, x, y, st, paid, pabnds, msg)
 
 
 class OasisVulnerabilityLookup(OasisBaseLookup):
@@ -778,13 +792,13 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
         super(self.__class__, self).__init__(config=config, config_json=config_json, config_fp=config_fp)
 
         if vulnerabilities or self.config.get('vulnerability'):
-            self.vulnerabilities = self.load_vulnerabilities(vulnerabilities=vulnerabilities)
+            self.vulnerabilities = self.get_vulnerabilities(vulnerabilities=vulnerabilities)
 
     @oasis_log()
-    def load_vulnerabilities(self, vulnerabilities=None):
+    def get_vulnerabilities(self, vulnerabilities=None):
         if not self.config:
             raise OasisException(
-                'No lookup configuration provided or set - use `load_config` '
+                'No lookup configuration provided or set - use `get_config` '
                 'on this instance to set it and provide either an actual '
                 'model config dict (use `model_config` argument), or a model '
                 'config JSON string (use `model_config_json` argument, or a '
@@ -858,12 +872,12 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
 
         return _vuln_dict(vuln_df.iterrows(), key_cols, vuln_id_col)
 
-    def lookup(self, loc, loc_id_key='id'):
+    def lookup(self, loc, loc_id_col='id'):
         """
         Vulnerability lookup for an individual location item, which could be a dict or a
         Pandas series.
         """
-        loc_id = loc.get(loc_id_key) or int(uuid.UUID(bytes=os.urandom(16)).hex[:16], 16)
+        loc_id = loc.get(loc_id_col) or int(uuid.UUID(bytes=os.urandom(16)).hex[:16], 16)
         coverage = loc['coverage']
         class_1 = loc['class_1']
 
