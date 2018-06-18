@@ -43,6 +43,8 @@ from shapely.geometry import (
 
 import six
 
+from six.moves import cPickle as cpickle
+
 from .exceptions import OasisException
 
 
@@ -166,3 +168,26 @@ class PerilPoint(Point):
 
         for k, v in six.iteritems(kwargs):
             setattr(self, k, v)
+
+
+class PerilAreaIndex(RTreeIndex):
+
+    def __init__(self, *args, **kwargs):
+            areas = kwargs.get('areas')
+            peril_areas = kwargs.get('peril_areas')
+            
+            props = RTreeIndexProperty(**(kwargs.get('properties') or {}))
+            kwargs['properties'] = props
+
+            if not (areas or peril_areas):
+                super(self.__class__, self).__init__(*args, **kwargs)
+            else:
+                items = (
+                    (pa.id, pa.bounds) for pa in (peril_areas if peril_areas else get_peril_areas(areas))
+                )
+                stream = generate_index_entries(items)
+                super(self.__class__, self).__init__(stream, *args, **kwargs)
+
+    def dumps(self, obj):
+        return cpickle.dumps(obj, -1)
+
