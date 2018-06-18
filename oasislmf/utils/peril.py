@@ -231,7 +231,7 @@ class PerilAreasIndex(RTreeIndex):
             return self._stream
         return None
 
-    def save(self, index_fp):
+    def save(self, index_fp, peril_areas=None):
         _index_fp = index_fp
         if not os.path.isabs(_index_fp):
             _index_fp = os.path.abspath(_index_fp)
@@ -239,8 +239,16 @@ class PerilAreasIndex(RTreeIndex):
         try:
             _index = RTreeIndex(_index_fp)
 
-            for paid, pa in six.iteritems(self._peril_areas):
-                _index.insert(paid, pa.bounds, obj=pa)
+            _peril_areas = self._peril_areas or _peril_areas
+
+            if not _peril_areas:
+                raise OasisException(
+                    'No peril areas found in instance or in arguments - '
+                    'this is required to write the index to file'
+                )
+
+            for paid, pa in six.iteritems(_peril_areas):
+                _index.insert(paid, pa.bounds, obj=pa.id)
 
             _index.close()
         except (IOError, OSError, RTreeError) as e:
