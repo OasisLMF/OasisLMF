@@ -23,8 +23,8 @@ import uuid
 import rtree
 
 from rtree.index import (
-    Index,
-    Property,
+    Index as RTreeIndex,
+    Property as RTreeIndexProperty,
 )
 
 from rtree.core import RTreeError
@@ -117,8 +117,8 @@ def get_rtree_index(
     properties=None
 ):
     return (
-        Index(generate_index_entries(items, objects=objects), properties=Property(**properties)) if properties
-        else Index(generate_index_entries(items, objects=objects))
+        RTreeIndex(generate_index_entries(items, objects=objects), properties=RTreeIndexProperty(**properties)) if properties
+        else RTreeIndex(generate_index_entries(items, objects=objects))
     )
 
 
