@@ -697,7 +697,7 @@ class OasisPerilLookup(OasisBaseLookup):
 
         if peril_areas_index_fp:
             _idx = PerilAreasIndex(index_fp=peril_areas_index_fp)
-            return _idx, _idx.properties._as_dict()
+            return _idx, _idx.properties.as_dict()
 
         _peril_areas_index_props = peril_areas_index_props or self.config['peril']['rtree_index'] or DEFAULT_RTREE_INDEX_PROPS
 
