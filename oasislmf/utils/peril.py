@@ -125,13 +125,18 @@ class PerilArea(Polygon):
 
     def __init__(self, coords, **kwargs):
 
-        _coords = tuple(c for c in coords if c != (0,0))
+        self._args = coords, kwargs
+
+        _coords = tuple(c for c in coords)
 
         if not _coords:
             raise OasisException('No peril area coordinates')
 
-        if len(_coords) > 1:
+        if len(_coords) > 2:
             self.multipoint = MultiPoint(_coords)
+        elif len(_coords) == 2:
+            minx, miny, maxx, maxy = tuple(_c for c in coords for _c in c)
+            self.multipoint = MultiPoint(box(minx, miny, maxx, maxy).exterior.coords)
         elif len(_coords) == 1:
             x, y = _coords[0][0], _coords[0][1]
             r = kwargs.get('area_reg_poly_radius') or 0.0016
@@ -151,6 +156,15 @@ class PerilArea(Polygon):
 
         for k, v in six.iteritems(kwargs):
             setattr(self, k, v)
+
+    def __getinitargs__(self):
+        return self._args[0]
+
+    def __getnewargs__(self):
+        return self._args[0]
+
+    def __getnewargs_ex__(self):
+        return self._args
 
 
 class PerilPoint(Point):
@@ -190,8 +204,7 @@ class PerilAreasIndex(RTreeIndex):
                     pa.id:pa for pa in (peril_areas if peril_areas else self._get_peril_areas(areas))
                 })
                 self._stream = self._generate_index_entries(
-                    ((paid, pa.bounds) for paid, pa in six.iteritems(self._peril_areas)),
-                    objects=self._peril_areas
+                    ((paid, pa.bounds) for paid, pa in six.iteritems(self._peril_areas))
                 )
                 super(self.__class__, self).__init__(self._stream, *args, **kwargs)
 
@@ -213,8 +226,10 @@ class PerilAreasIndex(RTreeIndex):
 
     @property
     def stream(self):
-        self._stream = self._generate_index_entries(self._peril_areas)
-        return self._stream
+        if self._peril_areas:
+            self._stream = self._generate_index_entries(self._peril_areas)
+            return self._stream
+        return None
 
     def save(self, index_fp):
         _index_fp = index_fp
