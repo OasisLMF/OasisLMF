@@ -754,10 +754,10 @@ class OasisPerilLookup(OasisBaseLookup):
         point = x, y
 
         try:
-            paid = list(idx.intersection(point))[0]
+            paid = list(idx.intersection(point, objects='raw'))[0]
         except IndexError:
             try:
-                paid = list(idx.nearest(point))[0]
+                paid = list(idx.nearest(point, objects='raw'))[0]
             except IndexError:
                 pass
             else:

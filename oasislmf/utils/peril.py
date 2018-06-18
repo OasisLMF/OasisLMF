@@ -7,6 +7,7 @@ __all__ = [
     'get_peril_areas_index',
     'get_rtree_index',
     'PerilArea',
+    'PerilAreasIndex',
     'PERIL_ID_FLOOD',
     'PERIL_ID_QUAKE',
     'PERIL_ID_SURGE',
@@ -14,11 +15,14 @@ __all__ = [
     'PerilPoint'
 ]
 
+import copy
 import io
 import json
 import os
 import re
 import uuid
+
+from colletions import OrderedDict
 
 import rtree
 
@@ -170,24 +174,64 @@ class PerilPoint(Point):
             setattr(self, k, v)
 
 
-class PerilAreaIndex(RTreeIndex):
+class PerilAreasIndex(RTreeIndex):
 
     def __init__(self, *args, **kwargs):
+            idx_fp = kwargs.get('index_fp')
             areas = kwargs.get('areas')
             peril_areas = kwargs.get('peril_areas')
             
             props = RTreeIndexProperty(**(kwargs.get('properties') or {}))
             kwargs['properties'] = props
 
-            if not (areas or peril_areas):
+            if not (idx_fp or areas or peril_areas):
                 super(self.__class__, self).__init__(*args, **kwargs)
+            elif idx_fp:
+                super(self.__class__, self).__init__(idx_fp, *args, **kwargs)
             else:
-                items = (
-                    (pa.id, pa.bounds) for pa in (peril_areas if peril_areas else get_peril_areas(areas))
+                self._peril_areas = OrderedDict({
+                    pa.id:pa for pa in (peril_areas if peril_areas else self._get_peril_areas(areas))
+                })
+                self._stream = self._generate_index_entries(
+                    ((paid, pa.bounds) for paid, pa in six.iteritems(self.peril_areas)),
+                    objects=self.peril_areas
                 )
-                stream = generate_index_entries(items)
-                super(self.__class__, self).__init__(stream, *args, **kwargs)
+                super(self.__class__, self).__init__(self._stream, *args, **kwargs)
 
-    def dumps(self, obj):
-        return cpickle.dumps(obj, -1)
+    def _get_peril_areas(self, areas):
+        for peril_area_id, coordinates, other_props in areas:
+            yield PerilArea(coordinates, peril_area_id=peril_area_id, **other_props)
 
+    def _generate_index_entries(self, items, objects=None):
+        if objects:
+            for (key, poly_bounds), obj in zip(items, objects):
+                yield key, poly_bounds, obj
+        else:
+            for key, poly_bounds in items:
+                yield key, poly_bounds, None
+
+    @property
+    def peril_areas(self):
+        return self._peril_areas
+
+    @property
+    def stream(self):
+        self._stream = self._generate_index_entries(self.peril_areas)
+        return self._stream
+
+    def save(self, index_fp):
+        _index_fp = index_fp
+        if not os.path.isabs(_index_fp):
+            _index_fp = os.path.abspath(_index_fp)
+
+        try:
+            _index = RTreeIndex(_index_fp)
+
+            for paid, pa in six.iteritems(self.peril_areas):
+                _index.insert(paid, pa.bounds)
+
+            _index.close()
+        except (IOError, OSError, RTreeError) as e:
+            raise
+        
+        return _index_fp
