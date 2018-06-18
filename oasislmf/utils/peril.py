@@ -102,17 +102,12 @@ def get_peril_areas(areas):
 def get_peril_areas_index(
     areas=None,
     peril_areas=None,
-    objects=None,
     properties=None
 ):
     if not (areas or peril_areas):
         raise OasisException('Either areas or peril areas must be provided')
 
-    items = (
-        (pa.id, pa.bounds) for pa in (get_peril_areas(areas) if not peril_areas else peril_areas)
-    )
-
-    return get_rtree_index(items, objects=objects, properties=properties)
+    return PerilAreasIndex(areas=areas, peril_areas=peril_areas, properties=properties)
 
 
 def get_rtree_index(
@@ -185,16 +180,18 @@ class PerilAreasIndex(RTreeIndex):
             kwargs['properties'] = props
 
             if not (idx_fp or areas or peril_areas):
+                self._peril_areas = self._stream = None
                 super(self.__class__, self).__init__(*args, **kwargs)
             elif idx_fp:
+                self._peril_areas = self._stream = None
                 super(self.__class__, self).__init__(idx_fp, *args, **kwargs)
             else:
                 self._peril_areas = OrderedDict({
                     pa.id:pa for pa in (peril_areas if peril_areas else self._get_peril_areas(areas))
                 })
                 self._stream = self._generate_index_entries(
-                    ((paid, pa.bounds) for paid, pa in six.iteritems(self.peril_areas)),
-                    objects=self.peril_areas
+                    ((paid, pa.bounds) for paid, pa in six.iteritems(self._peril_areas)),
+                    objects=self._peril_areas
                 )
                 super(self.__class__, self).__init__(self._stream, *args, **kwargs)
 
@@ -216,7 +213,7 @@ class PerilAreasIndex(RTreeIndex):
 
     @property
     def stream(self):
-        self._stream = self._generate_index_entries(self.peril_areas)
+        self._stream = self._generate_index_entries(self._peril_areas)
         return self._stream
 
     def save(self, index_fp):
@@ -227,8 +224,8 @@ class PerilAreasIndex(RTreeIndex):
         try:
             _index = RTreeIndex(_index_fp)
 
-            for paid, pa in six.iteritems(self.peril_areas):
-                _index.insert(paid, pa.bounds)
+            for paid, pa in six.iteritems(self._peril_areas):
+                _index.insert(paid, pa.bounds, obj=pa)
 
             _index.close()
         except (IOError, OSError, RTreeError) as e:

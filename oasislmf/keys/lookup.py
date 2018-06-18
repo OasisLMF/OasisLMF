@@ -48,6 +48,7 @@ from ..utils.peril import (
     DEFAULT_RTREE_INDEX_PROPS,
     get_peril_areas_index,
     PerilArea,
+    PerilAreasIndex,
 )
 from ..utils.status import (
     KEYS_STATUS_FAIL,
@@ -546,6 +547,7 @@ class OasisPerilLookup(OasisBaseLookup):
         peril_id=None,
         peril_areas=None,
         peril_areas_index=None,
+        peril_areas_index_fp=None,
         peril_areas_index_props=None,
         loc_to_global_areas_boundary_min_distance=0
     ):
@@ -560,9 +562,14 @@ class OasisPerilLookup(OasisBaseLookup):
 
             self.peril_areas_dict = {pa.id: pa for _, pa in enumerate(self.peril_areas)}
 
+            _peril_areas_index_fp = peril_areas_index_fp
+            if config.get('peril') and config['peril'].get('rtree_index'):
+                _peril_areas_index_fp = _peril_areas_index_fp or config['peril']['rtree_index'].get('filename')
+
             self.peril_areas_index, self.peril_areas_index_props = self.get_peril_areas_index(
                 peril_areas=self.peril_areas,
                 peril_areas_index=peril_areas_index,
+                peril_areas_index_fp=_peril_areas_index_fp,
                 peril_areas_index_props=peril_areas_index_props
             )
 
@@ -678,10 +685,19 @@ class OasisPerilLookup(OasisBaseLookup):
         )
 
     @oasis_log()
-    def get_peril_areas_index(self, peril_areas=None, peril_areas_index=None, peril_areas_index_props=None):
-
+    def get_peril_areas_index(
+        self,
+        peril_areas=None,
+        peril_areas_index=None,
+        peril_areas_index_fp=None,
+        peril_areas_index_props=None
+    ):
         if peril_areas_index:
             return peril_areas_index, peril_areas_index.properties.as_dict()
+
+        if peril_areas_index_fp:
+            _idx = PerilAreasIndex(index_fp=peril_areas_index_fp)
+            return _idx, _idx.properties._as_dict()
 
         _peril_areas_index_props = peril_areas_index_props or self.config['peril']['rtree_index'] or DEFAULT_RTREE_INDEX_PROPS
 
@@ -692,7 +708,6 @@ class OasisPerilLookup(OasisBaseLookup):
 
         _peril_areas_index = get_peril_areas_index(
             peril_areas=peril_areas,
-            objects=None,
             properties=_peril_areas_index_props
         )
 
