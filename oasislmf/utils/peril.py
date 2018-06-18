@@ -22,7 +22,7 @@ import os
 import re
 import uuid
 
-from colletions import OrderedDict
+from collections import OrderedDict
 
 import rtree
 
