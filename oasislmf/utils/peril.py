@@ -258,23 +258,29 @@ class PerilAreasIndex(RTreeIndex):
 
         if not src_fp:
             raise OasisException(
-                'An areas source CSV or JSON file path must be provided'
+                'An areas source CSV or JSON file path must be provided     '
             )
 
         _src_fp = src_fp
         if not os.path.isabs(_src_fp):
             _src_fp = os.path.abspath(_src_fp)
 
-        _non_na_cols = non_na_cols
+        _non_na_cols = set(non_na_cols)
+
         if not peril_area_id_col in _non_na_cols:
-            _non_na_cols = tuple(set(_non_na_cols).union({peril_area_id_col}))
+            _non_na_cols = _non_na_cols.union({peril_area_id_col})
+        for col in six.itervalues(area_poly_coords_cols):
+            if not col in _non_na_cols:
+                _non_na_cols = _non_na_cols.union({col})
+
+        _non_na_cols = tuple(_non_na_cols)
 
         areas_df = get_dataframe(
             src_fp=_src_fp,
             src_type=src_type,
             non_na_cols=_non_na_cols,
             col_dtypes=col_dtypes,
-            sort_col=peril_area_id_col
+            sort_col=(peril_area_id_col or sort_col)
         )
 
         coords_cols = area_poly_coords_cols
