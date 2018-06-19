@@ -623,13 +623,13 @@ class OasisPerilLookup(OasisBaseLookup):
         if not os.path.isabs(src_fp):
             src_fp = os.path.abspath(src_fp)
 
-        src_type = str.lower(peril_config.get('file_type') or '') or 'csv'
+        src_type = str.lower(str(peril_config.get('file_type')) or '') or 'csv'
 
         float_precision = 'high' if peril_config.get('float_precision_high') else None
 
         non_na_cols = tuple(col.lower() for col in peril_config['non_na_cols']) if peril_config.get('non_na_cols') else ()
 
-        peril_area_id_col = str.lower(peril_config.get('peril_area_id_col') or '') or 'area_peril_id'
+        peril_area_id_col = str.lower(str(peril_config.get('peril_area_id_col')) or '') or 'area_peril_id'
         col_dtypes = {peril_area_id_col: int} if peril_config.get('col_dtypes') == "infer" else {}
 
         sort_col = peril_config.get('sort_col') or peril_area_id_col

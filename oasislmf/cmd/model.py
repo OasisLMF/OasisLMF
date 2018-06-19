@@ -26,7 +26,7 @@ from .cleaners import as_path
 
 from .base import OasisBaseCommand, InputValues
 
-class GeneratePerilAreaRtreeFileIndex(OasisBaseCommand):
+class GeneratePerilAreasRtreeFileIndex(OasisBaseCommand):
     """
     Generates and writes an Rtree file index of peril area IDs (area peril IDs)
     and area polygon bounds from a peril areas (area peril) file.
@@ -102,31 +102,31 @@ class GeneratePerilAreaRtreeFileIndex(OasisBaseCommand):
             if not os.path.isabs(areas_fp):
                 areas_fp = os.path.abspath(areas_fp)
 
-        src_type = str.lower(peril_config.get('file_type') or '') or 'csv'
+        src_type = str.lower(str(peril_config.get('file_type')) or '') or 'csv'
 
         non_na_cols = tuple(col.lower() for col in peril_config['non_na_cols']) if peril_config.get('non_na_cols') else ()
 
-        peril_area_id_col = str.lower(peril_config.get('peril_area_id_col') or '') or 'area_peril_id'
+        peril_area_id_col = str.lower(str(peril_config.get('peril_area_id_col')) or '') or 'area_peril_id'
         
         col_dtypes = {peril_area_id_col: int} if peril_config.get('col_dtypes') == "infer" else {}
 
         sort_col = peril_config.get('sort_col') or peril_area_id_col
 
-        coords_cols = peril_config.get('area_poly_coords_cols')
+        area_poly_coords_cols = peril_config.get('area_poly_coords_cols')
 
-        if not coords_cols:
+        if not area_poly_coords_cols:
             raise OasisException(
                 'The lookup peril config must define the column names of '
                 'the coordinates used to define areas in the peril areas '
                 '(area peril) file using the key `area_poly_coords_cols`'
             )
         
-        seq_start = peril_config.get('area_poly_coords_seq_start_idx') or 1
+        area_poly_coords_seq_start_idx = peril_config.get('area_poly_coords_seq_start_idx') or 1
 
         area_reg_poly_radius = peril_config.get('area_reg_poly_radius') or 0.00166
 
-        logging.info(
-            '\nGenerating an Rtree index file {} from peril areas (area peril) '
+        self.logger.info(
+            '\nGenerating an Rtree index files {}.{{idx,dat}} from peril areas (area peril) '
             'file {}'
             .format(os.path.join(index_file_dir, index_file_name), areas_fp)
         )
@@ -144,7 +144,7 @@ class GeneratePerilAreaRtreeFileIndex(OasisBaseCommand):
             index_fname=index_file_name
         )
 
-        logging.info('\nSuccessfully generated index file {}'.format(index_fp))
+        self.logger.info('\nSuccessfully generated index files {}.{{idx.dat}}'.format(index_fp))
 
 
 class TransformSourceToCanonicalFileCmd(OasisBaseCommand):
@@ -748,7 +748,7 @@ class RunCmd(OasisBaseCommand):
 
 class ModelsCmd(OasisBaseCommand):
     sub_commands = {
-        'generate-peril-area-rtree-file-index': GeneratePerilAreaRtreeFileIndex,
+        'generate-peril-areas-rtree-file-index': GeneratePerilAreasRtreeFileIndex,
         'transform-source-to-canonical': TransformSourceToCanonicalFileCmd,
         'transform-canonical-to-model': TransformCanonicalToModelFileCmd,
         'generate-keys': GenerateKeysCmd,
