@@ -50,6 +50,7 @@ import six
 from six.moves import cPickle as cpickle
 
 from .exceptions import OasisException
+from .data import get_dataframe
 
 
 PERIL_ID_WIND = 1
@@ -198,7 +199,10 @@ class PerilAreasIndex(RTreeIndex):
                 super(self.__class__, self).__init__(*args, **kwargs)
             elif idx_fp:
                 self._peril_areas = self._stream = None
-                super(self.__class__, self).__init__(idx_fp, *args, **kwargs)
+                _idx_fp = idx_fp
+                if not os.path.isabs(_idx_fp):
+                    _idx_fp = os.path.abspath(_idx_fp)
+                super(self.__class__, self).__init__(_idx_fp, *args, **kwargs)
             else:
                 self._peril_areas = OrderedDict({
                     pa.id:pa for pa in (peril_areas if peril_areas else self._get_peril_areas(areas))
@@ -232,7 +236,7 @@ class PerilAreasIndex(RTreeIndex):
         return None
 
     @classmethod
-    def create_from_file(
+    def create_from_peril_areas_file(
         cls,
         src_fp=None,
         src_type='csv',
@@ -291,7 +295,11 @@ class PerilAreasIndex(RTreeIndex):
         )
 
         try:
-            return cls.save(peril_areas=peril_areas, target_dir=_target_dir, index_fname=_index_fname)
+            return cls().save(
+                peril_areas=peril_areas,
+                target_dir=_target_dir,
+                index_fname=_index_fname
+            )
         except OasisException as e:
             raise
 
@@ -312,7 +320,7 @@ class PerilAreasIndex(RTreeIndex):
         try:
             index = RTreeIndex(index_fp)
 
-            _peril_areas = self._peril_areas or _peril_areas
+            _peril_areas = self._peril_areas or peril_areas
 
             if not _peril_areas:
                 raise OasisException(
@@ -320,11 +328,12 @@ class PerilAreasIndex(RTreeIndex):
                     'this is required to write the index to file'
                 )
 
-            for paid, pa in six.iteritems(_peril_areas):
-                index.insert(paid, pa.bounds)
+            iterator = enumerate(_peril_areas) if not isinstance(_peril_areas, dict) else enumerate(six.itervalues(_peril_areas))
+            for _, pa in iterator:
+                index.insert(pa.id, pa.bounds)
 
             index.close()
         except (IOError, OSError, RTreeError) as e:
             raise
-        
+
         return index_fp
