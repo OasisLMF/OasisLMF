@@ -231,13 +231,86 @@ class PerilAreasIndex(RTreeIndex):
             return self._stream
         return None
 
-    def save(self, index_fp, peril_areas=None):
-        _index_fp = index_fp
-        if not os.path.isabs(_index_fp):
-            _index_fp = os.path.abspath(_index_fp)
+    @classmethod
+    def create_from_file(
+        cls,
+        src_fp=None,
+        src_type='csv',
+        peril_area_id_col='area_peril_id',
+        non_na_cols=('area_peril_id',),
+        col_dtypes={'area_peril_id': int},
+        sort_col='area_peril_id',
+        area_poly_coords_cols={},
+        area_poly_coords_seq_start_idx=1,
+        area_reg_poly_radius=0.00166,
+        target_dir=os.path.abspath(os.path.dirname(__file__)),
+        index_fname='rtree-index'
+    ):
+        _target_dir = target_dir
+        if not os.path.isabs(_target_dir):
+            _target_dir = os.path.abspath(_target_dir)
+
+        _index_fname = index_fname.split('.')[0].replace(' ', '')
+
+        if not src_fp:
+            raise OasisException(
+                'An areas source CSV or JSON file path must be provided'
+            )
+
+        _src_fp = src_fp
+        if not os.path.isabs(_src_fp):
+            _src_fp = os.path.abspath(_src_fp)
+
+        _non_na_cols = non_na_cols
+        if not peril_area_id_col in _non_na_cols:
+            _non_na_cols = tuple(set(_non_na_cols).union({peril_area_id_col}))
+
+        areas_df = get_dataframe(
+            src_fp=_src_fp,
+            src_type=src_type,
+            non_na_cols=_non_na_cols,
+            col_dtypes=col_dtypes,
+            sort_col=peril_area_id_col
+        )
+
+        coords_cols = area_poly_coords_cols
+
+        seq_start = area_poly_coords_seq_start_idx
+
+        len_seq = sum(1 if re.match(r'x(\d+)?', k) else 0 for k in six.iterkeys(coords_cols))
+
+        peril_areas = get_peril_areas(
+            (
+                ar[peril_area_id_col],
+                tuple(
+                    (ar.get(coords_cols['x{}'.format(i)].lower()) or 0, ar.get(coords_cols['y{}'.format(i)].lower()) or 0)
+                    for i in range(seq_start, len_seq + 1)
+                ),
+                {}
+            ) for _, ar in areas_df.iterrows()
+        )
 
         try:
-            _index = RTreeIndex(_index_fp)
+            return cls.save(peril_areas=peril_areas, target_dir=_target_dir, index_fname=_index_fname)
+        except OasisException as e:
+            raise
+
+    def save(
+        self,
+        peril_areas=None,
+        target_dir=os.path.abspath(os.path.dirname(__file__)),
+        index_fname='rtree-index'
+    ):
+        _target_dir = target_dir
+        if not os.path.isabs(_target_dir):
+            _target_dir = os.path.abspath(_target_dir)
+
+        _index_fname = index_fname.split('.')[0].replace(' ', '')
+
+        index_fp = os.path.join(_target_dir, index_fname)
+
+        try:
+            index = RTreeIndex(index_fp)
 
             _peril_areas = self._peril_areas or _peril_areas
 
@@ -248,10 +321,10 @@ class PerilAreasIndex(RTreeIndex):
                 )
 
             for paid, pa in six.iteritems(_peril_areas):
-                _index.insert(paid, pa.bounds, obj=pa.id)
+                index.insert(paid, pa.bounds)
 
-            _index.close()
+            index.close()
         except (IOError, OSError, RTreeError) as e:
             raise
         
-        return _index_fp
+        return index_fp
