@@ -258,7 +258,7 @@ class PerilAreasIndex(RTreeIndex):
 
         if not src_fp:
             raise OasisException(
-                'An areas source CSV or JSON file path must be provided     '
+                'An areas source CSV or JSON file path must be provided'
             )
 
         _src_fp = src_fp

@@ -651,7 +651,9 @@ class OasisPerilLookup(OasisBaseLookup):
 
         if not coords_cols:
             raise OasisException(
-                'A sequence of coordinate pairs must be provided to define areas'
+                'The lookup peril config must define the column names of '
+                'the coordinates used to define areas in the peril areas '
+                '(area peril) file using the key `area_poly_coords_cols`'
             )
 
         seq_start = peril_config.get('area_poly_coords_seq_start_idx') or 1

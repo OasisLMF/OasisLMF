@@ -17,6 +17,7 @@ from ..model_execution.runner import run
 from ..model_execution.bin import create_binary_files, prepare_model_run_directory, prepare_model_run_inputs
 
 from ..utils.exceptions import OasisException
+from ..utils.peril import PerilAreasIndex
 from ..utils.values import get_utctimestamp
 
 from ..keys.lookup import OasisKeysLookupFactory
@@ -25,12 +26,125 @@ from .cleaners import as_path
 
 from .base import OasisBaseCommand, InputValues
 
-class GenerateAreaPerilRtreeFileIndex(OasisBaseCommand):
+class GeneratePerilAreaRtreeFileIndex(OasisBaseCommand):
     """
-    Generates and writes an Rtree file index of area peril IDs and area polygon
-    bounds.
+    Generates and writes an Rtree file index of peril area IDs (area peril IDs)
+    and area polygon bounds from a peril areas (area peril) file.
     """
-    pass
+    formatter_class = RawDescriptionHelpFormatter
+
+    def add_args(self, parser):
+        """
+        Adds arguments to the argument parser.
+
+        :param parser: The argument parser object
+        :type parser: ArgumentParser
+        """
+        super(self.__class__, self).add_args(parser)
+
+        parser.add_argument(
+            '-c', '--lookup-config-file-path', default=None,
+            help='Lookup config file path',
+        )
+        parser.add_argument(
+            '-d', '--keys-data-path', default=None,
+            help='Keys data path'
+        )
+        parser.add_argument(
+            '-r', '--index-file-dir', default=None,
+            help='Index file directory',
+        )
+        parser.add_argument(
+            '-n', '--index-file-name', default=None,
+            help='Index file name (without extension)',
+        )
+
+    def action(self, args):
+        """
+        Generates and writes an Rtree file index of peril area IDs (area peril IDs)
+        and area polygon bounds from a peril areas (area peril) file.
+
+        :param args: The arguments from the command line
+        :type args: Namespace
+        """
+        inputs = InputValues(args)
+        
+        lookup_config_file_path = as_path(inputs.get('lookup_config_file_path', required=True, is_path=True), 'Lookup config file path', preexists=True)
+
+        keys_data_path = as_path(inputs.get('keys_data_path', required=True, is_path=True), 'Keys config file path', preexists=True)
+
+        index_file_dir = as_path(inputs.get('index_file_dir', required=False, is_path=True, default=keys_data_path), 'Index file directory path', preexists=False)
+
+        index_file_name = inputs.get('index_file_name', required=False, default='rtree-index')
+
+        with io.open(lookup_config_file_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+
+        if not config.get('peril'):
+            raise OasisException(
+                'The lookup config must contain a subdictionary with a key named '
+                '`peril` defining area peril-related information for the '
+                'model'
+            )
+
+        peril_config = config['peril']
+
+        areas_fp = peril_config.get('file_path')
+        if not areas_fp:
+            raise OasisException(
+                'The lookup peril config must define the path of a peril areas '
+                '(or area peril) file with the key name `file_path`'
+            )
+
+        if areas_fp.startswith('%KEYS_DATA_PATH%'):
+            areas_fp = areas_fp.replace('%KEYS_DATA_PATH%', keys_data_path)
+        else:
+            if not os.path.isabs(areas_fp):
+                areas_fp = os.path.abspath(areas_fp)
+
+        src_type = str.lower(peril_config.get('file_type') or '') or 'csv'
+
+        non_na_cols = tuple(col.lower() for col in peril_config['non_na_cols']) if peril_config.get('non_na_cols') else ()
+
+        peril_area_id_col = str.lower(peril_config.get('peril_area_id_col') or '') or 'area_peril_id'
+        
+        col_dtypes = {peril_area_id_col: int} if peril_config.get('col_dtypes') == "infer" else {}
+
+        sort_col = peril_config.get('sort_col') or peril_area_id_col
+
+        coords_cols = peril_config.get('area_poly_coords_cols')
+
+        if not coords_cols:
+            raise OasisException(
+                'The lookup peril config must define the column names of '
+                'the coordinates used to define areas in the peril areas '
+                '(area peril) file using the key `area_poly_coords_cols`'
+            )
+        
+        seq_start = peril_config.get('area_poly_coords_seq_start_idx') or 1
+
+        area_reg_poly_radius = peril_config.get('area_reg_poly_radius') or 0.00166
+
+        logging.info(
+            '\nGenerating an Rtree index file {} from peril areas (area peril) '
+            'file {}'
+            .format(os.path.join(index_file_dir, index_file_name), areas_fp)
+        )
+
+        index_fp = PerilAreasIndex.create_from_peril_areas_file(
+            src_fp=areas_fp,
+            src_type=src_type,
+            peril_area_id_col=peril_area_id_col,
+            col_dtypes=col_dtypes,
+            sort_col=sort_col,
+            area_poly_coords_cols=area_poly_coords_cols,
+            area_poly_coords_seq_start_idx=area_poly_coords_seq_start_idx,
+            area_reg_poly_radius=area_reg_poly_radius,
+            target_dir=index_file_dir,
+            index_fname=index_file_name
+        )
+
+        logging.info('\nSuccessfully generated index file {}'.format(index_fp))
 
 
 class TransformSourceToCanonicalFileCmd(OasisBaseCommand):
@@ -634,7 +748,7 @@ class RunCmd(OasisBaseCommand):
 
 class ModelsCmd(OasisBaseCommand):
     sub_commands = {
-        'generate-area-peril-rtree-file-index': GenerateAreaPerilRtreeFileIndex,
+        'generate-peril-area-rtree-file-index': GeneratePerilAreaRtreeFileIndex,
         'transform-source-to-canonical': TransformSourceToCanonicalFileCmd,
         'transform-canonical-to-model': TransformCanonicalToModelFileCmd,
         'generate-keys': GenerateKeysCmd,
