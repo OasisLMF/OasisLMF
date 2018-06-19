@@ -25,6 +25,13 @@ from .cleaners import as_path
 
 from .base import OasisBaseCommand, InputValues
 
+class GenerateAreaPerilRtreeFileIndex(OasisBaseCommand):
+    """
+    Generates and writes an Rtree file index of area peril IDs and area polygon
+    bounds.
+    """
+    pass
+
 
 class TransformSourceToCanonicalFileCmd(OasisBaseCommand):
     """
@@ -627,6 +634,7 @@ class RunCmd(OasisBaseCommand):
 
 class ModelsCmd(OasisBaseCommand):
     sub_commands = {
+        'generate-area-peril-rtree-file-index': GenerateAreaPerilRtreeFileIndex,
         'transform-source-to-canonical': TransformSourceToCanonicalFileCmd,
         'transform-canonical-to-model': TransformCanonicalToModelFileCmd,
         'generate-keys': GenerateKeysCmd,
