@@ -540,37 +540,34 @@ class OasisPerilLookup(OasisBaseLookup):
     @oasis_log()
     def __init__(
         self,
+        areas=None,
         config=None,
         config_json=None,
         config_fp=None,
-        areas=None,
-        peril_id=None,
+        loc_to_global_areas_boundary_min_distance=0,
         peril_areas=None,
         peril_areas_index=None,
         peril_areas_index_fp=None,
-        peril_areas_index_props=None,
-        loc_to_global_areas_boundary_min_distance=0
+        peril_areas_index_props={},
+        peril_id=None
     ):
         super(self.__class__, self).__init__(config=config, config_json=config_json, config_fp=config_fp)
 
         self.peril_id = peril_id or (self.config['peril'].get('peril_id') if self.config.get('peril') else None)
 
         if areas or peril_areas or self.config.get('peril'):
-            self.areas = self.get_areas(areas=areas)
 
-            self.peril_areas = self.get_peril_areas(areas=self.areas, peril_areas=peril_areas)
+            index_props = peril_areas_index_props or self.config['peril'].get('rtree_index')
+            index_fp = peril_areas_index_fp or config['peril']['rtree_index'].get('filename')
 
-            self.peril_areas_dict = {pa.id: pa for _, pa in enumerate(self.peril_areas)}
-
-            _peril_areas_index_fp = peril_areas_index_fp
-            if config.get('peril') and config['peril'].get('rtree_index'):
-                _peril_areas_index_fp = _peril_areas_index_fp or config['peril']['rtree_index'].get('filename')
-
-            self.peril_areas_index, self.peril_areas_index_props = self.get_peril_areas_index(
-                peril_areas=self.peril_areas,
-                peril_areas_index=peril_areas_index,
-                peril_areas_index_fp=_peril_areas_index_fp,
-                peril_areas_index_props=peril_areas_index_props
+            self.peril_areas_index = (
+                peril_areas_index or 
+                PerilAreasIndex(
+                    areas=areas,
+                    peril_areas=peril_areas,
+                    fp=index_fp,
+                    properties=index_props
+                )
             )
 
             self.peril_areas_boundary = box(*self.peril_areas_index.bounds, ccw=False)
@@ -593,128 +590,6 @@ class OasisPerilLookup(OasisBaseLookup):
             self.loc_x_bounds = tuple(loc_config.get('coords_x_bounds')) or (-180, 180,)
             self.loc_y_bounds = tuple(loc_config.get('coords_y_bounds')) or (-90, 90,)
 
-    @oasis_log()
-    def get_areas(self, areas=None):
-
-        if not self.config:
-            raise OasisException(
-                'No lookup configuration provided or set - use `get_config` '
-                'on this instance to set it and provide either an actual '
-                'model config dict (use `model_config` argument), or a model '
-                'config JSON string (use `model_config_json` argument, or a '
-                'model config JSON file path (use `model_config_fp` argument)'
-            )
-
-        if areas:
-            return tuple(areas) if not isinstance(areas, tuple) else areas
-
-        peril_config = self.config.get('peril')
-
-        if not peril_config:
-            raise OasisException('No peril config set in the lookup config')
-
-        src_fp = peril_config.get('file_path')
-
-        if not src_fp:
-            raise OasisException(
-                'No areas file path provided in the lookup config'
-            )
-
-        if not os.path.isabs(src_fp):
-            src_fp = os.path.abspath(src_fp)
-
-        src_type = str.lower(str(peril_config.get('file_type')) or '') or 'csv'
-
-        float_precision = 'high' if peril_config.get('float_precision_high') else None
-
-        non_na_cols = tuple(col.lower() for col in peril_config['non_na_cols']) if peril_config.get('non_na_cols') else ()
-
-        peril_area_id_col = str.lower(str(peril_config.get('peril_area_id_col')) or '') or 'area_peril_id'
-        col_dtypes = {peril_area_id_col: int} if peril_config.get('col_dtypes') == "infer" else {}
-
-        sort_col = peril_config.get('sort_col') or peril_area_id_col
-        sort_ascending = peril_config.get('sort_ascending')
-
-        areas_df = get_dataframe(
-            src_fp=src_fp,
-            src_type=src_type,
-            float_precision=float_precision,
-            lowercase_cols=True,
-            index_col=True,
-            non_na_cols=non_na_cols,
-            col_dtypes=col_dtypes,
-            sort_col=sort_col,
-            sort_ascending=sort_ascending
-        )
-
-        coords_cols = peril_config.get('area_poly_coords_cols')
-
-        if not coords_cols:
-            raise OasisException(
-                'The lookup peril config must define the column names of '
-                'the coordinates used to define areas in the peril areas '
-                '(area peril) file using the key `area_poly_coords_cols`'
-            )
-
-        seq_start = peril_config.get('area_poly_coords_seq_start_idx') or 1
-
-        len_seq = sum(1 if re.match(r'x(\d+)?', k) else 0 for k in six.iterkeys(coords_cols))
-
-        area_reg_poly_radius = peril_config.get('area_reg_poly_radius') or 0.00166
-
-        other_props = {'peril_id': self.peril_id, 'area_reg_poly_radius': area_reg_poly_radius}
-
-        return tuple(
-            (
-                ar[peril_area_id_col],
-                tuple(
-                    (ar.get(coords_cols['x{}'.format(i)].lower()) or 0, ar.get(coords_cols['y{}'.format(i)].lower()) or 0)
-                    for i in range(seq_start, len_seq + 1)
-                ),
-                other_props
-            ) for _, ar in areas_df.iterrows()
-        )
-
-    @oasis_log()
-    def get_peril_areas(self, areas=None, peril_areas=None):
-
-        if peril_areas:
-            return tuple(peril_areas) if not isinstance(peril_areas, tuple) else peril_areas
-        
-        return tuple(
-            PerilArea(coordinates, peril_area_id=peril_area_id, **other_props)
-            for peril_area_id, coordinates, other_props in (areas or self.areas)
-        )
-
-    @oasis_log()
-    def get_peril_areas_index(
-        self,
-        peril_areas=None,
-        peril_areas_index=None,
-        peril_areas_index_fp=None,
-        peril_areas_index_props=None
-    ):
-        if peril_areas_index:
-            return peril_areas_index, peril_areas_index.properties.as_dict()
-
-        if peril_areas_index_fp:
-            _idx = PerilAreasIndex(index_fp=peril_areas_index_fp)
-            return _idx, _idx.properties.as_dict()
-
-        _peril_areas_index_props = peril_areas_index_props or self.config['peril']['rtree_index'] or DEFAULT_RTREE_INDEX_PROPS
-
-        _peril_areas_index_props['index_capacity'] = len(peril_areas)
-        _peril_areas_index_props['index_pool_capacity'] = len(peril_areas)
-
-        peril_areas = peril_areas or self.peril_areas
-
-        _peril_areas_index = get_peril_areas_index(
-            peril_areas=peril_areas,
-            properties=_peril_areas_index_props
-        )
-
-        return _peril_areas_index, _peril_areas_index_props
-
     def lookup(self, loc, loc_id_col='id'):
         """
         Area peril lookup for an individual lon/lat location item, which can be
@@ -723,7 +598,6 @@ class OasisPerilLookup(OasisBaseLookup):
         latitude.
         """
         peril_id = self.peril_id
-        peril_areas = self.peril_areas_dict
         idx = self.peril_areas_index
         boundary = self.peril_areas_boundary
         loc_to_areas_min_dist = self.loc_to_global_areas_boundary_min_distance
@@ -771,10 +645,10 @@ class OasisPerilLookup(OasisBaseLookup):
         point = x, y
 
         try:
-            paid = list(idx.intersection(point))[0]
+            paid, pabnds = list(idx.intersection(point, objects='raw'))[0]
         except IndexError:
             try:
-                paid = list(idx.nearest(point))[0]
+                paid, pabnds = list(idx.nearest(point, objects='raw'))[0]
             except IndexError:
                 pass
             else:
@@ -788,7 +662,6 @@ class OasisPerilLookup(OasisBaseLookup):
                         .format(min_dist, loc_to_areas_min_dist)
                     )
                     return _pa_lookup(loc_id, x, y, KEYS_STATUS_FAIL, None, None, msg)
-                pabnds = peril_areas[paid].bounds
                 st = KEYS_STATUS_SUCCESS
                 msg = (
                     'Successful peril area lookup: {}'.format(paid)
@@ -796,7 +669,6 @@ class OasisPerilLookup(OasisBaseLookup):
         except RTreeError as e:
             return _pa_lookup(loc_id, x, y, KEYS_STATUS_FAIL, None, None, str(e))
         else:
-            pabnds = peril_areas[paid].bounds
             st = KEYS_STATUS_SUCCESS
             msg = 'Successful peril area lookup: {}'.format(paid)
 

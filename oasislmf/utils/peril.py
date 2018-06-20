@@ -187,7 +187,8 @@ class PerilPoint(Point):
 class PerilAreasIndex(RTreeIndex):
 
     def __init__(self, *args, **kwargs):
-            idx_fp = kwargs.get('index_fp')
+            idx_fp = kwargs.get('fp')
+
             areas = kwargs.get('areas')
             peril_areas = kwargs.get('peril_areas')
             
@@ -208,7 +209,8 @@ class PerilAreasIndex(RTreeIndex):
                     pa.id:pa for pa in (peril_areas if peril_areas else self._get_peril_areas(areas))
                 })
                 self._stream = self._generate_index_entries(
-                    ((paid, pa.bounds) for paid, pa in six.iteritems(self._peril_areas))
+                    ((paid, pa.bounds) for paid, pa in six.iteritems(self._peril_areas)),
+                    objects=((paid, pa.bounds) for paid, pa in six.iteritems(self._peril_areas))
                 )
                 super(self.__class__, self).__init__(self._stream, *args, **kwargs)
 
@@ -247,14 +249,12 @@ class PerilAreasIndex(RTreeIndex):
         area_poly_coords_cols={},
         area_poly_coords_seq_start_idx=1,
         area_reg_poly_radius=0.00166,
-        target_dir=os.path.abspath(os.path.dirname(__file__)),
-        index_fname='rtree-index'
+        static_props={},
+        index_fp=os.path.join(os.path.abspath(os.path.dirname(__file__)), 'rtree-index')
     ):
-        _target_dir = target_dir
-        if not os.path.isabs(_target_dir):
-            _target_dir = os.path.abspath(_target_dir)
-
-        _index_fname = index_fname.split('.')[0].replace(' ', '')
+        _index_fp = index_fp
+        if not os.path.isabs(_index_fp):
+            _index_fp = os.path.abspath(_index_fp)
 
         if not src_fp:
             raise OasisException(
@@ -267,8 +267,10 @@ class PerilAreasIndex(RTreeIndex):
 
         _non_na_cols = set(non_na_cols)
 
-        if not peril_area_id_col in _non_na_cols:
-            _non_na_cols = _non_na_cols.union({peril_area_id_col})
+        _peril_area_id_col = peril_area_id_col.lower()
+
+        if not _peril_area_id_col in _non_na_cols:
+            _non_na_cols = _non_na_cols.union({_peril_area_id_col})
         for col in six.itervalues(area_poly_coords_cols):
             if not col in _non_na_cols:
                 _non_na_cols = _non_na_cols.union({col})
@@ -291,20 +293,19 @@ class PerilAreasIndex(RTreeIndex):
 
         peril_areas = get_peril_areas(
             (
-                ar[peril_area_id_col],
+                ar[_peril_area_id_col],
                 tuple(
                     (ar.get(coords_cols['x{}'.format(i)].lower()) or 0, ar.get(coords_cols['y{}'.format(i)].lower()) or 0)
                     for i in range(seq_start, len_seq + 1)
                 ),
-                {}
+                static_props
             ) for _, ar in areas_df.iterrows()
         )
 
         try:
             return cls().save(
                 peril_areas=peril_areas,
-                target_dir=_target_dir,
-                index_fname=_index_fname
+                index_fp=index_fp
             )
         except OasisException as e:
             raise
@@ -312,19 +313,14 @@ class PerilAreasIndex(RTreeIndex):
     def save(
         self,
         peril_areas=None,
-        target_dir=os.path.abspath(os.path.dirname(__file__)),
-        index_fname='rtree-index'
+        index_fp=os.path.join(os.path.abspath(os.path.dirname(__file__)), 'rtree-index')
     ):
-        _target_dir = target_dir
-        if not os.path.isabs(_target_dir):
-            _target_dir = os.path.abspath(_target_dir)
-
-        _index_fname = index_fname.split('.')[0].replace(' ', '')
-
-        index_fp = os.path.join(_target_dir, index_fname)
+        _index_fp = index_fp
+        if not os.path.isabs(_index_fp):
+            _index_fp = os.path.abspath(_index_fp)
 
         try:
-            index = RTreeIndex(index_fp)
+            index = RTreeIndex(_index_fp)
 
             _peril_areas = self._peril_areas or peril_areas
 
@@ -336,10 +332,10 @@ class PerilAreasIndex(RTreeIndex):
 
             iterator = enumerate(_peril_areas) if not isinstance(_peril_areas, dict) else enumerate(six.itervalues(_peril_areas))
             for _, pa in iterator:
-                index.insert(pa.id, pa.bounds)
+                index.insert(pa.id, pa.bounds, obj=(pa.id, pa.bounds))
 
             index.close()
         except (IOError, OSError, RTreeError) as e:
             raise
 
-        return index_fp
+        return _index_fp
