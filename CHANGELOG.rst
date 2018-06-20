@@ -2,6 +2,11 @@ CHANGELOG
 =========
 
 
+`1.1.17`_ (beta)
+----------------
+
+* Fix list sorting in exposure manager to use explicit sort key
+
 `1.1.15`_ (beta)
 ----------------
 
@@ -62,6 +67,7 @@ CHANGELOG
 
 * Add console logging
 
+.. _`1.1.17`: https://github.com/OasisLMF/OasisLMF/compare/de90f11...master
 .. _`1.1.15`: https://github.com/OasisLMF/OasisLMF/compare/18b34b9...master
 .. _`1.1.14`: https://github.com/OasisLMF/OasisLMF/compare/f3e0ee8...master
 .. _`1.1.13`: https://github.com/OasisLMF/OasisLMF/compare/33f96fd...dev
