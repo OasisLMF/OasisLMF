@@ -171,7 +171,7 @@ class TransformSourceToCanonicalFileCmd(OasisBaseCommand):
         :param parser: The argument parser object
         :type parser: ArgumentParser
         """
-        super(TransformSourceToCanonicalFileCmd, self).add_args(parser)
+        super(self.__class__, self).add_args(parser)
 
         parser.add_argument(
             '-s', '--source-file-path', default=None,
@@ -245,7 +245,7 @@ class TransformCanonicalToModelFileCmd(OasisBaseCommand):
         :param parser: The argument parser object
         :type parser: ArgumentParser
         """
-        super(TransformCanonicalToModelFileCmd, self).add_args(parser)
+        super(self.__class__, self).add_args(parser)
 
         parser.add_argument(
             '-c', '--canonical-exposures-file-path', default=None,
@@ -341,7 +341,7 @@ class GenerateKeysCmd(OasisBaseCommand):
         :param parser: The argument parser object
         :type parser: ArgumentParser
         """
-        super(GenerateKeysCmd, self).add_args(parser)
+        super(self.__class__, self).add_args(parser)
 
         parser.add_argument(
             '-k', '--keys-file-path', default=None,
@@ -428,7 +428,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         :param parser: The argument parser object
         :type parser: ArgumentParser
         """
-        super(GenerateOasisFilesCmd, self).add_args(parser)
+        super(self.__class__, self).add_args(parser)
 
         parser.add_argument('-o', '--oasis-files-path', default=None, help='Path to Oasis files')
         parser.add_argument('-k', '--keys-data-path', default=None, help='Path to Oasis files')
@@ -572,7 +572,7 @@ class GenerateLossesCmd(OasisBaseCommand):
         :param parser: The argument parser object
         :type parser: ArgumentParser
         """
-        super(GenerateLossesCmd, self).add_args(parser)
+        super(self.__class__, self).add_args(parser)
 
         parser.add_argument('-o', '--oasis-files-path', default=None, help='Path to Oasis files')
         parser.add_argument('-j', '--analysis-settings-json-file-path', default=None, help='Relative or absolute path of the model analysis settings JSON file')
@@ -674,7 +674,7 @@ class RunCmd(OasisBaseCommand):
         :param parser: The argument parser object
         :type parser: ArgumentParser
         """
-        super(RunCmd, self).add_args(parser)
+        super(self.__class__, self).add_args(parser)
 
         parser.add_argument('-k', '--keys-data-path', default=None, help='Path to Oasis files')
         parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
