@@ -460,9 +460,12 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             keys_df = keys_df.where(keys_df.notnull(), None)
             keys_df.columns = keys_df.columns.str.lower()
 
-        tiv_fields = tuple(sorted(
-            [v for v in six.itervalues(canonical_exposures_profile) if v and v.get('FieldName').lower() == 'tiv']
-        ))
+        tiv_fields = tuple(
+            sorted(
+                [v for v in six.itervalues(canonical_exposures_profile) if v and str.lower(str(v.get('FieldName') or '')) == 'tiv'],
+                key=lambda v: v['ProfileElementName']
+            )
+        )
 
         columns = [
             'item_id',
