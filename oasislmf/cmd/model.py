@@ -51,12 +51,8 @@ class GeneratePerilAreasRtreeFileIndex(OasisBaseCommand):
             help='Keys data path'
         )
         parser.add_argument(
-            '-r', '--index-file-dir', default=None,
-            help='Index file directory',
-        )
-        parser.add_argument(
-            '-n', '--index-file-name', default=None,
-            help='Index file name (without extension)',
+            '-f', '--index-file-path', default=os.path.join(os.path.abspath(os.path.dirname(__file__)), 'rtree-index'),
+            help='Index file path',
         )
 
     def action(self, args):
@@ -73,9 +69,7 @@ class GeneratePerilAreasRtreeFileIndex(OasisBaseCommand):
 
         keys_data_path = as_path(inputs.get('keys_data_path', required=True, is_path=True), 'Keys config file path', preexists=True)
 
-        index_file_dir = as_path(inputs.get('index_file_dir', required=False, is_path=True, default=keys_data_path), 'Index file directory path', preexists=False)
-
-        index_file_name = inputs.get('index_file_name', required=False, default='rtree-index')
+        index_file_path = as_path(inputs.get('index_file_path', required=False, is_path=True), 'Index file path', preexists=False)
 
         with io.open(lookup_config_file_path, 'r', encoding='utf-8') as f:
             config = json.load(f)
@@ -104,13 +98,7 @@ class GeneratePerilAreasRtreeFileIndex(OasisBaseCommand):
 
         src_type = str.lower(str(peril_config.get('file_type')) or '') or 'csv'
 
-        non_na_cols = tuple(col.lower() for col in peril_config['non_na_cols']) if peril_config.get('non_na_cols') else ()
-
         peril_area_id_col = str.lower(str(peril_config.get('peril_area_id_col')) or '') or 'area_peril_id'
-        
-        col_dtypes = {peril_area_id_col: int} if peril_config.get('col_dtypes') == "infer" else {}
-
-        sort_col = peril_config.get('sort_col') or peril_area_id_col
 
         area_poly_coords_cols = peril_config.get('area_poly_coords_cols')
 
@@ -120,28 +108,37 @@ class GeneratePerilAreasRtreeFileIndex(OasisBaseCommand):
                 'the coordinates used to define areas in the peril areas '
                 '(area peril) file using the key `area_poly_coords_cols`'
             )
-        
+
+        non_na_cols = (
+            tuple(col.lower() for col in peril_config['non_na_cols']) if peril_config.get('non_na_cols')
+            else tuple(col.lower() for col in [peril_area_id_col] + area_poly_coords_cols.values())
+        )
+
+        col_dtypes = {peril_area_id_col: int} if peril_config.get('col_dtypes') == "infer" else {}
+
+        sort_col = peril_config.get('sort_col') or peril_area_id_col
+
         area_poly_coords_seq_start_idx = peril_config.get('area_poly_coords_seq_start_idx') or 1
 
         area_reg_poly_radius = peril_config.get('area_reg_poly_radius') or 0.00166
 
         self.logger.info(
-            '\nGenerating an Rtree index files {}.{{idx,dat}} from peril areas (area peril) '
+            '\nGenerating Rtree index files {}.{{idx,dat}} from peril areas (area peril) '
             'file {}'
-            .format(os.path.join(index_file_dir, index_file_name), areas_fp)
+            .format(os.path.join(index_file_path), areas_fp)
         )
 
         index_fp = PerilAreasIndex.create_from_peril_areas_file(
             src_fp=areas_fp,
             src_type=src_type,
             peril_area_id_col=peril_area_id_col,
+            non_na_cols=non_na_cols,
             col_dtypes=col_dtypes,
             sort_col=sort_col,
             area_poly_coords_cols=area_poly_coords_cols,
             area_poly_coords_seq_start_idx=area_poly_coords_seq_start_idx,
             area_reg_poly_radius=area_reg_poly_radius,
-            target_dir=index_file_dir,
-            index_fname=index_file_name
+            index_fp=index_file_path
         )
 
         self.logger.info('\nSuccessfully generated index files {}.{{idx.dat}}'.format(index_fp))
