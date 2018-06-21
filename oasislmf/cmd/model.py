@@ -17,6 +17,7 @@ from ..model_execution.runner import run
 from ..model_execution.bin import create_binary_files, prepare_model_run_directory, prepare_model_run_inputs
 
 from ..utils.exceptions import OasisException
+from ..utils.peril import PerilAreasIndex
 from ..utils.values import get_utctimestamp
 
 from ..keys.lookup import OasisKeysLookupFactory
@@ -24,6 +25,123 @@ from ..keys.lookup import OasisKeysLookupFactory
 from .cleaners import as_path
 
 from .base import OasisBaseCommand, InputValues
+
+class GeneratePerilAreasRtreeFileIndex(OasisBaseCommand):
+    """
+    Generates and writes an Rtree file index of peril area IDs (area peril IDs)
+    and area polygon bounds from a peril areas (area peril) file.
+    """
+    formatter_class = RawDescriptionHelpFormatter
+
+    def add_args(self, parser):
+        """
+        Adds arguments to the argument parser.
+
+        :param parser: The argument parser object
+        :type parser: ArgumentParser
+        """
+        super(self.__class__, self).add_args(parser)
+
+        parser.add_argument(
+            '-c', '--lookup-config-file-path', default=None,
+            help='Lookup config file path',
+        )
+        parser.add_argument(
+            '-d', '--keys-data-path', default=None,
+            help='Keys data path'
+        )
+        parser.add_argument(
+            '-f', '--index-file-path', default=os.path.join(os.path.abspath(os.path.dirname(__file__)), 'rtree-index'),
+            help='Index file path',
+        )
+
+    def action(self, args):
+        """
+        Generates and writes an Rtree file index of peril area IDs (area peril IDs)
+        and area polygon bounds from a peril areas (area peril) file.
+
+        :param args: The arguments from the command line
+        :type args: Namespace
+        """
+        inputs = InputValues(args)
+        
+        lookup_config_file_path = as_path(inputs.get('lookup_config_file_path', required=True, is_path=True), 'Lookup config file path', preexists=True)
+
+        keys_data_path = as_path(inputs.get('keys_data_path', required=True, is_path=True), 'Keys config file path', preexists=True)
+
+        index_file_path = as_path(inputs.get('index_file_path', required=False, is_path=True), 'Index file path', preexists=False)
+
+        with io.open(lookup_config_file_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+
+        if not config.get('peril'):
+            raise OasisException(
+                'The lookup config must contain a subdictionary with a key named '
+                '`peril` defining area peril-related information for the '
+                'model'
+            )
+
+        peril_config = config['peril']
+
+        areas_fp = peril_config.get('file_path')
+        if not areas_fp:
+            raise OasisException(
+                'The lookup peril config must define the path of a peril areas '
+                '(or area peril) file with the key name `file_path`'
+            )
+
+        if areas_fp.startswith('%KEYS_DATA_PATH%'):
+            areas_fp = areas_fp.replace('%KEYS_DATA_PATH%', keys_data_path)
+        else:
+            if not os.path.isabs(areas_fp):
+                areas_fp = os.path.abspath(areas_fp)
+
+        src_type = str.lower(str(peril_config.get('file_type')) or '') or 'csv'
+
+        peril_area_id_col = str.lower(str(peril_config.get('peril_area_id_col')) or '') or 'area_peril_id'
+
+        area_poly_coords_cols = peril_config.get('area_poly_coords_cols')
+
+        if not area_poly_coords_cols:
+            raise OasisException(
+                'The lookup peril config must define the column names of '
+                'the coordinates used to define areas in the peril areas '
+                '(area peril) file using the key `area_poly_coords_cols`'
+            )
+
+        non_na_cols = (
+            tuple(col.lower() for col in peril_config['non_na_cols']) if peril_config.get('non_na_cols')
+            else tuple(col.lower() for col in [peril_area_id_col] + area_poly_coords_cols.values())
+        )
+
+        col_dtypes = {peril_area_id_col: int} if peril_config.get('col_dtypes') == "infer" else {}
+
+        sort_col = peril_config.get('sort_col') or peril_area_id_col
+
+        area_poly_coords_seq_start_idx = peril_config.get('area_poly_coords_seq_start_idx') or 1
+
+        area_reg_poly_radius = peril_config.get('area_reg_poly_radius') or 0.00166
+
+        self.logger.info(
+            '\nGenerating Rtree index files {}.{{idx,dat}} from peril areas (area peril) '
+            'file {}'
+            .format(os.path.join(index_file_path), areas_fp)
+        )
+
+        index_fp = PerilAreasIndex.create_from_peril_areas_file(
+            src_fp=areas_fp,
+            src_type=src_type,
+            peril_area_id_col=peril_area_id_col,
+            non_na_cols=non_na_cols,
+            col_dtypes=col_dtypes,
+            sort_col=sort_col,
+            area_poly_coords_cols=area_poly_coords_cols,
+            area_poly_coords_seq_start_idx=area_poly_coords_seq_start_idx,
+            area_reg_poly_radius=area_reg_poly_radius,
+            index_fp=index_file_path
+        )
+
+        self.logger.info('\nSuccessfully generated index files {}.{{idx.dat}}'.format(index_fp))
 
 
 class TransformSourceToCanonicalFileCmd(OasisBaseCommand):
@@ -50,7 +168,7 @@ class TransformSourceToCanonicalFileCmd(OasisBaseCommand):
         :param parser: The argument parser object
         :type parser: ArgumentParser
         """
-        super(TransformSourceToCanonicalFileCmd, self).add_args(parser)
+        super(self.__class__, self).add_args(parser)
 
         parser.add_argument(
             '-s', '--source-file-path', default=None,
@@ -124,7 +242,7 @@ class TransformCanonicalToModelFileCmd(OasisBaseCommand):
         :param parser: The argument parser object
         :type parser: ArgumentParser
         """
-        super(TransformCanonicalToModelFileCmd, self).add_args(parser)
+        super(self.__class__, self).add_args(parser)
 
         parser.add_argument(
             '-c', '--canonical-exposures-file-path', default=None,
@@ -220,7 +338,7 @@ class GenerateKeysCmd(OasisBaseCommand):
         :param parser: The argument parser object
         :type parser: ArgumentParser
         """
-        super(GenerateKeysCmd, self).add_args(parser)
+        super(self.__class__, self).add_args(parser)
 
         parser.add_argument(
             '-k', '--keys-file-path', default=None,
@@ -307,7 +425,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         :param parser: The argument parser object
         :type parser: ArgumentParser
         """
-        super(GenerateOasisFilesCmd, self).add_args(parser)
+        super(self.__class__, self).add_args(parser)
 
         parser.add_argument('-o', '--oasis-files-path', default=None, help='Path to Oasis files')
         parser.add_argument('-k', '--keys-data-path', default=None, help='Path to Oasis files')
@@ -451,7 +569,7 @@ class GenerateLossesCmd(OasisBaseCommand):
         :param parser: The argument parser object
         :type parser: ArgumentParser
         """
-        super(GenerateLossesCmd, self).add_args(parser)
+        super(self.__class__, self).add_args(parser)
 
         parser.add_argument('-o', '--oasis-files-path', default=None, help='Path to Oasis files')
         parser.add_argument('-j', '--analysis-settings-json-file-path', default=None, help='Relative or absolute path of the model analysis settings JSON file')
@@ -553,7 +671,7 @@ class RunCmd(OasisBaseCommand):
         :param parser: The argument parser object
         :type parser: ArgumentParser
         """
-        super(RunCmd, self).add_args(parser)
+        super(self.__class__, self).add_args(parser)
 
         parser.add_argument('-k', '--keys-data-path', default=None, help='Path to Oasis files')
         parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
@@ -627,6 +745,7 @@ class RunCmd(OasisBaseCommand):
 
 class ModelsCmd(OasisBaseCommand):
     sub_commands = {
+        'generate-peril-areas-rtree-file-index': GeneratePerilAreasRtreeFileIndex,
         'transform-source-to-canonical': TransformSourceToCanonicalFileCmd,
         'transform-canonical-to-model': TransformCanonicalToModelFileCmd,
         'generate-keys': GenerateKeysCmd,

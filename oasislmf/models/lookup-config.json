@@ -64,9 +64,10 @@
         "vulnerability_id_col": "vulnerability_id"
     },
     "locations": {
+        "loc_id_col": "id",
         "coords_type": "lonlat",
-        "coordx_x_col": "longitude",
-        "coordx_y_col": "latitude",
+        "coordx_x_col": "lon",
+        "coordx_y_col": "lat",
         "coords_x_bounds": [-180, 180],
         "coords_y_bounds": [-90, 90]
     }
