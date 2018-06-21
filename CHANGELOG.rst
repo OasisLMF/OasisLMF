@@ -2,6 +2,14 @@ CHANGELOG
 =========
 
 
+`1.1.18`_ (beta)
+----------------
+
+* Upgrade peril utils, including a custom Rtree index class for peril areas
+* Implement MDK model subcommand for writing Rtree file indexes for peril areas from peril area (area peril) files
+* Various fixes to the new lookup class framework
+
+
 `1.1.17`_ (beta)
 ----------------
 
@@ -67,6 +75,7 @@ CHANGELOG
 
 * Add console logging
 
+.. _`1.1.18`: https://github.com/OasisLMF/OasisLMF/compare/da8fcba...master
 .. _`1.1.17`: https://github.com/OasisLMF/OasisLMF/compare/de90f11...master
 .. _`1.1.15`: https://github.com/OasisLMF/OasisLMF/compare/18b34b9...master
 .. _`1.1.14`: https://github.com/OasisLMF/OasisLMF/compare/f3e0ee8...master

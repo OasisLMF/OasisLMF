@@ -1,6 +1,7 @@
 argparsetree
 backports.tempfile
 chainmap
+future
 jsonpickle
 lxml
 pandas

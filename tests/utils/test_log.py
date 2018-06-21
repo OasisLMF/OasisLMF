@@ -7,7 +7,11 @@ from hypothesis import given
 from hypothesis.strategies import sampled_from
 from mock import Mock, patch
 
-from oasislmf.utils.log import oasis_log, read_log_config
+from oasislmf.utils.log import (
+    oasis_log,
+    read_log_config,
+    set_rotating_logger,
+)
 
 
 class MockLogger(object):
@@ -106,6 +110,26 @@ class ReadLogConfig(TestCase):
                 'LOG_MAX_SIZE_IN_BYTES': 100,
                 'LOG_BACKUP_COUNT': 10,
             })
+
+            logger = logging.getLogger()
+
+            self.assertEqual(level, logger.level)
+
+            self.assertEqual(1, len(logger.handlers))
+            handler = logger.handlers[0]
+            self.assertIsInstance(handler, RotatingFileHandler)
+            self.assertEqual('/tmp/log_file.txt', handler.baseFilename)
+            self.assertEqual(100, handler.maxBytes)
+            self.assertEqual(10, handler.backupCount)
+
+
+class SetRotatingLogger(TestCase):
+    @given(
+        level=sampled_from([logging.CRITICAL, logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG])
+    )
+    def test_rotating_log_config_is_loaded___logger_is_set(self, level):
+        with patch('logging.root', logging.RootLogger(logging.NOTSET)):
+            set_rotating_logger(log_file_path='/tmp/log_file.txt', log_level=level, max_file_size=100, max_backups=10)
 
             logger = logging.getLogger()
 
