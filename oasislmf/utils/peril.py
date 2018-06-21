@@ -291,12 +291,19 @@ class PerilAreasIndex(RTreeIndex):
 
         len_seq = sum(1 if re.match(r'x(\d+)?', k) else 0 for k in six.iterkeys(coords_cols))
 
+        r = area_reg_poly_radius
+
+        centred_square_poly = lambda x, y, r: tuple((x + r*(-1)**i, y + r*(-1)**j) for i in range(2) for j in range(2))
+
         peril_areas = get_peril_areas(
             (
                 ar[_peril_area_id_col],
-                tuple(
-                    (ar.get(coords_cols['x{}'.format(i)].lower()) or 0, ar.get(coords_cols['y{}'.format(i)].lower()) or 0)
-                    for i in range(seq_start, len_seq + 1)
+                (
+                    tuple(
+                        (ar.get(coords_cols['x{}'.format(i)].lower()) or 0, ar.get(coords_cols['y{}'.format(i)].lower()) or 0)
+                        for i in range(seq_start, len_seq + 1)
+                    ) if len_seq > 1 else
+                    centred_square_poly(ar.get(coords_cols['x1']) or 0, ar.get(coords_cols['y1']) or 0, r)
                 ),
                 static_props
             ) for _, ar in areas_df.iterrows()
