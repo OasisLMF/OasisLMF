@@ -330,8 +330,8 @@ class PerilAreasIndex(RTreeIndex):
                     'this is required to write the index to file'
                 )
 
-            iterator = enumerate(_peril_areas) if not isinstance(_peril_areas, dict) else enumerate(six.itervalues(_peril_areas))
-            for _, pa in iterator:
+            peril_areas_seq = enumerate(_peril_areas) if not isinstance(_peril_areas, dict) else enumerate(six.itervalues(_peril_areas))
+            for _, pa in peril_areas_seq:
                 index.insert(pa.id, pa.bounds, obj=(pa.id, pa.bounds))
 
             index.close()

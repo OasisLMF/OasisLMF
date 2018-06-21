@@ -11,6 +11,7 @@ __all__ = [
     'OasisKeysLookupFactory'
 ]
 
+import builtins
 import csv
 import imp
 import importlib
@@ -95,11 +96,11 @@ class OasisBaseLookup(object):
 
         Generates results using ``yield``.
         """
-        _locs = (
+        _locs_seq = (
             enumerate(locs) if isinstance(locs, tuple) or isinstance(locs, list) or isinstance(locs, types.GeneratorType)
             else six.iteritems(locs)
         )
-        for _, loc in _locs:
+        for _, loc in _locs_seq:
             yield self.lookup(loc)
 
 
@@ -473,9 +474,9 @@ class OasisPerilAndVulnerabilityLookup(OasisBaseLookup):
 
         self.peril_id = peril_id or self.config['peril'].get('peril_id') or self.peril_lookup.peril_id
 
-        self.peril_area_id_key = self.config['peril']['peril_area_id_col'].lower()
+        self.peril_area_id_key = str.lower(str(self.config['peril'].get('peril_area_id_col') or 'peril_area_id'))
 
-        self.vulnerability_id_key = self.config['vulnerability']['vulnerability_id_col'].lower()
+        self.vulnerability_id_key = str.lower(str(self.config['vulnerability'].get('vulnerability_id_col') or 'vulnerability_id'))
 
         self.vulnerability_lookup = OasisVulnerabilityLookup(
             config=self.config,
@@ -614,7 +615,7 @@ class OasisPerilLookup(OasisBaseLookup):
         x = loc.get(loc_x_col)
         y = loc.get(loc_y_col)
 
-        _pa_lookup = lambda loc_id, x, y, st, paid, pabnds, msg: {
+        _lookup = lambda loc_id, x, y, st, paid, pabnds, msg: {
             _loc_id_col: loc_id,
             loc_x_col: x,
             loc_y_col: y,
@@ -636,7 +637,7 @@ class OasisPerilLookup(OasisBaseLookup):
                 'Peril area lookup: invalid {}/{} ({}, {}) - {}'
                 .format(loc_x_col, loc_y_col, x, y, str(e))
             )
-            return _pa_lookup(loc_id, x, y, KEYS_STATUS_FAIL, None, None, msg)
+            return _lookup(loc_id, x, y, KEYS_STATUS_FAIL, None, None, msg)
 
         st = KEYS_STATUS_NOMATCH
         msg = 'No peril area match'
@@ -661,18 +662,18 @@ class OasisPerilLookup(OasisBaseLookup):
                         'distance is {} units'
                         .format(min_dist, loc_to_areas_min_dist)
                     )
-                    return _pa_lookup(loc_id, x, y, KEYS_STATUS_FAIL, None, None, msg)
+                    return _lookup(loc_id, x, y, KEYS_STATUS_FAIL, None, None, msg)
                 st = KEYS_STATUS_SUCCESS
                 msg = (
                     'Successful peril area lookup: {}'.format(paid)
                 )
         except RTreeError as e:
-            return _pa_lookup(loc_id, x, y, KEYS_STATUS_FAIL, None, None, str(e))
+            return _lookup(loc_id, x, y, KEYS_STATUS_FAIL, None, None, str(e))
         else:
             st = KEYS_STATUS_SUCCESS
             msg = 'Successful peril area lookup: {}'.format(paid)
 
-        return _pa_lookup(loc_id, x, y, st, paid, pabnds, msg)
+        return _lookup(loc_id, x, y, st, paid, pabnds, msg)
 
 
 class OasisVulnerabilityLookup(OasisBaseLookup):
@@ -691,7 +692,7 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
         super(self.__class__, self).__init__(config=config, config_json=config_json, config_fp=config_fp)
 
         if vulnerabilities or self.config.get('vulnerability'):
-            self.vulnerabilities = self.get_vulnerabilities(vulnerabilities=vulnerabilities)
+            self.col_dtypes, self.key_cols, self.vuln_id_col, self.vulnerabilities = self.get_vulnerabilities(vulnerabilities=vulnerabilities)
 
         if self.config.get('locations'):
             self.loc_id_col = self.config['locations'].get('id_col') or 'id'
@@ -712,32 +713,41 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
         if not vuln_config:
             raise OasisException('No vulnerability config set in the lookup config')
 
-        if not vuln_config.get('cols'):
+        col_dtypes = vuln_config.get('col_dtypes')
+
+        if not col_dtypes:
             raise OasisException(
-                'The vulnerability file column names must be set in the '
-                'vulnerability section of the lookup config'
+                'Vulnerability file column data types must be defined as a '
+                '(col, data type) dict in the vulnerability section of the '
+                'lookup config'
             )
 
-        cols = tuple(col.lower() for col in vuln_config['cols'])
+        col_dtypes = {
+            k.lower():getattr(builtins, v) for k, v in six.iteritems(col_dtypes)
+        }
+
+        key_cols = vuln_config.get('key_cols')
 
         if not vuln_config.get('key_cols'):
             raise OasisException(
-                'The vulnerability file key column names must be set in the '
+                'The vulnerability file key column names must be listed in the '
                 'vulnerability section of the lookup config'
             )
 
-        key_cols = tuple(col.lower() for col in vuln_config['key_cols'])
+        key_cols = tuple(col.lower() for col in key_cols)
 
-        vuln_id_col = self.config['vulnerability'].get('vulnerability_id_col') or 'vulnerability_id'
+        vuln_id_col = str.lower(str(self.config['vulnerability'].get('vulnerability_id_col')) or 'vulnerability_id')
 
-        def _vuln_dict(vuln_enum, key_cols, vuln_id_col):
+        def _vuln_dict(vulns_seq, key_cols, vuln_id_col):
             return (
-                {v[key_cols[0]]:(v.get(vuln_id_col) or v.get('vulnerability_id')) for _, v in vuln_enum} if len(key_cols) == 1
-                else {tuple(v[key_cols[i]] for i in range(len(key_cols))):(v.get(vuln_id_col) or v.get('vulnerability_id')) for _, v in vuln_enum}
+                {v[key_cols[0]]:(v.get(vuln_id_col) or v.get('vulnerability_id')) for _, v in vulns_seq} if len(key_cols) == 1
+                else OrderedDict(
+                    {tuple(v[key_cols[i]] for i in range(len(key_cols))):(v.get(vuln_id_col) or v.get('vulnerability_id')) for _, v in vulns_seq}
+                )
             )
 
         if vulnerabilities:
-            return _vuln_dict(enumerate(vulnerabilities), key_cols)
+            return col_dtypes, key_cols, vuln_id_col, _vuln_dict(enumerate(vulnerabilities), key_cols)
 
         src_fp = vuln_config.get('file_path')
 
@@ -749,13 +759,13 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
         if not os.path.isabs(src_fp):
             src_fp = os.path.abspath(src_fp)
 
+        self.config['vulnerability']['file_path'] = src_fp
+
         src_type = str.lower(vuln_config.get('file_type') or '') or 'csv'
 
         float_precision = 'high' if vuln_config.get('float_precision_high') else None
 
-        non_na_cols = tuple(col.lower() for col in vuln_config['non_na_cols']) if vuln_config.get('non_na_cols') else ()
-
-        col_dtypes = {vuln_id_col.lower(): int} if vuln_config.get('col_dtypes') == "infer" else {}
+        non_na_cols = vuln_config.get('non_na_cols') or tuple(col.lower() for col in list(key_cols) + [vuln_id_col])
 
         sort_col = vuln_config.get('sort_col') or vuln_id_col
         sort_ascending = vuln_config.get('sort_ascending')
@@ -772,7 +782,7 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
             sort_ascending=sort_ascending
         )
 
-        return _vuln_dict(vuln_df.iterrows(), key_cols, vuln_id_col)
+        return col_dtypes, key_cols, vuln_id_col, _vuln_dict(vuln_df.iterrows(), key_cols, vuln_id_col)
 
     def lookup(self, loc, loc_id_col='id'):
         """
@@ -781,10 +791,16 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
         """
         _loc_id_col = self.loc_id_col or loc_id_col
         loc_id = loc.get(_loc_id_col) or int(uuid.UUID(bytes=os.urandom(16)).hex[:16], 16)
-        coverage = loc['coverage']
-        class_1 = loc['class_1']
 
-        vln_lookup = lambda loc_id, vlnst, vlnid, vlnmsg: {
+        key_cols = self.key_cols
+        col_dtypes = self.col_dtypes
+        vuln_id_col = self.vuln_id_col
+
+        loc_key_col_values = OrderedDict({
+            key_col: loc[key_col] for key_col in key_cols
+        })
+
+        _lookup = lambda loc_id, vlnst, vlnid, vlnmsg: {
             _loc_id_col: loc_id,
             'status': vlnst,
             'vulnerability_id': vlnid,
@@ -792,20 +808,22 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
         }
 
         try:
-            int(coverage) and str(class_1)
+            for key_col in key_cols:
+                key_col_dtype = col_dtypes[key_col]
+                key_col_dtype(loc_key_col_values[key_col])
         except (TypeError, ValueError):
-            return vln_lookup(loc_id, KEYS_STATUS_FAIL, None, 'Vulnerability lookup: invalid location coverage or class 1')
+            return _lookup(loc_id, KEYS_STATUS_FAIL, None, 'Vulnerability lookup: invalid key column value(s) for location')
 
         vlnst = KEYS_STATUS_NOMATCH
         vlnmsg = 'No vulnerability match'
         vlnid = None
 
         try:
-            vlnid = self.vulnerabilities[(loc['coverage'], loc['class_1'])]
+            vlnid = self.vulnerabilities[tuple(v for v in six.itervalues(loc_key_col_values))]
         except KeyError:
             pass
         else:
             vlnst = KEYS_STATUS_SUCCESS
             vlnmsg = 'Successful vulnerability lookup: {}'.format(vlnid)
 
-        return vln_lookup(loc_id, vlnst, vlnid, vlnmsg)
+        return _lookup(loc_id, vlnst, vlnid, vlnmsg)
