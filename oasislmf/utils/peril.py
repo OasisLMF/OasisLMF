@@ -323,7 +323,11 @@ class PerilAreasIndex(RTreeIndex):
             _index_fp = os.path.abspath(_index_fp)
 
         try:
-            index = RTreeIndex(_index_fp)
+            class _myindex(RTreeIndex):
+                def dumps(self, obj):
+                    return cpickle.dumps(obj, protocol=(2 if six.sys.version_info[0] < 3 else -1))
+
+            index = _myindex(_index_fp)
 
             _peril_areas = self._peril_areas or peril_areas
 
