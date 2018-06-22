@@ -2,6 +2,11 @@ CHANGELOG
 =========
 
 
+`1.1.19`_ (beta)
+----------------
+
+* Hotfix for string type error in vulnerabilty lookup when reading vulnerability config
+
 `1.1.18`_ (beta)
 ----------------
 
@@ -75,6 +80,7 @@ CHANGELOG
 
 * Add console logging
 
+.. _`1.1.19`: https://github.com/OasisLMF/OasisLMF/compare/ 5421b91...master
 .. _`1.1.18`: https://github.com/OasisLMF/OasisLMF/compare/da8fcba...master
 .. _`1.1.17`: https://github.com/OasisLMF/OasisLMF/compare/de90f11...master
 .. _`1.1.15`: https://github.com/OasisLMF/OasisLMF/compare/18b34b9...master

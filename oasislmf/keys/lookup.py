@@ -234,6 +234,8 @@ class OasisKeysLookupFactory(object):
             model_version=model_info['model_version_id']
         )
 
+    
+
     @classmethod
     def get_model_exposures(cls, model_exposures=None, model_exposures_file_path=None):
         """
@@ -474,9 +476,9 @@ class OasisPerilAndVulnerabilityLookup(OasisBaseLookup):
 
         self.peril_id = peril_id or self.config['peril'].get('peril_id') or self.peril_lookup.peril_id
 
-        self.peril_area_id_key = str.lower(str(self.config['peril'].get('peril_area_id_col') or 'peril_area_id'))
+        self.peril_area_id_key = str(self.config['peril'].get('peril_area_id_col') or 'peril_area_id').lower()
 
-        self.vulnerability_id_key = str.lower(str(self.config['vulnerability'].get('vulnerability_id_col') or 'vulnerability_id'))
+        self.vulnerability_id_key = str(self.config['vulnerability'].get('vulnerability_id_col') or 'vulnerability_id').lower()
 
         self.vulnerability_lookup = OasisVulnerabilityLookup(
             config=self.config,
@@ -736,7 +738,7 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
 
         key_cols = tuple(col.lower() for col in key_cols)
 
-        vuln_id_col = str.lower(str(self.config['vulnerability'].get('vulnerability_id_col')) or 'vulnerability_id')
+        vuln_id_col = str(self.config['vulnerability'].get('vulnerability_id_col') or 'vulnerability_id').lower()
 
         def _vuln_dict(vulns_seq, key_cols, vuln_id_col):
             return (
@@ -761,7 +763,7 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
 
         self.config['vulnerability']['file_path'] = src_fp
 
-        src_type = str.lower(vuln_config.get('file_type') or '') or 'csv'
+        src_type = str(vuln_config.get('file_type') or 'csv').lower()
 
         float_precision = 'high' if vuln_config.get('float_precision_high') else None
 
