@@ -217,6 +217,9 @@ class PerilAreasIndex(RTreeIndex):
     def dumps(self, obj):
         return cpickle.dumps(obj, protocol=(2 if six.sys.version_info[0] < 3 else -1))
 
+    def loads(self, data):
+        return cpickle.loads(data)
+
     def _get_peril_areas(self, areas):
         for peril_area_id, coordinates, other_props in areas:
             yield PerilArea(coordinates, peril_area_id=peril_area_id, **other_props)
