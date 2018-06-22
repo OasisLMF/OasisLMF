@@ -214,6 +214,12 @@ class PerilAreasIndex(RTreeIndex):
                 )
                 super(self.__class__, self).__init__(self._stream, *args, **kwargs)
 
+    def dumps(self, obj):
+        return cpickle.dumps(obj, protocol=(2 if six.sys.version_info[0] < 3 else -1))
+
+    def loads(self, data):
+        return cpickle.loads(data)
+
     def _get_peril_areas(self, areas):
         for peril_area_id, coordinates, other_props in areas:
             yield PerilArea(coordinates, peril_area_id=peril_area_id, **other_props)
@@ -320,7 +326,11 @@ class PerilAreasIndex(RTreeIndex):
             _index_fp = os.path.abspath(_index_fp)
 
         try:
-            index = RTreeIndex(_index_fp)
+            class _myindex(RTreeIndex):
+                def dumps(self, obj):
+                    return cpickle.dumps(obj, protocol=(2 if six.sys.version_info[0] < 3 else -1))
+
+            index = _myindex(_index_fp)
 
             _peril_areas = self._peril_areas or peril_areas
 

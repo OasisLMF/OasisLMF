@@ -224,6 +224,7 @@ setup(
     license='BSD 3-Clause',
     description='Core loss modelling framework.',
     long_description=readme,
+    long_description_content_type='text/markdown',
     url='https://github.com/OasisLMF/oasislmf',
     author='Dan Bate,Sandeep Murthy',
     author_email="Dan Bate <dan.bate@wildfish.com>,Sandeep Murthy <sandeep.murthy@oasislmf.org>",
