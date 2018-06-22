@@ -51,8 +51,8 @@ class GeneratePerilAreasRtreeFileIndex(OasisBaseCommand):
             help='Keys data path'
         )
         parser.add_argument(
-            '-f', '--index-file-path', default=os.path.join(os.path.abspath(os.path.dirname(__file__)), 'rtree-index'),
-            help='Index file path',
+            '-f', '--index-file-path', default=None,
+            help='Index file path (no file extension required)',
         )
 
     def action(self, args):
@@ -69,7 +69,7 @@ class GeneratePerilAreasRtreeFileIndex(OasisBaseCommand):
 
         keys_data_path = as_path(inputs.get('keys_data_path', required=True, is_path=True), 'Keys config file path', preexists=True)
 
-        index_file_path = as_path(inputs.get('index_file_path', required=False, is_path=True), 'Index file path', preexists=False)
+        index_file_path = as_path(inputs.get('index_file_path', required=False, is_path=True, default=os.path.join(keys_data_path, 'rtree-index')), 'Index file path', preexists=False)
 
         with io.open(lookup_config_file_path, 'r', encoding='utf-8') as f:
             config = json.load(f)
@@ -123,7 +123,7 @@ class GeneratePerilAreasRtreeFileIndex(OasisBaseCommand):
         area_reg_poly_radius = peril_config.get('area_reg_poly_radius') or 0.00166
 
         self.logger.info(
-            '\nGenerating Rtree index files {}.{{idx,dat}} from peril areas (area peril) '
+            '\nGenerating Rtree file index {}.{{idx,dat}} from peril areas (area peril) '
             'file {}'
             .format(os.path.join(index_file_path), areas_fp)
         )
