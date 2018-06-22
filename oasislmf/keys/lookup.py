@@ -821,7 +821,7 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
         vlnid = None
 
         try:
-            vlnid = self.vulnerabilities[tuple(v for v in six.itervalues(loc_key_col_values))]
+            vlnid = self.vulnerabilities[tuple(loc_key_col_values[col] for col in key_cols)]
         except KeyError:
             pass
         else:
