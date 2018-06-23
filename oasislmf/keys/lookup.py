@@ -45,12 +45,7 @@ from six import StringIO
 from ..utils.data import get_dataframe
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
-from ..utils.peril import (
-    DEFAULT_RTREE_INDEX_PROPS,
-    get_peril_areas_index,
-    PerilArea,
-    PerilAreasIndex,
-)
+from ..utils.peril import PerilAreasIndex
 from ..utils.status import (
     KEYS_STATUS_FAIL,
     KEYS_STATUS_NOMATCH,
@@ -492,13 +487,13 @@ class OasisPerilAndVulnerabilityLookup(OasisBaseLookup):
         _loc_id_col = self.loc_id_col or loc_id_col
         loc_id = loc.get(_loc_id_col) or int(uuid.UUID(bytes=os.urandom(16)).hex[:16], 16)
 
-        pa_lookup = self.peril_lookup.lookup(loc)
-        past = pa_lookup['status']
-        pamsg = pa_lookup['message']
+        plookup = self.peril_lookup.lookup(loc)
+        past = plookup['status']
+        pamsg = plookup['message']
         
-        vln_lookup = self.vulnerability_lookup.lookup(loc)
-        vlnst = vln_lookup['status']
-        vlnmsg = vln_lookup['message']
+        vlookup = self.vulnerability_lookup.lookup(loc)
+        vlnst = vlookup['status']
+        vlnmsg = vlookup['message']
         
         # Could optionally call the status lookup method, but it is always
         # better to avoid outside function calls in a `for` loop if possible

@@ -122,6 +122,8 @@ class GeneratePerilAreasRtreeFileIndex(OasisBaseCommand):
 
         area_reg_poly_radius = peril_config.get('area_reg_poly_radius') or 0.00166
 
+        index_props = peril_config.get('rtree_index')
+
         self.logger.info(
             '\nGenerating Rtree file index {}.{{idx,dat}} from peril areas (area peril) '
             'file {}'
@@ -138,7 +140,8 @@ class GeneratePerilAreasRtreeFileIndex(OasisBaseCommand):
             area_poly_coords_cols=area_poly_coords_cols,
             area_poly_coords_seq_start_idx=area_poly_coords_seq_start_idx,
             area_reg_poly_radius=area_reg_poly_radius,
-            index_fp=index_file_path
+            index_fp=index_file_path,
+            index_props=index_props
         )
 
         self.logger.info('\nSuccessfully generated index files {}.{{idx.dat}}'.format(index_fp))

@@ -187,6 +187,9 @@ class PerilPoint(Point):
 class PerilAreasIndex(RTreeIndex):
 
     def __init__(self, *args, **kwargs):
+
+            self.protocol = (2 if six.sys.version_info[0] < 3 else -1)
+
             idx_fp = kwargs.get('fp')
 
             areas = kwargs.get('areas')
@@ -215,7 +218,7 @@ class PerilAreasIndex(RTreeIndex):
                 super(self.__class__, self).__init__(self._stream, *args, **kwargs)
 
     def dumps(self, obj):
-        return cpickle.dumps(obj, protocol=(2 if six.sys.version_info[0] < 3 else -1))
+        return cpickle.dumps(obj, protocol=self.protocol)
 
     def loads(self, data):
         return cpickle.loads(data)
@@ -256,7 +259,8 @@ class PerilAreasIndex(RTreeIndex):
         area_poly_coords_seq_start_idx=1,
         area_reg_poly_radius=0.00166,
         static_props={},
-        index_fp=os.path.join(os.path.abspath(os.path.dirname(__file__)), 'rtree-index')
+        index_fp=os.path.join(os.path.abspath(os.path.dirname(__file__)), 'rtree-index'),
+        index_props=DEFAULT_RTREE_INDEX_PROPS
     ):
         _index_fp = index_fp
         if not os.path.isabs(_index_fp):
@@ -311,7 +315,8 @@ class PerilAreasIndex(RTreeIndex):
         try:
             return cls().save(
                 peril_areas=peril_areas,
-                index_fp=index_fp
+                index_fp=index_fp,
+                index_props=index_props
             )
         except OasisException as e:
             raise
@@ -319,18 +324,26 @@ class PerilAreasIndex(RTreeIndex):
     def save(
         self,
         peril_areas=None,
-        index_fp=os.path.join(os.path.abspath(os.path.dirname(__file__)), 'rtree-index')
+        index_fp=None,
+        index_props=DEFAULT_RTREE_INDEX_PROPS
     ):
+        if not index_fp:
+            raise OasisException('A file index path must be provided')
+
         _index_fp = index_fp
         if not os.path.isabs(_index_fp):
             _index_fp = os.path.abspath(_index_fp)
 
-        try:
-            class _myindex(RTreeIndex):
-                def dumps(self, obj):
-                    return cpickle.dumps(obj, protocol=(2 if six.sys.version_info[0] < 3 else -1))
+        class myindex(RTreeIndex):
+            def __init__(*args, **kwargs):
+                self.protocol = (2 if six.sys.version_info[0] < 3 else -1)
+                super(self.__class__, self).__init__(*args, **kwargs)
 
-            index = _myindex(_index_fp)
+            def dumps(self, obj):
+                return cpickle.dumps(obj, protocol=self.protocol)
+
+        try:
+            index = myindex(_index_fp, properties=RTreeIndexProperty(**index_props))
 
             _peril_areas = self._peril_areas or peril_areas
 
