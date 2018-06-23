@@ -24,7 +24,10 @@ def get_dataframe(
     sort_ascending=None
 ):
     if not (src_fp or src_buf or src_data is not None):
-        raise OasisException('A file path or a Unicode string of the file content or an appropriate data structure or dataframe must be provided')
+        raise OasisException(
+            'A CSV or JSON file path or a string buffer of such a file or an '
+            'appropriate data structure or dataframe must be provided'
+        )
 
     df = None
 

@@ -62,11 +62,11 @@ DEFAULT_RTREE_INDEX_PROPS = {
     'buffering_capacity': 10,
     'custom_storage_callbacks': None,
     'custom_storage_callbacks_size': 0,
-    'dat_extension': u'dat',
+    'dat_extension': 'dat',
     'dimension': 2,
-    'filename': u'',
+    'filename': '',
     'fill_factor': 0.7,
-    'idx_extension': u'idx',
+    'idx_extension': 'idx',
     'index_capacity': 100,
     'index_id': None,
     'leaf_capacity': 100,
@@ -194,18 +194,20 @@ class PerilAreasIndex(RTreeIndex):
 
             areas = kwargs.get('areas')
             peril_areas = kwargs.get('peril_areas')
-            
-            props = RTreeIndexProperty(**(kwargs.get('properties') or {}))
-            kwargs['properties'] = props
+
+            index_props = kwargs.get('properties') or DEFAULT_RTREE_INDEX_PROPS
 
             if not (idx_fp or areas or peril_areas):
                 self._peril_areas = self._stream = None
+                kwargs['properties'] = RTreeIndexProperty(**index_props)
                 super(self.__class__, self).__init__(*args, **kwargs)
             elif idx_fp:
                 self._peril_areas = self._stream = None
                 _idx_fp = idx_fp
                 if not os.path.isabs(_idx_fp):
                     _idx_fp = os.path.abspath(_idx_fp)
+                index_props['filename'] = _idx_fp
+                kwargs['properties'] = RTreeIndexProperty(**index_props)
                 super(self.__class__, self).__init__(_idx_fp, *args, **kwargs)
             else:
                 self._peril_areas = OrderedDict({
@@ -215,6 +217,7 @@ class PerilAreasIndex(RTreeIndex):
                     ((paid, pa.bounds) for paid, pa in six.iteritems(self._peril_areas)),
                     objects=((paid, pa.bounds) for paid, pa in six.iteritems(self._peril_areas))
                 )
+                kwargs['properties'] = RTreeIndexProperty(**index_props)
                 super(self.__class__, self).__init__(self._stream, *args, **kwargs)
 
     def dumps(self, obj):
