@@ -5,7 +5,7 @@ from __future__ import unicode_literals, absolute_import
 __all__ = [
     'OasisBaseLookup',
     'OasisBaseKeysLookup',
-    'OasisPerilAndVulnerabilityLookup',
+    'OasisLookup',
     'OasisPerilLookup',
     'OasisVulnerabilityLookup',
     'OasisKeysLookupFactory'
@@ -43,11 +43,13 @@ from rtree.core import RTreeError
 
 import six
 
-from ..cmd.cleaners import as_path
 from ..utils.data import get_dataframe
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
-from ..utils.peril import PerilAreasIndex
+from ..utils.peril import (
+    DEFAULT_RTREE_INDEX_PROPS,
+    PerilAreasIndex,
+)
 from ..utils.status import (
     KEYS_STATUS_FAIL,
     KEYS_STATUS_NOMATCH,
@@ -57,6 +59,33 @@ from ..utils.values import is_string
 
 
 UNKNOWN_ID = -1
+
+def as_path(value, name, preexists=True):
+    """
+    Processes the path and returns the absolute path.
+
+    If the path does not exist and ``preexists`` is true
+    an ``OasisException`` is raised.
+
+    :param value: The path to process
+    :type value: str
+
+    :param name: The name of the path (used for error reporting)
+    :type name: str
+
+    :param preexists: Flag whether to raise an error if the path
+        does not exist.
+    :type preexists: bool
+
+    :return: The absolute path of the input path
+    """
+    if value is not None:
+        value = os.path.abspath(value) if not os.path.isabs(value) else value
+
+    if preexists and not (value is not None and os.path.exists(value)):
+        raise OasisException('{} does not exist: {}'.format(name, value))
+
+    return value
 
 class OasisBaseLookup(object):
 
@@ -71,25 +100,33 @@ class OasisBaseLookup(object):
             with io.open(_config_fp, 'r', encoding='utf-8') as f:
                 self._config = json.load(f)
 
-        keys_data_path = self._config.get('keys_data_path')
+        keys_data_path = self._config.get('keys_data_path') or ''
 
-        if not keys_data_path:
-            return
+        self._config['keys_data_path'] = as_path(keys_data_path, 'keys_data_path', preexists=(True if keys_data_path else False))
 
-        self._config['keys_data_path'] = keys_data_path = as_path(keys_data_path, 'keys_data_path')
+        self.__tweak_config_data__()
 
-        for section in ('peril', 'vulnerability',):
-            for k, v in six.iteritems(self._config.get(section) or {}):
+    def __tweak_config_data__(self):
+        for section in ('locations', 'peril', 'vulnerability',):
+            section_config = self._config.get(section) or {}
+            for k, v in six.iteritems(section_config):
                 if is_string(v) and '%%KEYS_DATA_PATH%%' in v:
-                    self._config[section][k] = v.replace('%%KEYS_DATA_PATH%%', keys_data_path)
+                    self._config[section][k] = v.replace('%%KEYS_DATA_PATH%%', self._config['keys_data_path'])
+                elif type(v) == list:
+                    self._config[section][k] = tuple(v)
                 elif isinstance(v, dict):
                     for _k, _v in six.iteritems(v):
                         if is_string(_v) and '%%KEYS_DATA_PATH%%' in _v:
-                            self._config[section][k][_k] = _v.replace('%%KEYS_DATA_PATH%%', keys_data_path)
+                            self._config[section][k][_k] = _v.replace('%%KEYS_DATA_PATH%%', self._config['keys_data_path'])
 
     @property
     def config(self):
         return self._config
+
+    @config.setter
+    def config(self, c):
+        self._config = c
+        self.__tweak_config_data__()
 
     def lookup(self, loc, **kwargs):
         """
@@ -101,16 +138,24 @@ class OasisBaseLookup(object):
     @oasis_log()
     def bulk_lookup(self, locs, **kwargs):
         """
-        Bulk vulnerability lookup for a generator, list, tuple or dict of
-        location items, which can be dicts or Pandas series objects.
+        Bulk vulnerability lookup for a list, tuple, generator, pandas data
+        frame or dict of location items, which can be dicts or Pandas series
+        objects or any object which has as a dict-like interface.
 
         Generates results using ``yield``.
         """
-        _locs_seq = (
-            enumerate(locs) if isinstance(locs, tuple) or isinstance(locs, list) or isinstance(locs, types.GeneratorType)
-            else six.iteritems(locs)
-        )
-        for _, loc in _locs_seq:
+        locs_seq = None
+
+        if (isinstance(locs, list) or isinstance(locs, tuple)):
+            locs_seq = (loc for loc in locs)
+        elif isinstance(locs, types.GeneratorType):
+            locs_seq = locs
+        elif (isinstance(locs, dict)):
+            locs_seq = six.itervalues(locs)
+        elif isinstance(locs, pd.DataFrame):
+            locs_seq = (loc for _, loc in locs.iterrows())
+
+        for loc in locs_seq:
             yield self.lookup(loc)
 
 
@@ -244,8 +289,6 @@ class OasisKeysLookupFactory(object):
             model_version=model_info['model_version_id']
         )
 
-    
-
     @classmethod
     def get_model_exposures(cls, model_exposures=None, model_exposures_file_path=None):
         """
@@ -354,19 +397,21 @@ class OasisKeysLookupFactory(object):
         lookup_config=None,
         lookup_config_json=None,
         lookup_config_fp=None,
-        lookup_type='combined'
-    )
-        lookup = OasisPerilAndVulnerabilityLookup(
+        lookup_type='combined',
+        loc_id_col='id'
+    ):
+        lookup = OasisLookup(
             config=lookup_config,
             config_json=lookup_config_json,
-            config_fp=lookup_config_fp
+            config_fp=lookup_config_fp,
+            loc_id_col=loc_id_col
         )
         if lookup_type == 'combined':
-            return lookup.config, lookup
+            return lookup
         elif lookup_type == 'peril':
-            return lookup.config, lookup.peril_lookup
+            return lookup.peril_lookup
         elif lookup_type == 'vulnerability':
-            return lookup.config, lookup.vulnerability_lookup
+            return lookup.vulnerability_lookup
 
     @classmethod
     def get_keys(
@@ -407,7 +452,8 @@ class OasisKeysLookupFactory(object):
         lookup,
         model_exposures=None,
         model_exposures_fp=None,
-        successes_only=False
+        successes_only=False,
+        **kwargs
     ):
         """
         Generates lookup results (dicts) for the given model and supplier -
@@ -428,14 +474,17 @@ class OasisKeysLookupFactory(object):
 
         _model_exposures_fp = as_path(model_exposures_fp, 'model_exposures_fp', preexists=(True if not model_exposures else False))
 
+        loc_config = lookup.config.get('locations') or {}
+        src_type = 'csv'
+
         kwargs = {
             'src_data': model_exposures,
             'src_fp': _model_exposures_fp,
-            'src_type': peril_config.get('src_type'),
-            'non_na_cols': tuple(peril_config.get('non_na_cols') or ()),
-            'col_dtypes': peril_config.get('col_dtypes'),
-            'sort_col': peril_config.get('sort_col'),
-            'sort_ascending': peril_config.get('sort_ascending')
+            'src_type': 'csv',
+            'non_na_cols': tuple(loc_config.get('non_na_cols') or ()),
+            'col_dtypes': loc_config.get('col_dtypes') or {},
+            'sort_col': loc_config.get('sort_col'),
+            'sort_ascending': loc_config.get('sort_ascending')
         }
 
         model_exposures_df =  get_dataframe(**kwargs)
@@ -560,7 +609,7 @@ class OasisKeysLookupFactory(object):
         results = cls.get_results(
             lookup,
             model_exposures=model_exposures,
-            model_exposures_fp=_model_exposures_fp,
+            model_exposures_fp=model_exposures_fp,
             successes_only=(True if not efp else False)
         )
 
@@ -575,7 +624,7 @@ class OasisKeysLookupFactory(object):
                 fp2, n2 = cls.write_json_keys_file(nonsuccesses, efp)
                 return fp1, n1, fp2, n2
             return cls.write_json_keys_file(successes, sfp)
-        elif keys_format == 'oasis':
+        elif format == 'oasis':
             if efp:
                 fp1, n1 = cls.write_oasis_keys_file(successes, sfp)
                 fp2, n2 = cls.write_oasis_keys_errors_file(nonsuccesses, efp)
@@ -585,7 +634,7 @@ class OasisKeysLookupFactory(object):
             raise OasisException("Unrecognised lookup file output format - valid formats are 'oasis' or 'json'")
 
 
-class OasisPerilAndVulnerabilityLookup(OasisBaseLookup):
+class OasisLookup(OasisBaseLookup):
     """
     Combined peril and vulnerability lookup
     """
@@ -601,13 +650,17 @@ class OasisPerilAndVulnerabilityLookup(OasisBaseLookup):
         peril_areas_index=None,
         peril_areas_index_props=None,
         loc_to_global_areas_boundary_min_distance=0,
-        vulnerabilities=None
+        vulnerabilities=None,
+        loc_id_col='id'
     ):
         super(self.__class__, self).__init__(
             config=config,
             config_json=config_json,
             config_fp=config_fp
         )
+
+        loc_config = self.config.get('locations')
+        self.loc_id_col = str.lower(loc_id_col or loc_config.get('id_col'))
 
         self.peril_lookup = OasisPerilLookup(
             config=self.config,
@@ -616,10 +669,11 @@ class OasisPerilAndVulnerabilityLookup(OasisBaseLookup):
             peril_areas=peril_areas,
             peril_areas_index=peril_areas_index,
             peril_areas_index_props=peril_areas_index_props,
-            loc_to_global_areas_boundary_min_distance=loc_to_global_areas_boundary_min_distance
+            loc_to_global_areas_boundary_min_distance=loc_to_global_areas_boundary_min_distance,
+            loc_id_col=self.loc_id_col
         )
 
-        self.peril_id = peril_id or self.config['peril'].get('peril_id') or self.peril_lookup.peril_id
+        self.peril_id = peril_id or self.config['peril'].get('peril_id')
 
         self.peril_area_id_key = str(self.config['peril'].get('peril_area_id_col') or 'peril_area_id').lower()
 
@@ -627,24 +681,28 @@ class OasisPerilAndVulnerabilityLookup(OasisBaseLookup):
 
         self.vulnerability_lookup = OasisVulnerabilityLookup(
             config=self.config,
-            vulnerabilities=vulnerabilities
+            vulnerabilities=vulnerabilities,
+            loc_id_col=self.loc_id_col
         )
 
-        self.loc_id_col = self.peril_lookup.loc_id_col
+    def lookup(self, loc):
 
-    def lookup(self, loc, loc_id_col='id'):
-
-        _loc_id_col = self.loc_id_col or loc_id_col
-        loc_id = loc.get(_loc_id_col) or int(uuid.UUID(bytes=os.urandom(16)).hex[:16], 16)
+        loc_id_col = self.loc_id_col
+        loc_id = loc.get(loc_id_col) or int(uuid.UUID(bytes=os.urandom(16)).hex[:16], 16)
 
         plookup = self.peril_lookup.lookup(loc)
         past = plookup['status']
         pamsg = plookup['message']
+        paid = plookup['peril_area_id']
         
         vlookup = self.vulnerability_lookup.lookup(loc)
         vlnst = vlookup['status']
         vlnmsg = vlookup['message']
-        
+        vlnid = vlookup['vulnerability_id']
+        vlookup.pop('status')
+        vlookup.pop('message')
+        vlookup.pop('vulnerability_id')
+
         # Could optionally call the status lookup method, but it is always
         # better to avoid outside function calls in a `for` loop if possible
         status = (
@@ -655,12 +713,17 @@ class OasisPerilAndVulnerabilityLookup(OasisBaseLookup):
         message = '{}; {}'.format(pamsg, vlnmsg)
 
         return {
-            _loc_id_col: loc_id,
-            'peril_id': self.peril_id,
-            self.peril_area_id_key: pa_lookup['peril_area_id'],
-            self.vulnerability_id_key: vln_lookup['vulnerability_id'],
-            'status': status,
-            'message': message
+            k:v for k, v in itertools.chain(
+                (
+                    (loc_id_col, loc_id),
+                    ('peril_id', self.peril_id),
+                    (self.peril_area_id_key, paid),
+                    (self.vulnerability_id_key, vlnid),
+                    ('status', status),
+                    ('message', message),
+                ),
+                six.iteritems(vlookup)
+            )
         }
 
 
@@ -696,25 +759,30 @@ class OasisPerilLookup(OasisBaseLookup):
         peril_areas=None,
         peril_areas_index=None,
         peril_areas_index_fp=None,
-        peril_areas_index_props={},
-        peril_id=None
+        peril_areas_index_props=None,
+        peril_id=None,
+        loc_id_col='id'
     ):
         super(self.__class__, self).__init__(config=config, config_json=config_json, config_fp=config_fp)
 
         self.peril_id = peril_id or (self.config['peril'].get('peril_id') if self.config.get('peril') else None)
 
         if areas or peril_areas or self.config.get('peril'):
-
-            index_props = peril_areas_index_props or self.config['peril'].get('rtree_index')
-            index_fp = peril_areas_index_fp or config['peril']['rtree_index'].get('filename')
+            self.index_props = (
+                (peril_areas_index.properties.as_dict() if peril_areas_index else {}) or
+                peril_areas_index_props or 
+                self.config['peril'].get('rtree_index') or
+                DEFAULT_RTREE_INDEX_PROPS
+            )
+            self.index_fp = as_path(peril_areas_index_fp or self.index_props.get('filename'), '_index_fp', preexists=False)
 
             self.peril_areas_index = (
                 peril_areas_index or 
                 PerilAreasIndex(
                     areas=areas,
                     peril_areas=peril_areas,
-                    fp=index_fp,
-                    properties=index_props
+                    fp=self.index_fp,
+                    properties=self.index_props
                 )
             )
 
@@ -723,9 +791,19 @@ class OasisPerilLookup(OasisBaseLookup):
             _centroid = self.peril_areas_boundary.centroid
             self.peril_areas_centre = _centroid.x, _centroid.y
 
-            self.loc_to_global_areas_boundary_min_distance = loc_to_global_areas_boundary_min_distance or self.config['peril']['loc_to_global_areas_boundary_min_distance']
+            self.loc_to_global_areas_boundary_min_distance = (
+                loc_to_global_areas_boundary_min_distance or 
+                self.config['peril'].get('loc_to_global_areas_boundary_min_distance') or 0
+            )
 
-    def lookup(self, loc, loc_id_col='id'):
+        if self.config.get('locations'):
+            self.loc_id_col = str.lower(loc_id_col or self.config['locations'].get('id_col'))
+            self.loc_coords_x_col = self.config['locations'].get('coords_x_col') or 'lon'
+            self.loc_coords_y_col = self.config['locations'].get('coords_y_col') or 'lat'
+            self.loc_coords_x_bounds = tuple(self.config['locations'].get('coords_x_bounds') or ()) or (-180, 180)
+            self.loc_coords_y_bounds = tuple(self.config['locations'].get('coords_y_bounds') or ()) or (-90, 90)
+
+    def lookup(self, loc):
         """
         Area peril lookup for an individual lon/lat location item, which can be
         provided as a dict or a Pandas series. The data structure should contain
@@ -737,20 +815,20 @@ class OasisPerilLookup(OasisBaseLookup):
         boundary = self.peril_areas_boundary
         loc_to_areas_min_dist = self.loc_to_global_areas_boundary_min_distance
 
-        _loc_id_col = self.loc_id_col or loc_id_col
+        loc_id_col = self.loc_id_col
 
-        loc_id = loc.get(_loc_id_col) or int(uuid.UUID(bytes=os.urandom(16)).hex[:16], 16)
+        loc_id = loc.get(loc_id_col) or int(uuid.UUID(bytes=os.urandom(16)).hex[:16], 16)
 
         loc_x_col = self.loc_coords_x_col
         loc_y_col = self.loc_coords_y_col
-        loc_x_bounds = self.loc_x_bounds
-        loc_y_bounds = self.loc_y_bounds
+        loc_x_bounds = self.loc_coords_x_bounds
+        loc_y_bounds = self.loc_coords_y_bounds
 
         x = loc.get(loc_x_col)
         y = loc.get(loc_y_col)
 
         _lookup = lambda loc_id, x, y, st, paid, pabnds, msg: {
-            _loc_id_col: loc_id,
+            loc_id_col: loc_id,
             loc_x_col: x,
             loc_y_col: y,
             'peril_id': peril_id,
@@ -821,7 +899,8 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
         config=None,
         config_json=None,
         config_fp=None,
-        vulnerabilities=None
+        vulnerabilities=None,
+        loc_id_col='id'
     ):
         super(self.__class__, self).__init__(config=config, config_json=config_json, config_fp=config_fp)
 
@@ -829,7 +908,7 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
             self.col_dtypes, self.key_cols, self.vuln_id_col, self.vulnerabilities = self.get_vulnerabilities(vulnerabilities=vulnerabilities)
 
         if self.config.get('locations'):
-            self.loc_id_col = self.config['locations'].get('id_col') or 'id'
+            self.loc_id_col = str.lower(loc_id_col or self.config['locations'].get('id_col'))
 
     @oasis_log()
     def get_vulnerabilities(self, vulnerabilities=None):
@@ -918,13 +997,13 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
 
         return col_dtypes, key_cols, vuln_id_col, _vuln_dict(vuln_df.iterrows(), key_cols, vuln_id_col)
 
-    def lookup(self, loc, loc_id_col='id'):
+    def lookup(self, loc):
         """
         Vulnerability lookup for an individual location item, which could be a dict or a
         Pandas series.
         """
-        _loc_id_col = self.loc_id_col or loc_id_col
-        loc_id = loc.get(_loc_id_col) or int(uuid.UUID(bytes=os.urandom(16)).hex[:16], 16)
+        loc_id_col = self.loc_id_col
+        loc_id = loc.get(loc_id_col) or int(uuid.UUID(bytes=os.urandom(16)).hex[:16], 16)
 
         key_cols = self.key_cols
         col_dtypes = self.col_dtypes
@@ -935,10 +1014,15 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
         })
 
         _lookup = lambda loc_id, vlnst, vlnid, vlnmsg: {
-            _loc_id_col: loc_id,
-            'status': vlnst,
-            'vulnerability_id': vlnid,
-            'message': vlnmsg
+            k:v for k, v in itertools.chain(
+                (
+                    (loc_id_col, loc_id),
+                    ('status', vlnst),
+                    ('vulnerability_id', vlnid),
+                    ('message', vlnmsg)
+                ),
+                six.iteritems(loc_key_col_values)
+            )
         }
 
         try:
