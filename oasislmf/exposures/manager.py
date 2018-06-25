@@ -410,26 +410,29 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
     def _process_default_kwargs(self, oasis_model=None, **kwargs):
         if oasis_model:
-            kwargs.setdefault('source_exposures_file_path', oasis_model.resources.get('source_exposures_file_path'))
-            kwargs.setdefault('source_exposures_validation_file_path', oasis_model.resources.get('source_exposures_validation_file_path'))
-            kwargs.setdefault('source_to_canonical_exposures_transformation_file_path', oasis_model.resources.get('source_to_canonical_exposures_transformation_file_path'))
+            omr = oasis_model.resources
+            ofp = omr['oasis_files_pipeline']
+
+            kwargs.setdefault('source_exposures_file_path', omr.get('source_exposures_file_path'))
+            kwargs.setdefault('source_exposures_validation_file_path', omr.get('source_exposures_validation_file_path'))
+            kwargs.setdefault('source_to_canonical_exposures_transformation_file_path', omr.get('source_to_canonical_exposures_transformation_file_path'))
             
-            kwargs.setdefault('canonical_exposures_profile', oasis_model.resources.get('canonical_exposures_profile'))
-            kwargs.setdefault('canonical_exposures_profile_json', oasis_model.resources.get('canonical_exposures_profile_json'))
-            kwargs.setdefault('canonical_exposures_profile_json_path', oasis_model.resources.get('canonical_exposures_profile_json_path'))
+            kwargs.setdefault('canonical_exposures_profile', omr.get('canonical_exposures_profile'))
+            kwargs.setdefault('canonical_exposures_profile_json', omr.get('canonical_exposures_profile_json'))
+            kwargs.setdefault('canonical_exposures_profile_json_path', omr.get('canonical_exposures_profile_json_path'))
             
-            kwargs.setdefault('canonical_exposures_file_path', oasis_model.resources['oasis_files_pipeline'].canonical_exposures_file_path)
-            kwargs.setdefault('canonical_exposures_validation_file_path', oasis_model.resources.get('canonical_exposures_validation_file_path'))
-            kwargs.setdefault('canonical_to_model_exposures_transformation_file_path', oasis_model.resources.get('canonical_to_model_exposures_transformation_file_path'))
+            kwargs.setdefault('canonical_exposures_file_path', ofp.canonical_exposures_file_path)
+            kwargs.setdefault('canonical_exposures_validation_file_path', omr.get('canonical_exposures_validation_file_path'))
+            kwargs.setdefault('canonical_to_model_exposures_transformation_file_path', omr.get('canonical_to_model_exposures_transformation_file_path'))
 
             kwargs.setdefault('lookup', omr.get('lookup'))
 
-            kwargs.setdefault('model_exposures_file_path', oasis_model.resources['oasis_files_pipeline'].model_exposures_file_path)
-            kwargs.setdefault('keys_file_path', oasis_model.resources['oasis_files_pipeline'].keys_file_path)
-            kwargs.setdefault('keys_errors_file_path', oasis_model.resources['oasis_files_pipeline'].keys_errors_file_path)
-            kwargs.setdefault('items_file_path', oasis_model.resources['oasis_files_pipeline'].items_file_path)
-            kwargs.setdefault('coverages_file_path', oasis_model.resources['oasis_files_pipeline'].coverages_file_path)
-            kwargs.setdefault('gulsummaryxref_file_path', oasis_model.resources['oasis_files_pipeline'].gulsummaryxref_file_path)
+            kwargs.setdefault('model_exposures_file_path', ofp.model_exposures_file_path)
+            kwargs.setdefault('keys_file_path', ofp.keys_file_path)
+            kwargs.setdefault('keys_errors_file_path', ofp.keys_errors_file_path)
+            kwargs.setdefault('items_file_path', ofp.items_file_path)
+            kwargs.setdefault('coverages_file_path', ofp.coverages_file_path)
+            kwargs.setdefault('gulsummaryxref_file_path', ofp.gulsummaryxref_file_path)
 
         return kwargs
 
