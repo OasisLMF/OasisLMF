@@ -330,22 +330,18 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         return output_file_path
 
-    def load_canonical_profile(
-            self,
-            oasis_model=None,
-            canonical_exposures_profile_json=None,
-            canonical_exposures_profile_json_path=None,
-            **kwargs):
+    def load_canonical_exposures_profile(self, oasis_model=None, **kwargs):
         """
         Loads a JSON string or JSON file representation of the canonical
         exposures profile for a given ``oasis_model``, stores this in the
         model object's resources dict, and returns the object.
         """
-        if oasis_model:
-            canonical_exposures_profile_json = canonical_exposures_profile_json or oasis_model.resources.get('canonical_exposures_profile_json')
-            canonical_exposures_profile_json_path = canonical_exposures_profile_json_path or oasis_model.resources.get('canonical_exposures_profile_json_path')
+        kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
 
-        profile = {}
+        canonical_exposures_profile_json = kwargs.get('canonical_exposures_profile_json')
+        canonical_exposures_profile_json_path = kwargs.get('canonical_exposures_profile_json_path')
+
+        profile = None
         if canonical_exposures_profile_json:
             profile = json.loads(canonical_exposures_profile_json)
         elif canonical_exposures_profile_json_path:
