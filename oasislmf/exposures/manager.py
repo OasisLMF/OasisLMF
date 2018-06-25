@@ -426,13 +426,6 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             kwargs.setdefault('coverages_file_path', oasis_model.resources['oasis_files_pipeline'].coverages_file_path)
             kwargs.setdefault('gulsummaryxref_file_path', oasis_model.resources['oasis_files_pipeline'].gulsummaryxref_file_path)
 
-        if not kwargs.get('canonical_exposures_profile'):
-            kwargs['canonical_exposures_profile'] = self.load_canonical_exposures_profile(
-                oasis_model=oasis_model,
-                canonical_exposures_profile_json=kwargs.get('canonical_exposures_profile_json'),
-                canonical_exposures_profile_json_path=kwargs.get('canonical_exposures_profile_json_path'),
-            )
-
         return kwargs
 
     def load_master_data_frame(self, canonical_exposures_file_path, keys_file_path, canonical_exposures_profile, **kwargs):
