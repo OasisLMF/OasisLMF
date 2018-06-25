@@ -214,7 +214,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         return self._keys_lookup_factory
 
     @property
-    def models(self):
+    def models(self, key=None):
         """
         Model objects dictionary property.
 
@@ -233,12 +233,14 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                       dict. If no ``key`` is given then the entire existing
                       dict is cleared.
         """
-        return self._models
+        return self._models[key] if key else self._models
 
     @models.setter
-    def models(self, val):
-        self._models.clear()
-        self._models.update(val)
+    def models(self, val, key=None):
+        if key:
+            self._models.update({key:val})
+        else:
+            self._models.update(val)
 
     @models.deleter
     def models(self):
