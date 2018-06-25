@@ -15,6 +15,7 @@ __all__ = [
     'PerilPoint'
 ]
 
+import builtins
 import copy
 import io
 import json
@@ -284,18 +285,25 @@ class PerilAreasIndex(RTreeIndex):
 
         if not _peril_area_id_col in _non_na_cols:
             _non_na_cols = _non_na_cols.union({_peril_area_id_col})
+
         for col in six.itervalues(area_poly_coords_cols):
             if not col in _non_na_cols:
-                _non_na_cols = _non_na_cols.union({col})
+                _non_na_cols = _non_na_cols.union({col.lower()})
 
         _non_na_cols = tuple(_non_na_cols)
+
+        _col_dtypes = {
+            k.lower():getattr(builtins, v) for k, v in six.iteritems(col_dtypes)
+        }
+
+        _sort_col = sort_col.lower()
 
         areas_df = get_dataframe(
             src_fp=_src_fp,
             src_type=src_type,
             non_na_cols=_non_na_cols,
-            col_dtypes=col_dtypes,
-            sort_col=(peril_area_id_col or sort_col)
+            col_dtypes=_col_dtypes,
+            sort_col=(_peril_area_id_col or _sort_col)
         )
 
         coords_cols = area_poly_coords_cols
@@ -338,7 +346,7 @@ class PerilAreasIndex(RTreeIndex):
             _index_fp = os.path.abspath(_index_fp)
 
         class myindex(RTreeIndex):
-            def __init__(*args, **kwargs):
+            def __init__(self, *args, **kwargs):
                 self.protocol = (2 if six.sys.version_info[0] < 3 else -1)
                 super(self.__class__, self).__init__(*args, **kwargs)
 

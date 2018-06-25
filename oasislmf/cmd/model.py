@@ -65,13 +65,13 @@ class GeneratePerilAreasRtreeFileIndex(OasisBaseCommand):
         """
         inputs = InputValues(args)
         
-        lookup_config_file_path = as_path(inputs.get('lookup_config_file_path', required=True, is_path=True), 'Lookup config file path', preexists=True)
+        lookup_config_fp = as_path(inputs.get('lookup_config_file_path', required=True, is_path=True), 'Lookup config file path', preexists=True)
 
         keys_data_path = as_path(inputs.get('keys_data_path', required=True, is_path=True), 'Keys config file path', preexists=True)
 
-        index_file_path = as_path(inputs.get('index_file_path', required=False, is_path=True, default=os.path.join(keys_data_path, 'rtree-index')), 'Index file path', preexists=False)
+        index_fp = as_path(inputs.get('index_file_path', required=False, is_path=True, default=os.path.join(keys_data_path, 'rtree-index')), 'Index file path', preexists=False)
 
-        with io.open(lookup_config_file_path, 'r', encoding='utf-8') as f:
+        with io.open(lookup_config_fp, 'r', encoding='utf-8') as f:
             config = json.load(f)
 
         if not config.get('peril'):
@@ -90,10 +90,10 @@ class GeneratePerilAreasRtreeFileIndex(OasisBaseCommand):
                 '(or area peril) file with the key name `file_path`'
             )
 
-        _areas_fp = as_path(areas_fp, 'areas_fp', preexists=True)
+        if areas_fp.startswith('%%KEYS_DATA_PATH%%'):
+            areas_fp = areas_fp.replace('%%KEYS_DATA_PATH%%', keys_data_path)
 
-        if _areas_fp.startswith('%%KEYS_DATA_PATH%%'):
-            _areas_fp = _areas_fp.replace('%%KEYS_DATA_PATH%%', keys_data_path)
+        areas_fp = as_path(areas_fp, 'areas_fp')
 
         src_type = str.lower(str(peril_config.get('file_type')) or '') or 'csv'
 
@@ -113,7 +113,7 @@ class GeneratePerilAreasRtreeFileIndex(OasisBaseCommand):
             else tuple(col.lower() for col in [peril_area_id_col] + area_poly_coords_cols.values())
         )
 
-        col_dtypes = {peril_area_id_col: int} if peril_config.get('col_dtypes') == "infer" else {}
+        col_dtypes = peril_config.get('col_dtypes') or {peril_area_id_col: int}
 
         sort_col = peril_config.get('sort_col') or peril_area_id_col
 
@@ -122,15 +122,16 @@ class GeneratePerilAreasRtreeFileIndex(OasisBaseCommand):
         area_reg_poly_radius = peril_config.get('area_reg_poly_radius') or 0.00166
 
         index_props = peril_config.get('rtree_index')
+        index_props.pop('filename')
 
         self.logger.info(
             '\nGenerating Rtree file index {}.{{idx,dat}} from peril areas (area peril) '
             'file {}'
-            .format(os.path.join(index_file_path), areas_fp)
+            .format(os.path.join(index_fp), areas_fp)
         )
 
         index_fp = PerilAreasIndex.create_from_peril_areas_file(
-            src_fp=_areas_fp,
+            src_fp=areas_fp,
             src_type=src_type,
             peril_area_id_col=peril_area_id_col,
             non_na_cols=non_na_cols,
@@ -139,7 +140,7 @@ class GeneratePerilAreasRtreeFileIndex(OasisBaseCommand):
             area_poly_coords_cols=area_poly_coords_cols,
             area_poly_coords_seq_start_idx=area_poly_coords_seq_start_idx,
             area_reg_poly_radius=area_reg_poly_radius,
-            index_fp=index_file_path,
+            index_fp=index_fp,
             index_props=index_props
         )
 
