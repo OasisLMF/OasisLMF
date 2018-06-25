@@ -353,7 +353,8 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         return profile
 
-    def get_keys(self, oasis_model=None, model_exposures_file_path=None, lookup=None, keys_file_path=None, keys_errors_file_path=None, **kwargs):
+
+    def get_keys(self, oasis_model=None, **kwargs):
         """
         Generates the Oasis keys and keys error files for a given model object.
         The keys file is a CSV file containing keys lookup information for
@@ -375,49 +376,37 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         If no model is supplied then the optional paramenters must be
         supplied.
 
-        If the model is supplied the result key file path is stored in the
+        If the model is supplied the result keGy file path is stored in the
         models ``file_pipeline.keyfile_path`` property.
 
         :param oasis_model: The model to get keys for
         :type oasis_model: ``OasisModel``
 
-        :param keys_file_path: Path to the keys file, required if ``oasis_model`` is ``None``
-        :type keys_file_path: str
-
-        :param keys_errors_file_path: Path to the keys error file, required if ``oasis_model`` is ``None``
-        :type keys_errors_file_path: str
-
-        :param lookup: Path to the keys lookup service to use, required if ``oasis_model`` is ``None``
-        :type lookup: str
-
-        :param model_exposures_file_path: Path to the exposures file, required if ``oasis_model`` is ``None``
-        :type model_exposures_file_path: str
-
         :return: The path to the generated keys file
         """
-        if oasis_model:
-            _model_exposures_file_path = model_exposures_file_path or oasis_model.resources['oasis_files_pipeline'].model_exposures_file_path
-            _lookup = lookup or oasis_model.resources.get('lookup')
-            _keys_file_path = keys_file_path or oasis_model.resources['oasis_files_pipeline'].keys_file_path
-            _keys_errors_file_path = keys_errors_file_path or oasis_model.resources['oasis_files_pipeline'].keys_errors_file_path
+        kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
 
-        _model_exposures_file_path, _keys_file_path, _keys_errors_file_path = map(
-            lambda p: os.path.abspath(p) if p and not os.path.isabs(p) else p,
-            [_model_exposures_file_path, _keys_file_path, _keys_errors_file_path]
+        model_exposures_file_path = kwargs.get('model_exposures_file_path')
+        lookup = kwargs.get('lookup')
+        keys_file_path = kwargs.get('keys_file_path')
+        keys_errors_file_path = kwargs.get('keys_errors_file_path')
+
+        model_exposures_file_path, keys_file_path, keys_errors_file_path = tuple(
+            os.path.abspath(p) if p and not os.path.isabs(p) else p for p in [model_exposures_file_path, keys_file_path, keys_errors_file_path]
         )
 
-        _keys_file_path, _, _keys_errors_file_path, _ = OasisKeysLookupFactory().save_keys(
-            keys_file_path=_keys_file_path,
-            keys_errors_file_path=_keys_errors_file_path,
-            lookup=_lookup,
-            model_exposures_file_path=_model_exposures_file_path,
+        keys_file_path, _, keys_errors_file_path, _ = OasisKeysLookupFactory().save_keys(
+            keys_file_path=keys_file_path,
+            keys_errors_file_path=keys_errors_file_path,
+            lookup=lookup,
+            model_exposures_file_path=model_exposures_file_path,
         )
 
         if oasis_model:
-            oasis_model.resources['oasis_files_pipeline'].keys_file_path = _keys_file_path
-            oasis_model.resources['oasis_files_pipeline'].keys_errors_file_path = _keys_errors_file_path
+            oasis_model.resources['oasis_files_pipeline'].keys_file_path = keys_file_path
+            oasis_model.resources['oasis_files_pipeline'].keys_errors_file_path = keys_errors_file_path
 
-        return _keys_file_path, _keys_errors_file_path
+        return keys_file_path, keys_errors_file_path
 
     def _process_default_kwargs(self, oasis_model=None, **kwargs):
         if oasis_model:
