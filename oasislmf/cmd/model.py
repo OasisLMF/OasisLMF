@@ -20,7 +20,7 @@ from ..utils.exceptions import OasisException
 from ..utils.peril import PerilAreasIndex
 from ..utils.values import get_utctimestamp
 
-from ..keys.lookup import OasisKeysLookupFactory
+from ..keys.lookup import OasisLookupFactory
 
 from .cleaners import as_path
 
@@ -342,33 +342,14 @@ class GenerateKeysCmd(OasisBaseCommand):
         """
         super(self.__class__, self).add_args(parser)
 
-        parser.add_argument(
-            '-k', '--keys-file-path', default=None,
-            help='Keys file path',
-        )
-        parser.add_argument(
-            '-e', '--keys-errors-file-path', default=None,
-            help='Keys errors file path',
-        )
-        parser.add_argument(
-            '-d', '--keys-data-path', default=None,
-            help='Keys data directory path',
-        )
-        parser.add_argument(
-            '-v', '--model-version-file-path', default=None,
-            help='Model version file path',
-        )
-        parser.add_argument(
-            '-l', '--lookup-package-path', default=None,
-            help='Keys data directory path',
-        )
-        parser.add_argument(
-            '-f', '--keys-format', choices=['oasis', 'json'],
-            help='Keys records / files output format',
-        )
-        parser.add_argument(
-            '-x', '--model-exposures-file-path', default=None, help='Keys records file output format',
-        )
+        parser.add_argument('-k', '--keys-file-path', default=None, help='Keys file path')
+        parser.add_argument('-e', '--keys-errors-file-path', default=None, help='Keys errors file path')
+        parser.add_argument('-g', '--lookup-config-file-path', default=None, help='Lookup config JSON file path')
+        parser.add_argument('-d', '--keys-data-path', default=None, help='Keys data directory path')
+        parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
+        parser.add_argument('-l', '--lookup-package-path', default=None, help='Keys data directory path')
+        parser.add_argument('-f', '--keys-format', choices=['oasis', 'json'], help='Keys records / files output format')
+        parser.add_argument('-x', '--model-exposures-file-path', default=None, help='Keys records file output format')
 
     def action(self, args):
         """
@@ -378,36 +359,44 @@ class GenerateKeysCmd(OasisBaseCommand):
         :type args: Namespace
         """
         inputs = InputValues(args)
+
+        lookup_config_fp = as_path(inputs.get('lookup_config_file_path', required=False, is_path=True), 'Lookup config JSON file path',)
+
+        keys_data_path = as_path(inputs.get('keys_data_path', required=False, is_path=True), 'Keys data path', preexists=False)
+        model_version_file_path = as_path(inputs.get('model_version_file_path', required=False, is_path=True), 'Model version file path', preexists=False)
+        lookup_package_path = as_path(inputs.get('lookup_package_path', required=False, is_path=True), 'Lookup package path', preexists=False)
+
+        if not (lookup_config_fp or (keys_data_path and model_version_file_path and lookup_package_path)):
+            raise OasisException('Either the lookup config JSON file path or the keys data path + model version file path + lookup package path must be provided')
+
         model_exposures_file_path = as_path(inputs.get('model_exposures_file_path', required=True, is_path=True), 'Model exposures')
-        keys_data_path = as_path(inputs.get('keys_data_path', required=True, is_path=True), 'Keys data')
-        model_version_file_path = as_path(inputs.get('model_version_file_path', required=True, is_path=True), 'Model version file')
-        lookup_package_path = as_path(inputs.get('lookup_package_path', required=True, is_path=True), 'Lookup package')
 
         keys_format = inputs.get('keys_format', default='oasis')
 
         self.logger.info('Getting model info and creating lookup service instance')
-        model_info, model_klc = OasisKeysLookupFactory.create(
+        model_info, lookup = OasisLookupFactory.create(
+            lookup_config_fp=lookup_config_fp,
             model_keys_data_path=keys_data_path,
             model_version_file_path=model_version_file_path,
-            lookup_package_path=lookup_package_path,
+            lookup_package_path=lookup_package_path
         )
-        self.logger.info('\t{}, {}'.format(model_info, model_klc))
+        self.logger.info('\t{}, {}'.format(model_info, lookup))
 
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
 
-        default_keys_file_name = '{}-{}-{}-keys-{}.{}'.format(model_info['supplier_id'].lower(), model_info['model_id'].lower(), model_info['model_version_id'], utcnow, 'csv' if keys_format == 'oasis' else 'json')
-        default_keys_errors_file_name = '{}-{}-{}-keys-errors-{}.{}'.format(model_info['supplier_id'].lower(), model_info['model_id'].lower(), model_info['model_version_id'], utcnow, 'csv' if keys_format == 'oasis' else 'json')
+        default_keys_file_name = '{}-{}-{}-keys-{}.{}'.format(model_info['supplier_id'].lower(), model_info['model_id'].lower(), model_info['model_version'], utcnow, 'csv' if keys_format == 'oasis' else 'json')
+        default_keys_errors_file_name = '{}-{}-{}-keys-errors-{}.{}'.format(model_info['supplier_id'].lower(), model_info['model_id'].lower(), model_info['model_version'], utcnow, 'csv' if keys_format == 'oasis' else 'json')
            
         keys_file_path = as_path(inputs.get('keys_file_path', default=default_keys_file_name.format(utcnow), required=False, is_path=True), 'Keys file path', preexists=False)
         keys_errors_file_path = as_path(inputs.get('keys_errors_file_path', default=default_keys_errors_file_name.format(utcnow), required=False, is_path=True), 'Keys errors file path', preexists=False)
 
         self.logger.info('Saving keys records to file')
-        f1, n1, f2, n2 = OasisKeysLookupFactory.save_keys(
-            lookup=model_klc,
-            model_exposures_file_path=model_exposures_file_path,
-            keys_file_path=keys_file_path,
-            keys_errors_file_path=keys_errors_file_path,
-            keys_format=keys_format
+        f1, n1, f2, n2 = OasisLookupFactory.save_results(
+            lookup,
+            keys_file_path,
+            errors_fp=keys_errors_file_path,
+            model_exposures_fp=model_exposures_file_path,
+            format=keys_format
         )
         self.logger.info('{} keys records with successful lookups saved to keys file {}'.format(n1, f1))
         self.logger.info('{} keys records with unsuccessful lookups saved to keys error file {}'.format(n2, f2))
@@ -430,6 +419,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         super(self.__class__, self).add_args(parser)
 
         parser.add_argument('-o', '--oasis-files-path', default=None, help='Path to Oasis files')
+        parser.add_argument('-g', '--lookup-config-file-path', default=None, help='Lookup config JSON file path')
         parser.add_argument('-k', '--keys-data-path', default=None, help='Path to Oasis files')
         parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
         parser.add_argument('-l', '--lookup-package-path', default=None, help='Keys data directory path')
@@ -467,9 +457,16 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
         default_oasis_files_path = os.path.join(os.getcwd(), 'runs', 'OasisFiles-{}'.format(utcnow))
         oasis_files_path = as_path(inputs.get('oasis_files_path', is_path=True, default=default_oasis_files_path), 'Oasis file', preexists=False)
-        keys_data_path = as_path(inputs.get('keys_data_path', required=True, is_path=True), 'Keys data')
-        model_version_file_path = as_path(inputs.get('model_version_file_path', required=True, is_path=True), 'Model version file')
-        lookup_package_file_path = as_path(inputs.get('lookup_package_path', required=True, is_path=True), 'Lookup package file')
+
+        lookup_config_fp = as_path(inputs.get('lookup_config_file_path', required=False, is_path=True), 'Lookup config JSON file path', preexists=False)
+
+        keys_data_path = as_path(inputs.get('keys_data_path', required=False, is_path=True), 'Keys data path', preexists=False)
+        model_version_file_path = as_path(inputs.get('model_version_file_path', required=False, is_path=True), 'Model version file path', preexists=False)
+        lookup_package_file_path = as_path(inputs.get('lookup_package_path', required=False, is_path=True), 'Lookup package path', preexists=False)
+
+        if not (lookup_config_fp or (keys_data_path and model-version-file-path and lookup_package_path)):
+            raise OasisException('Either the lookup config JSON file path or the keys data path + model version file path + lookup package path must be provided')
+
         canonical_exposures_profile_json_path = as_path(
             inputs.get('canonical_exposures_profile_json_path', required=True, is_path=True),
             'Canonical exposures profile json'
@@ -492,21 +489,23 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             'Canonical to model exposures transformation file'
         )
 
-        self.logger.info('Getting model info and creating lookup service instance')
-        model_info, model_klc = OasisKeysLookupFactory.create(
-            model_keys_data_path=keys_data_path,
-            model_version_file_path=model_version_file_path,
-            lookup_package_path=lookup_package_file_path,
+        self.logger.info('Getting model info and lookup')
+        model_info, lookup = OasisLookupFactory.create(
+                lookup_config_fp=lookup_config_fp,
+                model_keys_data_path=keys_data_path,
+                model_version_file_path=model_version_file_path,
+                lookup_package_path=lookup_package_file_path
         )
-        self.logger.info('\t{}, {}'.format(model_info, model_klc))
+        self.logger.info('\t{}, {}'.format(model_info, lookup))
 
         self.logger.info('Creating Oasis model object')
         model = OasisExposuresManager().create(
             model_supplier_id=model_info['supplier_id'],
             model_id=model_info['model_id'],
-            model_version_id=model_info['model_version_id'],
+            model_version=model_info['model_version'],
             resources={
-                'lookup': model_klc,
+                'lookup': lookup,
+                'lookup_config_fp': lookup_config_fp or None,
                 'oasis_files_path': oasis_files_path,
                 'source_exposures_file_path': source_exposures_file_path,
                 'source_exposures_validation_file_path': source_exposures_validation_file_path,
@@ -678,6 +677,7 @@ class RunCmd(OasisBaseCommand):
         parser.add_argument('-k', '--keys-data-path', default=None, help='Path to Oasis files')
         parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
         parser.add_argument('-l', '--lookup-package-file-path', default=None, help='Keys data directory path')
+        parser.add_argument('-g', '--lookup-config-file-path', default=None, help='Lookup config JSON file path')
         parser.add_argument(
             '-p', '--canonical-exposures-profile-json-path', default=None,
             help='Path of the supplier canonical exposures profile JSON file'

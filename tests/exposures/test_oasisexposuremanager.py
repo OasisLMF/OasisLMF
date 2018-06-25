@@ -193,7 +193,7 @@ class OasisExposureManagerGetKeys(TestCase):
     ):
         model = self.create_model(lookup=lookup, keys_file_path=keys, keys_errors_file_path=keys_errors, model_exposures_file_path=exposure)
 
-        with patch('oasislmf.exposures.manager.OasisKeysLookupFactory.save_keys', Mock(return_value=(keys, 1, keys_errors, 1))) as oklf_mock:
+        with patch('oasislmf.exposures.manager.OasisLookupFactory.save_keys', Mock(return_value=(keys, 1, keys_errors, 1))) as oklf_mock:
             res_keys_file_path, res_keys_errors_file_path = OasisExposuresManager().get_keys(oasis_model=model)
 
             oklf_mock.assert_called_once_with(
@@ -230,7 +230,7 @@ class OasisExposureManagerGetKeys(TestCase):
     ):
         model = self.create_model(lookup=model_lookup, keys_file_path=model_keys, keys_errors_file_path=keys_errors, model_exposures_file_path=model_exposure)
 
-        with patch('oasislmf.exposures.manager.OasisKeysLookupFactory.save_keys', Mock(return_value=(keys, 1, keys_errors, 1))) as oklf_mock:
+        with patch('oasislmf.exposures.manager.OasisLookupFactory.save_keys', Mock(return_value=(keys, 1, keys_errors, 1))) as oklf_mock:
             res_keys_file_path, res_keys_errors_file_path = OasisExposuresManager().get_keys(
                 oasis_model=model,
                 lookup=lookup,

@@ -8,7 +8,7 @@ __all__ = [
     'OasisLookup',
     'OasisPerilLookup',
     'OasisVulnerabilityLookup',
-    'OasisKeysLookupFactory'
+    'OasisLookupFactory'
 ]
 
 import builtins
@@ -239,7 +239,7 @@ class OasisBaseKeysLookup(object):  # pragma: no cover
         return KEYS_STATUS_SUCCESS
 
 
-class OasisKeysLookupFactory(object):
+class OasisLookupFactory(object):
     """
     A factory class to load and run keys lookup services for different
     models/suppliers.
@@ -251,7 +251,7 @@ class OasisKeysLookupFactory(object):
         """
         with io.open(model_version_file_path, 'r', encoding='utf-8') as f:
             return next(csv.DictReader(
-                f, fieldnames=['supplier_id', 'model_id', 'model_version_id']
+                f, fieldnames=['supplier_id', 'model_id', 'model_version']
             ))
 
     @classmethod
@@ -286,7 +286,7 @@ class OasisKeysLookupFactory(object):
             keys_data_directory=keys_data_path,
             supplier=model_info['supplier_id'],
             model_name=model_info['model_id'],
-            model_version=model_info['model_version_id']
+            model_version=model_info['model_version']
         )
 
     @classmethod
@@ -372,7 +372,12 @@ class OasisKeysLookupFactory(object):
         cls,
         model_keys_data_path=None,
         model_version_file_path=None,
-        lookup_package_path=None
+        lookup_package_path=None,
+        lookup_config=None,
+        lookup_config_json=None,
+        lookup_config_fp=None,
+        lookup_type='combined',
+        loc_id_col='id'
     ):
         """
         Creates a keys lookup class instance for the given model and supplier -
@@ -382,36 +387,29 @@ class OasisKeysLookupFactory(object):
         model information from the model version file and `klc` is the lookup
         service class instance for the model.
         """
-        _model_keys_data_path = as_path(model_keys_data_path, 'model_keys_data_path', preexists=True)
-        _model_version_file_path = as_path(model_version_file_path, 'model_version_file_path', preexists=True)
-        _lookup_package_path = as_path(lookup_package_path, 'lookup_package_path', preexists=True)
+        if (lookup_config or lookup_config_json or lookup_config_fp):
+            lookup = OasisLookup(
+                config=lookup_config,
+                config_json=lookup_config_json,
+                config_fp=lookup_config_fp,
+                loc_id_col=loc_id_col
+            )
+            model_info = lookup.config.get('model')
+            if lookup_type == 'combined':
+                return model_info, lookup
+            elif lookup_type == 'peril':
+                return model_info, lookup.peril_lookup
+            elif lookup_type == 'vulnerability':
+                return model_info, lookup.vulnerability_lookup
+        else:
+            _model_keys_data_path = as_path(model_keys_data_path, 'model_keys_data_path', preexists=True)
+            _model_version_file_path = as_path(model_version_file_path, 'model_version_file_path', preexists=True)
+            _lookup_package_path = as_path(lookup_package_path, 'lookup_package_path', preexists=True)
 
-        model_info = cls.get_model_info(_model_version_file_path)
-        lookup_package = cls.get_lookup_package(_lookup_package_path)
+            model_info = cls.get_model_info(_model_version_file_path)
+            lookup_package = cls.get_lookup_package(_lookup_package_path)
         
-        return model_info, cls.get_lookup_class_instance(lookup_package, _model_keys_data_path, model_info)
-
-    @classmethod
-    def create2(
-        cls,
-        lookup_config=None,
-        lookup_config_json=None,
-        lookup_config_fp=None,
-        lookup_type='combined',
-        loc_id_col='id'
-    ):
-        lookup = OasisLookup(
-            config=lookup_config,
-            config_json=lookup_config_json,
-            config_fp=lookup_config_fp,
-            loc_id_col=loc_id_col
-        )
-        if lookup_type == 'combined':
-            return lookup
-        elif lookup_type == 'peril':
-            return lookup.peril_lookup
-        elif lookup_type == 'vulnerability':
-            return lookup.vulnerability_lookup
+            return model_info, cls.get_lookup_class_instance(lookup_package, _model_keys_data_path, model_info)
 
     @classmethod
     def get_keys(
@@ -570,8 +568,8 @@ class OasisKeysLookupFactory(object):
     def save_results(
         cls,
         lookup,
-        successes_file_path,
-        errors_file_path=None,
+        successes_fp,
+        errors_fp=None,
         model_exposures=None,
         model_exposures_fp=None,
         format='oasis'
@@ -603,15 +601,29 @@ class OasisKeysLookupFactory(object):
         if not (model_exposures or model_exposures_fp):
             raise OasisException('No model exposures data or file path provided')
 
-        sfp = as_path(successes_file_path, 'successes_file_path', preexists=False)
-        efp = as_path(errors_file_path, 'errors_file_path', preexists=False)
+        mfp = as_path(model_exposures_fp, 'model_exposures_fp', preexists=(False if model_exposures else True))
 
-        results = cls.get_results(
-            lookup,
-            model_exposures=model_exposures,
-            model_exposures_fp=model_exposures_fp,
-            successes_only=(True if not efp else False)
-        )
+        sfp = as_path(successes_fp, 'successes_fp', preexists=False)
+        efp = as_path(errors_fp, 'errors_fp', preexists=False)
+
+        results = None
+
+        try:
+            config = lookup.config
+        except AttributeError:
+            results = cls.get_keys(
+                lookup=lookup,
+                model_exposures=model_exposures,
+                model_exposures_file_path=mfp,
+                success_only=(False if efp else True)
+            )
+        else:
+            results = cls.get_results(
+                lookup,
+                model_exposures=model_exposures,
+                model_exposures_fp=mfp,
+                successes_only=(False if efp else True)
+            )
 
         successes = []
         nonsuccesses = []

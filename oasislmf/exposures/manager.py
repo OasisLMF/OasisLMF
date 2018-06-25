@@ -17,7 +17,7 @@ import six
 
 from interface import Interface, implements
 
-from ..keys.lookup import OasisKeysLookupFactory
+from ..keys.lookup import OasisLookupFactory
 from ..utils.exceptions import OasisException
 from ..utils.values import get_utctimestamp
 from ..models import OasisModel
@@ -155,7 +155,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         pass
 
-    def create(self, model_supplier_id, model_id, model_version_id, resources=None):
+    def create(self, model_supplier_id, model_id, model_version, resources=None):
         pass
 
 
@@ -338,14 +338,14 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         """
         kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
 
-        canonical_exposures_profile_json = kwargs.get('canonical_exposures_profile_json')
-        canonical_exposures_profile_json_path = kwargs.get('canonical_exposures_profile_json_path')
+        profile_json = kwargs.get('canonical_exposures_profile_json')
+        profile_path = kwargs.get('canonical_exposures_profile_json_path')
 
         profile = None
-        if canonical_exposures_profile_json:
-            profile = json.loads(canonical_exposures_profile_json)
-        elif canonical_exposures_profile_json_path:
-            with io.open(canonical_exposures_profile_json_path, 'r', encoding='utf-8') as f:
+        if profile_json:
+            profile = json.loads(profile_json)
+        elif profile_path:
+            with io.open(profile_path, 'r', encoding='utf-8') as f:
                 profile = json.load(f)
 
         if oasis_model:
@@ -353,6 +353,41 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         return profile
 
+    def load_lookup_config(self, oasis_model=None, **kwargs):
+        """
+        Loads a lookup config JSON string or file.
+        """
+        kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
+
+        lookup = kwargs.get('lookup')
+
+        if not lookup:
+            return
+
+        try:
+            config = lookup.config
+        except AttributeError:
+            pass
+        else:
+            if oasis_model:
+                oasis_model.resources['lookup_config'] = config
+
+            return config
+
+        config_json = kwargs.get('lookup_config_json')
+        config_fp = kwargs.get('lookup_config_fp')
+
+        config = None
+        if config_json:
+            config = json.loads(config_json)
+        elif config_fp:
+            with io.open(config_fp, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+
+        if oasis_model:
+            oasis_model.resources['lookup_config'] = config
+
+        return config
 
     def get_keys(self, oasis_model=None, **kwargs):
         """
@@ -391,15 +426,14 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         keys_file_path = kwargs.get('keys_file_path')
         keys_errors_file_path = kwargs.get('keys_errors_file_path')
 
-        model_exposures_file_path, keys_file_path, keys_errors_file_path = tuple(
-            os.path.abspath(p) if p and not os.path.isabs(p) else p for p in [model_exposures_file_path, keys_file_path, keys_errors_file_path]
-        )
+        for p in (model_exposures_file_path, keys_file_path, keys_errors_file_path,):
+            p = os.path.abspath(p) if p and not os.path.isabs(p) else p
 
-        keys_file_path, _, keys_errors_file_path, _ = OasisKeysLookupFactory().save_keys(
-            keys_file_path=keys_file_path,
-            keys_errors_file_path=keys_errors_file_path,
-            lookup=lookup,
-            model_exposures_file_path=model_exposures_file_path,
+        keys_file_path, _, keys_errors_file_path, _ = OasisLookupFactory().save_results(
+            lookup,
+            keys_file_path,
+            errors_fp=keys_errors_file_path,
+            model_exposures_fp=model_exposures_file_path
         )
 
         if oasis_model:
@@ -425,6 +459,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             kwargs.setdefault('canonical_exposures_validation_file_path', omr.get('canonical_exposures_validation_file_path'))
             kwargs.setdefault('canonical_to_model_exposures_transformation_file_path', omr.get('canonical_to_model_exposures_transformation_file_path'))
 
+            kwargs.setdefault('lookup_config', omr.get('lookup_config'))
+            kwargs.setdefault('lookup_config_json', omr.get('lookup_config_json'))
+            kwargs.setdefault('lookup_config_fp', omr.get('lookup_config_fp'))
             kwargs.setdefault('lookup', omr.get('lookup'))
 
             kwargs.setdefault('model_exposures_file_path', ofp.model_exposures_file_path)
@@ -677,11 +714,11 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         logger.info('Generating Oasis files for model')
         return self.generate_oasis_files(oasis_model=oasis_model, **kwargs)
 
-    def create(self, model_supplier_id, model_id, model_version_id, resources=None):
+    def create(self, model_supplier_id, model_id, model_version, resources=None):
         model = OasisModel(
             model_supplier_id,
             model_id,
-            model_version_id,
+            model_version,
             resources=resources
         )
 
@@ -697,6 +734,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         if model.resources.get('canonical_exposures_profile') is None:
             self.load_canonical_exposures_profile(oasis_model=model)
+
+        if model.resources.get('lookup') and model.resources.get('lookup_config') is None:
+            self.load_lookup_config(oasis_model=model)
 
         self.add_model(model)
 
