@@ -92,8 +92,8 @@ class GeneratePerilAreasRtreeFileIndex(OasisBaseCommand):
 
         _areas_fp = as_path(areas_fp, 'areas_fp', preexists=True)
 
-        if _areas_fp.startswith('%KEYS_DATA_PATH%'):
-            _areas_fp = _areas_fp.replace('%KEYS_DATA_PATH%', keys_data_path)
+        if _areas_fp.startswith('%%KEYS_DATA_PATH%%'):
+            _areas_fp = _areas_fp.replace('%%KEYS_DATA_PATH%%', keys_data_path)
 
         src_type = str.lower(str(peril_config.get('file_type')) or '') or 'csv'
 
