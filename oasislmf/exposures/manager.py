@@ -112,7 +112,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         pass
 
-    def load_canonical_profile(self, oasis_model=None, **kwargs):
+    def load_canonical_exposures_profile(self, oasis_model=None, **kwargs):
         """
         Loads a JSON string or JSON file representation of the canonical
         exposures profile for a given ``oasis_model``, stores this in the
@@ -427,7 +427,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             kwargs.setdefault('gulsummaryxref_file_path', oasis_model.resources['oasis_files_pipeline'].gulsummaryxref_file_path)
 
         if not kwargs.get('canonical_exposures_profile'):
-            kwargs['canonical_exposures_profile'] = self.load_canonical_profile(
+            kwargs['canonical_exposures_profile'] = self.load_canonical_exposures_profile(
                 oasis_model=oasis_model,
                 canonical_exposures_profile_json=kwargs.get('canonical_exposures_profile_json'),
                 canonical_exposures_profile_json_path=kwargs.get('canonical_exposures_profile_json_path'),
@@ -695,7 +695,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 'Oasis files pipeline object for model {} is not of type {}'.format(model, OasisFilesPipeline))
 
         if model.resources.get('canonical_exposures_profile') is None:
-            self.load_canonical_profile(oasis_model=model)
+            self.load_canonical_exposures_profile(oasis_model=model)
 
         self.add_model(model)
 
