@@ -89,7 +89,7 @@ def as_path(value, name, preexists=True):
 
 class OasisBaseLookup(object):
 
-    @oasis_log()
+    @oasis_log(class_name='OasisBaseLookup')
     def __init__(self, config=None, config_json=None, config_fp=None):
         if config:
             self._config = config
@@ -672,7 +672,7 @@ class OasisLookup(OasisBaseLookup):
         )
 
         loc_config = self.config.get('locations')
-        self.loc_id_col = str.lower(loc_id_col or loc_config.get('id_col'))
+        self.loc_id_col = str.lower(str(loc_id_col or loc_config.get('id_col')))
 
         self.peril_lookup = OasisPerilLookup(
             config=self.config,
@@ -687,9 +687,9 @@ class OasisLookup(OasisBaseLookup):
 
         self.peril_id = peril_id or self.config['peril'].get('peril_id')
 
-        self.peril_area_id_key = str(self.config['peril'].get('peril_area_id_col') or 'peril_area_id').lower()
+        self.peril_area_id_key = str(str(self.config['peril'].get('peril_area_id_col') or '') or 'peril_area_id').lower()
 
-        self.vulnerability_id_key = str(self.config['vulnerability'].get('vulnerability_id_col') or 'vulnerability_id').lower()
+        self.vulnerability_id_key = str(str(self.config['vulnerability'].get('vulnerability_id_col')) or 'vulnerability_id').lower()
 
         self.vulnerability_lookup = OasisVulnerabilityLookup(
             config=self.config,
@@ -920,7 +920,7 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
             self.col_dtypes, self.key_cols, self.vuln_id_col, self.vulnerabilities = self.get_vulnerabilities(vulnerabilities=vulnerabilities)
 
         if self.config.get('locations'):
-            self.loc_id_col = str.lower(loc_id_col or self.config['locations'].get('id_col'))
+            self.loc_id_col = str.lower(str(loc_id_col or self.config['locations'].get('id_col')))
 
     @oasis_log()
     def get_vulnerabilities(self, vulnerabilities=None):
@@ -961,7 +961,7 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
 
         key_cols = tuple(col.lower() for col in key_cols)
 
-        vuln_id_col = str(self.config['vulnerability'].get('vulnerability_id_col') or 'vulnerability_id').lower()
+        vuln_id_col = str(str(self.config['vulnerability'].get('vulnerability_id_col')) or 'vulnerability_id').lower()
 
         def _vuln_dict(vulns_seq, key_cols, vuln_id_col):
             return (
@@ -986,7 +986,7 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
 
         self.config['vulnerability']['file_path'] = src_fp
 
-        src_type = str(vuln_config.get('file_type') or 'csv').lower()
+        src_type = str(str(vuln_config.get('file_type')) or 'csv').lower()
 
         float_precision = 'high' if vuln_config.get('float_precision_high') else None
 

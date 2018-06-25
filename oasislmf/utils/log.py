@@ -87,10 +87,9 @@ def oasis_log(*args, **kwargs):
     def actual_oasis_log(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            func_name = func.__name__
-            caller_module_name = six.get_function_globals(func)['__name__']
-            logger.info("STARTED: {}.{}".format(
-                caller_module_name, func_name))
+            caller_mod = inspect.getmodule(inspect.stack()[1][0]).__name__
+            caller_str = "{}.{}".format(caller_mod, func.__name__)
+            logger.info("STARTED: {}".format(caller_str))
 
             args_name = getargspec(func)[0]
             args_dict = dict(zip(args_name, args))
@@ -109,9 +108,7 @@ def oasis_log(*args, **kwargs):
             start = time.time()
             result = func(*args, **kwargs)
             end = time.time()
-            logger.info(
-                "COMPLETED: {}.{} in {}s".format(
-                    caller_module_name, func_name, round(end - start, 2)))
+            logger.info("FINISHED: {} in {}s".format(caller_str, round(end - start, 2)))
             return result
         return wrapper
 
