@@ -89,7 +89,7 @@ def as_path(value, name, preexists=True):
 
 class OasisBaseLookup(object):
 
-    @oasis_log(class_name='OasisBaseLookup')
+    @oasis_log()
     def __init__(self, config=None, config_json=None, config_fp=None):
         if config:
             self._config = config
@@ -395,7 +395,14 @@ class OasisLookupFactory(object):
                 loc_id_col=loc_id_col
             )
             model_info = lookup.config.get('model')
-            if lookup_type == 'combined':
+            if lookup_type == 'base':
+                lookup = OasisBaseLookup(
+                    config=lookup_config,
+                    config_json=lookup_config_json,
+                    config_fp=lookup_config_fp
+                )
+                return lookup.config.get('model'), lookup
+            elif lookup_type == 'combined':
                 return model_info, lookup
             elif lookup_type == 'peril':
                 return model_info, lookup.peril_lookup
@@ -1049,7 +1056,10 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
         vlnid = None
 
         try:
-            vlnid = self.vulnerabilities[tuple(loc_key_col_values[col] for col in key_cols)]
+            vlnid = (
+                self.vulnerabilities[tuple(loc_key_col_values[col] for col in key_cols)] if len(key_cols) > 1
+                else self.vulnerabilities[loc[key_cols[0]]]
+            )
         except KeyError:
             pass
         else:

@@ -4,6 +4,8 @@ __all__ = [
     'get_dataframe'
 ]
 
+import builtins
+
 import pandas as pd
 
 import six
@@ -53,7 +55,9 @@ def get_dataframe(
         df.dropna(subset=_non_na_cols, inplace=True)
 
     if col_dtypes:
-        _col_dtypes = {k.lower():v for k, v in six.iteritems(col_dtypes)} if lowercase_cols else col_dtypes
+        _col_dtypes = {
+            (k.lower() if lowercase_cols else k):(getattr(builtins, v) if v in ('int', 'bool', 'float', 'str',) else v) for k, v in six.iteritems(col_dtypes)
+        }
         for col, dtype in six.iteritems(_col_dtypes):
             df[col] = df[col].astype(dtype) if dtype != int else df[col].astype(object)
 

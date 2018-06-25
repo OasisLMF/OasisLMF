@@ -293,7 +293,7 @@ class PerilAreasIndex(RTreeIndex):
         _non_na_cols = tuple(_non_na_cols)
 
         _col_dtypes = {
-            k.lower():getattr(builtins, v) for k, v in six.iteritems(col_dtypes)
+            (k.lower() if lowercase_cols else k):(getattr(builtins, v) if v in ('int', 'bool', 'float', 'str',) else v) for k, v in six.iteritems(col_dtypes)
         }
 
         _sort_col = sort_col.lower()
