@@ -147,7 +147,6 @@ This will create `.asc` signature file named `<package file name>.{tar.gz,whl}.a
 * <a href="https://github.com/OasisLMF/OasisLMF/issues">Issues</a>
 * <a href="https://github.com/OasisLMF/OasisLMF/releases">Releases</a>
 * <a href="https://oasislmf.github.io">General Oasis documentation</a>
-* <a href="http://oasislmf.github.io/docs/oasis_cli.html">OasisLMF CLI</a>
 * <a href="https://oasislmf.github.io/docs/oasis_mdk.html">Model Development Kit (MDK)</a>
 * <a href="https://oasislmf.github.io/OasisLmf/modules.html">Modules</a>
 
