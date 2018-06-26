@@ -107,7 +107,7 @@ class PostInstallKtools(install):
 
         exit_code = os.system('cd {build_dir} && ./autogen.sh && ./configure && make && make check'.format(build_dir=build_dir))
         if(exit_code is not 0):
-            self.announce('Ktools build failed.\n`Check that Ktools build dependencies are installed`.\nExiting.', WARN)
+            self.announce('Ktools build failed.\nExiting.', WARN)
             sys.exit(1)
         return build_dir
 
