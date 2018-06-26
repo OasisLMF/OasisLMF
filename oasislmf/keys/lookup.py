@@ -309,12 +309,12 @@ class OasisLookupFactory(object):
         return loc_df
 
     @classmethod
-    def write_oasis_keys_file(cls, records, output_file_path):
+    def write_oasis_keys_file(cls, records, output_file_path, id_col='id'):
         """
         Writes an Oasis keys file from an iterable of keys records.
         """
         heading_row = OrderedDict([
-            ('id', 'LocID'),
+            (id_col, 'LocID'),
             ('peril_id', 'PerilID'),
             ('coverage', 'CoverageID'),
             ('area_peril_id', 'AreaPerilID'),
@@ -334,12 +334,12 @@ class OasisLookupFactory(object):
         return output_file_path, len(records)
 
     @classmethod
-    def write_oasis_keys_errors_file(cls, records, output_file_path):
+    def write_oasis_keys_errors_file(cls, records, output_file_path, id_col='id'):
         """
         Writes an Oasis keys errors file from an iterable of keys records.
         """
         heading_row = OrderedDict([
-            ('id', 'LocID'),
+            (id_col, 'LocID'),
             ('peril_id', 'PerilID'),
             ('coverage', 'CoverageID'),
             ('message', 'Message'),
@@ -507,6 +507,7 @@ class OasisLookupFactory(object):
     def save_keys(
         cls,
         lookup=None,
+        keys_id_col='id',
         keys_file_path=None,
         keys_errors_file_path=None,
         keys_format='oasis',
@@ -564,10 +565,10 @@ class OasisLookupFactory(object):
             return cls.write_json_keys_file(successes, _keys_file_path)
         elif keys_format == 'oasis':
             if _keys_errors_file_path:
-                fp1, n1 = cls.write_oasis_keys_file(successes, _keys_file_path)
-                fp2, n2 = cls.write_oasis_keys_errors_file(nonsuccesses, _keys_errors_file_path)
+                fp1, n1 = cls.write_oasis_keys_file(successes, _keys_file_path, id_col=keys_id_col)
+                fp2, n2 = cls.write_oasis_keys_errors_file(nonsuccesses, _keys_errors_file_path, id_col=keys_id_col)
                 return fp1, n1, fp2, n2
-            return cls.write_oasis_keys_file(successes, _keys_file_path)
+            return cls.write_oasis_keys_file(successes, _keys_file_path, id_col=keys_id_col)
         else:
             raise OasisException("Unrecognised keys file output format - valid formats are 'oasis' or 'json'")
 
@@ -644,11 +645,18 @@ class OasisLookupFactory(object):
                 return fp1, n1, fp2, n2
             return cls.write_json_keys_file(successes, sfp)
         elif format == 'oasis':
+            loc_id_col = None
+            try:
+                loc_id_col = lookup.loc_id_col
+            except AttributeError:
+                loc_id_col = 'id'
+            else:
+                loc_id_col = loc_id_col.lower()
             if efp:
-                fp1, n1 = cls.write_oasis_keys_file(successes, sfp)
-                fp2, n2 = cls.write_oasis_keys_errors_file(nonsuccesses, efp)
+                fp1, n1 = cls.write_oasis_keys_file(successes, sfp, id_col=loc_id_col)
+                fp2, n2 = cls.write_oasis_keys_errors_file(nonsuccesses, efp, id_col=loc_id_col)
                 return fp1, n1, fp2, n2
-            return cls.write_oasis_keys_file(successes, sfp)
+            return cls.write_oasis_keys_file(successes, sfp, id_col=loc_id_col)
         else:
             raise OasisException("Unrecognised lookup file output format - valid formats are 'oasis' or 'json'")
 
@@ -679,7 +687,7 @@ class OasisLookup(OasisBaseLookup):
         )
 
         loc_config = self.config.get('locations')
-        self.loc_id_col = str.lower(str(loc_id_col or loc_config.get('id_col')))
+        self.loc_id_col = str.lower(str(loc_config.get('id_col') or loc_id_col))
 
         self.peril_lookup = OasisPerilLookup(
             config=self.config,
@@ -821,7 +829,7 @@ class OasisPerilLookup(OasisBaseLookup):
             )
 
         if self.config.get('locations'):
-            self.loc_id_col = str.lower(loc_id_col or self.config['locations'].get('id_col'))
+            self.loc_id_col = str.lower(str(self.config['locations'].get('id_col') or loc_id_col))
             self.loc_coords_x_col = str.lower(str(self.config['locations'].get('coords_x_col')) or 'lon')
             self.loc_coords_y_col = str.lower(str(self.config['locations'].get('coords_y_col')) or 'lat')
             self.loc_coords_x_bounds = tuple(self.config['locations'].get('coords_x_bounds') or ()) or (-180, 180)
@@ -932,7 +940,7 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
             self.col_dtypes, self.key_cols, self.vuln_id_col, self.vulnerabilities = self.get_vulnerabilities(vulnerabilities=vulnerabilities)
 
         if self.config.get('locations'):
-            self.loc_id_col = str.lower(str(loc_id_col or self.config['locations'].get('id_col')))
+            self.loc_id_col = str.lower(str(self.config['locations'].get('id_col') or loc_id_col))
 
     @oasis_log()
     def get_vulnerabilities(self, vulnerabilities=None):
