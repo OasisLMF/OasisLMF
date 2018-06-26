@@ -105,7 +105,10 @@ class PostInstallKtools(install):
         self.announce('Building ktools', INFO)
         build_dir = os.path.join(extract_location, 'ktools-OASIS_{}'.format(KTOOLS_VERSION))
 
-        os.system('cd {build_dir} && ./autogen.sh && ./configure && make && make check'.format(build_dir=build_dir))
+        exit_code = os.system('cd {build_dir} && ./autogen.sh && ./configure && make && make check'.format(build_dir=build_dir))
+        if(exit_code is not 0):
+            self.announce('Ktools build failed.\n`Check that Ktools build dependencies are installed`.\nExiting.', WARN)
+            sys.exit(1)
         return build_dir
 
     def add_ktools_to_path(self, build_dir):
