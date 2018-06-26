@@ -463,7 +463,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
 
         keys_data_path = as_path(inputs.get('keys_data_path', required=False, is_path=True), 'Keys data path', preexists=False)
         model_version_file_path = as_path(inputs.get('model_version_file_path', required=False, is_path=True), 'Model version file path', preexists=False)
-        lookup_package_file_path = as_path(inputs.get('lookup_package_path', required=False, is_path=True), 'Lookup package path', preexists=False)
+        lookup_package_path = as_path(inputs.get('lookup_package_path', required=False, is_path=True), 'Lookup package path', preexists=False)
 
         if not (lookup_config_fp or (keys_data_path and model_version_file_path and lookup_package_path)):
             raise OasisException('Either the lookup config JSON file path or the keys data path + model version file path + lookup package path must be provided')
@@ -495,7 +495,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
                 lookup_config_fp=lookup_config_fp,
                 model_keys_data_path=keys_data_path,
                 model_version_file_path=model_version_file_path,
-                lookup_package_path=lookup_package_file_path
+                lookup_package_path=lookup_package_path
         )
         self.logger.info('\t{}, {}'.format(model_info, lookup))
 
