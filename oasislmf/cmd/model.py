@@ -465,7 +465,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         model_version_file_path = as_path(inputs.get('model_version_file_path', required=False, is_path=True), 'Model version file path', preexists=False)
         lookup_package_file_path = as_path(inputs.get('lookup_package_path', required=False, is_path=True), 'Lookup package path', preexists=False)
 
-        if not (lookup_config_fp or (keys_data_path and model-version-file-path and lookup_package_path)):
+        if not (lookup_config_fp or (keys_data_path and model_version_file_path and lookup_package_path)):
             raise OasisException('Either the lookup config JSON file path or the keys data path + model version file path + lookup package path must be provided')
 
         canonical_exposures_profile_json_path = as_path(
