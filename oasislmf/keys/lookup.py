@@ -784,26 +784,31 @@ class OasisPerilLookup(OasisBaseLookup):
     ):
         super(self.__class__, self).__init__(config=config, config_json=config_json, config_fp=config_fp)
 
-        self.peril_id = peril_id or (self.config['peril'].get('peril_id') if self.config.get('peril') else None)
+        peril_config = self.config.get('peril') or {}
 
-        if areas or peril_areas or self.config.get('peril'):
-            self.index_props = (
-                (peril_areas_index.properties.as_dict() if peril_areas_index else {}) or
-                peril_areas_index_props or 
-                self.config['peril'].get('rtree_index') or
-                DEFAULT_RTREE_INDEX_PROPS
-            )
-            self.index_fp = as_path(peril_areas_index_fp or self.index_props.get('filename'), '_index_fp', preexists=False)
+        self.peril_id = peril_id or peril_config.get('peril_id')
 
-            self.peril_areas_index = (
-                peril_areas_index or 
-                PerilAreasIndex(
-                    areas=areas,
-                    peril_areas=peril_areas,
-                    fp=self.index_fp,
-                    properties=self.index_props
+        if areas or peril_areas or peril_config:
+            if peril_areas_index:
+                self.peril_areas_index = peril_areas_index
+                self.peril_areas_index_props = self.peril_areas_index_props.properties.as_dict()
+            elif (areas or peril_areas):
+                self.index_props = (
+                    peril_areas_index_props or 
+                    peril_config.get('rtree_index') or
+                    DEFAULT_RTREE_INDEX_PROPS
                 )
-            )
+                self.peril_areas_index = PerilAreasIndex(areas=areas, peril_areas=peril_areas, properties=self.index_props)
+            else:
+                areas_rtree_index_config = peril_config.get('rtree_index') or {}
+                index_fp = as_path(peril_areas_index_fp or areas_rtree_index_config.get('filename'), 'index_fp', preexists=False)
+                if index_fp:
+                    idx_ext = areas_rtree_index_config.get('idx_extension') or 'idx'
+                    dat_ext = areas_rtree_index_config.get('dat_extension') or 'dat'
+                    if not (os.path.exists('{}.{}'.format(index_fp, idx_ext)) or os.path.exists('{}.{}'.format(index_fp, dat_ext))):
+                        raise OasisException('No Rtree file index {}.{{idx_ext, dat_ext}} found'.format(index_fp))
+                    self.peril_areas_index = PerilAreasIndex(fp=index_fp)
+                    self.peril_areas_index_props = self.peril_areas_index.properties.as_dict()
 
             self.peril_areas_boundary = box(*self.peril_areas_index.bounds, ccw=False)
 
@@ -817,8 +822,8 @@ class OasisPerilLookup(OasisBaseLookup):
 
         if self.config.get('locations'):
             self.loc_id_col = str.lower(loc_id_col or self.config['locations'].get('id_col'))
-            self.loc_coords_x_col = self.config['locations'].get('coords_x_col') or 'lon'
-            self.loc_coords_y_col = self.config['locations'].get('coords_y_col') or 'lat'
+            self.loc_coords_x_col = str.lower(str(self.config['locations'].get('coords_x_col')) or 'lon')
+            self.loc_coords_y_col = str.lower(str(self.config['locations'].get('coords_y_col')) or 'lat')
             self.loc_coords_x_bounds = tuple(self.config['locations'].get('coords_x_bounds') or ()) or (-180, 180)
             self.loc_coords_y_bounds = tuple(self.config['locations'].get('coords_y_bounds') or ()) or (-90, 90)
 

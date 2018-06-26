@@ -196,19 +196,22 @@ class PerilAreasIndex(RTreeIndex):
             areas = kwargs.get('areas')
             peril_areas = kwargs.get('peril_areas')
 
-            index_props = kwargs.get('properties') or DEFAULT_RTREE_INDEX_PROPS
+            props = kwargs.get('properties') or copy.deepcopy(DEFAULT_RTREE_INDEX_PROPS)
 
             if not (idx_fp or areas or peril_areas):
                 self._peril_areas = self._stream = None
-                kwargs['properties'] = RTreeIndexProperty(**index_props)
+                kwargs['properties'] = RTreeIndexProperty(**props)
                 super(self.__class__, self).__init__(*args, **kwargs)
             elif idx_fp:
                 self._peril_areas = self._stream = None
                 _idx_fp = idx_fp
                 if not os.path.isabs(_idx_fp):
                     _idx_fp = os.path.abspath(_idx_fp)
-                index_props['filename'] = _idx_fp
-                kwargs['properties'] = RTreeIndexProperty(**index_props)
+                fexts = {'idx': props['idx_extension'], 'dat': props['dat_extension']}
+
+                if not (os.path.exists('{}.{}'.format(_idx_fp, fexts['idx'])) or os.path.exists('{}.{}'.format(_idx_fp, fexts['dat']))):
+                    kwargs['properties'] = RTreeIndexProperty(**props)
+
                 super(self.__class__, self).__init__(_idx_fp, *args, **kwargs)
             else:
                 self._peril_areas = OrderedDict({
@@ -263,13 +266,9 @@ class PerilAreasIndex(RTreeIndex):
         area_poly_coords_seq_start_idx=1,
         area_reg_poly_radius=0.00166,
         static_props={},
-        index_fp=os.path.join(os.path.abspath(os.path.dirname(__file__)), 'rtree-index'),
-        index_props=DEFAULT_RTREE_INDEX_PROPS
+        index_fp=None,
+        index_props=copy.deepcopy(DEFAULT_RTREE_INDEX_PROPS)
     ):
-        _index_fp = index_fp
-        if not os.path.isabs(_index_fp):
-            _index_fp = os.path.abspath(_index_fp)
-
         if not src_fp:
             raise OasisException(
                 'An areas source CSV or JSON file path must be provided'
@@ -292,17 +291,13 @@ class PerilAreasIndex(RTreeIndex):
 
         _non_na_cols = tuple(_non_na_cols)
 
-        _col_dtypes = {
-            (k.lower() if lowercase_cols else k):(getattr(builtins, v) if v in ('int', 'bool', 'float', 'str',) else v) for k, v in six.iteritems(col_dtypes)
-        }
-
         _sort_col = sort_col.lower()
 
         areas_df = get_dataframe(
             src_fp=_src_fp,
             src_type=src_type,
             non_na_cols=_non_na_cols,
-            col_dtypes=_col_dtypes,
+            col_dtypes=col_dtypes,
             sort_col=(_peril_area_id_col or _sort_col)
         )
 
@@ -323,10 +318,17 @@ class PerilAreasIndex(RTreeIndex):
             ) for _, ar in areas_df.iterrows()
         )
 
+        _index_fp = index_fp
+        if not _index_fp:
+            raise OasisException('No output file index path provided')
+
+        if not os.path.isabs(_index_fp):
+            _index_fp = os.path.abspath(_index_fp)
+
         try:
             return cls().save(
+                _index_fp,
                 peril_areas=peril_areas,
-                index_fp=index_fp,
                 index_props=index_props
             )
         except OasisException as e:
@@ -334,24 +336,24 @@ class PerilAreasIndex(RTreeIndex):
 
     def save(
         self,
+        index_fp,
         peril_areas=None,
-        index_fp=None,
         index_props=DEFAULT_RTREE_INDEX_PROPS
     ):
-        if not index_fp:
-            raise OasisException('A file index path must be provided')
-
         _index_fp = index_fp
         if not os.path.isabs(_index_fp):
             _index_fp = os.path.abspath(_index_fp)
 
         class myindex(RTreeIndex):
             def __init__(self, *args, **kwargs):
-                self.protocol = (2 if six.sys.version_info[0] < 3 else -1)
+                self.protocol = (2 if six.sys.version_info[0] < 3 else cpickle.HIGHEST_PROTOCOL)
                 super(self.__class__, self).__init__(*args, **kwargs)
 
             def dumps(self, obj):
                 return cpickle.dumps(obj, protocol=self.protocol)
+
+            def loads(self, obj):
+                return cpickle.loads(obj)
 
         try:
             index = myindex(_index_fp, properties=RTreeIndexProperty(**index_props))

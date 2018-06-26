@@ -69,7 +69,7 @@ class GeneratePerilAreasRtreeFileIndex(OasisBaseCommand):
 
         keys_data_path = as_path(inputs.get('keys_data_path', required=True, is_path=True), 'Keys config file path', preexists=True)
 
-        index_fp = as_path(inputs.get('index_file_path', required=False, is_path=True, default=os.path.join(keys_data_path, 'rtree-index')), 'Index file path', preexists=False)
+        index_fp = as_path(inputs.get('index_file_path', required=False, is_path=True, default=None), 'Index output file path', preexists=False)
 
         with io.open(lookup_config_fp, 'r', encoding='utf-8') as f:
             config = json.load(f)
