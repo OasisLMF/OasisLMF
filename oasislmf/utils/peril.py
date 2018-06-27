@@ -207,9 +207,11 @@ class PerilAreasIndex(RTreeIndex):
                 _idx_fp = idx_fp
                 if not os.path.isabs(_idx_fp):
                     _idx_fp = os.path.abspath(_idx_fp)
-                fexts = {'idx': props['idx_extension'], 'dat': props['dat_extension']}
+                
+                idx_ext = props.get('idx_extension') or 'idx'
+                dat_ext = props.get('dat_extension') or 'dat'
 
-                if not (os.path.exists('{}.{}'.format(_idx_fp, fexts['idx'])) or os.path.exists('{}.{}'.format(_idx_fp, fexts['dat']))):
+                if not (os.path.exists('{}.{}'.format(_idx_fp, idx_ext)) or os.path.exists('{}.{}'.format(_idx_fp, dat_ext))):
                     kwargs['properties'] = RTreeIndexProperty(**props)
 
                 super(self.__class__, self).__init__(_idx_fp, *args, **kwargs)
@@ -366,8 +368,16 @@ class PerilAreasIndex(RTreeIndex):
                     'this is required to write the index to file'
                 )
 
-            peril_areas_seq = enumerate(_peril_areas) if not isinstance(_peril_areas, dict) else enumerate(six.itervalues(_peril_areas))
-            for _, pa in peril_areas_seq:
+            peril_areas_seq = None
+
+            if (isinstance(peril_areas, list) or isinstance(peril_areas, tuple)):
+                peril_areas_seq = (pa for pa in peril_areas)
+            elif isinstance(locs, types.GeneratorType):
+                peril_areas_seq = peril_areas
+            elif (isinstance(locs, dict)):
+                peril_areas_seq = six.itervalues(peril_areas)
+
+            for pa in peril_areas_seq:
                 index.insert(pa.id, pa.bounds, obj=(pa.id, pa.bounds))
 
             index.close()
