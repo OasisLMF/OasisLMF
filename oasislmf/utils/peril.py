@@ -221,7 +221,7 @@ class PerilAreasIndex(RTreeIndex):
                 })
                 self._stream = self._generate_index_entries(
                     ((paid, pa.bounds) for paid, pa in six.iteritems(self._peril_areas)),
-                    objects=((paid, pa.bounds) for paid, pa in six.iteritems(self._peril_areas))
+                    objects=((paid, pa.bounds, pa.coordinates) for paid, pa in six.iteritems(self._peril_areas))
                 )
                 kwargs['properties'] = RTreeIndexProperty(**index_props)
                 super(self.__class__, self).__init__(self._stream, *args, **kwargs)
@@ -378,7 +378,7 @@ class PerilAreasIndex(RTreeIndex):
                 peril_areas_seq = six.itervalues(peril_areas)
 
             for pa in peril_areas_seq:
-                index.insert(pa.id, pa.bounds, obj=(pa.id, pa.bounds))
+                index.insert(pa.id, pa.bounds, obj=(pa.id, pa.bounds, pa.coordinates))
 
             index.close()
         except (IOError, OSError, RTreeError) as e:
