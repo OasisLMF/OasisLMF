@@ -64,7 +64,8 @@ class Translator(object):
             rec = etree.SubElement(root, 'rec')
             # Iter over columns and set attributs
             for i in range(0, len(row)):
-                rec.set(self.row_header_in[i], row[i])
+                if(row[i] not in [None, "", 'NaN']):
+                    rec.set(self.row_header_in[i], row[i])
         return root
 
     def xml_to_csv(self, xml_elementTree, row_first, row_last):
