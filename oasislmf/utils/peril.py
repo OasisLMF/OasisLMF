@@ -189,7 +189,7 @@ class PerilAreasIndex(RTreeIndex):
 
     def __init__(self, *args, **kwargs):
 
-            self.protocol = (2 if six.sys.version_info[0] < 3 else -1)
+            self.protocol = (2 if six.sys.version_info[0] < 3 else cpickle.HIGHEST_PROTOCOL)
 
             idx_fp = kwargs.get('fp')
 
