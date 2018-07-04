@@ -27,8 +27,8 @@ class CsvTrans(unittest.TestCase):
             translator = Translator(
                 os.path.join(input_data_dir, 'source.csv'),
                 output_file,
-                os.path.join(input_data_dir, 'source_to_canonical.xsd'),
                 os.path.join(input_data_dir, 'source_to_canonical.xslt'),
+                os.path.join(input_data_dir, 'source_to_canonical.xsd'),
                 chunk_size=chunk_size,
                 append_row_nums=True
             )
@@ -45,8 +45,8 @@ class CsvTrans(unittest.TestCase):
             translator = Translator(
                 os.path.join(input_data_dir, 'canonical.csv'),
                 output_file,
-                os.path.join(input_data_dir, 'canonical_to_model.xsd'),
                 os.path.join(input_data_dir, 'canonical_to_model.xslt'),
+                os.path.join(input_data_dir, 'canonical_to_model.xsd'),
                 chunk_size=chunk_size
             )
             translator()
