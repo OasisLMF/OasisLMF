@@ -70,37 +70,15 @@ class OasisKeysLookupFactoryCreate(TestCase):
             ])
 
     @given(
-        text(min_size=1, max_size=10, alphabet=string.ascii_letters),
-        text(min_size=1, max_size=10, alphabet=string.ascii_letters),
-        text(min_size=1, max_size=10, alphabet=string.ascii_letters),
-    )
-    def test_keys_path_is_not_supplied___correct_instance_is_created_with_correct_model_info(self, supplier, model, version):
-        with TemporaryDirectory() as d:
-            version_path = os.path.join(d, 'version.csv')
-            self.write_version_file(supplier, model, version, version_path)
-
-            module_path = os.path.join(d, '{}_lookup.py'.format(model))
-            self.write_py_module(model, module_path)
-
-            _, instance = OasisLookupFactory.create(
-                model_version_file_path=version_path,
-                lookup_package_path=module_path,
-            )
-
-            self.assertEqual(type(instance).__name__, '{}KeysLookup'.format(model))
-            self.assertEqual(instance.supplier, supplier)
-            self.assertEqual(instance.model_name, model)
-            self.assertEqual(instance.model_version, version)
-            self.assertEqual(instance.keys_data_directory, os.path.join(os.sep, 'var', 'oasis', 'keys_data'))
-
-    @given(
-        text(min_size=1, max_size=10, alphabet=string.ascii_letters),
-        text(min_size=1, max_size=10, alphabet=string.ascii_letters),
-        text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+        supplier=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+        model=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+        version=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
     )
     def test_keys_path_is_supplied___correct_instance_is_created_with_correct_model_info_and_keys_path(self, supplier, model, version):
         with TemporaryDirectory() as d:
             keys_path = os.path.join(d, 'keys')
+            os.mkdir(keys_path)
+
             version_path = os.path.join(d, 'version.csv')
             self.write_version_file(supplier, model, version, version_path)
 
@@ -307,5 +285,5 @@ class OasisKeysLookupFactoryWriteKeys(TestCase):
                 model_exposures_file_path=None,
                 success_only=True
             )
-            write_oasis_keys_file_mock.assert_called_once_with(data, keys_file_path)
+            write_oasis_keys_file_mock.assert_called_once_with(data, keys_file_path, id_col='id')
 
