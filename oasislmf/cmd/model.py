@@ -229,7 +229,7 @@ class TransformSourceToCanonicalFileCmd(OasisBaseCommand):
 
         self.logger.info('\nGenerating a canonical {} file {} from source {} file {}'.format(_sft, output_file_path, _sft, source_file_path))
 
-        translator = Translator(source_file_path, output_file_path, xsd_validation_file_path, xslt_transformation_file_path, append_row_nums=True)
+        translator = Translator(source_file_path, output_file_path, xslt_transformation_file_path, xsd_validation_file_path, append_row_nums=True)
         translator()
 
         self.logger.info('\nOutput file {} successfully generated'.format(output_file_path))
@@ -297,7 +297,7 @@ class TransformCanonicalToModelFileCmd(OasisBaseCommand):
 
         self.logger.info('\nGenerating a model exposures file {} from canonical exposures file {}'.format(output_file_path, canonical_exposures_file_path))
 
-        translator = Translator(canonical_exposures_file_path, output_file_path, xsd_validation_file_path, xslt_transformation_file_path, append_row_nums=True)
+        translator = Translator(canonical_exposures_file_path, output_file_path, xslt_transformation_file_path, xsd_validation_file_path ,append_row_nums=True)
         translator()
 
         self.logger.info('\nOutput file {} successfully generated'.format(output_file_path))
