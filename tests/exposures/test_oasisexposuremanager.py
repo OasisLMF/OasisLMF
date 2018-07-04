@@ -52,7 +52,6 @@ from tests import (
     write_input_files,
 )
 
-
 class OasisExposureManagerAddModel(TestCase):
     def test_models_is_empty___model_is_added_to_model_dict(self):
         model = fake_model('supplier', 'model', 'version')
@@ -657,19 +656,18 @@ class OasisExposuresManagerGenerateOasisFiles(FileGenerationTestCase):
             self.check_coverages_file(exposures, out_dir)
             self.check_gul_file(exposures, out_dir)
 
-
 class OasisExposuresTransformSourceToCanonical(TestCase):
     @given(
         source_exposures_file_path=text(),
-        source_exposures_validation_file_path=text(),
         source_to_canonical_exposures_transformation_file_path=text(),
+        source_exposures_validation_file_path=text(),
         canonical_exposures_file_path=text()
     )
     def test_model_is_not_set___parameters_are_taken_from_kwargs(
             self,
             source_exposures_file_path,
-            source_exposures_validation_file_path,
             source_to_canonical_exposures_transformation_file_path,
+            source_exposures_validation_file_path,
             canonical_exposures_file_path
     ):
         trans_call_mock = Mock()
@@ -684,8 +682,8 @@ class OasisExposuresTransformSourceToCanonical(TestCase):
             trans_mock.assert_called_once_with(
                 os.path.abspath(source_exposures_file_path),
                 os.path.abspath(canonical_exposures_file_path),
-                os.path.abspath(source_exposures_validation_file_path),
                 os.path.abspath(source_to_canonical_exposures_transformation_file_path),
+                os.path.abspath(source_exposures_validation_file_path),
                 append_row_nums=True,
             )
             trans_call_mock.assert_called_once_with()
@@ -699,8 +697,8 @@ class OasisExposuresTransformSourceToCanonical(TestCase):
     def test_model_is_set___parameters_are_taken_from_model(
             self,
             source_exposures_file_path,
-            source_exposures_validation_file_path,
             source_to_canonical_exposures_transformation_file_path,
+            source_exposures_validation_file_path,
             canonical_exposures_file_path):
 
         model = fake_model(resources={
@@ -714,16 +712,16 @@ class OasisExposuresTransformSourceToCanonical(TestCase):
         with patch('oasislmf.exposures.manager.Translator', Mock(return_value=trans_call_mock)) as trans_mock:
             OasisExposuresManager().transform_source_to_canonical(
                 source_exposures_file_path=source_exposures_file_path,
-                source_exposures_validation_file_path=source_exposures_validation_file_path,
                 source_to_canonical_exposures_transformation_file_path=source_to_canonical_exposures_transformation_file_path,
+                source_exposures_validation_file_path=source_exposures_validation_file_path,
                 canonical_exposures_file_path=canonical_exposures_file_path
             )
 
             trans_mock.assert_called_once_with(
                 os.path.abspath(source_exposures_file_path),
                 os.path.abspath(canonical_exposures_file_path),
-                os.path.abspath(source_exposures_validation_file_path),
                 os.path.abspath(source_to_canonical_exposures_transformation_file_path),
+                os.path.abspath(source_exposures_validation_file_path),
                 append_row_nums=True,
             )
             trans_call_mock.assert_called_once_with()
@@ -739,24 +737,24 @@ class OasisExposuresTransformCanonicalToModel(TestCase):
     def test_model_is_not_set___parameters_are_taken_from_kwargs(
             self,
             canonical_exposures_file_path,
-            canonical_exposures_validation_file_path,
             canonical_to_model_exposures_transformation_file_path,
+            canonical_exposures_validation_file_path,
             model_exposures_file_path):
 
         trans_call_mock = Mock()
         with patch('oasislmf.exposures.manager.Translator', Mock(return_value=trans_call_mock)) as trans_mock:
             OasisExposuresManager().transform_canonical_to_model(
                 canonical_exposures_file_path=canonical_exposures_file_path,
-                canonical_exposures_validation_file_path=canonical_exposures_validation_file_path,
                 canonical_to_model_exposures_transformation_file_path=canonical_to_model_exposures_transformation_file_path,
+                canonical_exposures_validation_file_path=canonical_exposures_validation_file_path,
                 model_exposures_file_path=model_exposures_file_path,
             )
 
             trans_mock.assert_called_once_with(
                 os.path.abspath(canonical_exposures_file_path),
                 os.path.abspath(model_exposures_file_path),
-                os.path.abspath(canonical_exposures_validation_file_path),
                 os.path.abspath(canonical_to_model_exposures_transformation_file_path),
+                os.path.abspath(canonical_exposures_validation_file_path),
                 append_row_nums=False,
             )
             trans_call_mock.assert_called_once_with()
@@ -770,8 +768,8 @@ class OasisExposuresTransformCanonicalToModel(TestCase):
     def test_model_is_set___parameters_are_taken_from_model(
             self,
             canonical_exposures_file_path,
-            canonical_exposures_validation_file_path,
             canonical_to_model_exposures_transformation_file_path,
+            canonical_exposures_validation_file_path,
             model_exposures_file_path):
 
         model = fake_model(resources={
@@ -793,12 +791,11 @@ class OasisExposuresTransformCanonicalToModel(TestCase):
             trans_mock.assert_called_once_with(
                 os.path.abspath(canonical_exposures_file_path),
                 os.path.abspath(model_exposures_file_path),
-                os.path.abspath(canonical_exposures_validation_file_path),
                 os.path.abspath(canonical_to_model_exposures_transformation_file_path),
+                os.path.abspath(canonical_exposures_validation_file_path),
                 append_row_nums=False,
             )
             trans_call_mock.assert_called_once_with()
-
 
 class OasisExposureManagerCreate(TestCase):
     @given(supplier=text(), model_id=text(), version=text())
