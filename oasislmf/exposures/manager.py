@@ -17,7 +17,7 @@ import six
 
 from interface import Interface, implements
 
-from ..keys.lookup import OasisLookupFactory
+from ..keys.lookup import OasisKeysLookupFactory
 from ..utils.exceptions import OasisException
 from ..utils.values import get_utctimestamp
 from ..models import OasisModel
@@ -112,7 +112,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         pass
 
-    def load_canonical_exposures_profile(self, oasis_model=None, **kwargs):
+    def load_canonical_profile(self, oasis_model=None, **kwargs):
         """
         Loads a JSON string or JSON file representation of the canonical
         exposures profile for a given ``oasis_model``, stores this in the
@@ -155,7 +155,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         pass
 
-    def create(self, model_supplier_id, model_id, model_version, resources=None):
+    def create(self, model_supplier_id, model_id, model_version_id, resources=None):
         pass
 
 
@@ -214,7 +214,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         return self._keys_lookup_factory
 
     @property
-    def models(self, key=None):
+    def models(self):
         """
         Model objects dictionary property.
 
@@ -233,14 +233,12 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                       dict. If no ``key`` is given then the entire existing
                       dict is cleared.
         """
-        return self._models[key] if key else self._models
+        return self._models
 
     @models.setter
-    def models(self, val, key=None):
-        if key:
-            self._models.update({key:val})
-        else:
-            self._models.update(val)
+    def models(self, val):
+        self._models.clear()
+        self._models.update(val)
 
     @models.deleter
     def models(self):
@@ -330,22 +328,26 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         return output_file_path
 
-    def load_canonical_exposures_profile(self, oasis_model=None, **kwargs):
+    def load_canonical_profile(
+            self,
+            oasis_model=None,
+            canonical_exposures_profile_json=None,
+            canonical_exposures_profile_json_path=None,
+            **kwargs):
         """
         Loads a JSON string or JSON file representation of the canonical
         exposures profile for a given ``oasis_model``, stores this in the
         model object's resources dict, and returns the object.
         """
-        kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
+        if oasis_model:
+            canonical_exposures_profile_json = canonical_exposures_profile_json or oasis_model.resources.get('canonical_exposures_profile_json')
+            canonical_exposures_profile_json_path = canonical_exposures_profile_json_path or oasis_model.resources.get('canonical_exposures_profile_json_path')
 
-        profile_json = kwargs.get('canonical_exposures_profile_json')
-        profile_path = kwargs.get('canonical_exposures_profile_json_path')
-
-        profile = None
-        if profile_json:
-            profile = json.loads(profile_json)
-        elif profile_path:
-            with io.open(profile_path, 'r', encoding='utf-8') as f:
+        profile = {}
+        if canonical_exposures_profile_json:
+            profile = json.loads(canonical_exposures_profile_json)
+        elif canonical_exposures_profile_json_path:
+            with io.open(canonical_exposures_profile_json_path, 'r', encoding='utf-8') as f:
                 profile = json.load(f)
 
         if oasis_model:
@@ -353,43 +355,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         return profile
 
-    def load_lookup_config(self, oasis_model=None, **kwargs):
-        """
-        Loads a lookup config JSON string or file.
-        """
-        kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
-
-        lookup = kwargs.get('lookup')
-
-        if not lookup:
-            return
-
-        try:
-            config = lookup.config
-        except AttributeError:
-            pass
-        else:
-            if oasis_model:
-                oasis_model.resources['lookup_config'] = config
-
-            return config
-
-        config_json = kwargs.get('lookup_config_json')
-        config_fp = kwargs.get('lookup_config_fp')
-
-        config = None
-        if config_json:
-            config = json.loads(config_json)
-        elif config_fp:
-            with io.open(config_fp, 'r', encoding='utf-8') as f:
-                config = json.load(f)
-
-        if oasis_model:
-            oasis_model.resources['lookup_config'] = config
-
-        return config
-
-    def get_keys(self, oasis_model=None, **kwargs):
+    def get_keys(self, oasis_model=None, model_exposures_file_path=None, lookup=None, keys_file_path=None, keys_errors_file_path=None, **kwargs):
         """
         Generates the Oasis keys and keys error files for a given model object.
         The keys file is a CSV file containing keys lookup information for
@@ -411,65 +377,74 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         If no model is supplied then the optional paramenters must be
         supplied.
 
-        If the model is supplied the result keGy file path is stored in the
+        If the model is supplied the result key file path is stored in the
         models ``file_pipeline.keyfile_path`` property.
 
         :param oasis_model: The model to get keys for
         :type oasis_model: ``OasisModel``
 
+        :param keys_file_path: Path to the keys file, required if ``oasis_model`` is ``None``
+        :type keys_file_path: str
+
+        :param keys_errors_file_path: Path to the keys error file, required if ``oasis_model`` is ``None``
+        :type keys_errors_file_path: str
+
+        :param lookup: Path to the keys lookup service to use, required if ``oasis_model`` is ``None``
+        :type lookup: str
+
+        :param model_exposures_file_path: Path to the exposures file, required if ``oasis_model`` is ``None``
+        :type model_exposures_file_path: str
+
         :return: The path to the generated keys file
         """
-        kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
+        if oasis_model:
+            _model_exposures_file_path = model_exposures_file_path or oasis_model.resources['oasis_files_pipeline'].model_exposures_file_path
+            _lookup = lookup or oasis_model.resources.get('lookup')
+            _keys_file_path = keys_file_path or oasis_model.resources['oasis_files_pipeline'].keys_file_path
+            _keys_errors_file_path = keys_errors_file_path or oasis_model.resources['oasis_files_pipeline'].keys_errors_file_path
 
-        model_exposures_file_path = kwargs.get('model_exposures_file_path')
-        lookup = kwargs.get('lookup')
-        keys_file_path = kwargs.get('keys_file_path')
-        keys_errors_file_path = kwargs.get('keys_errors_file_path')
+        _model_exposures_file_path, _keys_file_path, _keys_errors_file_path = map(
+            lambda p: os.path.abspath(p) if p and not os.path.isabs(p) else p,
+            [_model_exposures_file_path, _keys_file_path, _keys_errors_file_path]
+        )
 
-        for p in (model_exposures_file_path, keys_file_path, keys_errors_file_path,):
-            p = os.path.abspath(p) if p and not os.path.isabs(p) else p
-
-        keys_file_path, _, keys_errors_file_path, _ = OasisLookupFactory().save_results(
-            lookup,
-            keys_file_path,
-            errors_fp=keys_errors_file_path,
-            model_exposures_fp=model_exposures_file_path
+        _keys_file_path, _, _keys_errors_file_path, _ = OasisKeysLookupFactory().save_keys(
+            keys_file_path=_keys_file_path,
+            keys_errors_file_path=_keys_errors_file_path,
+            lookup=_lookup,
+            model_exposures_file_path=_model_exposures_file_path,
         )
 
         if oasis_model:
-            oasis_model.resources['oasis_files_pipeline'].keys_file_path = keys_file_path
-            oasis_model.resources['oasis_files_pipeline'].keys_errors_file_path = keys_errors_file_path
+            oasis_model.resources['oasis_files_pipeline'].keys_file_path = _keys_file_path
+            oasis_model.resources['oasis_files_pipeline'].keys_errors_file_path = _keys_errors_file_path
 
-        return keys_file_path, keys_errors_file_path
+        return _keys_file_path, _keys_errors_file_path
 
     def _process_default_kwargs(self, oasis_model=None, **kwargs):
         if oasis_model:
-            omr = oasis_model.resources
-            ofp = omr['oasis_files_pipeline']
+            kwargs.setdefault('source_exposures_file_path', oasis_model.resources.get('source_exposures_file_path'))
+            kwargs.setdefault('source_exposures_validation_file_path', oasis_model.resources.get('source_exposures_validation_file_path'))
+            kwargs.setdefault('source_to_canonical_exposures_transformation_file_path', oasis_model.resources.get('source_to_canonical_exposures_transformation_file_path'))
+            kwargs.setdefault('canonical_exposures_profile', oasis_model.resources.get('canonical_exposures_profile'))
+            kwargs.setdefault('canonical_exposures_profile_json', oasis_model.resources.get('canonical_exposures_profile_json'))
+            kwargs.setdefault('canonical_exposures_profile_json_path', oasis_model.resources.get('canonical_exposures_profile_json_path'))
+            kwargs.setdefault('canonical_exposures_file_path', oasis_model.resources['oasis_files_pipeline'].canonical_exposures_file_path)
+            kwargs.setdefault('canonical_exposures_validation_file_path', oasis_model.resources.get('canonical_exposures_validation_file_path'))
+            kwargs.setdefault('canonical_to_model_exposures_transformation_file_path', oasis_model.resources.get('canonical_to_model_exposures_transformation_file_path'))
+            kwargs.setdefault('model_exposures_file_path', oasis_model.resources['oasis_files_pipeline'].model_exposures_file_path)
+            kwargs.setdefault('keys_file_path', oasis_model.resources['oasis_files_pipeline'].keys_file_path)
+            kwargs.setdefault('keys_errors_file_path', oasis_model.resources['oasis_files_pipeline'].keys_errors_file_path)
+            kwargs.setdefault('items_file_path', oasis_model.resources['oasis_files_pipeline'].items_file_path)
+            kwargs.setdefault('coverages_file_path', oasis_model.resources['oasis_files_pipeline'].coverages_file_path)
+            kwargs.setdefault('gulsummaryxref_file_path', oasis_model.resources['oasis_files_pipeline'].gulsummaryxref_file_path)
 
-            kwargs.setdefault('source_exposures_file_path', omr.get('source_exposures_file_path'))
-            kwargs.setdefault('source_exposures_validation_file_path', omr.get('source_exposures_validation_file_path'))
-            kwargs.setdefault('source_to_canonical_exposures_transformation_file_path', omr.get('source_to_canonical_exposures_transformation_file_path'))
-            
-            kwargs.setdefault('canonical_exposures_profile', omr.get('canonical_exposures_profile'))
-            kwargs.setdefault('canonical_exposures_profile_json', omr.get('canonical_exposures_profile_json'))
-            kwargs.setdefault('canonical_exposures_profile_json_path', omr.get('canonical_exposures_profile_json_path'))
-            
-            kwargs.setdefault('canonical_exposures_file_path', ofp.canonical_exposures_file_path)
-            kwargs.setdefault('canonical_exposures_validation_file_path', omr.get('canonical_exposures_validation_file_path'))
-            kwargs.setdefault('canonical_to_model_exposures_transformation_file_path', omr.get('canonical_to_model_exposures_transformation_file_path'))
-
-            kwargs.setdefault('lookup_config', omr.get('lookup_config'))
-            kwargs.setdefault('lookup_config_json', omr.get('lookup_config_json'))
-            kwargs.setdefault('lookup_config_fp', omr.get('lookup_config_fp'))
-            kwargs.setdefault('lookup', omr.get('lookup'))
-
-            kwargs.setdefault('model_exposures_file_path', ofp.model_exposures_file_path)
-            kwargs.setdefault('keys_file_path', ofp.keys_file_path)
-            kwargs.setdefault('keys_errors_file_path', ofp.keys_errors_file_path)
-            kwargs.setdefault('items_file_path', ofp.items_file_path)
-            kwargs.setdefault('coverages_file_path', ofp.coverages_file_path)
-            kwargs.setdefault('gulsummaryxref_file_path', ofp.gulsummaryxref_file_path)
+        if not kwargs.get('canonical_exposures_profile'):
+            kwargs['canonical_exposures_profile'] = self.load_canonical_profile(
+                oasis_model=oasis_model,
+                canonical_exposures_profile_json=kwargs.get('canonical_exposures_profile_json'),
+                canonical_exposures_profile_json_path=kwargs.get('canonical_exposures_profile_json_path'),
+            )
 
         return kwargs
 
@@ -714,11 +689,11 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         logger.info('Generating Oasis files for model')
         return self.generate_oasis_files(oasis_model=oasis_model, **kwargs)
 
-    def create(self, model_supplier_id, model_id, model_version, resources=None):
+    def create(self, model_supplier_id, model_id, model_version_id, resources=None):
         model = OasisModel(
             model_supplier_id,
             model_id,
-            model_version,
+            model_version_id,
             resources=resources
         )
 
@@ -733,10 +708,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 'Oasis files pipeline object for model {} is not of type {}'.format(model, OasisFilesPipeline))
 
         if model.resources.get('canonical_exposures_profile') is None:
-            self.load_canonical_exposures_profile(oasis_model=model)
-
-        if model.resources.get('lookup') and model.resources.get('lookup_config') is None:
-            self.load_lookup_config(oasis_model=model)
+            self.load_canonical_profile(oasis_model=model)
 
         self.add_model(model)
 

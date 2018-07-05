@@ -1,20 +1,20 @@
-argparsetree==0.0.5
+argparsetree
 backports.tempfile
 chainmap
 future
 jsonpickle
-lxml==4.1.1
-pandas==0.22.0
+lxml
+pandas
 pathlib2
 pyodbc
 python-interface
 pytz
 requests
-rtree==0.8.3
+rtree
 requests-toolbelt
-shapely==1.6.4.post1
+shapely
 shutilwhich
-six==1.11.0
+six
 
 
 

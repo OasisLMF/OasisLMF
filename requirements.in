@@ -1,6 +1,6 @@
 -r ./requirements-package.in
 
-configparser==3.5.0
+configparser
 coverage
 discover
 flake8

@@ -15,7 +15,6 @@ __all__ = [
     'PerilPoint'
 ]
 
-import builtins
 import copy
 import io
 import json
@@ -63,11 +62,11 @@ DEFAULT_RTREE_INDEX_PROPS = {
     'buffering_capacity': 10,
     'custom_storage_callbacks': None,
     'custom_storage_callbacks_size': 0,
-    'dat_extension': 'dat',
+    'dat_extension': u'dat',
     'dimension': 2,
-    'filename': '',
+    'filename': u'',
     'fill_factor': 0.7,
-    'idx_extension': 'idx',
+    'idx_extension': u'idx',
     'index_capacity': 100,
     'index_id': None,
     'leaf_capacity': 100,
@@ -188,32 +187,22 @@ class PerilPoint(Point):
 class PerilAreasIndex(RTreeIndex):
 
     def __init__(self, *args, **kwargs):
-
-            self.protocol = (2 if six.sys.version_info[0] < 3 else cpickle.HIGHEST_PROTOCOL)
-
             idx_fp = kwargs.get('fp')
 
             areas = kwargs.get('areas')
             peril_areas = kwargs.get('peril_areas')
-
-            props = kwargs.get('properties') or copy.deepcopy(DEFAULT_RTREE_INDEX_PROPS)
+            
+            props = RTreeIndexProperty(**(kwargs.get('properties') or {}))
+            kwargs['properties'] = props
 
             if not (idx_fp or areas or peril_areas):
                 self._peril_areas = self._stream = None
-                kwargs['properties'] = RTreeIndexProperty(**props)
                 super(self.__class__, self).__init__(*args, **kwargs)
             elif idx_fp:
                 self._peril_areas = self._stream = None
                 _idx_fp = idx_fp
                 if not os.path.isabs(_idx_fp):
                     _idx_fp = os.path.abspath(_idx_fp)
-                
-                idx_ext = props.get('idx_extension') or 'idx'
-                dat_ext = props.get('dat_extension') or 'dat'
-
-                if not (os.path.exists('{}.{}'.format(_idx_fp, idx_ext)) or os.path.exists('{}.{}'.format(_idx_fp, dat_ext))):
-                    kwargs['properties'] = RTreeIndexProperty(**props)
-
                 super(self.__class__, self).__init__(_idx_fp, *args, **kwargs)
             else:
                 self._peril_areas = OrderedDict({
@@ -221,13 +210,12 @@ class PerilAreasIndex(RTreeIndex):
                 })
                 self._stream = self._generate_index_entries(
                     ((paid, pa.bounds) for paid, pa in six.iteritems(self._peril_areas)),
-                    objects=((paid, pa.bounds, pa.coordinates) for paid, pa in six.iteritems(self._peril_areas))
+                    objects=((paid, pa.bounds) for paid, pa in six.iteritems(self._peril_areas))
                 )
-                kwargs['properties'] = RTreeIndexProperty(**index_props)
                 super(self.__class__, self).__init__(self._stream, *args, **kwargs)
 
     def dumps(self, obj):
-        return cpickle.dumps(obj, protocol=self.protocol)
+        return cpickle.dumps(obj, protocol=(2 if six.sys.version_info[0] < 3 else -1))
 
     def loads(self, data):
         return cpickle.loads(data)
@@ -268,9 +256,12 @@ class PerilAreasIndex(RTreeIndex):
         area_poly_coords_seq_start_idx=1,
         area_reg_poly_radius=0.00166,
         static_props={},
-        index_fp=None,
-        index_props=copy.deepcopy(DEFAULT_RTREE_INDEX_PROPS)
+        index_fp=os.path.join(os.path.abspath(os.path.dirname(__file__)), 'rtree-index')
     ):
+        _index_fp = index_fp
+        if not os.path.isabs(_index_fp):
+            _index_fp = os.path.abspath(_index_fp)
+
         if not src_fp:
             raise OasisException(
                 'An areas source CSV or JSON file path must be provided'
@@ -286,21 +277,18 @@ class PerilAreasIndex(RTreeIndex):
 
         if not _peril_area_id_col in _non_na_cols:
             _non_na_cols = _non_na_cols.union({_peril_area_id_col})
-
         for col in six.itervalues(area_poly_coords_cols):
             if not col in _non_na_cols:
-                _non_na_cols = _non_na_cols.union({col.lower()})
+                _non_na_cols = _non_na_cols.union({col})
 
         _non_na_cols = tuple(_non_na_cols)
-
-        _sort_col = sort_col.lower()
 
         areas_df = get_dataframe(
             src_fp=_src_fp,
             src_type=src_type,
             non_na_cols=_non_na_cols,
             col_dtypes=col_dtypes,
-            sort_col=(_peril_area_id_col or _sort_col)
+            sort_col=(peril_area_id_col or sort_col)
         )
 
         coords_cols = area_poly_coords_cols
@@ -320,45 +308,29 @@ class PerilAreasIndex(RTreeIndex):
             ) for _, ar in areas_df.iterrows()
         )
 
-        _index_fp = index_fp
-        if not _index_fp:
-            raise OasisException('No output file index path provided')
-
-        if not os.path.isabs(_index_fp):
-            _index_fp = os.path.abspath(_index_fp)
-
         try:
             return cls().save(
-                _index_fp,
                 peril_areas=peril_areas,
-                index_props=index_props
+                index_fp=index_fp
             )
         except OasisException as e:
             raise
 
     def save(
         self,
-        index_fp,
         peril_areas=None,
-        index_props=DEFAULT_RTREE_INDEX_PROPS
+        index_fp=os.path.join(os.path.abspath(os.path.dirname(__file__)), 'rtree-index')
     ):
         _index_fp = index_fp
         if not os.path.isabs(_index_fp):
             _index_fp = os.path.abspath(_index_fp)
 
-        class myindex(RTreeIndex):
-            def __init__(self, *args, **kwargs):
-                self.protocol = (2 if six.sys.version_info[0] < 3 else cpickle.HIGHEST_PROTOCOL)
-                super(self.__class__, self).__init__(*args, **kwargs)
-
-            def dumps(self, obj):
-                return cpickle.dumps(obj, protocol=self.protocol)
-
-            def loads(self, obj):
-                return cpickle.loads(obj)
-
         try:
-            index = myindex(_index_fp, properties=RTreeIndexProperty(**index_props))
+            class _myindex(RTreeIndex):
+                def dumps(self, obj):
+                    return cpickle.dumps(obj, protocol=(2 if six.sys.version_info[0] < 3 else -1))
+
+            index = _myindex(_index_fp)
 
             _peril_areas = self._peril_areas or peril_areas
 
@@ -368,17 +340,9 @@ class PerilAreasIndex(RTreeIndex):
                     'this is required to write the index to file'
                 )
 
-            peril_areas_seq = None
-
-            if (isinstance(peril_areas, list) or isinstance(peril_areas, tuple)):
-                peril_areas_seq = (pa for pa in peril_areas)
-            elif isinstance(locs, types.GeneratorType):
-                peril_areas_seq = peril_areas
-            elif (isinstance(locs, dict)):
-                peril_areas_seq = six.itervalues(peril_areas)
-
-            for pa in peril_areas_seq:
-                index.insert(pa.id, pa.bounds, obj=(pa.id, pa.bounds, pa.coordinates))
+            peril_areas_seq = enumerate(_peril_areas) if not isinstance(_peril_areas, dict) else enumerate(six.itervalues(_peril_areas))
+            for _, pa in peril_areas_seq:
+                index.insert(pa.id, pa.bounds, obj=(pa.id, pa.bounds))
 
             index.close()
         except (IOError, OSError, RTreeError) as e:
