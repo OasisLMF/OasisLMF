@@ -2,6 +2,12 @@ CHANGELOG
 =========
 
 
+`1.1.20`_ (beta)
+----------------
+
+* Refactor lookup factory to be compatible with new lookup framework
+* Various enhancements to the peril areas index class, file index generation command and peril utils
+
 `1.1.19`_ (beta)
 ----------------
 
@@ -82,6 +88,7 @@ CHANGELOG
 
 * Add console logging
 
+.. _`1.1.20`: https://github.com/OasisLMF/OasisLMF/compare/fd31879...master
 .. _`1.1.19`: https://github.com/OasisLMF/OasisLMF/compare/5421b91...master
 .. _`1.1.18`: https://github.com/OasisLMF/OasisLMF/compare/da8fcba...master
 .. _`1.1.17`: https://github.com/OasisLMF/OasisLMF/compare/de90f11...master
