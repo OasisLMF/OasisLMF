@@ -22,7 +22,7 @@ class OasisModel(object):
         self,
         model_supplier_id,
         model_id,
-        model_version_id,
+        model_version,
         resources=None
     ):
         """
@@ -30,8 +30,8 @@ class OasisModel(object):
         """
         self._supplier_id = model_supplier_id
         self._model_id = model_id
-        self._model_version_id = model_version_id
-        self._key = '{}/{}/{}'.format(model_supplier_id, model_id, model_version_id)
+        self._model_version_id = model_version
+        self._key = '{}/{}/{}'.format(model_supplier_id, model_id, model_version)
         self._resources = resources if resources else {}
 
     def __str__(self):
@@ -74,7 +74,7 @@ class OasisModel(object):
         return self._model_id
 
     @property
-    def model_version_id(self):
+    def model_version(self):
         """
         Model version ID property - getter only.
 
@@ -122,7 +122,7 @@ class OasisModelFactory(object):
         cls,
         model_supplier_id,
         model_id,
-        model_version_id,
+        model_version,
         resources=None
     ):
         """
@@ -132,6 +132,6 @@ class OasisModelFactory(object):
         return OasisModel(
             model_supplier_id=model_supplier_id,
             model_id=model_id,
-            model_version_id=model_version_id,
+            model_version=model_version,
             resources=resources
         )
