@@ -21,6 +21,7 @@ import io
 import json
 import os
 import re
+import types
 import uuid
 
 from collections import OrderedDict
@@ -372,9 +373,9 @@ class PerilAreasIndex(RTreeIndex):
 
             if (isinstance(peril_areas, list) or isinstance(peril_areas, tuple)):
                 peril_areas_seq = (pa for pa in peril_areas)
-            elif isinstance(locs, types.GeneratorType):
+            elif isinstance(peril_areas, types.GeneratorType):
                 peril_areas_seq = peril_areas
-            elif (isinstance(locs, dict)):
+            elif (isinstance(peril_areas, dict)):
                 peril_areas_seq = six.itervalues(peril_areas)
 
             for pa in peril_areas_seq:
