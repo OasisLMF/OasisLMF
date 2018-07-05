@@ -822,7 +822,7 @@ class OasisExposureManagerCreate(TestCase):
 
         profile = model.resources['canonical_exposures_profile']
 
-        self.assertEqual({}, profile)
+        self.assertEqual(None, profile)
 
     @given(expected=dictionaries(text(), text()))
     def test_canonical_exposures_profile_json_set___canonical_exposures_profile_matches_json(self, expected):
