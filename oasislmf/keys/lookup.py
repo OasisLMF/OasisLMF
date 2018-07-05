@@ -87,6 +87,7 @@ def as_path(value, name, preexists=True):
 
     return value
 
+
 class OasisBaseLookup(object):
 
     @oasis_log()
@@ -477,7 +478,7 @@ class OasisLookupFactory(object):
         if not peril_config:
             raise OasisException('No peril config defined in the lookup config')
 
-        _model_exposures_fp = as_path(model_exposures_fp, 'model_exposures_fp', preexists=(True if not model_exposures else False))
+        _model_exposures_fp = as_path(model_exposures_fp, 'model_exposures_fp', preexists=False)
 
         loc_config = lookup.config.get('locations') or {}
         src_type = 'csv'
@@ -543,7 +544,7 @@ class OasisLookupFactory(object):
 
         _keys_file_path = as_path(keys_file_path, 'keys_file_path', preexists=False)
         _keys_errors_file_path = as_path(keys_errors_file_path, 'keys_errors_file_path', preexists=False)
-        _model_exposures_file_path = as_path(model_exposures_file_path, 'model_exposures_file_path', preexists=(True if not model_exposures else False))
+        _model_exposures_file_path = as_path(model_exposures_file_path, 'model_exposures_file_path', preexists=False)
 
         keys = cls.get_keys(
             lookup=lookup,
@@ -609,7 +610,7 @@ class OasisLookupFactory(object):
         if not (model_exposures or model_exposures_fp):
             raise OasisException('No model exposures data or file path provided')
 
-        mfp = as_path(model_exposures_fp, 'model_exposures_fp', preexists=(False if model_exposures else True))
+        mfp = as_path(model_exposures_fp, 'model_exposures_fp', preexists=False)
 
         sfp = as_path(successes_fp, 'successes_fp', preexists=False)
         efp = as_path(errors_fp, 'errors_fp', preexists=False)
