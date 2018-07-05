@@ -213,7 +213,7 @@ class GenerateModelTesterDockerFileCmd(OasisBaseCommand):
                 args.api_server_url,
                 version_info['supplier_id'],
                 version_info['model_id'],
-                version_info['model_version_id'],
+                version_info['model_version'],
                 args.model_data_directory,
             ]
         )
