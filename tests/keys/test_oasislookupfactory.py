@@ -32,7 +32,7 @@ from mock import Mock, patch
 from six import StringIO
 from tempfile import NamedTemporaryFile
 
-from oasislmf.keys.lookup import OasisKeysLookupFactory
+from oasislmf.keys.lookup import OasisLookupFactory
 from oasislmf.utils.coverage import (
     BUILDING_COVERAGE_CODE,
     CONTENTS_COVERAGE_CODE,
@@ -70,44 +70,22 @@ class OasisKeysLookupFactoryCreate(TestCase):
             ])
 
     @given(
-        text(min_size=1, max_size=10, alphabet=string.ascii_letters),
-        text(min_size=1, max_size=10, alphabet=string.ascii_letters),
-        text(min_size=1, max_size=10, alphabet=string.ascii_letters),
-    )
-    def test_keys_path_is_not_supplied___correct_instance_is_created_with_correct_model_info(self, supplier, model, version):
-        with TemporaryDirectory() as d:
-            version_path = os.path.join(d, 'version.csv')
-            self.write_version_file(supplier, model, version, version_path)
-
-            module_path = os.path.join(d, '{}_lookup.py'.format(model))
-            self.write_py_module(model, module_path)
-
-            _, instance = OasisKeysLookupFactory.create(
-                model_version_file_path=version_path,
-                lookup_package_path=module_path,
-            )
-
-            self.assertEqual(type(instance).__name__, '{}KeysLookup'.format(model))
-            self.assertEqual(instance.supplier, supplier)
-            self.assertEqual(instance.model_name, model)
-            self.assertEqual(instance.model_version, version)
-            self.assertEqual(instance.keys_data_directory, os.path.join(os.sep, 'var', 'oasis', 'keys_data'))
-
-    @given(
-        text(min_size=1, max_size=10, alphabet=string.ascii_letters),
-        text(min_size=1, max_size=10, alphabet=string.ascii_letters),
-        text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+        supplier=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+        model=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+        version=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
     )
     def test_keys_path_is_supplied___correct_instance_is_created_with_correct_model_info_and_keys_path(self, supplier, model, version):
         with TemporaryDirectory() as d:
             keys_path = os.path.join(d, 'keys')
+            os.mkdir(keys_path)
+
             version_path = os.path.join(d, 'version.csv')
             self.write_version_file(supplier, model, version, version_path)
 
             module_path = os.path.join(d, '{}_lookup.py'.format(model))
             self.write_py_module(model, module_path)
 
-            _, instance = OasisKeysLookupFactory.create(
+            _, instance = OasisLookupFactory.create(
                 model_keys_data_path=keys_path,
                 model_version_file_path=version_path,
                 lookup_package_path=module_path,
@@ -124,7 +102,7 @@ class OasisKeysLookupFactoryGetModelExposures(TestCase):
 
     def test_no_file_or_exposures_are_provided___oasis_exception_is_raised(self):
         with self.assertRaises(OasisException):
-            OasisKeysLookupFactory.get_model_exposures()
+            OasisLookupFactory.get_model_exposures()
 
     @given(lists(tuples(integers(min_value=0, max_value=100), integers(min_value=0, max_value=100))))
     def test_file_is_provided___file_content_is_loaded(self, data):
@@ -134,7 +112,7 @@ class OasisKeysLookupFactoryGetModelExposures(TestCase):
             csv.writer(f).writerows(data)
             f.flush()
 
-            res = OasisKeysLookupFactory.get_model_exposures(model_exposures_file_path=f.name)
+            res = OasisLookupFactory.get_model_exposures(model_exposures_file_path=f.name)
             res = [tuple(res)] + [tuple(res.iloc[i]) for i in range(len(res))]
 
             self.assertEqual(res, data)
@@ -146,7 +124,7 @@ class OasisKeysLookupFactoryGetModelExposures(TestCase):
 
         csv.writer(stream).writerows(data)
 
-        res = OasisKeysLookupFactory.get_model_exposures(model_exposures=stream.getvalue())
+        res = OasisLookupFactory.get_model_exposures(model_exposures=stream.getvalue())
         res = [tuple(res)] + [tuple(res.iloc[i]) for i in range(len(res))]
 
         self.assertEqual(res, data)
@@ -179,8 +157,8 @@ class OasisKeysLookupFactoryWriteOasisKeysFiles(TestCase):
             keys_file_path = os.path.join(d, 'keys.csv')
             keys_errors_file_path = os.path.join(d, 'keys-errors.csv')
 
-            _, successes_count = OasisKeysLookupFactory.write_oasis_keys_file(successes, keys_file_path)
-            _, nonsuccesses_count = OasisKeysLookupFactory.write_oasis_keys_errors_file(nonsuccesses, keys_errors_file_path)
+            _, successes_count = OasisLookupFactory.write_oasis_keys_file(successes, keys_file_path)
+            _, nonsuccesses_count = OasisLookupFactory.write_oasis_keys_errors_file(nonsuccesses, keys_errors_file_path)
 
             with io.open(keys_file_path, 'r', encoding='utf-8') as f1, io.open(keys_errors_file_path, 'r', encoding='utf-8') as f2:
                 written_successes = [dict((oasis_keys_file_to_record_metadict[k], r[k]) for k in r) for r in pd.read_csv(f1).T.to_dict().values()]
@@ -209,8 +187,8 @@ class OasisKeysLookupFactoryWriteJsonFiles(TestCase):
             keys_file_path = os.path.join(d, 'keys.json')
             keys_errors_file_path = os.path.join(d, 'keys-errors.json')
 
-            _, successes_count = OasisKeysLookupFactory.write_json_keys_file(successes, keys_file_path)
-            _, nonsuccesses_count = OasisKeysLookupFactory.write_json_keys_file(nonsuccesses, keys_errors_file_path)
+            _, successes_count = OasisLookupFactory.write_json_keys_file(successes, keys_file_path)
+            _, nonsuccesses_count = OasisLookupFactory.write_json_keys_file(nonsuccesses, keys_errors_file_path)
 
             with io.open(keys_file_path, 'r', encoding='utf-8') as f1, io.open(keys_errors_file_path, 'r', encoding='utf-8') as f2:
                 written_successes = json.load(f1)
@@ -232,22 +210,22 @@ class OasisKeysLookupFactoryGetKeys(TestCase):
 
     def test_no_model_exposures_are_provided___oasis_exception_is_raised(self):
         with self.assertRaises(OasisException):
-            list(OasisKeysLookupFactory.get_keys(self.create_fake_lookup()))
+            list(OasisLookupFactory.get_keys(self.create_fake_lookup()))
 
     @given(text(min_size=1, max_size=10, alphabet=string.ascii_letters), text(min_size=1, max_size=10, alphabet=string.ascii_letters))
     def test_model_exposures_path_is_provided___path_is_passed_to_get_model_exposures_result_is_passed_to_lokkup_process_locations(self, path, result):
-        with patch('oasislmf.keys.lookup.OasisKeysLookupFactory.get_model_exposures', Mock(return_value=result)):
-            list(OasisKeysLookupFactory.get_keys(self.create_fake_lookup(), model_exposures_file_path=path))
+        with patch('oasislmf.keys.lookup.OasisLookupFactory.get_model_exposures', Mock(return_value=result)):
+            list(OasisLookupFactory.get_keys(self.create_fake_lookup(), model_exposures_file_path=path))
 
-            OasisKeysLookupFactory.get_model_exposures.assert_called_once_with(model_exposures_file_path=path, model_exposures=None)
+            OasisLookupFactory.get_model_exposures.assert_called_once_with(model_exposures_file_path=path, model_exposures=None)
             self.lookup_instance.process_locations.assert_called_once_with(result)
 
     @given(text(min_size=1, max_size=10, alphabet=string.ascii_letters), text(min_size=1, max_size=10, alphabet=string.ascii_letters))
     def test_model_exposures_are_provided___exposures_are_passed_to_get_model_exposures_result_is_passed_to_lookup_process_locations(self, exposures, result):
-        with patch('oasislmf.keys.lookup.OasisKeysLookupFactory.get_model_exposures', Mock(return_value=result)):
-            list(OasisKeysLookupFactory.get_keys(self.create_fake_lookup(), model_exposures=exposures))
+        with patch('oasislmf.keys.lookup.OasisLookupFactory.get_model_exposures', Mock(return_value=result)):
+            list(OasisLookupFactory.get_keys(self.create_fake_lookup(), model_exposures=exposures))
 
-            OasisKeysLookupFactory.get_model_exposures.assert_called_once_with(model_exposures=exposures, model_exposures_file_path=None)
+            OasisLookupFactory.get_model_exposures.assert_called_once_with(model_exposures=exposures, model_exposures_file_path=None)
             self.lookup_instance.process_locations.assert_called_once_with(result)
 
     @given(lists(fixed_dictionaries({
@@ -255,10 +233,10 @@ class OasisKeysLookupFactoryGetKeys(TestCase):
         'status': sampled_from(['success', 'failure'])
     })))
     def test_entries_are_dictionaries_success_only_is_true___only_successes_are_included(self, data):
-        with patch('oasislmf.keys.lookup.OasisKeysLookupFactory.get_model_exposures'):
+        with patch('oasislmf.keys.lookup.OasisLookupFactory.get_model_exposures'):
             self.create_fake_lookup(return_value=data)
 
-            res = list(OasisKeysLookupFactory.get_keys(lookup=self.lookup_instance, model_exposures_file_path='path'))
+            res = list(OasisLookupFactory.get_keys(lookup=self.lookup_instance, model_exposures_file_path='path'))
 
             self.assertEqual(res, [d for d in data if d['status'] == 'success'])
 
@@ -267,10 +245,10 @@ class OasisKeysLookupFactoryGetKeys(TestCase):
         'status': sampled_from(['success', 'failure'])
     })))
     def test_entries_are_dictionaries_success_only_is_false___all_entries_are_included(self, data):
-        with patch('oasislmf.keys.lookup.OasisKeysLookupFactory.get_model_exposures'):
+        with patch('oasislmf.keys.lookup.OasisLookupFactory.get_model_exposures'):
             self.create_fake_lookup(return_value=data)
 
-            res = list(OasisKeysLookupFactory.get_keys(lookup=self.lookup_instance, model_exposures_file_path='path', success_only=False))
+            res = list(OasisLookupFactory.get_keys(lookup=self.lookup_instance, model_exposures_file_path='path', success_only=False))
 
             self.assertEqual(res, data)
 
@@ -283,7 +261,7 @@ class OasisKeysLookupFactoryWriteKeys(TestCase):
 
     def test_no_model_exposures_are_provided___oasis_exception_is_raised(self):
         with self.assertRaises(OasisException):
-            list(OasisKeysLookupFactory.get_keys(self.create_fake_lookup()))
+            list(OasisLookupFactory.get_keys(self.create_fake_lookup()))
 
     @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
@@ -291,11 +269,11 @@ class OasisKeysLookupFactoryWriteKeys(TestCase):
     )
     def test_produced_keys_are_passed_to_write_oasis_keys_file(self, data):
         with TemporaryDirectory() as d,\
-             patch('oasislmf.keys.lookup.OasisKeysLookupFactory.get_keys', Mock(return_value=(r for r in data))) as get_keys_mock,\
-             patch('oasislmf.keys.lookup.OasisKeysLookupFactory.write_oasis_keys_file') as write_oasis_keys_file_mock:
+             patch('oasislmf.keys.lookup.OasisLookupFactory.get_keys', Mock(return_value=(r for r in data))) as get_keys_mock,\
+             patch('oasislmf.keys.lookup.OasisLookupFactory.write_oasis_keys_file') as write_oasis_keys_file_mock:
 
             keys_file_path = os.path.join(d, 'piwind-keys.csv')
-            OasisKeysLookupFactory.save_keys(
+            OasisLookupFactory.save_keys(
                 lookup=self.create_fake_lookup(),
                 keys_file_path=keys_file_path,
                 model_exposures=json.dumps(data)
@@ -307,5 +285,5 @@ class OasisKeysLookupFactoryWriteKeys(TestCase):
                 model_exposures_file_path=None,
                 success_only=True
             )
-            write_oasis_keys_file_mock.assert_called_once_with(data, keys_file_path)
+            write_oasis_keys_file_mock.assert_called_once_with(data, keys_file_path, id_col='id')
 

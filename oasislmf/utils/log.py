@@ -43,12 +43,16 @@ def set_rotating_logger(
         os.makedirs(log_dir)
 
     handler = RotatingFileHandler(
-        _log_fp, maxBytes=max_file_size,
-        backupCount=max_backups)
+        _log_fp,
+        maxBytes=max_file_size,
+        backupCount=max_backups
+    )
+
     logging.getLogger().setLevel(log_level)
     logging.getLogger().addHandler(handler)
     formatter = logging.Formatter(
         "%(asctime)s - %(levelname)s - %(message)s")
+
     handler.setFormatter(formatter)
 
 def read_log_config(config_parser):
