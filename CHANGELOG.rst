@@ -2,6 +2,11 @@ CHANGELOG
 =========
 
 
+`1.1.21`_ (beta)
+----------------
+
+* Fix for installing pip package without building ktools if binaries exist in system path. 
+
 `1.1.20`_ (beta)
 ----------------
 
@@ -88,6 +93,7 @@ CHANGELOG
 
 * Add console logging
 
+.. _`1.1.21`: https://github.com/OasisLMF/OasisLMF/compare/409052d...master
 .. _`1.1.20`: https://github.com/OasisLMF/OasisLMF/compare/fd31879...master
 .. _`1.1.19`: https://github.com/OasisLMF/OasisLMF/compare/5421b91...master
 .. _`1.1.18`: https://github.com/OasisLMF/OasisLMF/compare/da8fcba...master
