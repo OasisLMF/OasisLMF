@@ -222,7 +222,7 @@ class TransformSourceToCanonicalFileCmd(OasisBaseCommand):
 
         _sft = 'exp' if source_file_type == 'exposures' else 'acc'
         _utc = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-
+        
         xsd_validation_file_path = as_path(inputs.get('xsd_validation_file_path', required=False, is_path=True), 'XSD validation file path', preexists=False)
         xslt_transformation_file_path = as_path(inputs.get('xslt_transformation_file_path', required=True, is_path=True), 'XSLT transformation file path', preexists=True)
         output_file_path = as_path(inputs.get('output_file_path', required=False, is_path=True, default='can{}-{}.csv'.format(_sft, _utc)), 'Output file path', preexists=False)
