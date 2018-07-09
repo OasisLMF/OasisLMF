@@ -209,7 +209,7 @@ class TransformSourceToCanonicalFileCmd(OasisBaseCommand):
         _sft = 'exp' if source_file_type == 'exposures' else 'acc'
         _utc = get_utctimestamp(fmt='%Y%m%d%H%M%S')
         
-        xsd_validation_file_path = as_path(inputs.get('xsd_validation_file_path', required=False, is_path=True), 'XSD validation file path', preexists=True)
+        xsd_validation_file_path = as_path(inputs.get('xsd_validation_file_path', required=False, is_path=True), 'XSD validation file path', preexists=False)
         xslt_transformation_file_path = as_path(inputs.get('xslt_transformation_file_path', required=True, is_path=True), 'XSLT transformation file path', preexists=True)
         output_file_path = as_path(inputs.get('output_file_path', required=False, is_path=True, default='can{}-{}.csv'.format(_sft, _utc)), 'Output file path', preexists=False)
 
@@ -277,7 +277,7 @@ class TransformCanonicalToModelFileCmd(OasisBaseCommand):
 
         _utc = get_utctimestamp(fmt='%Y%m%d%H%M%S')
         
-        xsd_validation_file_path = as_path(inputs.get('xsd_validation_file_path', required=False, is_path=True), 'XSD validation file path', preexists=True)
+        xsd_validation_file_path = as_path(inputs.get('xsd_validation_file_path', required=False, is_path=True), 'XSD validation file path', preexists=False)
         xslt_transformation_file_path = as_path(inputs.get('xslt_transformation_file_path', required=True, is_path=True), 'XSLT transformation file path', preexists=True)
         output_file_path = as_path(inputs.get('output_file_path', required=False, is_path=True, default='modexp-{}.csv'.format(_utc)), 'Output file path', preexists=False)
 
@@ -475,7 +475,8 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         source_exposures_file_path = as_path(inputs.get('source_exposures_file_path', required=True, is_path=True), 'Source exposures')
         source_exposures_validation_file_path = as_path(
             inputs.get('source_exposures_validation_file_path', required=False, is_path=True),
-            'Source exposures validation file'
+            'Source exposures validation file',
+            preexists=False
         )
         source_to_canonical_exposures_transformation_file_path = as_path(
             inputs.get('source_to_canonical_exposures_transformation_file_path', required=True, is_path=True),
@@ -483,7 +484,8 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         )
         canonical_exposures_validation_file_path = as_path(
             inputs.get('canonical_exposures_validation_file_path', required=False, is_path=True),
-            'Canonical exposures validation file'
+            'Canonical exposures validation file',
+            preexists=False
         )
         canonical_to_model_exposures_transformation_file_path = as_path(
             inputs.get('canonical_to_model_exposures_transformation_file_path', required=True, is_path=True),
