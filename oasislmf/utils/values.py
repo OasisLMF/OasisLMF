@@ -1,6 +1,9 @@
 from datetime import datetime
 
+import sys
+
 import pytz
+import six
 
 NULL_VALUES = [None, '', 'n/a', 'N/A', 'null', 'Null', 'NULL']
 
@@ -20,6 +23,13 @@ def get_utctimestamp(thedate=None, fmt='%Y-%b-%d %H:%M:%S'):
     """
     d = thedate.astimezone(pytz.utc) if thedate else datetime.utcnow()
     return d.strftime(fmt)
+
+
+def is_string(s):
+        return type(s) in (
+            six.types.StringTypes if sys.version_info.major < 3
+            else six.string_types
+        )
 
 
 def to_string(val):

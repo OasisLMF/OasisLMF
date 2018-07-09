@@ -1,16 +1,18 @@
 -r ./requirements-package.in
 
-pip-tools
+configparser==3.5.0
+coverage
 discover
-configparser
 flake8
+freezegun
+future
+hypothesis
+mock
+pip-tools==2.0.2
 pytest
+pytest-cov
 pytest-ignore-flaky
 mock
-tox
-hypothesis
-coverage
-pytest-cov
 responses
-freezegun
 Sphinx
+tox

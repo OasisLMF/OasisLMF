@@ -9,6 +9,7 @@ import sys
 import tarfile
 from contextlib import contextmanager
 from distutils.log import INFO, WARN, ERROR
+from distutils.spawn import find_executable
 from tempfile import mkdtemp
 from time import sleep
 
@@ -26,7 +27,7 @@ SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 
 
 def get_readme():
-    with io.open(os.path.join(SCRIPT_DIR, 'README.rst'), encoding='utf-8') as readme:
+    with io.open(os.path.join(SCRIPT_DIR, 'README.md'), encoding='utf-8') as readme:
         return readme.read()
 
 
@@ -101,11 +102,30 @@ class PostInstallKtools(install):
                 os.makedirs(extract_location)
             tar.extractall(extract_location)
 
+    def ktools_inpath(self):
+        ktools_bin_subset = [
+            'eve',
+            'getmodel',
+            'gulcalc',
+            'fmcalc',
+            'xfmcalc',
+            'summarycalc',
+        ]
+        for ktools_bin in ktools_bin_subset:
+            if find_executable(ktools_bin) is None:
+                return False
+        return True        
+
     def build_ktools(self, extract_location):
         self.announce('Building ktools', INFO)
         build_dir = os.path.join(extract_location, 'ktools-OASIS_{}'.format(KTOOLS_VERSION))
 
-        os.system('cd {build_dir} && ./autogen.sh && ./configure && make && make check'.format(build_dir=build_dir))
+        exit_code = os.system('cd {build_dir} && ./autogen.sh && ./configure && make && make check'.format(build_dir=build_dir))
+        if(exit_code is not 0):
+            self.announce('Ktools build failed.\n', WARN)
+            if (not self.ktools_inpath()):
+                self.announce('Exisiting Ktools install not found.\nExiting', WARN)
+                sys.exit(1)
         return build_dir
 
     def add_ktools_to_path(self, build_dir):
@@ -224,9 +244,10 @@ setup(
     license='BSD 3-Clause',
     description='Core loss modelling framework.',
     long_description=readme,
+    long_description_content_type='text/markdown',
     url='https://github.com/OasisLMF/oasislmf',
-    author='Dan Bate,Sandeep Murthy',
-    author_email="Dan Bate <dan.bate@wildfish.com>,Sandeep Murthy <sandeep.murthy@oasislmf.org>",
+    author='Dan Bate (Wildfish), S Murthy (Oasis LMF)',
+    author_email="Dan Bate <dan.bate@wildfish.com>,S Murthy <sandeep.murthy@oasislmf.org>",
     keywords='oasis lmf loss modeling framework',
     install_requires=reqs,
     classifiers=[

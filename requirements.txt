@@ -24,6 +24,7 @@ first==2.0.1              # via pip-tools
 flake8==3.5.0
 freezegun==0.3.9
 funcsigs==1.0.2           # via mock, pytest, python-interface
+future==0.16.0
 hypothesis==3.44.16
 idna==2.6                 # via requests
 imagesize==0.7.1          # via sphinx
@@ -37,7 +38,7 @@ numpy==1.14.0             # via pandas
 pandas==0.22.0
 pathlib2==2.3.0
 pbr==3.1.1                # via mock
-pip-tools==1.11.0
+pip-tools==2.0.2
 pluggy==0.6.0             # via pytest, tox
 py==1.5.2                 # via pytest, tox
 pycodestyle==2.3.1        # via flake8
@@ -53,7 +54,9 @@ pytz==2017.3
 requests-toolbelt==0.8.0
 requests==2.18.4
 responses==0.8.1
+rtree==0.8.3
 scandir==1.7              # via pathlib2
+shapely==1.6.4.post1
 shutilwhich==1.1.0
 six==1.11.0
 snowballstemmer==1.2.1    # via sphinx
