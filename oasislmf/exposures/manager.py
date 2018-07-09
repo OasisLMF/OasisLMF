@@ -302,7 +302,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         pass
 
-    def create_model(self, model_supplier_id, model_id, model_version_id, resources=None):
+    def create_model(self, model_supplier_id, model_id, model_version, resources=None):
         """
         Creates an Oasis model object, with attached resources if a resources
         dict was provided.
@@ -313,8 +313,8 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         :param model_id: The model ID
         :type model_id: str
 
-        :param model_version_id: The model version ID or string
-        :type model_version_id: str
+        :param model_version: The model version string
+        :type model_version: str
 
         :param resources: Optional dictionary of model resources
         :type resources: dict
@@ -1444,7 +1444,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         return oasis_files
 
-    def create_model(self, model_supplier_id, model_id, model_version_id, resources=None):
+    def create_model(self, model_supplier_id, model_id, model_version, resources=None):
         model = OasisModel(
             model_supplier_id,
             model_id,

@@ -180,10 +180,26 @@ class OasisExposureManagerLoadCanonicalExposuresProfile(TestCase):
 
 class OasisExposureManagerCreateModel(TestCase):
 
+    def create_model(
+        self,
+        lookup='lookup',
+        keys_file_path='key_file_path',
+        keys_errors_file_path='keys_error_file_path',
+        model_exposures_file_path='model_exposures_file_path'
+    ):
+        model = fake_model(resources={'lookup': lookup})
+
+        model.resources['oasis_files_pipeline'].keys_file_path = keys_file_path
+        model.resources['oasis_files_pipeline'].keys_errors_file_path = keys_errors_file_path
+        model.resources['oasis_files_pipeline'].model_exposures_file_path = model_exposures_file_path
+
+        return model
+
     @given(
-        supplier_id=text(min_size=1),
-        model_id=text(min_size=1),
-        version_id=text(min_size=1)
+        lookup=text(min_size=1, alphabet=string.ascii_letters),
+        keys_file_path=text(min_size=1, alphabet=string.ascii_letters),
+        keys_errors_file_path=text(min_size=1, alphabet=string.ascii_letters),
+        exposures_file_path=text(min_size=1, alphabet=string.ascii_letters)
     )
     def test_supplier_and_model_and_version_only_are_supplied___correct_model_is_returned(
         self,
@@ -209,6 +225,9 @@ class OasisExposureManagerCreateModel(TestCase):
             self.assertEqual(res_keys_errors_file_path, keys_errors_file_path)
 
     @given(
+        supplier_id=text(min_size=1),
+        model_id=text(min_size=1),
+        version=text(min_size=1),
         model_lookup=text(min_size=1, alphabet=string.ascii_letters), 
         model_keys_fp=text(min_size=1, alphabet=string.ascii_letters),
         model_keys_errors_fp=text(min_size=1, alphabet=string.ascii_letters),
@@ -220,6 +239,9 @@ class OasisExposureManagerCreateModel(TestCase):
     )
     def test_supplier_and_model_and_version_and_absolute_oasis_files_path_only_are_supplied___correct_model_is_returned(
         self,
+        supplier_id,
+        model_id,
+        version,
         model_lookup,
         model_keys_fp,
         model_keys_errors_fp,
@@ -229,7 +251,15 @@ class OasisExposureManagerCreateModel(TestCase):
         keys_errors_fp,
         exposures_fp
     ):
-        model = self.create_model(lookup=model_lookup, keys_file_path=model_keys_fp, keys_errors_file_path=model_keys_errors_fp, model_exposures_file_path=model_exposures_fp)
+        resources={
+            'lookup': model_lookup,
+            'keys_file_path': model_keys_fp,
+            'keys_errors_file_path': model_keys_errors_fp,
+            'model_exposures_file_path': model_exposures_fp
+        }
+        model = OasisExposuresManager().create_model(supplier_id, model_id, version, resources=resources)
+
+        expected_key = '{}/{}/{}'.format(supplier_id, model_id, version)
 
         with patch('oasislmf.exposures.manager.OasisLookupFactory.save_results', Mock(return_value=(keys_fp, 1, keys_errors_fp, 1))) as oklf_mock:
             res_keys_file_path, res_keys_errors_file_path = OasisExposuresManager().get_keys(
@@ -750,90 +780,86 @@ class OasisExposureManagerGetKeys(TestCase):
         self,
         lookup='lookup',
         keys_file_path='key_file_path',
-        keys_errors_file_path='keys_error_file_path',
+        keys_errors_file_path='keys_errors_file_path',
         model_exposures_file_path='model_exposures_file_path'
     ):
         model = fake_model(resources={'lookup': lookup})
-
         model.resources['oasis_files_pipeline'].keys_file_path = keys_file_path
         model.resources['oasis_files_pipeline'].keys_errors_file_path = keys_errors_file_path
         model.resources['oasis_files_pipeline'].model_exposures_file_path = model_exposures_file_path
-
         return model
 
     @given(
         lookup=text(min_size=1, alphabet=string.ascii_letters),
-        keys=text(min_size=1, alphabet=string.ascii_letters),
-        keys_errors=text(min_size=1, alphabet=string.ascii_letters),
-        exposure=text(min_size=1, alphabet=string.ascii_letters)
+        keys_file_path=text(min_size=1, alphabet=string.ascii_letters),
+        keys_errors_file_path=text(min_size=1, alphabet=string.ascii_letters),
+        exposures_file_path=text(min_size=1, alphabet=string.ascii_letters)
     )
     def test_model_is_supplied_kwargs_are_not___lookup_keys_files_and_exposures_file_from_model_are_used(
         self,
         lookup,
-        keys,
-        keys_errors,
-        exposure
+        keys_file_path,
+        keys_errors_file_path,
+        exposures_file_path
     ):
-        model = self.create_model(lookup=lookup, keys_file_path=keys, keys_errors_file_path=keys_errors, model_exposures_file_path=exposure)
+        model = self.create_model(lookup=lookup, keys_file_path=keys_file_path, keys_errors_file_path=keys_errors_file_path, model_exposures_file_path=exposures_file_path)
 
-        with patch('oasislmf.exposures.manager.OasisKeysLookupFactory.save_keys', Mock(return_value=(keys, 1, keys_errors, 1))) as oklf_mock:
-            res_keys_file_path, res_keys_error_file_path = OasisExposuresManager().get_keys(oasis_model=model)
+        with patch('oasislmf.exposures.manager.OasisLookupFactory.save_results', Mock(return_value=(keys_file_path, 1, keys_errors_file_path, 1))) as oklf_mock:
+            res_keys_file_path, res_keys_errors_file_path = OasisExposuresManager().get_keys(oasis_model=model)
 
             oklf_mock.assert_called_once_with(
-                lookup=lookup,
-                model_exposures_file_path=os.path.abspath(exposure),
-                keys_file_path=os.path.abspath(keys),
-                keys_errors_file_path=os.path.abspath(keys_errors)
+                lookup,
+                keys_file_path,
+                errors_fp=keys_errors_file_path,
+                model_exposures_fp=exposures_file_path
             )
-
-            self.assertEqual(model.resources['oasis_files_pipeline'].keys_file_path, keys)
-            self.assertEqual(res_keys_file_path, keys)
-            self.assertEqual(model.resources['oasis_files_pipeline'].keys_errors_file_path, keys_errors)
-            self.assertEqual(res_keys_error_file_path, keys_errors)
+            self.assertEqual(model.resources['oasis_files_pipeline'].keys_file_path, keys_file_path)
+            self.assertEqual(res_keys_file_path, keys_file_path)
+            self.assertEqual(model.resources['oasis_files_pipeline'].keys_errors_file_path, keys_errors_file_path)
+            self.assertEqual(res_keys_errors_file_path, keys_errors_file_path)
 
     @given(
         model_lookup=text(min_size=1, alphabet=string.ascii_letters), 
-        model_keys=text(min_size=1, alphabet=string.ascii_letters),
-        model_keys_errors=text(min_size=1, alphabet=string.ascii_letters),
-        model_exposure=text(min_size=1, alphabet=string.ascii_letters),
+        model_keys_fp=text(min_size=1, alphabet=string.ascii_letters),
+        model_keys_errors_fp=text(min_size=1, alphabet=string.ascii_letters),
+        model_exposures_fp=text(min_size=1, alphabet=string.ascii_letters),
         lookup=text(min_size=1, alphabet=string.ascii_letters),
-        keys=text(min_size=1, alphabet=string.ascii_letters),
-        keys_errors=text(min_size=1, alphabet=string.ascii_letters),
-        exposure=text(min_size=1, alphabet=string.ascii_letters)
+        keys_fp=text(min_size=1, alphabet=string.ascii_letters),
+        keys_errors_fp=text(min_size=1, alphabet=string.ascii_letters),
+        exposures_fp=text(min_size=1, alphabet=string.ascii_letters)
     )
     def test_model_and_kwargs_are_supplied___lookup_keys_files_and_exposures_file_from_kwargs_are_used(
         self,
         model_lookup,
-        model_keys,
-        model_keys_errors,
-        model_exposure,
+        model_keys_fp,
+        model_keys_errors_fp,
+        model_exposures_fp,
         lookup,
-        keys,
-        keys_errors,
-        exposure
+        keys_fp,
+        keys_errors_fp,
+        exposures_fp
     ):
-        model = self.create_model(lookup=model_lookup, keys_file_path=model_keys, keys_errors_file_path=keys_errors, model_exposures_file_path=model_exposure)
+        model = self.create_model(lookup=model_lookup, keys_file_path=model_keys_fp, keys_errors_file_path=model_keys_errors_fp, model_exposures_file_path=model_exposures_fp)
 
-        with patch('oasislmf.exposures.manager.OasisKeysLookupFactory.save_keys', Mock(return_value=(keys, 1, keys_errors, 1))) as oklf_mock:
-            res_keys_file_path, res_keys_error_file_path = OasisExposuresManager().get_keys(
+        with patch('oasislmf.exposures.manager.OasisLookupFactory.save_results', Mock(return_value=(keys_fp, 1, keys_errors_fp, 1))) as oklf_mock:
+            res_keys_file_path, res_keys_errors_file_path = OasisExposuresManager().get_keys(
                 oasis_model=model,
                 lookup=lookup,
-                model_exposures_file_path=exposure,
-                keys_file_path=keys,
-                keys_errors_file_path=keys_errors
+                model_exposures_file_path=exposures_fp,
+                keys_file_path=keys_fp,
+                keys_errors_file_path=keys_errors_fp
             )
 
             oklf_mock.assert_called_once_with(
-                lookup=lookup,
-                model_exposures_file_path=os.path.abspath(exposure),
-                keys_file_path=os.path.abspath(keys),
-                keys_errors_file_path=os.path.abspath(keys_errors)
+                lookup,
+                keys_fp,
+                errors_fp=keys_errors_fp,
+                model_exposures_fp=exposures_fp
             )
-
-            self.assertEqual(model.resources['oasis_files_pipeline'].keys_file_path, keys)
-            self.assertEqual(res_keys_file_path, keys)
-            self.assertEqual(model.resources['oasis_files_pipeline'].keys_errors_file_path, keys_errors)
-            self.assertEqual(res_keys_error_file_path, keys_errors)
+            self.assertEqual(model.resources['oasis_files_pipeline'].keys_file_path, keys_fp)
+            self.assertEqual(res_keys_file_path, keys_fp)
+            self.assertEqual(model.resources['oasis_files_pipeline'].keys_errors_file_path, keys_errors_fp)
+            self.assertEqual(res_keys_errors_file_path, keys_errors_fp)
 
 
 class OasisExposureManagerLoadGulItems(TestCase):
