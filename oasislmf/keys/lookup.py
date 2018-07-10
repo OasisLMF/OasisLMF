@@ -91,17 +91,21 @@ def as_path(value, name, preexists=True):
 class OasisBaseLookup(object):
 
     @oasis_log()
-    def __init__(self, config=None, config_json=None, config_fp=None):
+    def __init__(self, config=None, config_json=None, config_fp=None, config_dir=None):
         if config:
             self._config = config
+            self.config_dir = config_dir or '.'
         elif config_json:
             self._config = json.loads(config_json)
+            self.config_dir = config_dir or '.'
         elif config_fp:
+            self.config_dir = config_dir or os.path.dirname(config_fp)
             _config_fp = as_path(config_fp, 'config_fp')
             with io.open(_config_fp, 'r', encoding='utf-8') as f:
                 self._config = json.load(f)
 
-        keys_data_path = self._config.get('keys_data_path') or ''
+        keys_data_path = self._config.get('keys_data_path')
+        keys_data_path = os.path.join(self.config_dir, keys_data_path) if keys_data_path else ''
 
         self._config['keys_data_path'] = as_path(keys_data_path, 'keys_data_path', preexists=(True if keys_data_path else False))
 
@@ -672,6 +676,7 @@ class OasisLookup(OasisBaseLookup):
         config=None,
         config_json=None,
         config_fp=None,
+        config_dir=None,
         areas=None,
         peril_id=None,
         peril_areas=None,
@@ -684,7 +689,8 @@ class OasisLookup(OasisBaseLookup):
         super(self.__class__, self).__init__(
             config=config,
             config_json=config_json,
-            config_fp=config_fp
+            config_fp=config_fp,
+            config_dir=config_dir,
         )
 
         loc_config = self.config.get('locations')
@@ -692,6 +698,7 @@ class OasisLookup(OasisBaseLookup):
 
         self.peril_lookup = OasisPerilLookup(
             config=self.config,
+            config_dir=self.config_dir,
             areas=areas,
             peril_id=peril_id,
             peril_areas=peril_areas,
@@ -709,6 +716,7 @@ class OasisLookup(OasisBaseLookup):
 
         self.vulnerability_lookup = OasisVulnerabilityLookup(
             config=self.config,
+            config_dir=self.config_dir,
             vulnerabilities=vulnerabilities,
             loc_id_col=self.loc_id_col
         )
@@ -783,6 +791,7 @@ class OasisPerilLookup(OasisBaseLookup):
         config=None,
         config_json=None,
         config_fp=None,
+        config_dir=None,
         loc_to_global_areas_boundary_min_distance=0,
         peril_areas=None,
         peril_areas_index=None,
@@ -791,7 +800,7 @@ class OasisPerilLookup(OasisBaseLookup):
         peril_id=None,
         loc_id_col='id'
     ):
-        super(self.__class__, self).__init__(config=config, config_json=config_json, config_fp=config_fp)
+        super(self.__class__, self).__init__(config=config, config_json=config_json, config_fp=config_fp, config_dir=config_dir)
 
         peril_config = self.config.get('peril') or {}
 
@@ -810,12 +819,17 @@ class OasisPerilLookup(OasisBaseLookup):
                 self.peril_areas_index = PerilAreasIndex(areas=areas, peril_areas=peril_areas, properties=self.index_props)
             else:
                 areas_rtree_index_config = peril_config.get('rtree_index') or {}
-                index_fp = as_path(peril_areas_index_fp or areas_rtree_index_config.get('filename'), 'index_fp', preexists=False)
+                index_fp = peril_areas_index_fp or areas_rtree_index_config.get('filename')
+
+                if not os.path.isabs(index_fp):
+                    index_fp = os.path.join(self.config_dir, index_fp)
+                    index_fp = as_path(index_fp, 'index_fp', preexists=False)
+
                 if index_fp:
                     idx_ext = areas_rtree_index_config.get('idx_extension') or 'idx'
                     dat_ext = areas_rtree_index_config.get('dat_extension') or 'dat'
                     if not (os.path.exists('{}.{}'.format(index_fp, idx_ext)) or os.path.exists('{}.{}'.format(index_fp, dat_ext))):
-                        raise OasisException('No Rtree file index {}.{{idx_ext, dat_ext}} found'.format(index_fp))
+                        raise OasisException('No Rtree file index {}.{{{}, {}}} found'.format(index_fp, idx_ext, dat_ext))
                     self.peril_areas_index = PerilAreasIndex(fp=index_fp)
                     self.peril_areas_index_props = self.peril_areas_index.properties.as_dict()
 
@@ -932,10 +946,11 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
         config=None,
         config_json=None,
         config_fp=None,
+        config_dir=None,
         vulnerabilities=None,
         loc_id_col='id'
     ):
-        super(self.__class__, self).__init__(config=config, config_json=config_json, config_fp=config_fp)
+        super(self.__class__, self).__init__(config=config, config_json=config_json, config_fp=config_fp, config_dir=config_dir)
 
         if vulnerabilities or self.config.get('vulnerability'):
             self.col_dtypes, self.key_cols, self.vuln_id_col, self.vulnerabilities = self.get_vulnerabilities(vulnerabilities=vulnerabilities)
@@ -1003,6 +1018,7 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
             )
 
         if not os.path.isabs(src_fp):
+            src_fp = os.path.join(self.config_dir, src_fp)
             src_fp = os.path.abspath(src_fp)
 
         self.config['vulnerability']['file_path'] = src_fp

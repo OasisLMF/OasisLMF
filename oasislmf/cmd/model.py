@@ -71,6 +71,7 @@ class GeneratePerilAreasRtreeFileIndexCmd(OasisBaseCommand):
 
         index_fp = as_path(inputs.get('index_file_path', required=True, is_path=True, default=None), 'Index output file path', preexists=False)
 
+        lookup_config_dir = os.path.dirname(lookup_config_fp)
         with io.open(lookup_config_fp, 'r', encoding='utf-8') as f:
             config = json.load(f)
 
@@ -93,7 +94,9 @@ class GeneratePerilAreasRtreeFileIndexCmd(OasisBaseCommand):
         if areas_fp.startswith('%%KEYS_DATA_PATH%%'):
             areas_fp = areas_fp.replace('%%KEYS_DATA_PATH%%', keys_data_path)
 
-        areas_fp = as_path(areas_fp, 'areas_fp')
+        if not os.path.isabs(areas_fp):
+            areas_fp = os.path.join(lookup_config_dir, areas_fp)
+            areas_fp = as_path(areas_fp, 'areas_fp')
 
         src_type = str.lower(str(peril_config.get('file_type')) or '') or 'csv'
 
