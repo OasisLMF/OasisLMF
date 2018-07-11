@@ -92,7 +92,6 @@ class Translator(object):
                 header=False,
                 index=False,
             )
-        return results    
 
     def process_chunk(self, data, first_row_number, last_row_number, seq_id):
         xml_input_slice = self.csv_to_xml(
