@@ -446,7 +446,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         parser.add_argument(
             '-a', '--source-exposures-validation-file-path', default=None,
             help='Source exposures validation file (XSD) path (optional argument)'
-
+        )
         parser.add_argument(
             '-b', '--source-to-canonical-exposures-transformation-file-path', default=None,
             help='Source -> canonical exposures transformation file (XSLT) path'
