@@ -4,10 +4,14 @@ __all__ = [
     'Translator'
 ]
 
+import copyreg
 import json
 import logging
 import multiprocessing
 import os
+
+from io import BytesIO as BytesIO
+
 
 import pandas as pd
 
@@ -19,6 +23,13 @@ from oasislmf.utils.concurrency import (
     Task,
 )
 
+# add pickler method for lxml ElementTree objects
+def elementtree_unpickler(data):
+    return etree.parse(BytesIO(data))
+def elementtree_pickler(tree):
+    return elementtree_unpickler, (etree.tostring(tree),)
+copyreg.pickle(etree._ElementTree, elementtree_pickler, elementtree_unpickler)
+
 class Translator(object):
     """
     Transforms exposures/locations in CSV format
@@ -27,7 +38,7 @@ class Translator(object):
 
     An optional step is to passing an XSD file for output validation
 
-    :param input_path: Source exposures file path, which should be in CSV comma delimited format 
+    :param input_path: Source exposures file path, which should be in CSV comma delimited format
     :type input_path: str
 
     :param output_path: File to write transform results
@@ -39,14 +50,14 @@ class Translator(object):
     :param xsd_path: Source exposures output validation file
     :type xsd_path: str
 
-    :param append_row_nums: Append line numbers to first column of output called `ROW_ID` [1 .. n] when n is the number of rows processed. 
+    :param append_row_nums: Append line numbers to first column of output called `ROW_ID` [1 .. n] when n is the number of rows processed.
     :type append_row_nums: boolean
 
     :param chunk_size: Number of rows to process per multiprocess Task
     :type chunk_size: int
     """
 
-    def __init__(self, input_path, output_path, xslt_path, xsd_path=None, append_row_nums=False, chunk_size=5000, logger=None):
+    def __init__(self, input_path, output_path, xslt_path, xsd_path=None, append_row_nums=False, chunk_size=10000, logger=None):
         self.logger = logger or logging.getLogger()
         self.fpath_input = input_path
         self.fpath_output = output_path
@@ -62,29 +73,28 @@ class Translator(object):
         csv_reader = pd.read_csv(self.fpath_input, iterator=True, dtype=object, encoding='utf-8')
 
         task_list = []
-        for data, first_row, last_row in self.next_file_slice(csv_reader):
-            task_list.append(Task(self.process_chunk, (data,first_row,last_row)))
-        # run is process file chunk
-        for task in multithread(task_list):
-            pass
+        for chunk_id, (data, first_row, last_row) in enumerate(self.next_file_slice(csv_reader)):
+            task_list.append(Task(self.process_chunk, args=(data,first_row,last_row, chunk_id), key=chunk_id))
 
-        # write output
-        for i in range(0, len(task_list)):
+        results = dict() # list of pandas dataframes
+        num_ps = min(len(task_list), multiprocessing.cpu_count())
+        for result_chunk in multiprocess(task_list, pool_size=num_ps):
+            results[result_chunk['seq_number']] = result_chunk['data']
+
+        # write output to disk
+        for i in range(0, len(results)):
             if (i == 0):
-                self.write_file_header(task_list[i].result.columns.tolist())
-
-            task_list[i].result.to_csv(
+                self.write_file_header(results[i].columns.tolist())
+            results[i].to_csv(
                 self.fpath_output,
                 mode='a',
                 encoding='utf-8',
                 header=False,
                 index=False,
             )
+        return results    
 
-
-    def process_chunk(self, data, first_row_number, last_row_number): 
-        print('Run chunk (%s,%s)' % (first_row_number,last_row_number))
-        # Convert CSV -> XML
+    def process_chunk(self, data, first_row_number, last_row_number, seq_id):
         xml_input_slice = self.csv_to_xml(
             self.row_header_in,
             data
@@ -100,12 +110,14 @@ class Translator(object):
             self.logger.debug(self.xml_validate(xml_output, self.xsd))
 
         # Convert transform XML back to CSV
-        print('lines %s to %s' % (first_row_number, last_row_number))
-        return self.xml_to_csv(
-            xml_output,        # XML etree
-            first_row_number,  # First Row in this slice
-            last_row_number    # Last Row in this slice
-        )
+        r_dict = { 
+            'seq_number': seq_id,
+            'data': self.xml_to_csv(
+                 xml_output,        # XML etree
+                 first_row_number,  # First Row in this slice
+                 last_row_number    # Last Row in this slice
+            )
+        }
 
 # --- Transform Functions ----------------------------------------------------#
 
@@ -119,7 +131,7 @@ class Translator(object):
         ]
 
         Create root of new XML file outside of loop
-        For each row in the file chunk to process 
+        For each row in the file chunk to process
             -> Create new 'rec' or record sub element
             -> Iterate over each column and append as an attribut if its valid
 
