@@ -64,7 +64,7 @@ class GeneratePerilAreasRtreeFileIndexCmd(OasisBaseCommand):
         :type args: Namespace
         """
         inputs = InputValues(args)
-        
+
         lookup_config_fp = as_path(inputs.get('lookup_config_file_path', required=True, is_path=True), 'Lookup config file path', preexists=True)
 
         keys_data_path = as_path(inputs.get('keys_data_path', required=True, is_path=True), 'Keys config file path', preexists=True)
@@ -197,7 +197,7 @@ class TransformSourceToCanonicalFileCmd(OasisBaseCommand):
         )
         parser.add_argument(
             '-v', '--xsd-validation-file-path', default=None,
-            help='XSD validation file path',
+            help='XSD validation file path (optional argument)',
         )
         parser.add_argument(
             '-x', '--xslt-transformation-file-path', default=None,
@@ -216,13 +216,13 @@ class TransformSourceToCanonicalFileCmd(OasisBaseCommand):
         :type args: Namespace
         """
         inputs = InputValues(args)
-        
+
         source_file_path = as_path(inputs.get('source_file_path', required=True, is_path=True), 'Source file path', preexists=True)
         source_file_type = inputs.get('source_file_type', default='exposures')
-        
+
         _sft = 'exp' if source_file_type == 'exposures' else 'acc'
         _utc = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-        
+
         xsd_validation_file_path = as_path(inputs.get('xsd_validation_file_path', required=False, is_path=True), 'XSD validation file path', preexists=False)
         xslt_transformation_file_path = as_path(inputs.get('xslt_transformation_file_path', required=True, is_path=True), 'XSLT transformation file path', preexists=True)
         output_file_path = as_path(inputs.get('output_file_path', required=False, is_path=True, default='can{}-{}.csv'.format(_sft, _utc)), 'Output file path', preexists=False)
@@ -267,7 +267,7 @@ class TransformCanonicalToModelFileCmd(OasisBaseCommand):
         )
         parser.add_argument(
             '-v', '--xsd-validation-file-path', default=None,
-            help='XSD validation file path',
+            help='XSD validation file path (optional argument)',
         )
         parser.add_argument(
             '-x', '--xslt-transformation-file-path', default=None,
@@ -286,11 +286,11 @@ class TransformCanonicalToModelFileCmd(OasisBaseCommand):
         :type args: Namespace
         """
         inputs = InputValues(args)
-        
+
         canonical_exposures_file_path = as_path(inputs.get('canonical_exposures_file_path', required=True, is_path=True), 'Canonical exposures file path', preexists=True)
 
         _utc = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-        
+
         xsd_validation_file_path = as_path(inputs.get('xsd_validation_file_path', required=False, is_path=True), 'XSD validation file path', preexists=False)
         xslt_transformation_file_path = as_path(inputs.get('xslt_transformation_file_path', required=True, is_path=True), 'XSLT transformation file path', preexists=True)
         output_file_path = as_path(inputs.get('output_file_path', required=False, is_path=True, default='modexp-{}.csv'.format(_utc)), 'Output file path', preexists=False)
@@ -401,7 +401,7 @@ class GenerateKeysCmd(OasisBaseCommand):
 
         default_keys_file_name = '{}-{}-{}-keys-{}.{}'.format(model_info['supplier_id'].lower(), model_info['model_id'].lower(), model_info['model_version'], utcnow, 'csv' if keys_format == 'oasis' else 'json')
         default_keys_errors_file_name = '{}-{}-{}-keys-errors-{}.{}'.format(model_info['supplier_id'].lower(), model_info['model_id'].lower(), model_info['model_version'], utcnow, 'csv' if keys_format == 'oasis' else 'json')
-           
+
         keys_file_path = as_path(inputs.get('keys_file_path', default=default_keys_file_name.format(utcnow), required=False, is_path=True), 'Keys file path', preexists=False)
         keys_errors_file_path = as_path(inputs.get('keys_errors_file_path', default=default_keys_errors_file_name.format(utcnow), required=False, is_path=True), 'Keys errors file path', preexists=False)
 
@@ -445,19 +445,19 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         parser.add_argument('-e', '--source-exposures-file-path', default=None, help='Source exposures file path')
         parser.add_argument(
             '-a', '--source-exposures-validation-file-path', default=None,
-            help='Source exposures validation file (XSD) path'
-        )
+            help='Source exposures validation file (XSD) path (optional argument)'
+
         parser.add_argument(
             '-b', '--source-to-canonical-exposures-transformation-file-path', default=None,
             help='Source -> canonical exposures transformation file (XSLT) path'
         )
         parser.add_argument(
             '-c', '--canonical-exposures-validation-file-path', default=None,
-            help='Canonical exposures validation file (XSD) path'
+            help='Canonical exposures validation file (XSD) path (optional argument)'
         )
         parser.add_argument(
             '-d', '--canonical-to-model-exposures-transformation-file-path', default=None,
-            help='Canonical exposures validation file (XSD) path'
+            help='Canonical exposures validation file (XSD) path, (optional argument)'
         )
 
     def action(self, args):
@@ -702,7 +702,7 @@ class RunCmd(OasisBaseCommand):
         parser.add_argument('-e', '--source-exposures-file-path', default=None, help='Source exposures file path')
         parser.add_argument(
             '-a', '--source-exposures-validation-file-path', default=None,
-            help='Source exposures validation file (XSD) path'
+            help='Source exposures validation file (XSD) path (optional argument)'
         )
         parser.add_argument(
             '-b', '--source-to-canonical-exposures-transformation-file-path', default=None,
@@ -710,11 +710,11 @@ class RunCmd(OasisBaseCommand):
         )
         parser.add_argument(
             '-c', '--canonical-exposures-validation-file-path', default=None,
-            help='Canonical exposures validation file (XSD) path'
+            help='Canonical exposures validation file (XSD) path (optional argument)'
         )
         parser.add_argument(
             '-d', '--canonical-to-model-exposures-transformation-file-path', default=None,
-            help='Canonical exposures validation file (XSD) path'
+            help='Canonical exposures validation file (XSD) path (optional argument)'
         )
         parser.add_argument(
             '-j', '--analysis-settings-json-file-path', default=None,
