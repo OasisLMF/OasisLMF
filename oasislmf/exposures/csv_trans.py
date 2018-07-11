@@ -117,6 +117,7 @@ class Translator(object):
                  last_row_number    # Last Row in this slice
             )
         }
+        return r_dict
 
 # --- Transform Functions ----------------------------------------------------#
 
