@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-
+import importlib
 import io
 import json
 import os
 import subprocess
+import sys
 
 from argparse import RawDescriptionHelpFormatter
 
@@ -13,7 +14,7 @@ from ..exposures.csv_trans import Translator
 from ..exposures.manager import OasisExposuresManager
 
 from ..model_execution.bash import genbash
-from ..model_execution.runner import run
+from ..model_execution import runner
 from ..model_execution.bin import create_binary_files, prepare_model_run_directory, prepare_model_run_inputs
 
 from ..utils.exceptions import OasisException
@@ -583,6 +584,7 @@ class GenerateLossesCmd(OasisBaseCommand):
         parser.add_argument('-s', '--ktools-script-name', default=None, help='Relative or absolute path of the output file')
         parser.add_argument('-n', '--ktools-num-processes', default=-1, help='Number of ktools calculation processes to use')
         parser.add_argument('-x', '--no-execute', action='store_true', help='Whether to execute generated ktools script')
+        parser.add_argument('-p', '--model-package-path', default=None, help='Path containing model specific package')
 
     def action(self, args):
         """
@@ -602,6 +604,7 @@ class GenerateLossesCmd(OasisBaseCommand):
             'Analysis settings file'
         )
         model_data_path = as_path(inputs.get('model_data_path', required=True, is_path=True), 'Model data')
+        model_package_path = as_path(inputs.get('model_package_path', required=False, is_path=True), 'Model package path')
 
         ktools_script_name = inputs.get('ktools_script_name', default='run_ktools')
         no_execute = inputs.get('no_execute', default=False)
@@ -657,7 +660,15 @@ class GenerateLossesCmd(OasisBaseCommand):
             subprocess.check_call("chmod +x {}".format(script_path), stderr=subprocess.STDOUT, shell=True)
         else:
             os.chdir(model_run_dir_path)
-            run(analysis_settings, args.ktools_num_processes, filename=script_path)
+
+            if model_package_path and os.path.exists(os.path.join(model_package_path, 'supplier_model_runner.py')):
+                path, package_name = model_package_path.rsplit('/')
+                sys.path.append(path)
+                model_runner_module = importlib.import_module('{}.supplier_model_runner'.format(package_name))
+            else:
+                model_runner_module = runner
+
+            model_runner_module.run(analysis_settings, args.ktools_num_processes, filename=script_path)
 
         self.logger.info('\nLoss outputs generated in {}'.format(os.path.join(model_run_dir_path, 'output')))
 
