@@ -1351,7 +1351,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             canonical_accounts_profile = kwargs.get('canonical_accounts_file_path') or self.load_canonical_accounts_profile(oasis_model=oasis_model, **kwargs)
 
             if canonical_accounts_profile is None:
-                raise OasisException('FM option indicated by no canonical accounts profile provided')
+                raise OasisException('FM option indicated but no canonical accounts profile provided')
 
             logger.info('\nFound canonical accounts profile: {}'.format(canonical_accounts_profile))
 
