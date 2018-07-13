@@ -14,9 +14,9 @@ from lxml import etree
 
 
 class Translator(object):
-    def __init__(self, input_path, output_path, xsd_path, xslt_path, append_row_nums=False, chunk_size=5000, logger=None):
+    def __init__(self, input_path, output_path, xslt_path, xsd_path=None, append_row_nums=False, chunk_size=5000, logger=None):
         self.logger = logger or logging.getLogger()
-        self.xsd = etree.parse(xsd_path)    # validation file
+        self.xsd = (etree.parse(xsd_path) if xsd_path else None)
         self.xslt = etree.parse(xslt_path)  # transform file
         self.fpath_input = input_path       # file_in.csv
         self.fpath_output = output_path     # file_out.csv
@@ -43,7 +43,8 @@ class Translator(object):
             self.print_xml(xml_output)
 
             # Validate Output
-            self.logger.debug(self.xml_validate(xml_output, self.xsd))
+            if self.xsd:
+                self.logger.debug(self.xml_validate(xml_output, self.xsd))
 
             # Convert transform XML back to CSV
             self.xml_to_csv(
