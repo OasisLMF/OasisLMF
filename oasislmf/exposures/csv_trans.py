@@ -6,6 +6,7 @@ __all__ = [
 
 import json
 import logging
+import multiprocessing
 import os
 
 import pandas as pd
@@ -19,7 +20,7 @@ from oasislmf.utils.concurrency import (
 )
 
 class Translator(object):
-    def __init__(self, input_path, output_path, xsd_path, xslt_path, append_row_nums=False, chunk_size=5000, logger=None):
+    def __init__(self, input_path, output_path, xsd_path, xslt_path, append_row_nums=False, chunk_size=10000, logger=None):
         """
         Transforms exposures/locations in CSV format
         by converting a source file to XML and applying an XSLT transform
@@ -65,7 +66,8 @@ class Translator(object):
             task_list.append(Task(self.process_chunk, args=(data,first_row,last_row, chunk_id), key=chunk_id))
 
         results = {}
-        for key, data in multithread(task_list):
+        num_ps = multiprocessing.cpu_count()
+        for key, data in multithread(task_list, pool_size=num_ps):
             results[key] = data
 
         ## write output to disk
