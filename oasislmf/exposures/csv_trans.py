@@ -4,65 +4,143 @@ __all__ = [
     'Translator'
 ]
 
+import copyreg
 import json
 import logging
+import multiprocessing
 import os
+
+from io import BytesIO as BytesIO
+
 
 import pandas as pd
 
 from lxml import etree
 
+from oasislmf.utils.concurrency import (
+    multiprocess,
+    multithread,
+    Task,
+)
+
+# add pickler method for lxml ElementTree objects
+def elementtree_unpickler(data):
+    return etree.parse(BytesIO(data))
+def elementtree_pickler(tree):
+    return elementtree_unpickler, (etree.tostring(tree),)
+copyreg.pickle(etree._ElementTree, elementtree_pickler, elementtree_unpickler)
 
 class Translator(object):
-    def __init__(self, input_path, output_path, xsd_path, xslt_path, append_row_nums=False, chunk_size=5000, logger=None):
-        self.logger = logger or logging.getLogger()
-        self.xsd = etree.parse(xsd_path)    # validation file
-        self.xslt = etree.parse(xslt_path)  # transform file
-        self.fpath_input = input_path       # file_in.csv
-        self.fpath_output = output_path     # file_out.csv
+    """
+    Transforms exposures/locations in CSV format
+    by converting a source file to XML and applying an XSLT transform
+    to apply rules for selecting, merging or updating columns
 
-        self.row_nums = append_row_nums  # Add 'ROW_ID' field to output
-        self.row_limit = chunk_size      # MAX number of CSV input rows
-        self.row_header_in = None        # CSV col header
-        self.row_header_out = None       # CSV col header Post Transform
+    An optional step is to passing an XSD file for output validation
+
+    :param input_path: Source exposures file path, which should be in CSV comma delimited format
+    :type input_path: str
+
+    :param output_path: File to write transform results
+    :type output_path: str
+
+    :param xslt_path: Source exposures Transformation rules file
+    :type xslt_path: str
+
+    :param xsd_path: Source exposures output validation file
+    :type xsd_path: str
+
+    :param append_row_nums: Append line numbers to first column of output called `ROW_ID` [1 .. n] when n is the number of rows processed.
+    :type append_row_nums: boolean
+
+    :param chunk_size: Number of rows to process per multiprocess Task
+    :type chunk_size: int
+    """
+
+    def __init__(self, input_path, output_path, xslt_path, xsd_path=None, append_row_nums=False, chunk_size=10000, logger=None):
+        self.logger = logger or logging.getLogger()
+        self.fpath_input = input_path
+        self.fpath_output = output_path
+        self.xslt = etree.parse(xslt_path)
+        self.xsd = (etree.parse(xsd_path) if xsd_path else None)
+
+        self.row_nums = append_row_nums
+        self.row_limit = chunk_size
+        self.row_header_in = None
+        self.row_header_out = None
 
     def __call__(self):
         csv_reader = pd.read_csv(self.fpath_input, iterator=True, dtype=object, encoding='utf-8')
-        for data, first_row_number, last_row_number in self.next_file_slice(csv_reader):
-            self.logger.debug('--- lines[%d .. %d] ---', first_row_number, last_row_number)
 
-            # Convert CSV -> XML
-            xml_input_slice = self.csv_to_xml(
-                self.row_header_in,
-                data
+        task_list = []
+        for chunk_id, (data, first_row, last_row) in enumerate(self.next_file_slice(csv_reader)):
+            task_list.append(Task(self.process_chunk, args=(data,first_row,last_row, chunk_id), key=chunk_id))
+
+        results = dict() # list of pandas dataframes
+        num_ps = min(len(task_list), multiprocessing.cpu_count())
+        for result_chunk in multiprocess(task_list, pool_size=num_ps):
+            results[result_chunk['seq_number']] = result_chunk['data']
+
+        # write output to disk
+        for i in range(0, len(results)):
+            if (i == 0):
+                self.write_file_header(results[i].columns.tolist())
+            results[i].to_csv(
+                self.fpath_output,
+                mode='a',
+                encoding='utf-8',
+                header=False,
+                index=False,
             )
-            self.print_xml(xml_input_slice)
 
-            # Transform
-            xml_output = self.xml_transform(xml_input_slice, self.xslt)
-            self.print_xml(xml_output)
+    def process_chunk(self, data, first_row_number, last_row_number, seq_id):
+        xml_input_slice = self.csv_to_xml(
+            self.row_header_in,
+            data
+        )
+        self.print_xml(xml_input_slice)
 
-            # Validate Output
+        # Transform
+        xml_output = self.xml_transform(xml_input_slice, self.xslt)
+        self.print_xml(xml_output)
+
+        # Validate Output
+        if self.xsd:
             self.logger.debug(self.xml_validate(xml_output, self.xsd))
 
-            # Convert transform XML back to CSV
-            self.xml_to_csv(
-                xml_output,        # XML etree
-                first_row_number,  # First Row in this slice
-                last_row_number    # Last Row in this slice
+        # Convert transform XML back to CSV
+        r_dict = { 
+            'seq_number': seq_id,
+            'data': self.xml_to_csv(
+                 xml_output,        # XML etree
+                 first_row_number,  # First Row in this slice
+                 last_row_number    # Last Row in this slice
             )
+        }
+        return r_dict
 
 # --- Transform Functions ----------------------------------------------------#
-    # https://pymotw.com/2/xml/etree/ElementTree/create.html
-    # http://lxml.de/api/lxml.etree._Element-class.html
 
     def csv_to_xml(self, csv_header, csv_data):
+        """
+        Coverts a list of lists structure into an lxml XML object
+        [
+            [row 0 ,,,],
+            [row 1 ,,,],
+            [row n ,,,]
+        ]
+
+        Create root of new XML file outside of loop
+        For each row in the file chunk to process
+            -> Create new 'rec' or record sub element
+            -> Iterate over each column and append as an attribut if its valid
+
+        https://pymotw.com/2/xml/etree/ElementTree/create.html
+        http://lxml.de/api/lxml.etree._Element-class.html
+        """
         root = etree.Element('root')
-        # fetch each row
         for row in csv_data:
-            # Create new 'empty' record
             rec = etree.SubElement(root, 'rec')
-            # Iter over columns and set attributs
             for i in range(0, len(row)):
                 if(row[i] not in [None, "", 'NaN']):
                     rec.set(self.row_header_in[i], row[i])
@@ -87,25 +165,14 @@ class Translator(object):
             end = start + len(df_out)
             df_out.insert(0, 'ROW_ID', pd.Series(range(start,end)))
 
-        # Append to output file
-        if (row_first == 0):
-            self.write_file_header(df_out.columns.tolist())
-        df_out.to_csv(
-            self.fpath_output,
-            mode='a',
-            encoding='utf-8',
-            header=False,
-            index=False,
-        )
+        return df_out
+
 
     # http://lxml.de/2.0/validation.html
     def xml_validate(self, xml_etree, xsd_etree):
         xmlSchema = etree.XMLSchema(xsd_etree)
         self.print_xml(xml_etree)
         self.print_xml(xsd_etree)
-        # Calling 'assertValid' will raise execptions,
-        # --> should be handled above this level
-        # if (xmlSchema.assertValid(xml_etree)):
         if (xmlSchema.validate(xml_etree)):
             return True
         else:
