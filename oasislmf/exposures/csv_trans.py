@@ -6,6 +6,7 @@ __all__ = [
 
 import json
 import logging
+import multiprocessing
 import os
 
 import pandas as pd
@@ -65,7 +66,8 @@ class Translator(object):
             task_list.append(Task(self.process_chunk, args=(data,first_row,last_row, chunk_id), key=chunk_id))
 
         results = {}
-        for key, data in multithread(task_list):
+        num_ps = multiprocessing.cpu_count()
+        for key, data in multithread(task_list, pool_size=num_ps):
             results[key] = data
 
         ## write output to disk
