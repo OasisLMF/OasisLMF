@@ -66,8 +66,12 @@ class Translator(object):
             task_list.append(Task(self.process_chunk, args=(data,first_row,last_row, chunk_id), key=chunk_id))
 
         results = {}
+<<<<<<< HEAD
         num_ps = multiprocessing.cpu_count()
         for key, data in multithread(task_list, pool_size=num_ps):
+=======
+        for key, data in multithread(task_list):
+>>>>>>> Update csv_trans to use multithreading
             results[key] = data
 
         ## write output to disk
