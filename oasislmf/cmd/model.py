@@ -582,7 +582,7 @@ class GenerateLossesCmd(OasisBaseCommand):
         parser.add_argument('-m', '--model-data-path', default=None, help='Model data source path')
         parser.add_argument('-r', '--model-run-dir-path', default=None, help='Model run directory path')
         parser.add_argument('-s', '--ktools-script-name', default=None, help='Relative or absolute path of the output file')
-        parser.add_argument('-n', '--ktools-num-processes', default=-1, help='Number of ktools calculation processes to use')
+        parser.add_argument('-n', '--ktools-num-processes', default=-1, help='Number of ktools calculation processes to use', type=int)
         parser.add_argument('-x', '--no-execute', action='store_true', help='Whether to execute generated ktools script')
         parser.add_argument('-p', '--model-package-path', default=None, help='Path containing model specific package')
 
@@ -604,7 +604,10 @@ class GenerateLossesCmd(OasisBaseCommand):
             'Analysis settings file'
         )
         model_data_path = as_path(inputs.get('model_data_path', required=True, is_path=True), 'Model data')
-        model_package_path = as_path(inputs.get('model_package_path', required=False, is_path=True), 'Model package path')
+
+        model_package_path = inputs.get('model_package_path', required=False, is_path=True)
+        if model_package_path:
+            model_package_path = as_path(model_package_path, 'Model package path')
 
         ktools_script_name = inputs.get('ktools_script_name', default='run_ktools')
         no_execute = inputs.get('no_execute', default=False)
