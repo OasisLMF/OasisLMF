@@ -15,6 +15,7 @@ from time import sleep
 
 from setuptools import find_packages, setup, Command
 from setuptools.command.install import install
+from setuptools.command.develop import develop
 
 try:
     from urllib.request import urlopen
@@ -56,23 +57,10 @@ reqs = get_install_requirements()
 readme = get_readme()
 
 
-class PostInstallKtools(install):
-    command_name = 'install'
-    user_options = install.user_options + [
-        ('ktools', None, 'Only install ktools components'),
-    ]
-    boolean_options = install.boolean_options + ['ktools']
-
+class InstallKtoolsMixin(object):
     def __init__(self, *args, **kwargs):
         self.ktools_components = []
         install.__init__(self, *args, **kwargs)
-
-    def run(self):
-        self.install_ktools()
-        install.run(self)
-
-    def get_outputs(self):
-        return install.get_outputs(self) + self.ktools_components
 
     def fetch_ktools_tar(self, location, attempts=3, timeout=5, cooldown=1):
         self.announce('Retrieving ktools {}'.format(KTOOLS_VERSION), INFO)
@@ -114,7 +102,7 @@ class PostInstallKtools(install):
         for ktools_bin in ktools_bin_subset:
             if find_executable(ktools_bin) is None:
                 return False
-        return True        
+        return True
 
     def build_ktools(self, extract_location):
         self.announce('Building ktools', INFO)
@@ -153,6 +141,38 @@ class PostInstallKtools(install):
             self.unpack_tar(local_tar_path, local_extract_path)
             build_dir = self.build_ktools(local_extract_path)
             self.ktools_components = list(self.add_ktools_to_path(build_dir))
+
+
+class PostInstallKtools(InstallKtoolsMixin, install):
+    command_name = 'install'
+    user_options = install.user_options + [
+        ('ktools', None, 'Only install ktools components'),
+    ]
+    boolean_options = install.boolean_options + ['ktools']
+
+    def __init__(self, *args, **kwargs):
+        self.ktools_components = []
+        install.__init__(self, *args, **kwargs)
+
+    def run(self):
+        self.install_ktools()
+        install.run(self)
+
+    def get_outputs(self):
+        return install.get_outputs(self) + self.ktools_components
+
+
+class PostDevelopKtools(InstallKtoolsMixin, develop):
+    command_name = 'develop'
+    user_options = develop.user_options
+    boolean_options = develop.boolean_options
+
+    def run(self):
+        self.install_ktools()
+        develop.run(self)
+
+    def get_outputs(self):
+        return develop.get_outputs(self) + self.ktools_components
 
 
 try:
@@ -262,6 +282,7 @@ setup(
     ],
     cmdclass={
         'install': PostInstallKtools,
+        'develop': PostDevelopKtools,
         'bdist_wheel': BdistWheel,
         'publish': Publish,
     },
