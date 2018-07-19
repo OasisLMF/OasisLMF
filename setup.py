@@ -58,10 +58,6 @@ readme = get_readme()
 
 
 class InstallKtoolsMixin(object):
-    def __init__(self, *args, **kwargs):
-        self.ktools_components = []
-        install.__init__(self, *args, **kwargs)
-
     def fetch_ktools_tar(self, location, attempts=3, timeout=5, cooldown=1):
         self.announce('Retrieving ktools {}'.format(KTOOLS_VERSION), INFO)
 
@@ -150,6 +146,10 @@ class PostInstallKtools(InstallKtoolsMixin, install):
     ]
     boolean_options = install.boolean_options + ['ktools']
 
+    def __init__(self, *args, **kwargs):
+        self.ktools_components = []
+        install.__init__(self, *args, **kwargs)
+
     def run(self):
         self.install_ktools()
         install.run(self)
@@ -165,6 +165,10 @@ class PostDevelopKtools(InstallKtoolsMixin, develop):
     command_name = 'develop'
     user_options = develop.user_options
     boolean_options = develop.boolean_options
+
+    def __init__(self, *args, **kwargs):
+        self.ktools_components = []
+        develop.__init__(self, *args, **kwargs)
 
     def run(self):
         self.install_ktools()
