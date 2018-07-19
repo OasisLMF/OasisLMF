@@ -119,8 +119,8 @@ class InstallKtoolsMixin(object):
     def add_ktools_to_path(self, build_dir):
         print('Installing ktools')
 
-        if not os.path.exists(self.install_scripts):
-            os.makedirs(self.install_scripts)
+        if not os.path.exists(self.get_bin_dir()):
+            os.makedirs(self.get_bin_dir())
 
         for p in glob.glob(os.path.join(build_dir, 'src', '*', '*')):
             split = p.split(os.path.sep)
@@ -128,7 +128,7 @@ class InstallKtoolsMixin(object):
             # if the file name is the same as the directory we have found a
             # component executable
             if split[-1] == split[-2]:
-                component_path = os.path.join(self.install_scripts, split[-1])
+                component_path = os.path.join(self.get_bin_dir(), split[-1])
                 shutil.copy(p, component_path)
                 yield component_path
 
@@ -150,16 +150,15 @@ class PostInstallKtools(InstallKtoolsMixin, install):
     ]
     boolean_options = install.boolean_options + ['ktools']
 
-    def __init__(self, *args, **kwargs):
-        self.ktools_components = []
-        install.__init__(self, *args, **kwargs)
-
     def run(self):
         self.install_ktools()
         install.run(self)
 
     def get_outputs(self):
         return install.get_outputs(self) + self.ktools_components
+
+    def get_bin_dir(self):
+        return self.install_scripts
 
 
 class PostDevelopKtools(InstallKtoolsMixin, develop):
@@ -173,6 +172,9 @@ class PostDevelopKtools(InstallKtoolsMixin, develop):
 
     def get_outputs(self):
         return develop.get_outputs(self) + self.ktools_components
+
+    def get_bin_dir(self):
+        return self.script_dir
 
 
 try:
