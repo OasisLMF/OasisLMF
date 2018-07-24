@@ -931,19 +931,20 @@ class OasisPerilLookup(OasisBaseLookup):
             if paid == None:
                 raise IndexError
         except IndexError:
-            results = list(idx.nearest(point, objects='raw'))
+            try:
+                results = list(idx.nearest(point, objects='raw'))
 
-            if not results:
-                raise IndexError
+                if not results:
+                    raise IndexError
 
-            for _perid, _covtype, _paid, _pabnds, _pacoords in results:
-                if (peril_id, coverage_type) == (_perid, _covtype):
-                    paid, pabnds, pacoords = _paid, _pabnds, _pacoords
-                    break
+                for _perid, _covtype, _paid, _pabnds, _pacoords in results:
+                    if (peril_id, coverage_type) == (_perid, _covtype):
+                        paid, pabnds, pacoords = _paid, _pabnds, _pacoords
+                        break
 
-            if paid == None:
-                msg = 'No intersecting or nearest peril area found for peril ID {} and coverage type {}'.format(peril_id, coverage_type)
-                return _lookup(loc_id, x, y, KEYS_STATUS_NOMATCH, peril_id, coverage_type, None, None, None, msg)
+                if paid == None:
+                    msg = 'No intersecting or nearest peril area found for peril ID {} and coverage type {}'.format(peril_id, coverage_type)
+                    return _lookup(loc_id, x, y, KEYS_STATUS_NOMATCH, peril_id, coverage_type, None, None, None, msg)
             except IndexError:
                 pass
             else:
