@@ -11,8 +11,7 @@ __all__ = [
     'PERIL_ID_FLOOD',
     'PERIL_ID_QUAKE',
     'PERIL_ID_SURGE',
-    'PERIL_ID_WIND',
-    'PerilPoint'
+    'PERIL_ID_WIND'
 ]
 
 import builtins
@@ -98,8 +97,8 @@ def generate_index_entries(items, objects=None):
 
 
 def get_peril_areas(areas):
-    for peril_area_id, coordinates, other_props in areas:
-        yield PerilArea(coordinates, peril_area_id=peril_area_id, **other_props)
+    for peril_id, coverage_type, peril_area_id, coordinates, other_props in areas:
+        yield PerilArea(coordinates, peril_id=peril_id, coverage_type=coverage_type, peril_area_id=peril_area_id, **other_props)
 
 
 def get_peril_areas_index(
@@ -128,69 +127,65 @@ class PerilArea(Polygon):
 
     def __init__(self, coords, **kwargs):
 
-        self._args = coords, kwargs
-
         _coords = tuple(c for c in coords)
 
         if not _coords:
             raise OasisException('No peril area coordinates')
 
         if len(_coords) > 2:
-            self.multipoint = MultiPoint(_coords)
+            self._multipoint = MultiPoint(_coords)
         elif len(_coords) == 2:
-            minx, miny, maxx, maxy = tuple(_c for c in coords for _c in c)
-            self.multipoint = MultiPoint(box(minx, miny, maxx, maxy).exterior.coords)
+            minx, miny, maxx, maxy = tuple(_c for c in _coords for _c in c)
+            self._multipoint = MultiPoint(box(minx, miny, maxx, maxy).exterior.coords)
         elif len(_coords) == 1:
             x, y = _coords[0][0], _coords[0][1]
             r = kwargs.get('area_reg_poly_radius') or 0.0016
-            self.multipoint = MultiPoint(
+            self._multipoint = MultiPoint(
                 tuple((x + r*(-1)**i, y + r*(-1)**j) for i in range(2) for j in range(2))
             )
 
-        super(self.__class__, self).__init__(shell=self.multipoint.convex_hull.exterior.coords)
+        super(self.__class__, self).__init__(shell=self._multipoint.convex_hull.exterior.coords)
         
-        self.coordinates = tuple(self.exterior.coords)
+        self._coordinates = tuple(self.exterior.coords)
 
-        self.centre = self.centroid.x, self.centroid.y
+        self._centre = self.centroid.x, self.centroid.y
 
-        self.peril_id = kwargs.get('peril_id')
+        self._coverage_type = kwargs.get('coverage_type')
 
-        self.id = kwargs.get('area_peril_id') or kwargs.get('peril_area_id') or int(uuid.UUID(bytes=os.urandom(16)).hex[:16], 16)
+        self._peril_id = kwargs.get('peril_id')
 
-        for k, v in six.iteritems(kwargs):
-            setattr(self, k, v)
+        self._id = kwargs.get('area_peril_id') or kwargs.get('peril_area_id') or int(uuid.UUID(bytes=os.urandom(16)).hex[:16], 16)
 
-    def __getinitargs__(self):
-        return self._args[0]
+    @property
+    def multipoint(self):
+        return self._multipoint
 
-    def __getnewargs__(self):
-        return self._args[0]
+    @property
+    def coordinates(self):
+        return self._coordinates
 
-    def __getnewargs_ex__(self):
-        return self._args
+    @property
+    def centre(self):
+        return self._centre
 
+    @property
+    def coverage_type(self):
+        return self._coverage_type
 
-class PerilPoint(Point):
+    @property
+    def peril_id(self):
+        return self._peril_id
 
-    def __init__(self, *args, **kwargs):
-
-        super(self.__class__, self).__init__(*args)
-        
-        self.coordinates = tuple(t for t in self.coords[0])
-
-        self.peril_id = kwargs.get('peril_id')
-
-        self.id = kwargs.get('area_peril_id') or kwargs.get('peril_area_id') or int(uuid.UUID(bytes=os.urandom(16)).hex[:16], 16)
-
-        for k, v in six.iteritems(kwargs):
-            setattr(self, k, v)
+    @property
+    def id(self):
+        return self._id
 
 
 class PerilAreasIndex(RTreeIndex):
 
     def __init__(self, *args, **kwargs):
 
-            self.protocol = (2 if six.sys.version_info[0] < 3 else cpickle.HIGHEST_PROTOCOL)
+            self._protocol = (2 if six.sys.version_info[0] < 3 else cpickle.HIGHEST_PROTOCOL)
 
             idx_fp = kwargs.get('fp')
 
@@ -234,8 +229,8 @@ class PerilAreasIndex(RTreeIndex):
         return cpickle.loads(data)
 
     def _get_peril_areas(self, areas):
-        for peril_area_id, coordinates, other_props in areas:
-            yield PerilArea(coordinates, peril_area_id=peril_area_id, **other_props)
+        for peril_id, coverage_type, peril_area_id, coordinates, other_props in areas:
+            yield PerilArea(coordinates, peril_id=peril_id, coverage_type=coverage_type, peril_area_id=peril_area_id, **other_props)
 
     def _generate_index_entries(self, items, objects=None):
         if objects:
@@ -244,6 +239,11 @@ class PerilAreasIndex(RTreeIndex):
         else:
             for key, poly_bounds in items:
                 yield key, poly_bounds, None
+
+    @property
+    def protocol(self):
+        return self._protocol
+    
 
     @property
     def peril_areas(self):
@@ -261,9 +261,11 @@ class PerilAreasIndex(RTreeIndex):
         cls,
         src_fp=None,
         src_type='csv',
+        peril_id_col='peril_id',
+        coverage_type_col='coverage_type',
         peril_area_id_col='area_peril_id',
-        non_na_cols=('area_peril_id',),
-        col_dtypes={'area_peril_id': int},
+        non_na_cols=('peril_id', 'coverage_type', 'area_peril_id',),
+        col_dtypes={'peril_id': int, 'coverage_type': int, 'area_peril_id': int},
         sort_col='area_peril_id',
         area_poly_coords_cols={},
         area_poly_coords_seq_start_idx=1,
@@ -283,10 +285,12 @@ class PerilAreasIndex(RTreeIndex):
 
         _non_na_cols = set(non_na_cols)
 
+        _peril_id_col = peril_id_col.lower()
+        _coverage_type_col = coverage_type_col.lower()
         _peril_area_id_col = peril_area_id_col.lower()
 
-        if not _peril_area_id_col in _non_na_cols:
-            _non_na_cols = _non_na_cols.union({_peril_area_id_col})
+        if not set(_non_na_cols).intersection([_peril_id_col, _coverage_type_col, _peril_area_id_col]):
+            _non_na_cols = _non_na_cols.union({_peril_id_col, _coverage_type_col, _peril_area_id_col})
 
         for col in six.itervalues(area_poly_coords_cols):
             if not col in _non_na_cols:
@@ -310,8 +314,10 @@ class PerilAreasIndex(RTreeIndex):
 
         len_seq = sum(1 if re.match(r'x(\d+)?', k) else 0 for k in six.iterkeys(coords_cols))
 
-        peril_areas = get_peril_areas(
+        peril_areas = cls()._get_peril_areas(
             (
+                ar[_peril_id_col],
+                ar[_coverage_type_col],
                 ar[_peril_area_id_col],
                 tuple(
                     (ar.get(coords_cols['x{}'.format(i)].lower()) or 0, ar.get(coords_cols['y{}'.format(i)].lower()) or 0)
@@ -344,8 +350,12 @@ class PerilAreasIndex(RTreeIndex):
         index_props=DEFAULT_RTREE_INDEX_PROPS
     ):
         _index_fp = index_fp
+
         if not os.path.isabs(_index_fp):
             _index_fp = os.path.abspath(_index_fp)
+
+        if os.path.exists(_index_fp):
+            os.remove(_index_fp)
 
         class myindex(RTreeIndex):
             def __init__(self, *args, **kwargs):
@@ -379,7 +389,7 @@ class PerilAreasIndex(RTreeIndex):
                 peril_areas_seq = six.itervalues(peril_areas)
 
             for pa in peril_areas_seq:
-                index.insert(pa.id, pa.bounds, obj=(pa.id, pa.bounds, pa.coordinates))
+                index.insert(pa.id, pa.bounds, obj=(pa.peril_id, pa.coverage_type, pa.id, pa.bounds, pa.coordinates))
 
             index.close()
         except (IOError, OSError, RTreeError) as e:
