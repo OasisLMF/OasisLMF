@@ -32,6 +32,12 @@ from mock import patch, Mock
 
 from oasislmf.exposures.manager import OasisExposuresManager
 from oasislmf.exposures.pipeline import OasisFilesPipeline
+from oasislmf.utils.coverage import (
+    BUILDING_COVERAGE_CODE,
+    CONTENTS_COVERAGE_CODE,
+    OTHER_STRUCTURES_COVERAGE_CODE,
+    TIME_COVERAGE_CODE,
+)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.status import (
     KEYS_STATUS_FAIL,
@@ -268,6 +274,30 @@ class OasisExposureManagerLoadMasterDataframe(TestCase):
         exposures.pop(exposures.index(matching_exposures[0]))
         profile = {
             profile_element_name: {'ProfileElementName': profile_element_name, 'FieldName': 'TIV', 'CoverageTypeID': 1}
+        }
+
+        with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file:
+            write_input_files(keys, keys_file.name, exposures, exposures_file.name, profile_element_name=profile_element_name)
+
+            with self.assertRaises(OasisException):
+                OasisExposuresManager().load_master_data_frame(exposures_file.name, keys_file.name, profile)
+
+    @settings(suppress_health_check=[HealthCheck.too_slow])
+    @given(
+        profile_element_name=text(alphabet=string.ascii_letters, min_size=1),
+        keys=keys_data(from_coverage_type_ids=just(CONTENTS_COVERAGE_CODE), from_statuses=just(KEYS_STATUS_SUCCESS), size=10),
+        exposures=canonical_exposure_data(10, min_value=1)
+    )
+    def test_canonical_profile_coverage_types_dont_match_model_defined_coverage_types___oasis_exception_is_raised(
+        self,
+        profile_element_name,
+        keys,
+        exposures
+    ):
+        matching_exposures = [e for e in exposures if e[0] in map(lambda k: k['id'], keys)] 
+        exposures.pop(exposures.index(matching_exposures[0]))
+        profile = {
+            profile_element_name: {'ProfileElementName': profile_element_name, 'FieldName': 'TIV', 'CoverageTypeID': BUILDING_COVERAGE_CODE}
         }
 
         with NamedTemporaryFile('w') as keys_file, NamedTemporaryFile('w') as exposures_file:
