@@ -108,7 +108,6 @@ class PostInstallKtools(install):
             'getmodel',
             'gulcalc',
             'fmcalc',
-            'xfmcalc',
             'summarycalc',
         ]
         for ktools_bin in ktools_bin_subset:
@@ -124,8 +123,7 @@ class PostInstallKtools(install):
         if(exit_code is not 0):
             self.announce('Ktools build failed.\n', WARN)
             if (not self.ktools_inpath()):
-                self.announce('Exisiting Ktools install not found.\nExiting', WARN)
-                sys.exit(1)
+                self.announce('Exisiting Ktools install not found.\n', WARN)
         return build_dir
 
     def add_ktools_to_path(self, build_dir):
