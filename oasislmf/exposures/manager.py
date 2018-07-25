@@ -90,13 +90,13 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         The keys file is a CSV file containing keys lookup information for
         locations with successful lookups, and has the following headers::
 
-            LocID,PerilID,CoverageID,AreaPerilID,VulnerabilityID
+            LocID,PerilID,CoverageTypeID,AreaPerilID,VulnerabilityID
 
         while the keys error file is a CSV file containing keys lookup
         information for locations with unsuccessful lookups (failures,
         no matches) and has the following headers::
 
-            LocID,PerilID,CoverageID,Message
+            LocID,PerilID,CoverageTypeID,Message
 
         All the required resources must be provided either in the model object
         resources dict or the ``kwargs`` dict.
@@ -395,13 +395,13 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         The keys file is a CSV file containing keys lookup information for
         locations with successful lookups, and has the following headers::
 
-            LocID,PerilID,CoverageID,AreaPerilID,VulnerabilityID
+            LocID,PerilID,CoverageTypeID,AreaPerilID,VulnerabilityID
 
         while the keys error file is a CSV file containing keys lookup
         information for locations with unsuccessful lookups (failures,
         no matches) and has the following headers::
 
-            LocID,PerilID,CoverageID,Message
+            LocID,PerilID,CoverageTypeID,Message
 
         By default it is assumed that all the resources required for the
         transformation are present in the model object's resources dict,
@@ -481,7 +481,6 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         with io.open(keys_file_path, 'r', encoding='utf-8') as kf:
             keys_df = pd.read_csv(kf, float_precision='high')
-            keys_df = keys_df.rename(columns={'CoverageID': 'CoverageType'})
             keys_df = keys_df.where(keys_df.notnull(), None)
             keys_df.columns = keys_df.columns.str.lower()
 
@@ -520,7 +519,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
             canexp_item = canexp_item.iloc[0]
 
-            tiv_field_matches = tuple(t for t in tiv_fields if t['CoverageTypeID'] == keys_item['coveragetype'])
+            tiv_field_matches = tuple(t for t in tiv_fields if t['CoverageTypeID'] == keys_item['coveragetypeid'])
 
             for tiv_field in tiv_field_matches:
                 tiv_lookup = tiv_field['ProfileElementName'].lower()

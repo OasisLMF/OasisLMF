@@ -345,7 +345,7 @@ class OasisLookupFactory(object):
         heading_row = OrderedDict([
             (id_col, 'LocID'),
             ('peril_id', 'PerilID'),
-            ('coverage', 'CoverageID'),
+            ('coverage_type', 'CoverageTypeID'),
             ('area_peril_id', 'AreaPerilID'),
             ('vulnerability_id', 'VulnerabilityID'),
         ])
@@ -370,7 +370,7 @@ class OasisLookupFactory(object):
         heading_row = OrderedDict([
             (id_col, 'LocID'),
             ('peril_id', 'PerilID'),
-            ('coverage', 'CoverageID'),
+            ('coverage_type', 'CoverageTypeID'),
             ('message', 'Message'),
         ])
 
