@@ -142,14 +142,14 @@ class OasisKeysLookupFactoryWriteOasisKeysFiles(TestCase):
         oasis_keys_file_to_record_metadict = {
             'LocID': 'id',
             'PerilID': 'peril_id',
-            'CoverageID': 'coverage',
+            'CoverageTypeID': 'coverage_type',
             'AreaPerilID': 'area_peril_id',
             'VulnerabilityID': 'vulnerability_id'
         }
         oasis_keys_errors_file_to_record_metadict = {
             'LocID': 'id',
             'PerilID': 'peril_id',
-            'CoverageID': 'coverage',
+            'CoverageTypeID': 'coverage_type',
             'Message': 'message'
         }
 
