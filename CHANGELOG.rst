@@ -1,6 +1,10 @@
 CHANGELOG
 =========
 
+`1.1.21`_ (beta)
+----------------
+
+* Enable lookup framework and exposure manager to support multi-peril and multi-coverage type models
 
 `1.1.20`_ (beta)
 ----------------
@@ -89,6 +93,7 @@ CHANGELOG
 
 * Add console logging
 
+.. _`1.1.21`: https://github.com/OasisLMF/OasisLMF/compare/c04dc73...master
 .. _`1.1.20`: https://github.com/OasisLMF/OasisLMF/compare/fd31879...master
 .. _`1.1.19`: https://github.com/OasisLMF/OasisLMF/compare/5421b91...master
 .. _`1.1.18`: https://github.com/OasisLMF/OasisLMF/compare/da8fcba...master

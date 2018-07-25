@@ -75,16 +75,16 @@ class GeneratePerilAreasRtreeFileIndexCmd(OasisBaseCommand):
         with io.open(lookup_config_fp, 'r', encoding='utf-8') as f:
             config = json.load(f)
 
-        if not config.get('peril'):
+        peril_config = config.get('peril')
+
+        if not peril_config:
             raise OasisException(
-                'The lookup config must contain a subdictionary with a key named '
-                '`peril` defining area peril-related information for the '
-                'model'
+                'The lookup config must contain a peril-related subdictionary with a key named '
+                '`peril` defining area-peril-related model information'
             )
 
-        peril_config = config['peril']
-
         areas_fp = peril_config.get('file_path')
+
         if not areas_fp:
             raise OasisException(
                 'The lookup peril config must define the path of a peril areas '
@@ -97,6 +97,18 @@ class GeneratePerilAreasRtreeFileIndexCmd(OasisBaseCommand):
         areas_fp = as_path(areas_fp, 'areas_fp')
 
         src_type = str.lower(str(peril_config.get('file_type')) or '') or 'csv'
+
+        peril_id_col = str.lower(str(peril_config.get('peril_id_col')) or '') or 'peril_id'
+
+        coverage_config = config.get('coverage')
+
+        if not coverage_config:
+            raise OasisException(
+                'The lookup config must contain a coverage-related subdictionary with a key named '
+                '`coverage` defining coverage related model information'
+            )
+
+        coverage_type_col = str.lower(str(coverage_config.get('coverage_type_col')) or '') or 'coverage_type'
 
         peril_area_id_col = str.lower(str(peril_config.get('peril_area_id_col')) or '') or 'area_peril_id'
 
@@ -134,6 +146,8 @@ class GeneratePerilAreasRtreeFileIndexCmd(OasisBaseCommand):
         index_fp = PerilAreasIndex.create_from_peril_areas_file(
             src_fp=areas_fp,
             src_type=src_type,
+            peril_id_col=peril_id_col,
+            coverage_type_col=coverage_type_col,
             peril_area_id_col=peril_area_id_col,
             non_na_cols=non_na_cols,
             col_dtypes=col_dtypes,

@@ -37,6 +37,12 @@ from mock import patch, Mock
 from oasislmf.exposures.manager import OasisExposuresManager
 from oasislmf.models.model import OasisModel
 from oasislmf.exposures.pipeline import OasisFilesPipeline
+from oasislmf.utils.coverage import (
+    BUILDING_COVERAGE_CODE,
+    CONTENTS_COVERAGE_CODE,
+    OTHER_STRUCTURES_COVERAGE_CODE,
+    TIME_COVERAGE_CODE,
+)
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.fm import (
     canonical_profiles_fm_terms_grouped_by_level_and_term_type

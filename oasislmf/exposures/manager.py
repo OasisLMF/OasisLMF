@@ -129,13 +129,13 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         The keys file is a CSV file containing keys lookup information for
         locations with successful lookups, and has the following headers::
 
-            LocID,PerilID,CoverageID,AreaPerilID,VulnerabilityID
+            LocID,PerilID,CoverageTypeID,AreaPerilID,VulnerabilityID
 
         while the keys error file is a CSV file containing keys lookup
         information for locations with unsuccessful lookups (failures,
         no matches) and has the following headers::
 
-            LocID,PerilID,CoverageID,Message
+            LocID,PerilID,CoverageTypeID,Message
 
         All the required resources must be provided either in the model object
         resources dict or the keyword arguments.
@@ -599,13 +599,13 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         The keys file is a CSV file containing keys lookup information for
         locations with successful lookups, and has the following headers::
 
-            LocID,PerilID,CoverageID,AreaPerilID,VulnerabilityID
+            LocID,PerilID,CoverageTypeID,AreaPerilID,VulnerabilityID
 
         while the keys error file is a CSV file containing keys lookup
         information for locations with unsuccessful lookups (failures,
         no matches) and has the following headers::
 
-            LocID,PerilID,CoverageID,Message
+            LocID,PerilID,CoverageTypeID,Message
 
         By default it is assumed that all the resources required for the
         transformation are present in the model object's resources dict,
@@ -762,7 +762,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
             item_id = 0
             zero_tiv_items = 0
-            positive_tiv_elements = lambda it: [t for t in tiv_elements if it.get(t['ProfileElementName'].lower()) and it[t['ProfileElementName'].lower()] > 0 and t['CoverageTypeID'] == it['coveragetype']] or 0
+            positive_tiv_elements = lambda it: [t for t in tiv_elements if it.get(t['ProfileElementName'].lower()) and it[t['ProfileElementName'].lower()] > 0 and t['CoverageTypeID'] == it['coveragetypeid']] or 0
             
             for it, ptiv in itertools.chain((it, ptiv) for _, it in merged_df.iterrows() for it, ptiv in itertools.product([it],positive_tiv_elements(it))):
                 if ptiv == 0:
@@ -963,7 +963,6 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             canexp_df['index'] = pd.Series(data=canexp_df.index, dtype=int)
             canexp_df['accntnum'] = canexp_df['accntnum'].astype(int)
 
-            keys_df = keys_df.rename(columns={'CoverageID': 'CoverageType'})
             keys_df = keys_df.where(keys_df.notnull(), None)
             keys_df.columns = keys_df.columns.str.lower()
             keys_df['index'] = pd.Series(data=keys_df.index, dtype=int)

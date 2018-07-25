@@ -105,6 +105,18 @@ class OasisBaseLookup(object):
 
         self._config['keys_data_path'] = as_path(keys_data_path, 'keys_data_path', preexists=(True if keys_data_path else False))
 
+        peril_config = self._config.get('peril') or {}
+
+        self._peril_ids = tuple(peril_config.get('peril_ids') or ())
+
+        self._peril_id_col = peril_config.get('peril_id_col') or 'peril_id'
+
+        coverage_config = self._config.get('coverage') or {}
+
+        self._coverage_types = tuple(coverage_config.get('coverage_types') or ())
+
+        self._coverage_type_col = peril_config.get('coverage_type_col') or 'coverage_type'
+
         self.__tweak_config_data__()
 
     def __tweak_config_data__(self):
@@ -129,7 +141,23 @@ class OasisBaseLookup(object):
         self._config = c
         self.__tweak_config_data__()
 
-    def lookup(self, loc, **kwargs):
+    @property
+    def peril_ids(self):
+        return self._peril_ids
+
+    @property
+    def peril_id_col(self):
+        return self._peril_id_col
+
+    @property
+    def coverage_types(self):
+        return self._coverage_types
+
+    @property
+    def coverage_type_col(self):
+        return self._coverage_type_col
+
+    def lookup(self, loc, peril_id, coverage_type, **kwargs):
         """
         Lookup for an individual location item, which could be a dict or a
         Pandas series object.
@@ -156,8 +184,8 @@ class OasisBaseLookup(object):
         elif isinstance(locs, pd.DataFrame):
             locs_seq = (loc for _, loc in locs.iterrows())
 
-        for loc in locs_seq:
-            yield self.lookup(loc)
+        for peril_id, coverage_type, loc in itertools.product(self.peril_ids, self.coverage_types, locs_seq):
+            yield self.lookup(loc, peril_id, coverage_type)
 
 
 class OasisBaseKeysLookup(object):  # pragma: no cover
@@ -317,7 +345,7 @@ class OasisLookupFactory(object):
         heading_row = OrderedDict([
             (id_col, 'LocID'),
             ('peril_id', 'PerilID'),
-            ('coverage', 'CoverageID'),
+            ('coverage_type', 'CoverageTypeID'),
             ('area_peril_id', 'AreaPerilID'),
             ('vulnerability_id', 'VulnerabilityID'),
         ])
@@ -342,7 +370,7 @@ class OasisLookupFactory(object):
         heading_row = OrderedDict([
             (id_col, 'LocID'),
             ('peril_id', 'PerilID'),
-            ('coverage', 'CoverageID'),
+            ('coverage_type', 'CoverageTypeID'),
             ('message', 'Message'),
         ])
 
@@ -675,7 +703,6 @@ class OasisLookup(OasisBaseLookup):
         config_json=None,
         config_fp=None,
         areas=None,
-        peril_id=None,
         peril_areas=None,
         peril_areas_index=None,
         peril_areas_index_props=None,
@@ -695,15 +722,12 @@ class OasisLookup(OasisBaseLookup):
         self.peril_lookup = OasisPerilLookup(
             config=self.config,
             areas=areas,
-            peril_id=peril_id,
             peril_areas=peril_areas,
             peril_areas_index=peril_areas_index,
             peril_areas_index_props=peril_areas_index_props,
             loc_to_global_areas_boundary_min_distance=loc_to_global_areas_boundary_min_distance,
             loc_id_col=self.loc_id_col
         )
-
-        self.peril_id = peril_id or self.config['peril'].get('peril_id')
 
         self.peril_area_id_key = str(str(self.config['peril'].get('peril_area_id_col') or '') or 'peril_area_id').lower()
 
@@ -715,26 +739,29 @@ class OasisLookup(OasisBaseLookup):
             loc_id_col=self.loc_id_col
         )
 
-    def lookup(self, loc):
+    def lookup(self, loc, peril_id, coverage_type):
 
         loc_id_col = self.loc_id_col
         loc_id = loc.get(loc_id_col) or int(uuid.UUID(bytes=os.urandom(16)).hex[:16], 16)
 
-        plookup = self.peril_lookup.lookup(loc)
+        plookup = self.peril_lookup.lookup(loc, peril_id, coverage_type)
+
         past = plookup['status']
         pamsg = plookup['message']
         paid = plookup['peril_area_id']
         
-        vlookup = self.vulnerability_lookup.lookup(loc)
+        vlookup = self.vulnerability_lookup.lookup(loc, peril_id, coverage_type)
+
         vlnst = vlookup['status']
         vlnmsg = vlookup['message']
         vlnid = vlookup['vulnerability_id']
+
         vlookup.pop('status')
         vlookup.pop('message')
         vlookup.pop('vulnerability_id')
 
-        # Could optionally call the status lookup method, but it is always
-        # better to avoid outside function calls in a `for` loop if possible
+        # Could optionally call the status lookup method, but faster
+        # to avoid or minimise outside function calls in a `for` loop
         status = (
             KEYS_STATUS_SUCCESS if past == vlnst == KEYS_STATUS_SUCCESS
             else (KEYS_STATUS_FAIL if (past == KEYS_STATUS_FAIL or vlnst == KEYS_STATUS_FAIL) else KEYS_STATUS_NOMATCH)
@@ -746,7 +773,8 @@ class OasisLookup(OasisBaseLookup):
             k:v for k, v in itertools.chain(
                 (
                     (loc_id_col, loc_id),
-                    ('peril_id', self.peril_id),
+                    ('peril_id', peril_id),
+                    ('coverage_type', coverage_type),
                     (self.peril_area_id_key, paid),
                     (self.vulnerability_id_key, vlnid),
                     ('status', status),
@@ -790,14 +818,11 @@ class OasisPerilLookup(OasisBaseLookup):
         peril_areas_index=None,
         peril_areas_index_fp=None,
         peril_areas_index_props=None,
-        peril_id=None,
         loc_id_col='id'
     ):
         super(self.__class__, self).__init__(config=config, config_json=config_json, config_fp=config_fp)
 
         peril_config = self.config.get('peril') or {}
-
-        self.peril_id = peril_id or peril_config.get('peril_id')
 
         if areas or peril_areas or peril_config:
             if peril_areas_index:
@@ -838,14 +863,13 @@ class OasisPerilLookup(OasisBaseLookup):
             self.loc_coords_x_bounds = tuple(self.config['locations'].get('coords_x_bounds') or ()) or (-180, 180)
             self.loc_coords_y_bounds = tuple(self.config['locations'].get('coords_y_bounds') or ()) or (-90, 90)
 
-    def lookup(self, loc):
+    def lookup(self, loc, peril_id, coverage_type):
         """
         Area peril lookup for an individual lon/lat location item, which can be
         provided as a dict or a Pandas series. The data structure should contain
         the keys `lon` or `longitude` for longitude and `lat` or `latitude` for
         latitude.
         """
-        peril_id = self.peril_id
         idx = self.peril_areas_index
         boundary = self.peril_areas_boundary
         loc_to_areas_min_dist = self.loc_to_global_areas_boundary_min_distance
@@ -862,15 +886,17 @@ class OasisPerilLookup(OasisBaseLookup):
         x = loc.get(loc_x_col)
         y = loc.get(loc_y_col)
 
-        _lookup = lambda loc_id, x, y, st, paid, pabnds, msg: {
+        _lookup = lambda loc_id, x, y, st, perid, covtype, paid, pabnds, pacoords, msg: {
             loc_id_col: loc_id,
             loc_x_col: x,
             loc_y_col: y,
-            'peril_id': peril_id,
+            'peril_id': perid,
+            'coverage_type': covtype,
             'status': st,
             'peril_area_id': paid,
             'area_peril_id': paid,
             'area_bounds': pabnds,
+            'area_coordinates': pacoords,
             'message': msg
         }
 
@@ -884,19 +910,43 @@ class OasisPerilLookup(OasisBaseLookup):
                 'Peril area lookup: invalid {}/{} ({}, {}) - {}'
                 .format(loc_x_col, loc_y_col, x, y, str(e))
             )
-            return _lookup(loc_id, x, y, KEYS_STATUS_FAIL, None, None, msg)
+            return _lookup(loc_id, x, y, KEYS_STATUS_FAIL, peril_id, coverage_type, None, None, None, msg)
 
         st = KEYS_STATUS_NOMATCH
         msg = 'No peril area match'
         paid = None
         pabnds = None
+        pacoords = None
         point = x, y
 
         try:
-            paid, pabnds, pacoords = list(idx.intersection(point, objects='raw'))[0]
+            results = list(idx.intersection(point, objects='raw'))
+
+            if not results:
+                raise IndexError
+
+            for _perid, _covtype, _paid, _pabnds, _pacoords in results:
+                if (peril_id, coverage_type) == (_perid, _covtype):
+                    paid, pabnds, pacoords = _paid, _pabnds, _pacoords
+                    break
+
+            if paid == None:
+                raise IndexError
         except IndexError:
             try:
-                paid, pabnds, pacoords = list(idx.nearest(point, objects='raw'))[0]
+                results = list(idx.nearest(point, objects='raw'))
+
+                if not results:
+                    raise IndexError
+
+                for _perid, _covtype, _paid, _pabnds, _pacoords in results:
+                    if (peril_id, coverage_type) == (_perid, _covtype):
+                        paid, pabnds, pacoords = _paid, _pabnds, _pacoords
+                        break
+
+                if paid == None:
+                    msg = 'No intersecting or nearest peril area found for peril ID {} and coverage type {}'.format(peril_id, coverage_type)
+                    return _lookup(loc_id, x, y, KEYS_STATUS_NOMATCH, peril_id, coverage_type, None, None, None, msg)
             except IndexError:
                 pass
             else:
@@ -909,18 +959,18 @@ class OasisPerilLookup(OasisBaseLookup):
                         'distance is {} units'
                         .format(min_dist, loc_to_areas_min_dist)
                     )
-                    return _lookup(loc_id, x, y, KEYS_STATUS_FAIL, None, None, msg)
+                    return _lookup(loc_id, x, y, KEYS_STATUS_FAIL, peril_id, coverage_type, None, None, None, msg)
                 st = KEYS_STATUS_SUCCESS
                 msg = (
                     'Successful peril area lookup: {}'.format(paid)
                 )
         except RTreeError as e:
-            return _lookup(loc_id, x, y, KEYS_STATUS_FAIL, None, None, str(e))
+            return _lookup(loc_id, x, y, KEYS_STATUS_FAIL, peril_id, coverage_type, None, None, None, str(e))
         else:
             st = KEYS_STATUS_SUCCESS
             msg = 'Successful peril area lookup: {}'.format(paid)
 
-        return _lookup(loc_id, x, y, st, paid, pabnds, msg)
+        return _lookup(loc_id, x, y, st, peril_id, coverage_type, paid, pabnds, pacoords, msg)
 
 
 class OasisVulnerabilityLookup(OasisBaseLookup):
@@ -990,7 +1040,7 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
             return (
                 {v[key_cols[0]]:(v.get(vuln_id_col) or v.get('vulnerability_id')) for _, v in vulns_seq} if len(key_cols) == 1
                 else OrderedDict(
-                    {tuple(v[key_cols[i]] for i in range(len(key_cols))):(v.get(vuln_id_col) or v.get('vulnerability_id')) for _, v in vulns_seq}
+                    {tuple(v[key_cols[i]] for i in range(len(key_cols))):(v.get(vuln_id_col) or v.get('vulnerability_id')) for v in vulns_seq}
                 )
             )
 
@@ -1030,9 +1080,9 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
             sort_ascending=sort_ascending
         )
 
-        return col_dtypes, key_cols, vuln_id_col, _vuln_dict(vuln_df.iterrows(), key_cols, vuln_id_col)
+        return col_dtypes, key_cols, vuln_id_col, _vuln_dict((v for _, v in vuln_df.iterrows()), key_cols, vuln_id_col)
 
-    def lookup(self, loc):
+    def lookup(self, loc, peril_id, coverage_type):
         """
         Vulnerability lookup for an individual location item, which could be a dict or a
         Pandas series.
@@ -1045,13 +1095,21 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
         vuln_id_col = self.vuln_id_col
 
         loc_key_col_values = OrderedDict({
-            key_col: loc[key_col] for key_col in key_cols
+            key_col: loc.get(key_col) for key_col in key_cols
         })
 
-        _lookup = lambda loc_id, vlnst, vlnid, vlnmsg: {
+        if not loc_key_col_values['peril_id']:
+            loc_key_col_values['peril_id'] = peril_id
+
+        if not loc_key_col_values['coverage_type']:
+            loc_key_col_values['coverage_type'] = loc.get('coverage') or coverage_type
+
+        _lookup = lambda loc_id, vlnperid, vlncovtype, vlnst, vlnid, vlnmsg: {
             k:v for k, v in itertools.chain(
                 (
                     (loc_id_col, loc_id),
+                    ('peril_id', vlnperid),
+                    ('coverage_type', vlncovtype),
                     ('status', vlnst),
                     ('vulnerability_id', vlnid),
                     ('message', vlnmsg)
@@ -1065,8 +1123,10 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
                 key_col_dtype = col_dtypes[key_col]
                 key_col_dtype(loc_key_col_values[key_col])
         except (TypeError, ValueError):
-            return _lookup(loc_id, KEYS_STATUS_FAIL, None, 'Vulnerability lookup: invalid key column value(s) for location')
+            return _lookup(loc_id, peril_id, coverage_type, KEYS_STATUS_FAIL, None, 'Vulnerability lookup: invalid key column value(s) for location')
 
+        vlnperid = peril_id
+        vlncovtype = coverage_type
         vlnst = KEYS_STATUS_NOMATCH
         vlnmsg = 'No vulnerability match'
         vlnid = None
@@ -1079,7 +1139,9 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
         except KeyError:
             pass
         else:
+            vlnperid = peril_id
+            vlncovtype = coverage_type
             vlnst = KEYS_STATUS_SUCCESS
             vlnmsg = 'Successful vulnerability lookup: {}'.format(vlnid)
 
-        return _lookup(loc_id, vlnst, vlnid, vlnmsg)
+        return _lookup(loc_id, vlnperid, vlncovtype, vlnst, vlnid, vlnmsg)

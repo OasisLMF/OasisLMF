@@ -690,7 +690,7 @@ def keys_data(
         fixed_dictionaries(
             {
                 'peril_id': from_peril_ids,
-                'coverage': from_coverage_type_ids,
+                'coverage_type': from_coverage_type_ids,
                 'area_peril_id': from_area_peril_ids,
                 'vulnerability_id': from_vulnerability_ids,
                 'status': from_statuses,
@@ -784,7 +784,7 @@ def write_keys_files(
     heading_row = OrderedDict([
         ('id', 'LocID'),
         ('peril_id', 'PerilID'),
-        ('coverage', 'CoverageID'),
+        ('coverage_type', 'CoverageTypeID'),
         ('area_peril_id', 'AreaPerilID'),
         ('vulnerability_id', 'VulnerabilityID')
     ])
@@ -803,7 +803,7 @@ def write_keys_files(
         heading_row = OrderedDict([
             ('id', 'LocID'),
             ('peril_id', 'PerilID'),
-            ('coverage', 'CoverageID'),
+            ('coverage_type', 'CoverageTypeID'),
             ('message', 'Message'),
         ])
 
