@@ -280,7 +280,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         transformation_file_path = os.path.abspath(kwargs['source_to_canonical_exposures_transformation_file_path'])
         output_file_path = os.path.abspath(kwargs['canonical_exposures_file_path'])
 
-        translator = Translator(input_file_path, output_file_path, validation_file_path, transformation_file_path, append_row_nums=True)
+        translator = Translator(input_file_path, output_file_path, transformation_file_path, validation_file_path, append_row_nums=True)
         translator()
 
         if oasis_model:
@@ -322,7 +322,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         transformation_file_path = os.path.abspath(kwargs['canonical_to_model_exposures_transformation_file_path'])
         output_file_path = os.path.abspath(kwargs['model_exposures_file_path'])
 
-        translator = Translator(input_file_path, output_file_path, validation_file_path, transformation_file_path, append_row_nums=False)
+        translator = Translator(input_file_path, output_file_path, transformation_file_path, validation_file_path, append_row_nums=False)
         translator()
 
         if oasis_model:
