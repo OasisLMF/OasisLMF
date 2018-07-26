@@ -746,6 +746,17 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             merged_df = pd.merge(canexp_df, keys_df, left_on='row_id', right_on='locid')
             merged_df['index'] = pd.Series(data=list(merged_df.index), dtype=object)
 
+            loc_ids = set(keys_df['locid'])
+            coverage_types = set(keys_df['coveragetypeid'])
+
+            coverage_ids = {
+                (loc_id, cov_type):i + 1 for i, (loc_id, cov_type) in enumerate(itertools.product(loc_ids, coverage_types))
+            }
+
+            merged_df['coverage_id'] = pd.Series(
+                data=[coverage_ids[(it['locid'], it['coveragetypeid'])] for _, it in keys_df.iterrows()], dtype=int
+            )
+
             tiv_elements = tuple(t for t in [gcep[1][gid].get('tiv') for gid in gcep[1]] if t)
 
             fm_term_elements = {
@@ -777,7 +788,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 yield {
                     'item_id': item_id,
                     'canexp_id': it['row_id'] - 1,
-                    'coverage_id': item_id,
+                    'coverage_id': it['coverage_id'],
                     'tiv_elm': tiv_elm,
                     'tiv': tiv,
                     'tiv_tgid': tiv_tgid,
