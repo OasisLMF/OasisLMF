@@ -196,7 +196,7 @@ class TransformSourceToCanonicalFileCmd(OasisBaseCommand):
             help='Type of source file - exposures or accounts',
         )
         parser.add_argument(
-            '-v', '--xsd-validation-file-path', default=None,
+            '-v', '--xsd-validation-file-path', default=None, required=False,
             help='XSD validation file path (optional argument)',
         )
         parser.add_argument(
@@ -266,7 +266,7 @@ class TransformCanonicalToModelFileCmd(OasisBaseCommand):
             help='Canonical file path',
         )
         parser.add_argument(
-            '-v', '--xsd-validation-file-path', default=None,
+            '-v', '--xsd-validation-file-path', default=None, required=False,
             help='XSD validation file path (optional argument)',
         )
         parser.add_argument(
