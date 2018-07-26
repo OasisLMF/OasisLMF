@@ -48,7 +48,7 @@ class Translator(object):
         """
 
         self.logger = logger or logging.getLogger()
-        self.xsd = etree.parse(xsd_path)
+        self.xsd = (etree.parse(xsd_path) if xsd_path else None)
         self.xslt = etree.parse(xslt_path)
         self.fpath_input = input_path
         self.fpath_output = output_path
