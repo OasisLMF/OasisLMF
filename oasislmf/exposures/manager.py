@@ -522,7 +522,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             tiv_field_matches = tuple(t for t in tiv_fields if t['CoverageTypeID'] == keys_item['coveragetypeid'])
 
             if not tiv_field_matches:
-                raise OasisException('No match between canonical profile coverage types and model-defined coverage types')
+                pass
 
             for tiv_field in tiv_field_matches:
                 tiv_lookup = tiv_field['ProfileElementName'].lower()
@@ -539,6 +539,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                         'summary_id': 1,
                         'summaryset_id': 1,
                     }])
+
+        if item_id == 0:
+            raise OasisException('No items generated - no matches between canonical exposure coverage types and model-defined coverage types')
 
         return result
 
