@@ -1,6 +1,12 @@
 CHANGELOG
 =========
 
+`1.1.23`_ (beta)
+----------------
+
+* Performace update for exposure transforms `transform-source-to-canonical` and `transform-canonical-to-model`.
+* Validation of transform is now optional `--xsd-validation-file-path`, if no value is given this step is skipped.
+
 `1.1.22`_ (beta)
 ----------------
 
@@ -99,6 +105,8 @@ in the exposure manager
 
 * Add console logging
 
+
+.. _`1.1.23`: https://github.com/OasisLMF/OasisLMF/compare/0577497...master
 .. _`1.1.22`: https://github.com/OasisLMF/OasisLMF/compare/bfeee86...master
 .. _`1.1.21`: https://github.com/OasisLMF/OasisLMF/compare/c04dc73...master
 .. _`1.1.20`: https://github.com/OasisLMF/OasisLMF/compare/fd31879...master
@@ -107,8 +115,8 @@ in the exposure manager
 .. _`1.1.17`: https://github.com/OasisLMF/OasisLMF/compare/de90f11...master
 .. _`1.1.15`: https://github.com/OasisLMF/OasisLMF/compare/18b34b9...master
 .. _`1.1.14`: https://github.com/OasisLMF/OasisLMF/compare/f3e0ee8...master
-.. _`1.1.13`: https://github.com/OasisLMF/OasisLMF/compare/33f96fd...dev
-.. _`1.1.12`: https://github.com/OasisLMF/OasisLMF/compare/5045ca2...dev
+.. _`1.1.13`: https://github.com/OasisLMF/OasisLMF/compare/33f96fd...master
+.. _`1.1.12`: https://github.com/OasisLMF/OasisLMF/compare/5045ca2...master
 .. _`1.1.10`: https://github.com/OasisLMF/OasisLMF/compare/a969192...master
 .. _`1.0.9`: https://github.com/OasisLMF/OasisLMF/compare/17c691b...master
 .. _`1.0.8`: https://github.com/OasisLMF/OasisLMF/compare/8eeaeaf...master
