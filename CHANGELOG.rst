@@ -1,6 +1,12 @@
 CHANGELOG
 =========
 
+`1.1.22`_ (beta)
+----------------
+
+* Fix bug in coverage type matching of canonical items and keys items in the GUL items generator
+in the exposure manager
+
 `1.1.21`_ (beta)
 ----------------
 
@@ -93,6 +99,7 @@ CHANGELOG
 
 * Add console logging
 
+.. _`1.1.22`: https://github.com/OasisLMF/OasisLMF/compare/bfeee86...master
 .. _`1.1.21`: https://github.com/OasisLMF/OasisLMF/compare/c04dc73...master
 .. _`1.1.20`: https://github.com/OasisLMF/OasisLMF/compare/fd31879...master
 .. _`1.1.19`: https://github.com/OasisLMF/OasisLMF/compare/5421b91...master

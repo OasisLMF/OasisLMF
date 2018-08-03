@@ -2,7 +2,11 @@ from unittest import TestCase
 
 import zlib
 
-from hypothesis import given
+from hypothesis import (
+    given,
+    HealthCheck,
+    settings,
+)
 from hypothesis.strategies import binary
 from mock import patch, Mock
 
@@ -14,6 +18,7 @@ MOCKED_CHUNK_SIZE = 100
 
 @patch('oasislmf.utils.compress.CHUNK_SIZE', MOCKED_CHUNK_SIZE)
 class CompressData(TestCase):
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(binary(min_size=0, max_size=MOCKED_CHUNK_SIZE - 1))
     def test_data_is_less_than_than_the_chunk_size___result_is_the_compressed_version_of_the_full_data(self, data):
         compressor = zlib.compressobj()
@@ -23,6 +28,7 @@ class CompressData(TestCase):
 
         self.assertEqual(expected, result)
 
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(binary(min_size=MOCKED_CHUNK_SIZE, max_size=MOCKED_CHUNK_SIZE))
     def test_data_is_equal_to_the_the_chunk_size___result_is_the_compressed_version_of_the_full_data(self, data):
         compressor = zlib.compressobj()
@@ -32,6 +38,7 @@ class CompressData(TestCase):
 
         self.assertEqual(expected, result)
 
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(binary(min_size=MOCKED_CHUNK_SIZE, max_size=MOCKED_CHUNK_SIZE), binary(min_size=0, max_size=MOCKED_CHUNK_SIZE - 1))
     def test_data_is_larger_than_the_chunk_size___result_is_the_concatenated_compressed_version_of_the_chunks(self, front, overflow):
         compressor = zlib.compressobj()

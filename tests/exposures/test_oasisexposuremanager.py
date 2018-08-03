@@ -164,6 +164,7 @@ class OasisExposureManagerLoadCanonicalExposuresProfile(TestCase):
             self.assertEqual(expected, model.resources['canonical_exposures_profile'])
 
     @given(model_profile=dictionaries(text(), text()), kwargs_profile=dictionaries(text(), text()))
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     def test_model_is_set_with_profile_json_path_and_profile_json_path_is_passed_through_kwargs___kwargs_profile_is_used(
         self,
         model_profile,
