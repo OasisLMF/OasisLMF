@@ -7,7 +7,11 @@ import os
 
 import shutil
 import six
-from hypothesis import given
+from hypothesis import (
+    given,
+    HealthCheck,
+    settings,
+)
 from hypothesis.strategies import sampled_from, text, dictionaries, booleans, integers
 from mock import Mock, ANY, patch
 from backports.tempfile import mkdtemp, TemporaryDirectory
@@ -110,6 +114,7 @@ class TestModelApiCmdRunAnalysis(TestCase):
         client.upload_inputs_from_directory.assert_called_once_with(input_dir, bin_directory=ANY, do_il=do_il, do_build=True)
         client.run_analysis_and_poll.assert_called_once_with(settings, 'input_location', output_dir)
 
+    @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(text(), text(), dictionaries(text(), text()), booleans(), integers(min_value=0, max_value=5), integers(min_value=0, max_value=5))
     def test_uploading_raises_an_error___failed_counter_is_incremented(self, input_dir, output_dir, settings, do_il, initial_complete, initial_failed):
         client = OasisAPIClient('http://localhost:8001')
