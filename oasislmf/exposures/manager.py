@@ -748,6 +748,17 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             merged_df = pd.merge(canexp_df, keys_df, left_on='row_id', right_on='locid')
             merged_df['index'] = pd.Series(data=list(merged_df.index), dtype=object)
 
+            loc_ids = set(keys_df['locid'])
+            coverage_types = set(keys_df['coveragetypeid'])
+
+            coverage_ids = {
+                (loc_id, cov_type):i + 1 for i, (loc_id, cov_type) in enumerate(itertools.product(loc_ids, coverage_types))
+            }
+
+            merged_df['coverage_id'] = pd.Series(
+                data=[coverage_ids[(it['locid'], it['coveragetypeid'])] for _, it in keys_df.iterrows()], dtype=int
+            )
+
             tiv_elements = tuple(t for t in [gcep[1][gid].get('tiv') for gid in gcep[1]] if t)
 
             fm_term_elements = {
@@ -779,7 +790,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 yield {
                     'item_id': item_id,
                     'canexp_id': it['row_id'] - 1,
-                    'coverage_id': item_id,
+                    'coverage_id': it['coverage_id'],
                     'tiv_elm': tiv_elm,
                     'tiv': tiv,
                     'tiv_tgid': tiv_tgid,
@@ -848,7 +859,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         cangul_df['index'] = pd.Series(data=cangul_df.index, dtype=int)
 
         keys = (
-            'item_id', 'gul_item_id', 'canexp_id', 'canacc_id', 'level_id', 'layer_id', 'agg_id', 'policytc_id',
+            'item_id', 'gul_item_id', 'coverage_id', 'canexp_id', 'canacc_id', 'level_id', 'layer_id', 'agg_id', 'policytc_id',
             'deductible', 'limit', 'share', 'deductible_type', 'calcrule_id',
             'tiv_elm', 'tiv', 'tiv_tgid', 'lim_elm', 'ded_elm', 'ded_type', 'shr_elm',
         )
@@ -859,24 +870,25 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             fm_levels = tuple(sorted(cgcp.keys()))
 
             coverage_level_preset_data = list(zip(
-                tuple(cangul_df.item_id.values),     # 0 - FM item ID
-                tuple(cangul_df.item_id.values),     # 1 - GUL item ID
-                tuple(cangul_df.canexp_id.values),   # 2 - Can. exp. DF index
-                (-1,)*len(cangul_df),                # 3 - Can. acc. DF index
-                (1,)*len(cangul_df),                 # 4 - coverage level ID
-                (1,)*len(cangul_df),                 # 5 - layer ID
-                tuple(cangul_df.tiv_elm.values),     # 6 - TIV element
-                tuple(cangul_df.tiv.values),         # 7 - TIV value
-                tuple(cangul_df.tiv_tgid.values),    # 8 - TIV element profile term group ID
-                tuple(cangul_df.lim_elm.values),     # 9 - limit element
-                tuple(cangul_df.ded_elm.values),     # 10 - deductible element
-                tuple(cangul_df.ded_type.values),    # 11 - deductible type
-                tuple(cangul_df.shr_elm.values)      # 12 - share element
+                tuple(cangul_df.item_id.values),     # 1 - FM item ID
+                tuple(cangul_df.item_id.values),     # 2 - GUL item ID
+                tuple(cangul_df.coverage_id.values),  # 3 - GUL coverage ID
+                tuple(cangul_df.canexp_id.values),   # 4 - Can. exp. DF index
+                (-1,)*len(cangul_df),                # 5 - Can. acc. DF index
+                (1,)*len(cangul_df),                 # 6 - coverage level ID
+                (1,)*len(cangul_df),                 # 7 - layer ID
+                tuple(cangul_df.tiv_elm.values),     # 8 - TIV element
+                tuple(cangul_df.tiv.values),         # 9 - TIV value
+                tuple(cangul_df.tiv_tgid.values),    # 10 - TIV element profile term group ID
+                tuple(cangul_df.lim_elm.values),     # 11 - limit element
+                tuple(cangul_df.ded_elm.values),     # 12 - deductible element
+                tuple(cangul_df.ded_type.values),    # 13 - deductible type
+                tuple(cangul_df.shr_elm.values)      # 14 - share element
             ))
 
             #get_item_layer = lambda i: list(canacc_df[canacc_df['accntnum'] == get_can_item(i)['accntnum']]['policynum'].values)[coverage_level_preset_data[i][5] - 1]
 
-            get_canacc_item = lambda i: canacc_df[(canacc_df['accntnum'] == cangul_df.iloc[coverage_level_preset_data[i][2]]['accntnum']) & (canacc_df['policynum'].str.lower() == 'layer1')].iloc[0]
+            get_canacc_item = lambda i: canacc_df[(canacc_df['accntnum'] == cangul_df.iloc[coverage_level_preset_data[i][3]]['accntnum']) & (canacc_df['policynum'].str.lower() == 'layer1')].iloc[0]
 
             get_canacc_id = lambda i: int(get_canacc_item(i)['index'])
 
@@ -884,9 +896,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 i: {
                     k:v for k, v in zip(
                         keys,
-                        [i + 1, gul_item_id, canexp_id, get_canacc_id(i), level_id, layer_id, 1, 0, 0.0, 0.0, 0.0, 'B', 2, tiv_elm, tiv, tiv_tgid, lim_elm, ded_elm, ded_type, shr_elm]
+                        [i + 1, gul_item_id, coverage_id, canexp_id, get_canacc_id(i), level_id, layer_id, 1, 0, 0.0, 0.0, 0.0, 'B', 2, tiv_elm, tiv, tiv_tgid, lim_elm, ded_elm, ded_type, shr_elm]
                     )
-                } for i, (item_id, gul_item_id, canexp_id, _, level_id, layer_id, tiv_elm, tiv, tiv_tgid, lim_elm, ded_elm, ded_type, shr_elm) in enumerate(coverage_level_preset_data)
+                } for i, (item_id, gul_item_id, coverage_id, canexp_id, _, level_id, layer_id, tiv_elm, tiv, tiv_tgid, lim_elm, ded_elm, ded_type, shr_elm) in enumerate(coverage_level_preset_data)
             }
 
             preset_items = {
