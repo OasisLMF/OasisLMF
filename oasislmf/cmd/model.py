@@ -447,11 +447,11 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         parser.add_argument('-l', '--lookup-package-path', default=None, help='Lookup package path')
         parser.add_argument(
             '-p', '--canonical-exposures-profile-json-path', default=None,
-            help='Path of the supplier canonical exposures profile JSON file'
+            help='Supplier canonical exposures profile JSON file path'
         )
         parser.add_argument(
             '-q', '--canonical-accounts-profile-json-path', default=None,
-            help='Path of the supplier canonical accounts profile JSON file'
+            help='Supplier canonical accounts profile JSON file path'
         )
         parser.add_argument('-x', '--source-exposures-file-path', default=None, help='Source exposures file path')
         parser.add_argument('-y', '--source-accounts-file-path', default=None, help='Source accounts file path')
@@ -480,6 +480,10 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             help='Canonical exposures validation file (XSD) path, (optional argument)'
         )
         parser.add_argument('--fm', action='store_true', help='Generate FM files - False if absent')
+        parser.add_argument(
+            '-u', '--fm-agg-profile-path', default=None,
+            help='Supplier FM aggregation profile JSON file path'
+        )
 
     def action(self, args):
         """
@@ -543,13 +547,18 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
 
         fm = inputs.get('fm', default=False)
 
+        fm_agg_profile_path = as_path(
+            inputs.get('fm_agg_profile_path', required=False, is_path=True),
+            'Supplier FM aggregation profile JSON file path'
+        )
+
         start_time = time.time()
         self.logger.info('\nStarting Oasis files generation (@ {}): GUL=True, FM={}'.format(get_utctimestamp(), fm))
 
-        if fm and not (canonical_accounts_profile_json_path or source_accounts_file_path):
+        if fm and not (source_accounts_file_path and canonical_accounts_profile_json_path and fm_agg_profile_path):
             raise OasisException(
-                'FM option indicated but missing either the canonical accounts profile JSON path or '
-                'the source accounts file path'
+                'FM option indicated but missing one or more of the following arguments: canonical accounts profile JSON file path,'
+                'source accounts file path, FM aggregation profile JSON file path'
             )
 
         self.logger.info('\nGetting model info and lookup')
@@ -581,7 +590,8 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
                 'canonical_accounts_profile_json_path': canonical_accounts_profile_json_path,
                 'canonical_exposures_profile_json_path': canonical_exposures_profile_json_path,
                 'canonical_exposures_validation_file_path': canonical_exposures_validation_file_path,
-                'canonical_to_model_exposures_transformation_file_path': canonical_to_model_exposures_transformation_file_path
+                'canonical_to_model_exposures_transformation_file_path': canonical_to_model_exposures_transformation_file_path,
+                'fm_agg_profile_path': fm_agg_profile_path
             }
         )
         self.logger.info('\t{}'.format(model))
@@ -653,7 +663,6 @@ class GenerateLossesCmd(OasisBaseCommand):
         parser.add_argument('-r', '--model-run-dir-path', default=None, help='Model run directory path')
         parser.add_argument('-s', '--ktools-script-name', default=None, help='Ktools calc. script file path')
         parser.add_argument('-n', '--ktools-num-processes', default=-1, help='Number of ktools calculation processes to use')
-        parser.add_argument('-u', '--no-execute', action='store_true', help='Whether to execute generated ktools script')
 
     def action(self, args):
         """
@@ -675,7 +684,6 @@ class GenerateLossesCmd(OasisBaseCommand):
         model_data_path = as_path(inputs.get('model_data_path', required=True, is_path=True), 'Model data path')
 
         ktools_script_name = inputs.get('ktools_script_name', default='run_ktools')
-        no_execute = inputs.get('no_execute', default=False)
 
         start_time = time.time()
         self.logger.info('\nStarting loss generation (@ {})'.format(get_utctimestamp()))
@@ -720,18 +728,20 @@ class GenerateLossesCmd(OasisBaseCommand):
         prepare_model_run_inputs(analysis_settings, model_run_dir_path)
 
         script_path = os.path.join(model_run_dir_path, '{}.sh'.format(ktools_script_name))
-        if no_execute:
-            self.logger.info('\nGenerating ktools losses script')
-            genbash(
-                args.ktools_num_processes,
-                analysis_settings,
-                filename=script_path,
-            )
-            self.logger.info('\nMaking ktools losses script executable')
-            subprocess.check_call("chmod +x {}".format(script_path), stderr=subprocess.STDOUT, shell=True)
-        else:
-            os.chdir(model_run_dir_path)
-            run(analysis_settings, args.ktools_num_processes, filename=script_path)
+
+        self.logger.info('\nGenerating ktools losses script')
+        genbash(
+            args.ktools_num_processes,
+            analysis_settings,
+            filename=script_path,
+        )
+        
+        self.logger.info('\nMaking ktools losses script executable')
+        subprocess.check_call("chmod +x {}".format(script_path), stderr=subprocess.STDOUT, shell=True)
+
+        self.logger.info('\nExecuting generated ktools losses script')
+        os.chdir(model_run_dir_path)
+        run(analysis_settings, args.ktools_num_processes, filename=script_path)
 
         self.logger.info('\nLoss outputs generated in {}'.format(os.path.join(model_run_dir_path, 'output')))
 
@@ -798,6 +808,11 @@ class RunCmd(OasisBaseCommand):
             help='Canonical exposures validation file (XSD) path, (optional argument)'
         )
         parser.add_argument('--fm', action='store_true', help='Generate FM files - False if absent')
+
+        parser.add_argument(
+            '-u', '--fm-agg-profile-path', default=None,
+            help='Supplier FM aggregation profile JSON file path'
+        )
 
         parser.add_argument(
             '-j', '--analysis-settings-json-file-path', default=None,

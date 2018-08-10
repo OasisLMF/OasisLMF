@@ -66,7 +66,7 @@ from tests.data import (
     write_keys_files,
 )
 
-class OasisExposureManagerAddModel(TestCase):
+class OasisExposuresManagerAddModel(TestCase):
     def test_models_is_empty___model_is_added_to_model_dict(self):
         model = fake_model('supplier', 'model', 'version')
 
@@ -97,7 +97,7 @@ class OasisExposureManagerAddModel(TestCase):
         }, manager.models)
 
 
-class OasisExposureManagerDeleteModels(TestCase):
+class OasisExposuresManagerDeleteModels(TestCase):
     def test_models_is_not_in_manager___no_model_is_removed(self):
         manager = OasisExposuresManager([
             fake_model('supplier', 'model', 'version'),
@@ -122,7 +122,7 @@ class OasisExposureManagerDeleteModels(TestCase):
         self.assertEqual({models[0].key: models[0]}, manager.models)
 
 
-class OasisExposureManagerLoadCanonicalExposuresProfile(TestCase):
+class OasisExposuresManagerLoadCanonicalExposuresProfile(TestCase):
     def test_model_and_kwargs_are_not_set___result_is_null(self):
         profile = OasisExposuresManager().load_canonical_exposures_profile()
 
@@ -184,7 +184,7 @@ class OasisExposureManagerLoadCanonicalExposuresProfile(TestCase):
             self.assertEqual(kwargs_profile, model.resources['canonical_exposures_profile'])
 
 
-class OasisExposureManagerCreateModel(TestCase):
+class OasisExposuresManagerCreateModel(TestCase):
 
     def create_model(
         self,
@@ -578,7 +578,7 @@ class OasisExposureManagerCreateModel(TestCase):
         self.assertEqual(resources['canonical_accounts_profile'], model.resources['canonical_accounts_profile'])
 
 
-class OasisExposureManagerLoadCanonicalAccountsProfile(TestCase):
+class OasisExposuresManagerLoadCanonicalAccountsProfile(TestCase):
     def test_model_and_kwargs_are_not_set___result_is_null(self):
         profile = OasisExposuresManager().load_canonical_accounts_profile()
 
@@ -638,7 +638,7 @@ class OasisExposureManagerLoadCanonicalAccountsProfile(TestCase):
             self.assertEqual(kwargs_profile, profile)
             self.assertEqual(kwargs_profile, model.resources['canonical_accounts_profile'])
 
-class OasisExposuresTransformSourceToCanonical(TestCase):
+class OasisExposuresManagerTransformSourceToCanonical(TestCase):
     @given(
         source_exposures_file_path=text(),
         source_to_canonical_exposures_transformation_file_path=text(),
@@ -709,7 +709,7 @@ class OasisExposuresTransformSourceToCanonical(TestCase):
             trans_call_mock.assert_called_once_with()
 
 
-class OasisExposuresTransformCanonicalToModel(TestCase):
+class OasisExposuresManagerTransformCanonicalToModel(TestCase):
     @given(
         canonical_exposures_file_path=text(),
         canonical_exposures_validation_file_path=text(),
@@ -780,7 +780,7 @@ class OasisExposuresTransformCanonicalToModel(TestCase):
             trans_call_mock.assert_called_once_with()
 
 
-class OasisExposureManagerGetKeys(TestCase):
+class OasisExposuresManagerGetKeys(TestCase):
     def create_model(
         self,
         lookup='lookup',
@@ -867,7 +867,7 @@ class OasisExposureManagerGetKeys(TestCase):
             self.assertEqual(res_keys_errors_file_path, keys_errors_fp)
 
 
-class OasisExposureManagerLoadGulItems(TestCase):
+class OasisExposuresManagerLoadGulItems(TestCase):
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
@@ -1067,7 +1067,7 @@ class OasisExposureManagerLoadGulItems(TestCase):
             self.assertEqual(i + 1, gul_it['group_id'])
 
 
-class OasisExposureManagerLoadFmItems(TestCase):
+class OasisExposuresManagerLoadFmItems(TestCase):
 
     def setUp(self):
         self.exposures_profile = canonical_exposures_profile_piwind_simple
@@ -1496,7 +1496,7 @@ class FmFilesGenerationTestCase(TestCase):
         self.assertEqual(expected, result)
 
 
-class OasisExposureManagerWriteGulFiles(GulFilesGenerationTestCase):
+class OasisExposuresManagerWriteGulFiles(GulFilesGenerationTestCase):
 
     @pytest.mark.flaky
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
@@ -1568,7 +1568,7 @@ class OasisExposureManagerWriteGulFiles(GulFilesGenerationTestCase):
             self.check_gulsummaryxref_file(gul_items_df, gul_files['gulsummaryxref'])
 
 
-class OasisExposureManagerWriteFmFiles(FmFilesGenerationTestCase):
+class OasisExposuresManagerWriteFmFiles(FmFilesGenerationTestCase):
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
@@ -1708,7 +1708,7 @@ class OasisExposureManagerWriteFmFiles(FmFilesGenerationTestCase):
             self.check_fm_policytc_file(fm_items_df, fm_files['fm_policytc'])
 
 
-class OasisExposureManagerStartOasisFilesPipeline(TestCase):
+class OasisExposuresManagerStartOasisFilesPipeline(TestCase):
 
     def setUp(self):
         self.manager = OasisExposuresManager()
