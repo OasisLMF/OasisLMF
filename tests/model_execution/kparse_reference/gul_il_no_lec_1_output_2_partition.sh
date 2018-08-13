@@ -28,7 +28,6 @@ mkfifo fifo/gul_S1_pltcalc_P2
 mkfifo fifo/gul_S1_summaryaalcalc_P2
 
 mkdir work/gul_S1_aalcalc
-
 mkfifo fifo/il_P1
 
 mkfifo fifo/il_S1_summary_P1

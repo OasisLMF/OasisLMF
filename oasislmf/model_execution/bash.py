@@ -497,6 +497,7 @@ def genbash(
     use_random_number_file = False
     gul_output = False
     il_output = False
+    ri_output = False
 
     # remove the file if it already exists
     if os.path.exists(filename):
@@ -514,6 +515,9 @@ def genbash(
     if 'il_output' in analysis_settings:
         il_output = analysis_settings['il_output']
 
+    if 'ri_output' in analysis_settings:
+        il_output = analysis_settings['ri_output']
+
     print_command(filename, '#!/bin/bash')
 
     print_command(filename, '')
@@ -528,8 +532,6 @@ def genbash(
     if gul_output:
         do_gul_make_fifo(analysis_settings, max_process_id, filename)
         create_workfolders(RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename)
-
-    print_command(filename, '')
 
     if il_output:
         do_il_make_fifo(analysis_settings, max_process_id, filename)
