@@ -78,9 +78,6 @@ tee < fifo/il_S2_summary_P2 fifo/il_S2_summaryeltcalc_P2 fifo/il_S2_summarypltca
 summarycalc -f -1 fifo/il_S1_summary_P1 -2 fifo/il_S2_summary_P1 < fifo/il_P1 &
 summarycalc -f -1 fifo/il_S1_summary_P2 -2 fifo/il_S2_summary_P2 < fifo/il_P2 &
 
-# --- Do ground up loss  computes ---
-
-
 eve 1 2 | getmodel | gulcalc -S0 -L0 -r -i - | fmcalc > fifo/il_P1  &
 eve 2 2 | getmodel | gulcalc -S0 -L0 -r -i - | fmcalc > fifo/il_P2  &
 
@@ -95,9 +92,6 @@ kat work/kat/il_S1_summarycalc_P1 work/kat/il_S1_summarycalc_P2 > output/il_S1_s
 kat work/kat/il_S2_eltcalc_P1 work/kat/il_S2_eltcalc_P2 > output/il_S2_eltcalc.csv & kpid4=$!
 kat work/kat/il_S2_pltcalc_P1 work/kat/il_S2_pltcalc_P2 > output/il_S2_pltcalc.csv & kpid5=$!
 kat work/kat/il_S2_summarycalc_P1 work/kat/il_S2_summarycalc_P2 > output/il_S2_summarycalc.csv & kpid6=$!
-
-# --- Do ground up loss kats ---
-
 wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6
 
 

@@ -31,9 +31,6 @@ mkdir work/gul_S1_summaryleccalc
 mkdir work/gul_S1_aalcalc
 
 
-# --- Do insured loss computes ---
-
-
 # --- Do ground up loss  computes ---
 
 eltcalc < fifo/gul_S1_summaryeltcalc_P1 > work/kat/gul_S1_eltcalc_P1 & pid1=$!
@@ -55,9 +52,6 @@ eve 1 2 | getmodel | gulcalc -S0 -L0 -r -c - > fifo/gul_P1  &
 eve 2 2 | getmodel | gulcalc -S0 -L0 -r -c - > fifo/gul_P2  &
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10
-
-
-# --- Do insured loss kats ---
 
 
 # --- Do ground up loss kats ---
