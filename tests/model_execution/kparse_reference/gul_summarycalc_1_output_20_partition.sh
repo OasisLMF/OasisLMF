@@ -126,7 +126,7 @@ mkfifo fifo/gul_S1_summarysummarycalc_P20
 mkfifo fifo/gul_S1_summarycalc_P20
 
 
-# --- Do ground up loss  computes ---
+# --- Do ground up loss computes ---
 
 summarycalctocsv < fifo/gul_S1_summarysummarycalc_P1 > work/kat/gul_S1_summarycalc_P1 & pid1=$!
 

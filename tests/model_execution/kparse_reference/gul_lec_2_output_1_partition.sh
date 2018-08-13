@@ -29,7 +29,7 @@ mkdir work/gul_S1_aalcalc
 mkdir work/gul_S2_summaryleccalc
 mkdir work/gul_S2_aalcalc
 
-# --- Do ground up loss  computes ---
+# --- Do ground up loss computes ---
 
 eltcalc < fifo/gul_S1_summaryeltcalc_P1 > work/kat/gul_S1_eltcalc_P1 & pid1=$!
 summarycalctocsv < fifo/gul_S1_summarysummarycalc_P1 > work/kat/gul_S1_summarycalc_P1 & pid2=$!

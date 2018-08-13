@@ -11,7 +11,7 @@ mkfifo fifo/gul_S1_summary_P1
 
 mkdir work/gul_S1_summaryleccalc
 
-# --- Do ground up loss  computes ---
+# --- Do ground up loss computes ---
 
 
 tee < fifo/gul_S1_summary_P1 work/gul_S1_summaryleccalc/P1.bin > /dev/null & pid1=$!

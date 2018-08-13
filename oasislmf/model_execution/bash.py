@@ -378,6 +378,11 @@ def do_gul_make_fifo(analysis_settings, max_process_id, filename):
         do_make_fifos(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename)
 
 
+def do_ri_make_fifo(analysis_settings, max_process_id, filename):
+    for process_id in range(1, max_process_id + 1):
+        do_make_fifos(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename)
+
+
 def do_il_remove_fifo(analysis_settings, max_process_id, filename):
     for process_id in range(1, max_process_id + 1):
         do_remove_fifos(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename)
@@ -386,6 +391,11 @@ def do_il_remove_fifo(analysis_settings, max_process_id, filename):
 def do_gul_remove_fifo(analysis_settings, max_process_id, filename):
     for process_id in range(1, max_process_id + 1):
         do_remove_fifos(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename)
+
+
+def do_ri_remove_fifo(analysis_settings, max_process_id, filename):
+    for process_id in range(1, max_process_id + 1):
+        do_remove_fifos(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename)
 
 
 def do_waits(wait_variable, wait_count, filename):
@@ -516,7 +526,7 @@ def genbash(
         il_output = analysis_settings['il_output']
 
     if 'ri_output' in analysis_settings:
-        il_output = analysis_settings['ri_output']
+        ri_output = analysis_settings['ri_output']
 
     print_command(filename, '#!/bin/bash')
 
@@ -537,6 +547,17 @@ def genbash(
         do_il_make_fifo(analysis_settings, max_process_id, filename)
         create_workfolders(RUNTYPE_INSURED_LOSS, analysis_settings, filename)
 
+    if ri_output:
+        do_ri_make_fifo(analysis_settings, max_process_id, filename)
+        create_workfolders(RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename)
+        print_command(filename, '')
+
+    if ri_output:
+        print_command(filename, '')
+        print_command(filename, '# --- Do reinsurance loss computes ---')
+        print_command(filename, '')
+        do_ri(analysis_settings, max_process_id, filename, process_counter)
+
     if il_output:
         print_command(filename, '')
         print_command(filename, '# --- Do insured loss computes ---')
@@ -545,7 +566,7 @@ def genbash(
 
     if gul_output:
         print_command(filename, '')
-        print_command(filename, '# --- Do ground up loss  computes ---')
+        print_command(filename, '# --- Do ground up loss computes ---')
         print_command(filename, '')
         do_gul(analysis_settings, max_process_id, filename, process_counter)
 

@@ -1173,7 +1173,7 @@ summarycalc -f -1 fifo/il_S1_summary_P38 < fifo/il_P38 &
 summarycalc -f -1 fifo/il_S1_summary_P39 < fifo/il_P39 &
 summarycalc -f -1 fifo/il_S1_summary_P40 < fifo/il_P40 &
 
-# --- Do ground up loss  computes ---
+# --- Do ground up loss computes ---
 
 eltcalc < fifo/gul_S1_summaryeltcalc_P1 > work/kat/gul_S1_eltcalc_P1 & pid201=$!
 summarycalctocsv < fifo/gul_S1_summarysummarycalc_P1 > work/kat/gul_S1_summarycalc_P1 & pid202=$!
