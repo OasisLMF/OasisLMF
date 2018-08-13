@@ -108,9 +108,6 @@ mkfifo fifo/gul_S1_summaryaalcalc_P20
 mkdir work/gul_S1_aalcalc
 
 
-# --- Do insured loss computes ---
-
-
 # --- Do ground up loss  computes ---
 
 aalcalc < fifo/gul_S1_summaryaalcalc_P1 > work/gul_S1_aalcalc/P1.bin & pid1=$!
@@ -216,9 +213,6 @@ eve 19 20 | getmodel | gulcalc -S100 -L100 -r -c - > fifo/gul_P19  &
 eve 20 20 | getmodel | gulcalc -S100 -L100 -r -c - > fifo/gul_P20  &
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22 $pid23 $pid24 $pid25 $pid26 $pid27 $pid28 $pid29 $pid30 $pid31 $pid32 $pid33 $pid34 $pid35 $pid36 $pid37 $pid38 $pid39 $pid40
-
-
-# --- Do insured loss kats ---
 
 
 # --- Do ground up loss kats ---

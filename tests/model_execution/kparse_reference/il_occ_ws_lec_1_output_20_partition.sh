@@ -151,9 +151,6 @@ summarycalc -f -1 fifo/il_S1_summary_P18 < fifo/il_P18 &
 summarycalc -f -1 fifo/il_S1_summary_P19 < fifo/il_P19 &
 summarycalc -f -1 fifo/il_S1_summary_P20 < fifo/il_P20 &
 
-# --- Do ground up loss  computes ---
-
-
 eve 1 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc > fifo/il_P1  &
 eve 2 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc > fifo/il_P2  &
 eve 3 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc > fifo/il_P3  &
@@ -179,9 +176,6 @@ wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 
 
 
 # --- Do insured loss kats ---
-
-
-# --- Do ground up loss kats ---
 
 
 leccalc -r -Kil_S1_summaryleccalc -w output/il_S1_leccalc_wheatsheaf_oep.csv & lpid1=$!
