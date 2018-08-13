@@ -107,7 +107,7 @@ mkfifo fifo/gul_S1_summaryaalcalc_P20
 
 mkdir work/gul_S1_aalcalc
 
-# --- Do ground up loss  computes ---
+# --- Do ground up loss computes ---
 
 aalcalc < fifo/gul_S1_summaryaalcalc_P1 > work/gul_S1_aalcalc/P1.bin & pid1=$!
 

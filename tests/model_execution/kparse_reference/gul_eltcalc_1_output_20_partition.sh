@@ -126,7 +126,7 @@ mkfifo fifo/gul_S1_summaryeltcalc_P20
 mkfifo fifo/gul_S1_eltcalc_P20
 
 
-# --- Do ground up loss  computes ---
+# --- Do ground up loss computes ---
 
 eltcalc < fifo/gul_S1_summaryeltcalc_P1 > work/kat/gul_S1_eltcalc_P1 & pid1=$!
 

@@ -87,7 +87,7 @@ mkfifo fifo/gul_S1_summary_P20
 
 mkdir work/gul_S1_summaryleccalc
 
-# --- Do ground up loss  computes ---
+# --- Do ground up loss computes ---
 
 
 
