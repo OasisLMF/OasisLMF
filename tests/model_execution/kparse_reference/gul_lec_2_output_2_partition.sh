@@ -48,7 +48,6 @@ mkdir work/gul_S1_aalcalc
 mkdir work/gul_S2_summaryleccalc
 mkdir work/gul_S2_aalcalc
 
-
 # --- Do ground up loss  computes ---
 
 eltcalc < fifo/gul_S1_summaryeltcalc_P1 > work/kat/gul_S1_eltcalc_P1 & pid1=$!

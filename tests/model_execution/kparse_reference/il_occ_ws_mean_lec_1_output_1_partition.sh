@@ -5,7 +5,6 @@ rm -R -f fifo/*
 rm -R -f work/*
 
 mkdir work/kat
-
 mkfifo fifo/il_P1
 
 mkfifo fifo/il_S1_summary_P1

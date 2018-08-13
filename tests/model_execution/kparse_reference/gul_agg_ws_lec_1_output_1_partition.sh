@@ -11,7 +11,6 @@ mkfifo fifo/gul_S1_summary_P1
 
 mkdir work/gul_S1_summaryleccalc
 
-
 # --- Do ground up loss  computes ---
 
 

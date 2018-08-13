@@ -199,7 +199,6 @@ mkdir work/gul_S1_summaryleccalc
 mkdir work/gul_S1_aalcalc
 mkdir work/gul_S2_summaryleccalc
 mkdir work/gul_S2_aalcalc
-
 mkfifo fifo/il_P1
 
 mkfifo fifo/il_S1_summary_P1
