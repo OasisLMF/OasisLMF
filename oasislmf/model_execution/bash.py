@@ -609,6 +609,12 @@ def genbash(
 
     do_pwaits(filename, process_counter)
 
+    if ri_output:
+        print_command(filename, '')
+        print_command(filename, '# --- Do reinsurance loss kats ---')
+        print_command(filename, '')
+        do_kats(RUNTYPE_REINSURANCE_LOSS, analysis_settings, max_process_id, filename, process_counter)
+
     if il_output:
         print_command(filename, '')
         print_command(filename, '# --- Do insured loss kats ---')
