@@ -571,10 +571,12 @@ def genbash(
         do_gul(analysis_settings, max_process_id, filename, process_counter)
 
     print_command(filename, '')
-
+    
     for process_id in range(1, max_process_id + 1):
-        if gul_output and il_output:
 
+        ##! Should be able to streamline the logic a little
+        if num_reinsurance_iterations > 0 and ri_output:
+            
             getmodel_args = { 
                 'number_of_samples'      : number_of_samples,
                 'gul_threshold'          : gul_threshold,
@@ -586,47 +588,69 @@ def genbash(
             }
             getmodel_args.update(custom_args)
             getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
+            main_cmd = 'eve {0} {1} | {2} | fmcalc | tee fifo/il_P{0}'.format(
+                process_id, max_process_id, getmodel_cmd)                
+            for i in range(1, num_reinsurance_iterations + 1):
+                main_cmd = "{} | fmcalc -n -p RI_{}".format(main_cmd, i)
+            main_cmd = "{} > fifo/ri_P{} &".format(main_cmd, process_id)
+
             print_command(
                 filename,
-                'eve {0} {1} | {2} | fmcalc > fifo/il_P{0}  &'.format(process_id, max_process_id, getmodel_cmd)
+                main_cmd
+            )
+
+        elif gul_output and il_output:
+            getmodel_args = { 
+                'number_of_samples'      : number_of_samples,
+                'gul_threshold'          : gul_threshold,
+                'use_random_number_file' : use_random_number_file,
+                'coverage_output'        : 'fifo/gul_P{}'.format(process_id),
+                'item_output'            : '-',
+                'process_id'             : process_id,
+                'max_process_id'         : max_process_id
+            }
+            getmodel_args.update(custom_args)
+            getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
+            main_cmd = 'eve {0} {1} | {2} | fmcalc > fifo/il_P{0}  &'.format(
+                process_id, max_process_id, getmodel_cmd)
+
+            print_command(
+                filename,
+                main_cmd
             )
         else:
-            #  Now the mainprocessing
-            if gul_output:
-                if 'gul_summaries' in analysis_settings:
-                    getmodel_args = { 
-                        'number_of_samples'      : number_of_samples,
-                        'gul_threshold'          : gul_threshold,
-                        'use_random_number_file' : use_random_number_file,
-                        'coverage_output'        : '-'.format(process_id),
-                        'item_output'            : '',
-                        'process_id'             : process_id,
-                        'max_process_id'         : max_process_id
-                    }
-                    getmodel_args.update(custom_args)
-                    getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
-                    print_command(
-                        filename,
-                        'eve {0} {1} | {2} > fifo/gul_P{0}  &'.format(process_id, max_process_id, getmodel_cmd)
-                    )
-
-            if il_output:
-                if 'il_summaries' in analysis_settings:
-                    getmodel_args = { 
-                        'number_of_samples'      : number_of_samples,
-                        'gul_threshold'          : gul_threshold,
-                        'use_random_number_file' : use_random_number_file,
-                        'coverage_output'        : ''.format(process_id),
-                        'item_output'            : '-',
-                        'process_id'             : process_id,
-                        'max_process_id'         : max_process_id
-                    }
-                    getmodel_args.update(custom_args)
-                    getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
-                    print_command(
-                        filename,
-                        "eve {0} {1} | {2} | fmcalc > fifo/il_P{0}  &".format(process_id, max_process_id, getmodel_cmd)
-                    )
+            if gul_output and 'gul_summaries' in analysis_settings:
+                getmodel_args = { 
+                    'number_of_samples'      : number_of_samples,
+                    'gul_threshold'          : gul_threshold,
+                    'use_random_number_file' : use_random_number_file,
+                    'coverage_output'        : '-'.format(process_id),
+                    'item_output'            : '',
+                    'process_id'             : process_id,
+                    'max_process_id'         : max_process_id
+                }
+                getmodel_args.update(custom_args)
+                getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
+                print_command(
+                    filename,
+                    'eve {0} {1} | {2} > fifo/gul_P{0}  &'.format(process_id, max_process_id, getmodel_cmd)
+                )
+            if il_output and 'il_summaries' in analysis_settings:
+                getmodel_args = { 
+                    'number_of_samples'      : number_of_samples,
+                    'gul_threshold'          : gul_threshold,
+                    'use_random_number_file' : use_random_number_file,
+                    'coverage_output'        : ''.format(process_id),
+                    'item_output'            : '-',
+                    'process_id'             : process_id,
+                    'max_process_id'         : max_process_id
+                }
+                getmodel_args.update(custom_args)
+                getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
+                print_command(
+                    filename,
+                    "eve {0} {1} | {2} | fmcalc > fifo/il_P{0}  &".format(process_id, max_process_id, getmodel_cmd)
+                )
 
     print_command(filename, '')
 
