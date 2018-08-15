@@ -184,7 +184,7 @@ class OasisBaseLookup(object):
         elif isinstance(locs, pd.DataFrame):
             locs_seq = (loc for _, loc in locs.iterrows())
 
-        for peril_id, coverage_type, loc in itertools.product(self.peril_ids, self.coverage_types, locs_seq):
+        for loc, peril_id, coverage_type in itertools.product(locs_seq, self.peril_ids, self.coverage_types):
             yield self.lookup(loc, peril_id, coverage_type)
 
 
