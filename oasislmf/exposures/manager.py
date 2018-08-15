@@ -476,6 +476,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         output_file_path = os.path.abspath(kwargs['canonical_accounts_file_path']) if source_type == 'accounts' else os.path.abspath(kwargs['canonical_exposures_file_path'])
 
         translator = Translator(input_file_path, output_file_path, transformation_file_path, xsd_path=validation_file_path, append_row_nums=True)
+
         translator()
 
         if oasis_model:
@@ -522,6 +523,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         output_file_path = os.path.abspath(kwargs.get('model_exposures_file_path'))
 
         translator = Translator(input_file_path, output_file_path, transformation_file_path, xsd_path=validation_file_path, append_row_nums=False)
+
         translator()
 
         if oasis_model:

@@ -66,7 +66,9 @@ from tests.data import (
     write_keys_files,
 )
 
+
 class OasisExposuresManagerAddModel(TestCase):
+
     def test_models_is_empty___model_is_added_to_model_dict(self):
         model = fake_model('supplier', 'model', 'version')
 
@@ -639,6 +641,7 @@ class OasisExposuresManagerLoadCanonicalAccountsProfile(TestCase):
             self.assertEqual(kwargs_profile, model.resources['canonical_accounts_profile'])
 
 class OasisExposuresManagerTransformSourceToCanonical(TestCase):
+
     @given(
         source_exposures_file_path=text(),
         source_to_canonical_exposures_transformation_file_path=text(),
