@@ -199,7 +199,7 @@ def _check_each_inputs_directory(directory_to_check, do_il=False, check_binaries
                 raise OasisException("Binary file already exists: {}".format(file_path))
 
 
-def create_binary_files(csv_directory, bin_directory, do_il=False):
+def create_binary_files(csv_directory, bin_directory, do_il=False, do_ri=False):
     """
     Create the binary files.
 
@@ -209,13 +209,32 @@ def create_binary_files(csv_directory, bin_directory, do_il=False):
     :param bin_directory: the directory to write the binary files
     :type bin_directory: str
 
-    :param do_il: whether to perform insured loss (IL) calculations; if true, FM file must be present
+    :param do_il: whether to create the binaries required for insured loss calculations
     :type do_il: bool
+
+    :param do_ri: whether to create the binaries required for reinsurance calculations
+    :type do_ri: bool
 
     :raises OasisException: If one of the conversions fails
     """
     csvdir = os.path.abspath(csv_directory)
     bindir = os.path.abspath(bin_directory)
+
+    do_il = do_il or do_ri
+
+    _create_set_of_binary_files(csvdir, bindir, do_il)
+
+    if do_ri:
+        for ri_csvdir in glob.glob('{}{}RI_[0-9]*'.format(csvdir, os.sep)):
+            _create_set_of_binary_files(
+                ri_csvdir, os.path.join(bindir, os.path.basename(ri_csvdir)), do_il=True)
+
+def _create_set_of_binary_files(csv_directory, bin_directory, do_il=False):
+    """
+    Create a set of binary files.
+    """
+    if not os.path.exists(bin_directory):
+        os.mkdir(bin_directory)
 
     if do_il:
         input_files = itervalues(INPUT_FILES)
@@ -224,18 +243,17 @@ def create_binary_files(csv_directory, bin_directory, do_il=False):
 
     for input_file in input_files:
         conversion_tool = input_file['conversion_tool']
-        input_file_path = os.path.join(csvdir, '{}.csv'.format(input_file['name']))
+        input_file_path = os.path.join(csv_directory, '{}.csv'.format(input_file['name']))
         if not os.path.exists(input_file_path):
             continue
 
-        output_file_path = os.path.join(bindir, '{}.bin'.format(input_file['name']))
+        output_file_path = os.path.join(bin_directory, '{}.bin'.format(input_file['name']))
         cmd_str = "{} < {} > {}".format(conversion_tool, input_file_path, output_file_path)
 
         try:
             subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
         except subprocess.CalledProcessError as e:
             raise OasisException(e)
-
 
 def check_binary_tar_file(tar_file_path, check_il=False):
     """
