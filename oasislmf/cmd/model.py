@@ -226,11 +226,13 @@ class TransformSourceToCanonicalFileCmd(OasisBaseCommand):
 
         validation_file_path = as_path(inputs.get('validation_file_path', required=False, is_path=True), 'XSD validation file path', preexists=False)
         transformation_file_path = as_path(inputs.get('transformation_file_path', required=True, is_path=True), 'XSLT transformation file path', preexists=True)
+
         output_file_path = as_path(inputs.get('output_file_path', required=False, is_path=True, default='can{}-{}.csv'.format(_sft, _utc)), 'Output file path', preexists=False)
 
         self.logger.info('\nGenerating a canonical {} file {} from source {} file {}'.format(_sft, output_file_path, _sft, source_file_path))
 
         translator = Translator(source_file_path, output_file_path, transformation_file_path, xsd_path=validation_file_path, append_row_nums=True)
+
         translator()
 
         self.logger.info('\nOutput file {} successfully generated'.format(output_file_path))
@@ -294,11 +296,13 @@ class TransformCanonicalToModelFileCmd(OasisBaseCommand):
 
         validation_file_path = as_path(inputs.get('validation_file_path', required=False, is_path=True), 'XSD validation file path', preexists=False)
         transformation_file_path = as_path(inputs.get('transformation_file_path', required=True, is_path=True), 'XSLT transformation file path', preexists=True)
+
         output_file_path = as_path(inputs.get('output_file_path', required=False, is_path=True, default='modexp-{}.csv'.format(_utc)), 'Output file path', preexists=False)
 
         self.logger.info('\nGenerating a model exposures file {} from canonical exposures file {}'.format(output_file_path, canonical_exposures_file_path))
 
         translator = Translator(canonical_exposures_file_path, output_file_path, transformation_file_path, xsd_path=validation_file_path ,append_row_nums=True)
+
         translator()
 
         self.logger.info('\nOutput file {} successfully generated'.format(output_file_path))
@@ -478,11 +482,13 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         parser.add_argument(
             '-f', '--canonical-to-model-exposures-transformation-file-path', default=None,
             help='Canonical exposures validation file (XSD) path, (optional argument)'
+
         )
         parser.add_argument('--fm', action='store_true', help='Generate FM files - False if absent')
         parser.add_argument(
             '-u', '--fm-agg-profile-path', default=None,
             help='Supplier FM aggregation profile JSON file path'
+
         )
 
     def action(self, args):
