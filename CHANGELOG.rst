@@ -1,6 +1,11 @@
 CHANGELOG
 =========
 
+`1.1.24`_ (beta)
+----------------
+
+* Fix ordering of bulk lookup generation in base generic lookup - records should be generated as (loc. ID, peril ID, coverage type ID) combinations.
+
 `1.1.23`_ (beta)
 ----------------
 
@@ -106,6 +111,7 @@ in the exposure manager
 * Add console logging
 
 
+.. _`1.1.24`: https://github.com/OasisLMF/OasisLMF/compare/8f94cab...master
 .. _`1.1.23`: https://github.com/OasisLMF/OasisLMF/compare/0577497...master
 .. _`1.1.22`: https://github.com/OasisLMF/OasisLMF/compare/bfeee86...master
 .. _`1.1.21`: https://github.com/OasisLMF/OasisLMF/compare/c04dc73...master
