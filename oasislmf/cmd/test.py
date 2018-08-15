@@ -146,7 +146,7 @@ class TestModelApiCmd(OasisBaseCommand):
         threads = ThreadPool(processes=args.num_analyses)
         threads.map(
             self.run_analysis,
-            ((client, args.input_directory, args.output_directory, analysis_settings, do_il, do_ri, counter) for i in range(args.num_analyses))
+            ((client, args.input_directory, args.output_directory, analysis_settings, do_il, counter) for i in range(args.num_analyses))
         )
 
         threads.close()
