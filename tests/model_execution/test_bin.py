@@ -14,7 +14,7 @@ import os
 import io
 import subprocess
 
-from copy import deepcopy
+from copy import copy, deepcopy
 from hypothesis import given
 from hypothesis.strategies import sampled_from, lists
 from mock import patch, Mock
@@ -179,6 +179,50 @@ class CreateBinaryTarFile(TestCase):
                 self.assertEqual(len(targets), len(tar.getnames()))
                 self.assertEqual(set(targets), set(tar.getnames()))
 
+    @given(tar_file_targets(min_size=1))
+    def test_with_single_reinsurance_subfolder(self, targets):
+        with TemporaryDirectory() as d:
+            os.mkdir(os.path.join(d, 'RI_1'))
+            for target in targets:
+                with io.open(os.path.join(d, target), 'w', encoding='utf-8') as f:
+                    f.write(target)
+                with io.open(os.path.join(d, 'RI_1', target), 'w', encoding='utf-8') as f:
+                    f.write(target)
+
+            create_binary_tar_file(d)
+
+            all_targets = copy(targets)
+            for t in targets:
+                all_targets.append("RI_1{}{}".format(os.sep, t))
+
+            with tarfile.open(os.path.join(d, TAR_FILE), 'r:gz', encoding='utf-8') as tar:
+                self.assertEqual(len(all_targets), len(tar.getnames()))
+                self.assertEqual(set(all_targets), set(tar.getnames()))
+
+    @given(tar_file_targets(min_size=1))
+    def test_with_multiple_reinsurance_subfolders(self, targets):
+        with TemporaryDirectory() as d:
+            os.mkdir(os.path.join(d, 'RI_1'))
+            os.mkdir(os.path.join(d, 'RI_2'))
+            
+            for target in targets:
+                with io.open(os.path.join(d, target), 'w', encoding='utf-8') as f:
+                    f.write(target)
+                with io.open(os.path.join(d, 'RI_1', target), 'w', encoding='utf-8') as f:
+                    f.write(target)
+                with io.open(os.path.join(d, 'RI_2', target), 'w', encoding='utf-8') as f:
+                    f.write(target)                
+
+            create_binary_tar_file(d)
+
+            all_targets = copy(targets)
+            for t in targets:
+                all_targets.append("RI_1{}{}".format(os.sep, t))
+                all_targets.append("RI_2{}{}".format(os.sep, t))
+
+            with tarfile.open(os.path.join(d, TAR_FILE), 'r:gz', encoding='utf-8') as tar:
+                self.assertEqual(len(all_targets), len(tar.getnames()))
+                self.assertEqual(set(all_targets), set(tar.getnames()))
 
 class CheckConversionTools(TestCase):
     def test_do_il_is_false_il_tools_are_missing___result_is_true(self):
