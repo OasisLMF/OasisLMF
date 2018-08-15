@@ -82,7 +82,12 @@ class TestModelApiCmd(OasisBaseCommand):
         else:
             do_il = bool(analysis_settings['analysis_settings']["il_output"])
 
-        return analysis_settings, do_il
+        if isinstance(analysis_settings['analysis_settings']['ri_output'], six.string_types):
+            do_ri = analysis_settings['analysis_settings']["ri_output"].lower() == 'true'
+        else:
+            do_ri = bool(analysis_settings['analysis_settings']["ri_output"])
+
+        return analysis_settings, do_il, do_ri
 
     def run_analysis(self, args):
         """
@@ -127,7 +132,7 @@ class TestModelApiCmd(OasisBaseCommand):
         # Load analysis settings JSON file and set up boolean for doing insured
         # loss calculations
         self.logger.info('Loading analysis settings JSON file:')
-        analysis_settings, do_il = self.load_analysis_settings_json(args.analysis_settings_file)
+        analysis_settings, do_il, do_ri = self.load_analysis_settings_json(args.analysis_settings_file)
         self.logger.info('  OK: analysis_settings={}, do_il={}'.format(analysis_settings, do_il))
 
         # Prepare and run analyses
@@ -137,7 +142,7 @@ class TestModelApiCmd(OasisBaseCommand):
         threads = ThreadPool(processes=args.num_analyses)
         threads.map(
             self.run_analysis,
-            ((client, args.input_directory, args.output_directory, analysis_settings, do_il, counter) for i in range(args.num_analyses))
+            ((client, args.input_directory, args.output_directory, analysis_settings, do_il, do_ri, counter) for i in range(args.num_analyses))
         )
 
         threads.close()
