@@ -26,6 +26,7 @@ from oasislmf.model_execution.bin import create_binary_files, create_binary_tar_
     check_binary_tar_file
 from oasislmf.utils.exceptions import OasisException
 
+# Used simple echo command rather than ktools conversion utility for testing purposes
 ECHO_CONVERSION_INPUT_FILES = {k: ChainMap({'conversion_tool': 'echo'}, v) for k, v in INPUT_FILES.items()}
 
 
@@ -96,6 +97,62 @@ class CreateBinaryFiles(TestCase):
             with patch('oasislmf.model_execution.bin.subprocess.check_call', Mock(side_effect=subprocess.CalledProcessError(1, ''))):
                 with self.assertRaises(OasisException):
                     create_binary_files(csv_dir, bin_dir, do_il=True)
+
+    @given(standard_input_files(min_size=1), il_input_files(min_size=1))
+    def test_single_ri_folder(self, standard, il):
+        with patch('oasislmf.model_execution.bin.INPUT_FILES', ECHO_CONVERSION_INPUT_FILES), TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
+            files = standard + il
+
+            for target in files:
+                with io.open(os.path.join(csv_dir, target + '.csv'), 'w', encoding='utf-8') as f:
+                    f.write(target)
+            os.mkdir(os.path.join(csv_dir, "RI_1"))
+            for target in files:
+                with io.open(os.path.join(csv_dir, "RI_1", target + '.csv'), 'w', encoding='utf-8') as f:
+                    f.write(target)
+
+            create_binary_files(csv_dir, bin_dir, do_il=True, do_ri=True)
+
+            self.assertEqual(len(files), len(glob.glob(os.path.join(bin_dir, '*.bin'))))
+            for filename in (f + '.bin' for f in files):
+                self.assertTrue(os.path.exists(os.path.join(bin_dir, filename)))
+
+            self.assertEqual(len(files), len(glob.glob(os.path.join(bin_dir, 'RI_1{}*.bin'.format(os.sep)))))
+            for filename in (f + '.bin' for f in files):
+                self.assertTrue(os.path.exists(os.path.join(bin_dir, 'RI_1', filename)))
+
+
+    @given(standard_input_files(min_size=1), il_input_files(min_size=1))
+    def test_multipl_ri_folders(self, standard, il):
+        with patch('oasislmf.model_execution.bin.INPUT_FILES', ECHO_CONVERSION_INPUT_FILES), TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
+            files = standard + il
+
+            for target in files:
+                with io.open(os.path.join(csv_dir, target + '.csv'), 'w', encoding='utf-8') as f:
+                    f.write(target)
+            os.mkdir(os.path.join(csv_dir, "RI_1"))
+            for target in files:
+                with io.open(os.path.join(csv_dir, "RI_1", target + '.csv'), 'w', encoding='utf-8') as f:
+                    f.write(target)
+            os.mkdir(os.path.join(csv_dir, "RI_2"))
+            for target in files:
+                with io.open(os.path.join(csv_dir, "RI_2", target + '.csv'), 'w', encoding='utf-8') as f:
+                    f.write(target)
+
+
+            create_binary_files(csv_dir, bin_dir, do_il=True, do_ri=True)
+
+            self.assertEqual(len(files), len(glob.glob(os.path.join(bin_dir, '*.bin'))))
+            for filename in (f + '.bin' for f in files):
+                self.assertTrue(os.path.exists(os.path.join(bin_dir, filename)))
+
+            self.assertEqual(len(files), len(glob.glob(os.path.join(bin_dir, 'RI_1{}*.bin'.format(os.sep)))))
+            for filename in (f + '.bin' for f in files):
+                self.assertTrue(os.path.exists(os.path.join(bin_dir, 'RI_1', filename)))
+
+            self.assertEqual(len(files), len(glob.glob(os.path.join(bin_dir, 'RI_2{}*.bin'.format(os.sep)))))
+            for filename in (f + '.bin' for f in files):
+                self.assertTrue(os.path.exists(os.path.join(bin_dir, 'RI_2', filename)))
 
 
 class CreateBinaryTarFile(TestCase):
