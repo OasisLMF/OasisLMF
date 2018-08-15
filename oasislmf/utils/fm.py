@@ -123,7 +123,7 @@ def get_non_coverage_level_fm_terms(level_grouped_canonical_profile, level_fm_ag
 
     can_df = pd.merge(canexp_df, canacc_df, left_on='accntnum', right_on='accntnum')
 
-    get_can_item = lambda canexp_id, canacc_id, layer_id: can_df[(can_df['row_id_x']==canexp_id+1) & (can_df['row_id_y']==canacc_id+1) & (can_df['policynum']=='Layer{}'.format(layer_id))].iloc[0]
+    get_can_item = lambda canexp_id, canacc_id, layer_id: can_df[(can_df['row_id_x']==canexp_id+1) & (can_df['row_id_y']==canacc_id+1) & (can_df['policynum'].str.lower() =='layer{}'.format(layer_id))].iloc[0]
 
     lim_fld = lgcp[1].get('limit')
     lim_elm = lim_fld['ProfileElementName'].lower() if lim_fld else None

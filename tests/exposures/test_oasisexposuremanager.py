@@ -1036,7 +1036,9 @@ class OasisExposuresManagerLoadGulItems(TestCase):
             keys_it = get_keys_item(int(gul_it['canexp_id']))
             self.assertIsNotNone(keys_it)
 
-            positive_tiv_elements = [t for t in tiv_elements if can_it.get(t['ProfileElementName'].lower()) and can_it[t['ProfileElementName'].lower()] > 0 and t['CoverageTypeID'] == keys_it['coverage']]
+            positive_tiv_elements = [
+                t for t in tiv_elements if can_it.get(t['ProfileElementName'].lower()) and can_it[t['ProfileElementName'].lower()] > 0 and t['CoverageTypeID'] == keys_it['coverage']
+            ]
 
             for _, t in enumerate(positive_tiv_elements):
                 tiv_elm = t['ProfileElementName'].lower()

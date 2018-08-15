@@ -10,6 +10,7 @@ __all__ = [
     'coverage_type_ids',
     'deductible_types',
     'deductible_types_piwind',
+    'fm_agg_profile_piwind',
     'fm_items_data',
     'fm_level_names_piwind',
     'fm_level_names_piwind_simple',
@@ -426,6 +427,91 @@ deductible_types_piwind = tuple(
         for t in itertools.chain(six.itervalues(canonical_exposures_profile_piwind_simple), six.itervalues(canonical_accounts_profile_piwind))
     ) if t
 )
+
+fm_agg_profile_piwind = {
+    "1": {
+        "FMLevel": 1,
+        "FMLevelName": "Coverage",
+        "FMAggKey": {
+            "LocID": {
+                "src": "FM",
+                "field": "canexp_id",
+                "name": "Location ID"
+            },
+            "CoverageID": {
+                "src": "FM",
+                "field": "coverage_id",
+                "name": "Coverage ID"
+            }
+        }
+    },
+    "2": {
+        "FMLevel": 2,
+        "FMLevelName": "Combined",
+        "FMAggKey": {
+            "LocID": {
+                "src": "FM",
+                "field": "canexp_id",
+                "name": "Location ID",
+                "cov_types": [1, 3]
+            }
+        }
+    },
+    "3": {
+        "FMLevel": 3,
+        "FMLevel": "Site",
+        "FMAggKey": {
+            "LocID":  {
+                "src": "FM",
+                "field": "canexp_id",
+                "name": "Location ID"
+            }
+        }
+    },
+    "4": {
+        "FMLevel": 4,
+        "FMLevelName": "Sublimit",
+        "FMAggKey": {
+            "AccntNum":  {
+                "src": "FM",
+                "field": "canacc_id",
+                "name": "Account no."
+            },
+            "SublimitRef": {
+                "src": "CanExp",
+                "field": "cond1name",
+                "name": "Sublimit ref."
+            }
+        }
+    },
+    "5": {
+        "FMLevel": 5,
+        "FMLevelName": "Account",
+        "FMAggKey": {
+            "AccntNum": {
+                "src": "FM",
+                "field": "canacc_id",
+                "name": "Account no."
+            }
+        }
+    },
+    "6": {
+        "FMLevel": 6,
+        "FMLevelName": "Layer",
+        "FMAggKey": {
+            "AccntNum": {
+                "src": "FM",
+                "field": "canacc_id",
+                "name": "Account no."
+            },
+            "PolicyNum": {
+                "src": "FM",
+                "field": "policy_num",
+                "name": "Account policy no."
+            }
+        }
+    }
+}
 
 fm_levels_piwind = tuple(
     t for t in set(
