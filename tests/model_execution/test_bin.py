@@ -309,6 +309,81 @@ class CheckInputDirectory(TestCase):
             except Exception as e:
                 self.fail('Exception was raised {}: {}'.format(type(e), e))
 
+    def test_check_gul_and_il_and_single_ri_directory_structure(self):
+        with TemporaryDirectory() as d:
+            for p in six.itervalues(INPUT_FILES):
+                Path(os.path.join(d, p['name'] + '.csv')).touch()
+            os.mkdir(os.path.join(d, "RI_1"))
+            for p in six.itervalues(INPUT_FILES):
+                f = os.path.join(d, "RI_1", p['name'] + '.csv')
+                Path(f).touch()
+            try:
+                check_inputs_directory(d, do_il=True, do_ri=True, check_binaries=True)
+            except Exception as e:
+                self.fail('Exception was raised {}: {}'.format(type(e), e))
+                
+    def test_check_gul_and_il_and_single_ri_directory_structure_binaries_fail(self):
+        with TemporaryDirectory() as d:
+            for p in six.itervalues(INPUT_FILES):
+                Path(os.path.join(d, p['name'] + '.csv')).touch()
+                Path(os.path.join(d, p['name'] + '.bin')).touch()
+            os.mkdir(os.path.join(d, "RI_1"))
+            for p in six.itervalues(INPUT_FILES):
+                Path(os.path.join(d, "RI_1", p['name'] + '.csv')).touch()
+                Path(os.path.join(d, "RI_1", p['name'] + '.bin')).touch()
+
+            with self.assertRaises(OasisException):
+                check_inputs_directory(d, do_il=True, do_ri=True, check_binaries=True)
+
+    def test_check_gul_and_il_and_single_ri_directory_structure_missing_file_fail(self):
+        with TemporaryDirectory() as d:
+            for p in six.itervalues(INPUT_FILES):
+                Path(os.path.join(d, p['name'] + '.csv')).touch()
+            os.mkdir(os.path.join(d, "RI_1"))
+            # Skip the first files
+            first = True
+            for p in six.itervalues(INPUT_FILES):
+                if not first:
+                    Path(os.path.join(d, "RI_1", p['name'] + '.csv')).touch()
+                first = False
+
+            with self.assertRaises(OasisException):
+                check_inputs_directory(d, do_il=True, do_ri=True, check_binaries=True)
+
+    def test_check_gul_and_il_and_multiple_ri_directories(self):
+        with TemporaryDirectory() as d:
+            for p in six.itervalues(INPUT_FILES):
+                Path(os.path.join(d, p['name'] + '.csv')).touch()
+            
+            os.mkdir(os.path.join(d, "RI_1"))
+            for p in six.itervalues(INPUT_FILES):
+                Path(os.path.join(d, "RI_1", p['name'] + '.csv')).touch()
+            
+            os.mkdir(os.path.join(d, "RI_2"))
+            for p in six.itervalues(INPUT_FILES):
+                Path(os.path.join(d, "RI_2", p['name'] + '.csv')).touch()
+
+            try:
+                check_inputs_directory(d, do_il=True, do_ri=True, check_binaries=True)
+            except Exception as e:
+                self.fail('Exception was raised {}: {}'.format(type(e), e))
+
+    def test_check_gul_and_il_and_multiple_ri_directories_binaries_fail(self):
+        with TemporaryDirectory() as d:
+            for p in six.itervalues(INPUT_FILES):
+                Path(os.path.join(d, p['name'] + '.csv')).touch()
+                Path(os.path.join(d, p['name'] + '.bin')).touch()
+            os.mkdir(os.path.join(d, "RI_1"))
+            for p in six.itervalues(INPUT_FILES):
+                Path(f = os.path.join(d, "RI_1", p['name'] + '.csv')).touch()
+                Path(f = os.path.join(d, "RI_1", p['name'] + '.bin')).touch()
+            os.mkdir(os.path.join(d, "RI_2"))
+            for p in six.itervalues(INPUT_FILES):
+                Path(os.path.join(d, "RI_2", p['name'] + '.bin')).touch()
+                Path(os.path.join(d, "RI_2", p['name'] + '.bin')).touch()
+
+            with self.assertRaises(OasisException):
+                check_inputs_directory(d, do_il=True, do_ri=True, check_binaries=True)
 
 class PrepareModelRunDirectory(TestCase):
     def test_directory_is_empty___child_directories_are_created(self):
