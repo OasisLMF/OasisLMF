@@ -8,11 +8,11 @@ from .bash import genbash
 
 
 @oasis_log()
-def run(analysis_settings, number_of_processes=-1, filename='run_ktools.sh'):
+def run(analysis_settings, number_of_processes=-1, num_reinsurance_iterations=0, filename='run_ktools.sh'):
     if number_of_processes == -1:
         number_of_processes = multiprocessing.cpu_count()
 
-    genbash(number_of_processes, analysis_settings, filename)
+    genbash(number_of_processes, analysis_settings, filename, num_reinsurance_iterations=num_reinsurance_iterations)
     try:
         subprocess.check_call(['bash', filename])
     except subprocess.CalledProcessError as e:
