@@ -66,7 +66,8 @@ class OasisAPIClient(object):
         return urllib.parse.urljoin(self._oasis_api_url, path)
 
     @oasis_log
-    def upload_inputs_from_directory(self, directory, bin_directory=None, do_il=False, do_build=False, do_clean=False):
+    def upload_inputs_from_directory(
+        self, directory, bin_directory=None, do_il=False, do_ri=False, do_build=False, do_clean=False):
         """
         Upload the CSV files from a specified directory.
 
@@ -78,6 +79,9 @@ class OasisAPIClient(object):
 
         :param do_il: if True, require files for insured loss (IL) calculation.
         :type do_il: bool
+
+        :param do_ri: if True, require sub-folders for reinsurance calculation.
+        :type do_ri: bool
 
         :param do_build: if True, the input tar will be built
         :type do_build: bool
@@ -91,9 +95,9 @@ class OasisAPIClient(object):
 
         try:
             if do_build:
-                check_inputs_directory(directory, do_il=do_il)
+                check_inputs_directory(directory, do_il=do_il, do_ri=do_ri)
                 check_conversion_tools(do_il=do_il)
-                create_binary_files(directory, bin_directory, do_il=do_il)
+                create_binary_files(directory, bin_directory, do_il=do_il, do_ri=do_ri)
                 create_binary_tar_file(bin_directory)
 
             self._logger.debug("Uploading inputs")
