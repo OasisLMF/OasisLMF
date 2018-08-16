@@ -102,11 +102,13 @@ class TestModelApiCmd(OasisBaseCommand):
             analysis_settings, do_il, counter)
         :type args: tuple
         """
-        client, input_directory, output_directory, analysis_settings, do_il, counter = args
+        client, input_directory, output_directory, analysis_settings, do_il, do_ri, counter = args
 
         try:
             with TemporaryDirectory() as upload_directory:
-                input_location = client.upload_inputs_from_directory(input_directory, bin_directory=upload_directory, do_il=do_il, do_build=True)
+                input_location = client.upload_inputs_from_directory(
+                    input_directory, bin_directory=upload_directory, 
+                    do_il=do_il, do_ri=do_ri, do_build=True)
                 client.run_analysis_and_poll(analysis_settings, input_location, output_directory)
                 counter['completed'] += 1
 
@@ -137,7 +139,7 @@ class TestModelApiCmd(OasisBaseCommand):
         # loss calculations
         self.logger.info('Loading analysis settings JSON file:')
         analysis_settings, do_il, do_ri = self.load_analysis_settings_json(args.analysis_settings_file)
-        self.logger.info('  OK: analysis_settings={}, do_il={}'.format(analysis_settings, do_il))
+        self.logger.info('  OK: analysis_settings={}, do_il={}, do_ri={}'.format(analysis_settings, do_il, do_ri))
 
         # Prepare and run analyses
         self.logger.info('Running {} analyses'.format(args.num_analyses))
@@ -146,7 +148,10 @@ class TestModelApiCmd(OasisBaseCommand):
         threads = ThreadPool(processes=args.num_analyses)
         threads.map(
             self.run_analysis,
-            ((client, args.input_directory, args.output_directory, analysis_settings, do_il, counter) for i in range(args.num_analyses))
+            ((
+                client, args.input_directory, args.output_directory, 
+                analysis_settings, do_il, do_ri, counter
+                ) for i in range(args.num_analyses))
         )
 
         threads.close()
