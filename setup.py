@@ -22,7 +22,7 @@ try:
 except ImportError:
     from urllib2 import urlopen, URLError
 
-KTOOLS_VERSION = 'OASIS_0_0_393_0-beta'
+KTOOLS_VERSION = '0_0_393_0-beta'
 SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 
 
