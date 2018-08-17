@@ -232,9 +232,9 @@ def do_summarycalcs(runtype, analysis_settings, process_id, filename):
     if not summaries:
         return
 
-    summarycalc_switch = '-g'
-    if runtype == RUNTYPE_INSURED_LOSS:
-        summarycalc_switch = '-f'
+    summarycalc_switch = '-f'
+    if runtype == RUNTYPE_GROUNDUP_LOSS:
+        summarycalc_switch = '-g'
 
     cmd = 'summarycalc {}'.format(summarycalc_switch)
     for summary in summaries:
@@ -591,7 +591,7 @@ def genbash(
             main_cmd = 'eve {0} {1} | {2} | fmcalc | tee fifo/il_P{0}'.format(
                 process_id, max_process_id, getmodel_cmd)                
             for i in range(1, num_reinsurance_iterations + 1):
-                main_cmd = "{} | fmcalc -n -p RI_{}".format(main_cmd, i)
+                main_cmd = "{} | fmcalc -n -p input{}RI_{}".format(main_cmd, os.sep, i)
             main_cmd = "{} > fifo/ri_P{} &".format(main_cmd, process_id)
 
             print_command(
