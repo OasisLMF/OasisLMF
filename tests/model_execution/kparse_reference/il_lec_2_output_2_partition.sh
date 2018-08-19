@@ -77,8 +77,8 @@ tee < fifo/il_S2_summary_P2 fifo/il_S2_summaryeltcalc_P2 fifo/il_S2_summarypltca
 summarycalc -f -1 fifo/il_S1_summary_P1 -2 fifo/il_S2_summary_P1 < fifo/il_P1 &
 summarycalc -f -1 fifo/il_S1_summary_P2 -2 fifo/il_S2_summary_P2 < fifo/il_P2 &
 
-eve 1 2 | getmodel | gulcalc -S0 -L0 -r -i - | fmcalc > fifo/il_P1  &
-eve 2 2 | getmodel | gulcalc -S0 -L0 -r -i - | fmcalc > fifo/il_P2  &
+eve 1 2 | getmodel | gulcalc -S0 -L0 -r -i - | fmcalc -a 2 > fifo/il_P1  &
+eve 2 2 | getmodel | gulcalc -S0 -L0 -r -i - | fmcalc -a 2 > fifo/il_P2  &
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20
 
