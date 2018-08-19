@@ -2,6 +2,8 @@ from __future__ import unicode_literals
 
 from collections import Counter
 
+from oasislmf.exposures.common import ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID
+
 import os
 import io
 
@@ -588,10 +590,12 @@ def genbash(
             }
             getmodel_args.update(custom_args)
             getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
-            main_cmd = 'eve {0} {1} | {2} | fmcalc | tee fifo/il_P{0}'.format(
-                process_id, max_process_id, getmodel_cmd)                
+            main_cmd = 'eve {0} {1} | {2} | fmcalc -a {3} | tee fifo/il_P{0}'.format(
+                process_id, max_process_id, getmodel_cmd, 
+                ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID)          
             for i in range(1, num_reinsurance_iterations + 1):
-                main_cmd = "{} | fmcalc -n -p input{}RI_{}".format(main_cmd, os.sep, i)
+                main_cmd = "{0} | fmcalc -a {3} -n -p input{1}RI_{2}".format(
+                    main_cmd, os.sep, i, ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID)
             main_cmd = "{} > fifo/ri_P{} &".format(main_cmd, process_id)
 
             print_command(
@@ -611,8 +615,9 @@ def genbash(
             }
             getmodel_args.update(custom_args)
             getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
-            main_cmd = 'eve {0} {1} | {2} | fmcalc > fifo/il_P{0}  &'.format(
-                process_id, max_process_id, getmodel_cmd)
+            main_cmd = 'eve {0} {1} | {2} | fmcalc -a {3} > fifo/il_P{0}  &'.format(
+                process_id, max_process_id, getmodel_cmd,
+                ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID)
 
             print_command(
                 filename,
@@ -624,7 +629,7 @@ def genbash(
                     'number_of_samples'      : number_of_samples,
                     'gul_threshold'          : gul_threshold,
                     'use_random_number_file' : use_random_number_file,
-                    'coverage_output'        : '-'.format(process_id),
+                    'coverage_output'        : '-',
                     'item_output'            : '',
                     'process_id'             : process_id,
                     'max_process_id'         : max_process_id
@@ -640,7 +645,7 @@ def genbash(
                     'number_of_samples'      : number_of_samples,
                     'gul_threshold'          : gul_threshold,
                     'use_random_number_file' : use_random_number_file,
-                    'coverage_output'        : ''.format(process_id),
+                    'coverage_output'        : '',
                     'item_output'            : '-',
                     'process_id'             : process_id,
                     'max_process_id'         : max_process_id
@@ -649,7 +654,9 @@ def genbash(
                 getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
                 print_command(
                     filename,
-                    "eve {0} {1} | {2} | fmcalc > fifo/il_P{0}  &".format(process_id, max_process_id, getmodel_cmd)
+                    "eve {0} {1} | {2} | fmcalc -a {3} > fifo/il_P{0}  &".format(
+                        process_id, max_process_id, getmodel_cmd,
+                        ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID)
                 )
 
     print_command(filename, '')

@@ -52,7 +52,7 @@ aalcalc < fifo/gul_S1_summaryaalcalc_P1 > work/gul_S1_aalcalc/P1.bin & pid9=$!
 tee < fifo/gul_S1_summary_P1 fifo/gul_S1_summaryeltcalc_P1 fifo/gul_S1_summarypltcalc_P1 fifo/gul_S1_summarysummarycalc_P1 fifo/gul_S1_summaryaalcalc_P1 work/gul_S1_summaryleccalc/P1.bin > /dev/null & pid10=$!
 summarycalc -g -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
 
-eve 1 1 | getmodel | gulcalc -S100 -L100 -r -c fifo/gul_P1 -i - | fmcalc > fifo/il_P1  &
+eve 1 1 | getmodel | gulcalc -S100 -L100 -r -c fifo/gul_P1 -i - | fmcalc -a 2 > fifo/il_P1  &
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10
 
