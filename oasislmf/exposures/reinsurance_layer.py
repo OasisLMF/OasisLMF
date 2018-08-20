@@ -112,7 +112,6 @@ def load_oed_dfs(oed_dir, show_all=False):
 
 
 def generate_files_for_reinsurance(
-        inuring_priority,
         account_df,
         location_df,
         items,
