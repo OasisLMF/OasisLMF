@@ -87,6 +87,9 @@ CONVERSION_TOOLS = {
     'gulsummaryxref': '../ktools/gulsummaryxreftobin',
     'items': "../ktools/itemtobin"}
 
+
+
+
 NOT_SET_ID = -1
 LARGE_VALUE = 9999999999999
 
@@ -108,6 +111,14 @@ REINS_TYPE_SURPLUS_SHARE = "SS"
 REINS_TYPE_PER_RISK = "PR"
 REINS_TYPE_CAT_XL = "CAT XL"
 REINS_TYPE_AGG_XL = "XL"
+REINS_TYPES = [
+    REINS_TYPE_FAC,
+    REINS_TYPE_QUOTA_SHARE,
+    REINS_TYPE_SURPLUS_SHARE,
+    REINS_TYPE_PER_RISK,
+    REINS_TYPE_CAT_XL,
+#    REINS_TYPE_AGG_XL, <-- not implemented yet
+]
 
 REINS_RISK_LEVEL_PORTFOLIO = "SEL"
 REINS_RISK_LEVEL_LOCATION = "LOC"
@@ -223,7 +234,7 @@ def get_profile(
     limit=0,
     share=1.0
     ):
-    
+
     if limit == 0:
         limit = LARGE_VALUE
 
@@ -247,7 +258,7 @@ def get_reinsurance_profile(
     ceded=1.0,
     placement=1.0
     ):
-    
+
     if limit == 0:
         limit = LARGE_VALUE
 
@@ -268,9 +279,10 @@ def get_occlim_profile(
     profile_id,
     attachment=0,
     limit=0,
-    ceded=1.0
+    ceded=1.0,
+    placement=1.0
     ):
-    
+
     if limit == 0:
         limit = LARGE_VALUE
 
@@ -282,9 +294,9 @@ def get_occlim_profile(
         deductible3=0,  # Not used
         attachment=attachment,
         limit=limit,
-        share1=0,       # Not used
-        share2=1.0,     # Not used
-        share3=1.0      # Not used
+        share1=0,         # Not used
+        share2=placement, # Not used
+        share3=1.0        # Not used
         )
 
 def run_fm(
@@ -296,6 +308,7 @@ def run_fm(
         "../ktools/fmcalc -p {0} -n -a {2} < {1}.bin | tee {0}.bin | ../ktools/fmtocsv > {0}.csv".format(
             output_name, input_name, allocation)
     proc = subprocess.Popen(command, shell=True)
+    #print(command)
     proc.wait()
     if proc.returncode != 0:
         raise Exception("Failed to run fm")
