@@ -1199,8 +1199,12 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         Writes an FM policy T & C file.
         """
         try:
-            fm_items_df.to_csv(
+            fmpolicytc_df = pd.DataFrame(
                 columns=['layer_id', 'level_id', 'agg_id', 'policytc_id'],
+                data=[key[:4] for key, _ in fm_items_df.groupby(['layer_id', 'level_id', 'agg_id', 'policytc_id', 'limit', 'deductible', 'share'])],
+                dtype=object
+            )
+            fmpolicytc_df.to_csv(
                 path_or_buf=fm_policytc_file_path,
                 encoding='utf-8',
                 chunksize=1000,
