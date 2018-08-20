@@ -8,7 +8,7 @@ __all__ = [
 
 import pandas as pd
 import os
-import common
+from collections import namedtuple
 
 
 # TODO - add validator 
