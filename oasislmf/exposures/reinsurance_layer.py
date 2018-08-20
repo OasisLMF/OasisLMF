@@ -111,7 +111,55 @@ def load_oed_dfs(oed_dir, show_all=False):
     return (account_df, location_df, ri_info_df, ri_scope_df, do_reinsurance)
 
 
-def generate_files_for_reinsurance_risk_level(
+def generate_files_for_reinsurance(
+        inuring_priority,
+        account_df,
+        location_df,
+        items,
+        coverages,
+        fm_xrefs,
+        xref_descriptions,
+        ri_info_df,
+        ri_scope_df,
+        direct_oasis_files_dir):
+    """
+    Generate files for reinsurance.
+    """
+
+    previous_inuring_priority = None
+    previous_risk_level = None
+    reinsurance_index = 1
+    for inuring_priority in range(1, ri_info_df['InuringPriority'].max() + 1):
+        # Filter the reinsNumbers by inuring_priority
+        reins_numbers = ri_info_df[ri_info_df['InuringPriority'] == inuring_priority].ReinsNumber.tolist()
+        risk_level_set = set(ri_scope_df[ri_scope_df['ReinsNumber'].isin(reins_numbers)].RiskLevel)
+
+        for risk_level in common.REINS_RISK_LEVELS:
+            if risk_level not in risk_level_set:
+                continue
+
+            _generate_files_for_reinsurance_risk_level(
+                inuring_priority,
+                account_df,
+                location_df,
+                items,
+                coverages,
+                fm_xrefs,
+                xref_descriptions,
+                ri_info_df,
+                ri_scope_df,
+                previous_inuring_priority,
+                previous_risk_level,
+                risk_level,
+                reinsurance_index,
+                direct_oasis_files_dir)
+
+            previous_inuring_priority = inuring_priority
+            previous_risk_level = risk_level
+            reinsurance_index = reinsurance_index + 1
+
+
+def _generate_files_for_reinsurance_risk_level(
         inuring_priority,
         account_df,
         location_df,
