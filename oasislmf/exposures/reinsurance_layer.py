@@ -115,6 +115,7 @@ def _generate_files_for_reinsurance_risk_level(
     )
 
     reinsurance_layer.generate_oasis_structures()
+    #output_dir = os.path.join(direct_oasis_files_dir, output_name)
     output_dir = os.path.join(direct_oasis_files_dir, "RI_{}".format(reinsurance_index))
     reinsurance_layer.write_oasis_files(output_dir)
 
@@ -716,7 +717,7 @@ class ReinsuranceLayer(object):
             directory = "direct"
         if os.path.exists(directory):
             shutil.rmtree(directory)
-        os.mkdir(directory)
+        os.makedirs(directory)
 
         self.coverages.to_csv(
             os.path.join(directory, "coverages.csv"), index=False)

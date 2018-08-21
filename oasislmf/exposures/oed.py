@@ -54,11 +54,11 @@ def load_oed_dfs(oed_dir, show_all=False):
             print("Both reinsurance files must exist: {} {}".format(
                 oed_ri_info_file, oed_ri_scope_file))
         if not show_all:
-            account_df = account_df[common.OED_ACCOUNT_FIELDS].copy()
-            location_df = location_df[common.OED_LOCATION_FIELDS].copy()
+            account_df = account_df[OED_ACCOUNT_FIELDS].copy()
+            location_df = location_df[OED_LOCATION_FIELDS].copy()
             if do_reinsurance:
-                ri_info_df = ri_info_df[common.OED_REINS_INFO_FIELDS].copy()
-                ri_scope_df = ri_scope_df[common.OED_REINS_SCOPE_FIELDS].copy()
+                ri_info_df = ri_info_df[OED_REINS_INFO_FIELDS].copy()
+                ri_scope_df = ri_scope_df[OED_REINS_SCOPE_FIELDS].copy()
     return (account_df, location_df, ri_info_df, ri_scope_df, do_reinsurance)
 
 
@@ -136,15 +136,15 @@ OPTIONAL_INPUTS_FILES = [
     'events']
 
 CONVERSION_TOOLS = {
-    'coverages': '../ktools/coveragetobin',
-    'events': '../ktools/evetobin',
-    'fm_policytc': '../ktools/fmpolicytctobin',
-    'fm_profile': '../ktools/fmprofiletobin',
-    'fm_programme': '../ktools/fmprogrammetobin',
-    'fm_xref': '../ktools/fmxreftobin',
-    'fmsummaryxref': '../ktools/fmsummaryxreftobin',
-    'gulsummaryxref': '../ktools/gulsummaryxreftobin',
-    'items': "../ktools/itemtobin"}
+    'coverages': 'coveragetobin',
+    'events': 'evetobin',
+    'fm_policytc': 'fmpolicytctobin',
+    'fm_profile': 'fmprofiletobin',
+    'fm_programme': 'fmprogrammetobin',
+    'fm_xref': 'fmxreftobin',
+    'fmsummaryxref': 'fmsummaryxreftobin',
+    'gulsummaryxref': 'gulsummaryxreftobin',
+    'items': "itemtobin"}
 
 
 
