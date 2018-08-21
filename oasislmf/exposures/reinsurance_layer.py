@@ -36,7 +36,8 @@ def generate_files_for_reinsurance(
     """
     Generate files for reinsurance.
     """
-
+    
+    inuring_metadata = {}
     previous_inuring_priority = None
     previous_risk_level = None
     reinsurance_index = 1
@@ -49,7 +50,7 @@ def generate_files_for_reinsurance(
             if risk_level not in risk_level_set:
                 continue
 
-            _generate_files_for_reinsurance_risk_level(
+            written_to_dir = _generate_files_for_reinsurance_risk_level(
                 inuring_priority,
                 account_df,
                 location_df,
@@ -65,9 +66,16 @@ def generate_files_for_reinsurance(
                 reinsurance_index,
                 direct_oasis_files_dir)
 
+            inuring_metadata[reinsurance_index] = {
+                'inuring_priority': inuring_priority,
+                'risk_level': risk_level,
+                'directory': written_to_dir,
+            }    
             previous_inuring_priority = inuring_priority
             previous_risk_level = risk_level
             reinsurance_index = reinsurance_index + 1
+
+    return inuring_metadata
 
 
 def _generate_files_for_reinsurance_risk_level(
@@ -118,6 +126,7 @@ def _generate_files_for_reinsurance_risk_level(
     #output_dir = os.path.join(direct_oasis_files_dir, output_name)
     output_dir = os.path.join(direct_oasis_files_dir, "RI_{}".format(reinsurance_index))
     reinsurance_layer.write_oasis_files(output_dir)
+    return output_dir
 
 
 
