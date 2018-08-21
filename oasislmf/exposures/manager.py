@@ -1199,12 +1199,12 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         Writes an FM policy T & C file.
         """
         try:
-            fmpolicytc_df = pd.DataFrame(
+            fm_policytc_df = pd.DataFrame(
                 columns=['layer_id', 'level_id', 'agg_id', 'policytc_id'],
                 data=[key[:4] for key, _ in fm_items_df.groupby(['layer_id', 'level_id', 'agg_id', 'policytc_id', 'limit', 'deductible', 'share'])],
                 dtype=object
             )
-            fmpolicytc_df.to_csv(
+            fm_policytc_df.to_csv(
                 path_or_buf=fm_policytc_file_path,
                 encoding='utf-8',
                 chunksize=1000,
@@ -1219,7 +1219,43 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         """
         Writes an FM profile file.
         """
-        pass
+        try:
+            fm_profile_df = pd.DataFrame(
+                columns=['policytc_id', 'calcrule_id', 'limit', 'deductible', 'share'],
+                data=[key for key, _ in fm_items_df.groupby(['policytc_id', 'calcrule_id', 'limit', 'deductible', 'share'])]
+            )
+            fm_profile_df['index'] = range(len(fm_profile_df))
+            fm_profile_df['allocrule_id'] = fm_profile_df['ccy_id'] = [1]*len(fm_profile_df)
+
+            fm_profile_df['deductible_prop_of_loss'] = fm_profile_df['limit_prop_of_loss'] = [0]*len(fm_profile_df)
+            fm_profile_df['deductible_prop_of_tiv'] = fm_profile_df['limit_prop_of_tiv'] = [0]*len(fm_profile_df)
+
+            def share_prop_of_limit(i):
+                it = fm_profile_df.iloc[i]
+                if it['limit'] == 0:
+                    return 0
+                return it['share'] / it['limit'] if it['share'] >= 1 else it['share']
+
+            fm_profile_df['share_prop_of_lim'] = fm_profile_df['index'].apply(share_prop_of_limit)
+
+            def deductible_prop_of_limit(i):
+                it = fm_profile_df.iloc[i]
+                if it['limit'] == 0:
+                    return 0
+                return it['deductible'] / it['limit'] if it['deductible'] >= 1 else it['deductible']
+
+            fm_profile_df['deductible_prop_of_lim'] = fm_profile_df['index'].apply(deductible_prop_of_limit)
+
+            fm_profile_df.to_csv(
+                path_or_buf=fm_profile_file_path,
+                encoding='utf-8',
+                chunksize=1000,
+                index=False
+            )
+        except (IOError, OSError) as e:
+            raise OasisException(e)
+
+        return fm_profile_file_path
 
     def write_fm_programme_file(self, fm_items_df, fm_programme_file_path):
         """
