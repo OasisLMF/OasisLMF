@@ -12,7 +12,134 @@ from collections import namedtuple
 
 
 # TODO - add validator 
+class OedValidator(object):
 
+    def __init__:(self, ri_info_rules, ri_scope_rules):
+        self.rules_ode_scope = ri_info_rules
+        self.rules_ode_info = ri_scope_rules
+        pass
+
+    def _has_reins_type(self, reins_info_df, reins_type):
+        '''
+        Is there any <reins_type>?
+        '''
+        return not reins_info_df[reins_info_df.ReinsType == reins_type].empty
+
+    def _unique_reins(self, reins_info_df):
+        '''
+        check if only one reins type exisits  
+        '''
+        return (len(reins_info_df.ReinsType.unique()) == 1)
+
+    def _links_valid(df_src, column_name, df_dest):
+        '''
+        Check that all unique values in df_src[column_name] map to df_dest[column_name]
+        '''
+        src_values = df_src[column_name].unique().tolist()
+        return df_dest.isin({column_name: src_values}).all()
+
+    def _all_links_valid(self, scope_df, account_df, location_df):
+        return (
+            self._links_valid(scope_df, "AccountNumber",   account_df),
+            self._links_valid(scope_df, "PolicyNumber",    account_df),
+            self._links_valid(scope_df, "AccountNumber",   location_df),
+            self._links_valid(scope_df, "LocationNumber",  location_df),
+        )
+
+    def _all_scope_non_specific(self,scope_df):
+        return scope_df[['accountnumber', 
+                         'policynumber', 
+                         'locationnumber'
+                         ]].isnull().all().all():
+
+    def _all_scope_specific(self,scope_df):
+        return scope_df[['accountnumber', 
+                         'policynumber', 
+                         'locationnumber'
+                         ]].notnull().all().all():
+
+
+    def validate(self, account_df, location_df, ri_info_df, ri_scope_df):
+        '''
+        Validate OED resinurance structure before running calculations.
+        '''
+
+        main_is_valid = True
+        inuring_layers = {}
+        for inuring_priority in range(1, ri_info_df['InuringPriority'].max() + 1):
+            inuring_priority_ri_info_df = ri_info_df[ri_info_df.InuringPriority == inuring_priority]
+            if inuring_priority_ri_info_df.empty:
+                continue
+
+            is_valid = True
+            validation_messages = []
+
+            inuring_scope_ids = inuring_priority_ri_info_df.ReinsNumber.tolist()
+            inuring_scopes = [ri_scope_df[ri_scope_df.ReinsNumber == ID] for ID in inuring_scope_ids] 
+
+            for ri_type in common.REINS_TYPES:
+                #CHECK - ri_type is supported 
+                if self._has_reins_type(inuring_priority_ri_info_df,ri_type):
+                    #CHECK - only single ri_type is set per inuring priority 
+                    if not self._unique_reins(inuring_priority_ri_info_df):
+                        is_valid = False
+                        validation_messages.append(
+                            "{} cannot be combined with other reinsurance types".format(
+                             ri_type)     
+
+                    for scope_df in inuring_scopes:
+                        scope_risk_levels = scope_df.RiskLevel.unique()
+                        risk_level_id = scope_risk_levels[0]
+
+                        # CHECK - each scope only has one risk level type 
+                        if len(scope_risk_levels) is not 1:
+                            is_valid = False
+                            validation_messages.append(
+                                "Mix of risk levels in a single reinsurance scope")
+                            continue
+                   
+                        # CHECK - Risk level is supported 
+                        if risk_level_id not in common.REINS_RISK_LEVELS):
+                            is_valid = False
+                            validation_messages.append(
+                                "Unsupported risk level, {}".format(' '.join(risk_level_id)))
+
+                        # CHECK - that scope is not specific for SS
+                        if ri_type in [common.REINS_TYPE_SURPLUS_SHARE] and not self._scope_specific(scope_df):
+                            is_valid = False
+                            validation_messages.append(
+                                "SS cannot have non-specific scopes")
+
+                        # CHECK - that scope is all specific for QS
+                        if ri_type in [common.REINS_TYPE_QUOTA_SHARE] and not self._scope_non_specific(scope_df):  
+                            is_valid = False
+                            validation_messages.append(
+                                "QS cannot have specific scopes set")
+
+                        # CHECK - all links in scope connect to rows in account/location    
+                        if not self._all_links_valid(scope_df,  account_df, location_df):    
+                            is_valid = False
+                            validation_messages.append(
+                                "Non-linking scopes between ri_scope and (ACC,LOC) files")
+
+                    else:
+                        is_valid = False
+                        validation_messages.append("{} not implemented".format(ri_type))
+                        continue
+
+            if not is_valid:
+                main_is_valid = False
+
+            inuring_layers[inuring_priority] = InuringLayer(
+                inuring_priority=inuring_priority,
+                reins_numbers=inuring_priority_ri_info_df.ReinsNumber,
+                is_valid=is_valid,
+                validation_messages=validation_messages
+            )
+        return (main_is_valid, inuring_layers)
+
+# -----------------------------------------------------------------------------#
+#
 def load_oed_dfs(oed_dir, show_all=False):
     """
     Load OED data files.
