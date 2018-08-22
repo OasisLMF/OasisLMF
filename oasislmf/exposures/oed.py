@@ -2,7 +2,7 @@
 
 __all__ = [
     'load_oed_dfs',
-#   'OedValidator'    
+#   'OedValidator'
 ]
 
 
@@ -11,13 +11,12 @@ import os
 from collections import namedtuple
 
 
-# TODO - add validator 
+# TODO - add validator
 class OedValidator(object):
 
-    def __init__(self, ri_info_rules, ri_scope_rules):
+    def __init__(self, ri_info_rules=None, ri_scope_rules=None):
         self.rules_ode_scope = ri_info_rules
         self.rules_ode_info = ri_scope_rules
-        pass
 
     def _has_reins_type(self, reins_info_df, reins_type):
         '''
@@ -27,7 +26,7 @@ class OedValidator(object):
 
     def _unique_reins(self, reins_info_df):
         '''
-        check if only one reins type exisits  
+        check if only one reins type exisits
         '''
         return (len(reins_info_df.ReinsType.unique()) == 1)
 
@@ -38,6 +37,24 @@ class OedValidator(object):
         src_values = df_src[column_name].unique().tolist()
         return df_dest.isin({column_name: src_values}).all()
 
+    def _check_df_dtypes(self, dtypes_given, dtypes_expected):
+        '''
+        - All column headers must match
+        - All datatypes much match
+        '''
+        msg_type_check = []
+        msg_string = "Type error in column '{}': expected '{}'  found '{}'"
+
+        if not dtypes_given.keys() == dtypes_expected.keys():
+            return (False, "Column header mismatch")
+
+        for col in dtypes_expected.keys():
+            if not dtypes_expected[col] == dtypes_given[col]:
+                msg_type_check.append(msg_string.format(
+                    col, dtypes_expected[col], dtypes_given[col]))
+        return (len(msg_type_check) == 0, msg_type_check)
+
+
     def _all_links_valid(self, scope_df, account_df, location_df):
         return (
             self._links_valid(scope_df, "AccountNumber",   account_df),
@@ -47,14 +64,14 @@ class OedValidator(object):
         )
 
     def _all_scope_non_specific(self,scope_df):
-        return scope_df[['accountnumber', 
-                         'policynumber', 
+        return scope_df[['accountnumber',
+                         'policynumber',
                          'locationnumber'
                          ]].isnull().all().all()
 
     def _all_scope_specific(self,scope_df):
-        return scope_df[['accountnumber', 
-                         'policynumber', 
+        return scope_df[['accountnumber',
+                         'policynumber',
                          'locationnumber'
                          ]].notnull().all().all()
 
@@ -66,6 +83,35 @@ class OedValidator(object):
 
         main_is_valid = True
         inuring_layers = {}
+
+        #CHECK - Datatypes ri_info
+        given_dtypes = ri_info_df.dtypes.to_dict()
+        expected_dtypes = {
+            'ReinsNumber': dtype('int64'),
+            'ReinsLayerNumber': dtype('int64'),
+            'CededPercent': dtype('float64'),
+            'RiskLimit': dtype('float64'),
+            'RiskAttachmentPoint': dtype('float64'),
+            'OccLimit': dtype('float64'),
+            'OccurenceAttachmentPoint': dtype('float64'),
+            'InuringPriority': dtype('int64'),
+            'ReinsType': dtype('O'),
+            'PlacementPercent': dtype('float64'),
+            'TreatyPercent': dtype('float64')}
+        main_is_valid, inuring_layers['ri_info'] = self._check_df_dtypes(given_dtypes, expected_dtypes)
+
+        #CHECK - Datatypes ri_scope
+        given_dtypes = ri_scope_df.dtypes.to_dict()
+        expected_dtypes = {
+            'ReinsNumber': dtype('int64'),
+            'PortfolioNumber': dtype('int64'),
+            'AccountNumber': dtype('float64'),
+            'PolicyNumber': dtype('int64'),
+            'LocationNumber': dtype('O'),
+            'RiskLevel': dtype('O'),
+            'CededPercent': dtype('float64')}
+        main_is_valid, inuring_layers['ri_scope'] = self._check_df_dtypes(given_dtypes, expected_dtypes)
+
         for inuring_priority in range(1, ri_info_df['InuringPriority'].max() + 1):
             inuring_priority_ri_info_df = ri_info_df[ri_info_df.InuringPriority == inuring_priority]
             if inuring_priority_ri_info_df.empty:
@@ -75,29 +121,29 @@ class OedValidator(object):
             validation_messages = []
 
             inuring_scope_ids = inuring_priority_ri_info_df.ReinsNumber.tolist()
-            inuring_scopes = [ri_scope_df[ri_scope_df.ReinsNumber == ID] for ID in inuring_scope_ids] 
+            inuring_scopes = [ri_scope_df[ri_scope_df.ReinsNumber == ID] for ID in inuring_scope_ids]
 
             for ri_type in REINS_TYPES:
-                #CHECK - ri_type is supported 
+                #CHECK - ri_type is supported
                 if self._has_reins_type(inuring_priority_ri_info_df,ri_type):
-                    #CHECK - only single ri_type is set per inuring priority 
+                    #CHECK - only single ri_type is set per inuring priority
                     if not self._unique_reins(inuring_priority_ri_info_df):
                         is_valid = False
                         validation_messages.append(
-                            "{} cannot be combined with other reinsurance types".format(ri_type))     
+                            "{} cannot be combined with other reinsurance types".format(ri_type))
 
                     for scope_df in inuring_scopes:
                         scope_risk_levels = scope_df.RiskLevel.unique()
                         risk_level_id = scope_risk_levels[0]
 
-                        # CHECK - each scope only has one risk level type 
+                        # CHECK - each scope only has one risk level type
                         if len(scope_risk_levels) is not 1:
                             is_valid = False
                             validation_messages.append(
                                 "Mix of risk levels in a single reinsurance scope")
                             continue
-                   
-                        # CHECK - Risk level is supported 
+
+                        # CHECK - Risk level is supported
                         if risk_level_id not in REINS_RISK_LEVELS:
                             is_valid = False
                             validation_messages.append(
@@ -110,13 +156,13 @@ class OedValidator(object):
                                 "SS cannot have non-specific scopes")
 
                         # CHECK - that scope is all specific for QS
-                        if ri_type in [REINS_TYPE_QUOTA_SHARE] and not self._scope_non_specific(scope_df):  
+                        if ri_type in [REINS_TYPE_QUOTA_SHARE] and not self._scope_non_specific(scope_df):
                             is_valid = False
                             validation_messages.append(
                                 "QS cannot have specific scopes set")
 
-                        # CHECK - all links in scope connect to rows in account/location    
-                        if not self._all_links_valid(scope_df,  account_df, location_df):    
+                        # CHECK - all links in scope connect to rows in account/location
+                        if not self._all_links_valid(scope_df,  account_df, location_df):
                             is_valid = False
                             validation_messages.append(
                                 "Non-linking scopes between ri_scope and (ACC,LOC) files")
