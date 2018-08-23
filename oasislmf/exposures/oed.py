@@ -22,6 +22,8 @@ class OedValidator(object):
         '''
         Is there any <reins_type>?
         '''
+        print(reins_info_df[reins_info_df.ReinsType == reins_type])
+        print(reins_info_df[reins_info_df.ReinsType == reins_type])
         return not reins_info_df[reins_info_df.ReinsType == reins_type].empty
 
     def _unique_reins(self, reins_info_df):
@@ -30,7 +32,7 @@ class OedValidator(object):
         '''
         return (len(reins_info_df.ReinsType.unique()) == 1)
 
-    def _links_valid(df_src, column_name, df_dest):
+    def _links_valid(self, df_src, column_name, df_dest):
         '''
         Check that all unique values in df_src[column_name] map to df_dest[column_name]
         '''
@@ -64,15 +66,15 @@ class OedValidator(object):
         )
 
     def _all_scope_non_specific(self,scope_df):
-        return scope_df[['accountnumber',
-                         'policynumber',
-                         'locationnumber'
+        return scope_df[['AccountNumber',
+                         'PolicyNumber',
+                         'LocationNumber'
                          ]].isnull().all().all()
 
     def _all_scope_specific(self,scope_df):
-        return scope_df[['accountnumber',
-                         'policynumber',
-                         'locationnumber'
+        return scope_df[['AccountNumber',
+                         'PolicyNumber',
+                         'LocationNumber'
                          ]].notnull().all().all()
 
 
@@ -150,13 +152,13 @@ class OedValidator(object):
                                 "Unsupported risk level, {}".format(' '.join(risk_level_id)))
 
                         # CHECK - that scope is not specific for SS
-                        if ri_type in [REINS_TYPE_SURPLUS_SHARE] and not self._scope_specific(scope_df):
+                        if ri_type in [REINS_TYPE_SURPLUS_SHARE] and not self._all_scope_specific(scope_df):
                             is_valid = False
                             validation_messages.append(
                                 "SS cannot have non-specific scopes")
 
                         # CHECK - that scope is all specific for QS
-                        if ri_type in [REINS_TYPE_QUOTA_SHARE] and not self._scope_non_specific(scope_df):
+                        if ri_type in [REINS_TYPE_QUOTA_SHARE] and not self._all_scope_non_specific(scope_df):
                             is_valid = False
                             validation_messages.append(
                                 "QS cannot have specific scopes set")
@@ -409,6 +411,9 @@ OED_REINS_SCOPE_FIELDS = [
     'CededPercent'
 ]
 
+InuringLayer = namedtuple(
+    "InuringLayer",
+    "inuring_priority reins_numbers is_valid validation_messages")
 Item = namedtuple(
     "Item", "item_id coverage_id areaperil_id vulnerability_id group_id")
 Coverage = namedtuple(
