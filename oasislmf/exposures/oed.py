@@ -109,7 +109,7 @@ class OedValidator(object):
             'PolicyNumber':     pd.np.dtype('int64'),
             'LocationNumber':   pd.np.dtype('O'),
             'RiskLevel':        pd.np.dtype('O'),
-            'CededPercent':     pd.np.dtype('float63')}
+            'CededPercent':     pd.np.dtype('float64')}
         main_is_valid, inuring_layers['ri_scope'] = self._check_df_dtypes(given_dtypes, expected_dtypes)
 
         for inuring_priority in range(1, ri_info_df['InuringPriority'].max() + 1):
