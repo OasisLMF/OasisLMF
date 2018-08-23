@@ -1292,7 +1292,23 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         """
         Writes a FM xref file.
         """
-        pass
+        try:
+            data = [
+                (i, agg_id, layer_id) for i, (agg_id, layer_id) in enumerate(itertools.product(set(fm_items_df['agg_id']), set(fm_items_df['layer_id'])))
+            ]
+
+            fm_xref_df = pd.DataFrame(columns=['output', 'agg_id', 'layer_id'], data=data, dtype=int)
+
+            fm_xref_df.to_csv(
+                path_or_buf=fm_xref_file_path,
+                encoding='utf-8',
+                chunksize=1000,
+                index=False
+            )
+        except (IOError, OSError) as e:
+            raise OasisException(e)
+
+        return fm_xref_file_path
 
     def write_fmsummaryxref_file(self, fm_items_df, fmsummaryxref_file_path):
         """
