@@ -1261,7 +1261,32 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         """
         Writes a FM programme file.
         """
-        pass
+        try:
+            fm_aggtree = {
+                key:set(group['agg_id']) for key, group in fm_items_df[['level_id', 'agg_id']].groupby(['level_id'])
+            }
+            levels = sorted(fm_aggtree.keys())
+            fm_aggtree[0] = fm_aggtree[levels[0]]
+            levels = sorted(fm_aggtree.keys())
+
+            data = [
+                (a, second, b) for first, second in zip(levels, levels[1:]) for a, b in (
+                    zip(fm_aggtree[first], fm_aggtree[second]) if (len(fm_aggtree[first]) == len(fm_aggtree[second]) and len(fm_aggtree[first]) > 1) else itertools.product(fm_aggtree[first], fm_aggtree[second])
+                )
+            ]
+
+            fm_programme_df = pd.DataFrame(columns=['from_agg_id', 'level_id', 'to_agg_id'], data=data, dtype=int)
+
+            fm_programme_df.to_csv(
+                path_or_buf=fm_programme_file_path,
+                encoding='utf-8',
+                chunksize=1000,
+                index=False
+            )
+        except (IOError, OSError) as e:
+            raise OasisException(e)
+
+        return fm_programme_file_path
 
     def write_fm_xref_file(self, fm_items_df, fm_xref_file_path):
         """
