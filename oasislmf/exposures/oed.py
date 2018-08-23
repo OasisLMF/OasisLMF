@@ -87,29 +87,29 @@ class OedValidator(object):
         #CHECK - Datatypes ri_info
         given_dtypes = ri_info_df.dtypes.to_dict()
         expected_dtypes = {
-            'ReinsNumber': dtype('int64'),
-            'ReinsLayerNumber': dtype('int64'),
-            'CededPercent': dtype('float64'),
-            'RiskLimit': dtype('float64'),
-            'RiskAttachmentPoint': dtype('float64'),
-            'OccLimit': dtype('float64'),
-            'OccurenceAttachmentPoint': dtype('float64'),
-            'InuringPriority': dtype('int64'),
-            'ReinsType': dtype('O'),
-            'PlacementPercent': dtype('float64'),
-            'TreatyPercent': dtype('float64')}
+            'ReinsNumber':              pd.np.dtype('int64'),
+            'ReinsLayerNumber':         pd.np.dtype('int64'),
+            'CededPercent':             pd.np.dtype('float64'),
+            'RiskLimit':                pd.np.dtype('float64'),
+            'RiskAttachmentPoint':      pd.np.dtype('float64'),
+            'OccLimit':                 pd.np.dtype('float64'),
+            'OccurenceAttachmentPoint': pd.np.dtype('float64'),
+            'InuringPriority':          pd.np.dtype('int64'),
+            'ReinsType':                pd.np.dtype('O'),
+            'PlacementPercent':         pd.np.dtype('float64'),
+            'TreatyPercent':            pd.np.dtype('float64')}
         main_is_valid, inuring_layers['ri_info'] = self._check_df_dtypes(given_dtypes, expected_dtypes)
 
         #CHECK - Datatypes ri_scope
         given_dtypes = ri_scope_df.dtypes.to_dict()
         expected_dtypes = {
-            'ReinsNumber': dtype('int64'),
-            'PortfolioNumber': dtype('int64'),
-            'AccountNumber': dtype('float64'),
-            'PolicyNumber': dtype('int64'),
-            'LocationNumber': dtype('O'),
-            'RiskLevel': dtype('O'),
-            'CededPercent': dtype('float64')}
+            'ReinsNumber':      pd.np.dtype('int64'),
+            'PortfolioNumber':  pd.np.dtype('int64'),
+            'AccountNumber':    pd.np.dtype('float64'),
+            'PolicyNumber':     pd.np.dtype('int64'),
+            'LocationNumber':   pd.np.dtype('O'),
+            'RiskLevel':        pd.np.dtype('O'),
+            'CededPercent':     pd.np.dtype('float63')}
         main_is_valid, inuring_layers['ri_scope'] = self._check_df_dtypes(given_dtypes, expected_dtypes)
 
         for inuring_priority in range(1, ri_info_df['InuringPriority'].max() + 1):
