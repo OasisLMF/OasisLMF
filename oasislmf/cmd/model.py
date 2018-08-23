@@ -669,6 +669,7 @@ class GenerateLossesCmd(OasisBaseCommand):
         parser.add_argument('-r', '--model-run-dir-path', default=None, help='Model run directory path')
         parser.add_argument('-s', '--ktools-script-name', default=None, help='Ktools calc. script file path')
         parser.add_argument('-n', '--ktools-num-processes', default=-1, help='Number of ktools calculation processes to use')
+        parser.add_argument('--fm', action='store_true', help='Generate FM files - False if absent')
 
     def action(self, args):
         """
@@ -690,6 +691,8 @@ class GenerateLossesCmd(OasisBaseCommand):
         model_data_path = as_path(inputs.get('model_data_path', required=True, is_path=True), 'Model data path')
 
         ktools_script_name = inputs.get('ktools_script_name', default='run_ktools')
+
+        fm = inputs.get('fm', default=False)
 
         start_time = time.time()
         self.logger.info('\nStarting loss generation (@ {})'.format(get_utctimestamp()))
@@ -716,7 +719,7 @@ class GenerateLossesCmd(OasisBaseCommand):
         self.logger.info('\nConverting Oasis files to ktools binary files')
         oasis_files_path = os.path.join(model_run_dir_path, 'input', 'csv')
         binary_files_path = os.path.join(model_run_dir_path, 'input')
-        create_binary_files(oasis_files_path, binary_files_path)
+        create_binary_files(oasis_files_path, binary_files_path, do_il=fm)
 
         analysis_settings_json_file_path = os.path.join(model_run_dir_path, 'analysis_settings.json')
         try:
