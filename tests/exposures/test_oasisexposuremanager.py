@@ -59,6 +59,7 @@ from tests.data import (
     canonical_accounts_profile_piwind,
     canonical_exposures_data,
     canonical_exposures_profile_piwind_simple,
+    fm_agg_profile_piwind,
     fm_items_data,
     gul_items_data,
     keys_data,
@@ -659,7 +660,6 @@ class OasisExposuresManagerTransformSourceToCanonical(TestCase):
         with patch('oasislmf.exposures.manager.Translator', Mock(return_value=trans_call_mock)) as trans_mock:
             OasisExposuresManager().transform_source_to_canonical(
                 source_exposures_file_path=source_exposures_file_path,
-                source_exposures_validation_file_path=source_exposures_validation_file_path,
                 source_to_canonical_exposures_transformation_file_path=source_to_canonical_exposures_transformation_file_path,
                 canonical_exposures_file_path=canonical_exposures_file_path
             )
@@ -668,7 +668,7 @@ class OasisExposuresManagerTransformSourceToCanonical(TestCase):
                 os.path.abspath(source_exposures_file_path),
                 os.path.abspath(canonical_exposures_file_path),
                 os.path.abspath(source_to_canonical_exposures_transformation_file_path),
-                os.path.abspath(source_exposures_validation_file_path),
+                xsd_path=None,
                 append_row_nums=True,
             )
             trans_call_mock.assert_called_once_with()
@@ -698,7 +698,6 @@ class OasisExposuresManagerTransformSourceToCanonical(TestCase):
             OasisExposuresManager().transform_source_to_canonical(
                 source_exposures_file_path=source_exposures_file_path,
                 source_to_canonical_exposures_transformation_file_path=source_to_canonical_exposures_transformation_file_path,
-                source_exposures_validation_file_path=source_exposures_validation_file_path,
                 canonical_exposures_file_path=canonical_exposures_file_path
             )
 
@@ -706,8 +705,8 @@ class OasisExposuresManagerTransformSourceToCanonical(TestCase):
                 os.path.abspath(source_exposures_file_path),
                 os.path.abspath(canonical_exposures_file_path),
                 os.path.abspath(source_to_canonical_exposures_transformation_file_path),
-                os.path.abspath(source_exposures_validation_file_path),
-                append_row_nums=True,
+                xsd_path=None,
+                append_row_nums=True
             )
             trans_call_mock.assert_called_once_with()
 
@@ -731,7 +730,6 @@ class OasisExposuresManagerTransformCanonicalToModel(TestCase):
             OasisExposuresManager().transform_canonical_to_model(
                 canonical_exposures_file_path=canonical_exposures_file_path,
                 canonical_to_model_exposures_transformation_file_path=canonical_to_model_exposures_transformation_file_path,
-                canonical_exposures_validation_file_path=canonical_exposures_validation_file_path,
                 model_exposures_file_path=model_exposures_file_path,
             )
 
@@ -739,8 +737,8 @@ class OasisExposuresManagerTransformCanonicalToModel(TestCase):
                 os.path.abspath(canonical_exposures_file_path),
                 os.path.abspath(model_exposures_file_path),
                 os.path.abspath(canonical_to_model_exposures_transformation_file_path),
-                os.path.abspath(canonical_exposures_validation_file_path),
-                append_row_nums=False,
+                xsd_path=None,
+                append_row_nums=False
             )
             trans_call_mock.assert_called_once_with()
 
@@ -768,7 +766,6 @@ class OasisExposuresManagerTransformCanonicalToModel(TestCase):
         with patch('oasislmf.exposures.manager.Translator', Mock(return_value=trans_call_mock)) as trans_mock:
             OasisExposuresManager().transform_canonical_to_model(
                 canonical_exposures_file_path=canonical_exposures_file_path,
-                canonical_exposures_validation_file_path=canonical_exposures_validation_file_path,
                 canonical_to_model_exposures_transformation_file_path=canonical_to_model_exposures_transformation_file_path,
                 model_exposures_file_path=model_exposures_file_path,
             )
@@ -777,8 +774,8 @@ class OasisExposuresManagerTransformCanonicalToModel(TestCase):
                 os.path.abspath(canonical_exposures_file_path),
                 os.path.abspath(model_exposures_file_path),
                 os.path.abspath(canonical_to_model_exposures_transformation_file_path),
-                os.path.abspath(canonical_exposures_validation_file_path),
-                append_row_nums=False,
+                xsd_path=None,
+                append_row_nums=False
             )
             trans_call_mock.assert_called_once_with()
 
@@ -990,7 +987,11 @@ class OasisExposuresManagerLoadGulItems(TestCase):
             from_tivs2=just(0.0),
             size=10
         ),
-        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=5)
+        keys=keys_data(
+            from_coverage_type_ids=just(BUILDING_COVERAGE_CODE),
+            from_statuses=just(KEYS_STATUS_SUCCESS),
+            size=10
+        )
     )
     def test_at_least_some_canonical_items_have_matching_keys_items_and_at_least_one_positive_tiv_and_gul_items_are_generated(
         self,
@@ -1040,7 +1041,7 @@ class OasisExposuresManagerLoadGulItems(TestCase):
             self.assertIsNotNone(keys_it)
 
             positive_tiv_elements = [
-                t for t in tiv_elements if can_it.get(t['ProfileElementName'].lower()) and can_it[t['ProfileElementName'].lower()] > 0 and t['CoverageTypeID'] == keys_it['coverage']
+                t for t in tiv_elements if can_it.get(t['ProfileElementName'].lower()) and can_it[t['ProfileElementName'].lower()] > 0 and t['CoverageTypeID'] == keys_it['coverage_type']
             ]
 
             for _, t in enumerate(positive_tiv_elements):
@@ -1080,6 +1081,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
         self.combined_grouped_canonical_profile = canonical_profiles_fm_terms_grouped_by_level_and_term_type(
             canonical_profiles=[self.exposures_profile, self.accounts_profile]
         )
+        self.fm_agg_profile = fm_agg_profile_piwind
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
@@ -1100,7 +1102,8 @@ class OasisExposuresManagerLoadFmItems(TestCase):
                     pd.DataFrame(data=guls),
                     self.exposures_profile,
                     self.accounts_profile,
-                    accounts_file.name
+                    accounts_file.name,
+                    self.fm_agg_profile
                 )
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
@@ -1164,6 +1167,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
                 self.exposures_profile,
                 self.accounts_profile,
                 accounts_file.name,
+                self.fm_agg_profile,
                 preset_only=True
             )[0].T.to_dict().values()
 

@@ -248,40 +248,9 @@ canonical_exposures_profile_piwind = {
     'WSCV3DED': {},
     'WSCV3LIMIT': {},
     'WSCV3VAL': {},
-    'WSCV4DED': {
-        'CoverageTypeID': 1,
-        'DeductibleType': 'B',
-        'FMLevel': 1,
-        'FMLevelName': 'Coverage',
-        'FMTermGroupID': 2,
-        'FMTermType': 'Deductible',
-        'FieldName': 'CoverageDeductible',
-        'PerilID': 1,
-        'ProfileElementName': 'WSCV4DED',
-        'ProfileType': 'Loc'
-    },
-    'WSCV4LIMIT': {
-        'CoverageTypeID': 1,
-        'FMLevel': 1,
-        'FMLevelName': 'Coverage',
-        'FMTermGroupID': 2,
-        'FMTermType': 'Limit',
-        'FieldName': 'CoverageLimit',
-        'PerilID': 1,
-        'ProfileElementName': 'WSCV4LIMIT',
-        'ProfileType': 'Loc'
-    },
-    'WSCV4VAL': {
-        'CoverageTypeID': 1,
-        'FMLevel': 1,
-        'FMLevelName': 'Coverage',
-        'FMTermGroupID': 2,
-        'FMTermType': 'TIV',
-        'FieldName': 'TIV',
-        'PerilID': 1,
-        'ProfileElementName': 'WSCV4VAL',
-        'ProfileType': 'Loc'
-    },
+    'WSCV4DED': {},
+    'WSCV4LIMIT': {},
+    'WSCV4VAL': {},
     'WSCV5DED': {},
     'WSCV5LIMIT': {},
     'WSCV5VAL': {},
@@ -380,7 +349,7 @@ canonical_exposures_profile_piwind_simple = {
         'ProfileType': 'Loc'
     },
     'WSCV2DED': {
-        'CoverageTypeID': 1,
+        'CoverageTypeID': 2,
         'DeductibleType': 'B',
         'FMLevel': 1,
         'FMLevelName': 'Coverage',
@@ -392,7 +361,7 @@ canonical_exposures_profile_piwind_simple = {
         'ProfileType': 'Loc'
     },
     'WSCV2LIMIT': {
-        'CoverageTypeID': 1,
+        'CoverageTypeID': 2,
         'FMLevel': 1,
         'FMLevelName': 'Coverage',
         'FMTermGroupID': 2,
@@ -403,7 +372,7 @@ canonical_exposures_profile_piwind_simple = {
         'ProfileType': 'Loc'
     },
     'WSCV2VAL': {
-        'CoverageTypeID': 1,
+        'CoverageTypeID': 2,
         'FMLevel': 1,
         'FMLevelName': 'Coverage',
         'FMTermGroupID': 2,
@@ -710,6 +679,8 @@ def fm_items_data(
 
 def gul_items_data(
     from_canexp_ids=integers(min_value=0, max_value=9),
+    from_coverage_type_ids=sampled_from(coverage_type_ids),
+    from_coverage_ids=integers(min_value=0, max_value=9),
     from_tiv_elements=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
     from_tiv_tgids=integers(min_value=1, max_value=10),
     from_tivs=floats(min_value=1.0, max_value=10**6),
@@ -737,6 +708,7 @@ def gul_items_data(
         fixed_dictionaries(
             {
                 'canexp_id': from_canexp_ids,
+                'coverage_type_id': from_coverage_type_ids,
                 'tiv_elm': from_tiv_elements,
                 'tiv_tgid': from_tiv_tgids,
                 'tiv': from_tivs,

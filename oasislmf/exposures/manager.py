@@ -594,8 +594,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         elif profile_path:
             with io.open(profile_path, 'r', encoding='utf-8') as f:
                 profile = json.load(f)
-
-        profile = {int(k):v for k, v in six.iteritems(profile)}
+                profile = {int(k):v for k, v in six.iteritems(profile)}
 
         if oasis_model:
             oasis_model.resources['fm_agg_profile'] = profile
@@ -720,6 +719,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             kwargs.setdefault('canonical_exposures_profile_json', omr.get('canonical_exposures_profile_json'))
             kwargs.setdefault('canonical_accounts_profile_json', omr.get('canonical_accounts_profile_json'))
 
+            kwargs.setdefault('fm_agg_profile', omr.get('fm_agg_profile'))
             kwargs.setdefault('fm_agg_profile_path', omr.get('fm_agg_profile_path'))
             kwargs.setdefault('fm_agg_profile_json', omr.get('fm_agg_profile_json'))
 
