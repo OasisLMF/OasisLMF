@@ -58,7 +58,7 @@ from tests.data import (
     canonical_accounts_data,
     canonical_accounts_profile_piwind,
     canonical_exposures_data,
-    canonical_exposures_profile_piwind_simple,
+    canonical_exposures_profile_piwind,
     fm_agg_profile_piwind,
     fm_items_data,
     gul_items_data,
@@ -879,7 +879,7 @@ class OasisExposuresManagerLoadGulItems(TestCase):
         exposures,
         keys
     ):
-        profile = canonical_exposures_profile_piwind_simple
+        profile = canonical_exposures_profile_piwind
 
         with NamedTemporaryFile('w') as exposures_file, NamedTemporaryFile('w') as keys_file:
             write_canonical_files(exposures, exposures_file.name)
@@ -899,7 +899,7 @@ class OasisExposuresManagerLoadGulItems(TestCase):
         exposures,
         keys
     ):
-        profile = canonical_exposures_profile_piwind_simple
+        profile = canonical_exposures_profile_piwind
 
         with NamedTemporaryFile('w') as exposures_file, NamedTemporaryFile('w') as keys_file:
             write_canonical_files(exposures, exposures_file.name)
@@ -918,7 +918,7 @@ class OasisExposuresManagerLoadGulItems(TestCase):
         exposures,
         keys
     ):
-        profile = canonical_exposures_profile_piwind_simple
+        profile = canonical_exposures_profile_piwind
 
         l = len(exposures)
         for key in keys:
@@ -941,7 +941,7 @@ class OasisExposuresManagerLoadGulItems(TestCase):
         exposures,
         keys
     ):
-        profile = copy.deepcopy(canonical_exposures_profile_piwind_simple)
+        profile = copy.deepcopy(canonical_exposures_profile_piwind)
 
         tivs = [profile[e]['ProfileElementName'] for e in profile if profile[e].get('FMTermType') and profile[e]['FMTermType'].lower() == 'tiv']
 
@@ -969,7 +969,7 @@ class OasisExposuresManagerLoadGulItems(TestCase):
         exposures,
         keys
     ):
-        profile = canonical_exposures_profile_piwind_simple 
+        profile = canonical_exposures_profile_piwind 
 
         with NamedTemporaryFile('w') as exposures_file, NamedTemporaryFile('w') as keys_file:
             write_canonical_files(exposures, exposures_file.name)
@@ -998,7 +998,7 @@ class OasisExposuresManagerLoadGulItems(TestCase):
         exposures,
         keys
     ):
-        profile = canonical_exposures_profile_piwind_simple
+        profile = canonical_exposures_profile_piwind
         gcep = canonical_profiles_fm_terms_grouped_by_level_and_term_type(canonical_profiles=(profile,))
 
         for k in keys:
@@ -1076,7 +1076,7 @@ class OasisExposuresManagerLoadGulItems(TestCase):
 class OasisExposuresManagerLoadFmItems(TestCase):
 
     def setUp(self):
-        self.exposures_profile = canonical_exposures_profile_piwind_simple
+        self.exposures_profile = canonical_exposures_profile_piwind
         self.accounts_profile = canonical_accounts_profile_piwind
         self.combined_grouped_canonical_profile = canonical_profiles_fm_terms_grouped_by_level_and_term_type(
             canonical_profiles=[self.exposures_profile, self.accounts_profile]
@@ -1126,6 +1126,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             size=1
         ),
         guls=gul_items_data(
+            from_coverage_type_ids=just(BUILDING_COVERAGE_CODE),
             from_tiv_elements=just('wscv1val'),
             from_tivs=just(100),
             from_tiv_tgids=just(1),
@@ -1142,6 +1143,9 @@ class OasisExposuresManagerLoadFmItems(TestCase):
         guls
     ):
         cgcp = self.combined_grouped_canonical_profile
+
+        for it in exposures:
+            it['cond1name'] = 0
 
         for _, gul in enumerate(guls):
             gul['ded_type'] = cgcp[1][gul['tiv_tgid']]['deductible']['DeductibleType'] if cgcp[1][gul['tiv_tgid']].get('deductible') else 'B'
@@ -1227,6 +1231,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             size=1
         ),
         guls=gul_items_data(
+            from_coverage_type_ids=just(BUILDING_COVERAGE_CODE),
             from_tiv_elements=just('wscv1val'),
             from_tivs=just(100),
             from_tiv_tgids=just(1),
@@ -1243,6 +1248,9 @@ class OasisExposuresManagerLoadFmItems(TestCase):
         guls
     ):
         cgcp = self.combined_grouped_canonical_profile
+
+        for it in exposures:
+            it['cond1name'] = 0
 
         for _, gul in enumerate(guls):
             gul['ded_type'] = cgcp[1][gul['tiv_tgid']]['deductible']['DeductibleType'] if cgcp[1][gul['tiv_tgid']].get('deductible') else 'B'
@@ -1267,7 +1275,9 @@ class OasisExposuresManagerLoadFmItems(TestCase):
                 gul_items_df,
                 self.exposures_profile,
                 self.accounts_profile,
-                accounts_file.name
+                accounts_file.name,
+                self.fm_agg_profile,
+                reduced=False
             )[0].T.to_dict().values()
 
         num_top_level_layers = len(set(a['policynum'] for a in accounts))
@@ -1341,6 +1351,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             size=2
         ),
         guls=gul_items_data(
+            from_coverage_type_ids=just(BUILDING_COVERAGE_CODE),
             from_tiv_elements=just('wscv1val'),
             from_tivs=just(100),
             from_tiv_tgids=just(1),
@@ -1357,6 +1368,9 @@ class OasisExposuresManagerLoadFmItems(TestCase):
         guls
     ):
         cgcp = self.combined_grouped_canonical_profile
+
+        for it in exposures:
+            it['cond1name'] = 0
 
         for i, acc in enumerate(accounts):
             acc['policynum'] = 'Layer{}'.format(i + 1)
@@ -1384,7 +1398,9 @@ class OasisExposuresManagerLoadFmItems(TestCase):
                 gul_items_df,
                 self.exposures_profile,
                 self.accounts_profile,
-                accounts_file.name
+                accounts_file.name,
+                self.fm_agg_profile,
+                reduced=False
             )[0].T.to_dict().values()
 
         fm_levels = sorted(cgcp.keys())
@@ -1442,7 +1458,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
 class GulFilesGenerationTestCase(TestCase):
 
     def setUp(self):
-        self.profile = canonical_exposures_profile_piwind_simple
+        self.profile = canonical_exposures_profile_piwind
         self.manager = OasisExposuresManager()
 
     def check_items_file(self, gul_items_df, items_file_path):
@@ -1485,18 +1501,24 @@ class GulFilesGenerationTestCase(TestCase):
 class FmFilesGenerationTestCase(TestCase):
 
     def setUp(self):
-        self.exposures_profile = canonical_exposures_profile_piwind_simple
+        self.exposures_profile = canonical_exposures_profile_piwind
         self.accounts_profile = canonical_accounts_profile_piwind
         self.combined_grouped_canonical_profile = canonical_profiles_fm_terms_grouped_by_level_and_term_type(
             canonical_profiles=(self.exposures_profile, self.accounts_profile,)
         )
+        self.fm_agg_profile = fm_agg_profile_piwind
         self.manager = OasisExposuresManager()
 
     def check_fm_policytc_file(self, fm_items_df, fm_policytc_file_path):
+        fm_policytc_df = pd.DataFrame(
+            columns=['layer_id', 'level_id', 'agg_id', 'policytc_id'],
+            data=[key[:4] for key, _ in fm_items_df.groupby(['layer_id', 'level_id', 'agg_id', 'policytc_id', 'limit', 'deductible', 'share'])],
+            dtype=object
+        )
         expected = tuple(
             {
                 k:it[k] for k in ('layer_id', 'level_id', 'agg_id', 'policytc_id',)
-            } for _, it in fm_items_df.iterrows()
+            } for _, it in fm_policytc_df.iterrows()
         )
 
         with io.open(fm_policytc_file_path, 'r', encoding='utf-8') as f:
@@ -1599,6 +1621,7 @@ class OasisExposuresManagerWriteFmFiles(FmFilesGenerationTestCase):
             size=1
         ),
         guls=gul_items_data(
+            from_coverage_type_ids=just(BUILDING_COVERAGE_CODE),
             from_tiv_elements=just('wscv1val'),
             from_tivs=just(100),
             from_tiv_tgids=just(1),
@@ -1612,6 +1635,10 @@ class OasisExposuresManagerWriteFmFiles(FmFilesGenerationTestCase):
         cep = self.exposures_profile
         cap = self.accounts_profile
         cgcp = self.combined_grouped_canonical_profile
+        fmap = self.fm_agg_profile
+
+        for it in exposures:
+            it['cond1name'] = 0
 
         for _, gul in enumerate(guls):
             gul['ded_type'] = cgcp[1][gul['tiv_tgid']]['deductible']['DeductibleType'] if cgcp[1][gul['tiv_tgid']].get('deductible') else 'B'
@@ -1632,7 +1659,8 @@ class OasisExposuresManagerWriteFmFiles(FmFilesGenerationTestCase):
                 'canonical_exposures_df': canexp_df,
                 'gul_items_df': gul_items_df,
                 'canonical_exposures_profile': cep,
-                'canonical_accounts_profile': cap
+                'canonical_accounts_profile': cap,
+                'fm_agg_profile': fmap
             })
             omr = model.resources
             ofp = omr['oasis_files_pipeline']
@@ -1666,6 +1694,7 @@ class OasisExposuresManagerWriteFmFiles(FmFilesGenerationTestCase):
             size=1
         ),
         guls=gul_items_data(
+            from_coverage_type_ids=just(BUILDING_COVERAGE_CODE),
             from_tiv_elements=just('wscv1val'),
             from_tivs=just(100),
             from_tiv_tgids=just(1),
@@ -1676,9 +1705,14 @@ class OasisExposuresManagerWriteFmFiles(FmFilesGenerationTestCase):
         )
     )
     def test_paths_are_stored_in_the_kwargs___kwarg_paths_are_used(self, exposures, accounts, guls):
+        self.maxDiff = None
         cep = self.exposures_profile
         cap = self.accounts_profile
         cgcp = self.combined_grouped_canonical_profile
+        fmap = self.fm_agg_profile
+
+        for it in exposures:
+            it['cond1name'] = 0
 
         for _, gul in enumerate(guls):
             gul['ded_type'] = cgcp[1][gul['tiv_tgid']]['deductible']['DeductibleType'] if cgcp[1][gul['tiv_tgid']].get('deductible') else 'B'
@@ -1700,7 +1734,8 @@ class OasisExposuresManagerWriteFmFiles(FmFilesGenerationTestCase):
                 gul_items_df,
                 cep,
                 cap,
-                accounts_file.name
+                accounts_file.name,
+                fmap
             )
             
             os.path.join(out_dir, 'fm_policytc.csv')
@@ -1711,6 +1746,7 @@ class OasisExposuresManagerWriteFmFiles(FmFilesGenerationTestCase):
                 canonical_exposures_profile=cep,
                 canonical_accounts_profile=cap,
                 canonical_accounts_file_path=accounts_file.name,
+                fm_agg_profile=fmap,
                 fm_policytc_file_path=os.path.join(out_dir, 'fm_policytc.csv')
             )
 
@@ -1721,7 +1757,7 @@ class OasisExposuresManagerStartOasisFilesPipeline(TestCase):
 
     def setUp(self):
         self.manager = OasisExposuresManager()
-        self.exposures_profile = canonical_exposures_profile_piwind_simple
+        self.exposures_profile = canonical_exposures_profile_piwind
         self.accounts_profile = canonical_accounts_profile_piwind
 
     def test_start_oasis_files_pipeline_with_model_and_no_oasis_files_path__oasis_exception_is_raised(self):

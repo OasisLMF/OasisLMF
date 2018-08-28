@@ -5,7 +5,6 @@ __all__ = [
     'canonical_accounts_profile_piwind',
     'canonical_exposures_data',
     'canonical_exposures_profile_piwind',
-    'canonical_exposures_profile_piwind_simple',
     'calcrule_ids',
     'coverage_type_ids',
     'deductible_types',
@@ -295,25 +294,11 @@ canonical_exposures_profile_piwind_simple = {
         'ProfileElementName': 'ACCNTNUM',
         'ProfileType': 'Loc'
     },
-    'BLDGCLASS': {},
-    'BLDGSCHEME': {},
-    'CITY': {},
-    'COUNTRY': {},
-    'CRESTA': {},
-    'LATITUDE': {},
-    'LOCNUM': {},
-    'LONGITUDE': {},
-    'NUMBLDGS': {},
-    'NUMSTORIES': {},
-    'OCCSCHEME': {},
-    'OCCTYPE': {},
-    'POSTALCODE': {},
     'ROW_ID': {
         'FieldName': 'LocationID',
         'ProfileElementName': 'ROW_ID',
         'ProfileType': 'Loc'
     },
-    'STATE': {},
     'WSCV1DED': {
         'CoverageTypeID': 1,
         'DeductibleType': 'B',
@@ -347,43 +332,7 @@ canonical_exposures_profile_piwind_simple = {
         'PerilID': 1,
         'ProfileElementName': 'WSCV1VAL',
         'ProfileType': 'Loc'
-    },
-    'WSCV2DED': {
-        'CoverageTypeID': 2,
-        'DeductibleType': 'B',
-        'FMLevel': 1,
-        'FMLevelName': 'Coverage',
-        'FMTermGroupID': 2,
-        'FMTermType': 'Deductible',
-        'FieldName': 'CoverageDeductible',
-        'PerilID': 1,
-        'ProfileElementName': 'WSCV2DED',
-        'ProfileType': 'Loc'
-    },
-    'WSCV2LIMIT': {
-        'CoverageTypeID': 2,
-        'FMLevel': 1,
-        'FMLevelName': 'Coverage',
-        'FMTermGroupID': 2,
-        'FMTermType': 'Limit',
-        'FieldName': 'CoverageLimit',
-        'PerilID': 1,
-        'ProfileElementName': 'WSCV2LIMIT',
-        'ProfileType': 'Loc'
-    },
-    'WSCV2VAL': {
-        'CoverageTypeID': 2,
-        'FMLevel': 1,
-        'FMLevelName': 'Coverage',
-        'FMTermGroupID': 2,
-        'FMTermType': 'TIV',
-        'FieldName': 'TIV',
-        'PerilID': 1,
-        'ProfileElementName': 'WSCV2VAL',
-        'ProfileType': 'Loc'
-    },
-    'YEARBUILT': {},
-    'YEARUPGRAD': {}
+    }
 }
 
 coverage_type_ids = (BUILDING_COVERAGE_CODE, CONTENTS_COVERAGE_CODE, OTHER_STRUCTURES_COVERAGE_CODE, TIME_COVERAGE_CODE,)
@@ -398,7 +347,7 @@ deductible_types_piwind = tuple(
 )
 
 fm_agg_profile_piwind = {
-    "1": {
+    1: {
         "FMLevel": 1,
         "FMLevelName": "Coverage",
         "FMAggKey": {
@@ -414,7 +363,7 @@ fm_agg_profile_piwind = {
             }
         }
     },
-    "2": {
+    2: {
         "FMLevel": 2,
         "FMLevelName": "Combined",
         "FMAggKey": {
@@ -426,7 +375,7 @@ fm_agg_profile_piwind = {
             }
         }
     },
-    "3": {
+    3: {
         "FMLevel": 3,
         "FMLevel": "Site",
         "FMAggKey": {
@@ -437,7 +386,7 @@ fm_agg_profile_piwind = {
             }
         }
     },
-    "4": {
+    4: {
         "FMLevel": 4,
         "FMLevelName": "Sublimit",
         "FMAggKey": {
@@ -453,7 +402,7 @@ fm_agg_profile_piwind = {
             }
         }
     },
-    "5": {
+    5: {
         "FMLevel": 5,
         "FMLevelName": "Account",
         "FMAggKey": {
@@ -464,7 +413,7 @@ fm_agg_profile_piwind = {
             }
         }
     },
-    "6": {
+    6: {
         "FMLevel": 6,
         "FMLevelName": "Layer",
         "FMAggKey": {
@@ -700,7 +649,16 @@ def gul_items_data(
     def _sequence(li):
         for i, r in enumerate(li):
             r['canexp_id'] = i
-            r['item_id'] = r['coverage_id'] = r['group_id'] = i + 1
+            r['item_id'] = r['group_id'] = i + 1
+
+        loc_ids = {r['canexp_id'] for r in li}
+        cov_type_ids = {r['coverage_type_id'] for r in li}
+        coverage_ids = {
+            loc_id:i + 1 for i, (loc_id, cov_type_id) in enumerate(itertools.product(loc_ids, cov_type_ids))
+        }
+
+        for r in li:
+            r['coverage_id'] = coverage_ids[r['canexp_id']]
 
         return li
 
