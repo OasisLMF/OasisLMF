@@ -574,6 +574,9 @@ def canonical_exposures_data(
 def fm_items_data(
     from_canexp_ids=integers(min_value=0, max_value=9),
     from_canacc_ids=integers(min_value=0, max_value=9),
+    from_policy_nums=text(alphabet=string.ascii_letters, min_size=2, max_size=10),
+    from_coverage_type_ids=sampled_from(coverage_type_ids),
+    from_coverage_ids=integers(min_value=0, max_value=9),
     from_level_ids=integers(min_value=1, max_value=10),
     from_layer_ids=integers(min_value=1, max_value=10),
     from_agg_ids=integers(min_value=1, max_value=10),
@@ -598,6 +601,15 @@ def fm_items_data(
             r['canexp_id'] = i
             r['item_id'] = r['gul_item_id'] = i + 1
 
+            loc_ids = {r['canexp_id'] for r in li}
+            cov_type_ids = {r['coverage_type_id'] for r in li}
+            coverage_ids = {
+                loc_id:i + 1 for i, (loc_id, cov_type_id) in enumerate(itertools.product(loc_ids, cov_type_ids))
+            }
+
+            for r in li:
+                r['coverage_id'] = coverage_ids[r['canexp_id']]
+
         return li
 
     return lists(
@@ -605,6 +617,8 @@ def fm_items_data(
             {
                 'canexp_id': from_canexp_ids,
                 'canacc_id': from_canacc_ids,
+                'policy_num': from_policy_nums,
+                'coverage_type_id': from_coverage_type_ids,
                 'level_id': from_level_ids,
                 'layer_id': from_layer_ids,
                 'agg_id': from_agg_ids,

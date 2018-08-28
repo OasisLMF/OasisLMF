@@ -40,14 +40,19 @@ from oasislmf.utils.fm import (
     get_non_coverage_level_fm_terms,
     get_policytc_ids,
 )
-
+from oasislmf.utils.coverage import (
+    BUILDING_COVERAGE_CODE,
+    CONTENTS_COVERAGE_CODE,
+    OTHER_STRUCTURES_COVERAGE_CODE,
+    TIME_COVERAGE_CODE,
+)
 from tests.data import (
     calcrule_ids,
     canonical_accounts_data,
     canonical_accounts_profile_piwind,
     canonical_exposures_data,
     canonical_exposures_profile_piwind,
-    canonical_exposures_profile_piwind_simple,
+    fm_agg_profile_piwind,
     deductible_types,
     deductible_types_piwind,
     fm_items_data,
@@ -371,11 +376,12 @@ class GetCalcruleID(TestCase):
 class GetFmTermsByLevel(TestCase):
 
     def setUp(self):
-        self.exposures_profile = canonical_exposures_profile_piwind_simple
+        self.exposures_profile = canonical_exposures_profile_piwind
         self.accounts_profile = canonical_accounts_profile_piwind
         self.combined_grouped_canonical_profile = canonical_profiles_fm_terms_grouped_by_level_and_term_type(
             canonical_profiles=[self.exposures_profile, self.accounts_profile]
         )
+        self.fm_agg_profile = fm_agg_profile_piwind
 
     @pytest.mark.flaky
     @settings(deadline=300, suppress_health_check=[HealthCheck.too_slow])
@@ -401,6 +407,7 @@ class GetFmTermsByLevel(TestCase):
             size=1
         ),
         fm_items=fm_items_data(
+            from_coverage_type_ids=just(BUILDING_COVERAGE_CODE),
             from_level_ids=just(1),
             from_canacc_ids=just(0),
             from_layer_ids=just(1),
@@ -411,24 +418,24 @@ class GetFmTermsByLevel(TestCase):
             from_deductible_elements=just('wscv1ded'),
             from_deductible_types=just('B'),
             from_shares=just(0),
-            size=11
+            size=10
         ) 
     )
     def test_coverage_level_terms(self, exposures, accounts, fm_items):
         lcgcp = self.combined_grouped_canonical_profile[1]
+        lfmaggp = self.fm_agg_profile[1]
+
+        for it in exposures:
+            it['cond1name'] = 0
 
         exposures[0]['wscv2val'] = 50
 
         for i, it in enumerate(fm_items):
-            it['canexp_id'] = 0 if i in [0, 1] else it['canexp_id'] - 1
-            it['tiv_elm'] = 'wscv2val' if i == 1 else it['tiv_elm']
-            it['tiv_tgid'] = 2 if i == 1 else 1
-            it['lim_elm'] = 'wscv2limit' if i == 1 else it['lim_elm']
-            it['ded_elm'] = 'wscv2ded' if i == 1 else it['ded_elm']
             it['index'] = i
 
         results = list(get_coverage_level_fm_terms(
             lcgcp,
+            lfmaggp,
             {i:it for i, it in enumerate(fm_items)},
             pd.DataFrame(data=exposures, dtype=object),
             pd.DataFrame(data=accounts, dtype=object),
@@ -503,7 +510,9 @@ class GetFmTermsByLevel(TestCase):
             size=1
         ),
         fm_items=fm_items_data(
+            from_coverage_type_ids=just(BUILDING_COVERAGE_CODE),
             from_canacc_ids=just(0),
+            from_policy_nums=just('Layer1'),
             from_layer_ids=just(1),
             from_tiv_elements=just('wscv1val'),
             from_tivs=just(100),
@@ -514,6 +523,9 @@ class GetFmTermsByLevel(TestCase):
     def test_non_coverage_level_terms(self, exposures, accounts, fm_items):
         cgcp = self.combined_grouped_canonical_profile
 
+        for i, _ in enumerate(exposures):
+            exposures[i]['cond1name'] = fm_items[i]['cond1name'] = 0
+
         levels = sorted(cgcp.keys())
         levels.remove(1)
 
@@ -521,6 +533,8 @@ class GetFmTermsByLevel(TestCase):
 
         for l in levels:
             lcgcp = cgcp[l]
+
+            lfmaggp = self.fm_agg_profile[l]
 
             lim_fld = lcgcp[1].get('limit')
             lim_elm = lim_fld['ProfileElementName'].lower() if lim_fld else None
@@ -553,6 +567,7 @@ class GetFmTermsByLevel(TestCase):
 
             results = list(get_non_coverage_level_fm_terms(
                 lcgcp,
+                lfmaggp,
                 {i:it for i, it in enumerate(fm_items)},
                 pd.DataFrame(data=exposures, dtype=object),
                 pd.DataFrame(data=accounts, dtype=object),
