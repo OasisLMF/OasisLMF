@@ -1,6 +1,11 @@
 CHANGELOG
 =========
 
+`1.1.25`_ (beta)
+----------------
+
+* Fix install issue with utils/keys_data.py - file removed as its no longer used.
+
 `1.1.24`_ (beta)
 ----------------
 
@@ -111,6 +116,7 @@ in the exposure manager
 * Add console logging
 
 
+.. _`1.1.25`: https://github.com/OasisLMF/OasisLMF/compare/3a4b983...master
 .. _`1.1.24`: https://github.com/OasisLMF/OasisLMF/compare/8f94cab...master
 .. _`1.1.23`: https://github.com/OasisLMF/OasisLMF/compare/0577497...master
 .. _`1.1.22`: https://github.com/OasisLMF/OasisLMF/compare/bfeee86...master
