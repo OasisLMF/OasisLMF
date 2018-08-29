@@ -1141,7 +1141,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
                 fm_items_df['index'] = range(len(fm_items_df))
 
-                level_ids = list(set(fm_items_df['level_id']))
+                level_ids = [l for l in set(fm_items_df['level_id'])]
 
                 level_id = lambda i: level_ids.index(fm_items_df.iloc[i]['level_id']) + 1
 
