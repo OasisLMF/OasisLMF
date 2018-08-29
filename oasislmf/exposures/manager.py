@@ -1244,8 +1244,10 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             fm_profile_df['allocrule_id'] = [1]*len(fm_profile_df)
             fm_profile_df['ccy_id'] = [0]*len(fm_profile_df)
 
+            fm_profile_df['share_prop_of_lim'] = fm_profile_df['share']
+
             fm_profile_df['deductible_prop_of_tiv'] = fm_profile_df['limit_prop_of_tiv'] = [0]*len(fm_profile_df)
-            fm_profile_df['deductible_prop_of_limit'] = fm_profile_df['share_prop_of_lim'] = [0]*len(fm_profile_df)
+            fm_profile_df['deductible_prop_of_limit'] = [0]*len(fm_profile_df)
             fm_profile_df['deductible_prop_of_loss'] = fm_profile_df['limit_prop_of_loss'] = [0]*len(fm_profile_df)
 
             fm_profile_df.to_csv(
