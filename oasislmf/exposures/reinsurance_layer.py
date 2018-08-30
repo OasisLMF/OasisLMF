@@ -373,8 +373,9 @@ class ReinsuranceLayer(object):
     # Need to check Matching rules for Per Risk with Joh
     def _add_per_risk_profiles(self, add_profiles_args):
         self.logger.debug("Adding PR profiles:")
-        profile_id = max(
-            x.profile_id for x in add_profiles_args.fmprofiles_list)
+        profile_id = max(x.profile_id for x in add_profiles_args.fmprofiles_list)
+        nodes_all = anytree.search.findall(
+               add_profiles_args.program_node, filter_=lambda node: node.level_id == 2)
 
         profile_id = profile_id + 1
         add_profiles_args.fmprofiles_list.append(oed.get_reinsurance_profile(
@@ -386,10 +387,17 @@ class ReinsuranceLayer(object):
         ))
 
         for _, ri_scope_row in add_profiles_args.scope_rows.iterrows():
+            # Filter
+            if (ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_ACCOUNT) and self._is_defined(ri_scope_row.AccountNumber):
+                selected_nodes = list(filter(lambda n: n.account_number == ri_scope_row.AccountNumber, nodes_all))
+            elif ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_LOCATION and  self._is_defined(ri_scope_row.LocationNumber):
+                selected_nodes = list(filter(lambda n: n.location_number == ri_scope_row.LocationNumber, nodes_all))
+            elif ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_POLICY and self._is_defined(ri_scope_row.PolicyNumber):
+                selected_nodes = list(filter(lambda n: n.policy_number == ri_scope_row.PolicyNumber, nodes_all))
+            else:
+                selected_nodes = nodes_all
 
-            nodes = anytree.search.findall(
-                add_profiles_args.program_node, filter_=lambda node: node.level_id == 2)
-            for node in nodes:
+            for node in selected_nodes:
                 add_profiles_args.node_layer_profile_map[(
                     node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
 
@@ -409,7 +417,6 @@ class ReinsuranceLayer(object):
 
     def _add_surplus_share_profiles(self, add_profiles_args):
         self.logger.debug("Adding SS profiles:")
-
         profile_id = max( x.profile_id for x in add_profiles_args.fmprofiles_list)
         nodes_all = anytree.search.findall(
                add_profiles_args.program_node, filter_=lambda node: node.level_id == 2)
