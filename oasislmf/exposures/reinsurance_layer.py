@@ -624,20 +624,25 @@ class ReinsuranceLayer(object):
         #
         # Step 2 - Overlay the reinsurance structure. Each resinsuarnce contact is a seperate layer.
         #
-        layer_id = 0        # Current layer ID
+        layer_id = 1        # Current layer ID
         overlay_loop = 0    # Overlays multiple rules in same layer
-        prev_reins_number = 0
+        prev_reins_number = 1
         for _, ri_info_row in self.ri_info.iterrows():
             overlay_loop += 1
             scope_rows = self.ri_scope[
                 (self.ri_scope.ReinsNumber == ri_info_row.ReinsNumber) &
                 (self.ri_scope.RiskLevel == self.risk_level)]
 
-            # Only keep the same ove
-            if prev_reins_number < ri_info_row.ReinsNumber:
+            # Three rules for layers
+            # 1. if FAC don't inncrement the layer number
+            # 2. Otherwise, only increment inline with the reins_number
+            # 3. If the reins_number number is the same as prev, increment based on ReinsLayerNumber
+            if ri_info_row.ReinsType in ['FAC']:
+                pass
+            elif prev_reins_number < ri_info_row.ReinsNumber:
                 layer_id += 1
                 prev_reins_number = ri_info_row.ReinsNumber
-            if layer_id < ri_info_row.ReinsLayerNumber:
+            elif layer_id < ri_info_row.ReinsLayerNumber:
                 layer_id = ri_info_row.ReinsLayerNumber
 
 
