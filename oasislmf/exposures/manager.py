@@ -590,11 +590,10 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         profile = None
         if profile_json:
-            profile = json.loads(profile_json)
+            profile = {int(k):v for k, v in six.iteritems(json.loads(profile_json))}
         elif profile_path:
             with io.open(profile_path, 'r', encoding='utf-8') as f:
-                profile = json.load(f)
-                profile = {int(k):v for k, v in six.iteritems(profile)}
+                profile = {int(k):v for k, v in six.iteritems(json.load(f))}
 
         if oasis_model:
             oasis_model.resources['fm_agg_profile'] = profile

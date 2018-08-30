@@ -641,6 +641,68 @@ class OasisExposuresManagerLoadCanonicalAccountsProfile(TestCase):
             self.assertEqual(kwargs_profile, profile)
             self.assertEqual(kwargs_profile, model.resources['canonical_accounts_profile'])
 
+
+class OasisExposuresManagerLoadFmAggregationProfile(TestCase):
+
+    def setUp(self):
+        self.profile = fm_agg_profile_piwind
+
+    def test_model_and_kwargs_are_not_set___result_is_null(self):
+        profile = OasisExposuresManager().load_fm_aggregation_profile()
+
+        self.assertEqual(None, profile)
+
+    def test_model_is_set_with_profile_json___models_profile_is_set_to_expected_json(self):
+        expected = self.profile
+        profile_json = json.dumps(self.profile)
+        model = fake_model(resources={'fm_agg_profile_json': profile_json})
+
+        profile = OasisExposuresManager().load_fm_aggregation_profile(oasis_model=model)
+
+        self.assertEqual(expected, profile)
+        self.assertEqual(expected, model.resources['fm_agg_profile'])
+
+    def test_model_is_set_with_profile_json_and_profile_json_is_passed_through_kwargs___kwargs_profile_is_used(
+        self
+    ):
+        model = fake_model(resources={'fm_agg_profile_json': json.dumps(self.profile)})
+
+        profile = OasisExposuresManager().load_fm_aggregation_profile(oasis_model=model, fm_agg_profile_json=json.dumps(self.profile))
+
+        self.assertEqual(self.profile, profile)
+        self.assertEqual(self.profile, model.resources['fm_agg_profile'])
+
+    def test_model_is_set_with_profile_path___models_profile_is_set_to_expected_json(self):
+        expected = self.profile
+
+        with NamedTemporaryFile('w') as f:
+            json.dump(expected, f)
+            f.flush()
+
+            model = fake_model(resources={'fm_agg_profile_path': f.name})
+
+            profile = OasisExposuresManager().load_fm_aggregation_profile(oasis_model=model)
+
+            self.assertEqual(expected, profile)
+            self.assertEqual(expected, model.resources['fm_agg_profile'])
+
+    def test_model_is_set_with_profile_path_and_profile_path_is_passed_through_kwargs___kwargs_profile_is_used(
+        self
+    ):
+        with NamedTemporaryFile('w') as model_file, NamedTemporaryFile('w') as kwargs_file:
+            json.dump(self.profile, model_file)
+            model_file.flush()
+            json.dump(self.profile, kwargs_file)
+            kwargs_file.flush()
+
+            model = fake_model(resources={'fm_agg_profile_path': model_file.name})
+
+            profile = OasisExposuresManager().load_fm_aggregation_profile(oasis_model=model, fm_agg_profile_path=kwargs_file.name)
+
+            self.assertEqual(self.profile, profile)
+            self.assertEqual(self.profile, model.resources['fm_agg_profile'])
+
+
 class OasisExposuresManagerTransformSourceToCanonical(TestCase):
 
     @given(
