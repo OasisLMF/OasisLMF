@@ -376,14 +376,15 @@ class ReinsuranceLayer(object):
         profile_id = max(
             x.profile_id for x in add_profiles_args.fmprofiles_list)
 
+        profile_id = profile_id + 1
+        add_profiles_args.fmprofiles_list.append(oed.get_reinsurance_profile(
+            profile_id,
+            attachment=add_profiles_args.ri_info_row.RiskAttachmentPoint,
+            limit=add_profiles_args.ri_info_row.RiskLimit,
+            ceded=add_profiles_args.ri_info_row.CededPercent,
+        ))
+
         for _, ri_scope_row in add_profiles_args.scope_rows.iterrows():
-            profile_id = profile_id + 1
-            add_profiles_args.fmprofiles_list.append(oed.get_reinsurance_profile(
-                profile_id,
-                attachment=add_profiles_args.ri_info_row.RiskAttachmentPoint,
-                limit=add_profiles_args.ri_info_row.RiskLimit,
-                placement=add_profiles_args.ri_info_row.PlacementPercent
-            ))
 
             nodes = anytree.search.findall(
                 add_profiles_args.program_node, filter_=lambda node: node.level_id == 2)
@@ -391,15 +392,19 @@ class ReinsuranceLayer(object):
                 add_profiles_args.node_layer_profile_map[(
                     node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
 
-            # Check ri_info row for overall OccLimit
-            profile_id = profile_id + 1
-            add_profiles_args.fmprofiles_list.append(
-                oed.get_occlim_profile(
-                    profile_id,
-                    limit=add_profiles_args.ri_info_row.OccLimit,
-            ))
-            add_profiles_args.node_layer_profile_map[
-                (add_profiles_args.program_node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
+        # add OccLimit / Placed Percent
+        profile_id = profile_id + 1
+        add_profiles_args.fmprofiles_list.append(
+            oed.get_occlim_profile(
+                profile_id,
+                limit=add_profiles_args.ri_info_row.OccLimit,
+                placement=add_profiles_args.ri_info_row.PlacementPercent,
+        ))
+        add_profiles_args.node_layer_profile_map[
+            (add_profiles_args.program_node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
+
+
+
 
 
     def _add_surplus_share_profiles(self, add_profiles_args):
