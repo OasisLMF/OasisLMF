@@ -1021,7 +1021,6 @@ class OasisExposuresManagerLoadGulItems(TestCase):
     @given(
         exposures=canonical_exposures_data(
             from_tivs1=just(0.0),
-            from_tivs2=just(0.0),
             size=10
         ),
         keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=10)
@@ -1046,7 +1045,6 @@ class OasisExposuresManagerLoadGulItems(TestCase):
     @given(
         exposures=canonical_exposures_data(
             from_tivs1=just(1.0),
-            from_tivs2=just(0.0),
             size=10
         ),
         keys=keys_data(
