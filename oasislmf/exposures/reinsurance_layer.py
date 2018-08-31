@@ -383,7 +383,6 @@ class ReinsuranceLayer(object):
             attachment=add_profiles_args.ri_info_row.RiskAttachmentPoint,
             limit=add_profiles_args.ri_info_row.RiskLimit,
             ceded=add_profiles_args.ri_info_row.CededPercent,
-            placement=add_profiles_args.ri_info_row.PlacementPercent,
         ))
 
         for _, ri_scope_row in add_profiles_args.scope_rows.iterrows():
@@ -407,6 +406,7 @@ class ReinsuranceLayer(object):
             oed.get_occlim_profile(
                 profile_id,
                 limit=add_profiles_args.ri_info_row.OccLimit,
+                placement=add_profiles_args.ri_info_row.PlacementPercent,
         ))
         add_profiles_args.node_layer_profile_map[
             (add_profiles_args.program_node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
