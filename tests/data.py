@@ -712,7 +712,7 @@ def keys_data(
 ):
     def _sequence(li):
         for i, data in enumerate(li):
-            data['id'] = i + 1
+            data['locid'] = data['id'] = i + 1
 
         return li
 
