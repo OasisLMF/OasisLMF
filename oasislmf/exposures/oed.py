@@ -62,12 +62,13 @@ class OedValidator(object):
         '''
         return (len(reins_info_df.ReinsType.unique()) == 1)
 
-    def _links_valid(self, df_src, column_name, df_dest):
+    def _find_missing(self, df_src, column_name, df_dest):
         '''
-        Check that all unique values in df_src[column_name] map to df_dest[column_name]
+        return list of values if df_dest[`column_name`] values do not exist in df_src
         '''
-        src_values = df_src[column_name].unique().tolist()
-        return df_dest.isin({column_name: src_values}).all()
+        src_values = df_dest[column_name].unique().tolist()
+        missing_df = df_src[~df_src.isin({column_name: src_values})].dropna()
+        return missing_df[column_name].tolist()
 
     def _check_df_dtypes(self, dtypes_given, dtypes_expected):
         '''
@@ -86,14 +87,22 @@ class OedValidator(object):
                     col, dtypes_expected[col], dtypes_given[col]))
         return msg_type_check
 
+    #def _links_valid(self, df_src, column_name, df_dest):
+    #    '''
+    #    Check that all unique values in df_src[column_name] map to df_dest[column_name]
+    #    '''
+    #    src_values = df_src[column_name].unique().tolist()
+    #    return df_dest.isin({column_name: src_values}).all()
 
-    def _all_links_valid(self, scope_df, account_df, location_df):
-        return (
-            self._links_valid(scope_df, "AccountNumber",   account_df),
-            self._links_valid(scope_df, "PolicyNumber",    account_df),
-            self._links_valid(scope_df, "AccountNumber",   location_df),
-            self._links_valid(scope_df, "LocationNumber",  location_df),
-        )
+    #def _all_links_valid(self, scope_df, account_df, location_df):
+    #    print('Check_missing')
+    #    print(self._find_missing(scope_df, "AccountNumber",   account_df))
+    #    return (
+    #        self._links_valid(scope_df, "AccountNumber",   account_df),
+    #        self._links_valid(scope_df, "PolicyNumber",    account_df),
+    #        self._links_valid(scope_df, "AccountNumber",   location_df),
+    #        self._links_valid(scope_df, "LocationNumber",  location_df),
+    #    )
 
     def _all_scope_non_specific(self,scope_df):
         return scope_df[['AccountNumber',
@@ -193,7 +202,7 @@ class OedValidator(object):
                 meta_data = {
                     **meta_data,
                     'RiskLevels': scope_risk_levels.tolist(),
-                    'ri_scope_ReinsNumbers': scope_df.ReinsNumber.tolist(),
+                    'ri_scope_ReinsNumber': scope_df.ReinsNumber.tolist(),
                     'ri_scope_line_nums': [idx+2 for idx in scope_df.index.tolist()],
                 }
 
@@ -225,6 +234,53 @@ class OedValidator(object):
                         meta_data,
                     ))
 
+                err_acc_nums = self._find_missing(scope_df, "AccountNumber",   account_df)
+                if err_acc_nums:
+                    error_list.append(self._error_struture(
+                        'missing_scope_link',
+                        'RI_{}'.format(inuring_priority),
+                        "Non-linking 'AccountNumber' between ri_scope and account files",
+                         {**meta_data, 'missing_values': err_acc_nums}
+                    ))
+
+                err_acc_nums2 = self._find_missing(scope_df, "AccountNumber",   location_df)
+                if err_acc_nums2:
+                    error_list.append(self._error_struture(
+                        'missing_scope_link',
+                        'RI_{}'.format(inuring_priority),
+                        "Non-linking 'AccountNumber' between ri_scope and location files",
+                         {**meta_data, 'missing_values': err_acc_nums2}
+                    ))
+
+                err_pol_nums = self._find_missing(scope_df, "PolicyNumber",    account_df)
+                if err_pol_nums:
+                    error_list.append(self._error_struture(
+                        'missing_scope_link',
+                        'RI_{}'.format(inuring_priority),
+                        "Non-linking 'PolicyNumber' between ri_scope and account",
+                         {**meta_data, 'missing_values': err_pol_nums}
+                    ))
+
+                err_loc_nums = self._find_missing(scope_df, "LocationNumber",  location_df)
+                if err_loc_nums:
+                    error_list.append(self._error_struture(
+                        'missing_scope_link',
+                        'RI_{}'.format(inuring_priority),
+                        "Non-linking 'LocationNumber' between ri_scope and account",
+                         {**meta_data, 'missing_values': err_loc_nums}
+                    ))
+
+
+
+
+                #if not self._all_links_valid(scope_df,  account_df, location_df):
+                #    error_list.append(self._error_struture(
+                #        'inuring_scope_links',
+                #        'RI_{}'.format(inuring_priority),
+                #        "Non-linking scopes between ri_scope and (ACC,LOC) files",
+                #         meta_data,
+                #    ))
+
                 ### CHECK - that scope is not specific for SS
                 #if ri_type in [REINS_TYPE_SURPLUS_SHARE] and not self._all_scope_specific(scope_df):
                 #    error_list.append(self._error_struture(
@@ -244,13 +300,6 @@ class OedValidator(object):
                 #    ))
 
                 # CHECK - all links in scope connect to rows in account/location
-                if not self._all_links_valid(scope_df,  account_df, location_df):
-                    error_list.append(self._error_struture(
-                        'inuring_scope_links',
-                        'RI_{}'.format(inuring_priority),
-                        "Non-linking scopes between ri_scope and (ACC,LOC) files",
-                         meta_data,
-                    ))
 
             #error_list[inuring_priority] = InuringLayer(
             #    inuring_priority=inuring_priority,
