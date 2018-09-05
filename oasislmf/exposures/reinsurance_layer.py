@@ -144,8 +144,8 @@ class ReinsuranceLayer(object):
         self.accounts = accounts
         self.locations = locations
 
-        self.coverages = items
-        self.items = coverages
+        self.coverages = coverages
+        self.items = items
         self.fm_xrefs = fm_xrefs
         self.xref_descriptions = xref_descriptions
 
