@@ -783,6 +783,12 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         gcep = canonical_profiles_fm_terms_grouped_by_level_and_term_type(canonical_profiles=(cep,))
 
+        if not gcep:
+            raise OasisException(
+                'Canonical loc. profile is possibly missing FM term information: '
+                'FM term definitions for TIV, limit, deductible and/or share.'
+            )
+
         try:
             if not str(canexp_df['row_id'].dtype).startswith('int'):
                 canexp_df['row_id'] = canexp_df['row_id'].astype(int)
@@ -820,7 +826,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
             item_id = 0
             zero_tiv_items = 0
-            positive_tiv_elements = lambda it: [t for t in tiv_elements if it.get(t['ProfileElementName'].lower()) and it[t['ProfileElementName'].lower()] > 0 and t['CoverageTypeID'] == it['coveragetypeid']] or 0
+            positive_tiv_elements = lambda it: [t for t in tiv_elements if it.get(t['ProfileElementName'].lower()) and it[t['ProfileElementName'].lower()] > 0 and t['CoverageTypeID'] == it['coveragetypeid']] or [0]
             
             for it, ptiv in itertools.chain((it, ptiv) for _, it in merged_df.iterrows() for it, ptiv in itertools.product([it],positive_tiv_elements(it))):
                 if ptiv == 0:
