@@ -98,7 +98,7 @@ class OedValidator(object):
             "scope": chcek_scope,
             "messsages": msg,
             "meta_data": info,
-        }    
+        }
 
     def validate(self, account_df, location_df, ri_info_df, ri_scope_df):
         '''
@@ -108,7 +108,7 @@ class OedValidator(object):
 
         #CHECK - Datatypes ri_info
         given_dtypes = ri_info_df.dtypes.to_dict()
-        error_msg = self._check_df_dtypes(given_dtypes, 
+        error_msg = self._check_df_dtypes(given_dtypes,
                                           self.ri_info_expected_dtypes)
         if error_msg:
             error_list.append(self._error_struture(
@@ -118,7 +118,7 @@ class OedValidator(object):
 
         #CHECK - Datatypes ri_scope
         given_dtypes = ri_scope_df.dtypes.to_dict()
-        error_msg = self._check_df_dtypes(given_dtypes, 
+        error_msg = self._check_df_dtypes(given_dtypes,
                                           self.ri_scope_expected_dtypes)
         if error_msg:
             error_list.append(self._error_struture(
@@ -141,14 +141,14 @@ class OedValidator(object):
                 "ri_info_ReinsNumbers": inuring_priority_ri_info_df.ReinsNumber.tolist(),
                 "ri_info_line_nums": [idx+2 for idx in inuring_priority_ri_info_df.index.tolist()],
             }
-            
+
             #CHECK - only single ri_type is set per inuring priority
             if len(reins_types_found) > 1:
                 error_list.append(self._error_struture(
                     "inuring_reins_type",
                     "RI_{}".format(inuring_priority),
                     "Inuring layer must have a unique ReinsType.",
-                    meta_data    
+                    meta_data
                 ))
                 continue
             elif len(reins_types_found) < 1:
@@ -167,7 +167,7 @@ class OedValidator(object):
                     "inuring_reins_type",
                     "RI_{}".format(inuring_priority),
                     "Unsupported ReinsType",
-                    meta_data    
+                    meta_data
                 ))
 
             #CHECK scope of inuring layer
@@ -189,7 +189,7 @@ class OedValidator(object):
                         meta_data,
                     ))
                     continue
-                elif len(scope_risk_levels) < 1:    
+                elif len(scope_risk_levels) < 1:
                     error_list.append(self._error_struture(
                         "inuring_risk_level",
                         "RI_{}".format(inuring_priority),
@@ -314,7 +314,7 @@ def load_oed_dfs(oed_dir, show_all=False):
                 ri_scope_df = ri_scope_df[OED_REINS_SCOPE_FIELDS].copy()
 
         #Ensure Percent feilds are float
-        info_float_cols  = ['CededPercent','PlacementPercent','TreatyPercent'] 
+        info_float_cols  = ['CededPercent','PlacementPercent','TreatyPercent']
         scope_float_cols = ['CededPercent']
         ri_info_df[info_float_cols] =  ri_info_df[info_float_cols].astype(float)
         ri_scope_df[scope_float_cols] =  ri_scope_df[scope_float_cols].astype(float)
@@ -458,7 +458,7 @@ SUPPORTED_RISK_LEVELS = {
     REINS_TYPE_PER_RISK:        [REINS_RISK_LEVEL_LOCATION, REINS_RISK_LEVEL_POLICY, REINS_RISK_LEVEL_ACCOUNT],
     REINS_TYPE_CAT_XL:          [REINS_RISK_LEVEL_PORTFOLIO, REINS_RISK_LEVEL_ACCOUNT],
     REINS_TYPE_QUOTA_SHARE:     REINS_RISK_LEVELS
-}    
+}
 
 # Subset of the fields that are currently used
 OED_ACCOUNT_FIELDS = [
