@@ -132,7 +132,6 @@ class OedValidator(object):
                 'ri_info file',
                 error_msg))
 
-
         #CHECK - Datatypes ri_scope
         given_dtypes = ri_scope_df.dtypes.to_dict()
         error_msg = self._check_df_dtypes(given_dtypes, 
@@ -148,17 +147,33 @@ class OedValidator(object):
             if inuring_priority_ri_info_df.empty:
                 continue
 
+
             inuring_scope_ids = inuring_priority_ri_info_df.ReinsNumber.tolist()
             inuring_scopes = [ri_scope_df[ri_scope_df.ReinsNumber == ID] for ID in inuring_scope_ids]
-
             reins_types_found = inuring_priority_ri_info_df.ReinsType.unique().tolist()
+
+            meta_data = {
+                'InuringPriority':inuring_priority,
+                'ReinsTypes': reins_types_found,
+                'ri_info_ReinsNumbers': inuring_priority_ri_info_df.ReinsNumber.tolist(),
+                'ri_info_line_nums': [idx+2 for idx in inuring_priority_ri_info_df.index.tolist()],
+            }
+            
             #CHECK - only single ri_type is set per inuring priority
-            if len(reins_types_found) != 1:
+            if len(reins_types_found) > 1:
                 error_list.append(self._error_struture(
                     'inuring_reins_type',
                     'RI_{}'.format(inuring_priority),
                     'Inuring layer must have a unique ReinsType.',
-                    inuring_priority_ri_info_df.ReinsType.tolist()    
+                    meta_data    
+                ))
+                continue
+            elif len(reins_types_found) < 1:
+                error_list.append(self._error_struture(
+                    'inuring_reins_type',
+                    'RI_{}'.format(inuring_priority),
+                    'Inuring layer missing a ReinsType.',
+                    meta_data
                 ))
                 continue
 
@@ -169,47 +184,64 @@ class OedValidator(object):
                     'inuring_reins_type',
                     'RI_{}'.format(inuring_priority),
                     'Unsupported ReinsType',
-                    ri_type    
+                    meta_data    
                 ))
 
             #CHECK scope of inuring layer
             for scope_df in inuring_scopes:
                 scope_risk_levels = scope_df.RiskLevel.unique()
+                meta_data = {
+                    **meta_data,
+                    'RiskLevels': scope_risk_levels.tolist(),
+                    'ri_scope_ReinsNumbers': scope_df.ReinsNumber.tolist(),
+                    'ri_scope_line_nums': [idx+2 for idx in scope_df.index.tolist()],
+                }
 
                 # CHECK - each scope only has one risk level type
-                if len(scope_risk_levels) is not 1:
+                if len(scope_risk_levels) > 1:
                     error_list.append(self._error_struture(
                         'inuring_risk_level',
                         'RI_{}'.format(inuring_priority),
-                        '"Mix of risk levels in a single reinsurance scope',
-                        scope_risk_levels.tolist()   
+                        'Mix of risk levels in a single reinsurance scope',
+                        meta_data,
+                    ))
+                    continue
+                elif len(scope_risk_levels) < 1:    
+                    error_list.append(self._error_struture(
+                        'inuring_risk_level',
+                        'RI_{}'.format(inuring_priority),
+                        'inuring layer has no reinsurance scope',
+                        meta_data,
                     ))
                     continue
 
                 # CHECK - Risk level is supported
                 risk_level_id = scope_risk_levels[0]
-                if risk_level_id not in REINS_RISK_LEVELS:
+                if risk_level_id not in SUPPORTED_RISK_LEVELS[ri_type]:
                     error_list.append(self._error_struture(
                         'inuring_risk_level',
                         'RI_{}'.format(inuring_priority),
                         "Unsupported risk level",
+                        meta_data,
                     ))
 
-                # CHECK - that scope is not specific for SS
-                if ri_type in [REINS_TYPE_SURPLUS_SHARE] and not self._all_scope_specific(scope_df):
-                    error_list.append(self._error_struture(
-                        'inuring_scope_non_specific',
-                        'RI_{}'.format(inuring_priority),
-                        "{} cannot have non-specific scopes".format(ri_type),
-                    ))
+                ### CHECK - that scope is not specific for SS
+                #if ri_type in [REINS_TYPE_SURPLUS_SHARE] and not self._all_scope_specific(scope_df):
+                #    error_list.append(self._error_struture(
+                #        'inuring_scope_non_specific',
+                #        'RI_{}'.format(inuring_priority),
+                #        "{} cannot have non-specific scopes".format(ri_type),
+                #         meta_data,
+                #    ))
 
-                # CHECK - that scope is all specific for QS
-                if ri_type in [REINS_TYPE_QUOTA_SHARE] and not self._all_scope_non_specific(scope_df):
-                    error_list.append(self._error_struture(
-                        'inuring_scope_specific',
-                        'RI_{}'.format(inuring_priority),
-                        "{} cannot have specific scopes".format(ri_type),
-                    ))
+                ## CHECK - that scope is all specific for QS
+                #if ri_type in [REINS_TYPE_QUOTA_SHARE] and not self._all_scope_non_specific(scope_df):
+                #    error_list.append(self._error_struture(
+                #        'inuring_scope_specific',
+                #        'RI_{}'.format(inuring_priority),
+                #        "{} cannot have specific scopes".format(ri_type),
+                #         meta_data,
+                #    ))
 
                 # CHECK - all links in scope connect to rows in account/location
                 if not self._all_links_valid(scope_df,  account_df, location_df):
@@ -217,6 +249,7 @@ class OedValidator(object):
                         'inuring_scope_links',
                         'RI_{}'.format(inuring_priority),
                         "Non-linking scopes between ri_scope and (ACC,LOC) files",
+                         meta_data,
                     ))
 
             #error_list[inuring_priority] = InuringLayer(
@@ -414,6 +447,14 @@ REINS_RISK_LEVELS = [
     REINS_RISK_LEVEL_PORTFOLIO,
 ]
 
+
+SUPPORTED_RISK_LEVELS = {
+    REINS_TYPE_FAC:             [REINS_RISK_LEVEL_LOCATION, REINS_RISK_LEVEL_POLICY, REINS_RISK_LEVEL_ACCOUNT],
+    REINS_TYPE_SURPLUS_SHARE:   [REINS_RISK_LEVEL_LOCATION, REINS_RISK_LEVEL_POLICY, REINS_RISK_LEVEL_ACCOUNT],
+    REINS_TYPE_PER_RISK:        [REINS_RISK_LEVEL_LOCATION, REINS_RISK_LEVEL_POLICY, REINS_RISK_LEVEL_ACCOUNT],
+    REINS_TYPE_CAT_XL:          [REINS_RISK_LEVEL_PORTFOLIO, REINS_RISK_LEVEL_ACCOUNT],
+    REINS_TYPE_QUOTA_SHARE:     REINS_RISK_LEVELS
+}    
 
 # Subset of the fields that are currently used
 OED_ACCOUNT_FIELDS = [
