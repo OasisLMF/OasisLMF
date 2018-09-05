@@ -41,7 +41,7 @@ class OedValidator(object):
             'PortfolioNumber':  int_or_float,
             'AccountNumber':    int_or_float,
             'PolicyNumber':     int_or_float,
-            'LocationNumber':   object_or_str,
+            'LocationNumber':   int_or_float+object_or_str,
             'RiskLevel':        object_or_str,
             'CededPercent':     float_only}
 
@@ -175,7 +175,6 @@ class OedValidator(object):
             #CHECK scope of inuring layer
             for scope_df in inuring_scopes:
                 scope_risk_levels = scope_df.RiskLevel.unique()
-                risk_level_id = scope_risk_levels[0]
 
                 # CHECK - each scope only has one risk level type
                 if len(scope_risk_levels) is not 1:
@@ -188,6 +187,7 @@ class OedValidator(object):
                     continue
 
                 # CHECK - Risk level is supported
+                risk_level_id = scope_risk_levels[0]
                 if risk_level_id not in REINS_RISK_LEVELS:
                     error_list.append(self._error_struture(
                         'inuring_risk_level',
@@ -275,6 +275,13 @@ def load_oed_dfs(oed_dir, show_all=False):
             if do_reinsurance:
                 ri_info_df = ri_info_df[OED_REINS_INFO_FIELDS].copy()
                 ri_scope_df = ri_scope_df[OED_REINS_SCOPE_FIELDS].copy()
+
+        #Ensure Percent feilds are float
+        info_float_cols  = ['CededPercent','PlacementPercent','TreatyPercent'] 
+        scope_float_cols = ['CededPercent']
+        ri_info_df[info_float_cols] =  ri_info_df[info_float_cols].astype(float)
+        ri_scope_df[scope_float_cols] =  ri_scope_df[scope_float_cols].astype(float)
+
     return (account_df, location_df, ri_info_df, ri_scope_df, do_reinsurance)
 
 
