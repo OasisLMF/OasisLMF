@@ -14,7 +14,7 @@ import shutil
 import json
 from collections import namedtuple
 
-from oasislmf.exposures import oed  
+from oasislmf.exposures import oed
 
 
 # Meta-data about an inuring layer
@@ -36,7 +36,7 @@ def generate_files_for_reinsurance(
     """
     Generate files for reinsurance.
     """
-    
+
     inuring_metadata = {}
     previous_inuring_priority = None
     previous_risk_level = None
@@ -70,7 +70,7 @@ def generate_files_for_reinsurance(
                 'inuring_priority': inuring_priority,
                 'risk_level': risk_level,
                 'directory': written_to_dir,
-            }    
+            }
             previous_inuring_priority = inuring_priority
             previous_risk_level = risk_level
             reinsurance_index = reinsurance_index + 1
