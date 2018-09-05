@@ -18,6 +18,36 @@ class OedValidator(object):
         self.rules_ode_scope = ri_info_rules
         self.rules_ode_info = ri_scope_rules
 
+
+        int_or_float  = [pd.np.dtype('int64'), pd.np.dtype('float64')]
+        float_only    = [pd.np.dtype('float64')]
+        int_only    = [pd.np.dtype('int64')]
+        object_or_str = [pd.np.dtype('O'), str]
+
+        self.ri_info_expected_dtypes = {
+            'ReinsNumber':              int_or_float,
+            'ReinsLayerNumber':         int_or_float,
+            'CededPercent':             float_only,
+            'RiskLimit':                int_or_float,
+            'RiskAttachmentPoint':      int_or_float,
+            'OccLimit':                 int_or_float,
+            'OccurenceAttachmentPoint': int_or_float,
+            'InuringPriority':          int_or_float,
+            'ReinsType':                object_or_str,
+            'PlacementPercent':         float_only,
+            'TreatyPercent':            float_only}
+        self.ri_scope_expected_dtypes = {
+            'ReinsNumber':      int_or_float,
+            'PortfolioNumber':  int_or_float,
+            'AccountNumber':    int_or_float,
+            'PolicyNumber':     int_or_float,
+            'LocationNumber':   object_or_str,
+            'RiskLevel':        object_or_str,
+            'CededPercent':     float_only}
+
+        self.error_structure = {
+        }
+
     def _has_reins_type(self, reins_info_df, reins_type):
         '''
         Is there any <reins_type>?
@@ -51,10 +81,10 @@ class OedValidator(object):
             return (False, "Column header mismatch")
 
         for col in dtypes_expected.keys():
-            if not dtypes_expected[col] == dtypes_given[col]:
+            if dtypes_given[col] not in dtypes_expected[col]:
                 msg_type_check.append(msg_string.format(
                     col, dtypes_expected[col], dtypes_given[col]))
-        return (len(msg_type_check) == 0, msg_type_check)
+        return msg_type_check
 
 
     def _all_links_valid(self, scope_df, account_df, location_df):
@@ -78,112 +108,124 @@ class OedValidator(object):
                          ]].notnull().all().all()
 
 
+    def _error_struture(self, check_type, chcek_scope, msg, info=''):
+        return {
+            'check': check_type,
+            'scope': chcek_scope,
+            'messsages': msg,
+            'meta_data': info,
+        }    
+
     def validate(self, account_df, location_df, ri_info_df, ri_scope_df):
         '''
         Validate OED resinurance structure before running calculations.
         '''
-
-        main_is_valid = True
-        inuring_layers = {}
+        error_list = []
 
         #CHECK - Datatypes ri_info
         given_dtypes = ri_info_df.dtypes.to_dict()
-        expected_dtypes = {
-            'ReinsNumber':              pd.np.dtype('int64'),
-            'ReinsLayerNumber':         pd.np.dtype('int64'),
-            'CededPercent':             pd.np.dtype('float64'),
-            'RiskLimit':                pd.np.dtype('float64'),
-            'RiskAttachmentPoint':      pd.np.dtype('float64'),
-            'OccLimit':                 pd.np.dtype('float64'),
-            'OccurenceAttachmentPoint': pd.np.dtype('float64'),
-            'InuringPriority':          pd.np.dtype('int64'),
-            'ReinsType':                pd.np.dtype('O'),
-            'PlacementPercent':         pd.np.dtype('float64'),
-            'TreatyPercent':            pd.np.dtype('float64')}
-        main_is_valid, inuring_layers['ri_info'] = self._check_df_dtypes(given_dtypes, expected_dtypes)
+        error_msg = self._check_df_dtypes(given_dtypes, 
+                                          self.ri_info_expected_dtypes)
+        if error_msg:
+            error_list.append(self._error_struture(
+                'datatypes',
+                'ri_info file',
+                error_msg))
+
 
         #CHECK - Datatypes ri_scope
         given_dtypes = ri_scope_df.dtypes.to_dict()
-        expected_dtypes = {
-            'ReinsNumber':      pd.np.dtype('int64'),
-            'PortfolioNumber':  pd.np.dtype('int64'),
-            'AccountNumber':    pd.np.dtype('float64'),
-            'PolicyNumber':     pd.np.dtype('int64'),
-            'LocationNumber':   pd.np.dtype('O'),
-            'RiskLevel':        pd.np.dtype('O'),
-            'CededPercent':     pd.np.dtype('float64')}
-        main_is_valid, inuring_layers['ri_scope'] = self._check_df_dtypes(given_dtypes, expected_dtypes)
+        error_msg = self._check_df_dtypes(given_dtypes, 
+                                          self.ri_scope_expected_dtypes)
+        if error_msg:
+            error_list.append(self._error_struture(
+                'datatypes',
+                'ri_info file',
+                error_msg))
 
         for inuring_priority in range(1, ri_info_df['InuringPriority'].max() + 1):
             inuring_priority_ri_info_df = ri_info_df[ri_info_df.InuringPriority == inuring_priority]
             if inuring_priority_ri_info_df.empty:
                 continue
 
-            is_valid = True
-            validation_messages = []
-
             inuring_scope_ids = inuring_priority_ri_info_df.ReinsNumber.tolist()
             inuring_scopes = [ri_scope_df[ri_scope_df.ReinsNumber == ID] for ID in inuring_scope_ids]
 
-            for ri_type in REINS_TYPES:
-                #CHECK - ri_type is supported
-                if self._has_reins_type(inuring_priority_ri_info_df,ri_type):
-                    #CHECK - only single ri_type is set per inuring priority
-                    if not self._unique_reins(inuring_priority_ri_info_df):
-                        is_valid = False
-                        validation_messages.append(
-                            "{} cannot be combined with other reinsurance types".format(ri_type))
+            reins_types_found = inuring_priority_ri_info_df.ReinsType.unique().tolist()
+            #CHECK - only single ri_type is set per inuring priority
+            if len(reins_types_found) != 1:
+                error_list.append(self._error_struture(
+                    'inuring_reins_type',
+                    'RI_{}'.format(inuring_priority),
+                    'Inuring layer must have a unique ReinsType.',
+                    inuring_priority_ri_info_df.ReinsType.tolist()    
+                ))
+                continue
 
-                    for scope_df in inuring_scopes:
-                        scope_risk_levels = scope_df.RiskLevel.unique()
-                        risk_level_id = scope_risk_levels[0]
+            #CHECK - ri_type is supported
+            ri_type = reins_types_found[0]
+            if ri_type not in REINS_TYPES:
+                error_list.append(self._error_struture(
+                    'inuring_reins_type',
+                    'RI_{}'.format(inuring_priority),
+                    'Unsupported ReinsType',
+                    ri_type    
+                ))
 
-                        # CHECK - each scope only has one risk level type
-                        if len(scope_risk_levels) is not 1:
-                            is_valid = False
-                            validation_messages.append(
-                                "Mix of risk levels in a single reinsurance scope")
-                            continue
+            #CHECK scope of inuring layer
+            for scope_df in inuring_scopes:
+                scope_risk_levels = scope_df.RiskLevel.unique()
+                risk_level_id = scope_risk_levels[0]
 
-                        # CHECK - Risk level is supported
-                        if risk_level_id not in REINS_RISK_LEVELS:
-                            is_valid = False
-                            validation_messages.append(
-                                "Unsupported risk level, {}".format(' '.join(risk_level_id)))
+                # CHECK - each scope only has one risk level type
+                if len(scope_risk_levels) is not 1:
+                    error_list.append(self._error_struture(
+                        'inuring_risk_level',
+                        'RI_{}'.format(inuring_priority),
+                        '"Mix of risk levels in a single reinsurance scope',
+                        scope_risk_levels.tolist()   
+                    ))
+                    continue
 
-                        # CHECK - that scope is not specific for SS
-                        if ri_type in [REINS_TYPE_SURPLUS_SHARE] and not self._all_scope_specific(scope_df):
-                            is_valid = False
-                            validation_messages.append(
-                                "SS cannot have non-specific scopes")
+                # CHECK - Risk level is supported
+                if risk_level_id not in REINS_RISK_LEVELS:
+                    error_list.append(self._error_struture(
+                        'inuring_risk_level',
+                        'RI_{}'.format(inuring_priority),
+                        "Unsupported risk level",
+                    ))
 
-                        # CHECK - that scope is all specific for QS
-                        if ri_type in [REINS_TYPE_QUOTA_SHARE] and not self._all_scope_non_specific(scope_df):
-                            is_valid = False
-                            validation_messages.append(
-                                "QS cannot have specific scopes set")
+                # CHECK - that scope is not specific for SS
+                if ri_type in [REINS_TYPE_SURPLUS_SHARE] and not self._all_scope_specific(scope_df):
+                    error_list.append(self._error_struture(
+                        'inuring_scope_non_specific',
+                        'RI_{}'.format(inuring_priority),
+                        "{} cannot have non-specific scopes".format(ri_type),
+                    ))
 
-                        # CHECK - all links in scope connect to rows in account/location
-                        if not self._all_links_valid(scope_df,  account_df, location_df):
-                            is_valid = False
-                            validation_messages.append(
-                                "Non-linking scopes between ri_scope and (ACC,LOC) files")
+                # CHECK - that scope is all specific for QS
+                if ri_type in [REINS_TYPE_QUOTA_SHARE] and not self._all_scope_non_specific(scope_df):
+                    error_list.append(self._error_struture(
+                        'inuring_scope_specific',
+                        'RI_{}'.format(inuring_priority),
+                        "{} cannot have specific scopes".format(ri_type),
+                    ))
 
-                    else:
-                        is_valid = False
-                        validation_messages.append("{} not implemented".format(ri_type))
-                        continue
+                # CHECK - all links in scope connect to rows in account/location
+                if not self._all_links_valid(scope_df,  account_df, location_df):
+                    error_list.append(self._error_struture(
+                        'inuring_scope_links',
+                        'RI_{}'.format(inuring_priority),
+                        "Non-linking scopes between ri_scope and (ACC,LOC) files",
+                    ))
 
-            if not is_valid:
-                main_is_valid = False
-
-            inuring_layers[inuring_priority] = InuringLayer(
-                inuring_priority=inuring_priority,
-                reins_numbers=inuring_priority_ri_info_df.ReinsNumber,
-                is_valid=is_valid,
-                validation_messages=validation_messages
-            )
-        return (main_is_valid, inuring_layers)
+            #error_list[inuring_priority] = InuringLayer(
+            #    inuring_priority=inuring_priority,
+            #    reins_numbers=inuring_priority_ri_info_df.ReinsNumber,
+            #    is_valid=is_valid,
+            #    validation_messages=validation_messages
+            #)
+        return (not error_list, error_list)
 
 # -----------------------------------------------------------------------------#
 #
