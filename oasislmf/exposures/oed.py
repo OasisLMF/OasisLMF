@@ -71,8 +71,6 @@ class OedValidator(object):
         msg_string = "Type error in column '{}': expected '{}'  found '{}'"
 
         if not len(set(dtypes_given.keys()) - set(dtypes_expected.keys())) == 0:
-            print(dtypes_given.keys())
-            print(dtypes_expected.keys())
             return (False, "Column header mismatch")
 
         for col in dtypes_expected.keys():
