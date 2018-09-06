@@ -259,18 +259,37 @@ class ReinsuranceLayer(object):
             ))
         return (node_summary == scope_row_summary)
 
-    # More generic but slower (testing only)
-    def _match_node(self, node, search_dict):
-        node_dict = {
-            'AccountNumber':  node.account_number,
-            'PolicyNumber':   node.policy_number,
-            'LocationNumber': node.location_number,
-        }
-        self.logger.debug('Matching node: \n\t node: {}, \n\t search: {}'.format(
-            str(node_dict),
-            str(search_dict),
-        ))
-        return search_dict.items() <= node_dict.items()
+    ## More generic but slower (testing only)
+    #def _match_node(self, node, search_dict):
+    #    node_dict = {
+    #        'AccountNumber':  node.account_number,
+    #        'PolicyNumber':   node.policy_number,
+    #        'LocationNumber': node.location_number,
+    #    }
+    #    self.logger.debug('Matching node: \n\t node: {}, \n\t search: {}'.format(
+    #        str(node_dict),
+    #        str(search_dict),
+    #    ))
+    #    return search_dict.items() <= node_dict.items()
+
+    def _filter_nodes(self, nodes_list, scope_row):
+        """
+        Return subset of `nodes_list` based on values of a row in `ri_scope.csv`
+
+        TODO: Combined filters?
+        """
+        if (scope_row.RiskLevel == oed.REINS_RISK_LEVEL_ACCOUNT) and self._is_defined(scope_row.AccountNumber):
+            return list(filter(lambda n: n.account_number == scope_row.AccountNumber, nodes_list))
+        elif scope_row.RiskLevel == oed.REINS_RISK_LEVEL_LOCATION and self._is_defined(scope_row.LocationNumber):
+            return list(filter(lambda n: n.location_number == scope_row.LocationNumber, nodes_list))
+        elif scope_row.RiskLevel == oed.REINS_RISK_LEVEL_POLICY and self._is_defined(scope_row.PolicyNumber):
+            return list(filter(lambda n: n.policy_number == scope_row.PolicyNumber, nodes_list))
+        elif scope_row.RiskLevel == oed.REINS_RISK_LEVEL_PORTFOLIO and self._is_defined(scope_row.PortfolioNumber):
+            return list(filter(lambda n: n.policy_number == scope_row.PortfolioNumber, nodes_list))
+        else:
+            return nodes_list
+
+
 
     def _is_defined(self, num_to_check):
         # If the value = NaN it will return False
@@ -386,16 +405,7 @@ class ReinsuranceLayer(object):
         ))
 
         for _, ri_scope_row in add_profiles_args.scope_rows.iterrows():
-            # Filter
-            if (ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_ACCOUNT) and self._is_defined(ri_scope_row.AccountNumber):
-                selected_nodes = list(filter(lambda n: n.account_number == ri_scope_row.AccountNumber, nodes_all))
-            elif ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_LOCATION and  self._is_defined(ri_scope_row.LocationNumber):
-                selected_nodes = list(filter(lambda n: n.location_number == ri_scope_row.LocationNumber, nodes_all))
-            elif ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_POLICY and self._is_defined(ri_scope_row.PolicyNumber):
-                selected_nodes = list(filter(lambda n: n.policy_number == ri_scope_row.PolicyNumber, nodes_all))
-            else:
-                selected_nodes = nodes_all
-
+            selected_nodes = self._filter_nodes(nodes_all, ri_scope_row)
             for node in selected_nodes:
                 add_profiles_args.node_layer_profile_map[(
                     node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
@@ -494,18 +504,10 @@ class ReinsuranceLayer(object):
                     ))
 
                 # Filter
-                if (ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_ACCOUNT) and self._is_defined(ri_scope_row.AccountNumber):
-                    selected_nodes = list(filter(lambda n: n.account_number == ri_scope_row.AccountNumber, nodes_all))
-                elif ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_LOCATION and  self._is_defined(ri_scope_row.LocationNumber):
-                    selected_nodes = list(filter(lambda n: n.location_number == ri_scope_row.LocationNumber, nodes_all))
-                elif ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_POLICY and self._is_defined(ri_scope_row.PolicyNumber):
-                    selected_nodes = list(filter(lambda n: n.policy_number == ri_scope_row.PolicyNumber, nodes_all))
-                else:
-                    selected_nodes = nodes_all
+                selected_nodes = self._filter_nodes(nodes_all, ri_scope_row)
                 for node in selected_nodes:
                     add_profiles_args.node_layer_profile_map[(
                         node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
-
 
         # add OccLimit / Placed Percent
         profile_id = profile_id + 1
@@ -550,18 +552,10 @@ class ReinsuranceLayer(object):
                 )
 
                 # Filter
-                if (ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_ACCOUNT) and self._is_defined(ri_scope_row.AccountNumber):
-                    selected_nodes = list(filter(lambda n: n.account_number == ri_scope_row.AccountNumber, nodes_all))
-                elif ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_LOCATION and  self._is_defined(ri_scope_row.LocationNumber):
-                    selected_nodes = list(filter(lambda n: n.location_number == ri_scope_row.LocationNumber, nodes_all))
-                elif ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_POLICY and self._is_defined(ri_scope_row.PolicyNumber):
-                    selected_nodes = list(filter(lambda n: n.policy_number == ri_scope_row.PolicyNumber, nodes_all))
-                else:
-                    selected_nodes = nodes_all
+                selected_nodes = self._filter_nodes(nodes_all, ri_scope_row)
                 for node in selected_nodes:
                     add_profiles_args.node_layer_profile_map[(
                         node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
-
 
             # add OccLimit / Placed Percent
             profile_id = profile_id + 1
