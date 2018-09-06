@@ -39,8 +39,8 @@ class OedValidator(object):
         self.ri_scope_expected_dtypes = {
             'ReinsNumber':      int_or_float,
             'PortfolioNumber':  int_or_float,
-            'AccountNumber':    int_or_float,
-            'PolicyNumber':     int_or_float,
+            'AccountNumber':    int_or_float+object_or_str,
+            'PolicyNumber':     int_or_float+object_or_str,
             'LocationNumber':   int_or_float+object_or_str,
             'RiskLevel':        object_or_str,
             'CededPercent':     float_only}
