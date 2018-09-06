@@ -70,7 +70,9 @@ class OedValidator(object):
         msg_type_check = []
         msg_string = "Type error in column '{}': expected '{}'  found '{}'"
 
-        if not dtypes_given.keys() == dtypes_expected.keys():
+        if not len(set(dtypes_given.keys()) - set(dtypes_expected.keys())) == 0:
+            print(dtypes_given.keys())
+            print(dtypes_expected.keys())
             return (False, "Column header mismatch")
 
         for col in dtypes_expected.keys():
@@ -173,13 +175,11 @@ class OedValidator(object):
             #CHECK scope of inuring layer
             for scope_df in inuring_scopes:
                 scope_risk_levels = scope_df.RiskLevel.unique()
-                meta_data = {
-                    **meta_data,
-                    "RiskLevels": scope_risk_levels.tolist(),
-                    "ri_scope_ReinsNumber": scope_df.ReinsNumber.tolist(),
-                    "ri_scope_line_nums": [idx+2 for idx in scope_df.index.tolist()],
-                }
-
+                meta_data.update({
+                        "RiskLevels": scope_risk_levels.tolist(),
+                        "ri_scope_ReinsNumber": scope_df.ReinsNumber.tolist(),
+                        "ri_scope_line_nums": [idx+2 for idx in scope_df.index.tolist()],
+                })
                 # CHECK - each scope only has one risk level type
                 if len(scope_risk_levels) > 1:
                     error_list.append(self._error_struture(
@@ -228,38 +228,42 @@ class OedValidator(object):
 
                 err_acc_nums = self._find_missing(scope_df, "AccountNumber",   account_df)
                 if err_acc_nums:
+                    meta_data.update({"missing_values": err_acc_nums})
                     error_list.append(self._error_struture(
                         "missing_scope_link",
                         "RI_{}".format(inuring_priority),
                         "Non-linking 'AccountNumber' between ri_scope and account files",
-                         {**meta_data, "missing_values": err_acc_nums}
+                        meta_data,
                     ))
 
                 err_acc_nums2 = self._find_missing(scope_df, "AccountNumber",   location_df)
                 if err_acc_nums2:
+                    meta_data.update({"missing_values": err_acc_nums2})
                     error_list.append(self._error_struture(
                         "missing_scope_link",
                         "RI_{}".format(inuring_priority),
                         "Non-linking 'AccountNumber' between ri_scope and location files",
-                         {**meta_data, "missing_values": err_acc_nums2}
+                        meta_data,
                     ))
 
                 err_pol_nums = self._find_missing(scope_df, "PolicyNumber",    account_df)
                 if err_pol_nums:
+                    meta_data.update({"missing_values": err_pol_nums})
                     error_list.append(self._error_struture(
                         "missing_scope_link",
                         "RI_{}".format(inuring_priority),
                         "Non-linking 'PolicyNumber' between ri_scope and account",
-                         {**meta_data, "missing_values": err_pol_nums}
+                        meta_data,
                     ))
 
                 err_loc_nums = self._find_missing(scope_df, "LocationNumber",  location_df)
                 if err_loc_nums:
+                    meta_data.update({"missing_values": err_loc_nums})
                     error_list.append(self._error_struture(
                         "missing_scope_link",
                         "RI_{}".format(inuring_priority),
                         "Non-linking 'LocationNumber' between ri_scope and account",
-                         {**meta_data, "missing_values": err_loc_nums}
+                        meta_data,
                     ))
 
         return (not error_list, error_list)
