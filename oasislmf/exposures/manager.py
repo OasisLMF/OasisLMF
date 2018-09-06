@@ -938,7 +938,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 tuple(cangul_df.shr_elm.values)           # 17 -share element
             ))
 
-            get_canacc_item = lambda i: canacc_df[(canacc_df['accntnum'] == cangul_df.iloc[coverage_level_preset_data[i][4]]['accntnum']) & (canacc_df['policynum'].str.lower() == 'layer1')].iloc[0]
+            get_canacc_item = lambda i: canacc_df[(canacc_df['accntnum'] == cangul_df.iloc[coverage_level_preset_data[i][4]]['accntnum'])].iloc[0]
 
             get_canacc_id = lambda i: int(get_canacc_item(i)['index'])
 
@@ -1042,10 +1042,8 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             keys_df.columns = keys_df.columns.str.lower()
             keys_df['index'] = pd.Series(data=keys_df.index, dtype=int)
 
-            gul_items_df = pd.DataFrame(data=list(self.generate_gul_items(cep, canexp_df, keys_df)), dtype=object)
+            gul_items_df = pd.DataFrame(data=[it for it in self.generate_gul_items(cep, canexp_df, keys_df)], dtype=object)
             gul_items_df['index'] = pd.Series(data=gul_items_df.index, dtype=int)
-
-
 
             columns = list(gul_items_df.columns)
 
