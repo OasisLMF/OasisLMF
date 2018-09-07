@@ -527,7 +527,7 @@ FmSummaryXref = namedtuple(
 FmXref = namedtuple(
     "FmXref", "output_id agg_id layer_id")
 XrefDescription = namedtuple(
-    "Description", ("xref_id policy_number account_number location_number coverage_type_id peril_id tiv"))
+    "Description", ("xref_id portfolio_number policy_number account_number location_number coverage_type_id peril_id tiv"))
 GulRecord = namedtuple(
     "GulRecord", "event_id item_id sidx loss")
 
