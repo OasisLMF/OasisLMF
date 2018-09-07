@@ -1128,8 +1128,10 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             get_policytc_id = lambda i: [k for k in six.iterkeys(policytc_ids) if policytc_ids[k] == {k:fm_items[i][k] for k in ('limit', 'deductible', 'share', 'calcrule_id',)}][0]
             fm_items_df['policytc_id'] = fm_items_df['index'].apply(lambda i: get_policytc_id(i))
 
+            bookend_fm_levels = [fm_items_df['level_id'].min(), fm_items_df['level_id'].max()]
+
             if reduced:
-                fm_items_df = fm_items_df[fm_items_df['level_id'] > 1][(fm_items_df['limit'] != 0) | (fm_items_df['deductible'] != 0) | (fm_items_df['share'] != 0)]
+                fm_items_df = fm_items_df[(fm_items_df['level_id'].isin(bookend_fm_levels)) | (fm_items_df['limit'] != 0) | (fm_items_df['deductible'] != 0) | (fm_items_df['share'] != 0)]
 
                 fm_items_df['index'] = range(len(fm_items_df))
 
