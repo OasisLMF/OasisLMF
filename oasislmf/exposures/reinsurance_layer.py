@@ -224,70 +224,73 @@ class ReinsuranceLayer(object):
 
 
 
-    def _does_location_node_match_scope_row(self, node, ri_scope_row):
-        node_summary = (node.account_number,
-                        node.policy_number, node.location_number)
-        scope_row_summary = (ri_scope_row.AccountNumber,
-                             ri_scope_row.PolicyNumber, ri_scope_row.LocationNumber)
-        if (node_summary == scope_row_summary):
-            self.logger.debug('Matching node: location to scope\n node: {}, ri_scope: {}'.format(
-                str(node_summary),
-                str(scope_row_summary),
-            ))
-        return (node_summary == scope_row_summary)
+#    def _does_location_node_match_scope_row(self, node, ri_scope_row):
+#        node_summary = (node.account_number,
+#                        node.policy_number, node.location_number)
+#        scope_row_summary = (ri_scope_row.AccountNumber,
+#                             ri_scope_row.PolicyNumber, ri_scope_row.LocationNumber)
+#        if (node_summary == scope_row_summary):
+#            self.logger.debug('Matching node: location to scope\n node: {}, ri_scope: {}'.format(
+#                str(node_summary),
+#                str(scope_row_summary),
+#            ))
+#        return (node_summary == scope_row_summary)
+#
+#    def _does_policy_node_match_scope_row(self, node, ri_scope_row):
+#        node_summary = (node.account_number,
+#                        node.policy_number, oed.NOT_SET_ID)
+#        scope_row_summary = (ri_scope_row.AccountNumber, ri_scope_row.PolicyNumber, oed.NOT_SET_ID)
+#        if (node_summary == scope_row_summary):
+#            self.logger.debug('Matching node: policy to scope\n node: {}, ri_scope: {}'.format(
+#                str(node_summary),
+#                str(scope_row_summary),
+#            ))
+#        return (node_summary == scope_row_summary)
+#
+#    def _does_account_node_match_scope_row(self, node, ri_scope_row):
+#        node_summary = (node.account_number,
+#                        oed.NOT_SET_ID, oed.NOT_SET_ID)
+#        scope_row_summary = (ri_scope_row.AccountNumber,
+#                             oed.NOT_SET_ID, oed.NOT_SET_ID)
+#        if (node_summary == scope_row_summary):
+#            self.logger.debug('Matching node: account to scope\n node: {}, ri_scope: {}'.format(
+#                str(node_summary),
+#                str(scope_row_summary),
+#            ))
+#        return (node_summary == scope_row_summary)
 
-    def _does_policy_node_match_scope_row(self, node, ri_scope_row):
-        node_summary = (node.account_number,
-                        node.policy_number, oed.NOT_SET_ID)
-        scope_row_summary = (ri_scope_row.AccountNumber, ri_scope_row.PolicyNumber, oed.NOT_SET_ID)
-        if (node_summary == scope_row_summary):
-            self.logger.debug('Matching node: policy to scope\n node: {}, ri_scope: {}'.format(
-                str(node_summary),
-                str(scope_row_summary),
-            ))
-        return (node_summary == scope_row_summary)
 
-    def _does_account_node_match_scope_row(self, node, ri_scope_row):
-        node_summary = (node.account_number,
-                        oed.NOT_SET_ID, oed.NOT_SET_ID)
-        scope_row_summary = (ri_scope_row.AccountNumber,
-                             oed.NOT_SET_ID, oed.NOT_SET_ID)
-        if (node_summary == scope_row_summary):
-            self.logger.debug('Matching node: account to scope\n node: {}, ri_scope: {}'.format(
-                str(node_summary),
-                str(scope_row_summary),
-            ))
-        return (node_summary == scope_row_summary)
-
-    ## More generic but slower (testing only)
-    #def _match_node(self, node, search_dict):
-    #    node_dict = {
-    #        'AccountNumber':  node.account_number,
-    #        'PolicyNumber':   node.policy_number,
-    #        'LocationNumber': node.location_number,
-    #    }
-    #    self.logger.debug('Matching node: \n\t node: {}, \n\t search: {}'.format(
-    #        str(node_dict),
-    #        str(search_dict),
-    #    ))
-    #    return search_dict.items() <= node_dict.items()
-
-    def _filter_nodes(self, nodes_list, scope_row):
+    def _filter_nodes(self, nodes_list, scope_row, filter_by_fields=None):
         """
         Return subset of `nodes_list` based on values of a row in `ri_scope.csv`
 
-        TODO: Combined filters?
+        nodes_list: list of anytree nodes (should be level==2)
+        scope_row: current scope row of dataframe to base filtering on
+        filter_by_fields: Apply all filters to columns of scope_row in list
+                       ['AccountNumber', 'LocationNumber', 'PolicyNumber', 'PortfolioNumber']
         """
-        if (scope_row.RiskLevel == oed.REINS_RISK_LEVEL_ACCOUNT) and self._is_defined(scope_row.AccountNumber):
-            return list(filter(lambda n: n.account_number == scope_row.AccountNumber, nodes_list))
-        elif scope_row.RiskLevel == oed.REINS_RISK_LEVEL_LOCATION and self._is_defined(scope_row.LocationNumber):
-            return list(filter(lambda n: n.location_number == scope_row.LocationNumber, nodes_list))
-        elif scope_row.RiskLevel == oed.REINS_RISK_LEVEL_POLICY and self._is_defined(scope_row.PolicyNumber):
-            return list(filter(lambda n: n.policy_number == scope_row.PolicyNumber, nodes_list))
-        elif scope_row.RiskLevel == oed.REINS_RISK_LEVEL_PORTFOLIO and self._is_defined(scope_row.PortfolioNumber):
-            return list(filter(lambda n: n.policy_number == scope_row.PortfolioNumber, nodes_list))
+        if filter_by_fields:
+            selected_nodes = nodes_list
+            if ('AccountNumber' in filter_by_fields) and self._is_defined(scope_row.AccountNumber):
+                    selected_nodes = list(filter(lambda n: n.account_number == scope_row.AccountNumber, selected_nodes))
+            if ('LocationNumber' in filter_by_fields) and self._is_defined(scope_row.LocationNumber):
+                    selected_nodes = list(filter(lambda n: n.location_number == scope_row.LocationNumber, selected_nodes))
+            if ('PolicyNumber' in filter_by_fields) and self._is_defined(scope_row.PolicyNumber):
+                    selected_nodes = list(filter(lambda n: n.policy_number == scope_row.PolicyNumber, selected_nodes))
+            if ('PortfolioNumber' in filter_by_fields) and self._is_defined(scope_row.PortfolioNumber):
+                    selected_nodes = list(filter(lambda n: n.account_number == scope_row.PortfolioNumber, selected_nodes))
+            return selected_nodes
         else:
-            return nodes_list
+            if (scope_row.RiskLevel == oed.REINS_RISK_LEVEL_ACCOUNT) and self._is_defined(scope_row.AccountNumber):
+                return list(filter(lambda n: n.account_number == scope_row.AccountNumber, nodes_list))
+            elif scope_row.RiskLevel == oed.REINS_RISK_LEVEL_LOCATION and self._is_defined(scope_row.LocationNumber):
+                return list(filter(lambda n: n.location_number == scope_row.LocationNumber, nodes_list))
+            elif scope_row.RiskLevel == oed.REINS_RISK_LEVEL_POLICY and self._is_defined(scope_row.PolicyNumber):
+                return list(filter(lambda n: n.policy_number == scope_row.PolicyNumber, nodes_list))
+            elif scope_row.RiskLevel == oed.REINS_RISK_LEVEL_PORTFOLIO and self._is_defined(scope_row.PortfolioNumber):
+                return list(filter(lambda n: n.policy_number == scope_row.PortfolioNumber, nodes_list))
+            else:
+                return nodes_list
 
 
 
@@ -351,8 +354,9 @@ class ReinsuranceLayer(object):
 
     def _add_fac_profiles(self, add_profiles_args):
         self.logger.debug("Adding FAC profiles:")
-        profile_id = max(
-            x.profile_id for x in add_profiles_args.fmprofiles_list)
+        profile_id = max( x.profile_id for x in add_profiles_args.fmprofiles_list)
+        nodes_all = anytree.search.findall(
+               add_profiles_args.program_node, filter_=lambda node: node.level_id == 2)
 
         profile_id = profile_id + 1
         add_profiles_args.fmprofiles_list.append(oed.get_reinsurance_profile(
@@ -365,24 +369,17 @@ class ReinsuranceLayer(object):
 
         for _, ri_scope_row in add_profiles_args.scope_rows.iterrows():
             if ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_LOCATION:
-                nodes = anytree.search.findall(
-                    add_profiles_args.program_node,
-                    filter_=lambda node: self._does_location_node_match_scope_row(node, ri_scope_row))
-                for node in nodes:
+                for node in self._filter_nodes(nodes_all, ri_scope_row, ['AccountNumber', 'LocationNumber', 'PolicyNumber']):
                     add_profiles_args.node_layer_profile_map[(
                         node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
+
             elif ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_POLICY:
-                nodes = anytree.search.findall(
-                    add_profiles_args.program_node,
-                    filter_=lambda node: self._does_policy_node_match_scope_row(node, ri_scope_row))
-                for node in nodes:
+                for node in self._filter_nodes(nodes_all, ri_scope_row, ['AccountNumber', 'PolicyNumber']):
                     add_profiles_args.node_layer_profile_map[(
                         node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
+
             elif ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_ACCOUNT:
-                nodes = anytree.search.findall(
-                    add_profiles_args.program_node,
-                    filter_=lambda node: self._does_account_node_match_scope_row(node, ri_scope_row))
-                for node in nodes:
+                for node in self._filter_nodes(nodes_all, ri_scope_row, ['AccountNumber']):
                     add_profiles_args.node_layer_profile_map[(
                         node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
             else:
@@ -440,25 +437,10 @@ class ReinsuranceLayer(object):
                 ceded=ri_scope_row.CededPercent,
             ))
 
-            if ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_LOCATION:
-                selected_nodes = list(filter(lambda n: self._does_location_node_match_scope_row(n,ri_scope_row), nodes_all))
-                for node in selected_nodes:
-                    add_profiles_args.node_layer_profile_map[(
-                        node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
-            elif ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_POLICY:
-                selected_nodes = list(filter(lambda n: self._does_policy_node_match_scope_row(n,ri_scope_row), nodes_all))
-                for node in selected_nodes:
-                    add_profiles_args.node_layer_profile_map[(
-                        node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
-            elif ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_ACCOUNT:
-                selected_nodes = list(filter(lambda n: self._does_account_node_match_scope_row(n,ri_scope_row), nodes_all))
-                for node in selected_nodes:
-                    add_profiles_args.node_layer_profile_map[(
-                        node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
-            else:
-                raise Exception(
-                    "Unsupported risk level: {}".format(ri_scope_row.RiskLevel))
-
+            #Filter by RiskLevel
+            for node in self._filter_nodes(nodes_all, ri_scope_row):
+                add_profiles_args.node_layer_profile_map[(
+                    node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
 
         # add OccLimit / Placed Percent
         profile_id = profile_id + 1
