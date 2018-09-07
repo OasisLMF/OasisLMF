@@ -89,13 +89,13 @@ def get_coverage_level_fm_terms(level_grouped_canonical_profile, level_fm_agg_pr
 
     can_df = pd.merge(canexp_df, canacc_df, left_on='accntnum', right_on='accntnum')
 
-    get_can_item = lambda canexp_id, canacc_id, layer_id: can_df[(can_df['row_id_x']==canexp_id+1) & (can_df['row_id_y']==canacc_id+1) & (can_df['policynum'].str.lower()=='layer{}'.format(layer_id))].iloc[0]
+    get_can_item = lambda canexp_id, canacc_id, policy_num: can_df[(can_df['row_id_x']==canexp_id+1) & (can_df['row_id_y']==canacc_id+1) & (can_df['policynum']==policy_num)].iloc[0]
 
     for i, (key, group) in enumerate(itertools.groupby(six.itervalues(level_fm_items), key=lambda it: tuple(it[k] for k in agg_key))):
         for it in group:
             it['agg_id'] = i + 1
 
-            can_item = get_can_item(it['canexp_id'], it['canacc_id'], it['layer_id'])
+            can_item = get_can_item(it['canexp_id'], it['canacc_id'], it['policy_num'])
 
             limit = can_item.get(it['lim_elm']) or 0.0
             it['limit'] = limit
@@ -123,7 +123,7 @@ def get_non_coverage_level_fm_terms(level_grouped_canonical_profile, level_fm_ag
 
     can_df = pd.merge(canexp_df, canacc_df, left_on='accntnum', right_on='accntnum')
 
-    get_can_item = lambda canexp_id, canacc_id, layer_id: can_df[(can_df['row_id_x']==canexp_id+1) & (can_df['row_id_y']==canacc_id+1) & (can_df['policynum'].str.lower() =='layer{}'.format(layer_id))].iloc[0]
+    get_can_item = lambda canexp_id, canacc_id, policy_num: can_df[(can_df['row_id_x']==canexp_id+1) & (can_df['row_id_y']==canacc_id+1) & (can_df['policynum']==policy_num)].iloc[0]
 
     lim_fld = lgcp[1].get('limit')
     lim_elm = lim_fld['ProfileElementName'].lower() if lim_fld else None
@@ -137,7 +137,7 @@ def get_non_coverage_level_fm_terms(level_grouped_canonical_profile, level_fm_ag
         for it in group:
             it['agg_id'] = i + 1
 
-            can_item = get_can_item(it['canexp_id'], it['canacc_id'], it['layer_id'])
+            can_item = get_can_item(it['canexp_id'], it['canacc_id'], it['policy_num'])
 
             it['limit'] = can_item.get(lim_elm) or 0.0
 
