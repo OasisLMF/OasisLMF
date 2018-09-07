@@ -951,41 +951,39 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 } for i, (item_id, gul_item_id, coverage_type_id, coverage_id, canexp_id, _, policy_num, level_id, layer_id, agg_id, tiv_elm, tiv, tiv_tgid, lim_elm, ded_elm, ded_type, shr_elm) in enumerate(coverage_level_preset_data)
             }
 
+            num_cov_items = len(coverage_level_preset_items)
+
             preset_items = {
                 level_id: (coverage_level_preset_items if level_id == 1 else copy.deepcopy(coverage_level_preset_items)) for level_id in fm_levels
             }
-
-            num_cov_items = len(coverage_level_preset_items)
 
             for i, (level_id, item_id, it) in enumerate(itertools.chain((level_id, k, v) for level_id in fm_levels[1:] for k, v in preset_items[level_id].items())):
                 it['level_id'] = level_id
                 it['item_id'] = num_cov_items + i + 1
 
-            layer_ids = tuple(range(1, len(canacc_df.policynum.values) + 1))
-
-            max_level = max(fm_levels)
-
             num_layer1_items = sum(len(preset_items[level_id]) for level_id in preset_items)
+            max_level = max(fm_levels)
+            max_level_items = copy.deepcopy(preset_items[max_level])
+            max_level_max_idx = max(max_level_items)
 
-            if max(layer_ids) > 1:
-                layer_item_start_rg = lambda layer_id: range((layer_id - 2) * num_cov_items, (layer_id - 1) * num_cov_items)
-                layer_item_end_rg = lambda layer_id: range((layer_id - 1) * num_cov_items, layer_id * num_cov_items)
-                for layer_id, i, j in itertools.chain(
-                    (layer_id, i, j) for layer_id in layer_ids[1:] for layer_id, (i, j) in itertools.product([layer_id], zip(layer_item_start_rg(layer_id), layer_item_end_rg(layer_id)))
-                ):
-                    it = copy.deepcopy(preset_items[max_level][i])
-                    it['item_id'] = num_layer1_items + i + 1
-                    it['layer_id'] = layer_id
-                    level1_canacc_it = canacc_df.iloc[it['canacc_id']]
-                    accntnum = int(level1_canacc_it['accntnum'])
-                    canacc_it = canacc_df[(canacc_df['accntnum'] == accntnum) & (canacc_df['policynum'].str.lower() == 'layer{}'.format(it['layer_id']))].iloc[0]
-                    it['canacc_id'] = int(canacc_it['index'])
-                    preset_items[max_level][j] = it
+            layer_id = lambda i: list(
+                canacc_df[canacc_df['accntnum'] == canacc_df.iloc[i]['accntnum']]['policynum'].values
+            ).index(canacc_df.iloc[i]['policynum']) + 1
 
-            get_canacc_policynum = lambda it: canacc_df.iloc[it['canacc_id']]['policynum']
+            for i, (canexp_id, canacc_id) in enumerate(
+                itertools.chain((canexp_id, canacc_id) for canexp_id in max_level_items for canexp_id, canacc_id in itertools.product(
+                    [canexp_id],
+                    canacc_df[canacc_df['accntnum'] == canacc_df.iloc[max_level_items[canexp_id]['canacc_id']]['accntnum']][1:]['index'].values)
+                )
+            ):
+                it = copy.deepcopy(max_level_items[canexp_id])
+                it['item_id'] = num_layer1_items + i + 1
+                it['layer_id'] = layer_id(canacc_id)
+                it['canacc_id'] = canacc_id
+                preset_items[max_level][max_level_max_idx + i + 1] = it
 
             for it in (it for c in itertools.chain(six.itervalues(preset_items[k]) for k in preset_items) for it in c):
-                it['policy_num'] = get_canacc_policynum(it)
+                it['policy_num'] = canacc_df.iloc[it['canacc_id']]['policynum']
                 lfmaggkey = fmap[it['level_id']]['FMAggKey']
                 for v in six.itervalues(lfmaggkey):
                     src = v['src'].lower()
