@@ -931,6 +931,34 @@ class OasisExposuresManagerGetKeys(TestCase):
 
 class OasisExposuresManagerLoadGulItems(TestCase):
 
+    def setUp(self):
+        self.profile = copy.deepcopy(canonical_exposures_profile_piwind)
+
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @given(
+        exposures=canonical_exposures_data(size=0),
+        keys=keys_data(size=10)
+    )
+    def test_no_fm_terms_in_canonical_profile__oasis_exception_is_raised(
+        self,
+        exposures,
+        keys
+    ):
+        profile = copy.deepcopy(self.profile)
+        _p =copy.deepcopy(profile)
+
+        for _k, _v in six.iteritems(_p):
+            for __k, __v in six.iteritems(_v):
+                if 'FM' in __k:
+                    profile[_k].pop(__k)
+
+        with NamedTemporaryFile('w') as exposures_file, NamedTemporaryFile('w') as keys_file:
+            write_canonical_files(exposures, exposures_file.name)
+            write_keys_files(keys, keys_file.name)
+
+            with self.assertRaises(OasisException):
+                OasisExposuresManager().load_gul_items(profile, exposures_file.name, keys_file.name)
+
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(size=0),
@@ -941,7 +969,7 @@ class OasisExposuresManagerLoadGulItems(TestCase):
         exposures,
         keys
     ):
-        profile = canonical_exposures_profile_piwind
+        profile = copy.deepcopy(self.profile)
 
         with NamedTemporaryFile('w') as exposures_file, NamedTemporaryFile('w') as keys_file:
             write_canonical_files(exposures, exposures_file.name)
@@ -961,7 +989,7 @@ class OasisExposuresManagerLoadGulItems(TestCase):
         exposures,
         keys
     ):
-        profile = canonical_exposures_profile_piwind
+        profile = copy.deepcopy(self.profile)
 
         with NamedTemporaryFile('w') as exposures_file, NamedTemporaryFile('w') as keys_file:
             write_canonical_files(exposures, exposures_file.name)
@@ -980,7 +1008,7 @@ class OasisExposuresManagerLoadGulItems(TestCase):
         exposures,
         keys
     ):
-        profile = canonical_exposures_profile_piwind
+        profile = copy.deepcopy(self.profile)
 
         l = len(exposures)
         for key in keys:
@@ -1003,7 +1031,7 @@ class OasisExposuresManagerLoadGulItems(TestCase):
         exposures,
         keys
     ):
-        profile = copy.deepcopy(canonical_exposures_profile_piwind)
+        profile = copy.deepcopy(self.profile)
 
         tivs = [profile[e]['ProfileElementName'] for e in profile if profile[e].get('FMTermType') and profile[e]['FMTermType'].lower() == 'tiv']
 
@@ -1030,7 +1058,7 @@ class OasisExposuresManagerLoadGulItems(TestCase):
         exposures,
         keys
     ):
-        profile = canonical_exposures_profile_piwind 
+        profile = copy.deepcopy(self.profile)
 
         with NamedTemporaryFile('w') as exposures_file, NamedTemporaryFile('w') as keys_file:
             write_canonical_files(exposures, exposures_file.name)
@@ -1058,7 +1086,7 @@ class OasisExposuresManagerLoadGulItems(TestCase):
         exposures,
         keys
     ):
-        profile = canonical_exposures_profile_piwind
+        profile = copy.deepcopy(self.profile)
         gcep = canonical_profiles_fm_terms_grouped_by_level_and_term_type(canonical_profiles=(profile,))
 
         for k in keys:
