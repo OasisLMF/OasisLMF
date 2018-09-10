@@ -938,7 +938,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 tuple(cangul_df.shr_elm.values)           # 17 -share element
             ))
 
-            get_canacc_item = lambda i: canacc_df[(canacc_df['accntnum'] == cangul_df.iloc[coverage_level_preset_data[i][4]]['accntnum'])].iloc[0]
+            get_canacc_item = lambda i: canacc_df[(canacc_df['accntnum'] == cangul_df[cangul_df['canexp_id']==coverage_level_preset_data[i][4]].iloc[0]['accntnum'])].iloc[0]
 
             get_canacc_id = lambda i: int(get_canacc_item(i)['index'])
 
