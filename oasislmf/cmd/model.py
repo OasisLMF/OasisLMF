@@ -726,8 +726,10 @@ class GenerateLossesCmd(OasisBaseCommand):
             self.logger.info('\nReading analysis settings JSON file')
             with io.open(analysis_settings_json_file_path, 'r', encoding='utf-8') as f:
                 analysis_settings = json.load(f)
-                if 'analysis_settings' in analysis_settings:
-                    analysis_settings = analysis_settings['analysis_settings']
+
+            if analysis_settings.get('analysis_settings'):
+                analysis_settings = analysis_settings['analysis_settings']
+            analysis_settings['il_output'] = True if fm else False
         except (IOError, TypeError, ValueError):
             raise OasisException('Invalid analysis settings JSON file or file path: {}.'.format(analysis_settings_json_file_path))
 
