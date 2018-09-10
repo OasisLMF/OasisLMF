@@ -914,6 +914,12 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         try:
             cgcp = canonical_profiles_fm_terms_grouped_by_level_and_term_type(canonical_profiles=(cep, cap,))
 
+            if not cgcp:
+                raise OasisException(
+                    'Canonical loc. and/or acc. profiles are possibly missing FM term information: '
+                    'FM term definitions for TIV, limit, deductible and/or share.'
+                )
+
             fmap = fm_agg_profile
 
             fm_levels = tuple(sorted(cgcp.keys()))

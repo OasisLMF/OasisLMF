@@ -1164,19 +1164,58 @@ class OasisExposuresManagerLoadGulItems(TestCase):
 class OasisExposuresManagerLoadFmItems(TestCase):
 
     def setUp(self):
-        self.exposures_profile = canonical_exposures_profile_piwind
-        self.accounts_profile = canonical_accounts_profile_piwind
+        self.exposures_profile = copy.deepcopy(canonical_exposures_profile_piwind)
+        self.accounts_profile = copy.deepcopy(canonical_accounts_profile_piwind)
         self.combined_grouped_canonical_profile = canonical_profiles_fm_terms_grouped_by_level_and_term_type(
             canonical_profiles=[self.exposures_profile, self.accounts_profile]
         )
-        self.fm_agg_profile = fm_agg_profile_piwind
+        self.fm_agg_profile = copy.deepcopy(fm_agg_profile_piwind)
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(size=10),
         guls=gul_items_data(size=10)
     )
-    def test_load_fm_items_with_no_canonical_accounts_items__oasis_exception_is_raised(
+    def test_no_fm_terms_in_canonical_profiles__oasis_exception_is_raised(
+        self,
+        exposures,
+        guls
+    ):
+        cep = copy.deepcopy(self.exposures_profile)
+        cap = copy.deepcopy(self.accounts_profile)
+
+        _cep =copy.deepcopy(cep)
+        _cap =copy.deepcopy(cap)
+
+        for _k, _v in six.iteritems(_cep):
+            for __k, __v in six.iteritems(_v):
+                if 'FM' in __k:
+                    cep[_k].pop(__k)
+
+        for _k, _v in six.iteritems(_cap):
+            for __k, __v in six.iteritems(_v):
+                if 'FM' in __k:
+                    cap[_k].pop(__k)
+
+        with NamedTemporaryFile('w') as accounts_file:
+            write_canonical_files(canonical_accounts=[], canonical_accounts_file_path=accounts_file.name)
+
+            with self.assertRaises(OasisException):
+                fm_df, canacc_df = OasisExposuresManager().load_fm_items(
+                    pd.DataFrame(data=exposures),
+                    pd.DataFrame(data=guls),
+                    cep,
+                    cap,
+                    accounts_file.name,
+                    self.fm_agg_profile
+                )
+
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @given(
+        exposures=canonical_exposures_data(size=10),
+        guls=gul_items_data(size=10)
+    )
+    def test_no_canonical_accounts_items__oasis_exception_is_raised(
         self,
         exposures,
         guls
@@ -1224,7 +1263,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             size=10
         )
     )
-    def test_load_preset_fm_items_with_one_account_and_one_top_level_layer_load_items__returns_preset_data_only(
+    def test_preset_fm_items_with_one_account_and_one_top_level_layer_load_items__returns_preset_data_only(
         self,
         exposures,
         accounts,
@@ -1329,7 +1368,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             size=10
         )
     )
-    def test_load_fm_items_with_one_account_and_one_top_level_layer__all_fm_terms_present(
+    def test_one_account_and_one_top_level_layer__all_fm_terms_present(
         self,
         exposures,
         accounts,
@@ -1449,7 +1488,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             size=10
         )
     )
-    def test_load_fm_items_with_one_account_and_two_top_level_layers__all_fm_terms_present(
+    def test_one_account_and_two_top_level_layers__all_fm_terms_present(
         self,
         exposures,
         accounts,
