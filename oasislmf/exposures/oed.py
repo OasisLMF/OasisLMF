@@ -224,7 +224,7 @@ class OedValidator(object):
                 #         meta_data,
                 #    ))
 
-                err_acc_nums = self._find_missing(scope_df, "AccountNumber",   account_df)
+                err_acc_nums = self._find_missing(scope_df, "AccNumber",   account_df)
                 if err_acc_nums:
                     meta_data.update({"missing_values": err_acc_nums})
                     error_list.append(self._error_struture(
@@ -234,7 +234,7 @@ class OedValidator(object):
                         meta_data,
                     ))
 
-                err_acc_nums2 = self._find_missing(scope_df, "AccountNumber",   location_df)
+                err_acc_nums2 = self._find_missing(scope_df, "AccNumber",   location_df)
                 if err_acc_nums2:
                     meta_data.update({"missing_values": err_acc_nums2})
                     error_list.append(self._error_struture(
@@ -244,7 +244,7 @@ class OedValidator(object):
                         meta_data,
                     ))
 
-                err_pol_nums = self._find_missing(scope_df, "PolicyNumber",    account_df)
+                err_pol_nums = self._find_missing(scope_df, "PolNumber",    account_df)
                 if err_pol_nums:
                     meta_data.update({"missing_values": err_pol_nums})
                     error_list.append(self._error_struture(
@@ -254,7 +254,7 @@ class OedValidator(object):
                         meta_data,
                     ))
 
-                err_loc_nums = self._find_missing(scope_df, "LocationNumber",  location_df)
+                err_loc_nums = self._find_missing(scope_df, "LocNumber",  location_df)
                 if err_loc_nums:
                     meta_data.update({"missing_values": err_loc_nums})
                     error_list.append(self._error_struture(
@@ -316,7 +316,7 @@ def load_oed_dfs(oed_dir, show_all=False):
                 ri_scope_df = ri_scope_df[OED_REINS_SCOPE_FIELDS].copy()
 
         #Ensure Percent feilds are float
-        info_float_cols  = ['CededPercent','PlacementPercent','TreatyPercent']
+        info_float_cols  = ['CededPercent','PlacedPercent','TreatyShare']
         scope_float_cols = ['CededPercent']
         ri_info_df[info_float_cols] =  ri_info_df[info_float_cols].astype(float)
         ri_scope_df[scope_float_cols] =  ri_scope_df[scope_float_cols].astype(float)
@@ -464,19 +464,19 @@ SUPPORTED_RISK_LEVELS = {
 
 # Subset of the fields that are currently used
 OED_ACCOUNT_FIELDS = [
-    'PortfolioNumber',
-    'AccountNumber',
-    'PolicyNumber',
-    'PerilCode',
-    'Ded6',
-    'Limit6'
+    'PortNumber',
+    'AccNumber',
+    'PolNumber',
+    'AccPeril',
+    'AccDed6All',
+    'AccLimit6All'
 ]
 
 OED_LOCATION_FIELDS = [
-    'AccountNumber',
-    'LocationNumber',
-    'Ded6',
-    'Limit6',
+    'AccNumber',
+    'LocNumber',
+    'LocDed6All',
+    'LocLimit6All',
     'BuildingTIV',
     'OtherTIV',
     'ContentsTIV',
@@ -488,21 +488,21 @@ OED_REINS_INFO_FIELDS = [
     'ReinsLayerNumber',
     'CededPercent',
     'RiskLimit',
-    'RiskAttachmentPoint',
+    'RiskAttachment',
     'OccLimit',
-    'OccurenceAttachmentPoint',
+    'OccAttachment',
     'InuringPriority',
     'ReinsType',
-    'PlacementPercent',
-    'TreatyPercent'
+    'PlacedPercent',
+    'TreatyShare'
 ]
 
 OED_REINS_SCOPE_FIELDS = [
     'ReinsNumber',
-    'PortfolioNumber',
-    'AccountNumber',
-    'PolicyNumber',
-    'LocationNumber',
+    'PortNumber',
+    'AccNumber',
+    'PolNumber',
+    'LocNumber',
     'RiskLevel',
     'CededPercent'
 ]
@@ -527,7 +527,7 @@ FmSummaryXref = namedtuple(
 FmXref = namedtuple(
     "FmXref", "output_id agg_id layer_id")
 XrefDescription = namedtuple(
-    "Description", ("xref_id portfolio_number policy_number account_number location_number coverage_type_id peril_id tiv"))
+    "Description", ("xref_id policy_number account_number location_number coverage_type_id peril_id tiv"))
 GulRecord = namedtuple(
     "GulRecord", "event_id item_id sidx loss")
 
