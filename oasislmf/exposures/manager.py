@@ -922,6 +922,11 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
             fmap = fm_agg_profile
 
+            if not fmap:
+                raise OasisException(
+                    'FM aggregation profile is empty - this is required to perform aggregation'
+                )
+
             fm_levels = tuple(sorted(cgcp.keys()))
 
             coverage_level_preset_data = list(zip(
