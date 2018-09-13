@@ -1215,11 +1215,15 @@ class OasisExposuresManagerLoadFmItems(TestCase):
         exposures=canonical_exposures_data(size=10),
         guls=gul_items_data(size=10)
     )
-    def test_no_canonical_accounts_items__oasis_exception_is_raised(
+    def test_no_aggregation_profile__oasis_exception_is_raised(
         self,
         exposures,
         guls
     ):
+        cep = copy.deepcopy(self.exposures_profile)
+        cap = copy.deepcopy(self.accounts_profile)
+        fmap = {}
+
         with NamedTemporaryFile('w') as accounts_file:
             write_canonical_files(canonical_accounts=[], canonical_accounts_file_path=accounts_file.name)
 
@@ -1227,10 +1231,37 @@ class OasisExposuresManagerLoadFmItems(TestCase):
                 fm_df, canacc_df = OasisExposuresManager().load_fm_items(
                     pd.DataFrame(data=exposures),
                     pd.DataFrame(data=guls),
-                    self.exposures_profile,
-                    self.accounts_profile,
+                    cep,
+                    cap,
                     accounts_file.name,
-                    self.fm_agg_profile
+                    fmap
+                )
+
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @given(
+        exposures=canonical_exposures_data(size=10),
+        guls=gul_items_data(size=10)
+    )
+    def test_no_canonical_accounts_items__oasis_exception_is_raised(
+        self,
+        exposures,
+        guls
+    ):
+        cep = copy.deepcopy(self.exposures_profile)
+        cap = copy.deepcopy(self.accounts_profile)
+        fmap = copy.deepcopy(self.fm_agg_profile)
+
+        with NamedTemporaryFile('w') as accounts_file:
+            write_canonical_files(canonical_accounts=[], canonical_accounts_file_path=accounts_file.name)
+
+            with self.assertRaises(OasisException):
+                fm_df, canacc_df = OasisExposuresManager().load_fm_items(
+                    pd.DataFrame(data=exposures),
+                    pd.DataFrame(data=guls),
+                    cep,
+                    cap,
+                    accounts_file.name,
+                    fmap
                 )
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
@@ -1269,7 +1300,10 @@ class OasisExposuresManagerLoadFmItems(TestCase):
         accounts,
         guls
     ):
-        cgcp = self.combined_grouped_canonical_profile
+        cep = copy.deepcopy(self.exposures_profile)
+        cap = copy.deepcopy(self.accounts_profile)
+        fmap = copy.deepcopy(self.fm_agg_profile)
+        cgcp = copy.deepcopy(self.combined_grouped_canonical_profile)
 
         for it in exposures:
             it['cond1name'] = 0
@@ -1294,10 +1328,10 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             preset_fm_items = OasisExposuresManager().load_fm_items(
                 canexp_df,
                 gul_items_df,
-                self.exposures_profile,
-                self.accounts_profile,
+                cep,
+                cap,
                 accounts_file.name,
-                self.fm_agg_profile,
+                fmap,
                 preset_only=True
             )[0].T.to_dict().values()
 
@@ -1373,7 +1407,11 @@ class OasisExposuresManagerLoadFmItems(TestCase):
         accounts,
         guls
     ):
-        cgcp = self.combined_grouped_canonical_profile
+
+        cep = copy.deepcopy(self.exposures_profile)
+        cap = copy.deepcopy(self.accounts_profile)
+        fmap = copy.deepcopy(self.fm_agg_profile)
+        cgcp = copy.deepcopy(self.combined_grouped_canonical_profile)
 
         for it in exposures:
             it['cond1name'] = 0
@@ -1398,10 +1436,10 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             fm_items = OasisExposuresManager().load_fm_items(
                 canexp_df,
                 gul_items_df,
-                self.exposures_profile,
-                self.accounts_profile,
+                cep,
+                cap,
                 accounts_file.name,
-                self.fm_agg_profile,
+                fmap,
                 reduced=False
             )[0].T.to_dict().values()
 
@@ -1492,7 +1530,10 @@ class OasisExposuresManagerLoadFmItems(TestCase):
         accounts,
         guls
     ):
-        cgcp = self.combined_grouped_canonical_profile
+        cep = copy.deepcopy(self.exposures_profile)
+        cap = copy.deepcopy(self.accounts_profile)
+        fmap = copy.deepcopy(self.fm_agg_profile)
+        cgcp = copy.deepcopy(self.combined_grouped_canonical_profile)
 
         for it in exposures:
             it['cond1name'] = 0
@@ -1520,10 +1561,10 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             fm_items = OasisExposuresManager().load_fm_items(
                 canexp_df,
                 gul_items_df,
-                self.exposures_profile,
-                self.accounts_profile,
+                cep,
+                cap,
                 accounts_file.name,
-                self.fm_agg_profile,
+                fmap,
                 reduced=False
             )[0].T.to_dict().values()
 
