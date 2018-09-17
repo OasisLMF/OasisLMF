@@ -1284,7 +1284,6 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             df.columns = df.columns.str.lower()
         
         canexp_df['index'] = pd.Series(data=canexp_df.index, dtype=int)
-        canexp_df['accntnum'] = canexp_df['accntnum'].astype(int)
 
         gul_items_df['index'] = pd.Series(data=gul_items_df.index, dtype=int)
         gul_items_df['canexp_id'] = gul_items_df['canexp_id'].astype(int)
@@ -1389,7 +1388,6 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             df.columns = df.columns.str.lower()
         
         canexp_df['index'] = pd.Series(data=canexp_df.index, dtype=int)
-        canexp_df['accntnum'] = canexp_df['accntnum'].astype(int)
 
         gul_items_df['index'] = pd.Series(data=gul_items_df.index, dtype=int)
         gul_items_df['canexp_id'] = gul_items_df['canexp_id'].astype(int)
@@ -1512,7 +1510,6 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             df.columns = df.columns.str.lower()
         
         canexp_df['index'] = pd.Series(data=canexp_df.index, dtype=int)
-        canexp_df['accntnum'] = canexp_df['accntnum'].astype(int)
 
         gul_items_df['index'] = pd.Series(data=gul_items_df.index, dtype=int)
         gul_items_df['canexp_id'] = gul_items_df['canexp_id'].astype(int)
