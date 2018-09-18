@@ -670,6 +670,7 @@ def genbash(
     do_kwaits(filename, process_counter)
 
     print_command(filename, '')
+    do_post_wait_processing(RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename, process_counter)
     do_post_wait_processing(RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter)
     do_post_wait_processing(RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter)
 
@@ -681,6 +682,10 @@ def genbash(
         remove_workfolders(RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename)
 
     print_command(filename, '')
+
+    if ri_output:
+        do_ri_remove_fifo(analysis_settings, max_process_id, filename)
+        remove_workfolders(RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename)
 
     if il_output:
         do_il_remove_fifo(analysis_settings, max_process_id, filename)
