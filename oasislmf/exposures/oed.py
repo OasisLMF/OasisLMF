@@ -29,19 +29,19 @@ class OedValidator(object):
             'ReinsLayerNumber':         int_or_float,
             'CededPercent':             float_only,
             'RiskLimit':                int_or_float,
-            'RiskAttachmentPoint':      int_or_float,
+            'RiskAttachment':           int_or_float,
             'OccLimit':                 int_or_float,
-            'OccurenceAttachmentPoint': int_or_float,
+            'OccAttachment':            int_or_float,
             'InuringPriority':          int_or_float,
             'ReinsType':                object_or_str,
-            'PlacementPercent':         float_only,
-            'TreatyPercent':            float_only}
+            'PlacedPercent':         float_only,
+            'TreatyShare':            float_only}
         self.ri_scope_expected_dtypes = {
             'ReinsNumber':      int_or_float,
-            'PortfolioNumber':  int_or_float,
-            'AccountNumber':    int_or_float+object_or_str,
-            'PolicyNumber':     int_or_float+object_or_str,
-            'LocationNumber':   int_or_float+object_or_str,
+            'PortNumber':       int_or_float,
+            'AccNumber':        int_or_float+object_or_str,
+            'PolNumber':        int_or_float+object_or_str,
+            'LocNumber':        int_or_float+object_or_str,
             'RiskLevel':        object_or_str,
             'CededPercent':     float_only}
 
