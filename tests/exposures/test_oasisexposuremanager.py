@@ -1371,7 +1371,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(
-            from_accounts_nums=just(10101),
+            from_accounts_nums=just('A1'),
             from_tivs1=just(100),
             from_limits1=just(1),
             from_deductibles1=just(1),
@@ -1426,7 +1426,6 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             df.columns = df.columns.str.lower()
         
         canexp_df['index'] = pd.Series(data=canexp_df.index, dtype=int)
-        canexp_df['accntnum'] = canexp_df['accntnum'].astype(int)
 
         gul_items_df['index'] = pd.Series(data=gul_items_df.index, dtype=int)
         gul_items_df['canexp_id'] = gul_items_df['canexp_id'].astype(int)
@@ -1444,10 +1443,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
                 preset_only=True
             )[0].T.to_dict().values()
 
-        num_top_level_layers = len(set(a['policynum'] for a in accounts))
-        bottom_levels = sorted(cgcp.keys())[:-1]
-
-        self.assertEquals(len(preset_fm_items), (len(bottom_levels) + num_top_level_layers) * len(guls))
+        self.assertEquals(len(preset_fm_items), len(cgcp) * len(guls))
 
         get_gul_item = lambda i: guls[i % len(guls)]
 
@@ -1458,7 +1454,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
 
             self.assertEquals(it['canexp_id'], gul_it['canexp_id'])
 
-            self.assertEquals(it['canacc_id'], 0)
+            self.assertEquals(it['canacc_id'], 0) if it['canexp_id'] < 9 else self.assertEquals(it['canacc_id'], 1)
 
             self.assertEquals(it['layer_id'], 1)
 
