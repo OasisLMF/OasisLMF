@@ -227,8 +227,8 @@ class ReinsuranceLayer(object):
     def _does_location_node_match_scope_row(self, node, ri_scope_row):
         node_summary = (node.account_number,
                         node.policy_number, node.location_number)
-        scope_row_summary = (ri_scope_row.AccountNumber,
-                             ri_scope_row.PolicyNumber, ri_scope_row.LocationNumber)
+        scope_row_summary = (ri_scope_row.AccNumber,
+                             ri_scope_row.PolNumber, ri_scope_row.LocNumber)
         if (node_summary == scope_row_summary):
             self.logger.debug('Matching node: location to scope\n node: {}, ri_scope: {}'.format(
                 str(node_summary),
@@ -239,7 +239,7 @@ class ReinsuranceLayer(object):
     def _does_policy_node_match_scope_row(self, node, ri_scope_row):
         node_summary = (node.account_number,
                         node.policy_number, oed.NOT_SET_ID)
-        scope_row_summary = (ri_scope_row.AccountNumber, ri_scope_row.PolicyNumber, oed.NOT_SET_ID)
+        scope_row_summary = (ri_scope_row.AccNumber, ri_scope_row.PolNumber, oed.NOT_SET_ID)
         if (node_summary == scope_row_summary):
             self.logger.debug('Matching node: policy to scope\n node: {}, ri_scope: {}'.format(
                 str(node_summary),
@@ -250,7 +250,7 @@ class ReinsuranceLayer(object):
     def _does_account_node_match_scope_row(self, node, ri_scope_row):
         node_summary = (node.account_number,
                         oed.NOT_SET_ID, oed.NOT_SET_ID)
-        scope_row_summary = (ri_scope_row.AccountNumber,
+        scope_row_summary = (ri_scope_row.AccNumber,
                              oed.NOT_SET_ID, oed.NOT_SET_ID)
         if (node_summary == scope_row_summary):
             self.logger.debug('Matching node: account to scope\n node: {}, ri_scope: {}'.format(
@@ -262,9 +262,9 @@ class ReinsuranceLayer(object):
     ## More generic but slower (testing only)
     #def _match_node(self, node, search_dict):
     #    node_dict = {
-    #        'AccountNumber':  node.account_number,
-    #        'PolicyNumber':   node.policy_number,
-    #        'LocationNumber': node.location_number,
+    #        'AccNumber':  node.account_number,
+    #        'PolNumber':   node.policy_number,
+    #        'LocNumber': node.location_number,
     #    }
     #    self.logger.debug('Matching node: \n\t node: {}, \n\t search: {}'.format(
     #        str(node_dict),
@@ -357,10 +357,10 @@ class ReinsuranceLayer(object):
         profile_id = profile_id + 1
         add_profiles_args.fmprofiles_list.append(oed.get_reinsurance_profile(
             profile_id,
-            attachment=add_profiles_args.ri_info_row.RiskAttachmentPoint,
+            attachment=add_profiles_args.ri_info_row.RiskAttachment,
             limit=add_profiles_args.ri_info_row.RiskLimit,
             ceded=add_profiles_args.ri_info_row.CededPercent,
-            placement=add_profiles_args.ri_info_row.PlacementPercent
+            placement=add_profiles_args.ri_info_row.PlacedPercent
         ))
 
         for _, ri_scope_row in add_profiles_args.scope_rows.iterrows():
@@ -399,7 +399,7 @@ class ReinsuranceLayer(object):
         profile_id = profile_id + 1
         add_profiles_args.fmprofiles_list.append(oed.get_reinsurance_profile(
             profile_id,
-            attachment=add_profiles_args.ri_info_row.RiskAttachmentPoint,
+            attachment=add_profiles_args.ri_info_row.RiskAttachment,
             limit=add_profiles_args.ri_info_row.RiskLimit,
             ceded=add_profiles_args.ri_info_row.CededPercent,
         ))
@@ -416,7 +416,7 @@ class ReinsuranceLayer(object):
             oed.get_occlim_profile(
                 profile_id,
                 limit=add_profiles_args.ri_info_row.OccLimit,
-                placement=add_profiles_args.ri_info_row.PlacementPercent,
+                placement=add_profiles_args.ri_info_row.PlacedPercent,
         ))
         add_profiles_args.node_layer_profile_map[
             (add_profiles_args.program_node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
@@ -435,7 +435,7 @@ class ReinsuranceLayer(object):
             profile_id = profile_id + 1
             add_profiles_args.fmprofiles_list.append(oed.get_reinsurance_profile(
                 profile_id,
-                attachment=add_profiles_args.ri_info_row.RiskAttachmentPoint,
+                attachment=add_profiles_args.ri_info_row.RiskAttachment,
                 limit=add_profiles_args.ri_info_row.RiskLimit,
                 ceded=ri_scope_row.CededPercent,
             ))
@@ -466,7 +466,7 @@ class ReinsuranceLayer(object):
             oed.get_occlim_profile(
                 profile_id,
                 limit=add_profiles_args.ri_info_row.OccLimit,
-                placement=add_profiles_args.ri_info_row.PlacementPercent,
+                placement=add_profiles_args.ri_info_row.PlacedPercent,
         ))
         add_profiles_args.node_layer_profile_map[
             (add_profiles_args.program_node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
@@ -490,7 +490,7 @@ class ReinsuranceLayer(object):
                     profile_id,
                     limit=add_profiles_args.ri_info_row.OccLimit,
                     ceded=add_profiles_args.ri_info_row.CededPercent,
-                    placement=add_profiles_args.ri_info_row.PlacementPercent
+                    placement=add_profiles_args.ri_info_row.PlacedPercent
             ))
         else:
             for _, ri_scope_row in add_profiles_args.scope_rows.iterrows():
@@ -515,7 +515,7 @@ class ReinsuranceLayer(object):
             oed.get_occlim_profile(
                 profile_id,
                 limit=add_profiles_args.ri_info_row.OccLimit,
-                placement=add_profiles_args.ri_info_row.PlacementPercent,
+                placement=add_profiles_args.ri_info_row.PlacedPercent,
         ))
         add_profiles_args.node_layer_profile_map[
             (add_profiles_args.program_node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
@@ -530,9 +530,9 @@ class ReinsuranceLayer(object):
             add_profiles_args.fmprofiles_list.append(
                 oed.get_reinsurance_profile(
                     profile_id,
-                    attachment=add_profiles_args.ri_info_row.OccurenceAttachmentPoint,
+                    attachment=add_profiles_args.ri_info_row.OccAttachment,
                     limit=add_profiles_args.ri_info_row.OccLimit,
-                    placement=add_profiles_args.ri_info_row.PlacementPercent,
+                    placement=add_profiles_args.ri_info_row.PlacedPercent,
                     ceded=add_profiles_args.ri_info_row.CededPercent,
                 ))
             add_profiles_args.node_layer_profile_map[
