@@ -55,15 +55,15 @@ def do_post_wait_processing(runtype, analysis_settings, filename, process_counte
         if "id" in summary:
             summary_set = summary['id']
             if summary.get('aalcalc'):
-                process_counter['apid_monitor_count'] += 1
-                print_command(
-                    filename,
-                    'aalsummary -K{0}_S{1}_aalcalc > output/{0}_S{1}_aalcalc.csv & apid{2}=$!'.format(
-                        runtype,
-                        summary_set,
-                        process_counter['apid_monitor_count']
-                    )
+                cmd = 'aalcalc -K{}_S{}_summaryaalcalc'.format(
+                    runtype,
+                    summary_set
                 )
+
+                process_counter['lpid_monitor_count'] += 1
+                cmd = '{} > output/{}_S{}_aalcalc.csv'.format(cmd, runtype, summary_set)
+                cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+                print_command(filename, cmd)
 
             if summary.get('lec_output'):
                 leccalc = summary.get('leccalc', {})
@@ -127,12 +127,6 @@ def do_fifos(action, runtype, analysis_settings, process_id, filename):
                     '{} fifo/{}_S{}_pltcalc_P{}'.format(action, runtype, summary_set, process_id)
                 )
 
-            if summary.get('aalcalc'):
-                print_command(
-                    filename,
-                    '{} fifo/{}_S{}_summaryaalcalc_P{}'.format(action, runtype, summary_set, process_id)
-                )
-
     print_command(filename, '')
 
 
@@ -149,7 +143,7 @@ def create_workfolders(runtype, analysis_settings, filename):
                     print_command(filename, "mkdir work/{}_S{}_summaryleccalc".format(runtype, summary_set))
 
             if summary.get('aalcalc'):
-                print_command(filename, 'mkdir work/{}_S{}_aalcalc'.format(runtype, summary_set))
+                print_command(filename, 'mkdir work/{}_S{}_summaryaalcalc'.format(runtype, summary_set))
 
 
 def remove_workfolders(runtype, analysis_settings, filename):
@@ -168,8 +162,8 @@ def remove_workfolders(runtype, analysis_settings, filename):
                     print_command(filename, 'rmdir work/{}_S{}_summaryleccalc'.format(runtype, summary_set))
 
             if summary.get('aalcalc'):
-                print_command(filename, 'rm work/{}_S{}_aalcalc/*'.format(runtype, summary_set))
-                print_command(filename, 'rmdir work/{}_S{}_aalcalc'.format(runtype, summary_set))
+                print_command(filename, 'rm -rf work/{}_S{}_summaryaalcalc/*'.format(runtype, summary_set))
+                print_command(filename, 'rmdir work/{}_S{}_summaryaalcalc'.format(runtype, summary_set))
 
 
 def do_make_fifos(runtype, analysis_settings, process_id, filename):
@@ -269,7 +263,7 @@ def do_tees(runtype, analysis_settings, process_id, filename, process_counter):
                 cmd = '{} fifo/{}_S{}_summarysummarycalc_P{}'.format(cmd, runtype, summary_set, process_id)
 
             if summary.get('aalcalc'):
-                cmd = '{} fifo/{}_S{}_summaryaalcalc_P{}'.format(cmd, runtype, summary_set, process_id)
+                cmd = '{} work/{}_S{}_summaryaalcalc/P{}.bin'.format(cmd, runtype, summary_set, process_id)
 
             if summary.get('lec_output') and leccalc_enabled(summary['leccalc']):
                 cmd = '{} work/{}_S{}_summaryleccalc/P{}.bin'.format(cmd, runtype, summary_set, process_id)
@@ -325,14 +319,6 @@ def do_any(runtype, analysis_settings, process_id, filename, process_counter):
                     )
                 )
 
-            if summary.get('aalcalc'):
-                process_counter['pid_monitor_count'] += 1
-                print_command(
-                    filename,
-                    'aalcalc < fifo/{0}_S{1}_summaryaalcalc_P{2} > work/{0}_S{1}_aalcalc/P{2}.bin & pid{3}=$!'.format(
-                        runtype, summary_set, process_id, process_counter['pid_monitor_count']
-                    )
-                )
 
         print_command(filename, '')
 
