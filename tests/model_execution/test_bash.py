@@ -373,3 +373,7 @@ class Genbash(TestCase):
     def test_analysis_settings_3_0_reins_iters(self):
         self.genbash("analysis_settings_3", 1, 1)
         self.check("analysis_settings_3_1_reins_layer_1_partition")
+
+    def test_analysis_settings_4_0_reins_iters(self):
+        self.genbash("analysis_settings_4", 1, 1)
+        self.check("analysis_settings_4_1_reins_layer_1_partition")
