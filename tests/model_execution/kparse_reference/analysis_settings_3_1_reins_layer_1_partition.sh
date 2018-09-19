@@ -47,7 +47,7 @@ summarycalctocsv < fifo/ri_S1_summarysummarycalc_P1 > work/kat/ri_S1_summarycalc
 pltcalc < fifo/ri_S1_summarypltcalc_P1 > work/kat/ri_S1_pltcalc_P1 & pid3=$!
 
 tee < fifo/ri_S1_summary_P1 fifo/ri_S1_summaryeltcalc_P1 fifo/ri_S1_summarypltcalc_P1 fifo/ri_S1_summarysummarycalc_P1 work/ri_S1_summaryaalcalc/P1.bin > /dev/null & pid4=$!
-summarycalc -f -1 fifo/ri_S1_summary_P1 < fifo/ri_P1 &
+summarycalc -f -p input/RI_2 -1 fifo/ri_S1_summary_P1 < fifo/ri_P1 &
 
 # --- Do insured loss computes ---
 
@@ -56,7 +56,7 @@ summarycalctocsv < fifo/il_S1_summarysummarycalc_P1 > work/kat/il_S1_summarycalc
 pltcalc < fifo/il_S1_summarypltcalc_P1 > work/kat/il_S1_pltcalc_P1 & pid7=$!
 
 tee < fifo/il_S1_summary_P1 fifo/il_S1_summaryeltcalc_P1 fifo/il_S1_summarypltcalc_P1 fifo/il_S1_summarysummarycalc_P1 work/il_S1_summaryaalcalc/P1.bin > /dev/null & pid8=$!
-summarycalc -f -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
+summarycalc -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
 
 # --- Do ground up loss computes ---
 
@@ -65,7 +65,7 @@ summarycalctocsv < fifo/gul_S1_summarysummarycalc_P1 > work/kat/gul_S1_summaryca
 pltcalc < fifo/gul_S1_summarypltcalc_P1 > work/kat/gul_S1_pltcalc_P1 & pid11=$!
 
 tee < fifo/gul_S1_summary_P1 fifo/gul_S1_summaryeltcalc_P1 fifo/gul_S1_summarypltcalc_P1 fifo/gul_S1_summarysummarycalc_P1 work/gul_S1_summaryaalcalc/P1.bin > /dev/null & pid12=$!
-summarycalc -g -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
+summarycalc -g  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
 
 eve 1 1 | getmodel | gulcalc -S0 -L0 -r -c fifo/gul_P1 -i - | fmcalc -a 2 | tee fifo/il_P1 | fmcalc -a 2 -n -p input/RI_1 > fifo/ri_P1 &
 

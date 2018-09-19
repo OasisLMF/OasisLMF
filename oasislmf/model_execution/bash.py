@@ -223,7 +223,9 @@ def do_kats(runtype, analysis_settings, max_process_id, filename, process_counte
     return anykats
 
 
-def do_summarycalcs(runtype, analysis_settings, process_id, filename):
+def do_summarycalcs(
+    runtype, analysis_settings, process_id, filename, num_reinsurance_iterations=0):
+    
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
@@ -232,7 +234,12 @@ def do_summarycalcs(runtype, analysis_settings, process_id, filename):
     if runtype == RUNTYPE_GROUNDUP_LOSS:
         summarycalc_switch = '-g'
 
-    cmd = 'summarycalc {}'.format(summarycalc_switch)
+    summarycalc_directory_switch = ""
+    if runtype == RUNTYPE_REINSURANCE_LOSS:
+        i = num_reinsurance_iterations + 1
+        summarycalc_directory_switch = "-p input{0}RI_{1}".format(os.sep, i)
+
+    cmd = 'summarycalc {} {}'.format(summarycalc_switch, summarycalc_directory_switch)
     for summary in summaries:
         if 'id' in summary:
             summary_set = summary['id']
@@ -323,7 +330,7 @@ def do_any(runtype, analysis_settings, process_id, filename, process_counter):
         print_command(filename, '')
 
 
-def do_ri(analysis_settings, max_process_id, filename, process_counter):
+def do_ri(analysis_settings, max_process_id, filename, process_counter, num_reinsurance_iterations):
     for process_id in range(1, max_process_id + 1):
         do_any(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, process_counter)
 
@@ -331,7 +338,8 @@ def do_ri(analysis_settings, max_process_id, filename, process_counter):
         do_tees(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, process_counter)
 
     for process_id in range(1, max_process_id + 1):
-        do_summarycalcs(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename)
+        do_summarycalcs(
+            RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, num_reinsurance_iterations)
 
 
 def do_il(analysis_settings, max_process_id, filename, process_counter):
@@ -544,7 +552,7 @@ def genbash(
         print_command(filename, '')
         print_command(filename, '# --- Do reinsurance loss computes ---')
         print_command(filename, '')
-        do_ri(analysis_settings, max_process_id, filename, process_counter)
+        do_ri(analysis_settings, max_process_id, filename, process_counter, num_reinsurance_iterations)
 
     if il_output:
         print_command(filename, '')
@@ -578,7 +586,7 @@ def genbash(
             getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
             main_cmd = 'eve {0} {1} | {2} | fmcalc -a {3} | tee fifo/il_P{0}'.format(
                 process_id, max_process_id, getmodel_cmd, 
-                ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID)          
+                ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID)
             for i in range(1, num_reinsurance_iterations + 1):
                 main_cmd = "{0} | fmcalc -a {3} -n -p input{1}RI_{2}".format(
                     main_cmd, os.sep, i, ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID)
