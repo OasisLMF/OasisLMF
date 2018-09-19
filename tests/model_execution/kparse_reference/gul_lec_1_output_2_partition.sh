@@ -40,8 +40,8 @@ pltcalc -s < fifo/gul_S1_summarypltcalc_P2 > work/kat/gul_S1_pltcalc_P2 & pid6=$
 
 tee < fifo/gul_S1_summary_P1 fifo/gul_S1_summaryeltcalc_P1 fifo/gul_S1_summarypltcalc_P1 fifo/gul_S1_summarysummarycalc_P1 work/gul_S1_summaryaalcalc/P1.bin work/gul_S1_summaryleccalc/P1.bin > /dev/null & pid7=$!
 tee < fifo/gul_S1_summary_P2 fifo/gul_S1_summaryeltcalc_P2 fifo/gul_S1_summarypltcalc_P2 fifo/gul_S1_summarysummarycalc_P2 work/gul_S1_summaryaalcalc/P2.bin work/gul_S1_summaryleccalc/P2.bin > /dev/null & pid8=$!
-summarycalc -g -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
-summarycalc -g -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 &
+summarycalc -g  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
+summarycalc -g  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 &
 
 eve 1 2 | getmodel | gulcalc -S0 -L0 -r -c - > fifo/gul_P1  &
 eve 2 2 | getmodel | gulcalc -S0 -L0 -r -c - > fifo/gul_P2  &

@@ -62,8 +62,8 @@ pltcalc -s < fifo/il_S1_summarypltcalc_P2 > work/kat/il_S1_pltcalc_P2 & pid6=$!
 
 tee < fifo/il_S1_summary_P1 fifo/il_S1_summaryeltcalc_P1 fifo/il_S1_summarypltcalc_P1 fifo/il_S1_summarysummarycalc_P1 work/il_S1_summaryaalcalc/P1.bin work/il_S1_summaryleccalc/P1.bin > /dev/null & pid7=$!
 tee < fifo/il_S1_summary_P2 fifo/il_S1_summaryeltcalc_P2 fifo/il_S1_summarypltcalc_P2 fifo/il_S1_summarysummarycalc_P2 work/il_S1_summaryaalcalc/P2.bin work/il_S1_summaryleccalc/P2.bin > /dev/null & pid8=$!
-summarycalc -f -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
-summarycalc -f -1 fifo/il_S1_summary_P2 < fifo/il_P2 &
+summarycalc -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
+summarycalc -f  -1 fifo/il_S1_summary_P2 < fifo/il_P2 &
 
 # --- Do ground up loss computes ---
 
@@ -77,8 +77,8 @@ pltcalc -s < fifo/gul_S1_summarypltcalc_P2 > work/kat/gul_S1_pltcalc_P2 & pid14=
 
 tee < fifo/gul_S1_summary_P1 fifo/gul_S1_summaryeltcalc_P1 fifo/gul_S1_summarypltcalc_P1 fifo/gul_S1_summarysummarycalc_P1 work/gul_S1_summaryaalcalc/P1.bin work/gul_S1_summaryleccalc/P1.bin > /dev/null & pid15=$!
 tee < fifo/gul_S1_summary_P2 fifo/gul_S1_summaryeltcalc_P2 fifo/gul_S1_summarypltcalc_P2 fifo/gul_S1_summarysummarycalc_P2 work/gul_S1_summaryaalcalc/P2.bin work/gul_S1_summaryleccalc/P2.bin > /dev/null & pid16=$!
-summarycalc -g -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
-summarycalc -g -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 &
+summarycalc -g  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
+summarycalc -g  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 &
 
 eve 1 2 | getmodel | gulcalc -S0 -L0 -r -c fifo/gul_P1 -i - | fmcalc -a 2 > fifo/il_P1  &
 eve 2 2 | getmodel | gulcalc -S0 -L0 -r -c fifo/gul_P2 -i - | fmcalc -a 2 > fifo/il_P2  &
