@@ -1624,7 +1624,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             size=10
         )
     )
-    def test_one_account_and_one_top_level_layer__all_fm_terms_present(
+    def test_fm_items_with_one_account_and_one_top_level_layer__all_fm_terms_present(
         self,
         exposures,
         accounts,
@@ -1747,7 +1747,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             size=10
         )
     )
-    def test_one_account_and_two_top_level_layers__all_fm_terms_present(
+    def test_fm_items_with_one_account_and_two_top_level_layers__all_fm_terms_present(
         self,
         exposures,
         accounts,
@@ -1842,6 +1842,130 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             shr = can_it.get(gul_it['shr_elm']  if l == 1 else (cgcp[l][1]['share']['ProfileElementName'].lower() if cgcp[l][1].get('share') else None)) or 0.0
             self.assertEquals(it['share'], shr)
 
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @given(
+        exposures=canonical_exposures_data(
+            from_accounts_nums=just('A1'),
+            from_tivs1=just(100),
+            from_tivs2=just(0),
+            from_limits1=just(1),
+            from_limits2=just(0),
+            from_deductibles1=just(1),
+            from_deductibles2=just(0),
+            size=10
+        ),
+        accounts=canonical_accounts_data(
+            from_accounts_nums=just('A1'),
+            from_policy_nums=just('A1P1'),
+            from_attachment_points=just(1),
+            from_blanket_deductibles=just(1),
+            from_blanket_limits=just(1),
+            from_layer_limits=just(1),
+            from_policy_types=just(1),
+            size=2
+        ),
+        guls=gul_items_data(
+            from_coverage_type_ids=just(BUILDING_COVERAGE_CODE),
+            from_tiv_elements=just('wscv1val'),
+            from_tivs=just(100),
+            from_tiv_tgids=just(1),
+            from_limit_elements=just('wscv1limit'),
+            from_deductible_elements=just('wscv1ded'),
+            from_share_elements=just(None),
+            size=10
+        )
+    )
+    def test_fm_items_with_two_accounts_and_one_top_level_layer__all_fm_terms_present(
+        self,
+        exposures,
+        accounts,
+        guls
+    ):
+
+        cep = copy.deepcopy(self.exposures_profile)
+        cap = copy.deepcopy(self.accounts_profile)
+        fmap = copy.deepcopy(self.fm_agg_profile)
+        cgcp = copy.deepcopy(self.combined_grouped_canonical_profile)
+
+        accounts[1]['accntnum'] = exposures[9]['accntnum'] = 'A2'
+        accounts[1]['policynum'] = 'A2P1'
+        accounts[1]['blanlimamt'] = 0.3
+
+        for it in exposures:
+            it['cond1name'] = 0
+
+        for _, gul in enumerate(guls):
+            gul['ded_type'] = cgcp[1][gul['tiv_tgid']]['deductible']['DeductibleType'] if cgcp[1][gul['tiv_tgid']].get('deductible') else 'B'
+
+        canexp_df, gul_items_df = (pd.DataFrame(data=its, dtype=object) for its in [exposures, guls])
+
+        for df in [canexp_df, gul_items_df]:
+            df = df.where(df.notnull(), None)
+            df.columns = df.columns.str.lower()
+        
+        canexp_df['index'] = pd.Series(data=canexp_df.index, dtype=int)
+
+        gul_items_df['index'] = pd.Series(data=gul_items_df.index, dtype=int)
+        gul_items_df['canexp_id'] = gul_items_df['canexp_id'].astype(int)
+
+        with NamedTemporaryFile('w') as accounts_file:
+            write_canonical_files(canonical_accounts=accounts, canonical_accounts_file_path=accounts_file.name)
+
+            fm_items = OasisExposuresManager().load_fm_items(
+                canexp_df,
+                gul_items_df,
+                cep,
+                cap,
+                accounts_file.name,
+                fmap,
+                reduced=False
+            )[0].T.to_dict().values()
+
+        self.assertEquals(len(fm_items), len(cgcp) * len(guls))
+
+        get_can_item = lambda i: {
+            k:v for k, v in itertools.chain(
+                ((k if k != 'row_id' else 'canexp_id', v if k != 'row_id' else v - 1) for k, v in exposures[guls[i % len(guls)]['canexp_id']].items()),
+                ((k if k != 'row_id' else 'canacc_id', v if k != 'row_id' else v - 1) for k, v in [a for a in accounts if a['accntnum'] == exposures[guls[i % len(guls)]['canexp_id']]['accntnum']][0].items())
+            )
+        }
+
+        get_gul_item = lambda i: guls[i % len(guls)]
+
+        for i, (l, it) in enumerate(itertools.chain((l, it) for l in sorted(cgcp.keys()) for l, it in itertools.product([l],(it for it in fm_items if it['level_id'] == l)))):
+            self.assertEquals(it['level_id'], l)
+
+            can_it = get_can_item(i)
+
+            gul_it = get_gul_item(i)
+
+            self.assertEquals(it['canexp_id'], gul_it['canexp_id'])
+
+            self.assertEquals(it['canacc_id'], 0 if can_it['accntnum'] == 'A1' else 1)
+
+            self.assertEquals(it['layer_id'], 1)
+
+            self.assertEquals(it['gul_item_id'], gul_it['item_id'])
+
+            self.assertEquals(it['tiv_elm'], gul_it['tiv_elm'])
+            self.assertEquals(it['tiv_tgid'], gul_it['tiv_tgid'])
+            self.assertEquals(it['tiv'], gul_it['tiv'])
+
+            self.assertEquals(it['lim_elm'], gul_it['lim_elm'])
+            self.assertEquals(it['ded_elm'], gul_it['ded_elm'])
+            self.assertEquals(it['shr_elm'], gul_it['shr_elm'])
+
+            lim = can_it.get(gul_it['lim_elm'] if l == 1 else (cgcp[l][1]['limit']['ProfileElementName'].lower() if cgcp[l][1].get('limit') else None)) or 0.0
+            self.assertEquals(it['limit'], lim)
+            
+            ded = can_it.get(gul_it['ded_elm']  if l == 1 else (cgcp[l][1]['deductible']['ProfileElementName'].lower() if cgcp[l][1].get('deductible') else None)) or 0.0
+            self.assertEquals(it['deductible'], ded)
+            
+            ded_type = gul_it['ded_type'] if l == 1 else (cgcp[l][1]['deductible']['DeductibleType'] if cgcp[l][1].get('deductible') else 'B')
+            self.assertEquals(it['deductible_type'], ded_type)
+            
+            shr = can_it.get(gul_it['shr_elm']  if l == 1 else (cgcp[l][1]['share']['ProfileElementName'].lower() if cgcp[l][1].get('share') else None)) or 0.0
+            self.assertEquals(it['share'], shr)
 
 class GulFilesGenerationTestCase(TestCase):
 
