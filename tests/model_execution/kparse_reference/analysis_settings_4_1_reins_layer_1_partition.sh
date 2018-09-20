@@ -48,7 +48,7 @@ summarycalctocsv < fifo/ri_S1_summarysummarycalc_P1 > work/kat/ri_S1_summarycalc
 pltcalc < fifo/ri_S1_summarypltcalc_P1 > work/kat/ri_S1_pltcalc_P1 & pid3=$!
 
 tee < fifo/ri_S1_summary_P1 fifo/ri_S1_summaryeltcalc_P1 fifo/ri_S1_summarypltcalc_P1 fifo/ri_S1_summarysummarycalc_P1 work/ri_S1_summaryaalcalc/P1.bin work/ri_S1_summaryleccalc/P1.bin > /dev/null & pid4=$!
-summarycalc -f -p input/RI_2 -1 fifo/ri_S1_summary_P1 < fifo/ri_P1 &
+summarycalc -f -p input/RI_1 -1 fifo/ri_S1_summary_P1 < fifo/ri_P1 &
 
 # --- Do insured loss computes ---
 

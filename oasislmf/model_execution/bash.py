@@ -236,7 +236,7 @@ def do_summarycalcs(
 
     summarycalc_directory_switch = ""
     if runtype == RUNTYPE_REINSURANCE_LOSS:
-        i = num_reinsurance_iterations + 1
+        i = num_reinsurance_iterations
         summarycalc_directory_switch = "-p input{0}RI_{1}".format(os.sep, i)
 
     cmd = 'summarycalc {} {}'.format(summarycalc_switch, summarycalc_directory_switch)
