@@ -23,7 +23,7 @@ try:
 except ImportError:
     from urllib2 import urlopen, URLError
 
-KTOOLS_VERSION = '0_0_392_0'
+KTOOLS_VERSION = '3.0.0'
 SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 
 
@@ -65,7 +65,7 @@ class InstallKtoolsMixin(object):
         request = None
         for i in range(attempts):
             try:
-                request = urlopen('https://github.com/OasisLMF/ktools/archive/OASIS_{}.tar.gz'.format(KTOOLS_VERSION), timeout=timeout * 1000)
+                request = urlopen('https://github.com/OasisLMF/ktools/archive/v{}.tar.gz'.format(KTOOLS_VERSION), timeout=timeout * 1000)
                 break
             except URLError as e:
                 self.announce('Failed to get ktools tar (attempt {})'.format(i + 1), WARN)
@@ -101,7 +101,7 @@ class InstallKtoolsMixin(object):
 
     def build_ktools(self, extract_location):
         self.announce('Building ktools', INFO)
-        build_dir = os.path.join(extract_location, 'ktools-OASIS_{}'.format(KTOOLS_VERSION))
+        build_dir = os.path.join(extract_location, 'ktools-{}'.format(KTOOLS_VERSION))
 
         exit_code = os.system('cd {build_dir} && ./autogen.sh && ./configure && make && make check'.format(build_dir=build_dir))
         if(exit_code is not 0):

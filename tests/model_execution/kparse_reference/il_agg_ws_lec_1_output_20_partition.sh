@@ -5,7 +5,6 @@ rm -R -f fifo/*
 rm -R -f work/*
 
 mkdir work/kat
-
 mkfifo fifo/il_P1
 
 mkfifo fifo/il_S1_summary_P1
@@ -130,58 +129,52 @@ tee < fifo/il_S1_summary_P17 work/il_S1_summaryleccalc/P17.bin > /dev/null & pid
 tee < fifo/il_S1_summary_P18 work/il_S1_summaryleccalc/P18.bin > /dev/null & pid18=$!
 tee < fifo/il_S1_summary_P19 work/il_S1_summaryleccalc/P19.bin > /dev/null & pid19=$!
 tee < fifo/il_S1_summary_P20 work/il_S1_summaryleccalc/P20.bin > /dev/null & pid20=$!
-summarycalc -f -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
-summarycalc -f -1 fifo/il_S1_summary_P2 < fifo/il_P2 &
-summarycalc -f -1 fifo/il_S1_summary_P3 < fifo/il_P3 &
-summarycalc -f -1 fifo/il_S1_summary_P4 < fifo/il_P4 &
-summarycalc -f -1 fifo/il_S1_summary_P5 < fifo/il_P5 &
-summarycalc -f -1 fifo/il_S1_summary_P6 < fifo/il_P6 &
-summarycalc -f -1 fifo/il_S1_summary_P7 < fifo/il_P7 &
-summarycalc -f -1 fifo/il_S1_summary_P8 < fifo/il_P8 &
-summarycalc -f -1 fifo/il_S1_summary_P9 < fifo/il_P9 &
-summarycalc -f -1 fifo/il_S1_summary_P10 < fifo/il_P10 &
-summarycalc -f -1 fifo/il_S1_summary_P11 < fifo/il_P11 &
-summarycalc -f -1 fifo/il_S1_summary_P12 < fifo/il_P12 &
-summarycalc -f -1 fifo/il_S1_summary_P13 < fifo/il_P13 &
-summarycalc -f -1 fifo/il_S1_summary_P14 < fifo/il_P14 &
-summarycalc -f -1 fifo/il_S1_summary_P15 < fifo/il_P15 &
-summarycalc -f -1 fifo/il_S1_summary_P16 < fifo/il_P16 &
-summarycalc -f -1 fifo/il_S1_summary_P17 < fifo/il_P17 &
-summarycalc -f -1 fifo/il_S1_summary_P18 < fifo/il_P18 &
-summarycalc -f -1 fifo/il_S1_summary_P19 < fifo/il_P19 &
-summarycalc -f -1 fifo/il_S1_summary_P20 < fifo/il_P20 &
+summarycalc -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
+summarycalc -f  -1 fifo/il_S1_summary_P2 < fifo/il_P2 &
+summarycalc -f  -1 fifo/il_S1_summary_P3 < fifo/il_P3 &
+summarycalc -f  -1 fifo/il_S1_summary_P4 < fifo/il_P4 &
+summarycalc -f  -1 fifo/il_S1_summary_P5 < fifo/il_P5 &
+summarycalc -f  -1 fifo/il_S1_summary_P6 < fifo/il_P6 &
+summarycalc -f  -1 fifo/il_S1_summary_P7 < fifo/il_P7 &
+summarycalc -f  -1 fifo/il_S1_summary_P8 < fifo/il_P8 &
+summarycalc -f  -1 fifo/il_S1_summary_P9 < fifo/il_P9 &
+summarycalc -f  -1 fifo/il_S1_summary_P10 < fifo/il_P10 &
+summarycalc -f  -1 fifo/il_S1_summary_P11 < fifo/il_P11 &
+summarycalc -f  -1 fifo/il_S1_summary_P12 < fifo/il_P12 &
+summarycalc -f  -1 fifo/il_S1_summary_P13 < fifo/il_P13 &
+summarycalc -f  -1 fifo/il_S1_summary_P14 < fifo/il_P14 &
+summarycalc -f  -1 fifo/il_S1_summary_P15 < fifo/il_P15 &
+summarycalc -f  -1 fifo/il_S1_summary_P16 < fifo/il_P16 &
+summarycalc -f  -1 fifo/il_S1_summary_P17 < fifo/il_P17 &
+summarycalc -f  -1 fifo/il_S1_summary_P18 < fifo/il_P18 &
+summarycalc -f  -1 fifo/il_S1_summary_P19 < fifo/il_P19 &
+summarycalc -f  -1 fifo/il_S1_summary_P20 < fifo/il_P20 &
 
-# --- Do ground up loss  computes ---
-
-
-eve 1 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc > fifo/il_P1  &
-eve 2 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc > fifo/il_P2  &
-eve 3 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc > fifo/il_P3  &
-eve 4 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc > fifo/il_P4  &
-eve 5 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc > fifo/il_P5  &
-eve 6 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc > fifo/il_P6  &
-eve 7 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc > fifo/il_P7  &
-eve 8 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc > fifo/il_P8  &
-eve 9 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc > fifo/il_P9  &
-eve 10 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc > fifo/il_P10  &
-eve 11 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc > fifo/il_P11  &
-eve 12 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc > fifo/il_P12  &
-eve 13 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc > fifo/il_P13  &
-eve 14 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc > fifo/il_P14  &
-eve 15 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc > fifo/il_P15  &
-eve 16 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc > fifo/il_P16  &
-eve 17 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc > fifo/il_P17  &
-eve 18 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc > fifo/il_P18  &
-eve 19 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc > fifo/il_P19  &
-eve 20 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc > fifo/il_P20  &
+eve 1 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc -a 2 > fifo/il_P1  &
+eve 2 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc -a 2 > fifo/il_P2  &
+eve 3 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc -a 2 > fifo/il_P3  &
+eve 4 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc -a 2 > fifo/il_P4  &
+eve 5 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc -a 2 > fifo/il_P5  &
+eve 6 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc -a 2 > fifo/il_P6  &
+eve 7 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc -a 2 > fifo/il_P7  &
+eve 8 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc -a 2 > fifo/il_P8  &
+eve 9 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc -a 2 > fifo/il_P9  &
+eve 10 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc -a 2 > fifo/il_P10  &
+eve 11 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc -a 2 > fifo/il_P11  &
+eve 12 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc -a 2 > fifo/il_P12  &
+eve 13 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc -a 2 > fifo/il_P13  &
+eve 14 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc -a 2 > fifo/il_P14  &
+eve 15 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc -a 2 > fifo/il_P15  &
+eve 16 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc -a 2 > fifo/il_P16  &
+eve 17 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc -a 2 > fifo/il_P17  &
+eve 18 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc -a 2 > fifo/il_P18  &
+eve 19 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc -a 2 > fifo/il_P19  &
+eve 20 20 | getmodel | gulcalc -S100 -L100 -r -i - | fmcalc -a 2 > fifo/il_P20  &
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20
 
 
 # --- Do insured loss kats ---
-
-
-# --- Do ground up loss kats ---
 
 
 leccalc -r -Kil_S1_summaryleccalc -W output/il_S1_leccalc_wheatsheaf_aep.csv & lpid1=$!

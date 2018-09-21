@@ -346,9 +346,9 @@ class UploadInputsFromDirectory(TestCase):
             client = OasisAPIClient('http://localhost:8001')
             client.upload_inputs_from_directory(d, do_build=True)
 
-            check_mock.assert_called_once_with(d, do_il=False)
+            check_mock.assert_called_once_with(d, do_il=False, do_ri=False)
             check_tools_mock.assert_called_once_with(do_il=False)
-            create_bin_mock.assert_called_once_with(d, d, do_il=False)
+            create_bin_mock.assert_called_once_with(d, d, do_il=False, do_ri=False)
             create_tar_mock.assert_called_once_with(d)
 
     @patch('oasislmf.api_client.client.create_binary_tar_file')
@@ -364,9 +364,9 @@ class UploadInputsFromDirectory(TestCase):
             client = OasisAPIClient('http://localhost:8001')
             client.upload_inputs_from_directory(d, do_build=True, do_il=True)
 
-            check_mock.assert_called_once_with(d, do_il=True)
+            check_mock.assert_called_once_with(d, do_il=True, do_ri=False)
             check_tools_mock.assert_called_once_with(do_il=True)
-            create_bin_mock.assert_called_once_with(d, d, do_il=True)
+            create_bin_mock.assert_called_once_with(d, d, do_il=True, do_ri=False)
             create_tar_mock.assert_called_once_with(d)
 
     @patch('oasislmf.api_client.client.create_binary_tar_file')
@@ -385,9 +385,9 @@ class UploadInputsFromDirectory(TestCase):
             client = OasisAPIClient('http://localhost:8001')
             client.upload_inputs_from_directory(d, bin_directory=bin_dir, do_build=True)
 
-            check_mock.assert_called_once_with(d, do_il=False)
+            check_mock.assert_called_once_with(d, do_il=False, do_ri=False)
             check_tools_mock.assert_called_once_with(do_il=False)
-            create_bin_mock.assert_called_once_with(d, bin_dir, do_il=False)
+            create_bin_mock.assert_called_once_with(d, bin_dir, do_il=False, do_ri=False)
             create_tar_mock.assert_called_once_with(bin_dir)
 
     def test_tar_file_exists___correct_file_is_posted(self):

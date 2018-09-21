@@ -14,7 +14,7 @@ import os
 import io
 import subprocess
 
-from copy import deepcopy
+from copy import copy, deepcopy
 from hypothesis import given
 from hypothesis.strategies import sampled_from, lists
 from mock import patch, Mock
@@ -26,6 +26,7 @@ from oasislmf.model_execution.bin import create_binary_files, create_binary_tar_
     check_binary_tar_file
 from oasislmf.utils.exceptions import OasisException
 
+# Used simple echo command rather than ktools conversion utility for testing purposes
 ECHO_CONVERSION_INPUT_FILES = {k: ChainMap({'conversion_tool': 'echo'}, v) for k, v in INPUT_FILES.items()}
 
 
@@ -97,6 +98,62 @@ class CreateBinaryFiles(TestCase):
                 with self.assertRaises(OasisException):
                     create_binary_files(csv_dir, bin_dir, do_il=True)
 
+    @given(standard_input_files(min_size=1), il_input_files(min_size=1))
+    def test_single_ri_folder(self, standard, il):
+        with patch('oasislmf.model_execution.bin.INPUT_FILES', ECHO_CONVERSION_INPUT_FILES), TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
+            files = standard + il
+
+            for target in files:
+                with io.open(os.path.join(csv_dir, target + '.csv'), 'w', encoding='utf-8') as f:
+                    f.write(target)
+            os.mkdir(os.path.join(csv_dir, "RI_1"))
+            for target in files:
+                with io.open(os.path.join(csv_dir, "RI_1", target + '.csv'), 'w', encoding='utf-8') as f:
+                    f.write(target)
+
+            create_binary_files(csv_dir, bin_dir, do_il=True, do_ri=True)
+
+            self.assertEqual(len(files), len(glob.glob(os.path.join(bin_dir, '*.bin'))))
+            for filename in (f + '.bin' for f in files):
+                self.assertTrue(os.path.exists(os.path.join(bin_dir, filename)))
+
+            self.assertEqual(len(files), len(glob.glob(os.path.join(bin_dir, 'RI_1{}*.bin'.format(os.sep)))))
+            for filename in (f + '.bin' for f in files):
+                self.assertTrue(os.path.exists(os.path.join(bin_dir, 'RI_1', filename)))
+
+
+    @given(standard_input_files(min_size=1), il_input_files(min_size=1))
+    def test_multipl_ri_folders(self, standard, il):
+        with patch('oasislmf.model_execution.bin.INPUT_FILES', ECHO_CONVERSION_INPUT_FILES), TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
+            files = standard + il
+
+            for target in files:
+                with io.open(os.path.join(csv_dir, target + '.csv'), 'w', encoding='utf-8') as f:
+                    f.write(target)
+            os.mkdir(os.path.join(csv_dir, "RI_1"))
+            for target in files:
+                with io.open(os.path.join(csv_dir, "RI_1", target + '.csv'), 'w', encoding='utf-8') as f:
+                    f.write(target)
+            os.mkdir(os.path.join(csv_dir, "RI_2"))
+            for target in files:
+                with io.open(os.path.join(csv_dir, "RI_2", target + '.csv'), 'w', encoding='utf-8') as f:
+                    f.write(target)
+
+
+            create_binary_files(csv_dir, bin_dir, do_il=True, do_ri=True)
+
+            self.assertEqual(len(files), len(glob.glob(os.path.join(bin_dir, '*.bin'))))
+            for filename in (f + '.bin' for f in files):
+                self.assertTrue(os.path.exists(os.path.join(bin_dir, filename)))
+
+            self.assertEqual(len(files), len(glob.glob(os.path.join(bin_dir, 'RI_1{}*.bin'.format(os.sep)))))
+            for filename in (f + '.bin' for f in files):
+                self.assertTrue(os.path.exists(os.path.join(bin_dir, 'RI_1', filename)))
+
+            self.assertEqual(len(files), len(glob.glob(os.path.join(bin_dir, 'RI_2{}*.bin'.format(os.sep)))))
+            for filename in (f + '.bin' for f in files):
+                self.assertTrue(os.path.exists(os.path.join(bin_dir, 'RI_2', filename)))
+
 
 class CreateBinaryTarFile(TestCase):
     def test_directory_only_contains_excluded_files___tar_is_empty(self):
@@ -122,6 +179,50 @@ class CreateBinaryTarFile(TestCase):
                 self.assertEqual(len(targets), len(tar.getnames()))
                 self.assertEqual(set(targets), set(tar.getnames()))
 
+    @given(tar_file_targets(min_size=1))
+    def test_with_single_reinsurance_subfolder(self, targets):
+        with TemporaryDirectory() as d:
+            os.mkdir(os.path.join(d, 'RI_1'))
+            for target in targets:
+                with io.open(os.path.join(d, target), 'w', encoding='utf-8') as f:
+                    f.write(target)
+                with io.open(os.path.join(d, 'RI_1', target), 'w', encoding='utf-8') as f:
+                    f.write(target)
+
+            create_binary_tar_file(d)
+
+            all_targets = copy(targets)
+            for t in targets:
+                all_targets.append("RI_1{}{}".format(os.sep, t))
+
+            with tarfile.open(os.path.join(d, TAR_FILE), 'r:gz', encoding='utf-8') as tar:
+                self.assertEqual(len(all_targets), len(tar.getnames()))
+                self.assertEqual(set(all_targets), set(tar.getnames()))
+
+    @given(tar_file_targets(min_size=1))
+    def test_with_multiple_reinsurance_subfolders(self, targets):
+        with TemporaryDirectory() as d:
+            os.mkdir(os.path.join(d, 'RI_1'))
+            os.mkdir(os.path.join(d, 'RI_2'))
+            
+            for target in targets:
+                with io.open(os.path.join(d, target), 'w', encoding='utf-8') as f:
+                    f.write(target)
+                with io.open(os.path.join(d, 'RI_1', target), 'w', encoding='utf-8') as f:
+                    f.write(target)
+                with io.open(os.path.join(d, 'RI_2', target), 'w', encoding='utf-8') as f:
+                    f.write(target)                
+
+            create_binary_tar_file(d)
+
+            all_targets = copy(targets)
+            for t in targets:
+                all_targets.append("RI_1{}{}".format(os.sep, t))
+                all_targets.append("RI_2{}{}".format(os.sep, t))
+
+            with tarfile.open(os.path.join(d, TAR_FILE), 'r:gz', encoding='utf-8') as tar:
+                self.assertEqual(len(all_targets), len(tar.getnames()))
+                self.assertEqual(set(all_targets), set(tar.getnames()))
 
 class CheckConversionTools(TestCase):
     def test_do_il_is_false_il_tools_are_missing___result_is_true(self):
@@ -309,6 +410,81 @@ class CheckInputDirectory(TestCase):
             except Exception as e:
                 self.fail('Exception was raised {}: {}'.format(type(e), e))
 
+    def test_check_gul_and_il_and_single_ri_directory_structure(self):
+        with TemporaryDirectory() as d:
+            for p in six.itervalues(INPUT_FILES):
+                Path(os.path.join(d, p['name'] + '.csv')).touch()
+            os.mkdir(os.path.join(d, "RI_1"))
+            for p in six.itervalues(INPUT_FILES):
+                f = os.path.join(d, "RI_1", p['name'] + '.csv')
+                Path(f).touch()
+            try:
+                check_inputs_directory(d, do_il=True, do_ri=True, check_binaries=True)
+            except Exception as e:
+                self.fail('Exception was raised {}: {}'.format(type(e), e))
+                
+    def test_check_gul_and_il_and_single_ri_directory_structure_binaries_fail(self):
+        with TemporaryDirectory() as d:
+            for p in six.itervalues(INPUT_FILES):
+                Path(os.path.join(d, p['name'] + '.csv')).touch()
+                Path(os.path.join(d, p['name'] + '.bin')).touch()
+            os.mkdir(os.path.join(d, "RI_1"))
+            for p in six.itervalues(INPUT_FILES):
+                Path(os.path.join(d, "RI_1", p['name'] + '.csv')).touch()
+                Path(os.path.join(d, "RI_1", p['name'] + '.bin')).touch()
+
+            with self.assertRaises(OasisException):
+                check_inputs_directory(d, do_il=True, do_ri=True, check_binaries=True)
+
+    def test_check_gul_and_il_and_single_ri_directory_structure_missing_file_fail(self):
+        with TemporaryDirectory() as d:
+            for p in six.itervalues(INPUT_FILES):
+                Path(os.path.join(d, p['name'] + '.csv')).touch()
+            os.mkdir(os.path.join(d, "RI_1"))
+            # Skip the first files
+            first = True
+            for p in six.itervalues(INPUT_FILES):
+                if not first:
+                    Path(os.path.join(d, "RI_1", p['name'] + '.csv')).touch()
+                first = False
+
+            with self.assertRaises(OasisException):
+                check_inputs_directory(d, do_il=True, do_ri=True, check_binaries=True)
+
+    def test_check_gul_and_il_and_multiple_ri_directories(self):
+        with TemporaryDirectory() as d:
+            for p in six.itervalues(INPUT_FILES):
+                Path(os.path.join(d, p['name'] + '.csv')).touch()
+            
+            os.mkdir(os.path.join(d, "RI_1"))
+            for p in six.itervalues(INPUT_FILES):
+                Path(os.path.join(d, "RI_1", p['name'] + '.csv')).touch()
+            
+            os.mkdir(os.path.join(d, "RI_2"))
+            for p in six.itervalues(INPUT_FILES):
+                Path(os.path.join(d, "RI_2", p['name'] + '.csv')).touch()
+
+            try:
+                check_inputs_directory(d, do_il=True, do_ri=True, check_binaries=True)
+            except Exception as e:
+                self.fail('Exception was raised {}: {}'.format(type(e), e))
+
+    def test_check_gul_and_il_and_multiple_ri_directories_binaries_fail(self):
+        with TemporaryDirectory() as d:
+            for p in six.itervalues(INPUT_FILES):
+                Path(os.path.join(d, p['name'] + '.csv')).touch()
+                Path(os.path.join(d, p['name'] + '.bin')).touch()
+            os.mkdir(os.path.join(d, "RI_1"))
+            for p in six.itervalues(INPUT_FILES):
+                Path(f = os.path.join(d, "RI_1", p['name'] + '.csv')).touch()
+                Path(f = os.path.join(d, "RI_1", p['name'] + '.bin')).touch()
+            os.mkdir(os.path.join(d, "RI_2"))
+            for p in six.itervalues(INPUT_FILES):
+                Path(os.path.join(d, "RI_2", p['name'] + '.bin')).touch()
+                Path(os.path.join(d, "RI_2", p['name'] + '.bin')).touch()
+
+            with self.assertRaises(OasisException):
+                check_inputs_directory(d, do_il=True, do_ri=True, check_binaries=True)
 
 class PrepareModelRunDirectory(TestCase):
     def test_directory_is_empty___child_directories_are_created(self):
@@ -383,6 +559,24 @@ class PrepareModelRunDirectory(TestCase):
             prepare_model_run_directory(output_path, inputs_archive=tar_path)
 
             self.assertTrue(Path(output_path, 'input', 'archived_file').exists())
+
+    def test_inputs_archive_with_subfolder_is_supplied___archive_is_extracted_into_inputs(self):
+        with TemporaryDirectory() as output_path, TemporaryDirectory() as input_path:
+            tar_path = os.path.join(input_path, 'archive.tar')
+
+            with tarfile.open(tar_path, 'w', encoding='utf-8') as tar:
+                archived_file_path = Path(input_path, 'archived_file')
+                archived_file_path.touch()
+                tar.add(str(archived_file_path), arcname='archived_file')
+                os.mkdir(os.path.join(input_path, "sub1"))
+                archived_file_path = Path(input_path, "sub1", 'archived_file')
+                archived_file_path.touch()
+                tar.add(str(archived_file_path), arcname='sub1{}archived_file'.format(os.sep))
+
+            prepare_model_run_directory(output_path, inputs_archive=tar_path)
+
+            self.assertTrue(Path(output_path, 'input', 'archived_file').exists())
+            self.assertTrue(Path(output_path, 'input', 'sub1', 'archived_file').exists())
 
 
 class PrepareModelRunInputs(TestCase):

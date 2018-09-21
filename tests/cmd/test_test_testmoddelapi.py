@@ -36,10 +36,30 @@ class TestModelApiCmdLoadAnalysisSettingsJson(TestCase):
             json.dump(conf, f)
             f.flush()
 
-            res_conf, do_il = TestModelApiCmd().load_analysis_settings_json(f.name)
+            res_conf, do_il, do_ri = TestModelApiCmd().load_analysis_settings_json(f.name)
 
             self.assertEqual(conf, res_conf)
             self.assertTrue(do_il)
+            self.assertFalse(do_ri)
+
+    def test_do_il_is_true_do_ri_is_true___result_has_input_dict_and_do_il_is_true_and_do_ri_is_true(self):
+        conf = {
+            'analysis_settings': {
+                'il_output': True,
+                'ri_output': True,                
+                'foo': 'bar',
+            }
+        }
+
+        with NamedTemporaryFile('w') as f:
+            json.dump(conf, f)
+            f.flush()
+
+            res_conf, do_il, do_ri = TestModelApiCmd().load_analysis_settings_json(f.name)
+
+            self.assertEqual(conf, res_conf)
+            self.assertTrue(do_il)
+            self.assertTrue(do_ri)
 
     def test_do_il_is_false___result_has_input_dict_and_do_il_is_false(self):
         conf = {
@@ -53,10 +73,11 @@ class TestModelApiCmdLoadAnalysisSettingsJson(TestCase):
             json.dump(conf, f)
             f.flush()
 
-            res_conf, do_il = TestModelApiCmd().load_analysis_settings_json(f.name)
+            res_conf, do_il, do_ri = TestModelApiCmd().load_analysis_settings_json(f.name)
 
             self.assertEqual(conf, res_conf)
             self.assertFalse(do_il)
+            self.assertFalse(do_ri)
 
     @given(sampled_from(['true', 'TRUE', 'True']))
     def test_do_il_is_string_true___result_has_input_dict_and_do_il_is_true(self, do_il_in):
@@ -71,10 +92,11 @@ class TestModelApiCmdLoadAnalysisSettingsJson(TestCase):
             json.dump(conf, f)
             f.flush()
 
-            res_conf, do_il = TestModelApiCmd().load_analysis_settings_json(f.name)
+            res_conf, do_il, do_ri = TestModelApiCmd().load_analysis_settings_json(f.name)
 
             self.assertEqual(conf, res_conf)
             self.assertTrue(do_il)
+            self.assertFalse(do_ri)            
 
     @given(sampled_from(['false', 'FALSE', 'False']))
     def test_do_il_is_string_false___result_has_input_dict_and_do_il_is_false(self, do_il_in):
@@ -89,15 +111,18 @@ class TestModelApiCmdLoadAnalysisSettingsJson(TestCase):
             json.dump(conf, f)
             f.flush()
 
-            res_conf, do_il = TestModelApiCmd().load_analysis_settings_json(f.name)
+            res_conf, do_il, do_ri = TestModelApiCmd().load_analysis_settings_json(f.name)
 
             self.assertEqual(conf, res_conf)
             self.assertFalse(do_il)
+            self.assertFalse(do_ri)            
 
 
 class TestModelApiCmdRunAnalysis(TestCase):
-    @given(text(), text(), dictionaries(text(), text()), booleans(), integers(min_value=0, max_value=5), integers(min_value=0, max_value=5))
-    def test_no_errors_are_raised___completed_is_incremented(self, input_dir, output_dir, settings, do_il, initial_complete, initial_failed):
+    @given(
+        text(), text(), dictionaries(text(), text()), booleans(), booleans(), integers(min_value=0, max_value=5), integers(min_value=0, max_value=5))
+    def test_no_errors_are_raised___completed_is_incremented(self, 
+        input_dir, output_dir, settings, do_il, do_ri, initial_complete, initial_failed):
         client = OasisAPIClient('http://localhost:8001')
         client.upload_inputs_from_directory = Mock(return_value='input_location')
         client.run_analysis_and_poll = Mock()
@@ -107,16 +132,19 @@ class TestModelApiCmdRunAnalysis(TestCase):
             'failed': initial_failed,
         })
 
-        TestModelApiCmd().run_analysis((client, input_dir, output_dir, settings, do_il, counter))
+        TestModelApiCmd().run_analysis((client, input_dir, output_dir, settings, do_il, do_ri, counter))
 
         self.assertEqual(initial_complete + 1, counter['completed'])
         self.assertEqual(initial_failed, counter['failed'])
-        client.upload_inputs_from_directory.assert_called_once_with(input_dir, bin_directory=ANY, do_il=do_il, do_build=True)
+        client.upload_inputs_from_directory.assert_called_once_with(
+            input_dir, bin_directory=ANY, do_il=do_il, do_ri=do_ri, do_build=True)
         client.run_analysis_and_poll.assert_called_once_with(settings, 'input_location', output_dir)
 
     @settings(suppress_health_check=[HealthCheck.too_slow])
-    @given(text(), text(), dictionaries(text(), text()), booleans(), integers(min_value=0, max_value=5), integers(min_value=0, max_value=5))
-    def test_uploading_raises_an_error___failed_counter_is_incremented(self, input_dir, output_dir, settings, do_il, initial_complete, initial_failed):
+    @given(
+        text(), text(), dictionaries(text(), text()), booleans(), booleans(), integers(min_value=0, max_value=5), integers(min_value=0, max_value=5))
+    def test_uploading_raises_an_error___failed_counter_is_incremented(self, 
+        input_dir, output_dir, settings, do_il, do_ri, initial_complete, initial_failed):
         client = OasisAPIClient('http://localhost:8001')
         client.upload_inputs_from_directory = Mock(side_effect=OasisException())
         client.run_analysis_and_poll = Mock()
@@ -126,13 +154,16 @@ class TestModelApiCmdRunAnalysis(TestCase):
             'failed': initial_failed,
         })
 
-        TestModelApiCmd().run_analysis((client, input_dir, output_dir, settings, do_il, counter))
+        TestModelApiCmd().run_analysis((client, input_dir, output_dir, settings, do_il, do_ri, counter))
 
         self.assertEqual(initial_complete, counter['completed'])
         self.assertEqual(initial_failed + 1, counter['failed'])
 
-    @given(text(), text(), dictionaries(text(), text()), booleans(), integers(min_value=0, max_value=5), integers(min_value=0, max_value=5))
-    def test_run_and_poll_raises_an_error___failed_counter_is_incremented(self, input_dir, output_dir, settings, do_il, initial_complete, initial_failed):
+    @given(
+        text(), text(), dictionaries(text(), text()), booleans(), booleans(), integers(min_value=0, max_value=5), integers(min_value=0, max_value=5))
+    def test_run_and_poll_raises_an_error___failed_counter_is_incremented(self, 
+        input_dir, output_dir, settings, do_il, do_ri, initial_complete, initial_failed):
+
         client = OasisAPIClient('http://localhost:8001')
         client.upload_inputs_from_directory = Mock()
         client.run_analysis_and_poll = Mock(side_effect=OasisException())
@@ -142,7 +173,7 @@ class TestModelApiCmdRunAnalysis(TestCase):
             'failed': initial_failed,
         })
 
-        TestModelApiCmd().run_analysis((client, input_dir, output_dir, settings, do_il, counter))
+        TestModelApiCmd().run_analysis((client, input_dir, output_dir, settings, do_il, do_ri, counter))
 
         self.assertEqual(initial_complete, counter['completed'])
         self.assertEqual(initial_failed + 1, counter['failed'])
@@ -293,12 +324,15 @@ class TestModelApiCmdRun(TestCase):
             cmd.logger.error.assert_called_once_with('Health check failed for http://localhost:8001.')
             health_check_mock.assert_called_once_with(health_check_attempts)
 
-    @given(integers(min_value=1, max_value=5), booleans(), dictionaries(text(), text()))
-    def test_validation_is_successful___threadpool_is_started_for_each_analysis(self, num_analyses, do_il, settings):
+    @given(
+        integers(min_value=1, max_value=5), booleans(), booleans(), dictionaries(text(), text()))
+    def test_validation_is_successful___threadpool_is_started_for_each_analysis(self, 
+        num_analyses, do_il, do_ri, settings):
+        
         pool_mock_object = Mock()
 
         with patch('oasislmf.api_client.client.OasisAPIClient.health_check', Mock(return_value=True)), \
-                patch('oasislmf.cmd.test.TestModelApiCmd.load_analysis_settings_json', Mock(return_value=(settings, do_il))), \
+                patch('oasislmf.cmd.test.TestModelApiCmd.load_analysis_settings_json', Mock(return_value=(settings, do_il, do_ri))), \
                 patch('oasislmf.cmd.test.ThreadPool', Mock(return_value=pool_mock_object)) as pool_mock:
             cmd = self.get_command(analysis_directory=self.directory, extras={'num-analyses': num_analyses})
             cmd._logger = Mock()
@@ -314,4 +348,4 @@ class TestModelApiCmdRun(TestCase):
 
             self.assertEqual(fn.__name__, 'run_analysis')
             self.assertIsInstance(fn.__self__, TestModelApiCmd)
-            self.assertEqual(args, [(ANY, cmd.args.input_directory, cmd.args.output_directory, settings, do_il, ANY)] * num_analyses)
+            self.assertEqual(args, [(ANY, cmd.args.input_directory, cmd.args.output_directory, settings, do_il, do_ri, ANY)] * num_analyses)
