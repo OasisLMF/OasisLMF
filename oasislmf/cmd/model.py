@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-
+import importlib
 import io
 import json
 import os
 import subprocess
+import sys
 
 from argparse import RawDescriptionHelpFormatter
 
@@ -13,7 +14,7 @@ from ..exposures.csv_trans import Translator
 from ..exposures.manager import OasisExposuresManager
 
 from ..model_execution.bash import genbash
-from ..model_execution.runner import run
+from ..model_execution import runner
 from ..model_execution.bin import create_binary_files, prepare_model_run_directory, prepare_model_run_inputs
 
 from ..utils.exceptions import OasisException
@@ -71,6 +72,7 @@ class GeneratePerilAreasRtreeFileIndexCmd(OasisBaseCommand):
 
         index_fp = as_path(inputs.get('index_file_path', required=True, is_path=True, default=None), 'Index output file path', preexists=False)
 
+        lookup_config_dir = os.path.dirname(lookup_config_fp)
         with io.open(lookup_config_fp, 'r', encoding='utf-8') as f:
             config = json.load(f)
 
@@ -93,7 +95,9 @@ class GeneratePerilAreasRtreeFileIndexCmd(OasisBaseCommand):
         if areas_fp.startswith('%%KEYS_DATA_PATH%%'):
             areas_fp = areas_fp.replace('%%KEYS_DATA_PATH%%', keys_data_path)
 
-        areas_fp = as_path(areas_fp, 'areas_fp')
+        if not os.path.isabs(areas_fp):
+            areas_fp = os.path.join(lookup_config_dir, areas_fp)
+            areas_fp = as_path(areas_fp, 'areas_fp')
 
         src_type = str.lower(str(peril_config.get('file_type')) or '') or 'csv'
 
@@ -594,8 +598,9 @@ class GenerateLossesCmd(OasisBaseCommand):
         parser.add_argument('-m', '--model-data-path', default=None, help='Model data source path')
         parser.add_argument('-r', '--model-run-dir-path', default=None, help='Model run directory path')
         parser.add_argument('-s', '--ktools-script-name', default=None, help='Relative or absolute path of the output file')
-        parser.add_argument('-n', '--ktools-num-processes', default=-1, help='Number of ktools calculation processes to use')
+        parser.add_argument('-n', '--ktools-num-processes', default=-1, help='Number of ktools calculation processes to use', type=int)
         parser.add_argument('-x', '--no-execute', action='store_true', help='Whether to execute generated ktools script')
+        parser.add_argument('-p', '--model-package-path', default=None, help='Path containing model specific package')
 
     def action(self, args):
         """
@@ -615,6 +620,10 @@ class GenerateLossesCmd(OasisBaseCommand):
             'Analysis settings file'
         )
         model_data_path = as_path(inputs.get('model_data_path', required=True, is_path=True), 'Model data')
+
+        model_package_path = inputs.get('model_package_path', required=False, is_path=True)
+        if model_package_path:
+            model_package_path = as_path(model_package_path, 'Model package path')
 
         ktools_script_name = inputs.get('ktools_script_name', default='run_ktools')
         no_execute = inputs.get('no_execute', default=False)
@@ -670,7 +679,15 @@ class GenerateLossesCmd(OasisBaseCommand):
             subprocess.check_call("chmod +x {}".format(script_path), stderr=subprocess.STDOUT, shell=True)
         else:
             os.chdir(model_run_dir_path)
-            run(analysis_settings, args.ktools_num_processes, filename=script_path)
+
+            if model_package_path and os.path.exists(os.path.join(model_package_path, 'supplier_model_runner.py')):
+                path, package_name = model_package_path.rsplit('/')
+                sys.path.append(path)
+                model_runner_module = importlib.import_module('{}.supplier_model_runner'.format(package_name))
+            else:
+                model_runner_module = runner
+
+            model_runner_module.run(analysis_settings, args.ktools_num_processes, filename=script_path)
 
         self.logger.info('\nLoss outputs generated in {}'.format(os.path.join(model_run_dir_path, 'output')))
 
