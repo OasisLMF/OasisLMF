@@ -1,6 +1,12 @@
 CHANGELOG
 =========
 
+`1.1.26`_ (beta)
+----------------
+
+* Merge in reinsurance update from feature/reinsurance
+* Fix ktools install using pip instal editable mode `pip install -e ..`
+
 `1.1.25`_ (beta)
 ----------------
 
@@ -116,6 +122,7 @@ in the exposure manager
 * Add console logging
 
 
+.. _`1.1.26`: https://github.com/OasisLMF/OasisLMF/compare/dac703e...master
 .. _`1.1.25`: https://github.com/OasisLMF/OasisLMF/compare/3a4b983...master
 .. _`1.1.24`: https://github.com/OasisLMF/OasisLMF/compare/8f94cab...master
 .. _`1.1.23`: https://github.com/OasisLMF/OasisLMF/compare/0577497...master
