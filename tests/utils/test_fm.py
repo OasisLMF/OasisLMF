@@ -387,7 +387,7 @@ class GetFmTermsByLevel(TestCase):
     @settings(deadline=500, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(
-            from_accounts_nums=just(10101),
+            from_accounts_nums=just('A1'),
             from_tivs1=just(100),
             from_limits1=floats(min_value=1, allow_infinity=False),
             from_deductibles1=just(1),
@@ -397,12 +397,12 @@ class GetFmTermsByLevel(TestCase):
             size=10
         ),
         accounts=canonical_accounts_data(
-            from_accounts_nums=just(10101),
+            from_accounts_nums=just('A1'),
             from_attachment_points=floats(min_value=1, allow_infinity=False),
             from_blanket_deductibles=just(0),
             from_blanket_limits=just(0.1),
             from_layer_limits=floats(min_value=1, allow_infinity=False),
-            from_policy_nums=just('Layer1'),
+            from_policy_nums=just('A1P1'),
             from_policy_types=just(1),
             size=1
         ),
@@ -410,6 +410,7 @@ class GetFmTermsByLevel(TestCase):
             from_coverage_type_ids=just(BUILDING_COVERAGE_CODE),
             from_level_ids=just(1),
             from_canacc_ids=just(0),
+            from_policy_nums=just('A1P1'),
             from_layer_ids=just(1),
             from_tiv_elements=just('wscv1val'),
             from_tiv_tgids=just(1),
@@ -421,25 +422,24 @@ class GetFmTermsByLevel(TestCase):
             size=10
         ) 
     )
-    def test_coverage_level_terms(self, exposures, accounts, fm_items):
+    def test_coverage_level_terms__with_one_account_and_one_layer_per_account(self, exposures, accounts, fm_items):
         lcgcp = self.combined_grouped_canonical_profile[1]
         lfmaggp = self.fm_agg_profile[1]
 
         for it in exposures:
             it['cond1name'] = 0
 
-        exposures[0]['wscv2val'] = 50
-
         for i, it in enumerate(fm_items):
             it['index'] = i
+            it['agg_id'] = i + 1
 
-        results = list(get_coverage_level_fm_terms(
+        results = [r for r in get_coverage_level_fm_terms(
             lcgcp,
             lfmaggp,
             {i:it for i, it in enumerate(fm_items)},
             pd.DataFrame(data=exposures, dtype=object),
             pd.DataFrame(data=accounts, dtype=object),
-        ))
+        )]
 
         self.assertEqual(len(fm_items), len(results))
 
@@ -458,6 +458,7 @@ class GetFmTermsByLevel(TestCase):
             self.assertEqual(it['canexp_id'], res['canexp_id'])
             self.assertEqual(it['canacc_id'], res['canacc_id'])
             self.assertEqual(it['layer_id'], res['layer_id'])
+            self.assertEqual(it['agg_id'], res['agg_id'])
 
             self.assertEqual(it['tiv_elm'], res['tiv_elm'])
             self.assertEqual(it['tiv_tgid'], res['tiv_tgid'])
@@ -495,24 +496,24 @@ class GetFmTermsByLevel(TestCase):
     @settings(deadline=500, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(
-            from_accounts_nums=just(10101),
+            from_accounts_nums=just('A1'),
             from_tivs1=just(100),
             size=10
         ),
         accounts=canonical_accounts_data(
-            from_accounts_nums=just(10101),
+            from_accounts_nums=just('A1'),
             from_attachment_points=just(1),
             from_blanket_deductibles=just(1),
             from_blanket_limits=just(1),
             from_layer_limits=just(1),
-            from_policy_nums=just('Layer1'),
+            from_policy_nums=just('A1P1'),
             from_policy_types=just(1),
             size=1
         ),
         fm_items=fm_items_data(
             from_coverage_type_ids=just(BUILDING_COVERAGE_CODE),
             from_canacc_ids=just(0),
-            from_policy_nums=just('Layer1'),
+            from_policy_nums=just('A1P1'),
             from_layer_ids=just(1),
             from_tiv_elements=just('wscv1val'),
             from_tivs=just(100),
@@ -520,7 +521,7 @@ class GetFmTermsByLevel(TestCase):
             size=10
         )
     )
-    def test_non_coverage_level_terms(self, exposures, accounts, fm_items):
+    def test_non_coverage_level_terms__with_one_account_and_one_layer_per_account(self, exposures, accounts, fm_items):
         cgcp = self.combined_grouped_canonical_profile
 
         for i, _ in enumerate(exposures):
@@ -547,6 +548,8 @@ class GetFmTermsByLevel(TestCase):
             for i, it in enumerate(fm_items):
                 it['level_id'] = l
                 it['index'] = i
+
+                it['agg_id'] = i + 1 if l in [1,2,3] else 1
 
                 cexp_it = exposures[it['canexp_id']]
 
@@ -582,6 +585,8 @@ class GetFmTermsByLevel(TestCase):
                 self.assertEqual(it['level_id'], res['level_id'])
                 self.assertEqual(it['index'], res['index'])
                 self.assertEqual(it['item_id'], res['item_id'])
+
+                self.assertEqual(it['agg_id'], res['agg_id'])
 
                 tiv = it['tiv']
                 self.assertEqual(tiv, res['tiv'])
