@@ -1691,6 +1691,8 @@ class OasisExposuresManagerLoadFmItems(TestCase):
 
             self.assertEquals(it['layer_id'], 1)
 
+            self.assertEquals(it['agg_id'], it['canexp_id'] + 1) if l in [1,2,3] else self.assertEquals(it['agg_id'], 1)
+
             self.assertEquals(it['gul_item_id'], gul_it['item_id'])
 
             self.assertEquals(it['tiv_elm'], gul_it['tiv_elm'])
@@ -1791,8 +1793,9 @@ class OasisExposuresManagerLoadFmItems(TestCase):
                 reduced=False
             )[0].T.to_dict().values()
 
-        levels = set(cgcp.keys())
-        num_expected_fm_items = len(levels) * len(guls)
+        levels = sorted(cgcp.keys())
+        bottom_levels = levels[:-1]
+        num_expected_fm_items = (len(bottom_levels) + 2) * len(guls)
 
         self.assertEquals(len(fm_items), num_expected_fm_items)
 
@@ -1812,10 +1815,17 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             
             self.assertEquals(it['canexp_id'], gul_it['canexp_id'])
 
-            layer_id = 1 if i < len(fm_levels) * len(guls) else 2
+            layer_id = 1 if it['policy_num'] == 'A1P1' else 2
             self.assertEquals(it['layer_id'], layer_id)
 
             can_it = get_can_item(i, layer_id)
+
+            if l in [1, 2, 3]:
+                self.assertEquals(it['agg_id'], it['canexp_id'] + 1)
+            elif l in [4, 5]:
+                self.assertEquals(it['agg_id'], 1)
+            else:
+                self.assertEquals(it['agg_id'], 1) if it['policy_num'] == 'A1P1' else self.assertEquals(it['agg_id'], 2)
 
             self.assertEquals(it['canacc_id'], can_it['canacc_id'])
 
@@ -1945,6 +1955,11 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             self.assertEquals(it['canacc_id'], 0 if can_it['accntnum'] == 'A1' else 1)
 
             self.assertEquals(it['layer_id'], 1)
+
+            if l in [1, 2, 3]:
+                self.assertEquals(it['agg_id'], it['canexp_id'] + 1)
+            else:
+                self.assertEquals(it['agg_id'], 1) if can_it['accntnum'] == 'A1' else self.assertEquals(it['agg_id'], 2)
 
             self.assertEquals(it['gul_item_id'], gul_it['item_id'])
 
@@ -2078,6 +2093,20 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             elif it['policy_num'] == 'A2P2':
                 self.assertEquals(it['canacc_id'], 3)
 
+            if l in [1, 2, 3]:
+                self.assertEquals(it['agg_id'], it['canexp_id'] + 1)
+            elif l in [4, 5]:
+                self.assertEquals(it['agg_id'], 1) if can_it['accntnum'] == 'A1' else self.assertEquals(it['agg_id'], 2)
+            else:
+                if it['policy_num'] == 'A1P1':
+                    self.assertEquals(it['agg_id'], 1)
+                elif it['policy_num'] == 'A2P1':
+                    self.assertEquals(it['agg_id'], 2)
+                elif it['policy_num'] == 'A1P2':
+                    self.assertEquals(it['agg_id'], 3)
+                else:
+                    self.assertEquals(it['agg_id'], 4)
+
             self.assertEquals(it['layer_id'], 1) if it['policy_num'].endswith('P1') else self.assertEquals(it['layer_id'], 2)
 
             self.assertEquals(it['gul_item_id'], gul_it['item_id'])
@@ -2090,7 +2119,6 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             self.assertEquals(it['ded_elm'], gul_it['ded_elm'])
             self.assertEquals(it['shr_elm'], gul_it['shr_elm'])
 
-            print(i, it)
             lim = can_it.get(gul_it['lim_elm'] if l == 1 else (cgcp[l][1]['limit']['ProfileElementName'].lower() if cgcp[l][1].get('limit') else None)) or 0.0
             self.assertEquals(it['limit'], lim)
             

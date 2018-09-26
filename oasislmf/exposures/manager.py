@@ -1045,7 +1045,6 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             canexp_df = canexp_df.where(canexp_df.notnull(), None)
             canexp_df.columns = canexp_df.columns.str.lower()
             canexp_df['index'] = pd.Series(data=canexp_df.index, dtype=int)
-            #canexp_df['accntnum'] = canexp_df['accntnum'].astype(int)
 
             keys_df = keys_df.where(keys_df.notnull(), None)
             keys_df.columns = keys_df.columns.str.lower()
