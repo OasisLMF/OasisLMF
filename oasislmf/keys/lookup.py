@@ -190,8 +190,7 @@ class OasisBaseLookup(object):
 
 class OasisBaseKeysLookup(object):  # pragma: no cover
     """
-    A base class / interface that serves a template for model-specific keys
-    lookup classes.
+    Old Oasis base class -deprecated
     """
     @oasis_log()
     def __init__(
@@ -217,13 +216,6 @@ class OasisBaseKeysLookup(object):  # pragma: no cover
     def process_locations(self, loc_df):
         """
         Process location rows - passed in as a pandas dataframe.
-        """
-        pass
-
-    def _get_location_record(self, raw_loc_item):
-        """
-        Returns a dict of standard location keys and values based on
-        a raw location item, which is a row in a Pandas dataframe.
         """
         pass
 
