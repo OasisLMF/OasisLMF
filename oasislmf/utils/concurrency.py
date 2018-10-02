@@ -173,8 +173,8 @@ def multiprocess(tasks, pool_size=10):
             result_q.put(result)
 
     for task in tasks:
-        pool.apply_async(task.func, args=task.args, callback=build_results)
-
+        run = pool.apply_async(task.func, args=task.args, callback=build_results)
+        run.get()
     pool.close()
     pool.join()
 

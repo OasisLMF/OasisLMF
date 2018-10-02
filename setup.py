@@ -15,6 +15,7 @@ from time import sleep
 
 from setuptools import find_packages, setup, Command
 from setuptools.command.install import install
+from setuptools.command.develop import develop
 
 try:
     from urllib.request import urlopen
@@ -22,7 +23,7 @@ try:
 except ImportError:
     from urllib2 import urlopen, URLError
 
-KTOOLS_VERSION = '0_0_392_0'
+KTOOLS_VERSION = '3.0.0'
 SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 
 
@@ -56,24 +57,7 @@ reqs = get_install_requirements()
 readme = get_readme()
 
 
-class PostInstallKtools(install):
-    command_name = 'install'
-    user_options = install.user_options + [
-        ('ktools', None, 'Only install ktools components'),
-    ]
-    boolean_options = install.boolean_options + ['ktools']
-
-    def __init__(self, *args, **kwargs):
-        self.ktools_components = []
-        install.__init__(self, *args, **kwargs)
-
-    def run(self):
-        self.install_ktools()
-        install.run(self)
-
-    def get_outputs(self):
-        return install.get_outputs(self) + self.ktools_components
-
+class InstallKtoolsMixin(object):
     def fetch_ktools_tar(self, location, attempts=3, timeout=5, cooldown=1):
         self.announce('Retrieving ktools {}'.format(KTOOLS_VERSION), INFO)
 
@@ -81,7 +65,7 @@ class PostInstallKtools(install):
         request = None
         for i in range(attempts):
             try:
-                request = urlopen('https://github.com/OasisLMF/ktools/archive/OASIS_{}.tar.gz'.format(KTOOLS_VERSION), timeout=timeout * 1000)
+                request = urlopen('https://github.com/OasisLMF/ktools/archive/v{}.tar.gz'.format(KTOOLS_VERSION), timeout=timeout * 1000)
                 break
             except URLError as e:
                 self.announce('Failed to get ktools tar (attempt {})'.format(i + 1), WARN)
@@ -113,11 +97,11 @@ class PostInstallKtools(install):
         for ktools_bin in ktools_bin_subset:
             if find_executable(ktools_bin) is None:
                 return False
-        return True        
+        return True
 
     def build_ktools(self, extract_location):
         self.announce('Building ktools', INFO)
-        build_dir = os.path.join(extract_location, 'ktools-OASIS_{}'.format(KTOOLS_VERSION))
+        build_dir = os.path.join(extract_location, 'ktools-{}'.format(KTOOLS_VERSION))
 
         exit_code = os.system('cd {build_dir} && ./autogen.sh && ./configure && make && make check'.format(build_dir=build_dir))
         if(exit_code is not 0):
@@ -129,8 +113,8 @@ class PostInstallKtools(install):
     def add_ktools_to_path(self, build_dir):
         print('Installing ktools')
 
-        if not os.path.exists(self.install_scripts):
-            os.makedirs(self.install_scripts)
+        if not os.path.exists(self.get_bin_dir()):
+            os.makedirs(self.get_bin_dir())
 
         for p in glob.glob(os.path.join(build_dir, 'src', '*', '*')):
             split = p.split(os.path.sep)
@@ -138,7 +122,7 @@ class PostInstallKtools(install):
             # if the file name is the same as the directory we have found a
             # component executable
             if split[-1] == split[-2]:
-                component_path = os.path.join(self.install_scripts, split[-1])
+                component_path = os.path.join(self.get_bin_dir(), split[-1])
                 shutil.copy(p, component_path)
                 yield component_path
 
@@ -151,6 +135,48 @@ class PostInstallKtools(install):
             self.unpack_tar(local_tar_path, local_extract_path)
             build_dir = self.build_ktools(local_extract_path)
             self.ktools_components = list(self.add_ktools_to_path(build_dir))
+
+
+class PostInstallKtools(InstallKtoolsMixin, install):
+    command_name = 'install'
+    user_options = install.user_options + [
+        ('ktools', None, 'Only install ktools components'),
+    ]
+    boolean_options = install.boolean_options + ['ktools']
+
+    def __init__(self, *args, **kwargs):
+        self.ktools_components = []
+        install.__init__(self, *args, **kwargs)
+
+    def run(self):
+        self.install_ktools()
+        install.run(self)
+
+    def get_outputs(self):
+        return install.get_outputs(self) + self.ktools_components
+
+    def get_bin_dir(self):
+        return self.install_scripts
+
+
+class PostDevelopKtools(InstallKtoolsMixin, develop):
+    command_name = 'develop'
+    user_options = develop.user_options
+    boolean_options = develop.boolean_options
+
+    def __init__(self, *args, **kwargs):
+        self.ktools_components = []
+        develop.__init__(self, *args, **kwargs)
+
+    def run(self):
+        self.install_ktools()
+        develop.run(self)
+
+    def get_outputs(self):
+        return develop.get_outputs(self) + self.ktools_components
+
+    def get_bin_dir(self):
+        return self.script_dir
 
 
 try:
@@ -260,6 +286,7 @@ setup(
     ],
     cmdclass={
         'install': PostInstallKtools,
+        'develop': PostDevelopKtools,
         'bdist_wheel': BdistWheel,
         'publish': Publish,
     },

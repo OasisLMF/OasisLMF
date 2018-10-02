@@ -126,11 +126,7 @@ mkfifo fifo/gul_S1_summarypltcalc_P20
 mkfifo fifo/gul_S1_pltcalc_P20
 
 
-
-# --- Do insured loss computes ---
-
-
-# --- Do ground up loss  computes ---
+# --- Do ground up loss computes ---
 
 pltcalc < fifo/gul_S1_summarypltcalc_P1 > work/kat/gul_S1_pltcalc_P1 & pid1=$!
 
@@ -192,26 +188,26 @@ tee < fifo/gul_S1_summary_P17 fifo/gul_S1_summarypltcalc_P17 > /dev/null & pid37
 tee < fifo/gul_S1_summary_P18 fifo/gul_S1_summarypltcalc_P18 > /dev/null & pid38=$!
 tee < fifo/gul_S1_summary_P19 fifo/gul_S1_summarypltcalc_P19 > /dev/null & pid39=$!
 tee < fifo/gul_S1_summary_P20 fifo/gul_S1_summarypltcalc_P20 > /dev/null & pid40=$!
-summarycalc -g -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
-summarycalc -g -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 &
-summarycalc -g -1 fifo/gul_S1_summary_P3 < fifo/gul_P3 &
-summarycalc -g -1 fifo/gul_S1_summary_P4 < fifo/gul_P4 &
-summarycalc -g -1 fifo/gul_S1_summary_P5 < fifo/gul_P5 &
-summarycalc -g -1 fifo/gul_S1_summary_P6 < fifo/gul_P6 &
-summarycalc -g -1 fifo/gul_S1_summary_P7 < fifo/gul_P7 &
-summarycalc -g -1 fifo/gul_S1_summary_P8 < fifo/gul_P8 &
-summarycalc -g -1 fifo/gul_S1_summary_P9 < fifo/gul_P9 &
-summarycalc -g -1 fifo/gul_S1_summary_P10 < fifo/gul_P10 &
-summarycalc -g -1 fifo/gul_S1_summary_P11 < fifo/gul_P11 &
-summarycalc -g -1 fifo/gul_S1_summary_P12 < fifo/gul_P12 &
-summarycalc -g -1 fifo/gul_S1_summary_P13 < fifo/gul_P13 &
-summarycalc -g -1 fifo/gul_S1_summary_P14 < fifo/gul_P14 &
-summarycalc -g -1 fifo/gul_S1_summary_P15 < fifo/gul_P15 &
-summarycalc -g -1 fifo/gul_S1_summary_P16 < fifo/gul_P16 &
-summarycalc -g -1 fifo/gul_S1_summary_P17 < fifo/gul_P17 &
-summarycalc -g -1 fifo/gul_S1_summary_P18 < fifo/gul_P18 &
-summarycalc -g -1 fifo/gul_S1_summary_P19 < fifo/gul_P19 &
-summarycalc -g -1 fifo/gul_S1_summary_P20 < fifo/gul_P20 &
+summarycalc -g  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
+summarycalc -g  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 &
+summarycalc -g  -1 fifo/gul_S1_summary_P3 < fifo/gul_P3 &
+summarycalc -g  -1 fifo/gul_S1_summary_P4 < fifo/gul_P4 &
+summarycalc -g  -1 fifo/gul_S1_summary_P5 < fifo/gul_P5 &
+summarycalc -g  -1 fifo/gul_S1_summary_P6 < fifo/gul_P6 &
+summarycalc -g  -1 fifo/gul_S1_summary_P7 < fifo/gul_P7 &
+summarycalc -g  -1 fifo/gul_S1_summary_P8 < fifo/gul_P8 &
+summarycalc -g  -1 fifo/gul_S1_summary_P9 < fifo/gul_P9 &
+summarycalc -g  -1 fifo/gul_S1_summary_P10 < fifo/gul_P10 &
+summarycalc -g  -1 fifo/gul_S1_summary_P11 < fifo/gul_P11 &
+summarycalc -g  -1 fifo/gul_S1_summary_P12 < fifo/gul_P12 &
+summarycalc -g  -1 fifo/gul_S1_summary_P13 < fifo/gul_P13 &
+summarycalc -g  -1 fifo/gul_S1_summary_P14 < fifo/gul_P14 &
+summarycalc -g  -1 fifo/gul_S1_summary_P15 < fifo/gul_P15 &
+summarycalc -g  -1 fifo/gul_S1_summary_P16 < fifo/gul_P16 &
+summarycalc -g  -1 fifo/gul_S1_summary_P17 < fifo/gul_P17 &
+summarycalc -g  -1 fifo/gul_S1_summary_P18 < fifo/gul_P18 &
+summarycalc -g  -1 fifo/gul_S1_summary_P19 < fifo/gul_P19 &
+summarycalc -g  -1 fifo/gul_S1_summary_P20 < fifo/gul_P20 &
 
 eve 1 20 | getmodel | gulcalc -S100 -L100 -r -c - > fifo/gul_P1  &
 eve 2 20 | getmodel | gulcalc -S100 -L100 -r -c - > fifo/gul_P2  &
@@ -235,9 +231,6 @@ eve 19 20 | getmodel | gulcalc -S100 -L100 -r -c - > fifo/gul_P19  &
 eve 20 20 | getmodel | gulcalc -S100 -L100 -r -c - > fifo/gul_P20  &
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22 $pid23 $pid24 $pid25 $pid26 $pid27 $pid28 $pid29 $pid30 $pid31 $pid32 $pid33 $pid34 $pid35 $pid36 $pid37 $pid38 $pid39 $pid40
-
-
-# --- Do insured loss kats ---
 
 
 # --- Do ground up loss kats ---

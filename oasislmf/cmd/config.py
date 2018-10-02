@@ -31,6 +31,7 @@ class ConfigCmd(OasisBaseCommand):
     :ktools_script_name: Specifies the ktools shell script that performs the model run, which is created and ran from the model_run_dir_path. Default is "run_ktools.sh".
     :ktools_num_processes: Specifies the number of concurrent processes used by the model run. Default is 2. 
     :no_execute: Specifies whether to perform the model run. Default is "False", which means the ktools script is executed.
+    :model_package_path: Path to the directory to use as the model specific package (if required)
 
 
     As an example, this is the master script configuration file for PiWind

@@ -154,18 +154,34 @@ def prepare_model_run_inputs(analysis_settings, run_directory):
         raise OasisException(e)
 
 
-def check_inputs_directory(directory_to_check, do_il=False, check_binaries=True):
+def check_inputs_directory(directory_to_check, do_il=False, do_ri=False, check_binaries=True):
     """
-    Check that all the required csv files are present in the directory.
-    Args:
-        ``directory`` (string): the directory containing the CSV files.
-        ``do_il`` (bool): do insured loss. If True, FM file must be present.
-    Returns:
-        None
+    Check that all the required files are present in the directory.
+
+    :param directory_to_check: directory containing the CSV files
+    :type directory_to_check: string
+
+    :param do_il: check insuured loss files
+    :type do_il: bool
+
+    :param do_il: check resinsurance sub-folders
+    :type do_il: bool
+
+    :param check_binaries: check binary files are not present
+    :type check_binaries: bool
     """
-    file_path = os.path.join(directory_to_check, TAR_FILE)
-    if os.path.exists(file_path):
-        raise OasisException("Inputs tar file already exists: {}".format(file_path))
+    # Check the top level directory, that containes the core files and any direct FM files
+    _check_each_inputs_directory(directory_to_check, do_il=do_il, check_binaries=check_binaries)    
+
+    if do_ri:
+        for ri_directory_to_check in glob.glob('{}{}RI_[0-9]*'.format(directory_to_check, os.sep)):
+            _check_each_inputs_directory(ri_directory_to_check, do_il=True, check_binaries=check_binaries)
+
+
+def _check_each_inputs_directory(directory_to_check, do_il=False, check_binaries=True):
+    """
+    Detailed check of a specific directory
+    """
 
     if do_il:
         input_files = (f['name'] for f in six.itervalues(INPUT_FILES) if f['type'] != 'optional')
@@ -183,7 +199,7 @@ def check_inputs_directory(directory_to_check, do_il=False, check_binaries=True)
                 raise OasisException("Binary file already exists: {}".format(file_path))
 
 
-def create_binary_files(csv_directory, bin_directory, do_il=False):
+def create_binary_files(csv_directory, bin_directory, do_il=False, do_ri=False):
     """
     Create the binary files.
 
@@ -193,11 +209,32 @@ def create_binary_files(csv_directory, bin_directory, do_il=False):
     :param bin_directory: the directory to write the binary files
     :type bin_directory: str
 
-    :param do_il: whether to perform insured loss (IL) calculations; if true, FM file must be present
+    :param do_il: whether to create the binaries required for insured loss calculations
     :type do_il: bool
+
+    :param do_ri: whether to create the binaries required for reinsurance calculations
+    :type do_ri: bool
+
+    :raises OasisException: If one of the conversions fails
     """
     csvdir = os.path.abspath(csv_directory)
     bindir = os.path.abspath(bin_directory)
+
+    do_il = do_il or do_ri
+
+    _create_set_of_binary_files(csvdir, bindir, do_il)
+
+    if do_ri:
+        for ri_csvdir in glob.glob('{}{}RI_[0-9]*'.format(csvdir, os.sep)):
+            _create_set_of_binary_files(
+                ri_csvdir, os.path.join(bindir, os.path.basename(ri_csvdir)), do_il=True)
+
+def _create_set_of_binary_files(csv_directory, bin_directory, do_il=False):
+    """
+    Create a set of binary files.
+    """
+    if not os.path.exists(bin_directory):
+        os.mkdir(bin_directory)
 
     if do_il:
         input_files = itervalues(INPUT_FILES)
@@ -206,18 +243,17 @@ def create_binary_files(csv_directory, bin_directory, do_il=False):
 
     for input_file in input_files:
         conversion_tool = input_file['conversion_tool']
-        input_file_path = os.path.join(csvdir, '{}.csv'.format(input_file['name']))
+        input_file_path = os.path.join(csv_directory, '{}.csv'.format(input_file['name']))
         if not os.path.exists(input_file_path):
             continue
 
-        output_file_path = os.path.join(bindir, '{}.bin'.format(input_file['name']))
+        output_file_path = os.path.join(bin_directory, '{}.bin'.format(input_file['name']))
         cmd_str = "{} < {} > {}".format(conversion_tool, input_file_path, output_file_path)
 
         try:
             subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
         except subprocess.CalledProcessError as e:
             raise OasisException(e)
-
 
 def check_binary_tar_file(tar_file_path, check_il=False):
     """
@@ -231,7 +267,8 @@ def check_binary_tar_file(tar_file_path, check_il=False):
 
     :raises OasisException: If a required file is missing
 
-    :return: True if all required files are present
+    :return: True if all required files are present, False otherwise
+    :rtype: bool
     """
     expected_members = ('{}.bin'.format(f['name']) for f in six.itervalues(GUL_INPUT_FILES))
 
@@ -251,19 +288,32 @@ def check_binary_tar_file(tar_file_path, check_il=False):
 def create_binary_tar_file(directory):
     """
     Package the binaries in a gzipped tar.
+    
+    :param directory: Path containing the binaries
+    :type tar_file_path: str    
     """
     original_cwd = os.getcwd()
     os.chdir(directory)
 
     with tarfile.open(TAR_FILE, "w:gz") as tar:
-        for file in glob.glob('*.bin'):
-            tar.add(file)
+        for f in glob.glob('*.bin'):
+            tar.add(f)
+        for f in glob.glob('*{}*.bin'.format(os.sep)):
+            tar.add(f)
 
     os.chdir(original_cwd)
 
 
 def check_conversion_tools(do_il=False):
-    # Check that the conversion tools are available
+    """
+    Check that the conversion tools are available
+    
+    :param do_il: Flag whether to check insured loss tools
+    :type do_il: bool
+
+    :return: True if all required tools are present, False otherwise
+    :rtype: bool  
+    """
     if do_il:
         input_files = six.itervalues(INPUT_FILES)
     else:

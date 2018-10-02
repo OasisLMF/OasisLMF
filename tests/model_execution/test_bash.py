@@ -31,17 +31,23 @@ class Genbash(TestCase):
                 hash_md5.update(chunk)
         return hash_md5.hexdigest()
 
-    def genbash(self, name, num_partitions):
+    def genbash(self, name, num_partitions, num_reinsurance_iterations=0):
         input_filename = os.path.join(KPARSE_INPUT_FOLDER, "{}.json".format(name))
-        output_filename = os.path.join(KPARSE_OUTPUT_FOLDER, "{}_{}_partition.sh".format(name, num_partitions))
-
+        if num_reinsurance_iterations <= 0:
+            output_filename = os.path.join(KPARSE_OUTPUT_FOLDER, "{}_{}_partition.sh".format(name, num_partitions))
+        else:
+            output_filename = os.path.join(
+                KPARSE_OUTPUT_FOLDER, 
+                "{}_{}_reins_layer_{}_partition.sh".format(name, num_reinsurance_iterations, num_partitions))
+            
         with io.open(input_filename, encoding='utf-8') as file:
             analysis_settings = json.load(file)['analysis_settings']
 
         genbash(
             num_partitions,
             analysis_settings,
-            output_filename
+            output_filename,
+            num_reinsurance_iterations
         )
 
     def check(self, name):
@@ -363,3 +369,11 @@ class Genbash(TestCase):
     def test_analysis_settings_2(self):
         self.genbash("analysis_settings_2", 1)
         self.check("analysis_settings_2_1_partition")
+
+    def test_analysis_settings_3_0_reins_iters(self):
+        self.genbash("analysis_settings_3", 1, 1)
+        self.check("analysis_settings_3_1_reins_layer_1_partition")
+
+    def test_analysis_settings_4_0_reins_iters(self):
+        self.genbash("analysis_settings_4", 1, 1)
+        self.check("analysis_settings_4_1_reins_layer_1_partition")
