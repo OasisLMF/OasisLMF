@@ -750,26 +750,18 @@ class GenerateLossesCmd(OasisBaseCommand):
 
         script_path = os.path.join(model_run_dir_path, '{}.sh'.format(ktools_script_name))
 
-        if no_execute:
-            self.logger.info('\nGenerating ktools losses script')
-            genbash(
-                args.ktools_num_processes,
-                analysis_settings,
-                filename=script_path,
-            )
-            self.logger.info('\nMaking ktools losses script executable')
-            subprocess.check_call("chmod +x {}".format(script_path), stderr=subprocess.STDOUT, shell=True)
+        os.chdir(model_run_dir_path)
+
+        if model_package_path and os.path.exists(os.path.join(model_package_path, 'supplier_model_runner.py')):
+            path, package_name = model_package_path.rsplit('/')
+            sys.path.append(path)
+            model_runner_module = importlib.import_module('{}.supplier_model_runner'.format(package_name))
         else:
-            os.chdir(model_run_dir_path)
+            model_runner_module = runner
 
-            if model_package_path and os.path.exists(os.path.join(model_package_path, 'supplier_model_runner.py')):
-                path, package_name = model_package_path.rsplit('/')
-                sys.path.append(path)
-                model_runner_module = importlib.import_module('{}.supplier_model_runner'.format(package_name))
-            else:
-                model_runner_module = runner
+        self.logger.info('\nGenerating losses')
 
-            model_runner_module.run(analysis_settings, args.ktools_num_processes, filename=script_path)
+        model_runner_module.run(analysis_settings, args.ktools_num_processes, filename=script_path)
 
         self.logger.info('\nLoss outputs generated in {}'.format(os.path.join(model_run_dir_path, 'output')))
 
