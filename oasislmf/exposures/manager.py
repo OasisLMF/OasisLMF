@@ -972,10 +972,10 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 it['level_id'] = level_id
                 it['item_id'] = num_cov_items + i + 1
 
-            num_layer1_items = sum(len(preset_items[level_id]) for level_id in preset_items)
+            num_subaccount_level_items = sum(len(preset_items[level_id]) for level_id in fm_levels[:-1])
             max_level = max(fm_levels)
             max_level_items = copy.deepcopy(preset_items[max_level])
-            max_level_max_idx = max(max_level_items)
+            max_level_min_idx = min(max_level_items)
 
             layer_id = lambda i: list(
                 canacc_df[canacc_df['accntnum'] == canacc_df.iloc[i]['accntnum']]['policynum'].values
@@ -984,14 +984,14 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             for i, (canexp_id, canacc_id) in enumerate(
                 itertools.chain((canexp_id, canacc_id) for canexp_id in max_level_items for canexp_id, canacc_id in itertools.product(
                     [canexp_id],
-                    canacc_df[canacc_df['accntnum'] == canacc_df.iloc[max_level_items[canexp_id]['canacc_id']]['accntnum']][1:]['index'].values)
+                    canacc_df[canacc_df['accntnum'] == canacc_df.iloc[max_level_items[canexp_id]['canacc_id']]['accntnum']]['index'].values)
                 )
             ):
                 it = copy.deepcopy(max_level_items[canexp_id])
-                it['item_id'] = num_layer1_items + i + 1
+                it['item_id'] = num_subaccount_level_items + i + 1
                 it['layer_id'] = layer_id(canacc_id)
                 it['canacc_id'] = canacc_id
-                preset_items[max_level][max_level_max_idx + i + 1] = it
+                preset_items[max_level][max_level_min_idx + i] = it
 
             for it in (it for c in itertools.chain(six.itervalues(preset_items[k]) for k in preset_items) for it in c):
                 it['policy_num'] = canacc_df.iloc[it['canacc_id']]['policynum']

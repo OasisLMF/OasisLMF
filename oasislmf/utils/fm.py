@@ -121,6 +121,8 @@ def get_non_coverage_level_fm_terms(level_grouped_canonical_profile, level_fm_ag
 
     agg_key = tuple(v['field'].lower() for v in six.itervalues(lfmap['FMAggKey']))
 
+    li = sorted([it for it in six.itervalues(level_fm_items)], key=lambda it: tuple(it[k] for k in agg_key))
+
     can_df = pd.merge(canexp_df, canacc_df, left_on='accntnum', right_on='accntnum')
 
     get_can_item = lambda canexp_id, canacc_id, policy_num: can_df[(can_df['row_id_x']==canexp_id+1) & (can_df['row_id_y']==canacc_id+1) & (can_df['policynum']==policy_num)].iloc[0]
@@ -133,7 +135,7 @@ def get_non_coverage_level_fm_terms(level_grouped_canonical_profile, level_fm_ag
     shr_fld = lgcp[1].get('share')
     shr_elm = shr_fld['ProfileElementName'].lower() if shr_fld else None
 
-    for i, (key, group) in enumerate(itertools.groupby(six.itervalues(level_fm_items), key=lambda it: tuple(it[k] for k in agg_key))):
+    for i, (key, group) in enumerate(itertools.groupby(li, key=lambda it: tuple(it[k] for k in agg_key))):
         for it in group:
             it['agg_id'] = i + 1
 

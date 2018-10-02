@@ -1340,12 +1340,12 @@ class OasisExposuresManagerLoadFmItems(TestCase):
 
         self.assertEquals(len(preset_fm_items), (len(bottom_levels) + num_top_level_layers) * len(guls))
 
-        get_gul_item = lambda i: guls[i % len(guls)]
+        get_gul_item = lambda i: guls[(i - 1) % len(guls)]
 
         for i, (l, it) in enumerate(itertools.chain((l, it) for l in sorted(cgcp.keys()) for l, it in itertools.product([l],(it for it in preset_fm_items if it['level_id'] == l)))):
             self.assertEquals(it['level_id'], l)
 
-            gul_it = get_gul_item(i)
+            gul_it = get_gul_item(it['gul_item_id'])
 
             self.assertEquals(it['canexp_id'], gul_it['canexp_id'])
 
@@ -1445,12 +1445,12 @@ class OasisExposuresManagerLoadFmItems(TestCase):
 
         self.assertEquals(len(preset_fm_items), len(cgcp) * len(guls))
 
-        get_gul_item = lambda i: guls[i % len(guls)]
+        get_gul_item = lambda i: guls[(i - 1) % len(guls)]
 
         for i, (l, it) in enumerate(itertools.chain((l, it) for l in sorted(cgcp.keys()) for l, it in itertools.product([l],(it for it in preset_fm_items if it['level_id'] == l)))):
             self.assertEquals(it['level_id'], l)
 
-            gul_it = get_gul_item(i)
+            gul_it = get_gul_item(it['gul_item_id'])
 
             self.assertEquals(it['canexp_id'], gul_it['canexp_id'])
 
@@ -1556,12 +1556,12 @@ class OasisExposuresManagerLoadFmItems(TestCase):
 
         self.assertEquals(len(preset_fm_items), num_expected_preset_fm_items)
 
-        get_gul_item = lambda i: guls[i % len(guls)]
+        get_gul_item = lambda i: guls[(i - 1) % len(guls)]
 
         for i, (l, it) in enumerate(itertools.chain((l, it) for l in sorted(cgcp.keys()) for l, it in itertools.product([l],(it for it in preset_fm_items if it['level_id'] == l)))):
             self.assertEquals(it['level_id'], l)
 
-            gul_it = get_gul_item(i)
+            gul_it = get_gul_item(it['gul_item_id'])
 
             self.assertEquals(it['canexp_id'], gul_it['canexp_id'])
 
@@ -1806,12 +1806,12 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             )
         }
 
-        get_gul_item = lambda i: guls[i % len(guls)]
+        get_gul_item = lambda i: guls[(i - 1) % len(guls)]
 
         for i, (l, it) in enumerate(itertools.chain((l, it) for l in sorted(cgcp.keys()) for l, it in itertools.product([l],(it for it in fm_items if it['level_id'] == l)))):
             self.assertEquals(it['level_id'], l)
 
-            gul_it = get_gul_item(i)
+            gul_it = get_gul_item(it['gul_item_id'])
             
             self.assertEquals(it['canexp_id'], gul_it['canexp_id'])
 
@@ -1941,14 +1941,14 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             )
         }
 
-        get_gul_item = lambda i: guls[i % len(guls)]
+        get_gul_item = lambda i: guls[(i - 1) % len(guls)]
 
         for i, (l, it) in enumerate(itertools.chain((l, it) for l in sorted(cgcp.keys()) for l, it in itertools.product([l],(it for it in fm_items if it['level_id'] == l)))):
             self.assertEquals(it['level_id'], l)
 
-            can_it = get_can_item(i)
+            gul_it = get_gul_item(it['gul_item_id'])
 
-            gul_it = get_gul_item(i)
+            can_it = get_can_item(it['canexp_id'])
 
             self.assertEquals(it['canexp_id'], gul_it['canexp_id'])
 
@@ -2073,14 +2073,14 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             )
         }
 
-        get_gul_item = lambda i: guls[i % len(guls)]
+        get_gul_item = lambda i: guls[(i - 1) % len(guls)]
 
         for i, (l, it) in enumerate(itertools.chain((l, it) for l in levels for l, it in itertools.product([l],(it for it in fm_items if it['level_id'] == l)))):
             self.assertEquals(it['level_id'], l)
 
-            gul_it = get_gul_item(i)
+            gul_it = get_gul_item(it['gul_item_id'])
 
-            can_it = get_can_item(i)
+            can_it = get_can_item(it['canexp_id'])
 
             self.assertEquals(it['canexp_id'], gul_it['canexp_id'])
 
@@ -2100,11 +2100,11 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             else:
                 if it['policy_num'] == 'A1P1':
                     self.assertEquals(it['agg_id'], 1)
-                elif it['policy_num'] == 'A2P1':
-                    self.assertEquals(it['agg_id'], 2)
                 elif it['policy_num'] == 'A1P2':
+                    self.assertEquals(it['agg_id'], 2)
+                elif it['policy_num'] == 'A2P1':
                     self.assertEquals(it['agg_id'], 3)
-                else:
+                elif it['policy_num'] == 'A2P2':
                     self.assertEquals(it['agg_id'], 4)
 
             self.assertEquals(it['layer_id'], 1) if it['policy_num'].endswith('P1') else self.assertEquals(it['layer_id'], 2)
