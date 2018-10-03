@@ -384,7 +384,7 @@ class GetFmTermsByLevel(TestCase):
         self.fm_agg_profile = fm_agg_profile_piwind
 
     @pytest.mark.flaky
-    @settings(deadline=500, suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(
             from_accounts_nums=just('A1'),
@@ -493,7 +493,7 @@ class GetFmTermsByLevel(TestCase):
             self.assertEqual(calcrule_id, res['calcrule_id'])
 
     @pytest.mark.flaky
-    @settings(deadline=500, suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(
             from_accounts_nums=just('A1'),
