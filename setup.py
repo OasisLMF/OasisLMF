@@ -23,7 +23,7 @@ try:
 except ImportError:
     from urllib2 import urlopen, URLError
 
-KTOOLS_VERSION = '3.0.0'
+KTOOLS_VERSION = 'v3.0.0'
 SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 
 
@@ -65,7 +65,7 @@ class InstallKtoolsMixin(object):
         request = None
         for i in range(attempts):
             try:
-                request = urlopen('https://github.com/OasisLMF/ktools/archive/v{}.tar.gz'.format(KTOOLS_VERSION), timeout=timeout * 1000)
+                request = urlopen('https://github.com/OasisLMF/ktools/archive/{}.tar.gz'.format(KTOOLS_VERSION), timeout=timeout * 1000)
                 break
             except URLError as e:
                 self.announce('Failed to get ktools tar (attempt {})'.format(i + 1), WARN)
