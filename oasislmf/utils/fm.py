@@ -87,28 +87,29 @@ def get_coverage_level_fm_terms(level_grouped_canonical_profile, level_fm_agg_pr
 
     agg_key = tuple(v['field'].lower() for v in six.itervalues(lfmap['FMAggKey']))
 
+    li = sorted([it for it in six.itervalues(level_fm_items)], key=lambda it: tuple(it[k] for k in agg_key))
+
     can_df = pd.merge(canexp_df, canacc_df, left_on='accntnum', right_on='accntnum')
 
     get_can_item = lambda canexp_id, canacc_id, policy_num: can_df[(can_df['row_id_x']==canexp_id+1) & (can_df['row_id_y']==canacc_id+1) & (can_df['policynum']==policy_num)].iloc[0]
 
-    for i, (key, group) in enumerate(itertools.groupby(six.itervalues(level_fm_items), key=lambda it: tuple(it[k] for k in agg_key))):
-        for it in group:
-            it['agg_id'] = i + 1
+    for it, i in itertools.chain((it, i) for i, (key, group) in enumerate(itertools.groupby(li, key=lambda it: tuple(it[k] for k in agg_key))) for it in group):
+        it['agg_id'] = i + 1
 
-            can_item = get_can_item(it['canexp_id'], it['canacc_id'], it['policy_num'])
+        can_item = get_can_item(it['canexp_id'], it['canacc_id'], it['policy_num'])
 
-            limit = can_item.get(it['lim_elm']) or 0.0
-            it['limit'] = limit
+        limit = can_item.get(it['lim_elm']) or 0.0
+        it['limit'] = limit
 
-            deductible = can_item.get(it['ded_elm']) or 0.0
-            it['deductible'] = deductible
-        
-            share = can_item.get(it['shr_elm']) or 0.0
-            it['share'] = share
+        deductible = can_item.get(it['ded_elm']) or 0.0
+        it['deductible'] = deductible
+    
+        share = can_item.get(it['shr_elm']) or 0.0
+        it['share'] = share
 
-            it['calcrule_id'] = get_calcrule_id(it['limit'], it['share'], it['deductible_type'])
+        it['calcrule_id'] = get_calcrule_id(it['limit'], it['share'], it['deductible_type'])
 
-            yield it
+        yield it
 
 
 def get_non_coverage_level_fm_terms(level_grouped_canonical_profile, level_fm_agg_profile, level_fm_items, canexp_df, canacc_df):
@@ -135,22 +136,21 @@ def get_non_coverage_level_fm_terms(level_grouped_canonical_profile, level_fm_ag
     shr_fld = lgcp[1].get('share')
     shr_elm = shr_fld['ProfileElementName'].lower() if shr_fld else None
 
-    for i, (key, group) in enumerate(itertools.groupby(li, key=lambda it: tuple(it[k] for k in agg_key))):
-        for it in group:
-            it['agg_id'] = i + 1
+    for it, i in itertools.chain((it, i) for i, (key, group) in enumerate(itertools.groupby(li, key=lambda it: tuple(it[k] for k in agg_key))) for it in group):
+        it['agg_id'] = i + 1
 
-            can_item = get_can_item(it['canexp_id'], it['canacc_id'], it['policy_num'])
+        can_item = get_can_item(it['canexp_id'], it['canacc_id'], it['policy_num'])
 
-            it['limit'] = can_item.get(lim_elm) or 0.0
+        it['limit'] = can_item.get(lim_elm) or 0.0
 
-            it['deductible'] = can_item.get(ded_elm) or 0.0
-            it['deductible_type'] = ded_type
+        it['deductible'] = can_item.get(ded_elm) or 0.0
+        it['deductible_type'] = ded_type
 
-            it['share'] = can_item.get(shr_elm) or 0.0
+        it['share'] = can_item.get(shr_elm) or 0.0
 
-            it['calcrule_id'] = get_calcrule_id(it['limit'], it['share'], it['deductible_type'])
+        it['calcrule_id'] = get_calcrule_id(it['limit'], it['share'], it['deductible_type'])
 
-            yield it
+        yield it
 
 
 def get_fm_terms_by_level_as_list(level_grouped_canonical_profile, level_fm_agg_profile, level_fm_items, canexp_df, canacc_df):
