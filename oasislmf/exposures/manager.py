@@ -1244,18 +1244,23 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 columns=['policytc_id', 'calcrule_id', 'limit', 'deductible', 'share'],
                 data=[key for key, _ in fm_items_df.groupby(['policytc_id', 'calcrule_id', 'limit', 'deductible', 'share'])]
             )
-            fm_profile_df['index'] = range(len(fm_profile_df))
-            fm_profile_df['allocrule_id'] = [1]*len(fm_profile_df)
-            fm_profile_df['ccy_id'] = [0]*len(fm_profile_df)
+            n = len(fm_profile_df)
 
-            fm_profile_df['share_prop_of_lim'] = fm_profile_df['share']
+            fm_profile_df['index'] = range(n)
 
-            fm_profile_df['deductible_prop_of_tiv'] = fm_profile_df['limit_prop_of_tiv'] = [0]*len(fm_profile_df)
-            fm_profile_df['deductible_prop_of_limit'] = [0]*len(fm_profile_df)
-            fm_profile_df['deductible_prop_of_loss'] = fm_profile_df['limit_prop_of_loss'] = [0]*len(fm_profile_df)
+            fm_profile_df['deductible1'] = fm_profile_df['deductible']
+            fm_profile_df['deductible2'] = fm_profile_df['deductible3'] = [0]*n
+
+            fm_profile_df['limit1'] = fm_profile_df['limit']
+
+            fm_profile_df['share1'] = fm_profile_df['share']
+            fm_profile_df['share2'] = fm_profile_df['share3'] = [0]*n
+
+            fm_profile_df['attachment1'] = [0]*n
+
 
             fm_profile_df.to_csv(
-                columns=['policytc_id','calcrule_id','allocrule_id','ccy_id', 'deductible', 'limit', 'share_prop_of_lim', 'deductible_prop_of_loss', 'limit_prop_of_loss', 'deductible_prop_of_tiv','limit_prop_of_tiv','deductible_prop_of_limit'],
+                columns=['policytc_id','calcrule_id','deductible1', 'deductible2', 'deductible3', 'attachment1', 'limit1', 'share1', 'share2', 'share3'],
                 path_or_buf=fm_profile_file_path,
                 encoding='utf-8',
                 chunksize=1000,
