@@ -2202,6 +2202,98 @@ class FmFilesGenerationTestCase(TestCase):
 
         self.assertEqual(expected, result)
 
+    def check_fm_profile_file(self, fm_items_df, fm_profile_file_path):
+            fm_profile_df = pd.DataFrame(
+                columns=['policytc_id', 'calcrule_id', 'limit', 'deductible', 'share'],
+                data=[key for key, _ in fm_items_df.groupby(['policytc_id', 'calcrule_id', 'limit', 'deductible', 'share'])]
+            )
+            n = len(fm_profile_df)
+
+            fm_profile_df['index'] = range(n)
+
+            fm_profile_df['deductible1'] = fm_profile_df['deductible']
+            fm_profile_df['deductible2'] = fm_profile_df['deductible3'] = [0]*n
+
+            fm_profile_df['limit1'] = fm_profile_df['limit']
+
+            fm_profile_df['share1'] = fm_profile_df['share']
+            fm_profile_df['share2'] = fm_profile_df['share3'] = [0]*n
+
+            fm_profile_df['attachment1'] = [0]*n
+
+            expected = tuple(
+                {
+                    k:it[k] for k in ('policytc_id','calcrule_id','deductible1', 'deductible2', 'deductible3', 'attachment1', 'limit1', 'share1', 'share2', 'share3',)
+                } for _, it in fm_profile_df.iterrows()
+            )
+
+            with io.open(fm_profile_file_path, 'r', encoding='utf-8') as f:
+                result = tuple(pd.read_csv(f).T.to_dict().values())
+
+            self.assertEqual(expected, result)
+
+    def check_fm_programme_file(self, fm_items_df, fm_programme_file_path):
+            fm_aggtree = {
+                key:set(group['agg_id']) for key, group in fm_items_df[['level_id', 'agg_id']].groupby(['level_id'])
+            }
+            levels = sorted(fm_aggtree.keys())
+            fm_aggtree[0] = fm_aggtree[levels[0]]
+            levels = sorted(fm_aggtree.keys())
+
+            data = [
+                (a, second, b) for first, second in zip(levels, levels[1:]) for a, b in (
+                    zip(fm_aggtree[first], fm_aggtree[second]) if (len(fm_aggtree[first]) == len(fm_aggtree[second]) and len(fm_aggtree[first]) > 1) else itertools.product(fm_aggtree[first], [list(fm_aggtree[second])[0]])
+                )
+            ]
+
+            fm_programme_df = pd.DataFrame(columns=['from_agg_id', 'level_id', 'to_agg_id'], data=data, dtype=int)
+
+            expected = tuple(
+                {
+                    k:it[k] for k in ('from_agg_id', 'level_id', 'to_agg_id',)
+                } for _, it in fm_programme_df.iterrows()
+            )
+
+            with io.open(fm_programme_file_path, 'r', encoding='utf-8') as f:
+                result = tuple(pd.read_csv(f).T.to_dict().values())
+
+            self.assertEqual(expected, result)
+
+    def check_fm_xref_file(self, fm_items_df, fm_xref_file_path):
+            data = [
+                (i + 1, agg_id, layer_id) for i, (agg_id, layer_id) in enumerate(itertools.product(set(fm_items_df['agg_id']), set(fm_items_df['layer_id'])))
+            ]
+
+            fm_xref_df = pd.DataFrame(columns=['output', 'agg_id', 'layer_id'], data=data, dtype=int)
+
+            expected = tuple(
+                {
+                    k:it[k] for k in ('output', 'agg_id', 'layer_id',)
+                } for _, it in fm_xref_df.iterrows()
+            )
+
+            with io.open(fm_xref_file_path, 'r', encoding='utf-8') as f:
+                result = tuple(pd.read_csv(f).T.to_dict().values())
+
+            self.assertEqual(expected, result)
+
+    def check_fmsummaryxref_file(self, fm_items_df, fmsummaryxref_file_path):
+            data = [
+                (i + 1, 1, 1) for i, _ in enumerate(itertools.product(set(fm_items_df['agg_id']), set(fm_items_df['layer_id'])))
+            ]
+
+            fmsummaryxref_df = pd.DataFrame(columns=['output', 'summary_id', 'summaryset_id'], data=data, dtype=int)
+
+            expected = tuple(
+                {
+                    k:it[k] for k in ('output', 'summary_id', 'summaryset_id',)
+                } for _, it in fmsummaryxref_df.iterrows()
+            )
+
+            with io.open(fmsummaryxref_file_path, 'r', encoding='utf-8') as f:
+                result = tuple(pd.read_csv(f).T.to_dict().values())
+
+            self.assertEqual(expected, result)
 
 class OasisExposuresManagerWriteGulFiles(GulFilesGenerationTestCase):
 
@@ -2280,19 +2372,19 @@ class OasisExposuresManagerWriteFmFiles(FmFilesGenerationTestCase):
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(
-            from_accounts_nums=just(10101),
+            from_accounts_nums=just('A1'),
             from_tivs1=just(100),
             from_limits1=just(1),
             from_deductibles1=just(1),
             size=10
         ),
         accounts=canonical_accounts_data(
-            from_accounts_nums=just(10101),
-            from_attachment_points=floats(min_value=1, allow_infinity=False),
+            from_accounts_nums=just('A1'),
+            from_attachment_points=just(1),
             from_blanket_deductibles=just(0),
             from_blanket_limits=just(0.1),
-            from_layer_limits=floats(min_value=1, allow_infinity=False),
-            from_policy_nums=just('Layer1'),
+            from_layer_limits=just(1),
+            from_policy_nums=just('A1P1'),
             from_policy_types=just(1),
             size=1
         ),
@@ -2343,29 +2435,37 @@ class OasisExposuresManagerWriteFmFiles(FmFilesGenerationTestCase):
             
             ofp.canonical_accounts_file_path = accounts_file.name
             ofp.fm_policytc_file_path = os.path.join(out_dir, 'fm_policytc.csv')
+            ofp.fm_profile_file_path = os.path.join(out_dir, 'fm_profile.csv')
+            ofp.fm_programme_file_path = os.path.join(out_dir, 'fm_programme.csv')
+            ofp.fm_xref_file_path = os.path.join(out_dir, 'fm_xref.csv')
+            ofp.fmsummaryxref_file_path = os.path.join(out_dir, 'fmsummaryxref.csv')
 
             fm_files = self.manager.write_fm_files(oasis_model=model)
 
             fm_items_df = omr['fm_items_df']
 
             self.check_fm_policytc_file(fm_items_df, fm_files['fm_policytc'])
+            self.check_fm_profile_file(fm_items_df, fm_files['fm_profile'])
+            self.check_fm_programme_file(fm_items_df, fm_files['fm_programme'])
+            self.check_fm_xref_file(fm_items_df, fm_files['fm_xref'])
+            self.check_fmsummaryxref_file(fm_items_df, fm_files['fmsummaryxref'])
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(
-            from_accounts_nums=just(10101),
+            from_accounts_nums=just('A1'),
             from_tivs1=just(100),
             from_limits1=just(1),
             from_deductibles1=just(1),
             size=10
         ),
         accounts=canonical_accounts_data(
-            from_accounts_nums=just(10101),
-            from_attachment_points=floats(min_value=1, allow_infinity=False),
+            from_accounts_nums=just('A1'),
+            from_attachment_points=just(1),
             from_blanket_deductibles=just(0),
             from_blanket_limits=just(0.1),
-            from_layer_limits=floats(min_value=1, allow_infinity=False),
-            from_policy_nums=just('Layer1'),
+            from_layer_limits=just(1),
+            from_policy_nums=just('A1P1'),
             from_policy_types=just(1),
             size=1
         ),
@@ -2423,11 +2523,18 @@ class OasisExposuresManagerWriteFmFiles(FmFilesGenerationTestCase):
                 canonical_accounts_profile=cap,
                 canonical_accounts_file_path=accounts_file.name,
                 fm_agg_profile=fmap,
-                fm_policytc_file_path=os.path.join(out_dir, 'fm_policytc.csv')
+                fm_policytc_file_path=os.path.join(out_dir, 'fm_policytc.csv'),
+                fm_profile_file_path=os.path.join(out_dir, 'fm_profile.csv'),
+                fm_programme_file_path=os.path.join(out_dir, 'fm_programme.csv'),
+                fm_xref_file_path=os.path.join(out_dir, 'fm_xref.csv'),
+                fmsummaryxref_file_path=os.path.join(out_dir, 'fmsummaryxref.csv')
             )
 
             self.check_fm_policytc_file(fm_items_df, fm_files['fm_policytc'])
-
+            self.check_fm_profile_file(fm_items_df, fm_files['fm_profile'])
+            self.check_fm_programme_file(fm_items_df, fm_files['fm_programme'])
+            self.check_fm_xref_file(fm_items_df, fm_files['fm_xref'])
+            self.check_fmsummaryxref_file(fm_items_df, fm_files['fmsummaryxref'])
 
 class OasisExposuresManagerStartOasisFilesPipeline(TestCase):
 
