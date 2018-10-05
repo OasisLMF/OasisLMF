@@ -416,6 +416,8 @@ class GenerateKeysCmd(OasisBaseCommand):
 
         self.logger.info('\nSaving keys records to file')
 
+        start_time = time.time()
+
         f1, n1, f2, n2 = OasisLookupFactory.save_results(
             lookup,
             keys_file_path,
