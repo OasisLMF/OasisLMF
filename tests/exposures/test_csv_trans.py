@@ -20,6 +20,7 @@ expected_data_dir = str(Path(data_dir, 'expected'))
 
 class CsvTrans(unittest.TestCase):
     @given(integers(min_value=1, max_value=10))
+    @settings(deadline=800, suppress_health_check=[HealthCheck.too_slow])
     def test_source_to_canonical(self, chunk_size):
         with TemporaryDirectory() as d:
             output_file = os.path.join(d, 'canonical.csv')
@@ -38,6 +39,7 @@ class CsvTrans(unittest.TestCase):
             self.assertEqual(0, len(diff), diff)
 
     @given(integers(min_value=1, max_value=10))
+    @settings(deadline=800, suppress_health_check=[HealthCheck.too_slow])
     def test_canonical_to_model(self, chunk_size):
         with TemporaryDirectory() as d:
             output_file = os.path.join(d, 'model.csv')

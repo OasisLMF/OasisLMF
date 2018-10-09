@@ -99,6 +99,7 @@ class CreateBinaryFiles(TestCase):
                     create_binary_files(csv_dir, bin_dir, do_il=True)
 
     @given(standard_input_files(min_size=1), il_input_files(min_size=1))
+    @settings(deadline=600, suppress_health_check=[HealthCheck.too_slow])
     def test_single_ri_folder(self, standard, il):
         with patch('oasislmf.model_execution.bin.INPUT_FILES', ECHO_CONVERSION_INPUT_FILES), TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
             files = standard + il
@@ -123,6 +124,7 @@ class CreateBinaryFiles(TestCase):
 
 
     @given(standard_input_files(min_size=1), il_input_files(min_size=1))
+    @settings(deadline=600, suppress_health_check=[HealthCheck.too_slow])
     def test_multipl_ri_folders(self, standard, il):
         with patch('oasislmf.model_execution.bin.INPUT_FILES', ECHO_CONVERSION_INPUT_FILES), TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
             files = standard + il
