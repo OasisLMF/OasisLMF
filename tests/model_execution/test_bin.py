@@ -15,7 +15,11 @@ import io
 import subprocess
 
 from copy import copy, deepcopy
-from hypothesis import given
+from hypothesis import (
+    given,
+    HealthCheck,
+    settings,
+)
 from hypothesis.strategies import sampled_from, lists
 from mock import patch, Mock
 from pathlib2 import Path

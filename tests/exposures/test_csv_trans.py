@@ -6,7 +6,11 @@ import unittest
 # find the root of git repo & import class under test
 # Set Dir Vars
 from backports.tempfile import TemporaryDirectory
-from hypothesis import given
+from hypothesis import (
+    given,
+    HealthCheck,
+    settings,
+)
 from hypothesis.strategies import integers
 from pathlib2 import Path
 
