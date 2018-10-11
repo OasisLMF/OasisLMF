@@ -276,9 +276,10 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
 
         input_file_path = os.path.abspath(kwargs['source_exposures_file_path'])
-        validation_file_path = os.path.abspath(kwargs['source_exposures_validation_file_path'])
         transformation_file_path = os.path.abspath(kwargs['source_to_canonical_exposures_transformation_file_path'])
         output_file_path = os.path.abspath(kwargs['canonical_exposures_file_path'])
+        validation_file_path = os.path.abspath(
+            kwargs['source_exposures_validation_file_path']) if kwargs.get('source_exposures_validation_file_path') else None
 
         translator = Translator(input_file_path, output_file_path, transformation_file_path, validation_file_path, append_row_nums=True)
         translator()
@@ -318,9 +319,10 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
 
         input_file_path = os.path.abspath(kwargs['canonical_exposures_file_path'])
-        validation_file_path = os.path.abspath(kwargs['canonical_exposures_validation_file_path'])
         transformation_file_path = os.path.abspath(kwargs['canonical_to_model_exposures_transformation_file_path'])
         output_file_path = os.path.abspath(kwargs['model_exposures_file_path'])
+        validation_file_path = os.path.abspath(
+            kwargs['canonical_exposures_validation_file_path']) if kwargs.get('canonical_exposures_validation_file_path') else None
 
         translator = Translator(input_file_path, output_file_path, transformation_file_path, validation_file_path, append_row_nums=False)
         translator()
