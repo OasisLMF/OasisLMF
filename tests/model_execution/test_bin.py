@@ -4,6 +4,7 @@ import glob
 import tarfile
 from tempfile import NamedTemporaryFile
 
+import pytest 
 import six
 from itertools import chain
 from backports.tempfile import TemporaryDirectory
@@ -420,6 +421,7 @@ class CheckInputDirectory(TestCase):
             with self.assertRaises(OasisException):
                 check_inputs_directory(d, do_il=True, do_ri=True, check_binaries=True)
 
+    @pytest.mark.flaky(reruns=5)
     def test_check_gul_and_il_and_single_ri_directory_structure_missing_file_fail(self):
         with TemporaryDirectory() as d:
             for p in six.itervalues(INPUT_FILES):
