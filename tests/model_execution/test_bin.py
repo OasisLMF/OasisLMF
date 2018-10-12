@@ -421,7 +421,7 @@ class CheckInputDirectory(TestCase):
             with self.assertRaises(OasisException):
                 check_inputs_directory(d, do_il=True, do_ri=True, check_binaries=True)
 
-    @pytest.mark.flaky(reruns=5)
+    @pytest.mark.flaky()
     def test_check_gul_and_il_and_single_ri_directory_structure_missing_file_fail(self):
         with TemporaryDirectory() as d:
             for p in six.itervalues(INPUT_FILES):
