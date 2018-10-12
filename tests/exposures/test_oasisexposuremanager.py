@@ -602,7 +602,7 @@ class OasisExposuresManagerGenerateGulsummaryxrefFile(FileGenerationTestCase):
 
 
 class OasisExposuresManagerGenerateOasisFiles(FileGenerationTestCase):
-    @settings(suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=300, suppress_health_check=[HealthCheck.too_slow])
     @given(
         keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), min_size=10),
         exposures=canonical_exposure_data(10, min_value=1)
@@ -628,7 +628,7 @@ class OasisExposuresManagerGenerateOasisFiles(FileGenerationTestCase):
             self.check_coverages_file(exposures, out_dir)
             self.check_gul_file(exposures, out_dir)
 
-    @settings(suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=300, suppress_health_check=[HealthCheck.too_slow])
     @given(
         keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), min_size=10),
         exposures=canonical_exposure_data(10, min_value=1)

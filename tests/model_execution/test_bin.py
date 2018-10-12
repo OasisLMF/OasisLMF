@@ -4,8 +4,8 @@ import glob
 import tarfile
 from tempfile import NamedTemporaryFile
 
+import pytest 
 import six
-from chainmap import ChainMap
 from itertools import chain
 from backports.tempfile import TemporaryDirectory
 from unittest import TestCase
@@ -15,7 +15,11 @@ import io
 import subprocess
 
 from copy import copy, deepcopy
-from hypothesis import given
+from hypothesis import (
+    given,
+    HealthCheck,
+    settings,
+)
 from hypothesis.strategies import sampled_from, lists
 from mock import patch, Mock
 from pathlib2 import Path
@@ -26,33 +30,12 @@ from oasislmf.model_execution.bin import create_binary_files, create_binary_tar_
     check_binary_tar_file
 from oasislmf.utils.exceptions import OasisException
 
-# Used simple echo command rather than ktools conversion utility for testing purposes
-ECHO_CONVERSION_INPUT_FILES = {k: ChainMap({'conversion_tool': 'echo'}, v) for k, v in INPUT_FILES.items()}
-
-
-def standard_input_files(min_size=0):
-    return lists(
-        sampled_from([target['name'] for target in chain(six.itervalues(GUL_INPUT_FILES), six.itervalues(OPTIONAL_INPUT_FILES))]),
-        min_size=min_size,
-        unique=True,
-    )
-
-
-def il_input_files(min_size=0):
-    return lists(
-        sampled_from([target['name'] for target in six.itervalues(IL_INPUT_FILES)]),
-        min_size=min_size,
-        unique=True,
-    )
-
-
-def tar_file_targets(min_size=0):
-    return lists(
-        sampled_from([target['name'] + '.bin' for target in six.itervalues(INPUT_FILES)]),
-        min_size=min_size,
-        unique=True,
-    )
-
+from tests.data import (
+    standard_input_files,
+    il_input_files,
+    tar_file_targets,
+    ECHO_CONVERSION_INPUT_FILES,
+)
 
 class CreateBinaryFiles(TestCase):
     def test_directory_only_contains_excluded_files___tar_is_empty(self):
@@ -99,6 +82,7 @@ class CreateBinaryFiles(TestCase):
                     create_binary_files(csv_dir, bin_dir, do_il=True)
 
     @given(standard_input_files(min_size=1), il_input_files(min_size=1))
+    @settings(deadline=600, suppress_health_check=[HealthCheck.too_slow])
     def test_single_ri_folder(self, standard, il):
         with patch('oasislmf.model_execution.bin.INPUT_FILES', ECHO_CONVERSION_INPUT_FILES), TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
             files = standard + il
@@ -123,6 +107,7 @@ class CreateBinaryFiles(TestCase):
 
 
     @given(standard_input_files(min_size=1), il_input_files(min_size=1))
+    @settings(deadline=600, suppress_health_check=[HealthCheck.too_slow])
     def test_multipl_ri_folders(self, standard, il):
         with patch('oasislmf.model_execution.bin.INPUT_FILES', ECHO_CONVERSION_INPUT_FILES), TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
             files = standard + il
@@ -436,6 +421,7 @@ class CheckInputDirectory(TestCase):
             with self.assertRaises(OasisException):
                 check_inputs_directory(d, do_il=True, do_ri=True, check_binaries=True)
 
+    @pytest.mark.flaky(reruns=5)
     def test_check_gul_and_il_and_single_ri_directory_structure_missing_file_fail(self):
         with TemporaryDirectory() as d:
             for p in six.itervalues(INPUT_FILES):

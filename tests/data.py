@@ -10,7 +10,10 @@ __all__ = [
 ]
 
 import string
+import six
 
+from itertools import chain
+from chainmap import ChainMap
 from collections import OrderedDict
 
 import pandas as pd
@@ -27,6 +30,12 @@ from hypothesis.strategies import (
     tuples,
 )
 
+from oasislmf.model_execution.files import (
+    GUL_INPUT_FILES, 
+    OPTIONAL_INPUT_FILES, 
+    IL_INPUT_FILES, 
+    TAR_FILE, INPUT_FILES,
+)
 from oasislmf.utils.coverage import (
     BUILDING_COVERAGE_CODE,
     CONTENTS_COVERAGE_CODE,
@@ -45,11 +54,38 @@ from oasislmf.utils.status import (
     KEYS_STATUS_SUCCESS,
 )
 
+
 coverage_type_ids = [BUILDING_COVERAGE_CODE, CONTENTS_COVERAGE_CODE, OTHER_STRUCTURES_COVERAGE_CODE, TIME_COVERAGE_CODE]
 
 keys_status_flags = [KEYS_STATUS_FAIL, KEYS_STATUS_NOMATCH, KEYS_STATUS_SUCCESS]
 
 peril_ids = [PERIL_ID_FLOOD, PERIL_ID_QUAKE, PERIL_ID_QUAKE, PERIL_ID_WIND]
+
+# Used simple echo command rather than ktools conversion utility for testing purposes
+ECHO_CONVERSION_INPUT_FILES = {k: ChainMap({'conversion_tool': 'echo'}, v) for k, v in INPUT_FILES.items()}
+
+def standard_input_files(min_size=0):
+    return lists(
+        sampled_from([target['name'] for target in chain(six.itervalues(GUL_INPUT_FILES), six.itervalues(OPTIONAL_INPUT_FILES))]),
+        min_size=min_size,
+        unique=True,
+    )
+
+
+def il_input_files(min_size=0):
+    return lists(
+        sampled_from([target['name'] for target in six.itervalues(IL_INPUT_FILES)]),
+        min_size=min_size,
+        unique=True,
+    )
+
+
+def tar_file_targets(min_size=0):
+    return lists(
+        sampled_from([target['name'] + '.bin' for target in six.itervalues(INPUT_FILES)]),
+        min_size=min_size,
+        unique=True,
+    )
 
 
 def canonical_exposure_data(num_rows=10, min_value=None, max_value=None):
