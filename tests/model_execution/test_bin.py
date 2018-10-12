@@ -5,7 +5,6 @@ import tarfile
 from tempfile import NamedTemporaryFile
 
 import six
-from chainmap import ChainMap
 from itertools import chain
 from backports.tempfile import TemporaryDirectory
 from unittest import TestCase
@@ -34,11 +33,8 @@ from tests.data import (
     standard_input_files,
     il_input_files,
     tar_file_targets,
+    ECHO_CONVERSION_INPUT_FILES,
 )
-
-# Used simple echo command rather than ktools conversion utility for testing purposes
-ECHO_CONVERSION_INPUT_FILES = {k: ChainMap({'conversion_tool': 'echo'}, v) for k, v in INPUT_FILES.items()}
-
 
 class CreateBinaryFiles(TestCase):
     def test_directory_only_contains_excluded_files___tar_is_empty(self):
