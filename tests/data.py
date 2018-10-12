@@ -52,6 +52,30 @@ keys_status_flags = [KEYS_STATUS_FAIL, KEYS_STATUS_NOMATCH, KEYS_STATUS_SUCCESS]
 peril_ids = [PERIL_ID_FLOOD, PERIL_ID_QUAKE, PERIL_ID_QUAKE, PERIL_ID_WIND]
 
 
+def standard_input_files(min_size=0):
+    return lists(
+        sampled_from([target['name'] for target in chain(six.itervalues(GUL_INPUT_FILES), six.itervalues(OPTIONAL_INPUT_FILES))]),
+        min_size=min_size,
+        unique=True,
+    )
+
+
+def il_input_files(min_size=0):
+    return lists(
+        sampled_from([target['name'] for target in six.itervalues(IL_INPUT_FILES)]),
+        min_size=min_size,
+        unique=True,
+    )
+
+
+def tar_file_targets(min_size=0):
+    return lists(
+        sampled_from([target['name'] + '.bin' for target in six.itervalues(INPUT_FILES)]),
+        min_size=min_size,
+        unique=True,
+    )
+
+
 def canonical_exposure_data(num_rows=10, min_value=None, max_value=None):
     return lists(tuples(integers(min_value=min_value, max_value=max_value)), min_size=num_rows, max_size=num_rows).map(
         lambda l: [(i + 1, 1.0) for i, _ in enumerate(l)]

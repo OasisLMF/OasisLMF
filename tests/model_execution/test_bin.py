@@ -30,32 +30,14 @@ from oasislmf.model_execution.bin import create_binary_files, create_binary_tar_
     check_binary_tar_file
 from oasislmf.utils.exceptions import OasisException
 
+from tests.data import (
+    standard_input_files,
+    il_input_files,
+    tar_file_targets,
+)
+
 # Used simple echo command rather than ktools conversion utility for testing purposes
 ECHO_CONVERSION_INPUT_FILES = {k: ChainMap({'conversion_tool': 'echo'}, v) for k, v in INPUT_FILES.items()}
-
-
-def standard_input_files(min_size=0):
-    return lists(
-        sampled_from([target['name'] for target in chain(six.itervalues(GUL_INPUT_FILES), six.itervalues(OPTIONAL_INPUT_FILES))]),
-        min_size=min_size,
-        unique=True,
-    )
-
-
-def il_input_files(min_size=0):
-    return lists(
-        sampled_from([target['name'] for target in six.itervalues(IL_INPUT_FILES)]),
-        min_size=min_size,
-        unique=True,
-    )
-
-
-def tar_file_targets(min_size=0):
-    return lists(
-        sampled_from([target['name'] + '.bin' for target in six.itervalues(INPUT_FILES)]),
-        min_size=min_size,
-        unique=True,
-    )
 
 
 class CreateBinaryFiles(TestCase):
