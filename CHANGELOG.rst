@@ -1,6 +1,14 @@
 OasisLMF Changelog
 ==================
 
+`1.1.27`_ (beta)
+----------------
+
+* Fix for installing ktools on mac OSX (3.0.1)
+* Fix for Reinsurance input file validation
+* Update Subcommand `oasislmf model generate-oasis-file` to use optional xml validation  
+* Update for unittest stability on CI/CD
+
 `1.1.26`_ (beta)
 ----------------
 
@@ -122,6 +130,7 @@ in the exposure manager
 * Add console logging
 
 
+.. _`1.1.27`: https://github.com/OasisLMF/OasisLMF/compare/ac4375e...master
 .. _`1.1.26`: https://github.com/OasisLMF/OasisLMF/compare/dac703e...master
 .. _`1.1.25`: https://github.com/OasisLMF/OasisLMF/compare/3a4b983...master
 .. _`1.1.24`: https://github.com/OasisLMF/OasisLMF/compare/8f94cab...master

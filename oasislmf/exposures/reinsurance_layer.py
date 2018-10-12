@@ -24,8 +24,8 @@ InuringLayer = namedtuple(
 
 
 def generate_files_for_reinsurance(
-        account_df,
-        location_df,
+       # account_df,
+       # location_df,
         items,
         coverages,
         fm_xrefs,
@@ -52,8 +52,8 @@ def generate_files_for_reinsurance(
 
             written_to_dir = _generate_files_for_reinsurance_risk_level(
                 inuring_priority,
-                account_df,
-                location_df,
+                #account_df,
+                #location_df,
                 items,
                 coverages,
                 fm_xrefs,
@@ -80,8 +80,8 @@ def generate_files_for_reinsurance(
 
 def _generate_files_for_reinsurance_risk_level(
         inuring_priority,
-        account_df,
-        location_df,
+        #account_df,
+        #location_df,
         items,
         coverages,
         fm_xrefs,
@@ -113,8 +113,8 @@ def _generate_files_for_reinsurance_risk_level(
         name=output_name,
         ri_info=ri_info_inuring_priority_df,
         ri_scope=ri_scope_df,
-        accounts=account_df,
-        locations=location_df,
+        #accounts=account_df,
+        #locations=location_df,
         items=items,
         coverages=coverages,
         fm_xrefs=fm_xrefs,
@@ -136,13 +136,13 @@ class ReinsuranceLayer(object):
     Generates ktools inputs and runs financial module for a reinsurance structure.
     """
 
-    def __init__(self, name, ri_info, ri_scope, accounts, locations,
+    def __init__(self, name, ri_info, ri_scope, #accounts, locations,
                  items, coverages, fm_xrefs, xref_descriptions, risk_level, logger=None):
 
         self.logger = logger or logging.getLogger()
         self.name = name
-        self.accounts = accounts
-        self.locations = locations
+        #self.accounts = accounts
+        #self.locations = locations
 
         self.coverages = coverages
         self.items = items
