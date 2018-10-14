@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 __all__ = [
+    'canonical_profiles_fm_terms_by_level',
+    'canonical_profiles_fm_terms_by_level_and_term_group',
     'canonical_profiles_fm_terms_grouped_by_level',
     'canonical_profiles_fm_terms_grouped_by_level_and_term_type',
     'get_calcrule_id',
@@ -18,6 +20,9 @@ import six
 import pandas as pd
 
 from .exceptions import OasisException
+from .utils.metadata import (
+    FM_TERMS,
+)
 
 
 def canonical_profiles_fm_terms_grouped_by_level(canonical_profiles=[], canonical_profiles_paths=[]):
@@ -58,6 +63,37 @@ def canonical_profiles_fm_terms_grouped_by_level_and_term_type(canonical_profile
         level_id: {
             k:{gi['FMTermType'].lower():gi for gi in list(g)} for k, g in itertools.groupby(sorted(fm_terms[level_id].values(), key=lambda f: f['ProfileElementName']), key=lambda f: f['FMTermGroupID'])
         } for level_id in fm_levels
+    }
+
+
+def canonical_profiles_fm_terms_by_level(profiles=[], profile_paths=[]):
+
+    if not (profiles or profile_paths):
+        raise OasisException('A list of canonical profiles (loc. or acc.) or a list of canonical profiles paths must be provided')
+
+    if not profiles:
+        for pp in profile_paths:
+            with io.open(pp, 'r', encoding='utf-8') as f:
+                profiles.append(json.load(f))
+
+    comb_prof = {k:v for p in profiles for k, v in ((k, v) for k, v in six.iteritems(p) if 'FMLevel' in v)}
+    
+    return {
+        int(k):{v['ProfileElementName']:v for v in g} for k, g in itertools.groupby(six.itervalues(comb_prof), key=lambda v: v['FMLevel'])
+    }
+
+
+def canonical_profiles_fm_terms_by_level_and_term_group(profiles=[], profile_paths=[]):
+
+    if not (profiles or profile_paths):
+        raise OasisException('A list of canonical profiles (loc. or acc.) or a list of canonical profiles paths must be provided')
+
+    comb_prof = canonical_profiles_fm_terms_by_level(profiles=profiles, profile_paths=profile_paths)
+
+    return {
+        k:{
+            int(_k):{FM_TERMS[v['FMTermType'].lower()]['id']:v for v in g} for _k, g in itertools.groupby(six.itervalues(comb_prof[k]), key=lambda it: it['FMTermGroupID'])
+        } for k in comb_prof
     }
 
 
