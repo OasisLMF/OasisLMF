@@ -92,7 +92,7 @@ def canonical_profiles_fm_terms_by_level_and_term_group(profiles=[], profile_pat
 
     return {
         k:{
-            int(_k):{FM_TERMS[v['FMTermType'].lower()]['id']:v for v in g} for _k, g in itertools.groupby(six.itervalues(comb_prof[k]), key=lambda it: it['FMTermGroupID'])
+            int(_k):{v['FMTermType'].lower():v for v in g} for _k, g in itertools.groupby(six.itervalues(comb_prof[k]), key=lambda it: it['FMTermGroupID'])
         } for k in comb_prof
     }
 
