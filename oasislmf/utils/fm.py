@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
 
 __all__ = [
-    'canonical_profiles_fm_terms_by_level',
-    'canonical_profiles_fm_terms_by_level_and_term_group',
-    'canonical_profiles_fm_terms_grouped_by_level',
-    'canonical_profiles_fm_terms_grouped_by_level_and_term_type',
+    'unified_canonical_fm_profile_by_level',
+    'unified_canonical_fm_profile_by_level_and_term_group',
     'get_calcrule_id',
     'get_fm_terms_by_level_as_list',
     'get_coverage_level_fm_terms',
@@ -25,48 +23,7 @@ from .metadata import (
 )
 
 
-def canonical_profiles_fm_terms_grouped_by_level(canonical_profiles=[], canonical_profiles_paths=[]):
-
-    if not (canonical_profiles or canonical_profiles_paths):
-        raise OasisException('A list of canonical profiles (loc. or acc.) or a list of canonical profiles paths must be provided')
-
-    if not canonical_profiles:
-        for p in canonical_profiles_paths:
-            with io.open(p, 'r', encoding='utf-8') as f:
-                canonical_profiles.append(json.load(f))
-
-    cp = {k:v for p in canonical_profiles for k, v in six.iteritems(p)}
-
-    return {
-        level_id: {
-            gi['ProfileElementName'].lower(): gi for gi in list(g)
-        } for level_id, g in itertools.groupby(
-            sorted(
-               [v for v in cp.values() if 'FMLevel' in v and v['FMTermType'].lower() in ['tiv', 'deductible', 'limit', 'share']], 
-                key=lambda d: d['FMLevel']
-            ),
-            key=lambda f: f['FMLevel']
-        )
-    }
-
-
-def canonical_profiles_fm_terms_grouped_by_level_and_term_type(canonical_profiles=[], canonical_profiles_paths=[]):
-
-    if not (canonical_profiles or canonical_profiles_paths):
-        raise OasisException('A list of canonical profiles (loc. or acc.) or a list of canonical profiles paths must be provided')
-
-    fm_terms = canonical_profiles_fm_terms_grouped_by_level(canonical_profiles=canonical_profiles, canonical_profiles_paths=canonical_profiles_paths)
-
-    fm_levels = sorted(fm_terms.keys())
-
-    return {
-        level_id: {
-            k:{gi['FMTermType'].lower():gi for gi in list(g)} for k, g in itertools.groupby(sorted(fm_terms[level_id].values(), key=lambda f: f['ProfileElementName']), key=lambda f: f['FMTermGroupID'])
-        } for level_id in fm_levels
-    }
-
-
-def canonical_profiles_fm_terms_by_level(profiles=[], profile_paths=[]):
+def unified_canonical_fm_profile_by_level(profiles=[], profile_paths=[]):
 
     if not (profiles or profile_paths):
         raise OasisException('A list of canonical profiles (loc. or acc.) or a list of canonical profiles paths must be provided')
@@ -83,12 +40,12 @@ def canonical_profiles_fm_terms_by_level(profiles=[], profile_paths=[]):
     }
 
 
-def canonical_profiles_fm_terms_by_level_and_term_group(profiles=[], profile_paths=[]):
+def unified_canonical_fm_profile_by_level_and_term_group(profiles=[], profile_paths=[]):
 
     if not (profiles or profile_paths):
         raise OasisException('A list of canonical profiles (loc. or acc.) or a list of canonical profiles paths must be provided')
 
-    comb_prof = canonical_profiles_fm_terms_by_level(profiles=profiles, profile_paths=profile_paths)
+    comb_prof = unified_canonical_fm_profile_by_level(profiles=profiles, profile_paths=profile_paths)
 
     return {
         k:{

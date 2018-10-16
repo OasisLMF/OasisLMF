@@ -33,8 +33,7 @@ from ..utils.concurrency import (
 )
 from ..utils.exceptions import OasisException
 from ..utils.fm import (
-    canonical_profiles_fm_terms_by_level_and_term_group,
-    canonical_profiles_fm_terms_grouped_by_level_and_term_type,
+    unified_canonical_fm_profile_by_level_and_term_group,
     get_fm_terms_by_level_as_list,
     get_policytc_ids,
 )
@@ -782,7 +781,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         cep = canonical_exposures_profile
 
-        gcep = canonical_profiles_fm_terms_grouped_by_level_and_term_type(canonical_profiles=(cep,))
+        gcep = unified_canonical_fm_profile_by_level_and_term_group(profiles=(cep,))
 
         if not gcep:
             raise OasisException(
@@ -913,7 +912,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         )
 
         try:
-            cgcp = canonical_profiles_fm_terms_grouped_by_level_and_term_type(canonical_profiles=(cep, cap,))
+            cgcp = unified_canonical_fm_profile_by_level_and_term_group(profiles=(cep, cap,))
 
             if not cgcp:
                 raise OasisException(

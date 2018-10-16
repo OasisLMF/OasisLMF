@@ -45,7 +45,7 @@ from oasislmf.utils.coverage import (
 )
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.fm import (
-    canonical_profiles_fm_terms_grouped_by_level_and_term_type
+    unified_canonical_fm_profile_by_level_and_term_group
 )
 from oasislmf.utils.status import (
     KEYS_STATUS_FAIL,
@@ -1087,7 +1087,7 @@ class OasisExposuresManagerLoadGulItems(TestCase):
         keys
     ):
         profile = copy.deepcopy(self.profile)
-        gcep = canonical_profiles_fm_terms_grouped_by_level_and_term_type(canonical_profiles=(profile,))
+        gcep = unified_canonical_fm_profile_by_level_and_term_group(profiles=(profile,))
 
         for k in keys:
             k['id'] += 5
@@ -1166,8 +1166,8 @@ class OasisExposuresManagerLoadFmItems(TestCase):
     def setUp(self):
         self.exposures_profile = copy.deepcopy(canonical_exposures_profile_piwind)
         self.accounts_profile = copy.deepcopy(canonical_accounts_profile_piwind)
-        self.combined_grouped_canonical_profile = canonical_profiles_fm_terms_grouped_by_level_and_term_type(
-            canonical_profiles=[self.exposures_profile, self.accounts_profile]
+        self.combined_grouped_canonical_profile = unified_canonical_fm_profile_by_level_and_term_group(
+            profiles=[self.exposures_profile, self.accounts_profile]
         )
         self.fm_agg_profile = copy.deepcopy(fm_agg_profile_piwind)
 
@@ -2179,8 +2179,8 @@ class FmFilesGenerationTestCase(TestCase):
     def setUp(self):
         self.exposures_profile = canonical_exposures_profile_piwind
         self.accounts_profile = canonical_accounts_profile_piwind
-        self.combined_grouped_canonical_profile = canonical_profiles_fm_terms_grouped_by_level_and_term_type(
-            canonical_profiles=(self.exposures_profile, self.accounts_profile,)
+        self.combined_grouped_canonical_profile = unified_canonical_fm_profile_by_level_and_term_group(
+            profiles=(self.exposures_profile, self.accounts_profile,)
         )
         self.fm_agg_profile = fm_agg_profile_piwind
         self.manager = OasisExposuresManager()
