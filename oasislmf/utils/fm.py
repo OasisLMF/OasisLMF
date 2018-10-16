@@ -20,7 +20,7 @@ import six
 import pandas as pd
 
 from .exceptions import OasisException
-from .utils.metadata import (
+from .metadata import (
     FM_TERMS,
 )
 
