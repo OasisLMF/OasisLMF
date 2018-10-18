@@ -2,17 +2,17 @@ from __future__ import unicode_literals
 
 __all__ = [
     'canonical_accounts_data',
-    'canonical_accounts_profile_piwind',
+    'canonical_accounts_profile',
     'canonical_exposures_data',
-    'canonical_exposures_profile_piwind',
+    'canonical_exposures_profile',
     'calcrule_ids',
     'coverage_type_ids',
     'deductible_types',
     'deductible_types_piwind',
     'fm_agg_profile_piwind',
     'fm_items_data',
-    'fm_level_names_piwind',
-    'fm_level_names_piwind_simple',
+    'fm_level_names',
+    'fm_level_names_simple',
     'fm_levels_piwind',
     'fm_levels_piwind_simple',
     'gul_items_data',
@@ -46,27 +46,21 @@ from hypothesis.strategies import (
     floats,
 )
 
-from oasislmf.utils.coverage import (
-    BUILDING_COVERAGE_CODE,
-    CONTENTS_COVERAGE_CODE,
-    OTHER_STRUCTURES_COVERAGE_CODE,
-    TIME_COVERAGE_CODE,
-)
-from oasislmf.utils.peril import (
-    PERIL_ID_FLOOD,
-    PERIL_ID_QUAKE,
-    PERIL_ID_SURGE,
-    PERIL_ID_WIND,
-)
-from oasislmf.utils.status import (
-    KEYS_STATUS_FAIL,
-    KEYS_STATUS_NOMATCH,
-    KEYS_STATUS_SUCCESS,
+from oasislmf.utils.metadata import (
+    DEDUCTIBLE_TYPES,
+    FM_TERMS,
+    OASIS_COVERAGE_TYPES,
+    OASIS_FM_LEVELS,
+    OASIS_KEYS_STATUS,
+    OASIS_PERILS,
+    OED_COVERAGE_TYPES,
+    OED_FM_LEVELS,
+    OED_PERILS,
 )
 
 calcrule_ids = (1, 2, 10, 11, 12, 15,)
 
-canonical_accounts_profile_piwind = {
+canonical_accounts_profile = {
     'ACCNTNUM': {
         'FieldName': 'AccountNumber',
         'ProfileElementName': 'ACCNTNUM',
@@ -127,7 +121,7 @@ canonical_accounts_profile_piwind = {
     }
 }
 
-canonical_exposures_profile_piwind = {
+canonical_exposures_profile = {
     'ACCNTNUM': {
         'FieldName': 'AccountNumber',
         'ProfileElementName': 'ACCNTNUM',
@@ -288,7 +282,7 @@ canonical_exposures_profile_piwind = {
     'YEARUPGRAD': {}
 }
 
-canonical_exposures_profile_piwind_simple = {
+canonical_exposures_profile_simple = {
     'ACCNTNUM': {
         'FieldName': 'AccountNumber',
         'ProfileElementName': 'ACCNTNUM',
@@ -335,14 +329,19 @@ canonical_exposures_profile_piwind_simple = {
     }
 }
 
-coverage_type_ids = (BUILDING_COVERAGE_CODE, CONTENTS_COVERAGE_CODE, OTHER_STRUCTURES_COVERAGE_CODE, TIME_COVERAGE_CODE,)
+coverage_type_ids = (
+    OASIS_COVERAGE_TYPES['buildings']['id'],
+    OASIS_COVERAGE_TYPES['contents']['id'],
+    OASIS_COVERAGE_TYPES['other']['id'],
+    OASIS_COVERAGE_TYPES['time']['id'],
+)
 
 deductible_types = ('B', 'MA', 'MI',)
 
 deductible_types_piwind = tuple(
     t for t in set(
         t['DeductibleType'] if t.get('FMTermType') and t.get('FMTermType').lower() == 'deductible' else None 
-        for t in itertools.chain(six.itervalues(canonical_exposures_profile_piwind_simple), six.itervalues(canonical_accounts_profile_piwind))
+        for t in itertools.chain(six.itervalues(canonical_exposures_profile_simple), six.itervalues(canonical_accounts_profile))
     ) if t
 )
 
@@ -434,40 +433,54 @@ fm_agg_profile_piwind = {
 fm_levels_piwind = tuple(
     t for t in set(
         t.get('FMLevel')
-        for t in itertools.chain(six.itervalues(canonical_exposures_profile_piwind), six.itervalues(canonical_accounts_profile_piwind))
+        for t in itertools.chain(six.itervalues(canonical_exposures_profile), six.itervalues(canonical_accounts_profile))
     ) if t
 )
 
 fm_levels_piwind_simple = tuple(
     t for t in set(
         t.get('FMLevel')
-        for t in itertools.chain(six.itervalues(canonical_exposures_profile_piwind_simple), six.itervalues(canonical_accounts_profile_piwind))
+        for t in itertools.chain(six.itervalues(canonical_exposures_profile_simple), six.itervalues(canonical_accounts_profile))
     ) if t
 )
 
-fm_level_names_piwind = tuple(
+fm_level_names = tuple(
     t[0] for t in sorted([t for t in set(
         (t.get('FMLevelName'), t.get('FMLevel'))
-        for t in itertools.chain(six.itervalues(canonical_exposures_profile_piwind), six.itervalues(canonical_accounts_profile_piwind))
+        for t in itertools.chain(six.itervalues(canonical_exposures_profile), six.itervalues(canonical_accounts_profile))
     ) if t != (None,None)], key=lambda t: t[1])
 )
 
-fm_level_names_piwind_simple = tuple(
+fm_level_names_simple = tuple(
     t[0] for t in sorted([t for t in set(
         (t.get('FMLevelName'), t.get('FMLevel'))
-        for t in itertools.chain(six.itervalues(canonical_exposures_profile_piwind_simple), six.itervalues(canonical_accounts_profile_piwind))
+        for t in itertools.chain(six.itervalues(canonical_exposures_profile_simple), six.itervalues(canonical_accounts_profile))
     ) if t != (None,None)], key=lambda t: t[1])
 )
 
-fm_term_types = ('Deductible', 'Limit', 'Share', 'TIV',)
+fm_term_types = (
+    OASIS_FM_TERMS['deductible']['desc'],
+    OASIS_FM_TERMS['limit']['desc'],
+    OASIS_FM_TERMS['share']['desc'],
+    OASIS_FM_TERMS['tiv']['desc'],
+)
 
 fm_profile_types = ('acc', 'loc',)
 
-keys_status_flags = (KEYS_STATUS_FAIL, KEYS_STATUS_NOMATCH, KEYS_STATUS_SUCCESS,)
+keys_status_flags = (
+    OASIS_KEYS_STATUS['fail']['id'],
+    OASIS_KEYS_STATUS['nomatch']['id'],
+    OASIS_KEYS_STATUS['success']['id'],
+)
 
-peril_ids = (PERIL_ID_FLOOD, PERIL_ID_QUAKE, PERIL_ID_QUAKE, PERIL_ID_WIND,)
+peril_ids = (
+    OASIS_PERILS['flood']['id'],
+    OASIS_PERILS['quake']['id'],
+    OASIS_PERILS['quake']['id'],
+    OASIS_PERILS['wind']['id'],
+)
 
-tiv_elements_piwind = tuple(v['ProfileElementName'].lower() for v in canonical_exposures_profile_piwind.values() if v.get('FMTermType') and v.get('FMTermType').lower() == 'tiv')
+tiv_elements_piwind = tuple(v['ProfileElementName'].lower() for v in canonical_exposures_profile.values() if v.get('FMTermType') and v.get('FMTermType').lower() == 'tiv')
 
 
 def canonical_accounts_data(
@@ -700,8 +713,8 @@ def gul_items_data(
 
 
 def keys_data(
-    from_peril_ids=just(PERIL_ID_WIND),
-    from_coverage_type_ids=just(BUILDING_COVERAGE_CODE),
+    from_peril_ids=just(OASIS_PERILS['wind']['id']),
+    from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
     from_area_peril_ids=integers(min_value=1, max_value=10),
     from_vulnerability_ids=integers(min_value=1, max_value=10),
     from_statuses=sampled_from(keys_status_flags),

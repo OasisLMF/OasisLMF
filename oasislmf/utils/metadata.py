@@ -1,6 +1,6 @@
 """
 Metadata definitions for Oasis and OED exposure data + insurance data + peril
-& cat. modelling data.
+& cat. modelling data + Oasis keys status and Celery task status flags
 
 For Oasis exposure data and modelling concepts please refer to
 
@@ -32,10 +32,10 @@ class _metadata(object):
     FMT_SHR = 'shr'
 
     FM_TERMS = {
-        'tiv': {'id': FMT_TIV, 'desc': 'total insured value'},
-        'deductible': {'id': FMT_DED, 'desc': 'deductible'},
-        'limit': {'id': FMT_LIM, 'desc': 'limit'},
-        'share': {'id': FMT_SHR, 'desc': 'share'}
+        'tiv': {'id': FMT_TIV, 'desc': 'TIV'},
+        'deductible': {'id': FMT_DED, 'desc': 'Deductible'},
+        'limit': {'id': FMT_LIM, 'desc': 'Limit'},
+        'share': {'id': FMT_SHR, 'desc': 'Share'}
     }
 
     OASIS_COVT_BLD = 1
@@ -51,19 +51,19 @@ class _metadata(object):
     OED_COVT_ALL = 6
 
     OED_COVERAGE_TYPES = OrderedDict({
-        'buildings': {'id': 1, 'desc': 'buildings', 'eqv_oasis_covt': OASIS_COVT_BLD},
-        'other': {'id': 2, 'desc': 'other (typically appurtenant structures)', 'eqv_oasis_covt': OASIS_COVT_OTH},
-        'contents': {'id': 3, 'desc': 'contents', 'eqv_oasis_covt': OASIS_COVT_CON},
-        'bi': {'id': 4, 'desc': 'business interruption', 'eqv_oasis_covt': OASIS_COVT_TIM},
+        'buildings': {'id': 1, 'desc': 'buildings', 'eqv_oasis_covt': 'buildings'},
+        'other': {'id': 2, 'desc': 'other (typically appurtenant structures)', 'eqv_oasis_covt': 'other'},
+        'contents': {'id': 3, 'desc': 'contents', 'eqv_oasis_covt': 'contents'},
+        'bi': {'id': 4, 'desc': 'business interruption', 'eqv_oasis_covt': 'time'},
         'pd': {'id': 5, 'desc': 'property damage (buildings + other + contents)', 'eqv_oasis_covt': None},
         'all': {'id': 6, 'desc': 'all (property damage + business interruption)', 'eqv_oasis_covt': None}
     })
 
     OASIS_COVERAGE_TYPES = OrderedDict({
-        'buildings': {'id': 1, 'desc': 'buildings', 'eqv_oed_covt': OED_COVT_BLD},
-        'other': {'id': 2, 'desc': 'other', 'eqv_oed_covt': OED_COVT_OTH},
-        'contents': {'id': 3, 'desc': 'contents', 'eqv_oed_covt': OED_COVT_CON},
-        'time': {'id': 4, 'desc': 'time', 'eqv_oed_covt': OED_COVT_BIT}
+        'buildings': {'id': 1, 'desc': 'buildings', 'eqv_oed_covt': 'buildings'},
+        'other': {'id': 2, 'desc': 'other', 'eqv_oed_covt': 'other'},
+        'contents': {'id': 3, 'desc': 'contents', 'eqv_oed_covt': 'contents'},
+        'time': {'id': 4, 'desc': 'time', 'eqv_oed_covt': 'time'}
     })
 
     OASIS_FML_COV = 1
@@ -88,25 +88,25 @@ class _metadata(object):
     OED_FML_ACCALL = 13
 
     OASIS_FM_LEVELS = OrderedDict({
-        'coverage': {'id': OASIS_FML_COV, 'desc': 'coverage', 'eqv_oed_fml': OED_FML_SITCOV},
-        'combined': {'id': OASIS_FML_COM, 'desc': 'combined', 'eqv_oed_fml': OED_FML_SITPDM},
-        'site': {'id': OASIS_FML_SIT, 'desc': 'site', 'eqv_oed_fml': OED_FML_SITALL},
-        'sublimit': {'id': OASIS_FML_SUB, 'desc': 'sublimit', 'eqv_oed_fml': OED_FML_POLCOV},
-        'account': {'id': OASIS_FML_ACC, 'desc': 'account', 'eqv_oed_fml': OED_FML_POLALL},
-        'layer': {'id': OASIS_FML_LAY, 'desc': 'layer', 'eqv_oed_fml': OED_FML_POLLAY},
+        'coverage': {'id': OASIS_FML_COV, 'desc': 'coverage', 'eqv_oed_fml': 'site coverage'},
+        'combined': {'id': OASIS_FML_COM, 'desc': 'combined', 'eqv_oed_fml': 'site pd'},
+        'site': {'id': OASIS_FML_SIT, 'desc': 'site', 'eqv_oed_fml': 'site all'},
+        'sublimit': {'id': OASIS_FML_SUB, 'desc': 'sublimit', 'eqv_oed_fml': 'policy coverage'},
+        'account': {'id': OASIS_FML_ACC, 'desc': 'account', 'eqv_oed_fml': 'policy all'},
+        'layer': {'id': OASIS_FML_LAY, 'desc': 'layer', 'eqv_oed_fml': 'policy layer'},
     })
 
     OED_FM_LEVELS = OrderedDict({
-        'site coverage': {'id': OED_FML_SITCOV, 'desc': 'site coverage', 'eqv_oasis_fml': OASIS_FML_COV},
-        'site pd': {'id': OED_FML_SITPDM, 'desc': 'site property damage', 'eqv_oasis_fml': OASIS_FML_COM},
-        'site all': {'id': OED_FML_SITALL, 'desc': 'site all (coverage + property damage)', 'eqv_oasis_fml': OASIS_FML_SIT},
+        'site coverage': {'id': OED_FML_SITCOV, 'desc': 'site coverage', 'eqv_oasis_fml': 'coverage'},
+        'site pd': {'id': OED_FML_SITPDM, 'desc': 'site property damage', 'eqv_oasis_fml': 'combined'},
+        'site all': {'id': OED_FML_SITALL, 'desc': 'site all (coverage + property damage)', 'eqv_oasis_fml': 'site'},
         'cond coverage': {'id': OED_FML_CNDCOV, 'desc': 'conditional coverage'},
         'cond pd': {'id': OED_FML_CNDPDM, 'desc': 'conditional property damage'},
         'cond all': {'id': OED_FML_CNDALL, 'desc': 'conditional all (coverage + property damage)'},
-        'policy coverage': {'id': OED_FML_POLCOV, 'desc': 'policy coverage', 'eqv_oasis_fml': OASIS_FML_SUB},
+        'policy coverage': {'id': OED_FML_POLCOV, 'desc': 'policy coverage', 'eqv_oasis_fml': 'sublimit'},
         'policy pd': {'id': OED_FML_POLPDM, 'desc': 'policy property damage'},
-        'policy all': {'id': OED_FML_POLALL, 'desc': 'policy all (coverage + property damage)', 'eqv_oasis_fml': OASIS_FML_ACC},
-        'policy layer': {'id': OED_FML_POLLAY, 'desc': 'policy layer', 'eqv_oasis_fml': OASIS_FML_LAY},
+        'policy all': {'id': OED_FML_POLALL, 'desc': 'policy all (coverage + property damage)', 'eqv_oasis_fml': 'account'},
+        'policy layer': {'id': OED_FML_POLLAY, 'desc': 'policy layer', 'eqv_oasis_fml': 'layer'},
         'account coverage': {'id': OED_FML_ACCCOV, 'desc': 'account coverage'},
         'account pd': {'id': OED_FML_ACCPDM, 'desc': 'account property damage'},
         'account all': {'id': OED_FML_ACCALL, 'desc': 'account all (coverage + property damage)'}
@@ -179,26 +179,48 @@ class _metadata(object):
         'BSK': {'id': OED_PRL_BSK, 'desc': 'Smoke', 'eqv_oasis_peril': None, 'group_peril': OED_GRP_PRL_BB1},
         'MNT': {'id': OED_PRL_MNT, 'desc': 'NBCR Terrorism', 'eqv_oasis_peril': None, 'group_peril': OED_GRP_PRL_MM1},
         'MTR': {'id': OED_PRL_MTR, 'desc': 'Conventional Terrorism', 'eqv_oasis_peril': None, 'group_peril': OED_GRP_PRL_MM1},
-        'ORF': {'id': OED_PRL_ORF, 'desc': 'River / Fluvial Flood', 'eqv_oasis_peril': OASIS_PRL_FLD, 'group_peril': OED_GRP_PRL_OO1},
-        'OSF': {'id': OED_PRL_OSF, 'desc': 'Flash / Surface / Pluvial Flood', 'eqv_oasis_peril': OASIS_PRL_FLD, 'group_peril': OED_GRP_PRL_OO1},
-        'QEQ': {'id': OED_PRL_QEQ, 'desc': 'Earthquake - Shake only', 'eqv_oasis_peril': OASIS_PRL_QKE, 'group_peril': OED_GRP_PRL_QQ1},
-        'QFF': {'id': OED_PRL_QFF, 'desc': 'Fire Following', 'eqv_oasis_peril': OASIS_PRL_QKE, 'group_peril': OED_GRP_PRL_QQ1},
-        'QLF': {'id': OED_PRL_QLF, 'desc': 'Liquefaction', 'eqv_oasis_peril': OASIS_PRL_QKE, 'group_peril': OED_GRP_PRL_QQ1},
-        'QLS': {'id': OED_PRL_QLS, 'desc': 'Landslide', 'eqv_oasis_peril': OASIS_PRL_QKE, 'group_peril': OED_GRP_PRL_QQ1},
-        'QSL': {'id': OED_PRL_QSL, 'desc': 'Sprinkler Leakage', 'eqv_oasis_peril': OASIS_PRL_QKE, 'group_peril': OED_GRP_PRL_QQ1},
-        'QTS': {'id': OED_PRL_QTS, 'desc': 'Tsunami', 'eqv_oasis_peril': OASIS_PRL_QKE, 'group_peril': OED_GRP_PRL_QQ1},
-        'WEC': {'id': OED_PRL_WEC, 'desc': 'Extra Tropical Cyclone', 'eqv_oasis_peril': OASIS_PRL_FLD, 'group_peril': OED_GRP_PRL_WW2},
-        'WSS': {'id': OED_PRL_WSS, 'desc': 'Storm Surge', 'eqv_oasis_peril': OASIS_PRL_SRG, 'group_peril': OED_GRP_PRL_WW1},
-        'WTC': {'id': OED_PRL_WTC, 'desc': 'Tropical Cyclone', 'eqv_oasis_peril': OASIS_PRL_WND, 'group_peril': OED_GRP_PRL_WW2},
+        'ORF': {'id': OED_PRL_ORF, 'desc': 'River / Fluvial Flood', 'eqv_oasis_peril': 'flood', 'group_peril': OED_GRP_PRL_OO1},
+        'OSF': {'id': OED_PRL_OSF, 'desc': 'Flash / Surface / Pluvial Flood', 'eqv_oasis_peril': 'flood', 'group_peril': OED_GRP_PRL_OO1},
+        'QEQ': {'id': OED_PRL_QEQ, 'desc': 'Earthquake - Shake only', 'eqv_oasis_peril': 'quake', 'group_peril': OED_GRP_PRL_QQ1},
+        'QFF': {'id': OED_PRL_QFF, 'desc': 'Fire Following', 'eqv_oasis_peril': 'quake', 'group_peril': OED_GRP_PRL_QQ1},
+        'QLF': {'id': OED_PRL_QLF, 'desc': 'Liquefaction', 'eqv_oasis_peril': 'quake', 'group_peril': OED_GRP_PRL_QQ1},
+        'QLS': {'id': OED_PRL_QLS, 'desc': 'Landslide', 'eqv_oasis_peril': 'quake', 'group_peril': OED_GRP_PRL_QQ1},
+        'QSL': {'id': OED_PRL_QSL, 'desc': 'Sprinkler Leakage', 'eqv_oasis_peril': 'quake', 'group_peril': OED_GRP_PRL_QQ1},
+        'QTS': {'id': OED_PRL_QTS, 'desc': 'Tsunami', 'eqv_oasis_peril': 'quake', 'group_peril': OED_GRP_PRL_QQ1},
+        'WEC': {'id': OED_PRL_WEC, 'desc': 'Extra Tropical Cyclone', 'eqv_oasis_peril': 'flood', 'group_peril': OED_GRP_PRL_WW2},
+        'WSS': {'id': OED_PRL_WSS, 'desc': 'Storm Surge', 'eqv_oasis_peril': 'surge', 'group_peril': OED_GRP_PRL_WW1},
+        'WTC': {'id': OED_PRL_WTC, 'desc': 'Tropical Cyclone', 'eqv_oasis_peril': 'wind', 'group_peril': OED_GRP_PRL_WW2},
         'XHL': {'id': OED_PRL_XHL, 'desc': 'Hail', 'eqv_oasis_peril': None, 'group_peril': OED_GRP_PRL_XZ1},
         'XLT': {'id': OED_PRL_XLT, 'desc': 'Lightning', 'eqv_oasis_peril': None, 'group_peril': OED_GRP_PRL_XX1},
         'XSL': {'id': OED_PRL_XSL, 'desc': 'Straight-line / other convective wind', 'eqv_oasis_peril': None, 'group_peril': OED_GRP_PRL_XX1},
-        'XTD': {'id': OED_PRL_XTD, 'desc': 'Tornado', 'eqv_oasis_peril': OASIS_PRL_WND, 'group_peril': OED_GRP_PRL_XX1},
+        'XTD': {'id': OED_PRL_XTD, 'desc': 'Tornado', 'eqv_oasis_peril': 'wind', 'group_peril': OED_GRP_PRL_XX1},
         'ZFZ': {'id': OED_PRL_ZFZ, 'desc': 'Freeze', 'eqv_oasis_peril': None, 'group_peril': OED_GRP_PRL_ZZ1},
         'ZIC': {'id': OED_PRL_ZIC, 'desc': 'Ice', 'eqv_oasis_peril': None, 'group_peril': OED_GRP_PRL_ZZ1},
         'ZSN': {'id': OED_PRL_ZSN, 'desc': 'Snow', 'eqv_oasis_peril': None, 'group_peril': OED_GRP_PRL_ZZ1},
-        'ZST': {'id': OED_PRL_ZST, 'desc': 'Winterstorm Wind', 'eqv_oasis_peril': OASIS_PRL_WND, 'group_peril': OED_GRP_PRL_ZZ1}
+        'ZST': {'id': OED_PRL_ZST, 'desc': 'Winterstorm Wind', 'eqv_oasis_peril': 'wind', 'group_peril': OED_GRP_PRL_ZZ1}
     })
+
+    OASIS_KEYS_SC = 'success'
+    OASIS_KEYS_FL = 'fail'
+    OASIS_KEYS_NM = 'nomatch'
+
+    OASIS_KEYS_STATUS = {
+        'success': {'id': OASIS_KEYS_SC,'desc': 'Success'},
+        'fail': {'id': OASIS_KEYS_FL, 'desc': 'Failure'},
+        'nomatch': {'id': OASIS_KEYS_NM, 'desc': 'No match'}
+    }
+
+    OASIS_TASK_PN = 'PENDING'
+    OASIS_TASK_RN = 'RUNNING'
+    OASIS_TASK_SC = 'SUCCESS'
+    OASIS_TASK_FL = 'FAILURE'
+
+    OASIS_TASK_STATUS = {
+        'pending': {'id': OASIS_TASK_PN, 'desc': 'Pending'},
+        'running': {'id': OASIS_TASK_RN, 'desc': 'Running'},
+        'success': {'id': OASIS_TASK_SC, 'desc': 'Success'},
+        'failure': {'id': OASIS_TASK_FL, 'desc': 'Failure'}
+    }
 
     class AttributeModificationError(BaseException):
         pass
