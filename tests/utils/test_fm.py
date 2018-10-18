@@ -40,30 +40,34 @@ from oasislmf.utils.fm import (
     get_non_coverage_level_fm_terms,
     get_policytc_ids,
 )
-from oasislmf.utils.coverage import (
-    BUILDING_COVERAGE_CODE,
-    CONTENTS_COVERAGE_CODE,
-    OTHER_STRUCTURES_COVERAGE_CODE,
-    TIME_COVERAGE_CODE,
+from oasislmf.utils.metadata import (
+    DEDUCTIBLE_TYPES,
+    FM_TERMS,
+    OASIS_COVERAGE_TYPES,
+    OASIS_FM_LEVELS,
+    OASIS_KEYS_STATUS,
+    OASIS_PERILS,
+    OED_COVERAGE_TYPES,
+    OED_FM_LEVELS,
+    OED_PERILS,
 )
 from tests.data import (
     calcrule_ids,
     canonical_accounts_data,
-    canonical_accounts_profile_piwind,
+    canonical_accounts_profile,
     canonical_exposures_data,
-    canonical_exposures_profile_piwind,
+    canonical_exposures_profile,
     fm_agg_profile_piwind,
     deductible_types,
-    deductible_types_piwind,
     fm_items_data,
-    fm_levels_piwind_simple,
+    fm_levels_simple,
 )
 
 class CanonicalProfilesFmTermsGroupedByLevel(TestCase):
 
     def setUp(self):
-        self.exposures_profile = canonical_exposures_profile_piwind
-        self.accounts_profile = canonical_accounts_profile_piwind
+        self.exposures_profile = canonical_exposures_profile
+        self.accounts_profile = canonical_accounts_profile
 
     # Adapted from a solution by Martijn Pieters
     # https://stackoverflow.com/a/23499088
@@ -76,7 +80,7 @@ class CanonicalProfilesFmTermsGroupedByLevel(TestCase):
         with self.assertRaises(OasisException):
             unified_canonical_fm_profile_by_level()
 
-    @pytest.mark.skip(reason="inconsistent output from unified canonical profile constructor")
+    #@pytest.mark.skip(reason="inconsistent output from unified canonical profile constructor")
     def test_only_canonical_profiles_provided(self):
 
         profiles = (self.exposures_profile, self.accounts_profile,)
@@ -107,7 +111,7 @@ class CanonicalProfilesFmTermsGroupedByLevel(TestCase):
             pt = matching_profile_term(t)
             self.assertIsNotNone(pt) if t not in non_fm_terms else self.assertIsNone(pt)
 
-    @pytest.mark.skip(reason="inconsistent output from unified canonical profile constructor")
+    #@pytest.mark.skip(reason="inconsistent output from unified canonical profile constructor")
     def test_only_canonical_profile_paths_provided(self):
         profiles = (self.exposures_profile, self.accounts_profile,)
 
@@ -144,7 +148,7 @@ class CanonicalProfilesFmTermsGroupedByLevel(TestCase):
             pt = matching_profile_term(t)
             self.assertIsNotNone(pt) if t not in non_fm_terms else self.assertIsNone(pt)
 
-    @pytest.mark.skip(reason="inconsistent output from unified canonical profile constructor")
+    #@pytest.mark.skip(reason="inconsistent output from unified canonical profile constructor")
     def test_canonical_profile_and_profiles_paths_provided(self):
         profiles = (self.exposures_profile, self.accounts_profile,)
 
@@ -185,8 +189,8 @@ class CanonicalProfilesFmTermsGroupedByLevel(TestCase):
 class CanonicalProfilesFmTermsGroupedByLevelAndTermGroup(TestCase):
 
     def setUp(self):
-        self.exposures_profile = canonical_exposures_profile_piwind
-        self.accounts_profile = canonical_accounts_profile_piwind
+        self.exposures_profile = canonical_exposures_profile
+        self.accounts_profile = canonical_accounts_profile
 
     # Adapted from a solution by Martijn Pieters
     # https://stackoverflow.com/a/23499088
@@ -199,7 +203,7 @@ class CanonicalProfilesFmTermsGroupedByLevelAndTermGroup(TestCase):
         with self.assertRaises(OasisException):
             unified_canonical_fm_profile_by_level_and_term_group()
 
-    @pytest.mark.skip(reason="inconsistent output from unified canonical profile constructor")
+    #@pytest.mark.skip(reason="inconsistent output from unified canonical profile constructor")
     def test_only_canonical_profiles_provided(self):
         profiles = (self.exposures_profile, self.accounts_profile,)
 
@@ -232,7 +236,7 @@ class CanonicalProfilesFmTermsGroupedByLevelAndTermGroup(TestCase):
             pt = matching_profile_term(t)
             self.assertIsNotNone(pt) if t not in non_fm_terms else self.assertIsNone(pt)
 
-    @pytest.mark.skip(reason="inconsistent output from unified canonical profile constructor")
+    #@pytest.mark.skip(reason="inconsistent output from unified canonical profile constructor")
     def test_only_canonical_profile_paths_provided(self):
         profiles = (self.exposures_profile, self.accounts_profile,)
 
@@ -272,7 +276,7 @@ class CanonicalProfilesFmTermsGroupedByLevelAndTermGroup(TestCase):
             pt = matching_profile_term(t)
             self.assertIsNotNone(pt) if t not in non_fm_terms else self.assertIsNone(pt)
 
-    @pytest.mark.skip(reason="inconsistent output from unified canonical profile constructor")
+    #@pytest.mark.skip(reason="inconsistent output from unified canonical profile constructor")
     def test_canonical_profiles_and_profile_paths_provided(self):
         profiles = (self.exposures_profile, self.accounts_profile,)
 
@@ -383,10 +387,10 @@ class GetCalcruleID(TestCase):
 class GetFmTermsByLevel(TestCase):
 
     def setUp(self):
-        self.exposures_profile = canonical_exposures_profile_piwind
-        self.accounts_profile = canonical_accounts_profile_piwind
+        self.exposures_profile = canonical_exposures_profile
+        self.accounts_profile = canonical_accounts_profile
         self.combined_grouped_canonical_profile = unified_canonical_fm_profile_by_level_and_term_group(
-            canonical_profiles=[self.exposures_profile, self.accounts_profile]
+            profiles=[self.exposures_profile, self.accounts_profile]
         )
         self.fm_agg_profile = fm_agg_profile_piwind
 
@@ -414,7 +418,7 @@ class GetFmTermsByLevel(TestCase):
             size=1
         ),
         fm_items=fm_items_data(
-            from_coverage_type_ids=just(BUILDING_COVERAGE_CODE),
+            from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
             from_level_ids=just(1),
             from_canacc_ids=just(0),
             from_policy_nums=just('A1P1'),
@@ -430,6 +434,7 @@ class GetFmTermsByLevel(TestCase):
         ) 
     )
     def test_coverage_level_terms__with_one_account_and_one_layer_per_account(self, exposures, accounts, fm_items):
+        #import pdb; pdb.set_trace()
         lcgcp = self.combined_grouped_canonical_profile[1]
         lfmaggp = self.fm_agg_profile[1]
 
@@ -518,7 +523,7 @@ class GetFmTermsByLevel(TestCase):
             size=1
         ),
         fm_items=fm_items_data(
-            from_coverage_type_ids=just(BUILDING_COVERAGE_CODE),
+            from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
             from_canacc_ids=just(0),
             from_policy_nums=just('A1P1'),
             from_layer_ids=just(1),

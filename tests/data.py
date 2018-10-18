@@ -8,13 +8,12 @@ __all__ = [
     'calcrule_ids',
     'coverage_type_ids',
     'deductible_types',
-    'deductible_types_piwind',
     'fm_agg_profile_piwind',
     'fm_items_data',
     'fm_level_names',
     'fm_level_names_simple',
-    'fm_levels_piwind',
-    'fm_levels_piwind_simple',
+    'fm_levels',
+    'fm_levels_simple',
     'gul_items_data',
     'keys_data',
     'keys_status_flags',
@@ -329,21 +328,9 @@ canonical_exposures_profile_simple = {
     }
 }
 
-coverage_type_ids = (
-    OASIS_COVERAGE_TYPES['buildings']['id'],
-    OASIS_COVERAGE_TYPES['contents']['id'],
-    OASIS_COVERAGE_TYPES['other']['id'],
-    OASIS_COVERAGE_TYPES['time']['id'],
-)
+coverage_type_ids = tuple(OASIS_COVERAGE_TYPES[k]['id'] for k in OASIS_COVERAGE_TYPES)
 
-deductible_types = ('B', 'MA', 'MI',)
-
-deductible_types_piwind = tuple(
-    t for t in set(
-        t['DeductibleType'] if t.get('FMTermType') and t.get('FMTermType').lower() == 'deductible' else None 
-        for t in itertools.chain(six.itervalues(canonical_exposures_profile_simple), six.itervalues(canonical_accounts_profile))
-    ) if t
-)
+deductible_types = tuple(DEDUCTIBLE_TYPES[k]['id'] for k in DEDUCTIBLE_TYPES)
 
 fm_agg_profile_piwind = {
     1: {
@@ -430,25 +417,15 @@ fm_agg_profile_piwind = {
     }
 }
 
-fm_levels_piwind = tuple(
-    t for t in set(
-        t.get('FMLevel')
-        for t in itertools.chain(six.itervalues(canonical_exposures_profile), six.itervalues(canonical_accounts_profile))
-    ) if t
-)
+fm_levels = tuple(OASIS_FM_LEVELS[k]['id'] for k in OASIS_FM_LEVELS)
 
-fm_levels_piwind_simple = tuple(
+fm_level_names = tuple(k.capitalize() for k in OASIS_FM_LEVELS)
+
+fm_levels_simple = tuple(
     t for t in set(
         t.get('FMLevel')
         for t in itertools.chain(six.itervalues(canonical_exposures_profile_simple), six.itervalues(canonical_accounts_profile))
     ) if t
-)
-
-fm_level_names = tuple(
-    t[0] for t in sorted([t for t in set(
-        (t.get('FMLevelName'), t.get('FMLevel'))
-        for t in itertools.chain(six.itervalues(canonical_exposures_profile), six.itervalues(canonical_accounts_profile))
-    ) if t != (None,None)], key=lambda t: t[1])
 )
 
 fm_level_names_simple = tuple(
@@ -458,27 +435,13 @@ fm_level_names_simple = tuple(
     ) if t != (None,None)], key=lambda t: t[1])
 )
 
-fm_term_types = (
-    OASIS_FM_TERMS['deductible']['desc'],
-    OASIS_FM_TERMS['limit']['desc'],
-    OASIS_FM_TERMS['share']['desc'],
-    OASIS_FM_TERMS['tiv']['desc'],
-)
+fm_term_types = tuple(FM_TERMS[k]['desc'] for k in FM_TERMS)
 
 fm_profile_types = ('acc', 'loc',)
 
-keys_status_flags = (
-    OASIS_KEYS_STATUS['fail']['id'],
-    OASIS_KEYS_STATUS['nomatch']['id'],
-    OASIS_KEYS_STATUS['success']['id'],
-)
+keys_status_flags = tuple(OASIS_KEYS_STATUS[k]['id'] for k in OASIS_KEYS_STATUS)
 
-peril_ids = (
-    OASIS_PERILS['flood']['id'],
-    OASIS_PERILS['quake']['id'],
-    OASIS_PERILS['quake']['id'],
-    OASIS_PERILS['wind']['id'],
-)
+peril_ids = tuple(OASIS_PERILS[k]['id'] for k in OASIS_PERILS)
 
 tiv_elements_piwind = tuple(v['ProfileElementName'].lower() for v in canonical_exposures_profile.values() if v.get('FMTermType') and v.get('FMTermType').lower() == 'tiv')
 

@@ -19,6 +19,7 @@ import pandas as pd
 
 from .exceptions import OasisException
 from .metadata import (
+    DEDUCTIBLE_TYPES,
     FM_TERMS,
 )
 
@@ -36,7 +37,7 @@ def unified_canonical_fm_profile_by_level(profiles=[], profile_paths=[]):
     comb_prof = {k:v for p in profiles for k, v in ((k, v) for k, v in six.iteritems(p) if 'FMLevel' in v)}
     
     return {
-        int(k):{v['ProfileElementName']:v for v in g} for k, g in itertools.groupby(six.itervalues(comb_prof), key=lambda v: v['FMLevel'])
+        int(k):{v['ProfileElementName']:v for v in g} for k, g in itertools.groupby(sorted(six.itervalues(comb_prof), key=lambda v: v['FMLevel']), key=lambda v: v['FMLevel'])
     }
 
 
@@ -49,22 +50,22 @@ def unified_canonical_fm_profile_by_level_and_term_group(profiles=[], profile_pa
 
     return {
         k:{
-            int(_k):{v['FMTermType'].lower():v for v in g} for _k, g in itertools.groupby(six.itervalues(comb_prof[k]), key=lambda it: it['FMTermGroupID'])
+            int(_k):{v['FMTermType'].lower():v for v in g} for _k, g in itertools.groupby(sorted(six.itervalues(comb_prof[k]), key=lambda v: v['FMTermGroupID']), key=lambda v: v['FMTermGroupID'])
         } for k in comb_prof
     }
 
 
 def get_calcrule_id(limit, share, ded_type):
 
-    if limit == share == 0 and ded_type == 'B':
+    if limit == share == 0 and ded_type == DEDUCTIBLE_TYPES['blanket']['id']:
         return 12
-    elif limit == 0 and share > 0 and ded_type == 'B':
+    elif limit == 0 and share > 0 and ded_type == DEDUCTIBLE_TYPES['blanket']['id']:
         return 15
-    elif limit > 0 and share == 0 and ded_type == 'B':
+    elif limit > 0 and share == 0 and ded_type == DEDUCTIBLE_TYPES['blanket']['id']:
         return 1
-    elif ded_type == 'MI':
+    elif ded_type == DEDUCTIBLE_TYPES['minimum']['id']:
         return 11
-    elif ded_type == 'MA':
+    elif ded_type == DEDUCTIBLE_TYPES['maximum']['id']:
         return 10
     else:
         return 2
