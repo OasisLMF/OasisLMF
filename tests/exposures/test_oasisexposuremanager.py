@@ -2131,6 +2131,26 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             shr = can_it.get(gul_it['shr_elm']  if l == 1 else (cgcp[l][1]['share']['ProfileElementName'].lower() if cgcp[l][1].get('share') else None)) or 0.0
             self.assertEquals(it['share'], shr)
 
+class FMAcceptanceTests(TestCase):
+
+    def setUp(self):
+        pass
+
+    def test_fm3(self):
+        pass
+
+    def test_fm4(self):
+        pass
+
+    def test_fm5(self):
+        pass
+
+    def test_fm6(self):
+        pass
+
+    def test_fm7(self):
+        pass
+
 class GulFilesGenerationTestCase(TestCase):
 
     def setUp(self):
