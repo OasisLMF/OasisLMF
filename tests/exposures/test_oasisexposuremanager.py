@@ -936,7 +936,7 @@ class OasisExposuresManagerGetKeys(TestCase):
 class OasisExposuresManagerLoadGulItems(TestCase):
 
     def setUp(self):
-        self.profile = copy.deepcopy(canonical_exposures_profile_piwind)
+        self.profile = copy.deepcopy(canonical_exposures_profile)
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
@@ -1168,8 +1168,8 @@ class OasisExposuresManagerLoadGulItems(TestCase):
 class OasisExposuresManagerLoadFmItems(TestCase):
 
     def setUp(self):
-        self.exposures_profile = copy.deepcopy(canonical_exposures_profile_piwind)
-        self.accounts_profile = copy.deepcopy(canonical_accounts_profile_piwind)
+        self.exposures_profile = copy.deepcopy(canonical_exposures_profile)
+        self.accounts_profile = copy.deepcopy(canonical_accounts_profile)
         self.combined_grouped_canonical_profile = unified_canonical_fm_profile_by_level_and_term_group(
             profiles=[self.exposures_profile, self.accounts_profile]
         )
@@ -1298,7 +1298,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             size=10
         )
     )
-    def test_preset_fm_items_with_one_account_and_one_top_level_layer_load_items__returns_preset_data_only(
+    def test_preset_fm_items_with_single_peril_and_coverage_type_model_and_exposure_with_one_coverage_type_and_limit_and_deductible_and_one_account_and_one_top_level_layer_load_items__returns_preset_data_only(
         self,
         exposures,
         accounts,
@@ -1402,7 +1402,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             size=10
         )
     )
-    def test_preset_fm_items_with_two_accounts_and_one_top_level_layer_per_account__returns_preset_data_only(
+    def test_preset_fm_items_with_single_peril_and_coverage_type_model_and_exposure_with_one_coverage_type_and_limit_and_deductible_and_two_accounts_and_one_top_level_layer_per_account__returns_preset_data_only(
         self,
         exposures,
         accounts,
@@ -1507,7 +1507,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             size=10
         )
     )
-    def test_preset_fm_items_with_two_accounts_and_two_top_level_layers_per_account__returns_preset_data_only(
+    def test_preset_fm_items_with_single_peril_and_coverage_type_model_and_exposure_with_one_coverage_type_and_limit_and_deductible_and_two_accounts_and_two_top_level_layers_per_account__returns_preset_data_only(
         self,
         exposures,
         accounts,
@@ -1628,7 +1628,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             size=10
         )
     )
-    def test_fm_items_with_one_account_and_one_top_level_layer_per_account__all_fm_terms_present(
+    def test_fm_items_with_single_peril_and_coverage_type_model_and_exposure_with_one_coverage_type_and_limit_and_deductible_and_one_account_and_one_top_level_layer_per_account__all_fm_terms_present(
         self,
         exposures,
         accounts,
@@ -1754,7 +1754,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             size=10
         )
     )
-    def test_fm_items_with_one_account_and_two_top_level_layers_per_account__all_fm_terms_present(
+    def test_fm_items_with_single_peril_and_coverage_type_model_and_exposure_with_one_coverage_type_and_limit_and_deductible_and_one_account_and_two_top_level_layers_per_account__all_fm_terms_present(
         self,
         exposures,
         accounts,
@@ -1888,7 +1888,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             size=10
         )
     )
-    def test_fm_items_with_two_accounts_and_one_top_level_layer_per_account__all_fm_terms_present(
+    def test_fm_items_with_single_peril_and_coverage_type_model_and_exposure_with_one_coverage_type_and_limit_and_deductible_and_two_accounts_and_one_top_level_layer_per_account__all_fm_terms_present(
         self,
         exposures,
         accounts,
@@ -2017,7 +2017,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             size=10
         )
     )
-    def test_fm_items_with_two_accounts_and_two_top_level_layers_per_account__all_fm_terms_present(
+    def test_fm_items_with_single_peril_and_coverage_type_model_and_exposure_with_one_coverage_type_and_limit_and_deductible_and_two_accounts_and_two_top_level_layers_per_account__all_fm_terms_present(
         self,
         exposures,
         accounts,
@@ -2138,10 +2138,61 @@ class OasisExposuresManagerLoadFmItems(TestCase):
 class FMAcceptanceTests(TestCase):
 
     def setUp(self):
-        pass
+        self.canexp_profile = copy.deepcopy(canonical_oed_exposures_profile)
+        self.canacc_profile = copy.deepcopy(canonical_oed_accounts_profile)
+        self.unified_can_profile = unified_canonical_fm_profile_by_level_and_term_group(profiles=[self.canexp_profile, self.canacc_profile])
+        self.fmap = copy.deepcopy(oasis_fm_agg_profile)
+        self.fmap[4]['FMAggKey'].pop('SublimitRef')
 
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @given(
+        exposures=canonical_oed_exposures_data(
+            from_account_nums=just(1),
+            from_location_perils=just('WTC;WEC;BFR;001'),
+            from_country_codes=just('US'),
+            from_area_codes=just('CA'),
+            from_buildings_tivs=just(1000000),
+            from_buildings_deductibles=just(10000),
+            from_buildings_limits=just(0),
+            from_other_tivs=just(100000),
+            from_other_deductibles=just(5000),
+            from_other_limits=just(0),
+            from_contents_tivs=just(50000),
+            from_contents_deductibles=just(5000),
+            from_contents_limits=just(0),
+            from_bi_tivs=just(20000),
+            from_bi_deductibles=just(0),
+            from_bi_limits=just(0),
+            from_combined_deductibles=just(0),
+            from_combined_limits=just(0),
+            from_site_deductibles=just(0),
+            from_site_limits=just(0),
+            size=2
+        ),
+        accounts=canonical_oed_accounts_data(
+            from_accounts_nums=just(1),
+            from_portfolio_nums=just(1),
+            from_policy_nums=just(1),
+            from_policy_perils=just('WTC;WEC;BFR;001'),
+            from_sublimit_deductibles=just(0),
+            from_sublimit_limits=just(0),
+            from_account_blanket_deductibles=just(50000),
+            from_account_blanket_min_deductibles=just(0),
+            from_account_blanket_max_deductibles=just(0),
+            from_layer_deductibles=just(0),
+            from_layer_limits=just(2500000),
+            from_layer_shares=just(1),
+            size=1
+        )
+    )
     def test_fm3(self):
-        pass
+        import pdb; pdb.set_trace()
+
+        exposures[1]['buildingtiv'] = 1700000
+        exposures[1]['othertiv'] = 30000
+        exposures[1]['contentstiv'] = 1000000
+        exposures[1]['bitiv'] = 50000
+
 
     def test_fm4(self):
         pass
@@ -2158,7 +2209,7 @@ class FMAcceptanceTests(TestCase):
 class GulFilesGenerationTestCase(TestCase):
 
     def setUp(self):
-        self.profile = canonical_exposures_profile_piwind
+        self.profile = canonical_exposures_profile
         self.manager = OasisExposuresManager()
 
     def check_items_file(self, gul_items_df, items_file_path):
@@ -2201,8 +2252,8 @@ class GulFilesGenerationTestCase(TestCase):
 class FmFilesGenerationTestCase(TestCase):
 
     def setUp(self):
-        self.exposures_profile = canonical_exposures_profile_piwind
-        self.accounts_profile = canonical_accounts_profile_piwind
+        self.exposures_profile = canonical_exposures_profile
+        self.accounts_profile = canonical_accounts_profile
         self.combined_grouped_canonical_profile = unified_canonical_fm_profile_by_level_and_term_group(
             profiles=(self.exposures_profile, self.accounts_profile,)
         )
@@ -2564,8 +2615,8 @@ class OasisExposuresManagerStartOasisFilesPipeline(TestCase):
 
     def setUp(self):
         self.manager = OasisExposuresManager()
-        self.exposures_profile = canonical_exposures_profile_piwind
-        self.accounts_profile = canonical_accounts_profile_piwind
+        self.exposures_profile = canonical_exposures_profile
+        self.accounts_profile = canonical_accounts_profile
 
     def test_start_oasis_files_pipeline_with_model_and_no_oasis_files_path__oasis_exception_is_raised(self):
         mgr = self.manager

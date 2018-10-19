@@ -694,9 +694,9 @@ def canonical_oed_accounts_data(
                 'polperil': from_policy_perils,
                 'condded6all': from_sublimit_deductibles,
                 'condlimit6all': from_sublimit_limits,
-                'polded6all': from_account_deductibles,
-                'polminded6all': from_account_deductibles,
-                'polmaxded6all': from_account_deductibles,
+                'polded6all': from_account_blanket_deductibles,
+                'polminded6all': from_account_blanket_min_deductibles,
+                'polmaxded6all': from_account_blanket_max_deductibles,
                 'layerattachment': from_layer_deductibles,
                 'layerlimit': from_layer_limits,
                 'layerparticipation': from_layer_shares
@@ -775,6 +775,8 @@ def canonical_oed_exposures_data(
     from_account_nums=integers(min_value=1, max_value=10**6),
     from_location_nums=integers(min_value=1, max_value=10**6),
     from_location_names=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
+    from_country_codes=text(alphabet=string.ascii_uppercase, min_size=2, max_size=2),
+    from_area_codes=text(min_size=1, max_size=20),
     from_location_perils=sampled_from(oed_peril_ids),
     from_buildings_tivs=floats(min_value=0.0, allow_infinity=False),
     from_buildings_deductibles=floats(min_value=0.0, allow_infinity=False),
@@ -799,6 +801,7 @@ def canonical_oed_exposures_data(
     def _sequence(li):
         for i, r in enumerate(li):
             r['row_id'] = r['locnumber'] = i + 1
+            r['locname'] = 'Location {}'.format(i + 1)
 
         return li
 
@@ -808,6 +811,8 @@ def canonical_oed_exposures_data(
                 'accnumber': from_account_nums,
                 'locnumber': from_location_nums,
                 'locname': from_location_names,
+                'countrycode': from_country_codes,
+                'areacode': from_area_codes,
                 'locperil': from_location_perils,
                 'buildingtiv': from_buildings_tivs,
                 'locded1building': from_buildings_deductibles,
@@ -999,7 +1004,6 @@ def write_canonical_files(
     canonical_accounts=None,
     canonical_accounts_file_path=None
 ):
-
     if canonical_exposures_file_path:
         heading_row = OrderedDict([
             ('row_id', 'ROW_ID'),
@@ -1071,13 +1075,14 @@ def write_canonical_oed_files(
     accounts=None,
     accounts_fp=None
 ):
-
     if exposures_fp:
         heading_row = OrderedDict([
             ('row_id', 'ROW_ID'),
             ('accnumber', 'AccNumber'),
             ('locnumber', 'LocNumber'),
             ('locname', 'LocName'),
+            ('areacode', 'AreaCode'),
+            ('countrycode', 'CountryCode'),
             ('locperil', 'LocPeril'),
             ('buildingtiv', 'BuildingTIV'),
             ('locded1building', 'LocDed1Building'),
@@ -1107,9 +1112,6 @@ def write_canonical_oed_files(
             encoding='utf-8',
             header=False
         )
-
-                'polminded6all': from_account_deductibles,
-                'polmaxded6all': from_account_deductibles,
 
     if accounts_fp:
         heading_row = OrderedDict([
