@@ -2197,8 +2197,6 @@ class FMAcceptanceTests(TestCase):
         )
     )
     def test_fm3(self, exposures, accounts, keys):
-        #import pdb; pdb.set_trace()
-
         exposures[1]['buildingtiv'] = 1700000
         exposures[1]['othertiv'] = 30000
         exposures[1]['contentstiv'] = 1000000
@@ -2225,7 +2223,7 @@ class FMAcceptanceTests(TestCase):
             write_canonical_oed_files(exposures, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
-            #import pdb; pdb.set_trace()
+            import pdb; pdb.set_trace()
 
             gul_items_df, canexp_df = self.manager.load_gul_items(self.canexp_profile, ef.name, kf.name)
 

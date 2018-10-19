@@ -1061,7 +1061,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             keys_df.columns = keys_df.columns.str.lower()
             keys_df['index'] = pd.Series(data=keys_df.index, dtype=int)
 
-            gul_items_df = pd.DataFrame(data=[it for it in self.generate_gul_items(cep, canexp_df, keys_df)], dtype=object)
+            gul_items_df = pd.DataFrame(data=[it for it in self.generate_gul_items(cep, canexp_df, keys_df)])
             gul_items_df['index'] = pd.Series(data=gul_items_df.index, dtype=int)
 
             columns = list(gul_items_df.columns)
