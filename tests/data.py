@@ -688,8 +688,8 @@ def canonical_oed_accounts_data(
     return lists(
         fixed_dictionaries(
             {
-                'accnumber': from_accounts_nums,
-                'portnumer': from_portfolio_nums,
+                'accnumber': from_account_nums,
+                'portnumber': from_portfolio_nums,
                 'polnumber': from_policy_nums,
                 'polperil': from_policy_perils,
                 'condded6all': from_sublimit_deductibles,
@@ -1117,6 +1117,7 @@ def write_canonical_oed_files(
         heading_row = OrderedDict([
             ('row_id', 'ROW_ID'),
             ('accnumber', 'AccNumber'),
+            ('portnumber'), 'PortNumber'),
             ('polnumber', 'PolNumber'),
             ('polperil', 'PolPeril'),
             ('condded6all', 'CondDed6All'),

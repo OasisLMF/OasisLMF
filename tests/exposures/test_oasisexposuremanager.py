@@ -2170,7 +2170,7 @@ class FMAcceptanceTests(TestCase):
             size=2
         ),
         accounts=canonical_oed_accounts_data(
-            from_accounts_nums=just(1),
+            from_account_nums=just(1),
             from_portfolio_nums=just(1),
             from_policy_nums=just(1),
             from_policy_perils=just('WTC;WEC;BFR;001'),
@@ -2185,13 +2185,15 @@ class FMAcceptanceTests(TestCase):
             size=1
         )
     )
-    def test_fm3(self):
+    def test_fm3(self, exposures, accounts):
         import pdb; pdb.set_trace()
 
         exposures[1]['buildingtiv'] = 1700000
         exposures[1]['othertiv'] = 30000
         exposures[1]['contentstiv'] = 1000000
         exposures[1]['bitiv'] = 50000
+
+        pass
 
 
     def test_fm4(self):
