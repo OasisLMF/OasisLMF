@@ -68,6 +68,7 @@ from tests.data import (
     keys_data,
     oasis_fm_agg_profile,
     write_canonical_files,
+    write_canonical_oed_files,
     write_keys_files,
 )
 
@@ -2143,6 +2144,7 @@ class FMAcceptanceTests(TestCase):
         self.unified_can_profile = unified_canonical_fm_profile_by_level_and_term_group(profiles=[self.canexp_profile, self.canacc_profile])
         self.fmap = copy.deepcopy(oasis_fm_agg_profile)
         self.fmap[4]['FMAggKey'].pop('SublimitRef')
+        self.manager = OasisExposuresManager()
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
@@ -2183,17 +2185,51 @@ class FMAcceptanceTests(TestCase):
             from_layer_limits=just(2500000),
             from_layer_shares=just(1),
             size=1
+        ),
+        keys=keys_data(
+            from_peril_ids=just(1),
+            from_coverage_type_ids=just(1),
+            from_area_peril_ids=just(1),
+            from_vulnerability_ids=just(1),
+            from_statuses=just('success'),
+            from_messages=just('success'),
+            size=8
         )
     )
-    def test_fm3(self, exposures, accounts):
-        import pdb; pdb.set_trace()
+    def test_fm3(self, exposures, accounts, keys):
+        #import pdb; pdb.set_trace()
 
         exposures[1]['buildingtiv'] = 1700000
         exposures[1]['othertiv'] = 30000
         exposures[1]['contentstiv'] = 1000000
         exposures[1]['bitiv'] = 50000
 
-        pass
+        for k in keys:
+            k.pop('locid')
+        keys[1]['id'] = keys[2]['id'] = keys[3]['id'] = 1
+        keys[4]['id'] = keys[5]['id'] = keys[6]['id'] = keys[7]['id'] = 2
+
+        keys[4]['coverage_type'] = 1
+        keys[1]['coverage_type'] = keys[5]['coverage_type'] = 2
+        keys[2]['coverage_type'] = keys[6]['coverage_type'] = 3
+        keys[3]['coverage_type'] = keys[7]['coverage_type'] = 4
+
+        keys[4]['area_peril_id'] = keys[5]['area_peril_id'] = keys[6]['area_peril_id'] = keys[7]['area_peril_id'] = 2
+
+        keys[4]['vulnerability_id'] = 1
+        keys[1]['vulnerability_id'] = keys[5]['vulnerability_id'] = 2
+        keys[2]['vulnerability_id'] = keys[6]['vulnerability_id'] = 3
+        keys[3]['vulnerability_id'] = keys[7]['vulnerability_id'] = 4
+
+        with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf:
+            write_canonical_oed_files(exposures, ef.name, accounts, af.name)
+            write_keys_files(keys, kf.name)
+
+            #import pdb; pdb.set_trace()
+
+            gul_items_df, canexp_df = self.manager.load_gul_items(self.canexp_profile, ef.name, kf.name)
+
+            fm_items_df, canacc_df = self.manager.load_fm_items(canexp_df, gul_items_df, self.canexp_profile, self.canacc_profile, self.fmap, reduced=True)
 
 
     def test_fm4(self):

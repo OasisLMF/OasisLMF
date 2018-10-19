@@ -790,8 +790,10 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             )
 
         try:
-            if 'locnumber' in canexp_df:
-                canexp_df.replace(columns={'locnumber': 'row_id'}, inplace=True)
+            oed_exp_col_repl = [{'locnumber': 'row_id'}]
+            for repl in oed_exp_col_repl:
+                canexp_df.rename(columns=repl, inplace=True)
+
             if not str(canexp_df['row_id'].dtype).startswith('int'):
                 canexp_df['row_id'] = canexp_df['row_id'].astype(int)
 
@@ -896,12 +898,12 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         canexp_df = canonical_exposures_df
         oed_exp_col_repl = [{'locnumber': 'row_id'}]
         for repl in oed_exp_col_repl:
-            canexp_df.replace(columns=repl, inplace=True)
+            canexp_df.rename(columns=repl, inplace=True)
 
         canacc_df = canonical_accounts_df
         oed_acc_col_repl = [{'accnumber': 'accntnum'}, {'polnumber': 'policy_num'}]
         for repl in oed_acc_col_repl:
-                canacc_df.replace(columns=repl, inplace=True)
+                canacc_df.rename(columns=repl, inplace=True)
 
         if not str(canexp_df['index'].dtype).startswith('int'):
             canexp_df['index'] = canexp_df['index'].astype(int)

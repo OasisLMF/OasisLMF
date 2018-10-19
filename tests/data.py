@@ -24,6 +24,7 @@ __all__ = [
     'peril_ids',
     'tiv_elements',
     'write_canonical_files',
+    'write_canonical_oed_files',
     'write_keys_files'
 ]
 
