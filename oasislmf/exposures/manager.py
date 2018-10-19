@@ -898,7 +898,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         canexp_df = canonical_exposures_df
 
         canacc_df = canonical_accounts_df
-        oed_acc_col_repl = [{'accnumber': 'accntnum'}, {'polnumber': 'policy_num'}]
+        oed_acc_col_repl = [{'accnumber': 'accntnum'}, {'polnumber': 'policynum'}]
         for repl in oed_acc_col_repl:
                 canacc_df.rename(columns=repl, inplace=True)
 

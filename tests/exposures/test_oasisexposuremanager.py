@@ -2146,6 +2146,18 @@ class FMAcceptanceTests(TestCase):
         self.fmap[4]['FMAggKey'].pop('SublimitRef')
         self.manager = OasisExposuresManager()
 
+    def test_fm3(self):
+        pass
+
+    def test_fm4(self):
+        pass
+
+    def test_fm5(self):
+        pass
+
+    def test_fm6(self):
+        pass
+
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_oed_exposures_data(
@@ -2196,7 +2208,7 @@ class FMAcceptanceTests(TestCase):
             size=8
         )
     )
-    def test_fm3(self, exposures, accounts, keys):
+    def test_fm7(self, exposures, accounts, keys):
         exposures[1]['buildingtiv'] = 1700000
         exposures[1]['othertiv'] = 30000
         exposures[1]['contentstiv'] = 1000000
@@ -2227,20 +2239,7 @@ class FMAcceptanceTests(TestCase):
 
             gul_items_df, canexp_df = self.manager.load_gul_items(self.canexp_profile, ef.name, kf.name)
 
-            fm_items_df, canacc_df = self.manager.load_fm_items(canexp_df, gul_items_df, self.canexp_profile, self.canacc_profile, self.fmap, reduced=True)
-
-
-    def test_fm4(self):
-        pass
-
-    def test_fm5(self):
-        pass
-
-    def test_fm6(self):
-        pass
-
-    def test_fm7(self):
-        pass
+            fm_items_df, canacc_df = self.manager.load_fm_items(canexp_df, gul_items_df, self.canexp_profile, self.canacc_profile, af.name, self.fmap, reduced=True)
 
 class GulFilesGenerationTestCase(TestCase):
 
