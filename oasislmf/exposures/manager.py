@@ -790,10 +790,6 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             )
 
         try:
-            oed_exp_col_repl = [{'locnumber': 'row_id'}]
-            for repl in oed_exp_col_repl:
-                canexp_df.rename(columns=repl, inplace=True)
-
             if not str(canexp_df['row_id'].dtype).startswith('int'):
                 canexp_df['row_id'] = canexp_df['row_id'].astype(int)
 
@@ -896,9 +892,6 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         cap = canonical_accounts_profile
         
         canexp_df = canonical_exposures_df
-        oed_exp_col_repl = [{'locnumber': 'row_id'}]
-        for repl in oed_exp_col_repl:
-            canexp_df.rename(columns=repl, inplace=True)
 
         canacc_df = canonical_accounts_df
         oed_acc_col_repl = [{'accnumber': 'accntnum'}, {'polnumber': 'policy_num'}]
@@ -1061,7 +1054,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             keys_df.columns = keys_df.columns.str.lower()
             keys_df['index'] = pd.Series(data=keys_df.index, dtype=int)
 
-            gul_items_df = pd.DataFrame(data=[it for it in self.generate_gul_items(cep, canexp_df, keys_df)])
+            gul_items_df = pd.DataFrame(data=[it for it in self.generate_gul_items(cep, canexp_df, keys_df)], dtype=object)
             gul_items_df['index'] = pd.Series(data=gul_items_df.index, dtype=int)
 
             columns = list(gul_items_df.columns)
