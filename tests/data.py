@@ -1117,7 +1117,7 @@ def write_canonical_oed_files(
         heading_row = OrderedDict([
             ('row_id', 'ROW_ID'),
             ('accnumber', 'AccNumber'),
-            ('portnumber'), 'PortNumber'),
+            ('portnumber', 'PortNumber'),
             ('polnumber', 'PolNumber'),
             ('polperil', 'PolPeril'),
             ('condded6all', 'CondDed6All'),
