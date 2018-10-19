@@ -1,14 +1,17 @@
 from __future__ import unicode_literals
 
 __all__ = [
+    'calcrule_ids',
     'canonical_accounts_data',
     'canonical_accounts_profile',
     'canonical_exposures_data',
     'canonical_exposures_profile',
-    'calcrule_ids',
+    'canonical_oed_accounts_data',
+    'canonical_oed_accounts_profile',
+    'canonical_oed_exposures_data',
+    'canonical_oed_exposures_profile',
     'coverage_type_ids',
     'deductible_types',
-    'fm_agg_profile_piwind',
     'fm_items_data',
     'fm_level_names',
     'fm_level_names_simple',
@@ -17,8 +20,9 @@ __all__ = [
     'gul_items_data',
     'keys_data',
     'keys_status_flags',
+    'oasis_fm_agg_profile',
     'peril_ids',
-    'tiv_elements_piwind',
+    'tiv_elements',
     'write_canonical_files',
     'write_keys_files'
 ]
@@ -328,11 +332,187 @@ canonical_exposures_profile_simple = {
     }
 }
 
+canonical_oed_exposures_profile = {
+    "LocDed1Building": {
+        "ProfileElementName": "LocDed1Building",
+        "FieldName": "CoverageDeductible",
+        "DeductibleType": "B",
+        "PerilID": 1,
+        "CoverageTypeID": 1,
+        "FMLevelName": "Coverage",
+        "FMLevel": 1,
+        "FMTermType": "Deductible",
+        "FMTermGroupID": 1,
+        "ProfileType": "Loc"
+    },
+    "BuildingTIV": {
+        "ProfileElementName": "BuildingTIV",
+        "FieldName": "TIV",
+        "PerilID": 1,
+        "CoverageTypeID": 1,
+        "FMLevelName": "Coverage",
+        "FMLevel": 1,
+        "FMTermType": "TIV",
+        "FMTermGroupID": 1,
+        "ProfileType": "Loc"
+    },
+    "LocDed2Other": {
+        "ProfileElementName": "LocDed2Other",
+        "FieldName": "CoverageDeductible",
+        "DeductibleType": "B",
+        "PerilID": 1,
+        "CoverageTypeID": 2,
+        "FMLevelName": "Coverage",
+        "FMLevel": 1,
+        "FMTermType": "Deductible",
+        "FMTermGroupID": 2,
+        "ProfileType": "Loc"
+    },
+    "OtherTIV": {
+        "ProfileElementName": "OtherTIV",
+        "FieldName": "TIV",
+        "PerilID": 1,
+        "CoverageTypeID": 2,
+        "FMLevelName": "Coverage",
+        "FMLevel": 1,
+        "FMTermType": "TIV",
+        "FMTermGroupID": 2,
+        "ProfileType": "Loc"
+    },
+    "LocDed3Contents": {
+        "ProfileElementName": "LocDed3Contents",
+        "FieldName": "CoverageDeductible",
+        "DeductibleType": "B",
+        "PerilID": 1,
+        "CoverageTypeID": 3,
+        "FMLevelName": "Coverage",
+        "FMLevel": 1,
+        "FMTermType": "Deductible",
+        "FMTermGroupID": 3,
+        "ProfileType": "Loc"
+    },
+    "ContentsTIV": {
+        "ProfileElementName": "ContentsTIV",
+        "FieldName": "TIV",
+        "PerilID": 1,
+        "CoverageTypeID": 3,
+        "FMLevelName": "Coverage",
+        "FMLevel": 1,
+        "FMTermType": "TIV",
+        "FMTermGroupID": 3,
+        "ProfileType": "Loc"
+    },
+    "LocDed4BI": {
+        "ProfileElementName": "LocDed4BI",
+        "FieldName": "CoverageDeductible",
+        "DeductibleType": "B",
+        "PerilID": 1,
+        "CoverageTypeID": 4,
+        "FMLevelName": "Coverage",
+        "FMLevel": 1,
+        "FMTermType": "Deductible",
+        "FMTermGroupID": 4,
+        "ProfileType": "Loc"
+    },
+    "BITIV": {
+        "ProfileElementName": "BITIV",
+        "FieldName": "TIV",
+        "PerilID": 1,
+        "CoverageTypeID": 4,
+        "FMLevelName": "Coverage",
+        "FMLevel": 1,
+        "FMTermType": "TIV",
+        "FMTermGroupID": 4,
+        "ProfileType": "Loc"
+    },
+    "LocDed5PD": {
+        "ProfileElementName": "LocDed5PD",
+        "FieldName": "CombinedDeductible",
+        "DeductibleType": "B",
+        "FMLevelName": "Combined",
+        "FMLevel": 2,
+        "FMTermType": "Deductible",
+        "FMTermGroupID": 1,
+        "ProfileType": "Loc"
+    },
+    "LocDed6All": {
+        "ProfileElementName": "LocDed6All",
+        "FieldName": "SiteDeductible",
+        "DeductibleType": "B",
+        "FMLevelName": "Site",
+        "FMLevel": 3,
+        "FMTermType": "Deductible",
+        "FMTermGroupID": 1,
+        "ProfileType": "Loc"
+    }
+}
+
+canonical_oed_accounts_profile = {
+    "CondDed6All": {
+        "ProfileElementName": "CondDed6All",
+        "FieldName": "SubLimitDeductible",
+        "DeductibleType": "B",
+        "FMLevelName": "Sublimit",
+        "FMLevel": 4,
+        "FMTermType": "Deductible",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "CondLimit6All": {
+        "ProfileElementName": "CondLimit6All",
+        "FieldName": "SubLimitLimit",
+        "FMLevelName": "Sublimit",
+        "FMLevel": 4,
+        "FMTermType": "Limit",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "PolDed6All": {
+        "ProfileElementName": "PolDed6All",
+        "DeductibleType": "B",
+        "FieldName": "BlanketDeductible",
+        "FMLevelName": "Account",
+        "FMLevel": 5,
+        "FMTermType": "Deductible",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "LayerAttachment": {
+        "ProfileElementName": "LayerAttachment",
+        "DeductibleType": "B",
+        "FieldName": "AttachmentPoint",
+        "FMLevelName": "Layer",
+        "FMLevel": 6,
+        "FMTermType": "Deductible",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "LayerLimit": {
+        "ProfileElementName": "LayerLimit",
+        "FieldName": "LayerLimit",
+        "FMLevelName": "Layer",
+        "FMLevel": 6,
+        "FMTermType": "Limit",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "LayerAttachment": {
+        "ProfileElementName": "LayerAttachment",
+        "DeductibleType": "B",
+        "FieldName": "AttachmentPoint",
+        "FMLevelName": "Layer",
+        "FMLevel": 6,
+        "FMTermType": "Deductible",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    }
+}
+
 coverage_type_ids = tuple(OASIS_COVERAGE_TYPES[k]['id'] for k in OASIS_COVERAGE_TYPES)
 
 deductible_types = tuple(DEDUCTIBLE_TYPES[k]['id'] for k in DEDUCTIBLE_TYPES)
 
-fm_agg_profile_piwind = {
+oasis_fm_agg_profile = {
     1: {
         "FMLevel": 1,
         "FMLevelName": "Coverage",
@@ -443,7 +623,9 @@ keys_status_flags = tuple(OASIS_KEYS_STATUS[k]['id'] for k in OASIS_KEYS_STATUS)
 
 peril_ids = tuple(OASIS_PERILS[k]['id'] for k in OASIS_PERILS)
 
-tiv_elements_piwind = tuple(v['ProfileElementName'].lower() for v in canonical_exposures_profile.values() if v.get('FMTermType') and v.get('FMTermType').lower() == 'tiv')
+oed_peril_ids = tuple(OED_PERILS[k]['id'] for k in OED_PERILS)
+
+tiv_elements = tuple(v['ProfileElementName'].lower() for v in canonical_exposures_profile.values() if v.get('FMTermType') and v.get('FMTermType').lower() == 'tiv')
 
 
 def canonical_accounts_data(
@@ -480,6 +662,49 @@ def canonical_accounts_data(
         max_size=(size if size is not None else max_size)
     ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
 
+def canonical_oed_accounts_data(
+    from_account_nums=integers(min_value=1, max_value=10**6),
+    from_portfolio_nums=integers(min_value=1, max_value=10**6),
+    from_policy_nums=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
+    from_policy_perils=sampled_from(oed_peril_ids),
+    from_sublimit_deductibles=floats(min_value=0.0, max_value=10**6),
+    from_sublimit_limits=floats(min_value=0.0, max_value=10**6),
+    from_account_blanket_deductibles=floats(min_value=0.0, max_value=10**6),
+    from_account_blanket_min_deductibles=floats(min_value=0.0, max_value=10**6),
+    from_account_blanket_max_deductibles=floats(min_value=0.0, max_value=10**6),
+    from_layer_deductibles=floats(min_value=0.0, max_value=10**6),
+    from_layer_limits=floats(min_value=0.0, max_value=10**6),
+    from_layer_shares=floats(min_value=0.0, max_value=10**6),
+    size=None,
+    min_size=0,
+    max_size=10
+):
+    def _sequence(li):
+        for i, r in enumerate(li):
+            r['row_id'] = i + 1
+
+        return li
+
+    return lists(
+        fixed_dictionaries(
+            {
+                'accnumber': from_accounts_nums,
+                'portnumer': from_portfolio_nums,
+                'polnumber': from_policy_nums,
+                'polperil': from_policy_perils,
+                'condded6all': from_sublimit_deductibles,
+                'condlimit6all': from_sublimit_limits,
+                'polded6all': from_account_deductibles,
+                'polminded6all': from_account_deductibles,
+                'polmaxded6all': from_account_deductibles,
+                'layerattachment': from_layer_deductibles,
+                'layerlimit': from_layer_limits,
+                'layerparticipation': from_layer_shares
+            }
+        ),
+        min_size=(size if size is not None else min_size),
+        max_size=(size if size is not None else max_size)
+    ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
 
 def canonical_exposures_data(
     from_accounts_nums=integers(min_value=1, max_value=10**6),
@@ -540,6 +765,66 @@ def canonical_exposures_data(
                 'wscv2val': from_tivs2,
                 'yearbuilt': from_years_built,
                 'yearupgrad': from_years_upgraded
+            }
+        ),
+        min_size=(size if size is not None else min_size),
+        max_size=(size if size is not None else max_size)
+    ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
+
+def canonical_oed_exposures_data(
+    from_account_nums=integers(min_value=1, max_value=10**6),
+    from_location_nums=integers(min_value=1, max_value=10**6),
+    from_location_names=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
+    from_location_perils=sampled_from(oed_peril_ids),
+    from_buildings_tivs=floats(min_value=0.0, allow_infinity=False),
+    from_buildings_deductibles=floats(min_value=0.0, allow_infinity=False),
+    from_buildings_limits=floats(min_value=0.0, allow_infinity=False),
+    from_other_tivs=floats(min_value=0.0, allow_infinity=False),
+    from_other_deductibles=floats(min_value=0.0, allow_infinity=False),
+    from_other_limits=floats(min_value=0.0, allow_infinity=False),
+    from_contents_tivs=floats(min_value=0.0, allow_infinity=False),
+    from_contents_deductibles=floats(min_value=0.0, allow_infinity=False),
+    from_contents_limits=floats(min_value=0.0, allow_infinity=False),
+    from_bi_tivs=floats(min_value=0.0, allow_infinity=False),
+    from_bi_deductibles=floats(min_value=0.0, allow_infinity=False),
+    from_bi_limits=floats(min_value=0.0, allow_infinity=False),
+    from_combined_deductibles=floats(min_value=0.0, allow_infinity=False),
+    from_combined_limits=floats(min_value=0.0, allow_infinity=False),
+    from_site_deductibles=floats(min_value=0.0, allow_infinity=False),
+    from_site_limits=floats(min_value=0.0, allow_infinity=False),
+    size=None,
+    min_size=0,
+    max_size=10
+):
+    def _sequence(li):
+        for i, r in enumerate(li):
+            r['row_id'] = r['locnumber'] = i + 1
+
+        return li
+
+    return lists(
+        fixed_dictionaries(
+            {
+                'accnumber': from_account_nums,
+                'locnumber': from_location_nums,
+                'locname': from_location_names,
+                'locperil': from_location_perils,
+                'buildingtiv': from_buildings_tivs,
+                'locded1building': from_buildings_deductibles,
+                'loclimit1building': from_buildings_limits,
+                'othertiv': from_other_tivs,
+                'locded2other': from_other_deductibles,
+                'loclimit2other': from_other_limits,
+                'contentstiv': from_contents_tivs,
+                'locded3contents': from_contents_deductibles,
+                'loclimit3contents': from_contents_limits,
+                'bitiv': from_bi_tivs,
+                'locded4bi': from_bi_deductibles,
+                'loclimit4bi': from_bi_limits,
+                'locded5pd': from_combined_deductibles,
+                'loclimit5pd': from_combined_limits,
+                'locded6all': from_site_deductibles,
+                'loclimit6all': from_site_limits
             }
         ),
         min_size=(size if size is not None else min_size),
@@ -774,6 +1059,81 @@ def write_canonical_files(
 
         canacc_df.to_csv(
             path_or_buf=canonical_accounts_file_path,
+            index=False,
+            encoding='utf-8',
+            header=False
+        )
+
+
+def write_canonical_oed_files(
+    exposures=None,
+    exposures_fp=None,
+    accounts=None,
+    accounts_fp=None
+):
+
+    if exposures_fp:
+        heading_row = OrderedDict([
+            ('row_id', 'ROW_ID'),
+            ('accnumber', 'AccNumber'),
+            ('locnumber', 'LocNumber'),
+            ('locname', 'LocName'),
+            ('locperil', 'LocPeril'),
+            ('buildingtiv', 'BuildingTIV'),
+            ('locded1building', 'LocDed1Building'),
+            ('loclimit1building', 'LocLimit1Building'),
+            ('othertiv', 'OtherTIV'),
+            ('locded2other', 'LocDed2Other'),
+            ('loclimit2other', 'LocLimit2Other'),
+            ('contentstiv', 'ContentsTIV'),
+            ('locded3contents', 'LocDed3Contents'),
+            ('loclimit3contents', 'LocLimit3Contents'),
+            ('bitiv', 'BITIV'),
+            ('locded4bi', 'LocDed4BI'),
+            ('locded5pd', 'LocDed5PD'),
+            ('loclimit5pd', 'LocLimit5PD'),
+            ('locded6all', 'LocDed6All'),
+            ('loclimit6all', 'LocLimit6All')
+        ])
+
+        canexp_df = pd.DataFrame(
+            columns=heading_row.keys(),
+            data=[heading_row]+exposures
+        )
+        
+        canexp_df.to_csv(
+            path_or_buf=exposures_fp,
+            index=False,
+            encoding='utf-8',
+            header=False
+        )
+
+                'polminded6all': from_account_deductibles,
+                'polmaxded6all': from_account_deductibles,
+
+    if accounts_fp:
+        heading_row = OrderedDict([
+            ('row_id', 'ROW_ID'),
+            ('accnumber', 'AccNumber'),
+            ('polnumber', 'PolNumber'),
+            ('polperil', 'PolPeril'),
+            ('condded6all', 'CondDed6All'),
+            ('condlimit6all', 'CondLimit6All'),
+            ('polded6all', 'PolDed6All'),
+            ('polminded6all', 'PolMinDed6All'),
+            ('polmaxded6all', 'PolMaxDed6All'),
+            ('layerattachment', 'LayerAttachment'),
+            ('layerlimit', 'LayerLimit'),
+            ('layerparticipation', 'LayerParticipation')
+        ])
+
+        canacc_df = pd.DataFrame(
+            columns=heading_row.keys(),
+            data=[heading_row]+accounts
+        )
+
+        canacc_df.to_csv(
+            path_or_buf=accounts_fp,
             index=False,
             encoding='utf-8',
             header=False

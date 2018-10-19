@@ -56,13 +56,17 @@ from ..models.fakes import fake_model
 
 from tests.data import (
     canonical_accounts_data,
-    canonical_accounts_profile_piwind,
+    canonical_accounts_profile,
     canonical_exposures_data,
-    canonical_exposures_profile_piwind,
-    fm_agg_profile_piwind,
+    canonical_exposures_profile,
+    canonical_oed_accounts_data,
+    canonical_oed_accounts_profile,
+    canonical_oed_exposures_data,
+    canonical_oed_exposures_profile,
     fm_items_data,
     gul_items_data,
     keys_data,
+    oasis_fm_agg_profile,
     write_canonical_files,
     write_keys_files,
 )
@@ -645,7 +649,7 @@ class OasisExposuresManagerLoadCanonicalAccountsProfile(TestCase):
 class OasisExposuresManagerLoadFmAggregationProfile(TestCase):
 
     def setUp(self):
-        self.profile = fm_agg_profile_piwind
+        self.profile = oasis_fm_agg_profile
 
     def test_model_and_kwargs_are_not_set___result_is_null(self):
         profile = OasisExposuresManager().load_fm_aggregation_profile()
@@ -1169,7 +1173,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
         self.combined_grouped_canonical_profile = unified_canonical_fm_profile_by_level_and_term_group(
             profiles=[self.exposures_profile, self.accounts_profile]
         )
-        self.fm_agg_profile = copy.deepcopy(fm_agg_profile_piwind)
+        self.fm_agg_profile = copy.deepcopy(oasis_fm_agg_profile)
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
@@ -2202,7 +2206,7 @@ class FmFilesGenerationTestCase(TestCase):
         self.combined_grouped_canonical_profile = unified_canonical_fm_profile_by_level_and_term_group(
             profiles=(self.exposures_profile, self.accounts_profile,)
         )
-        self.fm_agg_profile = fm_agg_profile_piwind
+        self.fm_agg_profile = oasis_fm_agg_profile
         self.manager = OasisExposuresManager()
 
     def check_fm_policytc_file(self, fm_items_df, fm_policytc_file_path):

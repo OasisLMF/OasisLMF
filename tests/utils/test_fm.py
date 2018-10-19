@@ -57,7 +57,11 @@ from tests.data import (
     canonical_accounts_profile,
     canonical_exposures_data,
     canonical_exposures_profile,
-    fm_agg_profile_piwind,
+    canonical_oed_accounts_data,
+    canonical_oed_accounts_profile,
+    canonical_oed_exposures_data,
+    canonical_oed_exposures_profile,
+    oasis_fm_agg_profile,
     deductible_types,
     fm_items_data,
     fm_levels_simple,
@@ -392,7 +396,7 @@ class GetFmTermsByLevel(TestCase):
         self.combined_grouped_canonical_profile = unified_canonical_fm_profile_by_level_and_term_group(
             profiles=[self.exposures_profile, self.accounts_profile]
         )
-        self.fm_agg_profile = fm_agg_profile_piwind
+        self.fm_agg_profile = oasis_fm_agg_profile
 
     @pytest.mark.flaky
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])

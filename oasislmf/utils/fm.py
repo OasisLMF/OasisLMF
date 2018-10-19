@@ -50,7 +50,7 @@ def unified_canonical_fm_profile_by_level_and_term_group(profiles=[], profile_pa
 
     return {
         k:{
-            int(_k):{v['FMTermType'].lower():v for v in g} for _k, g in itertools.groupby(sorted(six.itervalues(comb_prof[k]), key=lambda v: v['FMTermGroupID']), key=lambda v: v['FMTermGroupID'])
+            _k:{v['FMTermType'].lower():v for v in g} for _k, g in itertools.groupby(sorted(six.itervalues(comb_prof[k]), key=lambda v: v['FMTermGroupID']), key=lambda v: v['FMTermGroupID'])
         } for k in comb_prof
     }
 
