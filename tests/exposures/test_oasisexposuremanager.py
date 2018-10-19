@@ -2142,8 +2142,8 @@ class FMAcceptanceTests(TestCase):
         self.canexp_profile = copy.deepcopy(canonical_oed_exposures_profile)
         self.canacc_profile = copy.deepcopy(canonical_oed_accounts_profile)
         self.unified_can_profile = unified_canonical_fm_profile_by_level_and_term_group(profiles=[self.canexp_profile, self.canacc_profile])
-        self.fmap = copy.deepcopy(oasis_fm_agg_profile)
-        self.fmap[4]['FMAggKey'].pop('SublimitRef')
+        self.fm_agg_map = copy.deepcopy(oasis_fm_agg_profile)
+        self.fm_agg_map[4]['FMAggKey'].pop('SublimitRef')
         self.manager = OasisExposuresManager()
 
     def test_fm3(self):
@@ -2231,15 +2231,49 @@ class FMAcceptanceTests(TestCase):
         keys[2]['vulnerability_id'] = keys[6]['vulnerability_id'] = 3
         keys[3]['vulnerability_id'] = keys[7]['vulnerability_id'] = 4
 
-        with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf:
+        with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf, TemporaryDirectory() as outdir:
             write_canonical_oed_files(exposures, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
-            #import pdb; pdb.set_trace()
-
             gul_items_df, canexp_df = self.manager.load_gul_items(self.canexp_profile, ef.name, kf.name)
 
-            fm_items_df, canacc_df = self.manager.load_fm_items(canexp_df, gul_items_df, self.canexp_profile, self.canacc_profile, af.name, self.fmap, reduced=True)
+            model = fake_model(resources={
+                'canonical_exposures_df': canexp_df,
+                'gul_items_df': gul_items_df,
+                'canonical_exposures_profile': self.canexp_profile,
+                'canonical_accounts_profile': self.canacc_profile,
+                'fm_agg_profile': self.fm_agg_map
+            })
+            omr = model.resources
+            ofp = omr['oasis_files_pipeline']
+
+            ofp.keys_file_path = kf.name
+            ofp.canonical_exposures_file_path = ef.name
+
+            ofp.items_file_path = os.path.join(outdir, 'items.csv')
+            ofp.coverages_file_path = os.path.join(outdir, 'coverages.csv')
+            ofp.gulsummaryxref_file_path = os.path.join(outdir, 'gulsummaryxref.csv')
+
+            gul_files = self.manager.write_gul_files(oasis_model=model)
+
+            for f in gul_files:
+                self.assertTrue(os.path.exists(gul_files[f]))
+
+            ofp.canonical_accounts_file_path = af.name
+            ofp.fm_policytc_file_path = os.path.join(outdir, 'fm_policytc.csv')
+            ofp.fm_profile_file_path = os.path.join(outdir, 'fm_profile.csv')
+            ofp.fm_programme_file_path = os.path.join(outdir, 'fm_programme.csv')
+            ofp.fm_xref_file_path = os.path.join(outdir, 'fm_xref.csv')
+            ofp.fmsummaryxref_file_path = os.path.join(outdir, 'fmsummaryxref.csv')
+
+            fm_files = self.manager.write_fm_files(oasis_model=model)
+
+            #import pdb; pdb.set_trace()
+
+            for f in fm_files:
+                self.assertTrue(os.path.exists(fm_files[f]))
+
+
 
 class GulFilesGenerationTestCase(TestCase):
 
