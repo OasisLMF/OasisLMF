@@ -790,6 +790,10 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             )
 
         try:
+            oed_acc_col_repl = [{'accnumber': 'accntnum'}]
+            for repl in oed_acc_col_repl:
+                    canexp_df.rename(columns=repl, inplace=True)
+
             if not str(canexp_df['row_id'].dtype).startswith('int'):
                 canexp_df['row_id'] = canexp_df['row_id'].astype(int)
 
