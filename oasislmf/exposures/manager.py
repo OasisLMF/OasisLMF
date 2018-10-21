@@ -845,7 +845,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                     'shr_elm': fm_term_elements[tiv_tgid]['share'],
                     'areaperil_id': it['areaperilid'],
                     'vulnerability_id': it['vulnerabilityid'],
-                    'group_id': item_id,
+                    'group_id': it['row_id'],
                     'summary_id': 1,
                     'summaryset_id': 1
                 }
@@ -980,7 +980,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 it['level_id'] = level_id
                 it['item_id'] = num_cov_items + i + 1
 
-            num_subaccount_level_items = sum(len(preset_items[level_id]) for level_id in fm_levels[:-1])
+            num_sub_layer_level_items = sum(len(preset_items[level_id]) for level_id in fm_levels[:-1])
             max_level = max(fm_levels)
             max_level_items = copy.deepcopy(preset_items[max_level])
             max_level_min_idx = min(max_level_items)
@@ -996,7 +996,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 )
             ):
                 it = copy.deepcopy(max_level_items[canexp_id])
-                it['item_id'] = num_subaccount_level_items + i + 1
+                it['item_id'] = num_sub_layer_level_items + i + 1
                 it['layer_id'] = layer_id(canacc_id)
                 it['canacc_id'] = canacc_id
                 preset_items[max_level][max_level_min_idx + i] = it
@@ -1142,10 +1142,6 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             if preset_only:
                 return fm_items_df, canacc_df
 
-            policytc_ids = get_policytc_ids(fm_items_df)
-            get_policytc_id = lambda i: [k for k in six.iterkeys(policytc_ids) if policytc_ids[k] == {k:fm_items[i][k] for k in ('limit', 'deductible', 'share', 'calcrule_id',)}][0]
-            fm_items_df['policytc_id'] = fm_items_df['index'].apply(lambda i: get_policytc_id(i))
-
             bookend_fm_levels = [fm_items_df['level_id'].min(), fm_items_df['level_id'].max()]
 
             if reduced:
@@ -1158,6 +1154,10 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 level_id = lambda i: level_ids.index(fm_items_df.iloc[i]['level_id']) + 1
 
                 fm_items_df['level_id'] = fm_items_df['index'].apply(level_id)
+
+            policytc_ids = get_policytc_ids(fm_items_df)
+            get_policytc_id = lambda i: [k for k in six.iterkeys(policytc_ids) if policytc_ids[k] == {k:fm_items[i][k] for k in ('limit', 'deductible', 'share', 'calcrule_id',)}][0]
+            fm_items_df['policytc_id'] = fm_items_df['index'].apply(lambda i: get_policytc_id(i))
 
             columns = list(fm_items_df.columns)
             for col in columns:

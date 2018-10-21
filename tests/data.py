@@ -334,6 +334,17 @@ canonical_exposures_profile_simple = {
 }
 
 canonical_oed_exposures_profile = {
+    "BuildingTIV": {
+        "ProfileElementName": "BuildingTIV",
+        "FieldName": "TIV",
+        "PerilID": 1,
+        "CoverageTypeID": 1,
+        "FMLevelName": "Coverage",
+        "FMLevel": 1,
+        "FMTermType": "TIV",
+        "FMTermGroupID": 1,
+        "ProfileType": "Loc"
+    },
     "LocDed1Building": {
         "ProfileElementName": "LocDed1Building",
         "FieldName": "CoverageDeductible",
@@ -346,15 +357,26 @@ canonical_oed_exposures_profile = {
         "FMTermGroupID": 1,
         "ProfileType": "Loc"
     },
-    "BuildingTIV": {
-        "ProfileElementName": "BuildingTIV",
-        "FieldName": "TIV",
+    "LocLimit1Building": {
+        "ProfileElementName": "LocLimit1Building",
+        "FieldName": "CoverageLimit",
         "PerilID": 1,
         "CoverageTypeID": 1,
         "FMLevelName": "Coverage",
         "FMLevel": 1,
-        "FMTermType": "TIV",
+        "FMTermType": "Limit",
         "FMTermGroupID": 1,
+        "ProfileType": "Loc"
+    },
+    "OtherTIV": {
+        "ProfileElementName": "OtherTIV",
+        "FieldName": "TIV",
+        "PerilID": 1,
+        "CoverageTypeID": 2,
+        "FMLevelName": "Coverage",
+        "FMLevel": 1,
+        "FMTermType": "TIV",
+        "FMTermGroupID": 2,
         "ProfileType": "Loc"
     },
     "LocDed2Other": {
@@ -369,15 +391,26 @@ canonical_oed_exposures_profile = {
         "FMTermGroupID": 2,
         "ProfileType": "Loc"
     },
-    "OtherTIV": {
-        "ProfileElementName": "OtherTIV",
-        "FieldName": "TIV",
+    "LocLimit2Other": {
+        "ProfileElementName": "LocLimit2Other",
+        "FieldName": "CoverageLimit",
         "PerilID": 1,
         "CoverageTypeID": 2,
         "FMLevelName": "Coverage",
         "FMLevel": 1,
-        "FMTermType": "TIV",
+        "FMTermType": "Limit",
         "FMTermGroupID": 2,
+        "ProfileType": "Loc"
+    },
+    "ContentsTIV": {
+        "ProfileElementName": "ContentsTIV",
+        "FieldName": "TIV",
+        "PerilID": 1,
+        "CoverageTypeID": 3,
+        "FMLevelName": "Coverage",
+        "FMLevel": 1,
+        "FMTermType": "TIV",
+        "FMTermGroupID": 3,
         "ProfileType": "Loc"
     },
     "LocDed3Contents": {
@@ -392,15 +425,26 @@ canonical_oed_exposures_profile = {
         "FMTermGroupID": 3,
         "ProfileType": "Loc"
     },
-    "ContentsTIV": {
-        "ProfileElementName": "ContentsTIV",
-        "FieldName": "TIV",
+    "LocLimit3Contents": {
+        "ProfileElementName": "LocLimit3Contents",
+        "FieldName": "CoverageLimit",
         "PerilID": 1,
         "CoverageTypeID": 3,
         "FMLevelName": "Coverage",
         "FMLevel": 1,
-        "FMTermType": "TIV",
+        "FMTermType": "Limit",
         "FMTermGroupID": 3,
+        "ProfileType": "Loc"
+    },
+    "BITIV": {
+        "ProfileElementName": "BITIV",
+        "FieldName": "TIV",
+        "PerilID": 1,
+        "CoverageTypeID": 4,
+        "FMLevelName": "Coverage",
+        "FMLevel": 1,
+        "FMTermType": "TIV",
+        "FMTermGroupID": 4,
         "ProfileType": "Loc"
     },
     "LocDed4BI": {
@@ -415,14 +459,14 @@ canonical_oed_exposures_profile = {
         "FMTermGroupID": 4,
         "ProfileType": "Loc"
     },
-    "BITIV": {
-        "ProfileElementName": "BITIV",
-        "FieldName": "TIV",
+    "LocLimit4BI": {
+        "ProfileElementName": "LocLimit4BI",
+        "FieldName": "CoverageLimit",
         "PerilID": 1,
         "CoverageTypeID": 4,
         "FMLevelName": "Coverage",
         "FMLevel": 1,
-        "FMTermType": "TIV",
+        "FMTermType": "Limit",
         "FMTermGroupID": 4,
         "ProfileType": "Loc"
     },
@@ -436,6 +480,15 @@ canonical_oed_exposures_profile = {
         "FMTermGroupID": 1,
         "ProfileType": "Loc"
     },
+    "LocLimit5PD": {
+        "ProfileElementName": "LocLimit5PD",
+        "FieldName": "CombinedLimit",
+        "FMLevelName": "Combined",
+        "FMLevel": 2,
+        "FMTermType": "Limit",
+        "FMTermGroupID": 1,
+        "ProfileType": "Loc"
+    },
     "LocDed6All": {
         "ProfileElementName": "LocDed6All",
         "FieldName": "SiteDeductible",
@@ -443,6 +496,15 @@ canonical_oed_exposures_profile = {
         "FMLevelName": "Site",
         "FMLevel": 3,
         "FMTermType": "Deductible",
+        "FMTermGroupID": 1,
+        "ProfileType": "Loc"
+    },
+    "LocLimit6All": {
+        "ProfileElementName": "LocLimit6All",
+        "FieldName": "SiteLimit",
+        "FMLevelName": "Site",
+        "FMLevel": 3,
+        "FMTermType": "Limit",
         "FMTermGroupID": 1,
         "ProfileType": "Loc"
     }
@@ -497,13 +559,12 @@ canonical_oed_accounts_profile = {
         "FMTermGroupID": 1,
         "ProfileType": "Acc"
     },
-    "LayerAttachment": {
-        "ProfileElementName": "LayerAttachment",
-        "DeductibleType": "B",
-        "FieldName": "AttachmentPoint",
+    "LayerParticipation": {
+        "ProfileElementName": "LayerParticipation",
+        "FieldName": "LayerParticipation",
         "FMLevelName": "Layer",
         "FMLevel": 6,
-        "FMTermType": "Deductible",
+        "FMTermType": "Share",
         "FMTermGroupID": 1,
         "ProfileType": "Acc"
     }
@@ -1096,6 +1157,7 @@ def write_canonical_oed_files(
             ('loclimit3contents', 'LocLimit3Contents'),
             ('bitiv', 'BITIV'),
             ('locded4bi', 'LocDed4BI'),
+            ('loclimit4bi', 'LocLimit4BI'),
             ('locded5pd', 'LocDed5PD'),
             ('loclimit5pd', 'LocLimit5PD'),
             ('locded6all', 'LocDed6All'),

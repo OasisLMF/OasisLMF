@@ -92,14 +92,13 @@ def get_coverage_level_fm_terms(level_grouped_canonical_profile, level_fm_agg_pr
 
         can_item = get_can_item(it['canexp_id'], it['canacc_id'], it['policy_num'])
 
-        limit = can_item.get(it['lim_elm']) or 0.0
-        it['limit'] = limit
+        it['share'] = 0.0
 
-        deductible = can_item.get(it['ded_elm']) or 0.0
-        it['deductible'] = deductible
-    
-        share = can_item.get(it['shr_elm']) or 0.0
-        it['share'] = share
+        can_item_lim = can_item.get(it['lim_elm']) or 0.0
+        it['limit'] = (can_item_lim if can_item_lim >= 1 else it['tiv']*can_item_lim) or 0.0
+
+        can_item_ded = can_item.get(it['ded_elm']) or 0.0
+        it['deductible'] = (can_item_ded if can_item_ded >= 1 else it['tiv']*can_item_ded) or 0.0
 
         it['calcrule_id'] = get_calcrule_id(it['limit'], it['share'], it['deductible_type'])
 
@@ -135,12 +134,19 @@ def get_non_coverage_level_fm_terms(level_grouped_canonical_profile, level_fm_ag
 
         can_item = get_can_item(it['canexp_id'], it['canacc_id'], it['policy_num'])
 
-        it['limit'] = can_item.get(lim_elm) or 0.0
-
-        it['deductible'] = can_item.get(ded_elm) or 0.0
-        it['deductible_type'] = ded_type
-
+        it['shr_elm'] = shr_elm
         it['share'] = can_item.get(shr_elm) or 0.0
+
+        it['lim_elm'] = lim_elm
+        can_item_lim = can_item.get(lim_elm) or 0.0
+        can_item_lim = can_item_lim if can_item_lim >= 1 else it['tiv']*can_item_lim
+        it['limit'] = (can_item_lim if it['share'] >= 1 else it['share']*can_item_lim) or 0.0
+
+        it['ded_elm'] = ded_elm
+        can_item_ded = can_item.get(ded_elm) or 0.0
+        can_item_ded = can_item_ded if can_item_ded >= 1 else it['tiv']*can_item_ded
+        it['deductible'] = (can_item_ded if it['share'] >= 1 else it['share']*can_item_ded) or 0.0
+        it['deductible_type'] = ded_type
 
         it['calcrule_id'] = get_calcrule_id(it['limit'], it['share'], it['deductible_type'])
 
