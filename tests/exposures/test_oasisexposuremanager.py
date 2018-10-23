@@ -2235,8 +2235,6 @@ class FMAcceptanceTests(TestCase):
             write_canonical_oed_files(exposures, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
-            import ipdb; ipdb.set_trace()
-
             gul_items_df, canexp_df = self.manager.load_gul_items(self.canexp_profile, ef.name, kf.name)
 
             model = fake_model(resources={
@@ -2269,8 +2267,6 @@ class FMAcceptanceTests(TestCase):
             ofp.fmsummaryxref_file_path = os.path.join(outdir, 'fmsummaryxref.csv')
 
             fm_files = self.manager.write_fm_files(oasis_model=model)
-
-            #import pdb; pdb.set_trace()
 
             for f in fm_files:
                 self.assertTrue(os.path.exists(fm_files[f]))
