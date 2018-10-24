@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
 
 __all__ = [
-    'unified_canonical_fm_profile_by_level',
-    'unified_canonical_fm_profile_by_level_and_term_group',
     'get_calcrule_id',
-    'get_fm_terms_by_level_as_list',
     'get_coverage_level_fm_terms',
+    'get_fm_terms_by_level_as_list',
+    'get_layer_calcrule_id', 
     'get_non_coverage_level_fm_terms',
-    'get_policytc_ids'
+    'get_policytc_ids',
+    'get_sub_layer_calcrule_id',
+    'unified_canonical_fm_profile_by_level',
+    'unified_canonical_fm_profile_by_level_and_term_group'
 ]
 
 import io
@@ -18,41 +20,6 @@ import six
 import pandas as pd
 
 from .exceptions import OasisException
-from .metadata import (
-    DEDUCTIBLE_TYPES,
-    FM_TERMS,
-)
-
-
-def unified_canonical_fm_profile_by_level(profiles=[], profile_paths=[]):
-
-    if not (profiles or profile_paths):
-        raise OasisException('A list of canonical profiles (loc. or acc.) or a list of canonical profiles paths must be provided')
-
-    if not profiles:
-        for pp in profile_paths:
-            with io.open(pp, 'r', encoding='utf-8') as f:
-                profiles.append(json.load(f))
-
-    comb_prof = {k:v for p in profiles for k, v in ((k, v) for k, v in six.iteritems(p) if 'FMLevel' in v)}
-    
-    return {
-        int(k):{v['ProfileElementName']:v for v in g} for k, g in itertools.groupby(sorted(six.itervalues(comb_prof), key=lambda v: v['FMLevel']), key=lambda v: v['FMLevel'])
-    }
-
-
-def unified_canonical_fm_profile_by_level_and_term_group(profiles=[], profile_paths=[]):
-
-    if not (profiles or profile_paths):
-        raise OasisException('A list of canonical profiles (loc. or acc.) or a list of canonical profiles paths must be provided')
-
-    comb_prof = unified_canonical_fm_profile_by_level(profiles=profiles, profile_paths=profile_paths)
-
-    return {
-        k:{
-            _k:{v['FMTermType'].lower():v for v in g} for _k, g in itertools.groupby(sorted(six.itervalues(comb_prof[k]), key=lambda v: v['FMTermGroupID']), key=lambda v: v['FMTermGroupID'])
-        } for k in comb_prof
-    }
 
 
 def get_calcrule_id(limit, share, ded_type):
@@ -185,3 +152,76 @@ def get_policytc_ids(fm_items_df):
     }
 
     return policytc_ids
+
+
+def get_layer_calcrule_id(ded=0, lim=9999999999, shr=1):
+
+    if lim > 0 or ded > 0 or shr > 0:
+        return 2
+
+
+def get_sub_layer_calcrule_id(ded_blan, ded_blanmin, ded_blanmax, lim, lim_code, ded_blan_code=0):
+
+    if ded_blan == ded_blan_code == ded_blanmin == ded_blanmax == lim == lim_code == 0:
+        return 12
+    elif (ded_blan > 0 and ded_blan_code == 0) and (ded_blanmin == ded_blanmax == 0) and (lim > 0 and lim_code == 0):
+        return 1
+    elif (ded_blan > 0 and ded_blan_code == 2) and (ded_blanmin == ded_blanmax == 0) and (lim > 0 and lim_code == 0):
+        return 4
+    elif (ded_blan > 0 and ded_blan_code == 1) and (ded_blanmin == ded_blanmax == 0) and (lim > 0 and lim_code == 1):
+        return 5
+    elif (ded_blan > 0 and ded_blan_code == 2) and (ded_blanmin == ded_blanmax == 0) and (lim == lim_code == 0):
+        return 6
+    elif (ded_blan == ded_blan_code == 0) and (ded_blanmin == 0 and ded_blanmax > 0) and (lim > 0 and lim_code == 0):
+        return 7
+    elif (ded_blan == ded_blan_code == 0) and (ded_blanmin > 0 and ded_blanmax == 0) and (lim > 0 and lim_code == 0):
+        return 8
+    elif (ded_blan == ded_blan_code == 0) and (ded_blanmin == 0 and ded_blanmax > 0) and (lim == lim_code == 0):
+        return 10
+    elif (ded_blan == ded_blan_code == 0) and (ded_blanmin > 0 and ded_blanmax == 0) and (lim == lim_code == 0):
+        return 11
+    elif (ded_blan > 0 and ded_blan_code == 0) and (ded_blanmin == ded_blanmax == 0) and (lim == lim_code == 0):
+        return 12
+    elif (ded_blan == ded_blan_code == 0) and (ded_blanmin > 0 and ded_blanmax > 0) and (lim == lim_code == 0):
+        return 13
+    elif (ded_blan == ded_blan_code == 0) and (ded_blanmin == ded_blanmax == 0) and (lim > 0 and lim_code == 0):
+        return 14
+    elif (ded_blan == ded_blan_code == 0) and (ded_blanmin == ded_blanmax == 0) and (lim > 0 and lim_code == 1):
+        return 15
+    elif (ded_blan > 0 and ded_blan_code == 1) and (ded_blanmin == ded_blanmax == 0) and (lim == lim_code == 0):
+        return 16
+    elif (ded_blan > 0 and ded_blan_code == 1) and (ded_blanmin > 0 and ded_blanmax > 0) and (lim == lim_code == 0):
+        return 19
+    elif (ded_blan > 0 and ded_blan_code == 2) and (ded_blanmin > 0 and ded_blanmax > 0) and (lim == lim_code == 0):
+        return 21
+
+
+def unified_canonical_fm_profile_by_level(profiles=[], profile_paths=[]):
+
+    if not (profiles or profile_paths):
+        raise OasisException('A list of canonical profiles (loc. or acc.) or a list of canonical profiles paths must be provided')
+
+    if not profiles:
+        for pp in profile_paths:
+            with io.open(pp, 'r', encoding='utf-8') as f:
+                profiles.append(json.load(f))
+
+    comb_prof = {k:v for p in profiles for k, v in ((k, v) for k, v in six.iteritems(p) if 'FMLevel' in v)}
+    
+    return {
+        int(k):{v['ProfileElementName']:v for v in g} for k, g in itertools.groupby(sorted(six.itervalues(comb_prof), key=lambda v: v['FMLevel']), key=lambda v: v['FMLevel'])
+    }
+
+
+def unified_canonical_fm_profile_by_level_and_term_group(profiles=[], profile_paths=[]):
+
+    if not (profiles or profile_paths):
+        raise OasisException('A list of canonical profiles (loc. or acc.) or a list of canonical profiles paths must be provided')
+
+    comb_prof = unified_canonical_fm_profile_by_level(profiles=profiles, profile_paths=profile_paths)
+
+    return {
+        k:{
+            _k:{v['FMTermType'].lower():v for v in g} for _k, g in itertools.groupby(sorted(six.itervalues(comb_prof[k]), key=lambda v: v['FMTermGroupID']), key=lambda v: v['FMTermGroupID'])
+        } for k in comb_prof
+    }
