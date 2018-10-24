@@ -805,17 +805,16 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
             tiv_elements = tuple(t for t in [gcep[1][gid].get('tiv') for gid in gcep[1]] if t)
 
+            if not tiv_elements:
+                raise OasisException('No TIV elements found in the canonical exposures profile - please check the canonical exposures (loc) profile')
+
             fm_term_elements = {
                 tiv_tgid: {
                     term_type: (
                         gcep[1][tiv_tgid][term_type]['ProfileElementName'].lower() if gcep[1][tiv_tgid].get(term_type) else None
-                    ) if term_type != 'deductible_type' else gcep[1][tiv_tgid]['deductible']['DeductibleType']if gcep[1][tiv_tgid].get('deductible') else 'B'
-                    for term_type in ('limit', 'deductible', 'deductible_type', 'share',)
+                    ) for term_type in ('deductible', 'deductiblemin', 'deductiblemax', 'limit', 'share',)
                 } for tiv_tgid in gcep[1]
             }
-
-            if not tiv_elements:
-                raise OasisException('No TIV elements found in the canonical exposures profile - please check the canonical exposures (loc) profile')
 
             item_id = 0
             zero_tiv_items = 0
@@ -839,10 +838,11 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                     'tiv_elm': tiv_elm,
                     'tiv': tiv,
                     'tiv_tgid': tiv_tgid,
-                    'lim_elm': fm_term_elements[tiv_tgid]['limit'],
-                    'ded_elm': fm_term_elements[tiv_tgid]['deductible'],
-                    'ded_type': fm_term_elements[tiv_tgid]['deductible_type'],
-                    'shr_elm': fm_term_elements[tiv_tgid]['share'],
+                    'ded_elm': fm_term_elements[tiv_tgid].get('deductible'),
+                    'ded_min_elm': fm_term_elements[tiv_tgid].get('deductiblemin'),
+                    'ded_max_elm': fm_term_elements[tiv_tgid].get('deductiblemax'),
+                    'lim_elm': fm_term_elements[tiv_tgid].get('limit'),
+                    'shr_elm': fm_term_elements[tiv_tgid].get('share'),
                     'areaperil_id': it['areaperilid'],
                     'vulnerability_id': it['vulnerabilityid'],
                     'group_id': it['row_id'],
