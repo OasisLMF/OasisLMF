@@ -1,0 +1,11 @@
+ReinsNumber,PortNumber,AccNumber,PolNumber,LocationGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsuranceTag,CededPercent,RiskLevel
+1,1.0,1.0,1.0,,18652.0,,,,,,1.0,LOC
+2,1.0,1.0,1.0,,52432.0,,,,,,1.0,LOC
+3,1.0,1.0,1.0,,10633.0,,,,,,0.2268,LOC
+4,1.0,1.0,1.0,,15568.0,,,,,,0.5,LOC
+5,1.0,1.0,1.0,,18427.0,,,,,,0.3055,LOC
+6,1.0,1.0,1.0,,20423.0,,,,,,0.6073,LOC
+7,1.0,1.0,1.0,,25747.0,,,,,,0.7201,LOC
+8,1.0,1.0,1.0,,29289.0,,,,,,0.1666,LOC
+9,,,,,,,,,,,1.0,LOC
+10,,,,,,,,,,,1.0,LOC

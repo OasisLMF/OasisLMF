@@ -17,3 +17,6 @@ mock
 responses
 Sphinx
 tox
+parameterized
+tabulate
+backports
