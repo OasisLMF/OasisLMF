@@ -985,25 +985,25 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 it['item_id'] = num_cov_items + i + 1
 
             num_sub_layer_level_items = sum(len(preset_items[level_id]) for level_id in fm_levels[:-1])
-            acc_level = max(fm_levels)
-            acc_level_items = copy.deepcopy(preset_items[acc_level])
-            acc_level_min_idx = min(acc_level_items)
+            layer_level = max(fm_levels)
+            layer_level_items = copy.deepcopy(preset_items[layer_level])
+            layer_level_min_idx = min(layer_level_items)
 
             layer_id = lambda i: list(
                 canacc_df[canacc_df['accntnum'] == canacc_df.iloc[i]['accntnum']]['policynum'].values
             ).index(canacc_df.iloc[i]['policynum']) + 1
 
             for i, (canexp_id, canacc_id) in enumerate(
-                itertools.chain((canexp_id, canacc_id) for canexp_id in acc_level_items for canexp_id, canacc_id in itertools.product(
+                itertools.chain((canexp_id, canacc_id) for canexp_id in layer_level_items for canexp_id, canacc_id in itertools.product(
                     [canexp_id],
-                    canacc_df[canacc_df['accntnum'] == canacc_df.iloc[acc_level_items[canexp_id]['canacc_id']]['accntnum']]['index'].values)
+                    canacc_df[canacc_df['accntnum'] == canacc_df.iloc[layer_level_items[canexp_id]['canacc_id']]['accntnum']]['index'].values)
                 )
             ):
-                it = copy.deepcopy(acc_level_items[canexp_id])
+                it = copy.deepcopy(layer_level_items[canexp_id])
                 it['item_id'] = num_sub_layer_level_items + i + 1
                 it['layer_id'] = layer_id(canacc_id)
                 it['canacc_id'] = canacc_id
-                preset_items[acc_level][acc_level_min_idx + i] = it
+                preset_items[layer_level][layer_level_min_idx + i] = it
 
             for it in (it for c in itertools.chain(six.itervalues(preset_items[k]) for k in preset_items) for it in c):
                 it['policy_num'] = canacc_df.iloc[it['canacc_id']]['policynum']
