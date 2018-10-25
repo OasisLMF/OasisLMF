@@ -127,18 +127,6 @@ canonical_accounts_profile = {
 
 
 canonical_exposures_profile = {
-    'ACCNTNUM': {
-        'FieldName': 'AccountNumber',
-        'ProfileElementName': 'ACCNTNUM',
-        'ProfileType': 'Loc'
-    },
-    'ADDRMATCH': {},
-    'BLDGCLASS': {},
-    'BLDGSCHEME': {},
-    'CITY': {},
-    'CITYCODE': {},
-    'CNTRYCODE': {},
-    'CNTRYSCHEME': {},
     'COND1DEDUCTIBLE': {
         'DeductibleType': 'B',
         'FMLevel': 4,
@@ -158,32 +146,6 @@ canonical_exposures_profile = {
         'ProfileElementName': 'COND1LIMIT',
         'ProfileType': 'Loc'
     },
-    'COND1NAME': {
-        'FieldName': 'SubLimitReference',
-        'ProfileElementName': 'COND1NAME'
-    },
-    'COND1TYPE': {},
-    'COUNTRY': {},
-    'COUNTRYGEOID': {},
-    'COUNTY': {},
-    'COUNTYCODE': {},
-    'CRESTA': {},
-    'LATITUDE': {},
-    'LOCNUM': {},
-    'LONGITUDE': {},
-    'NUMBLDGS': {},
-    'NUMSTORIES': {},
-    'OCCSCHEME': {},
-    'OCCTYPE': {},
-    'POSTALCODE': {},
-    'ROOFGEOM': {},
-    'ROW_ID': {
-        'FieldName': 'LocationID',
-        'ProfileElementName': 'ROW_ID',
-        'ProfileType': 'Loc'
-    },
-    'STATE': {},
-    'STATECODE': {},
     'WSCOMBINEDDED': {
         'DeductibleType': 'B',
         'FMLevel': 2,
@@ -203,9 +165,6 @@ canonical_exposures_profile = {
         'ProfileElementName': 'WSCOMBINEDLIM',
         'ProfileType': 'Loc'
     },
-    'WSCV10DED': {},
-    'WSCV10LMT': {},
-    'WSCV10VAL': {},
     'WSCV1DED': {
         'CoverageTypeID': 1,
         'DeductibleType': 'B',
@@ -240,30 +199,6 @@ canonical_exposures_profile = {
         'ProfileElementName': 'WSCV1VAL',
         'ProfileType': 'Loc'
     },
-    'WSCV2DED': {},
-    'WSCV2LIMIT': {},
-    'WSCV2VAL': {},
-    'WSCV3DED': {},
-    'WSCV3LIMIT': {},
-    'WSCV3VAL': {},
-    'WSCV4DED': {},
-    'WSCV4LIMIT': {},
-    'WSCV4VAL': {},
-    'WSCV5DED': {},
-    'WSCV5LIMIT': {},
-    'WSCV5VAL': {},
-    'WSCV6DED': {},
-    'WSCV6LIMIT': {},
-    'WSCV6VAL': {},
-    'WSCV7DED': {},
-    'WSCV7LIMIT': {},
-    'WSCV7VAL': {},
-    'WSCV8DED': {},
-    'WSCV8LIMIT': {},
-    'WSCV8VAL': {},
-    'WSCV9DED': {},
-    'WSCV9LIMIT': {},
-    'WSCV9VAL': {},
     'WSSITEDED': {
         'DeductibleType': 'B',
         'FMLevel': 3,
@@ -282,22 +217,10 @@ canonical_exposures_profile = {
         'FieldName': 'SiteLimit',
         'ProfileElementName': 'WSSITELIM',
         'ProfileType': 'Loc'
-    },
-    'YEARBUILT': {},
-    'YEARUPGRAD': {}
+    }
 }
 
 canonical_exposures_profile_simple = {
-    'ACCNTNUM': {
-        'FieldName': 'AccountNumber',
-        'ProfileElementName': 'ACCNTNUM',
-        'ProfileType': 'Loc'
-    },
-    'ROW_ID': {
-        'FieldName': 'LocationID',
-        'ProfileElementName': 'ROW_ID',
-        'ProfileType': 'Loc'
-    },
     'WSCV1DED': {
         'CoverageTypeID': 1,
         'DeductibleType': 'B',
@@ -719,6 +642,8 @@ def canonical_accounts_data(
     from_layer_limits=floats(min_value=0.0, max_value=10**6),
     from_blanket_limits=floats(min_value=0.0, max_value=10**6),
     from_blanket_deductibles=floats(min_value=0.0, max_value=10**6),
+    from_blanket_min_deductibles=floats(min_value=0.0, max_value=10**6),
+    from_blanket_max_deductibles=floats(min_value=0.0, max_value=10**6),
     size=None,
     min_size=0,
     max_size=10
@@ -738,6 +663,8 @@ def canonical_accounts_data(
                 'undcovamt': from_attachment_points,
                 'partof': from_layer_limits,
                 'blandedamt': from_blanket_deductibles,
+                'mindedamt': from_blanket_min_deductibles,
+                'maxdedamt': from_blanket_max_deductibles,
                 'blanlimamt': from_blanket_limits
             }
         ),
@@ -931,7 +858,12 @@ def fm_items_data(
     from_agg_ids=integers(min_value=1, max_value=10),
     from_policytc_ids=integers(min_value=1, max_value=10),
     from_deductible_elements=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
+    from_min_deductible_elements=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
+    from_max_deductible_elements=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
     from_deductibles=floats(min_value=0.0, allow_infinity=False),
+    from_min_deductibles=floats(min_value=0.0, allow_infinity=False),
+    from_max_deductibles=floats(min_value=0.0, allow_infinity=False),
+    from_attachments=floats(min_value=0.0, allow_infinity=False),
     from_limit_elements=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
     from_limits=floats(min_value=0.0, allow_infinity=False),
     from_share_elements=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
@@ -973,15 +905,19 @@ def fm_items_data(
                 'agg_id': from_agg_ids,
                 'policytc_id': from_policytc_ids,
                 'deductible': from_deductibles,
+                'deductible_min': from_min_deductibles,
+                'deductible_max': from_max_deductibles,
+                'attachment': from_attachments,
                 'limit': from_limits,
                 'share': from_shares,
-                'deductible_type': from_deductible_types,
                 'calcrule_id': from_calcrule_ids,
                 'tiv_elm': from_tiv_elements,
                 'tiv_tgid': from_tiv_tgids,
                 'tiv': from_tivs,
                 'lim_elm': from_limit_elements,
                 'ded_elm': from_deductible_elements,
+                'ded_min_elm': from_min_deductible_elements,
+                'ded_max_elm': from_max_deductible_elements,
                 'shr_elm': from_share_elements
             }
         ),
@@ -998,6 +934,8 @@ def gul_items_data(
     from_tivs=floats(min_value=1.0, max_value=10**6),
     from_limit_elements=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
     from_deductible_elements=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
+    from_min_deductible_elements=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
+    from_max_deductible_elements=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
     from_deductible_types=sampled_from(deductible_types),
     from_share_elements=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
     from_area_peril_ids=integers(min_value=1, max_value=10),
@@ -1035,7 +973,8 @@ def gul_items_data(
                 'tiv': from_tivs,
                 'lim_elm': from_limit_elements,
                 'ded_elm': from_deductible_elements,
-                'ded_type': from_deductible_types,
+                'ded_min_elm': from_min_deductible_elements,
+                'ded_max_elm': from_max_deductible_elements,
                 'shr_elm': from_share_elements,
                 'area_peril_id': from_area_peril_ids,
                 'vulnerability_id': from_vulnerability_ids,
@@ -1136,6 +1075,8 @@ def write_canonical_files(
             ('undcovamt', 'UNDCOVAMT'),
             ('partof', 'PARTOF'),
             ('blandedamt', 'BLANDEDAMT'),
+            ('mindedamt', 'MINDEDAMT'),
+            ('maxdedamt', 'MAXDEDAMT'),
             ('blanlimamt', 'BLANLIMAMT')
         ])
 
