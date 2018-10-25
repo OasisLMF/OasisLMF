@@ -93,12 +93,16 @@ def get_layer_level_fm_terms(level_unified_canonical_profile, level_fm_agg_profi
 
         can_item = get_can_item(it['canexp_id'], it['canacc_id'], it['policy_num'])
 
-        it['deductible'] = can_item.get(it['ded_elm']) or 0.0
+        it['ded_elm'] = ded_elm
+        it['deductible'] = can_item.get(ded_elm) or 0.0
+        it['attachment'] = it['deductible']
         it['deductible_min'] = it['deductible_max'] = 0.0
 
-        it['limit'] = can_item.get(it['lim_elm']) or 0.0
+        it['lim_elm'] = lim_elm
+        it['limit'] = can_item.get(lim_elm) or 0.0
 
-        it['share'] = can_item.get(it['shr_elm']) or 0.0
+        it['shr_elm'] = shr_elm
+        it['share'] = can_item.get(shr_elm) or 0.0
 
         it['calcrule_id'] = get_layer_calcrule_id(it['deductible'], it['limit'], it['share'])
 
@@ -129,10 +133,10 @@ def get_sub_layer_non_coverage_level_fm_terms(level_unified_canonical_profile, l
     ded_elm = ded_fld['ProfileElementName'].lower() if ded_fld else None
 
     ded_min_fld = lufcp[1].get('deductiblemin')
-    ded_min_elm = ded_fld['ProfileElementName'].lower() if ded_min_fld else None
+    ded_min_elm = ded_min_fld['ProfileElementName'].lower() if ded_min_fld else None
 
     ded_max_fld = lufcp[1].get('deductiblemax')
-    ded_max_elm = ded_fld['ProfileElementName'].lower() if ded_max_fld else None
+    ded_max_elm = ded_max_fld['ProfileElementName'].lower() if ded_max_fld else None
 
     lim_fld = lufcp[1].get('limit')
     lim_elm = lim_fld['ProfileElementName'].lower() if lim_fld else None
@@ -180,7 +184,7 @@ def get_fm_terms_by_level_as_list(level_unified_canonical_profile, level_fm_agg_
 def get_policytc_ids(fm_items_df):
 
     columns = [
-        col for col in fm_items_df.columns if not col in ('limit', 'deductible', 'deductible_min', 'deductible_max', 'share', 'calcrule_id',)
+        col for col in fm_items_df.columns if not col in ('limit', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'share', 'calcrule_id',)
     ]
 
     policytc_df = fm_items_df.drop(columns, axis=1).drop_duplicates()
@@ -196,6 +200,7 @@ def get_policytc_ids(fm_items_df):
             'deductible': policytc_df.iloc[i - 1]['deductible'],
             'deductible_min': policytc_df.iloc[i - 1]['deductible_min'],
             'deductible_max': policytc_df.iloc[i - 1]['deductible_max'],
+            'attachment': policytc_df.iloc[i - 1]['attachment'],
             'share': policytc_df.iloc[i - 1]['share'],
             'calcrule_id': int(policytc_df.iloc[i - 1]['calcrule_id'])
         } for i in policytc_df['index']
@@ -204,9 +209,9 @@ def get_policytc_ids(fm_items_df):
     return policytc_ids
 
 
-def get_layer_calcrule_id(ded=0, lim=9999999999, shr=1):
+def get_layer_calcrule_id(att=0, lim=9999999999, shr=1):
 
-    if lim > 0 or ded > 0 or shr > 0:
+    if lim > 0 or att > 0 or shr > 0:
         return 2
 
 

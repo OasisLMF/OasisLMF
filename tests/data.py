@@ -62,68 +62,69 @@ from oasislmf.utils.metadata import (
     OED_PERILS,
 )
 
-calcrule_ids = (1, 2, 10, 11, 12, 15,)
+calcrule_ids = (1, 4, 5, 6, 7, 8, 10, 11, 12, 12, 13, 14, 15, 16, 19, 21,)
 
 canonical_accounts_profile = {
-    'ACCNTNUM': {
-        'FieldName': 'AccountNumber',
-        'ProfileElementName': 'ACCNTNUM',
-        'ProfileType': 'Acc'
+    "BLANDEDAMT": {
+        "ProfileElementName": "BLANDEDAMT",
+        "DeductibleType": "B",
+        "FieldName": "BlanketDeductible",
+        "FMLevelName": "Account",
+        "FMLevel": 5,
+        "FMTermType": "Deductible",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
     },
-    'BLANDEDAMT': {
-        'DeductibleType': 'B',
-        'FMLevel': 5,
-        'FMLevelName': 'Account',
-        'FMTermGroupID': 1,
-        'FMTermType': 'Deductible',
-        'FieldName': 'BlanketDeductible',
-        'ProfileElementName': 'BLANDEDAMT',
-        'ProfileType': 'Acc'
+    "MINDEDAMT": {
+        "ProfileElementName": "MINDEDAMT",
+        "DeductibleType": "MI",
+        "FieldName": "BlanketMinDeductible",
+        "FMLevelName": "Account",
+        "FMLevel": 5,
+        "FMTermType": "DeductibleMin",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
     },
-    'BLANLIMAMT': {
-        'FMLevel': 6,
-        'FMLevelName': 'Layer',
-        'FMTermGroupID': 1,
-        'FMTermType': 'Share',
-        'FieldName': 'BlanketLimit',
-        'ProfileElementName': 'BLANLIMAMT',
-        'ProfileType': 'Acc'
+    "MAXDEDAMT": {
+        "ProfileElementName": "MAXDEDAMT",
+        "DeductibleType": "MA",
+        "FieldName": "BlanketMaxDeductible",
+        "FMLevelName": "Account",
+        "FMLevel": 5,
+        "FMTermType": "DeductibleMax",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
     },
-    'PARTOF': {
-        'FMLevel': 6,
-        'FMLevelName': 'Layer',
-        'FMTermGroupID': 1,
-        'FMTermType': 'Limit',
-        'FieldName': 'LayerLimit',
-        'ProfileElementName': 'PARTOF',
-        'ProfileType': 'Acc'
+    "UNDCOVAMT": {
+        "ProfileElementName": "UNDCOVAMT",
+        "DeductibleType": "B",
+        "FieldName": "AttachmentPoint",
+        "FMLevelName": "Layer",
+        "FMLevel": 6,
+        "FMTermType": "Deductible",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
     },
-    'POLICYNUM': {
-        'FieldName': 'PolicyNumber',
-        'ProfileElementName': 'POLICYNUM',
-        'ProfileType': 'Acc'
+    "PARTOF": {
+        "ProfileElementName": "PARTOF",
+        "FieldName": "LayerLimit",
+        "FMLevelName": "Layer",
+        "FMLevel": 6,
+        "FMTermType": "Limit",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
     },
-    'POLICYTYPE': {
-        'FieldName': 'PolicyType',
-        'ProfileElementName': 'POLICYTYPE',
-        'ProfileType': 'Acc'
-    },
-    'ROW_ID': {
-        'FieldName': 'LocationID',
-        'ProfileElementName': 'ROW_ID',
-        'ProfileType': 'Acc'
-    },
-    'UNDCOVAMT': {
-        'DeductibleType': 'B',
-        'FMLevel': 6,
-        'FMLevelName': 'Layer',
-        'FMTermGroupID': 1,
-        'FMTermType': 'Deductible',
-        'FieldName': 'AttachmentPoint',
-        'ProfileElementName': 'UNDCOVAMT',
-        'ProfileType': 'Acc'
+    "BLANLIMAMT": {
+        "ProfileElementName": "BLANLIMAMT",
+        "FieldName": "BlanketLimit",
+        "FMLevelName": "Layer",
+        "FMLevel": 6,
+        "FMTermType": "Share",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
     }
 }
+
 
 canonical_exposures_profile = {
     'ACCNTNUM': {
@@ -537,6 +538,26 @@ canonical_oed_accounts_profile = {
         "FMLevelName": "Account",
         "FMLevel": 5,
         "FMTermType": "Deductible",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "PolMinDed6All": {
+        "ProfileElementName": "PolMinDed6All",
+        "DeductibleType": "MI",
+        "FieldName": "BlanketMinDeductible",
+        "FMLevelName": "Account",
+        "FMLevel": 5,
+        "FMTermType": "DeductibleMin",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "PolMaxDed6All": {
+        "ProfileElementName": "PolMaxDed6All",
+        "DeductibleType": "MA",
+        "FieldName": "BlanketMaxDeductible",
+        "FMLevelName": "Account",
+        "FMLevel": 5,
+        "FMTermType": "DeductibleMax",
         "FMTermGroupID": 1,
         "ProfileType": "Acc"
     },

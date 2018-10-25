@@ -37,6 +37,7 @@ from ..utils.fm import (
     get_fm_terms_by_level_as_list,
     get_policytc_ids,
 )
+from ..utils.metadata import OASIS_FM_LEVELS
 from ..utils.values import get_utctimestamp
 from ..models import OasisModel
 from .pipeline import OasisFilesPipeline
@@ -915,7 +916,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             'item_id', 'gul_item_id', 'coverage_type_id', 'coverage_id',
             'canexp_id', 'canacc_id', 'policy_num', 'level_id', 'layer_id',
             'agg_id', 'policytc_id', 'deductible', 'deductible_min',
-            'deductible_max', 'limit', 'share', 'calcrule_id', 'tiv_elm',
+            'deductible_max', 'attachment', 'limit', 'share', 'calcrule_id', 'tiv_elm',
             'tiv', 'tiv_tgid', 'ded_elm', 'ded_min_elm', 'ded_max_elm',
             'lim_elm', 'shr_elm',
         )
@@ -969,7 +970,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 i: {
                     k:v for k, v in zip(
                         keys,
-                        [i + 1, gul_item_id, coverage_type_id, coverage_id, canexp_id, get_canacc_id(i), policy_num, level_id, layer_id, agg_id, -1, 0.0, 0.0, 0.0, 0.0, 0.0, 12, tiv_elm, tiv, tiv_tgid, ded_elm, ded_min_elm, ded_max_elm, lim_elm, shr_elm]
+                        [i + 1, gul_item_id, coverage_type_id, coverage_id, canexp_id, get_canacc_id(i), policy_num, level_id, layer_id, agg_id, -1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 12, tiv_elm, tiv, tiv_tgid, ded_elm, ded_min_elm, ded_max_elm, lim_elm, shr_elm]
                     )
                 } for i, (item_id, gul_item_id, coverage_type_id, coverage_id, canexp_id, _, policy_num, level_id, layer_id, agg_id, tiv_elm, tiv, tiv_tgid, ded_elm, ded_min_elm, ded_max_elm, lim_elm, shr_elm) in enumerate(coverage_level_preset_data)
             }
@@ -1149,10 +1150,10 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
                 fm_items_df['level_id'] = fm_items_df['index'].apply(level_id)
 
-            import ipdb; ipdb.set_trace()
+            layer_level_id = fm_items_df['level_id'].max()
 
             policytc_ids = get_policytc_ids(fm_items_df)
-            get_policytc_id = lambda i: [k for k in six.iterkeys(policytc_ids) if policytc_ids[k] == {k:fm_items_df.iloc[i][k] for k in ('limit', 'deductible', 'deductible_min', 'deductible_max', 'share', 'calcrule_id',)}][0]
+            get_policytc_id = lambda i: [k for k in six.iterkeys(policytc_ids) if policytc_ids[k] == {k:fm_items_df.iloc[i][k] for k in ('limit', 'deductible', 'attachment', 'deductible_min', 'deductible_max', 'share', 'calcrule_id',)}][0]
             fm_items_df['policytc_id'] = fm_items_df['index'].apply(lambda i: get_policytc_id(i))
 
             columns = list(fm_items_df.columns)
@@ -1244,24 +1245,29 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         Writes an FM profile file.
         """
         try:
+            cols = ['policytc_id', 'calcrule_id', 'limit', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'share']
+
             fm_profile_df = pd.DataFrame(
-                columns=['policytc_id', 'calcrule_id', 'limit', 'deductible', 'share'],
-                data=[key for key, _ in fm_items_df.groupby(['policytc_id', 'calcrule_id', 'limit', 'deductible', 'share'])]
+                columns=cols,
+                data=[key for key, _ in fm_profile_df.groupby(cols)]
             )
+
+            col_repl = [
+                {'deductible': 'deductible1'},
+                {'deductible_min': 'deductible2'},
+                {'deductible_max': 'deductible3'},
+                {'attachment': 'attachment1'},
+                {'limit': 'limit1'},
+                {'share': 'share1'}
+            ]
+            for repl in col_repl:
+                fm_profile_df.rename(columns=repl, inplace=True)
+
             n = len(fm_profile_df)
 
             fm_profile_df['index'] = range(n)
 
-            fm_profile_df['deductible1'] = fm_profile_df['deductible']
-            fm_profile_df['deductible2'] = fm_profile_df['deductible3'] = [0]*n
-
-            fm_profile_df['limit1'] = fm_profile_df['limit']
-
-            fm_profile_df['share1'] = fm_profile_df['share']
             fm_profile_df['share2'] = fm_profile_df['share3'] = [0]*n
-
-            fm_profile_df['attachment1'] = [0]*n
-
 
             fm_profile_df.to_csv(
                 columns=['policytc_id','calcrule_id','deductible1', 'deductible2', 'deductible3', 'attachment1', 'limit1', 'share1', 'share2', 'share3'],
