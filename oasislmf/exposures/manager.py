@@ -1247,6 +1247,8 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         try:
             cols = ['policytc_id', 'calcrule_id', 'limit', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'share']
 
+            fm_profile_df = fm_items_df[cols]
+
             fm_profile_df = pd.DataFrame(
                 columns=cols,
                 data=[key for key, _ in fm_profile_df.groupby(cols)]
