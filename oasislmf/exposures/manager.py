@@ -1082,7 +1082,6 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         canonical_accounts_profile,
         canonical_accounts_file_path,
         fm_agg_profile,
-        preset_only=False,
         reduced=True
     ):
         """
@@ -1107,12 +1106,6 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         :param fm_agg_profile: FM aggregation profile
         :param fm_agg_profile: dict
 
-        :param preset_only: Whether to generate only FM items with only preset
-                            data excluding FM terms (limit, deductible, share, 
-                            deductible type, calcrule ID, policy TC ID). By
-                            default ``False``
-        :param preset_only: bool
-
         :param reduced: Whether to generate only FM items with not all zero
                         values for limit, deductible and share. By default ``True``
         :param reduced: bool
@@ -1121,6 +1114,8 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         cep = canonical_exposures_profile
         cap = canonical_accounts_profile
+
+        fmap = fm_agg_profile
 
         try:
             with io.open(canonical_accounts_file_path, 'r', encoding='utf-8') as f:
@@ -1133,21 +1128,20 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             canacc_df.columns = canacc_df.columns.str.lower()
             canacc_df['index'] = pd.Series(data=canacc_df.index, dtype=int)
 
-            fm_items = [it for it in self.generate_fm_items(canexp_df, gul_items_df, cep, cap, canacc_df, fm_agg_profile)]
+            fm_items = [it for it in self.generate_fm_items(canexp_df, gul_items_df, cep, cap, canacc_df, fmap)]
             fm_items.sort(key=lambda it: it['item_id'])
 
             fm_items_df = pd.DataFrame(data=fm_items, dtype=object)
             fm_items_df['index'] = pd.Series(data=fm_items_df.index, dtype=int)
 
-            if preset_only:
-                return fm_items_df, canacc_df
-
-            bookend_fm_levels = [fm_items_df['level_id'].min(), fm_items_df['level_id'].max()]
+            bookend_fm_levels = (fm_items_df['level_id'].min(), fm_items_df['level_id'].max(),)
 
             if reduced:
-                fm_items_df = fm_items_df[(fm_items_df['level_id'].isin(bookend_fm_levels)) | (fm_items_df['limit'] != 0) | (fm_items_df['deductible'] != 0) | (fm_items_df['share'] != 0)]
+                fm_items_df = fm_items_df[(fm_items_df['level_id'].isin(bookend_fm_levels)) | (fm_items_df['limit'] != 0) | (fm_items_df['deductible'] != 0) | (fm_items_df['deductible_min'] != 0) | (fm_items_df['deductible_max'] != 0) | (fm_items_df['share'] != 0)]
 
                 fm_items_df['index'] = range(len(fm_items_df))
+
+                fm_items_df['item_id'] = range(1, len(fm_items_df) + 1)
 
                 level_ids = [l for l in set(fm_items_df['level_id'])]
 
@@ -1155,15 +1149,17 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
                 fm_items_df['level_id'] = fm_items_df['index'].apply(level_id)
 
+            import ipdb; ipdb.set_trace()
+
             policytc_ids = get_policytc_ids(fm_items_df)
-            get_policytc_id = lambda i: [k for k in six.iterkeys(policytc_ids) if policytc_ids[k] == {k:fm_items[i][k] for k in ('limit', 'deductible', 'share', 'calcrule_id',)}][0]
+            get_policytc_id = lambda i: [k for k in six.iterkeys(policytc_ids) if policytc_ids[k] == {k:fm_items_df.iloc[i][k] for k in ('limit', 'deductible', 'deductible_min', 'deductible_max', 'share', 'calcrule_id',)}][0]
             fm_items_df['policytc_id'] = fm_items_df['index'].apply(lambda i: get_policytc_id(i))
 
             columns = list(fm_items_df.columns)
             for col in columns:
                 if col.endswith('id'):
                     fm_items_df[col] = fm_items_df[col].astype(int)
-                elif col in ('tiv', 'limit', 'deductible', 'share',):
+                elif col in ('tiv', 'limit', 'deductible', 'deductible_min', 'deductible_max', 'share',):
                     fm_items_df[col] = fm_items_df[col].astype(float)
         except (IOError, MemoryError, OasisException, OSError, TypeError, ValueError) as e:
             raise OasisException(e)
