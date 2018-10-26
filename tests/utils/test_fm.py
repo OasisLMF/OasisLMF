@@ -35,9 +35,11 @@ from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.fm import (
     unified_canonical_fm_profile_by_level,
     unified_canonical_fm_profile_by_level_and_term_group,
-    get_calcrule_id,
+    get_layer_calcrule_id,
+    get_layer_level_fm_terms,
+    get_sub_layer_calcrule_id,
     get_coverage_level_fm_terms,
-    get_non_coverage_level_fm_terms,
+    get_sub_layer_non_coverage_level_fm_terms,
     get_policytc_ids,
 )
 from oasislmf.utils.metadata import (
@@ -207,7 +209,6 @@ class CanonicalProfilesFmTermsGroupedByLevelAndTermGroup(TestCase):
         with self.assertRaises(OasisException):
             unified_canonical_fm_profile_by_level_and_term_group()
 
-    #@pytest.mark.skip(reason="inconsistent output from unified canonical profile constructor")
     def test_only_canonical_profiles_provided(self):
         profiles = (self.exposures_profile, self.accounts_profile,)
 
@@ -240,7 +241,6 @@ class CanonicalProfilesFmTermsGroupedByLevelAndTermGroup(TestCase):
             pt = matching_profile_term(t)
             self.assertIsNotNone(pt) if t not in non_fm_terms else self.assertIsNone(pt)
 
-    #@pytest.mark.skip(reason="inconsistent output from unified canonical profile constructor")
     def test_only_canonical_profile_paths_provided(self):
         profiles = (self.exposures_profile, self.accounts_profile,)
 
@@ -280,7 +280,6 @@ class CanonicalProfilesFmTermsGroupedByLevelAndTermGroup(TestCase):
             pt = matching_profile_term(t)
             self.assertIsNotNone(pt) if t not in non_fm_terms else self.assertIsNone(pt)
 
-    #@pytest.mark.skip(reason="inconsistent output from unified canonical profile constructor")
     def test_canonical_profiles_and_profile_paths_provided(self):
         profiles = (self.exposures_profile, self.accounts_profile,)
 
@@ -336,51 +335,51 @@ class TestSubLayerCalcruleIDFunc(TestCase):
         self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 12)
 
     @given(
-        deductible=floats(min_value=100, allow_infinity=False),
+        deductible=floats(min_value=1, allow_infinity=False),
         deductible_code=just(0),
         deductible_min=just(0.0),
         deductible_max=just(0.0),
-        limit=floats(min_value=100, allow_infinity=False),
+        limit=floats(min_value=1, allow_infinity=False),
         limit_code=just(0)
     )
     def test_calcrule_id_1(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
         self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 1)
 
     @given(
-        deductible=floats(min_value=0, max_value=0.99),
+        deductible=floats(min_value=0.001, max_value=0.99),
         deductible_code=just(2),
         deductible_min=just(0.0),
         deductible_max=just(0.0),
-        limit=floats(min_value=100, allow_infinity=False),
+        limit=floats(min_value=1, allow_infinity=False),
         limit_code=just(0)
     )
     def test_calcrule_id_4(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
         self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 4)
 
     @given(
-        deductible=floats(min_value=0, max_value=0.99),
-        deductible_code=just(2),
+        deductible=floats(min_value=0.001, max_value=0.99),
+        deductible_code=just(1),
         deductible_min=just(0.0),
         deductible_max=just(0.0),
-        limit=floats(min_value=0, max_value=0.99),
+        limit=floats(min_value=0.001, max_value=0.99),
         limit_code=just(1)
     )
     def test_calcrule_id_5(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
         self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 5)
 
     @given(
-        deductible=floats(min_value=0, max_value=0.99),
+        deductible=floats(min_value=0.001, max_value=0.99),
         deductible_code=just(2),
         deductible_min=just(0.0),
         deductible_max=just(0.0),
-        limit=floats(0.0),
+        limit=just(0.0),
         limit_code=just(0)
     )
     def test_calcrule_id_6(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
         self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 6)
 
     @given(
-        deductible=floats(0.0),
+        deductible=just(0.0),
         deductible_code=just(0),
         deductible_min=just(0.0),
         deductible_max=floats(min_value=1, allow_infinity=False),
@@ -391,7 +390,7 @@ class TestSubLayerCalcruleIDFunc(TestCase):
         self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 7)
 
     @given(
-        deductible=floats(0.0),
+        deductible=just(0.0),
         deductible_code=just(0),
         deductible_min=floats(min_value=1, allow_infinity=False),
         deductible_max=just(0.0),
@@ -402,7 +401,7 @@ class TestSubLayerCalcruleIDFunc(TestCase):
         self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 8)
 
     @given(
-        deductible=floats(0.0),
+        deductible=just(0.0),
         deductible_code=just(0),
         deductible_min=just(0.0),
         deductible_max=floats(min_value=1, allow_infinity=False),
@@ -413,7 +412,7 @@ class TestSubLayerCalcruleIDFunc(TestCase):
         self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 10)
 
     @given(
-        deductible=floats(0.0),
+        deductible=just(0.0),
         deductible_code=just(0),
         deductible_min=floats(min_value=1, allow_infinity=False),
         deductible_max=just(0.0),
@@ -461,14 +460,14 @@ class TestSubLayerCalcruleIDFunc(TestCase):
         deductible_code=just(0),
         deductible_min=just(0.0),
         deductible_max=just(0.0),
-        limit=floats(min_value=0, max_value=0.99),
+        limit=floats(min_value=0.001, max_value=0.99),
         limit_code=just(1)
     )
     def test_calcrule_id_15(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
         self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 15)
 
     @given(
-        deductible=just(min_value=0, max_value=0.99),
+        deductible=floats(min_value=0.001, max_value=0.99),
         deductible_code=just(1),
         deductible_min=just(0.0),
         deductible_max=just(0.0),
@@ -479,7 +478,7 @@ class TestSubLayerCalcruleIDFunc(TestCase):
         self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 16)
 
     @given(
-        deductible=just(min_value=0, max_value=0.99),
+        deductible=floats(min_value=0.001, max_value=0.99),
         deductible_code=just(1),
         deductible_min=floats(min_value=1, allow_infinity=False),
         deductible_max=floats(min_value=1, allow_infinity=False),
@@ -490,7 +489,7 @@ class TestSubLayerCalcruleIDFunc(TestCase):
         self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 19)
 
     @given(
-        deductible=just(min_value=0, max_value=0.99),
+        deductible=floats(min_value=0.001, max_value=0.99),
         deductible_code=just(2),
         deductible_min=floats(min_value=1, allow_infinity=False),
         deductible_max=floats(min_value=1, allow_infinity=False),
