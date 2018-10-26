@@ -321,72 +321,234 @@ class CanonicalProfilesFmTermsGroupedByLevelAndTermGroup(TestCase):
             self.assertIsNotNone(pt) if t not in non_fm_terms else self.assertIsNone(pt)
 
 
-class GetCalcruleID(TestCase):
+class TestSubLayerCalcruleIDFunc(TestCase):
 
     @given(
-        deductible_type=just('B'),
+        deductible=just(0.0),
+        deductible_code=just(0),
+        deductible_min=just(0.0),
+        deductible_max=just(0.0),
         limit=just(0.0),
-        share=just(0.0)
+        limit_code=just(0)
     )
-    def test_limit_and_share_eq_0_and_deductible_type_eq_B__produces_12(self, deductible_type, limit, share):
+    def test_calcrule_id_12(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
 
-        self.assertEqual(get_calcrule_id(limit, share, deductible_type), 12)
+        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 12)
 
     @given(
-        deductible_type=just('B'),
+        deductible=floats(min_value=100, allow_infinity=False),
+        deductible_code=just(0),
+        deductible_min=just(0.0),
+        deductible_max=just(0.0),
+        limit=floats(min_value=100, allow_infinity=False),
+        limit_code=just(0)
+    )
+    def test_calcrule_id_1(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
+        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 1)
+
+    @given(
+        deductible=floats(min_value=0, max_value=0.99),
+        deductible_code=just(2),
+        deductible_min=just(0.0),
+        deductible_max=just(0.0),
+        limit=floats(min_value=100, allow_infinity=False),
+        limit_code=just(0)
+    )
+    def test_calcrule_id_4(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
+        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 4)
+
+    @given(
+        deductible=floats(min_value=0, max_value=0.99),
+        deductible_code=just(2),
+        deductible_min=just(0.0),
+        deductible_max=just(0.0),
+        limit=floats(min_value=0, max_value=0.99),
+        limit_code=just(1)
+    )
+    def test_calcrule_id_5(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
+        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 5)
+
+    @given(
+        deductible=floats(min_value=0, max_value=0.99),
+        deductible_code=just(2),
+        deductible_min=just(0.0),
+        deductible_max=just(0.0),
+        limit=floats(0.0),
+        limit_code=just(0)
+    )
+    def test_calcrule_id_6(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
+        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 6)
+
+    @given(
+        deductible=floats(0.0),
+        deductible_code=just(0),
+        deductible_min=just(0.0),
+        deductible_max=floats(min_value=1, allow_infinity=False),
+        limit=floats(min_value=1, allow_infinity=False),
+        limit_code=just(0)
+    )
+    def test_calcrule_id_7(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
+        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 7)
+
+    @given(
+        deductible=floats(0.0),
+        deductible_code=just(0),
+        deductible_min=floats(min_value=1, allow_infinity=False),
+        deductible_max=just(0.0),
+        limit=floats(min_value=1, allow_infinity=False),
+        limit_code=just(0)
+    )
+    def test_calcrule_id_8(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
+        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 8)
+
+    @given(
+        deductible=floats(0.0),
+        deductible_code=just(0),
+        deductible_min=just(0.0),
+        deductible_max=floats(min_value=1, allow_infinity=False),
         limit=just(0.0),
-        share=just(0.001)
+        limit_code=just(0)
     )
-    def test_limit_eq_0_and_share_gt_0_and_deductible_type_eq_B__produces_15(self, deductible_type, limit, share):
-
-        self.assertEqual(get_calcrule_id(limit, share, deductible_type), 15)
+    def test_calcrule_id_10(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
+        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 10)
 
     @given(
-        deductible_type=just('B'),
-        limit=just(0.001),
-        share=just(0.0)
+        deductible=floats(0.0),
+        deductible_code=just(0),
+        deductible_min=floats(min_value=1, allow_infinity=False),
+        deductible_max=just(0.0),
+        limit=just(0.0),
+        limit_code=just(0)
     )
-    def test_limit_gt_0_and_share_eq_0_and_deductible_type_eq_B__produces_1(self, deductible_type, limit, share):
-
-        self.assertEqual(get_calcrule_id(limit, share, deductible_type), 1)
+    def test_calcrule_id_11(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
+        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 11)
 
     @given(
-        deductible_type=just('MI'),
-        limit=floats(min_value=0.0, allow_infinity=False),
-        share=floats(min_value=0.0, allow_infinity=False)
+        deductible=floats(min_value=1, allow_infinity=False),
+        deductible_code=just(0),
+        deductible_min=just(0.0),
+        deductible_max=just(0.0),
+        limit=just(0.0),
+        limit_code=just(0)
     )
-    def test_deductible_type_eq_MI__produces_11(self, deductible_type, limit, share):
-
-        self.assertEqual(get_calcrule_id(limit, share, deductible_type), 11)
+    def test_calcrule_id_12(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
+        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 12)
 
     @given(
-        deductible_type=just('MA'),
-        limit=floats(min_value=0.0, allow_infinity=False),
-        share=floats(min_value=0.0, allow_infinity=False)
+        deductible=just(0.0),
+        deductible_code=just(0),
+        deductible_min=floats(min_value=1, allow_infinity=False),
+        deductible_max=floats(min_value=1, allow_infinity=False),
+        limit=just(0.0),
+        limit_code=just(0)
     )
-    def test_deductible_type_eq_MA__produces_10(self, deductible_type, limit, share):
-
-        self.assertEqual(get_calcrule_id(limit, share, deductible_type), 10)
+    def test_calcrule_id_13(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
+        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 13)
 
     @given(
-        deductible_type=just('B'),
-        limit=floats(min_value=0.001, allow_infinity=False),
-        share=floats(min_value=0.001, allow_infinity=False)
+        deductible=just(0.0),
+        deductible_code=just(0),
+        deductible_min=just(0.0),
+        deductible_max=just(0.0),
+        limit=floats(min_value=1, allow_infinity=False),
+        limit_code=just(0)
     )
-    def test_limit_gt_0_and_share_gt_0_and_deductible_type_eq_B__produces_2(self, deductible_type, limit, share):
-
-        self.assertEqual(get_calcrule_id(limit, share, deductible_type), 2)
+    def test_calcrule_id_14(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
+        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 14)
 
     @given(
-        deductible_type=just('B'),
-        limit=floats(min_value=0.001, allow_infinity=False),
-        share=floats(min_value=0.001, allow_infinity=False)
+        deductible=just(0.0),
+        deductible_code=just(0),
+        deductible_min=just(0.0),
+        deductible_max=just(0.0),
+        limit=floats(min_value=0, max_value=0.99),
+        limit_code=just(1)
     )
-    def test_limit_gt_0_and_share_eq_limit_and_deductible_type_eq_B__produces_2(self, deductible_type, limit, share):
+    def test_calcrule_id_15(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
+        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 15)
 
-        share = limit
-        self.assertEqual(get_calcrule_id(limit, share, deductible_type), 2)
+    @given(
+        deductible=just(min_value=0, max_value=0.99),
+        deductible_code=just(1),
+        deductible_min=just(0.0),
+        deductible_max=just(0.0),
+        limit=just(0.0),
+        limit_code=just(0)
+    )
+    def test_calcrule_id_16(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
+        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 16)
 
+    @given(
+        deductible=just(min_value=0, max_value=0.99),
+        deductible_code=just(1),
+        deductible_min=floats(min_value=1, allow_infinity=False),
+        deductible_max=floats(min_value=1, allow_infinity=False),
+        limit=just(0.0),
+        limit_code=just(0)
+    )
+    def test_calcrule_id_19(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
+        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 19)
+
+    @given(
+        deductible=just(min_value=0, max_value=0.99),
+        deductible_code=just(2),
+        deductible_min=floats(min_value=1, allow_infinity=False),
+        deductible_max=floats(min_value=1, allow_infinity=False),
+        limit=just(0.0),
+        limit_code=just(0)
+    )
+    def test_calcrule_id_21(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
+        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 21)
+
+class TestLayerCalcruleIDFunc(TestCase):
+
+    @given(
+        attachment=just(0),
+        limit=just(0),
+        share=floats(min_value=0.001, max_value=1)
+    )
+    def test_calcrule_id_2__with_positive_share(self, attachment, limit, share):
+        self.assertEqual(get_layer_calcrule_id(attachment, limit, share), 2)
+
+    @given(
+        attachment=just(0),
+        limit=floats(min_value=1, allow_infinity=False),
+        share=just(0)
+    )
+    def test_calcrule_id_2__with_positive_limit(self, attachment, limit, share):
+        self.assertEqual(get_layer_calcrule_id(attachment, limit, share), 2)
+
+    @given(
+        attachment=floats(min_value=1, allow_infinity=False),
+        limit=floats(min_value=1, allow_infinity=False),
+        share=just(0)
+    )
+    def test_calcrule_id_2__with_positive_attachment(self, attachment, limit, share):
+        self.assertEqual(get_layer_calcrule_id(attachment, limit, share), 2)
+
+    @given(
+        attachment=just(0),
+        limit=floats(min_value=1, allow_infinity=False),
+        share=floats(min_value=1, allow_infinity=False)
+    )
+    def test_calcrule_id_2__with_positive_limit_and_share(self, attachment, limit, share):
+        self.assertEqual(get_layer_calcrule_id(attachment, limit, share), 2)
+
+    @given(
+        attachment=floats(min_value=0.001, max_value=1),
+        limit=just(0),
+        share=floats(min_value=1, allow_infinity=False)
+    )
+    def test_calcrule_id_2__with_positive_attachment_and_share(self, attachment, limit, share):
+        self.assertEqual(get_layer_calcrule_id(attachment, limit, share), 2)
+
+    @given(
+        attachment=floats(min_value=0.001, max_value=1),
+        limit=floats(min_value=1, allow_infinity=False),
+        share=just(0)
+    )
+    def test_calcrule_id_2__with_positive_attachment_and_limit(self, attachment, limit, share):
+        self.assertEqual(get_layer_calcrule_id(attachment, limit, share), 2)
 
 class GetFmTermsByLevel(TestCase):
 

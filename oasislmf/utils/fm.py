@@ -47,11 +47,17 @@ def get_coverage_level_fm_terms(level_unified_canonical_profile, level_fm_agg_pr
 
         can_item = get_can_item(it['canexp_id'], it['canacc_id'], it['policy_num'])
 
-        it['deductible'] = can_item.get(it['ded_elm']) or 0.0
-        it['deductible_min'] = can_item.get(it['ded_min_elm']) or 0.0
-        it['deductible_max'] = can_item.get(it['ded_max_elm']) or 0.0
+        can_item_ded = can_item.get(it['ded_elm']) or 0.0
+        it['deductible'] = (can_item_ded if can_item_ded >= 1 else it['tiv']*can_item_ded) or 0.0
 
-        it['limit'] = can_item.get(it['lim_elm']) or 0.0
+        can_item_ded_min = can_item.get(it['ded_min_elm']) or 0.0
+        it['deductible_min'] = (can_item_ded_min if can_item_ded_min >= 1 else it['tiv']*can_item_ded_min) or 0.0
+
+        can_item_ded_max = can_item.get(it['ded_max_elm']) or 0.0
+        it['deductible_max'] = (can_item_ded_max if can_item_ded_max >= 1 else it['tiv']*can_item_ded_max) or 0.0
+
+        can_item_lim = can_item(it['lim_elm']) or 0.0
+        it['limit'] = (can_item_lim if can_item_lim >= 1 else it['tiv']*can_item_lim) or 0.0
 
         it['share'] = can_item.get(it['shr_elm']) or 0.0
 
@@ -211,7 +217,7 @@ def get_policytc_ids(fm_items_df):
 
 def get_layer_calcrule_id(att=0, lim=9999999999, shr=1):
 
-    if lim > 0 or att > 0 or shr > 0:
+    if att > 0 or lim > 0 or shr > 0:
         return 2
 
 
