@@ -936,7 +936,6 @@ def gul_items_data(
     from_deductible_elements=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
     from_min_deductible_elements=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
     from_max_deductible_elements=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
-    from_deductible_types=sampled_from(deductible_types),
     from_share_elements=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
     from_area_peril_ids=integers(min_value=1, max_value=10),
     from_vulnerability_ids=integers(min_value=1, max_value=10),

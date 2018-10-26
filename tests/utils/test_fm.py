@@ -115,7 +115,7 @@ class CanonicalProfilesFmTermsGroupedByLevel(TestCase):
             pt = matching_profile_term(t)
             self.assertIsNotNone(pt) if t not in non_fm_terms else self.assertIsNone(pt)
 
-    #@pytest.mark.skip(reason="inconsistent output from unified canonical profile constructor")
+
     def test_only_canonical_profile_paths_provided(self):
         profiles = (self.exposures_profile, self.accounts_profile,)
 
@@ -152,7 +152,7 @@ class CanonicalProfilesFmTermsGroupedByLevel(TestCase):
             pt = matching_profile_term(t)
             self.assertIsNotNone(pt) if t not in non_fm_terms else self.assertIsNone(pt)
 
-    #@pytest.mark.skip(reason="inconsistent output from unified canonical profile constructor")
+
     def test_canonical_profile_and_profiles_paths_provided(self):
         profiles = (self.exposures_profile, self.accounts_profile,)
 
