@@ -37,24 +37,21 @@ from mock import patch, Mock
 from oasislmf.exposures.manager import OasisExposuresManager
 from oasislmf.models.model import OasisModel
 from oasislmf.exposures.pipeline import OasisFilesPipeline
-from oasislmf.utils.coverage import (
-    BUILDING_COVERAGE_CODE,
-    CONTENTS_COVERAGE_CODE,
-    OTHER_STRUCTURES_COVERAGE_CODE,
-    TIME_COVERAGE_CODE,
-)
+
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.fm import (
-    unified_canonical_fm_profile_by_level_and_term_group
+    unified_canonical_fm_profile_by_level_and_term_group,
 )
-from oasislmf.utils.status import (
-    KEYS_STATUS_FAIL,
-    KEYS_STATUS_NOMATCH,
-    KEYS_STATUS_SUCCESS,
+from oasislmf.utils.metadata import (
+    OASIS_COVERAGE_TYPES,
+    OASIS_FM_LEVELS,
+    OASIS_KEYS_STATUS,
+    OASIS_PERILS,
 )
+
 from ..models.fakes import fake_model
 
-from tests.data import (
+from ..data import (
     canonical_accounts_data,
     canonical_accounts_profile,
     canonical_exposures_data,
@@ -67,6 +64,7 @@ from tests.data import (
     gul_items_data,
     keys_data,
     oasis_fm_agg_profile,
+    oed_fm_agg_profile,
     write_canonical_files,
     write_canonical_oed_files,
     write_keys_files,
@@ -1006,7 +1004,7 @@ class OasisExposuresManagerLoadGulItems(TestCase):
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(size=10),
-        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=10)
+        keys=keys_data(from_statuses=just(OASIS_KEYS_STATUS['success']['id']), size=10)
     )
     def test_canonical_items_dont_match_any_keys_items__oasis_exception_is_raised(
         self,
@@ -1029,7 +1027,7 @@ class OasisExposuresManagerLoadGulItems(TestCase):
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(size=10),
-        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=10)
+        keys=keys_data(from_statuses=just(OASIS_KEYS_STATUS['success']['id']), size=10)
     )
     def test_canonical_profile_doesnt_have_any_tiv_fields__oasis_exception_is_raised(
         self,
@@ -1056,7 +1054,7 @@ class OasisExposuresManagerLoadGulItems(TestCase):
             from_tivs1=just(0.0),
             size=10
         ),
-        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=10)
+        keys=keys_data(from_statuses=just(OASIS_KEYS_STATUS['success']['id']), size=10)
     )
     def test_canonical_items_dont_have_any_positive_tivs__oasis_exception_is_raised(
         self,
@@ -1081,8 +1079,8 @@ class OasisExposuresManagerLoadGulItems(TestCase):
             size=10
         ),
         keys=keys_data(
-            from_coverage_type_ids=just(BUILDING_COVERAGE_CODE),
-            from_statuses=just(KEYS_STATUS_SUCCESS),
+            from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
+            from_statuses=just(OASIS_KEYS_STATUS['success']['id']),
             size=10
         )
     )
@@ -1300,7 +1298,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             size=1
         ),
         guls=gul_items_data(
-            from_coverage_type_ids=just(BUILDING_COVERAGE_CODE),
+            from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
             from_tiv_elements=just('wscv1val'),
             from_tivs=just(100),
             from_tiv_tgids=just(1),
@@ -1432,7 +1430,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             size=2
         ),
         guls=gul_items_data(
-            from_coverage_type_ids=just(BUILDING_COVERAGE_CODE),
+            from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
             from_tiv_elements=just('wscv1val'),
             from_tivs=just(100),
             from_tiv_tgids=just(1),
@@ -1566,7 +1564,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             size=2
         ),
         guls=gul_items_data(
-            from_coverage_type_ids=just(BUILDING_COVERAGE_CODE),
+            from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
             from_tiv_elements=just('wscv1val'),
             from_tivs=just(100),
             from_tiv_tgids=just(1),
@@ -1695,7 +1693,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             size=4
         ),
         guls=gul_items_data(
-            from_coverage_type_ids=just(BUILDING_COVERAGE_CODE),
+            from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
             from_tiv_elements=just('wscv1val'),
             from_tivs=just(100),
             from_tiv_tgids=just(1),
@@ -2136,7 +2134,7 @@ class OasisExposuresManagerWriteGulFiles(GulFilesGenerationTestCase):
             from_tivs2=just(0.0),
             size=10
         ),
-        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=10),
+        keys=keys_data(from_statuses=just(OASIS_KEYS_STATUS['success']['id']), size=10),
     )
     def test_paths_are_stored_in_the_model___model_paths_are_used(self, exposures, keys):
         profile = self.profile
@@ -2173,7 +2171,7 @@ class OasisExposuresManagerWriteGulFiles(GulFilesGenerationTestCase):
             from_tivs2=just(0.0),
             size=10
         ),
-        keys=keys_data(from_statuses=just(KEYS_STATUS_SUCCESS), size=10)
+        keys=keys_data(from_statuses=just(OASIS_KEYS_STATUS['success']['id']), size=10)
     )
     def test_paths_are_stored_in_the_kwargs___kwarg_paths_are_used(self, exposures, keys):
         profile = self.profile
@@ -2220,7 +2218,7 @@ class OasisExposuresManagerWriteFmFiles(FmFilesGenerationTestCase):
             size=1
         ),
         guls=gul_items_data(
-            from_coverage_type_ids=just(BUILDING_COVERAGE_CODE),
+            from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
             from_tiv_elements=just('wscv1val'),
             from_tivs=just(100),
             from_tiv_tgids=just(1),
@@ -2301,7 +2299,7 @@ class OasisExposuresManagerWriteFmFiles(FmFilesGenerationTestCase):
             size=1
         ),
         guls=gul_items_data(
-            from_coverage_type_ids=just(BUILDING_COVERAGE_CODE),
+            from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
             from_tiv_elements=just('wscv1val'),
             from_tivs=just(100),
             from_tiv_tgids=just(1),
