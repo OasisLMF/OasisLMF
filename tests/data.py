@@ -21,9 +21,10 @@ __all__ = [
     'keys_data',
     'keys_status_flags',
     'oasis_fm_agg_profile',
+    'oasis_tiv_elements',
     'oed_fm_agg_profile',
+    'oed_tiv_elements',
     'peril_ids',
-    'tiv_elements',
     'write_canonical_files',
     'write_canonical_oed_files',
     'write_keys_files'
@@ -174,8 +175,7 @@ canonical_exposures_profile = {
         'FMLevelName': 'Coverage',
         'FMTermGroupID': 1,
         'FMTermType': 'Deductible',
-        'FieldName': 'CoverageDeductible',
-        'PerilID': 1,
+        'FieldName': 'BuildingsDeductible',
         'ProfileElementName': 'WSCV1DED',
         'ProfileType': 'Loc'
     },
@@ -185,8 +185,7 @@ canonical_exposures_profile = {
         'FMLevelName': 'Coverage',
         'FMTermGroupID': 1,
         'FMTermType': 'Limit',
-        'FieldName': 'CoverageLimit',
-        'PerilID': 1,
+        'FieldName': 'BuildingsLimit',
         'ProfileElementName': 'WSCV1LIMIT',
         'ProfileType': 'Loc'
     },
@@ -196,9 +195,101 @@ canonical_exposures_profile = {
         'FMLevelName': 'Coverage',
         'FMTermGroupID': 1,
         'FMTermType': 'TIV',
-        'FieldName': 'TIV',
-        'PerilID': 1,
+        'FieldName': 'BuildingsTIV',
         'ProfileElementName': 'WSCV1VAL',
+        'ProfileType': 'Loc'
+    },
+    'WSCV2DED': {
+        'CoverageTypeID': 2,
+        'DeductibleType': 'B',
+        'FMLevel': 1,
+        'FMLevelName': 'Coverage',
+        'FMTermGroupID': 2,
+        'FMTermType': 'Deductible',
+        'FieldName': 'OtherDeductible',
+        'ProfileElementName': 'WSCV2DED',
+        'ProfileType': 'Loc'
+    },
+    'WSCV2LIMIT': {
+        'CoverageTypeID': 2,
+        'FMLevel': 1,
+        'FMLevelName': 'Coverage',
+        'FMTermGroupID': 2,
+        'FMTermType': 'Limit',
+        'FieldName': 'OtherLimit',
+        'ProfileElementName': 'WSCV2LIMIT',
+        'ProfileType': 'Loc'
+    },
+    'WSCV2VAL': {
+        'CoverageTypeID': 2,
+        'FMLevel': 1,
+        'FMLevelName': 'Coverage',
+        'FMTermGroupID': 2,
+        'FMTermType': 'TIV',
+        'FieldName': 'OtherTIV',
+        'ProfileElementName': 'WSCV2VAL',
+        'ProfileType': 'Loc'
+    },
+    'WSCV3DED': {
+        'CoverageTypeID': 3,
+        'DeductibleType': 'B',
+        'FMLevel': 1,
+        'FMLevelName': 'Coverage',
+        'FMTermGroupID': 3,
+        'FMTermType': 'Deductible',
+        'FieldName': 'ContentsDeductible',
+        'ProfileElementName': 'WSCV3DED',
+        'ProfileType': 'Loc'
+    },
+    'WSCV3LIMIT': {
+        'CoverageTypeID': 3,
+        'FMLevel': 1,
+        'FMLevelName': 'Coverage',
+        'FMTermGroupID': 3,
+        'FMTermType': 'Limit',
+        'FieldName': 'ContentsLimit',
+        'ProfileElementName': 'WSCV3LIMIT',
+        'ProfileType': 'Loc'
+    },
+    'WSCV3VAL': {
+        'CoverageTypeID': 3,
+        'FMLevel': 1,
+        'FMLevelName': 'Coverage',
+        'FMTermGroupID': 3,
+        'FMTermType': 'TIV',
+        'FieldName': 'ContentsTIV',
+        'ProfileElementName': 'WSCV3VAL',
+        'ProfileType': 'Loc'
+    },
+    'WSCV4DED': {
+        'CoverageTypeID': 4,
+        'DeductibleType': 'B',
+        'FMLevel': 1,
+        'FMLevelName': 'Coverage',
+        'FMTermGroupID': 4,
+        'FMTermType': 'Deductible',
+        'FieldName': 'TimeDeductible',
+        'ProfileElementName': 'WSCV4DED',
+        'ProfileType': 'Loc'
+    },
+    'WSCV4LIMIT': {
+        'CoverageTypeID': 4,
+        'FMLevel': 1,
+        'FMLevelName': 'Coverage',
+        'FMTermGroupID': 4,
+        'FMTermType': 'Limit',
+        'FieldName': 'TimeLimit',
+        'ProfileElementName': 'WSCV4LIMIT',
+        'ProfileType': 'Loc'
+    },
+    'WSCV4VAL': {
+        'CoverageTypeID': 4,
+        'FMLevel': 1,
+        'FMLevelName': 'Coverage',
+        'FMTermGroupID': 4,
+        'FMTermType': 'TIV',
+        'FieldName': 'TimeTIV',
+        'ProfileElementName': 'WSCV4VAL',
         'ProfileType': 'Loc'
     },
     'WSSITEDED': {
@@ -636,8 +727,9 @@ peril_ids = tuple(OASIS_PERILS[k]['id'] for k in OASIS_PERILS)
 
 oed_peril_ids = tuple(OED_PERILS[k]['id'] for k in OED_PERILS)
 
-tiv_elements = tuple(v['ProfileElementName'].lower() for v in canonical_exposures_profile.values() if v.get('FMTermType') and v.get('FMTermType').lower() == 'tiv')
+oasis_tiv_elements = tuple(v['ProfileElementName'].lower() for v in canonical_exposures_profile.values() if v.get('FMTermType') and v.get('FMTermType').lower() == 'tiv')
 
+oed_tiv_elements = tuple(v['ProfileElementName'].lower() for v in canonical_oed_exposures_profile.values() if v.get('FMTermType') and v.get('FMTermType').lower() == 'tiv')
 
 def canonical_accounts_data(
     from_accounts_nums=integers(min_value=1, max_value=10**5),
@@ -730,9 +822,13 @@ def canonical_exposures_data(
     from_cresta_ids=text(alphabet=string.ascii_letters, min_size=1, max_size=10),
     from_deductibles1=floats(min_value=0.0, allow_infinity=False),
     from_deductibles2=floats(min_value=0.0, allow_infinity=False),
+    from_deductibles3=floats(min_value=0.0, allow_infinity=False),
+    from_deductibles4=floats(min_value=0.0, allow_infinity=False),
     from_latitudes=floats(min_value=0.0, max_value=90.0),
     from_limits1=floats(min_value=0.0, allow_infinity=False),
     from_limits2=floats(min_value=0.0, allow_infinity=False),
+    from_limits3=floats(min_value=0.0, allow_infinity=False),
+    from_limits4=floats(min_value=0.0, allow_infinity=False),
     from_location_nums=integers(min_value=1, max_value=10**12),
     from_longitudes=floats(min_value=-180.0, max_value=180.0),
     from_num_builings=integers(min_value=1, max_value=10),
@@ -743,6 +839,8 @@ def canonical_exposures_data(
     from_states=text(alphabet=string.ascii_letters, min_size=2, max_size=20),
     from_tivs1=floats(min_value=0.0, allow_infinity=False),
     from_tivs2=floats(min_value=0.0, allow_infinity=False),
+    from_tivs3=floats(min_value=0.0, allow_infinity=False),
+    from_tivs4=floats(min_value=0.0, allow_infinity=False),
     from_years_built=integers(min_value=1900, max_value=2018),
     from_years_upgraded=integers(min_value=1900, max_value=2018),
     size=None,
@@ -778,6 +876,12 @@ def canonical_exposures_data(
                 'wscv2ded': from_deductibles2,
                 'wscv2limit': from_limits2,
                 'wscv2val': from_tivs2,
+                'wscv3ded': from_deductibles3,
+                'wscv3limit': from_limits3,
+                'wscv3val': from_tivs3,
+                'wscv4ded': from_deductibles4,
+                'wscv4limit': from_limits4,
+                'wscv4val': from_tivs4,
                 'yearbuilt': from_years_built,
                 'yearupgrad': from_years_upgraded
             }
@@ -1004,7 +1108,7 @@ def keys_data(
 ):
     def _sequence(li):
         for i, data in enumerate(li):
-            data['locid'] = data['id'] = i + 1
+            data['id'] = i + 1
 
         return li
 
@@ -1052,10 +1156,16 @@ def write_canonical_files(
             ('numbldgs', 'NUMBLDGS'),
             ('wscv1val', 'WSCV1VAL'),
             ('wscv2val', 'WSCV2VAL'),
+            ('wscv3val', 'WSCV3VAL'),
+            ('wscv4val', 'WSCV4VAL'),
             ('wscv1limit', 'WSCV1LIMIT'),
             ('wscv2limit', 'WSCV2LIMIT'),
+            ('wscv3limit', 'WSCV3LIMIT'),
+            ('wscv4limit', 'WSCV4LIMIT'),
             ('wscv1ded', 'WSCV1DED'),
-            ('wscv2ded', 'WSCV2DED')
+            ('wscv2ded', 'WSCV2DED'),
+            ('wscv3ded', 'WSCV3DED'),
+            ('wscv4ded', 'WSCV4DED')
         ])
 
         canexp_df = pd.DataFrame(

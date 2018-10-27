@@ -61,7 +61,7 @@ class _metadata(object):
 
     OASIS_COVERAGE_TYPES = OrderedDict({
         'buildings': {'id': 1, 'desc': 'buildings', 'eqv_oed_covt': 'buildings'},
-        'other': {'id': 2, 'desc': 'other', 'eqv_oed_covt': 'other'},
+        'other': {'id': 2, 'desc': 'other structures', 'eqv_oed_covt': 'other'},
         'contents': {'id': 3, 'desc': 'contents', 'eqv_oed_covt': 'contents'},
         'time': {'id': 4, 'desc': 'time', 'eqv_oed_covt': 'time'}
     })

@@ -801,7 +801,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             if not str(keys_df['locid'].dtype).startswith('int'):
                 keys_df['locid'] = keys_df['locid'].astype(int)
 
-            merged_df = pd.merge(canexp_df, keys_df, left_on='row_id', right_on='locid')
+            merged_df = pd.merge(canexp_df, keys_df, left_on='row_id', right_on='locid').drop_duplicates()
             merged_df['index'] = pd.Series(data=list(merged_df.index), dtype=object)
 
             tiv_terms = tuple(t for t in [ufcp[1][gid].get('tiv') for gid in ufcp[1]] if t)
@@ -834,6 +834,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 yield {
                     'item_id': item_id,
                     'canexp_id': it['row_id'] - 1,
+                    'peril_id': it['perilid'],
                     'coverage_type_id': it['coveragetypeid'],
                     'coverage_id': item_id,
                     'tiv_elm': tiv_elm,

@@ -1084,7 +1084,7 @@ class OasisExposuresManagerLoadGulItems(TestCase):
             size=10
         )
     )
-    def test_at_least_some_canonical_items_have_matching_keys_items_and_at_least_one_positive_tiv_and_gul_items_are_generated(
+    def test_test_gul_items_generation_with_only_buildings_coverage_type_in_exposure_and_model_lookup_supporting_single_peril_and_buildings_coverage_type__at_least_some_canonical_items_have_matching_keys_items_and_at_least_one_positive_tiv_and_gul_items_are_generated(
         self,
         exposures,
         keys
@@ -1094,7 +1094,6 @@ class OasisExposuresManagerLoadGulItems(TestCase):
 
         for k in keys:
             k['id'] += 5
-            k['locid'] = k['id']
 
         with NamedTemporaryFile('w') as exposures_file, NamedTemporaryFile('w') as keys_file:
             write_canonical_files(exposures, exposures_file.name)
@@ -1168,6 +1167,122 @@ class OasisExposuresManagerLoadGulItems(TestCase):
 
             self.assertEqual(can_it['row_id'], gul_it['group_id'])
 
+    @pytest.mark.flaky
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @given(
+        exposures=canonical_exposures_data(
+            from_tivs1=floats(min_value=1.0, allow_infinity=False),
+            from_tivs2=floats(min_value=2.0, allow_infinity=False),
+            from_tivs3=floats(min_value=3.0, allow_infinity=False),
+            from_tivs4=floats(min_value=4.0, allow_infinity=False),
+            size=2
+        ),
+        keys=keys_data(
+            from_peril_ids=just(OASIS_PERILS['wind']['id']),
+            from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
+            from_statuses=just(OASIS_KEYS_STATUS['success']['id']),
+            size=8
+        )
+    )
+    def test_gul_items_generation_with_multiple_coverage_types_in_exposure_and_model_lookup_supporting_multiple_perils_but_only_buildings_and_other_structures_coverage_types__at_least_some_canonical_items_have_matching_keys_items_and_at_least_one_positive_tiv_and_gul_items_are_generated(
+        self,
+        exposures,
+        keys
+    ):
+        profile = copy.deepcopy(self.profile)
+        ufcp = unified_canonical_fm_profile_by_level_and_term_group(profiles=(profile,))
+
+        exposures[1]['wscv2val'] = exposures[1]['wscv3val'] = exposures[1]['wscv4val'] = 0.0
+
+        keys[1]['id'] = keys[2]['id'] = keys[3]['id'] = 1
+        keys[2]['peril_id'] = keys[3]['peril_id'] = OASIS_PERILS['quake']['id']
+        keys[1]['coverage_type'] = keys[3]['coverage_type'] = OASIS_COVERAGE_TYPES['other']['id']
+
+        keys[4]['id'] = keys[5]['id'] = keys[6]['id'] = keys[7]['id'] = 2
+        keys[6]['peril_id'] = keys[7]['peril_id'] = OASIS_PERILS['quake']['id']
+        keys[5]['coverage_type'] = keys[7]['coverage_type'] = OASIS_COVERAGE_TYPES['other']['id']
+
+        """
+        Idx   Loc.   Peril      Cov. Type    Area Peril  Vuln.
+        =========================================================
+        0     1      1          1            A(1,1,1)    V(1,1,1)
+        1     1      1          2            A(1,1,2)    V(1,1,2)
+        2     1      3          1            A(1,3,1)    V(1,3,1)
+        3     1      3          2            A(1,3,2)    V(1,3,2)
+        4     2      1          1            A(2,1,1)    V(2,1,1)
+        5     2      1          2            A(2,1,2)    V(2,1,2)
+        6     2      3          1            A(2,3,1)    V(2,3,1)
+        7     2      3          2            A(2,3,2)    V(2,3,2)
+        """
+
+        with NamedTemporaryFile('w') as exposures_file, NamedTemporaryFile('w') as keys_file:
+            write_canonical_files(exposures, exposures_file.name)
+            write_keys_files(keys, keys_file.name)
+
+            matching_canonical_and_keys_item_ids = set(k['id'] for k in keys).intersection([e['row_id'] for e in exposures])
+
+            gul_items_df, canexp_df = OasisExposuresManager().load_gul_items(profile, exposures_file.name, keys_file.name)
+
+        self.assertEqual(len(gul_items_df), 6)
+        self.assertEqual(len(canexp_df), 2)
+
+        tiv_elements = (ufcp[1][1]['tiv'], ufcp[1][2]['tiv'])
+
+        fm_terms = {
+            1: {
+                'deductible': 'wscv1ded',
+                'deductible_min': None,
+                'deductible_max': None,
+                'limit': 'wscv1limit',
+                'share': None
+            },
+            2: {
+                'deductible': 'wscv2ded',
+                'deductible_min': None,
+                'deductible_max': None,
+                'limit': 'wscv2limit',
+                'share': None
+
+            }
+        }
+
+        for i, gul_it in enumerate(gul_items_df.T.to_dict().values()):
+            can_it = canexp_df.iloc[gul_it['canexp_id']].to_dict()
+
+            keys_it = [k for k in keys if k['id'] == gul_it['canexp_id'] + 1 and k['peril_id'] == gul_it['peril_id'] and k['coverage_type'] == gul_it['coverage_type_id']][0]
+
+            positive_tiv_term = [t for t in tiv_elements if can_it.get(t['ProfileElementName'].lower()) and can_it[t['ProfileElementName'].lower()] > 0 and t['CoverageTypeID'] == keys_it['coverage_type']][0]
+
+            tiv_elm = positive_tiv_term['ProfileElementName'].lower()
+            self.assertEqual(tiv_elm, gul_it['tiv_elm'])
+            
+            tiv_tgid = positive_tiv_term['FMTermGroupID']
+            self.assertEqual(can_it[tiv_elm], gul_it['tiv'])
+                            
+            ded_elm = fm_terms[tiv_tgid].get('deductible')
+            self.assertEqual(ded_elm, gul_it['ded_elm'])
+            
+            ded_min_elm = fm_terms[tiv_tgid].get('deductible_min')
+            self.assertEqual(ded_min_elm, gul_it['ded_min_elm'])
+
+            ded_max_elm = fm_terms[tiv_tgid].get('deductible_max')
+            self.assertEqual(ded_max_elm, gul_it['ded_max_elm'])
+
+            lim_elm = fm_terms[tiv_tgid].get('limit')
+            self.assertEqual(lim_elm, gul_it['lim_elm'])
+
+            shr_elm = fm_terms[tiv_tgid].get('share')
+            self.assertEqual(shr_elm, gul_it['shr_elm'])
+
+            self.assertEqual(keys_it['area_peril_id'], gul_it['areaperil_id'])
+            self.assertEqual(keys_it['vulnerability_id'], gul_it['vulnerability_id'])
+
+            self.assertEqual(i + 1, gul_it['item_id'])
+
+            self.assertEqual(i + 1, gul_it['coverage_id'])
+
+            self.assertEqual(can_it['row_id'], gul_it['group_id'])
+
 
 class OasisExposuresManagerLoadFmItems(TestCase):
 
@@ -1206,7 +1321,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
                     cap[_k].pop(__k)
 
         with NamedTemporaryFile('w') as accounts_file:
-            write_canonical_files(canonical_accounts=[], canonical_accounts_file_path=accounts_file.name)
+            write_canonical_files(canonical_accounts_file_path=accounts_file.name)
 
             with self.assertRaises(OasisException):
                 fm_df, canacc_df = OasisExposuresManager().load_fm_items(
