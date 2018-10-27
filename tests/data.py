@@ -21,6 +21,7 @@ __all__ = [
     'keys_data',
     'keys_status_flags',
     'oasis_fm_agg_profile',
+    'oed_fm_agg_profile',
     'peril_ids',
     'tiv_elements',
     'write_canonical_files',
@@ -28,6 +29,7 @@ __all__ = [
     'write_keys_files'
 ]
 
+import copy
 import itertools
 import six
 import string
@@ -602,6 +604,9 @@ oasis_fm_agg_profile = {
         }
     }
 }
+
+oed_fm_agg_profile = copy.deepcopy(oasis_fm_agg_profile)
+oed_fm_agg_profile[4]['FMAggKey'].pop('SublimitRef')
 
 fm_levels = tuple(OASIS_FM_LEVELS[k]['id'] for k in OASIS_FM_LEVELS)
 

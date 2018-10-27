@@ -782,9 +782,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         cep = canonical_exposures_profile
 
-        gcep = unified_canonical_fm_profile_by_level_and_term_group(profiles=(cep,))
+        ufcp = unified_canonical_fm_profile_by_level_and_term_group(profiles=(cep,))
 
-        if not gcep:
+        if not ufcp:
             raise OasisException(
                 'Canonical loc. profile is possibly missing FM term information: '
                 'FM term definitions for TIV, limit, deductible and/or share.'
@@ -804,22 +804,22 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             merged_df = pd.merge(canexp_df, keys_df, left_on='row_id', right_on='locid')
             merged_df['index'] = pd.Series(data=list(merged_df.index), dtype=object)
 
-            tiv_elements = tuple(t for t in [gcep[1][gid].get('tiv') for gid in gcep[1]] if t)
+            tiv_terms = tuple(t for t in [ufcp[1][gid].get('tiv') for gid in ufcp[1]] if t)
 
-            if not tiv_elements:
+            if not tiv_terms:
                 raise OasisException('No TIV elements found in the canonical exposures profile - please check the canonical exposures (loc) profile')
 
-            fm_term_elements = {
+            fm_terms = {
                 tiv_tgid: {
                     term_type: (
-                        gcep[1][tiv_tgid][term_type]['ProfileElementName'].lower() if gcep[1][tiv_tgid].get(term_type) else None
+                        ufcp[1][tiv_tgid][term_type]['ProfileElementName'].lower() if ufcp[1][tiv_tgid].get(term_type) else None
                     ) for term_type in ('deductible', 'deductiblemin', 'deductiblemax', 'limit', 'share',)
-                } for tiv_tgid in gcep[1]
+                } for tiv_tgid in ufcp[1]
             }
 
             item_id = 0
             zero_tiv_items = 0
-            positive_tiv_elements = lambda it: [t for t in tiv_elements if it.get(t['ProfileElementName'].lower()) and it[t['ProfileElementName'].lower()] > 0 and t['CoverageTypeID'] == it['coveragetypeid']] or [0]
+            positive_tiv_elements = lambda it: [t for t in tiv_terms if it.get(t['ProfileElementName'].lower()) and it[t['ProfileElementName'].lower()] > 0 and t['CoverageTypeID'] == it['coveragetypeid']] or [0]
             
             for it, ptiv in itertools.chain((it, ptiv) for _, it in merged_df.iterrows() for it, ptiv in itertools.product([it],positive_tiv_elements(it))):
                 if ptiv == 0:
@@ -839,11 +839,11 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                     'tiv_elm': tiv_elm,
                     'tiv': tiv,
                     'tiv_tgid': tiv_tgid,
-                    'ded_elm': fm_term_elements[tiv_tgid].get('deductible'),
-                    'ded_min_elm': fm_term_elements[tiv_tgid].get('deductiblemin'),
-                    'ded_max_elm': fm_term_elements[tiv_tgid].get('deductiblemax'),
-                    'lim_elm': fm_term_elements[tiv_tgid].get('limit'),
-                    'shr_elm': fm_term_elements[tiv_tgid].get('share'),
+                    'ded_elm': fm_terms[tiv_tgid].get('deductible'),
+                    'ded_min_elm': fm_terms[tiv_tgid].get('deductiblemin'),
+                    'ded_max_elm': fm_terms[tiv_tgid].get('deductiblemax'),
+                    'lim_elm': fm_terms[tiv_tgid].get('limit'),
+                    'shr_elm': fm_terms[tiv_tgid].get('share'),
                     'areaperil_id': it['areaperilid'],
                     'vulnerability_id': it['vulnerabilityid'],
                     'group_id': it['row_id'],
@@ -984,6 +984,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             for i, (level_id, item_id, it) in enumerate(itertools.chain((level_id, k, v) for level_id in fm_levels[1:] for k, v in preset_items[level_id].items())):
                 it['level_id'] = level_id
                 it['item_id'] = num_cov_items + i + 1
+                it['ded_elm'] = it['ded_min_elm'] = it['ded_max_elm'] = it['lim_elm'] = it['shr_elm'] = None
 
             num_sub_layer_level_items = sum(len(preset_items[level_id]) for level_id in fm_levels[:-1])
             layer_level = max(fm_levels)
