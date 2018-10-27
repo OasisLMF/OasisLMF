@@ -1092,10 +1092,11 @@ class OasisExposuresManagerLoadGulItems(TestCase):
         keys
     ):
         profile = copy.deepcopy(self.profile)
-        gcep = unified_canonical_fm_profile_by_level_and_term_group(profiles=(profile,))
+        ufcp = unified_canonical_fm_profile_by_level_and_term_group(profiles=(profile,))
 
         for k in keys:
             k['id'] += 5
+            k['locid'] = k['id']
 
         with NamedTemporaryFile('w') as exposures_file, NamedTemporaryFile('w') as keys_file:
             write_canonical_files(exposures, exposures_file.name)
@@ -1115,15 +1116,16 @@ class OasisExposuresManagerLoadGulItems(TestCase):
             else None
         )
 
-        tiv_elements = tuple(t for t in [gcep[1][gid].get('tiv') for gid in gcep[1]] if t)
+        tiv_elements = (ufcp[1][1]['tiv'],)
 
-        fm_term_elements = {
-            tiv_tgid: {
-                term_type: (
-                    gcep[1][tiv_tgid][term_type]['ProfileElementName'].lower() if gcep[1][tiv_tgid].get(term_type) else None
-                ) if term_type != 'deductible_type' else gcep[1][tiv_tgid]['deductible']['DeductibleType']if gcep[1][tiv_tgid].get('deductible') else 'B'
-                for term_type in ('limit', 'deductible', 'deductible_type', 'share',)
-            } for tiv_tgid in gcep[1]
+        fm_terms = {
+            1: {
+                'deductible': 'wscv1ded',
+                'deductible_min': None,
+                'deductible_max': None,
+                'limit': 'wscv1limit',
+                'share': None
+            }
         }
 
         for i, gul_it in enumerate(gul_items_df.T.to_dict().values()):
@@ -1143,17 +1145,20 @@ class OasisExposuresManagerLoadGulItems(TestCase):
                 
                 tiv_tgid = t['FMTermGroupID']
                 self.assertEqual(can_it[tiv_elm], gul_it['tiv'])
-                
-                lim_elm = fm_term_elements[tiv_tgid]['limit']
-                self.assertEqual(lim_elm, gul_it['lim_elm'])
-                
-                ded_elm = fm_term_elements[tiv_tgid]['deductible']
+                                
+                ded_elm = fm_terms[tiv_tgid].get('deductible')
                 self.assertEqual(ded_elm, gul_it['ded_elm'])
                 
-                ded_type = fm_term_elements[tiv_tgid]['deductible_type']
-                self.assertEqual(ded_type, gul_it['ded_type'])
-                
-                shr_elm = fm_term_elements[tiv_tgid]['share']
+                ded_min_elm = fm_terms[tiv_tgid].get('deductible_min')
+                self.assertEqual(ded_min_elm, gul_it['ded_min_elm'])
+
+                ded_max_elm = fm_terms[tiv_tgid].get('deductible_max')
+                self.assertEqual(ded_max_elm, gul_it['ded_max_elm'])
+
+                lim_elm = fm_terms[tiv_tgid].get('limit')
+                self.assertEqual(lim_elm, gul_it['lim_elm'])
+
+                shr_elm = fm_terms[tiv_tgid].get('share')
                 self.assertEqual(shr_elm, gul_it['shr_elm'])
 
             self.assertEqual(keys_it['area_peril_id'], gul_it['areaperil_id'])
@@ -1163,7 +1168,7 @@ class OasisExposuresManagerLoadGulItems(TestCase):
 
             self.assertEqual(i + 1, gul_it['coverage_id'])
 
-            self.assertEqual(i + 1, gul_it['group_id'])
+            self.assertEqual(can_it['row_id'], gul_it['group_id'])
 
 
 class OasisExposuresManagerLoadFmItems(TestCase):
