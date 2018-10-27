@@ -790,6 +790,8 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 'FM term definitions for TIV, limit, deductible and/or share.'
             )
 
+        fm_levels = tuple(ufcp.keys())
+
         try:
             oed_acc_col_repl = [{'accnumber': 'accntnum'}]
             for repl in oed_acc_col_repl:
@@ -802,9 +804,11 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 keys_df['locid'] = keys_df['locid'].astype(int)
 
             merged_df = pd.merge(canexp_df, keys_df, left_on='row_id', right_on='locid').drop_duplicates()
-            merged_df['index'] = pd.Series(data=list(merged_df.index), dtype=object)
+            merged_df['index'] = pd.Series(data=range(len(merged_df)), dtype=object)
 
-            tiv_terms = tuple(t for t in [ufcp[1][gid].get('tiv') for gid in ufcp[1]] if t)
+            cov_level_id = fm_levels[0]
+
+            tiv_terms = tuple(t for t in [ufcp[cov_level_id][gid].get('tiv') for gid in ufcp[cov_level_id]] if t)
 
             if not tiv_terms:
                 raise OasisException('No TIV elements found in the canonical exposures profile - please check the canonical exposures (loc) profile')
@@ -812,9 +816,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             fm_terms = {
                 tiv_tgid: {
                     term_type: (
-                        ufcp[1][tiv_tgid][term_type]['ProfileElementName'].lower() if ufcp[1][tiv_tgid].get(term_type) else None
+                        ufcp[cov_level_id][tiv_tgid][term_type]['ProfileElementName'].lower() if ufcp[cov_level_id][tiv_tgid].get(term_type) else None
                     ) for term_type in ('deductible', 'deductiblemin', 'deductiblemax', 'limit', 'share',)
-                } for tiv_tgid in ufcp[1]
+                } for tiv_tgid in ufcp[cov_level_id]
             }
 
             item_id = 0
@@ -855,7 +859,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             raise OasisException(e)
         else:
             if zero_tiv_items == len(merged_df):
-                raise OasisException('All canonical exposure items have zero TIVs - please check the canonical exposures (loc) file')
+                raise OasisException('All canonical exposure items have zero TIVs - please check the canonical exposures (loc.) file')
 
     def generate_fm_items(
         self,
@@ -938,7 +942,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                     'FM aggregation profile is empty - this is required to perform aggregation'
                 )
 
-            fm_levels = tuple(sorted(ufcp.keys()))
+            fm_levels = tuple(ufcp.keys())
 
             cov_level_id = fm_levels[0]
 
@@ -1064,9 +1068,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             gul_items_df = pd.DataFrame(data=[it for it in self.generate_gul_items(cep, canexp_df, keys_df)], dtype=object)
             gul_items_df['index'] = pd.Series(data=gul_items_df.index, dtype=int)
 
-            columns = list(gul_items_df.columns)
-
-            for col in columns:
+            for col in gul_items_df.columns:
                 if col.endswith('id'):
                     gul_items_df[col] = gul_items_df[col].astype(int)
                 elif col == 'tiv':
@@ -1158,8 +1160,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             get_policytc_id = lambda i: [k for k in six.iterkeys(policytc_ids) if policytc_ids[k] == {k:fm_items_df.iloc[i][k] for k in ('limit', 'deductible', 'attachment', 'deductible_min', 'deductible_max', 'share', 'calcrule_id',)}][0]
             fm_items_df['policytc_id'] = fm_items_df['index'].apply(lambda i: get_policytc_id(i))
 
-            columns = list(fm_items_df.columns)
-            for col in columns:
+            for col in fm_items_df.columns:
                 if col.endswith('id'):
                     fm_items_df[col] = fm_items_df[col].astype(int)
                 elif col in ('tiv', 'limit', 'deductible', 'deductible_min', 'deductible_max', 'share',):
