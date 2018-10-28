@@ -1084,16 +1084,13 @@ class OasisExposuresManagerLoadGulItems(TestCase):
             size=10
         )
     )
-    def test_test_gul_items_generation_with_only_buildings_coverage_type_in_exposure_and_model_lookup_supporting_single_peril_and_buildings_coverage_type__at_least_some_canonical_items_have_matching_keys_items_and_at_least_one_positive_tiv_and_gul_items_are_generated(
+    def test_only_buildings_coverage_type_in_exposure_and_model_lookup_supporting_single_peril_and_buildings_coverage_type__gul_items_are_generated(
         self,
         exposures,
         keys
     ):
         profile = copy.deepcopy(self.profile)
         ufcp = unified_canonical_fm_profile_by_level_and_term_group(profiles=(profile,))
-
-        for k in keys:
-            k['id'] += 5
 
         with NamedTemporaryFile('w') as exposures_file, NamedTemporaryFile('w') as keys_file:
             write_canonical_files(exposures, exposures_file.name)
@@ -1184,7 +1181,7 @@ class OasisExposuresManagerLoadGulItems(TestCase):
             size=8
         )
     )
-    def test_gul_items_generation_with_multiple_coverage_types_in_exposure_and_model_lookup_supporting_multiple_perils_but_only_buildings_and_other_structures_coverage_types__at_least_some_canonical_items_have_matching_keys_items_and_at_least_one_positive_tiv_and_gul_items_are_generated(
+    def test_all_coverage_types_in_exposure_and_model_lookup_supporting_multiple_perils_but_only_buildings_and_other_structures_coverage_types__gul_items_are_generated(
         self,
         exposures,
         keys
@@ -1201,19 +1198,6 @@ class OasisExposuresManagerLoadGulItems(TestCase):
         keys[4]['id'] = keys[5]['id'] = keys[6]['id'] = keys[7]['id'] = 2
         keys[6]['peril_id'] = keys[7]['peril_id'] = OASIS_PERILS['quake']['id']
         keys[5]['coverage_type'] = keys[7]['coverage_type'] = OASIS_COVERAGE_TYPES['other']['id']
-
-        """
-        Idx   Loc.   Peril      Cov. Type    Area Peril  Vuln.
-        =========================================================
-        0     1      1          1            A(1,1,1)    V(1,1,1)
-        1     1      1          2            A(1,1,2)    V(1,1,2)
-        2     1      3          1            A(1,3,1)    V(1,3,1)
-        3     1      3          2            A(1,3,2)    V(1,3,2)
-        4     2      1          1            A(2,1,1)    V(2,1,1)
-        5     2      1          2            A(2,1,2)    V(2,1,2)
-        6     2      3          1            A(2,3,1)    V(2,3,1)
-        7     2      3          2            A(2,3,2)    V(2,3,2)
-        """
 
         with NamedTemporaryFile('w') as exposures_file, NamedTemporaryFile('w') as keys_file:
             write_canonical_files(exposures, exposures_file.name)
