@@ -741,6 +741,7 @@ def canonical_accounts_data(
     from_account_limits=floats(min_value=0.0, max_value=10**6),
     from_layer_deductibles=floats(min_value=0.0, max_value=10**6),
     from_layer_limits=floats(min_value=0.0, max_value=10**6),
+    from_layer_shares=floats(min_value=0.0, max_value=10**6),
     size=None,
     min_size=0,
     max_size=10

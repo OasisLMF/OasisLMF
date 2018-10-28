@@ -110,7 +110,7 @@ def get_layer_level_fm_terms(level_unified_canonical_profile, level_fm_agg_profi
         it['shr_elm'] = shr_elm
         it['share'] = can_item.get(shr_elm) or 0.0
 
-        it['calcrule_id'] = get_layer_calcrule_id(it['deductible'], it['limit'], it['share'])
+        it['calcrule_id'] = get_layer_calcrule_id(it['attachment'], it['limit'], it['share'])
 
         yield it
 
