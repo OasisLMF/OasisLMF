@@ -732,15 +732,15 @@ oasis_tiv_elements = tuple(v['ProfileElementName'].lower() for v in canonical_ex
 oed_tiv_elements = tuple(v['ProfileElementName'].lower() for v in canonical_oed_exposures_profile.values() if v.get('FMTermType') and v.get('FMTermType').lower() == 'tiv')
 
 def canonical_accounts_data(
-    from_accounts_nums=integers(min_value=1, max_value=10**5),
+    from_account_nums=integers(min_value=1, max_value=10**5),
     from_policy_nums=text(alphabet=string.ascii_letters, min_size=2, max_size=10),
     from_policy_types=integers(min_value=1, max_value=10),
-    from_attachment_points=floats(min_value=0.0, max_value=10**6),
+    from_account_deductibles=floats(min_value=0.0, max_value=10**6),
+    from_account_min_deductibles=floats(min_value=0.0, max_value=10**6),
+    from_account_max_deductibles=floats(min_value=0.0, max_value=10**6),
+    from_account_limits=floats(min_value=0.0, max_value=10**6),
+    from_layer_deductibles=floats(min_value=0.0, max_value=10**6),
     from_layer_limits=floats(min_value=0.0, max_value=10**6),
-    from_blanket_limits=floats(min_value=0.0, max_value=10**6),
-    from_blanket_deductibles=floats(min_value=0.0, max_value=10**6),
-    from_blanket_min_deductibles=floats(min_value=0.0, max_value=10**6),
-    from_blanket_max_deductibles=floats(min_value=0.0, max_value=10**6),
     size=None,
     min_size=0,
     max_size=10
@@ -754,15 +754,15 @@ def canonical_accounts_data(
     return lists(
         fixed_dictionaries(
             {
-                'accntnum': from_accounts_nums,
+                'accntnum': from_account_nums,
                 'policynum': from_policy_nums,
                 'policytype': from_policy_types,
-                'undcovamt': from_attachment_points,
+                'undcovamt': from_layer_deductibles,
                 'partof': from_layer_limits,
-                'blandedamt': from_blanket_deductibles,
-                'mindedamt': from_blanket_min_deductibles,
-                'maxdedamt': from_blanket_max_deductibles,
-                'blanlimamt': from_blanket_limits
+                'blandedamt': from_account_deductibles,
+                'mindedamt': from_account_min_deductibles,
+                'maxdedamt': from_account_max_deductibles,
+                'blanlimamt': from_account_limits
             }
         ),
         min_size=(size if size is not None else min_size),
@@ -776,9 +776,9 @@ def canonical_oed_accounts_data(
     from_policy_perils=sampled_from(oed_peril_ids),
     from_sublimit_deductibles=floats(min_value=0.0, max_value=10**6),
     from_sublimit_limits=floats(min_value=0.0, max_value=10**6),
-    from_account_blanket_deductibles=floats(min_value=0.0, max_value=10**6),
-    from_account_blanket_min_deductibles=floats(min_value=0.0, max_value=10**6),
-    from_account_blanket_max_deductibles=floats(min_value=0.0, max_value=10**6),
+    from_account_deductibles=floats(min_value=0.0, max_value=10**6),
+    from_account_min_deductibles=floats(min_value=0.0, max_value=10**6),
+    from_account_max_deductibles=floats(min_value=0.0, max_value=10**6),
     from_layer_deductibles=floats(min_value=0.0, max_value=10**6),
     from_layer_limits=floats(min_value=0.0, max_value=10**6),
     from_layer_shares=floats(min_value=0.0, max_value=10**6),
@@ -801,9 +801,9 @@ def canonical_oed_accounts_data(
                 'polperil': from_policy_perils,
                 'condded6all': from_sublimit_deductibles,
                 'condlimit6all': from_sublimit_limits,
-                'polded6all': from_account_blanket_deductibles,
-                'polminded6all': from_account_blanket_min_deductibles,
-                'polmaxded6all': from_account_blanket_max_deductibles,
+                'polded6all': from_account_deductibles,
+                'polminded6all': from_account_min_deductibles,
+                'polmaxded6all': from_account_max_deductibles,
                 'layerattachment': from_layer_deductibles,
                 'layerlimit': from_layer_limits,
                 'layerparticipation': from_layer_shares
@@ -814,7 +814,7 @@ def canonical_oed_accounts_data(
     ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
 
 def canonical_exposures_data(
-    from_accounts_nums=integers(min_value=1, max_value=10**6),
+    from_account_nums=integers(min_value=1, max_value=10**6),
     from_building_classes=integers(min_value=1, max_value=3),
     from_building_schemes=text(alphabet=string.ascii_letters, min_size=1, max_size=3),
     from_cities=text(alphabet=string.ascii_letters, min_size=2, max_size=20),
@@ -856,7 +856,7 @@ def canonical_exposures_data(
     return lists(
         fixed_dictionaries(
             {
-                'accntnum': from_accounts_nums,
+                'accntnum': from_account_nums,
                 'bldgclass': from_building_classes,
                 'bldgscheme': from_building_schemes,
                 'city': from_cities,
@@ -960,6 +960,7 @@ def fm_items_data(
     from_canexp_ids=integers(min_value=0, max_value=9),
     from_canacc_ids=integers(min_value=0, max_value=9),
     from_policy_nums=text(alphabet=string.ascii_letters, min_size=2, max_size=10),
+    from_peril_ids=just(OASIS_PERILS['wind']['id']),
     from_coverage_type_ids=sampled_from(coverage_type_ids),
     from_coverage_ids=integers(min_value=0, max_value=9),
     from_level_ids=integers(min_value=1, max_value=10),
@@ -977,7 +978,6 @@ def fm_items_data(
     from_limits=floats(min_value=0.0, allow_infinity=False),
     from_share_elements=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
     from_shares=floats(min_value=0.0, allow_infinity=False),
-    from_deductible_types=sampled_from(deductible_types),
     from_calcrule_ids=sampled_from(calcrule_ids),
     from_tiv_elements=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
     from_tiv_tgids=integers(min_value=1, max_value=10),
@@ -1008,6 +1008,7 @@ def fm_items_data(
                 'canexp_id': from_canexp_ids,
                 'canacc_id': from_canacc_ids,
                 'policy_num': from_policy_nums,
+                'peril_id': from_peril_ids,
                 'coverage_type_id': from_coverage_type_ids,
                 'level_id': from_level_ids,
                 'layer_id': from_layer_ids,
@@ -1036,6 +1037,7 @@ def fm_items_data(
 
 def gul_items_data(
     from_canexp_ids=integers(min_value=0, max_value=9),
+    from_peril_ids=just(OASIS_PERILS['wind']['id']),
     from_coverage_type_ids=sampled_from(coverage_type_ids),
     from_coverage_ids=integers(min_value=0, max_value=9),
     from_tiv_elements=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
@@ -1075,6 +1077,7 @@ def gul_items_data(
         fixed_dictionaries(
             {
                 'canexp_id': from_canexp_ids,
+                'peril_id': from_peril_ids,
                 'coverage_type_id': from_coverage_type_ids,
                 'tiv_elm': from_tiv_elements,
                 'tiv_tgid': from_tiv_tgids,

@@ -787,21 +787,25 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         if not ufcp:
             raise OasisException(
                 'Canonical loc. profile is possibly missing FM term information: '
-                'FM term definitions for TIV, limit, deductible and/or share.'
+                'FM term definitions for TIV, limit, deductible, attachment and/or share.'
             )
 
         fm_levels = tuple(ufcp.keys())
 
         try:
-            oed_acc_col_repl = [{'accnumber': 'accntnum'}]
-            for repl in oed_acc_col_repl:
-                    canexp_df.rename(columns=repl, inplace=True)
+            for df in [canexp_df, keys_df]:
+                if not df.columns.contains('index'):
+                    df['index'] = pd.Series(data=range(len(df)))
 
             if not str(canexp_df['row_id'].dtype).startswith('int'):
                 canexp_df['row_id'] = canexp_df['row_id'].astype(int)
 
             if not str(keys_df['locid'].dtype).startswith('int'):
                 keys_df['locid'] = keys_df['locid'].astype(int)
+
+            oed_acc_col_repl = [{'accnumber': 'accntnum'}]
+            for repl in oed_acc_col_repl:
+                    canexp_df.rename(columns=repl, inplace=True)
 
             merged_df = pd.merge(canexp_df, keys_df, left_on='row_id', right_on='locid').drop_duplicates()
             merged_df['index'] = pd.Series(data=range(len(merged_df)), dtype=object)
@@ -890,12 +894,6 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         :param fm_agg_profile: FM aggregation profile
         :param fm_agg_profile: dict
-
-        :param preset_only: Whether to generate only FM items with only preset
-                            data excluding FM terms (limit, deductible, share, 
-                            deductible type, calcrule ID, policy TC ID). By
-                            default is ``False``
-        :param preset_only: bool
         """
         cep = canonical_exposures_profile
         cap = canonical_accounts_profile
@@ -904,21 +902,19 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         canacc_df = canonical_accounts_df
 
+        for df in [canexp_df, gul_items_df, canacc_df]:
+            if not df.columns.contains('index'):
+                df['index'] = pd.Series(data=range(len(df)))
+
         oed_acc_col_repl = [{'accnumber': 'accntnum'}, {'polnumber': 'policynum'}]
         for repl in oed_acc_col_repl:
                 canacc_df.rename(columns=repl, inplace=True)
 
-        if not str(canexp_df['index'].dtype).startswith('int'):
-            canexp_df['index'] = canexp_df['index'].astype(int)
-
-        if not str(gul_items_df['canexp_id'].dtype).startswith('int'):
-            gul_items_df['canexp_id'] = gul_items_df['canexp_id'].astype(int)
-
         cangul_df = pd.merge(canexp_df, gul_items_df, left_on='index', right_on='canexp_id')
-        cangul_df['index'] = pd.Series(data=cangul_df.index, dtype=int)
+        cangul_df['index'] = pd.Series(data=cangul_df.index)
 
         keys = (
-            'item_id', 'gul_item_id', 'coverage_type_id', 'coverage_id',
+            'item_id', 'gul_item_id', 'peril_id', 'coverage_type_id', 'coverage_id',
             'canexp_id', 'canacc_id', 'policy_num', 'level_id', 'layer_id',
             'agg_id', 'policytc_id', 'deductible', 'deductible_min',
             'deductible_max', 'attachment', 'limit', 'share', 'calcrule_id', 'tiv_elm',
@@ -949,25 +945,26 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             coverage_level_preset_data = list(zip(
                 tuple(cangul_df.item_id.values),          # 1 - FM item ID
                 tuple(cangul_df.item_id.values),          # 2 - GUL item ID
-                tuple(cangul_df.coverage_type_id.values), # 3 - coverage type ID
-                tuple(cangul_df.coverage_id.values),      # 4 - coverage ID
-                tuple(cangul_df.canexp_id.values),        # 5 - can. exp. DF index
-                (-1,)*len(cangul_df),                     # 6 - can. acc. DF index
-                (-1,)*len(cangul_df),                     # 7 - can. acc. policy num.
-                (cov_level_id,)*len(cangul_df),           # 8 - coverage level ID
-                (1,)*len(cangul_df),                      # 9 - layer ID
-                (-1,)*len(cangul_df),                     # 10 - agg. ID
-                tuple(cangul_df.tiv_elm.values),          # 11 - TIV element
-                tuple(cangul_df.tiv.values),              # 12 -TIV value
-                tuple(cangul_df.tiv_tgid.values),         # 13 -TIV element profile term group ID
-                tuple(cangul_df.ded_elm.values),          # 14 -deductible element
-                tuple(cangul_df.ded_min_elm.values),      # 15 -deductible min. element
-                tuple(cangul_df.ded_max_elm.values),      # 16 -deductible max. element
-                tuple(cangul_df.lim_elm.values),          # 17 -limit element
-                tuple(cangul_df.shr_elm.values)           # 18 -share element
+                tuple(cangul_df.peril_id.values),         # 3 - peril ID
+                tuple(cangul_df.coverage_type_id.values), # 4 - coverage type ID
+                tuple(cangul_df.coverage_id.values),      # 5 - coverage ID
+                tuple(cangul_df.canexp_id.values),        # 6 - can. exp. DF index
+                (-1,)*len(cangul_df),                     # 7 - can. acc. DF index
+                (-1,)*len(cangul_df),                     # 8 - can. acc. policy num.
+                (cov_level_id,)*len(cangul_df),           # 9 - coverage level ID
+                (1,)*len(cangul_df),                      # 10 - layer ID
+                (-1,)*len(cangul_df),                     # 11 - agg. ID
+                tuple(cangul_df.tiv_elm.values),          # 12 - TIV element
+                tuple(cangul_df.tiv.values),              # 13 -TIV value
+                tuple(cangul_df.tiv_tgid.values),         # 14 -TIV element profile term group ID
+                tuple(cangul_df.ded_elm.values),          # 15 -deductible element
+                tuple(cangul_df.ded_min_elm.values),      # 16 -deductible min. element
+                tuple(cangul_df.ded_max_elm.values),      # 17 -deductible max. element
+                tuple(cangul_df.lim_elm.values),          # 18 -limit element
+                tuple(cangul_df.shr_elm.values)           # 19 -share element
             ))
 
-            get_canacc_item = lambda i: canacc_df[(canacc_df['accntnum'] == cangul_df[cangul_df['canexp_id']==coverage_level_preset_data[i][4]].iloc[0]['accntnum'])].iloc[0]
+            get_canacc_item = lambda i: canacc_df[(canacc_df['accntnum'] == cangul_df[cangul_df['canexp_id']==coverage_level_preset_data[i][5]].iloc[0]['accntnum'])].iloc[0]
 
             get_canacc_id = lambda i: int(get_canacc_item(i)['index'])
 
@@ -975,9 +972,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 i: {
                     k:v for k, v in zip(
                         keys,
-                        [i + 1, gul_item_id, coverage_type_id, coverage_id, canexp_id, get_canacc_id(i), policy_num, level_id, layer_id, agg_id, -1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 12, tiv_elm, tiv, tiv_tgid, ded_elm, ded_min_elm, ded_max_elm, lim_elm, shr_elm]
+                        [i + 1, gul_item_id, peril_id, coverage_type_id, coverage_id, canexp_id, get_canacc_id(i), policy_num, level_id, layer_id, agg_id, -1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 12, tiv_elm, tiv, tiv_tgid, ded_elm, ded_min_elm, ded_max_elm, lim_elm, shr_elm]
                     )
-                } for i, (item_id, gul_item_id, coverage_type_id, coverage_id, canexp_id, _, policy_num, level_id, layer_id, agg_id, tiv_elm, tiv, tiv_tgid, ded_elm, ded_min_elm, ded_max_elm, lim_elm, shr_elm) in enumerate(coverage_level_preset_data)
+                } for i, (item_id, gul_item_id, peril_id, coverage_type_id, coverage_id, canexp_id, _, policy_num, level_id, layer_id, agg_id, tiv_elm, tiv, tiv_tgid, ded_elm, ded_min_elm, ded_max_elm, lim_elm, shr_elm) in enumerate(coverage_level_preset_data)
             }
 
             num_cov_items = len(coverage_level_preset_items)

@@ -5,6 +5,7 @@ import io
 import itertools
 import json
 import os
+import shutil
 import string
 
 from collections import OrderedDict
@@ -71,7 +72,7 @@ from ..data import (
 )
 
 
-class OasisExposuresManagerAddModel(TestCase):
+class AddModel(TestCase):
 
     def test_models_is_empty___model_is_added_to_model_dict(self):
         model = fake_model('supplier', 'model', 'version')
@@ -103,7 +104,7 @@ class OasisExposuresManagerAddModel(TestCase):
         }, manager.models)
 
 
-class OasisExposuresManagerDeleteModels(TestCase):
+class DeleteModels(TestCase):
     def test_models_is_not_in_manager___no_model_is_removed(self):
         manager = OasisExposuresManager([
             fake_model('supplier', 'model', 'version'),
@@ -128,7 +129,7 @@ class OasisExposuresManagerDeleteModels(TestCase):
         self.assertEqual({models[0].key: models[0]}, manager.models)
 
 
-class OasisExposuresManagerLoadCanonicalExposuresProfile(TestCase):
+class LoadCanonicalExposuresProfile(TestCase):
     def test_model_and_kwargs_are_not_set___result_is_null(self):
         profile = OasisExposuresManager().load_canonical_exposures_profile()
 
@@ -190,7 +191,7 @@ class OasisExposuresManagerLoadCanonicalExposuresProfile(TestCase):
             self.assertEqual(kwargs_profile, model.resources['canonical_exposures_profile'])
 
 
-class OasisExposuresManagerCreateModel(TestCase):
+class CreateModel(TestCase):
 
     def create_model(
         self,
@@ -361,7 +362,7 @@ class OasisExposuresManagerCreateModel(TestCase):
         self.assertEqual(resources['canonical_exposures_profile'], model.resources['canonical_exposures_profile'])
 
         expected_oasis_files_path = os.path.abspath(os.path.join('Files', expected_key.replace('/', '-')))
-        self.assertEquals(expected_oasis_files_path, model.resources['oasis_files_path'])
+        self.assertEqual(expected_oasis_files_path, model.resources['oasis_files_path'])
 
         self.assertTrue(isinstance(model.resources['oasis_files_pipeline'], OasisFilesPipeline))
 
@@ -452,11 +453,11 @@ class OasisExposuresManagerCreateModel(TestCase):
         self.assertEqual(expected_key, model.key)
 
         expected_oasis_files_path = os.path.abspath(os.path.join('Files', expected_key.replace('/', '-')))
-        self.assertEquals(expected_oasis_files_path, model.resources['oasis_files_path'])
+        self.assertEqual(expected_oasis_files_path, model.resources['oasis_files_path'])
 
         self.assertTrue(isinstance(model.resources['oasis_files_pipeline'], OasisFilesPipeline))
 
-        self.assertEquals(resources['source_accounts_file_path'], model.resources['source_accounts_file_path'])
+        self.assertEqual(resources['source_accounts_file_path'], model.resources['source_accounts_file_path'])
 
         self.assertIsNone(model.resources.get('canonical_exposures_profile'))
         self.assertIsNone(model.resources.get('canonical_accounts_profile'))
@@ -487,7 +488,7 @@ class OasisExposuresManagerCreateModel(TestCase):
         self.assertEqual(expected_key, model.key)
 
         expected_oasis_files_path = os.path.abspath(os.path.join('Files', expected_key.replace('/', '-')))
-        self.assertEquals(expected_oasis_files_path, model.resources['oasis_files_path'])
+        self.assertEqual(expected_oasis_files_path, model.resources['oasis_files_path'])
 
         self.assertTrue(isinstance(model.resources['oasis_files_pipeline'], OasisFilesPipeline))
 
@@ -529,7 +530,7 @@ class OasisExposuresManagerCreateModel(TestCase):
         self.assertEqual(expected_key, model.key)
 
         expected_oasis_files_path = os.path.abspath(os.path.join('Files', expected_key.replace('/', '-')))
-        self.assertEquals(expected_oasis_files_path, model.resources['oasis_files_path'])
+        self.assertEqual(expected_oasis_files_path, model.resources['oasis_files_path'])
 
         self.assertTrue(isinstance(model.resources['oasis_files_pipeline'], OasisFilesPipeline))
 
@@ -573,7 +574,7 @@ class OasisExposuresManagerCreateModel(TestCase):
 
         self.assertEqual(expected_key, model.key)
 
-        self.assertEquals(resources['oasis_files_path'], model.resources['oasis_files_path'])
+        self.assertEqual(resources['oasis_files_path'], model.resources['oasis_files_path'])
 
         self.assertTrue(isinstance(model.resources['oasis_files_pipeline'], OasisFilesPipeline))
 
@@ -584,7 +585,7 @@ class OasisExposuresManagerCreateModel(TestCase):
         self.assertEqual(resources['canonical_accounts_profile'], model.resources['canonical_accounts_profile'])
 
 
-class OasisExposuresManagerLoadCanonicalAccountsProfile(TestCase):
+class LoadCanonicalAccountsProfile(TestCase):
     def test_model_and_kwargs_are_not_set___result_is_null(self):
         profile = OasisExposuresManager().load_canonical_accounts_profile()
 
@@ -645,7 +646,7 @@ class OasisExposuresManagerLoadCanonicalAccountsProfile(TestCase):
             self.assertEqual(kwargs_profile, model.resources['canonical_accounts_profile'])
 
 
-class OasisExposuresManagerLoadFmAggregationProfile(TestCase):
+class LoadFmAggregationProfile(TestCase):
 
     def setUp(self):
         self.profile = oasis_fm_agg_profile
@@ -706,7 +707,7 @@ class OasisExposuresManagerLoadFmAggregationProfile(TestCase):
             self.assertEqual(self.profile, model.resources['fm_agg_profile'])
 
 
-class OasisExposuresManagerTransformSourceToCanonical(TestCase):
+class TransformSourceToCanonical(TestCase):
 
     @given(
         source_exposures_file_path=text(),
@@ -776,7 +777,7 @@ class OasisExposuresManagerTransformSourceToCanonical(TestCase):
             trans_call_mock.assert_called_once_with()
 
 
-class OasisExposuresManagerTransformCanonicalToModel(TestCase):
+class TransformCanonicalToModel(TestCase):
     @given(
         canonical_exposures_file_path=text(),
         canonical_exposures_validation_file_path=text(),
@@ -845,7 +846,7 @@ class OasisExposuresManagerTransformCanonicalToModel(TestCase):
             trans_call_mock.assert_called_once_with()
 
 
-class OasisExposuresManagerGetKeys(TestCase):
+class GetKeys(TestCase):
     def create_model(
         self,
         lookup='lookup',
@@ -932,7 +933,7 @@ class OasisExposuresManagerGetKeys(TestCase):
             self.assertEqual(res_keys_errors_file_path, keys_errors_fp)
 
 
-class OasisExposuresManagerLoadGulItems(TestCase):
+class LoadGulItems(TestCase):
 
     def setUp(self):
         self.profile = copy.deepcopy(canonical_exposures_profile)
@@ -1069,7 +1070,6 @@ class OasisExposuresManagerLoadGulItems(TestCase):
 
             with self.assertRaises(OasisException):
                 OasisExposuresManager().load_gul_items(profile, exposures_file.name, keys_file.name)
-
 
     @pytest.mark.flaky
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
@@ -1268,7 +1268,7 @@ class OasisExposuresManagerLoadGulItems(TestCase):
             self.assertEqual(can_it['row_id'], gul_it['group_id'])
 
 
-class OasisExposuresManagerLoadFmItems(TestCase):
+class LoadFmItems(TestCase):
 
     def setUp(self):
         self.exposures_profile = copy.deepcopy(canonical_exposures_profile)
@@ -1281,11 +1281,13 @@ class OasisExposuresManagerLoadFmItems(TestCase):
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(size=10),
+        accounts=canonical_accounts_data(size=1),
         guls=gul_items_data(size=10)
     )
     def test_no_fm_terms_in_canonical_profiles__oasis_exception_is_raised(
         self,
         exposures,
+        accounts,
         guls
     ):
         cep = copy.deepcopy(self.exposures_profile)
@@ -1305,7 +1307,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
                     cap[_k].pop(__k)
 
         with NamedTemporaryFile('w') as accounts_file:
-            write_canonical_files(canonical_accounts_file_path=accounts_file.name)
+            write_canonical_files(accounts, accounts_file.name)
 
             with self.assertRaises(OasisException):
                 fm_df, canacc_df = OasisExposuresManager().load_fm_items(
@@ -1371,32 +1373,38 @@ class OasisExposuresManagerLoadFmItems(TestCase):
                     fmap
                 )
 
-
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(
-            from_accounts_nums=just('A1'),
+            from_account_nums=just('A1'),
             from_tivs1=just(100),
             from_tivs2=just(0),
+            from_tivs3=just(0),
+            from_tivs4=just(0),
             from_limits1=just(1),
             from_limits2=just(0),
+            from_limits3=just(0),
+            from_limits4=just(0),
             from_deductibles1=just(1),
             from_deductibles2=just(0),
+            from_deductibles3=just(0),
+            from_deductibles4=just(0),
             size=10
         ),
         accounts=canonical_accounts_data(
-            from_accounts_nums=just('A1'),
-            from_attachment_points=just(1),
-            from_blanket_deductibles=just(1),
-            from_blanket_min_deductibles=just(0),
-            from_blanket_max_deductibles=just(0),
-            from_blanket_limits=just(1),
-            from_layer_limits=just(1),
+            from_account_nums=just('A1'),
             from_policy_nums=just('A1P1'),
             from_policy_types=just(1),
+            from_account_deductibles=just(1),
+            from_account_min_deductibles=just(0),
+            from_account_max_deductibles=just(0),
+            from_account_limits=just(1),
+            from_layer_deductibles=just(1),
+            from_layer_limits=just(1),
             size=1
         ),
         guls=gul_items_data(
+            from_peril_ids=just(OASIS_PERILS['wind']['id']),
             from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
             from_tiv_elements=just('wscv1val'),
             from_tivs=just(100),
@@ -1409,13 +1417,12 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             size=10
         )
     )
-    def test_fm_items_with_single_peril_and_coverage_type_model_and_exposure_with_one_coverage_type_and_limit_and_deductible_and_one_account_and_one_top_level_layer_per_account__all_fm_terms_present(
+    def test_exposure_with_one_coverage_type_and_fm_terms_with_one_account_and_one_top_level_layer_per_account_and_model_lookup_supporting_single_peril_and_coverage_type___all_fm_terms_present(
         self,
         exposures,
         accounts,
         guls
     ):
-
         cep = copy.deepcopy(self.exposures_profile)
         cap = copy.deepcopy(self.accounts_profile)
         fmap = copy.deepcopy(self.fm_agg_profile)
@@ -1438,12 +1445,17 @@ class OasisExposuresManagerLoadFmItems(TestCase):
         with NamedTemporaryFile('w') as accounts_file:
             write_canonical_files(canonical_accounts=accounts, canonical_accounts_file_path=accounts_file.name)
 
+            af_dir = os.path.dirname(accounts_file.name)
+
+            af_copy = os.path.join(af_dir, '{}2'.format(os.path.basename(accounts_file.name)))
+            shutil.copy2(accounts_file.name, af_copy)
+
             fm_items = OasisExposuresManager().load_fm_items(
                 canexp_df,
                 gul_items_df,
                 cep,
                 cap,
-                accounts_file.name,
+                af_copy,
                 fmap,
                 reduced=False
             )[0].T.to_dict().values()
@@ -1451,7 +1463,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
         levels = set(ufcp.keys())
 
         num_expected_fm_items = len(guls) * len(levels)
-        self.assertEquals(len(fm_items), num_expected_fm_items)
+        self.assertEqual(len(fm_items), num_expected_fm_items)
 
         get_can_item = lambda i: {
             k:v for k, v in itertools.chain(
@@ -1463,83 +1475,106 @@ class OasisExposuresManagerLoadFmItems(TestCase):
         get_gul_item = lambda i: guls[i % len(guls)]
 
         for i, (l, it) in enumerate(itertools.chain((l, it) for l in sorted(ufcp.keys()) for l, it in itertools.product([l],(it for it in fm_items if it['level_id'] == l)))):
-            self.assertEquals(it['level_id'], l)
+            self.assertEqual(it['level_id'], l)
 
             gul_it = get_gul_item(i)
 
-            self.assertEquals(it['canexp_id'], gul_it['canexp_id'])
+            self.assertEqual(it['canexp_id'], gul_it['canexp_id'])
 
-            self.assertEquals(it['canacc_id'], 0)
+            self.assertEqual(it['canacc_id'], 0)
 
-            self.assertEquals(it['layer_id'], 1)
+            self.assertEqual(it['peril_id'], OASIS_PERILS['wind']['id'])
 
-            self.assertEquals(it['agg_id'], it['canexp_id'] + 1) if l in [1,2,3] else self.assertEquals(it['agg_id'], 1)
+            self.assertEqual(it['layer_id'], 1)
 
-            self.assertEquals(it['gul_item_id'], gul_it['item_id'])
+            self.assertEqual(it['agg_id'], it['canexp_id'] + 1) if l in [1,2,3] else self.assertEqual(it['agg_id'], 1)
 
-            self.assertEquals(it['tiv_elm'], gul_it['tiv_elm'])
-            self.assertEquals(it['tiv_tgid'], gul_it['tiv_tgid'])
-            self.assertEquals(it['tiv'], gul_it['tiv'])
+            self.assertEqual(it['gul_item_id'], gul_it['item_id'])
 
-            self.assertEquals(it['lim_elm'], gul_it['lim_elm'])
-            self.assertEquals(it['ded_elm'], gul_it['ded_elm'])
-            self.assertEquals(it['ded_min_elm'], gul_it['ded_min_elm'])
-            self.assertEquals(it['ded_max_elm'], gul_it['ded_max_elm'])
-            self.assertEquals(it['shr_elm'], gul_it['shr_elm'])
+            self.assertEqual(it['tiv_elm'], gul_it['tiv_elm'])
+            self.assertEqual(it['tiv_tgid'], gul_it['tiv_tgid'])
+            self.assertEqual(it['tiv'], gul_it['tiv'])
+
+            lim_elm = gul_it['lim_elm'] if l == 1 else (ufcp[l][1]['limit']['ProfileElementName'].lower() if ufcp[l][1].get('limit') else None)
+            self.assertEqual(it['lim_elm'], lim_elm)
+
+            ded_elm = gul_it['ded_elm'] if l == 1 else (ufcp[l][1]['deductible']['ProfileElementName'].lower() if ufcp[l][1].get('deductible') else None)
+            self.assertEqual(it['ded_elm'], ded_elm)
+
+            ded_min_elm = gul_it['ded_min_elm'] if l == 1 else (ufcp[l][1]['deductiblemin']['ProfileElementName'].lower() if ufcp[l][1].get('deductiblemin') else None)
+            self.assertEqual(it['ded_min_elm'], ded_min_elm)
+
+            ded_max_elm = gul_it['ded_max_elm'] if l == 1 else (ufcp[l][1]['deductiblemax']['ProfileElementName'].lower() if ufcp[l][1].get('deductiblemax') else None)
+            self.assertEqual(it['ded_max_elm'], ded_max_elm)
+
+            shr_elm = gul_it['shr_elm'] if l == 1 else (ufcp[l][1]['share']['ProfileElementName'].lower() if ufcp[l][1].get('share') else None)
+            self.assertEqual(it['shr_elm'], shr_elm)
 
             can_it = get_can_item(i)
 
-            lim = can_it.get(gul_it['lim_elm'] if l == 1 else (ufcp[l][1]['limit']['ProfileElementName'].lower() if ufcp[l][1].get('limit') else None)) or 0.0
-            self.assertEquals(it['limit'], lim)
-            
-            ded = can_it.get(gul_it['ded_elm']  if l == 1 else (ufcp[l][1]['deductible']['ProfileElementName'].lower() if ufcp[l][1].get('deductible') else None)) or 0.0
-            self.assertEquals(it['deductible'], ded)
+            ded = can_it.get(ded_elm) or 0.0
+            self.assertEqual(it['deductible'], ded)
 
-            ded_min = can_it.get(gul_it['ded_min_elm']  if l == 1 else (ufcp[l][1]['deductible']['ProfileElementName'].lower() if ufcp[l][1].get('deductible') else None)) or 0.0
-            self.assertEquals(it['deductible'], ded)
-            
-            ded_type = gul_it['ded_type'] if l == 1 else (ufcp[l][1]['deductible']['DeductibleType'] if ufcp[l][1].get('deductible') else 'B')
-            self.assertEquals(it['deductible_type'], ded_type)
-            
-            shr = can_it.get(gul_it['shr_elm']  if l == 1 else (ufcp[l][1]['share']['ProfileElementName'].lower() if ufcp[l][1].get('share') else None)) or 0.0
-            self.assertEquals(it['share'], shr)
+            ded_min = can_it.get(ded_min_elm) or 0.0
+            self.assertEqual(it['deductible_min'], ded_min)
+
+            ded_max = can_it.get(ded_max_elm) or 0.0
+            self.assertEqual(it['deductible_max'], ded_max)
+
+            if l == max(levels):
+                self.assertIsNotNone(it.get('attachment')) and self.assertEqual(it['deductible'], it['attachment'])
+
+            lim = can_it.get(lim_elm) or 0.0
+            self.assertEqual(it['limit'], lim)
+
+            shr = can_it.get(shr_elm) or 0.0
+            self.assertEqual(it['share'], shr)
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(
-            from_accounts_nums=just('A1'),
+            from_account_nums=just('A1'),
             from_tivs1=just(100),
             from_tivs2=just(0),
+            from_tivs3=just(0),
+            from_tivs4=just(0),
             from_limits1=just(1),
             from_limits2=just(0),
+            from_limits3=just(0),
+            from_limits4=just(0),
             from_deductibles1=just(1),
             from_deductibles2=just(0),
+            from_deductibles3=just(0),
+            from_deductibles4=just(0),
             size=10
         ),
         accounts=canonical_accounts_data(
-            from_accounts_nums=just('A1'),
+            from_account_nums=just('A1'),
             from_policy_nums=just('A1P1'),
-            from_attachment_points=just(1),
-            from_blanket_deductibles=just(1),
-            from_blanket_min_deductibles=just(0),
-            from_blanket_max_deductibles=just(0),
-            from_blanket_limits=just(1),
-            from_layer_limits=just(1),
             from_policy_types=just(1),
+            from_layer_deductibles=just(1),
+            from_account_deductibles=just(1),
+            from_account_min_deductibles=just(0),
+            from_account_max_deductibles=just(0),
+            from_account_limits=just(1),
+            from_layer_limits=just(1),
             size=2
         ),
         guls=gul_items_data(
+            from_peril_ids=just(OASIS_PERILS['wind']['id']),
             from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
             from_tiv_elements=just('wscv1val'),
             from_tivs=just(100),
             from_tiv_tgids=just(1),
             from_limit_elements=just('wscv1limit'),
             from_deductible_elements=just('wscv1ded'),
+            from_min_deductible_elements=just(None),
+            from_max_deductible_elements=just(None),
             from_share_elements=just(None),
             size=10
         )
     )
-    def test_fm_items_with_single_peril_and_coverage_type_model_and_exposure_with_one_coverage_type_and_limit_and_deductible_and_one_account_and_two_top_level_layers_per_account__all_fm_terms_present(
+    def test_exposure_with_one_coverage_type_and_fm_terms_with_one_account_and_two_top_level_layers_per_account_and_model_lookup_supporting_single_peril_and_coverage_type___all_fm_terms_present(
         self,
         exposures,
         accounts,
@@ -1554,9 +1589,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
             it['cond1name'] = 0
 
         accounts[1]['policynum'] = 'A1P2'
-
-        for _, gul in enumerate(guls):
-            gul['ded_type'] = ufcp[1][gul['tiv_tgid']]['deductible']['DeductibleType'] if ufcp[1][gul['tiv_tgid']].get('deductible') else 'B'
+        accounts[1]['undcovamt'] = accounts[1]['blanlimamt'] = 2
 
         canexp_df, gul_items_df = (pd.DataFrame(data=its, dtype=object) for its in [exposures, guls])
 
@@ -1572,12 +1605,17 @@ class OasisExposuresManagerLoadFmItems(TestCase):
         with NamedTemporaryFile('w') as accounts_file:
             write_canonical_files(canonical_accounts=accounts, canonical_accounts_file_path=accounts_file.name)
 
+            af_dir = os.path.dirname(accounts_file.name)
+
+            af_copy = os.path.join(af_dir, '{}2'.format(os.path.basename(accounts_file.name)))
+            shutil.copy2(accounts_file.name, af_copy)
+
             fm_items = OasisExposuresManager().load_fm_items(
                 canexp_df,
                 gul_items_df,
                 cep,
                 cap,
-                accounts_file.name,
+                af_copy,
                 fmap,
                 reduced=False
             )[0].T.to_dict().values()
@@ -1586,7 +1624,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
         bottom_levels = levels[:-1]
         num_expected_fm_items = (len(bottom_levels) + 2) * len(guls)
 
-        self.assertEquals(len(fm_items), num_expected_fm_items)
+        self.assertEqual(len(fm_items), num_expected_fm_items)
 
         get_can_item = lambda i, layer_id: {
             k:v for k, v in itertools.chain(
@@ -1598,88 +1636,115 @@ class OasisExposuresManagerLoadFmItems(TestCase):
         get_gul_item = lambda i: guls[(i - 1) % len(guls)]
 
         for i, (l, it) in enumerate(itertools.chain((l, it) for l in sorted(ufcp.keys()) for l, it in itertools.product([l],(it for it in fm_items if it['level_id'] == l)))):
-            self.assertEquals(it['level_id'], l)
+            self.assertEqual(it['level_id'], l)
 
             gul_it = get_gul_item(it['gul_item_id'])
             
-            self.assertEquals(it['canexp_id'], gul_it['canexp_id'])
+            self.assertEqual(it['canexp_id'], gul_it['canexp_id'])
 
             layer_id = 1 if it['policy_num'] == 'A1P1' else 2
-            self.assertEquals(it['layer_id'], layer_id)
+            self.assertEqual(it['layer_id'], layer_id)
 
             can_it = get_can_item(i, layer_id)
 
             if l in [1, 2, 3]:
-                self.assertEquals(it['agg_id'], it['canexp_id'] + 1)
+                self.assertEqual(it['agg_id'], it['canexp_id'] + 1)
             elif l in [4, 5]:
-                self.assertEquals(it['agg_id'], 1)
+                self.assertEqual(it['agg_id'], 1)
             else:
-                self.assertEquals(it['agg_id'], 1) if it['policy_num'] == 'A1P1' else self.assertEquals(it['agg_id'], 2)
+                self.assertEqual(it['agg_id'], 1) if it['policy_num'] == 'A1P1' else self.assertEqual(it['agg_id'], 2)
 
-            self.assertEquals(it['canacc_id'], can_it['canacc_id'])
+            self.assertEqual(it['canacc_id'], can_it['canacc_id'])
 
-            self.assertEquals(it['gul_item_id'], gul_it['item_id'])
+            self.assertEqual(it['gul_item_id'], gul_it['item_id'])
 
-            self.assertEquals(it['tiv_elm'], gul_it['tiv_elm'])
-            self.assertEquals(it['tiv_tgid'], gul_it['tiv_tgid'])
-            self.assertEquals(it['tiv'], gul_it['tiv'])
+            self.assertEqual(it['tiv_elm'], gul_it['tiv_elm'])
+            self.assertEqual(it['tiv_tgid'], gul_it['tiv_tgid'])
+            self.assertEqual(it['tiv'], gul_it['tiv'])
 
-            self.assertEquals(it['lim_elm'], gul_it['lim_elm'])
-            self.assertEquals(it['ded_elm'], gul_it['ded_elm'])
-            self.assertEquals(it['shr_elm'], gul_it['shr_elm'])
+            lim_elm = gul_it['lim_elm'] if l == 1 else (ufcp[l][1]['limit']['ProfileElementName'].lower() if ufcp[l][1].get('limit') else None)
+            self.assertEqual(it['lim_elm'], lim_elm)
 
-            lim = can_it.get(gul_it['lim_elm'] if l == 1 else (ufcp[l][1]['limit']['ProfileElementName'].lower() if ufcp[l][1].get('limit') else None)) or 0.0
-            self.assertEquals(it['limit'], lim)
-            
-            ded = can_it.get(gul_it['ded_elm']  if l == 1 else (ufcp[l][1]['deductible']['ProfileElementName'].lower() if ufcp[l][1].get('deductible') else None)) or 0.0
-            self.assertEquals(it['deductible'], ded)
-            
-            ded_type = gul_it['ded_type'] if l == 1 else (ufcp[l][1]['deductible']['DeductibleType'] if ufcp[l][1].get('deductible') else 'B')
-            self.assertEquals(it['deductible_type'], ded_type)
-            
-            shr = can_it.get(gul_it['shr_elm']  if l == 1 else (ufcp[l][1]['share']['ProfileElementName'].lower() if ufcp[l][1].get('share') else None)) or 0.0
-            self.assertEquals(it['share'], shr)
+            ded_elm = gul_it['ded_elm'] if l == 1 else (ufcp[l][1]['deductible']['ProfileElementName'].lower() if ufcp[l][1].get('deductible') else None)
+            self.assertEqual(it['ded_elm'], ded_elm)
+
+            ded_min_elm = gul_it['ded_min_elm'] if l == 1 else (ufcp[l][1]['deductiblemin']['ProfileElementName'].lower() if ufcp[l][1].get('deductiblemin') else None)
+            self.assertEqual(it['ded_min_elm'], ded_min_elm)
+
+            ded_max_elm = gul_it['ded_max_elm'] if l == 1 else (ufcp[l][1]['deductiblemax']['ProfileElementName'].lower() if ufcp[l][1].get('deductiblemax') else None)
+            self.assertEqual(it['ded_max_elm'], ded_max_elm)
+
+            shr_elm = gul_it['shr_elm'] if l == 1 else (ufcp[l][1]['share']['ProfileElementName'].lower() if ufcp[l][1].get('share') else None)
+            self.assertEqual(it['shr_elm'], shr_elm)
+
+            ded = can_it.get(ded_elm) or 0.0
+            self.assertEqual(it['deductible'], ded)
+
+            ded_min = can_it.get(ded_min_elm) or 0.0
+            self.assertEqual(it['deductible_min'], ded_min)
+
+            ded_max = can_it.get(ded_max_elm) or 0.0
+            self.assertEqual(it['deductible_max'], ded_max)
+
+            if l == max(levels):
+                self.assertIsNotNone(it.get('attachment')) and self.assertEqual(it['deductible'], it['attachment'])
+
+            lim = can_it.get(lim_elm) or 0.0
+            self.assertEqual(it['limit'], lim)
+
+            shr = can_it.get(shr_elm) or 0.0
+            self.assertEqual(it['share'], shr)
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(
-            from_accounts_nums=just('A1'),
+            from_account_nums=just('A1'),
             from_tivs1=just(100),
             from_tivs2=just(0),
+            from_tivs3=just(0),
+            from_tivs4=just(0),
             from_limits1=just(1),
             from_limits2=just(0),
+            from_limits3=just(0),
+            from_limits4=just(0),
             from_deductibles1=just(1),
             from_deductibles2=just(0),
+            from_deductibles3=just(0),
+            from_deductibles4=just(0),
             size=10
         ),
         accounts=canonical_accounts_data(
-            from_accounts_nums=just('A1'),
+            from_account_nums=just('A1'),
             from_policy_nums=just('A1P1'),
-            from_attachment_points=just(1),
-            from_blanket_deductibles=just(1),
-            from_blanket_limits=just(1),
-            from_layer_limits=just(1),
             from_policy_types=just(1),
+            from_account_deductibles=just(1),
+            from_account_min_deductibles=just(0),
+            from_account_max_deductibles=just(0),
+            from_account_limits=just(1),
+            from_layer_deductibles=just(1),
+            from_layer_limits=just(1),
             size=2
         ),
         guls=gul_items_data(
+            from_peril_ids=just(OASIS_PERILS['wind']['id']),
             from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
             from_tiv_elements=just('wscv1val'),
             from_tivs=just(100),
             from_tiv_tgids=just(1),
             from_limit_elements=just('wscv1limit'),
             from_deductible_elements=just('wscv1ded'),
+            from_min_deductible_elements=just(None),
+            from_max_deductible_elements=just(None),
             from_share_elements=just(None),
             size=10
         )
     )
-    def test_fm_items_with_single_peril_and_coverage_type_model_and_exposure_with_one_coverage_type_and_limit_and_deductible_and_two_accounts_and_one_top_level_layer_per_account__all_fm_terms_present(
+    def test_exposure_with_one_coverage_type_and_fm_terms_with_two_accounts_and_one_top_level_layer_per_account_and_model_lookup_supporting_single_peril_and_coverage_type___all_fm_terms_present(
         self,
         exposures,
         accounts,
         guls
     ):
-
         cep = copy.deepcopy(self.exposures_profile)
         cap = copy.deepcopy(self.accounts_profile)
         fmap = copy.deepcopy(self.fm_agg_profile)
@@ -1692,9 +1757,6 @@ class OasisExposuresManagerLoadFmItems(TestCase):
         for it in exposures:
             it['cond1name'] = 0
 
-        for _, gul in enumerate(guls):
-            gul['ded_type'] = ufcp[1][gul['tiv_tgid']]['deductible']['DeductibleType'] if ufcp[1][gul['tiv_tgid']].get('deductible') else 'B'
-
         canexp_df, gul_items_df = (pd.DataFrame(data=its, dtype=object) for its in [exposures, guls])
 
         for df in [canexp_df, gul_items_df]:
@@ -1708,6 +1770,11 @@ class OasisExposuresManagerLoadFmItems(TestCase):
 
         with NamedTemporaryFile('w') as accounts_file:
             write_canonical_files(canonical_accounts=accounts, canonical_accounts_file_path=accounts_file.name)
+
+            af_dir = os.path.dirname(accounts_file.name)
+
+            af_copy = os.path.join(af_dir, '{}2'.format(os.path.basename(accounts_file.name)))
+            shutil.copy2(accounts_file.name, af_copy)
 
             fm_items = OasisExposuresManager().load_fm_items(
                 canexp_df,
@@ -1721,7 +1788,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
 
         levels = set(ufcp.keys())
         num_expected_fm_items = len(levels) * len(guls)
-        self.assertEquals(len(fm_items), num_expected_fm_items)
+        self.assertEqual(len(fm_items), num_expected_fm_items)
 
         get_can_item = lambda i: {
             k:v for k, v in itertools.chain(
@@ -1733,76 +1800,107 @@ class OasisExposuresManagerLoadFmItems(TestCase):
         get_gul_item = lambda i: guls[(i - 1) % len(guls)]
 
         for i, (l, it) in enumerate(itertools.chain((l, it) for l in sorted(ufcp.keys()) for l, it in itertools.product([l],(it for it in fm_items if it['level_id'] == l)))):
-            self.assertEquals(it['level_id'], l)
+            self.assertEqual(it['level_id'], l)
 
             gul_it = get_gul_item(it['gul_item_id'])
 
             can_it = get_can_item(it['canexp_id'])
 
-            self.assertEquals(it['canexp_id'], gul_it['canexp_id'])
+            self.assertEqual(it['canexp_id'], gul_it['canexp_id'])
 
-            self.assertEquals(it['canacc_id'], 0 if can_it['accntnum'] == 'A1' else 1)
+            self.assertEqual(it['canacc_id'], 0 if can_it['accntnum'] == 'A1' else 1)
 
-            self.assertEquals(it['layer_id'], 1)
+            self.assertEqual(it['layer_id'], 1)
 
             if l in [1, 2, 3]:
-                self.assertEquals(it['agg_id'], it['canexp_id'] + 1)
+                self.assertEqual(it['agg_id'], it['canexp_id'] + 1)
             else:
-                self.assertEquals(it['agg_id'], 1) if can_it['accntnum'] == 'A1' else self.assertEquals(it['agg_id'], 2)
+                self.assertEqual(it['agg_id'], 1) if can_it['accntnum'] == 'A1' else self.assertEqual(it['agg_id'], 2)
 
-            self.assertEquals(it['gul_item_id'], gul_it['item_id'])
+            self.assertEqual(it['gul_item_id'], gul_it['item_id'])
 
-            self.assertEquals(it['tiv_elm'], gul_it['tiv_elm'])
-            self.assertEquals(it['tiv_tgid'], gul_it['tiv_tgid'])
-            self.assertEquals(it['tiv'], gul_it['tiv'])
+            self.assertEqual(it['tiv_elm'], gul_it['tiv_elm'])
+            self.assertEqual(it['tiv_tgid'], gul_it['tiv_tgid'])
+            self.assertEqual(it['tiv'], gul_it['tiv'])
 
-            self.assertEquals(it['lim_elm'], gul_it['lim_elm'])
-            self.assertEquals(it['ded_elm'], gul_it['ded_elm'])
-            self.assertEquals(it['shr_elm'], gul_it['shr_elm'])
+            lim_elm = gul_it['lim_elm'] if l == 1 else (ufcp[l][1]['limit']['ProfileElementName'].lower() if ufcp[l][1].get('limit') else None)
+            self.assertEqual(it['lim_elm'], lim_elm)
 
-            lim = can_it.get(gul_it['lim_elm'] if l == 1 else (ufcp[l][1]['limit']['ProfileElementName'].lower() if ufcp[l][1].get('limit') else None)) or 0.0
-            self.assertEquals(it['limit'], lim)
-            
-            ded = can_it.get(gul_it['ded_elm']  if l == 1 else (ufcp[l][1]['deductible']['ProfileElementName'].lower() if ufcp[l][1].get('deductible') else None)) or 0.0
-            self.assertEquals(it['deductible'], ded)
-            
-            ded_type = gul_it['ded_type'] if l == 1 else (ufcp[l][1]['deductible']['DeductibleType'] if ufcp[l][1].get('deductible') else 'B')
-            self.assertEquals(it['deductible_type'], ded_type)
-            
-            shr = can_it.get(gul_it['shr_elm']  if l == 1 else (ufcp[l][1]['share']['ProfileElementName'].lower() if ufcp[l][1].get('share') else None)) or 0.0
-            self.assertEquals(it['share'], shr)
+            ded_elm = gul_it['ded_elm'] if l == 1 else (ufcp[l][1]['deductible']['ProfileElementName'].lower() if ufcp[l][1].get('deductible') else None)
+            self.assertEqual(it['ded_elm'], ded_elm)
+
+            ded_min_elm = gul_it['ded_min_elm'] if l == 1 else (ufcp[l][1]['deductiblemin']['ProfileElementName'].lower() if ufcp[l][1].get('deductiblemin') else None)
+            self.assertEqual(it['ded_min_elm'], ded_min_elm)
+
+            ded_max_elm = gul_it['ded_max_elm'] if l == 1 else (ufcp[l][1]['deductiblemax']['ProfileElementName'].lower() if ufcp[l][1].get('deductiblemax') else None)
+            self.assertEqual(it['ded_max_elm'], ded_max_elm)
+
+            shr_elm = gul_it['shr_elm'] if l == 1 else (ufcp[l][1]['share']['ProfileElementName'].lower() if ufcp[l][1].get('share') else None)
+            self.assertEqual(it['shr_elm'], shr_elm)
+
+            ded = can_it.get(ded_elm) or 0.0
+            self.assertEqual(it['deductible'], ded)
+
+            ded_min = can_it.get(ded_min_elm) or 0.0
+            self.assertEqual(it['deductible_min'], ded_min)
+
+            ded_max = can_it.get(ded_max_elm) or 0.0
+            self.assertEqual(it['deductible_max'], ded_max)
+
+            if l == max(levels):
+                self.assertIsNotNone(it.get('attachment')) and self.assertEqual(it['deductible'], it['attachment'])
+
+            lim = can_it.get(lim_elm) or 0.0
+            self.assertEqual(it['limit'], lim)
+
+            shr = can_it.get(shr_elm) or 0.0
+            self.assertEqual(it['share'], shr)
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(
-            from_accounts_nums=just('A1'),
+            from_account_nums=just('A1'),
             from_tivs1=just(100),
+            from_tivs2=just(0),
+            from_tivs3=just(0),
+            from_tivs4=just(0),
             from_limits1=just(1),
+            from_limits2=just(0),
+            from_limits3=just(0),
+            from_limits4=just(0),
             from_deductibles1=just(1),
+            from_deductibles2=just(0),
+            from_deductibles3=just(0),
+            from_deductibles4=just(0),
             size=10
         ),
         accounts=canonical_accounts_data(
-            from_accounts_nums=just('A1'),
+            from_account_nums=just('A1'),
             from_policy_nums=just('A1P1'),
-            from_attachment_points=just(1),
-            from_blanket_deductibles=just(0),
-            from_blanket_limits=just(0.1),
-            from_layer_limits=just(1),
             from_policy_types=just(1),
+            from_account_deductibles=just(0),
+            from_account_min_deductibles=just(0),
+            from_account_max_deductibles=just(0),
+            from_account_limits=just(0.1),
+            from_layer_deductibles=just(1),
+            from_layer_limits=just(1),
             size=4
         ),
         guls=gul_items_data(
+            from_peril_ids=just(OASIS_PERILS['wind']['id']),
             from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
             from_tiv_elements=just('wscv1val'),
             from_tivs=just(100),
             from_tiv_tgids=just(1),
             from_limit_elements=just('wscv1limit'),
             from_deductible_elements=just('wscv1ded'),
+            from_min_deductible_elements=just(None),
+            from_max_deductible_elements=just(None),
             from_share_elements=just(None),
             size=10
         )
     )
-    def test_fm_items_with_single_peril_and_coverage_type_model_and_exposure_with_one_coverage_type_and_limit_and_deductible_and_two_accounts_and_two_top_level_layers_per_account__all_fm_terms_present(
+    def test_exposure_with_one_coverage_type_and_fm_terms_with_two_accounts_and_two_top_level_layers_per_account_and_model_lookup_supporting_single_peril_and_coverage_type___all_fm_terms_present(
         self,
         exposures,
         accounts,
@@ -1822,9 +1920,6 @@ class OasisExposuresManagerLoadFmItems(TestCase):
         for it in exposures:
             it['cond1name'] = 0
 
-        for _, gul in enumerate(guls):
-            gul['ded_type'] = ufcp[1][gul['tiv_tgid']]['deductible']['DeductibleType'] if ufcp[1][gul['tiv_tgid']].get('deductible') else 'B'
-
         canexp_df, gul_items_df = (pd.DataFrame(data=its, dtype=object) for its in [exposures, guls])
 
         for df in [canexp_df, gul_items_df]:
@@ -1838,6 +1933,11 @@ class OasisExposuresManagerLoadFmItems(TestCase):
 
         with NamedTemporaryFile('w') as accounts_file:
             write_canonical_files(canonical_accounts=accounts, canonical_accounts_file_path=accounts_file.name)
+
+            af_dir = os.path.dirname(accounts_file.name)
+
+            af_copy = os.path.join(af_dir, '{}2'.format(os.path.basename(accounts_file.name)))
+            shutil.copy2(accounts_file.name, af_copy)
 
             fm_items = OasisExposuresManager().load_fm_items(
                 canexp_df,
@@ -1853,7 +1953,7 @@ class OasisExposuresManagerLoadFmItems(TestCase):
         bottom_levels = levels[:-1]
         num_expected_fm_items = len(guls) * (len(bottom_levels) + 2)
 
-        self.assertEquals(len(fm_items), num_expected_fm_items)
+        self.assertEqual(len(fm_items), num_expected_fm_items)
 
         get_can_item = lambda i: {
             k:v for k, v in itertools.chain(
@@ -1865,60 +1965,77 @@ class OasisExposuresManagerLoadFmItems(TestCase):
         get_gul_item = lambda i: guls[(i - 1) % len(guls)]
 
         for i, (l, it) in enumerate(itertools.chain((l, it) for l in levels for l, it in itertools.product([l],(it for it in fm_items if it['level_id'] == l)))):
-            self.assertEquals(it['level_id'], l)
+            self.assertEqual(it['level_id'], l)
 
             gul_it = get_gul_item(it['gul_item_id'])
 
             can_it = get_can_item(it['canexp_id'])
 
-            self.assertEquals(it['canexp_id'], gul_it['canexp_id'])
+            self.assertEqual(it['canexp_id'], gul_it['canexp_id'])
 
             if it['policy_num'] == 'A1P1':
-                self.assertEquals(it['canacc_id'], 0)
+                self.assertEqual(it['canacc_id'], 0)
             elif it['policy_num'] == 'A1P2':
-                self.assertEquals(it['canacc_id'], 1)
+                self.assertEqual(it['canacc_id'], 1)
             elif it['policy_num'] == 'A2P1':
-                self.assertEquals(it['canacc_id'], 2)
+                self.assertEqual(it['canacc_id'], 2)
             elif it['policy_num'] == 'A2P2':
-                self.assertEquals(it['canacc_id'], 3)
+                self.assertEqual(it['canacc_id'], 3)
 
             if l in [1, 2, 3]:
-                self.assertEquals(it['agg_id'], it['canexp_id'] + 1)
+                self.assertEqual(it['agg_id'], it['canexp_id'] + 1)
             elif l in [4, 5]:
-                self.assertEquals(it['agg_id'], 1) if can_it['accntnum'] == 'A1' else self.assertEquals(it['agg_id'], 2)
+                self.assertEqual(it['agg_id'], 1) if can_it['accntnum'] == 'A1' else self.assertEqual(it['agg_id'], 2)
             else:
                 if it['policy_num'] == 'A1P1':
-                    self.assertEquals(it['agg_id'], 1)
+                    self.assertEqual(it['agg_id'], 1)
                 elif it['policy_num'] == 'A1P2':
-                    self.assertEquals(it['agg_id'], 2)
+                    self.assertEqual(it['agg_id'], 2)
                 elif it['policy_num'] == 'A2P1':
-                    self.assertEquals(it['agg_id'], 3)
+                    self.assertEqual(it['agg_id'], 3)
                 elif it['policy_num'] == 'A2P2':
-                    self.assertEquals(it['agg_id'], 4)
+                    self.assertEqual(it['agg_id'], 4)
 
-            self.assertEquals(it['layer_id'], 1) if it['policy_num'].endswith('P1') else self.assertEquals(it['layer_id'], 2)
+            self.assertEqual(it['layer_id'], 1) if it['policy_num'].endswith('P1') else self.assertEqual(it['layer_id'], 2)
 
-            self.assertEquals(it['gul_item_id'], gul_it['item_id'])
+            self.assertEqual(it['gul_item_id'], gul_it['item_id'])
 
-            self.assertEquals(it['tiv_elm'], gul_it['tiv_elm'])
-            self.assertEquals(it['tiv_tgid'], gul_it['tiv_tgid'])
-            self.assertEquals(it['tiv'], gul_it['tiv'])
+            self.assertEqual(it['tiv_elm'], gul_it['tiv_elm'])
+            self.assertEqual(it['tiv_tgid'], gul_it['tiv_tgid'])
+            self.assertEqual(it['tiv'], gul_it['tiv'])
 
-            self.assertEquals(it['lim_elm'], gul_it['lim_elm'])
-            self.assertEquals(it['ded_elm'], gul_it['ded_elm'])
-            self.assertEquals(it['shr_elm'], gul_it['shr_elm'])
+            lim_elm = gul_it['lim_elm'] if l == 1 else (ufcp[l][1]['limit']['ProfileElementName'].lower() if ufcp[l][1].get('limit') else None)
+            self.assertEqual(it['lim_elm'], lim_elm)
 
-            lim = can_it.get(gul_it['lim_elm'] if l == 1 else (ufcp[l][1]['limit']['ProfileElementName'].lower() if ufcp[l][1].get('limit') else None)) or 0.0
-            self.assertEquals(it['limit'], lim)
-            
-            ded = can_it.get(gul_it['ded_elm']  if l == 1 else (ufcp[l][1]['deductible']['ProfileElementName'].lower() if ufcp[l][1].get('deductible') else None)) or 0.0
-            self.assertEquals(it['deductible'], ded)
-            
-            ded_type = gul_it['ded_type'] if l == 1 else (ufcp[l][1]['deductible']['DeductibleType'] if ufcp[l][1].get('deductible') else 'B')
-            self.assertEquals(it['deductible_type'], ded_type)
-            
-            shr = can_it.get(gul_it['shr_elm']  if l == 1 else (ufcp[l][1]['share']['ProfileElementName'].lower() if ufcp[l][1].get('share') else None)) or 0.0
-            self.assertEquals(it['share'], shr)
+            ded_elm = gul_it['ded_elm'] if l == 1 else (ufcp[l][1]['deductible']['ProfileElementName'].lower() if ufcp[l][1].get('deductible') else None)
+            self.assertEqual(it['ded_elm'], ded_elm)
+
+            ded_min_elm = gul_it['ded_min_elm'] if l == 1 else (ufcp[l][1]['deductiblemin']['ProfileElementName'].lower() if ufcp[l][1].get('deductiblemin') else None)
+            self.assertEqual(it['ded_min_elm'], ded_min_elm)
+
+            ded_max_elm = gul_it['ded_max_elm'] if l == 1 else (ufcp[l][1]['deductiblemax']['ProfileElementName'].lower() if ufcp[l][1].get('deductiblemax') else None)
+            self.assertEqual(it['ded_max_elm'], ded_max_elm)
+
+            shr_elm = gul_it['shr_elm'] if l == 1 else (ufcp[l][1]['share']['ProfileElementName'].lower() if ufcp[l][1].get('share') else None)
+            self.assertEqual(it['shr_elm'], shr_elm)
+
+            ded = can_it.get(ded_elm) or 0.0
+            self.assertEqual(it['deductible'], ded)
+
+            ded_min = can_it.get(ded_min_elm) or 0.0
+            self.assertEqual(it['deductible_min'], ded_min)
+
+            ded_max = can_it.get(ded_max_elm) or 0.0
+            self.assertEqual(it['deductible_max'], ded_max)
+
+            if l == max(levels):
+                self.assertIsNotNone(it.get('attachment')) and self.assertEqual(it['deductible'], it['attachment'])
+
+            lim = can_it.get(lim_elm) or 0.0
+            self.assertEqual(it['limit'], lim)
+
+            shr = can_it.get(shr_elm) or 0.0
+            self.assertEqual(it['share'], shr)
 
 class FMAcceptanceTests(TestCase):
 
@@ -1930,15 +2047,19 @@ class FMAcceptanceTests(TestCase):
         self.fm_agg_map[4]['FMAggKey'].pop('SublimitRef')
         self.manager = OasisExposuresManager()
 
+    @pytest.mark.skip(reason='not implemented')
     def test_fm3(self):
         pass
 
+    @pytest.mark.skip(reason='not implemented')
     def test_fm4(self):
         pass
 
+    @pytest.mark.skip(reason='not implemented')
     def test_fm5(self):
         pass
 
+    @pytest.mark.skip(reason='not implemented')
     def test_fm6(self):
         pass
 
@@ -1974,9 +2095,9 @@ class FMAcceptanceTests(TestCase):
             from_policy_perils=just('WTC;WEC;BFR;001'),
             from_sublimit_deductibles=just(0),
             from_sublimit_limits=just(0),
-            from_account_blanket_deductibles=just(50000),
-            from_account_blanket_min_deductibles=just(0),
-            from_account_blanket_max_deductibles=just(0),
+            from_account_deductibles=just(50000),
+            from_account_min_deductibles=just(0),
+            from_account_max_deductibles=just(0),
             from_layer_deductibles=just(0),
             from_layer_limits=just(2500000),
             from_layer_shares=just(1),
@@ -1998,8 +2119,6 @@ class FMAcceptanceTests(TestCase):
         exposures[1]['contentstiv'] = 1000000
         exposures[1]['bitiv'] = 50000
 
-        for k in keys:
-            k.pop('locid')
         keys[1]['id'] = keys[2]['id'] = keys[3]['id'] = 1
         keys[4]['id'] = keys[5]['id'] = keys[6]['id'] = keys[7]['id'] = 2
 
@@ -2051,8 +2170,6 @@ class FMAcceptanceTests(TestCase):
             ofp.fmsummaryxref_file_path = os.path.join(outdir, 'fmsummaryxref.csv')
 
             fm_files = self.manager.write_fm_files(oasis_model=model)
-
-            import ipdb; ipdb.set_trace()
 
             for f in fm_files:
                 self.assertTrue(os.path.exists(fm_files[f]))
@@ -2131,23 +2248,31 @@ class FmFilesGenerationTestCase(TestCase):
         self.assertEqual(expected, result)
 
     def check_fm_profile_file(self, fm_items_df, fm_profile_file_path):
+            cols = ['policytc_id', 'calcrule_id', 'limit', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'share']
+
+            fm_profile_df = fm_items_df[cols]
+
             fm_profile_df = pd.DataFrame(
-                columns=['policytc_id', 'calcrule_id', 'limit', 'deductible', 'share'],
-                data=[key for key, _ in fm_items_df.groupby(['policytc_id', 'calcrule_id', 'limit', 'deductible', 'share'])]
+                columns=cols,
+                data=[key for key, _ in fm_profile_df.groupby(cols)]
             )
+
+            col_repl = [
+                {'deductible': 'deductible1'},
+                {'deductible_min': 'deductible2'},
+                {'deductible_max': 'deductible3'},
+                {'attachment': 'attachment1'},
+                {'limit': 'limit1'},
+                {'share': 'share1'}
+            ]
+            for repl in col_repl:
+                fm_profile_df.rename(columns=repl, inplace=True)
+
             n = len(fm_profile_df)
 
             fm_profile_df['index'] = range(n)
 
-            fm_profile_df['deductible1'] = fm_profile_df['deductible']
-            fm_profile_df['deductible2'] = fm_profile_df['deductible3'] = [0]*n
-
-            fm_profile_df['limit1'] = fm_profile_df['limit']
-
-            fm_profile_df['share1'] = fm_profile_df['share']
             fm_profile_df['share2'] = fm_profile_df['share3'] = [0]*n
-
-            fm_profile_df['attachment1'] = [0]*n
 
             expected = tuple(
                 {
@@ -2223,7 +2348,7 @@ class FmFilesGenerationTestCase(TestCase):
 
             self.assertEqual(expected, result)
 
-class OasisExposuresManagerWriteGulFiles(GulFilesGenerationTestCase):
+class WriteGulFiles(GulFilesGenerationTestCase):
 
     @pytest.mark.flaky
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
@@ -2295,39 +2420,53 @@ class OasisExposuresManagerWriteGulFiles(GulFilesGenerationTestCase):
             self.check_gulsummaryxref_file(gul_items_df, gul_files['gulsummaryxref'])
 
 
-class OasisExposuresManagerWriteFmFiles(FmFilesGenerationTestCase):
+class WriteFmFiles(FmFilesGenerationTestCase):
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(
-            from_accounts_nums=just('A1'),
+            from_account_nums=just('A1'),
             from_tivs1=just(100),
-            from_limits1=just(1),
+            from_tivs2=just(0),
+            from_tivs3=just(0),
+            from_tivs4=just(0),
             from_deductibles1=just(1),
+            from_deductibles2=just(0),
+            from_deductibles3=just(0),
+            from_deductibles4=just(0),
+            from_limits1=just(1),
+            from_limits2=just(0),
+            from_limits3=just(0),
+            from_limits4=just(0),
             size=10
         ),
         accounts=canonical_accounts_data(
-            from_accounts_nums=just('A1'),
-            from_attachment_points=just(1),
-            from_blanket_deductibles=just(0),
-            from_blanket_limits=just(0.1),
-            from_layer_limits=just(1),
+            from_account_nums=just('A1'),
             from_policy_nums=just('A1P1'),
             from_policy_types=just(1),
+            from_account_deductibles=just(0),
+            from_account_min_deductibles=just(0),
+            from_account_max_deductibles=just(0),
+            from_account_limits=just(0.1),
+            from_layer_deductibles=just(1),
+            from_layer_limits=just(1),
             size=1
         ),
         guls=gul_items_data(
+            from_peril_ids=just(OASIS_PERILS['wind']['id']),
             from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
             from_tiv_elements=just('wscv1val'),
             from_tivs=just(100),
             from_tiv_tgids=just(1),
-            from_limit_elements=just('wscv1limit'),
             from_deductible_elements=just('wscv1ded'),
+            from_min_deductible_elements=just(None),
+            from_max_deductible_elements=just(None),
+            from_limit_elements=just('wscv1limit'),
             from_share_elements=just(None),
             size=10
         )
     )
-    def test_paths_are_stored_in_the_model___model_paths_are_used(self, exposures, accounts, guls):
+    def test_exposure_with_one_coverage_type_and_fm_terms_with_one_account_and_one_top_level_layer_per_account_and_model_lookup_supporting_single_peril_and_coverage_type_paths_are_stored_in_the_model___model_paths_are_used_and_all_fm_files_are_generated(self, exposures, accounts, guls):
         cep = self.exposures_profile
         cap = self.accounts_profile
         ufcp = self.unified_canonical_profile
@@ -2336,17 +2475,11 @@ class OasisExposuresManagerWriteFmFiles(FmFilesGenerationTestCase):
         for it in exposures:
             it['cond1name'] = 0
 
-        for _, gul in enumerate(guls):
-            gul['ded_type'] = ufcp[1][gul['tiv_tgid']]['deductible']['DeductibleType'] if ufcp[1][gul['tiv_tgid']].get('deductible') else 'B'
-
         canexp_df, gul_items_df = (pd.DataFrame(data=its, dtype=object) for its in [exposures, guls])
 
         for df in [canexp_df, gul_items_df]:
             df = df.where(df.notnull(), None)
             df.columns = df.columns.str.lower()
-        
-        canexp_df['index'] = pd.Series(data=list(canexp_df.index), dtype=int)
-        gul_items_df['index'] = pd.Series(data=list(gul_items_df.index), dtype=int)
 
         with NamedTemporaryFile('w') as accounts_file, TemporaryDirectory() as out_dir:
             write_canonical_files(canonical_accounts=accounts, canonical_accounts_file_path=accounts_file.name)
@@ -2381,35 +2514,48 @@ class OasisExposuresManagerWriteFmFiles(FmFilesGenerationTestCase):
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(
-            from_accounts_nums=just('A1'),
+            from_account_nums=just('A1'),
             from_tivs1=just(100),
-            from_limits1=just(1),
+            from_tivs2=just(0),
+            from_tivs3=just(0),
+            from_tivs4=just(0),
             from_deductibles1=just(1),
+            from_deductibles2=just(0),
+            from_deductibles3=just(0),
+            from_deductibles4=just(0),
+            from_limits1=just(1),
+            from_limits2=just(0),
+            from_limits3=just(0),
+            from_limits4=just(0),
             size=10
         ),
         accounts=canonical_accounts_data(
-            from_accounts_nums=just('A1'),
-            from_attachment_points=just(1),
-            from_blanket_deductibles=just(0),
-            from_blanket_limits=just(0.1),
-            from_layer_limits=just(1),
+            from_account_nums=just('A1'),
             from_policy_nums=just('A1P1'),
             from_policy_types=just(1),
+            from_account_deductibles=just(0),
+            from_account_min_deductibles=just(0),
+            from_account_max_deductibles=just(0),
+            from_account_limits=just(0.1),
+            from_layer_deductibles=just(1),
+            from_layer_limits=just(1),
             size=1
         ),
         guls=gul_items_data(
+            from_peril_ids=just(OASIS_PERILS['wind']['id']),
             from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
             from_tiv_elements=just('wscv1val'),
             from_tivs=just(100),
             from_tiv_tgids=just(1),
-            from_limit_elements=just('wscv1limit'),
             from_deductible_elements=just('wscv1ded'),
+            from_min_deductible_elements=just(None),
+            from_max_deductible_elements=just(None),
+            from_limit_elements=just('wscv1limit'),
             from_share_elements=just(None),
             size=10
         )
     )
-    def test_paths_are_stored_in_the_kwargs___kwarg_paths_are_used(self, exposures, accounts, guls):
-        self.maxDiff = None
+    def test_exposure_with_one_coverage_type_and_fm_terms_with_one_account_and_one_top_level_layer_per_account_and_model_lookup_supporting_single_peril_and_coverage_type_paths_are_stored_in_the_kwargs___kwarg_paths_are_used_and_all_fm_files_are_generated(self, exposures, accounts, guls):
         cep = self.exposures_profile
         cap = self.accounts_profile
         ufcp = self.unified_canonical_profile
@@ -2418,18 +2564,12 @@ class OasisExposuresManagerWriteFmFiles(FmFilesGenerationTestCase):
         for it in exposures:
             it['cond1name'] = 0
 
-        for _, gul in enumerate(guls):
-            gul['ded_type'] = ufcp[1][gul['tiv_tgid']]['deductible']['DeductibleType'] if ufcp[1][gul['tiv_tgid']].get('deductible') else 'B'
-
         canexp_df, gul_items_df = (pd.DataFrame(data=its, dtype=object) for its in [exposures, guls])
 
         for df in [canexp_df, gul_items_df]:
             df = df.where(df.notnull(), None)
             df.columns = df.columns.str.lower()
         
-        canexp_df['index'] = pd.Series(data=list(canexp_df.index), dtype=int)
-        gul_items_df['index'] = pd.Series(data=list(gul_items_df.index), dtype=int)
-
         with NamedTemporaryFile('w') as accounts_file, TemporaryDirectory() as out_dir:
             write_canonical_files(canonical_accounts=accounts, canonical_accounts_file_path=accounts_file.name)
 
@@ -2464,7 +2604,7 @@ class OasisExposuresManagerWriteFmFiles(FmFilesGenerationTestCase):
             self.check_fm_xref_file(fm_items_df, fm_files['fm_xref'])
             self.check_fmsummaryxref_file(fm_items_df, fm_files['fmsummaryxref'])
 
-class OasisExposuresManagerStartOasisFilesPipeline(TestCase):
+class StartOasisFilesPipeline(TestCase):
 
     def setUp(self):
         self.manager = OasisExposuresManager()

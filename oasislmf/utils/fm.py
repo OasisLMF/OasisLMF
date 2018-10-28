@@ -56,7 +56,7 @@ def get_coverage_level_fm_terms(level_unified_canonical_profile, level_fm_agg_pr
         can_item_ded_max = can_item.get(it['ded_max_elm']) or 0.0
         it['deductible_max'] = (can_item_ded_max if can_item_ded_max >= 1 else it['tiv']*can_item_ded_max) or 0.0
 
-        can_item_lim = can_item(it['lim_elm']) or 0.0
+        can_item_lim = can_item.get(it['lim_elm']) or 0.0
         it['limit'] = (can_item_lim if can_item_lim >= 1 else it['tiv']*can_item_lim) or 0.0
 
         it['share'] = can_item.get(it['shr_elm']) or 0.0
