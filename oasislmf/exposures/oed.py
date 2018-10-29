@@ -100,7 +100,8 @@ class OedValidator(object):
             "meta_data": info,
         }
 
-    def validate(self, account_df, location_df, ri_info_df, ri_scope_df):
+    #def validate(self, account_df, location_df, ri_info_df, ri_scope_df):
+    def validate(self, ri_info_df, ri_scope_df):
         '''
         Validate OED resinurance structure before running calculations.
         '''
@@ -224,45 +225,45 @@ class OedValidator(object):
                 #         meta_data,
                 #    ))
 
-                err_acc_nums = self._find_missing(scope_df, "AccNumber",   account_df)
-                if err_acc_nums:
-                    meta_data.update({"missing_values": err_acc_nums})
-                    error_list.append(self._error_struture(
-                        "missing_scope_link",
-                        "RI_{}".format(inuring_priority),
-                        "Non-linking 'AccountNumber' between ri_scope and account files",
-                        meta_data,
-                    ))
+                #err_acc_nums = self._find_missing(scope_df, "AccNumber",   account_df)
+                #if err_acc_nums:
+                #    meta_data.update({"missing_values": err_acc_nums})
+                #    error_list.append(self._error_struture(
+                #        "missing_scope_link",
+                #        "RI_{}".format(inuring_priority),
+                #        "Non-linking 'AccountNumber' between ri_scope and account files",
+                #        meta_data,
+                #    ))
 
-                err_acc_nums2 = self._find_missing(scope_df, "AccNumber",   location_df)
-                if err_acc_nums2:
-                    meta_data.update({"missing_values": err_acc_nums2})
-                    error_list.append(self._error_struture(
-                        "missing_scope_link",
-                        "RI_{}".format(inuring_priority),
-                        "Non-linking 'AccountNumber' between ri_scope and location files",
-                        meta_data,
-                    ))
+                #err_acc_nums2 = self._find_missing(scope_df, "AccNumber",   location_df)
+                #if err_acc_nums2:
+                #    meta_data.update({"missing_values": err_acc_nums2})
+                #    error_list.append(self._error_struture(
+                #        "missing_scope_link",
+                #        "RI_{}".format(inuring_priority),
+                #        "Non-linking 'AccountNumber' between ri_scope and location files",
+                #        meta_data,
+                #    ))
 
-                err_pol_nums = self._find_missing(scope_df, "PolNumber",    account_df)
-                if err_pol_nums:
-                    meta_data.update({"missing_values": err_pol_nums})
-                    error_list.append(self._error_struture(
-                        "missing_scope_link",
-                        "RI_{}".format(inuring_priority),
-                        "Non-linking 'PolicyNumber' between ri_scope and account",
-                        meta_data,
-                    ))
+                #err_pol_nums = self._find_missing(scope_df, "PolNumber",    account_df)
+                #if err_pol_nums:
+                #    meta_data.update({"missing_values": err_pol_nums})
+                #    error_list.append(self._error_struture(
+                #        "missing_scope_link",
+                #        "RI_{}".format(inuring_priority),
+                #        "Non-linking 'PolicyNumber' between ri_scope and account",
+                #        meta_data,
+                #    ))
 
-                err_loc_nums = self._find_missing(scope_df, "LocNumber",  location_df)
-                if err_loc_nums:
-                    meta_data.update({"missing_values": err_loc_nums})
-                    error_list.append(self._error_struture(
-                        "missing_scope_link",
-                        "RI_{}".format(inuring_priority),
-                        "Non-linking 'LocationNumber' between ri_scope and account",
-                        meta_data,
-                    ))
+                #err_loc_nums = self._find_missing(scope_df, "LocNumber",  location_df)
+                #if err_loc_nums:
+                #    meta_data.update({"missing_values": err_loc_nums})
+                #    error_list.append(self._error_struture(
+                #        "missing_scope_link",
+                #        "RI_{}".format(inuring_priority),
+                #        "Non-linking 'LocationNumber' between ri_scope and account",
+                #        meta_data,
+                #    ))
 
         return (not error_list, error_list)
 
@@ -279,18 +280,18 @@ def load_oed_dfs(oed_dir, show_all=False):
             print("Path does not exist: {}".format(oed_dir))
             exit(1)
         # Account file
-        oed_account_file = os.path.join(oed_dir, "account.csv")
-        if not os.path.exists(oed_account_file):
-            print("Path does not exist: {}".format(oed_account_file))
-            exit(1)
-        account_df = pd.read_csv(oed_account_file)
+#        oed_account_file = os.path.join(oed_dir, "account.csv")
+#        if not os.path.exists(oed_account_file):
+#            print("Path does not exist: {}".format(oed_account_file))
+#            exit(1)
+#        account_df = pd.read_csv(oed_account_file)
 
         # Location file
-        oed_location_file = os.path.join(oed_dir, "location.csv")
-        if not os.path.exists(oed_location_file):
-            print("Path does not exist: {}".format(oed_location_file))
-            exit(1)
-        location_df = pd.read_csv(oed_location_file)
+#        oed_location_file = os.path.join(oed_dir, "location.csv")
+#        if not os.path.exists(oed_location_file):
+#            print("Path does not exist: {}".format(oed_location_file))
+#            exit(1)
+#        location_df = pd.read_csv(oed_location_file)
 
         # RI files
         oed_ri_info_file = os.path.join(oed_dir, "ri_info.csv")
@@ -308,12 +309,12 @@ def load_oed_dfs(oed_dir, show_all=False):
         else:
             print("Both reinsurance files must exist: {} {}".format(
                 oed_ri_info_file, oed_ri_scope_file))
-        if not show_all:
-            account_df = account_df[OED_ACCOUNT_FIELDS].copy()
-            location_df = location_df[OED_LOCATION_FIELDS].copy()
-            if do_reinsurance:
-                ri_info_df = ri_info_df[OED_REINS_INFO_FIELDS].copy()
-                ri_scope_df = ri_scope_df[OED_REINS_SCOPE_FIELDS].copy()
+#        if not show_all:
+#            account_df = account_df[OED_ACCOUNT_FIELDS].copy()
+#            location_df = location_df[OED_LOCATION_FIELDS].copy()
+        if do_reinsurance:
+            ri_info_df = ri_info_df[OED_REINS_INFO_FIELDS].copy()
+            ri_scope_df = ri_scope_df[OED_REINS_SCOPE_FIELDS].copy()
 
         #Ensure Percent feilds are float
         info_float_cols  = ['CededPercent','PlacedPercent','TreatyShare']
@@ -321,7 +322,7 @@ def load_oed_dfs(oed_dir, show_all=False):
         ri_info_df[info_float_cols] =  ri_info_df[info_float_cols].astype(float)
         ri_scope_df[scope_float_cols] =  ri_scope_df[scope_float_cols].astype(float)
 
-    return (account_df, location_df, ri_info_df, ri_scope_df, do_reinsurance)
+    return (ri_info_df, ri_scope_df, do_reinsurance)
 
 
 

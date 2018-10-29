@@ -34,7 +34,10 @@ import copy
 import itertools
 import six
 import string
+import six
 
+from itertools import chain
+from chainmap import ChainMap
 from collections import OrderedDict
 
 import pandas as pd
@@ -63,9 +66,15 @@ from oasislmf.utils.metadata import (
     OED_COVERAGE_TYPES,
     OED_FM_LEVELS,
     OED_PERILS,
+
+from oasislmf.model_execution.files import (
+    GUL_INPUT_FILES, 
+    OPTIONAL_INPUT_FILES, 
+    IL_INPUT_FILES, 
+    TAR_FILE, INPUT_FILES,
 )
 
-calcrule_ids = (1, 4, 5, 6, 7, 8, 10, 11, 12, 12, 13, 14, 15, 16, 19, 21,)
+  calcrule_ids = (1, 4, 5, 6, 7, 8, 10, 11, 12, 12, 13, 14, 15, 16, 19, 21,)
 
 canonical_accounts_profile = {
     "BLANDEDAMT": {
@@ -724,7 +733,6 @@ fm_profile_types = ('acc', 'loc',)
 keys_status_flags = tuple(OASIS_KEYS_STATUS[k]['id'] for k in OASIS_KEYS_STATUS)
 
 peril_ids = tuple(OASIS_PERILS[k]['id'] for k in OASIS_PERILS)
-
 oed_peril_ids = tuple(OED_PERILS[k]['id'] for k in OED_PERILS)
 
 oasis_tiv_elements = tuple(v['ProfileElementName'].lower() for v in canonical_exposures_profile.values() if v.get('FMTermType') and v.get('FMTermType').lower() == 'tiv')
