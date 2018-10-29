@@ -12,6 +12,8 @@ mock
 pip-tools==2.0.2
 pytest
 pytest-cov
+pytest-ignore-flaky
+mock
 responses
 Sphinx
 tox

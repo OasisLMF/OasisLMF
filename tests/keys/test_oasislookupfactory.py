@@ -55,7 +55,7 @@ from oasislmf.utils.exceptions import OasisException
 from tests import keys_data
 
 
-class OasisKeysLookupFactoryCreate(TestCase):
+class OasisLookupFactoryCreate(TestCase):
 
     def write_version_file(self, supplier, model, version, path):
         with io.open(path, 'w', encoding='utf-8') as f:
@@ -98,7 +98,7 @@ class OasisKeysLookupFactoryCreate(TestCase):
             self.assertEqual(instance.keys_data_directory, keys_path)
 
 
-class OasisKeysLookupFactoryGetModelExposures(TestCase):
+class OasisLookupFactoryGetModelExposures(TestCase):
 
     def test_no_file_or_exposures_are_provided___oasis_exception_is_raised(self):
         with self.assertRaises(OasisException):
@@ -130,7 +130,7 @@ class OasisKeysLookupFactoryGetModelExposures(TestCase):
         self.assertEqual(res, data)
 
 
-class OasisKeysLookupFactoryWriteOasisKeysFiles(TestCase):
+class OasisLookupFactoryWriteOasisKeysFiles(TestCase):
 
     @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
@@ -174,7 +174,7 @@ class OasisKeysLookupFactoryWriteOasisKeysFiles(TestCase):
             self.assertEqual(nonsuccess_matches, nonsuccesses)
 
 
-class OasisKeysLookupFactoryWriteJsonFiles(TestCase):
+class OasisLookupFactoryWriteJsonFiles(TestCase):
 
     @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
@@ -201,7 +201,7 @@ class OasisKeysLookupFactoryWriteJsonFiles(TestCase):
             self.assertEqual(written_nonsuccesses, nonsuccesses)
 
 
-class OasisKeysLookupFactoryGetKeys(TestCase):
+class OasisLookupFactoryGetKeys(TestCase):
 
     def create_fake_lookup(self, return_value=None):
         self.lookup_instance = Mock()
@@ -253,7 +253,7 @@ class OasisKeysLookupFactoryGetKeys(TestCase):
             self.assertEqual(res, data)
 
 
-class OasisKeysLookupFactoryWriteKeys(TestCase):
+class OasisLookupFactoryWriteKeys(TestCase):
 
     def create_fake_lookup(self):
         self.lookup_instance = Mock()

@@ -1,6 +1,12 @@
 OasisLMF Changelog
 ==================
 
+`2.0.0`
+-------
+
+* Add IL/FM support
+* Various optimisations, including to GUL items generation
+
 `1.1.27`_ (beta)
 ----------------
 
@@ -130,6 +136,7 @@ in the exposure manager
 * Add console logging
 
 
+.. _`1.1.27`: https://github.com/OasisLMF/OasisLMF/compare/ad91e2a...master
 .. _`1.1.27`: https://github.com/OasisLMF/OasisLMF/compare/ac4375e...master
 .. _`1.1.26`: https://github.com/OasisLMF/OasisLMF/compare/dac703e...master
 .. _`1.1.25`: https://github.com/OasisLMF/OasisLMF/compare/3a4b983...master
