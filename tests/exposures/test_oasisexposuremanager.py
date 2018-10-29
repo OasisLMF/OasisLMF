@@ -666,9 +666,7 @@ class LoadFmAggregationProfile(TestCase):
         self.assertEqual(expected, profile)
         self.assertEqual(expected, model.resources['fm_agg_profile'])
 
-        def test_model_is_set_with_profile_json_and_profile_json_is_passed_through_kwargs___kwargs_profile_is_used(
-        self
-    ):
+    def test_model_is_set_with_profile_json_and_profile_json_is_passed_through_kwargs___kwargs_profile_is_used(self):
         model = fake_model(resources={'fm_agg_profile_json': json.dumps(self.profile)})
 
         profile = OasisExposuresManager().load_fm_aggregation_profile(oasis_model=model, fm_agg_profile_json=json.dumps(self.profile))

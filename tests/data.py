@@ -66,15 +66,16 @@ from oasislmf.utils.metadata import (
     OED_COVERAGE_TYPES,
     OED_FM_LEVELS,
     OED_PERILS,
+)
 
 from oasislmf.model_execution.files import (
-    GUL_INPUT_FILES, 
-    OPTIONAL_INPUT_FILES, 
-    IL_INPUT_FILES, 
+    GUL_INPUT_FILES,
+    IL_INPUT_FILES,
+    OPTIONAL_INPUT_FILES,
     TAR_FILE, INPUT_FILES,
 )
 
-  calcrule_ids = (1, 4, 5, 6, 7, 8, 10, 11, 12, 12, 13, 14, 15, 16, 19, 21,)
+calcrule_ids = (1, 4, 5, 6, 7, 8, 10, 11, 12, 12, 13, 14, 15, 16, 19, 21,)
 
 canonical_accounts_profile = {
     "BLANDEDAMT": {
@@ -734,6 +735,32 @@ keys_status_flags = tuple(OASIS_KEYS_STATUS[k]['id'] for k in OASIS_KEYS_STATUS)
 
 peril_ids = tuple(OASIS_PERILS[k]['id'] for k in OASIS_PERILS)
 oed_peril_ids = tuple(OED_PERILS[k]['id'] for k in OED_PERILS)
+
+# Used simple echo command rather than ktools conversion utility for testing purposes
+ECHO_CONVERSION_INPUT_FILES = {k: ChainMap({'conversion_tool': 'echo'}, v) for k, v in INPUT_FILES.items()}
+
+def standard_input_files(min_size=0):
+    return lists(
+        sampled_from([target['name'] for target in chain(six.itervalues(GUL_INPUT_FILES), six.itervalues(OPTIONAL_INPUT_FILES))]),
+        min_size=min_size,
+        unique=True,
+    )
+
+
+def il_input_files(min_size=0):
+    return lists(
+        sampled_from([target['name'] for target in six.itervalues(IL_INPUT_FILES)]),
+        min_size=min_size,
+        unique=True,
+    )
+
+
+def tar_file_targets(min_size=0):
+    return lists(
+        sampled_from([target['name'] + '.bin' for target in six.itervalues(INPUT_FILES)]),
+        min_size=min_size,
+        unique=True,
+    )
 
 oasis_tiv_elements = tuple(v['ProfileElementName'].lower() for v in canonical_exposures_profile.values() if v.get('FMTermType') and v.get('FMTermType').lower() == 'tiv')
 
