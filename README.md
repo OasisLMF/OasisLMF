@@ -7,11 +7,11 @@
 The `oasislmf` Python package provides a Python toolkit for building, running and testing Oasis models end-to-end, including performing individual steps in this process. It includes:
 
 * a Python class framework for working with Oasis models and model resources as Python objects (the `oasislmf.models` subpackage)
-* a Python class framework for managing model exposures and resources, and also for generating Oasis files from these (the `oasislmf.exposures` subpackage)
-* a Python factory class for instantiating keys lookups for models, and generating and saving keys outputs from these lookups (the `oasislmf.keys` subpackage)
+* a Python class framework for managing model exposures and resources, and also for generating Oasis files (GUL, FM) from these (the `oasislmf.exposures` subpackage)
+* a Python factory class for instantiating keys lookups for models, and generating and saving lookup outputs (the `oasislmf.keys` subpackage)
 * a command line interface for running models end-to-end, including performing individual steps: 
     * generating keys from model keys lookups, and writing them as files: `oasislmf model generate-keys`
-    * generating Oasis files (GUL only at present, FM to be added later) from source exposure files, canonical profiles, exposure validation and transformation files, and keys data files: `oasislmf model generate-oasis-files`
+    * generating Oasis files (GUL + FM) from source exposure files, canonical profiles, exposure validation and transformation files, and keys data files: `oasislmf model generate-oasis-files`
     * generating losses from Oasis files and analysis settings: `oasislmf model generate-losses`
     * running a model end-to-end: `oasislmf model run`
 
@@ -65,9 +65,13 @@ You can also install from a specific branch `<branch name>` using:
 
     pip install git+{https,ssh}://git@github.com/OasisLMF/OasisLMF.git@<branch name>#egg=oasislmf
 
-#### Model specific dependencies
+#### System package dependencies
 
-Specific models have Python requirements and systems library requirements of their own, and without installing these some of the MDK commands any fail. For example, PiWind requires `shapely`, `pandas`, and `Rtree` Python packages (in addition to `oasislmf`), as well as the `libspatialindex-dev` spatial indexing system library (for which `RTree` is a Python wrapper). You must install these before using the MDK commands against PiWind.
+The package provides a built-in lookup framework (`oasislmf.keys.lookup`) which uses the Rtree Python package, which in turn requires the `libspatialindex` spatial indexing C library.
+
+https://libspatialindex.github.io/index.html
+
+ If you want your model lookup to use the built-in lookup then please ensure that you have installed `libspatialindex` library.
 
 ## Development
 

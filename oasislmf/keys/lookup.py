@@ -194,8 +194,7 @@ class OasisBaseLookup(object):
 
 class OasisBaseKeysLookup(object):  # pragma: no cover
     """
-    A base class / interface that serves a template for model-specific keys
-    lookup classes.
+    Old Oasis base class -deprecated
     """
     @oasis_log()
     def __init__(
@@ -221,13 +220,6 @@ class OasisBaseKeysLookup(object):  # pragma: no cover
     def process_locations(self, loc_df):
         """
         Process location rows - passed in as a pandas dataframe.
-        """
-        pass
-
-    def _get_location_record(self, raw_loc_item):
-        """
-        Returns a dict of standard location keys and values based on
-        a raw location item, which is a row in a Pandas dataframe.
         """
         pass
 
@@ -594,12 +586,14 @@ class OasisLookupFactory(object):
             if _keys_error_file_path:
                 fp1, n1 = cls.write_json_keys_file(successes, _keys_file_path)
                 fp2, n2 = cls.write_json_keys_file(nonsuccesses, _keys_errors_file_path)
+
                 return fp1, n1, fp2, n2
             return cls.write_json_keys_file(successes, _keys_file_path)
         elif keys_format == 'oasis':
             if _keys_errors_file_path:
                 fp1, n1 = cls.write_oasis_keys_file(successes, _keys_file_path, id_col=keys_id_col)
                 fp2, n2 = cls.write_oasis_keys_errors_file(nonsuccesses, _keys_errors_file_path, id_col=keys_id_col)
+
                 return fp1, n1, fp2, n2
             return cls.write_oasis_keys_file(successes, _keys_file_path, id_col=keys_id_col)
         else:

@@ -45,6 +45,7 @@ pyflakes==1.6.0           # via flake8
 pygments==2.2.0           # via sphinx
 pyodbc==4.0.21
 pytest-cov==2.5.1
+pytest-ignore-flaky==0.1.1
 pytest==3.3.2
 python-dateutil==2.6.1    # via freezegun, pandas
 python-interface==1.4.0
