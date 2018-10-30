@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import multiprocessing
-
 try:
     from queue import Queue, Empty
 except ImportError:
@@ -10,7 +8,7 @@ except ImportError:
 import sys
 import types
 
-from multiprocessing import Pool
+import billiard
 
 from signal import (
     signal,
@@ -161,7 +159,7 @@ def multiprocess(tasks, pool_size=10):
     caller.
     """
 
-    pool = Pool(pool_size)
+    pool = billiard.Pool(pool_size)
 
     result_q = Queue()
 
