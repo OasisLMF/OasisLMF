@@ -1,5 +1,6 @@
 argparsetree==0.0.5
 backports.tempfile
+billiard==3.5.0.4
 chainmap
 future
 jsonpickle
