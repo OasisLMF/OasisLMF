@@ -9,7 +9,7 @@ pathlib2
 pyodbc
 python-interface
 pytz
-requests
+requests==2.20.0
 rtree==0.8.3
 requests-toolbelt
 shapely==1.6.4.post1
