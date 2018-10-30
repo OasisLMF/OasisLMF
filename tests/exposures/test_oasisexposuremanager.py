@@ -238,17 +238,17 @@ class CreateModel(TestCase):
             self.assertEqual(res_keys_errors_file_path, keys_errors_file_path)
 
     @given(
-        supplier_id=text(min_size=1),
-        model_id=text(min_size=1),
-        version=text(min_size=1),
+        supplier_id=text(alphabet=string.ascii_letters, min_size=1),
+        model_id=text(alphabet=string.ascii_letters, min_size=1),
+        version=text(alphabet=string.ascii_letters, min_size=1),
         model_lookup=text(min_size=1, alphabet=string.ascii_letters), 
-        model_keys_fp=text(min_size=1, alphabet=string.ascii_letters),
-        model_keys_errors_fp=text(min_size=1, alphabet=string.ascii_letters),
-        model_exposures_fp=text(min_size=1, alphabet=string.ascii_letters),
+        model_keys_fp=text(alphabet=string.ascii_letters, min_size=1),
+        model_keys_errors_fp=text(alphabet=string.ascii_letters, min_size=1),
+        model_exposures_fp=text(alphabet=string.ascii_letters, min_size=1),
         lookup=text(min_size=1, alphabet=string.ascii_letters),
-        keys_fp=text(min_size=1, alphabet=string.ascii_letters),
-        keys_errors_fp=text(min_size=1, alphabet=string.ascii_letters),
-        exposures_fp=text(min_size=1, alphabet=string.ascii_letters)
+        keys_fp=text(alphabet=string.ascii_letters, min_size=1),
+        keys_errors_fp=text(alphabet=string.ascii_letters, min_size=1),
+        exposures_fp=text(alphabet=string.ascii_letters, min_size=1)
     )
     def test_supplier_and_model_and_version_and_absolute_oasis_files_path_only_are_supplied___correct_model_is_returned(
         self,
@@ -305,10 +305,10 @@ class CreateModel(TestCase):
         self.assertIsNone(model.resources.get('canonical_exposures_profile'))
 
     @given(
-        supplier_id=text(min_size=1),
-        model_id=text(min_size=1),
-        version_id=text(min_size=1),
-        oasis_files_path=text(min_size=1)
+        supplier_id=text(alphabet=string.ascii_letters, min_size=1),
+        model_id=text(alphabet=string.ascii_letters, min_size=1),
+        version_id=text(alphabet=string.ascii_letters, min_size=1),
+        oasis_files_path=text(alphabet=string.ascii_letters, min_size=1)
     )
     def test_supplier_and_model_and_version_and_relative_oasis_files_path_only_are_supplied___correct_model_is_returned_with_absolute_oasis_file_path(
         self,
@@ -337,9 +337,9 @@ class CreateModel(TestCase):
         self.assertIsNone(model.resources.get('canonical_exposures_profile'))
 
     @given(
-        supplier_id=text(min_size=1),
-        model_id=text(min_size=1),
-        version_id=text(min_size=1),
+        supplier_id=text(alphabet=string.ascii_letters, min_size=1),
+        model_id=text(alphabet=string.ascii_letters, min_size=1),
+        version_id=text(alphabet=string.ascii_letters, min_size=1),
         canonical_exposures_profile=dictionaries(text(min_size=1), text(min_size=1))
     )
     def test_supplier_and_model_and_version_and_canonical_exposures_profile_only_are_supplied___correct_model_is_returned(
@@ -367,10 +367,10 @@ class CreateModel(TestCase):
         self.assertTrue(isinstance(model.resources['oasis_files_pipeline'], OasisFilesPipeline))
 
     @given(
-        supplier_id=text(min_size=1),
-        model_id=text(min_size=1),
-        version_id=text(min_size=1),
-        oasis_files_path=text(min_size=1),
+        supplier_id=text(alphabet=string.ascii_letters, min_size=1),
+        model_id=text(alphabet=string.ascii_letters, min_size=1),
+        version_id=text(alphabet=string.ascii_letters, min_size=1),
+        oasis_files_path=text(alphabet=string.ascii_letters, min_size=1),
         canonical_exposures_profile=dictionaries(text(min_size=1), text(min_size=1))
     )
     def test_supplier_and_model_and_version_and_relative_oasis_files_path_and_canonical_exposures_profile_only_are_supplied___correct_model_is_returned(
@@ -399,10 +399,10 @@ class CreateModel(TestCase):
         self.assertTrue(isinstance(model.resources['oasis_files_pipeline'], OasisFilesPipeline))
 
     @given(
-        supplier_id=text(min_size=1),
-        model_id=text(min_size=1),
-        version_id=text(min_size=1),
-        oasis_files_path=text(min_size=1),
+        supplier_id=text(alphabet=string.ascii_letters, min_size=1),
+        model_id=text(alphabet=string.ascii_letters, min_size=1),
+        version_id=text(alphabet=string.ascii_letters, min_size=1),
+        oasis_files_path=text(alphabet=string.ascii_letters, min_size=1),
         canonical_exposures_profile=dictionaries(text(min_size=1), text(min_size=1))
     )
     def test_supplier_and_model_and_version_and_absolute_oasis_files_path_and_canonical_exposures_profile_only_are_supplied___correct_model_is_returned(
@@ -430,10 +430,10 @@ class CreateModel(TestCase):
         self.assertTrue(isinstance(model.resources['oasis_files_pipeline'], OasisFilesPipeline))
 
     @given(
-        supplier_id=text(min_size=1),
-        model_id=text(min_size=1),
-        version_id=text(min_size=1),
-        source_accounts_file_path=text(min_size=1)
+        supplier_id=text(alphabet=string.ascii_letters, min_size=1),
+        model_id=text(alphabet=string.ascii_letters, min_size=1),
+        version_id=text(alphabet=string.ascii_letters, min_size=1),
+        source_accounts_file_path=text(alphabet=string.ascii_letters, min_size=1)
     )
     def test_supplier_and_model_and_version_and_source_accounts_file_path_only_are_supplied___correct_model_is_returned(
         self,
@@ -463,10 +463,10 @@ class CreateModel(TestCase):
         self.assertIsNone(model.resources.get('canonical_accounts_profile'))
 
     @given(
-        supplier_id=text(min_size=1),
-        model_id=text(min_size=1),
-        version_id=text(min_size=1),
-        source_accounts_file_path=text(min_size=1),
+        supplier_id=text(alphabet=string.ascii_letters, min_size=1),
+        model_id=text(alphabet=string.ascii_letters, min_size=1),
+        version_id=text(alphabet=string.ascii_letters, min_size=1),
+        source_accounts_file_path=text(alphabet=string.ascii_letters, min_size=1),
         canonical_accounts_profile=dictionaries(text(min_size=1), text(min_size=1))
     )
     def test_supplier_and_model_and_version_and_source_accounts_file_path_and_canonical_accounts_profile_only_are_supplied___correct_model_is_returned(
@@ -499,11 +499,11 @@ class CreateModel(TestCase):
         self.assertEqual(resources['canonical_accounts_profile'], model.resources['canonical_accounts_profile'])
 
     @given(
-        supplier_id=text(min_size=1),
-        model_id=text(min_size=1),
-        version_id=text(min_size=1),
+        supplier_id=text(alphabet=string.ascii_letters, min_size=1),
+        model_id=text(alphabet=string.ascii_letters, min_size=1),
+        version_id=text(alphabet=string.ascii_letters, min_size=1),
         canonical_exposures_profile=dictionaries(text(min_size=1), text(min_size=1)),
-        source_accounts_file_path=text(min_size=1),
+        source_accounts_file_path=text(alphabet=string.ascii_letters, min_size=1),
         canonical_accounts_profile=dictionaries(text(min_size=1), text(min_size=1))
     )
     def test_supplier_and_model_and_version_and_canonical_exposures_profile_and_source_accounts_file_path_and_canonical_accounts_profile_only_are_supplied___correct_model_is_returned(
@@ -541,12 +541,12 @@ class CreateModel(TestCase):
         self.assertEqual(resources['canonical_accounts_profile'], model.resources['canonical_accounts_profile'])
 
     @given(
-        supplier_id=text(min_size=1),
-        model_id=text(min_size=1),
-        version_id=text(min_size=1),
-        oasis_files_path=text(min_size=1),
+        supplier_id=text(alphabet=string.ascii_letters, min_size=1),
+        model_id=text(alphabet=string.ascii_letters, min_size=1),
+        version_id=text(alphabet=string.ascii_letters, min_size=1),
+        oasis_files_path=text(alphabet=string.ascii_letters, min_size=1),
         canonical_exposures_profile=dictionaries(text(min_size=1), text(min_size=1)),
-        source_accounts_file_path=text(min_size=1),
+        source_accounts_file_path=text(alphabet=string.ascii_letters, min_size=1),
         canonical_accounts_profile=dictionaries(text(min_size=1), text(min_size=1))
     )
     def test_supplier_and_model_and_version_and_absolute_oasis_files_path_and_canonical_exposures_profile_and_source_accounts_file_path_and_canonical_accounts_profile_only_are_supplied___correct_model_is_returned(

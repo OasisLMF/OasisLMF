@@ -1,6 +1,11 @@
 OasisLMF Changelog
 ==================
 
+`2.0.1`
+-------
+
+* Update concurrency utils - replace multiprocessing.Pool by billiard.Pool in multiprocessing wrapper (oasislmf.utils.concurrency.multiprocess) to fix a problem with Celery tasks unable to run applications which use processes or process pools created using the built-in multiprocessing package (https://github.com/celery/celery/issues/1709)
+
 `2.0.0`
 -------
 
@@ -136,7 +141,8 @@ in the exposure manager
 * Add console logging
 
 
-.. _`1.1.27`: https://github.com/OasisLMF/OasisLMF/compare/ad91e2a...master
+.. _`2.0.1`: https://github.com/OasisLMF/OasisLMF/compare/c703a58...master
+.. _`2.0.0`: https://github.com/OasisLMF/OasisLMF/compare/ad91e2a...master
 .. _`1.1.27`: https://github.com/OasisLMF/OasisLMF/compare/ac4375e...master
 .. _`1.1.26`: https://github.com/OasisLMF/OasisLMF/compare/dac703e...master
 .. _`1.1.25`: https://github.com/OasisLMF/OasisLMF/compare/3a4b983...master
