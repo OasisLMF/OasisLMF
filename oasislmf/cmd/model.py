@@ -520,47 +520,52 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         if not (lookup_config_fp or (keys_data_path and model_version_file_path and lookup_package_path)):
             raise OasisException('Either the lookup config JSON file path or the keys data path + model version file path + lookup package path must be provided')
 
+        # Load Location exposure files
+        source_exposures_file_path = as_path(
+            inputs.get('source_exposures_file_path', required=True, is_path=True), 'Source exposures file path'
+        )
         canonical_exposures_profile_json_path = as_path(
             inputs.get('canonical_exposures_profile_json_path', required=True, is_path=True),
             'Supplier canonical exposures profile JSON path'
-        )
-        canonical_accounts_profile_json_path = as_path(
-            inputs.get('canonical_accounts_profile_json_path', required=False, is_path=True),
-            'Supplier canonical accounts profile JSON path'
-        )
-        source_exposures_file_path = as_path(inputs.get('source_exposures_file_path', required=True, is_path=True), 'Source exposures file path')
-        source_accounts_file_path = as_path(inputs.get('source_accounts_file_path', required=False, is_path=True), 'Source accounts file path')
-        source_exposures_validation_file_path = as_path(
-            inputs.get('source_exposures_validation_file_path', required=False, is_path=True),
-            'Source exposures validation file',
-            preexists=False
-        )
-        source_accounts_validation_file_path = as_path(
-            inputs.get('source_accounts_validation_file_path', required=False, is_path=True),
-            'Source accounts file validation file path',
-            preexists=False
         )
         source_to_canonical_exposures_transformation_file_path = as_path(
             inputs.get('source_to_canonical_exposures_transformation_file_path', required=True, is_path=True),
             'Source to canonical exposures file transformation file path'
         )
-        canonical_exposures_validation_file_path = as_path(
-            inputs.get('canonical_exposures_validation_file_path', required=False, is_path=True),
-            'Canonical exposures validation file',
+        source_exposures_validation_file_path = as_path(
+            inputs.get('source_exposures_validation_file_path', required=False, is_path=True),
+            'Source exposures validation file',
             preexists=False
         )
         canonical_to_model_exposures_transformation_file_path = as_path(
             inputs.get('canonical_to_model_exposures_transformation_file_path', required=True, is_path=True),
             'Canonical to model exposures transformation file path'
         )
+        canonical_exposures_validation_file_path = as_path(
+            inputs.get('canonical_exposures_validation_file_path', required=False, is_path=True),
+            'Canonical exposures validation file',
+            preexists=False
+        )
 
         fm = inputs.get('fm', default=False)
 
-        # Load FM spersific arguments 
+        # Load Account exposure files 
         if fm:
+            source_accounts_file_path = as_path(
+                inputs.get('source_accounts_file_path', required=False, is_path=True), 'Source accounts file path'
+            )
+            canonical_accounts_profile_json_path = as_path(
+                inputs.get('canonical_accounts_profile_json_path', required=False, is_path=True),
+                'Supplier canonical accounts profile JSON path'
+            )
             source_to_canonical_accounts_transformation_file_path = as_path(
                 inputs.get('source_to_canonical_accounts_transformation_file_path', required=False, is_path=True),
                 'Source to canonical accounts file transformation file path'
+            )
+            source_accounts_validation_file_path = as_path(
+                inputs.get('source_accounts_validation_file_path', required=False, is_path=True),
+                'Source accounts file validation file path',
+                preexists=False
             )
             fm_agg_profile_path = as_path(
                 inputs.get('fm_agg_profile_path', required=False, is_path=True),
