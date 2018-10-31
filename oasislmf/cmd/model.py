@@ -546,14 +546,20 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             'Canonical exposures validation file',
             preexists=False
         )
+        source_accounts_file_path = as_path(
+            inputs.get('source_accounts_file_path', required=False, is_path=True), 'Source accounts file path',
+            preexists=False
+        )
+        source_accounts_validation_file_path = as_path(
+            inputs.get('source_accounts_validation_file_path', required=False, is_path=True),
+            'Source accounts file validation file path',
+            preexists=False
+        )
 
         fm = inputs.get('fm', default=False)
 
         # Load Account exposure files 
         if fm:
-            source_accounts_file_path = as_path(
-                inputs.get('source_accounts_file_path', required=False, is_path=True), 'Source accounts file path'
-            )
             canonical_accounts_profile_json_path = as_path(
                 inputs.get('canonical_accounts_profile_json_path', required=False, is_path=True),
                 'Supplier canonical accounts profile JSON path'
@@ -561,11 +567,6 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             source_to_canonical_accounts_transformation_file_path = as_path(
                 inputs.get('source_to_canonical_accounts_transformation_file_path', required=False, is_path=True),
                 'Source to canonical accounts file transformation file path'
-            )
-            source_accounts_validation_file_path = as_path(
-                inputs.get('source_accounts_validation_file_path', required=False, is_path=True),
-                'Source accounts file validation file path',
-                preexists=False
             )
             fm_agg_profile_path = as_path(
                 inputs.get('fm_agg_profile_path', required=False, is_path=True),
