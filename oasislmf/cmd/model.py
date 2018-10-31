@@ -555,28 +555,28 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             'Source accounts file validation file path',
             preexists=False
         )
+        canonical_accounts_profile_json_path = as_path(
+            inputs.get('canonical_accounts_profile_json_path', required=False, is_path=True),
+            'Supplier canonical accounts profile JSON path',
+            preexists=False
+        )
+        source_to_canonical_accounts_transformation_file_path = as_path(
+            inputs.get('source_to_canonical_accounts_transformation_file_path', required=False, is_path=True),
+            'Source to canonical accounts file transformation file path',
+            preexists=False
+        )
+        fm_agg_profile_path = as_path(
+            inputs.get('fm_agg_profile_path', required=False, is_path=True),
+            'Supplier FM aggregation profile JSON file path',
+            preexists=False
+        )
 
         fm = inputs.get('fm', default=False)
-
-        # Load Account exposure files 
-        if fm:
-            canonical_accounts_profile_json_path = as_path(
-                inputs.get('canonical_accounts_profile_json_path', required=False, is_path=True),
-                'Supplier canonical accounts profile JSON path'
+        if fm and not (source_accounts_file_path and canonical_accounts_profile_json_path and fm_agg_profile_path):
+            raise OasisException(
+                'FM option indicated but missing one or more of the following arguments: canonical accounts profile JSON file path,'
+                'source accounts file path, FM aggregation profile JSON file path'
             )
-            source_to_canonical_accounts_transformation_file_path = as_path(
-                inputs.get('source_to_canonical_accounts_transformation_file_path', required=False, is_path=True),
-                'Source to canonical accounts file transformation file path'
-            )
-            fm_agg_profile_path = as_path(
-                inputs.get('fm_agg_profile_path', required=False, is_path=True),
-                'Supplier FM aggregation profile JSON file path'
-            )
-            if not (source_accounts_file_path and canonical_accounts_profile_json_path and fm_agg_profile_path):
-                raise OasisException(
-                    'FM option indicated but missing one or more of the following arguments: canonical accounts profile JSON file path,'
-                    'source accounts file path, FM aggregation profile JSON file path'
-                )
 
         start_time = time.time()
         self.logger.info('\nStarting Oasis files generation (@ {}): GUL=True, FM={}'.format(get_utctimestamp(), fm))
