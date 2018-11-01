@@ -14,6 +14,7 @@ import sys
 
 from collections import OrderedDict
 
+
 class _metadata(object):
 
     DED_TYPE_BLN = 'B'
@@ -205,7 +206,7 @@ class _metadata(object):
     OASIS_KEYS_NM = 'nomatch'
 
     OASIS_KEYS_STATUS = {
-        'success': {'id': OASIS_KEYS_SC,'desc': 'Success'},
+        'success': {'id': OASIS_KEYS_SC, 'desc': 'Success'},
         'fail': {'id': OASIS_KEYS_FL, 'desc': 'Failure'},
         'nomatch': {'id': OASIS_KEYS_NM, 'desc': 'No match'}
     }
@@ -239,6 +240,7 @@ class _metadata(object):
         except KeyError:
             raise AttributeError('Module {} has no attribute "{}"'.format(__name__, attrib_name))
 
-        raise self.AttributeModificationError('Cannot delete module attribute "{}.{}" - it is meant to be a constant'.format(__name_, attrib_name))
+        raise self.AttributeModificationError('Cannot delete module attribute "{}.{}" - it is meant to be a constant'.format(__name__, attrib_name))
+
 
 sys.modules[__name__] = _metadata()

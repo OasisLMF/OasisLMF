@@ -55,6 +55,7 @@ def set_rotating_logger(
 
     handler.setFormatter(formatter)
 
+
 def read_log_config(config_parser):
     """
     Read an Oasis standard logging config

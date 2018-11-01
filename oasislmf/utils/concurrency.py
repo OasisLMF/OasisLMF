@@ -19,8 +19,6 @@ from threading import (
     Thread,
 )
 
-from .exceptions import OasisException
-
 __all__ = [
     'multiprocess',
     'multithread',
@@ -109,9 +107,7 @@ def multithread(tasks, pool_size=10):
     Executes several tasks concurrently via ``threading`` threads, puts the
     results into a queue, and generates these back to the caller.
     """
-    
     task_q = Queue()
-
     num_tasks = 0
 
     for task in tasks:
@@ -179,4 +175,3 @@ def multiprocess(tasks, pool_size=10):
     while not result_q.empty():
         result = result_q.get_nowait()
         yield result
- 
