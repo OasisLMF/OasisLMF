@@ -40,7 +40,7 @@ class OasisFilesPipeline(object):
 
         self._source_files = {
             'source_exposures': self._source_exposures_file_path,
-            'source_accounts': self._source_accounts_file_path 
+            'source_accounts': self._source_accounts_file_path
         }
 
         self._intermediate_files = {
@@ -65,7 +65,7 @@ class OasisFilesPipeline(object):
             'fmsummaryxref': self._fmsummaryxref_file_path
         }
 
-        self._oasis_files = {k:v for k, v in chain(self._gul_files.items(), self._fm_files.items())}
+        self._oasis_files = {k: v for k, v in chain(self._gul_files.items(), self._fm_files.items())}
 
     def __str__(self):
         return '{}: {}'.format(self.__repr__(), self.model_key)
@@ -349,7 +349,6 @@ class OasisFilesPipeline(object):
                      ``fm_xref.csv``, ``fmsummaryxref.csv``.
         """
         return self._oasis_files
-
 
     def clear(self, files_subsets=None):
         """

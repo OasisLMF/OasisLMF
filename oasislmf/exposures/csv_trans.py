@@ -4,20 +4,18 @@ __all__ = [
     'Translator'
 ]
 
-import json
 import logging
 import multiprocessing
-import os
 
 import pandas as pd
 
 from lxml import etree
 
 from oasislmf.utils.concurrency import (
-    multiprocess,
     multithread,
     Task,
 )
+
 
 class Translator(object):
     def __init__(self, input_path, output_path, xslt_path, xsd_path=None, append_row_nums=False, chunk_size=5000, logger=None):
@@ -63,14 +61,14 @@ class Translator(object):
 
         task_list = []
         for chunk_id, (data, first_row, last_row) in enumerate(self.next_file_slice(csv_reader)):
-            task_list.append(Task(self.process_chunk, args=(data,first_row,last_row, chunk_id), key=chunk_id))
+            task_list.append(Task(self.process_chunk, args=(data, first_row, last_row, chunk_id), key=chunk_id))
 
         results = {}
         num_ps = multiprocessing.cpu_count()
         for key, data in multithread(task_list, pool_size=num_ps):
             results[key] = data
 
-        ## write output to disk
+        # write output to disk
         for i in range(0, len(results)):
             if (i == 0):
                 self.write_file_header(results[i].columns.tolist())
@@ -98,11 +96,10 @@ class Translator(object):
 
         # Convert transform XML back to CSV
         return self.xml_to_csv(
-                 xml_output,        # XML etree
-                 first_row_number,  # First Row in this slice
-                 last_row_number    # Last Row in this slice
+            xml_output,
+            first_row_number,
+            last_row_number
         )
-
 
     def csv_to_xml(self, csv_header, csv_data):
         root = etree.Element('root')
@@ -130,7 +127,7 @@ class Translator(object):
         if self.row_nums:
             start = row_first + 1
             end = start + len(df_out)
-            df_out.insert(0, 'ROW_ID', pd.Series(range(start,end)))
+            df_out.insert(0, 'ROW_ID', pd.Series(range(start, end)))
 
         return df_out
 
