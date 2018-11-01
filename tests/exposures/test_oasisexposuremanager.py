@@ -2157,8 +2157,43 @@ class FMAcceptanceTests(TestCase):
 
             gul_files = self.manager.write_gul_files(oasis_model=model)
 
-            for f in gul_files:
-                self.assertTrue(os.path.exists(gul_files[f]))
+            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(gul_files)))
+
+            guls = pd.merge(
+                pd.merge(pd.read_csv(gul_files['items']), pd.read_csv(gul_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
+                pd.read_csv(gul_files['gulsummaryxref']),
+                left_on='coverage_id',
+                right_on='coverage_id'
+            )
+
+            self.assertEqual(len(guls), 8)
+
+            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in guls.groupby('group_id')]
+            self.assertEqual(len(loc_groups), 2)
+
+            loc1_id, loc1_items = loc_groups[0]
+            self.assertEqual(loc1_id, 1)
+            self.assertEqual(len(loc1_items), 4)
+            self.assertEqual(loc1_items['item_id'].values.tolist(), [1,2,3,4])
+            self.assertEqual(loc1_items['coverage_id'].values.tolist(), [1,2,3,4])
+            self.assertEqual(set(loc1_items['areaperil_id'].values), {1})
+            self.assertEqual(loc1_items['vulnerability_id'].values.tolist(), [1,2,3,4])
+            self.assertEqual(set(loc1_items['group_id'].values), {1})
+            tivs = [exposures[0][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
+            self.assertEqual(loc1_items['tiv'].values.tolist(), tivs)
+
+            loc2_id, loc2_items = loc_groups[1]
+            self.assertEqual(loc2_id, 2)
+            self.assertEqual(len(loc2_items), 4)
+            self.assertEqual(loc2_id, 2)
+            self.assertEqual(len(loc2_items), 4)
+            self.assertEqual(loc2_items['item_id'].values.tolist(), [5,6,7,8])
+            self.assertEqual(loc2_items['coverage_id'].values.tolist(), [5,6,7,8])
+            self.assertEqual(set(loc2_items['areaperil_id'].values), {2})
+            self.assertEqual(loc2_items['vulnerability_id'].values.tolist(), [1,2,3,4])
+            self.assertEqual(set(loc2_items['group_id'].values), {2})
+            tivs = [exposures[1][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
+            self.assertEqual(loc2_items['tiv'].values.tolist(), tivs)
 
             ofp.canonical_accounts_file_path = af.name
             ofp.fm_policytc_file_path = os.path.join(outdir, 'fm_policytc.csv')
@@ -2169,9 +2204,9 @@ class FMAcceptanceTests(TestCase):
 
             fm_files = self.manager.write_fm_files(oasis_model=model)
 
-            for f in fm_files:
-                self.assertTrue(os.path.exists(fm_files[f]))
+            import pdb; pdb.set_trace()
 
+            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_files)))
 
 
 class GulFilesGenerationTestCase(TestCase):
