@@ -3,7 +3,6 @@ import importlib
 import io
 import json
 import os
-import subprocess
 import time
 import sys
 
@@ -14,7 +13,7 @@ from pathlib2 import Path
 from ..exposures.csv_trans import Translator
 from ..exposures.manager import OasisExposuresManager
 
-from ..model_execution.bash import genbash
+# from ..model_execution.bash import genbash
 from ..model_execution import runner
 from ..model_execution.bin import create_binary_files, prepare_model_run_directory, prepare_model_run_inputs
 
@@ -27,6 +26,7 @@ from ..keys.lookup import OasisLookupFactory
 from .cleaners import as_path
 
 from .base import OasisBaseCommand, InputValues
+
 
 class GeneratePerilAreasRtreeFileIndexCmd(OasisBaseCommand):
     """
@@ -305,7 +305,7 @@ class TransformCanonicalToModelFileCmd(OasisBaseCommand):
 
         self.logger.info('\nGenerating a model exposures file {} from canonical exposures file {}'.format(output_file_path, canonical_exposures_file_path))
 
-        translator = Translator(canonical_exposures_file_path, output_file_path, transformation_file_path, xsd_path=validation_file_path ,append_row_nums=True)
+        translator = Translator(canonical_exposures_file_path, output_file_path, transformation_file_path, xsd_path=validation_file_path, append_row_nums=True)
 
         translator()
 
@@ -575,10 +575,10 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
 
         self.logger.info('\nGetting model info and lookup')
         model_info, lookup = OasisLookupFactory.create(
-                lookup_config_fp=lookup_config_fp,
-                model_keys_data_path=keys_data_path,
-                model_version_file_path=model_version_file_path,
-                lookup_package_path=lookup_package_path
+            lookup_config_fp=lookup_config_fp,
+            model_keys_data_path=keys_data_path,
+            model_version_file_path=model_version_file_path,
+            lookup_package_path=lookup_package_path
         )
         self.logger.info('\t{}, {}'.format(model_info, lookup))
 
@@ -802,7 +802,7 @@ class RunCmd(OasisBaseCommand):
             '-q', '--canonical-accounts-profile-json-path', default=None,
             help='Supplier canonical accounts profile JSON path'
         )
-        
+
         parser.add_argument('-x', '--source-exposures-file-path', default=None, help='Source exposures file path')
         parser.add_argument('-y', '--source-accounts-file-path', default=None, help='Source accounts file path')
         parser.add_argument(

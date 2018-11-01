@@ -85,7 +85,7 @@ class TestModelApiCmd(OasisBaseCommand):
                 do_il = bool(analysis_settings['analysis_settings']["il_output"])
 
         do_ri = False
-        if 'ri_output' in analysis_settings['analysis_settings']:       
+        if 'ri_output' in analysis_settings['analysis_settings']:
             if isinstance(analysis_settings['analysis_settings']['ri_output'], six.string_types):
                 do_ri = analysis_settings['analysis_settings']["ri_output"].lower() == 'true'
             else:
@@ -107,7 +107,7 @@ class TestModelApiCmd(OasisBaseCommand):
         try:
             with TemporaryDirectory() as upload_directory:
                 input_location = client.upload_inputs_from_directory(
-                    input_directory, bin_directory=upload_directory, 
+                    input_directory, bin_directory=upload_directory,
                     do_il=do_il, do_ri=do_ri, do_build=True)
                 client.run_analysis_and_poll(analysis_settings, input_location, output_directory)
                 counter['completed'] += 1
@@ -149,9 +149,13 @@ class TestModelApiCmd(OasisBaseCommand):
         threads.map(
             self.run_analysis,
             ((
-                client, args.input_directory, args.output_directory, 
-                analysis_settings, do_il, do_ri, counter
-                ) for i in range(args.num_analyses))
+                client,
+                args.input_directory,
+                args.output_directory,
+                analysis_settings,
+                do_il, do_ri,
+                counter
+            ) for i in range(args.num_analyses))
         )
 
         threads.close()
