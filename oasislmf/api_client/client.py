@@ -28,7 +28,8 @@ from requests_toolbelt.multipart.encoder import MultipartEncoder
 
 # Oasis imports
 from ..utils.log import oasis_log
-from ..utils.status import STATUS_PENDING, STATUS_SUCCESS, STATUS_FAILURE
+from ..utils.status import STATUS_SUCCESS, STATUS_FAILURE
+# from ..utils.status import STATUS_PENDING, STATUS_SUCCESS, STATUS_FAILURE
 
 
 class OasisAPIClient(object):
@@ -66,8 +67,7 @@ class OasisAPIClient(object):
         return urllib.parse.urljoin(self._oasis_api_url, path)
 
     @oasis_log
-    def upload_inputs_from_directory(
-        self, directory, bin_directory=None, do_il=False, do_ri=False, do_build=False, do_clean=False):
+    def upload_inputs_from_directory(self, directory, bin_directory=None, do_il=False, do_ri=False, do_build=False, do_clean=False):
         """
         Upload the CSV files from a specified directory.
 
