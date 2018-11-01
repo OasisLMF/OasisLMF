@@ -27,7 +27,6 @@ import uuid
 from collections import OrderedDict
 
 import pandas as pd
-import six
 
 from shapely.geometry import (
     box,
@@ -35,9 +34,6 @@ from shapely.geometry import (
 )
 
 from shapely import speedups as shapely_speedups
-
-if shapely_speedups.available:
-    shapely_speedups.enable()
 
 from rtree.core import RTreeError
 
@@ -57,8 +53,11 @@ from ..utils.status import (
 )
 from ..utils.values import is_string
 
+if shapely_speedups.available:
+    shapely_speedups.enable()
 
 UNKNOWN_ID = -1
+
 
 def as_path(value, name, preexists=True):
     """
@@ -440,7 +439,6 @@ class OasisLookupFactory(object):
 
             model_info = cls.get_model_info(_model_version_file_path)
             lookup_package = cls.get_lookup_package(_lookup_package_path)
-        
             return model_info, cls.get_lookup_class_instance(lookup_package, _model_keys_data_path, model_info)
 
     @classmethod
@@ -505,7 +503,6 @@ class OasisLookupFactory(object):
         _model_exposures_fp = as_path(model_exposures_fp, 'model_exposures_fp', preexists=False)
 
         loc_config = lookup.config.get('locations') or {}
-        src_type = 'csv'
 
         kwargs = {
             'src_data': model_exposures,
@@ -517,7 +514,7 @@ class OasisLookupFactory(object):
             'sort_ascending': loc_config.get('sort_ascending')
         }
 
-        model_exposures_df =  get_dataframe(**kwargs)
+        model_exposures_df = get_dataframe(**kwargs)
 
         locations = (loc for _, loc in model_exposures_df.iterrows())
 
@@ -583,7 +580,7 @@ class OasisLookupFactory(object):
             successes.append(k) if k['status'] == KEYS_STATUS_SUCCESS else nonsuccesses.append(k)
 
         if keys_format == 'json':
-            if _keys_error_file_path:
+            if _keys_errors_file_path:
                 fp1, n1 = cls.write_json_keys_file(successes, _keys_file_path)
                 fp2, n2 = cls.write_json_keys_file(nonsuccesses, _keys_errors_file_path)
 
@@ -643,22 +640,24 @@ class OasisLookupFactory(object):
 
         results = None
 
-        try:
-            config = lookup.config
-        except AttributeError:
+        if isinstance(lookup, OasisBaseKeysLookup):
+            # fallback try custom lookup
             results = cls.get_keys(
                 lookup=lookup,
                 model_exposures=model_exposures,
                 model_exposures_file_path=mfp,
                 success_only=(False if efp else True)
             )
-        else:
+        elif isinstance(lookup, OasisLookup):
+            # try builtin lookup
             results = cls.get_results(
                 lookup,
                 model_exposures=model_exposures,
                 model_exposures_fp=mfp,
                 successes_only=(False if efp else True)
             )
+        else:
+            raise OasisException('Unrecognised lookup class type')
 
         successes = []
         nonsuccesses = []
@@ -749,7 +748,7 @@ class OasisLookup(OasisBaseLookup):
         past = plookup['status']
         pamsg = plookup['message']
         paid = plookup['peril_area_id']
-        
+
         vlookup = self.vulnerability_lookup.lookup(loc, peril_id, coverage_type)
 
         vlnst = vlookup['status']
@@ -766,11 +765,11 @@ class OasisLookup(OasisBaseLookup):
             KEYS_STATUS_SUCCESS if past == vlnst == KEYS_STATUS_SUCCESS
             else (KEYS_STATUS_FAIL if (past == KEYS_STATUS_FAIL or vlnst == KEYS_STATUS_FAIL) else KEYS_STATUS_NOMATCH)
         )
-        
+
         message = '{}; {}'.format(pamsg, vlnmsg)
 
         return {
-            k:v for k, v in itertools.chain(
+            k: v for k, v in itertools.chain(
                 (
                     (loc_id_col, loc_id),
                     ('peril_id', peril_id),
@@ -831,7 +830,7 @@ class OasisPerilLookup(OasisBaseLookup):
                 self.peril_areas_index_props = self.peril_areas_index_props.properties.as_dict()
             elif (areas or peril_areas):
                 self.index_props = (
-                    peril_areas_index_props or 
+                    peril_areas_index_props or
                     peril_config.get('rtree_index') or
                     DEFAULT_RTREE_INDEX_PROPS
                 )
@@ -858,7 +857,7 @@ class OasisPerilLookup(OasisBaseLookup):
             self.peril_areas_centre = _centroid.x, _centroid.y
 
             self.loc_to_global_areas_boundary_min_distance = (
-                loc_to_global_areas_boundary_min_distance or 
+                loc_to_global_areas_boundary_min_distance or
                 self.config['peril'].get('loc_to_global_areas_boundary_min_distance') or 0
             )
 
@@ -936,7 +935,7 @@ class OasisPerilLookup(OasisBaseLookup):
                     paid, pabnds, pacoords = _paid, _pabnds, _pacoords
                     break
 
-            if paid == None:
+            if paid is None:
                 raise IndexError
         except IndexError:
             try:
@@ -950,7 +949,7 @@ class OasisPerilLookup(OasisBaseLookup):
                         paid, pabnds, pacoords = _paid, _pabnds, _pacoords
                         break
 
-                if paid == None:
+                if paid is None:
                     msg = 'No intersecting or nearest peril area found for peril ID {} and coverage type {}'.format(peril_id, coverage_type)
                     return _lookup(loc_id, x, y, KEYS_STATUS_NOMATCH, peril_id, coverage_type, None, None, None, msg)
             except IndexError:
@@ -1028,7 +1027,7 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
             )
 
         col_dtypes = {
-            k.lower():getattr(builtins, v) for k, v in six.iteritems(col_dtypes)
+            k.lower(): getattr(builtins, v) for k, v in six.iteritems(col_dtypes)
         }
 
         key_cols = vuln_config.get('key_cols')
@@ -1045,9 +1044,9 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
 
         def _vuln_dict(vulns_seq, key_cols, vuln_id_col):
             return (
-                {v[key_cols[0]]:(v.get(vuln_id_col) or v.get('vulnerability_id')) for _, v in vulns_seq} if len(key_cols) == 1
+                {v[key_cols[0]]: (v.get(vuln_id_col) or v.get('vulnerability_id')) for _, v in vulns_seq} if len(key_cols) == 1
                 else OrderedDict(
-                    {tuple(v[key_cols[i]] for i in range(len(key_cols))):(v.get(vuln_id_col) or v.get('vulnerability_id')) for v in vulns_seq}
+                    {tuple(v[key_cols[i]] for i in range(len(key_cols))): (v.get(vuln_id_col) or v.get('vulnerability_id')) for v in vulns_seq}
                 )
             )
 
@@ -1100,7 +1099,7 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
 
         key_cols = self.key_cols
         col_dtypes = self.col_dtypes
-        vuln_id_col = self.vuln_id_col
+        # vuln_id_col = self.vuln_id_col
 
         loc_key_col_values = OrderedDict({
             key_col: loc.get(key_col) for key_col in key_cols
@@ -1113,7 +1112,7 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
             loc_key_col_values['coverage_type'] = loc.get('coverage') or coverage_type
 
         _lookup = lambda loc_id, vlnperid, vlncovtype, vlnst, vlnid, vlnmsg: {
-            k:v for k, v in itertools.chain(
+            k: v for k, v in itertools.chain(
                 (
                     (loc_id_col, loc_id),
                     ('peril_id', vlnperid),
