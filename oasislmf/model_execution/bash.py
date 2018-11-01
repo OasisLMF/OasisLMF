@@ -22,6 +22,7 @@ WAIT_PROCESSING_SWITCHES = {
     'wheatsheaf_mean_oep': '-m',
 }
 
+
 def print_command(command_file, cmd):
     """
     Writes the supplied command to the end of the generated script
@@ -223,9 +224,9 @@ def do_kats(runtype, analysis_settings, max_process_id, filename, process_counte
     return anykats
 
 
-def do_summarycalcs(
-    runtype, analysis_settings, process_id, filename, num_reinsurance_iterations=0):
-    
+def do_summarycalcs(runtype, analysis_settings, process_id,
+                    filename, num_reinsurance_iterations=0):
+
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
@@ -325,8 +326,6 @@ def do_any(runtype, analysis_settings, process_id, filename, process_counter):
                         runtype, summary_set, process_id, cmd, process_counter['pid_monitor_count']
                     )
                 )
-
-
         print_command(filename, '')
 
 
@@ -474,10 +473,11 @@ def get_getmodel_cmd(number_of_samples, gul_threshold, use_random_number_file, c
 
     return cmd
 
+
 def genbash(
-    max_process_id, analysis_settings, filename, 
-    num_reinsurance_iterations=0,
-    _get_getmodel_cmd=get_getmodel_cmd, custom_args={}):
+        max_process_id, analysis_settings, filename,
+        num_reinsurance_iterations=0,
+        _get_getmodel_cmd=get_getmodel_cmd, custom_args={}):
     """
     Generates a bash script containing ktools calculation instructions for an
     Oasis model.
@@ -493,7 +493,7 @@ def genbash(
 
     :param num_reinsurance_iterations: The number of reinsurance iterations
     :type num_reinsurance_iterations: int
-    
+
     :param get_getmodel_cmd: Method for getting the getmodel command, by default
         ``GenerateLossesCmd.get_getmodel_cmd`` is used.
     :type get_getmodel_cmd: callable
@@ -567,25 +567,25 @@ def genbash(
         do_gul(analysis_settings, max_process_id, filename, process_counter)
 
     print_command(filename, '')
-    
+
     for process_id in range(1, max_process_id + 1):
 
-        ##! Should be able to streamline the logic a little
+        # Should be able to streamline the logic a little
         if num_reinsurance_iterations > 0 and ri_output:
-            
-            getmodel_args = { 
-                'number_of_samples'      : number_of_samples,
-                'gul_threshold'          : gul_threshold,
-                'use_random_number_file' : use_random_number_file,
-                'coverage_output'        : 'fifo/gul_P{}'.format(process_id),
-                'item_output'            : '-',
-                'process_id'             : process_id,
-                'max_process_id'         : max_process_id
+
+            getmodel_args = {
+                'number_of_samples': number_of_samples,
+                'gul_threshold': gul_threshold,
+                'use_random_number_file': use_random_number_file,
+                'coverage_output': 'fifo/gul_P{}'.format(process_id),
+                'item_output': '-',
+                'process_id': process_id,
+                'max_process_id': max_process_id
             }
             getmodel_args.update(custom_args)
             getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
             main_cmd = 'eve {0} {1} | {2} | fmcalc -a {3} | tee fifo/il_P{0}'.format(
-                process_id, max_process_id, getmodel_cmd, 
+                process_id, max_process_id, getmodel_cmd,
                 ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID)
             for i in range(1, num_reinsurance_iterations + 1):
                 main_cmd = "{0} | fmcalc -a {3} -n -p input{1}RI_{2}".format(
@@ -598,14 +598,14 @@ def genbash(
             )
 
         elif gul_output and il_output:
-            getmodel_args = { 
-                'number_of_samples'      : number_of_samples,
-                'gul_threshold'          : gul_threshold,
-                'use_random_number_file' : use_random_number_file,
-                'coverage_output'        : 'fifo/gul_P{}'.format(process_id),
-                'item_output'            : '-',
-                'process_id'             : process_id,
-                'max_process_id'         : max_process_id
+            getmodel_args = {
+                'number_of_samples': number_of_samples,
+                'gul_threshold': gul_threshold,
+                'use_random_number_file': use_random_number_file,
+                'coverage_output': 'fifo/gul_P{}'.format(process_id),
+                'item_output': '-',
+                'process_id': process_id,
+                'max_process_id': max_process_id
             }
             getmodel_args.update(custom_args)
             getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
@@ -619,14 +619,14 @@ def genbash(
             )
         else:
             if gul_output and 'gul_summaries' in analysis_settings:
-                getmodel_args = { 
-                    'number_of_samples'      : number_of_samples,
-                    'gul_threshold'          : gul_threshold,
-                    'use_random_number_file' : use_random_number_file,
-                    'coverage_output'        : '-',
-                    'item_output'            : '',
-                    'process_id'             : process_id,
-                    'max_process_id'         : max_process_id
+                getmodel_args = {
+                    'number_of_samples': number_of_samples,
+                    'gul_threshold': gul_threshold,
+                    'use_random_number_file': use_random_number_file,
+                    'coverage_output': '-',
+                    'item_output': '',
+                    'process_id': process_id,
+                    'max_process_id': max_process_id
                 }
                 getmodel_args.update(custom_args)
                 getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
@@ -635,14 +635,14 @@ def genbash(
                     'eve {0} {1} | {2} > fifo/gul_P{0}  &'.format(process_id, max_process_id, getmodel_cmd)
                 )
             if il_output and 'il_summaries' in analysis_settings:
-                getmodel_args = { 
-                    'number_of_samples'      : number_of_samples,
-                    'gul_threshold'          : gul_threshold,
-                    'use_random_number_file' : use_random_number_file,
-                    'coverage_output'        : '',
-                    'item_output'            : '-',
-                    'process_id'             : process_id,
-                    'max_process_id'         : max_process_id
+                getmodel_args = {
+                    'number_of_samples': number_of_samples,
+                    'gul_threshold': gul_threshold,
+                    'use_random_number_file': use_random_number_file,
+                    'coverage_output': '',
+                    'item_output': '-',
+                    'process_id': process_id,
+                    'max_process_id': max_process_id
                 }
                 getmodel_args.update(custom_args)
                 getmodel_cmd = _get_getmodel_cmd(**getmodel_args)

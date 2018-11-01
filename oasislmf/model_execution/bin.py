@@ -171,7 +171,7 @@ def check_inputs_directory(directory_to_check, do_il=False, do_ri=False, check_b
     :type check_binaries: bool
     """
     # Check the top level directory, that containes the core files and any direct FM files
-    _check_each_inputs_directory(directory_to_check, do_il=do_il, check_binaries=check_binaries)    
+    _check_each_inputs_directory(directory_to_check, do_il=do_il, check_binaries=check_binaries)
 
     if do_ri:
         for ri_directory_to_check in glob.glob('{}{}RI_[0-9]*'.format(directory_to_check, os.sep)):
@@ -229,6 +229,7 @@ def create_binary_files(csv_directory, bin_directory, do_il=False, do_ri=False):
             _create_set_of_binary_files(
                 ri_csvdir, os.path.join(bindir, os.path.basename(ri_csvdir)), do_il=True)
 
+
 def _create_set_of_binary_files(csv_directory, bin_directory, do_il=False):
     """
     Create a set of binary files.
@@ -254,6 +255,7 @@ def _create_set_of_binary_files(csv_directory, bin_directory, do_il=False):
             subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
         except subprocess.CalledProcessError as e:
             raise OasisException(e)
+
 
 def check_binary_tar_file(tar_file_path, check_il=False):
     """
@@ -288,9 +290,9 @@ def check_binary_tar_file(tar_file_path, check_il=False):
 def create_binary_tar_file(directory):
     """
     Package the binaries in a gzipped tar.
-    
+
     :param directory: Path containing the binaries
-    :type tar_file_path: str    
+    :type tar_file_path: str
     """
     original_cwd = os.getcwd()
     os.chdir(directory)
@@ -307,12 +309,12 @@ def create_binary_tar_file(directory):
 def check_conversion_tools(do_il=False):
     """
     Check that the conversion tools are available
-    
+
     :param do_il: Flag whether to check insured loss tools
     :type do_il: bool
 
     :return: True if all required tools are present, False otherwise
-    :rtype: bool  
+    :rtype: bool
     """
     if do_il:
         input_files = six.itervalues(INPUT_FILES)
