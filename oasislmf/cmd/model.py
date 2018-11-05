@@ -19,6 +19,7 @@ from ..model_execution import runner
 from ..model_execution.bin import create_binary_files, prepare_model_run_directory, prepare_model_run_inputs
 
 from ..utils.exceptions import OasisException
+from ..utils.path import setcwd
 from ..utils.peril import PerilAreasIndex
 from ..utils.values import get_utctimestamp
 
@@ -761,8 +762,6 @@ class GenerateLossesCmd(OasisBaseCommand):
 
         script_path = os.path.join(model_run_dir_path, '{}.sh'.format(ktools_script_name))
 
-        os.chdir(model_run_dir_path)
-
         if model_package_path and os.path.exists(os.path.join(model_package_path, 'supplier_model_runner.py')):
             path, package_name = model_package_path.rsplit('/')
             sys.path.append(path)
@@ -772,7 +771,9 @@ class GenerateLossesCmd(OasisBaseCommand):
 
         self.logger.info('\nGenerating losses')
 
-        model_runner_module.run(analysis_settings, args.ktools_num_processes, filename=script_path)
+        with setcwd(model_run_dir_path) as cwd_path:
+            self.logger.info('\nSwitching CWD to %s' % cwd_path)
+            model_runner_module.run(analysis_settings, args.ktools_num_processes, filename=script_path)
 
         self.logger.info('\nLoss outputs generated in {}'.format(os.path.join(model_run_dir_path, 'output')))
 
