@@ -625,14 +625,11 @@ class ReinsuranceLayer(object):
             # Three rules for layers
             # 1. if FAC, don't increment the layer number
             # 2. Otherwise, only increment inline with the reins_number
-            # 3. If the reins_number number is the same as prev, increment based on ReinsLayerNumber
             if ri_info_row.ReinsType in ['FAC']:
                 pass
             elif prev_reins_number < ri_info_row.ReinsNumber:
                 layer_id += 1
                 prev_reins_number = ri_info_row.ReinsNumber
-            elif layer_id < ri_info_row.ReinsLayerNumber:
-                layer_id = ri_info_row.ReinsLayerNumber
 
             if self.logger:
                 pd.set_option('display.width', 1000)
