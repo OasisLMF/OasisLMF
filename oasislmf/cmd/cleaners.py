@@ -22,10 +22,11 @@ def as_path(value, name, preexists=True):
 
     :return: The absolute path of the input path
     """
-    if value is not None:
-        value = os.path.abspath(value) if not os.path.isabs(value) else value
-
-    if preexists and not (value is not None and os.path.exists(value)):
+    if not value:
+        return None
+    if not os.path.isabs(value):
+        value = os.path.abspath(value)
+    if preexists and not os.path.exists(value):
         raise OasisException('{} does not exist: {}'.format(name, value))
 
     return value
