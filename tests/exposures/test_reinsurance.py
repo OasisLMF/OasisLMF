@@ -14,7 +14,7 @@ from oasislmf.exposures import reinsurance_layer
 from collections import OrderedDict
 from backports.tempfile import TemporaryDirectory
 
-cwd = os.getcwd()
+cwd = os.path.dirname(os.path.realpath(__file__))
 expected_output_dir = os.path.join(cwd, 'expected', 'calc')
 
 input_dir = os.path.join(cwd, 'examples')
@@ -23,6 +23,7 @@ test_examples = ['loc_SS',
                  'placed_acc_1_limit_QS',
                  'placed_acc_limit_QS',
                  'placed_loc_SS',
+                 'placed_pol_SS',
                  'acc_limit_QS',
                  'simple_CAT_XL',
                  'pol_limit_QS',
@@ -51,9 +52,9 @@ test_examples = ['loc_SS',
 fm_examples = ['fm24',
                'fm27']
 
-
 test_cases = []
 for case in test_examples + fm_examples:
+#for case in ['placed_pol_SS']:
     test_cases.append((
         os.path.join(input_dir, case),
         os.path.join(expected_output_dir, case)
@@ -221,7 +222,6 @@ class TestReinsurance(unittest.TestCase):
 
             expected_df = pd.read_csv(expected_file)
             found_df = net_losses[key]
+            found_df.to_csv("{}.csv".format(key.replace(' ', '_')))
+
             assert_frame_equal(found_df, expected_df)
-
-
-
