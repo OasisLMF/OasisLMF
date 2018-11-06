@@ -1,6 +1,6 @@
 <img src="https://oasislmf.org/packages/oasis_theme_package/themes/oasis_theme/assets/src/oasis-lmf-colour.png" alt="Oasis LMF logo" width="250"/>
 
-[![PyPI version](https://badge.fury.io/py/oasislmf.svg)](https://badge.fury.io/py/oasislmf)  [![Build](http://ci.oasislmfdev.org/buildStatus/icon?job=pipeline_stable/oasis_pypi)](http://ci.oasislmfdev.org/blue/organizations/jenkins/pipeline_stable%2Foasis_pypi/activity)
+[![PyPI version](https://badge.fury.io/py/oasislmf.svg)](https://badge.fury.io/py/oasislmf)  [![Build](http://ci.oasislmfdev.org/buildStatus/icon?job=oasis_pypi)](http://ci.oasislmfdev.org/blue/organizations/jenkins/oasis_pypi/activity)
 
 # OasisLMF
 
