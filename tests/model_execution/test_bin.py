@@ -4,7 +4,7 @@ import glob
 import tarfile
 from tempfile import NamedTemporaryFile
 
-import pytest 
+import pytest
 import six
 from itertools import chain
 from backports.tempfile import TemporaryDirectory
@@ -37,6 +37,7 @@ from tests.data import (
     ECHO_CONVERSION_INPUT_FILES,
 )
 
+
 class CreateBinaryFiles(TestCase):
     def test_directory_only_contains_excluded_files___tar_is_empty(self):
         with TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
@@ -56,9 +57,11 @@ class CreateBinaryFiles(TestCase):
 
             create_binary_files(csv_dir, bin_dir, do_il=False)
 
-            self.assertEqual(len(standard), len(glob.glob(os.path.join(bin_dir, '*.bin'))))
+            self.assertEqual(len(standard), len(
+                glob.glob(os.path.join(bin_dir, '*.bin'))))
             for filename in (f + '.bin' for f in standard):
-                self.assertTrue(os.path.exists(os.path.join(bin_dir, filename)))
+                self.assertTrue(os.path.exists(
+                    os.path.join(bin_dir, filename)))
 
     @given(standard_input_files(min_size=1), il_input_files(min_size=1))
     def test_contains_il_and_standard_files_but_do_il_is_true___all_files_are_included(self, standard, il):
@@ -69,9 +72,11 @@ class CreateBinaryFiles(TestCase):
 
             create_binary_files(csv_dir, bin_dir, do_il=True)
 
-            self.assertEqual(len(standard) + len(il), len(glob.glob(os.path.join(bin_dir, '*.bin'))))
+            self.assertEqual(len(standard) + len(il),
+                             len(glob.glob(os.path.join(bin_dir, '*.bin'))))
             for filename in (f + '.bin' for f in chain(standard, il)):
-                self.assertTrue(os.path.exists(os.path.join(bin_dir, filename)))
+                self.assertTrue(os.path.exists(
+                    os.path.join(bin_dir, filename)))
 
     def test_subprocess_raises___oasis_exception_is_raised(self):
         with TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
@@ -97,14 +102,17 @@ class CreateBinaryFiles(TestCase):
 
             create_binary_files(csv_dir, bin_dir, do_il=True, do_ri=True)
 
-            self.assertEqual(len(files), len(glob.glob(os.path.join(bin_dir, '*.bin'))))
+            self.assertEqual(len(files), len(
+                glob.glob(os.path.join(bin_dir, '*.bin'))))
             for filename in (f + '.bin' for f in files):
-                self.assertTrue(os.path.exists(os.path.join(bin_dir, filename)))
+                self.assertTrue(os.path.exists(
+                    os.path.join(bin_dir, filename)))
 
-            self.assertEqual(len(files), len(glob.glob(os.path.join(bin_dir, 'RI_1{}*.bin'.format(os.sep)))))
+            self.assertEqual(len(files), len(
+                glob.glob(os.path.join(bin_dir, 'RI_1{}*.bin'.format(os.sep)))))
             for filename in (f + '.bin' for f in files):
-                self.assertTrue(os.path.exists(os.path.join(bin_dir, 'RI_1', filename)))
-
+                self.assertTrue(os.path.exists(
+                    os.path.join(bin_dir, 'RI_1', filename)))
 
     @given(standard_input_files(min_size=1), il_input_files(min_size=1))
     @settings(deadline=600, suppress_health_check=[HealthCheck.too_slow])
@@ -124,20 +132,25 @@ class CreateBinaryFiles(TestCase):
                 with io.open(os.path.join(csv_dir, "RI_2", target + '.csv'), 'w', encoding='utf-8') as f:
                     f.write(target)
 
-
             create_binary_files(csv_dir, bin_dir, do_il=True, do_ri=True)
 
-            self.assertEqual(len(files), len(glob.glob(os.path.join(bin_dir, '*.bin'))))
+            self.assertEqual(len(files), len(
+                glob.glob(os.path.join(bin_dir, '*.bin'))))
             for filename in (f + '.bin' for f in files):
-                self.assertTrue(os.path.exists(os.path.join(bin_dir, filename)))
+                self.assertTrue(os.path.exists(
+                    os.path.join(bin_dir, filename)))
 
-            self.assertEqual(len(files), len(glob.glob(os.path.join(bin_dir, 'RI_1{}*.bin'.format(os.sep)))))
+            self.assertEqual(len(files), len(
+                glob.glob(os.path.join(bin_dir, 'RI_1{}*.bin'.format(os.sep)))))
             for filename in (f + '.bin' for f in files):
-                self.assertTrue(os.path.exists(os.path.join(bin_dir, 'RI_1', filename)))
+                self.assertTrue(os.path.exists(
+                    os.path.join(bin_dir, 'RI_1', filename)))
 
-            self.assertEqual(len(files), len(glob.glob(os.path.join(bin_dir, 'RI_2{}*.bin'.format(os.sep)))))
+            self.assertEqual(len(files), len(
+                glob.glob(os.path.join(bin_dir, 'RI_2{}*.bin'.format(os.sep)))))
             for filename in (f + '.bin' for f in files):
-                self.assertTrue(os.path.exists(os.path.join(bin_dir, 'RI_2', filename)))
+                self.assertTrue(os.path.exists(
+                    os.path.join(bin_dir, 'RI_2', filename)))
 
 
 class CreateBinaryTarFile(TestCase):
@@ -189,14 +202,14 @@ class CreateBinaryTarFile(TestCase):
         with TemporaryDirectory() as d:
             os.mkdir(os.path.join(d, 'RI_1'))
             os.mkdir(os.path.join(d, 'RI_2'))
-            
+
             for target in targets:
                 with io.open(os.path.join(d, target), 'w', encoding='utf-8') as f:
                     f.write(target)
                 with io.open(os.path.join(d, 'RI_1', target), 'w', encoding='utf-8') as f:
                     f.write(target)
                 with io.open(os.path.join(d, 'RI_2', target), 'w', encoding='utf-8') as f:
-                    f.write(target)                
+                    f.write(target)
 
             create_binary_tar_file(d)
 
@@ -208,6 +221,7 @@ class CreateBinaryTarFile(TestCase):
             with tarfile.open(os.path.join(d, TAR_FILE), 'r:gz', encoding='utf-8') as tar:
                 self.assertEqual(len(all_targets), len(tar.getnames()))
                 self.assertEqual(set(all_targets), set(tar.getnames()))
+
 
 class CheckConversionTools(TestCase):
     def test_do_il_is_false_il_tools_are_missing___result_is_true(self):
@@ -404,10 +418,11 @@ class CheckInputDirectory(TestCase):
                 f = os.path.join(d, "RI_1", p['name'] + '.csv')
                 Path(f).touch()
             try:
-                check_inputs_directory(d, do_il=True, do_ri=True, check_binaries=True)
+                check_inputs_directory(
+                    d, do_il=True, do_ri=True, check_binaries=True)
             except Exception as e:
                 self.fail('Exception was raised {}: {}'.format(type(e), e))
-                
+
     def test_check_gul_and_il_and_single_ri_directory_structure_binaries_fail(self):
         with TemporaryDirectory() as d:
             for p in six.itervalues(INPUT_FILES):
@@ -419,7 +434,8 @@ class CheckInputDirectory(TestCase):
                 Path(os.path.join(d, "RI_1", p['name'] + '.bin')).touch()
 
             with self.assertRaises(OasisException):
-                check_inputs_directory(d, do_il=True, do_ri=True, check_binaries=True)
+                check_inputs_directory(
+                    d, do_il=True, do_ri=True, check_binaries=True)
 
 #    @pytest.mark.flaky()
 #    def test_check_gul_and_il_and_single_ri_directory_structure_missing_file_fail(self):
@@ -441,17 +457,18 @@ class CheckInputDirectory(TestCase):
         with TemporaryDirectory() as d:
             for p in six.itervalues(INPUT_FILES):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
-            
+
             os.mkdir(os.path.join(d, "RI_1"))
             for p in six.itervalues(INPUT_FILES):
                 Path(os.path.join(d, "RI_1", p['name'] + '.csv')).touch()
-            
+
             os.mkdir(os.path.join(d, "RI_2"))
             for p in six.itervalues(INPUT_FILES):
                 Path(os.path.join(d, "RI_2", p['name'] + '.csv')).touch()
 
             try:
-                check_inputs_directory(d, do_il=True, do_ri=True, check_binaries=True)
+                check_inputs_directory(
+                    d, do_il=True, do_ri=True, check_binaries=True)
             except Exception as e:
                 self.fail('Exception was raised {}: {}'.format(type(e), e))
 
@@ -462,15 +479,17 @@ class CheckInputDirectory(TestCase):
                 Path(os.path.join(d, p['name'] + '.bin')).touch()
             os.mkdir(os.path.join(d, "RI_1"))
             for p in six.itervalues(INPUT_FILES):
-                Path(f = os.path.join(d, "RI_1", p['name'] + '.csv')).touch()
-                Path(f = os.path.join(d, "RI_1", p['name'] + '.bin')).touch()
+                Path(f=os.path.join(d, "RI_1", p['name'] + '.csv')).touch()
+                Path(f=os.path.join(d, "RI_1", p['name'] + '.bin')).touch()
             os.mkdir(os.path.join(d, "RI_2"))
             for p in six.itervalues(INPUT_FILES):
                 Path(os.path.join(d, "RI_2", p['name'] + '.bin')).touch()
                 Path(os.path.join(d, "RI_2", p['name'] + '.bin')).touch()
 
             with self.assertRaises(OasisException):
-                check_inputs_directory(d, do_il=True, do_ri=True, check_binaries=True)
+                check_inputs_directory(
+                    d, do_il=True, do_ri=True, check_binaries=True)
+
 
 class PrepareModelRunDirectory(TestCase):
     def test_directory_is_empty___child_directories_are_created(self):
@@ -502,16 +521,19 @@ class PrepareModelRunDirectory(TestCase):
         with TemporaryDirectory() as output_path, TemporaryDirectory() as input_path:
             Path(os.path.join(input_path, 'a_file.csv')).touch()
 
-            prepare_model_run_directory(output_path, oasis_files_src_path=input_path)
+            prepare_model_run_directory(
+                output_path, oasis_files_src_path=input_path)
 
-            self.assertTrue(os.path.exists(os.path.join(output_path, 'input', 'csv', 'a_file.csv')))
+            self.assertTrue(os.path.exists(os.path.join(
+                output_path, 'input', 'csv', 'a_file.csv')))
 
     def test_settings_file_is_supplied___settings_file_is_copied_into_run_dir(self):
         with TemporaryDirectory() as output_path, NamedTemporaryFile('w') as input_file:
             input_file.write('conf stuff')
             input_file.flush()
 
-            prepare_model_run_directory(output_path, analysis_settings_json_src_file_path=input_file.name)
+            prepare_model_run_directory(
+                output_path, analysis_settings_json_src_file_path=input_file.name)
 
             with io.open(os.path.join(output_path, 'analysis_settings.json'), encoding='utf-8') as output_conf:
                 self.assertEqual('conf stuff', output_conf.read())
@@ -520,18 +542,22 @@ class PrepareModelRunDirectory(TestCase):
         with TemporaryDirectory() as output_path, TemporaryDirectory() as input_path:
             Path(os.path.join(input_path, 'linked_file')).touch()
 
-            prepare_model_run_directory(output_path, model_data_src_path=input_path)
+            prepare_model_run_directory(
+                output_path, model_data_src_path=input_path)
 
-            self.assertTrue(os.path.exists(os.path.join(output_path, 'static', 'linked_file')))
+            self.assertTrue(os.path.exists(os.path.join(
+                output_path, 'static', 'linked_file')))
 
     def test_model_data_src_is_supplied_sym_link_raises___input_is_copied_from_static(self):
         with TemporaryDirectory() as output_path, TemporaryDirectory() as input_path:
             Path(os.path.join(input_path, 'linked_file')).touch()
 
             with patch('os.symlink', Mock(side_effect=OSError())):
-                prepare_model_run_directory(output_path, model_data_src_path=input_path)
+                prepare_model_run_directory(
+                    output_path, model_data_src_path=input_path)
 
-            self.assertTrue(os.path.exists(os.path.join(output_path, 'static', 'linked_file')))
+            self.assertTrue(os.path.exists(os.path.join(
+                output_path, 'static', 'linked_file')))
 
     def test_inputs_archive_is_supplied___archive_is_extracted_into_inputs(self):
         with TemporaryDirectory() as output_path, TemporaryDirectory() as input_path:
@@ -544,7 +570,8 @@ class PrepareModelRunDirectory(TestCase):
 
             prepare_model_run_directory(output_path, inputs_archive=tar_path)
 
-            self.assertTrue(Path(output_path, 'input', 'archived_file').exists())
+            self.assertTrue(Path(output_path, 'input',
+                                 'archived_file').exists())
 
     def test_inputs_archive_with_subfolder_is_supplied___archive_is_extracted_into_inputs(self):
         with TemporaryDirectory() as output_path, TemporaryDirectory() as input_path:
@@ -557,12 +584,15 @@ class PrepareModelRunDirectory(TestCase):
                 os.mkdir(os.path.join(input_path, "sub1"))
                 archived_file_path = Path(input_path, "sub1", 'archived_file')
                 archived_file_path.touch()
-                tar.add(str(archived_file_path), arcname='sub1{}archived_file'.format(os.sep))
+                tar.add(str(archived_file_path),
+                        arcname='sub1{}archived_file'.format(os.sep))
 
             prepare_model_run_directory(output_path, inputs_archive=tar_path)
 
-            self.assertTrue(Path(output_path, 'input', 'archived_file').exists())
-            self.assertTrue(Path(output_path, 'input', 'sub1', 'archived_file').exists())
+            self.assertTrue(Path(output_path, 'input',
+                                 'archived_file').exists())
+            self.assertTrue(Path(output_path, 'input',
+                                 'sub1', 'archived_file').exists())
 
 
 class PrepareModelRunInputs(TestCase):
@@ -613,7 +643,8 @@ class PrepareModelRunInputs(TestCase):
                 events_file.write('events from set bin')
                 events_file.flush()
 
-                prepare_model_run_inputs({'model_settings': {'event_set': 'from set'}}, d)
+                prepare_model_run_inputs(
+                    {'model_settings': {'event_set': 'from set'}}, d)
 
             with io.open(os.path.join(d, 'input', 'events.bin'), 'r', encoding='utf-8') as new_events_file:
                 self.assertEqual('events from set bin', new_events_file.read())
@@ -637,7 +668,8 @@ class PrepareModelRunInputs(TestCase):
                 prepare_model_run_inputs({}, d)
 
             with io.open(os.path.join(d, 'input', 'returnperiods.bin'), 'r', encoding='utf-8') as new_returnperiods_file:
-                self.assertEqual('returnperiods bin', new_returnperiods_file.read())
+                self.assertEqual('returnperiods bin',
+                                 new_returnperiods_file.read())
 
     def test_returnperiods_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
@@ -650,7 +682,8 @@ class PrepareModelRunInputs(TestCase):
                 prepare_model_run_inputs({}, d)
 
             with io.open(os.path.join(d, 'input', 'returnperiods.bin'), 'r', encoding='utf-8') as new_returnperiods_file:
-                self.assertEqual('returnperiods bin', new_returnperiods_file.read())
+                self.assertEqual('returnperiods bin',
+                                 new_returnperiods_file.read())
 
     def test_no_returnperiods_bin_exists___oasis_exception_is_raised(self):
         with TemporaryDirectory() as d:
@@ -694,10 +727,12 @@ class PrepareModelRunInputs(TestCase):
                 occurrence_file.write('occurrence occurrence id bin')
                 occurrence_file.flush()
 
-                prepare_model_run_inputs({'model_settings': {'event_occurrence_id': 'occurrence id'}}, d)
+                prepare_model_run_inputs(
+                    {'model_settings': {'event_occurrence_id': 'occurrence id'}}, d)
 
             with io.open(os.path.join(d, 'input', 'occurrence.bin'), 'r', encoding='utf-8') as new_occurrence_file:
-                self.assertEqual('occurrence occurrence id bin', new_occurrence_file.read())
+                self.assertEqual('occurrence occurrence id bin',
+                                 new_occurrence_file.read())
 
     def test_no_occurrence_bin_exists___oasis_exception_is_raised(self):
         with TemporaryDirectory() as d:
@@ -772,10 +807,12 @@ class CheckBinTarFile(TestCase):
 
                 tar.add(d, arcname='/')
 
-            self.assertTrue(check_binary_tar_file(tar_file_name, check_il=True))
+            self.assertTrue(check_binary_tar_file(
+                tar_file_name, check_il=True))
 
     @given(
-        lists(sampled_from([f['name'] for f in chain(six.itervalues(GUL_INPUT_FILES), six.itervalues(IL_INPUT_FILES))]), min_size=1, unique=True)
+        lists(sampled_from([f['name'] for f in chain(six.itervalues(
+            GUL_INPUT_FILES), six.itervalues(IL_INPUT_FILES))]), min_size=1, unique=True)
     )
     def test_some_files_are_missing_check_il_is_true___error_is_raised(self, missing):
         with TemporaryDirectory() as d:

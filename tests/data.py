@@ -654,7 +654,7 @@ oasis_fm_agg_profile = {
         "FMLevel": 3,
         "FMLevel": "Site",
         "FMAggKey": {
-            "LocID":  {
+            "LocID": {
                 "src": "FM",
                 "field": "canexp_id",
                 "name": "Location ID"
@@ -665,7 +665,7 @@ oasis_fm_agg_profile = {
         "FMLevel": 4,
         "FMLevelName": "Sublimit",
         "FMAggKey": {
-            "AccntNum":  {
+            "AccntNum": {
                 "src": "FM",
                 "field": "canacc_id",
                 "name": "Account no."
@@ -724,7 +724,7 @@ fm_level_names_simple = tuple(
     t[0] for t in sorted([t for t in set(
         (t.get('FMLevelName'), t.get('FMLevel'))
         for t in itertools.chain(six.itervalues(canonical_exposures_profile_simple), six.itervalues(canonical_accounts_profile))
-    ) if t != (None,None)], key=lambda t: t[1])
+    ) if t != (None, None)], key=lambda t: t[1])
 )
 
 fm_term_types = tuple(FM_TERMS[k]['desc'] for k in FM_TERMS)
@@ -738,6 +738,7 @@ oed_peril_ids = tuple(OED_PERILS[k]['id'] for k in OED_PERILS)
 
 # Used simple echo command rather than ktools conversion utility for testing purposes
 ECHO_CONVERSION_INPUT_FILES = {k: ChainMap({'conversion_tool': 'echo'}, v) for k, v in INPUT_FILES.items()}
+
 
 def standard_input_files(min_size=0):
     return lists(
@@ -762,9 +763,11 @@ def tar_file_targets(min_size=0):
         unique=True,
     )
 
+
 oasis_tiv_elements = tuple(v['ProfileElementName'].lower() for v in canonical_exposures_profile.values() if v.get('FMTermType') and v.get('FMTermType').lower() == 'tiv')
 
 oed_tiv_elements = tuple(v['ProfileElementName'].lower() for v in canonical_oed_exposures_profile.values() if v.get('FMTermType') and v.get('FMTermType').lower() == 'tiv')
+
 
 def canonical_accounts_data(
     from_account_nums=integers(min_value=1, max_value=10**5),
@@ -804,6 +807,7 @@ def canonical_accounts_data(
         min_size=(size if size is not None else min_size),
         max_size=(size if size is not None else max_size)
     ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
+
 
 def canonical_oed_accounts_data(
     from_account_nums=integers(min_value=1, max_value=10**6),
@@ -848,6 +852,7 @@ def canonical_oed_accounts_data(
         min_size=(size if size is not None else min_size),
         max_size=(size if size is not None else max_size)
     ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
+
 
 def canonical_exposures_data(
     from_account_nums=integers(min_value=1, max_value=10**6),
@@ -925,6 +930,7 @@ def canonical_exposures_data(
         min_size=(size if size is not None else min_size),
         max_size=(size if size is not None else max_size)
     ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
+
 
 def canonical_oed_exposures_data(
     from_account_nums=integers(min_value=1, max_value=10**6),
@@ -1030,7 +1036,7 @@ def fm_items_data(
             loc_ids = {r['canexp_id'] for r in li}
             cov_type_ids = {r['coverage_type_id'] for r in li}
             coverage_ids = {
-                loc_id:i + 1 for i, (loc_id, cov_type_id) in enumerate(itertools.product(loc_ids, cov_type_ids))
+                loc_id: i + 1 for i, (loc_id, cov_type_id) in enumerate(itertools.product(loc_ids, cov_type_ids))
             }
 
             for r in li:
@@ -1071,6 +1077,7 @@ def fm_items_data(
         max_size=(size if size is not None else max_size)
     ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
 
+
 def gul_items_data(
     from_canexp_ids=integers(min_value=0, max_value=9),
     from_peril_ids=just(OASIS_PERILS['wind']['id']),
@@ -1101,7 +1108,7 @@ def gul_items_data(
         loc_ids = {r['canexp_id'] for r in li}
         cov_type_ids = {r['coverage_type_id'] for r in li}
         coverage_ids = {
-            loc_id:i + 1 for i, (loc_id, cov_type_id) in enumerate(itertools.product(loc_ids, cov_type_ids))
+            loc_id: i + 1 for i, (loc_id, cov_type_id) in enumerate(itertools.product(loc_ids, cov_type_ids))
         }
 
         for r in li:
@@ -1209,9 +1216,9 @@ def write_canonical_files(
 
         canexp_df = pd.DataFrame(
             columns=heading_row.keys(),
-            data=[heading_row]+canonical_exposures
+            data=[heading_row] + canonical_exposures
         )
-        
+
         canexp_df.to_csv(
             path_or_buf=canonical_exposures_file_path,
             index=False,
@@ -1235,7 +1242,7 @@ def write_canonical_files(
 
         canacc_df = pd.DataFrame(
             columns=heading_row.keys(),
-            data=[heading_row]+canonical_accounts
+            data=[heading_row] + canonical_accounts
         )
 
         canacc_df.to_csv(
@@ -1281,9 +1288,9 @@ def write_canonical_oed_files(
 
         canexp_df = pd.DataFrame(
             columns=heading_row.keys(),
-            data=[heading_row]+exposures
+            data=[heading_row] + exposures
         )
-        
+
         canexp_df.to_csv(
             path_or_buf=exposures_fp,
             index=False,
@@ -1310,7 +1317,7 @@ def write_canonical_oed_files(
 
         canacc_df = pd.DataFrame(
             columns=heading_row.keys(),
-            data=[heading_row]+accounts
+            data=[heading_row] + accounts
         )
 
         canacc_df.to_csv(
@@ -1338,7 +1345,7 @@ def write_keys_files(
 
     pd.DataFrame(
         columns=heading_row.keys(),
-        data=[heading_row]+keys,
+        data=[heading_row] + keys,
     ).to_csv(
         path_or_buf=keys_file_path,
         index=False,
@@ -1356,7 +1363,7 @@ def write_keys_files(
 
         pd.DataFrame(
             columns=heading_row.keys(),
-            data=[heading_row]+keys_errors,
+            data=[heading_row] + keys_errors,
         ).to_csv(
             path_or_buf=keys_errors_file_path,
             index=False,

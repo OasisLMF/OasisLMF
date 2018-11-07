@@ -32,14 +32,16 @@ class Genbash(TestCase):
         return hash_md5.hexdigest()
 
     def genbash(self, name, num_partitions, num_reinsurance_iterations=0):
-        input_filename = os.path.join(KPARSE_INPUT_FOLDER, "{}.json".format(name))
+        input_filename = os.path.join(
+            KPARSE_INPUT_FOLDER, "{}.json".format(name))
         if num_reinsurance_iterations <= 0:
-            output_filename = os.path.join(KPARSE_OUTPUT_FOLDER, "{}_{}_partition.sh".format(name, num_partitions))
+            output_filename = os.path.join(
+                KPARSE_OUTPUT_FOLDER, "{}_{}_partition.sh".format(name, num_partitions))
         else:
             output_filename = os.path.join(
-                KPARSE_OUTPUT_FOLDER, 
+                KPARSE_OUTPUT_FOLDER,
                 "{}_{}_reins_layer_{}_partition.sh".format(name, num_reinsurance_iterations, num_partitions))
-            
+
         with io.open(input_filename, encoding='utf-8') as file:
             analysis_settings = json.load(file)['analysis_settings']
 
@@ -51,10 +53,13 @@ class Genbash(TestCase):
         )
 
     def check(self, name):
-        output_filename = os.path.join(KPARSE_OUTPUT_FOLDER, "{}.sh".format(name))
-        reference_filename = os.path.join(KPARSE_REFERENCE_FOLDER, "{}.sh".format(name))
+        output_filename = os.path.join(
+            KPARSE_OUTPUT_FOLDER, "{}.sh".format(name))
+        reference_filename = os.path.join(
+            KPARSE_REFERENCE_FOLDER, "{}.sh".format(name))
 
-        d = diff.unified_diff(reference_filename, output_filename, as_string=True)
+        d = diff.unified_diff(reference_filename,
+                              output_filename, as_string=True)
         if d:
             self.fail(d)
 

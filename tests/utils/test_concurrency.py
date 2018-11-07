@@ -39,11 +39,14 @@ from oasislmf.utils.exceptions import OasisException
 class SignalHandler(TestCase):
     pass
 
+
 class Task(TestCase):
     pass
 
+
 class Multiprocess(TestCase):
     pass
+
 
 class Multithread(TestCase):
     pass

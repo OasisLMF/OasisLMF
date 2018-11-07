@@ -69,6 +69,7 @@ from tests.data import (
     fm_levels_simple,
 )
 
+
 class CanonicalProfilesFmTermsGroupedByLevel(TestCase):
 
     def setUp(self):
@@ -86,7 +87,7 @@ class CanonicalProfilesFmTermsGroupedByLevel(TestCase):
         with self.assertRaises(OasisException):
             unified_canonical_fm_profile_by_level()
 
-    #@pytest.mark.skip(reason="inconsistent output from unified canonical profile constructor")
+    # @pytest.mark.skip(reason="inconsistent output from unified canonical profile constructor")
     def test_only_canonical_profiles_provided(self):
 
         profiles = (self.exposures_profile, self.accounts_profile,)
@@ -95,13 +96,15 @@ class CanonicalProfilesFmTermsGroupedByLevel(TestCase):
 
         self.assertEqual(self._depth(cpft), 4)
 
-        fm_levels = set(p[l].get('FMLevel') for p in profiles for l in p if p[l].get('FMLevel'))
+        fm_levels = set(p[l].get('FMLevel')
+                        for p in profiles for l in p if p[l].get('FMLevel'))
 
         self.assertEqual(fm_levels, set(cpft.keys()))
 
         for l in fm_levels:
             for _, v in cpft[l].items():
-                self.assertTrue(set(v.keys()).issuperset(['FMLevel', 'FMLevelName', 'FMTermGroupID', 'FMTermType']))
+                self.assertTrue(set(v.keys()).issuperset(
+                    ['FMLevel', 'FMLevelName', 'FMTermGroupID', 'FMTermType']))
                 self.assertEqual(l, v['FMLevel'])
 
         matching_profile_term = lambda t: (
@@ -111,12 +114,13 @@ class CanonicalProfilesFmTermsGroupedByLevel(TestCase):
             else None
         )
 
-        non_fm_terms = set(t for p in profiles for t in p if 'FMLevel' not in p[t])
+        non_fm_terms = set(
+            t for p in profiles for t in p if 'FMLevel' not in p[t])
 
         for t in (_t for p in profiles for _t in p):
             pt = matching_profile_term(t)
-            self.assertIsNotNone(pt) if t not in non_fm_terms else self.assertIsNone(pt)
-
+            self.assertIsNotNone(
+                pt) if t not in non_fm_terms else self.assertIsNone(pt)
 
     def test_only_canonical_profile_paths_provided(self):
         profiles = (self.exposures_profile, self.accounts_profile,)
@@ -132,13 +136,15 @@ class CanonicalProfilesFmTermsGroupedByLevel(TestCase):
 
         self.assertEqual(self._depth(cpft), 4)
 
-        fm_levels = set(p[l].get('FMLevel') for p in profiles for l in p if p[l].get('FMLevel'))
+        fm_levels = set(p[l].get('FMLevel')
+                        for p in profiles for l in p if p[l].get('FMLevel'))
 
         self.assertEqual(fm_levels, set(cpft.keys()))
 
         for l in fm_levels:
             for _, v in cpft[l].items():
-                self.assertTrue(set(v.keys()).issuperset(['FMLevel', 'FMLevelName', 'FMTermGroupID', 'FMTermType']))
+                self.assertTrue(set(v.keys()).issuperset(
+                    ['FMLevel', 'FMLevelName', 'FMTermGroupID', 'FMTermType']))
                 self.assertEqual(l, v['FMLevel'])
 
         matching_profile_term = lambda t: (
@@ -148,12 +154,13 @@ class CanonicalProfilesFmTermsGroupedByLevel(TestCase):
             else None
         )
 
-        non_fm_terms = set(t for p in profiles for t in p if 'FMLevel' not in p[t])
+        non_fm_terms = set(
+            t for p in profiles for t in p if 'FMLevel' not in p[t])
 
         for t in (_t for p in profiles for _t in p):
             pt = matching_profile_term(t)
-            self.assertIsNotNone(pt) if t not in non_fm_terms else self.assertIsNone(pt)
-
+            self.assertIsNotNone(
+                pt) if t not in non_fm_terms else self.assertIsNone(pt)
 
     def test_canonical_profile_and_profiles_paths_provided(self):
         profiles = (self.exposures_profile, self.accounts_profile,)
@@ -165,17 +172,20 @@ class CanonicalProfilesFmTermsGroupedByLevel(TestCase):
 
             paths = (exposures_profile_file.name, accounts_profile_file.name,)
 
-            cpft = unified_canonical_fm_profile_by_level(profiles=profiles, profile_paths=paths)
+            cpft = unified_canonical_fm_profile_by_level(
+                profiles=profiles, profile_paths=paths)
 
         self.assertEqual(self._depth(cpft), 4)
 
-        fm_levels = set(p[l].get('FMLevel') for p in profiles for l in p if p[l].get('FMLevel'))
+        fm_levels = set(p[l].get('FMLevel')
+                        for p in profiles for l in p if p[l].get('FMLevel'))
 
         self.assertEqual(fm_levels, set(cpft.keys()))
 
         for l in fm_levels:
             for _, v in cpft[l].items():
-                self.assertTrue(set(v.keys()).issuperset(['FMLevel', 'FMLevelName', 'FMTermGroupID', 'FMTermType']))
+                self.assertTrue(set(v.keys()).issuperset(
+                    ['FMLevel', 'FMLevelName', 'FMTermGroupID', 'FMTermType']))
                 self.assertEqual(l, v['FMLevel'])
 
         matching_profile_term = lambda t: (
@@ -185,11 +195,13 @@ class CanonicalProfilesFmTermsGroupedByLevel(TestCase):
             else None
         )
 
-        non_fm_terms = set(t for p in profiles for t in p if 'FMLevel' not in p[t])
+        non_fm_terms = set(
+            t for p in profiles for t in p if 'FMLevel' not in p[t])
 
         for t in (_t for p in profiles for _t in p):
             pt = matching_profile_term(t)
-            self.assertIsNotNone(pt) if t not in non_fm_terms else self.assertIsNone(pt)
+            self.assertIsNotNone(
+                pt) if t not in non_fm_terms else self.assertIsNone(pt)
 
 
 class CanonicalProfilesFmTermsGroupedByLevelAndTermGroup(TestCase):
@@ -212,18 +224,21 @@ class CanonicalProfilesFmTermsGroupedByLevelAndTermGroup(TestCase):
     def test_only_canonical_profiles_provided(self):
         profiles = (self.exposures_profile, self.accounts_profile,)
 
-        cpft = unified_canonical_fm_profile_by_level_and_term_group(profiles=profiles)
+        cpft = unified_canonical_fm_profile_by_level_and_term_group(
+            profiles=profiles)
 
         self.assertEqual(self._depth(cpft), 5)
 
-        fm_levels = set(p[l].get('FMLevel') for p in profiles for l in p if p[l].get('FMLevel'))
+        fm_levels = set(p[l].get('FMLevel')
+                        for p in profiles for l in p if p[l].get('FMLevel'))
 
         self.assertEqual(fm_levels, set(cpft.keys()))
 
         for l in fm_levels:
             for gid in cpft[l]:
                 for tty, v in cpft[l][gid].items():
-                    self.assertTrue(set(v.keys()).issuperset(['FMLevel', 'FMLevelName', 'FMTermGroupID', 'FMTermType']))
+                    self.assertTrue(set(v.keys()).issuperset(
+                        ['FMLevel', 'FMLevelName', 'FMTermGroupID', 'FMTermType']))
                     self.assertEqual(l, v['FMLevel'])
                     self.assertEqual(gid, v['FMTermGroupID'])
                     self.assertEqual(tty, v['FMTermType'].lower())
@@ -235,11 +250,13 @@ class CanonicalProfilesFmTermsGroupedByLevelAndTermGroup(TestCase):
             else None
         )
 
-        non_fm_terms = set(t for p in profiles for t in p if 'FMLevel' not in p[t])
+        non_fm_terms = set(
+            t for p in profiles for t in p if 'FMLevel' not in p[t])
 
         for t in (_t for p in profiles for _t in p):
             pt = matching_profile_term(t)
-            self.assertIsNotNone(pt) if t not in non_fm_terms else self.assertIsNone(pt)
+            self.assertIsNotNone(
+                pt) if t not in non_fm_terms else self.assertIsNone(pt)
 
     def test_only_canonical_profile_paths_provided(self):
         profiles = (self.exposures_profile, self.accounts_profile,)
@@ -251,16 +268,19 @@ class CanonicalProfilesFmTermsGroupedByLevelAndTermGroup(TestCase):
 
             paths = (exposures_profile_file.name, accounts_profile_file.name,)
 
-            cpft = unified_canonical_fm_profile_by_level_and_term_group(profile_paths=paths)
+            cpft = unified_canonical_fm_profile_by_level_and_term_group(
+                profile_paths=paths)
 
         self.assertEqual(self._depth(cpft), 5)
 
-        fm_levels = set(p[l].get('FMLevel') for p in profiles for l in p if p[l].get('FMLevel'))
+        fm_levels = set(p[l].get('FMLevel')
+                        for p in profiles for l in p if p[l].get('FMLevel'))
 
         for l in fm_levels:
             for gid in cpft[l]:
                 for tty, v in cpft[l][gid].items():
-                    self.assertTrue(set(v.keys()).issuperset(['FMLevel', 'FMLevelName', 'FMTermGroupID', 'FMTermType']))
+                    self.assertTrue(set(v.keys()).issuperset(
+                        ['FMLevel', 'FMLevelName', 'FMTermGroupID', 'FMTermType']))
                     self.assertEqual(l, v['FMLevel'])
                     self.assertEqual(gid, v['FMTermGroupID'])
                     self.assertEqual(tty, v['FMTermType'].lower())
@@ -274,11 +294,13 @@ class CanonicalProfilesFmTermsGroupedByLevelAndTermGroup(TestCase):
 
         self.assertEqual(fm_levels, set(cpft.keys()))
 
-        non_fm_terms = set(t for p in profiles for t in p if 'FMLevel' not in p[t])
+        non_fm_terms = set(
+            t for p in profiles for t in p if 'FMLevel' not in p[t])
 
         for t in (_t for p in profiles for _t in p):
             pt = matching_profile_term(t)
-            self.assertIsNotNone(pt) if t not in non_fm_terms else self.assertIsNone(pt)
+            self.assertIsNotNone(
+                pt) if t not in non_fm_terms else self.assertIsNone(pt)
 
     def test_canonical_profiles_and_profile_paths_provided(self):
         profiles = (self.exposures_profile, self.accounts_profile,)
@@ -290,16 +312,19 @@ class CanonicalProfilesFmTermsGroupedByLevelAndTermGroup(TestCase):
 
             paths = (exposures_profile_file.name, accounts_profile_file.name,)
 
-            cpft = unified_canonical_fm_profile_by_level_and_term_group(profiles=profiles, profile_paths=paths)
+            cpft = unified_canonical_fm_profile_by_level_and_term_group(
+                profiles=profiles, profile_paths=paths)
 
         self.assertEqual(self._depth(cpft), 5)
 
-        fm_levels = set(p[l].get('FMLevel') for p in profiles for l in p if p[l].get('FMLevel'))
+        fm_levels = set(p[l].get('FMLevel')
+                        for p in profiles for l in p if p[l].get('FMLevel'))
 
         for l in fm_levels:
             for gid in cpft[l]:
                 for tty, v in cpft[l][gid].items():
-                    self.assertTrue(set(v.keys()).issuperset(['FMLevel', 'FMLevelName', 'FMTermGroupID', 'FMTermType']))
+                    self.assertTrue(set(v.keys()).issuperset(
+                        ['FMLevel', 'FMLevelName', 'FMTermGroupID', 'FMTermType']))
                     self.assertEqual(l, v['FMLevel'])
                     self.assertEqual(gid, v['FMTermGroupID'])
                     self.assertEqual(tty, v['FMTermType'].lower())
@@ -313,11 +338,13 @@ class CanonicalProfilesFmTermsGroupedByLevelAndTermGroup(TestCase):
 
         self.assertEqual(fm_levels, set(cpft.keys()))
 
-        non_fm_terms = set(t for p in profiles for t in p if 'FMLevel' not in p[t])
+        non_fm_terms = set(
+            t for p in profiles for t in p if 'FMLevel' not in p[t])
 
         for t in (_t for p in profiles for _t in p):
             pt = matching_profile_term(t)
-            self.assertIsNotNone(pt) if t not in non_fm_terms else self.assertIsNone(pt)
+            self.assertIsNotNone(
+                pt) if t not in non_fm_terms else self.assertIsNone(pt)
 
 
 class TestSubLayerCalcruleIDFunc(TestCase):
@@ -332,7 +359,8 @@ class TestSubLayerCalcruleIDFunc(TestCase):
     )
     def test_calcrule_id_12(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
 
-        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 12)
+        self.assertEqual(get_sub_layer_calcrule_id(
+            deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 12)
 
     @given(
         deductible=floats(min_value=1, allow_infinity=False),
@@ -343,7 +371,8 @@ class TestSubLayerCalcruleIDFunc(TestCase):
         limit_code=just(0)
     )
     def test_calcrule_id_1(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
-        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 1)
+        self.assertEqual(get_sub_layer_calcrule_id(
+            deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 1)
 
     @given(
         deductible=floats(min_value=0.001, max_value=0.99),
@@ -354,7 +383,8 @@ class TestSubLayerCalcruleIDFunc(TestCase):
         limit_code=just(0)
     )
     def test_calcrule_id_4(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
-        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 4)
+        self.assertEqual(get_sub_layer_calcrule_id(
+            deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 4)
 
     @given(
         deductible=floats(min_value=0.001, max_value=0.99),
@@ -365,7 +395,8 @@ class TestSubLayerCalcruleIDFunc(TestCase):
         limit_code=just(1)
     )
     def test_calcrule_id_5(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
-        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 5)
+        self.assertEqual(get_sub_layer_calcrule_id(
+            deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 5)
 
     @given(
         deductible=floats(min_value=0.001, max_value=0.99),
@@ -376,7 +407,8 @@ class TestSubLayerCalcruleIDFunc(TestCase):
         limit_code=just(0)
     )
     def test_calcrule_id_6(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
-        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 6)
+        self.assertEqual(get_sub_layer_calcrule_id(
+            deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 6)
 
     @given(
         deductible=just(0.0),
@@ -387,7 +419,8 @@ class TestSubLayerCalcruleIDFunc(TestCase):
         limit_code=just(0)
     )
     def test_calcrule_id_7(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
-        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 7)
+        self.assertEqual(get_sub_layer_calcrule_id(
+            deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 7)
 
     @given(
         deductible=just(0.0),
@@ -398,7 +431,8 @@ class TestSubLayerCalcruleIDFunc(TestCase):
         limit_code=just(0)
     )
     def test_calcrule_id_8(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
-        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 8)
+        self.assertEqual(get_sub_layer_calcrule_id(
+            deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 8)
 
     @given(
         deductible=just(0.0),
@@ -409,7 +443,8 @@ class TestSubLayerCalcruleIDFunc(TestCase):
         limit_code=just(0)
     )
     def test_calcrule_id_10(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
-        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 10)
+        self.assertEqual(get_sub_layer_calcrule_id(
+            deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 10)
 
     @given(
         deductible=just(0.0),
@@ -420,7 +455,8 @@ class TestSubLayerCalcruleIDFunc(TestCase):
         limit_code=just(0)
     )
     def test_calcrule_id_11(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
-        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 11)
+        self.assertEqual(get_sub_layer_calcrule_id(
+            deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 11)
 
     @given(
         deductible=floats(min_value=1, allow_infinity=False),
@@ -431,7 +467,8 @@ class TestSubLayerCalcruleIDFunc(TestCase):
         limit_code=just(0)
     )
     def test_calcrule_id_12(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
-        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 12)
+        self.assertEqual(get_sub_layer_calcrule_id(
+            deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 12)
 
     @given(
         deductible=just(0.0),
@@ -442,7 +479,8 @@ class TestSubLayerCalcruleIDFunc(TestCase):
         limit_code=just(0)
     )
     def test_calcrule_id_13(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
-        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 13)
+        self.assertEqual(get_sub_layer_calcrule_id(
+            deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 13)
 
     @given(
         deductible=just(0.0),
@@ -453,7 +491,8 @@ class TestSubLayerCalcruleIDFunc(TestCase):
         limit_code=just(0)
     )
     def test_calcrule_id_14(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
-        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 14)
+        self.assertEqual(get_sub_layer_calcrule_id(
+            deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 14)
 
     @given(
         deductible=just(0.0),
@@ -464,7 +503,8 @@ class TestSubLayerCalcruleIDFunc(TestCase):
         limit_code=just(1)
     )
     def test_calcrule_id_15(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
-        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 15)
+        self.assertEqual(get_sub_layer_calcrule_id(
+            deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 15)
 
     @given(
         deductible=floats(min_value=0.001, max_value=0.99),
@@ -475,7 +515,8 @@ class TestSubLayerCalcruleIDFunc(TestCase):
         limit_code=just(0)
     )
     def test_calcrule_id_16(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
-        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 16)
+        self.assertEqual(get_sub_layer_calcrule_id(
+            deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 16)
 
     @given(
         deductible=floats(min_value=0.001, max_value=0.99),
@@ -486,7 +527,8 @@ class TestSubLayerCalcruleIDFunc(TestCase):
         limit_code=just(0)
     )
     def test_calcrule_id_19(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
-        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 19)
+        self.assertEqual(get_sub_layer_calcrule_id(
+            deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 19)
 
     @given(
         deductible=floats(min_value=0.001, max_value=0.99),
@@ -497,7 +539,9 @@ class TestSubLayerCalcruleIDFunc(TestCase):
         limit_code=just(0)
     )
     def test_calcrule_id_21(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
-        self.assertEqual(get_sub_layer_calcrule_id(deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 21)
+        self.assertEqual(get_sub_layer_calcrule_id(
+            deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 21)
+
 
 class TestLayerCalcruleIDFunc(TestCase):
 
@@ -549,6 +593,7 @@ class TestLayerCalcruleIDFunc(TestCase):
     def test_calcrule_id_2__with_positive_attachment_and_limit(self, attachment, limit, share):
         self.assertEqual(get_layer_calcrule_id(attachment, limit, share), 2)
 
+
 class GetFmTermsByLevel(TestCase):
 
     def setUp(self):
@@ -585,7 +630,8 @@ class GetFmTermsByLevel(TestCase):
         ),
         fm_items=fm_items_data(
             from_peril_ids=just(OASIS_PERILS['wind']['id']),
-            from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
+            from_coverage_type_ids=just(
+                OASIS_COVERAGE_TYPES['buildings']['id']),
             from_level_ids=just(1),
             from_canacc_ids=just(0),
             from_policy_nums=just('A1P1'),
@@ -605,7 +651,7 @@ class GetFmTermsByLevel(TestCase):
             from_share_elements=just(None),
             from_shares=just(0),
             size=10
-        ) 
+        )
     )
     def test_exposure_with_one_coverage_type_and_fm_terms_with_one_account_and_one_top_level_layer_per_account_and_model_lookup_supporting_single_peril_and_coverage_type__all_coverage_level_terms_generated(self, exposures, accounts, fm_items):
         lufcp = self.unified_canonical_profile[1]
@@ -621,14 +667,15 @@ class GetFmTermsByLevel(TestCase):
         results = [r for r in get_coverage_level_fm_terms(
             lufcp,
             lfmaggp,
-            {i:it for i, it in enumerate(fm_items)},
+            {i: it for i, it in enumerate(fm_items)},
             pd.DataFrame(data=exposures),
             pd.DataFrame(data=accounts),
         )]
 
         self.assertEqual(len(fm_items), len(results))
 
-        self.assertEqual(tuple(it['item_id'] for it in fm_items), tuple(r['item_id'] for r in results))
+        self.assertEqual(tuple(it['item_id'] for it in fm_items), tuple(
+            r['item_id'] for r in results))
 
         for i, res in enumerate(results):
             it = fm_items[i]
@@ -670,7 +717,8 @@ class GetFmTermsByLevel(TestCase):
 
             self.assertEqual(it['share'], res['share'])
 
-            calcrule_id = get_sub_layer_calcrule_id(it['deductible'], it['deductible_min'], it['deductible_max'], it['limit'])
+            calcrule_id = get_sub_layer_calcrule_id(
+                it['deductible'], it['deductible_min'], it['deductible_max'], it['limit'])
             self.assertEqual(calcrule_id, res['calcrule_id'])
 
     @pytest.mark.flaky
@@ -688,7 +736,8 @@ class GetFmTermsByLevel(TestCase):
         ),
         fm_items=fm_items_data(
             from_peril_ids=just(OASIS_PERILS['wind']['id']),
-            from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
+            from_coverage_type_ids=just(
+                OASIS_COVERAGE_TYPES['buildings']['id']),
             from_canacc_ids=just(0),
             from_policy_nums=just('A1P1'),
             from_layer_ids=just(1),
@@ -715,23 +764,28 @@ class GetFmTermsByLevel(TestCase):
             lfmaggp = self.fm_agg_profile[l]
 
             ded_fld = lufcp[1].get('deductible')
-            ded_elm = ded_fld['ProfileElementName'].lower() if ded_fld else None
+            ded_elm = ded_fld['ProfileElementName'].lower(
+            ) if ded_fld else None
             ded_min_fld = lufcp[1].get('deductiblemin')
-            ded_min_elm = ded_min_fld['ProfileElementName'].lower() if ded_min_fld else None
+            ded_min_elm = ded_min_fld['ProfileElementName'].lower(
+            ) if ded_min_fld else None
             ded_max_fld = lufcp[1].get('deductiblemax')
-            ded_max_elm = ded_max_fld['ProfileElementName'].lower() if ded_max_fld else None
+            ded_max_elm = ded_max_fld['ProfileElementName'].lower(
+            ) if ded_max_fld else None
 
             lim_fld = lufcp[1].get('limit')
-            lim_elm = lim_fld['ProfileElementName'].lower() if lim_fld else None
+            lim_elm = lim_fld['ProfileElementName'].lower(
+            ) if lim_fld else None
 
             shr_fld = lufcp[1].get('share')
-            shr_elm = shr_fld['ProfileElementName'].lower() if shr_fld else None
+            shr_elm = shr_fld['ProfileElementName'].lower(
+            ) if shr_fld else None
 
             for i, it in enumerate(fm_items):
                 it['level_id'] = l
                 it['index'] = i
 
-                it['agg_id'] = i + 1 if l in [1,2,3] else 1
+                it['agg_id'] = i + 1 if l in [1, 2, 3] else 1
 
                 cexp_it = exposures[it['canexp_id']]
 
@@ -762,19 +816,21 @@ class GetFmTermsByLevel(TestCase):
                 elif shr_fld and shr_fld['ProfileType'].lower() == 'acc':
                     cacc_it[shr_elm] = 0
 
-            level_fm_terms_func = get_sub_layer_non_coverage_level_fm_terms if l < max(levels) else get_layer_level_fm_terms
+            level_fm_terms_func = get_sub_layer_non_coverage_level_fm_terms if l < max(
+                levels) else get_layer_level_fm_terms
 
             results = [r for r in level_fm_terms_func(
                 lufcp,
                 lfmaggp,
-                {i:it for i, it in enumerate(fm_items)},
+                {i: it for i, it in enumerate(fm_items)},
                 pd.DataFrame(data=exposures),
                 pd.DataFrame(data=accounts),
             )]
 
             self.assertEqual(len(fm_items), len(results))
 
-            self.assertEqual(tuple(it['item_id'] for it in fm_items), tuple(r['item_id'] for r in results))
+            self.assertEqual(tuple(it['item_id'] for it in fm_items), tuple(
+                r['item_id'] for r in results))
 
             for i, res in enumerate(results):
                 it = fm_items[i]
@@ -788,7 +844,8 @@ class GetFmTermsByLevel(TestCase):
                 self.assertEqual(it['canacc_id'], res['canacc_id'])
 
                 self.assertEqual(it['peril_id'], res['peril_id'])
-                self.assertEqual(it['coverage_type_id'], res['coverage_type_id'])
+                self.assertEqual(it['coverage_type_id'],
+                                 res['coverage_type_id'])
 
                 self.assertEqual(it['layer_id'], res['layer_id'])
                 self.assertEqual(it['agg_id'], res['agg_id'])
@@ -810,7 +867,8 @@ class GetFmTermsByLevel(TestCase):
                 self.assertEqual(it['deductible_min'], res['deductible_min'])
                 self.assertEqual(it['deductible_max'], res['deductible_max'])
 
-                self.assertEqual(it['attachment'], (0 if l < max(levels) else it['deductible']))
+                self.assertEqual(
+                    it['attachment'], (0 if l < max(levels) else it['deductible']))
 
                 self.assertEqual(it['limit'], res['limit'])
 
@@ -818,24 +876,25 @@ class GetFmTermsByLevel(TestCase):
 
                 calcrule_id = (
                     get_sub_layer_calcrule_id(it['deductible'], it['deductible_min'], it['deductible_max'], it['limit']) if l < max(levels) else
-                    get_layer_calcrule_id(it['attachment'], it['limit'], it['share'])
+                    get_layer_calcrule_id(
+                        it['attachment'], it['limit'], it['share'])
                 )
                 self.assertEqual(calcrule_id, res['calcrule_id'])
 
 
 class GetPolicyTcIds(TestCase):
-    
+
     @pytest.mark.flaky
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         fm_items=fm_items_data(
-            from_level_ids=sampled_from([1,6]),
-            from_deductibles=sampled_from([0,100]),
+            from_level_ids=sampled_from([1, 6]),
+            from_deductibles=sampled_from([0, 100]),
             from_min_deductibles=sampled_from([0, 100]),
             from_max_deductibles=sampled_from([0, 100]),
             from_attachments=just(0),
-            from_limits=sampled_from([0,100]),
-            from_shares=sampled_from([0,0.99]),
+            from_limits=sampled_from([0, 100]),
+            from_shares=sampled_from([0, 0.99]),
             from_calcrule_ids=just(12),
             size=10
         )
@@ -848,14 +907,16 @@ class GetPolicyTcIds(TestCase):
             it['attachment'] = 0 if it['level_id'] < 6 else it['deductible']
             it['calcrule_id'] = (
                 get_sub_layer_calcrule_id(it['deductible'], it['deductible_min'], it['deductible_max'], it['limit']) if it['level_id'] < 6 else
-                get_layer_calcrule_id(it['attachment'], it['limit'], it['share'])
+                get_layer_calcrule_id(
+                    it['attachment'], it['limit'], it['share'])
             ) or -1
 
         term_combs = {}
 
         ptc_id = 0
         for i, it in enumerate(fm_items):
-            t = (it['limit'], it['deductible'], it['deductible_min'], it['deductible_max'], it['attachment'], it['share'], it['calcrule_id'],)
+            t = (it['limit'], it['deductible'], it['deductible_min'],
+                 it['deductible_max'], it['attachment'], it['share'], it['calcrule_id'],)
             if t not in term_combs.values():
                 ptc_id += 1
                 term_combs[ptc_id] = t
@@ -865,5 +926,6 @@ class GetPolicyTcIds(TestCase):
         policytc_ids = get_policytc_ids(fm_items_df)
 
         for policytc_id, policytc_comb in policytc_ids.items():
-            t = dict(zip(('limit', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'share', 'calcrule_id',), term_combs[policytc_id]))
+            t = dict(zip(('limit', 'deductible', 'deductible_min', 'deductible_max',
+                          'attachment', 'share', 'calcrule_id',), term_combs[policytc_id]))
             self.assertEqual(t, policytc_comb)
