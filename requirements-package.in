@@ -1,5 +1,6 @@
 argparsetree==0.0.5
 backports.tempfile
+backports.weakref
 billiard==3.5.0.4
 chainmap
 future
@@ -16,6 +17,3 @@ requests-toolbelt
 shapely==1.6.4.post1
 shutilwhich
 six==1.11.0
-
-
-
