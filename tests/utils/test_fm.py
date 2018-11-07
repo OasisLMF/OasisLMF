@@ -11,26 +11,26 @@ import pytest
 from hypothesis import (
     given,
     HealthCheck,
-    reproduce_failure,
     settings,
 )
+#    reproduce_failure,
 
 from hypothesis.strategies import (
-    dictionaries,
-    integers,
     floats,
     just,
-    lists,
     sampled_from,
-    text,
-    tuples,
 )
+#    text,
+#    tuples,
+#    lists,
+#    dictionaries,
+#    integers,
 
-from mock import patch, Mock
+# from mock import patch, Mock
 
 from tempfile import NamedTemporaryFile
 
-from oasislmf.exposures.manager import OasisExposuresManager
+# from oasislmf.exposures.manager import OasisExposuresManager
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.fm import (
     unified_canonical_fm_profile_by_level,
@@ -43,31 +43,32 @@ from oasislmf.utils.fm import (
     get_policytc_ids,
 )
 from oasislmf.utils.metadata import (
-    DEDUCTIBLE_TYPES,
-    FM_TERMS,
     OASIS_COVERAGE_TYPES,
-    OASIS_FM_LEVELS,
-    OASIS_KEYS_STATUS,
     OASIS_PERILS,
-    OED_COVERAGE_TYPES,
-    OED_FM_LEVELS,
-    OED_PERILS,
 )
+#    FM_TERMS,
+#    OED_COVERAGE_TYPES,
+#    OED_FM_LEVELS,
+#    OED_PERILS,
+#    OASIS_KEYS_STATUS,
+#    OASIS_FM_LEVELS,
+#    DEDUCTIBLE_TYPES,
+
 from tests.data import (
-    calcrule_ids,
     canonical_accounts_data,
     canonical_accounts_profile,
     canonical_exposures_data,
     canonical_exposures_profile,
-    canonical_oed_accounts_data,
-    canonical_oed_accounts_profile,
-    canonical_oed_exposures_data,
-    canonical_oed_exposures_profile,
     oasis_fm_agg_profile,
-    deductible_types,
     fm_items_data,
-    fm_levels_simple,
 )
+#    deductible_types,
+#    fm_levels_simple,
+#    calcrule_ids,
+#    canonical_oed_accounts_data,
+#    canonical_oed_accounts_profile,
+#    canonical_oed_exposures_data,
+#    canonical_oed_exposures_profile,
 
 
 class CanonicalProfilesFmTermsGroupedByLevel(TestCase):
@@ -348,19 +349,6 @@ class CanonicalProfilesFmTermsGroupedByLevelAndTermGroup(TestCase):
 
 
 class TestSubLayerCalcruleIDFunc(TestCase):
-
-    @given(
-        deductible=just(0.0),
-        deductible_code=just(0),
-        deductible_min=just(0.0),
-        deductible_max=just(0.0),
-        limit=just(0.0),
-        limit_code=just(0)
-    )
-    def test_calcrule_id_12(self, deductible, deductible_code, deductible_min, deductible_max, limit, limit_code):
-
-        self.assertEqual(get_sub_layer_calcrule_id(
-            deductible, deductible_min, deductible_max, limit, deductible_code, limit_code), 12)
 
     @given(
         deductible=floats(min_value=1, allow_infinity=False),

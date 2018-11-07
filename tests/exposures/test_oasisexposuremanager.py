@@ -8,7 +8,7 @@ import os
 import shutil
 import string
 
-from collections import OrderedDict
+# from collections import OrderedDict
 from unittest import TestCase
 
 import pandas as pd
@@ -21,18 +21,18 @@ from tempfile import NamedTemporaryFile
 from hypothesis import (
     given,
     HealthCheck,
-    reproduce_failure,
     settings,
 )
+#    reproduce_failure,
 from hypothesis.strategies import (
     dictionaries,
-    integers,
     floats,
     just,
-    lists,
     text,
-    tuples,
 )
+#    integers,
+#    lists,
+#    tuples,
 from mock import patch, Mock
 
 from oasislmf.exposures.manager import OasisExposuresManager
@@ -45,10 +45,10 @@ from oasislmf.utils.fm import (
 )
 from oasislmf.utils.metadata import (
     OASIS_COVERAGE_TYPES,
-    OASIS_FM_LEVELS,
     OASIS_KEYS_STATUS,
     OASIS_PERILS,
 )
+#    OASIS_FM_LEVELS,
 
 from ..models.fakes import fake_model
 
@@ -61,15 +61,15 @@ from ..data import (
     canonical_oed_accounts_profile,
     canonical_oed_exposures_data,
     canonical_oed_exposures_profile,
-    fm_items_data,
     gul_items_data,
     keys_data,
     oasis_fm_agg_profile,
-    oed_fm_agg_profile,
     write_canonical_files,
     write_canonical_oed_files,
     write_keys_files,
 )
+#    oed_fm_agg_profile,
+#    fm_items_data,
 
 
 class AddModel(TestCase):
@@ -1348,8 +1348,7 @@ class LoadGulItems(TestCase):
         for i, gul_it in enumerate(gul_items_df.T.to_dict().values()):
             can_it = canexp_df.iloc[gul_it['canexp_id']].to_dict()
 
-            keys_it = [k for k in keys if k['id'] == gul_it['canexp_id'] + 1 and k['peril_id']
-                       == gul_it['peril_id'] and k['coverage_type'] == gul_it['coverage_type_id']][0]
+            keys_it = [k for k in keys if k['id'] == gul_it['canexp_id'] + 1 and k['peril_id'] == gul_it['peril_id'] and k['coverage_type'] == gul_it['coverage_type_id']][0]
 
             positive_tiv_term = [t for t in tiv_elements if can_it.get(t['ProfileElementName'].lower(
             )) and can_it[t['ProfileElementName'].lower()] > 0 and t['CoverageTypeID'] == keys_it['coverage_type']][0]
@@ -2453,7 +2452,7 @@ class FmFilesGenerationTestCase(TestCase):
 
         fm_profile_df['index'] = range(n)
 
-        fm_profile_df['share2'] = fm_profile_df['share3'] = [0]*n
+        fm_profile_df['share2'] = fm_profile_df['share3'] = [0] * n
 
         expected = tuple(
             {
@@ -2663,7 +2662,7 @@ class WriteFmFiles(FmFilesGenerationTestCase):
     def test_exposure_with_one_coverage_type_and_fm_terms_with_one_account_and_one_top_level_layer_per_account_and_model_lookup_supporting_single_peril_and_coverage_type_paths_are_stored_in_the_model___model_paths_are_used_and_all_fm_files_are_generated(self, exposures, accounts, guls):
         cep = self.exposures_profile
         cap = self.accounts_profile
-        ufcp = self.unified_canonical_profile
+        # ufcp = self.unified_canonical_profile
         fmap = self.fm_agg_profile
 
         for it in exposures:
@@ -2759,7 +2758,7 @@ class WriteFmFiles(FmFilesGenerationTestCase):
     def test_exposure_with_one_coverage_type_and_fm_terms_with_one_account_and_one_top_level_layer_per_account_and_model_lookup_supporting_single_peril_and_coverage_type_paths_are_stored_in_the_kwargs___kwarg_paths_are_used_and_all_fm_files_are_generated(self, exposures, accounts, guls):
         cep = self.exposures_profile
         cap = self.accounts_profile
-        ufcp = self.unified_canonical_profile
+        # ufcp = self.unified_canonical_profile
         fmap = self.fm_agg_profile
 
         for it in exposures:

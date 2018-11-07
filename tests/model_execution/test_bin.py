@@ -4,7 +4,7 @@ import glob
 import tarfile
 from tempfile import NamedTemporaryFile
 
-import pytest
+# import pytest
 import six
 from itertools import chain
 from backports.tempfile import TemporaryDirectory
@@ -24,7 +24,13 @@ from hypothesis.strategies import sampled_from, lists
 from mock import patch, Mock
 from pathlib2 import Path
 
-from oasislmf.model_execution.files import GUL_INPUT_FILES, OPTIONAL_INPUT_FILES, IL_INPUT_FILES, TAR_FILE, INPUT_FILES
+from oasislmf.model_execution.files import (
+    GUL_INPUT_FILES,
+    IL_INPUT_FILES,
+    TAR_FILE,
+    INPUT_FILES
+)
+#    OPTIONAL_INPUT_FILES,
 from oasislmf.model_execution.bin import create_binary_files, create_binary_tar_file, check_conversion_tools, \
     check_inputs_directory, prepare_model_run_directory, prepare_model_run_inputs, cleanup_bin_directory, \
     check_binary_tar_file

@@ -34,7 +34,6 @@ import copy
 import itertools
 import six
 import string
-import six
 
 from itertools import chain
 from chainmap import ChainMap
@@ -42,9 +41,8 @@ from collections import OrderedDict
 
 import pandas as pd
 
-from hypothesis import given
+# from hypothesis import given
 from hypothesis.strategies import (
-    booleans,
     fixed_dictionaries,
     integers,
     just,
@@ -52,28 +50,30 @@ from hypothesis.strategies import (
     nothing,
     sampled_from,
     text,
-    tuples,
     floats,
 )
+#    booleans,
+#    tuples,
 
 from oasislmf.utils.metadata import (
     DEDUCTIBLE_TYPES,
     FM_TERMS,
-    OASIS_COVERAGE_TYPES,
-    OASIS_FM_LEVELS,
     OASIS_KEYS_STATUS,
     OASIS_PERILS,
-    OED_COVERAGE_TYPES,
-    OED_FM_LEVELS,
     OED_PERILS,
+    OASIS_COVERAGE_TYPES,
+    OASIS_FM_LEVELS,
 )
+#    OED_COVERAGE_TYPES,
+#    OED_FM_LEVELS,
 
 from oasislmf.model_execution.files import (
     GUL_INPUT_FILES,
     IL_INPUT_FILES,
     OPTIONAL_INPUT_FILES,
-    TAR_FILE, INPUT_FILES,
+    INPUT_FILES,
 )
+#    TAR_FILE,
 
 calcrule_ids = (1, 4, 5, 6, 7, 8, 10, 11, 12, 12, 13, 14, 15, 16, 19, 21,)
 
@@ -652,7 +652,7 @@ oasis_fm_agg_profile = {
     },
     3: {
         "FMLevel": 3,
-        "FMLevel": "Site",
+        "FMLevelName": "Site",
         "FMAggKey": {
             "LocID": {
                 "src": "FM",

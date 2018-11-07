@@ -6,7 +6,7 @@ import json
 import os
 import string
 
-from collections import OrderedDict
+# from collections import OrderedDict
 from unittest import TestCase
 
 import pandas as pd
@@ -15,11 +15,10 @@ from backports.tempfile import TemporaryDirectory
 from hypothesis import (
     given,
     HealthCheck,
-    reproduce_failure,
     settings,
 )
+#    reproduce_failure,
 from hypothesis.strategies import (
-    booleans,
     fixed_dictionaries,
     integers,
     just,
@@ -28,23 +27,24 @@ from hypothesis.strategies import (
     text,
     tuples,
 )
+#    booleans,
 from mock import Mock, patch
 from six import StringIO
 from tempfile import NamedTemporaryFile
 
 from oasislmf.keys.lookup import OasisLookupFactory
-from oasislmf.utils.coverage import (
-    BUILDING_COVERAGE_CODE,
-    CONTENTS_COVERAGE_CODE,
-    OTHER_STRUCTURES_COVERAGE_CODE,
-    TIME_COVERAGE_CODE,
-)
-from oasislmf.utils.peril import (
-    PERIL_ID_FLOOD,
-    PERIL_ID_QUAKE,
-    PERIL_ID_SURGE,
-    PERIL_ID_WIND,
-)
+# from oasislmf.utils.coverage import (
+#     BUILDING_COVERAGE_CODE,
+#     CONTENTS_COVERAGE_CODE,
+#     OTHER_STRUCTURES_COVERAGE_CODE,
+#     TIME_COVERAGE_CODE,
+# )
+# from oasislmf.utils.peril import (
+#     PERIL_ID_FLOOD,
+#     PERIL_ID_QUAKE,
+#     PERIL_ID_SURGE,
+#     PERIL_ID_WIND,
+# )
 from oasislmf.utils.status import (
     KEYS_STATUS_FAIL,
     KEYS_STATUS_NOMATCH,
