@@ -257,14 +257,27 @@ class ReinsuranceLayer(object):
     #    ))
     #    return search_dict.items() <= node_dict.items()
 
+    def is_valid_id(self, id_to_check):
+        is_valid = not(id_to_check == "" or id_to_check <= 0)
+        return is_valid
+
     def _match_account(self, node, scope_row):
-        return node.account_number == scope_row.AccNumber
+        if self.is_valid_id(scope_row.AccNumber):
+            return node.account_number == scope_row.AccNumber
+        else:
+            return True
 
     def _match_policy(self, node, scope_row):
-        return self._match_account(node, scope_row) and node.policy_number == scope_row.PolNumber
+        if self.is_valid_id(scope_row.PolNumber) and self.is_valid_id(scope_row.AccNumber):
+            return self._match_account(node, scope_row) and node.policy_number == scope_row.PolNumber
+        else:
+            return self._match_account(node, scope_row)
 
     def _match_location(self, node, scope_row):
-        return self._match_account(node, scope_row) and node.policy_number == scope_row.PolNumber
+        if self.is_valid_id(scope_row.PolNumber) and self.is_valid_id(scope_row.AccNumber) and self.is_valid_id(scope_row.LocNumber):
+            return self._match_account(node, scope_row) and node.location_number == scope_row.LocNumber
+        else:
+            return self._match_policy(node, scope_row)
 
     def _filter_nodes(self, nodes_list, scope_row):
         """
