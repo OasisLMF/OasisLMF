@@ -1,6 +1,13 @@
 OasisLMF Changelog
 ==================
 
+`1.2.1`_
+--------
+
+* Fix for reinsurance feature 
+* Fix for Parsing config.json on MDK command line
+* Compatibility fix for new API worker 
+
 `1.2.0`_
 --------
 
@@ -137,7 +144,8 @@ in the exposure manager
 * Add console logging
 
 
-.. _`1.2.0`: https://github.com/OasisLMF/OasisLMF/compare/ad91e2a...master
+.. _`1.2.1`:  https://github.com/OasisLMF/OasisLMF/compare/5bcffd7...master
+.. _`1.2.0`:  https://github.com/OasisLMF/OasisLMF/compare/ad91e2a...master
 .. _`1.1.27`: https://github.com/OasisLMF/OasisLMF/compare/ac4375e...master
 .. _`1.1.26`: https://github.com/OasisLMF/OasisLMF/compare/dac703e...master
 .. _`1.1.25`: https://github.com/OasisLMF/OasisLMF/compare/3a4b983...master
@@ -154,8 +162,8 @@ in the exposure manager
 .. _`1.1.13`: https://github.com/OasisLMF/OasisLMF/compare/33f96fd...master
 .. _`1.1.12`: https://github.com/OasisLMF/OasisLMF/compare/5045ca2...master
 .. _`1.1.10`: https://github.com/OasisLMF/OasisLMF/compare/a969192...master
-.. _`1.0.9`: https://github.com/OasisLMF/OasisLMF/compare/17c691b...master
-.. _`1.0.8`: https://github.com/OasisLMF/OasisLMF/compare/8eeaeaf...master
-.. _`1.0.6`: https://github.com/OasisLMF/OasisLMF/compare/9578398...master
-.. _`1.0.5`: https://github.com/OasisLMF/OasisLMF/compare/c87c782...master
-.. _`1.0.1`: https://github.com/OasisLMF/OasisLMF/compare/7de227d...master
+.. _`1.0.9`:  https://github.com/OasisLMF/OasisLMF/compare/17c691b...master
+.. _`1.0.8`:  https://github.com/OasisLMF/OasisLMF/compare/8eeaeaf...master
+.. _`1.0.6`:  https://github.com/OasisLMF/OasisLMF/compare/9578398...master
+.. _`1.0.5`:  https://github.com/OasisLMF/OasisLMF/compare/c87c782...master
+.. _`1.0.1`:  https://github.com/OasisLMF/OasisLMF/compare/7de227d...master
