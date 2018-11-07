@@ -209,40 +209,41 @@ class ReinsuranceLayer(object):
             policy_number=oed.NOT_SET_ID,
             location_number=oed.NOT_SET_ID)
 
-    def _does_location_node_match_scope_row(self, node, ri_scope_row):
-        node_summary = (node.account_number,
-                        node.policy_number, node.location_number)
-        scope_row_summary = (ri_scope_row.AccNumber,
-                             ri_scope_row.PolNumber, ri_scope_row.LocNumber)
-        if (node_summary == scope_row_summary):
-            self.logger.debug('Matching node: location to scope\n node: {}, ri_scope: {}'.format(
-                str(node_summary),
-                str(scope_row_summary),
-            ))
-        return (node_summary == scope_row_summary)
+    # def _does_location_node_match_scope_row(self, node, ri_scope_row):
+    #     node_summary = (node.account_number,
+    #                     node.policy_number, node.location_number)
+    #     scope_row_summary = (ri_scope_row.AccNumber,
+    #                          ri_scope_row.PolNumber, ri_scope_row.LocNumber)
 
-    def _does_policy_node_match_scope_row(self, node, ri_scope_row):
-        node_summary = (node.account_number,
-                        node.policy_number, oed.NOT_SET_ID)
-        scope_row_summary = (ri_scope_row.AccNumber, ri_scope_row.PolNumber, oed.NOT_SET_ID)
-        if (node_summary == scope_row_summary):
-            self.logger.debug('Matching node: policy to scope\n node: {}, ri_scope: {}'.format(
-                str(node_summary),
-                str(scope_row_summary),
-            ))
-        return (node_summary == scope_row_summary)
+    #     if (node_summary == scope_row_summary):
+    #         self.logger.debug('Matching node: location to scope\n node: {}, ri_scope: {}'.format(
+    #             str(node_summary),
+    #             str(scope_row_summary),
+    #         ))
+    #     return (node_summary == scope_row_summary)
 
-    def _does_account_node_match_scope_row(self, node, ri_scope_row):
-        node_summary = (node.account_number,
-                        oed.NOT_SET_ID, oed.NOT_SET_ID)
-        scope_row_summary = (ri_scope_row.AccNumber,
-                             oed.NOT_SET_ID, oed.NOT_SET_ID)
-        if (node_summary == scope_row_summary):
-            self.logger.debug('Matching node: account to scope\n node: {}, ri_scope: {}'.format(
-                str(node_summary),
-                str(scope_row_summary),
-            ))
-        return (node_summary == scope_row_summary)
+    # def _does_policy_node_match_scope_row(self, node, ri_scope_row):
+    #     node_summary = (node.account_number,
+    #                     node.policy_number, oed.NOT_SET_ID)
+    #     scope_row_summary = (ri_scope_row.AccNumber, ri_scope_row.PolNumber, oed.NOT_SET_ID)
+    #     if (node_summary == scope_row_summary):
+    #         self.logger.debug('Matching node: policy to scope\n node: {}, ri_scope: {}'.format(
+    #             str(node_summary),
+    #             str(scope_row_summary),
+    #         ))
+    #     return (node_summary == scope_row_summary)
+
+    # def _does_account_node_match_scope_row(self, node, ri_scope_row):
+    #     node_summary = (node.account_number,
+    #                     oed.NOT_SET_ID, oed.NOT_SET_ID)
+    #     scope_row_summary = (ri_scope_row.AccNumber,
+    #                          oed.NOT_SET_ID, oed.NOT_SET_ID)
+    #     if (node_summary == scope_row_summary):
+    #         self.logger.debug('Matching node: account to scope\n node: {}, ri_scope: {}'.format(
+    #             str(node_summary),
+    #             str(scope_row_summary),
+    #         ))
+    #     return (node_summary == scope_row_summary)
 
     # More generic but slower (testing only)
     # def _match_node(self, node, search_dict):
@@ -258,7 +259,9 @@ class ReinsuranceLayer(object):
     #    return search_dict.items() <= node_dict.items()
 
     def is_valid_id(self, id_to_check):
-        is_valid = not(id_to_check == "" or id_to_check <= 0)
+        is_valid = not(
+            (type(id_to_check) is str and id_to_check == "") or 
+            (type(id_to_check) is int and id_to_check <= 0))
         return is_valid
 
     def _match_account(self, node, scope_row):
@@ -384,30 +387,37 @@ class ReinsuranceLayer(object):
         ))
 
         for _, ri_scope_row in add_profiles_args.scope_rows.iterrows():
-            if ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_LOCATION:
-                nodes = anytree.search.findall(
-                    add_profiles_args.program_node,
-                    filter_=lambda node: self._does_location_node_match_scope_row(node, ri_scope_row))
-                for node in nodes:
-                    add_profiles_args.node_layer_profile_map[(
-                        node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
-            elif ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_POLICY:
-                nodes = anytree.search.findall(
-                    add_profiles_args.program_node,
-                    filter_=lambda node: self._does_policy_node_match_scope_row(node, ri_scope_row))
-                for node in nodes:
-                    add_profiles_args.node_layer_profile_map[(
-                        node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
-            elif ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_ACCOUNT:
-                nodes = anytree.search.findall(
-                    add_profiles_args.program_node,
-                    filter_=lambda node: self._does_account_node_match_scope_row(node, ri_scope_row))
-                for node in nodes:
-                    add_profiles_args.node_layer_profile_map[(
-                        node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
-            else:
-                raise Exception(
-                    "Unsupported risk level: {}".format(ri_scope_row.RiskLevel))
+            nodes_all = anytree.search.findall(
+                add_profiles_args.program_node, filter_=lambda node: node.level_id == 2)
+
+            nodes = self._filter_nodes(nodes_all, ri_scope_row)
+            for node in nodes:
+                add_profiles_args.node_layer_profile_map[(
+                    node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
+            # if ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_LOCATION:
+            #     nodes = anytree.search.findall(
+            #         add_profiles_args.program_node,
+            #         filter_=lambda node: self._does_location_node_match_scope_row(node, ri_scope_row))
+            #     for node in nodes:
+            #         add_profiles_args.node_layer_profile_map[(
+            #             node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
+            # elif ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_POLICY:
+            #     nodes = anytree.search.findall(
+            #         add_profiles_args.program_node,
+            #         filter_=lambda node: self._does_policy_node_match_scope_row(node, ri_scope_row))
+            #     for node in nodes:
+            #         add_profiles_args.node_layer_profile_map[(
+            #             node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
+            # elif ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_ACCOUNT:
+            #     nodes = anytree.search.findall(
+            #         add_profiles_args.program_node,
+            #         filter_=lambda node: self._does_account_node_match_scope_row(node, ri_scope_row))
+            #     for node in nodes:
+            #         add_profiles_args.node_layer_profile_map[(
+            #             node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
+            # else:
+            #     raise Exception(
+            #         "Unsupported risk level: {}".format(ri_scope_row.RiskLevel))
 
     # Need to check Matching rules for Per Risk with Joh
     def _add_per_risk_profiles(self, add_profiles_args):
@@ -456,24 +466,29 @@ class ReinsuranceLayer(object):
                 ceded=ri_scope_row.CededPercent,
             ))
 
-            if ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_LOCATION:
-                selected_nodes = list(filter(lambda n: self._does_location_node_match_scope_row(n, ri_scope_row), nodes_all))
-                for node in selected_nodes:
-                    add_profiles_args.node_layer_profile_map[(
-                        node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
-            elif ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_POLICY:
-                selected_nodes = list(filter(lambda n: self._does_policy_node_match_scope_row(n, ri_scope_row), nodes_all))
-                for node in selected_nodes:
-                    add_profiles_args.node_layer_profile_map[(
-                        node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
-            elif ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_ACCOUNT:
-                selected_nodes = list(filter(lambda n: self._does_account_node_match_scope_row(n, ri_scope_row), nodes_all))
-                for node in selected_nodes:
-                    add_profiles_args.node_layer_profile_map[(
-                        node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
-            else:
-                raise Exception(
-                    "Unsupported risk level: {}".format(ri_scope_row.RiskLevel))
+            selected_nodes = self._filter_nodes(nodes_all, ri_scope_row)
+            for node in selected_nodes:
+                add_profiles_args.node_layer_profile_map[(
+                    node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
+
+            # if ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_LOCATION:
+            #     selected_nodes = list(filter(lambda n: self._does_location_node_match_scope_row(n, ri_scope_row), nodes_all))
+            #     for node in selected_nodes:
+            #         add_profiles_args.node_layer_profile_map[(
+            #             node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
+            # elif ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_POLICY:
+            #     selected_nodes = list(filter(lambda n: self._does_policy_node_match_scope_row(n, ri_scope_row), nodes_all))
+            #     for node in selected_nodes:
+            #         add_profiles_args.node_layer_profile_map[(
+            #             node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
+            # elif ri_scope_row.RiskLevel == oed.REINS_RISK_LEVEL_ACCOUNT:
+            #     selected_nodes = list(filter(lambda n: self._does_account_node_match_scope_row(n, ri_scope_row), nodes_all))
+            #     for node in selected_nodes:
+            #         add_profiles_args.node_layer_profile_map[(
+            #             node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = profile_id
+            # else:
+            #     raise Exception(
+            #         "Unsupported risk level: {}".format(ri_scope_row.RiskLevel))
 
         # add OccLimit / Placed Percent
         profile_id = profile_id + 1
