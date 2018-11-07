@@ -19,4 +19,5 @@ Sphinx
 tox
 parameterized
 tabulate
-backports
+backports.tempfile
+backports.weakref
