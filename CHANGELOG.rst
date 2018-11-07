@@ -4,9 +4,10 @@ OasisLMF Changelog
 `1.2.1`_
 --------
 
-* Fix for reinsurance feature 
-* Fix for Parsing config.json on MDK command line
 * Compatibility fix for new API worker 
+* Fix for Parsing config.json on MDK command line
+* Fix for Reinsurance
+* Add Reinsurance tests 
 
 `1.2.0`_
 --------
