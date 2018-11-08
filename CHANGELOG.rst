@@ -7,7 +7,8 @@ OasisLMF Changelog
 * Compatibility fix for new API worker 
 * Fix for Parsing config.json on MDK command line
 * Fix for Reinsurance
-* Add Reinsurance tests 
+* Add Reinsurance tests
+* Fix GUL item group IDs to index item loc. IDs
 
 `1.2.0`_
 --------
@@ -145,7 +146,7 @@ in the exposure manager
 * Add console logging
 
 
-.. _`1.2.1`:  https://github.com/OasisLMF/OasisLMF/compare/5bcffd7...master
+.. _`1.2.1`:  https://github.com/OasisLMF/OasisLMF/compare/f4d7390...master
 .. _`1.2.0`:  https://github.com/OasisLMF/OasisLMF/compare/ad91e2a...master
 .. _`1.1.27`: https://github.com/OasisLMF/OasisLMF/compare/ac4375e...master
 .. _`1.1.26`: https://github.com/OasisLMF/OasisLMF/compare/dac703e...master
