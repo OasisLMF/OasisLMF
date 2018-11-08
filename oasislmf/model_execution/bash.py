@@ -169,6 +169,17 @@ def remove_workfolders(runtype, analysis_settings, filename):
 def do_make_fifos(runtype, analysis_settings, process_id, filename):
     do_fifos('mkfifo', runtype, analysis_settings, process_id, filename)
 
+def do_ktools_mem_limit(max_process_id ,filename):
+    """
+        Set each Ktools pipeline to trap and terminate on hitting its 
+        memory allocation limit
+
+        Limit: Maximum avalible memory / max_process_id 
+    """
+    cmd_mem_limit = 'ulimit -v $(ktgetmem {})'.format(max_process_id)
+    print_command(filename, '# --- Using Ktools per process memory limit ---')
+    print_command(filename, cmd_mem_limit)
+    print_command(filename, '')
 
 def do_remove_fifos(runtype, analysis_settings, process_id, filename):
     do_fifos('rm', runtype, analysis_settings, process_id, filename)
@@ -477,6 +488,7 @@ def get_getmodel_cmd(number_of_samples, gul_threshold, use_random_number_file, c
 def genbash(
     max_process_id, analysis_settings, filename, 
     num_reinsurance_iterations=0,
+    mem_limit=False,
     _get_getmodel_cmd=get_getmodel_cmd, custom_args={}):
     """
     Generates a bash script containing ktools calculation instructions for an
@@ -494,6 +506,9 @@ def genbash(
     :param num_reinsurance_iterations: The number of reinsurance iterations
     :type num_reinsurance_iterations: int
     
+    :param mem_limit: Flag to set a max memory limit for each ktools process 
+    :type mem_limit: boolean
+
     :param get_getmodel_cmd: Method for getting the getmodel command, by default
         ``GenerateLossesCmd.get_getmodel_cmd`` is used.
     :type get_getmodel_cmd: callable
@@ -534,6 +549,9 @@ def genbash(
     print_command(filename, '')
 
     print_command(filename, 'mkdir work/kat')
+
+    if mem_limit:
+        do_ktools_mem_limit(max_process_id)
 
     if gul_output:
         do_gul_make_fifo(analysis_settings, max_process_id, filename)
