@@ -564,7 +564,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             inputs.get('fm_agg_profile_path', required=False, is_path=True),
             'Supplier FM aggregation profile JSON file path'
         )
-
+        
         fm = inputs.get('fm', default=False)
         if fm and not (source_accounts_file_path and canonical_accounts_profile_json_path and fm_agg_profile_path):
             raise OasisException(
@@ -574,7 +574,6 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
 
         start_time = time.time()
         self.logger.info('\nStarting Oasis files generation (@ {}): GUL=True, FM={}'.format(get_utctimestamp(), fm))
-
 
         self.logger.info('\nGetting model info and lookup')
         model_info, lookup = OasisLookupFactory.create(
