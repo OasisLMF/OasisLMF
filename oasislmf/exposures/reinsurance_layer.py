@@ -249,15 +249,15 @@ class ReinsuranceLayer(object):
         Return subset of `nodes_list` based on values of a row in `ri_scope.csv`
         """
         #TODO: portfolio scope not implemented
-        if (scope_row.RiskLevel == oed.REINS_RISK_LEVEL_ACCOUNT) and self._is_defined(scope_row.AccNumber):
+        if (scope_row.RiskLevel == oed.REINS_RISK_LEVEL_ACCOUNT):
             return list(filter(
                 lambda n: self._match_account(n, scope_row, exact), 
                 nodes_list))
-        elif scope_row.RiskLevel == oed.REINS_RISK_LEVEL_POLICY and self._is_defined(scope_row.PolNumber):
+        elif scope_row.RiskLevel == oed.REINS_RISK_LEVEL_POLICY:
             nodes_list = list(filter(
                 lambda n: self._match_policy(n, scope_row, exact), 
                 nodes_list))
-        elif scope_row.RiskLevel == oed.REINS_RISK_LEVEL_LOCATION and self._is_defined(scope_row.LocNumber):
+        elif scope_row.RiskLevel == oed.REINS_RISK_LEVEL_LOCATION:
             nodes_list = list(filter(
                 lambda n: self._match_location(n, scope_row, exact), 
                 nodes_list))
