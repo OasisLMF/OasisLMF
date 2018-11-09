@@ -54,8 +54,9 @@ fm_examples = ['fm24',
 
 test_cases = []
 for case in test_examples + fm_examples:
-#for case in ['placed_pol_SS']:
+#for case in ['fm24']:
     test_cases.append((
+        case,
         os.path.join(input_dir, case),
         os.path.join(expected_output_dir, case)
     ))
@@ -194,7 +195,10 @@ class TestReinsurance(unittest.TestCase):
         return account_df, location_df
 
     @parameterized.expand(test_cases)
-    def test_fmcalc(self, case_dir, expected_dir):
+    def test_fmcalc(self, case, case_dir, expected_dir):
+
+        print("Test case: {}".format(case))
+
         loss_factor = 1.0
 
         (
