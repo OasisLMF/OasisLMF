@@ -268,24 +268,34 @@ class ReinsuranceLayer(object):
         # If the value = NaN it will return False
         return num_to_check == num_to_check
 
-    def _check_scope_row(self, scope_row):
+    def _check_scope_row(self, scope_row, exact=True):
         # For some treaty types the scope filter much match exactly
         okay = True
-        if (scope_row.RiskLevel == oed.REINS_RISK_LEVEL_ACCOUNT):
-            okay = \
-                self.is_valid_id(scope_row.AccNumber) and \
-                not self.is_valid_id(scope_row.PolNumber) and \
-                not self.is_valid_id(scope_row.LocNumber)
-        elif scope_row.RiskLevel == oed.REINS_RISK_LEVEL_POLICY:
-            okay = \
-                self.is_valid_id(scope_row.AccNumber) and \
-                self.is_valid_id(scope_row.PolNumber) and \
-                not self.is_valid_id(scope_row.LocNumber)
-        elif scope_row.RiskLevel == oed.REINS_RISK_LEVEL_LOCATION:
-            okay = \
-                self.is_valid_id(scope_row.AccNumber) and \
-                self.is_valid_id(scope_row.PolNumber) and \
-                self.is_valid_id(scope_row.LocNumber)
+        if exact:
+            if (scope_row.RiskLevel == oed.REINS_RISK_LEVEL_ACCOUNT):
+                okay = \
+                    self.is_valid_id(scope_row.AccNumber) and \
+                    not self.is_valid_id(scope_row.PolNumber) and \
+                    not self.is_valid_id(scope_row.LocNumber)
+            elif scope_row.RiskLevel == oed.REINS_RISK_LEVEL_POLICY:
+                okay = \
+                    self.is_valid_id(scope_row.AccNumber) and \
+                    self.is_valid_id(scope_row.PolNumber) and \
+                    not self.is_valid_id(scope_row.LocNumber)
+            elif scope_row.RiskLevel == oed.REINS_RISK_LEVEL_LOCATION:
+                okay = \
+                    self.is_valid_id(scope_row.AccNumber) and \
+                    self.is_valid_id(scope_row.PolNumber) and \
+                    self.is_valid_id(scope_row.LocNumber)
+        else:
+            # Lower level filters are not supported at present
+            if (scope_row.RiskLevel == oed.REINS_RISK_LEVEL_ACCOUNT):
+                okay = \
+                    not self.is_valid_id(scope_row.PolNumber) and \
+                    not self.is_valid_id(scope_row.LocNumber)
+            elif scope_row.RiskLevel == oed.REINS_RISK_LEVEL_POLICY:
+                okay = \
+                    not self.is_valid_id(scope_row.LocNumber)
         return okay
 
     def _get_tree(self):
@@ -385,6 +395,9 @@ class ReinsuranceLayer(object):
         ))
 
         for _, ri_scope_row in add_profiles_args.scope_rows.iterrows():
+            if not self._check_scope_row(ri_scope_row, exact=False):
+                raise Exception("Unsupported filter")
+
             selected_nodes = self._filter_nodes(nodes_all, ri_scope_row, exact=False)
             for node in selected_nodes:
                 add_profiles_args.node_layer_profile_map[(
@@ -455,6 +468,9 @@ class ReinsuranceLayer(object):
                 ))
         else:
             for _, ri_scope_row in add_profiles_args.scope_rows.iterrows():
+                if not self._check_scope_row(ri_scope_row, exact=False):
+                    raise Exception("Unsupported filter")
+
                 profile_id = profile_id + 1
 
                 add_profiles_args.fmprofiles_list.append(
@@ -504,6 +520,9 @@ class ReinsuranceLayer(object):
                 add_profiles_args.program_node, filter_=lambda node: node.level_id == 2)
 
             for _, ri_scope_row in add_profiles_args.scope_rows.iterrows():
+                if not self._check_scope_row(ri_scope_row, exact=False):
+                    raise Exception("Unsupported filter")
+
                 profile_id = profile_id + 1
 
                 add_profiles_args.fmprofiles_list.append(
