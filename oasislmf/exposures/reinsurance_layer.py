@@ -238,10 +238,10 @@ class ReinsuranceLayer(object):
         if exact:
             match = self._match_account(node, scope_row) and node.location_number == scope_row.LocNumber
         else:
-            if self.is_valid_id(scope_row.PolNumber) and self.is_valid_id(scope_row.AccNumber) and self.is_valid_id(scope_row.LocNumber):
+            if self.is_valid_id(scope_row.AccNumber) and self.is_valid_id(scope_row.LocNumber):
                 match = self._match_account(node, scope_row) and node.location_number == scope_row.LocNumber
             else:
-                match = self._match_policy(node, scope_row)
+                match = self._match_account(node, scope_row)
         return match
 
     def _filter_nodes(self, nodes_list, scope_row, exact=False):
