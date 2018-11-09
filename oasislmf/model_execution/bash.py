@@ -551,7 +551,7 @@ def genbash(
     print_command(filename, 'mkdir work/kat')
 
     if mem_limit:
-        do_ktools_mem_limit(max_process_id)
+        do_ktools_mem_limit(max_process_id, filename)
 
     if gul_output:
         do_gul_make_fifo(analysis_settings, max_process_id, filename)
