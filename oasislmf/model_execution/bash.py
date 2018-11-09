@@ -177,9 +177,7 @@ def do_ktools_mem_limit(max_process_id ,filename):
         Limit: Maximum avalible memory / max_process_id 
     """
     cmd_mem_limit = 'ulimit -v $(ktgetmem {})'.format(max_process_id)
-    print_command(filename, '# --- Using Ktools per process memory limit ---')
     print_command(filename, cmd_mem_limit)
-    print_command(filename, '')
 
 def do_remove_fifos(runtype, analysis_settings, process_id, filename):
     do_fifos('rm', runtype, analysis_settings, process_id, filename)
@@ -550,9 +548,6 @@ def genbash(
 
     print_command(filename, 'mkdir work/kat')
 
-    if mem_limit:
-        do_ktools_mem_limit(max_process_id, filename)
-
     if gul_output:
         do_gul_make_fifo(analysis_settings, max_process_id, filename)
         create_workfolders(RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename)
@@ -577,6 +572,12 @@ def genbash(
         print_command(filename, '# --- Do insured loss computes ---')
         print_command(filename, '')
         do_il(analysis_settings, max_process_id, filename, process_counter)
+
+    if mem_limit:
+        print_command(filename, '')
+        print_command(filename, '# --- Use Ktools per process memory limit ---')
+        print_command(filename, '')
+        do_ktools_mem_limit(max_process_id, filename)
 
     if gul_output:
         print_command(filename, '')
