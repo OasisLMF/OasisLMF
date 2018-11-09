@@ -2133,6 +2133,29 @@ class FmAcceptanceTests(TestCase):
 
             self.assertTrue(all(os.path.exists(p) for p in six.itervalues(gul_files)))
 
+            guls = pd.merge(
+                pd.merge(pd.read_csv(gul_files['items']), pd.read_csv(gul_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
+                pd.read_csv(gul_files['gulsummaryxref']),
+                left_on='coverage_id',
+                right_on='coverage_id'
+            )
+
+            self.assertEqual(len(guls), 4)
+
+            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in guls.groupby('group_id')]
+            self.assertEqual(len(loc_groups), 1)
+
+            loc1_id, loc1_items = loc_groups[0]
+            self.assertEqual(loc1_id, 1)
+            self.assertEqual(len(loc1_items), 4)
+            self.assertEqual(loc1_items['item_id'].values.tolist(), [1,2,3,4])
+            self.assertEqual(loc1_items['coverage_id'].values.tolist(), [1,2,3,4])
+            self.assertEqual(set(loc1_items['areaperil_id'].values), {1})
+            self.assertEqual(loc1_items['vulnerability_id'].values.tolist(), [1,2,3,4])
+            self.assertEqual(set(loc1_items['group_id'].values), {1})
+            tivs = [exposures[0][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
+            self.assertEqual(loc1_items['tiv'].values.tolist(), tivs)
+
             ofp.canonical_accounts_file_path = af.name
             ofp.fm_policytc_file_path = os.path.join(outdir, 'fm_policytc.csv')
             ofp.fm_profile_file_path = os.path.join(outdir, 'fm_profile.csv')
