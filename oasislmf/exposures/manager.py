@@ -833,6 +833,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 } for tiv_tgid in ufcp[cov_level_id]
             }
 
+
+            group_id = 0
+            prev_it_loc_id = -1
             item_id = 0
             zero_tiv_items = 0
             positive_tiv_elements = lambda it: [t for t in tiv_terms if it.get(t['ProfileElementName'].lower()) and it[t['ProfileElementName'].lower()] > 0 and t['CoverageTypeID'] == it['coveragetypeid']] or [0]
@@ -843,6 +846,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                     continue
 
                 item_id += 1
+                if it['row_id'] != prev_it_loc_id:
+                    group_id += 1
+
                 tiv_elm = ptiv['ProfileElementName'].lower()
                 tiv = it[tiv_elm]
                 tiv_tgid = ptiv['FMTermGroupID']
@@ -863,10 +869,13 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                     'shr_elm': fm_terms[tiv_tgid].get('share'),
                     'areaperil_id': it['areaperilid'],
                     'vulnerability_id': it['vulnerabilityid'],
-                    'group_id': it['row_id'],
+                    'group_id': group_id,
                     'summary_id': 1,
                     'summaryset_id': 1
                 }
+                prev_it_loc_id = it['row_id']
+
+
         except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
             raise OasisException(e)
         else:
