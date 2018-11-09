@@ -17,3 +17,7 @@ mock
 responses
 Sphinx
 tox
+parameterized
+tabulate
+backports.tempfile
+backports.weakref

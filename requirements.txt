@@ -38,6 +38,7 @@ mccabe==0.6.1             # via flake8
 mock==2.0.0
 numpy==1.14.0             # via pandas
 pandas==0.22.0
+parameterized==0.6.1
 pathlib2==2.3.0
 pbr==3.1.1                # via mock
 pip-tools==2.0.2
@@ -64,6 +65,7 @@ six==1.11.0
 snowballstemmer==1.2.1    # via sphinx
 sphinx==1.6.7
 sphinxcontrib-websupport==1.0.1  # via sphinx
+tabulate==0.8.2
 tox==2.9.1
 typing==3.6.6             # via python-interface, sphinx
 urllib3==1.22             # via requests
