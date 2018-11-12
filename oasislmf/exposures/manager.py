@@ -833,17 +833,18 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 raise OasisException('No coverage fields found in the canonical exposures profile - please check the canonical exposures (loc) profile')
 
             fm_terms = {
-                cov_tgid: {
+                tiv_tgid: {
                     term_type: (
-                        ufcp[cov_level_id][cov_tgid][term_type]['ProfileElementName'].lower() if ufcp[cov_level_id][cov_tgid].get(term_type) else None
+                        ufcp[cov_level_id][tiv_tgid][term_type]['ProfileElementName'].lower() if ufcp[cov_level_id][tiv_tgid].get(term_type) else None
                     ) for term_type in ('deductible', 'deductiblemin', 'deductiblemax', 'limit', 'share',)
-                } for cov_tgid in ufcp[cov_level_id]
+                } for tiv_tgid in ufcp[cov_level_id]
             }
 
             group_id = 0
             prev_it_loc_id = -1
             item_id = 0
             zero_tiv_items = 0
+
             def positive_tiv_coverages(it): 
                 return [t for t in cov_tivs if it.get(t['ProfileElementName'].lower()) and it[t['ProfileElementName'].lower()] > 0 and t['CoverageTypeID'] == it['coveragetypeid']] or [0]
             
@@ -855,9 +856,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 item_id += 1
                 if it['row_id'] != prev_it_loc_id:
                     group_id += 1
-                cov_elm = ptiv['ProfileElementName'].lower()
-                tiv = it[cov_elm]
-                cov_tgid = ptiv['FMTermGroupID']
+                tiv_elm = ptiv['ProfileElementName'].lower()
+                tiv = it[tiv_elm]
+                tiv_tgid = ptiv['FMTermGroupID']
 
                 yield {
                     'item_id': item_id,
@@ -868,12 +869,12 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                     'is_bi_coverage': it['coveragetypeid'] in [OASIS_COVERAGE_TYPES['time']['id'], OED_COVERAGE_TYPES['bi']['id']],
                     'tiv_elm': tiv_elm,
                     'tiv': tiv,
-                    'cov_tgid': cov_tgid,
-                    'ded_elm': fm_terms[cov_tgid].get('deductible'),
-                    'ded_min_elm': fm_terms[cov_tgid].get('deductiblemin'),
-                    'ded_max_elm': fm_terms[cov_tgid].get('deductiblemax'),
-                    'lim_elm': fm_terms[cov_tgid].get('limit'),
-                    'shr_elm': fm_terms[cov_tgid].get('share'),
+                    'tiv_tgid': tiv_tgid,
+                    'ded_elm': fm_terms[tiv_tgid].get('deductible'),
+                    'ded_min_elm': fm_terms[tiv_tgid].get('deductiblemin'),
+                    'ded_max_elm': fm_terms[tiv_tgid].get('deductiblemax'),
+                    'lim_elm': fm_terms[tiv_tgid].get('limit'),
+                    'shr_elm': fm_terms[tiv_tgid].get('share'),
                     'areaperil_id': it['areaperilid'],
                     'vulnerability_id': it['vulnerabilityid'],
                     'group_id': group_id,
@@ -941,7 +942,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             'is_bi_coverage', 'canexp_id', 'canacc_id', 'policy_num', 'level_id', 'layer_id',
             'agg_id', 'policytc_id', 'deductible', 'deductible_min',
             'deductible_max', 'attachment', 'limit', 'share', 'calcrule_id', 'tiv_elm',
-            'tiv', 'cov_tgid', 'ded_elm', 'ded_min_elm', 'ded_max_elm',
+            'tiv', 'tiv_tgid', 'ded_elm', 'ded_min_elm', 'ded_max_elm',
             'lim_elm', 'shr_elm',
         )
 
@@ -980,7 +981,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 (-1,)*len(cangul_df),                        # 12 - agg. ID
                 tuple(cangul_df['tiv_elm'].values),          # 13 - TIV element
                 tuple(cangul_df['tiv'].values),              # 14 -TIV value
-                tuple(cangul_df['cov_tgid'].values),         # 15 -coverage element/term group ID
+                tuple(cangul_df['tiv_tgid'].values),         # 15 -coverage element/term group ID
                 tuple(cangul_df['ded_elm'].values),          # 16 -deductible element
                 tuple(cangul_df['ded_min_elm'].values),      # 17 -deductible min. element
                 tuple(cangul_df['ded_max_elm'].values),      # 18 -deductible max. element
@@ -998,9 +999,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 i: {
                     k:v for k, v in zip(
                         keys,
-                        [i + 1, gul_item_id, peril_id, coverage_type_id, coverage_id, is_bi_coverage, canexp_id, get_canacc_id(i), policy_num, level_id, layer_id, agg_id, -1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 12, tiv_elm, tiv, cov_tgid, ded_elm, ded_min_elm, ded_max_elm, lim_elm, shr_elm]
+                        [i + 1, gul_item_id, peril_id, coverage_type_id, coverage_id, is_bi_coverage, canexp_id, get_canacc_id(i), policy_num, level_id, layer_id, agg_id, -1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 12, tiv_elm, tiv, tiv_tgid, ded_elm, ded_min_elm, ded_max_elm, lim_elm, shr_elm]
                     )
-                } for i, (item_id, gul_item_id, peril_id, coverage_type_id, coverage_id, is_bi_coverage, canexp_id, _, policy_num, level_id, layer_id, agg_id, tiv_elm, tiv, cov_tgid, ded_elm, ded_min_elm, ded_max_elm, lim_elm, shr_elm) in enumerate(coverage_level_preset_data)
+                } for i, (item_id, gul_item_id, peril_id, coverage_type_id, coverage_id, is_bi_coverage, canexp_id, _, policy_num, level_id, layer_id, agg_id, tiv_elm, tiv, tiv_tgid, ded_elm, ded_min_elm, ded_max_elm, lim_elm, shr_elm) in enumerate(coverage_level_preset_data)
             }
 
             num_cov_items = len(coverage_level_preset_items)

@@ -1137,22 +1137,22 @@ class LoadGulItems(TestCase):
                 tiv_elm = t['ProfileElementName'].lower()
                 self.assertEqual(tiv_elm, gul_it['tiv_elm'])
                 
-                cov_tgid = t['FMTermGroupID']
+                tiv_tgid = t['FMTermGroupID']
                 self.assertEqual(can_it[tiv_elm], gul_it['tiv'])
                                 
-                ded_elm = fm_terms[cov_tgid].get('deductible')
+                ded_elm = fm_terms[tiv_tgid].get('deductible')
                 self.assertEqual(ded_elm, gul_it['ded_elm'])
                 
-                ded_min_elm = fm_terms[cov_tgid].get('deductible_min')
+                ded_min_elm = fm_terms[tiv_tgid].get('deductible_min')
                 self.assertEqual(ded_min_elm, gul_it['ded_min_elm'])
 
-                ded_max_elm = fm_terms[cov_tgid].get('deductible_max')
+                ded_max_elm = fm_terms[tiv_tgid].get('deductible_max')
                 self.assertEqual(ded_max_elm, gul_it['ded_max_elm'])
 
-                lim_elm = fm_terms[cov_tgid].get('limit')
+                lim_elm = fm_terms[tiv_tgid].get('limit')
                 self.assertEqual(lim_elm, gul_it['lim_elm'])
 
-                shr_elm = fm_terms[cov_tgid].get('share')
+                shr_elm = fm_terms[tiv_tgid].get('share')
                 self.assertEqual(shr_elm, gul_it['shr_elm'])
 
             self.assertEqual(keys_it['area_peril_id'], gul_it['areaperil_id'])
@@ -1240,22 +1240,22 @@ class LoadGulItems(TestCase):
             tiv_elm = positive_tiv_term['ProfileElementName'].lower()
             self.assertEqual(tiv_elm, gul_it['tiv_elm'])
             
-            cov_tgid = positive_tiv_term['FMTermGroupID']
+            tiv_tgid = positive_tiv_term['FMTermGroupID']
             self.assertEqual(can_it[tiv_elm], gul_it['tiv'])
                             
-            ded_elm = fm_terms[cov_tgid].get('deductible')
+            ded_elm = fm_terms[tiv_tgid].get('deductible')
             self.assertEqual(ded_elm, gul_it['ded_elm'])
             
-            ded_min_elm = fm_terms[cov_tgid].get('deductible_min')
+            ded_min_elm = fm_terms[tiv_tgid].get('deductible_min')
             self.assertEqual(ded_min_elm, gul_it['ded_min_elm'])
 
-            ded_max_elm = fm_terms[cov_tgid].get('deductible_max')
+            ded_max_elm = fm_terms[tiv_tgid].get('deductible_max')
             self.assertEqual(ded_max_elm, gul_it['ded_max_elm'])
 
-            lim_elm = fm_terms[cov_tgid].get('limit')
+            lim_elm = fm_terms[tiv_tgid].get('limit')
             self.assertEqual(lim_elm, gul_it['lim_elm'])
 
-            shr_elm = fm_terms[cov_tgid].get('share')
+            shr_elm = fm_terms[tiv_tgid].get('share')
             self.assertEqual(shr_elm, gul_it['shr_elm'])
 
             self.assertEqual(keys_it['area_peril_id'], gul_it['areaperil_id'])
@@ -1408,7 +1408,7 @@ class LoadFmItems(TestCase):
             from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
             from_tiv_elements=just('wscv1val'),
             from_tivs=just(100),
-            from_cov_tgids=just(1),
+            from_tiv_tgids=just(1),
             from_limit_elements=just('wscv1limit'),
             from_deductible_elements=just('wscv1ded'),
             from_min_deductible_elements=just(None),
@@ -1492,7 +1492,7 @@ class LoadFmItems(TestCase):
             self.assertEqual(it['gul_item_id'], gul_it['item_id'])
 
             self.assertEqual(it['tiv_elm'], gul_it['tiv_elm'])
-            self.assertEqual(it['cov_tgid'], gul_it['cov_tgid'])
+            self.assertEqual(it['tiv_tgid'], gul_it['tiv_tgid'])
             self.assertEqual(it['tiv'], gul_it['tiv'])
 
             lim_elm = gul_it['lim_elm'] if l == 1 else (ufcp[l][1]['limit']['ProfileElementName'].lower() if ufcp[l][1].get('limit') else None)
@@ -1565,7 +1565,7 @@ class LoadFmItems(TestCase):
             from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
             from_tiv_elements=just('wscv1val'),
             from_tivs=just(100),
-            from_cov_tgids=just(1),
+            from_tiv_tgids=just(1),
             from_limit_elements=just('wscv1limit'),
             from_deductible_elements=just('wscv1ded'),
             from_min_deductible_elements=just(None),
@@ -1659,7 +1659,7 @@ class LoadFmItems(TestCase):
             self.assertEqual(it['gul_item_id'], gul_it['item_id'])
 
             self.assertEqual(it['tiv_elm'], gul_it['tiv_elm'])
-            self.assertEqual(it['cov_tgid'], gul_it['cov_tgid'])
+            self.assertEqual(it['tiv_tgid'], gul_it['tiv_tgid'])
             self.assertEqual(it['tiv'], gul_it['tiv'])
 
             lim_elm = gul_it['lim_elm'] if l == 1 else (ufcp[l][1]['limit']['ProfileElementName'].lower() if ufcp[l][1].get('limit') else None)
@@ -1730,7 +1730,7 @@ class LoadFmItems(TestCase):
             from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
             from_tiv_elements=just('wscv1val'),
             from_tivs=just(100),
-            from_cov_tgids=just(1),
+            from_tiv_tgids=just(1),
             from_limit_elements=just('wscv1limit'),
             from_deductible_elements=just('wscv1ded'),
             from_min_deductible_elements=just(None),
@@ -1820,7 +1820,7 @@ class LoadFmItems(TestCase):
             self.assertEqual(it['gul_item_id'], gul_it['item_id'])
 
             self.assertEqual(it['tiv_elm'], gul_it['tiv_elm'])
-            self.assertEqual(it['cov_tgid'], gul_it['cov_tgid'])
+            self.assertEqual(it['tiv_tgid'], gul_it['tiv_tgid'])
             self.assertEqual(it['tiv'], gul_it['tiv'])
 
             lim_elm = gul_it['lim_elm'] if l == 1 else (ufcp[l][1]['limit']['ProfileElementName'].lower() if ufcp[l][1].get('limit') else None)
@@ -1891,7 +1891,7 @@ class LoadFmItems(TestCase):
             from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
             from_tiv_elements=just('wscv1val'),
             from_tivs=just(100),
-            from_cov_tgids=just(1),
+            from_tiv_tgids=just(1),
             from_limit_elements=just('wscv1limit'),
             from_deductible_elements=just('wscv1ded'),
             from_min_deductible_elements=just(None),
@@ -2001,7 +2001,7 @@ class LoadFmItems(TestCase):
             self.assertEqual(it['gul_item_id'], gul_it['item_id'])
 
             self.assertEqual(it['tiv_elm'], gul_it['tiv_elm'])
-            self.assertEqual(it['cov_tgid'], gul_it['cov_tgid'])
+            self.assertEqual(it['tiv_tgid'], gul_it['tiv_tgid'])
             self.assertEqual(it['tiv'], gul_it['tiv'])
 
             lim_elm = gul_it['lim_elm'] if l == 1 else (ufcp[l][1]['limit']['ProfileElementName'].lower() if ufcp[l][1].get('limit') else None)
@@ -2726,7 +2726,7 @@ class WriteFmFiles(FmFilesGenerationTestCase):
             from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
             from_tiv_elements=just('wscv1val'),
             from_tivs=just(100),
-            from_cov_tgids=just(1),
+            from_tiv_tgids=just(1),
             from_deductible_elements=just('wscv1ded'),
             from_min_deductible_elements=just(None),
             from_max_deductible_elements=just(None),
@@ -2815,7 +2815,7 @@ class WriteFmFiles(FmFilesGenerationTestCase):
             from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
             from_tiv_elements=just('wscv1val'),
             from_tivs=just(100),
-            from_cov_tgids=just(1),
+            from_tiv_tgids=just(1),
             from_deductible_elements=just('wscv1ded'),
             from_min_deductible_elements=just(None),
             from_max_deductible_elements=just(None),

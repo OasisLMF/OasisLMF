@@ -105,10 +105,10 @@ def get_layer_level_fm_terms(level_unified_canonical_profile, level_fm_agg_profi
         it['deductible_min'] = it['deductible_max'] = 0.0
 
         it['lim_elm'] = lim_elm
-        it['limit'] = can_item.get(lim_elm) or 0.0
+        it['limit'] = can_item.get(lim_elm) or 9999999999
 
         it['shr_elm'] = shr_elm
-        it['share'] = can_item.get(shr_elm) or 0.0
+        it['share'] = can_item.get(shr_elm) or 1.0
 
         it['calcrule_id'] = get_layer_calcrule_id(it['attachment'], it['limit'], it['share'])
 
