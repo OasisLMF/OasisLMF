@@ -2165,8 +2165,6 @@ class FmAcceptanceTests(TestCase):
 
             fm_files = self.manager.write_fm_files(oasis_model=model)
 
-            #import ipdb; ipdb.set_trace()
-
             self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_files)))
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
@@ -2286,8 +2284,6 @@ class FmAcceptanceTests(TestCase):
             ofp.fmsummaryxref_file_path = os.path.join(outdir, 'fmsummaryxref.csv')
 
             fm_files = self.manager.write_fm_files(oasis_model=model)
-
-            import ipdb; ipdb.set_trace()
 
             self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_files)))
 
