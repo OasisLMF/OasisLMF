@@ -626,15 +626,10 @@ oasis_fm_agg_profile = {
         "FMLevel": 1,
         "FMLevelName": "Coverage",
         "FMAggKey": {
-            "LocID": {
+            "ItemID": {
                 "src": "FM",
-                "field": "canexp_id",
-                "name": "Location ID"
-            },
-            "CoverageID": {
-                "src": "FM",
-                "field": "coverage_id",
-                "name": "Coverage ID"
+                "field": "item_id",
+                "name": "Item ID"
             }
         }
     },
@@ -645,8 +640,12 @@ oasis_fm_agg_profile = {
             "LocID": {
                 "src": "FM",
                 "field": "canexp_id",
-                "name": "Location ID",
-                "cov_types": [1, 3]
+                "name": "Location ID"
+            },
+            "IsBICoverage": {
+                "src": "FM",
+                "field": "is_bi_coverage",
+                "name": "Is BI coverage?"
             }
         }
     },
