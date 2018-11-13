@@ -138,10 +138,16 @@ class DirectLayer(object):
                                     xref_id=item_id,
                                     account_number=location.AccNumber,
                                     location_number=location.LocNumber,
+                                    location_group=location.LocGroup,
+                                    cedant_name = policy.CedantName,
+                                    producer_name = policy.ProducerName,
+                                    lob = policy.LOB,
+                                    country_code = location.CountryCode,
+                                    reins_tag = location.ReinsTag,
                                     coverage_type_id=coverage_type_id,
                                     peril_id=peril,
-                                    policy_number=policy.PolNumber,
-                                    #portfolio_number=policy.PortNumber,
+                                    policy_number=policy.PolNumber,    
+                                    portfolio_number=policy.PortNumber,
                                     tiv=tiv
                                 )
                             )
@@ -153,7 +159,7 @@ class DirectLayer(object):
         self.fm_policytcs = pd.DataFrame(fm_policytcs_list)
         self.fm_xrefs = pd.DataFrame(fm_xrefs_list)
         self.xref_descriptions = pd.DataFrame(xref_descriptions_list)
-
+        pass
 
     def write_oasis_files(self, directory=None):
         self.coverages.to_csv("coverages.csv", index=False)

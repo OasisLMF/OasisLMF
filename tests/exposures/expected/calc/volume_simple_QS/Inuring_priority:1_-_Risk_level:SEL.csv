@@ -1,1 +1,1 @@
-policy_number,account_number,location_number,coverage_type_id,peril_id,tiv,loss_pre,loss_net
+portfolio_number,policy_number,account_number,location_number,location_group,cedant_name,producer_name,lob,country_code,reins_tag,coverage_type_id,peril_id,tiv,loss_pre,loss_net
