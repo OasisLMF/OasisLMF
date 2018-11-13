@@ -2287,9 +2287,127 @@ class FmAcceptanceTests(TestCase):
 
             self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_files)))
 
-    @pytest.mark.skip(reason='not implemented')
-    def test_fm5(self):
-        pass
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @given(
+        exposures=canonical_oed_exposures_data(
+            from_account_nums=just(1),
+            from_location_perils=just('WTC;WEC;BFR;OO1'),
+            from_country_codes=just('US'),
+            from_area_codes=just('CA'),
+            from_buildings_tivs=just(1000000),
+            from_buildings_deductibles=just(0),
+            from_buildings_limits=just(0),
+            from_other_tivs=just(100000),
+            from_other_deductibles=just(0),
+            from_other_limits=just(0),
+            from_contents_tivs=just(50000),
+            from_contents_deductibles=just(0),
+            from_contents_limits=just(0),
+            from_bi_tivs=just(20000),
+            from_bi_deductibles=just(2000),
+            from_bi_limits=just(0),
+            from_combined_deductibles=just(0),
+            from_combined_limits=just(0),
+            from_site_deductibles=just(1000),
+            from_site_limits=just(0),
+            size=1
+        ),
+        accounts=canonical_oed_accounts_data(
+            from_account_nums=just(1),
+            from_portfolio_nums=just(1),
+            from_policy_nums=just(1),
+            from_policy_perils=just('WTC;WEC;BFR;OO1'),
+            from_sublimit_deductibles=just(0),
+            from_sublimit_limits=just(0),
+            from_account_deductibles=just(0),
+            from_account_min_deductibles=just(0),
+            from_account_max_deductibles=just(0),
+            from_layer_deductibles=just(0),
+            from_layer_limits=just(0),
+            from_layer_shares=just(1),
+            size=1
+        ),
+        keys=keys_data(
+            from_peril_ids=just(1),
+            from_coverage_type_ids=just(OED_COVERAGE_TYPES['buildings']['id']),
+            from_area_peril_ids=just(1),
+            from_vulnerability_ids=just(1),
+            from_statuses=just('success'),
+            from_messages=just('success'),
+            size=4
+        )
+    )
+    def test_fm5(self, exposures, accounts, keys):
+        keys[1]['id'] = keys[2]['id'] = keys[3]['id'] = 1
+        keys[1]['coverage_type'] = OED_COVERAGE_TYPES['other']['id']
+        keys[2]['coverage_type'] = OED_COVERAGE_TYPES['contents']['id']
+        keys[3]['coverage_type'] = OED_COVERAGE_TYPES['bi']['id']
+        keys[1]['vulnerability_id'] = 2
+        keys[2]['vulnerability_id'] = 3
+        keys[3]['vulnerability_id'] = 4
+
+        with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf, TemporaryDirectory() as outdir:
+            write_canonical_oed_files(exposures, ef.name, accounts, af.name)
+            write_keys_files(keys, kf.name)
+
+            gul_items_df, canexp_df = self.manager.load_gul_items(self.canexp_profile, ef.name, kf.name)
+
+            model = fake_model(resources={
+                'canonical_exposures_df': canexp_df,
+                'gul_items_df': gul_items_df,
+                'canonical_exposures_profile': self.canexp_profile,
+                'canonical_accounts_profile': self.canacc_profile,
+                'fm_agg_profile': self.fm_agg_map
+            })
+            omr = model.resources
+            ofp = omr['oasis_files_pipeline']
+
+            ofp.keys_file_path = kf.name
+            ofp.canonical_exposures_file_path = ef.name
+
+            ofp.items_file_path = os.path.join(outdir, 'items.csv')
+            ofp.coverages_file_path = os.path.join(outdir, 'coverages.csv')
+            ofp.gulsummaryxref_file_path = os.path.join(outdir, 'gulsummaryxref.csv')
+
+            gul_files = self.manager.write_gul_files(oasis_model=model)
+
+            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(gul_files)))
+
+            guls = pd.merge(
+                pd.merge(pd.read_csv(gul_files['items']), pd.read_csv(gul_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
+                pd.read_csv(gul_files['gulsummaryxref']),
+                left_on='coverage_id',
+                right_on='coverage_id'
+            )
+
+            self.assertEqual(len(guls), 4)
+
+            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in guls.groupby('group_id')]
+            self.assertEqual(len(loc_groups), 1)
+
+            loc1_id, loc1_items = loc_groups[0]
+            self.assertEqual(loc1_id, 1)
+            self.assertEqual(len(loc1_items), 4)
+            self.assertEqual(loc1_items['item_id'].values.tolist(), [1,2,3,4])
+            self.assertEqual(loc1_items['coverage_id'].values.tolist(), [1,2,3,4])
+            self.assertEqual(set(loc1_items['areaperil_id'].values), {1})
+            self.assertEqual(loc1_items['vulnerability_id'].values.tolist(), [1,2,3,4])
+            self.assertEqual(set(loc1_items['group_id'].values), {1})
+            tivs = [exposures[0][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
+            self.assertEqual(loc1_items['tiv'].values.tolist(), tivs)
+
+            ofp.canonical_accounts_file_path = af.name
+            ofp.fm_policytc_file_path = os.path.join(outdir, 'fm_policytc.csv')
+            ofp.fm_profile_file_path = os.path.join(outdir, 'fm_profile.csv')
+            ofp.fm_programme_file_path = os.path.join(outdir, 'fm_programme.csv')
+            ofp.fm_xref_file_path = os.path.join(outdir, 'fm_xref.csv')
+            ofp.fmsummaryxref_file_path = os.path.join(outdir, 'fmsummaryxref.csv')
+
+            fm_files = self.manager.write_fm_files(oasis_model=model)
+
+            import ipdb; ipdb.set_trace()
+
+            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_files)))
 
     @pytest.mark.skip(reason='not implemented')
     def test_fm6(self):
