@@ -2304,7 +2304,7 @@ class FmAcceptanceTests(TestCase):
             from_contents_deductibles=just(0),
             from_contents_limits=just(0),
             from_bi_tivs=just(20000),
-            from_bi_deductibles=just(2000),
+            from_bi_deductibles=just(0),
             from_bi_limits=just(0),
             from_combined_deductibles=just(0),
             from_combined_limits=just(0),
@@ -2404,8 +2404,6 @@ class FmAcceptanceTests(TestCase):
             ofp.fmsummaryxref_file_path = os.path.join(outdir, 'fmsummaryxref.csv')
 
             fm_files = self.manager.write_fm_files(oasis_model=model)
-
-            import ipdb; ipdb.set_trace()
 
             self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_files)))
 
