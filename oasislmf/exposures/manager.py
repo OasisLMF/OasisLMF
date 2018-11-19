@@ -1316,20 +1316,34 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         Writes a FM programme file.
         """
         try:
-            fm_aggtree = {
-                key:set(group['agg_id']) for key, group in fm_items_df[['level_id', 'agg_id']].groupby(['level_id'])
-            }
-            levels = sorted(fm_aggtree.keys())
-            fm_aggtree[0] = fm_aggtree[levels[0]]
-            levels = sorted(fm_aggtree.keys())
+            fm_programme_df = pd.DataFrame(
+                pd.concat([fm_items_df[fm_items_df['level_id']==OASIS_FM_LEVELS['coverage']['id']], fm_items_df])[['level_id', 'agg_id']],
+                dtype=int
+            ).reset_index(drop=True)
+
+            num_cov_items = len(fm_items_df[fm_items_df['level_id']==OASIS_FM_LEVELS['coverage']['id']])
+
+            for i in range(num_cov_items):
+                fm_programme_df.at[i, 'level_id'] = 0
+
+            def from_agg_id_to_agg_id(from_level_id, to_level_id):
+                iterator = (
+                    (from_level_it, to_level_it)
+                    for (_,from_level_it), (_, to_level_it) in zip(
+                        fm_programme_df[fm_programme_df['level_id']==from_level_id].iterrows(),
+                        fm_programme_df[fm_programme_df['level_id']==to_level_id].iterrows()
+                    )
+                )
+                for from_level_it, to_level_it in iterator:
+                    yield from_level_it['agg_id'], to_level_id, to_level_it['agg_id']
+
+            levels = list(set(fm_programme_df['level_id']))
 
             data = [
-                (a, second, b) for first, second in zip(levels, levels[1:]) for a, b in (
-                    zip(fm_aggtree[first], fm_aggtree[second]) if (len(fm_aggtree[first]) == len(fm_aggtree[second]) and len(fm_aggtree[first]) > 1) else itertools.product(fm_aggtree[first], [list(fm_aggtree[second])[0]])
-                )
+                (from_agg_id, level_id, to_agg_id) for from_level_id, to_level_id in zip(levels, levels[1:]) for from_agg_id, level_id, to_agg_id in from_agg_id_to_agg_id(from_level_id, to_level_id)
             ]
 
-            fm_programme_df = pd.DataFrame(columns=['from_agg_id', 'level_id', 'to_agg_id'], data=data, dtype=int)
+            fm_programme_df = pd.DataFrame(columns=['from_agg_id', 'level_id', 'to_agg_id'], data=data, dtype=int).drop_duplicates()
 
             fm_programme_df.to_csv(
                 path_or_buf=fm_programme_file_path,
