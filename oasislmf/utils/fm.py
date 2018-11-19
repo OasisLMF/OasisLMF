@@ -223,9 +223,7 @@ def get_layer_calcrule_id(att=0, lim=9999999999, shr=1):
 
 def get_sub_layer_calcrule_id(ded, ded_min, ded_max, lim, ded_code=0, lim_code=0):
 
-    if ded == ded_code == ded_min == ded_max == lim == lim_code == 0:
-        return 12
-    elif (ded > 0 and ded_code == 0) and (ded_min == ded_max == 0) and (lim > 0 and lim_code == 0):
+    if (ded > 0 and ded_code == 0) and (ded_min == ded_max == 0) and (lim > 0 and lim_code == 0):
         return 1
     elif (ded > 0 and ded_code == 2) and (ded_min == ded_max == 0) and (lim > 0 and lim_code == 0):
         return 4
@@ -241,7 +239,7 @@ def get_sub_layer_calcrule_id(ded, ded_min, ded_max, lim, ded_code=0, lim_code=0
         return 10
     elif (ded == ded_code == 0) and (ded_min > 0 and ded_max == 0) and (lim == lim_code == 0):
         return 11
-    elif (ded > 0 and ded_code == 0) and (ded_min == ded_max == 0) and (lim == lim_code == 0):
+    elif (ded >= 0 and ded_code == 0) and (ded_min == ded_max == 0) and (lim == lim_code == 0):
         return 12
     elif (ded == ded_code == 0) and (ded_min > 0 and ded_max > 0) and (lim == lim_code == 0):
         return 13
