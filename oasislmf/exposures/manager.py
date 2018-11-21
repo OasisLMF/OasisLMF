@@ -1046,8 +1046,10 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                         f = v['field'].lower()
                         it[f] = canexp_df.iloc[it['canexp_id']][f] if src == 'canexp' else canacc_df.iloc[it['canacc_id']][f]
 
+            oed = True if max(fm_levels) > 6 else False
+
             concurrent_tasks = (
-                Task(get_fm_terms_by_level_as_list, args=(ufcp[level_id], fmap[level_id], preset_items[level_id], canexp_df.copy(deep=True), canacc_df.copy(deep=True),), key=level_id)
+                Task(get_fm_terms_by_level_as_list, args=(ufcp[level_id], fmap[level_id], preset_items[level_id], canexp_df.copy(deep=True), canacc_df.copy(deep=True), oed,), key=level_id)
                 for level_id in fm_levels
             )
             num_ps = min(len(fm_levels), multiprocessing.cpu_count())
@@ -1167,7 +1169,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             bookend_fm_levels = (fm_items_df['level_id'].min(), fm_items_df['level_id'].max(),)
 
             if reduced:
-                fm_items_df = fm_items_df[(fm_items_df['level_id'].isin(bookend_fm_levels)) | (fm_items_df['limit'] != 0) | (fm_items_df['deductible'] != 0) | (fm_items_df['deductible_min'] != 0) | (fm_items_df['deductible_max'] != 0) | (fm_items_df['share'] != 0)]
+                fm_items_df = fm_items_df[(fm_items_df['level_id'].isin(bookend_fm_levels)) | (fm_items_df['limit'] != 0) | ((fm_items_df['deductible'] == 0) & (fm_items_df['level_id'] == 2)) | (fm_items_df['deductible'] != 0) | (fm_items_df['deductible_min'] != 0) | (fm_items_df['deductible_max'] != 0) | (fm_items_df['share'] != 0)]
 
                 fm_items_df['index'] = range(len(fm_items_df))
 

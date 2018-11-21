@@ -366,7 +366,7 @@ canonical_oed_exposures_profile = {
         "FieldName": "TIV",
         "PerilID": 1,
         "CoverageTypeID": 1,
-        "FMLevelName": "Coverage",
+        "FMLevelName": "SiteCoverage",
         "FMLevel": 1,
         "FMTermType": "TIV",
         "FMTermGroupID": 1,
@@ -378,7 +378,7 @@ canonical_oed_exposures_profile = {
         "DeductibleType": "B",
         "PerilID": 1,
         "CoverageTypeID": 1,
-        "FMLevelName": "Coverage",
+        "FMLevelName": "SiteCoverage",
         "FMLevel": 1,
         "FMTermType": "Deductible",
         "FMTermGroupID": 1,
@@ -389,7 +389,7 @@ canonical_oed_exposures_profile = {
         "FieldName": "CoverageLimit",
         "PerilID": 1,
         "CoverageTypeID": 1,
-        "FMLevelName": "Coverage",
+        "FMLevelName": "SiteCoverage",
         "FMLevel": 1,
         "FMTermType": "Limit",
         "FMTermGroupID": 1,
@@ -400,7 +400,7 @@ canonical_oed_exposures_profile = {
         "FieldName": "TIV",
         "PerilID": 1,
         "CoverageTypeID": 2,
-        "FMLevelName": "Coverage",
+        "FMLevelName": "SiteCoverage",
         "FMLevel": 1,
         "FMTermType": "TIV",
         "FMTermGroupID": 2,
@@ -412,7 +412,7 @@ canonical_oed_exposures_profile = {
         "DeductibleType": "B",
         "PerilID": 1,
         "CoverageTypeID": 2,
-        "FMLevelName": "Coverage",
+        "FMLevelName": "SiteCoverage",
         "FMLevel": 1,
         "FMTermType": "Deductible",
         "FMTermGroupID": 2,
@@ -423,7 +423,7 @@ canonical_oed_exposures_profile = {
         "FieldName": "CoverageLimit",
         "PerilID": 1,
         "CoverageTypeID": 2,
-        "FMLevelName": "Coverage",
+        "FMLevelName": "SiteCoverage",
         "FMLevel": 1,
         "FMTermType": "Limit",
         "FMTermGroupID": 2,
@@ -434,7 +434,7 @@ canonical_oed_exposures_profile = {
         "FieldName": "TIV",
         "PerilID": 1,
         "CoverageTypeID": 3,
-        "FMLevelName": "Coverage",
+        "FMLevelName": "SiteCoverage",
         "FMLevel": 1,
         "FMTermType": "TIV",
         "FMTermGroupID": 3,
@@ -446,7 +446,7 @@ canonical_oed_exposures_profile = {
         "DeductibleType": "B",
         "PerilID": 1,
         "CoverageTypeID": 3,
-        "FMLevelName": "Coverage",
+        "FMLevelName": "SiteCoverage",
         "FMLevel": 1,
         "FMTermType": "Deductible",
         "FMTermGroupID": 3,
@@ -457,7 +457,7 @@ canonical_oed_exposures_profile = {
         "FieldName": "CoverageLimit",
         "PerilID": 1,
         "CoverageTypeID": 3,
-        "FMLevelName": "Coverage",
+        "FMLevelName": "SiteCoverage",
         "FMLevel": 1,
         "FMTermType": "Limit",
         "FMTermGroupID": 3,
@@ -468,7 +468,7 @@ canonical_oed_exposures_profile = {
         "FieldName": "TIV",
         "PerilID": 1,
         "CoverageTypeID": 4,
-        "FMLevelName": "Coverage",
+        "FMLevelName": "SiteCoverage",
         "FMLevel": 1,
         "FMTermType": "TIV",
         "FMTermGroupID": 4,
@@ -480,7 +480,7 @@ canonical_oed_exposures_profile = {
         "DeductibleType": "B",
         "PerilID": 1,
         "CoverageTypeID": 4,
-        "FMLevelName": "Coverage",
+        "FMLevelName": "SiteCoverage",
         "FMLevel": 1,
         "FMTermType": "Deductible",
         "FMTermGroupID": 4,
@@ -491,7 +491,7 @@ canonical_oed_exposures_profile = {
         "FieldName": "CoverageLimit",
         "PerilID": 1,
         "CoverageTypeID": 4,
-        "FMLevelName": "Coverage",
+        "FMLevelName": "SiteCoverage",
         "FMLevel": 1,
         "FMTermType": "Limit",
         "FMTermGroupID": 4,
@@ -499,28 +499,30 @@ canonical_oed_exposures_profile = {
     },
     "LocDed5PD": {
         "ProfileElementName": "LocDed5PD",
-        "FieldName": "CombinedDeductible",
+        "FieldName": "SitePDDeductible",
         "DeductibleType": "B",
-        "FMLevelName": "Combined",
+        "FMLevelName": "SitePD",
         "FMLevel": 2,
         "FMTermType": "Deductible",
         "FMTermGroupID": 1,
+        "CoverageTypeID": [1,2,3],
         "ProfileType": "Loc"
     },
     "LocLimit5PD": {
         "ProfileElementName": "LocLimit5PD",
-        "FieldName": "CombinedLimit",
-        "FMLevelName": "Combined",
+        "FieldName": "SitePDLimit",
+        "FMLevelName": "SitePD",
         "FMLevel": 2,
         "FMTermType": "Limit",
         "FMTermGroupID": 1,
+        "CoverageTypeID": [1,2,3],
         "ProfileType": "Loc"
     },
     "LocDed6All": {
         "ProfileElementName": "LocDed6All",
-        "FieldName": "SiteDeductible",
+        "FieldName": "SiteAllDeductible",
         "DeductibleType": "B",
-        "FMLevelName": "Site",
+        "FMLevelName": "SiteAll",
         "FMLevel": 3,
         "FMTermType": "Deductible",
         "FMTermGroupID": 1,
@@ -528,8 +530,8 @@ canonical_oed_exposures_profile = {
     },
     "LocLimit6All": {
         "ProfileElementName": "LocLimit6All",
-        "FieldName": "SiteLimit",
-        "FMLevelName": "Site",
+        "FieldName": "SiteAllLimit",
+        "FMLevelName": "SiteAll",
         "FMLevel": 3,
         "FMTermType": "Limit",
         "FMTermGroupID": 1,
@@ -540,19 +542,19 @@ canonical_oed_exposures_profile = {
 canonical_oed_accounts_profile = {
     "CondDed6All": {
         "ProfileElementName": "CondDed6All",
-        "FieldName": "SubLimitDeductible",
+        "FieldName": "CondAllDeductible",
         "DeductibleType": "B",
-        "FMLevelName": "Sublimit",
-        "FMLevel": 4,
+        "FMLevelName": "CondAll",
+        "FMLevel": 6,
         "FMTermType": "Deductible",
         "FMTermGroupID": 1,
         "ProfileType": "Acc"
     },
     "CondLimit6All": {
         "ProfileElementName": "CondLimit6All",
-        "FieldName": "SubLimitLimit",
-        "FMLevelName": "Sublimit",
-        "FMLevel": 4,
+        "FieldName": "CondAllLimit",
+        "FMLevelName": "CondAll",
+        "FMLevel": 6,
         "FMTermType": "Limit",
         "FMTermGroupID": 1,
         "ProfileType": "Acc"
@@ -561,8 +563,8 @@ canonical_oed_accounts_profile = {
         "ProfileElementName": "PolDed6All",
         "DeductibleType": "B",
         "FieldName": "BlanketDeductible",
-        "FMLevelName": "Account",
-        "FMLevel": 5,
+        "FMLevelName": "PolAll",
+        "FMLevel": 9,
         "FMTermType": "Deductible",
         "FMTermGroupID": 1,
         "ProfileType": "Acc"
@@ -571,8 +573,8 @@ canonical_oed_accounts_profile = {
         "ProfileElementName": "PolMinDed6All",
         "DeductibleType": "MI",
         "FieldName": "BlanketMinDeductible",
-        "FMLevelName": "Account",
-        "FMLevel": 5,
+        "FMLevelName": "PolAll",
+        "FMLevel": 9,
         "FMTermType": "DeductibleMin",
         "FMTermGroupID": 1,
         "ProfileType": "Acc"
@@ -581,8 +583,8 @@ canonical_oed_accounts_profile = {
         "ProfileElementName": "PolMaxDed6All",
         "DeductibleType": "MA",
         "FieldName": "BlanketMaxDeductible",
-        "FMLevelName": "Account",
-        "FMLevel": 5,
+        "FMLevelName": "PolAll",
+        "FMLevel": 9,
         "FMTermType": "DeductibleMax",
         "FMTermGroupID": 1,
         "ProfileType": "Acc"
@@ -591,8 +593,8 @@ canonical_oed_accounts_profile = {
         "ProfileElementName": "LayerAttachment",
         "DeductibleType": "B",
         "FieldName": "AttachmentPoint",
-        "FMLevelName": "Layer",
-        "FMLevel": 6,
+        "FMLevelName": "PolLayer",
+        "FMLevel": 10,
         "FMTermType": "Deductible",
         "FMTermGroupID": 1,
         "ProfileType": "Acc"
@@ -600,8 +602,8 @@ canonical_oed_accounts_profile = {
     "LayerLimit": {
         "ProfileElementName": "LayerLimit",
         "FieldName": "LayerLimit",
-        "FMLevelName": "Layer",
-        "FMLevel": 6,
+        "FMLevelName": "PolLayer",
+        "FMLevel": 10,
         "FMTermType": "Limit",
         "FMTermGroupID": 1,
         "ProfileType": "Acc"
@@ -609,8 +611,8 @@ canonical_oed_accounts_profile = {
     "LayerParticipation": {
         "ProfileElementName": "LayerParticipation",
         "FieldName": "LayerParticipation",
-        "FMLevelName": "Layer",
-        "FMLevel": 6,
+        "FMLevelName": "PolLayer",
+        "FMLevel": 10,
         "FMTermType": "Share",
         "FMTermGroupID": 1,
         "ProfileType": "Acc"
@@ -705,8 +707,84 @@ oasis_fm_agg_profile = {
     }
 }
 
-oed_fm_agg_profile = copy.deepcopy(oasis_fm_agg_profile)
-oed_fm_agg_profile[4]['FMAggKey'].pop('SublimitRef')
+oed_fm_agg_profile = {
+    1: {
+        "FMLevel": 1,
+        "FMLevelName": "SiteCoverage",
+        "FMAggKey": {
+            "ItemID": {
+                "src": "FM",
+                "field": "item_id",
+                "name": "Item ID"
+            }
+        }
+    },
+    2: {
+        "FMLevel": 2,
+        "FMLevelName": "SitePD",
+        "FMAggKey": {
+            "LocID": {
+                "src": "FM",
+                "field": "canexp_id",
+                "name": "Location ID"
+            },
+            "IsBICoverage": {
+                "src": "FM",
+                "field": "is_bi_coverage",
+                "name": "Is BI coverage?"
+            }
+        }
+    },
+    3: {
+        "FMLevel": 3,
+        "FMLevel": "SiteAll",
+        "FMAggKey": {
+            "LocID":  {
+                "src": "FM",
+                "field": "canexp_id",
+                "name": "Location ID"
+            }
+        }
+    },
+    6: {
+        "FMLevel": 6,
+        "FMLevelName": "CondAll",
+        "FMAggKey": {
+            "AccntNum":  {
+                "src": "FM",
+                "field": "canacc_id",
+                "name": "Account no."
+            }
+        }
+    },
+    9: {
+        "FMLevel": 9,
+        "FMLevelName": "PolAll",
+        "FMAggKey": {
+            "AccntNum": {
+                "src": "FM",
+                "field": "canacc_id",
+                "name": "Account no."
+            }
+        }
+    },
+    10: {
+        "FMLevel": 10,
+        "FMLevelName": "PolLayer",
+        "FMAggKey": {
+            "AccntNum": {
+                "src": "FM",
+                "field": "canacc_id",
+                "name": "Account no."
+            },
+            "PolicyNum": {
+                "src": "FM",
+                "field": "policy_num",
+                "name": "Account policy no."
+            }
+        }
+    }
+}
 
 fm_levels = tuple(OASIS_FM_LEVELS[k]['id'] for k in OASIS_FM_LEVELS)
 
