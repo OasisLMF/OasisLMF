@@ -278,8 +278,6 @@ class FmAcceptanceTests(TestCase):
 
             gul_files = self.manager.write_gul_files(oasis_model=model)
 
-            #import ipdb; ipdb.set_trace()
-
             self.assertTrue(all(os.path.exists(p) for p in six.itervalues(gul_files)))
 
             guls = pd.merge(
@@ -313,7 +311,6 @@ class FmAcceptanceTests(TestCase):
             ofp.fmsummaryxref_file_path = os.path.join(outdir, 'fmsummaryxref.csv')
 
             fm_files = self.manager.write_fm_files(oasis_model=model)
-            import ipdb; ipdb.set_trace()
 
             self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_files)))
 
