@@ -336,7 +336,7 @@ class FmAcceptanceTests(TestCase):
             from_combined_deductibles=just(0),
             from_combined_limits=just(0),
             from_site_deductibles=just(1000),
-            from_site_limits=just(0),
+            from_site_limits=just(1000000),
             size=1
         ),
         accounts=canonical_oed_accounts_data(
@@ -442,17 +442,17 @@ class FmAcceptanceTests(TestCase):
             from_country_codes=just('US'),
             from_area_codes=just('CA'),
             from_buildings_tivs=just(1000000),
-            from_buildings_deductibles=just(0),
-            from_buildings_limits=just(0),
+            from_buildings_deductibles=just(50000),
+            from_buildings_limits=just(900000),
             from_other_tivs=just(100000),
-            from_other_deductibles=just(0),
-            from_other_limits=just(0),
+            from_other_deductibles=just(5000),
+            from_other_limits=just(90000),
             from_contents_tivs=just(50000),
-            from_contents_deductibles=just(0),
-            from_contents_limits=just(0),
+            from_contents_deductibles=just(2500),
+            from_contents_limits=just(45000),
             from_bi_tivs=just(20000),
             from_bi_deductibles=just(0),
-            from_bi_limits=just(0),
+            from_bi_limits=just(18000),
             from_combined_deductibles=just(0),
             from_combined_limits=just(0),
             from_site_deductibles=just(0),
@@ -721,5 +721,7 @@ class FmAcceptanceTests(TestCase):
             ofp.fmsummaryxref_file_path = os.path.join(outdir, 'fmsummaryxref.csv')
 
             fm_files = self.manager.write_fm_files(oasis_model=model)
+
+            import ipdb; ipdb.set_trace()
 
             self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_files)))

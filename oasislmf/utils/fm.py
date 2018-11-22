@@ -166,20 +166,20 @@ def get_sub_layer_non_coverage_level_fm_terms(level_unified_canonical_profile, l
 
         can_item = get_can_item(it['canexp_id'], it['canacc_id'], it['policy_num'])
 
-        it['ded_elm'] = ded_elm
-        can_item_ded = can_item.get(it['ded_elm']) if it['coverage_type_id'] in (ded_fld.get('CoverageTypeID') or []) else 0.0
+        it['ded_elm'] = ded_elm if (not ded_fld.get('CoverageTypeID') or it['coverage_type_id'] in (ded_fld['CoverageTypeID'] or [])) else None
+        can_item_ded = can_item.get(it['ded_elm']) or 0.0
         it['deductible'] = (can_item_ded if can_item_ded >= 1 else it['tiv']*can_item_ded) or 0.0
 
-        it['ded_min_elm'] = ded_min_elm
-        can_item_ded_min = can_item.get(it['ded_min_elm']) if it['coverage_type_id'] in (ded_min_fld.get('CoverageTypeID') or []) else 0.0
+        it['ded_min_elm'] = ded_min_elm  if (not ded_min_fld.get('CoverageTypeID') or it['coverage_type_id'] in (ded_min_fld['CoverageTypeID'] or [])) else None
+        can_item_ded_min = can_item.get(it['ded_min_elm']) or 0.0
         it['deductible_min'] = (can_item_ded_min if can_item_ded_min >= 1 else it['tiv']*can_item_ded_min) or 0.0
 
-        it['ded_max_elm'] = ded_max_elm
-        can_item_ded_max = can_item.get(it['ded_max_elm']) if it['coverage_type_id'] in (ded_max_fld.get('CoverageTypeID') or []) else 0.0
+        it['ded_max_elm'] = ded_max_elm  if (not ded_max_fld.get('CoverageTypeID') or it['coverage_type_id'] in (ded_max_fld['CoverageTypeID'] or [])) else None
+        can_item_ded_max = can_item.get(it['ded_max_elm']) or 0.0
         it['deductible_max'] = (can_item_ded_max if can_item_ded_max >= 1 else it['tiv']*can_item_ded_max) or 0.0
 
-        it['lim_elm'] = lim_elm
-        can_item_lim = can_item.get(it['lim_elm']) if it['coverage_type_id'] in (lim_fld.get('CoverageTypeID') or []) else 0.0
+        it['lim_elm'] = lim_elm  if (not lim_fld.get('CoverageTypeID') or it['coverage_type_id'] in (lim_fld['CoverageTypeID'] or [])) else None
+        can_item_lim = can_item.get(it['lim_elm']) or 0.0
         it['limit'] = (can_item_lim if can_item_lim >= 1 else it['tiv']*can_item_lim) or 0.0
 
         it['calcrule_id'] = get_sub_layer_calcrule_id(it['deductible'], it['deductible_min'], it['deductible_max'], it['limit'])

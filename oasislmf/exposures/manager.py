@@ -1166,10 +1166,21 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             fm_items_df = pd.DataFrame(data=fm_items, dtype=object)
             fm_items_df['index'] = pd.Series(data=fm_items_df.index, dtype=int)
 
-            bookend_fm_levels = (fm_items_df['level_id'].min(), fm_items_df['level_id'].max(),)
-
             if reduced:
-                fm_items_df = fm_items_df[(fm_items_df['level_id'].isin(bookend_fm_levels)) | (fm_items_df['limit'] != 0) | ((fm_items_df['deductible'] == 0) & (fm_items_df['level_id'] == 2)) | (fm_items_df['deductible'] != 0) | (fm_items_df['deductible_min'] != 0) | (fm_items_df['deductible_max'] != 0) | (fm_items_df['share'] != 0)]
+                def is_zero_terms_level(level_id):
+                    return not any(
+                        it['deductible']!=0 or
+                        it['deductible_min']!=0 or
+                        it['deductible_max']!=0 or
+                        it['limit']!=0 or
+                        it['share']!=0
+                        for _, it in fm_items_df[fm_items_df['level_id']==level_id].iterrows()
+                    )
+
+                fm_levels = list(set(fm_items_df['level_id']))
+                non_zero_terms_levels = [lid for lid in fm_levels if lid == fm_levels[0] or lid == fm_levels[-1] or not is_zero_terms_level(lid)]
+
+                fm_items_df = fm_items_df[(fm_items_df['level_id'].isin(non_zero_terms_levels))]
 
                 fm_items_df['index'] = range(len(fm_items_df))
 
