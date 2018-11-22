@@ -543,6 +543,66 @@ class FmAcceptanceTests(TestCase):
 
             fm_files = self.manager.write_fm_files(oasis_model=model)
 
+            fm_programme_df = pd.read_csv(fm_files['fm_programme'])
+            level_groups = [group for _, group in fm_programme_df.groupby(['level_id'])]
+            self.assertEqual(len(level_groups), 3)
+            level1_group = level_groups[0]
+            self.assertEqual(len(level1_group), 4)
+            self.assertEqual(level1_group['from_agg_id'].values.tolist(), [1,2,3,4])
+            self.assertEqual(level1_group['to_agg_id'].values.tolist(), [1,2,3,4])
+            level2_group = level_groups[1]
+            self.assertEqual(len(level2_group), 4)
+            self.assertEqual(level2_group['from_agg_id'].values.tolist(), [1,2,3,4])
+            self.assertEqual(level2_group['to_agg_id'].values.tolist(), [1,1,1,1])
+            level3_group = level_groups[2]
+            self.assertEqual(len(level3_group), 1)
+            self.assertEqual(level3_group['from_agg_id'].values.tolist(), [1])
+            self.assertEqual(level3_group['to_agg_id'].values.tolist(), [1])
+
+            fm_profile_df = pd.read_csv(fm_files['fm_profile'])
+            self.assertEqual(len(fm_profile_df), 3)
+            self.assertEqual(fm_profile_df['policytc_id'].values.tolist(), [1,2,3])
+            self.assertEqual(fm_profile_df['calcrule_id'].values.tolist(), [12,1,2])
+            self.assertEqual(fm_profile_df['deductible1'].values.tolist(), [0,1000,0])
+            self.assertEqual(fm_profile_df['deductible2'].values.tolist(), [0,0,0])
+            self.assertEqual(fm_profile_df['deductible3'].values.tolist(), [0,0,0])
+            self.assertEqual(fm_profile_df['attachment1'].values.tolist(), [0,0,0])
+            self.assertEqual(fm_profile_df['limit1'].values.tolist(), [0,1000000,9999999999])
+            self.assertEqual(fm_profile_df['share1'].values.tolist(), [0,0,1])
+            self.assertEqual(fm_profile_df['share2'].values.tolist(), [0,0,0])
+            self.assertEqual(fm_profile_df['share3'].values.tolist(), [0,0,0])
+
+            fm_policytc_df = pd.read_csv(fm_files['fm_policytc'])
+            level_groups = [group for _, group in fm_policytc_df.groupby(['level_id'])]
+            self.assertEqual(len(level_groups), 3)
+            level1_group = level_groups[0]
+            self.assertEqual(len(level1_group), 4)
+            self.assertEqual(level1_group['layer_id'].values.tolist(), [1,1,1,1])
+            self.assertEqual(level1_group['agg_id'].values.tolist(), [1,2,3,4])
+            self.assertEqual(level1_group['policytc_id'].values.tolist(), [1,1,1,1])
+            level2_group = level_groups[1]
+            self.assertEqual(len(level2_group), 1)
+            self.assertEqual(level2_group['layer_id'].values.tolist(), [1])
+            self.assertEqual(level2_group['agg_id'].values.tolist(), [1])
+            self.assertEqual(level2_group['policytc_id'].values.tolist(), [3])
+            level3_group = level_groups[2]
+            self.assertEqual(len(level3_group), 1)
+            self.assertEqual(level3_group['layer_id'].values.tolist(), [1])
+            self.assertEqual(level3_group['agg_id'].values.tolist(), [1])
+            self.assertEqual(level3_group['policytc_id'].values.tolist(), [2])
+
+            fm_xref_df = pd.read_csv(fm_files['fm_xref'])
+            self.assertEqual(len(fm_xref_df), 4)
+            self.assertEqual(fm_xref_df['output'].values.tolist(), [1,2,3,4])
+            self.assertEqual(fm_xref_df['agg_id'].values.tolist(), [1,2,3,4])
+            self.assertEqual(fm_xref_df['layer_id'].values.tolist(), [1,1,1,1])
+
+            fmsummaryxref_df = pd.read_csv(fm_files['fmsummaryxref'])
+            self.assertEqual(len(fmsummaryxref_df), 4)
+            self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1,2,3,4])
+            self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1,1,1,1])
+            self.assertEqual(fmsummaryxref_df['summaryset_id'].values.tolist(), [1,1,1,1])
+
             self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_files)))
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
