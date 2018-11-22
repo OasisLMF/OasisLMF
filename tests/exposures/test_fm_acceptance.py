@@ -722,6 +722,4 @@ class FmAcceptanceTests(TestCase):
 
             fm_files = self.manager.write_fm_files(oasis_model=model)
 
-            import ipdb; ipdb.set_trace()
-
             self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_files)))
