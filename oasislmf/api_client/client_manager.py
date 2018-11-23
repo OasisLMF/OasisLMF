@@ -8,7 +8,7 @@ import time
 
 from requests.exceptions import *
 from requests_toolbelt import MultipartEncoder
-from session_manager import SessionManager
+from .session_manager import SessionManager
 
 from ..utils.exceptions import OasisException
 
