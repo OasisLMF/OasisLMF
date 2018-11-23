@@ -16,6 +16,7 @@ class RootCmd(OasisBaseCommand):
         'version': VersionCmd,
         'bin': BinCmd,
         'model': ModelsCmd,
+        'api': ApiCmd,
         'config': ConfigCmd
     }
 
