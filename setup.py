@@ -271,8 +271,8 @@ setup(
     long_description=readme,
     long_description_content_type='text/markdown',
     url='https://github.com/OasisLMF/oasislmf',
-    author='Dan Bate (Wildfish), S Murthy (Oasis LMF)',
-    author_email="Dan Bate <dan.bate@wildfish.com>,S Murthy <sandeep.murthy@oasislmf.org>",
+    author='Oasis LMF',
+    author_email="support@oasislmf.org",
     keywords='oasis lmf loss modeling framework',
     install_requires=reqs,
     classifiers=[
