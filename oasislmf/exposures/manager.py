@@ -1178,7 +1178,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                     )
 
                 fm_levels = list(set(fm_items_df['level_id']))
-                non_zero_terms_levels = [lid for lid in fm_levels if lid == fm_levels[0] or lid == fm_levels[-1] or not is_zero_terms_level(lid)]
+                non_zero_terms_levels = [lid for lid in fm_levels if lid in [fm_levels[0], fm_levels[-1]] or not is_zero_terms_level(lid)]
 
                 fm_items_df = fm_items_df[(fm_items_df['level_id'].isin(non_zero_terms_levels))]
 
@@ -1329,12 +1329,13 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         Writes a FM programme file.
         """
         try:
+            cov_level = fm_items_df['level_id'].min()
             fm_programme_df = pd.DataFrame(
-                pd.concat([fm_items_df[fm_items_df['level_id']==OASIS_FM_LEVELS['coverage']['id']], fm_items_df])[['level_id', 'agg_id']],
+                pd.concat([fm_items_df[fm_items_df['level_id']==cov_level], fm_items_df])[['level_id', 'agg_id']],
                 dtype=int
             ).reset_index(drop=True)
 
-            num_cov_items = len(fm_items_df[fm_items_df['level_id']==OASIS_FM_LEVELS['coverage']['id']])
+            num_cov_items = len(fm_items_df[fm_items_df['level_id']==cov_level])
 
             for i in range(num_cov_items):
                 fm_programme_df.at[i, 'level_id'] = 0
