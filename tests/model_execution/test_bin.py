@@ -106,6 +106,7 @@ class CreateBinaryFiles(TestCase):
                 self.assertTrue(os.path.exists(os.path.join(bin_dir, 'RI_1', filename)))
 
 
+    @pytest.mark.flaky()
     @given(standard_input_files(min_size=1), il_input_files(min_size=1))
     @settings(deadline=600, suppress_health_check=[HealthCheck.too_slow])
     def test_multipl_ri_folders(self, standard, il):
