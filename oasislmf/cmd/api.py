@@ -4,6 +4,8 @@ import io
 import json
 import sys
 
+import six
+
 from argparse import RawDescriptionHelpFormatter
 from pathlib2 import Path
 
@@ -27,20 +29,20 @@ def load_credentials(login_arg, logger=None):
 
         3. Prompt for username / password
     """
-    if isinstance(login_arg, (str, unicode)):
+    if isinstance(login_arg, six.string_types):
         with io.open(login_arg, encoding='utf-8') as f:
             return json.load(f)
 
-    elif isinstance(login_arg, (dict)):
-        if set(['password','username']) <= set(login_arg.keys()):
+    elif isinstance(login_arg, dict):
+        if {'password','username'} <= {k for k in login_arg.keys()}:
             return login_arg
 
     else:
         logger.info('No Login provided - Fallback to prompt')
 
     try:
-        api_login = dict()
-        api_login['username'] = raw_input('Username: ')
+        api_login = {}
+        api_login['username'] = six.input('Username: ')
         api_login['password'] = getpass.getpass('Password: ')
         return api_login
     except KeyboardInterrupt as e:
