@@ -1,6 +1,7 @@
 OasisLMF Changelog
 ==================
 
+
 `1.2.1`_
 --------
 
@@ -144,6 +145,7 @@ in the exposure manager
 ---------------
 
 * Add console logging
+
 
 
 .. _`1.2.1`:  https://github.com/OasisLMF/OasisLMF/compare/f4d7390...master

@@ -840,6 +840,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 } for tiv_tgid in ufcp[cov_level_id]
             }
 
+
             group_id = 0
             prev_it_loc_id = -1
             item_id = 0
@@ -856,6 +857,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 item_id += 1
                 if it['row_id'] != prev_it_loc_id:
                     group_id += 1
+
                 tiv_elm = ptiv['ProfileElementName'].lower()
                 tiv = it[tiv_elm]
                 tiv_tgid = ptiv['FMTermGroupID']
@@ -882,6 +884,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                     'summaryset_id': 1
                 }
                 prev_it_loc_id = it['row_id']
+
 
         except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
             raise OasisException(e)
