@@ -48,6 +48,8 @@ from oasislmf.utils.metadata import (
     OASIS_FM_LEVELS,
     OASIS_KEYS_STATUS,
     OASIS_PERILS,
+    OED_COVERAGE_TYPES,
+    OED_PERILS,
 )
 
 from ..models.fakes import fake_model
@@ -2035,144 +2037,6 @@ class LoadFmItems(TestCase):
             shr = can_it.get(shr_elm) or 0.0
             self.assertEqual(it['share'], shr)
 
-class FMAcceptanceTests(TestCase):
-
-    def setUp(self):
-        self.canexp_profile = copy.deepcopy(canonical_oed_exposures_profile)
-        self.canacc_profile = copy.deepcopy(canonical_oed_accounts_profile)
-        self.unified_can_profile = unified_canonical_fm_profile_by_level_and_term_group(profiles=[self.canexp_profile, self.canacc_profile])
-        self.fm_agg_map = copy.deepcopy(oasis_fm_agg_profile)
-        self.fm_agg_map[4]['FMAggKey'].pop('SublimitRef')
-        self.manager = OasisExposuresManager()
-
-    @pytest.mark.skip(reason='not implemented')
-    def test_fm3(self):
-        pass
-
-    @pytest.mark.skip(reason='not implemented')
-    def test_fm4(self):
-        pass
-
-    @pytest.mark.skip(reason='not implemented')
-    def test_fm5(self):
-        pass
-
-    @pytest.mark.skip(reason='not implemented')
-    def test_fm6(self):
-        pass
-
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
-    @given(
-        exposures=canonical_oed_exposures_data(
-            from_account_nums=just(1),
-            from_location_perils=just('WTC;WEC;BFR;001'),
-            from_country_codes=just('US'),
-            from_area_codes=just('CA'),
-            from_buildings_tivs=just(1000000),
-            from_buildings_deductibles=just(10000),
-            from_buildings_limits=just(0),
-            from_other_tivs=just(100000),
-            from_other_deductibles=just(5000),
-            from_other_limits=just(0),
-            from_contents_tivs=just(50000),
-            from_contents_deductibles=just(5000),
-            from_contents_limits=just(0),
-            from_bi_tivs=just(20000),
-            from_bi_deductibles=just(0),
-            from_bi_limits=just(0),
-            from_combined_deductibles=just(0),
-            from_combined_limits=just(0),
-            from_site_deductibles=just(0),
-            from_site_limits=just(0),
-            size=2
-        ),
-        accounts=canonical_oed_accounts_data(
-            from_account_nums=just(1),
-            from_portfolio_nums=just(1),
-            from_policy_nums=just(1),
-            from_policy_perils=just('WTC;WEC;BFR;001'),
-            from_sublimit_deductibles=just(0),
-            from_sublimit_limits=just(0),
-            from_account_deductibles=just(50000),
-            from_account_min_deductibles=just(0),
-            from_account_max_deductibles=just(0),
-            from_layer_deductibles=just(0),
-            from_layer_limits=just(2500000),
-            from_layer_shares=just(1),
-            size=1
-        ),
-        keys=keys_data(
-            from_peril_ids=just(1),
-            from_coverage_type_ids=just(1),
-            from_area_peril_ids=just(1),
-            from_vulnerability_ids=just(1),
-            from_statuses=just('success'),
-            from_messages=just('success'),
-            size=8
-        )
-    )
-    def test_fm7(self, exposures, accounts, keys):
-        exposures[1]['buildingtiv'] = 1700000
-        exposures[1]['othertiv'] = 30000
-        exposures[1]['contentstiv'] = 1000000
-        exposures[1]['bitiv'] = 50000
-
-        keys[1]['id'] = keys[2]['id'] = keys[3]['id'] = 1
-        keys[4]['id'] = keys[5]['id'] = keys[6]['id'] = keys[7]['id'] = 2
-
-        keys[4]['coverage_type'] = 1
-        keys[1]['coverage_type'] = keys[5]['coverage_type'] = 2
-        keys[2]['coverage_type'] = keys[6]['coverage_type'] = 3
-        keys[3]['coverage_type'] = keys[7]['coverage_type'] = 4
-
-        keys[4]['area_peril_id'] = keys[5]['area_peril_id'] = keys[6]['area_peril_id'] = keys[7]['area_peril_id'] = 2
-
-        keys[4]['vulnerability_id'] = 1
-        keys[1]['vulnerability_id'] = keys[5]['vulnerability_id'] = 2
-        keys[2]['vulnerability_id'] = keys[6]['vulnerability_id'] = 3
-        keys[3]['vulnerability_id'] = keys[7]['vulnerability_id'] = 4
-
-        with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf, TemporaryDirectory() as outdir:
-            write_canonical_oed_files(exposures, ef.name, accounts, af.name)
-            write_keys_files(keys, kf.name)
-
-            gul_items_df, canexp_df = self.manager.load_gul_items(self.canexp_profile, ef.name, kf.name)
-
-            model = fake_model(resources={
-                'canonical_exposures_df': canexp_df,
-                'gul_items_df': gul_items_df,
-                'canonical_exposures_profile': self.canexp_profile,
-                'canonical_accounts_profile': self.canacc_profile,
-                'fm_agg_profile': self.fm_agg_map
-            })
-            omr = model.resources
-            ofp = omr['oasis_files_pipeline']
-
-            ofp.keys_file_path = kf.name
-            ofp.canonical_exposures_file_path = ef.name
-
-            ofp.items_file_path = os.path.join(outdir, 'items.csv')
-            ofp.coverages_file_path = os.path.join(outdir, 'coverages.csv')
-            ofp.gulsummaryxref_file_path = os.path.join(outdir, 'gulsummaryxref.csv')
-
-            gul_files = self.manager.write_gul_files(oasis_model=model)
-
-            for f in gul_files:
-                self.assertTrue(os.path.exists(gul_files[f]))
-
-            ofp.canonical_accounts_file_path = af.name
-            ofp.fm_policytc_file_path = os.path.join(outdir, 'fm_policytc.csv')
-            ofp.fm_profile_file_path = os.path.join(outdir, 'fm_profile.csv')
-            ofp.fm_programme_file_path = os.path.join(outdir, 'fm_programme.csv')
-            ofp.fm_xref_file_path = os.path.join(outdir, 'fm_xref.csv')
-            ofp.fmsummaryxref_file_path = os.path.join(outdir, 'fmsummaryxref.csv')
-
-            fm_files = self.manager.write_fm_files(oasis_model=model)
-
-            for f in fm_files:
-                self.assertTrue(os.path.exists(fm_files[f]))
-
-
 
 class GulFilesGenerationTestCase(TestCase):
 
@@ -2284,20 +2148,34 @@ class FmFilesGenerationTestCase(TestCase):
             self.assertEqual(expected, result)
 
     def check_fm_programme_file(self, fm_items_df, fm_programme_file_path):
-            fm_aggtree = {
-                key:set(group['agg_id']) for key, group in fm_items_df[['level_id', 'agg_id']].groupby(['level_id'])
-            }
-            levels = sorted(fm_aggtree.keys())
-            fm_aggtree[0] = fm_aggtree[levels[0]]
-            levels = sorted(fm_aggtree.keys())
+            fm_programme_df = pd.DataFrame(
+                pd.concat([fm_items_df[fm_items_df['level_id']==OASIS_FM_LEVELS['coverage']['id']], fm_items_df])[['level_id', 'agg_id']],
+                dtype=int
+            ).reset_index(drop=True)
+
+            num_cov_items = len(fm_items_df[fm_items_df['level_id']==OASIS_FM_LEVELS['coverage']['id']])
+
+            for i in range(num_cov_items):
+                fm_programme_df.at[i, 'level_id'] = 0
+
+            def from_agg_id_to_agg_id(from_level_id, to_level_id):
+                iterator = (
+                    (from_level_it, to_level_it)
+                    for (_,from_level_it), (_, to_level_it) in zip(
+                        fm_programme_df[fm_programme_df['level_id']==from_level_id].iterrows(),
+                        fm_programme_df[fm_programme_df['level_id']==to_level_id].iterrows()
+                    )
+                )
+                for from_level_it, to_level_it in iterator:
+                    yield from_level_it['agg_id'], to_level_id, to_level_it['agg_id']
+
+            levels = list(set(fm_programme_df['level_id']))
 
             data = [
-                (a, second, b) for first, second in zip(levels, levels[1:]) for a, b in (
-                    zip(fm_aggtree[first], fm_aggtree[second]) if (len(fm_aggtree[first]) == len(fm_aggtree[second]) and len(fm_aggtree[first]) > 1) else itertools.product(fm_aggtree[first], [list(fm_aggtree[second])[0]])
-                )
+                (from_agg_id, level_id, to_agg_id) for from_level_id, to_level_id in zip(levels, levels[1:]) for from_agg_id, level_id, to_agg_id in from_agg_id_to_agg_id(from_level_id, to_level_id)
             ]
 
-            fm_programme_df = pd.DataFrame(columns=['from_agg_id', 'level_id', 'to_agg_id'], data=data, dtype=int)
+            fm_programme_df = pd.DataFrame(columns=['from_agg_id', 'level_id', 'to_agg_id'], data=data, dtype=int).drop_duplicates()
 
             expected = tuple(
                 {

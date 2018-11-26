@@ -624,6 +624,7 @@ class GetFmTermsByLevel(TestCase):
             {i:it for i, it in enumerate(fm_items)},
             pd.DataFrame(data=exposures),
             pd.DataFrame(data=accounts),
+            oed=False
         )]
 
         self.assertEqual(len(fm_items), len(results))
@@ -770,6 +771,7 @@ class GetFmTermsByLevel(TestCase):
                 {i:it for i, it in enumerate(fm_items)},
                 pd.DataFrame(data=exposures),
                 pd.DataFrame(data=accounts),
+                oed=False
             )]
 
             self.assertEqual(len(fm_items), len(results))

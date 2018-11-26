@@ -5,6 +5,7 @@ from .base import OasisBaseCommand
 from .test import TestCmd
 from .version import VersionCmd
 from .bin import BinCmd
+from .api import ApiCmd
 
 
 class RootCmd(OasisBaseCommand):
@@ -16,6 +17,7 @@ class RootCmd(OasisBaseCommand):
         'version': VersionCmd,
         'bin': BinCmd,
         'model': ModelsCmd,
+        'api': ApiCmd,
         'config': ConfigCmd
     }
 

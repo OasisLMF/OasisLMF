@@ -374,7 +374,5 @@ class OasisFilesPipeline(object):
         else:
             filenames = chain(fn for fsb in files_subsets for fn in getattr(self, '{}_files'.format(fsb)))
 
-        map(
-            lambda p: setattr(self, '{}_file_path'.format(p), None),
-            filenames
-        )
+        for fn in filenames:
+            setattr(self, '{}_file_path'.format(fn), None)

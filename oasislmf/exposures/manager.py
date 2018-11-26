@@ -37,7 +37,14 @@ from ..utils.fm import (
     get_fm_terms_by_level_as_list,
     get_policytc_ids,
 )
-from ..utils.metadata import OASIS_FM_LEVELS
+from ..utils.metadata import (
+    OASIS_COVERAGE_TYPES,
+    OASIS_FM_LEVELS,
+    OASIS_PERILS,
+    OED_COVERAGE_TYPES,
+    OED_FM_LEVELS,
+    OED_PERILS,
+)
 from ..utils.values import get_utctimestamp
 from ..models import OasisModel
 from .pipeline import OasisFilesPipeline
@@ -813,17 +820,17 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
             oed_acc_col_repl = [{'accnumber': 'accntnum'}]
             for repl in oed_acc_col_repl:
-                    canexp_df.rename(columns=repl, inplace=True)
+                canexp_df.rename(columns=repl, inplace=True)
 
             merged_df = pd.merge(canexp_df, keys_df, left_on='row_id', right_on='locid').drop_duplicates()
             merged_df['index'] = pd.Series(data=range(len(merged_df)), dtype=object)
 
             cov_level_id = fm_levels[0]
 
-            tiv_terms = tuple(t for t in [ufcp[cov_level_id][gid].get('tiv') for gid in ufcp[cov_level_id]] if t)
+            cov_tivs = tuple(t for t in [ufcp[cov_level_id][gid].get('tiv') for gid in ufcp[cov_level_id]] if t)
 
-            if not tiv_terms:
-                raise OasisException('No TIV elements found in the canonical exposures profile - please check the canonical exposures (loc) profile')
+            if not cov_tivs:
+                raise OasisException('No coverage fields found in the canonical exposures profile - please check the canonical exposures (loc) profile')
 
             fm_terms = {
                 tiv_tgid: {
@@ -838,9 +845,11 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             prev_it_loc_id = -1
             item_id = 0
             zero_tiv_items = 0
-            positive_tiv_elements = lambda it: [t for t in tiv_terms if it.get(t['ProfileElementName'].lower()) and it[t['ProfileElementName'].lower()] > 0 and t['CoverageTypeID'] == it['coveragetypeid']] or [0]
+
+            def positive_tiv_coverages(it): 
+                return [t for t in cov_tivs if it.get(t['ProfileElementName'].lower()) and it[t['ProfileElementName'].lower()] > 0 and t['CoverageTypeID'] == it['coveragetypeid']] or [0]
             
-            for it, ptiv in itertools.chain((it, ptiv) for _, it in merged_df.iterrows() for it, ptiv in itertools.product([it],positive_tiv_elements(it))):
+            for it, ptiv in itertools.chain((it, ptiv) for _, it in merged_df.iterrows() for it, ptiv in itertools.product([it], positive_tiv_coverages(it))):
                 if ptiv == 0:
                     zero_tiv_items += 1
                     continue
@@ -859,6 +868,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                     'peril_id': it['perilid'],
                     'coverage_type_id': it['coveragetypeid'],
                     'coverage_id': item_id,
+                    'is_bi_coverage': it['coveragetypeid'] in [OASIS_COVERAGE_TYPES['time']['id'], OED_COVERAGE_TYPES['bi']['id']],
                     'tiv_elm': tiv_elm,
                     'tiv': tiv,
                     'tiv_tgid': tiv_tgid,
@@ -932,7 +942,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         keys = (
             'item_id', 'gul_item_id', 'peril_id', 'coverage_type_id', 'coverage_id',
-            'canexp_id', 'canacc_id', 'policy_num', 'level_id', 'layer_id',
+            'is_bi_coverage', 'canexp_id', 'canacc_id', 'policy_num', 'level_id', 'layer_id',
             'agg_id', 'policytc_id', 'deductible', 'deductible_min',
             'deductible_max', 'attachment', 'limit', 'share', 'calcrule_id', 'tiv_elm',
             'tiv', 'tiv_tgid', 'ded_elm', 'ded_min_elm', 'ded_max_elm',
@@ -960,38 +970,41 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             cov_level_id = fm_levels[0]
 
             coverage_level_preset_data = list(zip(
-                tuple(cangul_df.item_id.values),          # 1 - FM item ID
-                tuple(cangul_df.item_id.values),          # 2 - GUL item ID
-                tuple(cangul_df.peril_id.values),         # 3 - peril ID
-                tuple(cangul_df.coverage_type_id.values), # 4 - coverage type ID
-                tuple(cangul_df.coverage_id.values),      # 5 - coverage ID
-                tuple(cangul_df.canexp_id.values),        # 6 - can. exp. DF index
-                (-1,)*len(cangul_df),                     # 7 - can. acc. DF index
-                (-1,)*len(cangul_df),                     # 8 - can. acc. policy num.
-                (cov_level_id,)*len(cangul_df),           # 9 - coverage level ID
-                (1,)*len(cangul_df),                      # 10 - layer ID
-                (-1,)*len(cangul_df),                     # 11 - agg. ID
-                tuple(cangul_df.tiv_elm.values),          # 12 - TIV element
-                tuple(cangul_df.tiv.values),              # 13 -TIV value
-                tuple(cangul_df.tiv_tgid.values),         # 14 -TIV element profile term group ID
-                tuple(cangul_df.ded_elm.values),          # 15 -deductible element
-                tuple(cangul_df.ded_min_elm.values),      # 16 -deductible min. element
-                tuple(cangul_df.ded_max_elm.values),      # 17 -deductible max. element
-                tuple(cangul_df.lim_elm.values),          # 18 -limit element
-                tuple(cangul_df.shr_elm.values)           # 19 -share element
+                tuple(cangul_df['item_id'].values),          # 1 - FM item ID
+                tuple(cangul_df['item_id'].values),          # 2 - GUL item ID
+                tuple(cangul_df['peril_id'].values),         # 3 - peril ID
+                tuple(cangul_df['coverage_type_id'].values), # 4 - coverage type ID
+                tuple(cangul_df['coverage_id'].values),      # 5 - coverage ID
+                tuple(cangul_df['is_bi_coverage'].values),   # 6 - is BI coverage?
+                tuple(cangul_df['canexp_id'].values),        # 7 - can. exp. DF index
+                (-1,)*len(cangul_df),                        # 8 - can. acc. DF index
+                (-1,)*len(cangul_df),                        # 9 - can. acc. policy num.
+                (cov_level_id,)*len(cangul_df),              # 10 - coverage level ID
+                (1,)*len(cangul_df),                         # 11 - layer ID
+                (-1,)*len(cangul_df),                        # 12 - agg. ID
+                tuple(cangul_df['tiv_elm'].values),          # 13 - TIV element
+                tuple(cangul_df['tiv'].values),              # 14 -TIV value
+                tuple(cangul_df['tiv_tgid'].values),         # 15 -coverage element/term group ID
+                tuple(cangul_df['ded_elm'].values),          # 16 -deductible element
+                tuple(cangul_df['ded_min_elm'].values),      # 17 -deductible min. element
+                tuple(cangul_df['ded_max_elm'].values),      # 18 -deductible max. element
+                tuple(cangul_df['lim_elm'].values),          # 19 -limit element
+                tuple(cangul_df['shr_elm'].values)           # 20 -share element
             ))
 
-            get_canacc_item = lambda i: canacc_df[(canacc_df['accntnum'] == cangul_df[cangul_df['canexp_id']==coverage_level_preset_data[i][5]].iloc[0]['accntnum'])].iloc[0]
+            def get_canacc_item(i):
+                return canacc_df[(canacc_df['accntnum'] == cangul_df[cangul_df['canexp_id']==coverage_level_preset_data[i][6]].iloc[0]['accntnum'])].iloc[0]
 
-            get_canacc_id = lambda i: int(get_canacc_item(i)['index'])
+            def get_canacc_id(i):
+                return int(get_canacc_item(i)['index'])
 
             coverage_level_preset_items = {
                 i: {
                     k:v for k, v in zip(
                         keys,
-                        [i + 1, gul_item_id, peril_id, coverage_type_id, coverage_id, canexp_id, get_canacc_id(i), policy_num, level_id, layer_id, agg_id, -1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 12, tiv_elm, tiv, tiv_tgid, ded_elm, ded_min_elm, ded_max_elm, lim_elm, shr_elm]
+                        [i + 1, gul_item_id, peril_id, coverage_type_id, coverage_id, is_bi_coverage, canexp_id, get_canacc_id(i), policy_num, level_id, layer_id, agg_id, -1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 12, tiv_elm, tiv, tiv_tgid, ded_elm, ded_min_elm, ded_max_elm, lim_elm, shr_elm]
                     )
-                } for i, (item_id, gul_item_id, peril_id, coverage_type_id, coverage_id, canexp_id, _, policy_num, level_id, layer_id, agg_id, tiv_elm, tiv, tiv_tgid, ded_elm, ded_min_elm, ded_max_elm, lim_elm, shr_elm) in enumerate(coverage_level_preset_data)
+                } for i, (item_id, gul_item_id, peril_id, coverage_type_id, coverage_id, is_bi_coverage, canexp_id, _, policy_num, level_id, layer_id, agg_id, tiv_elm, tiv, tiv_tgid, ded_elm, ded_min_elm, ded_max_elm, lim_elm, shr_elm) in enumerate(coverage_level_preset_data)
             }
 
             num_cov_items = len(coverage_level_preset_items)
@@ -1010,9 +1023,10 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             layer_level_items = copy.deepcopy(preset_items[layer_level])
             layer_level_min_idx = min(layer_level_items)
 
-            layer_id = lambda i: list(
-                canacc_df[canacc_df['accntnum'] == canacc_df.iloc[i]['accntnum']]['policynum'].values
-            ).index(canacc_df.iloc[i]['policynum']) + 1
+            def layer_id(i):
+                return list(
+                    canacc_df[canacc_df['accntnum'] == canacc_df.iloc[i]['accntnum']]['policynum'].values
+                ).index(canacc_df.iloc[i]['policynum']) + 1
 
             for i, (canexp_id, canacc_id) in enumerate(
                 itertools.chain((canexp_id, canacc_id) for canexp_id in layer_level_items for canexp_id, canacc_id in itertools.product(
@@ -1035,8 +1049,10 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                         f = v['field'].lower()
                         it[f] = canexp_df.iloc[it['canexp_id']][f] if src == 'canexp' else canacc_df.iloc[it['canacc_id']][f]
 
+            oed = True if max(fm_levels) > 6 else False
+
             concurrent_tasks = (
-                Task(get_fm_terms_by_level_as_list, args=(ufcp[level_id], fmap[level_id], preset_items[level_id], canexp_df.copy(deep=True), canacc_df.copy(deep=True),), key=level_id)
+                Task(get_fm_terms_by_level_as_list, args=(ufcp[level_id], fmap[level_id], preset_items[level_id], canexp_df.copy(deep=True), canacc_df.copy(deep=True), oed,), key=level_id)
                 for level_id in fm_levels
             )
             num_ps = min(len(fm_levels), multiprocessing.cpu_count())
@@ -1153,10 +1169,21 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             fm_items_df = pd.DataFrame(data=fm_items, dtype=object)
             fm_items_df['index'] = pd.Series(data=fm_items_df.index, dtype=int)
 
-            bookend_fm_levels = (fm_items_df['level_id'].min(), fm_items_df['level_id'].max(),)
-
             if reduced:
-                fm_items_df = fm_items_df[(fm_items_df['level_id'].isin(bookend_fm_levels)) | (fm_items_df['limit'] != 0) | (fm_items_df['deductible'] != 0) | (fm_items_df['deductible_min'] != 0) | (fm_items_df['deductible_max'] != 0) | (fm_items_df['share'] != 0)]
+                def is_zero_terms_level(level_id):
+                    return not any(
+                        it['deductible']!=0 or
+                        it['deductible_min']!=0 or
+                        it['deductible_max']!=0 or
+                        it['limit']!=0 or
+                        it['share']!=0
+                        for _, it in fm_items_df[fm_items_df['level_id']==level_id].iterrows()
+                    )
+
+                fm_levels = list(set(fm_items_df['level_id']))
+                non_zero_terms_levels = [lid for lid in fm_levels if lid in [fm_levels[0], fm_levels[-1]] or not is_zero_terms_level(lid)]
+
+                fm_items_df = fm_items_df[(fm_items_df['level_id'].isin(non_zero_terms_levels))]
 
                 fm_items_df['index'] = range(len(fm_items_df))
 
@@ -1305,20 +1332,35 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         Writes a FM programme file.
         """
         try:
-            fm_aggtree = {
-                key:set(group['agg_id']) for key, group in fm_items_df[['level_id', 'agg_id']].groupby(['level_id'])
-            }
-            levels = sorted(fm_aggtree.keys())
-            fm_aggtree[0] = fm_aggtree[levels[0]]
-            levels = sorted(fm_aggtree.keys())
+            cov_level = fm_items_df['level_id'].min()
+            fm_programme_df = pd.DataFrame(
+                pd.concat([fm_items_df[fm_items_df['level_id']==cov_level], fm_items_df])[['level_id', 'agg_id']],
+                dtype=int
+            ).reset_index(drop=True)
+
+            num_cov_items = len(fm_items_df[fm_items_df['level_id']==cov_level])
+
+            for i in range(num_cov_items):
+                fm_programme_df.at[i, 'level_id'] = 0
+
+            def from_agg_id_to_agg_id(from_level_id, to_level_id):
+                iterator = (
+                    (from_level_it, to_level_it)
+                    for (_,from_level_it), (_, to_level_it) in zip(
+                        fm_programme_df[fm_programme_df['level_id']==from_level_id].iterrows(),
+                        fm_programme_df[fm_programme_df['level_id']==to_level_id].iterrows()
+                    )
+                )
+                for from_level_it, to_level_it in iterator:
+                    yield from_level_it['agg_id'], to_level_id, to_level_it['agg_id']
+
+            levels = list(set(fm_programme_df['level_id']))
 
             data = [
-                (a, second, b) for first, second in zip(levels, levels[1:]) for a, b in (
-                    zip(fm_aggtree[first], fm_aggtree[second]) if (len(fm_aggtree[first]) == len(fm_aggtree[second]) and len(fm_aggtree[first]) > 1) else itertools.product(fm_aggtree[first], [list(fm_aggtree[second])[0]])
-                )
+                (from_agg_id, level_id, to_agg_id) for from_level_id, to_level_id in zip(levels, levels[1:]) for from_agg_id, level_id, to_agg_id in from_agg_id_to_agg_id(from_level_id, to_level_id)
             ]
 
-            fm_programme_df = pd.DataFrame(columns=['from_agg_id', 'level_id', 'to_agg_id'], data=data, dtype=int)
+            fm_programme_df = pd.DataFrame(columns=['from_agg_id', 'level_id', 'to_agg_id'], data=data, dtype=int).drop_duplicates()
 
             fm_programme_df.to_csv(
                 path_or_buf=fm_programme_file_path,
