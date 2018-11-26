@@ -65,7 +65,7 @@ class SessionManager(Session):
 
 
 
-    ## Connection Error Handler     
+    ## Connection Error Handler
     def __recoverable(self, error, url, request, counter=1):
         if not (counter < self.retry_max):
             self.logger.info("Max retries of '{}' reached".format(self.retry_max))
@@ -74,13 +74,13 @@ class SessionManager(Session):
         if hasattr(error,'status_code'):
             self.logger.debug("Connection Error Handler: {}".format(error.status_code))
             if error.status_code in [502, 503, 504]:
-                error = "HTTP %s" % error.status_code
+                error = "HTTP {}".format(error.status_code)
             elif error.status_code in [401]:
                 self._refresh_token()
-                error = "HTTP %s" % error.status_code
+                error = "HTTP {}".format(error.status_code)
             else:
                 return False
-        self.logger.debug("Recoverable error [%s] from %s %s, retry #%s in %ss" % (error, request, url, counter, self.retry_delay))
+        self.logger.debug("Recoverable error [{}] from {} {}, retry #{} in {}s".format(error, request, url, counter, self.retry_delay))
         time.sleep(self.retry_delay)
         return True
 
