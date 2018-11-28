@@ -894,10 +894,20 @@ class RunCmd(OasisBaseCommand):
 
 
 class ModelsCmd(OasisBaseCommand):
+    """
+    Various subcommands for working with models locally, including::
+
+        * transforming source exposure and/or accounts (financial terms) files to the canonical Oasis format
+        * generating an Rtree file index for the area peril lookup component of the built-in lookup framework
+        * writing keys files from lookups
+        * generating Oasis input CSV files (GUL + optionally FM)
+        * generating losses from a preexisting set of Oasis input CSV files
+        * running a model end-to-end
+    """
     sub_commands = {
-        'generate-peril-areas-rtree-file-index': GeneratePerilAreasRtreeFileIndexCmd,
         'transform-source-to-canonical': TransformSourceToCanonicalFileCmd,
         'transform-canonical-to-model': TransformCanonicalToModelFileCmd,
+        'generate-peril-areas-rtree-file-index': GeneratePerilAreasRtreeFileIndexCmd,
         'generate-keys': GenerateKeysCmd,
         'generate-oasis-files': GenerateOasisFilesCmd,
         'generate-losses': GenerateLossesCmd,

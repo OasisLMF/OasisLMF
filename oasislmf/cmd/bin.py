@@ -6,7 +6,7 @@ from .base import OasisBaseCommand
 
 class BuildCmd(OasisBaseCommand):
     """
-    Builds input binary files for model execution.
+    Generates input binary files for model execution.
     """
 
     def add_args(self, parser):
@@ -40,7 +40,7 @@ class BuildCmd(OasisBaseCommand):
 
     def action(self, args):
         """
-        Builds the input binary files
+        Generates the input binary files
 
         :param args: The arguments from the command line
         :type args: Namespace
@@ -126,7 +126,7 @@ class CheckCmd(OasisBaseCommand):
 
 class BinCmd(OasisBaseCommand):
     """
-    Build, clean and check input binary files
+    Generating and cleaning up binary files, and performing checks for binary file resources
     """
 
     sub_commands = {

@@ -4,7 +4,7 @@ from .base import OasisBaseCommand
 
 class VersionCmd(OasisBaseCommand):
     """
-    Prints the CLI version
+    Prints the installed package version
     """
 
     def action(self, args):
