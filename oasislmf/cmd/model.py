@@ -887,7 +887,7 @@ class ModelsCmd(OasisBaseCommand):
     """
     Various subcommands for working with models locally, including::
 
-        * transforming source exposure and/or accounts (financial terms) files to the canonical Oasis format
+        * transforming source exposure and/or accounts (financial terms) files (in EDM or OED format) to the canonical Oasis format
         * generating an Rtree file index for the area peril lookup component of the built-in lookup framework
         * writing keys files from lookups
         * generating Oasis input CSV files (GUL + optionally FM)
