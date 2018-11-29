@@ -270,8 +270,8 @@ class TransformCanonicalToModelFileCmd(OasisBaseCommand):
         super(self.__class__, self).add_args(parser)
 
         parser.add_argument(
-            '-c', '--canonical-exposures-file-path', default=None,
-            help='Canonical file path',
+            '-c', '--canonical-file-path', default=None,
+            help='Canonical exposure file path',
         )
         parser.add_argument(
             '-v', '--validation-file-path', default=None, required=False,
@@ -296,7 +296,7 @@ class TransformCanonicalToModelFileCmd(OasisBaseCommand):
         """
         inputs = InputValues(args)
 
-        canonical_exposures_file_path = as_path(inputs.get('canonical_exposures_file_path', required=True, is_path=True), 'Canonical exposures file path')
+        canonical_file_path = as_path(inputs.get('canonical_file_path', required=True, is_path=True), 'Canonical exposure file path')
 
         _utc = get_utctimestamp(fmt='%Y%m%d%H%M%S')
 
@@ -305,9 +305,9 @@ class TransformCanonicalToModelFileCmd(OasisBaseCommand):
 
         output_file_path = as_path(inputs.get('output_file_path', required=False, is_path=True, default='modexp-{}.csv'.format(_utc)), 'Output file path', preexists=False)
 
-        self.logger.info('\nGenerating a model exposures file {} from canonical exposures file {}'.format(output_file_path, canonical_exposures_file_path))
+        self.logger.info('\nGenerating a model exposure file {} from canonical exposure file {}'.format(output_file_path, canonical_file_path))
 
-        translator = Translator(canonical_exposures_file_path, output_file_path, transformation_file_path, xsd_path=validation_file_path ,append_row_nums=True)
+        translator = Translator(canonical_file_path, output_file_path, transformation_file_path, xsd_path=validation_file_path ,append_row_nums=True)
 
         translator()
 
