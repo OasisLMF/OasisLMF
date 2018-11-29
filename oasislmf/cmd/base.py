@@ -103,8 +103,8 @@ class OasisBaseCommand(BaseCommand):
         """
         parser.add_argument('-V', '--verbose', action='store_true', help='Use verbose logging.')
         parser.add_argument(
-            '-C', '--config', type=PathCleaner('Config file', preexists=False),
-            help='The oasislmf config to load', default='./oasislmf.json'
+            '-C', '--config', type=PathCleaner('Configuration file', preexists=False),
+            help='Command configuration (JSON) file'
         )
 
     def parse_args(self):
