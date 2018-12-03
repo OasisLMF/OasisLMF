@@ -123,6 +123,10 @@ class FileEndpoint(object):
 
 
 class API_models(ApiEndpoint):
+    def __init__(self, session, url_endpoint):
+        super(API_models, self).__init__(session, url_endpoint)
+        self.resource_file = FileEndpoint(self.session, self.url_endpoint, 'resource_file/')
+
     def search(self, metadata):
         search_string = ''
         for key in metadata:

@@ -37,7 +37,7 @@ class SessionManager(Session):
 
 
     def __get_access_token(self, username, password):
-        url  = urljoin(self.url_base,'refresh_token/')
+        url  = urljoin(self.url_base, 'access_token/')
         r = self.post(url, json={"username": username, "password": password})
 
         if r.ok:
@@ -52,7 +52,7 @@ class SessionManager(Session):
 
     def _refresh_token(self):
         self.headers['authorization'] = 'Bearer {}'.format(self.tkn_refresh)
-        url = urljoin(self.url_base,'access_token/')
+        url = urljoin(self.url_base, 'refresh_token/')
         r = super(SessionManager, self).post(url, timeout=self.timeout)
         if r.status_code == status.ok:
             self.tkn_access  = r.json()['access_token']
@@ -94,7 +94,7 @@ class SessionManager(Session):
 
         """
         try:
-            url = urljoin(self.url_base, 'helthcheck/')
+            url = urljoin(self.url_base, 'healthcheck/')
             return super(SessionManager, self).get(url, timeout=self.timeout)
         except Exception as e:    
             err_msg = 'Health check failed: Unable to connect to {}'.format(self.url_base)
