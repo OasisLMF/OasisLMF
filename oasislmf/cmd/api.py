@@ -154,44 +154,40 @@ class DelApiCmd(OasisBaseCommand):
         inputs = InputValues(args)
         api = open_api_connection(inputs, self.logger)
 
-        if args.model_id:
-            id_ref = inputs.get('model_id')
-            resp = api.models.get(id_ref)
-            if resp.ok:
-                self.logger.info(json.dumps(resp.json(), indent=4, sort_keys=True))
+        try:
+            if args.model_id:
+                id_ref = inputs.get('model_id')
+                r = api.models.get(id_ref)
+                r.raise_for_status()
+                self.logger.info(json.dumps(r.json(), indent=4, sort_keys=True))
                 if self.confirm_action(args.api_no_confirm):
-                    resp = api.models.delete(id_ref)
-                    if resp.ok:
-                        self.logger.info('Record deleted')
-            else:
-                self.logger.info("Error on delete model({}): {}".format(id_ref,resp.json(), indent=4, sort_keys=True))
+                    r = api.models.delete(id_ref)
+                    r.raise_for_status()
+                    self.logger.info('Record deleted')
 
-
-        if args.portfolio_id:
-            id_ref = inputs.get('portfolio_id')
-            resp = api.portfolios.get(id_ref)
-            if resp.ok:
-                self.logger.info(json.dumps(resp.json(), indent=4, sort_keys=True))
+            if args.portfolio_id:
+                id_ref = inputs.get('portfolio_id')
+                r = api.portfolios.get(id_ref)
+                r.raise_for_status()
+                self.logger.info(json.dumps(r.json(), indent=4, sort_keys=True))
                 if self.confirm_action(args.api_no_confirm):
-                    resp = api.portfolios.delete(id_ref)
-                    if resp.ok:
-                        self.logger.info('Record deleted')
-            else:
-                self.logger.info("Error on delete portfolio({}): {}".format(id_ref,resp.json(), indent=4, sort_keys=True))
+                    r = api.portfolios.delete(id_ref)
+                    r.raise_for_status()
+                    self.logger.info('Record deleted')
 
-
-        if args.analysis_id:
-            id_ref = inputs.get('analysis_id')
-            resp = api.analyses.get(id_ref)
-            if resp.ok:
-                self.logger.info(json.dumps(resp.json(), indent=4, sort_keys=True))
+            if args.analysis_id:
+                id_ref = inputs.get('analysis_id')
+                r = api.analyses.get(id_ref)
+                r.raise_for_status()
+                self.logger.info(json.dumps(r.json(), indent=4, sort_keys=True))
                 if self.confirm_action(args.api_no_confirm):
-                    resp = api.analyses.delete(id_ref)
-                    if resp.ok:
-                        self.logger.info('Record deleted')
-            else:
-                self.logger.info("Error on delete analysis({}): {}".format(id_ref,resp.json(), indent=4, sort_keys=True))
+                    r = api.analyses.delete(id_ref)
+                    r.raise_for_status()
+                    self.logger.info('Record deleted')
 
+        except Exception as e:    
+            self.logger.info("Error on delete ref({}):".format(id_ref))
+            self.logger.info(r.text)
 
     def confirm_action(self, override=False, question_str='Delete this record from the API?'):
         self.logger.debug('Prompt user for confirmation')
@@ -200,7 +196,7 @@ class DelApiCmd(OasisBaseCommand):
             return True
 
         try:
-            check = str(raw_input("%s (Y/N): " % question_str)).lower().strip()
+            check = str(six.moves.input("%s (Y/N): " % question_str)).lower().strip()
             if check[0] == 'y':
                 return True
             elif check[0] == 'n':
