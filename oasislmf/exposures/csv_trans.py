@@ -18,6 +18,8 @@ from oasislmf.utils.concurrency import (
     multithread,
     Task,
 )
+from oasislmf.utils.exceptions import OasisException
+
 
 class Translator(object):
     def __init__(self, input_path, output_path, xslt_path, xsd_path=None, append_row_nums=False, chunk_size=5000, logger=None):
@@ -59,6 +61,7 @@ class Translator(object):
         self.row_header_out = None
 
     def __call__(self):
+        self.test_run()
         csv_reader = pd.read_csv(self.fpath_input, iterator=True, dtype=object, encoding='utf-8')
 
         task_list = []
@@ -81,6 +84,23 @@ class Translator(object):
                 header=False,
                 index=False,
             )
+
+    def test_run(self, row_sample_size=5):
+        """
+            Test transformation run using the first 5 rows of input,
+            Guard for invalid input files before starting multiprocessing
+        """
+        sample_reader = pd.read_csv(self.fpath_input, 
+                                    iterator=True, 
+                                    dtype=object, 
+                                    encoding='utf-8', 
+                                    nrows=row_sample_size)
+
+        df_generator = self.next_file_slice(sample_reader)
+        (data, first_row, last_row) = next(df_generator)
+        sample_out_df = self.process_chunk(data, first_row, last_row, 1) 
+        if sample_out_df.empty:
+            raise OasisException('Input Test Failed: Output DataFrame is empty')
 
     def process_chunk(self, data, first_row_number, last_row_number, seq_id):
         xml_input_slice = self.csv_to_xml(
