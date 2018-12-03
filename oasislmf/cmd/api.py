@@ -42,7 +42,7 @@ def load_credentials(login_arg, logger=None):
 
     try:
         api_login = {}
-        api_login['username'] = six.input('Username: ')
+        api_login['username'] = six.moves.input('Username: ')
         api_login['password'] = getpass.getpass('Password: ')
         return api_login
     except KeyboardInterrupt as e:
@@ -94,6 +94,7 @@ class GetApiCmd(OasisBaseCommand):
         except OasisException as e:
             print('API Connection error:')
             self.logger.info(e)
+            sys.exit(1)
 
 
         if args.models:
@@ -182,6 +183,7 @@ class DelApiCmd(OasisBaseCommand):
         except OasisException as e:
             print('API Connection error:')
             self.logger.info(e)
+            sys.exit(1)
 
         if args.model_id:
             id_ref = inputs.get('model_id')
@@ -309,6 +311,7 @@ class RunApiCmd(OasisBaseCommand):
         except OasisException as e:
             print('API Connection error:')
             self.logger.info(e)
+            sys.exit(1)
 
 
         # Upload files
