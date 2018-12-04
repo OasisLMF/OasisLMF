@@ -21,11 +21,10 @@ class InputValues(object):
         self.args = args
 
         self.config = {}
-        if self.config:
-            self.config_dir = os.path.dirname(args.config)
-            if os.path.exists(args.config):
-                with io.open(args.config, 'r', encoding='utf-8') as f:
-                    self.config = json.load(f)
+        self.config_dir = os.path.dirname(args.config)
+        if os.path.exists(args.config):
+            with io.open(args.config, 'r', encoding='utf-8') as f:
+                self.config = json.load(f)
 
     def get(self, name, default=None, required=False, is_path=False):
         """
@@ -104,8 +103,8 @@ class OasisBaseCommand(BaseCommand):
         """
         parser.add_argument('-V', '--verbose', action='store_true', help='Use verbose logging.')
         parser.add_argument(
-            '-C', '--config', type=PathCleaner('Configuration file', preexists=False),
-            help='Command configuration (JSON) file'
+            '-C', '--config', type=PathCleaner('Config file', preexists=False),
+            help='The oasislmf config to load', default='./oasislmf.json'
         )
 
     def parse_args(self):

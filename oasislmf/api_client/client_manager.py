@@ -333,7 +333,7 @@ class APIClient(object):
 
                 elif analysis['status'] in  ['INPUTS_GENERATION_ERROR']:
                     self.logger.info('Input Generation: failed (id={})'.format(analysis_id))
-                    error_trace = analyses.input_generation_traceback_file.get(analysis_id).text
+                    error_trace = self.analyses.input_generation_traceback_file.get(analysis_id).text
                     self.logger.error(error_trace)
                     return False
 
@@ -384,7 +384,7 @@ class APIClient(object):
 
                 elif analysis['status'] in  ['RUN_ERROR']:
                     self.logger.error('Analysis Run: failed (id={})'.format(analysis_id))
-                    error_trace = analyses.analyses.run_traceback_file.get(analysis_id).text
+                    error_trace = self.analyses.run_traceback_file.get(analysis_id).text
                     self.logger.error(error_trace)
                     return False
 
