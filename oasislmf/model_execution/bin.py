@@ -292,16 +292,17 @@ def create_binary_tar_file(directory):
     :param directory: Path containing the binaries
     :type tar_file_path: str    
     """
-    original_cwd = os.getcwd()
-    os.chdir(directory)
+    with tarfile.open(
+        os.path.join(directory, TAR_FILE),"w:gz") as tar:
 
-    with tarfile.open(TAR_FILE, "w:gz") as tar:
-        for f in glob.glob('*.bin'):
-            tar.add(f)
-        for f in glob.glob('*{}*.bin'.format(os.sep)):
-            tar.add(f)
+        for f in glob.glob('{}*{}*.bin'.format(directory, os.sep)):
+            logging.info("Adding {} {}".format(f, os.path.relpath(f, directory)))
+            relpath = os.path.relpath(f, directory)
+            tar.add(f, arcname=relpath)
 
-    os.chdir(original_cwd)
+        for f in glob.glob('{}*{}*{}*.bin'.format(directory, os.sep, os.sep)):
+            relpath = os.path.relpath(f, directory)
+            tar.add(f, arcname=relpath)
 
 
 def check_conversion_tools(do_il=False):

@@ -1,6 +1,7 @@
 import json
 import os
 import io
+import time
 
 from collections import Counter
 from multiprocessing.pool import ThreadPool
@@ -93,6 +94,7 @@ class TestModelApiCmd(OasisBaseCommand):
 
         return analysis_settings, do_il, do_ri
 
+    
     def run_analysis(self, args):
         """
         Invokes model analysis in the client - is used as a worker function for
@@ -102,15 +104,21 @@ class TestModelApiCmd(OasisBaseCommand):
             analysis_settings, do_il, counter)
         :type args: tuple
         """
-        client, input_directory, output_directory, analysis_settings, do_il, do_ri, counter = args
+        (
+            client, input_directory, output_directory, 
+            analysis_settings, do_il, do_ri, counter, completed_order, index
+         ) = args
+
+        time.sleep(2 + index)
 
         try:
             with TemporaryDirectory() as upload_directory:
                 input_location = client.upload_inputs_from_directory(
-                    input_directory, bin_directory=upload_directory, 
+                    input_directory, bin_directory=upload_directory,
                     do_il=do_il, do_ri=do_ri, do_build=True)
                 client.run_analysis_and_poll(analysis_settings, input_location, output_directory)
                 counter['completed'] += 1
+                completed_order.append(index)
 
         except Exception as e:
             client._logger.exception("Model API test failed: {}".format(str(e)))
@@ -144,13 +152,15 @@ class TestModelApiCmd(OasisBaseCommand):
         # Prepare and run analyses
         self.logger.info('Running {} analyses'.format(args.num_analyses))
         counter = Counter()
+        completed_order = []
 
         threads = ThreadPool(processes=args.num_analyses)
         threads.map(
             self.run_analysis,
             ((
                 client, args.input_directory, args.output_directory, 
-                analysis_settings, do_il, do_ri, counter
+                analysis_settings, do_il, do_ri, counter,
+                completed_order, i+1 
                 ) for i in range(args.num_analyses))
         )
 
@@ -159,6 +169,8 @@ class TestModelApiCmd(OasisBaseCommand):
 
         # Summary of run results
         self.logger.info("Finished: {} completed, {} failed".format(counter['completed'], counter['failed']))
+        self.logger.info("Completion sequence: {}".format(', '.join((map(str, completed_order)))))
+
         return 0
 
 
