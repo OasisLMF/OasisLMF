@@ -5,11 +5,13 @@ from .base import OasisBaseCommand
 
 class ConfigCmd(OasisBaseCommand):
     """
-    The ``oasislmf`` tool can be configured using using a JSON configuration file. 
-    By default this is stored in ``oasislmf.json`` but the path can be overridden using the ``--config`` flag.
+    Describes the format of the configuration (JSON) file for models end-to-end (via the `model run` command).
 
-    This configuration file should contain any or all of the following properties.
-    The path-related keys should be string paths, given relative to the location of JSON file.
+    The file defines all the model related assets/resources required to run the model end-to-end, via a set of keys.
+
+    One file will need to be defined per model, usually in the model repository and with an indicative name.
+
+    The path-related keys should be strings, given relative to the location of configuration file.
     Arguments can be overridden for a specific command using appropriate run time parameter.
 
     :source_exposures_file_path: File path to source exposure data, in CSV format.
@@ -34,7 +36,7 @@ class ConfigCmd(OasisBaseCommand):
     :model_package_path: Path to the directory to use as the model specific package (if required)
 
 
-    As an example, this is the master script configuration file for PiWind
+    As an example, this is the PiWind config. file
 
     ::
 

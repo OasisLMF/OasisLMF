@@ -169,18 +169,18 @@ class GeneratePerilAreasRtreeFileIndexCmd(OasisBaseCommand):
 
 class TransformSourceToCanonicalFileCmd(OasisBaseCommand):
     """
-    Transform a supplier-specific source exposures/accounts file to a canonical
-    Oasis exposures/accounts file using an XSD validation file and an XSLT
-    transformation file.
+    Transform a source exposure/accounts file (in EDM or OED format) to a canonical
+    Oasis format.
 
     Calling syntax is::
 
         oasislmf model transform-source-to-canonical
-            -s <source file path>
-            -y <type of source file - exposures or accounts>
-            [-v <validation file>]
-            -x <transformation file>
-            -o <output file path>
+            [-C /path/to/configuration/file] |
+            -s /path/to/source/file
+            -y 'exposures'|'accounts'
+            [-v /path/to/validation/file]
+            -x /path/to/transformation/file
+            [-o /path/to/output/file]
     """
     formatter_class = RawDescriptionHelpFormatter
 
@@ -216,7 +216,8 @@ class TransformSourceToCanonicalFileCmd(OasisBaseCommand):
 
     def action(self, args):
         """
-        Transform a source exposures/accounts file to a canonical Oasis file.
+        Transform a source exposure/accounts file (in EDM or OED format) to a canonical
+        Oasis format.
 
         :param args: The arguments from the command line
         :type args: Namespace
@@ -245,18 +246,17 @@ class TransformSourceToCanonicalFileCmd(OasisBaseCommand):
 
 class TransformCanonicalToModelFileCmd(OasisBaseCommand):
     """
-    Transform a canonical Oasis exposures file to a model Oasis exposures file
-    using an XSD validation file and an XSLT transformation file. A model exposures
-    file is a simplified version of the canonical exposures file and provides the
-    input to an Oasis keys server for a model and its keys lookup class.
+    Transform a canonical exposure file (in EDM or OED format) to a "model"
+    format suitable for the model lookup.
 
     Calling syntax is::
 
         oasislmf model transform-canonical-to-model
-            -c <canonical exposures file path>
-            -v <validation file>
-            -x <transformation file>
-            -o <output file path>
+            [-C /path/to/configuration/file] |
+            -c /path/to/canonical/file
+            [-v /path/to/validation/file]
+            -x /path/to/transformation/file
+            [-o /path/to/output/file]
     """
     formatter_class = RawDescriptionHelpFormatter
 
@@ -270,8 +270,8 @@ class TransformCanonicalToModelFileCmd(OasisBaseCommand):
         super(self.__class__, self).add_args(parser)
 
         parser.add_argument(
-            '-c', '--canonical-exposures-file-path', default=None,
-            help='Canonical file path',
+            '-c', '--canonical-file-path', default=None,
+            help='Canonical exposure file path',
         )
         parser.add_argument(
             '-v', '--validation-file-path', default=None, required=False,
@@ -288,14 +288,15 @@ class TransformCanonicalToModelFileCmd(OasisBaseCommand):
 
     def action(self, args):
         """
-        Transform a source exposures/accounts file to a canonical Oasis file.
+        Transform a canonical exposure file (in EDM or OED format) to a "model"
+        format suitable for the model lookup.
 
         :param args: The arguments from the command line
         :type args: Namespace
         """
         inputs = InputValues(args)
 
-        canonical_exposures_file_path = as_path(inputs.get('canonical_exposures_file_path', required=True, is_path=True), 'Canonical exposures file path')
+        canonical_file_path = as_path(inputs.get('canonical_file_path', required=True, is_path=True), 'Canonical exposure file path')
 
         _utc = get_utctimestamp(fmt='%Y%m%d%H%M%S')
 
@@ -304,9 +305,9 @@ class TransformCanonicalToModelFileCmd(OasisBaseCommand):
 
         output_file_path = as_path(inputs.get('output_file_path', required=False, is_path=True, default='modexp-{}.csv'.format(_utc)), 'Output file path', preexists=False)
 
-        self.logger.info('\nGenerating a model exposures file {} from canonical exposures file {}'.format(output_file_path, canonical_exposures_file_path))
+        self.logger.info('\nGenerating a model exposure file {} from canonical exposure file {}'.format(output_file_path, canonical_file_path))
 
-        translator = Translator(canonical_exposures_file_path, output_file_path, transformation_file_path, xsd_path=validation_file_path ,append_row_nums=True)
+        translator = Translator(canonical_file_path, output_file_path, transformation_file_path, xsd_path=validation_file_path ,append_row_nums=True)
 
         translator()
 
@@ -315,46 +316,36 @@ class TransformCanonicalToModelFileCmd(OasisBaseCommand):
 
 class GenerateKeysCmd(OasisBaseCommand):
     """
-    Generate Oasis keys records (location records with area peril ID and
-    vulnerability ID) for a model, and also writes them to file.
+    Generate keys from a model lookup, and write Oasis keys and keys error files.
 
-    The command line arguments can be supplied in the configuration file
-    (``oasislmf.json`` by default or specified with the ``--config`` flag).
-    Run ``oasislmf config --help`` for more information.
-
-    Keys records returned by an Oasis keys lookup service (see the PiWind
-    lookup service for reference) will be Python dicts with the following
-    structure
+    The model lookup, which is normally independently implemented by the model
+    supplier, should generate keys as dicts with the following format
     ::
 
         {
             "id": <loc. ID>,
-            "peril_id": <Oasis peril type ID - oasislmf/utils/peril.py>,
-            "coverage": <Oasis coverage type ID - see oasislmf/utils/coverage.py>,
+            "peril_id": <Oasis/OED sub-peril ID>,
+            "coverage_type": <Oasis/OED coverage type ID>,
             "area_peril_id": <area peril ID>,
             "vulnerability_id": <vulnerability ID>,
-            "message": <lookup status message>,
-            "status": <lookup status code - see oasislmf/utils/status.py>
+            "message": <loc. lookup status message>,
+            "status": <loc. lookup status flag indicating success, failure or no-match>
         }
 
-    The command can generate keys records in this format, and write them to file.
+    The keys generation command can generate these dicts, and write them to
+    file. It can also be used to write these to an Oasis keys file (which is a
+    requirement for model execution), which has the following format.::
 
-    For model loss calculations however ``ktools`` requires a keys CSV file with
-    the following format
-    ::
-
-        LocID,PerilID,CoverageID,AreaPerilID,VulnerabilityID
+        LocID,PerilID,CoverageTypeID,AreaPerilID,VulnerabilityID
         ..
         ..
+    This file only lists the locations for which there has been a successful
+    lookup. The keys errors file lists all the locations with failing or
+    non-matching lookups and has the following format::
 
-    where the headers correspond to the relevant Oasis keys record fields.
-    The command can also generate and write Oasis keys files. It will also
-    optionally write an Oasis keys error file, which is a file containing
-    keys records for locations with unsuccessful lookups (locations with
-    a failing or non-matching lookup). It has the format
-    ::
-
-        LocID,PerilID,CoverageID,Message
+        LocID,PerilID,CoverageTypeID,Message
+        ..
+        ..
     """
     formatter_class = RawDescriptionHelpFormatter
 
@@ -521,7 +512,6 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         if not (lookup_config_fp or (keys_data_path and model_version_file_path and lookup_package_path)):
             raise OasisException('Either the lookup config JSON file path or the keys data path + model version file path + lookup package path must be provided')
 
-        # Load Location exposure files
         source_exposures_file_path = as_path(
             inputs.get('source_exposures_file_path', required=True, is_path=True), 'Source exposures file path'
         )
@@ -894,10 +884,20 @@ class RunCmd(OasisBaseCommand):
 
 
 class ModelsCmd(OasisBaseCommand):
+    """
+    Various subcommands for working with models locally, including::
+
+        * transforming source exposure and/or accounts (financial terms) files (in EDM or OED format) to the canonical Oasis format
+        * generating an Rtree file index for the area peril lookup component of the built-in lookup framework
+        * writing keys files from lookups
+        * generating Oasis input CSV files (GUL + optionally FM)
+        * generating losses from a preexisting set of Oasis input CSV files
+        * running a model end-to-end
+    """
     sub_commands = {
-        'generate-peril-areas-rtree-file-index': GeneratePerilAreasRtreeFileIndexCmd,
         'transform-source-to-canonical': TransformSourceToCanonicalFileCmd,
         'transform-canonical-to-model': TransformCanonicalToModelFileCmd,
+        'generate-peril-areas-rtree-file-index': GeneratePerilAreasRtreeFileIndexCmd,
         'generate-keys': GenerateKeysCmd,
         'generate-oasis-files': GenerateOasisFilesCmd,
         'generate-losses': GenerateLossesCmd,
