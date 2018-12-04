@@ -46,13 +46,13 @@ def load_credentials(login_arg, logger=None):
         api_login['password'] = getpass.getpass('Password: ')
         return api_login
     except KeyboardInterrupt as e:
-        logger.info('\nFailed to get API login details:')
+        logger.error('\nFailed to get API login details:')
         sys.exit(1)
 
 
 def open_api_connection(input_args, logger):
     if not input_args.get('api_server_url'):
-        logger.info('Error: argument `--api-server-url` not set')
+        logger.error('Error: argument `--api-server-url` not set')
         sys.exit(1)
     try:
         credentials = load_credentials(input_args.get('api_server_login'), logger=logger)
@@ -62,8 +62,8 @@ def open_api_connection(input_args, logger):
                 password=credentials['password'],
                 logger=logger)
     except OasisException as e:
-        logger.info('API Connection error:')
-        logger.info(e)
+        logger.error('API Connection error:')
+        logger.error(e)
         sys.exit(1)
 
 
@@ -186,8 +186,8 @@ class DelApiCmd(OasisBaseCommand):
                     self.logger.info('Record deleted')
 
         except Exception as e:    
-            self.logger.info("Error on delete ref({}):".format(id_ref))
-            self.logger.info(r.text)
+            self.logger.error("Error on delete ref({}):".format(id_ref))
+            self.logger.error(r.text)
 
     def confirm_action(self, override=False, question_str='Delete this record from the API?'):
         self.logger.debug('Prompt user for confirmation')
@@ -205,7 +205,7 @@ class DelApiCmd(OasisBaseCommand):
                 print('Invalid Input')
                 return self.confirm_action(question_str)
         except KeyboardInterrupt as e:
-            self.logger.info('\nKeyboard Interrupt, exiting.')
+            self.logger.error('\nKeyboard Interrupt, exiting.')
 
 
 
@@ -327,7 +327,7 @@ class RunApiCmd(OasisBaseCommand):
         # Create new analysis
         path_settings = inputs.get('analysis_settings_json_file_path')
         if not path_settings:
-            self.logger.info('analysis settings: Not found')
+            self.logger.error('analysis settings: Not found')
             return False
         analysis = api.create_analysis(
             portfolio_id=portfolio['id'],
