@@ -21,10 +21,11 @@ class InputValues(object):
         self.args = args
 
         self.config = {}
-        self.config_dir = os.path.dirname(args.config)
-        if os.path.exists(args.config):
-            with io.open(args.config, 'r', encoding='utf-8') as f:
-                self.config = json.load(f)
+        if self.config:
+            self.config_dir = os.path.dirname(args.config)
+            if os.path.exists(args.config):
+                with io.open(args.config, 'r', encoding='utf-8') as f:
+                    self.config = json.load(f)
 
     def get(self, name, default=None, required=False, is_path=False):
         """

@@ -42,12 +42,30 @@ def load_credentials(login_arg, logger=None):
 
     try:
         api_login = {}
-        api_login['username'] = six.input('Username: ')
+        api_login['username'] = six.moves.input('Username: ')
         api_login['password'] = getpass.getpass('Password: ')
         return api_login
     except KeyboardInterrupt as e:
-        logger.info('\nFailed to get API login details:')
+        logger.error('\nFailed to get API login details:')
         sys.exit(1)
+
+
+def open_api_connection(input_args, logger):
+    if not input_args.get('api_server_url'):
+        logger.error('Error: argument `--api-server-url` not set')
+        sys.exit(1)
+    try:
+        credentials = load_credentials(input_args.get('api_server_login'), logger=logger)
+        return APIClient(api_url=input_args.get('api_server_url'),
+                api_ver='V1',
+                username=credentials['username'],
+                password=credentials['password'],
+                logger=logger)
+    except OasisException as e:
+        logger.error('API Connection error:')
+        logger.error(e)
+        sys.exit(1)
+
 
 
 
@@ -61,6 +79,7 @@ class GetApiCmd(OasisBaseCommand):
         super(self.__class__, self).add_args(parser)
         parser.add_argument(
             '-u','--api-server-url', type=str,
+            default=None,
             help='Oasis API server URL (including protocol and port), e.g. http://localhost:8001',
         )
         parser.add_argument(
@@ -84,17 +103,7 @@ class GetApiCmd(OasisBaseCommand):
 
     def action(self, args):
         inputs = InputValues(args)
-        try:
-            credentials = load_credentials(inputs.get('api_server_login'), logger=self.logger)
-            api = APIClient(api_url=inputs.get('api_server_url'),
-                    api_ver='V1',
-                    username=credentials['username'],
-                    password=credentials['password'],
-                    logger=self.logger)
-        except OasisException as e:
-            print('API Connection error:')
-            self.logger.info(e)
-
+        api = open_api_connection(inputs, self.logger)
 
         if args.models:
             resp = api.models.get()
@@ -108,35 +117,6 @@ class GetApiCmd(OasisBaseCommand):
 
 
 
-'''
-class PutApiCmd(OasisBaseCommand):
-    formatter_class = RawDescriptionHelpFormatter
-    def add_args(self, parser):
-        parser.add_argument(
-            '-u','--api-server-url', type=str,
-            help='Oasis API server URL (including protocol and port), e.g. http://localhost:8001',
-        )
-        parser.add_argument(
-            '-l', '--api-server-login', type=PathCleaner('credentials file', preexists=False), default=None,
-            help='Json file with {"username":"<USER>", "password":"<PASS>"}', required=False,
-        )
-
-        parser.add_argument(
-            '-m', '--add-model', default=None,
-             help='json file with  {"supplier_id": <VAL>, "model_id": <VAL>, "version_id": <VAL>}', required=False,
-         )
-        parser.add_argument(
-            '-y', '--no-prompt', default=False, required=False,
-            help='',
-        )
-
-
-    def action(self, args):
-        inputs = InputValues(args)
-        print(args)
-'''
-
-
 class DelApiCmd(OasisBaseCommand):
     formatter_class = RawDescriptionHelpFormatter
 
@@ -145,6 +125,7 @@ class DelApiCmd(OasisBaseCommand):
         super(self.__class__, self).add_args(parser)
         parser.add_argument(
             '-u','--api-server-url', type=str,
+            default=None,
             help='Oasis API server URL (including protocol and port), e.g. http://localhost:8001',
         )
         parser.add_argument(
@@ -171,56 +152,42 @@ class DelApiCmd(OasisBaseCommand):
 
     def action(self, args):
         inputs = InputValues(args)
+        api = open_api_connection(inputs, self.logger)
+
         try:
-            credentials = load_credentials(inputs.get('api_server_login'), logger=self.logger)
-            api = APIClient(api_url=inputs.get('api_server_url'),
-                    api_ver='V1',
-                    username=credentials['username'],
-                    password=credentials['password'],
-                    logger=self.logger
-                  )
-        except OasisException as e:
-            print('API Connection error:')
-            self.logger.info(e)
-
-        if args.model_id:
-            id_ref = inputs.get('model_id')
-            resp = api.models.get(id_ref)
-            if resp.ok:
-                self.logger.info(json.dumps(resp.json(), indent=4, sort_keys=True))
+            if args.model_id:
+                id_ref = inputs.get('model_id')
+                r = api.models.get(id_ref)
+                r.raise_for_status()
+                self.logger.info(json.dumps(r.json(), indent=4, sort_keys=True))
                 if self.confirm_action(args.api_no_confirm):
-                    resp = api.models.delete(id_ref)
-                    if resp.ok:
-                        self.logger.info('Record deleted')
-            else:
-                self.logger.info("Error on delete model({}): {}".format(id_ref,resp.json(), indent=4, sort_keys=True))
+                    r = api.models.delete(id_ref)
+                    r.raise_for_status()
+                    self.logger.info('Record deleted')
 
-
-        if args.portfolio_id:
-            id_ref = inputs.get('portfolio_id')
-            resp = api.portfolios.get(id_ref)
-            if resp.ok:
-                self.logger.info(json.dumps(resp.json(), indent=4, sort_keys=True))
+            if args.portfolio_id:
+                id_ref = inputs.get('portfolio_id')
+                r = api.portfolios.get(id_ref)
+                r.raise_for_status()
+                self.logger.info(json.dumps(r.json(), indent=4, sort_keys=True))
                 if self.confirm_action(args.api_no_confirm):
-                    resp = api.portfolios.delete(id_ref)
-                    if resp.ok:
-                        self.logger.info('Record deleted')
-            else:
-                self.logger.info("Error on delete portfolio({}): {}".format(id_ref,resp.json(), indent=4, sort_keys=True))
+                    r = api.portfolios.delete(id_ref)
+                    r.raise_for_status()
+                    self.logger.info('Record deleted')
 
-
-        if args.analysis_id:
-            id_ref = inputs.get('analysis_id')
-            resp = api.analyses.get(id_ref)
-            if resp.ok:
-                self.logger.info(json.dumps(resp.json(), indent=4, sort_keys=True))
+            if args.analysis_id:
+                id_ref = inputs.get('analysis_id')
+                r = api.analyses.get(id_ref)
+                r.raise_for_status()
+                self.logger.info(json.dumps(r.json(), indent=4, sort_keys=True))
                 if self.confirm_action(args.api_no_confirm):
-                    resp = api.analyses.delete(id_ref)
-                    if resp.ok:
-                        self.logger.info('Record deleted')
-            else:
-                self.logger.info("Error on delete analysis({}): {}".format(id_ref,resp.json(), indent=4, sort_keys=True))
+                    r = api.analyses.delete(id_ref)
+                    r.raise_for_status()
+                    self.logger.info('Record deleted')
 
+        except Exception as e:    
+            self.logger.error("Error on delete ref({}):".format(id_ref))
+            self.logger.error(r.text)
 
     def confirm_action(self, override=False, question_str='Delete this record from the API?'):
         self.logger.debug('Prompt user for confirmation')
@@ -229,7 +196,7 @@ class DelApiCmd(OasisBaseCommand):
             return True
 
         try:
-            check = str(raw_input("%s (Y/N): " % question_str)).lower().strip()
+            check = str(six.moves.input("%s (Y/N): " % question_str)).lower().strip()
             if check[0] == 'y':
                 return True
             elif check[0] == 'n':
@@ -238,7 +205,49 @@ class DelApiCmd(OasisBaseCommand):
                 print('Invalid Input')
                 return self.confirm_action(question_str)
         except KeyboardInterrupt as e:
-            self.logger.info('\nKeyboard Interrupt, exiting.')
+            self.logger.error('\nKeyboard Interrupt, exiting.')
+
+
+
+class PutApiModelCmd(OasisBaseCommand):
+    formatter_class = RawDescriptionHelpFormatter
+    def add_args(self, parser):
+        super(self.__class__, self).add_args(parser)
+        parser.add_argument(
+            '-u','--api-server-url', type=str,
+            default=None,
+            help='Oasis API server URL (including protocol and port), e.g. http://localhost:8001',
+        )
+        parser.add_argument(
+            '-l', '--api-server-login',
+            type=PathCleaner('credentials file', preexists=False), default=None,
+            help='Json file with {"username":"<USER>", "password":"<PASS>"}', required=False,
+        )
+
+
+        # Required
+        parser.add_argument('--supplier-id', type=str, default=None,
+            required=True,
+            help='The supplier ID for the model.'
+        )
+        parser.add_argument('--model-id', type=str, default=None,
+            required=True,
+            help='The model ID for the model.'
+        )
+        parser.add_argument('--version-id', type=str, default=None,
+            required=True,
+            help='The version ID for the model.'
+        )
+
+    def action(self, args):
+        inputs = InputValues(args)
+        api = open_api_connection(inputs, self.logger)
+
+        api.models.create(
+            supplier_id=inputs.get('supplier_id'),
+            model_id=inputs.get('model_id'),
+            version_id=inputs.get('version_id'),
+        )
 
 
 
@@ -249,6 +258,7 @@ class RunApiCmd(OasisBaseCommand):
         # API Connection
         parser.add_argument(
             '-u','--api-server-url', type=str,
+            default=None,
             help='Oasis API server URL (including protocol and port), e.g. http://localhost:8001',
         )
         parser.add_argument(
@@ -298,18 +308,7 @@ class RunApiCmd(OasisBaseCommand):
 
     def action(self, args):
         inputs = InputValues(args)
-
-        try:
-            credentials = load_credentials(inputs.get('api_server_login'), logger=self.logger)
-            api = APIClient(api_url=inputs.get('api_server_url'),
-                    api_ver='V1',
-                    username=credentials['username'],
-                    password=credentials['password'],
-                    logger=self.logger)
-        except OasisException as e:
-            print('API Connection error:')
-            self.logger.info(e)
-
+        api = open_api_connection(inputs, self.logger)
 
         # Upload files
         path_location = inputs.get('source_exposures_file_path')
@@ -328,7 +327,7 @@ class RunApiCmd(OasisBaseCommand):
         # Create new analysis
         path_settings = inputs.get('analysis_settings_json_file_path')
         if not path_settings:
-            self.logger.info('analysis settings: Not found')
+            self.logger.error('analysis settings: Not found')
             return False
         analysis = api.create_analysis(
             portfolio_id=portfolio['id'],
@@ -358,7 +357,7 @@ class RunApiCmd(OasisBaseCommand):
 class ApiCmd(OasisBaseCommand):
     sub_commands = {
         'list': GetApiCmd,
-        #'add': PutApiCmd,
+        'add-model': PutApiModelCmd,
         'delete': DelApiCmd,
         'run': RunApiCmd
     }
