@@ -132,7 +132,7 @@ class TestModelApiCmdRunAnalysis(TestCase):
             'failed': initial_failed,
         })
 
-        TestModelApiCmd().run_analysis((client, input_dir, output_dir, settings, do_il, do_ri, counter))
+        TestModelApiCmd().run_analysis((client, input_dir, output_dir, settings, do_il, do_ri, counter, [],1))
 
         self.assertEqual(initial_complete + 1, counter['completed'])
         self.assertEqual(initial_failed, counter['failed'])
@@ -154,7 +154,7 @@ class TestModelApiCmdRunAnalysis(TestCase):
             'failed': initial_failed,
         })
 
-        TestModelApiCmd().run_analysis((client, input_dir, output_dir, settings, do_il, do_ri, counter))
+        TestModelApiCmd().run_analysis((client, input_dir, output_dir, settings, do_il, do_ri, counter, [], 1))
 
         self.assertEqual(initial_complete, counter['completed'])
         self.assertEqual(initial_failed + 1, counter['failed'])
@@ -173,7 +173,7 @@ class TestModelApiCmdRunAnalysis(TestCase):
             'failed': initial_failed,
         })
 
-        TestModelApiCmd().run_analysis((client, input_dir, output_dir, settings, do_il, do_ri, counter))
+        TestModelApiCmd().run_analysis((client, input_dir, output_dir, settings, do_il, do_ri, counter, [], 1))
 
         self.assertEqual(initial_complete, counter['completed'])
         self.assertEqual(initial_failed + 1, counter['failed'])
@@ -348,4 +348,4 @@ class TestModelApiCmdRun(TestCase):
 
             self.assertEqual(fn.__name__, 'run_analysis')
             self.assertIsInstance(fn.__self__, TestModelApiCmd)
-            self.assertEqual(args, [(ANY, cmd.args.input_directory, cmd.args.output_directory, settings, do_il, do_ri, ANY)] * num_analyses)
+            self.assertEqual(args, [(ANY, cmd.args.input_directory, cmd.args.output_directory, settings, do_il, do_ri, ANY, ANY, ANY)] * num_analyses)
