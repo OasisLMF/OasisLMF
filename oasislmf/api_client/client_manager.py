@@ -71,7 +71,9 @@ class FileEndpoint(object):
                 r.raise_for_status()
                 return r
         except HTTPError as e:
-            err_msg = 'File upload Failed: {}, file: {},  url: {}, msg: {}'.format(r.status_code, file_path, r.url, r.text)
+            print(r.text)
+            err_msg = 'File upload Failed: {}, file: {},  url: {}:'.format(r.status_code, file_path, r.url)
+            self.logger.debug(r.text)
             self.logger.debug(err_msg)
 
     def download(self, ID, file_path, chuck_size=1024, overrwrite=False):
@@ -433,7 +435,8 @@ class APIClient(object):
             self.logger.info('Cancelled Input generation: Id={}'.format(analysis_id))
             return True
         except HTTPError as e:
-            err_msg = 'API Error: {}, url: {}, msg: {}'.format(r.status_code, r.url, r.text)
+            err_msg = 'API Error: {}, url: {}:'.format(r.status_code, r.url)
+            self.logger.debug(r.text)
             self.logger.debug(err_msg)
             self.logger.info('cancel_generate: Failed')
             return False
