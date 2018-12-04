@@ -108,7 +108,7 @@ class CreateBinaryFiles(TestCase):
 
     @pytest.mark.flaky
     @given(standard_input_files(min_size=1), il_input_files(min_size=1))
-    @settings(deadline=600, suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=800, suppress_health_check=[HealthCheck.too_slow])
     def test_multipl_ri_folders(self, standard, il):
         with patch('oasislmf.model_execution.bin.INPUT_FILES', ECHO_CONVERSION_INPUT_FILES), TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
             files = standard + il
