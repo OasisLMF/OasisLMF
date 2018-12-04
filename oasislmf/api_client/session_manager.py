@@ -46,7 +46,6 @@ class SessionManager(Session):
             self.headers['authorization'] = 'Bearer {}'.format(self.tkn_access)
         else:
             err_msg = 'Login failed: {}'.format(r.json())
-            #self.logger.info(err_msg)
             raise OasisException(err_msg)
         return r
 
@@ -59,7 +58,6 @@ class SessionManager(Session):
             self.headers['authorization'] = 'Bearer {}'.format(self.tkn_access)
         else:
             err_msg = 'Token refresh error: {}'.format(r.text)
-            #self.logger.info(err_msg)
             raise OasisException(err_msg)
         return r
 
@@ -98,7 +96,6 @@ class SessionManager(Session):
             return super(SessionManager, self).get(url, timeout=self.timeout)
         except Exception as e:    
             err_msg = 'Health check failed: Unable to connect to {}'.format(self.url_base)
-            #self.logger.info(err_msg)
             raise OasisException(err_msg)
 
     def get(self, url, **kwargs):

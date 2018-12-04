@@ -73,8 +73,8 @@ class FileEndpoint(object):
         except HTTPError as e:
             print(r.text)
             err_msg = 'File upload Failed: {}, file: {},  url: {}:'.format(r.status_code, file_path, r.url)
-            self.logger.debug(r.text)
-            self.logger.debug(err_msg)
+            self.logger.error(r.text)
+            self.logger.error(err_msg)
 
     def download(self, ID, file_path, chuck_size=1024, overrwrite=False):
         abs_fp = os.path.realpath(os.path.expanduser(file_path))
@@ -86,8 +86,6 @@ class FileEndpoint(object):
         # Check if file exists
         if os.path.exists(abs_fp) and not overrwrite:
             error_message = 'Local file alreday exists: {}'.format(abs_fp)
-            #self._logger.error(error_message)
-            #raise OasisException(error_message)
             raise IOError(error_message)
 
         r = self.session.get(self._build_url(ID), stream=True)
@@ -96,7 +94,7 @@ class FileEndpoint(object):
                 for chunk in r.iter_content(chunk_size=chuck_size):
                     f.write(chunk)
         else:
-            self.logger.info('Download failed')
+            self.logger.error('Download failed')
            # exception_message = 'GET {} failed: {}'.format(response.request.url, response.status_code)
            # self._logger.error(exception_message)
            # raise OasisException(exception_message)
@@ -115,7 +113,7 @@ class FileEndpoint(object):
                                  headers={'Content-Type': m.content_type})
         if not r.ok:
             err_msg = 'Data_Object upload Failed'
-            self.logger.info(err_msg)
+            self.logger.error(err_msg)
             #self._logger.error(error_message)
             #raise OasisException(error_message)
         return r
@@ -259,7 +257,7 @@ class APIClient(object):
             ## Check or create portfolio
             if not portfolio.ok:
                 err_msg = "Failed to find matching `portfolio_id = {}`".format(portfolio_id)
-                self.logger.info(err_msg)
+                self.logger.error(err_msg)
                 # raise OasisException()
 
             ## Upload exposure
@@ -278,8 +276,8 @@ class APIClient(object):
             return portfolio.json()
         except HTTPError as e:
             err_msg = 'API Error: {}, url: {}, msg: {}'.format(r.status_code, r.url, r.text)
-            self.logger.info(err_msg)
-            self.logger.info('upload_inputs: failed')
+            self.logger.error(err_msg)
+            self.logger.error('upload_inputs: failed')
             sys.exit(1)
 
 
@@ -305,8 +303,8 @@ class APIClient(object):
             return analyses
         except HTTPError as e:
             err_msg = 'API Error: {}, url: {}, msg: {}'.format(r.status_code, r.url, r.text)
-            self.logger.info(err_msg)
-            self.logger.info('create_analysis: failed ')
+            self.logger.error(err_msg)
+            self.logger.error('create_analysis: failed ')
             sys.exit(1)
 
 
@@ -336,7 +334,7 @@ class APIClient(object):
                 elif analysis['status'] in  ['INPUTS_GENERATION_ERROR']:
                     self.logger.info('Input Generation: failed (id={})'.format(analysis_id))
                     error_trace = analyses.input_generation_traceback_file.get(analysis_id).text
-                    self.logger.debug(error_trace)
+                    self.logger.error(error_trace)
                     return False
 
                 elif analysis['status'] in ['INPUTS_GENERATION_STARTED']:
@@ -353,8 +351,8 @@ class APIClient(object):
                     ## Error -- Raise execption Unknown Analysis  State
         except HTTPError as e:
             err_msg = 'API Error: {}, url: {}, msg: {}'.format(r.status_code, r.url, r.text)
-            self.logger.info(err_msg)
-            self.logger.info('run_generate: failed')
+            self.logger.error(err_msg)
+            self.logger.error('run_generate: failed')
             sys.exit(1)
 
     # BLOCKING CALL
@@ -385,9 +383,9 @@ class APIClient(object):
                     return False
 
                 elif analysis['status'] in  ['RUN_ERROR']:
-                    self.logger.info('Analysis Run: failed (id={})'.format(analysis_id))
+                    self.logger.error('Analysis Run: failed (id={})'.format(analysis_id))
                     error_trace = analyses.analyses.run_traceback_file.get(analysis_id).text
-                    self.logger.debug(error_trace)
+                    self.logger.error(error_trace)
                     return False
 
                 elif analysis['status'] in ['RUN_STARTED']:
@@ -404,8 +402,8 @@ class APIClient(object):
                     ## Error -- Raise execption Unknown Analysis  State
         except HTTPError as e:
             err_msg = 'API Error: {}, url: {}, msg: {}'.format(r.status_code, r.url, r.text)
-            self.logger.info(err_msg)
-            self.logger.info('run_analysis: failed')
+            self.logger.error(err_msg)
+            self.logger.error('run_analysis: failed')
             sys.exit(1)
 
     def download_output(self, analysis_id, download_path, filename=None, clean_up=False, overwrite=False):
@@ -421,8 +419,8 @@ class APIClient(object):
                 r = self.analyses.input_file.delete(analysis_id)
         except HTTPError as e:
             err_msg = 'API Error: {}, url: {}, msg: {}'.format(r.status_code, r.url, r.text)
-            self.logger.info(err_msg)
-            self.logger.info('download_output: Failed')
+            self.logger.error(err_msg)
+            self.logger.error('download_output: Failed')
             sys.exit(1)
 
 
@@ -453,6 +451,6 @@ class APIClient(object):
             return True
         except HTTPError as e:
             err_msg = 'API Error: {}, url: {}, msg: {}'.format(r.status_code, r.url, r.text)
-            self.logger.info(err_msg)
-            self.logger.info('cancel_analysis: Failed')
+            self.logger.error(err_msg)
+            self.logger.error('cancel_analysis: Failed')
             return False
