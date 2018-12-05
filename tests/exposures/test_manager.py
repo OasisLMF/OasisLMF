@@ -1071,17 +1071,16 @@ class LoadGulItems(TestCase):
             with self.assertRaises(OasisException):
                 OasisExposuresManager().load_gul_items(profile, exposures_file.name, keys_file.name)
 
-    @pytest.mark.flaky
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(
             from_tivs1=just(1.0),
-            size=10
+            size=2
         ),
         keys=keys_data(
             from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
             from_statuses=just(OASIS_KEYS_STATUS['success']['id']),
-            size=10
+            size=2
         )
     )
     def test_only_buildings_coverage_type_in_exposure_and_model_lookup_supporting_single_peril_and_buildings_coverage_type__gul_items_are_generated(
@@ -1389,7 +1388,7 @@ class LoadFmItems(TestCase):
             from_deductibles2=just(0),
             from_deductibles3=just(0),
             from_deductibles4=just(0),
-            size=10
+            size=2
         ),
         accounts=canonical_accounts_data(
             from_account_nums=just('A1'),
@@ -1414,7 +1413,7 @@ class LoadFmItems(TestCase):
             from_min_deductible_elements=just(None),
             from_max_deductible_elements=just(None),
             from_share_elements=just(None),
-            size=10
+            size=2
         )
     )
     def test_exposure_with_one_coverage_type_and_fm_terms_with_one_account_and_one_top_level_layer_per_account_and_model_lookup_supporting_single_peril_and_coverage_type___all_fm_terms_present(
@@ -1546,7 +1545,7 @@ class LoadFmItems(TestCase):
             from_deductibles2=just(0),
             from_deductibles3=just(0),
             from_deductibles4=just(0),
-            size=10
+            size=2
         ),
         accounts=canonical_accounts_data(
             from_account_nums=just('A1'),
@@ -1571,7 +1570,7 @@ class LoadFmItems(TestCase):
             from_min_deductible_elements=just(None),
             from_max_deductible_elements=just(None),
             from_share_elements=just(None),
-            size=10
+            size=2
         )
     )
     def test_exposure_with_one_coverage_type_and_fm_terms_with_one_account_and_two_top_level_layers_per_account_and_model_lookup_supporting_single_peril_and_coverage_type___all_fm_terms_present(
@@ -1711,7 +1710,7 @@ class LoadFmItems(TestCase):
             from_deductibles2=just(0),
             from_deductibles3=just(0),
             from_deductibles4=just(0),
-            size=10
+            size=2
         ),
         accounts=canonical_accounts_data(
             from_account_nums=just('A1'),
@@ -1736,7 +1735,7 @@ class LoadFmItems(TestCase):
             from_min_deductible_elements=just(None),
             from_max_deductible_elements=just(None),
             from_share_elements=just(None),
-            size=10
+            size=2
         )
     )
     def test_exposure_with_one_coverage_type_and_fm_terms_with_two_accounts_and_one_top_level_layer_per_account_and_model_lookup_supporting_single_peril_and_coverage_type___all_fm_terms_present(
@@ -1750,7 +1749,7 @@ class LoadFmItems(TestCase):
         fmap = copy.deepcopy(self.fm_agg_profile)
         ufcp = copy.deepcopy(self.unified_canonical_profile)
 
-        accounts[1]['accntnum'] = exposures[9]['accntnum'] = 'A2'
+        accounts[1]['accntnum'] = exposures[1]['accntnum'] = 'A2'
         accounts[1]['policynum'] = 'A2P1'
         accounts[1]['blanlimamt'] = 0.3
 
@@ -1872,7 +1871,7 @@ class LoadFmItems(TestCase):
             from_deductibles2=just(0),
             from_deductibles3=just(0),
             from_deductibles4=just(0),
-            size=10
+            size=4
         ),
         accounts=canonical_accounts_data(
             from_account_nums=just('A1'),
@@ -1897,7 +1896,7 @@ class LoadFmItems(TestCase):
             from_min_deductible_elements=just(None),
             from_max_deductible_elements=just(None),
             from_share_elements=just(None),
-            size=10
+            size=4
         )
     )
     def test_exposure_with_one_coverage_type_and_fm_terms_with_two_accounts_and_two_top_level_layers_per_account_and_model_lookup_supporting_single_peril_and_coverage_type___all_fm_terms_present(
@@ -1912,7 +1911,7 @@ class LoadFmItems(TestCase):
         ufcp = copy.deepcopy(self.unified_canonical_profile)
 
         accounts[1]['policynum'] = 'A1P2'
-        accounts[2]['accntnum'] = accounts[3]['accntnum'] = exposures[8]['accntnum'] = exposures[9]['accntnum'] = 'A2'
+        accounts[2]['accntnum'] = accounts[3]['accntnum'] = exposures[2]['accntnum'] = exposures[3]['accntnum'] = 'A2'
         accounts[2]['policynum'] = 'A2P1'
         accounts[3]['policynum'] = 'A2P2'
         accounts[2]['blanlimamt'] = accounts[3]['blanlimamt'] = 0.3
@@ -2226,15 +2225,14 @@ class FmFilesGenerationTestCase(TestCase):
 
 class WriteGulFiles(GulFilesGenerationTestCase):
 
-    @pytest.mark.flaky
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(
             from_tivs1=just(1.0),
             from_tivs2=just(0.0),
-            size=10
+            size=2
         ),
-        keys=keys_data(from_statuses=just(OASIS_KEYS_STATUS['success']['id']), size=10),
+        keys=keys_data(from_statuses=just(OASIS_KEYS_STATUS['success']['id']), size=2),
     )
     def test_paths_are_stored_in_the_model___model_paths_are_used(self, exposures, keys):
         profile = self.profile
@@ -2263,15 +2261,14 @@ class WriteGulFiles(GulFilesGenerationTestCase):
             self.check_coverages_file(gul_items_df, gul_files['coverages'])
             self.check_gulsummaryxref_file(gul_items_df, gul_files['gulsummaryxref'])
 
-    @pytest.mark.flaky
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(
             from_tivs1=just(1.0),
             from_tivs2=just(0.0),
-            size=10
+            size=2
         ),
-        keys=keys_data(from_statuses=just(OASIS_KEYS_STATUS['success']['id']), size=10)
+        keys=keys_data(from_statuses=just(OASIS_KEYS_STATUS['success']['id']), size=2)
     )
     def test_paths_are_stored_in_the_kwargs___kwarg_paths_are_used(self, exposures, keys):
         profile = self.profile
@@ -2314,7 +2311,7 @@ class WriteFmFiles(FmFilesGenerationTestCase):
             from_limits2=just(0),
             from_limits3=just(0),
             from_limits4=just(0),
-            size=10
+            size=2
         ),
         accounts=canonical_accounts_data(
             from_account_nums=just('A1'),
@@ -2339,7 +2336,7 @@ class WriteFmFiles(FmFilesGenerationTestCase):
             from_max_deductible_elements=just(None),
             from_limit_elements=just('wscv1limit'),
             from_share_elements=just(None),
-            size=10
+            size=2
         )
     )
     def test_exposure_with_one_coverage_type_and_fm_terms_with_one_account_and_one_top_level_layer_per_account_and_model_lookup_supporting_single_peril_and_coverage_type_paths_are_stored_in_the_model___model_paths_are_used_and_all_fm_files_are_generated(self, exposures, accounts, guls):
@@ -2403,7 +2400,7 @@ class WriteFmFiles(FmFilesGenerationTestCase):
             from_limits2=just(0),
             from_limits3=just(0),
             from_limits4=just(0),
-            size=10
+            size=2
         ),
         accounts=canonical_accounts_data(
             from_account_nums=just('A1'),
@@ -2428,7 +2425,7 @@ class WriteFmFiles(FmFilesGenerationTestCase):
             from_max_deductible_elements=just(None),
             from_limit_elements=just('wscv1limit'),
             from_share_elements=just(None),
-            size=10
+            size=2
         )
     )
     def test_exposure_with_one_coverage_type_and_fm_terms_with_one_account_and_one_top_level_layer_per_account_and_model_lookup_supporting_single_peril_and_coverage_type_paths_are_stored_in_the_kwargs___kwarg_paths_are_used_and_all_fm_files_are_generated(self, exposures, accounts, guls):

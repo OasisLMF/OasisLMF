@@ -559,7 +559,7 @@ class GetFmTermsByLevel(TestCase):
         )
         self.fm_agg_profile = oasis_fm_agg_profile
 
-    @pytest.mark.flaky
+    #@pytest.mark.flaky
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(
@@ -576,7 +576,7 @@ class GetFmTermsByLevel(TestCase):
             from_limits2=just(0),
             from_limits3=just(0),
             from_limits4=just(0),
-            size=10
+            size=2
         ),
         accounts=canonical_accounts_data(
             from_account_nums=just('A1'),
@@ -604,7 +604,7 @@ class GetFmTermsByLevel(TestCase):
             from_limits=just(1),
             from_share_elements=just(None),
             from_shares=just(0),
-            size=10
+            size=2
         ) 
     )
     def test_exposure_with_one_coverage_type_and_fm_terms_with_one_account_and_one_top_level_layer_per_account_and_model_lookup_supporting_single_peril_and_coverage_type__all_coverage_level_terms_generated(self, exposures, accounts, fm_items):
@@ -674,13 +674,13 @@ class GetFmTermsByLevel(TestCase):
             calcrule_id = get_sub_layer_calcrule_id(it['deductible'], it['deductible_min'], it['deductible_max'], it['limit'])
             self.assertEqual(calcrule_id, res['calcrule_id'])
 
-    @pytest.mark.flaky
+    #@pytest.mark.flaky
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(
             from_account_nums=just('A1'),
             from_tivs1=just(100),
-            size=10
+            size=2
         ),
         accounts=canonical_accounts_data(
             from_account_nums=just('A1'),
@@ -696,7 +696,7 @@ class GetFmTermsByLevel(TestCase):
             from_tiv_elements=just('wscv1val'),
             from_tiv_tgids=just(1),
             from_tivs=just(100),
-            size=10
+            size=2
         )
     )
     def test_exposure_with_one_coverage_type_and_fm_terms_with_one_account_and_one_top_level_layer_per_account_and_model_lookup_supporting_single_peril_and_coverage_type__all_non_coverage_level_terms_generated(self, exposures, accounts, fm_items):
