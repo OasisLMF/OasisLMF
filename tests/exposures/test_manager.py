@@ -941,7 +941,7 @@ class LoadGulItems(TestCase):
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(size=0),
-        keys=keys_data(size=10)
+        keys=keys_data(size=2)
     )
     def test_no_fm_terms_in_canonical_profile__oasis_exception_is_raised(
         self,
@@ -966,7 +966,7 @@ class LoadGulItems(TestCase):
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(size=0),
-        keys=keys_data(size=10)
+        keys=keys_data(size=2)
     )
     def test_no_canonical_items__oasis_exception_is_raised(
         self,
@@ -982,10 +982,9 @@ class LoadGulItems(TestCase):
             with self.assertRaises(OasisException):
                 OasisExposuresManager().load_gul_items(profile, exposures_file.name, keys_file.name)
 
-    @pytest.mark.flaky
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
-        exposures=canonical_exposures_data(size=10),
+        exposures=canonical_exposures_data(size=2),
         keys=keys_data(size=0)
     )
     def test_no_keys_items__oasis_exception_is_raised(
@@ -1004,8 +1003,8 @@ class LoadGulItems(TestCase):
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
-        exposures=canonical_exposures_data(size=10),
-        keys=keys_data(from_statuses=just(OASIS_KEYS_STATUS['success']['id']), size=10)
+        exposures=canonical_exposures_data(size=2),
+        keys=keys_data(from_statuses=just(OASIS_KEYS_STATUS['success']['id']), size=2)
     )
     def test_canonical_items_dont_match_any_keys_items__oasis_exception_is_raised(
         self,
@@ -1027,8 +1026,8 @@ class LoadGulItems(TestCase):
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
-        exposures=canonical_exposures_data(size=10),
-        keys=keys_data(from_statuses=just(OASIS_KEYS_STATUS['success']['id']), size=10)
+        exposures=canonical_exposures_data(size=2),
+        keys=keys_data(from_statuses=just(OASIS_KEYS_STATUS['success']['id']), size=2)
     )
     def test_canonical_profile_doesnt_have_any_tiv_fields__oasis_exception_is_raised(
         self,
@@ -1053,9 +1052,9 @@ class LoadGulItems(TestCase):
     @given(
         exposures=canonical_exposures_data(
             from_tivs1=just(0.0),
-            size=10
+            size=2
         ),
-        keys=keys_data(from_statuses=just(OASIS_KEYS_STATUS['success']['id']), size=10)
+        keys=keys_data(from_statuses=just(OASIS_KEYS_STATUS['success']['id']), size=2)
     )
     def test_canonical_items_dont_have_any_positive_tivs__oasis_exception_is_raised(
         self,
@@ -1163,7 +1162,6 @@ class LoadGulItems(TestCase):
 
             self.assertEqual(can_it['row_id'], gul_it['group_id'])
 
-    @pytest.mark.flaky
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_exposures_data(
@@ -1279,9 +1277,9 @@ class LoadFmItems(TestCase):
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
-        exposures=canonical_exposures_data(size=10),
+        exposures=canonical_exposures_data(size=2),
         accounts=canonical_accounts_data(size=1),
-        guls=gul_items_data(size=10)
+        guls=gul_items_data(size=2)
     )
     def test_no_fm_terms_in_canonical_profiles__oasis_exception_is_raised(
         self,
@@ -1320,8 +1318,8 @@ class LoadFmItems(TestCase):
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
-        exposures=canonical_exposures_data(size=10),
-        guls=gul_items_data(size=10)
+        exposures=canonical_exposures_data(size=2),
+        guls=gul_items_data(size=2)
     )
     def test_no_aggregation_profile__oasis_exception_is_raised(
         self,
@@ -1347,8 +1345,8 @@ class LoadFmItems(TestCase):
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
-        exposures=canonical_exposures_data(size=10),
-        guls=gul_items_data(size=10)
+        exposures=canonical_exposures_data(size=2),
+        guls=gul_items_data(size=2)
     )
     def test_no_canonical_accounts_items__oasis_exception_is_raised(
         self,
