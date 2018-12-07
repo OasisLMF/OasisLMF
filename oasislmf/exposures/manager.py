@@ -1099,7 +1099,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             gul_items_df['index'] = pd.Series(data=gul_items_df.index, dtype=int)
 
             for col in gul_items_df.columns:
-                if col.endswith('id'):
+                if col == 'peril_id':
+                    gul_items_df[col] = gul_items_df[col].astype(object)
+                elif col.endswith('id'):
                     gul_items_df[col] = gul_items_df[col].astype(int)
                 elif col == 'tiv':
                     gul_items_df[col] = gul_items_df[col].astype(float)
@@ -1202,7 +1204,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             fm_items_df['policytc_id'] = fm_items_df['index'].apply(lambda i: get_policytc_id(i))
 
             for col in fm_items_df.columns:
-                if col.endswith('id'):
+                if col == 'peril_id':
+                    fm_items_df[col] = fm_items_df[col].astype(object)
+                elif col.endswith('id'):
                     fm_items_df[col] = fm_items_df[col].astype(int)
                 elif col in ('tiv', 'limit', 'deductible', 'deductible_min', 'deductible_max', 'share',):
                     fm_items_df[col] = fm_items_df[col].astype(float)
