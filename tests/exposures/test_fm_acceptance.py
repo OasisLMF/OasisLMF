@@ -1080,6 +1080,11 @@ class FmAcceptanceTests(TestCase):
         exposures[4]['locded1building'] = 10000
         exposures[5]['locded1building'] = 0.1
 
+        accounts[1]['polnumber'] = 2
+        accounts[1]['layerparticipation'] = 0.5
+        accounts[1]['layerlimit'] = 3500000
+        accounts[1]['layerattachment'] = 1500000
+
         with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf, TemporaryDirectory() as outdir:
             write_canonical_oed_files(exposures, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
