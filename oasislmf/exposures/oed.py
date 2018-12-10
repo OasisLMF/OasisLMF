@@ -26,7 +26,6 @@ class OedValidator(object):
 
         self.ri_info_expected_dtypes = {
             'ReinsNumber':              int_or_float,
-            'ReinsLayerNumber':         int_or_float,
             'CededPercent':             float_only,
             'RiskLimit':                int_or_float,
             'RiskAttachment':           int_or_float,
@@ -35,7 +34,6 @@ class OedValidator(object):
             'InuringPriority':          int_or_float,
             'ReinsType':                object_or_str,
             'PlacedPercent':         float_only,
-            'TreatyShare':            float_only}
         self.ri_scope_expected_dtypes = {
             'ReinsNumber':      int_or_float,
             'PortNumber':       int_or_float,
