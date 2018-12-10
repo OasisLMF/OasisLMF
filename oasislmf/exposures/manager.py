@@ -1191,13 +1191,12 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
                 fm_items_df['item_id'] = range(1, len(fm_items_df) + 1)
 
-                level_ids = [l for l in set(fm_items_df['level_id'])]
+                level_ids = sorted([l for l in set(fm_items_df['level_id'])])
 
-                level_id = lambda i: level_ids.index(fm_items_df.iloc[i]['level_id']) + 1
+                def level_id(i):
+                    return level_ids.index(fm_items_df.iloc[i]['level_id']) + 1
 
                 fm_items_df['level_id'] = fm_items_df['index'].apply(level_id)
-
-            layer_level_id = fm_items_df['level_id'].max()
 
             policytc_ids = get_policytc_ids(fm_items_df)
             get_policytc_id = lambda i: [k for k in six.iterkeys(policytc_ids) if policytc_ids[k] == {k:fm_items_df.iloc[i][k] for k in ('limit', 'deductible', 'attachment', 'deductible_min', 'deductible_max', 'share', 'calcrule_id',)}][0]
