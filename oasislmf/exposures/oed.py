@@ -318,13 +318,18 @@ def load_oed_dfs(oed_dir, show_all=False):
         ri_info_df.dropna(inplace=True)
         ri_scope_df.dropna(inplace=True)
 
-        # Enforce float fields
-        info_float_cols  = ['CededPercent','PlacedPercent','TreatyShare']
-        scope_float_cols = ['CededPercent']
+        # Enforce float / int fields
+        info_float_cols = ['CededPercent','PlacedPercent']
+        info_int_cols = ['ReinsNumber', 'InuringPriority']
         ri_info_df[info_float_cols] =  ri_info_df[info_float_cols].astype(float)
+        ri_info_df[info_int_cols] =  ri_info_df[info_int_cols].astype(int)
+
+        scope_float_cols = ['CededPercent']
+        scope_int_cols = ['ReinsNumber']
         ri_scope_df[scope_float_cols] =  ri_scope_df[scope_float_cols].astype(float)
+        ri_scope_df[scope_int_cols] =  ri_scope_df[scope_int_cols].astype(int)
+
         
-        # Enforce Int fields  
         
     return (ri_info_df, ri_scope_df, do_reinsurance)
 
@@ -490,7 +495,6 @@ OED_LOCATION_FIELDS = [
 
 OED_REINS_INFO_FIELDS = [
     'ReinsNumber',
-    'ReinsLayerNumber',
     'CededPercent',
     'RiskLimit',
     'RiskAttachment',
@@ -498,8 +502,7 @@ OED_REINS_INFO_FIELDS = [
     'OccAttachment',
     'InuringPriority',
     'ReinsType',
-    'PlacedPercent',
-    'TreatyShare'
+    'PlacedPercent'
 ]
 
 OED_REINS_SCOPE_FIELDS = [
@@ -553,7 +556,7 @@ def get_no_loss_profile(profile_id):
 def get_pass_through_profile(profile_id):
     return FmProfile(
         profile_id=profile_id,
-        calcrule_id=CALCRULE_ID_DEDUCTIBLE_ONLY,
+        ctests/exposures/test_manager.pyalcrule_id=CALCRULE_ID_DEDUCTIBLE_ONLY,
         deductible1=0,
         deductible2=0,  # Not used
         deductible3=0,  # Not used
