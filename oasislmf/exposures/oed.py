@@ -556,7 +556,7 @@ def get_no_loss_profile(profile_id):
 def get_pass_through_profile(profile_id):
     return FmProfile(
         profile_id=profile_id,
-        ctests/exposures/test_manager.pyalcrule_id=CALCRULE_ID_DEDUCTIBLE_ONLY,
+        calcrule_id=CALCRULE_ID_DEDUCTIBLE_ONLY,
         deductible1=0,
         deductible2=0,  # Not used
         deductible3=0,  # Not used
