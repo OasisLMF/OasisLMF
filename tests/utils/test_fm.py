@@ -618,14 +618,15 @@ class GetFmTermsByLevel(TestCase):
             it['index'] = i
             it['agg_id'] = i + 1
 
-        results = [r for r in get_coverage_level_fm_terms(
+        results = sorted([r for r in get_coverage_level_fm_terms(
             lufcp,
             lfmaggp,
             {i:it for i, it in enumerate(fm_items)},
             pd.DataFrame(data=exposures),
             pd.DataFrame(data=accounts),
             oed=False
-        )]
+        )], key=lambda it: it['item_id'])
+
 
         self.assertEqual(len(fm_items), len(results))
 
@@ -765,14 +766,15 @@ class GetFmTermsByLevel(TestCase):
 
             level_fm_terms_func = get_sub_layer_non_coverage_level_fm_terms if l < max(levels) else get_layer_level_fm_terms
 
-            results = [r for r in level_fm_terms_func(
+            results = sorted([r for r in level_fm_terms_func(
                 lufcp,
                 lfmaggp,
                 {i:it for i, it in enumerate(fm_items)},
                 pd.DataFrame(data=exposures),
                 pd.DataFrame(data=accounts),
                 oed=False
-            )]
+			)], key=lambda it: it['item_id'])
+
 
             self.assertEqual(len(fm_items), len(results))
 
