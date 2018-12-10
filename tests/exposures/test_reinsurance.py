@@ -4,6 +4,7 @@ import time
 import subprocess
 
 import pandas as pd
+import numpy as np
 
 from parameterized import parameterized
 from pandas.util.testing import assert_frame_equal
@@ -11,6 +12,7 @@ from oasislmf.exposures import oed
 from oasislmf.model_execution import bin
 from .direct_layer import DirectLayer
 from oasislmf.exposures import reinsurance_layer
+
 from collections import OrderedDict
 from backports.tempfile import TemporaryDirectory
 
@@ -18,49 +20,91 @@ cwd = os.path.dirname(os.path.realpath(__file__))
 expected_output_dir = os.path.join(cwd, 'expected', 'calc')
 
 input_dir = os.path.join(cwd, 'examples')
-test_examples = ['loc_SS',
-                 'acc_SS',
-                 'placed_acc_1_limit_QS',
-                 'placed_acc_limit_QS',
-                 'placed_loc_SS',
-                 'placed_pol_SS',
-                 'acc_limit_QS',
-                 'simple_CAT_XL',
-                 'pol_limit_QS',
-                 'simple_pol_FAC',
-                 'placed_acc_QS',
-                 'acc_1_CAT_XL',
-                 'placed_acc_1_QS',
-                 'loc_limit_QS',
-                 'multiple_SS',
-                 'placed_loc_limit_SS',
-                 'multiple_CAT_XL',
-                 'multiple_portfolio',
-                 'pol_SS',
-                 'multiple_QS_2',
-                 'multiple_FAC',
-                 'simple_acc_FAC',
-                 'simple_QS',
-                 'multiple_QS_1',
-                 'acc_PR',
-                 'loc_1_2_PR',
-                 'loc_PR',
-                 'pol_PR',
-                 'simple_loc_FAC']
+test_examples = [
+    'single_loc_level_fac',
+    'single_pol_level_fac',
+    'single_acc_level_fac',
+    'single_lgr_level_fac',
+    'multiple_facs_same_inuring_level',
+    'single_loc_level_PR_all_risks',
+    'single_lgr_level_PR_all_risks',
+    'single_pol_level_PR_all_risks',
+    'single_acc_level_PR_all_risks',
+    'single_loc_level_SS_all_risks_loc',
+    'single_loc_level_SS_all_risks_loc_pol',
+    'single_pol_level_SS_all_risks',
+    'single_acc_level_SS_all_risks',
+    'single_QS_one_risk_with_%_ceded_and_%_placed_and_risk_limit_and_occ_limit',
+    'single_QS_all_acc_with_%_ceded_and_%_placed_and_risk_limit_and_occ_limit',
+    'single_loc_level_SS_with_%_ceded_and_%_placed',
+    'single_pol_level_SS_with_%_ceded_and_%_placed',
+    'single_QS_all_risks_with_%_ceded_and_%_placed',
+    'single_QS_with_account_level_risk_limits',
+    'single_cxl',
+    'single_cxl_0_occ_limit_treat_as_unlimited',
+    'single_cxl_empty_occ_limit_treat_as_unlimited',
+    'single_QS_with_policy_level_risk_limits',
+    'single_QS_with_location_level_risk_limits',
+    'single_cxl_one_account',
+    'single_QS_one_account_with_%_ceded_and_%_placed',
+    'multiple_SS_same_inuring_level',
+    'single_loc_level_SS_with_%_ceded_and_%_placed_and_occ_limit',
+    'multiple_cxl_at_different_inuring_levels',
+    'multiple_qs_all_risks_multiple_portfolios',
+    'multiple_qs_single_portfolio',
+    'multiple_QS_at_different_inuring_levels',
+    'multiple_QS_at_same_inuring_level',
+    'single_QS',
+    'single_loc_level_PR_loc_filter',
+    'single_loc_level_PR_pol_and_loc_filter',
+    'single_loc_level_PR_pol_filter',
+    'single_loc_level_PR_acc_filter',
+    'simple_CXL_port_acc_pol_filter',
+    'simple_CXL_port_acc_pol_loc_filter',
+    'simple_CXL_port_acc_loc_filter',
+    'simple_CXL_port_filter',
+    'simple_CXL_port_acc_filter'
+    ]
 
+fm_examples = [
+    'fm24',
+    'fm27']
 
-fm_examples = ['fm24',
-               'fm27']
+# error_examples = [
+#     'single_loc_level_fac_with_pol_scope_error',
+#     'single_loc_level_fac_with_acc_scope_error',
+#     'single_loc_level_fac_with_lgr_scope_error',
+#     'single_pol_level_fac_with_acc_scope_error',
+#     'single_pol_level_fac_with_loc_scope_error',
+#     'single_pol_level_fac_with_lgr_scope_error',
+#     'single_acc_level_fac_with_pol_scope_error',
+#     'single_acc_level_fac_with_loc_scope_error',
+#     'single_acc_level_fac_with_lgr_scope_error',
+#     'single_lgr_level_fac_with_acc_scope_error',
+#     'single_lgr_level_fac_with_loc_scope_error',
+#     'single_lgr_level_fac_with_pol_scope_error',                
+#     'single_loc_level_pr_with_pol_scope_error',
+#     'single_loc_level_pr_with_acc_scope_error',
+#     'single_loc_level_pr_with_lgr_scope_error',
+#     'single_pol_level_pr_with_acc_scope_error',
+#     'single_pol_level_pr_with_loc_scope_error',
+#     'single_pol_level_pr_with_lgr_scope_error',
+#     'single_acc_level_pr_with_pol_scope_error',
+#     'single_acc_level_pr_with_loc_scope_error',
+#     'single_acc_level_pr_with_lgr_scope_error',
+#     'single_lgr_level_pr_with_acc_scope_error',
+#     'single_lgr_level_pr_with_loc_scope_error',
+#     'single_lgr_level_pr_with_pol_scope_error',                
+# ]
 
 test_cases = []
 for case in test_examples + fm_examples:
-#for case in ['fm24']:
+#for case in ['simple_CAT_XL_filter_P2_A3']:
     test_cases.append((
         case,
         os.path.join(input_dir, case),
         os.path.join(expected_output_dir, case)
     ))
-
 
 class TestReinsurance(unittest.TestCase):
 
@@ -70,6 +114,7 @@ class TestReinsurance(unittest.TestCase):
             output_name,
             xref_descriptions,
             allocation=oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID):
+
         command = "fmcalc -p {0} -n -a {2} < {1}.bin | tee {0}.bin | fmtocsv > {0}.csv".format(
             output_name, input_name, allocation)
         print(command)
@@ -227,5 +272,10 @@ class TestReinsurance(unittest.TestCase):
             expected_df = pd.read_csv(expected_file)
             found_df = net_losses[key]
             found_df.to_csv("{}.csv".format(key.replace(' ', '_')))
+
+            expected_df = expected_df.replace(np.nan, '', regex=True)
+            found_df = found_df.replace(np.nan, '', regex=True)
+
+            found_df.to_csv("/tmp/expected.csv", index=False)
 
             assert_frame_equal(found_df, expected_df)
