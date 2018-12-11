@@ -953,6 +953,8 @@ class FmAcceptanceTests(TestCase):
 
             fm_files = self.manager.write_fm_files(oasis_model=model)
 
+            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_files)))
+
             fm_programme_df = pd.read_csv(fm_files['fm_programme'])
             level_groups = [group for _, group in fm_programme_df.groupby(['level_id'])]
             self.assertEqual(len(level_groups), 3)
@@ -1012,8 +1014,6 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1,2,3,4,5,6,7,8])
             self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1,1,1,1,1,1,1,1])
             self.assertEqual(fmsummaryxref_df['summaryset_id'].values.tolist(), [1,1,1,1,1,1,1,1])
-
-            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_files)))
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
@@ -1112,6 +1112,22 @@ class FmAcceptanceTests(TestCase):
 
             self.assertTrue(all(os.path.exists(p) for p in six.itervalues(gul_files)))
 
+            guls = pd.merge(
+                pd.merge(pd.read_csv(gul_files['items']), pd.read_csv(gul_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
+                pd.read_csv(gul_files['gulsummaryxref']),
+                left_on='coverage_id',
+                right_on='coverage_id'
+            )
+
+            self.assertEqual(len(guls), 6)
+
+            self.assertEqual(guls['item_id'].values.tolist(), [1,2,3,4,5,6])
+            self.assertEqual(guls['coverage_id'].values.tolist(), [1,2,3,4,5,6])
+            self.assertEqual(guls['areaperil_id'].values.tolist(), [1,1,1,1,1,1])
+            self.assertEqual(guls['vulnerability_id'].values.tolist(), [1,1,1,1,1,1])
+            self.assertEqual(guls['group_id'].values.tolist(), [1,2,3,4,5,6])
+            self.assertEqual(guls['tiv'].values.tolist(), [1000000,1000000,1000000,2000000,2000000,2000000])
+
             ofp.canonical_accounts_file_path = af.name
             ofp.fm_policytc_file_path = os.path.join(outdir, 'fm_policytc.csv')
             ofp.fm_profile_file_path = os.path.join(outdir, 'fm_profile.csv')
@@ -1122,3 +1138,70 @@ class FmAcceptanceTests(TestCase):
             fm_files = self.manager.write_fm_files(oasis_model=model)
 
             self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_files)))
+
+            fm_programme_df = pd.read_csv(fm_files['fm_programme'])
+            level_groups = [group for _, group in fm_programme_df.groupby(['level_id'])]
+            self.assertEqual(len(level_groups), 3)
+            level1_group = level_groups[0]
+            self.assertEqual(len(level1_group), 6)
+            self.assertEqual(level1_group['from_agg_id'].values.tolist(), [1,2,3,4,5,6])
+            self.assertEqual(level1_group['to_agg_id'].values.tolist(), [1,2,3,4,5,6])
+            level2_group = level_groups[1]
+            self.assertEqual(len(level2_group), 6)
+            self.assertEqual(level2_group['from_agg_id'].values.tolist(), [1,2,3,4,5,6])
+            self.assertEqual(level2_group['to_agg_id'].values.tolist(), [1,1,1,1,1,1])
+            level3_group = level_groups[2]
+            self.assertEqual(len(level3_group), 1)
+            self.assertEqual(level3_group['from_agg_id'].values.tolist(), [1])
+            self.assertEqual(level3_group['to_agg_id'].values.tolist(), [1])
+
+            fm_profile_df = pd.read_csv(fm_files['fm_profile'])
+            self.assertEqual(len(fm_profile_df), 6)
+            self.assertEqual(fm_profile_df['policytc_id'].values.tolist(), [1,2,3,4,5,6])
+            self.assertEqual(fm_profile_df['calcrule_id'].values.tolist(), [12,12,12,12,2,2])
+            self.assertEqual(fm_profile_df['deductible1'].values.tolist(), [10000,50000,15000,200000,0,1500000])
+            self.assertEqual(fm_profile_df['deductible2'].values.tolist(), [0,0,0,0,0,0])
+            self.assertEqual(fm_profile_df['deductible3'].values.tolist(), [0,0,0,0,0,0])
+            self.assertEqual(fm_profile_df['attachment1'].values.tolist(), [0,0,0,0,0,1500000])
+            self.assertEqual(fm_profile_df['limit1'].values.tolist(), [0,0,0,0,1500000,3500000])
+            self.assertEqual(fm_profile_df['share1'].values.tolist(), [0,0,0,0,0.1,0.5])
+            self.assertEqual(fm_profile_df['share2'].values.tolist(), [0,0,0,0,0,0])
+            self.assertEqual(fm_profile_df['share3'].values.tolist(), [0,0,0,0,0,0])
+
+            fm_policytc_df = pd.read_csv(fm_files['fm_policytc'])
+            level_groups = [group for _, group in fm_policytc_df.groupby(['level_id'])]
+            self.assertEqual(len(level_groups), 3)
+            level1_group = level_groups[0]
+            self.assertEqual(len(level1_group), 6)
+            self.assertEqual(level1_group['layer_id'].values.tolist(), [1,1,1,1,1,1])
+            self.assertEqual(level1_group['agg_id'].values.tolist(), [1,2,3,4,5,6])
+            self.assertEqual(level1_group['policytc_id'].values.tolist(), [1,1,2,3,1,4])
+            level2_group = level_groups[1]
+            self.assertEqual(len(level2_group), 1)
+            self.assertEqual(level2_group['layer_id'].values.tolist(), [1])
+            self.assertEqual(level2_group['agg_id'].values.tolist(), [1])
+            self.assertEqual(level2_group['policytc_id'].values.tolist(), [2])
+            level3_group = level_groups[2]
+            self.assertEqual(len(level3_group), 2)
+            self.assertEqual(level3_group['layer_id'].values.tolist(), [1,2])
+            self.assertEqual(level3_group['agg_id'].values.tolist(), [1,1])
+            self.assertEqual(level3_group['policytc_id'].values.tolist(), [5,6])
+
+            fm_xref_df = pd.read_csv(fm_files['fm_xref']).sort_values(['layer_id'])
+
+            layer_groups = [group for _, group in fm_xref_df.groupby(['layer_id'])]
+            self.assertEqual(len(layer_groups), 2)
+
+            layer1_group = layer_groups[0]
+            self.assertEqual(len(layer1_group), 6)
+            self.assertEqual(layer1_group['agg_id'].values.tolist(), [1,2,3,4,5,6])
+
+            layer2_group = layer_groups[1]
+            self.assertEqual(len(layer2_group), 6)
+            self.assertEqual(layer2_group['agg_id'].values.tolist(), [1,2,3,4,5,6])
+
+            fmsummaryxref_df = pd.read_csv(fm_files['fmsummaryxref'])
+            self.assertEqual(len(fmsummaryxref_df), 12)
+            self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1,2,3,4,5,6,7,8,9,10,11,12])
+            self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1,1,1,1,1,1,1,1,1,1,1,1])
+            self.assertEqual(fmsummaryxref_df['summaryset_id'].values.tolist(), [1,1,1,1,1,1,1,1,1,1,1,1])
