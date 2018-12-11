@@ -1,6 +1,16 @@
 OasisLMF Changelog
 ==================
 
+`1.2.2`_
+--------
+* Added API client for OED API update 
+* New MDK commands to run the updated API client
+* Improved FM file generation testing
+* Fixes to scope filters to correctly handle account, policy and location combinations.
+* Added portfolio and location group scope filters.
+* Fixes to required fields and default values to match OED
+* Fixed binary file writing bug, corrupted tar output files
+
 
 `1.2.1`_
 --------
@@ -148,6 +158,7 @@ in the exposure manager
 
 
 
+.. _`1.2.2`:  https://github.com/OasisLMF/OasisLMF/compare/d6dbf25...master
 .. _`1.2.1`:  https://github.com/OasisLMF/OasisLMF/compare/f4d7390...master
 .. _`1.2.0`:  https://github.com/OasisLMF/OasisLMF/compare/ad91e2a...master
 .. _`1.1.27`: https://github.com/OasisLMF/OasisLMF/compare/ac4375e...master
