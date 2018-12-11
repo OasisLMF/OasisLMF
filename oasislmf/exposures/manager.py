@@ -1182,8 +1182,8 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                         for _, it in fm_items_df[fm_items_df['level_id']==level_id].iterrows()
                     )
 
-                fm_levels = list(set(fm_items_df['level_id']))
-                non_zero_terms_levels = [lid for lid in fm_levels if lid in [fm_levels[0], fm_levels[-1]] or not is_zero_terms_level(lid)]
+                levels = sorted([l for l in set(fm_items_df['level_id'])])
+                non_zero_terms_levels = [lid for lid in levels if lid in [levels[0], levels[-1]] or not is_zero_terms_level(lid)]
 
                 fm_items_df = fm_items_df[(fm_items_df['level_id'].isin(non_zero_terms_levels))]
 
@@ -1191,10 +1191,10 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
                 fm_items_df['item_id'] = range(1, len(fm_items_df) + 1)
 
-                level_ids = sorted([l for l in set(fm_items_df['level_id'])])
+                levels = sorted([l for l in set(fm_items_df['level_id'])])
 
                 def level_id(i):
-                    return level_ids.index(fm_items_df.iloc[i]['level_id']) + 1
+                    return levels.index(fm_items_df.iloc[i]['level_id']) + 1
 
                 fm_items_df['level_id'] = fm_items_df['index'].apply(level_id)
 

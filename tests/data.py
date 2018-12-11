@@ -778,14 +778,14 @@ oed_fm_agg_profile = {
         "FMLevelName": "PolLayer",
         "FMAggKey": {
             "AccntNum": {
-                "src": "FM",
-                "field": "canacc_id",
+                "src": "CanAcc",
+                "field": "accntnum",
                 "name": "Account no."
             },
-            "PolicyNum": {
-                "src": "FM",
-                "field": "policy_num",
-                "name": "Account policy no."
+            "PortfolioNum": {
+                "src": "CanAcc",
+                "field": "portnumber",
+                "name": "Account portfolio no."
             }
         }
     }
