@@ -23,7 +23,9 @@ def get_dataframe(
     non_na_cols=(),
     col_dtypes={},
     sort_col=None,
-    sort_ascending=None
+    sort_ascending=None,
+    required_cols = [],
+    default_values = {}
 ):
     if not (src_fp or src_buf or src_data is not None):
         raise OasisException(
@@ -46,6 +48,25 @@ def get_dataframe(
 
     if lowercase_cols:
         df.columns = df.columns.str.lower()
+
+    if required_cols is not None:
+        if lowercase_cols:
+            required_cols = [s.lower() for s in required_cols]
+        missing_required_cols = []
+        for required_col in required_cols:
+            if required_col not in df.columns:
+                missing_required_cols.append(required_col)
+        if len(missing_required_cols) > 0:
+            raise OasisException(
+                "Missing required columns: {}".format(
+                    ','.join(missing_required_cols)
+                )                    
+            )
+
+    if default_values is not None:
+        for default_col in default_values:
+            if default_col not in df.columns:
+                df[default_col] = default_values[default_col]
 
     if index_col:
         df['index'] = list(range(len(df)))
