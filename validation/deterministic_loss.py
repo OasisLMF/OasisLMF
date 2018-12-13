@@ -129,7 +129,11 @@ def generate_oasis_files(
     # should be in ``input_dir``.
 
 def apply_fm(input_dir, loss_percentage_of_tiv=1.0, net=False):
-    items_df = pd.merge(pd.read_csv(os.path.join(input_dir, 'items.csv')), pd.read_csv(os.path.join(input_dir, 'coverages.csv')))
+    # Generate an items and coverages dataframe and set column types (important!!)
+    items_df = pd.merge(
+        pd.read_csv(os.path.join(input_dir, 'items.csv')),
+        pd.read_csv(os.path.join(input_dir, 'coverages.csv'))
+    )
     for col in items_df:
         if col != 'tiv':
             items_df[col] = items_df[col].astype(int)
