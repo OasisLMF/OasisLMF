@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import string
+import sys
 
 from collections import OrderedDict
 from unittest import TestCase
@@ -1414,6 +1415,7 @@ class LoadFmItems(TestCase):
             size=2
         )
     )
+    @pytest.mark.skipif(sys.version_info < (3,6), reason="requires python3.6 or higher")
     def test_exposure_with_one_coverage_type_and_fm_terms_with_one_account_and_one_top_level_layer_per_account_and_model_lookup_supporting_single_peril_and_coverage_type___all_fm_terms_present(
         self,
         exposures,
@@ -1571,6 +1573,7 @@ class LoadFmItems(TestCase):
             size=2
         )
     )
+    @pytest.mark.skipif(sys.version_info < (3,6), reason="requires python3.6 or higher")
     def test_exposure_with_one_coverage_type_and_fm_terms_with_one_account_and_two_top_level_layers_per_account_and_model_lookup_supporting_single_peril_and_coverage_type___all_fm_terms_present(
         self,
         exposures,
@@ -1736,6 +1739,7 @@ class LoadFmItems(TestCase):
             size=2
         )
     )
+    @pytest.mark.skipif(sys.version_info < (3,6), reason="requires python3.6 or higher")
     def test_exposure_with_one_coverage_type_and_fm_terms_with_two_accounts_and_one_top_level_layer_per_account_and_model_lookup_supporting_single_peril_and_coverage_type___all_fm_terms_present(
         self,
         exposures,
@@ -1897,6 +1901,7 @@ class LoadFmItems(TestCase):
             size=4
         )
     )
+    @pytest.mark.skipif(sys.version_info < (3,6), reason="requires python3.6 or higher")
     def test_exposure_with_one_coverage_type_and_fm_terms_with_two_accounts_and_two_top_level_layers_per_account_and_model_lookup_supporting_single_peril_and_coverage_type___all_fm_terms_present(
         self,
         exposures,

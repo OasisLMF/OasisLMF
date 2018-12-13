@@ -132,6 +132,7 @@ class RunAnalysisAndPoll(TestCase):
             self.assertEqual(pending_calls + 1, client.get_analysis_status.call_count)
             self.assertEqual([(self.analysis_status_location, )] * (pending_calls + 1), [args[0] for args in client.get_analysis_status.call_args_list])
 
+            self.assertEqual(False, True)
             self.assertEqual(pending_calls, sleep_mock.call_count)
             self.assertEqual([(poll_time, )] * pending_calls, [args[0] for args in sleep_mock.call_args_list])
 
