@@ -4,6 +4,12 @@ Deterministic loss validation
 """
 import argparse
 
+from ..tests.data import (
+    canonical_oed_accounts_profile,
+    canonical_oed_exposures_profile,
+    oed_fm_agg_profile,
+)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='Validate deterministic losses')
