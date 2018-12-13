@@ -41,6 +41,7 @@ BUILD_OUTPUT_DIR='/tmp/output/'
     set -exu
     if [ $TOX_FAILED -ne 0 ]; then 
         echo "Unit testing failed - Exiting build"
+        exit 1
     fi 
 
  
