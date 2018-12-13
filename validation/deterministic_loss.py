@@ -221,5 +221,6 @@ if __name__ == "__main__":
         fmap
     )
 
-    losses_df = apply_fm(input_dir, loss_percentage_of_tiv=loss_factor)
-    print(losses_df)
+    ## this step doesn't complete because of an error in `apply_fm`
+    ##losses_df = apply_fm(input_dir, loss_percentage_of_tiv=loss_factor)
+    ##print(losses_df)
