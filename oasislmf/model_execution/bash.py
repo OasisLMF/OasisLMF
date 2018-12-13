@@ -260,7 +260,7 @@ def do_summarycalcs(
     print_command(filename, cmd)
 
 
-def do_tees(runtype, analysis_settings, process_id, filename, process_counter):
+def do_tees(runtype, analysis_settings, process_id, filename, process_counter, fifo_dir=''):
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
@@ -341,38 +341,38 @@ def do_any(runtype, analysis_settings, process_id, filename, process_counter, fi
         print_command(filename, '')
 
 
-def do_ri(analysis_settings, max_process_id, filename, process_counter, num_reinsurance_iterations):
+def do_ri(analysis_settings, max_process_id, filename, process_counter, num_reinsurance_iterations, fifo_dir=''):
     for process_id in range(1, max_process_id + 1):
-        do_any(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, process_counter)
+        do_any(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
     for process_id in range(1, max_process_id + 1):
-        do_tees(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, process_counter)
+        do_tees(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
     for process_id in range(1, max_process_id + 1):
         do_summarycalcs(
-            RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, num_reinsurance_iterations)
+            RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, num_reinsurance_iterations, fifo_dir)
 
 
-def do_il(analysis_settings, max_process_id, filename, process_counter):
+def do_il(analysis_settings, max_process_id, filename, process_counter, fifo_dir=''):
     for process_id in range(1, max_process_id + 1):
-        do_any(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter)
-
-    for process_id in range(1, max_process_id + 1):
-        do_tees(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter)
+        do_any(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
     for process_id in range(1, max_process_id + 1):
-        do_summarycalcs(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename)
-
-
-def do_gul(analysis_settings, max_process_id, filename, process_counter):
-    for process_id in range(1, max_process_id + 1):
-        do_any(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter)
+        do_tees(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
     for process_id in range(1, max_process_id + 1):
-        do_tees(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter)
+        do_summarycalcs(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, fifo_dir)
+
+
+def do_gul(analysis_settings, max_process_id, filename, process_counter, fifo_dir=''):
+    for process_id in range(1, max_process_id + 1):
+        do_any(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
     for process_id in range(1, max_process_id + 1):
-        do_summarycalcs(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename)
+        do_tees(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
+
+    for process_id in range(1, max_process_id + 1):
+        do_summarycalcs(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, fifo_dir)
 
 
 def do_il_make_fifo(analysis_settings, max_process_id, filename, fifo_dir=''):
@@ -488,6 +488,7 @@ def get_getmodel_cmd(number_of_samples, gul_threshold, use_random_number_file, c
 def genbash(
     max_process_id, analysis_settings, filename, 
     num_reinsurance_iterations=0,
+    fifo_queue_dir=None,
     mem_limit=False,
     _get_getmodel_cmd=get_getmodel_cmd, custom_args={}):
     """
@@ -514,8 +515,9 @@ def genbash(
     :type get_getmodel_cmd: callable
     """
     process_counter = Counter()
-    fifo_queue_dir = '/tmp/{}/'.format(''.join(
-                      random.choice(string.ascii_letters + string.digits) for _ in range(10)))
+    if not fifo_queue_dir:
+        fifo_queue_dir = '/tmp/{}/'.format(''.join(
+                          random.choice(string.ascii_letters + string.digits) for _ in range(10)))
 
     use_random_number_file = False
     gul_output = False
@@ -569,13 +571,13 @@ def genbash(
         print_command(filename, '')
         print_command(filename, '# --- Do reinsurance loss computes ---')
         print_command(filename, '')
-        do_ri(analysis_settings, max_process_id, filename, process_counter, num_reinsurance_iterations)
+        do_ri(analysis_settings, max_process_id, filename, process_counter, num_reinsurance_iterations, fifo_queue_dir)
 
     if il_output:
         print_command(filename, '')
         print_command(filename, '# --- Do insured loss computes ---')
         print_command(filename, '')
-        do_il(analysis_settings, max_process_id, filename, process_counter)
+        do_il(analysis_settings, max_process_id, filename, process_counter, fifo_queue_dir)
 
     if mem_limit:
         print_command(filename, '')
@@ -587,7 +589,7 @@ def genbash(
         print_command(filename, '')
         print_command(filename, '# --- Do ground up loss computes ---')
         print_command(filename, '')
-        do_gul(analysis_settings, max_process_id, filename, process_counter)
+        do_gul(analysis_settings, max_process_id, filename, process_counter, fifo_queue_dir)
 
     print_command(filename, '')
     
