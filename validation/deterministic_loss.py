@@ -7,12 +7,14 @@ import argparse
 import itertools
 import multiprocessing
 import os
+import subprocess
 import time
 
 import pandas as pd
 
 import oasislmf.model_execution.bin as ktools_bin
 from oasislmf.exposures.manager import OasisExposuresManager as oem
+from oasislmf.exposures import oed
 from oasislmf.keys.lookup import OasisLookupFactory as olf
 from oasislmf.utils.concurrency import (
     multithread,
@@ -126,6 +128,56 @@ def generate_oasis_files(
     # By this stage all the input files, including source and intermediate files
     # should be in ``input_dir``.
 
+def apply_fm(input_dir, loss_percentage_of_tiv=1.0, net=False):
+    items_df = pd.merge(pd.read_csv(os.path.join(input_dir, 'items.csv')), pd.read_csv(os.path.join(input_dir, 'coverages.csv')))
+    for col in items_df:
+        if col != 'tiv':
+            items_df[col] = items_df[col].astype(int)
+        else:
+            items_df[col] = items_df[col].astype(float)
+
+    guls_list = []
+    for item_id, tiv in zip(items_df['item_id'], items_df['tiv']):
+        event_loss = loss_percentage_of_tiv * tiv
+        guls_list.append(
+            oed.GulRecord(event_id=1, item_id=item_id, sidx=-1, loss=event_loss))
+        guls_list.append(
+            oed.GulRecord(event_id=1, item_id=item_id, sidx=-2, loss=0))
+        guls_list.append(
+            oed.GulRecord(event_id=1, item_id=item_id, sidx=1, loss=event_loss))
+    guls_df = pd.DataFrame(guls_list)
+    guls_df.to_csv(os.path.join(input_dir, "guls.csv"), index=False)
+    # Debugging - print(guls_df)
+
+    net_flag = ""
+    if net:
+        net_flag = "-n"
+    command = "gultobin -S 1 < guls.csv | fmcalc -p direct {} -a {} | tee ils.bin | fmtocsv > ils.csv".format(
+        net_flag, oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID)
+    proc = subprocess.Popen(command, shell=True)
+    proc.wait()
+    if proc.returncode != 0:
+        raise Exception("Failed to run fm")
+    losses_df = pd.read_csv("ils.csv")
+    losses_df.drop(losses_df[losses_df.sidx != 1].index, inplace=True)
+    del losses_df['sidx']
+    guls_df.drop(guls_df[guls_df.sidx != 1].index, inplace=True)
+    del guls_df['event_id']
+    del guls_df['sidx']
+    guls_df = pd.merge(
+        self.xref_descriptions,
+        guls_df, left_on=['xref_id'], right_on=['item_id'])
+    losses_df = pd.merge(
+        guls_df,
+        losses_df, left_on='xref_id', right_on='output_id',
+        suffixes=["_gul", "_il"])
+    del losses_df['event_id']
+    del losses_df['output_id']
+    del losses_df['xref_id']
+    del losses_df['item_id']
+
+    return losses_df
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='Validate deterministic losses')
@@ -164,3 +216,6 @@ if __name__ == "__main__":
         cap,
         fmap
     )
+
+    losses_df = apply_fm(input_dir, loss_percentage_of_tiv=loss_factor)
+    print(losses_df)
