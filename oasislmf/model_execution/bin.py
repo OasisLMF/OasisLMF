@@ -45,7 +45,6 @@ def prepare_model_run_directory(
     ::
 
         <run_directory>
-        ├── fifo
         ├── input
         │   └── csv
         ├── output
@@ -81,7 +80,7 @@ def prepare_model_run_directory(
     :type inputs_archive: str
     """
     try:
-        for subdir in ['fifo', 'output', 'static', 'work']:
+        for subdir in ['output', 'static', 'work']:
             Path(run_dir_path, subdir).mkdir(parents=True, exist_ok=True)
 
         if not inputs_archive:
