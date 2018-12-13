@@ -514,7 +514,8 @@ def genbash(
     :type get_getmodel_cmd: callable
     """
     process_counter = Counter()
-    fifo_queue_dir = '/tmp/{}/'.format(''.join(random.choices(string.ascii_letters + string.digits, k=10)))
+    fifo_queue_dir = '/tmp/{}/'.format(''.join(
+                      random.choice(string.ascii_letters + string.digits) for _ in range(10)))
 
     use_random_number_file = False
     gul_output = False
