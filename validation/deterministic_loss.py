@@ -4,9 +4,12 @@
 Deterministic loss validation
 """
 import argparse
+import io
 import itertools
+import json
 import multiprocessing
 import os
+import six
 import subprocess
 import time
 
@@ -21,11 +24,7 @@ from oasislmf.utils.concurrency import (
     Task,
 )
 
-from tests.data import (
-    canonical_oed_accounts_profile as cap,
-    canonical_oed_exposures_profile as cep,
-    oed_fm_agg_profile as fmap,
-)
+
 
 
 def generate_oasis_files(
@@ -208,6 +207,15 @@ if __name__ == "__main__":
 
     srcacc_fp = os.path.join(input_dir, 'account.csv')
     srcacctocan_trans_fp = os.path.join(input_dir, 'MappingMapToOED_CanAccA.xslt')
+
+    # Load the static OED canonical profiles and FM agg. profile from ``input_dir``
+    canexp_profile_fp = os.path.join(input_dir, 'canonical-oed-loc-profile.json')
+    canacc_profile_fp = os.path.join(input_dir, 'canonical-oed-acc-profile.json')
+    fm_agg_profile_fp = os.path.join(input_dir, 'fm-oed-agg-profile.json')
+    with io.open(canexp_profile_fp, 'r', encoding='utf-8') as f1, io.open(canacc_profile_fp, 'r', encoding='utf-8') as f2, io.open(fm_agg_profile_fp, 'r', encoding='utf-8') as f3:
+        cep = json.load(f1)
+        cap = json.load(f2)
+        fmap = {int(k):v for k, v in six.iteritems(json.load(f3))} # Agg profile keys are strings, so str -> int conversion is required
 
     # Invoke Oasis files generation
     generate_oasis_files(
