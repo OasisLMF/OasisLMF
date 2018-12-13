@@ -235,7 +235,7 @@ def do_kats(runtype, analysis_settings, max_process_id, filename, process_counte
 
 
 def do_summarycalcs(
-    runtype, analysis_settings, process_id, filename, fifo_dir='' num_reinsurance_iterations=0):
+    runtype, analysis_settings, process_id, filename, fifo_dir='', num_reinsurance_iterations=0):
     
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
