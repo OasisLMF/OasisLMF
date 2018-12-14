@@ -224,27 +224,6 @@ if __name__ == "__main__":
         fmap
     )
 
-    # fm_xref is missing - do a quick implementation
-    items_df = pd.read_csv(os.path.join(input_dir, 'items.csv'))
-    fm_policytc_df = pd.read_csv(os.path.join(input_dir, 'fm_policytc.csv'))
-
-    # get the max layer ID
-    max_layer_id = fm_policytc_df.layer_id.max()
-
-    fm_xrefs_list = []
-
-    for item_id in items_df.item_id:
-        for layer_id in range(1, max_layer_id):
-            fm_xrefs_list.append(
-                oed.FmXref(
-                    output_id=item_id,
-                    agg_id=item_id,
-                    layer_id=layer_id
-                ))
-
-    fm_xrefs = pd.DataFrame(fm_xrefs_list)
-    fm_xrefs.to_csv(os.path.join(input_dir, "fm_xref.csv"), index=False)
-
     # copy the Oasis files to the output directory and convert to binary
     input_files = oed.GUL_INPUTS_FILES + oed.IL_INPUTS_FILES
 
