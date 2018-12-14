@@ -110,7 +110,7 @@ def generate_oasis_files(
         'fm_policytc': os.path.join(input_dir, 'fm_policytc.csv'),
         'fm_programme': os.path.join(input_dir, 'fm_programme.csv'),
         'fm_profile': os.path.join(input_dir, 'fm_profile.csv'),
-        'fm_xref': os.path.join(input_dir, 'fm_programme.csv'),
+        'fm_xref': os.path.join(input_dir, 'fm_xref.csv'),
         'fmsummaryxref': os.path.join(input_dir, 'fmsummaryxref.csv')
     }
 
