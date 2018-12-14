@@ -14,10 +14,11 @@ import six
 import subprocess
 import time
 
+from shutil import copyfile
+
 # Custom library imports
 import pandas as pd
 
-from shutil import copyfile
 from tabulate import tabulate
 
 # MDK imports
@@ -189,8 +190,12 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    output_dir = args.output_dir
-    input_dir = args.input_dir
+    output_dir = os.path.abspath(args.output_dir) if not os.path.isabs(args.output_dir) else args.output_dir
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+    
+    input_dir = os.path.abspath(args.input_dir) if not os.path.isabs(args.input_dir) else args.input_dir
+
     loss_factor = args.loss_factor
 
     # Create file paths for the source exposure + accounts files + transformation files
