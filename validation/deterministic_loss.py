@@ -23,9 +23,8 @@ from oasislmf.utils.concurrency import (
     multithread,
     Task,
 )
-
-
-
+from shutil import copyfile
+from tabulate import tabulate
 
 def generate_oasis_files(
     input_dir,
@@ -149,14 +148,15 @@ def apply_fm(input_dir, loss_percentage_of_tiv=1.0, net=False):
         guls_list.append(
             oed.GulRecord(event_id=1, item_id=item_id, sidx=1, loss=event_loss))
     guls_df = pd.DataFrame(guls_list)
-    guls_df.to_csv(os.path.join(input_dir, "guls.csv"), index=False)
-    # Debugging - print(guls_df)
+    guls_file = os.path.join(input_dir, "guls.csv")
+    guls_df.to_csv(guls_file, index=False)
 
     net_flag = ""
     if net:
         net_flag = "-n"
-    command = "gultobin -S 1 < guls.csv | fmcalc -p direct {} -a {} | tee ils.bin | fmtocsv > ils.csv".format(
-        net_flag, oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID)
+    command = "gultobin -S 1 < {} | fmcalc -p {} {} -a {} | tee ils.bin | fmtocsv > ils.csv".format(
+        guls_file, input_dir, net_flag, oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID)
+    print(command)
     proc = subprocess.Popen(command, shell=True)
     proc.wait()
     if proc.returncode != 0:
@@ -167,21 +167,11 @@ def apply_fm(input_dir, loss_percentage_of_tiv=1.0, net=False):
     guls_df.drop(guls_df[guls_df.sidx != 1].index, inplace=True)
     del guls_df['event_id']
     del guls_df['sidx']
-    guls_df = pd.merge(
-        self.xref_descriptions,
-        guls_df, left_on=['xref_id'], right_on=['item_id'])
-    losses_df = pd.merge(
-        guls_df,
-        losses_df, left_on='xref_id', right_on='output_id',
-        suffixes=["_gul", "_il"])
-    del losses_df['event_id']
-    del losses_df['output_id']
-    del losses_df['xref_id']
-    del losses_df['item_id']
 
     return losses_df
 
 if __name__ == "__main__":
+
     parser = argparse.ArgumentParser(
         description='Validate deterministic losses')
     parser.add_argument(
@@ -212,10 +202,15 @@ if __name__ == "__main__":
     canexp_profile_fp = os.path.join(input_dir, 'canonical-oed-loc-profile.json')
     canacc_profile_fp = os.path.join(input_dir, 'canonical-oed-acc-profile.json')
     fm_agg_profile_fp = os.path.join(input_dir, 'fm-oed-agg-profile.json')
-    with io.open(canexp_profile_fp, 'r', encoding='utf-8') as f1, io.open(canacc_profile_fp, 'r', encoding='utf-8') as f2, io.open(fm_agg_profile_fp, 'r', encoding='utf-8') as f3:
+    with \
+        io.open(canexp_profile_fp, 'r', encoding='utf-8') as f1, \
+        io.open(canacc_profile_fp, 'r', encoding='utf-8') as f2, \
+        io.open(fm_agg_profile_fp, 'r', encoding='utf-8') as f3:
+
         cep = json.load(f1)
         cap = json.load(f2)
-        fmap = {int(k):v for k, v in six.iteritems(json.load(f3))} # Agg profile keys are strings, so str -> int conversion is required
+         # Agg profile keys are strings, so str -> int conversion is required
+        fmap = {int(k):v for k, v in six.iteritems(json.load(f3))}
 
     # Invoke Oasis files generation
     generate_oasis_files(
@@ -229,6 +224,52 @@ if __name__ == "__main__":
         fmap
     )
 
-    ## this step doesn't complete because of an error in `apply_fm`
-    ##losses_df = apply_fm(input_dir, loss_percentage_of_tiv=loss_factor)
-    ##print(losses_df)
+    # fm_xref is missing - do a quick implementation
+    items_df = pd.read_csv(os.path.join(input_dir, 'items.csv'))
+    fm_policytc_df = pd.read_csv(os.path.join(input_dir, 'fm_policytc.csv'))
+
+    # get the max layer ID
+    max_layer_id = fm_policytc_df.layer_id.max()
+
+    fm_xrefs_list = []
+
+    for item_id in items_df.item_id:
+        for layer_id in range(1, max_layer_id):
+            fm_xrefs_list.append(
+                oed.FmXref(
+                    output_id=item_id,
+                    agg_id=item_id,
+                    layer_id=layer_id
+                ))
+
+    fm_xrefs = pd.DataFrame(fm_xrefs_list)
+    fm_xrefs.to_csv(os.path.join(input_dir, "fm_xref.csv"), index=False)
+
+    # copy the Oasis files to the output directory and convert to binary
+    input_files = oed.GUL_INPUTS_FILES + oed.IL_INPUTS_FILES
+
+    for input_file in input_files:
+        conversion_tool = oed.CONVERSION_TOOLS[input_file]
+        input_file_path = input_file + ".csv"
+
+        if not os.path.exists(os.path.join(input_dir, input_file_path)):
+            continue
+        
+        copyfile(
+            os.path.join(input_dir, input_file_path),
+            os.path.join(output_dir, input_file_path)
+        )
+
+        input_file_path = os.path.join(output_dir, input_file_path)
+
+        output_file_path = os.path.join(output_dir, input_file + ".bin")
+        command = "{} < {} > {}".format(
+            conversion_tool, input_file_path, output_file_path)
+        proc = subprocess.Popen(command, shell=True)
+        proc.wait()
+        if proc.returncode != 0:
+            raise Exception(
+                "Failed to convert {}: {}".format(input_file_path, command))
+
+    losses_df = apply_fm(output_dir, loss_percentage_of_tiv=loss_factor)
+    print(tabulate(losses_df, headers='keys', tablefmt='psql', floatfmt=".2f")) 
