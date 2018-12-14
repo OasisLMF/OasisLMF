@@ -3,6 +3,7 @@
 """
 Deterministic loss validation
 """
+# Python standard library imports
 import argparse
 import io
 import itertools
@@ -13,8 +14,13 @@ import six
 import subprocess
 import time
 
+# Custom library imports
 import pandas as pd
 
+from shutil import copyfile
+from tabulate import tabulate
+
+# MDK imports
 import oasislmf.model_execution.bin as ktools_bin
 from oasislmf.exposures.manager import OasisExposuresManager as oem
 from oasislmf.exposures import oed
@@ -23,8 +29,6 @@ from oasislmf.utils.concurrency import (
     multithread,
     Task,
 )
-from shutil import copyfile
-from tabulate import tabulate
 
 def generate_oasis_files(
     input_dir,
@@ -119,7 +123,6 @@ def generate_oasis_files(
         for f in fm_files
     )
     num_ps = min(len(fm_files), multiprocessing.cpu_count())
-    n = len(fm_files)
     for _, _ in multithread(concurrent_tasks, pool_size=num_ps):
         pass
 
@@ -202,15 +205,13 @@ if __name__ == "__main__":
     canexp_profile_fp = os.path.join(input_dir, 'canonical-oed-loc-profile.json')
     canacc_profile_fp = os.path.join(input_dir, 'canonical-oed-acc-profile.json')
     fm_agg_profile_fp = os.path.join(input_dir, 'fm-oed-agg-profile.json')
-    with \
-        io.open(canexp_profile_fp, 'r', encoding='utf-8') as f1, \
-        io.open(canacc_profile_fp, 'r', encoding='utf-8') as f2, \
-        io.open(fm_agg_profile_fp, 'r', encoding='utf-8') as f3:
-
-        cep = json.load(f1)
-        cap = json.load(f2)
-         # Agg profile keys are strings, so str -> int conversion is required
-        fmap = {int(k):v for k, v in six.iteritems(json.load(f3))}
+    with io.open(canexp_profile_fp, 'r', encoding='utf-8') as f1:
+        with io.open(canacc_profile_fp, 'r', encoding='utf-8') as f2:
+            with io.open(fm_agg_profile_fp, 'r', encoding='utf-8') as f3:
+                cep = json.load(f1)
+                cap = json.load(f2)
+                # Agg profile keys are strings, so str -> int conversion is required
+                fmap = {int(k):v for k, v in six.iteritems(json.load(f3))}
 
     # Invoke Oasis files generation
     generate_oasis_files(
