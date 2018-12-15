@@ -145,12 +145,12 @@ def apply_fm(input_dir, loss_percentage_of_tiv=1.0, net=False):
     guls_list = []
     for item_id, tiv in zip(items_df['item_id'], items_df['tiv']):
         event_loss = loss_percentage_of_tiv * tiv
-        guls_list.append(
-            oed.GulRecord(event_id=1, item_id=item_id, sidx=-1, loss=event_loss))
-        guls_list.append(
-            oed.GulRecord(event_id=1, item_id=item_id, sidx=-2, loss=0))
-        guls_list.append(
-            oed.GulRecord(event_id=1, item_id=item_id, sidx=1, loss=event_loss))
+        guls_list += [
+            oed.GulRecord(event_id=1, item_id=item_id, sidx=-1, loss=event_loss),
+            oed.GulRecord(event_id=1, item_id=item_id, sidx=-2, loss=0),
+            oed.GulRecord(event_id=1, item_id=item_id, sidx=1, loss=event_loss)
+        ]
+
     guls_df = pd.DataFrame(guls_list)
     guls_file = os.path.join(input_dir, "guls.csv")
     guls_df.to_csv(guls_file, index=False)
@@ -165,9 +165,16 @@ def apply_fm(input_dir, loss_percentage_of_tiv=1.0, net=False):
     proc.wait()
     if proc.returncode != 0:
         raise Exception("Failed to run fm")
+
     losses_df = pd.read_csv("ils.csv")
     losses_df.drop(losses_df[losses_df.sidx != 1].index, inplace=True)
     del losses_df['sidx']
+
+    # Set ``event_id`` and ``output_id`` column data types to ``object``
+    # to prevent ``tabulate`` from int -> float conversion during console printing
+    losses_df['event_id'] = losses_df['event_id'].astype(object)
+    losses_df['output_id'] = losses_df['output_id'].astype(object)
+
     guls_df.drop(guls_df[guls_df.sidx != 1].index, inplace=True)
     del guls_df['event_id']
     del guls_df['sidx']
