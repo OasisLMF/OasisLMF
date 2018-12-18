@@ -1,6 +1,11 @@
 OasisLMF Changelog
 ==================
 
+`1.2.3`_
+--------
+* Hotfix for Reinsurance required fields 
+* Dockerfile and run script for unittests 
+
 `1.2.2`_
 --------
 * Added API client for OED API update 
@@ -158,6 +163,7 @@ in the exposure manager
 
 
 
+.. _`1.2.3`:  https://github.com/OasisLMF/OasisLMF/compare/1.2.2...1.2.3
 .. _`1.2.2`:  https://github.com/OasisLMF/OasisLMF/compare/d6dbf25...master
 .. _`1.2.1`:  https://github.com/OasisLMF/OasisLMF/compare/f4d7390...master
 .. _`1.2.0`:  https://github.com/OasisLMF/OasisLMF/compare/ad91e2a...master
