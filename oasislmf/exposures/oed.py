@@ -32,7 +32,7 @@ class OedValidator(object):
             ]
 
         self.ri_info_defaults = {
-            'ReinsLayerNumber': '',
+#            'ReinsLayerNumber': '',
             'CededPercent': 1.0,
             'RiskLimit': 0.0,
             'RiskAttachment': 0.0,
@@ -42,7 +42,7 @@ class OedValidator(object):
 
         self.ri_info_expected_dtypes = {
             'ReinsNumber': int_or_float,
-            'ReinsLayerNumber': int_or_float,
+#            'ReinsLayerNumber': int_or_float,
             'CededPercent': float_only,
             'RiskLimit': int_or_float,
             'RiskAttachment': int_or_float,
@@ -384,13 +384,13 @@ RI_INFO_REQUIRED_COLS = [
     ]
 
 RI_INFO_DEFAULTS = {
-    'ReinsLayerNumber': '',
+#    'ReinsLayerNumber': '',
     'CededPercent': 1.0,
     'RiskLimit': 0.0,
     'RiskAttachment': 0.0,
     'OccLimit': 0.0,
     'OccAttachment': 0.0,
-    'TreatyShare': 0.0}
+    'TreatyShare': 1.0}
 
 RI_SCOPE_REQUIRED_COLS = {
     'ReinsNumber', 
@@ -481,7 +481,7 @@ OED_LOCATION_FIELDS = [
 
 OED_REINS_INFO_FIELDS = [
     'ReinsNumber',
-    'ReinsLayerNumber',
+#    'ReinsLayerNumber',
     'CededPercent',
     'RiskLimit',
     'RiskAttachment',
