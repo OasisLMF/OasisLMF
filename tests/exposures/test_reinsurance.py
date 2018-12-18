@@ -55,6 +55,7 @@ test_examples = [
     'multiple_QS_at_different_inuring_levels',
     'multiple_QS_at_same_inuring_level',
     'single_QS',
+    'single_QS_no_ReinsLayerNumber_no_TreatyShare',
     'single_loc_level_PR_loc_filter',
     'single_loc_level_PR_pol_and_loc_filter',
     'single_loc_level_PR_pol_filter',
