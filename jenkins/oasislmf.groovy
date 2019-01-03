@@ -5,6 +5,26 @@ node {
     deleteDir() // wipe out the workspace
 
     // Set Default Multibranch config
+    try {
+        auto_set_branch = CHANGE_BRANCH
+    } catch (MissingPropertyException e) {
+        auto_set_branch = BRANCH_NAME
+    }
+
+    properties([
+      parameters([
+        [$class: 'StringParameterDefinition',  name: 'BUILD_BRANCH', defaultValue: 'master'],
+        [$class: 'StringParameterDefinition',  name: 'SOURCE_BRANCH', defaultValue: auto_set_branch],
+        [$class: 'StringParameterDefinition',  name: 'PUBLISH_VERSION', defaultValue: ''],
+        [$class: 'StringParameterDefinition',  name: 'KTOOLS_VERSION', defaultValue: ''],
+        [$class: 'StringParameterDefinition',  name: 'GPG_KEY', defaultValue: 'gpg-privatekey'],
+        [$class: 'StringParameterDefinition',  name: 'GPG_PASSPHRASE', defaultValue: 'gpg-passphrase'],
+        [$class: 'StringParameterDefinition',  name: 'TWINE_ACCOUNT', defaultValue: 'sams_twine_account'],
+        [$class: 'BooleanParameterDefinition', name: 'PUBLISH', value: Boolean.valueOf(false)],
+        [$class: 'BooleanParameterDefinition', name: 'SLACK_MESSAGE', value: Boolean.valueOf(false)]
+      ])
+    ])
+
 
 
     // Build vars
@@ -54,7 +74,11 @@ node {
 
         stage('Set version: ' + source_func) {
             dir(source_workspace) {
-                sh "${PIPELINE} set_vers_oasislmf ${vers_pypi} ${vers_ktools}"
+                if (vers_pypi?.trim() && vers_ktools?.trim()) {
+                    sh "${PIPELINE} set_vers_oasislmf ${vers_pypi} ${vers_ktools}"
+                } else {
+                    println("Keep current version numbers")
+                }
             }
         }
 
