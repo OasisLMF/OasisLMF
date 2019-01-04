@@ -1,13 +1,10 @@
 #!/usr/bin/env bash
 
-set -e
+CWD=$(pwd)
+LOG_OUTPUT=$CWD/reports
+TAR_OUTPUT=$CWD/dist
 
-# check code style
-flake8
+mkdir $LOG_OUTPUT $TAR_OUTPUT
 
-# run tests
-tox
-
-# get full coverage stats
-coverage combine
-coverage report -i oasislmf/*/*.py oasislmf/*.py
+docker build -f docker/Dockerfile.oasislmf_tester -t oasislmf-tester .
+docker run -v $LOG_OUTPUT:/var/log/oasis -v $TAR_OUTPUT:/tmp/output oasislmf-tester:latest

@@ -19,13 +19,13 @@ def get_dataframe(
     src_data=None,
     float_precision='high',
     lowercase_cols=True,
-    index_col=True,
+    required_cols = [],
+    defaulted_cols = {},
     non_na_cols=(),
     col_dtypes={},
+    index_col=True,
     sort_col=None,
     sort_ascending=None,
-    required_cols = [],
-    default_values = {}
 ):
     if not (src_fp or src_buf or src_data is not None):
         raise OasisException(
@@ -49,31 +49,34 @@ def get_dataframe(
     if lowercase_cols:
         df.columns = df.columns.str.lower()
 
-    if required_cols is not None:
-        if lowercase_cols:
-            required_cols = [s.lower() for s in required_cols]
-        missing_required_cols = []
-        for required_col in required_cols:
-            if required_col not in df.columns:
-                missing_required_cols.append(required_col)
-        if len(missing_required_cols) > 0:
-            raise OasisException(
-                "Missing required columns: {}".format(
-                    ','.join(missing_required_cols)
-                )                    
-            )
+    if required_cols:
+        _required_cols = [c.lower() for c in required_cols] if lowercase_cols else required_cols
+        missing = {col for col in sorted(_required_cols)}.difference(df.columns)
+        if missing:
+            raise OasisException('Missing required columns: {}'.format(missing))
 
-    if default_values is not None:
-        for default_col in default_values:
-            if default_col not in df.columns:
-                df[default_col] = default_values[default_col]
-
-    if index_col:
-        df['index'] = list(range(len(df)))
+    # Defaulting of column values is best done via the source data and not the
+    # code, i.e. if a column 'X' in a frame is supposed to have 0s everywhere
+    # the simplest way of achieving this is for the source data (whether it is
+    # CSV or JSON file, or a list of dicts or tuples) to have an 'X' column
+    # with 0 values, so that when it is loaded into the frame the 'X' will have
+    # 0 values, as expected.
+    #
+    # In this sense, defaulting of column values via the `defaulted_cols`
+    # optional argument is redundant - but there may be some cases where it is
+    # convenient to have this feature at the code level.
+    if defaulted_cols:
+        _defaulted_cols = [c.lower() for c in defaulted_cols] if lowercase_cols else defaulted_cols
+        defaults = {c for c in df.columns}.intersection(_defaulted_cols)
+        for col in defaults:
+            df[col] = _defaulted_cols[col]
 
     if non_na_cols:
         _non_na_cols = tuple(col.lower() for col in non_na_cols) if lowercase_cols else non_na_cols
         df.dropna(subset=_non_na_cols, inplace=True)
+
+    if index_col:
+        df['index'] = range(len(df))
 
     if col_dtypes:
         _col_dtypes = {
