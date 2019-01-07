@@ -264,11 +264,11 @@ def load_oed_dfs(oed_dir, show_all=False):
             ri_info_df = get_dataframe(
                 oed_ri_info_file, lowercase_cols=False, 
                 required_cols=RI_INFO_REQUIRED_COLS,
-                default_values=RI_INFO_DEFAULTS)
+                defaulted_cols=RI_INFO_DEFAULTS)
             ri_scope_df = get_dataframe(
                 oed_ri_scope_file, lowercase_cols=False,
                 required_cols=RI_SCOPE_REQUIRED_COLS,
-                default_values=RI_SCOPE_DEFAULTS)
+                defaulted_cols=RI_SCOPE_DEFAULTS)
         else:
             print("Both reinsurance files must exist: {} {}".format(
                 oed_ri_info_file, oed_ri_scope_file))
