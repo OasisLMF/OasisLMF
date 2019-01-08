@@ -67,7 +67,7 @@ def get_dataframe(
     # convenient to have this feature at the code level.
     if defaulted_cols:
         _defaulted_cols = [c.lower() for c in defaulted_cols] if lowercase_cols else defaulted_cols
-        defaults = {c for c in df.columns}.intersection(_defaulted_cols)
+        defaults = {c for c in _defaulted_cols}.difference({c for c in df.columns})
         for col in defaults:
             df[col] = _defaulted_cols[col]
 
