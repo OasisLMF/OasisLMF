@@ -1099,7 +1099,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             gul_items_df['index'] = pd.Series(data=gul_items_df.index, dtype=int)
 
             for col in gul_items_df.columns:
-                if col.endswith('id'):
+                if col == 'peril_id':
+                    gul_items_df[col] = gul_items_df[col].astype(object)
+                elif col.endswith('id'):
                     gul_items_df[col] = gul_items_df[col].astype(int)
                 elif col == 'tiv':
                     gul_items_df[col] = gul_items_df[col].astype(float)
@@ -1180,8 +1182,8 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                         for _, it in fm_items_df[fm_items_df['level_id']==level_id].iterrows()
                     )
 
-                fm_levels = list(set(fm_items_df['level_id']))
-                non_zero_terms_levels = [lid for lid in fm_levels if lid in [fm_levels[0], fm_levels[-1]] or not is_zero_terms_level(lid)]
+                levels = sorted([l for l in set(fm_items_df['level_id'])])
+                non_zero_terms_levels = [lid for lid in levels if lid in [levels[0], levels[-1]] or not is_zero_terms_level(lid)]
 
                 fm_items_df = fm_items_df[(fm_items_df['level_id'].isin(non_zero_terms_levels))]
 
@@ -1189,20 +1191,21 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
                 fm_items_df['item_id'] = range(1, len(fm_items_df) + 1)
 
-                level_ids = [l for l in set(fm_items_df['level_id'])]
+                levels = sorted([l for l in set(fm_items_df['level_id'])])
 
-                level_id = lambda i: level_ids.index(fm_items_df.iloc[i]['level_id']) + 1
+                def level_id(i):
+                    return levels.index(fm_items_df.iloc[i]['level_id']) + 1
 
                 fm_items_df['level_id'] = fm_items_df['index'].apply(level_id)
-
-            layer_level_id = fm_items_df['level_id'].max()
 
             policytc_ids = get_policytc_ids(fm_items_df)
             get_policytc_id = lambda i: [k for k in six.iterkeys(policytc_ids) if policytc_ids[k] == {k:fm_items_df.iloc[i][k] for k in ('limit', 'deductible', 'attachment', 'deductible_min', 'deductible_max', 'share', 'calcrule_id',)}][0]
             fm_items_df['policytc_id'] = fm_items_df['index'].apply(lambda i: get_policytc_id(i))
 
             for col in fm_items_df.columns:
-                if col.endswith('id'):
+                if col == 'peril_id':
+                    fm_items_df[col] = fm_items_df[col].astype(object)
+                elif col.endswith('id'):
                     fm_items_df[col] = fm_items_df[col].astype(int)
                 elif col in ('tiv', 'limit', 'deductible', 'deductible_min', 'deductible_max', 'share',):
                     fm_items_df[col] = fm_items_df[col].astype(float)

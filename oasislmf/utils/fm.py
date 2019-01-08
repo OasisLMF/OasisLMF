@@ -272,7 +272,7 @@ def get_sub_layer_calcrule_id(ded, ded_min, ded_max, lim, ded_code=0, lim_code=0
         return 16
     elif (ded > 0 and ded_code == 1) and (ded_min > 0 and ded_max > 0) and (lim == lim_code == 0):
         return 19
-    elif (ded > 0 and ded_code == 2) and (ded_min > 0 and ded_max > 0) and (lim == lim_code == 0):
+    elif (ded > 0 and ded_code in [0,2]) and (ded_min > 0 and ded_max > 0) and (lim == lim_code == 0):
         return 21
 
 

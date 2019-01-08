@@ -754,6 +754,11 @@ oed_fm_agg_profile = {
                 "src": "FM",
                 "field": "canacc_id",
                 "name": "Account no."
+            },
+            "CondNum": {
+                "src": "CanAcc",
+                "field": "condnumber",
+                "name": "Condition no."
             }
         }
     },
@@ -773,14 +778,14 @@ oed_fm_agg_profile = {
         "FMLevelName": "PolLayer",
         "FMAggKey": {
             "AccntNum": {
-                "src": "FM",
-                "field": "canacc_id",
+                "src": "CanAcc",
+                "field": "accntnum",
                 "name": "Account no."
             },
-            "PolicyNum": {
-                "src": "FM",
-                "field": "policy_num",
-                "name": "Account policy no."
+            "PortfolioNum": {
+                "src": "CanAcc",
+                "field": "portnumber",
+                "name": "Account portfolio no."
             }
         }
     }
@@ -889,6 +894,7 @@ def canonical_oed_accounts_data(
     from_policy_perils=sampled_from(oed_peril_ids),
     from_sublimit_deductibles=floats(min_value=0.0, max_value=10**6),
     from_sublimit_limits=floats(min_value=0.0, max_value=10**6),
+    from_cond_numbers=integers(min_value=1, max_value=10**6),
     from_account_deductibles=floats(min_value=0.0, max_value=10**6),
     from_account_min_deductibles=floats(min_value=0.0, max_value=10**6),
     from_account_max_deductibles=floats(min_value=0.0, max_value=10**6),
@@ -914,6 +920,7 @@ def canonical_oed_accounts_data(
                 'polperil': from_policy_perils,
                 'condded6all': from_sublimit_deductibles,
                 'condlimit6all': from_sublimit_limits,
+                'condnumber': from_cond_numbers,
                 'polded6all': from_account_deductibles,
                 'polminded6all': from_account_min_deductibles,
                 'polmaxded6all': from_account_max_deductibles,
@@ -1026,6 +1033,7 @@ def canonical_oed_exposures_data(
     from_combined_limits=floats(min_value=0.0, allow_infinity=False),
     from_site_deductibles=floats(min_value=0.0, allow_infinity=False),
     from_site_limits=floats(min_value=0.0, allow_infinity=False),
+    from_cond_tags=integers(min_value=1, max_value=10**6),
     size=None,
     min_size=0,
     max_size=10
@@ -1061,7 +1069,8 @@ def canonical_oed_exposures_data(
                 'locded5pd': from_combined_deductibles,
                 'loclimit5pd': from_combined_limits,
                 'locded6all': from_site_deductibles,
-                'loclimit6all': from_site_limits
+                'loclimit6all': from_site_limits,
+                'condtag': from_cond_tags,
             }
         ),
         min_size=(size if size is not None else min_size),
@@ -1359,7 +1368,8 @@ def write_canonical_oed_files(
             ('locded5pd', 'LocDed5PD'),
             ('loclimit5pd', 'LocLimit5PD'),
             ('locded6all', 'LocDed6All'),
-            ('loclimit6all', 'LocLimit6All')
+            ('loclimit6all', 'LocLimit6All'),
+            ('condtag', 'CondTag')
         ])
 
         canexp_df = pd.DataFrame(
@@ -1383,6 +1393,7 @@ def write_canonical_oed_files(
             ('polperil', 'PolPeril'),
             ('condded6all', 'CondDed6All'),
             ('condlimit6all', 'CondLimit6All'),
+            ('condnumber', 'CondNumber'),
             ('polded6all', 'PolDed6All'),
             ('polminded6all', 'PolMinDed6All'),
             ('polmaxded6all', 'PolMaxDed6All'),
