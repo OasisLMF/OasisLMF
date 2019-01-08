@@ -584,12 +584,12 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(len(level2_group), 1)
             self.assertEqual(level2_group['layer_id'].values.tolist(), [1])
             self.assertEqual(level2_group['agg_id'].values.tolist(), [1])
-            self.assertEqual(level2_group['policytc_id'].values.tolist(), [3])
+            self.assertEqual(level2_group['policytc_id'].values.tolist(), [2])
             level3_group = level_groups[2]
             self.assertEqual(len(level3_group), 1)
             self.assertEqual(level3_group['layer_id'].values.tolist(), [1])
             self.assertEqual(level3_group['agg_id'].values.tolist(), [1])
-            self.assertEqual(level3_group['policytc_id'].values.tolist(), [2])
+            self.assertEqual(level3_group['policytc_id'].values.tolist(), [3])
 
             fm_xref_df = pd.read_csv(fm_files['fm_xref'])
             self.assertEqual(len(fm_xref_df), 4)
@@ -789,12 +789,12 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(len(level2_group), 1)
             self.assertEqual(level2_group['layer_id'].values.tolist(), [1])
             self.assertEqual(level2_group['agg_id'].values.tolist(), [1])
-            self.assertEqual(level2_group['policytc_id'].values.tolist(), [6])
+            self.assertEqual(level2_group['policytc_id'].values.tolist(), [5])
             level3_group = level_groups[2]
             self.assertEqual(len(level3_group), 1)
             self.assertEqual(level3_group['layer_id'].values.tolist(), [1])
             self.assertEqual(level3_group['agg_id'].values.tolist(), [1])
-            self.assertEqual(level3_group['policytc_id'].values.tolist(), [5])
+            self.assertEqual(level3_group['policytc_id'].values.tolist(), [6])
 
             fm_xref_df = pd.read_csv(fm_files['fm_xref'])
             self.assertEqual(len(fm_xref_df), 8)
@@ -857,7 +857,7 @@ class FmAcceptanceTests(TestCase):
             from_vulnerability_ids=just(1),
             from_statuses=just('success'),
             from_messages=just('success'),
-            size=6
+            size=8
         )
     )
     def test_fm7(self, exposures, accounts, keys):
@@ -996,12 +996,12 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(len(level2_group), 1)
             self.assertEqual(level2_group['layer_id'].values.tolist(), [1])
             self.assertEqual(level2_group['agg_id'].values.tolist(), [1])
-            self.assertEqual(level2_group['policytc_id'].values.tolist(), [5])
+            self.assertEqual(level2_group['policytc_id'].values.tolist(), [4])
             level3_group = level_groups[2]
             self.assertEqual(len(level3_group), 1)
             self.assertEqual(level3_group['layer_id'].values.tolist(), [1])
             self.assertEqual(level3_group['agg_id'].values.tolist(), [1])
-            self.assertEqual(level3_group['policytc_id'].values.tolist(), [4])
+            self.assertEqual(level3_group['policytc_id'].values.tolist(), [5])
 
             fm_xref_df = pd.read_csv(fm_files['fm_xref'])
             self.assertEqual(len(fm_xref_df), 8)
