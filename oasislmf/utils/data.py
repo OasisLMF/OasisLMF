@@ -65,8 +65,9 @@ def get_dataframe(
     # In this sense, defaulting of column values via the `defaulted_cols`
     # optional argument is redundant - but there may be some cases where it is
     # convenient to have this feature at the code level.
+
     if defaulted_cols:
-        _defaulted_cols = [c.lower() for c in defaulted_cols] if lowercase_cols else defaulted_cols
+        _defaulted_cols = {k.lower(): v for k, v in defaulted_cols.items()} if lowercase_cols else defaulted_cols
         defaults = {c for c in _defaulted_cols}.difference({c for c in df.columns})
         for col in defaults:
             df[col] = _defaulted_cols[col]
