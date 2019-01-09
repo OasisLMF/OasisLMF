@@ -76,7 +76,7 @@ class GetDataFrame(TestCase):
             ])
             f.flush()
             df = get_dataframe(
-                f.name, index_col=False, default_values={'a': 1, 'b': 2})
+                f.name, index_col=False, defaulted_cols={'a': 1, 'b': 2})
 
             ref_data = {
                 'a': [1,3],
@@ -93,7 +93,7 @@ class GetDataFrame(TestCase):
                 'a,b\n1,2\n3,4',
             ])
             f.flush()
-            df = get_dataframe(f.name, index_col=False, default_values={'c': 'abc'})
+            df = get_dataframe(f.name, index_col=False, defaulted_cols={'c': 'abc'})
 
             ref_data = {
                 'a': [1,3],
@@ -111,7 +111,7 @@ class GetDataFrame(TestCase):
                 'a,b\n1,2\n3,4',
             ])
             f.flush()
-            df = get_dataframe(f.name, index_col=False, default_values={'c': 9.99})
+            df = get_dataframe(f.name, index_col=False, defaulted_cols={'c': 9.99})
 
             ref_data = {
                 'a': [1,3],
