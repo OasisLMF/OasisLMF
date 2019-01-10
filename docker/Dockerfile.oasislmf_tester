@@ -6,6 +6,6 @@ RUN  mkdir /tmp/output && \
 RUN apt-get update && apt-get install -y --no-install-recommends \ 
             vim unixodbc-dev libspatialindex-dev python-dev && rm -rf /var/lib/apt/lists/* 
 
-COPY ./ /home/
+#COPY ./ /home/
 WORKDIR /home
 CMD ./docker/entrypoint_tester.sh

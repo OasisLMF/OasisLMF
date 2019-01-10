@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 
-CWD=$(pwd)
-LOG_OUTPUT=$CWD/reports
-TAR_OUTPUT=$CWD/dist
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+LOG_OUTPUT=$SCRIPT_DIR/reports
+TAR_OUTPUT=$SCRIPT_DIR/dist
+
 
 mkdir $LOG_OUTPUT $TAR_OUTPUT
 
@@ -13,4 +14,4 @@ else
 fi
 
 docker build -f docker/Dockerfile.oasislmf_tester -t oasislmf-tester .
-docker run  --ulimit nofile=8192:8192 -v $LOG_OUTPUT:/var/log/oasis -v $TAR_OUTPUT:/tmp/output oasislmf-tester:$DOCKER_TAG
+docker run  --ulimit nofile=8192:8192 -v $LOG_OUTPUT:/var/log/oasis -v $TAR_OUTPUT:/tmp/output -v $SCRIPT_DIR:/home  oasislmf-tester:$DOCKER_TAG
