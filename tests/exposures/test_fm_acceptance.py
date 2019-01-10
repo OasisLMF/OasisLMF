@@ -604,17 +604,17 @@ class FmAcceptanceTests(TestCase):
             from_country_codes=just('US'),
             from_area_codes=just('CA'),
             from_buildings_tivs=just(1000000),
-            from_buildings_deductibles=just(50000),
-            from_buildings_limits=just(900000),
+            from_buildings_deductibles=just(0),
+            from_buildings_limits=just(0),
             from_other_tivs=just(100000),
-            from_other_deductibles=just(5000),
-            from_other_limits=just(90000),
+            from_other_deductibles=just(0),
+            from_other_limits=just(0),
             from_contents_tivs=just(50000),
-            from_contents_deductibles=just(2500),
-            from_contents_limits=just(45000),
+            from_contents_deductibles=just(0),
+            from_contents_limits=just(0),
             from_bi_tivs=just(20000),
             from_bi_deductibles=just(0),
-            from_bi_limits=just(18000),
+            from_bi_limits=just(0),
             from_combined_deductibles=just(0),
             from_combined_limits=just(0),
             from_site_deductibles=just(0),
@@ -753,17 +753,17 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(level3_group['to_agg_id'].values.tolist(), [1])
 
             fm_profile_df = pd.read_csv(fm_files['fm_profile'])
-            self.assertEqual(len(fm_profile_df), 6)
-            self.assertEqual(fm_profile_df['policytc_id'].values.tolist(), [1,2,3,4,5,6])
-            self.assertEqual(fm_profile_df['calcrule_id'].values.tolist(), [1,1,1,14,12,2])
-            self.assertEqual(fm_profile_df['deductible1'].values.tolist(), [50000,5000,2500,0,50000,0])
-            self.assertEqual(fm_profile_df['deductible2'].values.tolist(), [0,0,0,0,0,0])
-            self.assertEqual(fm_profile_df['deductible3'].values.tolist(), [0,0,0,0,0,0])
-            self.assertEqual(fm_profile_df['attachment1'].values.tolist(), [0,0,0,0,0,0])
-            self.assertEqual(fm_profile_df['limit1'].values.tolist(), [900000,90000,45000,18000,0,2500000])
-            self.assertEqual(fm_profile_df['share1'].values.tolist(), [0,0,0,0,0,1])
-            self.assertEqual(fm_profile_df['share2'].values.tolist(), [0,0,0,0,0,0])
-            self.assertEqual(fm_profile_df['share3'].values.tolist(), [0,0,0,0,0,0])
+            self.assertEqual(len(fm_profile_df), 3)
+            self.assertEqual(fm_profile_df['policytc_id'].values.tolist(), [1,2,3])
+            self.assertEqual(fm_profile_df['calcrule_id'].values.tolist(), [12,12,2])
+            self.assertEqual(fm_profile_df['deductible1'].values.tolist(), [0,50000,0])
+            self.assertEqual(fm_profile_df['deductible2'].values.tolist(), [0,0,0])
+            self.assertEqual(fm_profile_df['deductible3'].values.tolist(), [0,0,0])
+            self.assertEqual(fm_profile_df['attachment1'].values.tolist(), [0,0,0])
+            self.assertEqual(fm_profile_df['limit1'].values.tolist(), [0,0,2500000])
+            self.assertEqual(fm_profile_df['share1'].values.tolist(), [0,0,1])
+            self.assertEqual(fm_profile_df['share2'].values.tolist(), [0,0,0])
+            self.assertEqual(fm_profile_df['share3'].values.tolist(), [0,0,0])
 
             fm_policytc_df = pd.read_csv(fm_files['fm_policytc'])
             level_groups = [group for _, group in fm_policytc_df.groupby(['level_id'])]
@@ -772,17 +772,17 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(len(level1_group), 8)
             self.assertEqual(level1_group['layer_id'].values.tolist(), [1,1,1,1,1,1,1,1])
             self.assertEqual(level1_group['agg_id'].values.tolist(), [1,2,3,4,5,6,7,8])
-            self.assertEqual(level1_group['policytc_id'].values.tolist(), [1,2,3,4,1,2,3,4])
+            self.assertEqual(level1_group['policytc_id'].values.tolist(), [1,1,1,1,1,1,1,1])
             level2_group = level_groups[1]
             self.assertEqual(len(level2_group), 1)
             self.assertEqual(level2_group['layer_id'].values.tolist(), [1])
             self.assertEqual(level2_group['agg_id'].values.tolist(), [1])
-            self.assertEqual(level2_group['policytc_id'].values.tolist(), [5])
+            self.assertEqual(level2_group['policytc_id'].values.tolist(), [2])
             level3_group = level_groups[2]
             self.assertEqual(len(level3_group), 1)
             self.assertEqual(level3_group['layer_id'].values.tolist(), [1])
             self.assertEqual(level3_group['agg_id'].values.tolist(), [1])
-            self.assertEqual(level3_group['policytc_id'].values.tolist(), [6])
+            self.assertEqual(level3_group['policytc_id'].values.tolist(), [3])
 
             fm_xref_df = pd.read_csv(fm_files['fm_xref'])
             self.assertEqual(len(fm_xref_df), 8)
