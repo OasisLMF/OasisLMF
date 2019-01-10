@@ -129,9 +129,6 @@ class FmAcceptanceTests(TestCase):
         keys[1]['coverage_type'] = OED_COVERAGE_TYPES['other']['id']
         keys[2]['coverage_type'] = OED_COVERAGE_TYPES['contents']['id']
         keys[3]['coverage_type'] = OED_COVERAGE_TYPES['bi']['id']
-        keys[1]['vulnerability_id'] = 2
-        keys[2]['vulnerability_id'] = 3
-        keys[3]['vulnerability_id'] = 4
 
         with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf, TemporaryDirectory() as outdir:
             write_canonical_oed_files(exposures, ef.name, accounts, af.name)
@@ -178,7 +175,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(loc1_items['item_id'].values.tolist(), [1,2,3,4])
             self.assertEqual(loc1_items['coverage_id'].values.tolist(), [1,2,3,4])
             self.assertEqual(set(loc1_items['areaperil_id'].values), {1})
-            self.assertEqual(loc1_items['vulnerability_id'].values.tolist(), [1,2,3,4])
+            self.assertEqual(loc1_items['vulnerability_id'].values.tolist(), [1,1,1,1])
             self.assertEqual(set(loc1_items['group_id'].values), {1})
             tivs = [exposures[0][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
             self.assertEqual(loc1_items['tiv'].values.tolist(), tivs)
@@ -300,9 +297,6 @@ class FmAcceptanceTests(TestCase):
         keys[1]['coverage_type'] = OED_COVERAGE_TYPES['other']['id']
         keys[2]['coverage_type'] = OED_COVERAGE_TYPES['contents']['id']
         keys[3]['coverage_type'] = OED_COVERAGE_TYPES['bi']['id']
-        keys[1]['vulnerability_id'] = 2
-        keys[2]['vulnerability_id'] = 3
-        keys[3]['vulnerability_id'] = 4
 
         with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf, TemporaryDirectory() as outdir:
             write_canonical_oed_files(exposures, ef.name, accounts, af.name)
@@ -349,7 +343,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(loc1_items['item_id'].values.tolist(), [1,2,3,4])
             self.assertEqual(loc1_items['coverage_id'].values.tolist(), [1,2,3,4])
             self.assertEqual(set(loc1_items['areaperil_id'].values), {1})
-            self.assertEqual(loc1_items['vulnerability_id'].values.tolist(), [1,2,3,4])
+            self.assertEqual(loc1_items['vulnerability_id'].values.tolist(), [1,1,1,1])
             self.assertEqual(set(loc1_items['group_id'].values), {1})
             tivs = [exposures[0][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
             self.assertEqual(loc1_items['tiv'].values.tolist(), tivs)
@@ -480,9 +474,6 @@ class FmAcceptanceTests(TestCase):
         keys[1]['coverage_type'] = OED_COVERAGE_TYPES['other']['id']
         keys[2]['coverage_type'] = OED_COVERAGE_TYPES['contents']['id']
         keys[3]['coverage_type'] = OED_COVERAGE_TYPES['bi']['id']
-        keys[1]['vulnerability_id'] = 2
-        keys[2]['vulnerability_id'] = 3
-        keys[3]['vulnerability_id'] = 4
 
         with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf, TemporaryDirectory() as outdir:
             write_canonical_oed_files(exposures, ef.name, accounts, af.name)
@@ -529,7 +520,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(loc1_items['item_id'].values.tolist(), [1,2,3,4])
             self.assertEqual(loc1_items['coverage_id'].values.tolist(), [1,2,3,4])
             self.assertEqual(set(loc1_items['areaperil_id'].values), {1})
-            self.assertEqual(loc1_items['vulnerability_id'].values.tolist(), [1,2,3,4])
+            self.assertEqual(loc1_items['vulnerability_id'].values.tolist(), [1,1,1,1])
             self.assertEqual(set(loc1_items['group_id'].values), {1})
             tivs = [exposures[0][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
             self.assertEqual(loc1_items['tiv'].values.tolist(), tivs)
@@ -671,10 +662,7 @@ class FmAcceptanceTests(TestCase):
 
         keys[4]['area_peril_id'] = keys[5]['area_peril_id'] = keys[6]['area_peril_id'] = keys[7]['area_peril_id'] = 2
 
-        keys[4]['vulnerability_id'] = 1
-        keys[1]['vulnerability_id'] = keys[5]['vulnerability_id'] = 2
-        keys[2]['vulnerability_id'] = keys[6]['vulnerability_id'] = 3
-        keys[3]['vulnerability_id'] = keys[7]['vulnerability_id'] = 4
+        keys[4]['vulnerability_id'] = keys[5]['vulnerability_id'] = keys[6]['vulnerability_id'] = keys[7]['vulnerability_id'] = 2
 
         with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf, TemporaryDirectory() as outdir:
             write_canonical_oed_files(exposures, ef.name, accounts, af.name)
@@ -721,7 +709,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(loc1_items['item_id'].values.tolist(), [1,2,3,4])
             self.assertEqual(loc1_items['coverage_id'].values.tolist(), [1,2,3,4])
             self.assertEqual(set(loc1_items['areaperil_id'].values), {1})
-            self.assertEqual(loc1_items['vulnerability_id'].values.tolist(), [1,2,3,4])
+            self.assertEqual(set(loc1_items['vulnerability_id'].values), {1})
             self.assertEqual(set(loc1_items['group_id'].values), {1})
             tivs = [exposures[0][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
             self.assertEqual(loc1_items['tiv'].values.tolist(), tivs)
@@ -734,7 +722,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(loc2_items['item_id'].values.tolist(), [5,6,7,8])
             self.assertEqual(loc2_items['coverage_id'].values.tolist(), [5,6,7,8])
             self.assertEqual(set(loc2_items['areaperil_id'].values), {2})
-            self.assertEqual(loc2_items['vulnerability_id'].values.tolist(), [1,2,3,4])
+            self.assertEqual(set(loc2_items['vulnerability_id'].values), {2})
             self.assertEqual(set(loc2_items['group_id'].values), {2})
             tivs = [exposures[1][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
             self.assertEqual(loc2_items['tiv'].values.tolist(), tivs)
@@ -876,10 +864,7 @@ class FmAcceptanceTests(TestCase):
 
         keys[4]['area_peril_id'] = keys[5]['area_peril_id'] = keys[6]['area_peril_id'] = keys[7]['area_peril_id'] = 2
 
-        keys[4]['vulnerability_id'] = 1
-        keys[1]['vulnerability_id'] = keys[5]['vulnerability_id'] = 2
-        keys[2]['vulnerability_id'] = keys[6]['vulnerability_id'] = 3
-        keys[3]['vulnerability_id'] = keys[7]['vulnerability_id'] = 4
+        keys[4]['vulnerability_id'] = keys[5]['vulnerability_id'] = keys[6]['vulnerability_id'] = keys[7]['vulnerability_id'] = 2
 
         with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf, TemporaryDirectory() as outdir:
             write_canonical_oed_files(exposures, ef.name, accounts, af.name)
@@ -926,7 +911,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(loc1_items['item_id'].values.tolist(), [1,2,3,4])
             self.assertEqual(loc1_items['coverage_id'].values.tolist(), [1,2,3,4])
             self.assertEqual(set(loc1_items['areaperil_id'].values), {1})
-            self.assertEqual(loc1_items['vulnerability_id'].values.tolist(), [1,2,3,4])
+            self.assertEqual(set(loc1_items['vulnerability_id'].values), {1})
             self.assertEqual(set(loc1_items['group_id'].values), {1})
             tivs = [exposures[0][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
             self.assertEqual(loc1_items['tiv'].values.tolist(), tivs)
@@ -939,7 +924,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(loc2_items['item_id'].values.tolist(), [5,6,7,8])
             self.assertEqual(loc2_items['coverage_id'].values.tolist(), [5,6,7,8])
             self.assertEqual(set(loc2_items['areaperil_id'].values), {2})
-            self.assertEqual(loc2_items['vulnerability_id'].values.tolist(), [1,2,3,4])
+            self.assertEqual(set(loc2_items['vulnerability_id'].values), {2})
             self.assertEqual(set(loc2_items['group_id'].values), {2})
             tivs = [exposures[1][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
             self.assertEqual(loc2_items['tiv'].values.tolist(), tivs)
