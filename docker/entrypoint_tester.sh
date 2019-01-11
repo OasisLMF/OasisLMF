@@ -16,7 +16,8 @@ BUILD_OUTPUT_DIR='/tmp/output/'
     python setup.py sdist
 
 # Test install
-    TAR_PKG=$(find ./dist/ -name "oasislmf-*.tar.gz")
+    VER_PKG=$(cat ./oasislmf/__init__.py | awk -F"'" ' {print $2} ')
+    TAR_PKG=$(find ./dist/ -name "oasislmf-${VER_PKG}.tar.gz")
     pip install --verbose $TAR_PKG | tee $LOG_BUILD
 
     set +exu
@@ -53,4 +54,4 @@ BUILD_OUTPUT_DIR='/tmp/output/'
     coverage report -i oasislmf/*/*.py oasislmf/*.py > $LOG_COV
 
 # Copy build tar
-    mv $TAR_PKG $BUILD_OUTPUT_DIR
+#    mv $TAR_PKG $BUILD_OUTPUT_DIR

@@ -14,4 +14,4 @@ else
 fi
 
 docker build -f docker/Dockerfile.oasislmf_tester -t oasislmf-tester .
-docker run  --ulimit nofile=8192:8192 -v $LOG_OUTPUT:/var/log/oasis -v $TAR_OUTPUT:/tmp/output -v $SCRIPT_DIR:/home  oasislmf-tester:$DOCKER_TAG
+docker run  --ulimit nofile=8192:8192 -v $LOG_OUTPUT:/var/log/oasis -v $SCRIPT_DIR:/home  oasislmf-tester:$DOCKER_TAG
