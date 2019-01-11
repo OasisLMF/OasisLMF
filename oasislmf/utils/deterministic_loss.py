@@ -1,8 +1,14 @@
 # -*- coding: utf-8 -*-
 
+__all__ = [
+    'generate_oasis_files',
+    'apply_fm'
+]
+
 """
-Deterministic loss validation
+Deterministic loss generation
 """
+
 # Python standard library imports
 import argparse
 import io
@@ -42,11 +48,10 @@ def generate_oasis_files(
     fm_agg_profile
 ):
     """
-    Generates Oasis input files (GUL + FM/IL) using OED source exposure +
-    accounts data, and canonical OED exposure and accounts profiles and
-    an FM OED aggregation profile, in the specified ``input_dir``, using
-    simulated keys data. This is a model independent way of generating
-    Oasis files.
+    Generates model-independent Oasis input files (GUL + FM/IL) using OED
+    source exposure + accounts data, and canonical OED exposure and accounts
+    profiles and an FM OED aggregation profile, in the specified ``input_dir``,
+    using simulated keys data.
     """
 
     # Create exposure manager instance
