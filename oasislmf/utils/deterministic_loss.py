@@ -3,7 +3,7 @@
 __all__ = [
     'generate_oasis_files',
     'generate_binary_inputs',
-    'apply_fm'
+    'generate_losses'
 ]
 
 """
@@ -159,12 +159,12 @@ def generate_oasis_files(
         'coverages': os.path.join(input_dir, 'coverages.csv'),
         'gulsummaryxref': os.path.join(input_dir, 'gulsummaryxref.csv')
     }
-    concurrent_tasks = (
+    tasks = (
         Task(getattr(manager, 'write_{}_file'.format(f)), args=(gul_items_df.copy(deep=True), gul_files[f],), key=f)
         for f in gul_files
     )
     num_ps = min(len(gul_files), multiprocessing.cpu_count())
-    for _, _ in multithread(concurrent_tasks, pool_size=num_ps):
+    for _, _ in multithread(tasks, pool_size=num_ps):
         pass
 
     # Generate the FM files (in ``input_dir``)
@@ -184,12 +184,12 @@ def generate_oasis_files(
         'fmsummaryxref': os.path.join(input_dir, 'fmsummaryxref.csv')
     }
 
-    concurrent_tasks = (
+    tasks = (
         Task(getattr(manager, 'write_{}_file'.format(f)), args=(fm_items_df.copy(deep=True), fm_files[f],), key=f)
         for f in fm_files
     )
     num_ps = min(len(fm_files), multiprocessing.cpu_count())
-    for _, _ in multithread(concurrent_tasks, pool_size=num_ps):
+    for _, _ in multithread(tasks, pool_size=num_ps):
         pass
 
     # By this stage all the input files, including source and intermediate files
@@ -232,9 +232,10 @@ def generate_binary_inputs(input_dir, output_dir):
                 "Failed to convert {}: {}".format(input_fp, command))
 
 
-def apply_fm(input_dir, output_dir=None, loss_percentage_of_tiv=1.0, net=False):
+def generate_losses(input_dir, output_dir=None, loss_percentage_of_tiv=1.0, net=False):
     """
-    Generates insured losses with a specified damage ratio (loss % of TIV).
+    Generates insured losses from preexisting Oasis files with a specified
+    damage ratio (loss % of TIV).
     """
     _input_dir = ''.join(input_dir) if os.path.isabs(input_dir) else os.path.abspath(''.join(input_dir))
 
