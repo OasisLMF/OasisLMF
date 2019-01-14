@@ -16,8 +16,9 @@ from collections import namedtuple
 import numbers
 import math
 
-from oasislmf.exposures import oed
-from oasislmf.utils.exceptions import OasisException
+from . import oed
+from ..utils.exceptions import OasisException
+
 
 # Meta-data about an inuring layer
 InuringLayer = namedtuple(
