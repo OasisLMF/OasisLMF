@@ -298,10 +298,6 @@ def generate_losses(input_dir, output_dir=None, loss_percentage_of_tiv=1.0, net=
     losses_df['event_id'] = losses_df['event_id'].astype(object)
     losses_df['output_id'] = losses_df['output_id'].astype(object)
 
-    #guls_df.drop(guls_df[guls_df.sidx != 1].index, inplace=True)
-    #del guls_df['event_id']
-    #del guls_df['sidx']
-
     print(tabulate(losses_df, headers='keys', tablefmt='psql', floatfmt=".2f"))
 
     return losses_df
