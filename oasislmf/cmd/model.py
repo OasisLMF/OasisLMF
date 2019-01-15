@@ -534,8 +534,8 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         )
         
         required_fm_paths = [source_accounts_fp, source_to_canonical_accounts_transformation_fp]
-        fm = all(fm_paths)
-        if any(fm_paths) and not fm:
+        fm = all(required_fm_paths)
+        if any(required_fm_paths) and not fm:
             raise OasisException(
                 'FM option indicated by provision of some FM related assets, but other assets are missing. '
                 'To generate FM inputs you need all of the following: '
