@@ -470,7 +470,6 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             help='Canonical exposures validation file (XSD) path, (optional argument)'
 
         )
-        parser.add_argument('--fm', action='store_true', help='Generate FM files - False if absent')
         parser.add_argument(
             '-u', '--fm-agg-profile-path', default=None,
             help='Supplier FM aggregation profile JSON file path'
@@ -531,11 +530,21 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             'Supplier FM aggregation profile JSON file path'
         )
         
-        fm = inputs.get('fm', default=False)
-        if fm and not (source_accounts_file_path and canonical_accounts_profile_json_path and fm_agg_profile_path):
+        fm_paths = [
+            source_accounts_file_path,
+            source_to_canonical_accounts_transformation_file_path,
+            canonical_accounts_profile_json_path,
+            fm_agg_profile_path
+        ]
+        fm = all(fm_paths)
+        if any(fm_paths) and not fm:
             raise OasisException(
-                'FM option indicated but missing one or more of the following arguments: canonical accounts profile JSON file path,'
-                'source accounts file path, FM aggregation profile JSON file path'
+                'FM option indicated by provision of some FM related assets, but other assets are missing. '
+                'To generate FM inputs you need to provide all of the following: '
+                'source accounts file path, ',
+                'source to canonical accounts transformation file path, ',
+                'canonical accounts profile path, ',
+                'FM aggregation profile.'
             )
 
         start_time = time.time()
