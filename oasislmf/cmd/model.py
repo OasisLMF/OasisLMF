@@ -502,9 +502,12 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         source_exposure_fp = as_path(
             inputs.get('source_exposure_file_path', required=True, is_path=True), 'Source exposure file path'
         )
+
+        static_data_fp = os.path.join(os.path.dirname(__file__), os.path.pardir, '_data')
+
         canonical_exposure_profile_fp = as_path(
-            inputs.get('canonical_exposure_profile_path', required=True, is_path=True),
-            'Supplier canonical exposures profile path'
+            inputs.get('canonical_exposure_profile_path', required=True, is_path=True, default=os.path.join(static_data_fp, 'canonical-oed-loc-profile.json')),
+            'Canonical OED exposure profile path'
         )
         source_to_canonical_exposure_transformation_fp = as_path(
             inputs.get('source_to_canonical_exposure_transformation_file_path', required=True, is_path=True),
@@ -518,33 +521,28 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             inputs.get('source_accounts_file_path', required=False, is_path=True), 'Source accounts file path'
         )
         canonical_accounts_profile_fp = as_path(
-            inputs.get('canonical_accounts_profile_path', required=False, is_path=True),
-            'Supplier canonical accounts profile path'
+            inputs.get('canonical_accounts_profile_path', required=False, is_path=True, default=os.path.join(static_data_fp, 'canonical-oed-acc-profile.json')),
+            'Canonical OED accounts profile path'
         )
         source_to_canonical_accounts_transformation_fp = as_path(
             inputs.get('source_to_canonical_accounts_transformation_file_path', required=False, is_path=True),
             'Source to canonical accounts file transformation file path'
         )
         fm_agg_profile_fp = as_path(
-            inputs.get('fm_agg_profile_path', required=False, is_path=True),
-            'Supplier FM aggregation profile JSON file path'
+            inputs.get('fm_agg_profile_path', required=False, is_path=True, default=os.path.join(static_data_fp, 'fm-oed-agg-profile.json')),
+            'FM OED aggregation profile path'
         )
         
-        fm_paths = [
-            source_accounts_fp,
-            source_to_canonical_accounts_transformation_fp,
-            canonical_accounts_profile_fp,
-            fm_agg_profile_fp
-        ]
+        required_fm_paths = [source_accounts_fp, source_to_canonical_accounts_transformation_fp]
         fm = all(fm_paths)
         if any(fm_paths) and not fm:
             raise OasisException(
                 'FM option indicated by provision of some FM related assets, but other assets are missing. '
-                'To generate FM inputs you need to provide all of the following: '
+                'To generate FM inputs you need all of the following: '
                 'source accounts file path, ',
                 'source to canonical accounts transformation file path, ',
-                'canonical accounts profile path, ',
-                'FM aggregation profile.'
+                'canonical OED accounts profile path (a default OED profile is provided by the package), ',
+                'FM OED aggregation profile (a default OED profile is provided by the package).'
             )
 
         start_time = time.time()
