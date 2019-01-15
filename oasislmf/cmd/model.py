@@ -448,12 +448,12 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
         parser.add_argument('-l', '--lookup-package-path', default=None, help='Lookup package path')
         parser.add_argument(
-            '-p', '--canonical-exposure-profile-json-path', default=None,
-            help='Supplier canonical exposure profile JSON file path'
+            '-p', '--canonical-exposure-profile-path', default=None,
+            help='Supplier canonical exposure profile path'
         )
         parser.add_argument(
-            '-q', '--canonical-accounts-profile-json-path', default=None,
-            help='Supplier canonical accounts profile JSON file path'
+            '-q', '--canonical-accounts-profile-path', default=None,
+            help='Supplier canonical accounts profile path'
         )
         parser.add_argument('-x', '--source-exposure-file-path', default=None, help='Source exposure file path')
         parser.add_argument('-y', '--source-accounts-file-path', default=None, help='Source accounts file path')
@@ -467,12 +467,12 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         )
         parser.add_argument(
             '-f', '--canonical-to-model-exposure-transformation-file-path', default=None,
-            help='Canonical exposure validation file (XSD) path, (optional argument)'
+            help='Canonical exposure validation file (XSD) path'
 
         )
         parser.add_argument(
             '-u', '--fm-agg-profile-path', default=None,
-            help='Supplier FM aggregation profile JSON file path'
+            help='Supplier FM aggregation profile path'
 
         )
         parser.add_argument(
@@ -678,7 +678,6 @@ class GenerateLossesCmd(OasisBaseCommand):
         parser.add_argument('-j', '--analysis-settings-json-file-path', default=None, help='Analysis settings JSON file path')
         parser.add_argument('-m', '--model-data-path', default=None, help='Model data path')
         parser.add_argument('-r', '--model-run-dir-path', default=None, help='Model run directory path')
-        parser.add_argument('--fm', action='store_true', help='Generate FM files - False if absent')
         parser.add_argument('-s', '--ktools-script-name', default=None, help='Relative or absolute path of the output file')
         parser.add_argument('-n', '--ktools-num-processes', default=-1, help='Number of ktools calculation processes to use', type=int)
         parser.add_argument('-x', '--no-execute', action='store_true', help='Whether to execute generated ktools script')
@@ -708,8 +707,6 @@ class GenerateLossesCmd(OasisBaseCommand):
             model_package_path = as_path(model_package_path, 'Model package path')
 
         ktools_script_name = inputs.get('ktools_script_name', default='run_ktools')
-
-        fm = inputs.get('fm', default=False)
 
         start_time = time.time()
         self.logger.info('\nStarting loss generation (@ {})'.format(get_utctimestamp()))
