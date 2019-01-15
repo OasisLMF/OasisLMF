@@ -448,26 +448,26 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
         parser.add_argument('-l', '--lookup-package-path', default=None, help='Lookup package path')
         parser.add_argument(
-            '-p', '--canonical-exposures-profile-json-path', default=None,
-            help='Supplier canonical exposures profile JSON file path'
+            '-p', '--canonical-exposure-profile-json-path', default=None,
+            help='Supplier canonical exposure profile JSON file path'
         )
         parser.add_argument(
             '-q', '--canonical-accounts-profile-json-path', default=None,
             help='Supplier canonical accounts profile JSON file path'
         )
-        parser.add_argument('-x', '--source-exposures-file-path', default=None, help='Source exposures file path')
+        parser.add_argument('-x', '--source-exposure-file-path', default=None, help='Source exposure file path')
         parser.add_argument('-y', '--source-accounts-file-path', default=None, help='Source accounts file path')
         parser.add_argument(
-            '-c', '--source-to-canonical-exposures-transformation-file-path', default=None,
-            help='Source -> canonical exposures file transformation file (XSLT) path'
+            '-c', '--source-to-canonical-exposure-transformation-file-path', default=None,
+            help='Source -> canonical exposure file transformation file (XSLT) path'
         )
         parser.add_argument(
             '-d', '--source-to-canonical-accounts-transformation-file-path', default=None,
             help='Source -> canonical accounts file transformation file (XSLT) path'
         )
         parser.add_argument(
-            '-f', '--canonical-to-model-exposures-transformation-file-path', default=None,
-            help='Canonical exposures validation file (XSD) path, (optional argument)'
+            '-f', '--canonical-to-model-exposure-transformation-file-path', default=None,
+            help='Canonical exposure validation file (XSD) path, (optional argument)'
 
         )
         parser.add_argument(
@@ -486,55 +486,55 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         inputs = InputValues(args)
 
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-        default_oasis_files_path = os.path.join(os.getcwd(), 'runs', 'OasisFiles-{}'.format(utcnow))
+        default_oasis_fp = os.path.join(os.getcwd(), 'runs', 'OasisFiles-{}'.format(utcnow))
 
-        oasis_files_path = as_path(inputs.get('oasis_files_path', is_path=True, default=default_oasis_files_path), 'Oasis file', preexists=False)
+        oasis_fp = as_path(inputs.get('oasis_files_path', is_path=True, default=default_oasis_fp), 'Oasis file', preexists=False)
 
         lookup_config_fp = as_path(inputs.get('lookup_config_file_path', required=False, is_path=True), 'Lookup config JSON file path', preexists=False)
 
-        keys_data_path = as_path(inputs.get('keys_data_path', required=False, is_path=True), 'Keys data path', preexists=False)
-        model_version_file_path = as_path(inputs.get('model_version_file_path', required=False, is_path=True), 'Model version file path', preexists=False)
-        lookup_package_path = as_path(inputs.get('lookup_package_path', required=False, is_path=True), 'Lookup package path', preexists=False)
+        keys_data_fp = as_path(inputs.get('keys_data_path', required=False, is_path=True), 'Keys data path', preexists=False)
+        model_version_fp = as_path(inputs.get('model_version_file_path', required=False, is_path=True), 'Model version file path', preexists=False)
+        lookup_package_fp = as_path(inputs.get('lookup_package_path', required=False, is_path=True), 'Lookup package path', preexists=False)
 
-        if not (lookup_config_fp or (keys_data_path and model_version_file_path and lookup_package_path)):
+        if not (lookup_config_fp or (keys_data_fp and model_version_fp and lookup_package_fp)):
             raise OasisException('Either the lookup config JSON file path or the keys data path + model version file path + lookup package path must be provided')
 
-        source_exposures_file_path = as_path(
-            inputs.get('source_exposures_file_path', required=True, is_path=True), 'Source exposures file path'
+        source_exposure_fp = as_path(
+            inputs.get('source_exposure_file_path', required=True, is_path=True), 'Source exposure file path'
         )
-        canonical_exposures_profile_json_path = as_path(
-            inputs.get('canonical_exposures_profile_json_path', required=True, is_path=True),
-            'Supplier canonical exposures profile JSON path'
+        canonical_exposure_profile_fp = as_path(
+            inputs.get('canonical_exposure_profile_path', required=True, is_path=True),
+            'Supplier canonical exposures profile path'
         )
-        source_to_canonical_exposures_transformation_file_path = as_path(
-            inputs.get('source_to_canonical_exposures_transformation_file_path', required=True, is_path=True),
-            'Source to canonical exposures file transformation file path'
+        source_to_canonical_exposure_transformation_fp = as_path(
+            inputs.get('source_to_canonical_exposure_transformation_file_path', required=True, is_path=True),
+            'Source to canonical exposure file transformation file path'
         )
-        canonical_to_model_exposures_transformation_file_path = as_path(
-            inputs.get('canonical_to_model_exposures_transformation_file_path', required=True, is_path=True),
-            'Canonical to model exposures transformation file path'
+        canonical_to_model_exposure_transformation_fp = as_path(
+            inputs.get('canonical_to_model_exposure_transformation_file_path', required=True, is_path=True),
+            'Canonical to model exposure transformation file path'
         )
-        source_accounts_file_path = as_path(
+        source_accounts_fp = as_path(
             inputs.get('source_accounts_file_path', required=False, is_path=True), 'Source accounts file path'
         )
-        canonical_accounts_profile_json_path = as_path(
-            inputs.get('canonical_accounts_profile_json_path', required=False, is_path=True),
-            'Supplier canonical accounts profile JSON path'
+        canonical_accounts_profile_fp = as_path(
+            inputs.get('canonical_accounts_profile_path', required=False, is_path=True),
+            'Supplier canonical accounts profile path'
         )
-        source_to_canonical_accounts_transformation_file_path = as_path(
+        source_to_canonical_accounts_transformation_fp = as_path(
             inputs.get('source_to_canonical_accounts_transformation_file_path', required=False, is_path=True),
             'Source to canonical accounts file transformation file path'
         )
-        fm_agg_profile_path = as_path(
+        fm_agg_profile_fp = as_path(
             inputs.get('fm_agg_profile_path', required=False, is_path=True),
             'Supplier FM aggregation profile JSON file path'
         )
         
         fm_paths = [
-            source_accounts_file_path,
-            source_to_canonical_accounts_transformation_file_path,
-            canonical_accounts_profile_json_path,
-            fm_agg_profile_path
+            source_accounts_fp,
+            source_to_canonical_accounts_transformation_fp,
+            canonical_accounts_profile_fp,
+            fm_agg_profile_fp
         ]
         fm = all(fm_paths)
         if any(fm_paths) and not fm:
@@ -553,9 +553,9 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         self.logger.info('\nGetting model info and lookup')
         model_info, lookup = OasisLookupFactory.create(
                 lookup_config_fp=lookup_config_fp,
-                model_keys_data_path=keys_data_path,
-                model_version_file_path=model_version_file_path,
-                lookup_package_path=lookup_package_path
+                model_keys_data_path=keys_data_fp,
+                model_version_file_path=model_version_fp,
+                lookup_package_path=lookup_package_fp
         )
         self.logger.info('\t{}, {}'.format(model_info, lookup))
 
@@ -569,21 +569,21 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             resources={
                 'lookup': lookup,
                 'lookup_config_fp': lookup_config_fp or None,
-                'oasis_files_path': oasis_files_path,
-                'source_exposures_file_path': source_exposures_file_path,
-                'source_accounts_file_path': source_accounts_file_path,
-                'source_to_canonical_exposures_transformation_file_path': source_to_canonical_exposures_transformation_file_path,
-                'source_to_canonical_accounts_transformation_file_path': source_to_canonical_accounts_transformation_file_path,
-                'canonical_accounts_profile_json_path': canonical_accounts_profile_json_path,
-                'canonical_exposures_profile_json_path': canonical_exposures_profile_json_path,
-                'canonical_to_model_exposures_transformation_file_path': canonical_to_model_exposures_transformation_file_path,
-                'fm_agg_profile_path': fm_agg_profile_path
+                'oasis_files_path': oasis_fp,
+                'source_exposures_file_path': source_exposure_fp,
+                'source_accounts_file_path': source_accounts_fp,
+                'source_to_canonical_exposures_transformation_file_path': source_to_canonical_exposure_transformation_fp,
+                'source_to_canonical_accounts_transformation_file_path': source_to_canonical_accounts_transformation_fp,
+                'canonical_accounts_profile_json_path': canonical_accounts_profile_fp,
+                'canonical_exposures_profile_json_path': canonical_exposure_profile_fp,
+                'canonical_to_model_exposures_transformation_file_path': canonical_to_model_exposure_transformation_fp,
+                'fm_agg_profile_path': fm_agg_profile_fp
             }
         )
         self.logger.info('\t{}'.format(model))
 
         self.logger.info('\nSetting up Oasis files directory for model {}'.format(model.key))
-        Path(oasis_files_path).mkdir(parents=True, exist_ok=True)
+        Path(oasis_fp).mkdir(parents=True, exist_ok=True)
 
         self.logger.info('\nGenerating Oasis files for model')
 
