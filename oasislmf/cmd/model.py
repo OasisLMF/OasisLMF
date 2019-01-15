@@ -13,6 +13,10 @@ from pathlib2 import Path
 
 from ..exposures.csv_trans import Translator
 from ..exposures.manager import OasisExposuresManager
+from ..exposures.reinsurance_layer import (
+    create_xref_description,
+    generate_files_for_reinsurance,
+)
 
 from ..model_execution.bash import genbash
 from ..model_execution import runner
@@ -620,9 +624,21 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             logger=self.logger
         )
 
-        self.logger.info('\nGenerating reinsurance files')
         if ri:
-            # call reinsurance layer here to generate RI files in target directory
+            self.logger.info('\nGenerating reinsurance files')
+            items_fp = oasis_files['items']
+            coverages_fp = oasis_files['coverages']
+            fm_xref_fp = oasis_files['fm_xref']
+            xref_descriptions = create_xref_description(pd.read_csv(source_accounts_fp), pd.read_csv(source_exposure_fp))
+            inuring_metadata = generate_files_for_reinsurance(
+                pd.read_csv(items_fp),
+                pd.read_csv(coverages_fp),
+                pd.read_csv(fm_xref_fp),
+                xref_descriptions,
+                pd.read_csv(ri_info_fp),
+                pd.read_csv(ri_scope_fp),
+                oasis_fp
+            )
 
         self.logger.info('\nGenerated Oasis files for model: {}'.format(oasis_files))
 
