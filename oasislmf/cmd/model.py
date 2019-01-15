@@ -575,7 +575,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             )
 
         start_time = time.time()
-        self.logger.info('\nStarting Oasis files generation (@ {}): GUL=True, FM={}'.format(get_utctimestamp(), fm))
+        self.logger.info('\nStarting Oasis files generation (@ {}): GUL=True, FM={}, RI={}'.format(get_utctimestamp(), fm, ri))
 
         self.logger.info('\nGetting model info and lookup')
         model_info, lookup = OasisLookupFactory.create(
@@ -620,6 +620,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             logger=self.logger
         )
 
+        self.logger.info('\nGenerating reinsurance files')
         if ri:
             # call reinsurance layer here to generate RI files in target directory
 
