@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 __all__ = [
+    'create_xref_description',
     'generate_files_for_reinsurance',
     'ReinsuranceLayer',
 ]
