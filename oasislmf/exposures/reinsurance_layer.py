@@ -26,6 +26,69 @@ InuringLayer = namedtuple(
     "inuring_priority reins_numbers is_valid validation_messages")
 
 
+
+def _get_location_tiv(location, coverage_type_id):
+    switcher = {
+        oed.BUILDING_COVERAGE_TYPE_ID: location.BuildingTIV,
+        oed.OTHER_BUILDING_COVERAGE_TYPE_ID: location.OtherTIV,
+        oed.CONTENTS_COVERAGE_TYPE_ID: location.ContentsTIV,
+        oed.TIME_COVERAGE_TYPE_ID: location.BITIV
+    }
+    return switcher.get(coverage_type_id, 0)
+
+def create_xref_description(accounts_df, locations_df):
+
+    accounts = accounts_df
+    locations = locations_df
+    coverage_id = 0
+    item_id = 0
+    group_id = 0
+    policy_agg_id = 0
+    profile_id = 0
+
+    xref_descriptions_list = list()
+
+    site_agg_id = 0
+    for policy_index, policy in accounts.iterrows():
+        policy_agg_id = policy_agg_id + 1
+        profile_id = profile_id + 1
+
+        for location_index, location in locations.loc[locations["AccNumber"] == policy.AccNumber].iterrows():
+            group_id = group_id + 1
+            site_agg_id = site_agg_id + 1
+            profile_id = profile_id + 1
+
+            for coverage_type_id in oed.COVERAGE_TYPES:
+                tiv = _get_location_tiv(location, coverage_type_id)
+                if tiv > 0:
+                    coverage_id = coverage_id + 1
+
+                    for peril in oed.PERILS:
+                        item_id = item_id + 1
+
+                        xref_descriptions_list.append(
+                            oed.XrefDescription(
+                                xref_id=item_id,
+                                account_number=location.AccNumber,
+                                location_number=location.LocNumber,
+                                location_group=location.LocGroup,
+                                cedant_name = policy.CedantName,
+                                producer_name = policy.ProducerName,
+                                lob = policy.LOB,
+                                country_code = location.CountryCode,
+                                reins_tag = location.ReinsTag,
+                                coverage_type_id=coverage_type_id,
+                                peril_id=peril,
+                                policy_number=policy.PolNumber,    
+                                portfolio_number=policy.PortNumber,
+                                tiv=tiv
+                            )
+                        )
+
+    return pd.DataFrame(xref_descriptions_list)
+
+
+
 def generate_files_for_reinsurance(
         items,
         coverages,
