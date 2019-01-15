@@ -458,24 +458,12 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         parser.add_argument('-x', '--source-exposures-file-path', default=None, help='Source exposures file path')
         parser.add_argument('-y', '--source-accounts-file-path', default=None, help='Source accounts file path')
         parser.add_argument(
-            '-a', '--source-exposures-validation-file-path', default=None,
-            help='Source exposures validation file (XSD) path (optional argument)'
-        )
-        parser.add_argument(
-            '-b', '--source-accounts-validation-file-path', default=None,
-            help='Source accounts file validation file (XSD) path'
-        )
-        parser.add_argument(
             '-c', '--source-to-canonical-exposures-transformation-file-path', default=None,
             help='Source -> canonical exposures file transformation file (XSLT) path'
         )
         parser.add_argument(
             '-d', '--source-to-canonical-accounts-transformation-file-path', default=None,
             help='Source -> canonical accounts file transformation file (XSLT) path'
-        )
-        parser.add_argument(
-            '-e', '--canonical-exposures-validation-file-path', default=None,
-            help='Canonical exposures validation file (XSD) path (optional argument)'
         )
         parser.add_argument(
             '-f', '--canonical-to-model-exposures-transformation-file-path', default=None,
@@ -523,24 +511,12 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             inputs.get('source_to_canonical_exposures_transformation_file_path', required=True, is_path=True),
             'Source to canonical exposures file transformation file path'
         )
-        source_exposures_validation_file_path = as_path(
-            inputs.get('source_exposures_validation_file_path', required=False, is_path=True),
-            'Source exposures validation file'
-        )
         canonical_to_model_exposures_transformation_file_path = as_path(
             inputs.get('canonical_to_model_exposures_transformation_file_path', required=True, is_path=True),
             'Canonical to model exposures transformation file path'
         )
-        canonical_exposures_validation_file_path = as_path(
-            inputs.get('canonical_exposures_validation_file_path', required=False, is_path=True),
-            'Canonical exposures validation file'
-        )
         source_accounts_file_path = as_path(
             inputs.get('source_accounts_file_path', required=False, is_path=True), 'Source accounts file path'
-        )
-        source_accounts_validation_file_path = as_path(
-            inputs.get('source_accounts_validation_file_path', required=False, is_path=True),
-            'Source accounts file validation file path'
         )
         canonical_accounts_profile_json_path = as_path(
             inputs.get('canonical_accounts_profile_json_path', required=False, is_path=True),
@@ -587,13 +563,10 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
                 'oasis_files_path': oasis_files_path,
                 'source_exposures_file_path': source_exposures_file_path,
                 'source_accounts_file_path': source_accounts_file_path,
-                'source_exposures_validation_file_path': source_exposures_validation_file_path,
-                'source_accounts_validation_file_path': source_accounts_validation_file_path,
                 'source_to_canonical_exposures_transformation_file_path': source_to_canonical_exposures_transformation_file_path,
                 'source_to_canonical_accounts_transformation_file_path': source_to_canonical_accounts_transformation_file_path,
                 'canonical_accounts_profile_json_path': canonical_accounts_profile_json_path,
                 'canonical_exposures_profile_json_path': canonical_exposures_profile_json_path,
-                'canonical_exposures_validation_file_path': canonical_exposures_validation_file_path,
                 'canonical_to_model_exposures_transformation_file_path': canonical_to_model_exposures_transformation_file_path,
                 'fm_agg_profile_path': fm_agg_profile_path
             }
