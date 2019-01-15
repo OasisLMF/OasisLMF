@@ -475,6 +475,14 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             help='Supplier FM aggregation profile JSON file path'
 
         )
+        parser.add_argument(
+            '-r', '--ri-info-file-path', default=None,
+            help='Reinsurance info. file path'
+        )
+        parser.add_argument(
+            '-s', '--ri-scope-file-path', default=None,
+            help='Reinsurance scope file path'
+        )
 
     def action(self, args):
         """
@@ -534,15 +542,36 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         )
         
         required_fm_paths = [source_accounts_fp, source_to_canonical_accounts_transformation_fp]
+        required_ri_paths = [ri_info_fp, ri_scope_fp]
         fm = all(required_fm_paths)
         if any(required_fm_paths) and not fm:
             raise OasisException(
                 'FM option indicated by provision of some FM related assets, but other assets are missing. '
-                'To generate FM inputs you need all of the following: '
+                'To generate FM inputs you need to provide all of the assets required to generate GUL inputs, '
+                'plus all of the following assets: '
                 'source accounts file path, ',
                 'source to canonical accounts transformation file path, ',
                 'canonical OED accounts profile path (a default OED profile is provided by the package), ',
                 'FM OED aggregation profile (a default OED profile is provided by the package).'
+            )
+
+        ri_info_fp = as_path(
+            inputs.get('ri_info_fp', required=False, is_path=True),
+            'Reinsurance info. file path'
+        )
+        ri_scope_fp = as_path(
+            inputs.get('ri_scope_fp', required=False, is_path=True),
+            'Reinsurance scope file path'
+        )
+        
+        ri = all(required_ri_paths) and fm
+        if any(required_ri_paths) and not ri:
+            raise OasisException(
+                'RI option indicated by provision of some RI related assets, but other assets are missing. '
+                'To generate RI inputs you need to provide all of the assets required to generate FM inputs, '
+                'plus all of the following assets: '
+                'reinsurance info. file path, '
+                'reinsurance scope file path.'
             )
 
         start_time = time.time()
@@ -590,6 +619,9 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             fm=fm,
             logger=self.logger
         )
+
+        if ri:
+            # call reinsurance layer here to generate RI files in target directory
 
         self.logger.info('\nGenerated Oasis files for model: {}'.format(oasis_files))
 
