@@ -19,11 +19,10 @@ import json
 import multiprocessing
 import os
 import shutil
-import six
 import subprocess
 import time
 
-from six import string_types
+import six
 
 # Custom library imports
 import pandas as pd
@@ -86,7 +85,7 @@ def generate_oasis_files(
         _srcacctocan_trans_fp = shutil.copy2(_srcacctocan_trans_fp, _input_dir)
 
     _canexp_profile = canexp_profile
-    if isinstance(_canexp_profile, string_types):
+    if isinstance(_canexp_profile, six.string_types):
         canexp_profile_fp = ''.join(_canexp_profile) if os.path.isabs(_canexp_profile) else os.path.abspath(''.join(_canexp_profile))
         fname = os.path.basename(canexp_profile_fp)
         if not os.path.exists(os.path.join(_input_dir, fname)):
@@ -96,7 +95,7 @@ def generate_oasis_files(
         _canexp_profile = copy.deepcopy(canexp_profile)
 
     _canacc_profile = canacc_profile
-    if isinstance(_canacc_profile, string_types):
+    if isinstance(_canacc_profile, six.string_types):
         canacc_profile_fp = ''.join(_canacc_profile) if os.path.isabs(_canacc_profile) else os.path.abspath(''.join(_canacc_profile))
         fname = os.path.basename(canacc_profile_fp)
         if not os.path.exists(os.path.join(_input_dir, fname)):
@@ -106,7 +105,7 @@ def generate_oasis_files(
         _canacc_profile = copy.deepcopy(canacc_profile)
 
     _fm_agg_profile = fm_agg_profile
-    if isinstance(_fm_agg_profile, string_types):
+    if isinstance(_fm_agg_profile, six.string_types):
         fm_agg_profile_fp = ''.join(_fm_agg_profile) if os.path.isabs(_fm_agg_profile) else os.path.abspath(''.join(_fm_agg_profile))
         fname = os.path.basename(fm_agg_profile_fp)
         if not os.path.exists(os.path.join(_input_dir, fname)):
@@ -194,6 +193,8 @@ def generate_oasis_files(
 
     # By this stage all the input files, including source and intermediate files
     # should have been generated in ``input_dir``.
+
+    return {k: v for k, v in itertools.chain(six.iteritems(gul_files), six.iteritems(fm_files))}
 
 
 def generate_binary_inputs(input_dir, output_dir):

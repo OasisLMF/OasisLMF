@@ -18,6 +18,7 @@ from shutil import copyfile
 
 # Custom library imports
 import pandas as pd
+import six
 
 from tabulate import tabulate
 
@@ -129,6 +130,8 @@ def generate_oasis_files(
 
     # By this stage all the input files, including source and intermediate files
     # should be in ``input_dir``.
+
+    return {k: v for k, v in itertools.chain(six.iteritems(gul_files), six.iteritems(fm_files))}
 
 def apply_fm(input_dir, loss_percentage_of_tiv=1.0, net=False):
     # Generate an items and coverages dataframe and set column types (important!!)
