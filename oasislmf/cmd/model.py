@@ -7,6 +7,8 @@ import subprocess
 import time
 import sys
 
+
+import pandas as pd
 from argparse import RawDescriptionHelpFormatter
 
 from pathlib2 import Path
@@ -480,11 +482,11 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
 
         )
         parser.add_argument(
-            '-r', '--ri-info-file-path', default=None,
+            '-a', '--ri-info-file-path', default=None,
             help='Reinsurance info. file path'
         )
         parser.add_argument(
-            '-s', '--ri-scope-file-path', default=None,
+            '-b', '--ri-scope-file-path', default=None,
             help='Reinsurance scope file path'
         )
 
@@ -544,6 +546,14 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             inputs.get('fm_agg_profile_path', required=False, is_path=True, default=os.path.join(static_data_fp, 'fm-oed-agg-profile.json')),
             'FM OED aggregation profile path'
         )
+        ri_info_fp = as_path(
+            inputs.get('ri_info_file_path', required=False, is_path=True),
+            'Reinsurance info. file path'
+        )
+        ri_scope_fp = as_path(
+            inputs.get('ri_scope_file_path', required=False, is_path=True),
+            'Reinsurance scope file path'
+        )
         
         required_fm_paths = [source_accounts_fp, source_to_canonical_accounts_transformation_fp]
         required_ri_paths = [ri_info_fp, ri_scope_fp]
@@ -559,15 +569,6 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
                 'FM OED aggregation profile (a default OED profile is provided by the package).'
             )
 
-        ri_info_fp = as_path(
-            inputs.get('ri_info_fp', required=False, is_path=True),
-            'Reinsurance info. file path'
-        )
-        ri_scope_fp = as_path(
-            inputs.get('ri_scope_fp', required=False, is_path=True),
-            'Reinsurance scope file path'
-        )
-        
         ri = all(required_ri_paths) and fm
         if any(required_ri_paths) and not ri:
             raise OasisException(
@@ -842,7 +843,14 @@ class RunCmd(OasisBaseCommand):
             '-u', '--fm-agg-profile-path', default=None,
             help='FM OED aggregation profile path'
         )
-
+        parser.add_argument(
+            '-a', '--ri-info-file-path', default=None,
+            help='Reinsurance info. file path'
+        )
+        parser.add_argument(
+            '-b', '--ri-scope-file-path', default=None,
+            help='Reinsurance scope file path'
+        )
         parser.add_argument(
             '-j', '--analysis-settings-file-path', default=None,
             help='Model analysis settings file path'
