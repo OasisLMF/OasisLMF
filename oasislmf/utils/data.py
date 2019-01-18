@@ -5,6 +5,7 @@ __all__ = [
 ]
 
 import builtins
+import io
 
 import pandas as pd
 
