@@ -25,6 +25,11 @@ from ..model_execution import runner
 from ..model_execution.bin import create_binary_files, prepare_model_run_directory, prepare_model_run_inputs
 
 from ..utils.exceptions import OasisException
+from ..utils.oed_profiles import (
+    get_default_canonical_oed_loc_profile,
+    get_default_canonical_oed_acc_profile,
+    get_default_fm_oed_aggregation_profile,
+)
 from ..utils.path import setcwd
 from ..utils.peril import PerilAreasIndex
 from ..utils.values import get_utctimestamp
@@ -607,8 +612,11 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
                 'source_to_canonical_exposures_transformation_file_path': source_to_canonical_exposure_transformation_fp,
                 'source_to_canonical_accounts_transformation_file_path': source_to_canonical_accounts_transformation_fp,
                 'canonical_accounts_profile_json_path': canonical_accounts_profile_fp,
+                'canonical_accounts_profile': get_default_canonical_oed_acc_profile(),
                 'canonical_exposures_profile_json_path': canonical_exposure_profile_fp,
+                'canonical_exposures_profile': get_default_canonical_oed_loc_profile(),
                 'canonical_to_model_exposures_transformation_file_path': canonical_to_model_exposure_transformation_fp,
+                'fm_agg_profile': get_default_fm_oed_aggregation_profile(),
                 'fm_agg_profile_path': fm_agg_profile_fp
             }
         )
