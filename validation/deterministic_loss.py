@@ -105,4 +105,6 @@ if __name__ == "__main__":
                 "Failed to convert {}: {}".format(input_file_path, command))
 
     losses_df = generate_losses(input_dir, output_dir, loss_percentage_of_tiv=loss_factor, print_losses=False)
-    print(tabulate(losses_df, headers='keys', tablefmt='psql', floatfmt=".2f")) 
+    losses_df['event_id'] = losses_df['event_id'].astype(object)
+    losses_df['output_id'] = losses_df['output_id'].astype(object)
+    print(tabulate(losses_df, headers='keys', tablefmt='psql', floatfmt=".2f"))

@@ -297,14 +297,19 @@ def generate_losses(input_dir, output_dir=None, loss_percentage_of_tiv=1.0, net=
 
     losses_df = pd.read_csv(ils_fp)
     losses_df.drop(losses_df[losses_df.sidx != 1].index, inplace=True)
+    losses_df.reset_index(drop=True, inplace=True)
     del losses_df['sidx']
 
-    # Set ``event_id`` and ``output_id`` column data types to ``object``
-    # to prevent ``tabulate`` from int -> float conversion during console printing
-    losses_df['event_id'] = losses_df['event_id'].astype(object)
-    losses_df['output_id'] = losses_df['output_id'].astype(object)
-
     if print_losses:
+        # Set ``event_id`` and ``output_id`` column data types to ``object``
+        # to prevent ``tabulate`` from int -> float conversion during console printing
+        losses_df['event_id'] = losses_df['event_id'].astype(object)
+        losses_df['output_id'] = losses_df['output_id'].astype(object)
+
         print(tabulate(losses_df, headers='keys', tablefmt='psql', floatfmt=".2f"))
+
+        # Reset event ID and output ID column dtypes to int
+        losses_df['event_id'] = losses_df['event_id'].astype(int)
+        losses_df['output_id'] = losses_df['output_id'].astype(int)
 
     return losses_df

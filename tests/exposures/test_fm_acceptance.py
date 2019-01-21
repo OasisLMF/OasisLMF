@@ -16,8 +16,6 @@ import pytest
 import six
 
 from backports.tempfile import TemporaryDirectory
-from tempfile import NamedTemporaryFile
-
 from hypothesis import (
     given,
     HealthCheck,
@@ -33,9 +31,12 @@ from hypothesis.strategies import (
     text,
     tuples,
 )
+from pandas.testing import assert_frame_equal
+from tabulate import tabulate
+from tempfile import NamedTemporaryFile
 
 from oasislmf.exposures.manager import OasisExposuresManager
-
+from oasislmf.utils.deterministic_loss import generate_losses
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.fm import (
     unified_canonical_fm_profile_by_level_and_term_group,
@@ -62,7 +63,6 @@ from ..data import (
     write_canonical_oed_files,
     write_keys_files,
 )
-
 
 
 class FmAcceptanceTests(TestCase):
@@ -130,7 +130,7 @@ class FmAcceptanceTests(TestCase):
         keys[2]['coverage_type'] = OED_COVERAGE_TYPES['contents']['id']
         keys[3]['coverage_type'] = OED_COVERAGE_TYPES['bi']['id']
 
-        with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf, TemporaryDirectory() as outdir:
+        with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf, TemporaryDirectory() as oasis_dir:
             write_canonical_oed_files(exposures, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
@@ -149,9 +149,9 @@ class FmAcceptanceTests(TestCase):
             ofp.keys_file_path = kf.name
             ofp.canonical_exposures_file_path = ef.name
 
-            ofp.items_file_path = os.path.join(outdir, 'items.csv')
-            ofp.coverages_file_path = os.path.join(outdir, 'coverages.csv')
-            ofp.gulsummaryxref_file_path = os.path.join(outdir, 'gulsummaryxref.csv')
+            ofp.items_file_path = os.path.join(oasis_dir, 'items.csv')
+            ofp.coverages_file_path = os.path.join(oasis_dir, 'coverages.csv')
+            ofp.gulsummaryxref_file_path = os.path.join(oasis_dir, 'gulsummaryxref.csv')
 
             gul_files = self.manager.write_gul_files(oasis_model=model)
 
@@ -181,11 +181,11 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(loc1_items['tiv'].values.tolist(), tivs)
 
             ofp.canonical_accounts_file_path = af.name
-            ofp.fm_policytc_file_path = os.path.join(outdir, 'fm_policytc.csv')
-            ofp.fm_profile_file_path = os.path.join(outdir, 'fm_profile.csv')
-            ofp.fm_programme_file_path = os.path.join(outdir, 'fm_programme.csv')
-            ofp.fm_xref_file_path = os.path.join(outdir, 'fm_xref.csv')
-            ofp.fmsummaryxref_file_path = os.path.join(outdir, 'fmsummaryxref.csv')
+            ofp.fm_policytc_file_path = os.path.join(oasis_dir, 'fm_policytc.csv')
+            ofp.fm_profile_file_path = os.path.join(oasis_dir, 'fm_profile.csv')
+            ofp.fm_programme_file_path = os.path.join(oasis_dir, 'fm_programme.csv')
+            ofp.fm_xref_file_path = os.path.join(oasis_dir, 'fm_xref.csv')
+            ofp.fmsummaryxref_file_path = os.path.join(oasis_dir, 'fmsummaryxref.csv')
 
             fm_files = self.manager.write_fm_files(oasis_model=model)
 
@@ -241,6 +241,25 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1,2,3,4])
             self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1,1,1,1])
             self.assertEqual(fmsummaryxref_df['summaryset_id'].values.tolist(), [1,1,1,1])
+
+            expected_losses = pd.DataFrame(
+                columns=['event_id', 'output_id', 'loss'],
+                data=[
+                    (1,1,900000.0),
+                    (1,2,90000.0),
+                    (1,3,45000.0),
+                    (1,4,18000.0)
+                ]
+            )
+            bins_dir = os.path.join(oasis_dir, 'bin')
+            os.mkdir(bins_dir)
+            actual_losses = generate_losses(oasis_dir, bins_dir, print_losses=False)
+            losses_ok = actual_losses.equals(expected_losses)
+            self.assertTrue(losses_ok)
+            if losses_ok:
+                actual_losses['event_id'] = actual_losses['event_id'].astype(object)
+                actual_losses['output_id'] = actual_losses['output_id'].astype(object)
+                print('Correct losses generated for FM3:\n{}'.format(tabulate(actual_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
@@ -298,7 +317,7 @@ class FmAcceptanceTests(TestCase):
         keys[2]['coverage_type'] = OED_COVERAGE_TYPES['contents']['id']
         keys[3]['coverage_type'] = OED_COVERAGE_TYPES['bi']['id']
 
-        with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf, TemporaryDirectory() as outdir:
+        with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf, TemporaryDirectory() as oasis_dir:
             write_canonical_oed_files(exposures, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
@@ -317,9 +336,9 @@ class FmAcceptanceTests(TestCase):
             ofp.keys_file_path = kf.name
             ofp.canonical_exposures_file_path = ef.name
 
-            ofp.items_file_path = os.path.join(outdir, 'items.csv')
-            ofp.coverages_file_path = os.path.join(outdir, 'coverages.csv')
-            ofp.gulsummaryxref_file_path = os.path.join(outdir, 'gulsummaryxref.csv')
+            ofp.items_file_path = os.path.join(oasis_dir, 'items.csv')
+            ofp.coverages_file_path = os.path.join(oasis_dir, 'coverages.csv')
+            ofp.gulsummaryxref_file_path = os.path.join(oasis_dir, 'gulsummaryxref.csv')
 
             gul_files = self.manager.write_gul_files(oasis_model=model)
 
@@ -349,11 +368,11 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(loc1_items['tiv'].values.tolist(), tivs)
 
             ofp.canonical_accounts_file_path = af.name
-            ofp.fm_policytc_file_path = os.path.join(outdir, 'fm_policytc.csv')
-            ofp.fm_profile_file_path = os.path.join(outdir, 'fm_profile.csv')
-            ofp.fm_programme_file_path = os.path.join(outdir, 'fm_programme.csv')
-            ofp.fm_xref_file_path = os.path.join(outdir, 'fm_xref.csv')
-            ofp.fmsummaryxref_file_path = os.path.join(outdir, 'fmsummaryxref.csv')
+            ofp.fm_policytc_file_path = os.path.join(oasis_dir, 'fm_policytc.csv')
+            ofp.fm_profile_file_path = os.path.join(oasis_dir, 'fm_profile.csv')
+            ofp.fm_programme_file_path = os.path.join(oasis_dir, 'fm_programme.csv')
+            ofp.fm_xref_file_path = os.path.join(oasis_dir, 'fm_xref.csv')
+            ofp.fmsummaryxref_file_path = os.path.join(oasis_dir, 'fmsummaryxref.csv')
 
             fm_files = self.manager.write_fm_files(oasis_model=model)
 
@@ -419,6 +438,25 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1,1,1,1])
             self.assertEqual(fmsummaryxref_df['summaryset_id'].values.tolist(), [1,1,1,1])
 
+            expected_losses = pd.DataFrame(
+                columns=['event_id', 'output_id', 'loss'],
+                data=[
+                    (1,1,869565.25),
+                    (1,2,86956.52),
+                    (1,3,43478.26),
+                    (1,4,18000.00)
+                ]
+            )
+            bins_dir = os.path.join(oasis_dir, 'bin')
+            os.mkdir(bins_dir)
+            actual_losses = generate_losses(oasis_dir, bins_dir, print_losses=False)
+            losses_ok = actual_losses.equals(expected_losses)
+            self.assertTrue(losses_ok)
+            if losses_ok:
+                actual_losses['event_id'] = actual_losses['event_id'].astype(object)
+                actual_losses['output_id'] = actual_losses['output_id'].astype(object)
+                print('Correct losses generated for FM4:\n{}'.format(tabulate(actual_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
+
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposures=canonical_oed_exposures_data(
@@ -475,7 +513,7 @@ class FmAcceptanceTests(TestCase):
         keys[2]['coverage_type'] = OED_COVERAGE_TYPES['contents']['id']
         keys[3]['coverage_type'] = OED_COVERAGE_TYPES['bi']['id']
 
-        with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf, TemporaryDirectory() as outdir:
+        with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf, TemporaryDirectory() as oasis_dir:
             write_canonical_oed_files(exposures, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
@@ -494,9 +532,9 @@ class FmAcceptanceTests(TestCase):
             ofp.keys_file_path = kf.name
             ofp.canonical_exposures_file_path = ef.name
 
-            ofp.items_file_path = os.path.join(outdir, 'items.csv')
-            ofp.coverages_file_path = os.path.join(outdir, 'coverages.csv')
-            ofp.gulsummaryxref_file_path = os.path.join(outdir, 'gulsummaryxref.csv')
+            ofp.items_file_path = os.path.join(oasis_dir, 'items.csv')
+            ofp.coverages_file_path = os.path.join(oasis_dir, 'coverages.csv')
+            ofp.gulsummaryxref_file_path = os.path.join(oasis_dir, 'gulsummaryxref.csv')
 
             gul_files = self.manager.write_gul_files(oasis_model=model)
 
@@ -526,13 +564,15 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(loc1_items['tiv'].values.tolist(), tivs)
 
             ofp.canonical_accounts_file_path = af.name
-            ofp.fm_policytc_file_path = os.path.join(outdir, 'fm_policytc.csv')
-            ofp.fm_profile_file_path = os.path.join(outdir, 'fm_profile.csv')
-            ofp.fm_programme_file_path = os.path.join(outdir, 'fm_programme.csv')
-            ofp.fm_xref_file_path = os.path.join(outdir, 'fm_xref.csv')
-            ofp.fmsummaryxref_file_path = os.path.join(outdir, 'fmsummaryxref.csv')
+            ofp.fm_policytc_file_path = os.path.join(oasis_dir, 'fm_policytc.csv')
+            ofp.fm_profile_file_path = os.path.join(oasis_dir, 'fm_profile.csv')
+            ofp.fm_programme_file_path = os.path.join(oasis_dir, 'fm_programme.csv')
+            ofp.fm_xref_file_path = os.path.join(oasis_dir, 'fm_xref.csv')
+            ofp.fmsummaryxref_file_path = os.path.join(oasis_dir, 'fmsummaryxref.csv')
 
             fm_files = self.manager.write_fm_files(oasis_model=model)
+
+            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_files)))
 
             fm_programme_df = pd.read_csv(fm_files['fm_programme'])
             level_groups = [group for _, group in fm_programme_df.groupby(['level_id'])]
@@ -594,7 +634,24 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1,1,1,1])
             self.assertEqual(fmsummaryxref_df['summaryset_id'].values.tolist(), [1,1,1,1])
 
-            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_files)))
+            expected_losses = pd.DataFrame(
+                columns=['event_id', 'output_id', 'loss'],
+                data=[
+                    (1,1,854700.88),
+                    (1,2,85470.09),
+                    (1,3,42735.04),
+                    (1,4,17094.02)
+                ]
+            )
+            bins_dir = os.path.join(oasis_dir, 'bin')
+            os.mkdir(bins_dir)
+            actual_losses = generate_losses(oasis_dir, bins_dir, print_losses=False)
+            losses_ok = actual_losses.equals(expected_losses)
+            self.assertTrue(losses_ok)
+            if losses_ok:
+                actual_losses['event_id'] = actual_losses['event_id'].astype(object)
+                actual_losses['output_id'] = actual_losses['output_id'].astype(object)
+                print('Correct losses generated for FM5:\n{}'.format(tabulate(actual_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
@@ -664,7 +721,7 @@ class FmAcceptanceTests(TestCase):
 
         keys[4]['vulnerability_id'] = keys[5]['vulnerability_id'] = keys[6]['vulnerability_id'] = keys[7]['vulnerability_id'] = 2
 
-        with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf, TemporaryDirectory() as outdir:
+        with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf, TemporaryDirectory() as oasis_dir:
             write_canonical_oed_files(exposures, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
@@ -683,9 +740,9 @@ class FmAcceptanceTests(TestCase):
             ofp.keys_file_path = kf.name
             ofp.canonical_exposures_file_path = ef.name
 
-            ofp.items_file_path = os.path.join(outdir, 'items.csv')
-            ofp.coverages_file_path = os.path.join(outdir, 'coverages.csv')
-            ofp.gulsummaryxref_file_path = os.path.join(outdir, 'gulsummaryxref.csv')
+            ofp.items_file_path = os.path.join(oasis_dir, 'items.csv')
+            ofp.coverages_file_path = os.path.join(oasis_dir, 'coverages.csv')
+            ofp.gulsummaryxref_file_path = os.path.join(oasis_dir, 'gulsummaryxref.csv')
 
             gul_files = self.manager.write_gul_files(oasis_model=model)
 
@@ -728,13 +785,15 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(loc2_items['tiv'].values.tolist(), tivs)
 
             ofp.canonical_accounts_file_path = af.name
-            ofp.fm_policytc_file_path = os.path.join(outdir, 'fm_policytc.csv')
-            ofp.fm_profile_file_path = os.path.join(outdir, 'fm_profile.csv')
-            ofp.fm_programme_file_path = os.path.join(outdir, 'fm_programme.csv')
-            ofp.fm_xref_file_path = os.path.join(outdir, 'fm_xref.csv')
-            ofp.fmsummaryxref_file_path = os.path.join(outdir, 'fmsummaryxref.csv')
+            ofp.fm_policytc_file_path = os.path.join(oasis_dir, 'fm_policytc.csv')
+            ofp.fm_profile_file_path = os.path.join(oasis_dir, 'fm_profile.csv')
+            ofp.fm_programme_file_path = os.path.join(oasis_dir, 'fm_programme.csv')
+            ofp.fm_xref_file_path = os.path.join(oasis_dir, 'fm_xref.csv')
+            ofp.fmsummaryxref_file_path = os.path.join(oasis_dir, 'fmsummaryxref.csv')
 
             fm_files = self.manager.write_fm_files(oasis_model=model)
+
+            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_files)))
 
             fm_programme_df = pd.read_csv(fm_files['fm_programme'])
             level_groups = [group for _, group in fm_programme_df.groupby(['level_id'])]
@@ -796,7 +855,28 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1,1,1,1,1,1,1,1])
             self.assertEqual(fmsummaryxref_df['summaryset_id'].values.tolist(), [1,1,1,1,1,1,1,1])
 
-            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_files)))
+            expected_losses = pd.DataFrame(
+                columns=['event_id', 'output_id', 'loss'],
+                data=[
+                    (1,1,632911.38),
+                    (1,2,63291.14),
+                    (1,3,31645.57),
+                    (1,4,12658.23),
+                    (1,5,1075949.38),
+                    (1,6,18987.34),
+                    (1,7,632911.38),
+                    (1,8,31645.57)
+                ]
+            )
+            bins_dir = os.path.join(oasis_dir, 'bin')
+            os.mkdir(bins_dir)
+            actual_losses = generate_losses(oasis_dir, bins_dir, print_losses=False)
+            losses_ok = actual_losses.equals(expected_losses)
+            self.assertTrue(losses_ok)
+            if losses_ok:
+                actual_losses['event_id'] = actual_losses['event_id'].astype(object)
+                actual_losses['output_id'] = actual_losses['output_id'].astype(object)
+                print('Correct losses generated for FM6:\n{}'.format(tabulate(actual_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
@@ -866,7 +946,7 @@ class FmAcceptanceTests(TestCase):
 
         keys[4]['vulnerability_id'] = keys[5]['vulnerability_id'] = keys[6]['vulnerability_id'] = keys[7]['vulnerability_id'] = 2
 
-        with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf, TemporaryDirectory() as outdir:
+        with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf, TemporaryDirectory() as oasis_dir:
             write_canonical_oed_files(exposures, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
@@ -885,9 +965,9 @@ class FmAcceptanceTests(TestCase):
             ofp.keys_file_path = kf.name
             ofp.canonical_exposures_file_path = ef.name
 
-            ofp.items_file_path = os.path.join(outdir, 'items.csv')
-            ofp.coverages_file_path = os.path.join(outdir, 'coverages.csv')
-            ofp.gulsummaryxref_file_path = os.path.join(outdir, 'gulsummaryxref.csv')
+            ofp.items_file_path = os.path.join(oasis_dir, 'items.csv')
+            ofp.coverages_file_path = os.path.join(oasis_dir, 'coverages.csv')
+            ofp.gulsummaryxref_file_path = os.path.join(oasis_dir, 'gulsummaryxref.csv')
 
             gul_files = self.manager.write_gul_files(oasis_model=model)
 
@@ -930,11 +1010,11 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(loc2_items['tiv'].values.tolist(), tivs)
 
             ofp.canonical_accounts_file_path = af.name
-            ofp.fm_policytc_file_path = os.path.join(outdir, 'fm_policytc.csv')
-            ofp.fm_profile_file_path = os.path.join(outdir, 'fm_profile.csv')
-            ofp.fm_programme_file_path = os.path.join(outdir, 'fm_programme.csv')
-            ofp.fm_xref_file_path = os.path.join(outdir, 'fm_xref.csv')
-            ofp.fmsummaryxref_file_path = os.path.join(outdir, 'fmsummaryxref.csv')
+            ofp.fm_policytc_file_path = os.path.join(oasis_dir, 'fm_policytc.csv')
+            ofp.fm_profile_file_path = os.path.join(oasis_dir, 'fm_profile.csv')
+            ofp.fm_programme_file_path = os.path.join(oasis_dir, 'fm_programme.csv')
+            ofp.fm_xref_file_path = os.path.join(oasis_dir, 'fm_xref.csv')
+            ofp.fmsummaryxref_file_path = os.path.join(oasis_dir, 'fmsummaryxref.csv')
 
             fm_files = self.manager.write_fm_files(oasis_model=model)
 
@@ -999,6 +1079,29 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1,2,3,4,5,6,7,8])
             self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1,1,1,1,1,1,1,1])
             self.assertEqual(fmsummaryxref_df['summaryset_id'].values.tolist(), [1,1,1,1,1,1,1,1])
+
+            expected_losses = pd.DataFrame(
+                columns=['event_id', 'output_id', 'loss'],
+                data=[
+                    (1,1,632992.31),
+                    (1,2,60741.68),
+                    (1,3,28772.38),
+                    (1,4,12787.72),
+                    (1,5,1080562.62),
+                    (1,6,15984.65),
+                    (1,7,636189.31),
+                    (1,8,31969.31)
+                ]
+            )
+            bins_dir = os.path.join(oasis_dir, 'bin')
+            os.mkdir(bins_dir)
+            actual_losses = generate_losses(oasis_dir, bins_dir, print_losses=False)
+            losses_ok = actual_losses.equals(expected_losses)
+            self.assertTrue(losses_ok)
+            if losses_ok:
+                actual_losses['event_id'] = actual_losses['event_id'].astype(object)
+                actual_losses['output_id'] = actual_losses['output_id'].astype(object)
+                print('Correct losses generated for FM7:\n{}'.format(tabulate(actual_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
@@ -1070,7 +1173,7 @@ class FmAcceptanceTests(TestCase):
         accounts[1]['layerlimit'] = 3500000
         accounts[1]['layerattachment'] = 1500000
 
-        with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf, TemporaryDirectory() as outdir:
+        with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf, TemporaryDirectory() as oasis_dir:
             write_canonical_oed_files(exposures, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
@@ -1089,9 +1192,9 @@ class FmAcceptanceTests(TestCase):
             ofp.keys_file_path = kf.name
             ofp.canonical_exposures_file_path = ef.name
 
-            ofp.items_file_path = os.path.join(outdir, 'items.csv')
-            ofp.coverages_file_path = os.path.join(outdir, 'coverages.csv')
-            ofp.gulsummaryxref_file_path = os.path.join(outdir, 'gulsummaryxref.csv')
+            ofp.items_file_path = os.path.join(oasis_dir, 'items.csv')
+            ofp.coverages_file_path = os.path.join(oasis_dir, 'coverages.csv')
+            ofp.gulsummaryxref_file_path = os.path.join(oasis_dir, 'gulsummaryxref.csv')
 
             gul_files = self.manager.write_gul_files(oasis_model=model)
 
@@ -1114,11 +1217,11 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(guls['tiv'].values.tolist(), [1000000,1000000,1000000,2000000,2000000,2000000])
 
             ofp.canonical_accounts_file_path = af.name
-            ofp.fm_policytc_file_path = os.path.join(outdir, 'fm_policytc.csv')
-            ofp.fm_profile_file_path = os.path.join(outdir, 'fm_profile.csv')
-            ofp.fm_programme_file_path = os.path.join(outdir, 'fm_programme.csv')
-            ofp.fm_xref_file_path = os.path.join(outdir, 'fm_xref.csv')
-            ofp.fmsummaryxref_file_path = os.path.join(outdir, 'fmsummaryxref.csv')
+            ofp.fm_policytc_file_path = os.path.join(oasis_dir, 'fm_policytc.csv')
+            ofp.fm_profile_file_path = os.path.join(oasis_dir, 'fm_profile.csv')
+            ofp.fm_programme_file_path = os.path.join(oasis_dir, 'fm_programme.csv')
+            ofp.fm_xref_file_path = os.path.join(oasis_dir, 'fm_xref.csv')
+            ofp.fmsummaryxref_file_path = os.path.join(oasis_dir, 'fmsummaryxref.csv')
 
             fm_files = self.manager.write_fm_files(oasis_model=model)
 
@@ -1190,3 +1293,30 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1,2,3,4,5,6,7,8,9,10,11,12])
             self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1,1,1,1,1,1,1,1,1,1,1,1])
             self.assertEqual(fmsummaryxref_df['summaryset_id'].values.tolist(), [1,1,1,1,1,1,1,1,1,1,1,1])
+
+            expected_losses = pd.DataFrame(
+                columns=['event_id', 'output_id', 'loss'],
+                data=[
+                    (1,1,17059.16),
+                    (1,2,199023.55),
+                    (1,3,17059.16),
+                    (1,4,199023.55),
+                    (1,5,16369.90),
+                    (1,6,190982.20),
+                    (1,7,34204.48),
+                    (1,8,399052.25),
+                    (1,9,34290.64),
+                    (1,10,400057.44),
+                    (1,11,31016.66),
+                    (1,12,361861.00)
+                ]
+            )
+            bins_dir = os.path.join(oasis_dir, 'bin')
+            os.mkdir(bins_dir)
+            actual_losses = generate_losses(oasis_dir, bins_dir, print_losses=False)
+            losses_ok = actual_losses.equals(expected_losses)
+            self.assertTrue(losses_ok)
+            if losses_ok:
+                actual_losses['event_id'] = actual_losses['event_id'].astype(object)
+                actual_losses['output_id'] = actual_losses['output_id'].astype(object)
+                print('Correct losses generated for FM40:\n{}'.format(tabulate(actual_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
