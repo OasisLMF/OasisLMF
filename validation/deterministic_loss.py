@@ -5,32 +5,16 @@ Deterministic loss validation
 """
 # Python standard library imports
 import argparse
-import io
-import itertools
-import json
-import multiprocessing
 import os
-import six
 import subprocess
-import time
 
 from shutil import copyfile
 
 # Custom library imports
-import pandas as pd
-import six
-
 from tabulate import tabulate
 
 # MDK imports
-import oasislmf.model_execution.bin as ktools_bin
 from oasislmf.exposures import oed
-from oasislmf.exposures.manager import OasisExposuresManager as oem
-from oasislmf.keys.lookup import OasisLookupFactory as olf
-from oasislmf.utils.concurrency import (
-    multithread,
-    Task,
-)
 from oasislmf.utils.deterministic_loss import (
     generate_oasis_files,
     generate_losses,
@@ -56,7 +40,7 @@ if __name__ == "__main__":
     output_dir = os.path.abspath(args.output_dir) if not os.path.isabs(args.output_dir) else args.output_dir
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
-    
+
     input_dir = os.path.abspath(args.input_dir) if not os.path.isabs(args.input_dir) else args.input_dir
 
     loss_factor = args.loss_factor
@@ -87,7 +71,7 @@ if __name__ == "__main__":
 
         if not os.path.exists(os.path.join(input_dir, input_file_path)):
             continue
-        
+
         copyfile(
             os.path.join(input_dir, input_file_path),
             os.path.join(output_dir, input_file_path)
