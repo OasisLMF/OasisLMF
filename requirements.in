@@ -1,7 +1,7 @@
 -r ./requirements-package.in
 
 anytree
-configparser==3.5.0
+configparser>=3.5.0
 coverage
 discover
 flake8
@@ -9,7 +9,7 @@ freezegun
 future
 hypothesis
 mock
-pip-tools==2.0.2
+pip-tools>=2.0.2
 pytest
 pytest-cov
 pytest-ignore-flaky
