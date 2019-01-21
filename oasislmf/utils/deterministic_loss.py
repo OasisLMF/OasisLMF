@@ -11,28 +11,22 @@ Deterministic loss generation
 """
 
 # Standard library imports
-import argparse
 import copy
-import io
 import itertools
-import json
 import multiprocessing
 import os
 import shutil
 import subprocess
-import time
-
-import six
 
 # 3rd party imports
 import pandas as pd
+import six
 
 from tabulate import tabulate
 
 # Oasis imports (including loading profile defaults)
 from ..exposures import oed
 from ..exposures.manager import OasisExposuresManager as oem
-from ..model_execution import bin as ktools_bin
 from ..keys.lookup import OasisLookupFactory as olf
 from .concurrency import (
     multithread,
@@ -44,6 +38,7 @@ from .oed_profiles import (
     get_default_canonical_oed_acc_profile,
     get_default_fm_oed_aggregation_profile,
 )
+
 
 def generate_oasis_files(
     target_dir,
@@ -140,13 +135,13 @@ def generate_oasis_files(
     #
     # BuildingTIV,OtherTIV,ContentsTIV,BITIV
     #
-    # This means that if there are n locations in the source file then 4 x n 
+    # This means that if there are n locations in the source file then 4 x n
     # keys items are written out in the keys file. This means that 4 x n GUL
     # items will be present in the items and coverages and GUL summary xref files.
     n = len(pd.read_csv(_srcexp_fp))
     keys = [
-        {'id': i + 1 , 'peril_id': 1, 'coverage_type': j, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
-        for i, j in itertools.product(range(n), [1,2,3,4])
+        {'id': i + 1, 'peril_id': 1, 'coverage_type': j, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
+        for i, j in itertools.product(range(n), [1, 2, 3, 4])
     ]
     keys_fp, _ = olf.write_oasis_keys_file(keys, os.path.join(target_dir, 'keys.csv'))
 
@@ -209,7 +204,7 @@ def generate_binary_inputs(input_dir, output_dir):
     """
 
     _input_dir = ''.join(input_dir) if os.path.isabs(input_dir) else os.path.abspath(''.join(input_dir))
-    
+
     _output_dir = ''.join(output_dir) if os.path.isabs(output_dir) else os.path.abspath(''.join(output_dir))
     if not os.path.exists(_output_dir):
         os.mkdir(_output_dir)
@@ -223,7 +218,7 @@ def generate_binary_inputs(input_dir, output_dir):
 
         if not os.path.exists(os.path.join(_input_dir, input_fp)):
             continue
-        
+
         shutil.copy2(os.path.join(_input_dir, input_fp), _output_dir)
 
         input_fp = os.path.join(_output_dir, input_fp)
