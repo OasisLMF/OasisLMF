@@ -26,7 +26,9 @@ def load_ini_file(ini_file_path):
     except IOError as e:
         raise OasisException(str(e))
 
-    di = dict(map(lambda kv: (kv[0].strip(), kv[1].strip()), (line.split('=') for line in lines)))
+    di = {
+        kv[0].strip(): kv[1].strip() for kv in tuple(line.split('=') for line in lines)
+    }
 
     for k in di:
         if di[k].lower() == 'true':
@@ -34,7 +36,8 @@ def load_ini_file(ini_file_path):
         elif di[k].lower() == 'false':
             di[k] = False
         else:
-            ipf = lambda s: socket.inet_ntoa(socket.inet_aton(s))
+            def ipf(s):
+                return socket.inet_ntoa(socket.inet_aton(s))
             for conv in (int, float, ipf, str):
                 try:
                     di[k] = conv(di[k])
