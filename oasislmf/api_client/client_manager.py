@@ -128,9 +128,12 @@ class API_models(ApiEndpoint):
         self.resource_file = FileEndpoint(self.session, self.url_endpoint, 'resource_file/')
 
     def search(self, metadata):
-        search_string = ''
+        search_string = None
         for key in metadata:
-            search_string += '?{}={}'.format(key, metadata[key])
+            if not search_string:
+                search_string = '?{}={}'.format(key, metadata[key])
+            else:
+                search_string += '&{}={}'.format(key, metadata[key])
         return self.session.get('{}{}'.format(self.url_endpoint, search_string))
 
     def create(self, supplier_id, model_id, version_id):
@@ -156,9 +159,12 @@ class API_portfolios(ApiEndpoint):
         self.reinsurance_source_file = FileEndpoint(self.session, self.url_endpoint, 'reinsurance_source_file/')
 
     def search(self, metadata):
-        search_string = ''
+        search_string = None
         for key in metadata:
-            search_string += '?{}={}'.format(key, metadata[key])
+            if not search_string:
+                search_string = '?{}={}'.format(key, metadata[key])
+            else:
+                search_string += '&{}={}'.format(key, metadata[key])
         return self.session.get('{}{}'.format(self.url_endpoint, search_string))
 
     def create(self, name):
@@ -189,9 +195,12 @@ class API_analyses(ApiEndpoint):
         self.settings_file = FileEndpoint(self.session, self.url_endpoint, 'settings_file/')
 
     def search(self, metadata):
-        search_string = ''
+        search_string = None
         for key in metadata:
-            search_string += '?{}={}'.format(key, metadata[key])
+            if not search_string:
+                search_string = '?{}={}'.format(key, metadata[key])
+            else:
+                search_string += '&{}={}'.format(key, metadata[key])
         return self.session.get('{}{}'.format(self.url_endpoint, search_string))
 
     def create(self, name, portfolio_id, model_id):
