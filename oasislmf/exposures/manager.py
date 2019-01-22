@@ -14,8 +14,6 @@ import multiprocessing
 import os
 import shutil
 import six
-import sys
-import time
 
 import pandas as pd
 
@@ -39,11 +37,7 @@ from ..utils.fm import (
 )
 from ..utils.metadata import (
     OASIS_COVERAGE_TYPES,
-    OASIS_FM_LEVELS,
-    OASIS_PERILS,
     OED_COVERAGE_TYPES,
-    OED_FM_LEVELS,
-    OED_PERILS,
 )
 from ..utils.values import get_utctimestamp
 from ..models import OasisModel
@@ -73,7 +67,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         Adds Oasis model object to the manager and sets up its resources.
 
-        :param oasis_model: An Oasis model object 
+        :param oasis_model: An Oasis model object
         :type oasis_model: oasislmf.models.model.OasisModel
         """
         pass
@@ -82,7 +76,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         """
         Deletes an existing Oasis model object in the manager.
 
-        :param oasis_model: An Oasis model object 
+        :param oasis_model: An Oasis model object
         :type oasis_model: oasislmf.models.model.OasisModel
         """
         pass
@@ -102,7 +96,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         The transform is generic by default, but could be supplier specific if
         required.
 
-        :param oasis_model: An Oasis model object 
+        :param oasis_model: An Oasis model object
         :type oasis_model: oasislmf.models.model.OasisModel
 
         :param kwargs: Optional keyword arguments
@@ -122,7 +116,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         resources will be named and how they will be used to
         effect the transformation.
 
-        :param oasis_model: An Oasis model object 
+        :param oasis_model: An Oasis model object
         :type oasis_model: oasislmf.models.model.OasisModel
 
         :param kwargs: Optional keyword arguments
@@ -157,7 +151,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
 
             ``oasis_utils.oasis_keys_lookup_service_utils.KeysLookupServiceFactory``
 
-        :param oasis_model: An Oasis model object 
+        :param oasis_model: An Oasis model object
         :type oasis_model: oasislmf.models.model.OasisModel
 
         :param kwargs: Optional keyword arguments
@@ -169,7 +163,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         Loads a JSON string or JSON file representation of the canonical
         exposures profile for a given model.
 
-        :param oasis_model: An Oasis model object 
+        :param oasis_model: An Oasis model object
         :type oasis_model: oasislmf.models.model.OasisModel
 
         :param kwargs: Optional keyword arguments
@@ -181,7 +175,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         Loads a JSON string or JSON file representation of the canonical
         accounts profile for a given model.
 
-        :param oasis_model: An Oasis model object 
+        :param oasis_model: An Oasis model object
         :type oasis_model: oasislmf.models.model.OasisModel
 
         :param kwargs: Optional keyword arguments
@@ -193,7 +187,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         Loads a JSON string or JSON file representation of the FM
         aggregation profile for a given model.
 
-        :param oasis_model: An Oasis model object 
+        :param oasis_model: An Oasis model object
         :type oasis_model: oasislmf.models.model.OasisModel
 
         :param kwargs: Optional keyword arguments
@@ -288,7 +282,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         The required resources must be provided either via the model object
         resources dict or the keyword arguments.
 
-        :param oasis_model: An Oasis model object 
+        :param oasis_model: An Oasis model object
         :type oasis_model: oasislmf.models.model.OasisModel
 
         :param kwargs: Optional keyword arguments
@@ -303,7 +297,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         The required resources must be provided either via the model object
         resources dict or the keyword arguments.
 
-        :param oasis_model: An Oasis model object 
+        :param oasis_model: An Oasis model object
         :type oasis_model: oasislmf.models.model.OasisModel
 
         :param kwargs: Optional keyword arguments
@@ -319,7 +313,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         The required resources must be provided either via the model object
         resources dict or the keyword arguments.
 
-        :param oasis_model: An Oasis model object 
+        :param oasis_model: An Oasis model object
         :type oasis_model: oasislmf.models.model.OasisModel
 
         :param kwargs: Optional keyword arguments
@@ -425,7 +419,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
     @models.setter
     def models(self, val, key=None):
         if key:
-            self._models.update({key:val})
+            self._models.update({key: val})
         else:
             self._models.update(val)
 
@@ -482,7 +476,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         try:
             validation_file_path = kwargs['source_accounts_validation_file_path'] if source_type == 'accounts' else kwargs.get['source_exposures_validation_file_path']
-        except (KeyError, TypeError) as e:
+        except (KeyError, TypeError):
             validation_file_path = None
 
         output_file_path = os.path.abspath(kwargs['canonical_accounts_file_path']) if source_type == 'accounts' else os.path.abspath(kwargs['canonical_exposures_file_path'])
@@ -533,7 +527,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         try:
             validation_file_path = kwargs['canonical_exposures_validation_file_path']
-        except (KeyError, TypeError) as e:
+        except (KeyError, TypeError):
             validation_file_path = None
 
         output_file_path = os.path.abspath(kwargs.get('model_exposures_file_path'))
@@ -606,10 +600,10 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         profile = None
         if profile_json:
-            profile = {int(k):v for k, v in six.iteritems(json.loads(profile_json))}
+            profile = {int(k): v for k, v in six.iteritems(json.loads(profile_json))}
         elif profile_path:
             with io.open(profile_path, 'r', encoding='utf-8') as f:
-                profile = {int(k):v for k, v in six.iteritems(json.load(f))}
+                profile = {int(k): v for k, v in six.iteritems(json.load(f))}
 
         if oasis_model:
             oasis_model.resources['fm_agg_profile'] = profile
@@ -840,15 +834,14 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 } for tiv_tgid in ufcp[cov_level_id]
             }
 
-
             group_id = 0
             prev_it_loc_id = -1
             item_id = 0
             zero_tiv_items = 0
 
-            def positive_tiv_coverages(it): 
+            def positive_tiv_coverages(it):
                 return [t for t in cov_tivs if it.get(t['ProfileElementName'].lower()) and it[t['ProfileElementName'].lower()] > 0 and t['CoverageTypeID'] == it['coveragetypeid']] or [0]
-            
+
             for it, ptiv in itertools.chain((it, ptiv) for _, it in merged_df.iterrows() for it, ptiv in itertools.product([it], positive_tiv_coverages(it))):
                 if ptiv == 0:
                     zero_tiv_items += 1
@@ -884,7 +877,6 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                     'summaryset_id': 1
                 }
                 prev_it_loc_id = it['row_id']
-
 
         except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
             raise OasisException(e)
@@ -924,7 +916,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         """
         cep = canonical_exposures_profile
         cap = canonical_accounts_profile
-        
+
         canexp_df = canonical_exposures_df
 
         canacc_df = canonical_accounts_df
@@ -970,37 +962,37 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             cov_level_id = fm_levels[0]
 
             coverage_level_preset_data = list(zip(
-                tuple(cangul_df['item_id'].values),          # 1 - FM item ID
-                tuple(cangul_df['item_id'].values),          # 2 - GUL item ID
-                tuple(cangul_df['peril_id'].values),         # 3 - peril ID
-                tuple(cangul_df['coverage_type_id'].values), # 4 - coverage type ID
-                tuple(cangul_df['coverage_id'].values),      # 5 - coverage ID
-                tuple(cangul_df['is_bi_coverage'].values),   # 6 - is BI coverage?
-                tuple(cangul_df['canexp_id'].values),        # 7 - can. exp. DF index
-                (-1,)*len(cangul_df),                        # 8 - can. acc. DF index
-                (-1,)*len(cangul_df),                        # 9 - can. acc. policy num.
-                (cov_level_id,)*len(cangul_df),              # 10 - coverage level ID
-                (1,)*len(cangul_df),                         # 11 - layer ID
-                (-1,)*len(cangul_df),                        # 12 - agg. ID
-                tuple(cangul_df['tiv_elm'].values),          # 13 - TIV element
-                tuple(cangul_df['tiv'].values),              # 14 -TIV value
-                tuple(cangul_df['tiv_tgid'].values),         # 15 -coverage element/term group ID
-                tuple(cangul_df['ded_elm'].values),          # 16 -deductible element
-                tuple(cangul_df['ded_min_elm'].values),      # 17 -deductible min. element
-                tuple(cangul_df['ded_max_elm'].values),      # 18 -deductible max. element
-                tuple(cangul_df['lim_elm'].values),          # 19 -limit element
-                tuple(cangul_df['shr_elm'].values)           # 20 -share element
+                tuple(cangul_df['item_id'].values),           # 1 - FM item ID
+                tuple(cangul_df['item_id'].values),           # 2 - GUL item ID
+                tuple(cangul_df['peril_id'].values),          # 3 - peril ID
+                tuple(cangul_df['coverage_type_id'].values),  # 4 - coverage type ID
+                tuple(cangul_df['coverage_id'].values),       # 5 - coverage ID
+                tuple(cangul_df['is_bi_coverage'].values),    # 6 - is BI coverage?
+                tuple(cangul_df['canexp_id'].values),         # 7 - can. exp. DF index
+                (-1,) * len(cangul_df),                         # 8 - can. acc. DF index
+                (-1,) * len(cangul_df),                         # 9 - can. acc. policy num.
+                (cov_level_id,) * len(cangul_df),               # 10 - coverage level ID
+                (1,) * len(cangul_df),                          # 11 - layer ID
+                (-1,) * len(cangul_df),                         # 12 - agg. ID
+                tuple(cangul_df['tiv_elm'].values),           # 13 - TIV element
+                tuple(cangul_df['tiv'].values),               # 14 -TIV value
+                tuple(cangul_df['tiv_tgid'].values),          # 15 -coverage element/term group ID
+                tuple(cangul_df['ded_elm'].values),           # 16 -deductible element
+                tuple(cangul_df['ded_min_elm'].values),       # 17 -deductible min. element
+                tuple(cangul_df['ded_max_elm'].values),       # 18 -deductible max. element
+                tuple(cangul_df['lim_elm'].values),           # 19 -limit element
+                tuple(cangul_df['shr_elm'].values)            # 20 -share element
             ))
 
             def get_canacc_item(i):
-                return canacc_df[(canacc_df['accntnum'] == cangul_df[cangul_df['canexp_id']==coverage_level_preset_data[i][6]].iloc[0]['accntnum'])].iloc[0]
+                return canacc_df[(canacc_df['accntnum'] == cangul_df[cangul_df['canexp_id'] == coverage_level_preset_data[i][6]].iloc[0]['accntnum'])].iloc[0]
 
             def get_canacc_id(i):
                 return int(get_canacc_item(i)['index'])
 
             coverage_level_preset_items = {
                 i: {
-                    k:v for k, v in zip(
+                    k: v for k, v in zip(
                         keys,
                         [i + 1, gul_item_id, peril_id, coverage_type_id, coverage_id, is_bi_coverage, canexp_id, get_canacc_id(i), policy_num, level_id, layer_id, agg_id, -1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 12, tiv_elm, tiv, tiv_tgid, ded_elm, ded_min_elm, ded_max_elm, lim_elm, shr_elm]
                     )
@@ -1107,9 +1099,8 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                     gul_items_df[col] = gul_items_df[col].astype(float)
         except (IOError, MemoryError, OasisException, OSError, TypeError, ValueError) as e:
             raise OasisException(e)
-            
-        return gul_items_df, canexp_df
 
+        return gul_items_df, canexp_df
 
     def load_fm_items(
         self,
@@ -1160,7 +1151,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
             if len(canacc_df) == 0:
                 raise OasisException('No canonical accounts items')
-            
+
             canacc_df = canacc_df.where(canacc_df.notnull(), None)
             canacc_df.columns = canacc_df.columns.str.lower()
             canacc_df['index'] = pd.Series(data=canacc_df.index, dtype=int)
@@ -1174,12 +1165,12 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             if reduced:
                 def is_zero_terms_level(level_id):
                     return not any(
-                        it['deductible']!=0 or
-                        it['deductible_min']!=0 or
-                        it['deductible_max']!=0 or
-                        it['limit']!=0 or
-                        it['share']!=0
-                        for _, it in fm_items_df[fm_items_df['level_id']==level_id].iterrows()
+                        it['deductible'] != 0 or
+                        it['deductible_min'] != 0 or
+                        it['deductible_max'] != 0 or
+                        it['limit'] != 0 or
+                        it['share'] != 0
+                        for _, it in fm_items_df[fm_items_df['level_id'] == level_id].iterrows()
                     )
 
                 levels = sorted([l for l in set(fm_items_df['level_id'])])
@@ -1199,7 +1190,12 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 fm_items_df['level_id'] = fm_items_df['index'].apply(level_id)
 
             policytc_ids = get_policytc_ids(fm_items_df)
-            get_policytc_id = lambda i: [k for k in six.iterkeys(policytc_ids) if policytc_ids[k] == {k:fm_items_df.iloc[i][k] for k in ('limit', 'deductible', 'attachment', 'deductible_min', 'deductible_max', 'share', 'calcrule_id',)}][0]
+
+            def get_policytc_id(i):
+                return [
+                    k for k in six.iterkeys(policytc_ids) if policytc_ids[k] == {k: fm_items_df.iloc[i][k] for k in ('limit', 'deductible', 'attachment', 'deductible_min', 'deductible_max', 'share', 'calcrule_id',)}
+                ][0]
+
             fm_items_df['policytc_id'] = fm_items_df['index'].apply(lambda i: get_policytc_id(i))
 
             for col in fm_items_df.columns:
@@ -1213,7 +1209,6 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             raise OasisException(e)
 
         return fm_items_df, canacc_df
-
 
     def write_items_file(self, gul_items_df, items_file_path):
         """
@@ -1316,10 +1311,10 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
             fm_profile_df['index'] = range(n)
 
-            fm_profile_df['share2'] = fm_profile_df['share3'] = [0]*n
+            fm_profile_df['share2'] = fm_profile_df['share3'] = [0] * n
 
             fm_profile_df.to_csv(
-                columns=['policytc_id','calcrule_id','deductible1', 'deductible2', 'deductible3', 'attachment1', 'limit1', 'share1', 'share2', 'share3'],
+                columns=['policytc_id', 'calcrule_id', 'deductible1', 'deductible2', 'deductible3', 'attachment1', 'limit1', 'share1', 'share2', 'share3'],
                 path_or_buf=fm_profile_file_path,
                 encoding='utf-8',
                 chunksize=1000,
@@ -1337,11 +1332,11 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         try:
             cov_level = fm_items_df['level_id'].min()
             fm_programme_df = pd.DataFrame(
-                pd.concat([fm_items_df[fm_items_df['level_id']==cov_level], fm_items_df])[['level_id', 'agg_id']],
+                pd.concat([fm_items_df[fm_items_df['level_id'] == cov_level], fm_items_df])[['level_id', 'agg_id']],
                 dtype=int
             ).reset_index(drop=True)
 
-            num_cov_items = len(fm_items_df[fm_items_df['level_id']==cov_level])
+            num_cov_items = len(fm_items_df[fm_items_df['level_id'] == cov_level])
 
             for i in range(num_cov_items):
                 fm_programme_df.at[i, 'level_id'] = 0
@@ -1349,9 +1344,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             def from_agg_id_to_agg_id(from_level_id, to_level_id):
                 iterator = (
                     (from_level_it, to_level_it)
-                    for (_,from_level_it), (_, to_level_it) in zip(
-                        fm_programme_df[fm_programme_df['level_id']==from_level_id].iterrows(),
-                        fm_programme_df[fm_programme_df['level_id']==to_level_id].iterrows()
+                    for (_, from_level_it), (_, to_level_it) in zip(
+                        fm_programme_df[fm_programme_df['level_id'] == from_level_id].iterrows(),
+                        fm_programme_df[fm_programme_df['level_id'] == to_level_id].iterrows()
                     )
                 )
                 for from_level_it, to_level_it in iterator:
@@ -1437,7 +1432,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         canonical_exposures_profile = kwargs.get('canonical_exposures_profile')
         canonical_exposures_file_path = kwargs.get('canonical_exposures_file_path')
         keys_file_path = kwargs.get('keys_file_path')
-        
+
         gul_items_df, canexp_df = self.load_gul_items(canonical_exposures_profile, canonical_exposures_file_path, keys_file_path)
 
         if oasis_model:
@@ -1447,9 +1442,9 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         gul_files = (
             ofp.gul_files if oasis_model
             else {
-                 'items': kwargs.get('items_file_path'),
-                 'coverages': kwargs.get('coverages_file_path'),
-                 'gulsummaryxref': kwargs.get('gulsummaryxref_file_path')
+                'items': kwargs.get('items_file_path'),
+                'coverages': kwargs.get('coverages_file_path'),
+                'gulsummaryxref': kwargs.get('gulsummaryxref_file_path')
             }
         )
 
@@ -1499,7 +1494,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         fm_files = (
             ofp.fm_files if oasis_model
-            else  {
+            else {
                 'fm_policytc': kwargs.get('fm_policytc_file_path'),
                 'fm_profile': kwargs.get('fm_profile_file_path'),
                 'fm_programme': kwargs.get('fm_programme_file_path'),
@@ -1513,7 +1508,6 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             for f in fm_files
         )
         num_ps = min(len(fm_files), multiprocessing.cpu_count())
-        n = len(fm_files)
         for _, _ in multithread(concurrent_tasks, pool_size=num_ps):
             pass
 
@@ -1530,7 +1524,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         fm_files = self.write_fm_files(oasis_model=oasis_model, **kwargs)
 
-        oasis_files = {k:v for k, v in itertools.chain(gul_files.items(), fm_files.items())}
+        oasis_files = {k: v for k, v in itertools.chain(gul_files.items(), fm_files.items())}
 
         return oasis_files
 
@@ -1578,12 +1572,12 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
             raise OasisException('No Oasis files directory provided')
         elif not os.path.exists(oasis_files_path):
             raise OasisException('Oasis files directory {} does not exist on the filesystem.'.format(oasis_files_path))
-        
+
         logger.info('\nOasis files directory: {}'.format(oasis_files_path))
 
         logger.info('\nChecking for source exposures file')
         source_exposures_file_path = kwargs.get('source_exposures_file_path')
-        
+
         if not source_exposures_file_path:
             raise OasisException('No source exposures file path provided')
         elif not os.path.exists(source_exposures_file_path):
@@ -1609,7 +1603,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         if fm:
             logger.info('\nChecking for source accounts file')
             source_accounts_file_path = kwargs.get('source_accounts_file_path')
-            
+
             if not source_accounts_file_path:
                 raise OasisException('FM option indicated but no source accounts file path provided in arguments or model resources')
             elif not os.path.exists(source_accounts_file_path):
@@ -1650,7 +1644,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
         fm_policytc_file_path = os.path.join(oasis_files_path, 'fm_policytc.csv')
         fm_profile_file_path = os.path.join(oasis_files_path, 'fm_profile.csv')
-        fm_programme_file_path=os.path.join(oasis_files_path, 'fm_programme.csv')
+        fm_programme_file_path = os.path.join(oasis_files_path, 'fm_programme.csv')
         fm_xref_file_path = os.path.join(oasis_files_path, 'fm_xref.csv')
         fmsummaryxref_file_path = os.path.join(oasis_files_path, 'fmsummaryxref.csv')
 
@@ -1719,7 +1713,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
         logger.info('\nWriting FM files')
         fm_files = self.write_fm_files(oasis_model=oasis_model, **kwargs)
 
-        oasis_files = ofp.oasis_files if oasis_model else {k:v for k, v in itertools.chain(gul_files.items(), fm_files.items())}
+        oasis_files = ofp.oasis_files if oasis_model else {k: v for k, v in itertools.chain(gul_files.items(), fm_files.items())}
 
         return oasis_files
 
