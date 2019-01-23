@@ -269,6 +269,11 @@ def load_oed_dfs(oed_dir, show_all=False):
                 oed_ri_scope_file, lowercase_cols=False,
                 required_cols=RI_SCOPE_REQUIRED_COLS,
                 defaulted_cols=RI_SCOPE_DEFAULTS)
+
+            # Treat empty Risk Level as portfolio level scope.
+            # Also need nan, as this is produced when 
+            # a single row with empty Risk Level is loaded.
+            ri_scope_df.RiskLevel.fillna(REINS_RISK_LEVEL_PORTFOLIO, inplace = True)
         else:
             print("Both reinsurance files must exist: {} {}".format(
                 oed_ri_info_file, oed_ri_scope_file))
