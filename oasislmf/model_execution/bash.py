@@ -257,7 +257,7 @@ def do_summarycalcs(
             summary_set = summary['id']
             cmd = '{0} -{1} {4}fifo/{2}_S{1}_summary_P{3}'.format(cmd, summary_set, runtype, process_id, fifo_dir)
 
-    cmd = '{} < {}fifo/{}_P{} &'.format(cmd, fifo_dir, runtype, process_id)
+    cmd = '{0} < {1}fifo/{2}_P{3} &'.format(cmd, fifo_dir, runtype, process_id)
     print_command(filename, cmd)
 
 
@@ -333,7 +333,7 @@ def do_any(runtype, analysis_settings, process_id, filename, process_counter, fi
                 process_counter['pid_monitor_count'] += 1
                 print_command(
                     filename,
-                    '{3} < {4}fifo/{0}_S{1}_summarypltcalc_P{2} > work/kat/{0}_S{1}_pltcalc_P{2} & pid{4}=$!'.format(
+                    '{3} < {5}fifo/{0}_S{1}_summarypltcalc_P{2} > work/kat/{0}_S{1}_pltcalc_P{2} & pid{4}=$!'.format(
                         runtype, summary_set, process_id, cmd, process_counter['pid_monitor_count'], fifo_dir
                     )
                 )
@@ -351,7 +351,7 @@ def do_ri(analysis_settings, max_process_id, filename, process_counter, num_rein
 
     for process_id in range(1, max_process_id + 1):
         do_summarycalcs(
-            RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, num_reinsurance_iterations, fifo_dir)
+            RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, fifo_dir, num_reinsurance_iterations)
 
 
 def do_il(analysis_settings, max_process_id, filename, process_counter, fifo_dir=''):
@@ -489,7 +489,7 @@ def get_getmodel_cmd(number_of_samples, gul_threshold, use_random_number_file, c
 def genbash(
     max_process_id, analysis_settings, filename,
     num_reinsurance_iterations=0,
-    fifo_queue_dir=None,
+    fifo_tmp_dir=True,
     mem_limit=False,
     _get_getmodel_cmd=get_getmodel_cmd, custom_args={}):
     """
@@ -516,14 +516,12 @@ def genbash(
     :type get_getmodel_cmd: callable
     """
     process_counter = Counter()
-    if not fifo_queue_dir:
-        fifo_queue_dir = '/tmp/{}/'.format(''.join(
-                          random.choice(string.ascii_letters + string.digits) for _ in range(10)))
 
     use_random_number_file = False
     gul_output = False
     il_output = False
     ri_output = False
+    fifo_queue_dir = ""
 
     # remove the file if it already exists
     if os.path.exists(filename):
@@ -549,11 +547,18 @@ def genbash(
     print_command(filename, '')
 
     print_command(filename, 'rm -R -f output/*')
+    if not fifo_tmp_dir:
+        print_command(filename, 'rm -R -f fifo/*')
     print_command(filename, 'rm -R -f work/*')
     print_command(filename, '')
 
     print_command(filename, 'mkdir work/kat')
-    print_command(filename, 'mkdir -p {}fifo'.format(fifo_queue_dir))
+
+    # Create tmp dir for FIFO queues (Windows support)
+    if fifo_tmp_dir:
+        fifo_queue_dir = '/tmp/{}/'.format(''.join(
+                          random.choice(string.ascii_letters + string.digits) for _ in range(10)))
+        print_command(filename, 'mkdir -p {}fifo'.format(fifo_queue_dir))
 
     if gul_output:
         do_gul_make_fifo(analysis_settings, max_process_id, filename, fifo_queue_dir)
@@ -617,7 +622,7 @@ def genbash(
             for i in range(1, num_reinsurance_iterations + 1):
                 main_cmd = "{0} | fmcalc -a {3} -n -p input{1}RI_{2}".format(
                     main_cmd, os.sep, i, ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID)
-            main_cmd = "{} > {}fifo/ri_P{} &".format(main_cmd, fifo_queue_dir, process_id)
+            main_cmd = "{0} > {1}fifo/ri_P{2} &".format(main_cmd, fifo_queue_dir, process_id)
 
             print_command(
                 filename,
@@ -729,6 +734,6 @@ def genbash(
         remove_workfolders(RUNTYPE_INSURED_LOSS, analysis_settings, filename)
 
     # If fifo dir is in /tmp/*/ then clean up
-    if re.search(r"((/tmp/)[A-Za-z0-9_-]+(/))", fifo_queue_dir):
+    if re.search(r"((/tmp/)[A-Za-z0-9_-]+(/))", fifo_queue_dir) and fifo_tmp_dir:
         print_command(filename, 'rmdir {}/fifo'.format(fifo_queue_dir))
         print_command(filename, 'rmdir {}'.format(fifo_queue_dir))
