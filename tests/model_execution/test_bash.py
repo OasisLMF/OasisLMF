@@ -31,7 +31,7 @@ class Genbash(TestCase):
                 hash_md5.update(chunk)
         return hash_md5.hexdigest()
 
-    def genbash(self, name, num_partitions, num_reinsurance_iterations=0):
+    def genbash(self, name, num_partitions, num_reinsurance_iterations=0, fifo_tmp_dir=False, mem_limit=False):
         input_filename = os.path.join(KPARSE_INPUT_FOLDER, "{}.json".format(name))
         if num_reinsurance_iterations <= 0:
             output_filename = os.path.join(KPARSE_OUTPUT_FOLDER, "{}_{}_partition.sh".format(name, num_partitions))
@@ -47,7 +47,9 @@ class Genbash(TestCase):
             num_partitions,
             analysis_settings,
             output_filename,
-            num_reinsurance_iterations
+            num_reinsurance_iterations,
+            fifo_tmp_dir,
+            mem_limit
         )
 
     def check(self, name):
