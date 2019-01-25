@@ -6,7 +6,7 @@ from oasislmf.exposures.oed import ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID
 
 import os
 import io
-import string 
+import string
 import random
 import re
 
@@ -174,10 +174,10 @@ def do_make_fifos(runtype, analysis_settings, process_id, filename, fifo_dir='')
 
 def do_ktools_mem_limit(max_process_id ,filename):
     """
-        Set each Ktools pipeline to trap and terminate on hitting its 
+        Set each Ktools pipeline to trap and terminate on hitting its
         memory allocation limit
 
-        Limit: Maximum avalible memory / max_process_id 
+        Limit: Maximum avalible memory / max_process_id
     """
     cmd_mem_limit = 'ulimit -v $(ktgetmem {})'.format(max_process_id)
     print_command(filename, cmd_mem_limit)
@@ -237,7 +237,7 @@ def do_kats(runtype, analysis_settings, max_process_id, filename, process_counte
 
 def do_summarycalcs(
     runtype, analysis_settings, process_id, filename, fifo_dir='', num_reinsurance_iterations=0):
-    
+
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
@@ -487,7 +487,7 @@ def get_getmodel_cmd(number_of_samples, gul_threshold, use_random_number_file, c
     return cmd
 
 def genbash(
-    max_process_id, analysis_settings, filename, 
+    max_process_id, analysis_settings, filename,
     num_reinsurance_iterations=0,
     fifo_queue_dir=None,
     mem_limit=False,
@@ -507,8 +507,8 @@ def genbash(
 
     :param num_reinsurance_iterations: The number of reinsurance iterations
     :type num_reinsurance_iterations: int
-    
-    :param mem_limit: Flag to set a max memory limit for each ktools process 
+
+    :param mem_limit: Flag to set a max memory limit for each ktools process
     :type mem_limit: boolean
 
     :param get_getmodel_cmd: Method for getting the getmodel command, by default
@@ -593,13 +593,13 @@ def genbash(
         do_gul(analysis_settings, max_process_id, filename, process_counter, fifo_queue_dir)
 
     print_command(filename, '')
-    
+
     for process_id in range(1, max_process_id + 1):
 
         ##! Should be able to streamline the logic a little
         if num_reinsurance_iterations > 0 and ri_output:
-            
-            getmodel_args = { 
+
+            getmodel_args = {
                 'number_of_samples'      : number_of_samples,
                 'gul_threshold'          : gul_threshold,
                 'use_random_number_file' : use_random_number_file,
@@ -611,7 +611,7 @@ def genbash(
             getmodel_args.update(custom_args)
             getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
             main_cmd = 'eve {0} {1} | {2} | fmcalc -a {3} | tee {4}fifo/il_P{0}'.format(
-                process_id, max_process_id, getmodel_cmd, 
+                process_id, max_process_id, getmodel_cmd,
                 ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID,
                 fifo_queue_dir)
             for i in range(1, num_reinsurance_iterations + 1):
@@ -625,7 +625,7 @@ def genbash(
             )
 
         elif gul_output and il_output:
-            getmodel_args = { 
+            getmodel_args = {
                 'number_of_samples'      : number_of_samples,
                 'gul_threshold'          : gul_threshold,
                 'use_random_number_file' : use_random_number_file,
@@ -647,7 +647,7 @@ def genbash(
             )
         else:
             if gul_output and 'gul_summaries' in analysis_settings:
-                getmodel_args = { 
+                getmodel_args = {
                     'number_of_samples'      : number_of_samples,
                     'gul_threshold'          : gul_threshold,
                     'use_random_number_file' : use_random_number_file,
@@ -663,7 +663,7 @@ def genbash(
                     'eve {0} {1} | {2} > {3}fifo/gul_P{0}  &'.format(process_id, max_process_id, getmodel_cmd, fifo_queue_dir)
                 )
             if il_output and 'il_summaries' in analysis_settings:
-                getmodel_args = { 
+                getmodel_args = {
                     'number_of_samples'      : number_of_samples,
                     'gul_threshold'          : gul_threshold,
                     'use_random_number_file' : use_random_number_file,
@@ -729,5 +729,6 @@ def genbash(
         remove_workfolders(RUNTYPE_INSURED_LOSS, analysis_settings, filename)
 
     # If fifo dir is in /tmp/*/ then clean up
-    if re.search(r"((/tmp/)[A-Za-z]+(/))", fifo_queue_dir):
-        print_command(filename, 'rmdir '.format(fifo_queue_dir))    
+    if re.search(r"((/tmp/)[A-Za-z0-9_-]+(/))", fifo_queue_dir):
+        print_command(filename, 'rmdir {}/fifo'.format(fifo_queue_dir))
+        print_command(filename, 'rmdir {}'.format(fifo_queue_dir))
