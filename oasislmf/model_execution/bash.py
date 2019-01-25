@@ -8,6 +8,7 @@ import os
 import io
 import string 
 import random
+import re
 
 RUNTYPE_GROUNDUP_LOSS = 'gul'
 RUNTYPE_INSURED_LOSS = 'il'
@@ -726,3 +727,7 @@ def genbash(
     if il_output:
         do_il_remove_fifo(analysis_settings, max_process_id, filename, fifo_queue_dir)
         remove_workfolders(RUNTYPE_INSURED_LOSS, analysis_settings, filename)
+
+    # If fifo dir is in /tmp/*/ then clean up
+    if re.search(r"((/tmp/)[A-Za-z]+(/))", fifo_dir):
+        print_command(filename, 'rmdir '.format(fifo_dir))    
