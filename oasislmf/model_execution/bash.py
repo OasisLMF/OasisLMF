@@ -729,5 +729,5 @@ def genbash(
         remove_workfolders(RUNTYPE_INSURED_LOSS, analysis_settings, filename)
 
     # If fifo dir is in /tmp/*/ then clean up
-    if re.search(r"((/tmp/)[A-Za-z]+(/))", fifo_dir):
-        print_command(filename, 'rmdir '.format(fifo_dir))    
+    if re.search(r"((/tmp/)[A-Za-z]+(/))", fifo_queue_dir):
+        print_command(filename, 'rmdir '.format(fifo_queue_dir))    
