@@ -379,3 +379,21 @@ class Genbash(TestCase):
     def test_analysis_settings_4_0_reins_iters(self):
         self.genbash("analysis_settings_4", 1, 1)
         self.check("analysis_settings_4_1_reins_layer_1_partition")
+
+# -------------------------------------------------------------- #
+
+    def test_gul_il_lec_2_output_10_partitions_tmpfifo(self):
+        self.genbash("gul_il_lec_2_output", 10)
+        self.check("gul_il_lec_2_output_10_partition")
+
+    def test_gul_agg_ws_mean_lec_20_partition_tmpfifo_memlim(self):
+        self.genbash("gul_agg_ws_mean_lec_1_output", 20)
+        self.check("gul_agg_ws_mean_lec_1_output_20_partition")
+
+    def test_analysis_settings_3_0_reins_iters_tmpfifo(self):
+        self.genbash("analysis_settings_3", 1, 1)
+        self.check("analysis_settings_3_1_reins_layer_1_partition")
+
+    def test_analysis_settings_4_0_reins_iters_tmpfifo_memlim(self):
+        self.genbash("analysis_settings_4", 1, 1)
+        self.check("analysis_settings_4_1_reins_layer_1_partition")
