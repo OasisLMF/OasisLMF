@@ -12,7 +12,7 @@ def run(analysis_settings, number_of_processes=-1, num_reinsurance_iterations=0,
     if number_of_processes == -1:
         number_of_processes = multiprocessing.cpu_count()
 
-    genbash(number_of_processes, analysis_settings, filename, num_reinsurance_iterations=num_reinsurance_iterations, mem_limit=ktools_mem_limit)
+    genbash(number_of_processes, analysis_settings, filename, num_reinsurance_iterations=num_reinsurance_iterations, fifo_tmp_dir=True, mem_limit=ktools_mem_limit)
     try:
         subprocess.check_call(['bash', filename])
     except subprocess.CalledProcessError as e:
