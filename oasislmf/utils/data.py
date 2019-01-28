@@ -13,6 +13,7 @@ import six
 
 from .exceptions import OasisException
 
+
 def get_dataframe(
     src_fp=None,
     src_type='csv',
@@ -20,8 +21,8 @@ def get_dataframe(
     src_data=None,
     float_precision='high',
     lowercase_cols=True,
-    required_cols = [],
-    defaulted_cols = {},
+    required_cols=[],
+    defaulted_cols={},
     non_na_cols=(),
     col_dtypes={},
     index_col=True,
@@ -82,7 +83,7 @@ def get_dataframe(
 
     if col_dtypes:
         _col_dtypes = {
-            (k.lower() if lowercase_cols else k):(getattr(builtins, v) if v in ('int', 'bool', 'float', 'str',) else v) for k, v in six.iteritems(col_dtypes)
+            (k.lower() if lowercase_cols else k): (getattr(builtins, v) if v in ('int', 'bool', 'float', 'str',) else v) for k, v in six.iteritems(col_dtypes)
         }
         for col, dtype in six.iteritems(_col_dtypes):
             df[col] = df[col].astype(dtype) if dtype != int else df[col].astype(object)

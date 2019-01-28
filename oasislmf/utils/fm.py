@@ -3,7 +3,7 @@
 __all__ = [
     'get_coverage_level_fm_terms',
     'get_fm_terms_by_level_as_list',
-    'get_layer_calcrule_id', 
+    'get_layer_calcrule_id',
     'get_layer_level_fm_terms',
     'get_policytc_ids',
     'get_sub_layer_calcrule_id',
@@ -35,8 +35,6 @@ def get_coverage_level_fm_terms(level_unified_canonical_profile, level_fm_agg_pr
     if lid != cov_level:
         raise OasisException('Invalid FM level ID {} for generating coverage level FM terms - expected to be {}'.format(lid, cov_level))
 
-    lufcp = level_unified_canonical_profile
-
     lfmap = level_fm_agg_profile
 
     agg_key = tuple(v['field'].lower() for v in six.itervalues(lfmap['FMAggKey']))
@@ -46,7 +44,7 @@ def get_coverage_level_fm_terms(level_unified_canonical_profile, level_fm_agg_pr
     can_df = pd.merge(canexp_df, canacc_df, left_on='accntnum', right_on='accntnum')
 
     def get_can_item(canexp_id, canacc_id, policy_num):
-        return can_df[(can_df['row_id_x']==canexp_id+1) & (can_df['row_id_y']==canacc_id+1) & (can_df['policynum']==policy_num)].iloc[0]
+        return can_df[(can_df['row_id_x'] == canexp_id + 1) & (can_df['row_id_y'] == canacc_id + 1) & (can_df['policynum'] == policy_num)].iloc[0]
 
     for it, i in itertools.chain((it, i) for i, (key, group) in enumerate(itertools.groupby(li, key=lambda it: tuple(it[k] for k in agg_key))) for it in group):
         it['agg_id'] = i + 1
@@ -54,16 +52,16 @@ def get_coverage_level_fm_terms(level_unified_canonical_profile, level_fm_agg_pr
         can_item = get_can_item(it['canexp_id'], it['canacc_id'], it['policy_num'])
 
         can_item_ded = can_item.get(it['ded_elm']) or 0.0
-        it['deductible'] = (can_item_ded if can_item_ded >= 1 else it['tiv']*can_item_ded) or 0.0
+        it['deductible'] = (can_item_ded if can_item_ded >= 1 else it['tiv'] * can_item_ded) or 0.0
 
         can_item_ded_min = can_item.get(it['ded_min_elm']) or 0.0
-        it['deductible_min'] = (can_item_ded_min if can_item_ded_min >= 1 else it['tiv']*can_item_ded_min) or 0.0
+        it['deductible_min'] = (can_item_ded_min if can_item_ded_min >= 1 else it['tiv'] * can_item_ded_min) or 0.0
 
         can_item_ded_max = can_item.get(it['ded_max_elm']) or 0.0
-        it['deductible_max'] = (can_item_ded_max if can_item_ded_max >= 1 else it['tiv']*can_item_ded_max) or 0.0
+        it['deductible_max'] = (can_item_ded_max if can_item_ded_max >= 1 else it['tiv'] * can_item_ded_max) or 0.0
 
         can_item_lim = can_item.get(it['lim_elm']) or 0.0
-        it['limit'] = (can_item_lim if can_item_lim >= 1 else it['tiv']*can_item_lim) or 0.0
+        it['limit'] = (can_item_lim if can_item_lim >= 1 else it['tiv'] * can_item_lim) or 0.0
 
         it['share'] = can_item.get(it['shr_elm']) or 0.0
 
@@ -92,7 +90,7 @@ def get_layer_level_fm_terms(level_unified_canonical_profile, level_fm_agg_profi
     can_df = pd.merge(canexp_df, canacc_df, left_on='accntnum', right_on='accntnum')
 
     def get_can_item(canexp_id, canacc_id, policy_num):
-        return can_df[(can_df['row_id_x']==canexp_id+1) & (can_df['row_id_y']==canacc_id+1) & (can_df['policynum']==policy_num)].iloc[0]
+        return can_df[(can_df['row_id_x'] == canexp_id + 1) & (can_df['row_id_y'] == canacc_id + 1) & (can_df['policynum'] == policy_num)].iloc[0]
 
     ded_fld = lufcp[1].get('deductible') or {}
     ded_elm = ded_fld['ProfileElementName'].lower() if ded_fld else None
@@ -147,7 +145,7 @@ def get_sub_layer_non_coverage_level_fm_terms(level_unified_canonical_profile, l
     can_df = pd.merge(canexp_df, canacc_df, left_on='accntnum', right_on='accntnum')
 
     def get_can_item(canexp_id, canacc_id, policy_num):
-        return can_df[(can_df['row_id_x']==canexp_id+1) & (can_df['row_id_y']==canacc_id+1) & (can_df['policynum']==policy_num)].iloc[0]
+        return can_df[(can_df['row_id_x'] == canexp_id + 1) & (can_df['row_id_y'] == canacc_id + 1) & (can_df['policynum'] == policy_num)].iloc[0]
 
     ded_fld = lufcp[1].get('deductible') or {}
     ded_elm = ded_fld['ProfileElementName'].lower() if ded_fld else None
@@ -168,19 +166,19 @@ def get_sub_layer_non_coverage_level_fm_terms(level_unified_canonical_profile, l
 
         it['ded_elm'] = ded_elm if (not ded_fld.get('CoverageTypeID') or it['coverage_type_id'] in (ded_fld['CoverageTypeID'] or [])) else None
         can_item_ded = can_item.get(it['ded_elm']) or 0.0
-        it['deductible'] = (can_item_ded if can_item_ded >= 1 else it['tiv']*can_item_ded) or 0.0
+        it['deductible'] = (can_item_ded if can_item_ded >= 1 else it['tiv'] * can_item_ded) or 0.0
 
-        it['ded_min_elm'] = ded_min_elm  if (not ded_min_fld.get('CoverageTypeID') or it['coverage_type_id'] in (ded_min_fld['CoverageTypeID'] or [])) else None
+        it['ded_min_elm'] = ded_min_elm if (not ded_min_fld.get('CoverageTypeID') or it['coverage_type_id'] in (ded_min_fld['CoverageTypeID'] or [])) else None
         can_item_ded_min = can_item.get(it['ded_min_elm']) or 0.0
-        it['deductible_min'] = (can_item_ded_min if can_item_ded_min >= 1 else it['tiv']*can_item_ded_min) or 0.0
+        it['deductible_min'] = (can_item_ded_min if can_item_ded_min >= 1 else it['tiv'] * can_item_ded_min) or 0.0
 
-        it['ded_max_elm'] = ded_max_elm  if (not ded_max_fld.get('CoverageTypeID') or it['coverage_type_id'] in (ded_max_fld['CoverageTypeID'] or [])) else None
+        it['ded_max_elm'] = ded_max_elm if (not ded_max_fld.get('CoverageTypeID') or it['coverage_type_id'] in (ded_max_fld['CoverageTypeID'] or [])) else None
         can_item_ded_max = can_item.get(it['ded_max_elm']) or 0.0
-        it['deductible_max'] = (can_item_ded_max if can_item_ded_max >= 1 else it['tiv']*can_item_ded_max) or 0.0
+        it['deductible_max'] = (can_item_ded_max if can_item_ded_max >= 1 else it['tiv'] * can_item_ded_max) or 0.0
 
-        it['lim_elm'] = lim_elm  if (not lim_fld.get('CoverageTypeID') or it['coverage_type_id'] in (lim_fld['CoverageTypeID'] or [])) else None
+        it['lim_elm'] = lim_elm if (not lim_fld.get('CoverageTypeID') or it['coverage_type_id'] in (lim_fld['CoverageTypeID'] or [])) else None
         can_item_lim = can_item.get(it['lim_elm']) or 0.0
-        it['limit'] = (can_item_lim if can_item_lim >= 1 else it['tiv']*can_item_lim) or 0.0
+        it['limit'] = (can_item_lim if can_item_lim >= 1 else it['tiv'] * can_item_lim) or 0.0
 
         it['calcrule_id'] = get_sub_layer_calcrule_id(it['deductible'], it['deductible_min'], it['deductible_max'], it['limit'])
 
@@ -211,11 +209,11 @@ def get_fm_terms_by_level_as_list(level_unified_canonical_profile, level_fm_agg_
 def get_policytc_ids(fm_items_df):
 
     columns = [
-        col for col in fm_items_df.columns if not col in ('limit', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'share', 'calcrule_id',)
+        col for col in fm_items_df.columns if col not in ('limit', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'share', 'calcrule_id',)
     ]
 
     policytc_df = fm_items_df.drop(columns, axis=1).drop_duplicates()
-    
+
     for col in policytc_df.columns:
         policytc_df[col] = policytc_df[col].astype(float) if col != 'calcrule_id' else policytc_df[col].astype(int)
 
@@ -272,7 +270,7 @@ def get_sub_layer_calcrule_id(ded, ded_min, ded_max, lim, ded_code=0, lim_code=0
         return 16
     elif (ded > 0 and ded_code == 1) and (ded_min > 0 and ded_max > 0) and (lim == lim_code == 0):
         return 19
-    elif (ded > 0 and ded_code in [0,2]) and (ded_min > 0 and ded_max > 0) and (lim == lim_code == 0):
+    elif (ded > 0 and ded_code in [0, 2]) and (ded_min > 0 and ded_max > 0) and (lim == lim_code == 0):
         return 21
 
 
@@ -286,10 +284,10 @@ def unified_canonical_fm_profile_by_level(profiles=[], profile_paths=[]):
             with io.open(pp, 'r', encoding='utf-8') as f:
                 profiles.append(json.load(f))
 
-    comb_prof = {k:v for p in profiles for k, v in ((k, v) for k, v in six.iteritems(p) if 'FMLevel' in v)}
-    
+    comb_prof = {k: v for p in profiles for k, v in ((k, v) for k, v in six.iteritems(p) if 'FMLevel' in v)}
+
     return {
-        int(k):{v['ProfileElementName']:v for v in g} for k, g in itertools.groupby(sorted(six.itervalues(comb_prof), key=lambda v: v['FMLevel']), key=lambda v: v['FMLevel'])
+        int(k): {v['ProfileElementName']: v for v in g} for k, g in itertools.groupby(sorted(six.itervalues(comb_prof), key=lambda v: v['FMLevel']), key=lambda v: v['FMLevel'])
     }
 
 
@@ -301,7 +299,7 @@ def unified_canonical_fm_profile_by_level_and_term_group(profiles=[], profile_pa
     comb_prof = unified_canonical_fm_profile_by_level(profiles=profiles, profile_paths=profile_paths)
 
     return {
-        k:{
-            _k:{v['FMTermType'].lower():v for v in g} for _k, g in itertools.groupby(sorted(six.itervalues(comb_prof[k]), key=lambda v: v['FMTermGroupID']), key=lambda v: v['FMTermGroupID'])
+        k: {
+            _k: {v['FMTermType'].lower(): v for v in g} for _k, g in itertools.groupby(sorted(six.itervalues(comb_prof[k]), key=lambda v: v['FMTermGroupID']), key=lambda v: v['FMTermGroupID'])
         } for k in comb_prof
     }

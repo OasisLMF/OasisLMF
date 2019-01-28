@@ -1,5 +1,11 @@
 # -*- coding: utf-8 -*-
 
+__all__ = [
+    'oasis_log',
+    'read_log_config',
+    'set_rotating_logger'
+]
+
 """
 Logging utils.
 """
@@ -13,12 +19,6 @@ import time
 
 from functools import wraps
 from logging.handlers import RotatingFileHandler
-
-__all__ = [
-    'oasis_log',
-    'read_log_config',
-    'set_rotating_logger'
-]
 
 
 def getargspec(func):
@@ -54,6 +54,7 @@ def set_rotating_logger(
         "%(asctime)s - %(levelname)s - %(message)s")
 
     handler.setFormatter(formatter)
+
 
 def read_log_config(config_parser):
     """

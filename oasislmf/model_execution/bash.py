@@ -6,6 +6,9 @@ from oasislmf.exposures.oed import ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID
 
 import os
 import io
+import string
+import random
+import re
 
 RUNTYPE_GROUNDUP_LOSS = 'gul'
 RUNTYPE_INSURED_LOSS = 'il'
@@ -85,46 +88,46 @@ def do_post_wait_processing(runtype, analysis_settings, filename, process_counte
                     print_command(filename, cmd)
 
 
-def do_fifos(action, runtype, analysis_settings, process_id, filename):
+def do_fifos(action, runtype, analysis_settings, process_id, filename, fifo_dir=''):
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
 
-    print_command(filename, '{} fifo/{}_P{}'.format(action, runtype, process_id))
+    print_command(filename, '{} {}fifo/{}_P{}'.format(action, fifo_dir, runtype, process_id))
     print_command(filename, '')
     for summary in summaries:
         if 'id' in summary:
             summary_set = summary['id']
-            print_command(filename, '{} fifo/{}_S{}_summary_P{}'.format(action, runtype, summary_set, process_id))
+            print_command(filename, '{} {}fifo/{}_S{}_summary_P{}'.format(action, fifo_dir, runtype, summary_set, process_id))
 
             if summary.get('eltcalc'):
                 print_command(
                     filename,
-                    '{} fifo/{}_S{}_summaryeltcalc_P{}'.format(action, runtype, summary_set, process_id)
+                    '{} {}fifo/{}_S{}_summaryeltcalc_P{}'.format(action, fifo_dir, runtype, summary_set, process_id)
                 )
                 print_command(
                     filename,
-                    '{} fifo/{}_S{}_eltcalc_P{}'.format(action, runtype, summary_set, process_id)
+                    '{} {}fifo/{}_S{}_eltcalc_P{}'.format(action, fifo_dir, runtype, summary_set, process_id)
                 )
 
             if summary.get('summarycalc'):
                 print_command(
                     filename,
-                    '{} fifo/{}_S{}_summarysummarycalc_P{}'.format(action, runtype, summary_set, process_id)
+                    '{} {}fifo/{}_S{}_summarysummarycalc_P{}'.format(action, fifo_dir, runtype, summary_set, process_id)
                 )
                 print_command(
                     filename,
-                    '{} fifo/{}_S{}_summarycalc_P{}'.format(action, runtype, summary_set, process_id)
+                    '{} {}fifo/{}_S{}_summarycalc_P{}'.format(action, fifo_dir, runtype, summary_set, process_id)
                 )
 
             if summary.get('pltcalc'):
                 print_command(
                     filename,
-                    '{} fifo/{}_S{}_summarypltcalc_P{}'.format(action, runtype, summary_set, process_id)
+                    '{} {}fifo/{}_S{}_summarypltcalc_P{}'.format(action, fifo_dir, runtype, summary_set, process_id)
                 )
                 print_command(
                     filename,
-                    '{} fifo/{}_S{}_pltcalc_P{}'.format(action, runtype, summary_set, process_id)
+                    '{} {}fifo/{}_S{}_pltcalc_P{}'.format(action, fifo_dir, runtype, summary_set, process_id)
                 )
 
     print_command(filename, '')
@@ -166,21 +169,21 @@ def remove_workfolders(runtype, analysis_settings, filename):
                 print_command(filename, 'rmdir work/{}_S{}_summaryaalcalc'.format(runtype, summary_set))
 
 
-def do_make_fifos(runtype, analysis_settings, process_id, filename):
-    do_fifos('mkfifo', runtype, analysis_settings, process_id, filename)
+def do_make_fifos(runtype, analysis_settings, process_id, filename, fifo_dir=''):
+    do_fifos('mkfifo', runtype, analysis_settings, process_id, filename, fifo_dir)
 
 def do_ktools_mem_limit(max_process_id ,filename):
     """
-        Set each Ktools pipeline to trap and terminate on hitting its 
+        Set each Ktools pipeline to trap and terminate on hitting its
         memory allocation limit
 
-        Limit: Maximum avalible memory / max_process_id 
+        Limit: Maximum avalible memory / max_process_id
     """
     cmd_mem_limit = 'ulimit -v $(ktgetmem {})'.format(max_process_id)
     print_command(filename, cmd_mem_limit)
 
-def do_remove_fifos(runtype, analysis_settings, process_id, filename):
-    do_fifos('rm', runtype, analysis_settings, process_id, filename)
+def do_remove_fifos(runtype, analysis_settings, process_id, filename, fifo_dir=''):
+    do_fifos('rm', runtype, analysis_settings, process_id, filename, fifo_dir)
 
 
 def do_kats(runtype, analysis_settings, max_process_id, filename, process_counter):
@@ -233,8 +236,8 @@ def do_kats(runtype, analysis_settings, max_process_id, filename, process_counte
 
 
 def do_summarycalcs(
-    runtype, analysis_settings, process_id, filename, num_reinsurance_iterations=0):
-    
+    runtype, analysis_settings, process_id, filename, fifo_dir='', num_reinsurance_iterations=0):
+
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
@@ -252,13 +255,13 @@ def do_summarycalcs(
     for summary in summaries:
         if 'id' in summary:
             summary_set = summary['id']
-            cmd = '{0} -{1} fifo/{2}_S{1}_summary_P{3}'.format(cmd, summary_set, runtype, process_id)
+            cmd = '{0} -{1} {4}fifo/{2}_S{1}_summary_P{3}'.format(cmd, summary_set, runtype, process_id, fifo_dir)
 
-    cmd = '{} < fifo/{}_P{} &'.format(cmd, runtype, process_id)
+    cmd = '{0} < {1}fifo/{2}_P{3} &'.format(cmd, fifo_dir, runtype, process_id)
     print_command(filename, cmd)
 
 
-def do_tees(runtype, analysis_settings, process_id, filename, process_counter):
+def do_tees(runtype, analysis_settings, process_id, filename, process_counter, fifo_dir=''):
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
@@ -267,16 +270,16 @@ def do_tees(runtype, analysis_settings, process_id, filename, process_counter):
         if 'id' in summary:
             process_counter['pid_monitor_count'] += 1
             summary_set = summary['id']
-            cmd = 'tee < fifo/{}_S{}_summary_P{}'.format(runtype, summary_set, process_id)
+            cmd = 'tee < {}fifo/{}_S{}_summary_P{}'.format(fifo_dir, runtype, summary_set, process_id)
 
             if summary.get('eltcalc'):
-                cmd = '{} fifo/{}_S{}_summaryeltcalc_P{}'.format(cmd, runtype, summary_set, process_id)
+                cmd = '{} {}fifo/{}_S{}_summaryeltcalc_P{}'.format(cmd, fifo_dir, runtype, summary_set, process_id)
 
             if summary.get('pltcalc'):
-                cmd = '{} fifo/{}_S{}_summarypltcalc_P{}'.format(cmd, runtype, summary_set, process_id)
+                cmd = '{} {}fifo/{}_S{}_summarypltcalc_P{}'.format(cmd, fifo_dir, runtype, summary_set, process_id)
 
             if summary.get('summarycalc'):
-                cmd = '{} fifo/{}_S{}_summarysummarycalc_P{}'.format(cmd, runtype, summary_set, process_id)
+                cmd = '{} {}fifo/{}_S{}_summarysummarycalc_P{}'.format(cmd, fifo_dir, runtype, summary_set, process_id)
 
             if summary.get('aalcalc'):
                 cmd = '{} work/{}_S{}_summaryaalcalc/P{}.bin'.format(cmd, runtype, summary_set, process_id)
@@ -288,7 +291,7 @@ def do_tees(runtype, analysis_settings, process_id, filename, process_counter):
             print_command(filename, cmd)
 
 
-def do_any(runtype, analysis_settings, process_id, filename, process_counter):
+def do_any(runtype, analysis_settings, process_id, filename, process_counter, fifo_dir=''):
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
@@ -304,8 +307,8 @@ def do_any(runtype, analysis_settings, process_id, filename, process_counter):
                 process_counter['pid_monitor_count'] += 1
                 print_command(
                     filename,
-                    "{3} < fifo/{0}_S{1}_summaryeltcalc_P{2} > work/kat/{0}_S{1}_eltcalc_P{2} & pid{4}=$!".format(
-                        runtype, summary_set, process_id, cmd, process_counter['pid_monitor_count']
+                    "{3} < {5}fifo/{0}_S{1}_summaryeltcalc_P{2} > work/kat/{0}_S{1}_eltcalc_P{2} & pid{4}=$!".format(
+                        runtype, summary_set, process_id, cmd, process_counter['pid_monitor_count'], fifo_dir
                     )
                 )
 
@@ -317,8 +320,8 @@ def do_any(runtype, analysis_settings, process_id, filename, process_counter):
                 process_counter['pid_monitor_count'] += 1
                 print_command(
                     filename,
-                    '{3} < fifo/{0}_S{1}_summarysummarycalc_P{2} > work/kat/{0}_S{1}_summarycalc_P{2} & pid{4}=$!'.format(
-                        runtype, summary_set, process_id, cmd, process_counter['pid_monitor_count']
+                    '{3} < {5}fifo/{0}_S{1}_summarysummarycalc_P{2} > work/kat/{0}_S{1}_summarycalc_P{2} & pid{4}=$!'.format(
+                        runtype, summary_set, process_id, cmd, process_counter['pid_monitor_count'], fifo_dir
                     )
                 )
 
@@ -330,8 +333,8 @@ def do_any(runtype, analysis_settings, process_id, filename, process_counter):
                 process_counter['pid_monitor_count'] += 1
                 print_command(
                     filename,
-                    '{3} < fifo/{0}_S{1}_summarypltcalc_P{2} > work/kat/{0}_S{1}_pltcalc_P{2} & pid{4}=$!'.format(
-                        runtype, summary_set, process_id, cmd, process_counter['pid_monitor_count']
+                    '{3} < {5}fifo/{0}_S{1}_summarypltcalc_P{2} > work/kat/{0}_S{1}_pltcalc_P{2} & pid{4}=$!'.format(
+                        runtype, summary_set, process_id, cmd, process_counter['pid_monitor_count'], fifo_dir
                     )
                 )
 
@@ -339,68 +342,68 @@ def do_any(runtype, analysis_settings, process_id, filename, process_counter):
         print_command(filename, '')
 
 
-def do_ri(analysis_settings, max_process_id, filename, process_counter, num_reinsurance_iterations):
+def do_ri(analysis_settings, max_process_id, filename, process_counter, num_reinsurance_iterations, fifo_dir=''):
     for process_id in range(1, max_process_id + 1):
-        do_any(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, process_counter)
+        do_any(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
     for process_id in range(1, max_process_id + 1):
-        do_tees(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, process_counter)
+        do_tees(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
     for process_id in range(1, max_process_id + 1):
         do_summarycalcs(
-            RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, num_reinsurance_iterations)
+            RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, fifo_dir, num_reinsurance_iterations)
 
 
-def do_il(analysis_settings, max_process_id, filename, process_counter):
+def do_il(analysis_settings, max_process_id, filename, process_counter, fifo_dir=''):
     for process_id in range(1, max_process_id + 1):
-        do_any(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter)
-
-    for process_id in range(1, max_process_id + 1):
-        do_tees(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter)
+        do_any(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
     for process_id in range(1, max_process_id + 1):
-        do_summarycalcs(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename)
-
-
-def do_gul(analysis_settings, max_process_id, filename, process_counter):
-    for process_id in range(1, max_process_id + 1):
-        do_any(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter)
+        do_tees(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
     for process_id in range(1, max_process_id + 1):
-        do_tees(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter)
+        do_summarycalcs(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, fifo_dir)
+
+
+def do_gul(analysis_settings, max_process_id, filename, process_counter, fifo_dir=''):
+    for process_id in range(1, max_process_id + 1):
+        do_any(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
     for process_id in range(1, max_process_id + 1):
-        do_summarycalcs(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename)
+        do_tees(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
-
-def do_il_make_fifo(analysis_settings, max_process_id, filename):
     for process_id in range(1, max_process_id + 1):
-        do_make_fifos(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename)
+        do_summarycalcs(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, fifo_dir)
 
 
-def do_gul_make_fifo(analysis_settings, max_process_id, filename):
+def do_il_make_fifo(analysis_settings, max_process_id, filename, fifo_dir=''):
     for process_id in range(1, max_process_id + 1):
-        do_make_fifos(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename)
+        do_make_fifos(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, fifo_dir)
 
 
-def do_ri_make_fifo(analysis_settings, max_process_id, filename):
+def do_gul_make_fifo(analysis_settings, max_process_id, filename, fifo_dir=''):
     for process_id in range(1, max_process_id + 1):
-        do_make_fifos(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename)
+        do_make_fifos(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, fifo_dir)
 
 
-def do_il_remove_fifo(analysis_settings, max_process_id, filename):
+def do_ri_make_fifo(analysis_settings, max_process_id, filename, fifo_dir=''):
     for process_id in range(1, max_process_id + 1):
-        do_remove_fifos(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename)
+        do_make_fifos(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, fifo_dir)
 
 
-def do_gul_remove_fifo(analysis_settings, max_process_id, filename):
+def do_il_remove_fifo(analysis_settings, max_process_id, filename, fifo_dir=''):
     for process_id in range(1, max_process_id + 1):
-        do_remove_fifos(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename)
+        do_remove_fifos(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, fifo_dir)
 
 
-def do_ri_remove_fifo(analysis_settings, max_process_id, filename):
+def do_gul_remove_fifo(analysis_settings, max_process_id, filename, fifo_dir=''):
     for process_id in range(1, max_process_id + 1):
-        do_remove_fifos(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename)
+        do_remove_fifos(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, fifo_dir)
+
+
+def do_ri_remove_fifo(analysis_settings, max_process_id, filename, fifo_dir=''):
+    for process_id in range(1, max_process_id + 1):
+        do_remove_fifos(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, fifo_dir)
 
 
 def do_waits(wait_variable, wait_count, filename):
@@ -484,8 +487,9 @@ def get_getmodel_cmd(number_of_samples, gul_threshold, use_random_number_file, c
     return cmd
 
 def genbash(
-    max_process_id, analysis_settings, filename, 
+    max_process_id, analysis_settings, filename,
     num_reinsurance_iterations=0,
+    fifo_tmp_dir=True,
     mem_limit=False,
     _get_getmodel_cmd=get_getmodel_cmd, custom_args={}):
     """
@@ -503,8 +507,8 @@ def genbash(
 
     :param num_reinsurance_iterations: The number of reinsurance iterations
     :type num_reinsurance_iterations: int
-    
-    :param mem_limit: Flag to set a max memory limit for each ktools process 
+
+    :param mem_limit: Flag to set a max memory limit for each ktools process
     :type mem_limit: boolean
 
     :param get_getmodel_cmd: Method for getting the getmodel command, by default
@@ -517,6 +521,7 @@ def genbash(
     gul_output = False
     il_output = False
     ri_output = False
+    fifo_queue_dir = ""
 
     # remove the file if it already exists
     if os.path.exists(filename):
@@ -542,22 +547,29 @@ def genbash(
     print_command(filename, '')
 
     print_command(filename, 'rm -R -f output/*')
-    print_command(filename, 'rm -R -f fifo/*')
+    if not fifo_tmp_dir:
+        print_command(filename, 'rm -R -f fifo/*')
     print_command(filename, 'rm -R -f work/*')
     print_command(filename, '')
 
     print_command(filename, 'mkdir work/kat')
 
+    # Create tmp dir for FIFO queues (Windows support)
+    if fifo_tmp_dir:
+        fifo_queue_dir = '/tmp/{}/'.format(''.join(
+                          random.choice(string.ascii_letters + string.digits) for _ in range(10)))
+        print_command(filename, 'mkdir -p {}fifo'.format(fifo_queue_dir))
+
     if gul_output:
-        do_gul_make_fifo(analysis_settings, max_process_id, filename)
+        do_gul_make_fifo(analysis_settings, max_process_id, filename, fifo_queue_dir)
         create_workfolders(RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename)
 
     if il_output:
-        do_il_make_fifo(analysis_settings, max_process_id, filename)
+        do_il_make_fifo(analysis_settings, max_process_id, filename, fifo_queue_dir)
         create_workfolders(RUNTYPE_INSURED_LOSS, analysis_settings, filename)
 
     if ri_output:
-        do_ri_make_fifo(analysis_settings, max_process_id, filename)
+        do_ri_make_fifo(analysis_settings, max_process_id, filename, fifo_queue_dir)
         create_workfolders(RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename)
         print_command(filename, '')
 
@@ -565,13 +577,13 @@ def genbash(
         print_command(filename, '')
         print_command(filename, '# --- Do reinsurance loss computes ---')
         print_command(filename, '')
-        do_ri(analysis_settings, max_process_id, filename, process_counter, num_reinsurance_iterations)
+        do_ri(analysis_settings, max_process_id, filename, process_counter, num_reinsurance_iterations, fifo_queue_dir)
 
     if il_output:
         print_command(filename, '')
         print_command(filename, '# --- Do insured loss computes ---')
         print_command(filename, '')
-        do_il(analysis_settings, max_process_id, filename, process_counter)
+        do_il(analysis_settings, max_process_id, filename, process_counter, fifo_queue_dir)
 
     if mem_limit:
         print_command(filename, '')
@@ -583,33 +595,34 @@ def genbash(
         print_command(filename, '')
         print_command(filename, '# --- Do ground up loss computes ---')
         print_command(filename, '')
-        do_gul(analysis_settings, max_process_id, filename, process_counter)
+        do_gul(analysis_settings, max_process_id, filename, process_counter, fifo_queue_dir)
 
     print_command(filename, '')
-    
+
     for process_id in range(1, max_process_id + 1):
 
         ##! Should be able to streamline the logic a little
         if num_reinsurance_iterations > 0 and ri_output:
-            
-            getmodel_args = { 
+
+            getmodel_args = {
                 'number_of_samples'      : number_of_samples,
                 'gul_threshold'          : gul_threshold,
                 'use_random_number_file' : use_random_number_file,
-                'coverage_output'        : 'fifo/gul_P{}'.format(process_id),
+                'coverage_output'        : '{}fifo/gul_P{}'.format(fifo_queue_dir, process_id),
                 'item_output'            : '-',
                 'process_id'             : process_id,
                 'max_process_id'         : max_process_id
             }
             getmodel_args.update(custom_args)
             getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
-            main_cmd = 'eve {0} {1} | {2} | fmcalc -a {3} | tee fifo/il_P{0}'.format(
-                process_id, max_process_id, getmodel_cmd, 
-                ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID)
+            main_cmd = 'eve {0} {1} | {2} | fmcalc -a {3} | tee {4}fifo/il_P{0}'.format(
+                process_id, max_process_id, getmodel_cmd,
+                ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID,
+                fifo_queue_dir)
             for i in range(1, num_reinsurance_iterations + 1):
                 main_cmd = "{0} | fmcalc -a {3} -n -p input{1}RI_{2}".format(
                     main_cmd, os.sep, i, ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID)
-            main_cmd = "{} > fifo/ri_P{} &".format(main_cmd, process_id)
+            main_cmd = "{0} > {1}fifo/ri_P{2} &".format(main_cmd, fifo_queue_dir, process_id)
 
             print_command(
                 filename,
@@ -617,20 +630,21 @@ def genbash(
             )
 
         elif gul_output and il_output:
-            getmodel_args = { 
+            getmodel_args = {
                 'number_of_samples'      : number_of_samples,
                 'gul_threshold'          : gul_threshold,
                 'use_random_number_file' : use_random_number_file,
-                'coverage_output'        : 'fifo/gul_P{}'.format(process_id),
+                'coverage_output'        : '{}fifo/gul_P{}'.format(fifo_queue_dir, process_id),
                 'item_output'            : '-',
                 'process_id'             : process_id,
                 'max_process_id'         : max_process_id
             }
             getmodel_args.update(custom_args)
             getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
-            main_cmd = 'eve {0} {1} | {2} | fmcalc -a {3} > fifo/il_P{0}  &'.format(
+            main_cmd = 'eve {0} {1} | {2} | fmcalc -a {3} > {4}fifo/il_P{0}  &'.format(
                 process_id, max_process_id, getmodel_cmd,
-                ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID)
+                ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID,
+                fifo_queue_dir)
 
             print_command(
                 filename,
@@ -638,7 +652,7 @@ def genbash(
             )
         else:
             if gul_output and 'gul_summaries' in analysis_settings:
-                getmodel_args = { 
+                getmodel_args = {
                     'number_of_samples'      : number_of_samples,
                     'gul_threshold'          : gul_threshold,
                     'use_random_number_file' : use_random_number_file,
@@ -651,10 +665,10 @@ def genbash(
                 getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
                 print_command(
                     filename,
-                    'eve {0} {1} | {2} > fifo/gul_P{0}  &'.format(process_id, max_process_id, getmodel_cmd)
+                    'eve {0} {1} | {2} > {3}fifo/gul_P{0}  &'.format(process_id, max_process_id, getmodel_cmd, fifo_queue_dir)
                 )
             if il_output and 'il_summaries' in analysis_settings:
-                getmodel_args = { 
+                getmodel_args = {
                     'number_of_samples'      : number_of_samples,
                     'gul_threshold'          : gul_threshold,
                     'use_random_number_file' : use_random_number_file,
@@ -667,9 +681,10 @@ def genbash(
                 getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
                 print_command(
                     filename,
-                    "eve {0} {1} | {2} | fmcalc -a {3} > fifo/il_P{0}  &".format(
+                    "eve {0} {1} | {2} | fmcalc -a {3} > {4}fifo/il_P{0}  &".format(
                         process_id, max_process_id, getmodel_cmd,
-                        ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID)
+                        ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID,
+                        fifo_queue_dir)
                 )
 
     print_command(filename, '')
@@ -705,15 +720,20 @@ def genbash(
     do_lwaits(filename, process_counter)  # waits for leccalc
 
     if gul_output:
-        do_gul_remove_fifo(analysis_settings, max_process_id, filename)
+        do_gul_remove_fifo(analysis_settings, max_process_id, filename, fifo_queue_dir)
         remove_workfolders(RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename)
 
     print_command(filename, '')
 
     if ri_output:
-        do_ri_remove_fifo(analysis_settings, max_process_id, filename)
+        do_ri_remove_fifo(analysis_settings, max_process_id, filename, fifo_queue_dir)
         remove_workfolders(RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename)
 
     if il_output:
-        do_il_remove_fifo(analysis_settings, max_process_id, filename)
+        do_il_remove_fifo(analysis_settings, max_process_id, filename, fifo_queue_dir)
         remove_workfolders(RUNTYPE_INSURED_LOSS, analysis_settings, filename)
+
+    # If fifo dir is in /tmp/*/ then clean up
+    if re.search(r"((/tmp/)[A-Za-z0-9_-]+(/))", fifo_queue_dir) and fifo_tmp_dir:
+        print_command(filename, 'rmdir {}fifo'.format(fifo_queue_dir))
+        print_command(filename, 'rmdir {}'.format(fifo_queue_dir))
