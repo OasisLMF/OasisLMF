@@ -143,21 +143,21 @@ if __name__ == "__main__":
 
     print('\nMDK package successfully installed from branch {}'.format(args['package_repo_branch']))
 
-    print('\nCloning PiWind in \n\t{}\n'.format(args['piwind_clone_target']))
+    print('\nCloning PiWind in {}\n'.format(args['piwind_clone_target']))
 
     try:
         piwind_fp = clone_piwind(args['piwind_clone_target'], transfer_protocol=args['git_transfer_protocol'])
     except CalledProcessError as e:
         raise MDKRuntimeTesterException('\nError while trying to clone PiWind repository: {}\n'.format(e))
 
-    print('\nPiWind successfully cloned in {}\n'.format(args['piwind_clone_target']))
+    print('\nPiWind successfully cloned in {}'.format(args['piwind_clone_target']))
 
     piwind_fp = os.path.join(args['piwind_clone_target'], 'OasisPiWind')
     piwind_mdk_config_fp = os.path.join(piwind_fp, 'oasislmf-oed.json')
     print('\nRunning PiWind end-to-end via MDK using config. file {}\n'.format(piwind_mdk_config_fp))
 
     try:
-        run_model_via_mdk(piwind_mdk_config_fp, model_run_dir=piwind_fp)
+        run_model_via_mdk(piwind_mdk_config_fp, model_run_dir=os.path.join(piwind_fp, 'test-run'))
     except CalledProcessError as e:
         raise MDKRuntimeTesterException('\nError while trying to run PiWind via MDK: {}'.format(e))
 
