@@ -2,16 +2,19 @@
 
 """
 Installs a version of the MDK package from a given branch in the OasisLMF
-GitHub repository, and doe an end-to-end runtime test against a small
-PiWind sample dataset.
+GitHub repository, and does an end-to-end runtime test of PiWind using a
+PiWind sample dataset via the MDK `model run` subcommand.
 """
+
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
 import argparse
 import os
 import shutil
 import subprocess
 import sys
-
-from pkg_resources import DistributionNotFound
 
 from subprocess import (
     CalledProcessError,
@@ -160,5 +163,11 @@ if __name__ == "__main__":
         run_model_via_mdk(piwind_mdk_config_fp, model_run_dir=os.path.join(piwind_fp, 'test-run'))
     except CalledProcessError as e:
         raise MDKRuntimeTesterException('\nError while trying to run PiWind via MDK: {}'.format(e))
+
+    print('\nCleaning up - removing package install and test PiWind repository')
+    try:
+        cleanup(pip_path=args['default_pip_path'], piwind_target=piwind_fp)
+    except CalledProcessError as e:
+        print('\nError cleaning up: {}'.format(e))
 
     sys.exit(0)
