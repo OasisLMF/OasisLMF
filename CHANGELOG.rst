@@ -1,6 +1,16 @@
 OasisLMF Changelog
 ==================
 
+`1.2.4`_
+--------
+* Fix for Windows 10 (Linux Sub-system), FIFO queues moved into `/tmp/<random>`
+* Fix for Reinsurance, Set RiskLevel = `SEL` as default when value is not set
+* Fix, calc rule for all positivedeductibles
+* Fixes for new API Client 
+* Added Deterministic loss generation
+* Added FM acceptance tests
+* Added Automated testing 
+
 `1.2.3`_
 --------
 * Hotfix for Reinsurance required fields 
@@ -163,6 +173,7 @@ in the exposure manager
 
 
 
+.. _`1.2.4`:  https://github.com/OasisLMF/OasisLMF/compare/1.2.3...1.2.4
 .. _`1.2.3`:  https://github.com/OasisLMF/OasisLMF/compare/1.2.2...1.2.3
 .. _`1.2.2`:  https://github.com/OasisLMF/OasisLMF/compare/d6dbf25...master
 .. _`1.2.1`:  https://github.com/OasisLMF/OasisLMF/compare/f4d7390...master
