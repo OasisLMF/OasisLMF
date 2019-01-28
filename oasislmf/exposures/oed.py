@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 
+from __future__ import print_function
+
 __all__ = [
     'load_oed_dfs'
 ]
-
-from __future__ import print_function
 
 import math
 import pandas as pd
