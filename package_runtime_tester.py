@@ -49,11 +49,12 @@ def get_default_pip_path():
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description='Installs a version of the MDK package '
-                    'from a given branch in the OasisLMF '
-                    'GitHub repository, and does an '
-                    'end-to-end runtime test against a '
-                    'small PiWind sample dataset.'
+        description='Installs a version of the MDK package from a given branch in the OasisLMF '
+                    'GitHub repository, and does an end-to-end runtime test of an OasisLMF-managed '
+                    'model repository on GitHub using a small sample dataset. Runtime options '
+                    'include 'gul' for ground up loss (GUL) only, "fm" for insured loss, or 'ri' for '
+                    'reinsurance losses. In practice, the test model repository will generally be'
+                    'PiWind'
     )
 
     parser.add_argument('-b', '--mdk-repo-branch', default='develop', help='Target branch in the MDK package GitHub repository to build the package from')
@@ -105,11 +106,6 @@ def pip_install(pkg_name_or_branch_uri, options_str='-v', pip_path=get_default_p
         run(cmd_str.split(), check=True)
 
 
-def git_clone(repo_url, options_str=''):
-    cmd_str = 'git clone {} {}'.format(options_str, repo_url)
-    run(cmd_str.split(), check=True)
-
-
 def clone_repo(repo_name, target, repo_branch='master', user_or_org_name='OasisLMF', home=os.getcwd(), transfer_protocol='ssh'):
     if not os.path.exists(target):
         os.mkdir(target)
@@ -122,7 +118,11 @@ def clone_repo(repo_name, target, repo_branch='master', user_or_org_name='OasisL
 
     repo_url = 'git+{}://git@github.com/{}/{}'.format(transfer_protocol, user_or_org_name, repo_name)
 
-    git_clone(repo_url, options_str='-b {} --single-branch'.format(repo_branch))
+    options_str = '-b {} --single-branch'.format(repo_branch)
+
+    cmd_str = 'git clone {} {}'.format(options_str, repo_url)
+
+    run(cmd_str.split(), check=True)
 
     os.chdir(home)
 
