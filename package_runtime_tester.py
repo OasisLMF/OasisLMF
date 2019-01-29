@@ -2,15 +2,20 @@
 
 """
 Installs a version of the MDK package from a given branch in the OasisLMF
-GitHub repository, and does an end-to-end runtime test of PiWind using a
-PiWind sample dataset via the MDK `model run` subcommand.
+GitHub repository, and does an end-to-end runtime test of an OasisLMF-managed
+model repository on GitHub using a small sample dataset. Runtime options
+include 'gul' for ground up loss (GUL) only, "fm" for insured loss, or 'ri' for
+reinsurance losses. In practice, the test model repository will generally be
+PiWind.
 """
 
 from __future__ import absolute_import
-from __future__ import division
 from __future__ import print_function
 
 import argparse
+import copy
+import io
+import json
 import os
 import shutil
 import subprocess
@@ -51,44 +56,52 @@ def parse_args():
                     'small PiWind sample dataset.'
     )
 
-    parser.add_argument('-b', '--package-repo-branch', default='develop', help='Target branch in the package GitHub repository to build the package from')
+    parser.add_argument('-b', '--mdk-repo-branch', default='develop', help='Target branch in the MDK package GitHub repository to build the package from')
 
-    parser.add_argument('-w', '--piwind-repo-branch', default='master', help='Target branch in the PiWind GitHub repository to clone')
+    parser.add_argument('-m', '--model-repo-name', default='OasisPiWind', help='Target model GitHub repository name (must be an OasisLMF managed repository)')
 
-    parser.add_argument('-t', '--piwind-clone-target', default=os.path.abspath('.'), help='Local parent folder in which to clone PiWind - default is script run directory')
+    parser.add_argument('-r', '--model-repo-branch', default='master', help='Target branch in the model GitHub repository to clone')
+
+    parser.add_argument('-t', '--clone-target', default=os.path.abspath('.'), help='Local parent folder in which to clone the model repository - default is script run directory')
 
     parser.add_argument('-g', '--git-transfer-protocol', default='ssh', help='Git transfer protocol - https" or "ssh"')
 
     parser.add_argument('-p', '--default-pip-path', default=get_default_pip_path(), help='Default pip path')
 
+    parser.add_argument('-d', '--model-run-mode', default='ri', help='Model run mode - `gul` for GUL only, `fm` for GUL + FM, `ri` for GUL + FM + RI')
+
     args = vars(parser.parse_args())
 
-    if not os.path.isabs(args['piwind_clone_target']):
-        args['piwind_clone_target'] = os.path.abspath(args['piwind_clone_target'])
+    if not os.path.isabs(args['clone_target']):
+        args['clone_target'] = os.path.abspath(args['clone_target'])
+
+    if not args['model_run_mode'] in ['gul', 'fm', 'ri']:
+        args['model_run_mode'] = 'ri'
 
     return args
 
-def mdk_pkg_exists():
-    cmd_str = 'pip freeze | grep oasislmf'
+def pkg_exists(pkg_name):
+    cmd_str = 'pip freeze | grep {}'.format(pkg_name)
     try:
         resp = run(cmd_str.split(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=True).stdout
     except CalledProcessError:
         return False
     else:
         if not resp:
-            raise MDKRuntimeTesterException('Unable to run command "pip freeze | grep oasislmf"')
-        return 'oasislmf' in resp.decode('utf-8').strip()
+            raise MDKRuntimeTesterException('Error while trying to determine whether {} is installed'.format(pkg_name))
+        return pkg_name in resp.decode('utf-8').strip()
 
 
 def pip_uninstall(pkg_name, options_str='-v', pip_path=get_default_pip_path()):
-    if mdk_pkg_exists():
+    if pkg_exists(pkg_name):
         cmd_str = 'pip uninstall {} {}'.format(options_str, pkg_name)
         run(cmd_str.split(), check=True)
 
 
-def pip_install(pkg_name_or_uri, options_str='-v', pip_path=get_default_pip_path()):
-    if not mdk_pkg_exists():
-        cmd_str = '{} install {} {}'.format(pip_path, options_str, pkg_name_or_uri)
+def pip_install(pkg_name_or_branch_uri, options_str='-v', pip_path=get_default_pip_path()):
+    pkg_name = pkg_name_or_branch_uri.split('=')[-1]
+    if not pkg_exists(pkg_name):
+        cmd_str = '{} install {} {}'.format(pip_path, options_str, pkg_name_or_branch_uri)
         run(cmd_str.split(), check=True)
 
 
@@ -97,32 +110,58 @@ def git_clone(repo_url, options_str=''):
     run(cmd_str.split(), check=True)
 
 
-def clone_piwind(target, home=os.getcwd(), transfer_protocol='ssh'):
+def clone_repo(repo_name, target, repo_branch='master', user_or_org_name='OasisLMF', home=os.getcwd(), transfer_protocol='ssh'):
     if not os.path.exists(target):
         os.mkdir(target)
 
-    piwind_target = os.path.join(target, 'OasisPiWind')
-    if os.path.exists(piwind_target):
-        shutil.rmtree(piwind_target)
+    repo_target = os.path.join(target, repo_name)
+    if os.path.exists(repo_target):
+        shutil.rmtree(repo_target)
 
     os.chdir(target)
 
-    piwind_repo_url = 'git+{}://git@github.com/OasisLMF/OasisPiWind'.format(transfer_protocol)
+    repo_url = 'git+{}://git@github.com/{}/{}'.format(transfer_protocol, user_or_org_name, repo_name)
 
-    git_clone(piwind_repo_url)
+    git_clone(repo_url, options_str='-b {} --single-branch'.format(repo_branch))
 
     os.chdir(home)
 
 
-def run_model_via_mdk(model_mdk_config_fp, model_run_dir=os.path.abspath('.')):
+def apply_model_run_mode(model_run_mode, model_mdk_config_fp, as_dict=False):
+    with io.open(model_mdk_config_fp, 'r', encoding='utf-8') as f:
+        model_mdk_config = json.load(f)
+
+    _model_mdk_config = copy.deepcopy(model_mdk_config)
+
+    if model_run_mode == 'gul':
+        for k in model_mdk_config:
+            if 'accounts' in k or 'fm' in k or 'ri' in k:
+                _model_mdk_config.pop(k)
+    elif model_run_mode == 'fm':
+        for k in model_mdk_config:
+            if 'ri' in k:
+                _model_mdk_config.pop(k)
+
+    if as_dict:
+        return _model_mdk_config
+    
+    with io.open(model_mdk_config_fp, 'w', encoding='utf-8') as f:
+        json.dump(_model_mdk_config, f, indent=4, sort_keys=True)
+
+
+def run_model(model_mdk_config_fp, model_run_dir=os.path.abspath('.')):
     cmd_str = 'oasislmf model run -C {} -r {}'.format(model_mdk_config_fp, model_run_dir)
     run(cmd_str.split(), check=True)
 
 
-def cleanup(pip_path=get_default_pip_path(), piwind_target=None):
-    pip_uninstall('oasislmf', options_str='-v -y', pip_path=pip_path)
-    if piwind_target:
-        shutil.rmtree(piwind_target)
+def model_run_ok(model_run_dir, model_run_mode):
+    pass
+
+
+def cleanup(pip_path=get_default_pip_path(), mdk_pkg_name='oasislmf', model_run_dir=None):
+    pip_uninstall(mdk_pkg_name, options_str='-v -y', pip_path=pip_path)
+    if model_run_dir:
+        shutil.rmtree(model_run_dir)
 
 
 if __name__ == "__main__":
@@ -135,7 +174,7 @@ if __name__ == "__main__":
     if args['git_transfer_protocol'] not in ['https', 'ssh']:
         args['git_transfer_protocol'] = 'ssh'
 
-    pkg_uri = 'git+{}://git@github.com/OasisLMF/OasisLMF.git@{}#egg=oasislmf'.format(args['git_transfer_protocol'], args['package_repo_branch'])
+    pkg_uri = 'git+{}://git@github.com/OasisLMF/OasisLMF.git@{}#egg=oasislmf'.format(args['git_transfer_protocol'], args['mdk_repo_branch'])
 
     print('\nInstalling MDK package {}'.format(pkg_uri))
 
@@ -144,30 +183,34 @@ if __name__ == "__main__":
     except CalledProcessError as e:
         raise MDKRuntimeTesterException('\nError trying to pip install package: {}'.format(e))
 
-    print('\nMDK package successfully installed from branch {}'.format(args['package_repo_branch']))
+    print('\nMDK package successfully installed from branch {}'.format(args['mdk_repo_branch']))
 
-    print('\nCloning PiWind in {}\n'.format(args['piwind_clone_target']))
-
-    try:
-        piwind_fp = clone_piwind(args['piwind_clone_target'], transfer_protocol=args['git_transfer_protocol'])
-    except CalledProcessError as e:
-        raise MDKRuntimeTesterException('\nError while trying to clone PiWind repository: {}\n'.format(e))
-
-    print('\nPiWind successfully cloned in {}'.format(args['piwind_clone_target']))
-
-    piwind_fp = os.path.join(args['piwind_clone_target'], 'OasisPiWind')
-    piwind_mdk_config_fp = os.path.join(piwind_fp, 'oasislmf-oed.json')
-    print('\nRunning PiWind end-to-end via MDK using config. file {}\n'.format(piwind_mdk_config_fp))
+    print('\nCloning {} (branch {}) in {}\n'.format(args['model_repo_name'], args['model_repo_branch'], args['clone_target']))
 
     try:
-        run_model_via_mdk(piwind_mdk_config_fp, model_run_dir=os.path.join(piwind_fp, 'test-run'))
+        clone_repo(args['model_repo_name'], args['clone_target'], repo_branch=args['model_repo_branch'], transfer_protocol=args['git_transfer_protocol'])
     except CalledProcessError as e:
-        raise MDKRuntimeTesterException('\nError while trying to run PiWind via MDK: {}'.format(e))
+        raise MDKRuntimeTesterException('\nError while trying to clone {} repository: {}\n'.format(args['model_repo_name'], e))
 
-    print('\nCleaning up - removing package install and test PiWind repository')
+    print('\n{} successfully cloned in {}'.format(args['model_repo_name'], args['clone_target']))
+
+    local_model_repo_fp = os.path.join(args['clone_target'], args['model_repo_name'])
+    model_mdk_config_fp = os.path.join(local_model_repo_fp, 'oasislmf-oed.json')
+
+    print('\nAdjusting {} MDK config. file to suit model run mode "{}"'.format(args['model_repo_name'], args['model_run_mode'].upper()))
+    apply_model_run_mode(args['model_run_mode'], model_mdk_config_fp)
+
+    print('\nRunning {} end-to-end via MDK using config. file {}\n'.format(args['model_repo_name'], model_mdk_config_fp))
+
     try:
-        cleanup(pip_path=args['default_pip_path'], piwind_target=piwind_fp)
+        run_model(model_mdk_config_fp, model_run_dir=os.path.join(local_model_repo_fp, 'test-run'))
     except CalledProcessError as e:
-        print('\nError cleaning up: {}'.format(e))
+        raise MDKRuntimeTesterException('\nError while trying to run {} via MDK: {}'.format(args['model_repo_name'], e))
+
+    #print('\nCleaning up - removing package install and test {} repository'.format(args['model_repo_name']))
+    #try:
+    #    cleanup(pip_path=args['default_pip_path'], model_run_dir=local_model_repo_fp)
+    #except CalledProcessError as e:
+    #    print('\nError cleaning up: {}'.format(e))
 
     sys.exit(0)
