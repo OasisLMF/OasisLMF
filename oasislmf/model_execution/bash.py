@@ -4,7 +4,8 @@ from collections import Counter
 
 from oasislmf.exposures.oed import (
     ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID, # Alloc Rule 2 (Default)
-    ALLOCATE_TO_ITEMS_BY_GUL_ALLOC_ID,            # Alloc Rule 1 (from ENV)
+    ALLOCATE_TO_ITEMS_BY_GUL_ALLOC_ID,            # Alloc Rule 1 
+    NO_ALLOCATION_ALLOC_ID,                       # Alloc Rule 0
 )
 
 import os
@@ -494,7 +495,7 @@ def genbash(
     num_reinsurance_iterations=0,
     fifo_tmp_dir=True,
     mem_limit=False,
-    alloc_rule=ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID,
+    alloc_rule=None,
     _get_getmodel_cmd=get_getmodel_cmd, 
     custom_args={}):
     """
@@ -533,6 +534,12 @@ def genbash(
     il_output = False
     ri_output = False
     fifo_queue_dir = ""
+
+    # Alloc Rule input guard - default to '2' if invalid value given
+    if alloc_rule not in [ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID,
+                          ALLOCATE_TO_ITEMS_BY_GUL_ALLOC_ID,
+                          NO_ALLOCATION_ALLOC_ID]:
+        alloc_rule = ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID
 
     # remove the file if it already exists
     if os.path.exists(filename):
