@@ -2,7 +2,11 @@ from __future__ import unicode_literals
 
 from collections import Counter
 
-from oasislmf.exposures.oed import ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID
+from oasislmf.exposures.oed import (
+    ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID, # Alloc Rule 2 (Default)
+    ALLOCATE_TO_ITEMS_BY_GUL_ALLOC_ID,            # Alloc Rule 1 
+    NO_ALLOCATION_ALLOC_ID,                       # Alloc Rule 0
+)
 
 import os
 import io
@@ -491,7 +495,9 @@ def genbash(
     num_reinsurance_iterations=0,
     fifo_tmp_dir=True,
     mem_limit=False,
-    _get_getmodel_cmd=get_getmodel_cmd, custom_args={}):
+    alloc_rule=None,
+    _get_getmodel_cmd=get_getmodel_cmd, 
+    custom_args={}):
     """
     Generates a bash script containing ktools calculation instructions for an
     Oasis model.
@@ -508,6 +514,12 @@ def genbash(
     :param num_reinsurance_iterations: The number of reinsurance iterations
     :type num_reinsurance_iterations: int
 
+    :param fifo_tmp_dir: When set to True, Create and use FIFO quese in `/tmp/[A-Z,0-9]/fifo`, if False run in './fifo'
+    :type fifo_tmp_dir: boolean
+
+    :param alloc_rule: override for the Ktools Allocation rule (1 or 2)
+    :type alloc_rule: Int
+
     :param mem_limit: Flag to set a max memory limit for each ktools process
     :type mem_limit: boolean
 
@@ -522,6 +534,12 @@ def genbash(
     il_output = False
     ri_output = False
     fifo_queue_dir = ""
+
+    # Alloc Rule input guard - default to '2' if invalid value given
+    if alloc_rule not in [ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID,
+                          ALLOCATE_TO_ITEMS_BY_GUL_ALLOC_ID,
+                          NO_ALLOCATION_ALLOC_ID]:
+        alloc_rule = ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID
 
     # remove the file if it already exists
     if os.path.exists(filename):
@@ -617,11 +635,11 @@ def genbash(
             getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
             main_cmd = 'eve {0} {1} | {2} | fmcalc -a {3} | tee {4}fifo/il_P{0}'.format(
                 process_id, max_process_id, getmodel_cmd,
-                ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID,
+                alloc_rule,
                 fifo_queue_dir)
             for i in range(1, num_reinsurance_iterations + 1):
                 main_cmd = "{0} | fmcalc -a {3} -n -p input{1}RI_{2}".format(
-                    main_cmd, os.sep, i, ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID)
+                    main_cmd, os.sep, i, alloc_rule)
             main_cmd = "{0} > {1}fifo/ri_P{2} &".format(main_cmd, fifo_queue_dir, process_id)
 
             print_command(
@@ -643,7 +661,7 @@ def genbash(
             getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
             main_cmd = 'eve {0} {1} | {2} | fmcalc -a {3} > {4}fifo/il_P{0}  &'.format(
                 process_id, max_process_id, getmodel_cmd,
-                ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID,
+                alloc_rule,
                 fifo_queue_dir)
 
             print_command(
@@ -683,7 +701,7 @@ def genbash(
                     filename,
                     "eve {0} {1} | {2} | fmcalc -a {3} > {4}fifo/il_P{0}  &".format(
                         process_id, max_process_id, getmodel_cmd,
-                        ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID,
+                        alloc_rule,
                         fifo_queue_dir)
                 )
 
