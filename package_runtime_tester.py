@@ -52,7 +52,7 @@ def parse_args():
         description='Installs a version of the MDK package from a given branch in the OasisLMF '
                     'GitHub repository, and does an end-to-end runtime test of an OasisLMF-managed '
                     'model repository on GitHub using a small sample dataset. Runtime options '
-                    'include 'gul' for ground up loss (GUL) only, "fm" for insured loss, or 'ri' for '
+                    'include "gul" for ground up loss (GUL) only, "fm" for insured loss, or "ri" for '
                     'reinsurance losses. In practice, the test model repository will generally be'
                     'PiWind'
     )
@@ -76,7 +76,8 @@ def parse_args():
     if not os.path.isabs(args['clone_target']):
         args['clone_target'] = os.path.abspath(args['clone_target'])
 
-    if not args['model_run_mode'] in ['gul', 'fm', 'ri']:
+    args['model_run_mode'] = args['model_run_mode'].lower()
+    if args['model_run_mode'] not in ['gul', 'fm', 'ri']:
         args['model_run_mode'] = 'ri'
 
     return args
@@ -155,8 +156,71 @@ def run_model(model_mdk_config_fp, model_run_dir=os.path.abspath('.')):
 
 
 def model_run_ok(model_run_dir, model_run_mode):
-    pass
 
+    def _is_non_empty_file(fp, prefix_match=False, is_dir=False):
+        if not prefix_match:
+            return (os.path.isfile(fp) if not is_dir else os.path.isdir(fp)) and os.path.getsize(fp) > 0
+        else:
+            prefix, dir_name, dir_contents = os.path.basename(fp), os.path.dirname(fp), os.listdir(os.path.dirname(fp))
+            try:
+                fn = [fn for fn in dir_contents if fn.startswith(prefix)][0]
+            except IndexError:
+                return False
+            _fp = os.path.join(dir_name, fn)
+            return os.path.getsize(_fp) > 0
+
+    #import ipdb; ipdb.set_trace()
+
+    assert(_is_non_empty_file(model_run_dir, is_dir=True))
+
+    assert(_is_non_empty_file(os.path.join(model_run_dir, 'analysis_settings.json')))
+    assert(_is_non_empty_file(os.path.join(model_run_dir, 'input'), is_dir=True))
+    assert(_is_non_empty_file(os.path.join(model_run_dir, 'output'), is_dir=True))
+    assert(_is_non_empty_file(os.path.join(model_run_dir, 'static'), is_dir=True))
+    assert(_is_non_empty_file(os.path.join(model_run_dir, 'work'), is_dir=True))
+    assert(_is_non_empty_file(os.path.join(model_run_dir, 'run_ktools.sh')))
+
+    assert(_is_non_empty_file(os.path.join(model_run_dir, 'input', 'csv', 'canexp'), prefix_match=True))
+    assert(_is_non_empty_file(os.path.join(model_run_dir, 'input', 'csv', 'modexp'), prefix_match=True))
+    assert(_is_non_empty_file(os.path.join(model_run_dir, 'input', 'csv', 'oasiskeys'), prefix_match=True))
+    assert(_is_non_empty_file(os.path.join(model_run_dir, 'input', 'csv', 'oasiskeys-errors'), prefix_match=True))
+
+    assert(_is_non_empty_file(os.path.join(model_run_dir, 'input', 'csv', 'items.csv')))
+    assert(_is_non_empty_file(os.path.join(model_run_dir, 'input', 'csv', 'coverages.csv')))
+    assert(_is_non_empty_file(os.path.join(model_run_dir, 'input', 'csv', 'gulsummaryxref.csv')))
+
+    assert(_is_non_empty_file(os.path.join(model_run_dir, 'input', 'occurrence.bin')))
+    assert(_is_non_empty_file(os.path.join(model_run_dir, 'input', 'events.bin')))
+    assert(_is_non_empty_file(os.path.join(model_run_dir, 'input', 'items.bin')))
+    assert(_is_non_empty_file(os.path.join(model_run_dir, 'input', 'coverages.bin')))
+    assert(_is_non_empty_file(os.path.join(model_run_dir, 'input', 'gulsummaryxref.bin')))
+
+    assert(_is_non_empty_file(os.path.join(model_run_dir, 'output', 'gul_S1_aalcalc.csv')))
+    assert(_is_non_empty_file(os.path.join(model_run_dir, 'output', 'gul_S1_eltcalc.csv')))
+    assert(_is_non_empty_file(os.path.join(model_run_dir, 'output', 'gul_S1_leccalc_full_uncertainty_aep.csv')))
+    assert(_is_non_empty_file(os.path.join(model_run_dir, 'output', 'gul_S1_leccalc_full_uncertainty_oep.csv')))
+
+    if model_run_mode in ['fm', 'ri']:
+        assert(_is_non_empty_file(os.path.join(model_run_dir, 'input', 'csv', 'canacc'), prefix_match=True))
+
+        assert(_is_non_empty_file(os.path.join(model_run_dir, 'input', 'csv', 'fm_programme.csv')))
+        assert(_is_non_empty_file(os.path.join(model_run_dir, 'input', 'csv', 'fm_profile.csv')))
+        assert(_is_non_empty_file(os.path.join(model_run_dir, 'input', 'csv', 'fm_policytc.csv')))
+        assert(_is_non_empty_file(os.path.join(model_run_dir, 'input', 'csv', 'fm_xref.csv')))
+        assert(_is_non_empty_file(os.path.join(model_run_dir, 'input', 'csv', 'fmsummaryxref.csv')))
+
+        assert(_is_non_empty_file(os.path.join(model_run_dir, 'input', 'fm_programme.bin')))
+        assert(_is_non_empty_file(os.path.join(model_run_dir, 'input', 'fm_profile.bin')))
+        assert(_is_non_empty_file(os.path.join(model_run_dir, 'input', 'fm_policytc.bin')))
+        assert(_is_non_empty_file(os.path.join(model_run_dir, 'input', 'fm_xref.bin')))
+        assert(_is_non_empty_file(os.path.join(model_run_dir, 'input', 'fmsummaryxref.bin')))
+
+        assert(_is_non_empty_file(os.path.join(model_run_dir, 'output', 'il_S1_aalcalc.csv')))
+        assert(_is_non_empty_file(os.path.join(model_run_dir, 'output', 'il_S1_eltcalc.csv')))
+        assert(_is_non_empty_file(os.path.join(model_run_dir, 'output', 'il_S1_leccalc_full_uncertainty_aep.csv')))
+        assert(_is_non_empty_file(os.path.join(model_run_dir, 'output', 'il_S1_leccalc_full_uncertainty_oep.csv')))
+
+    return True
 
 def cleanup(pip_path=get_default_pip_path(), mdk_pkg_name='oasislmf', model_run_dir=None):
     pip_uninstall(mdk_pkg_name, options_str='-v -y', pip_path=pip_path)
@@ -200,17 +264,24 @@ if __name__ == "__main__":
     print('\nAdjusting {} MDK config. file to suit model run mode "{}"'.format(args['model_repo_name'], args['model_run_mode'].upper()))
     apply_model_run_mode(args['model_run_mode'], model_mdk_config_fp)
 
-    print('\nRunning {} end-to-end via MDK using config. file {}\n'.format(args['model_repo_name'], model_mdk_config_fp))
+    model_run_dir = os.path.join(local_model_repo_fp, 'test-run')
+    print('\nRunning {} end-to-end via MDK using config. file {} - model run dir. is {}\n'.format(args['model_repo_name'], model_mdk_config_fp, model_run_dir))
 
     try:
-        run_model(model_mdk_config_fp, model_run_dir=os.path.join(local_model_repo_fp, 'test-run'))
+        run_model(model_mdk_config_fp, model_run_dir=model_run_dir)
     except CalledProcessError as e:
         raise MDKRuntimeTesterException('\nError while trying to run {} via MDK: {}'.format(args['model_repo_name'], e))
 
-    #print('\nCleaning up - removing package install and test {} repository'.format(args['model_repo_name']))
-    #try:
-    #    cleanup(pip_path=args['default_pip_path'], model_run_dir=local_model_repo_fp)
-    #except CalledProcessError as e:
-    #    print('\nError cleaning up: {}'.format(e))
+    try:
+        model_run_ok(model_run_dir, args['model_run_mode'])
+    except AssertionError:
+        print('\nModel run error - missing, incorrect or incomplete files in model run dir. {}'.format(model_run_dir))
+        sys.exit(1)
+
+    print('\nModel run completed successfully - cleaning up - removing package install and test {} repository'.format(args['model_repo_name']))
+    try:
+        cleanup(pip_path=args['default_pip_path'], model_run_dir=local_model_repo_fp)
+    except CalledProcessError as e:
+        print('\nError cleaning up: {}'.format(e))
 
     sys.exit(0)
