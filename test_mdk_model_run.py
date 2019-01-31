@@ -67,9 +67,11 @@ def parse_args():
 
     parser.add_argument('-g', '--git-transfer-protocol', default='ssh', help='Git transfer protocol - https" or "ssh"')
 
-    parser.add_argument('-p', '--default-pip-path', default=get_default_pip_path(), help='Default pip path')
+    parser.add_argument('-p', '--pip-path', default=get_default_pip_path(), help='pip path')
 
     parser.add_argument('-d', '--model-run-mode', default='ri', help='Model run mode - `gul` for GUL only, `fm` for GUL + FM, `ri` for GUL + FM + RI')
+
+    parser.add_argument('-c', '--no-cleanup', action='store_true', default=False, help='Whether to cleanup installed MDK installed package and model repository')
 
     args = vars(parser.parse_args())
 
@@ -232,8 +234,10 @@ if __name__ == "__main__":
 
     args = parse_args()
 
-    if not args['default_pip_path']:
-        raise MDKRuntimeTesterException('Default pip path could not be determined and/or no default pip path provided when calling the script')
+    print('\nProcessing script arguments: {}'.format(json.dumps(args, indent=4, sort_keys=True)))
+
+    if not args['pip_path']:
+        raise MDKRuntimeTesterException('pip path could not be determined and/or no pip path provided when calling the script')
 
     if args['git_transfer_protocol'] not in ['https', 'ssh']:
         args['git_transfer_protocol'] = 'ssh'
@@ -243,7 +247,7 @@ if __name__ == "__main__":
     print('\nInstalling MDK package {}'.format(pkg_uri))
 
     try:
-        pip_install(pkg_uri, pip_path=args['default_pip_path'])
+        pip_install(pkg_uri, pip_path=args['pip_path'])
     except CalledProcessError as e:
         raise MDKRuntimeTesterException('\nError trying to pip install package: {}'.format(e))
 
@@ -278,10 +282,13 @@ if __name__ == "__main__":
         print('\nModel run error - missing, incorrect or incomplete files in model run dir. {}'.format(model_run_dir))
         sys.exit(1)
 
-    print('\nModel run completed successfully - cleaning up - removing package install and test {} repository'.format(args['model_repo_name']))
-    try:
-        cleanup(pip_path=args['default_pip_path'], model_run_dir=local_model_repo_fp)
-    except CalledProcessError as e:
-        print('\nError cleaning up: {}'.format(e))
+    print('\nModel run completed successfully')
+
+    if not args['no_cleanup']:
+        print('\nCleaning up - removing MDK package install and test model repository {}'.format(args['model_repo_name']))
+        try:
+            cleanup(pip_path=args['pip_path'], model_run_dir=local_model_repo_fp)
+        except CalledProcessError as e:
+            print('\nError cleaning up: {}'.format(e))
 
     sys.exit(0)
