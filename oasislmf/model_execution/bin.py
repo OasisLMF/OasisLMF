@@ -34,6 +34,7 @@ from .files import TAR_FILE, INPUT_FILES, GUL_INPUT_FILES, IL_INPUT_FILES
 def prepare_model_run_directory(
     run_dir_path,
     oasis_files_src_path=None,
+    ri=False,
     analysis_settings_json_src_file_path=None,
     model_data_src_path=None,
     inputs_archive=None,
@@ -70,6 +71,9 @@ def prepare_model_run_directory(
     :param oasis_files_src_path: path to a set of Oasis files
     :type oasis_files_src_path: str
 
+    :param ri: Boolean flag for RI mode
+    :type ri: bool
+
     :param analysis_settings_json_src_file_path: analysis settings JSON file path
     :type analysis_settings_json_src_file_path: str
 
@@ -84,12 +88,13 @@ def prepare_model_run_directory(
             Path(run_dir_path, subdir).mkdir(parents=True, exist_ok=True)
 
         if not inputs_archive:
-            Path(run_dir_path, 'input', 'csv').mkdir(parents=True, exist_ok=True)
+            Path(run_dir_path, 'input', 'csv').mkdir(parents=True, exist_ok=True) if not ri else Path(run_dir_path, 'input').mkdir(parents=True, exist_ok=True)
         else:
             with tarfile.open(inputs_archive) as input_tarfile:
-                input_tarfile.extractall(path=(os.path.join(run_dir_path, 'input')))
+                p = os.path.join(run_dir_path, 'input') if not ri else os.path.join(run_dir_path, 'input')
+                input_tarfile.extractall(path=p)
 
-        oasis_files_destpath = os.path.join(run_dir_path, 'input', 'csv')
+        oasis_files_destpath = os.path.join(run_dir_path, 'input', 'csv') if not ri else os.path.join(run_dir_path, 'input')
         if oasis_files_src_path and oasis_files_src_path != oasis_files_destpath:
             for p in os.listdir(oasis_files_src_path):
                 shutil.copy2(os.path.join(oasis_files_src_path, p), oasis_files_destpath)
@@ -112,43 +117,43 @@ def prepare_model_run_directory(
         raise OasisException(e)
 
 
-def _prepare_input_bin(run_directory, bin_name, model_settings, setting_key=None):
-    bin_file_path = os.path.join(run_directory, 'input', '{}.bin'.format(bin_name))
-    if not os.path.exists(bin_file_path):
+def _prepare_input_bin(run_dir, bin_name, model_settings, setting_key=None, ri=False):
+    bin_fp = os.path.join(run_dir, 'input', '{}.bin'.format(bin_name))
+    if not os.path.exists(bin_fp):
         setting_val = model_settings.get(setting_key)
 
         if not setting_val:
-            model_data_bin_file_path = os.path.join(run_directory, 'static', '{}.bin'.format(bin_name))
+            model_data_bin_fp = os.path.join(run_dir, 'static', '{}.bin'.format(bin_name))
         else:
             # Format for data file names
             setting_val = setting_val.replace(' ', '_').lower()
-            model_data_bin_file_path = os.path.join(run_directory, 'static', '{}_{}.bin'.format(bin_name, setting_val))
+            model_data_bin_fp = os.path.join(run_dir, 'static', '{}_{}.bin'.format(bin_name, setting_val))
 
-        if not os.path.exists(model_data_bin_file_path):
-            raise OasisException('Could not find {} data file: {}'.format(bin_name, model_data_bin_file_path))
+        if not os.path.exists(model_data_bin_fp):
+            raise OasisException('Could not find {} data file: {}'.format(bin_name, model_data_bin_fp))
 
-        shutil.copyfile(model_data_bin_file_path, bin_file_path)
+        shutil.copyfile(model_data_bin_fp, bin_fp)
 
 
-def prepare_model_run_inputs(analysis_settings, run_directory):
+def prepare_model_run_inputs(analysis_settings, run_dir, ri=False):
     """
     Sets up binary files in the model inputs directory.
 
     :param analysis_settings: model analysis settings dict
     :type analysis_settings: dict
 
-    :param run_directory: model run directory
-    :type run_directory: str
+    :param run_dir: model run directory
+    :type run_dir: str
     """
     try:
         model_settings = analysis_settings.get('model_settings', {})
 
-        _prepare_input_bin(run_directory, 'events', model_settings, setting_key='event_set')
-        _prepare_input_bin(run_directory, 'returnperiods', model_settings)
-        _prepare_input_bin(run_directory, 'occurrence', model_settings, setting_key='event_occurrence_id')
+        _prepare_input_bin(run_dir, 'events', model_settings, setting_key='event_set', ri=ri)
+        _prepare_input_bin(run_dir, 'returnperiods', model_settings, ri=ri)
+        _prepare_input_bin(run_dir, 'occurrence', model_settings, setting_key='event_occurrence_id', ri=ri)
 
-        if os.path.exists(os.path.join(run_directory, 'static', 'periods.bin')):
-            _prepare_input_bin(run_directory, 'periods', model_settings)
+        if os.path.exists(os.path.join(run_dir, 'static', 'periods.bin')):
+            _prepare_input_bin(run_dir, 'periods', model_settings, ri=ri)
     except (OSError, IOError) as e:
         raise OasisException(e)
 
@@ -170,10 +175,10 @@ def check_inputs_directory(directory_to_check, do_il=False, do_ri=False, check_b
     :type check_binaries: bool
     """
     # Check the top level directory, that containes the core files and any direct FM files
-    _check_each_inputs_directory(directory_to_check, do_il=do_il, check_binaries=check_binaries)    
+    _check_each_inputs_directory(directory_to_check, do_il=do_il, check_binaries=check_binaries)
 
     if do_ri:
-        for ri_directory_to_check in glob.glob('{}{}RI_[0-9]*'.format(directory_to_check, os.sep)):
+        for ri_directory_to_check in glob.glob('{}{}RI_\d+$'.format(directory_to_check, os.path.sep)):
             _check_each_inputs_directory(ri_directory_to_check, do_il=True, check_binaries=check_binaries)
 
 

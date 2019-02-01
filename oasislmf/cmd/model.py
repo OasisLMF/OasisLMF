@@ -3,6 +3,8 @@ import importlib
 import io
 import json
 import os
+import re
+import shutil
 import subprocess
 import time
 import sys
@@ -453,17 +455,19 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         """
         super(self.__class__, self).add_args(parser)
 
+        static_data_fp = os.path.join(os.path.dirname(__file__), os.path.pardir, '_data')
+
         parser.add_argument('-o', '--oasis-files-path', default=None, help='Path to Oasis files')
         parser.add_argument('-g', '--lookup-config-file-path', default=None, help='Lookup config JSON file path')
         parser.add_argument('-k', '--keys-data-path', default=None, help='Path to Oasis files')
         parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
         parser.add_argument('-l', '--lookup-package-path', default=None, help='Lookup package path')
         parser.add_argument(
-            '-p', '--canonical-exposure-profile-path', default=None,
+            '-p', '--canonical-exposure-profile-path', default=os.path.join(static_data_fp, 'canonical-oed-loc-profile.json'),
             help='Canonical OED exposure profile path'
         )
         parser.add_argument(
-            '-q', '--canonical-accounts-profile-path', default=None,
+            '-q', '--canonical-accounts-profile-path', default=os.path.join(static_data_fp, 'canonical-oed-acc-profile.json'),
             help='Canonical OED accounts profile path'
         )
         parser.add_argument('-x', '--source-exposure-file-path', default=None, help='Source exposure file path')
@@ -482,7 +486,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
 
         )
         parser.add_argument(
-            '-u', '--fm-agg-profile-path', default=None,
+            '-u', '--fm-agg-profile-path', default=os.path.join(static_data_fp, 'fm-oed-agg-profile.json'),
             help='FM OED aggregation profile path'
 
         )
@@ -525,7 +529,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         static_data_fp = os.path.join(os.path.dirname(__file__), os.path.pardir, '_data')
 
         canonical_exposure_profile_fp = as_path(
-            inputs.get('canonical_exposure_profile_path', required=True, is_path=True, default=os.path.join(static_data_fp, 'canonical-oed-loc-profile.json')),
+            inputs.get('canonical_exposure_profile_path', required=True, is_path=True),
             'Canonical OED exposure profile path'
         )
         source_to_canonical_exposure_transformation_fp = as_path(
@@ -540,7 +544,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             inputs.get('source_accounts_file_path', required=False, is_path=True), 'Source OED accounts file path'
         )
         canonical_accounts_profile_fp = as_path(
-            inputs.get('canonical_accounts_profile_path', required=False, is_path=True, default=os.path.join(static_data_fp, 'canonical-oed-acc-profile.json')),
+            inputs.get('canonical_accounts_profile_path', required=False, is_path=True),
             'Canonical OED accounts profile path'
         )
         source_to_canonical_accounts_transformation_fp = as_path(
@@ -548,7 +552,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             'Source to canonical OED accounts transformation file path'
         )
         fm_agg_profile_fp = as_path(
-            inputs.get('fm_agg_profile_path', required=False, is_path=True, default=os.path.join(static_data_fp, 'fm-oed-agg-profile.json')),
+            inputs.get('fm_agg_profile_path', required=False, is_path=True),
             'FM OED aggregation profile path'
         )
         ri_info_fp = as_path(
@@ -700,12 +704,12 @@ class GenerateLossesCmd(OasisBaseCommand):
         super(self.__class__, self).add_args(parser)
 
         parser.add_argument('-o', '--oasis-files-path', default=None, help='Oasis files path')
+        parser.add_argument('-i', '--ri', action='store_true', default=False, help='Generate reinsurance losses')
         parser.add_argument('-j', '--analysis-settings-file-path', default=None, help='Analysis settings file path')
         parser.add_argument('-m', '--model-data-path', default=None, help='Model data path')
         parser.add_argument('-r', '--model-run-dir-path', default=None, help='Model run directory path')
         parser.add_argument('-s', '--ktools-script-name', default=None, help='Relative or absolute path of the output file')
         parser.add_argument('-n', '--ktools-num-processes', default=-1, help='Number of ktools calculation processes to use', type=int)
-        parser.add_argument('-x', '--no-execute', action='store_true', help='Whether to execute generated ktools script')
         parser.add_argument('-p', '--model-package-path', default=None, help='Path containing model specific package')
 
     def action(self, args):
@@ -719,9 +723,11 @@ class GenerateLossesCmd(OasisBaseCommand):
 
         oasis_fp = as_path(inputs.get('oasis_files_path', required=True, is_path=True), 'Oasis files path', preexists=True)
 
+        ri = inputs.get('ri', default=False)
+
         fm = all(os.path.exists(os.path.join(oasis_fp, p)) for p in ['fm_programme.csv', 'fm_profile.csv', 'fm_policytc.csv', 'fm_xref.csv'])
 
-        model_run_dir_fp = as_path(inputs.get('model_run_dir_path', required=False, is_path=True), 'Model run directory', preexists=False)
+        model_run_dir = as_path(inputs.get('model_run_dir_path', required=False, is_path=True), 'Model run directory', preexists=False)
 
         analysis_settings_fp = as_path(
             inputs.get('analysis_settings_file_path', required=True, is_path=True),
@@ -738,31 +744,35 @@ class GenerateLossesCmd(OasisBaseCommand):
         start_time = time.time()
         self.logger.info('\nStarting loss generation (@ {})'.format(get_utctimestamp()))
 
-        if not model_run_dir_fp:
+        if not model_run_dir:
             utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-            model_run_dir_fp = os.path.join(os.getcwd(), 'runs', 'ProgOasis-{}'.format(utcnow))
-            self.logger.info('\nNo model run dir. provided - creating a timestamped run dir. in working directory as {}'.format(model_run_dir_fp))
-            Path(model_run_dir_fp).mkdir(parents=True, exist_ok=True)
+            model_run_dir = os.path.join(os.getcwd(), 'runs', 'ProgOasis-{}'.format(utcnow))
+            self.logger.info('\nNo model run dir. provided - creating a timestamped run dir. in working directory as {}'.format(model_run_dir))
+            Path(model_run_dir).mkdir(parents=True, exist_ok=True)
         else:
-            if not os.path.exists(model_run_dir_fp):
-                Path(model_run_dir_fp).mkdir(parents=True, exist_ok=True)
+            if not os.path.exists(model_run_dir):
+                Path(model_run_dir).mkdir(parents=True, exist_ok=True)
 
         self.logger.info(
-            '\nPreparing model run directory {} - copying Oasis files, analysis settings file and linking model data'.format(model_run_dir_fp)
+            '\nPreparing model run directory {} - copying Oasis files, analysis settings file and linking model data'.format(model_run_dir)
         )
         prepare_model_run_directory(
-            model_run_dir_fp,
-            oasis_fp,
-            analysis_settings_fp,
-            model_data_fp
+            model_run_dir,
+            oasis_files_src_path=oasis_fp,
+            ri=ri,
+            analysis_settings_json_src_file_path=analysis_settings_fp,
+            model_data_src_path=model_data_fp
         )
 
         self.logger.info('\nConverting Oasis files to ktools binary files')
-        oasis_fp = os.path.join(model_run_dir_fp, 'input', 'csv')
-        binaries_fp = os.path.join(model_run_dir_fp, 'input')
-        create_binary_files(oasis_fp, binaries_fp, do_il=fm)
+        if not ri:
+            create_binary_files(oasis_fp, os.path.join(model_run_dir, 'input'), do_il=fm)
+        else:
+            contents = os.listdir(model_run_dir)
+            for fp in [os.path.join(model_run_dir, fn) for fn in contents if re.match(r'RI_\d+$', fn) or re.match(r'input$', fn)]:
+                create_binary_files(fp, fp, do_il=True, do_ri=True)
 
-        analysis_settings_fp = os.path.join(model_run_dir_fp, 'analysis_settings.json')
+        analysis_settings_fp = os.path.join(model_run_dir, 'analysis_settings.json')
         try:
             self.logger.info('\nReading analysis settings JSON file')
             with io.open(analysis_settings_fp, 'r', encoding='utf-8') as f:
@@ -777,9 +787,9 @@ class GenerateLossesCmd(OasisBaseCommand):
         self.logger.info('\nLoaded analysis settings: {}'.format(analysis_settings))
 
         self.logger.info('\nPreparing model run inputs')
-        prepare_model_run_inputs(analysis_settings, model_run_dir_fp)
+        prepare_model_run_inputs(analysis_settings, model_run_dir, ri=ri)
 
-        script_fp = os.path.join(model_run_dir_fp, '{}.sh'.format(ktools_script_name))
+        script_fp = os.path.join(model_run_dir, '{}.sh'.format(ktools_script_name))
 
         if model_package_fp and os.path.exists(os.path.join(model_package_fp, 'supplier_model_runner.py')):
             path, package_name = model_package_path.rsplit('/')
@@ -790,11 +800,11 @@ class GenerateLossesCmd(OasisBaseCommand):
 
         self.logger.info('\nGenerating losses')
 
-        with setcwd(model_run_dir_fp) as cwd_path:
+        with setcwd(model_run_dir) as cwd_path:
             self.logger.info('\nSwitching CWD to %s' % cwd_path)
             model_runner_module.run(analysis_settings, args.ktools_num_processes, filename=script_fp)
 
-        self.logger.info('\nLoss outputs generated in {}'.format(os.path.join(model_run_dir_fp, 'output')))
+        self.logger.info('\nLoss outputs generated in {}'.format(os.path.join(model_run_dir, 'output')))
 
         total_time = time.time() - start_time
         total_time_str = '{} seconds'.format(round(total_time, 3)) if total_time < 60 else '{} minutes'.format(round(total_time / 60, 3))
@@ -817,6 +827,8 @@ class RunCmd(OasisBaseCommand):
         """
         super(self.__class__, self).add_args(parser)
 
+        static_data_fp = os.path.join(os.path.dirname(__file__), os.path.pardir, '_data')
+
         parser.add_argument('-k', '--keys-data-path', default=None, help='Oasis files path')
         parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
 
@@ -824,11 +836,11 @@ class RunCmd(OasisBaseCommand):
         parser.add_argument('-g', '--lookup-config-file-path', default=None, help='Lookup config JSON file path')
 
         parser.add_argument(
-            '-p', '--canonical-exposure-profile-path', default=None,
+            '-p', '--canonical-exposure-profile-path', default=os.path.join(static_data_fp, 'canonical-oed-loc-profile.json'),
             help='Canonical OED exposure profile path'
         )
         parser.add_argument(
-            '-q', '--canonical-accounts-profile-path', default=None,
+            '-q', '--canonical-accounts-profile-path', default=os.path.join(static_data_fp, 'canonical-oed-acc-profile.json'),
             help='Canonical OED accounts profile path'
         )
         
@@ -848,7 +860,7 @@ class RunCmd(OasisBaseCommand):
         )
 
         parser.add_argument(
-            '-u', '--fm-agg-profile-path', default=None,
+            '-u', '--fm-agg-profile-path', default=os.path.join(static_data_fp, 'fm-oed-agg-profile.json'),
             help='FM OED aggregation profile path'
         )
         parser.add_argument(
@@ -880,23 +892,62 @@ class RunCmd(OasisBaseCommand):
         """
         inputs = InputValues(args)
 
-        model_run_dir_fp = as_path(inputs.get('model_run_dir_path', required=False), 'Model run path', preexists=False)
+        model_run_dir = as_path(inputs.get('model_run_dir_path', required=False), 'Model run path', preexists=False)
 
         start_time = time.time()
         self.logger.info('\nStarting model run (@ {})'.format(get_utctimestamp()))
 
-        if not model_run_dir_fp:
+        if not model_run_dir:
             utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-            model_run_dir_fp = os.path.join(os.getcwd(), 'runs', 'ProgOasis-{}'.format(utcnow))
-            self.logger.info('\nNo model run dir. provided - creating a timestamped run dir. in working directory as {}'.format(model_run_dir_fp))
-            Path(model_run_dir_fp).mkdir(parents=True, exist_ok=True)
+            model_run_dir = os.path.join(os.getcwd(), 'runs', 'ProgOasis-{}'.format(utcnow))
+            self.logger.info('\nNo model run dir. provided - creating a timestamped run dir. in working directory as {}'.format(model_run_dir))
+            Path(model_run_dir).mkdir(parents=True, exist_ok=True)
         else:
-            if not os.path.exists(model_run_dir_fp):
-                Path(model_run_dir_fp).mkdir(parents=True, exist_ok=True)
+            if not os.path.exists(model_run_dir):
+                Path(model_run_dir).mkdir(parents=True, exist_ok=True)
 
-        args.model_run_dir_path = model_run_dir_fp
+        args.model_run_dir_path = model_run_dir
 
-        args.oasis_files_path = os.path.join(model_run_dir_fp, 'input', 'csv')
+        source_accounts_fp = as_path(
+            inputs.get('source_accounts_file_path', required=False, is_path=True), 'Source OED accounts file path'
+        )
+        source_to_canonical_accounts_transformation_fp = as_path(
+            inputs.get('source_to_canonical_accounts_transformation_file_path', required=False, is_path=True),
+            'Source to canonical OED accounts transformation file path'
+        )
+        ri_info_fp = as_path(
+            inputs.get('ri_info_file_path', required=False, is_path=True),
+            'Reinsurance info. file path'
+        )
+        ri_scope_fp = as_path(
+            inputs.get('ri_scope_file_path', required=False, is_path=True),
+            'Reinsurance scope file path'
+        )
+        required_fm_paths = [source_accounts_fp, source_to_canonical_accounts_transformation_fp]
+        required_ri_paths = [ri_info_fp, ri_scope_fp]
+        fm = all(required_fm_paths)
+        if any(required_fm_paths) and not fm:
+            raise OasisException(
+                'FM option indicated by provision of some FM related assets, but other assets are missing. '
+                'To generate FM inputs you need to provide all of the assets required to generate GUL inputs, '
+                'plus all of the following assets: '
+                'source accounts file path, ',
+                'source to canonical accounts transformation file path, ',
+                'canonical OED accounts profile path (a default OED profile is provided by the package), ',
+                'FM OED aggregation profile (a default OED profile is provided by the package).'
+            )
+
+        ri = all(required_ri_paths) and fm
+        if any(required_ri_paths) and not ri:
+            raise OasisException(
+                'RI option indicated by provision of some RI related assets, but other assets are missing. '
+                'To generate RI inputs you need to provide all of the assets required to generate FM inputs, '
+                'plus all of the following assets: '
+                'reinsurance info. file path, '
+                'reinsurance scope file path.'
+            )
+
+        args.oasis_files_path = os.path.join(model_run_dir, 'input', 'csv') if not ri else os.path.join(model_run_dir, 'input')
         self.logger.info('\nCreating Oasis files directory {}'.format(args.oasis_files_path))
 
         Path(args.oasis_files_path).mkdir(parents=True, exist_ok=True)
@@ -904,6 +955,13 @@ class RunCmd(OasisBaseCommand):
         gen_oasis_files_cmd = GenerateOasisFilesCmd()
         gen_oasis_files_cmd._logger = self.logger
         gen_oasis_files_cmd.action(args)
+
+        if ri:
+            ofp_contents = os.listdir(args.oasis_files_path)
+            for fp in [os.path.join(args.oasis_files_path, fn) for fn in ofp_contents if re.match(r'RI_\d+$', fn)]:
+                shutil.move(fp, model_run_dir)
+
+            args.ri = ri
 
         gen_losses_cmd = GenerateLossesCmd()
         gen_losses_cmd._logger = self.logger
