@@ -2,6 +2,7 @@ OasisLMF Changelog
 ==================
 
 `1.2.5`_
+--------
 * Fix for setting Alloc Rule in genbash
 
 `1.2.4`_
