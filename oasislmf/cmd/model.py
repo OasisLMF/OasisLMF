@@ -11,7 +11,9 @@ import sys
 
 
 import pandas as pd
+
 from argparse import RawDescriptionHelpFormatter
+from six import u as unicode
 
 from pathlib2 import Path
 
@@ -458,6 +460,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         static_data_fp = os.path.join(os.path.dirname(__file__), os.path.pardir, '_data')
 
         parser.add_argument('-o', '--oasis-files-path', default=None, help='Path to Oasis files')
+        parser.add_argument('-i', '--ri-files-path', default=None, help='Path to RI input files')
         parser.add_argument('-g', '--lookup-config-file-path', default=None, help='Lookup config JSON file path')
         parser.add_argument('-k', '--keys-data-path', default=None, help='Path to Oasis files')
         parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
@@ -511,7 +514,9 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
         default_oasis_fp = os.path.join(os.getcwd(), 'runs', 'OasisFiles-{}'.format(utcnow))
 
-        oasis_fp = as_path(inputs.get('oasis_files_path', is_path=True, default=default_oasis_fp), 'Oasis file', preexists=False)
+        oasis_fp = as_path(inputs.get('oasis_files_path', is_path=True, default=default_oasis_fp), 'Oasis files', preexists=False)
+
+        ri_fp = as_path(inputs.get('ri_files_path', is_path=True, default=oasis_fp), 'RI input files', preexists=False)
 
         lookup_config_fp = as_path(inputs.get('lookup_config_file_path', required=False, is_path=True), 'Lookup config JSON file path', preexists=False)
 
@@ -643,15 +648,17 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             coverages_fp = oasis_files['coverages']
             fm_xref_fp = oasis_files['fm_xref']
             xref_descriptions = create_xref_description(pd.read_csv(source_accounts_fp), pd.read_csv(source_exposure_fp))
-            inuring_metadata = generate_files_for_reinsurance(
+            ri_layers = generate_files_for_reinsurance(
                 pd.read_csv(items_fp),
                 pd.read_csv(coverages_fp),
                 pd.read_csv(fm_xref_fp),
                 xref_descriptions,
                 pd.read_csv(ri_info_fp),
                 pd.read_csv(ri_scope_fp),
-                oasis_fp
+                ri_fp
             )
+            with io.open(os.path.join(ri_fp, 'ri_layers.json'), 'w', encoding='utf-8') as f:
+                f.write(unicode(json.dumps(ri_layers, ensure_ascii=False, indent=4)))
 
         self.logger.info('\nGenerated Oasis files for model: {}'.format(oasis_files))
 
@@ -802,7 +809,11 @@ class GenerateLossesCmd(OasisBaseCommand):
 
         with setcwd(model_run_dir) as cwd_path:
             self.logger.info('\nSwitching CWD to %s' % cwd_path)
-            model_runner_module.run(analysis_settings, args.ktools_num_processes, filename=script_fp)
+            if ri:
+                with io.open(os.path.join(model_run_dir, 'ri_layers.json'), 'r', encoding='utf-8') as f:
+                    ri_layers = len(json.load(f))
+
+            model_runner_module.run(analysis_settings, args.ktools_num_processes, filename=script_fp, num_reinsurance_iterations=ri_layers)
 
         self.logger.info('\nLoss outputs generated in {}'.format(os.path.join(model_run_dir, 'output')))
 
@@ -952,16 +963,13 @@ class RunCmd(OasisBaseCommand):
 
         Path(args.oasis_files_path).mkdir(parents=True, exist_ok=True)
 
+        args.ri_files_path = model_run_dir
+
         gen_oasis_files_cmd = GenerateOasisFilesCmd()
         gen_oasis_files_cmd._logger = self.logger
         gen_oasis_files_cmd.action(args)
 
-        if ri:
-            ofp_contents = os.listdir(args.oasis_files_path)
-            for fp in [os.path.join(args.oasis_files_path, fn) for fn in ofp_contents if re.match(r'RI_\d+$', fn)]:
-                shutil.move(fp, model_run_dir)
-
-            args.ri = ri
+        args.ri = ri
 
         gen_losses_cmd = GenerateLossesCmd()
         gen_losses_cmd._logger = self.logger
