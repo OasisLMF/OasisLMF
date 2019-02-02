@@ -787,7 +787,18 @@ class GenerateLossesCmd(OasisBaseCommand):
 
             if analysis_settings.get('analysis_settings'):
                 analysis_settings = analysis_settings['analysis_settings']
-            analysis_settings['il_output'] = True if fm else False
+
+            if fm:
+                analysis_settings['il_output'] = True
+            else:
+                analysis_settings['il_output'] = False
+                analysis_settings['il_summaries'] = []
+            
+            if ri:
+                analysis_settings['ri_output'] = True
+            else:
+                analysis_settings['ri_output'] = False
+                analysis_settings['ri_summaries'] = []
         except (IOError, TypeError, ValueError):
             raise OasisException('Invalid analysis settings file or file path: {}.'.format(analysis_settings_fp))
 
@@ -809,6 +820,7 @@ class GenerateLossesCmd(OasisBaseCommand):
 
         with setcwd(model_run_dir) as cwd_path:
             self.logger.info('\nSwitching CWD to %s' % cwd_path)
+            ri_layers = 0
             if ri:
                 with io.open(os.path.join(model_run_dir, 'ri_layers.json'), 'r', encoding='utf-8') as f:
                     ri_layers = len(json.load(f))
