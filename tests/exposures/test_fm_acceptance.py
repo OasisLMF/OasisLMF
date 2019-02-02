@@ -53,11 +53,11 @@ from oasislmf.utils.metadata import (
 from ..models.fakes import fake_model
 
 from ..data import (
-    canonical_oed_accounts_data,
+    canonical_oed_accounts,
     canonical_oed_accounts_profile,
-    canonical_oed_exposures_data,
-    canonical_oed_exposures_profile,
-    keys_data,
+    canonical_oed_exposure,
+    canonical_oed_exposure_profile,
+    keys,
     oed_fm_agg_profile,
     write_canonical_files,
     write_canonical_oed_files,
@@ -68,7 +68,7 @@ from ..data import (
 class FmAcceptanceTests(TestCase):
 
     def setUp(self):
-        self.canexp_profile = copy.deepcopy(canonical_oed_exposures_profile)
+        self.canexp_profile = copy.deepcopy(canonical_oed_exposure_profile)
         self.canacc_profile = copy.deepcopy(canonical_oed_accounts_profile)
         self.unified_can_profile = unified_canonical_fm_profile_by_level_and_term_group(profiles=[self.canexp_profile, self.canacc_profile])
         self.fm_agg_map = copy.deepcopy(oed_fm_agg_profile)
@@ -76,7 +76,7 @@ class FmAcceptanceTests(TestCase):
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
-        exposures=canonical_oed_exposures_data(
+        exposure=canonical_oed_exposure(
             from_account_nums=just(1),
             from_location_perils=just('WTC;WEC;BFR;OO1'),
             from_country_codes=just('US'),
@@ -99,7 +99,7 @@ class FmAcceptanceTests(TestCase):
             from_site_limits=just(0),
             size=1
         ),
-        accounts=canonical_oed_accounts_data(
+        accounts=canonical_oed_accounts(
             from_account_nums=just(1),
             from_portfolio_nums=just(1),
             from_policy_nums=just(1),
@@ -114,7 +114,7 @@ class FmAcceptanceTests(TestCase):
             from_layer_shares=just(1),
             size=1
         ),
-        keys=keys_data(
+        keys=keys(
             from_peril_ids=just(1),
             from_coverage_type_ids=just(OED_COVERAGE_TYPES['buildings']['id']),
             from_area_peril_ids=just(1),
@@ -124,22 +124,22 @@ class FmAcceptanceTests(TestCase):
             size=4
         )
     )
-    def test_fm3(self, exposures, accounts, keys):
+    def test_fm3(self, exposure, accounts, keys):
         keys[1]['id'] = keys[2]['id'] = keys[3]['id'] = 1
         keys[1]['coverage_type'] = OED_COVERAGE_TYPES['other']['id']
         keys[2]['coverage_type'] = OED_COVERAGE_TYPES['contents']['id']
         keys[3]['coverage_type'] = OED_COVERAGE_TYPES['bi']['id']
 
         with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf, TemporaryDirectory() as oasis_dir:
-            write_canonical_oed_files(exposures, ef.name, accounts, af.name)
+            write_canonical_oed_files(exposure, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
-            gul_items_df, canexp_df = self.manager.load_gul_items(self.canexp_profile, ef.name, kf.name)
+            gul_items_df, canexp_df = self.manager.get_gul_input_items(self.canexp_profile, ef.name, kf.name)
 
             model = fake_model(resources={
-                'canonical_exposures_df': canexp_df,
+                'canonical_exposure_df': canexp_df,
                 'gul_items_df': gul_items_df,
-                'canonical_exposures_profile': self.canexp_profile,
+                'canonical_exposure_profile': self.canexp_profile,
                 'canonical_accounts_profile': self.canacc_profile,
                 'fm_agg_profile': self.fm_agg_map
             })
@@ -147,19 +147,19 @@ class FmAcceptanceTests(TestCase):
             ofp = omr['oasis_files_pipeline']
 
             ofp.keys_file_path = kf.name
-            ofp.canonical_exposures_file_path = ef.name
+            ofp.canonical_exposure_file_path = ef.name
 
             ofp.items_file_path = os.path.join(oasis_dir, 'items.csv')
             ofp.coverages_file_path = os.path.join(oasis_dir, 'coverages.csv')
             ofp.gulsummaryxref_file_path = os.path.join(oasis_dir, 'gulsummaryxref.csv')
 
-            gul_files = self.manager.write_gul_files(oasis_model=model)
+            gul_inputs = self.manager.write_gul_input_files(oasis_model=model)
 
-            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(gul_files)))
+            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(gul_inputs)))
 
             guls = pd.merge(
-                pd.merge(pd.read_csv(gul_files['items']), pd.read_csv(gul_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
-                pd.read_csv(gul_files['gulsummaryxref']),
+                pd.merge(pd.read_csv(gul_inputs['items']), pd.read_csv(gul_inputs['coverages']), left_on='coverage_id', right_on='coverage_id'),
+                pd.read_csv(gul_inputs['gulsummaryxref']),
                 left_on='coverage_id',
                 right_on='coverage_id'
             )
@@ -177,7 +177,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(set(loc1_items['areaperil_id'].values), {1})
             self.assertEqual(loc1_items['vulnerability_id'].values.tolist(), [1,1,1,1])
             self.assertEqual(set(loc1_items['group_id'].values), {1})
-            tivs = [exposures[0][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
+            tivs = [exposure[0][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
             self.assertEqual(loc1_items['tiv'].values.tolist(), tivs)
 
             ofp.canonical_accounts_file_path = af.name
@@ -187,11 +187,11 @@ class FmAcceptanceTests(TestCase):
             ofp.fm_xref_file_path = os.path.join(oasis_dir, 'fm_xref.csv')
             ofp.fmsummaryxref_file_path = os.path.join(oasis_dir, 'fmsummaryxref.csv')
 
-            fm_files = self.manager.write_fm_files(oasis_model=model)
+            fm_inputs = self.manager.write_fm_input_files(oasis_model=model)
 
-            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_files)))
+            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_inputs)))
 
-            fm_programme_df = pd.read_csv(fm_files['fm_programme'])
+            fm_programme_df = pd.read_csv(fm_inputs['fm_programme'])
             level_groups = [group for _, group in fm_programme_df.groupby(['level_id'])]
             self.assertEqual(len(level_groups), 2)
             level1_group = level_groups[0]
@@ -203,7 +203,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(level2_group['from_agg_id'].values.tolist(), [1,2,3,4])
             self.assertEqual(level2_group['to_agg_id'].values.tolist(), [1,1,1,1])
 
-            fm_profile_df = pd.read_csv(fm_files['fm_profile'])
+            fm_profile_df = pd.read_csv(fm_inputs['fm_profile'])
             self.assertEqual(len(fm_profile_df), 5)
             self.assertEqual(fm_profile_df['policytc_id'].values.tolist(), [1,2,3,4,5])
             self.assertEqual(fm_profile_df['calcrule_id'].values.tolist(), [1,1,1,14,2])
@@ -216,7 +216,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(fm_profile_df['share2'].values.tolist(), [0,0,0,0,0])
             self.assertEqual(fm_profile_df['share3'].values.tolist(), [0,0,0,0,0])
 
-            fm_policytc_df = pd.read_csv(fm_files['fm_policytc'])
+            fm_policytc_df = pd.read_csv(fm_inputs['fm_policytc'])
             level_groups = [group for _, group in fm_policytc_df.groupby(['level_id'])]
             self.assertEqual(len(level_groups), 2)
             level1_group = level_groups[0]
@@ -230,13 +230,13 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(level2_group['agg_id'].values.tolist(), [1])
             self.assertEqual(level2_group['policytc_id'].values.tolist(), [5])
 
-            fm_xref_df = pd.read_csv(fm_files['fm_xref'])
+            fm_xref_df = pd.read_csv(fm_inputs['fm_xref'])
             self.assertEqual(len(fm_xref_df), 4)
             self.assertEqual(fm_xref_df['output'].values.tolist(), [1,2,3,4])
             self.assertEqual(fm_xref_df['agg_id'].values.tolist(), [1,2,3,4])
             self.assertEqual(fm_xref_df['layer_id'].values.tolist(), [1,1,1,1])
 
-            fmsummaryxref_df = pd.read_csv(fm_files['fmsummaryxref'])
+            fmsummaryxref_df = pd.read_csv(fm_inputs['fmsummaryxref'])
             self.assertEqual(len(fmsummaryxref_df), 4)
             self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1,2,3,4])
             self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1,1,1,1])
@@ -263,7 +263,7 @@ class FmAcceptanceTests(TestCase):
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
-        exposures=canonical_oed_exposures_data(
+        exposure=canonical_oed_exposure(
             from_account_nums=just(1),
             from_location_perils=just('WTC;WEC;BFR;OO1'),
             from_country_codes=just('US'),
@@ -286,7 +286,7 @@ class FmAcceptanceTests(TestCase):
             from_site_limits=just(0),
             size=1
         ),
-        accounts=canonical_oed_accounts_data(
+        accounts=canonical_oed_accounts(
             from_account_nums=just(1),
             from_portfolio_nums=just(1),
             from_policy_nums=just(1),
@@ -301,7 +301,7 @@ class FmAcceptanceTests(TestCase):
             from_layer_shares=just(1),
             size=1
         ),
-        keys=keys_data(
+        keys=keys(
             from_peril_ids=just(1),
             from_coverage_type_ids=just(OED_COVERAGE_TYPES['buildings']['id']),
             from_area_peril_ids=just(1),
@@ -311,22 +311,22 @@ class FmAcceptanceTests(TestCase):
             size=4
         )
     )
-    def test_fm4(self, exposures, accounts, keys):
+    def test_fm4(self, exposure, accounts, keys):
         keys[1]['id'] = keys[2]['id'] = keys[3]['id'] = 1
         keys[1]['coverage_type'] = OED_COVERAGE_TYPES['other']['id']
         keys[2]['coverage_type'] = OED_COVERAGE_TYPES['contents']['id']
         keys[3]['coverage_type'] = OED_COVERAGE_TYPES['bi']['id']
 
         with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf, TemporaryDirectory() as oasis_dir:
-            write_canonical_oed_files(exposures, ef.name, accounts, af.name)
+            write_canonical_oed_files(exposure, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
-            gul_items_df, canexp_df = self.manager.load_gul_items(self.canexp_profile, ef.name, kf.name)
+            gul_items_df, canexp_df = self.manager.get_gul_input_items(self.canexp_profile, ef.name, kf.name)
 
             model = fake_model(resources={
-                'canonical_exposures_df': canexp_df,
+                'canonical_exposure_df': canexp_df,
                 'gul_items_df': gul_items_df,
-                'canonical_exposures_profile': self.canexp_profile,
+                'canonical_exposure_profile': self.canexp_profile,
                 'canonical_accounts_profile': self.canacc_profile,
                 'fm_agg_profile': self.fm_agg_map
             })
@@ -334,19 +334,19 @@ class FmAcceptanceTests(TestCase):
             ofp = omr['oasis_files_pipeline']
 
             ofp.keys_file_path = kf.name
-            ofp.canonical_exposures_file_path = ef.name
+            ofp.canonical_exposure_file_path = ef.name
 
             ofp.items_file_path = os.path.join(oasis_dir, 'items.csv')
             ofp.coverages_file_path = os.path.join(oasis_dir, 'coverages.csv')
             ofp.gulsummaryxref_file_path = os.path.join(oasis_dir, 'gulsummaryxref.csv')
 
-            gul_files = self.manager.write_gul_files(oasis_model=model)
+            gul_inputs = self.manager.write_gul_input_files(oasis_model=model)
 
-            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(gul_files)))
+            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(gul_inputs)))
 
             guls = pd.merge(
-                pd.merge(pd.read_csv(gul_files['items']), pd.read_csv(gul_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
-                pd.read_csv(gul_files['gulsummaryxref']),
+                pd.merge(pd.read_csv(gul_inputs['items']), pd.read_csv(gul_inputs['coverages']), left_on='coverage_id', right_on='coverage_id'),
+                pd.read_csv(gul_inputs['gulsummaryxref']),
                 left_on='coverage_id',
                 right_on='coverage_id'
             )
@@ -364,7 +364,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(set(loc1_items['areaperil_id'].values), {1})
             self.assertEqual(loc1_items['vulnerability_id'].values.tolist(), [1,1,1,1])
             self.assertEqual(set(loc1_items['group_id'].values), {1})
-            tivs = [exposures[0][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
+            tivs = [exposure[0][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
             self.assertEqual(loc1_items['tiv'].values.tolist(), tivs)
 
             ofp.canonical_accounts_file_path = af.name
@@ -374,11 +374,11 @@ class FmAcceptanceTests(TestCase):
             ofp.fm_xref_file_path = os.path.join(oasis_dir, 'fm_xref.csv')
             ofp.fmsummaryxref_file_path = os.path.join(oasis_dir, 'fmsummaryxref.csv')
 
-            fm_files = self.manager.write_fm_files(oasis_model=model)
+            fm_inputs = self.manager.write_fm_input_files(oasis_model=model)
 
-            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_files)))
+            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_inputs)))
 
-            fm_programme_df = pd.read_csv(fm_files['fm_programme'])
+            fm_programme_df = pd.read_csv(fm_inputs['fm_programme'])
             level_groups = [group for _, group in fm_programme_df.groupby(['level_id'])]
             self.assertEqual(len(level_groups), 3)
             level1_group = level_groups[0]
@@ -394,7 +394,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(level3_group['from_agg_id'].values.tolist(), [1,2])
             self.assertEqual(level3_group['to_agg_id'].values.tolist(), [1,1])
 
-            fm_profile_df = pd.read_csv(fm_files['fm_profile'])
+            fm_profile_df = pd.read_csv(fm_inputs['fm_profile'])
             self.assertEqual(len(fm_profile_df), 4)
             self.assertEqual(fm_profile_df['policytc_id'].values.tolist(), [1,2,3,4])
             self.assertEqual(fm_profile_df['calcrule_id'].values.tolist(), [12,1,1,2])
@@ -407,7 +407,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(fm_profile_df['share2'].values.tolist(), [0,0,0,0])
             self.assertEqual(fm_profile_df['share3'].values.tolist(), [0,0,0,0])
 
-            fm_policytc_df = pd.read_csv(fm_files['fm_policytc'])
+            fm_policytc_df = pd.read_csv(fm_inputs['fm_policytc'])
             level_groups = [group for _, group in fm_policytc_df.groupby(['level_id'])]
             self.assertEqual(len(level_groups), 3)
             level1_group = level_groups[0]
@@ -426,13 +426,13 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(level3_group['agg_id'].values.tolist(), [1])
             self.assertEqual(level3_group['policytc_id'].values.tolist(), [4])
 
-            fm_xref_df = pd.read_csv(fm_files['fm_xref'])
+            fm_xref_df = pd.read_csv(fm_inputs['fm_xref'])
             self.assertEqual(len(fm_xref_df), 4)
             self.assertEqual(fm_xref_df['output'].values.tolist(), [1,2,3,4])
             self.assertEqual(fm_xref_df['agg_id'].values.tolist(), [1,2,3,4])
             self.assertEqual(fm_xref_df['layer_id'].values.tolist(), [1,1,1,1])
 
-            fmsummaryxref_df = pd.read_csv(fm_files['fmsummaryxref'])
+            fmsummaryxref_df = pd.read_csv(fm_inputs['fmsummaryxref'])
             self.assertEqual(len(fmsummaryxref_df), 4)
             self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1,2,3,4])
             self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1,1,1,1])
@@ -459,7 +459,7 @@ class FmAcceptanceTests(TestCase):
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
-        exposures=canonical_oed_exposures_data(
+        exposure=canonical_oed_exposure(
             from_account_nums=just(1),
             from_location_perils=just('WTC;WEC;BFR;OO1'),
             from_country_codes=just('US'),
@@ -482,7 +482,7 @@ class FmAcceptanceTests(TestCase):
             from_site_limits=just(1000000),
             size=1
         ),
-        accounts=canonical_oed_accounts_data(
+        accounts=canonical_oed_accounts(
             from_account_nums=just(1),
             from_portfolio_nums=just(1),
             from_policy_nums=just(1),
@@ -497,7 +497,7 @@ class FmAcceptanceTests(TestCase):
             from_layer_shares=just(1),
             size=1
         ),
-        keys=keys_data(
+        keys=keys(
             from_peril_ids=just(1),
             from_coverage_type_ids=just(OED_COVERAGE_TYPES['buildings']['id']),
             from_area_peril_ids=just(1),
@@ -507,22 +507,22 @@ class FmAcceptanceTests(TestCase):
             size=4
         )
     )
-    def test_fm5(self, exposures, accounts, keys):
+    def test_fm5(self, exposure, accounts, keys):
         keys[1]['id'] = keys[2]['id'] = keys[3]['id'] = 1
         keys[1]['coverage_type'] = OED_COVERAGE_TYPES['other']['id']
         keys[2]['coverage_type'] = OED_COVERAGE_TYPES['contents']['id']
         keys[3]['coverage_type'] = OED_COVERAGE_TYPES['bi']['id']
 
         with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf, TemporaryDirectory() as oasis_dir:
-            write_canonical_oed_files(exposures, ef.name, accounts, af.name)
+            write_canonical_oed_files(exposure, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
-            gul_items_df, canexp_df = self.manager.load_gul_items(self.canexp_profile, ef.name, kf.name)
+            gul_items_df, canexp_df = self.manager.get_gul_input_items(self.canexp_profile, ef.name, kf.name)
 
             model = fake_model(resources={
-                'canonical_exposures_df': canexp_df,
+                'canonical_exposure_df': canexp_df,
                 'gul_items_df': gul_items_df,
-                'canonical_exposures_profile': self.canexp_profile,
+                'canonical_exposure_profile': self.canexp_profile,
                 'canonical_accounts_profile': self.canacc_profile,
                 'fm_agg_profile': self.fm_agg_map
             })
@@ -530,19 +530,19 @@ class FmAcceptanceTests(TestCase):
             ofp = omr['oasis_files_pipeline']
 
             ofp.keys_file_path = kf.name
-            ofp.canonical_exposures_file_path = ef.name
+            ofp.canonical_exposure_file_path = ef.name
 
             ofp.items_file_path = os.path.join(oasis_dir, 'items.csv')
             ofp.coverages_file_path = os.path.join(oasis_dir, 'coverages.csv')
             ofp.gulsummaryxref_file_path = os.path.join(oasis_dir, 'gulsummaryxref.csv')
 
-            gul_files = self.manager.write_gul_files(oasis_model=model)
+            gul_inputs = self.manager.write_gul_input_files(oasis_model=model)
 
-            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(gul_files)))
+            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(gul_inputs)))
 
             guls = pd.merge(
-                pd.merge(pd.read_csv(gul_files['items']), pd.read_csv(gul_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
-                pd.read_csv(gul_files['gulsummaryxref']),
+                pd.merge(pd.read_csv(gul_inputs['items']), pd.read_csv(gul_inputs['coverages']), left_on='coverage_id', right_on='coverage_id'),
+                pd.read_csv(gul_inputs['gulsummaryxref']),
                 left_on='coverage_id',
                 right_on='coverage_id'
             )
@@ -560,7 +560,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(set(loc1_items['areaperil_id'].values), {1})
             self.assertEqual(loc1_items['vulnerability_id'].values.tolist(), [1,1,1,1])
             self.assertEqual(set(loc1_items['group_id'].values), {1})
-            tivs = [exposures[0][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
+            tivs = [exposure[0][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
             self.assertEqual(loc1_items['tiv'].values.tolist(), tivs)
 
             ofp.canonical_accounts_file_path = af.name
@@ -570,11 +570,11 @@ class FmAcceptanceTests(TestCase):
             ofp.fm_xref_file_path = os.path.join(oasis_dir, 'fm_xref.csv')
             ofp.fmsummaryxref_file_path = os.path.join(oasis_dir, 'fmsummaryxref.csv')
 
-            fm_files = self.manager.write_fm_files(oasis_model=model)
+            fm_inputs = self.manager.write_fm_input_files(oasis_model=model)
 
-            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_files)))
+            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_inputs)))
 
-            fm_programme_df = pd.read_csv(fm_files['fm_programme'])
+            fm_programme_df = pd.read_csv(fm_inputs['fm_programme'])
             level_groups = [group for _, group in fm_programme_df.groupby(['level_id'])]
             self.assertEqual(len(level_groups), 3)
             level1_group = level_groups[0]
@@ -590,7 +590,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(level3_group['from_agg_id'].values.tolist(), [1])
             self.assertEqual(level3_group['to_agg_id'].values.tolist(), [1])
 
-            fm_profile_df = pd.read_csv(fm_files['fm_profile'])
+            fm_profile_df = pd.read_csv(fm_inputs['fm_profile'])
             self.assertEqual(len(fm_profile_df), 3)
             self.assertEqual(fm_profile_df['policytc_id'].values.tolist(), [1,2,3])
             self.assertEqual(fm_profile_df['calcrule_id'].values.tolist(), [12,1,2])
@@ -603,7 +603,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(fm_profile_df['share2'].values.tolist(), [0,0,0])
             self.assertEqual(fm_profile_df['share3'].values.tolist(), [0,0,0])
 
-            fm_policytc_df = pd.read_csv(fm_files['fm_policytc'])
+            fm_policytc_df = pd.read_csv(fm_inputs['fm_policytc'])
             level_groups = [group for _, group in fm_policytc_df.groupby(['level_id'])]
             self.assertEqual(len(level_groups), 3)
             level1_group = level_groups[0]
@@ -622,13 +622,13 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(level3_group['agg_id'].values.tolist(), [1])
             self.assertEqual(level3_group['policytc_id'].values.tolist(), [3])
 
-            fm_xref_df = pd.read_csv(fm_files['fm_xref'])
+            fm_xref_df = pd.read_csv(fm_inputs['fm_xref'])
             self.assertEqual(len(fm_xref_df), 4)
             self.assertEqual(fm_xref_df['output'].values.tolist(), [1,2,3,4])
             self.assertEqual(fm_xref_df['agg_id'].values.tolist(), [1,2,3,4])
             self.assertEqual(fm_xref_df['layer_id'].values.tolist(), [1,1,1,1])
 
-            fmsummaryxref_df = pd.read_csv(fm_files['fmsummaryxref'])
+            fmsummaryxref_df = pd.read_csv(fm_inputs['fmsummaryxref'])
             self.assertEqual(len(fmsummaryxref_df), 4)
             self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1,2,3,4])
             self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1,1,1,1])
@@ -655,7 +655,7 @@ class FmAcceptanceTests(TestCase):
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
-        exposures=canonical_oed_exposures_data(
+        exposure=canonical_oed_exposure(
             from_account_nums=just(1),
             from_location_perils=just('WTC;WEC;BFR;OO1'),
             from_country_codes=just('US'),
@@ -678,7 +678,7 @@ class FmAcceptanceTests(TestCase):
             from_site_limits=just(0),
             size=2
         ),
-        accounts=canonical_oed_accounts_data(
+        accounts=canonical_oed_accounts(
             from_account_nums=just(1),
             from_portfolio_nums=just(1),
             from_policy_nums=just(1),
@@ -693,7 +693,7 @@ class FmAcceptanceTests(TestCase):
             from_layer_shares=just(1),
             size=1
         ),
-        keys=keys_data(
+        keys=keys(
             from_peril_ids=just(1),
             from_coverage_type_ids=just(OED_COVERAGE_TYPES['buildings']['id']),
             from_area_peril_ids=just(1),
@@ -703,11 +703,11 @@ class FmAcceptanceTests(TestCase):
             size=8
         )
     )
-    def test_fm6(self, exposures, accounts, keys):
-        exposures[1]['buildingtiv'] = 1700000
-        exposures[1]['othertiv'] = 30000
-        exposures[1]['contentstiv'] = 1000000
-        exposures[1]['bitiv'] = 50000
+    def test_fm6(self, exposure, accounts, keys):
+        exposure[1]['buildingtiv'] = 1700000
+        exposure[1]['othertiv'] = 30000
+        exposure[1]['contentstiv'] = 1000000
+        exposure[1]['bitiv'] = 50000
 
         keys[1]['id'] = keys[2]['id'] = keys[3]['id'] = 1
         keys[4]['id'] = keys[5]['id'] = keys[6]['id'] = keys[7]['id'] = 2
@@ -722,15 +722,15 @@ class FmAcceptanceTests(TestCase):
         keys[4]['vulnerability_id'] = keys[5]['vulnerability_id'] = keys[6]['vulnerability_id'] = keys[7]['vulnerability_id'] = 2
 
         with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf, TemporaryDirectory() as oasis_dir:
-            write_canonical_oed_files(exposures, ef.name, accounts, af.name)
+            write_canonical_oed_files(exposure, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
-            gul_items_df, canexp_df = self.manager.load_gul_items(self.canexp_profile, ef.name, kf.name)
+            gul_items_df, canexp_df = self.manager.get_gul_input_items(self.canexp_profile, ef.name, kf.name)
 
             model = fake_model(resources={
-                'canonical_exposures_df': canexp_df,
+                'canonical_exposure_df': canexp_df,
                 'gul_items_df': gul_items_df,
-                'canonical_exposures_profile': self.canexp_profile,
+                'canonical_exposure_profile': self.canexp_profile,
                 'canonical_accounts_profile': self.canacc_profile,
                 'fm_agg_profile': self.fm_agg_map
             })
@@ -738,19 +738,19 @@ class FmAcceptanceTests(TestCase):
             ofp = omr['oasis_files_pipeline']
 
             ofp.keys_file_path = kf.name
-            ofp.canonical_exposures_file_path = ef.name
+            ofp.canonical_exposure_file_path = ef.name
 
             ofp.items_file_path = os.path.join(oasis_dir, 'items.csv')
             ofp.coverages_file_path = os.path.join(oasis_dir, 'coverages.csv')
             ofp.gulsummaryxref_file_path = os.path.join(oasis_dir, 'gulsummaryxref.csv')
 
-            gul_files = self.manager.write_gul_files(oasis_model=model)
+            gul_inputs = self.manager.write_gul_input_files(oasis_model=model)
 
-            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(gul_files)))
+            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(gul_inputs)))
 
             guls = pd.merge(
-                pd.merge(pd.read_csv(gul_files['items']), pd.read_csv(gul_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
-                pd.read_csv(gul_files['gulsummaryxref']),
+                pd.merge(pd.read_csv(gul_inputs['items']), pd.read_csv(gul_inputs['coverages']), left_on='coverage_id', right_on='coverage_id'),
+                pd.read_csv(gul_inputs['gulsummaryxref']),
                 left_on='coverage_id',
                 right_on='coverage_id'
             )
@@ -768,7 +768,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(set(loc1_items['areaperil_id'].values), {1})
             self.assertEqual(set(loc1_items['vulnerability_id'].values), {1})
             self.assertEqual(set(loc1_items['group_id'].values), {1})
-            tivs = [exposures[0][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
+            tivs = [exposure[0][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
             self.assertEqual(loc1_items['tiv'].values.tolist(), tivs)
 
             loc2_id, loc2_items = loc_groups[1]
@@ -781,7 +781,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(set(loc2_items['areaperil_id'].values), {2})
             self.assertEqual(set(loc2_items['vulnerability_id'].values), {2})
             self.assertEqual(set(loc2_items['group_id'].values), {2})
-            tivs = [exposures[1][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
+            tivs = [exposure[1][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
             self.assertEqual(loc2_items['tiv'].values.tolist(), tivs)
 
             ofp.canonical_accounts_file_path = af.name
@@ -791,11 +791,11 @@ class FmAcceptanceTests(TestCase):
             ofp.fm_xref_file_path = os.path.join(oasis_dir, 'fm_xref.csv')
             ofp.fmsummaryxref_file_path = os.path.join(oasis_dir, 'fmsummaryxref.csv')
 
-            fm_files = self.manager.write_fm_files(oasis_model=model)
+            fm_inputs = self.manager.write_fm_input_files(oasis_model=model)
 
-            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_files)))
+            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_inputs)))
 
-            fm_programme_df = pd.read_csv(fm_files['fm_programme'])
+            fm_programme_df = pd.read_csv(fm_inputs['fm_programme'])
             level_groups = [group for _, group in fm_programme_df.groupby(['level_id'])]
             self.assertEqual(len(level_groups), 3)
             level1_group = level_groups[0]
@@ -811,7 +811,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(level3_group['from_agg_id'].values.tolist(), [1])
             self.assertEqual(level3_group['to_agg_id'].values.tolist(), [1])
 
-            fm_profile_df = pd.read_csv(fm_files['fm_profile'])
+            fm_profile_df = pd.read_csv(fm_inputs['fm_profile'])
             self.assertEqual(len(fm_profile_df), 3)
             self.assertEqual(fm_profile_df['policytc_id'].values.tolist(), [1,2,3])
             self.assertEqual(fm_profile_df['calcrule_id'].values.tolist(), [12,12,2])
@@ -824,7 +824,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(fm_profile_df['share2'].values.tolist(), [0,0,0])
             self.assertEqual(fm_profile_df['share3'].values.tolist(), [0,0,0])
 
-            fm_policytc_df = pd.read_csv(fm_files['fm_policytc'])
+            fm_policytc_df = pd.read_csv(fm_inputs['fm_policytc'])
             level_groups = [group for _, group in fm_policytc_df.groupby(['level_id'])]
             self.assertEqual(len(level_groups), 3)
             level1_group = level_groups[0]
@@ -843,13 +843,13 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(level3_group['agg_id'].values.tolist(), [1])
             self.assertEqual(level3_group['policytc_id'].values.tolist(), [3])
 
-            fm_xref_df = pd.read_csv(fm_files['fm_xref'])
+            fm_xref_df = pd.read_csv(fm_inputs['fm_xref'])
             self.assertEqual(len(fm_xref_df), 8)
             self.assertEqual(fm_xref_df['output'].values.tolist(), [1,2,3,4,5,6,7,8])
             self.assertEqual(fm_xref_df['agg_id'].values.tolist(), [1,2,3,4,5,6,7,8])
             self.assertEqual(fm_xref_df['layer_id'].values.tolist(), [1,1,1,1,1,1,1,1])
 
-            fmsummaryxref_df = pd.read_csv(fm_files['fmsummaryxref'])
+            fmsummaryxref_df = pd.read_csv(fm_inputs['fmsummaryxref'])
             self.assertEqual(len(fmsummaryxref_df), 8)
             self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1,2,3,4,5,6,7,8])
             self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1,1,1,1,1,1,1,1])
@@ -880,7 +880,7 @@ class FmAcceptanceTests(TestCase):
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
-        exposures=canonical_oed_exposures_data(
+        exposure=canonical_oed_exposure(
             from_account_nums=just(1),
             from_location_perils=just('WTC;WEC;BFR;OO1'),
             from_country_codes=just('US'),
@@ -903,7 +903,7 @@ class FmAcceptanceTests(TestCase):
             from_site_limits=just(0),
             size=2
         ),
-        accounts=canonical_oed_accounts_data(
+        accounts=canonical_oed_accounts(
             from_account_nums=just(1),
             from_portfolio_nums=just(1),
             from_policy_nums=just(1),
@@ -918,7 +918,7 @@ class FmAcceptanceTests(TestCase):
             from_layer_shares=just(1),
             size=1
         ),
-        keys=keys_data(
+        keys=keys(
             from_peril_ids=just(1),
             from_coverage_type_ids=just(OED_COVERAGE_TYPES['buildings']['id']),
             from_area_peril_ids=just(1),
@@ -928,11 +928,11 @@ class FmAcceptanceTests(TestCase):
             size=8
         )
     )
-    def test_fm7(self, exposures, accounts, keys):
-        exposures[1]['buildingtiv'] = 1700000
-        exposures[1]['othertiv'] = 30000
-        exposures[1]['contentstiv'] = 1000000
-        exposures[1]['bitiv'] = 50000
+    def test_fm7(self, exposure, accounts, keys):
+        exposure[1]['buildingtiv'] = 1700000
+        exposure[1]['othertiv'] = 30000
+        exposure[1]['contentstiv'] = 1000000
+        exposure[1]['bitiv'] = 50000
 
         keys[1]['id'] = keys[2]['id'] = keys[3]['id'] = 1
         keys[4]['id'] = keys[5]['id'] = keys[6]['id'] = keys[7]['id'] = 2
@@ -947,15 +947,15 @@ class FmAcceptanceTests(TestCase):
         keys[4]['vulnerability_id'] = keys[5]['vulnerability_id'] = keys[6]['vulnerability_id'] = keys[7]['vulnerability_id'] = 2
 
         with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf, TemporaryDirectory() as oasis_dir:
-            write_canonical_oed_files(exposures, ef.name, accounts, af.name)
+            write_canonical_oed_files(exposure, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
-            gul_items_df, canexp_df = self.manager.load_gul_items(self.canexp_profile, ef.name, kf.name)
+            gul_items_df, canexp_df = self.manager.get_gul_input_items(self.canexp_profile, ef.name, kf.name)
 
             model = fake_model(resources={
-                'canonical_exposures_df': canexp_df,
+                'canonical_exposure_df': canexp_df,
                 'gul_items_df': gul_items_df,
-                'canonical_exposures_profile': self.canexp_profile,
+                'canonical_exposure_profile': self.canexp_profile,
                 'canonical_accounts_profile': self.canacc_profile,
                 'fm_agg_profile': self.fm_agg_map
             })
@@ -963,19 +963,19 @@ class FmAcceptanceTests(TestCase):
             ofp = omr['oasis_files_pipeline']
 
             ofp.keys_file_path = kf.name
-            ofp.canonical_exposures_file_path = ef.name
+            ofp.canonical_exposure_file_path = ef.name
 
             ofp.items_file_path = os.path.join(oasis_dir, 'items.csv')
             ofp.coverages_file_path = os.path.join(oasis_dir, 'coverages.csv')
             ofp.gulsummaryxref_file_path = os.path.join(oasis_dir, 'gulsummaryxref.csv')
 
-            gul_files = self.manager.write_gul_files(oasis_model=model)
+            gul_inputs = self.manager.write_gul_input_files(oasis_model=model)
 
-            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(gul_files)))
+            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(gul_inputs)))
 
             guls = pd.merge(
-                pd.merge(pd.read_csv(gul_files['items']), pd.read_csv(gul_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
-                pd.read_csv(gul_files['gulsummaryxref']),
+                pd.merge(pd.read_csv(gul_inputs['items']), pd.read_csv(gul_inputs['coverages']), left_on='coverage_id', right_on='coverage_id'),
+                pd.read_csv(gul_inputs['gulsummaryxref']),
                 left_on='coverage_id',
                 right_on='coverage_id'
             )
@@ -993,7 +993,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(set(loc1_items['areaperil_id'].values), {1})
             self.assertEqual(set(loc1_items['vulnerability_id'].values), {1})
             self.assertEqual(set(loc1_items['group_id'].values), {1})
-            tivs = [exposures[0][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
+            tivs = [exposure[0][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
             self.assertEqual(loc1_items['tiv'].values.tolist(), tivs)
 
             loc2_id, loc2_items = loc_groups[1]
@@ -1006,7 +1006,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(set(loc2_items['areaperil_id'].values), {2})
             self.assertEqual(set(loc2_items['vulnerability_id'].values), {2})
             self.assertEqual(set(loc2_items['group_id'].values), {2})
-            tivs = [exposures[1][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
+            tivs = [exposure[1][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
             self.assertEqual(loc2_items['tiv'].values.tolist(), tivs)
 
             ofp.canonical_accounts_file_path = af.name
@@ -1016,11 +1016,11 @@ class FmAcceptanceTests(TestCase):
             ofp.fm_xref_file_path = os.path.join(oasis_dir, 'fm_xref.csv')
             ofp.fmsummaryxref_file_path = os.path.join(oasis_dir, 'fmsummaryxref.csv')
 
-            fm_files = self.manager.write_fm_files(oasis_model=model)
+            fm_inputs = self.manager.write_fm_input_files(oasis_model=model)
 
-            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_files)))
+            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_inputs)))
 
-            fm_programme_df = pd.read_csv(fm_files['fm_programme'])
+            fm_programme_df = pd.read_csv(fm_inputs['fm_programme'])
             level_groups = [group for _, group in fm_programme_df.groupby(['level_id'])]
             self.assertEqual(len(level_groups), 3)
             level1_group = level_groups[0]
@@ -1036,7 +1036,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(level3_group['from_agg_id'].values.tolist(), [1])
             self.assertEqual(level3_group['to_agg_id'].values.tolist(), [1])
 
-            fm_profile_df = pd.read_csv(fm_files['fm_profile'])
+            fm_profile_df = pd.read_csv(fm_inputs['fm_profile'])
             self.assertEqual(len(fm_profile_df), 5)
             self.assertEqual(fm_profile_df['policytc_id'].values.tolist(), [1,2,3,4,5])
             self.assertEqual(fm_profile_df['calcrule_id'].values.tolist(), [12,12,12,12,2])
@@ -1049,7 +1049,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(fm_profile_df['share2'].values.tolist(), [0,0,0,0,0])
             self.assertEqual(fm_profile_df['share3'].values.tolist(), [0,0,0,0,0])
 
-            fm_policytc_df = pd.read_csv(fm_files['fm_policytc'])
+            fm_policytc_df = pd.read_csv(fm_inputs['fm_policytc'])
             level_groups = [group for _, group in fm_policytc_df.groupby(['level_id'])]
             self.assertEqual(len(level_groups), 3)
             level1_group = level_groups[0]
@@ -1068,13 +1068,13 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(level3_group['agg_id'].values.tolist(), [1])
             self.assertEqual(level3_group['policytc_id'].values.tolist(), [5])
 
-            fm_xref_df = pd.read_csv(fm_files['fm_xref'])
+            fm_xref_df = pd.read_csv(fm_inputs['fm_xref'])
             self.assertEqual(len(fm_xref_df), 8)
             self.assertEqual(fm_xref_df['output'].values.tolist(), [1,2,3,4,5,6,7,8])
             self.assertEqual(fm_xref_df['agg_id'].values.tolist(), [1,2,3,4,5,6,7,8])
             self.assertEqual(fm_xref_df['layer_id'].values.tolist(), [1,1,1,1,1,1,1,1])
 
-            fmsummaryxref_df = pd.read_csv(fm_files['fmsummaryxref'])
+            fmsummaryxref_df = pd.read_csv(fm_inputs['fmsummaryxref'])
             self.assertEqual(len(fmsummaryxref_df), 8)
             self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1,2,3,4,5,6,7,8])
             self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1,1,1,1,1,1,1,1])
@@ -1105,7 +1105,7 @@ class FmAcceptanceTests(TestCase):
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
-        exposures=canonical_oed_exposures_data(
+        exposure=canonical_oed_exposure(
             from_account_nums=just(1),
             from_location_perils=just('QQ1;WW1'),
             from_country_codes=just('US'),
@@ -1129,7 +1129,7 @@ class FmAcceptanceTests(TestCase):
             from_cond_tags=just(0),
             size=6
         ),
-        accounts=canonical_oed_accounts_data(
+        accounts=canonical_oed_accounts(
             from_account_nums=just(1),
             from_portfolio_nums=just(1),
             from_policy_nums=just(1),
@@ -1145,7 +1145,7 @@ class FmAcceptanceTests(TestCase):
             from_layer_shares=just(0.1),
             size=2
         ),
-        keys=keys_data(
+        keys=keys(
             from_peril_ids=just('QQ1;WW1'),
             from_coverage_type_ids=just(OED_COVERAGE_TYPES['buildings']['id']),
             from_area_peril_ids=just(1),
@@ -1155,18 +1155,18 @@ class FmAcceptanceTests(TestCase):
             size=6
         )
     )
-    def test_fm40(self, exposures, accounts, keys):
-        exposures[1]['buildingtiv'] = 1000000
-        exposures[2]['buildingtiv'] = 1000000
-        exposures[3]['buildingtiv'] = 2000000
-        exposures[4]['buildingtiv'] = 2000000
-        exposures[5]['buildingtiv'] = 2000000
+    def test_fm40(self, exposure, accounts, keys):
+        exposure[1]['buildingtiv'] = 1000000
+        exposure[2]['buildingtiv'] = 1000000
+        exposure[3]['buildingtiv'] = 2000000
+        exposure[4]['buildingtiv'] = 2000000
+        exposure[5]['buildingtiv'] = 2000000
 
-        exposures[1]['locded1building'] = 0.01
-        exposures[2]['locded1building'] = 0.05
-        exposures[3]['locded1building'] = 15000
-        exposures[4]['locded1building'] = 10000
-        exposures[5]['locded1building'] = 0.1
+        exposure[1]['locded1building'] = 0.01
+        exposure[2]['locded1building'] = 0.05
+        exposure[3]['locded1building'] = 15000
+        exposure[4]['locded1building'] = 10000
+        exposure[5]['locded1building'] = 0.1
 
         accounts[1]['polnumber'] = 2
         accounts[1]['layerparticipation'] = 0.5
@@ -1174,15 +1174,15 @@ class FmAcceptanceTests(TestCase):
         accounts[1]['layerattachment'] = 1500000
 
         with NamedTemporaryFile('w') as ef, NamedTemporaryFile('w') as af, NamedTemporaryFile('w') as kf, TemporaryDirectory() as oasis_dir:
-            write_canonical_oed_files(exposures, ef.name, accounts, af.name)
+            write_canonical_oed_files(exposure, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
-            gul_items_df, canexp_df = self.manager.load_gul_items(self.canexp_profile, ef.name, kf.name)
+            gul_items_df, canexp_df = self.manager.get_gul_input_items(self.canexp_profile, ef.name, kf.name)
 
             model = fake_model(resources={
-                'canonical_exposures_df': canexp_df,
+                'canonical_exposure_df': canexp_df,
                 'gul_items_df': gul_items_df,
-                'canonical_exposures_profile': self.canexp_profile,
+                'canonical_exposure_profile': self.canexp_profile,
                 'canonical_accounts_profile': self.canacc_profile,
                 'fm_agg_profile': self.fm_agg_map
             })
@@ -1190,19 +1190,19 @@ class FmAcceptanceTests(TestCase):
             ofp = omr['oasis_files_pipeline']
 
             ofp.keys_file_path = kf.name
-            ofp.canonical_exposures_file_path = ef.name
+            ofp.canonical_exposure_file_path = ef.name
 
             ofp.items_file_path = os.path.join(oasis_dir, 'items.csv')
             ofp.coverages_file_path = os.path.join(oasis_dir, 'coverages.csv')
             ofp.gulsummaryxref_file_path = os.path.join(oasis_dir, 'gulsummaryxref.csv')
 
-            gul_files = self.manager.write_gul_files(oasis_model=model)
+            gul_inputs = self.manager.write_gul_input_files(oasis_model=model)
 
-            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(gul_files)))
+            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(gul_inputs)))
 
             guls = pd.merge(
-                pd.merge(pd.read_csv(gul_files['items']), pd.read_csv(gul_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
-                pd.read_csv(gul_files['gulsummaryxref']),
+                pd.merge(pd.read_csv(gul_inputs['items']), pd.read_csv(gul_inputs['coverages']), left_on='coverage_id', right_on='coverage_id'),
+                pd.read_csv(gul_inputs['gulsummaryxref']),
                 left_on='coverage_id',
                 right_on='coverage_id'
             )
@@ -1223,11 +1223,11 @@ class FmAcceptanceTests(TestCase):
             ofp.fm_xref_file_path = os.path.join(oasis_dir, 'fm_xref.csv')
             ofp.fmsummaryxref_file_path = os.path.join(oasis_dir, 'fmsummaryxref.csv')
 
-            fm_files = self.manager.write_fm_files(oasis_model=model)
+            fm_inputs = self.manager.write_fm_input_files(oasis_model=model)
 
-            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_files)))
+            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_inputs)))
 
-            fm_programme_df = pd.read_csv(fm_files['fm_programme'])
+            fm_programme_df = pd.read_csv(fm_inputs['fm_programme'])
             level_groups = [group for _, group in fm_programme_df.groupby(['level_id'])]
             self.assertEqual(len(level_groups), 3)
             level1_group = level_groups[0]
@@ -1243,7 +1243,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(level3_group['from_agg_id'].values.tolist(), [1])
             self.assertEqual(level3_group['to_agg_id'].values.tolist(), [1])
 
-            fm_profile_df = pd.read_csv(fm_files['fm_profile'])
+            fm_profile_df = pd.read_csv(fm_inputs['fm_profile'])
             self.assertEqual(len(fm_profile_df), 6)
             self.assertEqual(fm_profile_df['policytc_id'].values.tolist(), [1,2,3,4,5,6])
             self.assertEqual(fm_profile_df['calcrule_id'].values.tolist(), [12,12,12,12,2,2])
@@ -1256,7 +1256,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(fm_profile_df['share2'].values.tolist(), [0,0,0,0,0,0])
             self.assertEqual(fm_profile_df['share3'].values.tolist(), [0,0,0,0,0,0])
 
-            fm_policytc_df = pd.read_csv(fm_files['fm_policytc'])
+            fm_policytc_df = pd.read_csv(fm_inputs['fm_policytc'])
             level_groups = [group for _, group in fm_policytc_df.groupby(['level_id'])]
             self.assertEqual(len(level_groups), 3)
             level1_group = level_groups[0]
@@ -1275,7 +1275,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(level3_group['agg_id'].values.tolist(), [1,1])
             self.assertEqual(level3_group['policytc_id'].values.tolist(), [5,6])
 
-            fm_xref_df = pd.read_csv(fm_files['fm_xref']).sort_values(['layer_id'])
+            fm_xref_df = pd.read_csv(fm_inputs['fm_xref']).sort_values(['layer_id'])
 
             layer_groups = [group for _, group in fm_xref_df.groupby(['layer_id'])]
             self.assertEqual(len(layer_groups), 2)
@@ -1288,7 +1288,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(len(layer2_group), 6)
             self.assertEqual(layer2_group['agg_id'].values.tolist(), [1,2,3,4,5,6])
 
-            fmsummaryxref_df = pd.read_csv(fm_files['fmsummaryxref'])
+            fmsummaryxref_df = pd.read_csv(fm_inputs['fmsummaryxref'])
             self.assertEqual(len(fmsummaryxref_df), 12)
             self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1,2,3,4,5,6,7,8,9,10,11,12])
             self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1,1,1,1,1,1,1,1,1,1,1,1])

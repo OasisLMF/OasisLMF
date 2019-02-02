@@ -429,7 +429,7 @@ class GenerateKeysCmd(OasisBaseCommand):
             lookup,
             keys_file_path,
             errors_fp=keys_errors_file_path,
-            model_exposures_fp=model_exposures_file_path,
+            model_exposure_fp=model_exposures_file_path,
             format=keys_format
         )
         self.logger.info('\n{} successful results saved to keys file {}'.format(n1, f1))
