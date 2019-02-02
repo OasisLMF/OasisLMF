@@ -315,18 +315,18 @@ class OasisLookupFactory(object):
         )
 
     @classmethod
-    def get_model_exposures(cls, model_exposures=None, model_exposures_file_path=None):
+    def get_model_exposure(cls, model_exposure=None, model_exposure_fp=None):
         """
         Get the model exposures/location file data as a pandas dataframe given
         either the path of the model exposures file or the string contents of
         such a file.
         """
-        if model_exposures_file_path:
-            loc_df = pd.read_csv(os.path.abspath(model_exposures_file_path), float_precision='high')
-        elif model_exposures:
-            loc_df = pd.read_csv(six.StringIO(model_exposures), float_precision='high')
+        if model_exposure_fp:
+            loc_df = pd.read_csv(os.path.abspath(model_exposure_fp), float_precision='high')
+        elif model_exposure:
+            loc_df = pd.read_csv(six.StringIO(model_exposure), float_precision='high')
         else:
-            raise OasisException('Either model_exposures_file_path or model_exposures must be specified')
+            raise OasisException('Either the model exposure or exposure file path must be specified')
 
         loc_df = loc_df.where(loc_df.notnull(), None)
         loc_df.columns = loc_df.columns.str.lower()
@@ -447,8 +447,8 @@ class OasisLookupFactory(object):
     def get_keys(
         cls,
         lookup=None,
-        model_exposures=None,
-        model_exposures_file_path=None,
+        model_exposure=None,
+        model_exposure_fp=None,
         success_only=True
     ):
         """
@@ -461,12 +461,12 @@ class OasisLookupFactory(object):
         records with successful lookups should be returned (default), or all
         records.
         """
-        if not (model_exposures or model_exposures_file_path):
+        if not (model_exposure or model_exposure_fp):
             raise OasisException('No model exposures provided')
 
-        model_loc_df = cls.get_model_exposures(
-            model_exposures_file_path=model_exposures_file_path,
-            model_exposures=model_exposures
+        model_loc_df = cls.get_model_exposure(
+            model_exposure_fp=model_exposure_fp,
+            model_exposure=model_exposure
         )
 
         for record in lookup.process_locations(model_loc_df):
@@ -480,8 +480,8 @@ class OasisLookupFactory(object):
     def get_results(
         cls,
         lookup,
-        model_exposures=None,
-        model_exposures_fp=None,
+        model_exposure=None,
+        model_exposure_fp=None,
         successes_only=False,
         **kwargs
     ):
@@ -495,21 +495,21 @@ class OasisLookupFactory(object):
         results with successful lookup status should be returned (default),
         or all results.
         """
-        if not (model_exposures or model_exposures_fp):
+        if not (model_exposure or model_exposure_fp):
             raise OasisException('No model exposures data or file path provided')
 
         peril_config = lookup.config.get('peril')
         if not peril_config:
             raise OasisException('No peril config defined in the lookup config')
 
-        _model_exposures_fp = as_path(model_exposures_fp, 'model_exposures_fp', preexists=False)
+        _model_exposure_fp = as_path(model_exposure_fp, 'model_exposure_fp', preexists=False)
 
         loc_config = lookup.config.get('locations') or {}
         src_type = 'csv'
 
         kwargs = {
-            'src_data': model_exposures,
-            'src_fp': _model_exposures_fp,
+            'src_data': model_exposure,
+            'src_fp': _model_exposure_fp,
             'src_type': 'csv',
             'non_na_cols': tuple(loc_config.get('non_na_cols') or ()),
             'col_dtypes': loc_config.get('col_dtypes') or {},
@@ -517,9 +517,9 @@ class OasisLookupFactory(object):
             'sort_ascending': loc_config.get('sort_ascending')
         }
 
-        model_exposures_df =  get_dataframe(**kwargs)
+        model_exposure_df =  get_dataframe(**kwargs)
 
-        locations = (loc for _, loc in model_exposures_df.iterrows())
+        locations = (loc for _, loc in model_exposure_df.iterrows())
 
         for result in lookup.bulk_lookup(locations):
             if successes_only:
@@ -536,8 +536,8 @@ class OasisLookupFactory(object):
         keys_file_path=None,
         keys_errors_file_path=None,
         keys_format='oasis',
-        model_exposures=None,
-        model_exposures_file_path=None,
+        model_exposure=None,
+        model_exposure_fp=None,
     ):
         """
         Writes a keys file, and optionally a keys error file, for the keys
@@ -563,17 +563,17 @@ class OasisLookupFactory(object):
         the keys file, ``p2`` is the keys errors file path and ``n2`` is the
         number of "unsuccessful" keys records written to keys errors file.
         """
-        if not (model_exposures or model_exposures_file_path):
-            raise OasisException('No model exposures or model exposures file path provided')
+        if not (model_exposure or model_exposure_fp):
+            raise OasisException('No model exposure or model exposure file path provided')
 
         _keys_file_path = as_path(keys_file_path, 'keys_file_path', preexists=False)
         _keys_errors_file_path = as_path(keys_errors_file_path, 'keys_errors_file_path', preexists=False)
-        _model_exposures_file_path = as_path(model_exposures_file_path, 'model_exposures_file_path', preexists=False)
+        _model_exposure_file_path = as_path(model_exposure_fp, 'model_exposure_fp', preexists=False)
 
         keys = cls.get_keys(
             lookup=lookup,
-            model_exposures=model_exposures,
-            model_exposures_file_path=_model_exposures_file_path,
+            model_exposure=model_exposure,
+            model_exposure_fp=_model_exposure_file_path,
             success_only=(True if not keys_errors_file_path else False)
         )
 
@@ -605,8 +605,8 @@ class OasisLookupFactory(object):
         lookup,
         successes_fp,
         errors_fp=None,
-        model_exposures=None,
-        model_exposures_fp=None,
+        model_exposure=None,
+        model_exposure_fp=None,
         format='oasis'
     ):
         """
@@ -633,10 +633,10 @@ class OasisLookupFactory(object):
         the keys file, ``p2`` is the keys errors file path and ``n2`` is the
         number of "unsuccessful" keys records written to keys errors file.
         """
-        if not (model_exposures or model_exposures_fp):
+        if not (model_exposure or model_exposure_fp):
             raise OasisException('No model exposures data or file path provided')
 
-        mfp = as_path(model_exposures_fp, 'model_exposures_fp', preexists=False)
+        mfp = as_path(model_exposure_fp, 'model_exposure_fp', preexists=False)
 
         sfp = as_path(successes_fp, 'successes_fp', preexists=False)
         efp = as_path(errors_fp, 'errors_fp', preexists=False)
@@ -648,15 +648,15 @@ class OasisLookupFactory(object):
         except AttributeError:
             results = cls.get_keys(
                 lookup=lookup,
-                model_exposures=model_exposures,
-                model_exposures_file_path=mfp,
+                model_exposure=model_exposure,
+                model_exposure_fp=mfp,
                 success_only=(False if efp else True)
             )
         else:
             results = cls.get_results(
                 lookup,
-                model_exposures=model_exposures,
-                model_exposures_fp=mfp,
+                model_exposure=model_exposure,
+                model_exposure_fp=mfp,
                 successes_only=(False if efp else True)
             )
 

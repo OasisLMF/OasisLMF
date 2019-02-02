@@ -55,24 +55,24 @@ from oasislmf.utils.metadata import (
 )
 from tests.data import (
     calcrule_ids,
-    canonical_accounts_data,
+    canonical_accounts,
     canonical_accounts_profile,
-    canonical_exposures_data,
-    canonical_exposures_profile,
-    canonical_oed_accounts_data,
+    canonical_exposure,
+    canonical_exposure_profile,
+    canonical_oed_accounts,
     canonical_oed_accounts_profile,
-    canonical_oed_exposures_data,
-    canonical_oed_exposures_profile,
+    canonical_oed_exposure,
+    canonical_oed_exposure_profile,
     oasis_fm_agg_profile,
     deductible_types,
-    fm_items_data,
+    fm_input_items,
     fm_levels_simple,
 )
 
 class CanonicalProfilesFmTermsGroupedByLevel(TestCase):
 
     def setUp(self):
-        self.exposures_profile = canonical_exposures_profile
+        self.exposure_profile = canonical_exposure_profile
         self.accounts_profile = canonical_accounts_profile
 
     # Adapted from a solution by Martijn Pieters
@@ -89,7 +89,7 @@ class CanonicalProfilesFmTermsGroupedByLevel(TestCase):
     #@pytest.mark.skip(reason="inconsistent output from unified canonical profile constructor")
     def test_only_canonical_profiles_provided(self):
 
-        profiles = (self.exposures_profile, self.accounts_profile,)
+        profiles = (self.exposure_profile, self.accounts_profile,)
 
         cpft = unified_canonical_fm_profile_by_level(profiles=profiles)
 
@@ -119,14 +119,14 @@ class CanonicalProfilesFmTermsGroupedByLevel(TestCase):
 
 
     def test_only_canonical_profile_paths_provided(self):
-        profiles = (self.exposures_profile, self.accounts_profile,)
+        profiles = (self.exposure_profile, self.accounts_profile,)
 
-        with NamedTemporaryFile('w') as exposures_profile_file, NamedTemporaryFile('w') as accounts_profile_file:
-            with io.open(exposures_profile_file.name, 'w', encoding='utf-8') as f1, io.open(accounts_profile_file.name, 'w', encoding='utf-8') as f2:
-                f1.write(u'{}'.format(json.dumps(self.exposures_profile)))
+        with NamedTemporaryFile('w') as exposure_profile_file, NamedTemporaryFile('w') as accounts_profile_file:
+            with io.open(exposure_profile_file.name, 'w', encoding='utf-8') as f1, io.open(accounts_profile_file.name, 'w', encoding='utf-8') as f2:
+                f1.write(u'{}'.format(json.dumps(self.exposure_profile)))
                 f2.write(u'{}'.format(json.dumps(self.accounts_profile)))
 
-            paths = (exposures_profile_file.name, accounts_profile_file.name,)
+            paths = (exposure_profile_file.name, accounts_profile_file.name,)
 
             cpft = unified_canonical_fm_profile_by_level(profile_paths=paths)
 
@@ -156,14 +156,14 @@ class CanonicalProfilesFmTermsGroupedByLevel(TestCase):
 
 
     def test_canonical_profile_and_profiles_paths_provided(self):
-        profiles = (self.exposures_profile, self.accounts_profile,)
+        profiles = (self.exposure_profile, self.accounts_profile,)
 
-        with NamedTemporaryFile('w') as exposures_profile_file, NamedTemporaryFile('w') as accounts_profile_file:
-            with io.open(exposures_profile_file.name, 'w', encoding='utf-8') as f1, io.open(accounts_profile_file.name, 'w', encoding='utf-8') as f2:
-                f1.write(u'{}'.format(json.dumps(self.exposures_profile)))
+        with NamedTemporaryFile('w') as exposure_profile_file, NamedTemporaryFile('w') as accounts_profile_file:
+            with io.open(exposure_profile_file.name, 'w', encoding='utf-8') as f1, io.open(accounts_profile_file.name, 'w', encoding='utf-8') as f2:
+                f1.write(u'{}'.format(json.dumps(self.exposure_profile)))
                 f2.write(u'{}'.format(json.dumps(self.accounts_profile)))
 
-            paths = (exposures_profile_file.name, accounts_profile_file.name,)
+            paths = (exposure_profile_file.name, accounts_profile_file.name,)
 
             cpft = unified_canonical_fm_profile_by_level(profiles=profiles, profile_paths=paths)
 
@@ -195,7 +195,7 @@ class CanonicalProfilesFmTermsGroupedByLevel(TestCase):
 class CanonicalProfilesFmTermsGroupedByLevelAndTermGroup(TestCase):
 
     def setUp(self):
-        self.exposures_profile = canonical_exposures_profile
+        self.exposure_profile = canonical_exposure_profile
         self.accounts_profile = canonical_accounts_profile
 
     # Adapted from a solution by Martijn Pieters
@@ -210,7 +210,7 @@ class CanonicalProfilesFmTermsGroupedByLevelAndTermGroup(TestCase):
             unified_canonical_fm_profile_by_level_and_term_group()
 
     def test_only_canonical_profiles_provided(self):
-        profiles = (self.exposures_profile, self.accounts_profile,)
+        profiles = (self.exposure_profile, self.accounts_profile,)
 
         cpft = unified_canonical_fm_profile_by_level_and_term_group(profiles=profiles)
 
@@ -242,14 +242,14 @@ class CanonicalProfilesFmTermsGroupedByLevelAndTermGroup(TestCase):
             self.assertIsNotNone(pt) if t not in non_fm_terms else self.assertIsNone(pt)
 
     def test_only_canonical_profile_paths_provided(self):
-        profiles = (self.exposures_profile, self.accounts_profile,)
+        profiles = (self.exposure_profile, self.accounts_profile,)
 
-        with NamedTemporaryFile('w') as exposures_profile_file, NamedTemporaryFile('w') as accounts_profile_file:
-            with io.open(exposures_profile_file.name, 'w', encoding='utf-8') as f1, io.open(accounts_profile_file.name, 'w', encoding='utf-8') as f2:
-                f1.write(u'{}'.format(json.dumps(self.exposures_profile)))
+        with NamedTemporaryFile('w') as exposure_profile_file, NamedTemporaryFile('w') as accounts_profile_file:
+            with io.open(exposure_profile_file.name, 'w', encoding='utf-8') as f1, io.open(accounts_profile_file.name, 'w', encoding='utf-8') as f2:
+                f1.write(u'{}'.format(json.dumps(self.exposure_profile)))
                 f2.write(u'{}'.format(json.dumps(self.accounts_profile)))
 
-            paths = (exposures_profile_file.name, accounts_profile_file.name,)
+            paths = (exposure_profile_file.name, accounts_profile_file.name,)
 
             cpft = unified_canonical_fm_profile_by_level_and_term_group(profile_paths=paths)
 
@@ -281,14 +281,14 @@ class CanonicalProfilesFmTermsGroupedByLevelAndTermGroup(TestCase):
             self.assertIsNotNone(pt) if t not in non_fm_terms else self.assertIsNone(pt)
 
     def test_canonical_profiles_and_profile_paths_provided(self):
-        profiles = (self.exposures_profile, self.accounts_profile,)
+        profiles = (self.exposure_profile, self.accounts_profile,)
 
-        with NamedTemporaryFile('w') as exposures_profile_file, NamedTemporaryFile('w') as accounts_profile_file:
-            with io.open(exposures_profile_file.name, 'w', encoding='utf-8') as f1, io.open(accounts_profile_file.name, 'w', encoding='utf-8') as f2:
-                f1.write(u'{}'.format(json.dumps(self.exposures_profile)))
+        with NamedTemporaryFile('w') as exposure_profile_file, NamedTemporaryFile('w') as accounts_profile_file:
+            with io.open(exposure_profile_file.name, 'w', encoding='utf-8') as f1, io.open(accounts_profile_file.name, 'w', encoding='utf-8') as f2:
+                f1.write(u'{}'.format(json.dumps(self.exposure_profile)))
                 f2.write(u'{}'.format(json.dumps(self.accounts_profile)))
 
-            paths = (exposures_profile_file.name, accounts_profile_file.name,)
+            paths = (exposure_profile_file.name, accounts_profile_file.name,)
 
             cpft = unified_canonical_fm_profile_by_level_and_term_group(profiles=profiles, profile_paths=paths)
 
@@ -552,17 +552,17 @@ class TestLayerCalcruleIDFunc(TestCase):
 class GetFmTermsByLevel(TestCase):
 
     def setUp(self):
-        self.exposures_profile = canonical_exposures_profile
+        self.exposure_profile = canonical_exposure_profile
         self.accounts_profile = canonical_accounts_profile
         self.unified_canonical_profile = unified_canonical_fm_profile_by_level_and_term_group(
-            profiles=[self.exposures_profile, self.accounts_profile]
+            profiles=[self.exposure_profile, self.accounts_profile]
         )
         self.fm_agg_profile = oasis_fm_agg_profile
 
     #@pytest.mark.flaky
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
-        exposures=canonical_exposures_data(
+        exposure=canonical_exposure(
             from_account_nums=just('A1'),
             from_tivs1=just(100),
             from_tivs2=just(0),
@@ -578,12 +578,12 @@ class GetFmTermsByLevel(TestCase):
             from_limits4=just(0),
             size=2
         ),
-        accounts=canonical_accounts_data(
+        accounts=canonical_accounts(
             from_account_nums=just('A1'),
             from_policy_nums=just('A1P1'),
             size=1
         ),
-        fm_items=fm_items_data(
+        fm_input_items=fm_input_items(
             from_peril_ids=just(OASIS_PERILS['wind']['id']),
             from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
             from_level_ids=just(1),
@@ -607,33 +607,33 @@ class GetFmTermsByLevel(TestCase):
             size=2
         ) 
     )
-    def test_exposure_with_one_coverage_type_and_fm_terms_with_one_account_and_one_top_level_layer_per_account_and_model_lookup_supporting_single_peril_and_coverage_type__all_coverage_level_terms_generated(self, exposures, accounts, fm_items):
+    def test_exposure_with_one_coverage_type_and_fm_terms_with_one_account_and_one_top_level_layer_per_account_and_model_lookup_supporting_single_peril_and_coverage_type__all_coverage_level_terms_generated(self, exposure, accounts, fm_input_items):
         lufcp = self.unified_canonical_profile[1]
         lfmaggp = self.fm_agg_profile[1]
 
-        for it in exposures:
+        for it in exposure:
             it['cond1name'] = 0
 
-        for i, it in enumerate(fm_items):
+        for i, it in enumerate(fm_input_items):
             it['index'] = i
             it['agg_id'] = i + 1
 
         results = sorted([r for r in get_coverage_level_fm_terms(
             lufcp,
             lfmaggp,
-            {i:it for i, it in enumerate(fm_items)},
-            pd.DataFrame(data=exposures),
+            {i:it for i, it in enumerate(fm_input_items)},
+            pd.DataFrame(data=exposure),
             pd.DataFrame(data=accounts),
             oed=False
         )], key=lambda it: it['item_id'])
 
 
-        self.assertEqual(len(fm_items), len(results))
+        self.assertEqual(len(fm_input_items), len(results))
 
-        self.assertEqual(tuple(it['item_id'] for it in fm_items), tuple(r['item_id'] for r in results))
+        self.assertEqual(tuple(it['item_id'] for it in fm_input_items), tuple(r['item_id'] for r in results))
 
         for i, res in enumerate(results):
-            it = fm_items[i]
+            it = fm_input_items[i]
 
             self.assertEqual(it['level_id'], res['level_id'])
             self.assertEqual(it['index'], res['index'])
@@ -678,17 +678,17 @@ class GetFmTermsByLevel(TestCase):
     #@pytest.mark.flaky
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
-        exposures=canonical_exposures_data(
+        exposure=canonical_exposure(
             from_account_nums=just('A1'),
             from_tivs1=just(100),
             size=2
         ),
-        accounts=canonical_accounts_data(
+        accounts=canonical_accounts(
             from_account_nums=just('A1'),
             from_policy_nums=just('A1P1'),
             size=1
         ),
-        fm_items=fm_items_data(
+        fm_input_items=fm_input_items(
             from_peril_ids=just(OASIS_PERILS['wind']['id']),
             from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
             from_canacc_ids=just(0),
@@ -700,11 +700,11 @@ class GetFmTermsByLevel(TestCase):
             size=2
         )
     )
-    def test_exposure_with_one_coverage_type_and_fm_terms_with_one_account_and_one_top_level_layer_per_account_and_model_lookup_supporting_single_peril_and_coverage_type__all_non_coverage_level_terms_generated(self, exposures, accounts, fm_items):
+    def test_exposure_with_one_coverage_type_and_fm_terms_with_one_account_and_one_top_level_layer_per_account_and_model_lookup_supporting_single_peril_and_coverage_type__all_non_coverage_level_terms_generated(self, exposure, accounts, fm_input_items):
         ufcp = self.unified_canonical_profile
 
-        for i, _ in enumerate(exposures):
-            exposures[i]['cond1name'] = fm_items[i]['cond1name'] = 0
+        for i, _ in enumerate(exposure):
+            exposure[i]['cond1name'] = fm_input_items[i]['cond1name'] = 0
 
         levels = sorted(ufcp.keys())
         levels.remove(min(levels))
@@ -729,13 +729,13 @@ class GetFmTermsByLevel(TestCase):
             shr_fld = lufcp[1].get('share')
             shr_elm = shr_fld['ProfileElementName'].lower() if shr_fld else None
 
-            for i, it in enumerate(fm_items):
+            for i, it in enumerate(fm_input_items):
                 it['level_id'] = l
                 it['index'] = i
 
                 it['agg_id'] = i + 1 if l in [1,2,3] else 1
 
-                cexp_it = exposures[it['canexp_id']]
+                cexp_it = exposure[it['canexp_id']]
 
                 if ded_fld and ded_fld['ProfileType'].lower() == 'loc':
                     cexp_it[ded_elm] = 1
@@ -769,19 +769,19 @@ class GetFmTermsByLevel(TestCase):
             results = sorted([r for r in level_fm_terms_func(
                 lufcp,
                 lfmaggp,
-                {i:it for i, it in enumerate(fm_items)},
-                pd.DataFrame(data=exposures),
+                {i:it for i, it in enumerate(fm_input_items)},
+                pd.DataFrame(data=exposure),
                 pd.DataFrame(data=accounts),
                 oed=False
 			)], key=lambda it: it['item_id'])
 
 
-            self.assertEqual(len(fm_items), len(results))
+            self.assertEqual(len(fm_input_items), len(results))
 
-            self.assertEqual(tuple(it['item_id'] for it in fm_items), tuple(r['item_id'] for r in results))
+            self.assertEqual(tuple(it['item_id'] for it in fm_input_items), tuple(r['item_id'] for r in results))
 
             for i, res in enumerate(results):
-                it = fm_items[i]
+                it = fm_input_items[i]
 
                 self.assertEqual(it['level_id'], res['level_id'])
                 self.assertEqual(it['index'], res['index'])
@@ -832,23 +832,23 @@ class GetPolicyTcIds(TestCase):
     @pytest.mark.flaky
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
-        fm_items=fm_items_data(
-            from_level_ids=sampled_from([1,6]),
-            from_deductibles=sampled_from([0,100]),
-            from_min_deductibles=sampled_from([0, 100]),
-            from_max_deductibles=sampled_from([0, 100]),
-            from_attachments=just(0),
-            from_limits=sampled_from([0,100]),
-            from_shares=sampled_from([0,0.99]),
-            from_calcrule_ids=just(12),
-            size=10
+        fm_input_items=fm_input_items(
+        from_level_ids=sampled_from([1,6]),
+        from_deductibles=sampled_from([0,100]),
+        from_min_deductibles=sampled_from([0, 100]),
+        from_max_deductibles=sampled_from([0, 100]),
+        from_attachments=just(0),
+        from_limits=sampled_from([0,100]),
+        from_shares=sampled_from([0,0.99]),
+        from_calcrule_ids=just(12),
+        size=10
         )
     )
-    def test_policytc_ids(self, fm_items):
+    def test_policytc_ids(self, fm_input_items):
 
-        fm_items.sort(key=lambda it: it['level_id'])
+        fm_input_items.sort(key=lambda it: it['level_id'])
 
-        for it in fm_items:
+        for it in fm_input_items:
             it['attachment'] = 0 if it['level_id'] < 6 else it['deductible']
             it['calcrule_id'] = (
                 get_sub_layer_calcrule_id(it['deductible'], it['deductible_min'], it['deductible_max'], it['limit']) if it['level_id'] < 6 else
@@ -858,15 +858,15 @@ class GetPolicyTcIds(TestCase):
         term_combs = {}
 
         ptc_id = 0
-        for i, it in enumerate(fm_items):
+        for i, it in enumerate(fm_input_items):
             t = (it['limit'], it['deductible'], it['deductible_min'], it['deductible_max'], it['attachment'], it['share'], it['calcrule_id'],)
             if t not in term_combs.values():
                 ptc_id += 1
                 term_combs[ptc_id] = t
 
-        fm_items_df = pd.DataFrame(data=fm_items)
+        fm_input_items_df = pd.DataFrame(data=fm_input_items)
 
-        policytc_ids = get_policytc_ids(fm_items_df)
+        policytc_ids = get_policytc_ids(fm_input_items_df)
 
         for policytc_id, policytc_comb in policytc_ids.items():
             t = dict(zip(('limit', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'share', 'calcrule_id',), term_combs[policytc_id]))

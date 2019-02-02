@@ -148,7 +148,7 @@ def generate_oasis_files(
     # Load the canonical profile from the file path argument
 
     # Generate the GUL files (in ``target_dir``)
-    gul_items_df, canexp_df = manager.load_gul_items(
+    gul_items_df, canexp_df = manager.get_gul_input_items(
         _canexp_prof,
         canexp_fp,
         keys_fp
@@ -167,7 +167,7 @@ def generate_oasis_files(
         pass
 
     # Generate the FM files (in ``target_dir``)
-    fm_items_df, canacc_df = manager.load_fm_items(
+    fm_items_df, canacc_df = manager.get_fm_input_items(
         canexp_df,
         gul_items_df,
         _canexp_prof,
