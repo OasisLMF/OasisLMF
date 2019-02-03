@@ -18,8 +18,8 @@ from backports.tempfile import mkdtemp, TemporaryDirectory
 from pathlib2 import Path
 
 from oasislmf.api_client.client import OasisAPIClient
-from oasislmf.cmd import RootCmd
-from oasislmf.cmd.test import TestModelApiCmd
+from oasislmf.cli import RootCmd
+from oasislmf.cli.test import TestModelApiCmd
 from oasislmf.utils.exceptions import OasisException
 
 
@@ -332,8 +332,8 @@ class TestModelApiCmdRun(TestCase):
         pool_mock_object = Mock()
 
         with patch('oasislmf.api_client.client.OasisAPIClient.health_check', Mock(return_value=True)), \
-                patch('oasislmf.cmd.test.TestModelApiCmd.load_analysis_settings_json', Mock(return_value=(settings, do_il, do_ri))), \
-                patch('oasislmf.cmd.test.ThreadPool', Mock(return_value=pool_mock_object)) as pool_mock:
+                patch('oasislmf.cli.test.TestModelApiCmd.load_analysis_settings_json', Mock(return_value=(settings, do_il, do_ri))), \
+                patch('oasislmf.cli.test.ThreadPool', Mock(return_value=pool_mock_object)) as pool_mock:
             cmd = self.get_command(analysis_directory=self.directory, extras={'num-analyses': num_analyses})
             cmd._logger = Mock()
 
