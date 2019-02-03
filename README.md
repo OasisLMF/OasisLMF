@@ -4,27 +4,25 @@
 
 # OasisLMF
 
-The `oasislmf` Python package provides a Python toolkit for building, running and testing Oasis models end-to-end, including performing individual steps in this process. It includes:
+The `oasislmf` Python package, loosely called the *model development kit (MDK)* or the *MDK package*, provides a command line interface and reusable libraries for developing and running Oasis models end-to-end, locally or remotely via the Oasis API. For running models locally the CLI provides a `model` subcommand with the following main subcommands:
 
-* a Python class framework for working with Oasis models and model resources as Python objects (the `oasislmf.models` subpackage)
-* a Python class framework for managing model exposures and resources, and also for generating Oasis files (GUL, FM) from these (the `oasislmf.exposures` subpackage)
-* a Python factory class for instantiating keys lookups for models, and generating and saving lookup outputs (the `oasislmf.keys` subpackage)
-* a command line interface for running models end-to-end, including performing individual steps: 
-    * generating keys from model keys lookups, and writing them as files: `oasislmf model generate-keys`
-    * generating Oasis files (GUL + FM) from source exposure files, canonical profiles, exposure validation and transformation files, and keys data files: `oasislmf model generate-oasis-files`
-    * generating losses from Oasis files and analysis settings: `oasislmf model generate-losses`
-    * running a model end-to-end: `oasislmf model run`
+* `model generate-keys`: generates Oasis keys files that model lookups would generate; these are essentially line items of (location ID, peril ID, coverage type ID, area peril ID, vulnerability ID) where peril ID and coverage type ID span the full set of perils and coverage types that the model supports
+* `model generate-oasis-files`: generates the Oasis input CSV files, from which ground up loss (GUL), direct insured losses (IL/FM) and/or reinsurance losses are generated; it requires the provision of source exposure and optionally source accounts and reinsurance info. and scope files (in OED or RMS format), canonical profiles and aggregation profiles that describe the financial terms in "canonical" versions of the source exposure and accounts files, and other model data related assets
+* `model generate-losses`: generates GUL, or GUL + IL, or GUL + IL + RI losses from pre-generated Oasis files
+* `model run`: runs the model from start to finish by generating losses (GUL, or GUL + IL, or GUL + IL + RI) from the source data, canonical and aggregation profiles, and model data.
+
+For remote model execution the `api` subcommand provides the following main subcommand:
+
+* `api run`: runs the model remotely (same as `model run`) but via the Oasis API
+
+The reusable libraries are organised into several sub-packages, the most relevant of which from a model developer or user's perspective are:
+
+* `api_client`
+* `model_preparation`
+* `model_execution`
+* `utils`
 
 ## Installation
-
-### Dependencies
-
-#### GNU/Linux
-
- * **Debian**: g++ compiler build-essential, libtool, zlib1g-dev autoconf on debian distros
- * **Red Hat**: 'Development Tools' and zlib-devel
-
-#### Install With `pip` (or `pip3`)
 
 The latest released version of the package can be installed using `pip` (or `pip3` if using Python 3):
 
@@ -36,22 +34,29 @@ Alternatively you can install the latest development version using:
 
 You can also install from a specific branch `<branch name>` using:
 
-    pip install git+{https,ssh}://git@github.com/OasisLMF/OasisLMF.git@<branch name>#egg=oasislmf
+    pip install [-v] git+{https,ssh}://git@github.com/OasisLMF/OasisLMF.git@<branch name>#egg=oasislmf
 
-#### System package dependencies
+## Dependencies
+
+### System
 
 The package provides a built-in lookup framework (`oasislmf.keys.lookup`) which uses the Rtree Python package, which in turn requires the `libspatialindex` spatial indexing C library.
 
 https://libspatialindex.github.io/index.html
 
- If you want your model lookup to use the built-in lookup then please ensure that you have installed `libspatialindex` library.
+The PiWind demonstration model uses the built-in lookup framework, therefore running PiWind or any model which uses the built-in lookup, requires that you install `libspatialindex`.
 
-## Development
+#### GNU/Linux
 
-### Dependencies
+For GNU/Linux the following is a specific list of required system libraries
 
-Dependencies are controlled by `pip-tools`. To install the development dependencies
-first, install `pip-tools` using:
+ * unixodbc unixodbc-dev
+ * **Debian**: g++ compiler build-essential, libtool, zlib1g-dev autoconf on debian distros
+ * **Red Hat**: 'Development Tools' and zlib-devel
+
+### Python
+
+Package Python dependencies are controlled by `pip-tools`. To install the development dependencies first, install `pip-tools` using:
 
     pip install pip-tools
 
@@ -68,7 +73,7 @@ After adding packages to either `*.in` file:
 
     pip-compile && pip-sync
 
-should be ran ensuring the development dependencies are kept up to
+should be ran ensuring the development dependencies are kept up to date.
 
 ## Testing
 
