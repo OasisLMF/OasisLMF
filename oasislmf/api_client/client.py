@@ -1,32 +1,35 @@
 """
     Provides a simple class to build Oasis API clients.
 """
-import logging
-
-from requests import RequestException
-from six.moves import urllib
-
-from ..model_execution.files import TAR_FILE
-from ..model_execution.bin import create_binary_tar_file, create_binary_files, check_inputs_directory, \
-    cleanup_bin_directory, check_conversion_tools
-from ..utils.exceptions import OasisException
-
 __all__ = [
     'OasisAPIClient'
 ]
 
-
-# Python 2 standard imports
+# Python standard libraries
+import logging
 import os
 import io
 import time
 
-# Python 3rd party imports
+# 3rd party libraries
 import requests
 
+from requests import RequestException
 from requests_toolbelt.multipart.encoder import MultipartEncoder
 
+from six.moves import urllib
+
 # Oasis imports
+from ..model_execution.files import TAR_FILE
+from ..model_execution.bin import (
+    create_binary_tar_file,
+    create_binary_files,
+    check_inputs_directory,
+    cleanup_bin_directory,
+    check_conversion_tools,
+)
+from ..utils.exceptions import OasisException
+
 from ..utils.log import oasis_log
 from ..utils.status import STATUS_PENDING, STATUS_SUCCESS, STATUS_FAILURE
 

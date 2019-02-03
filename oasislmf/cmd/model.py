@@ -17,17 +17,18 @@ from six import u as unicode
 
 from pathlib2 import Path
 
-from ..exposures.csv_trans import Translator
-from ..exposures.manager import OasisExposuresManager
-from ..exposures.reinsurance_layer import (
+from .base import OasisBaseCommand, InputValues
+from .cleaners import as_path
+from ..model_preparation.csv_trans import Translator
+from ..model_preparation.lookup import OasisLookupFactory as olf
+from ..model_preparation.manager import OasisManager as om
+from ..model_preparation.reinsurance_layer import (
     create_xref_description,
     generate_files_for_reinsurance,
 )
-
 from ..model_execution.bash import genbash
 from ..model_execution import runner
 from ..model_execution.bin import create_binary_files, prepare_model_run_directory, prepare_model_run_inputs
-
 from ..utils.exceptions import OasisException
 from ..utils.oed_profiles import (
     get_default_canonical_oed_loc_profile,
@@ -38,11 +39,6 @@ from ..utils.path import setcwd
 from ..utils.peril import PerilAreasIndex
 from ..utils.values import get_utctimestamp
 
-from ..keys.lookup import OasisLookupFactory
-
-from .cleaners import as_path
-
-from .base import OasisBaseCommand, InputValues
 
 class GeneratePerilAreasRtreeFileIndexCmd(OasisBaseCommand):
     """
@@ -405,7 +401,7 @@ class GenerateKeysCmd(OasisBaseCommand):
         keys_format = inputs.get('keys_format', default='oasis')
 
         self.logger.info('\nGetting model info and lookup')
-        model_info, lookup = OasisLookupFactory.create(
+        model_info, lookup = olf.create(
             lookup_config_fp=lookup_config_fp,
             model_keys_data_path=keys_data_path,
             model_version_file_path=model_version_file_path,
@@ -425,7 +421,7 @@ class GenerateKeysCmd(OasisBaseCommand):
 
         start_time = time.time()
 
-        f1, n1, f2, n2 = OasisLookupFactory.save_results(
+        f1, n1, f2, n2 = olf.save_results(
             lookup,
             keys_file_path,
             errors_fp=keys_errors_file_path,
@@ -597,7 +593,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         self.logger.info('\nStarting Oasis files generation (@ {}): GUL=True, FM={}, RI={}'.format(get_utctimestamp(), fm, ri))
 
         self.logger.info('\nGetting model info and lookup')
-        model_info, lookup = OasisLookupFactory.create(
+        model_info, lookup = olf.create(
                 lookup_config_fp=lookup_config_fp,
                 model_keys_data_path=keys_data_fp,
                 model_version_file_path=model_version_fp,
@@ -605,7 +601,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         )
         self.logger.info('\t{}, {}'.format(model_info, lookup))
 
-        manager = OasisExposuresManager()
+        manager = om()
 
         self.logger.info('\nCreating Oasis model object')
         model = manager.create_model(

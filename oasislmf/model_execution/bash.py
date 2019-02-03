@@ -2,7 +2,7 @@ from __future__ import unicode_literals
 
 from collections import Counter
 
-from oasislmf.exposures.oed import ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID
+from ..model_preparation.oed import ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID
 
 import os
 import io

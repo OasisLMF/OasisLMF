@@ -32,7 +32,7 @@ from mock import Mock, patch
 from six import StringIO
 from tempfile import NamedTemporaryFile
 
-from oasislmf.keys.lookup import OasisLookupFactory
+from oasislmf.model_preparation.lookup import OasisLookupFactory
 from oasislmf.utils.coverage import (
     BUILDING_COVERAGE_CODE,
     CONTENTS_COVERAGE_CODE,
@@ -64,7 +64,7 @@ class OasisLookupFactoryCreate(TestCase):
     def write_py_module(self, model, path):
         with io.open(path, 'w', encoding='utf-8') as f:
             f.writelines([
-                'from oasislmf.keys.lookup import OasisBaseKeysLookup\n',
+                'from oasislmf.model_preparation.lookup import OasisBaseKeysLookup\n',
                 'class {}KeysLookup(OasisBaseKeysLookup):\n'.format(model),
                 '    pass\n'
             ])
@@ -214,7 +214,7 @@ class OasisLookupFactoryGetKeys(TestCase):
 
     @given(text(min_size=1, max_size=10, alphabet=string.ascii_letters), text(min_size=1, max_size=10, alphabet=string.ascii_letters))
     def test_model_exposure_path_is_provided___path_is_passed_to_get_model_exposure_result_is_passed_to_lokkup_process_locations(self, path, result):
-        with patch('oasislmf.keys.lookup.OasisLookupFactory.get_model_exposure', Mock(return_value=result)):
+        with patch('oasislmf.model_preparation.lookup.OasisLookupFactory.get_model_exposure', Mock(return_value=result)):
             list(OasisLookupFactory.get_keys(self.create_fake_lookup(), model_exposure_fp=path))
 
             OasisLookupFactory.get_model_exposure.assert_called_once_with(model_exposure_fp=path, model_exposure=None)
@@ -222,7 +222,7 @@ class OasisLookupFactoryGetKeys(TestCase):
 
     @given(text(min_size=1, max_size=10, alphabet=string.ascii_letters), text(min_size=1, max_size=10, alphabet=string.ascii_letters))
     def test_model_exposure_are_provided___exposure_are_passed_to_get_model_exposure_result_is_passed_to_lookup_process_locations(self, exposure, result):
-        with patch('oasislmf.keys.lookup.OasisLookupFactory.get_model_exposure', Mock(return_value=result)):
+        with patch('oasislmf.model_preparation.lookup.OasisLookupFactory.get_model_exposure', Mock(return_value=result)):
             list(OasisLookupFactory.get_keys(self.create_fake_lookup(), model_exposure=exposure))
 
             OasisLookupFactory.get_model_exposure.assert_called_once_with(model_exposure=exposure, model_exposure_fp=None)
@@ -233,7 +233,7 @@ class OasisLookupFactoryGetKeys(TestCase):
         'status': sampled_from(['success', 'failure'])
     })))
     def test_entries_are_dictionaries_success_only_is_true___only_successes_are_included(self, data):
-        with patch('oasislmf.keys.lookup.OasisLookupFactory.get_model_exposure'):
+        with patch('oasislmf.model_preparation.lookup.OasisLookupFactory.get_model_exposure'):
             self.create_fake_lookup(return_value=data)
 
             res = list(OasisLookupFactory.get_keys(lookup=self.lookup_instance, model_exposure_fp='path'))
@@ -245,7 +245,7 @@ class OasisLookupFactoryGetKeys(TestCase):
         'status': sampled_from(['success', 'failure'])
     })))
     def test_entries_are_dictionaries_success_only_is_false___all_entries_are_included(self, data):
-        with patch('oasislmf.keys.lookup.OasisLookupFactory.get_model_exposure'):
+        with patch('oasislmf.model_preparation.lookup.OasisLookupFactory.get_model_exposure'):
             self.create_fake_lookup(return_value=data)
 
             res = list(OasisLookupFactory.get_keys(lookup=self.lookup_instance, model_exposure_fp='path', success_only=False))
@@ -269,8 +269,8 @@ class OasisLookupFactoryWriteKeys(TestCase):
     )
     def test_produced_keys_are_passed_to_write_oasis_keys_file(self, data):
         with TemporaryDirectory() as d,\
-             patch('oasislmf.keys.lookup.OasisLookupFactory.get_keys', Mock(return_value=(r for r in data))) as get_keys_mock,\
-             patch('oasislmf.keys.lookup.OasisLookupFactory.write_oasis_keys_file') as write_oasis_keys_file_mock:
+             patch('oasislmf.model_preparation.lookup.OasisLookupFactory.get_keys', Mock(return_value=(r for r in data))) as get_keys_mock,\
+             patch('oasislmf.model_preparation.lookup.OasisLookupFactory.write_oasis_keys_file') as write_oasis_keys_file_mock:
 
             keys_file_path = os.path.join(d, 'piwind-keys.csv')
             OasisLookupFactory.save_keys(

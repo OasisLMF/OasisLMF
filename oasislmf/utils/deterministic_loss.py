@@ -25,9 +25,9 @@ import six
 from tabulate import tabulate
 
 # Oasis imports (including loading profile defaults)
-from ..exposures import oed
-from ..exposures.manager import OasisExposuresManager as oem
-from ..keys.lookup import OasisLookupFactory as olf
+from ..model_preparation import oed
+from ..model_preparation.manager import OasisManager as om
+from ..model_preparation.lookup import OasisLookupFactory as olf
 from .concurrency import (
     multithread,
     Task,
@@ -57,7 +57,7 @@ def generate_oasis_files(
     using simulated keys data.
     """
     # Create exposure manager instance
-    manager = oem()
+    manager = om()
 
     # Prepare input directory and asset target file paths
     _target_dir = ''.join(target_dir) if os.path.isabs(target_dir) else os.path.abspath(''.join(target_dir))

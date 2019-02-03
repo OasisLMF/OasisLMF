@@ -6,19 +6,21 @@ __all__ = [
     'ReinsuranceLayer',
 ]
 
-import pandas as pd
-import os
-import logging
-import subprocess
-import anytree
-import shutil
 import json
-from collections import namedtuple
-import numbers
+import logging
 import math
+import os
+import shutil
+import subprocess
 
-from . import oed
+from collections import namedtuple
+
+import anytree
+import numbers
+import pandas as pd
+
 from ..utils.exceptions import OasisException
+from . import oed
 
 
 # Meta-data about an inuring layer
