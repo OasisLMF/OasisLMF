@@ -99,7 +99,7 @@ def pkg_exists(pkg_name):
         return pkg_name in resp.decode('utf-8').strip()
 
 
-def pip_uninstall(pkg_name, options_str='-v', pip_path=get_default_pip_path()):
+def pip_uninstall(pkg_name, options_str='-y -v', pip_path=get_default_pip_path()):
     if pkg_exists(pkg_name):
         cmd_str = 'pip uninstall {} {}'.format(options_str, pkg_name)
         run(cmd_str.split(), check=True)
@@ -107,9 +107,12 @@ def pip_uninstall(pkg_name, options_str='-v', pip_path=get_default_pip_path()):
 
 def pip_install(pkg_name_or_branch_uri, options_str='-v', pip_path=get_default_pip_path()):
     pkg_name = pkg_name_or_branch_uri.split('=')[-1]
-    if not pkg_exists(pkg_name):
-        cmd_str = '{} install {} {}'.format(pip_path, options_str, pkg_name_or_branch_uri)
-        run(cmd_str.split(), check=True)
+
+    if pkg_exists(pkg_name):
+        pip_uninstall(pkg_name)
+
+    cmd_str = '{} install {} {}'.format(pip_path, options_str, pkg_name_or_branch_uri)
+    run(cmd_str.split(), check=True)
 
 
 def clone_repo(repo_name, target, repo_branch='master', user_or_org_name='OasisLMF', home=os.getcwd(), transfer_protocol='ssh'):
@@ -175,6 +178,8 @@ def model_run_ok(model_run_dir, model_run_mode):
             return os.path.getsize(_fp) > 0
 
     #import ipdb; ipdb.set_trace()
+
+    ri = model_run_mode == 'ri'
 
     assert(_is_non_empty_file(model_run_dir, is_dir=True))
 
