@@ -2,23 +2,23 @@ from __future__ import unicode_literals
 
 __all__ = [
     'calcrule_ids',
-    'canonical_accounts_data',
+    'canonical_accounts',
     'canonical_accounts_profile',
-    'canonical_exposures_data',
-    'canonical_exposures_profile',
-    'canonical_oed_accounts_data',
+    'canonical_exposure',
+    'canonical_exposure_profile',
+    'canonical_oed_accounts',
     'canonical_oed_accounts_profile',
-    'canonical_oed_exposures_data',
-    'canonical_oed_exposures_profile',
+    'canonical_oed_exposure',
+    'canonical_oed_exposure_profile',
     'coverage_type_ids',
     'deductible_types',
-    'fm_items_data',
+    'fm_input_items',
     'fm_level_names',
     'fm_level_names_simple',
     'fm_levels',
     'fm_levels_simple',
-    'gul_items_data',
-    'keys_data',
+    'gul_input_items',
+    'keys',
     'keys_status_flags',
     'oasis_fm_agg_profile',
     'oasis_tiv_elements',
@@ -139,7 +139,7 @@ canonical_accounts_profile = {
 }
 
 
-canonical_exposures_profile = {
+canonical_exposure_profile = {
     'COND1DEDUCTIBLE': {
         'DeductibleType': 'B',
         'FMLevel': 4,
@@ -323,7 +323,7 @@ canonical_exposures_profile = {
     }
 }
 
-canonical_exposures_profile_simple = {
+canonical_exposure_profile_simple = {
     'WSCV1DED': {
         'CoverageTypeID': 1,
         'DeductibleType': 'B',
@@ -360,7 +360,7 @@ canonical_exposures_profile_simple = {
     }
 }
 
-canonical_oed_exposures_profile = {
+canonical_oed_exposure_profile = {
     "BuildingTIV": {
         "ProfileElementName": "BuildingTIV",
         "FieldName": "TIV",
@@ -798,14 +798,14 @@ fm_level_names = tuple(k.capitalize() for k in OASIS_FM_LEVELS)
 fm_levels_simple = tuple(
     t for t in set(
         t.get('FMLevel')
-        for t in itertools.chain(six.itervalues(canonical_exposures_profile_simple), six.itervalues(canonical_accounts_profile))
+        for t in itertools.chain(six.itervalues(canonical_exposure_profile_simple), six.itervalues(canonical_accounts_profile))
     ) if t
 )
 
 fm_level_names_simple = tuple(
     t[0] for t in sorted([t for t in set(
         (t.get('FMLevelName'), t.get('FMLevel'))
-        for t in itertools.chain(six.itervalues(canonical_exposures_profile_simple), six.itervalues(canonical_accounts_profile))
+        for t in itertools.chain(six.itervalues(canonical_exposure_profile_simple), six.itervalues(canonical_accounts_profile))
     ) if t != (None,None)], key=lambda t: t[1])
 )
 
@@ -844,11 +844,11 @@ def tar_file_targets(min_size=0):
         unique=True,
     )
 
-oasis_tiv_elements = tuple(v['ProfileElementName'].lower() for v in canonical_exposures_profile.values() if v.get('FMTermType') and v.get('FMTermType').lower() == 'tiv')
+oasis_tiv_elements = tuple(v['ProfileElementName'].lower() for v in canonical_exposure_profile.values() if v.get('FMTermType') and v.get('FMTermType').lower() == 'tiv')
 
-oed_tiv_elements = tuple(v['ProfileElementName'].lower() for v in canonical_oed_exposures_profile.values() if v.get('FMTermType') and v.get('FMTermType').lower() == 'tiv')
+oed_tiv_elements = tuple(v['ProfileElementName'].lower() for v in canonical_oed_exposure_profile.values() if v.get('FMTermType') and v.get('FMTermType').lower() == 'tiv')
 
-def canonical_accounts_data(
+def canonical_accounts(
     from_account_nums=integers(min_value=1, max_value=10**5),
     from_policy_nums=text(alphabet=string.ascii_letters, min_size=2, max_size=10),
     from_policy_types=integers(min_value=1, max_value=10),
@@ -887,7 +887,7 @@ def canonical_accounts_data(
         max_size=(size if size is not None else max_size)
     ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
 
-def canonical_oed_accounts_data(
+def canonical_oed_accounts(
     from_account_nums=integers(min_value=1, max_value=10**6),
     from_portfolio_nums=integers(min_value=1, max_value=10**6),
     from_policy_nums=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
@@ -933,7 +933,7 @@ def canonical_oed_accounts_data(
         max_size=(size if size is not None else max_size)
     ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
 
-def canonical_exposures_data(
+def canonical_exposure(
     from_account_nums=integers(min_value=1, max_value=10**6),
     from_building_classes=integers(min_value=1, max_value=3),
     from_building_schemes=text(alphabet=string.ascii_letters, min_size=1, max_size=3),
@@ -1010,7 +1010,7 @@ def canonical_exposures_data(
         max_size=(size if size is not None else max_size)
     ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
 
-def canonical_oed_exposures_data(
+def canonical_oed_exposure(
     from_account_nums=integers(min_value=1, max_value=10**6),
     from_location_nums=integers(min_value=1, max_value=10**6),
     from_location_names=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
@@ -1078,7 +1078,7 @@ def canonical_oed_exposures_data(
     ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
 
 
-def fm_items_data(
+def fm_input_items(
     from_canexp_ids=integers(min_value=0, max_value=9),
     from_canacc_ids=integers(min_value=0, max_value=9),
     from_policy_nums=text(alphabet=string.ascii_letters, min_size=2, max_size=10),
@@ -1160,7 +1160,7 @@ def fm_items_data(
         max_size=(size if size is not None else max_size)
     ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
 
-def gul_items_data(
+def gul_input_items(
     from_canexp_ids=integers(min_value=0, max_value=9),
     from_peril_ids=just(OASIS_PERILS['wind']['id']),
     from_coverage_type_ids=sampled_from(coverage_type_ids),
@@ -1226,7 +1226,7 @@ def gul_items_data(
     ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing()))
 
 
-def keys_data(
+def keys(
     from_peril_ids=just(OASIS_PERILS['wind']['id']),
     from_coverage_type_ids=just(OASIS_COVERAGE_TYPES['buildings']['id']),
     from_area_peril_ids=integers(min_value=1, max_value=10),

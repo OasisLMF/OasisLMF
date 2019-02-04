@@ -1,4 +1,11 @@
+
 from __future__ import unicode_literals
+
+import io
+import os
+import random
+import re
+import string
 
 from collections import Counter
 
@@ -7,12 +14,6 @@ from oasislmf.exposures.oed import (
     ALLOCATE_TO_ITEMS_BY_GUL_ALLOC_ID,            # Alloc Rule 1 
     NO_ALLOCATION_ALLOC_ID,                       # Alloc Rule 0
 )
-
-import os
-import io
-import string
-import random
-import re
 
 RUNTYPE_GROUNDUP_LOSS = 'gul'
 RUNTYPE_INSURED_LOSS = 'il'
@@ -253,7 +254,7 @@ def do_summarycalcs(
     summarycalc_directory_switch = ""
     if runtype == RUNTYPE_REINSURANCE_LOSS:
         i = num_reinsurance_iterations
-        summarycalc_directory_switch = "-p input{0}RI_{1}".format(os.sep, i)
+        summarycalc_directory_switch = "-p RI_{0}".format(i)
 
     cmd = 'summarycalc {} {}'.format(summarycalc_switch, summarycalc_directory_switch)
     for summary in summaries:
@@ -638,8 +639,14 @@ def genbash(
                 alloc_rule,
                 fifo_queue_dir)
             for i in range(1, num_reinsurance_iterations + 1):
+<<<<<<< HEAD
+                main_cmd = "{0} | fmcalc -a {3} -n -p RI_{2}".format(
+                    main_cmd, os.sep, i, ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID)
+
+=======
                 main_cmd = "{0} | fmcalc -a {3} -n -p input{1}RI_{2}".format(
                     main_cmd, os.sep, i, alloc_rule)
+>>>>>>> develop
             main_cmd = "{0} > {1}fifo/ri_P{2} &".format(main_cmd, fifo_queue_dir, process_id)
 
             print_command(

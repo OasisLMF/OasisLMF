@@ -14,10 +14,7 @@ __all__ = [
     'PERIL_ID_WIND'
 ]
 
-import builtins
 import copy
-import io
-import json
 import os
 import re
 import types
@@ -25,28 +22,24 @@ import uuid
 
 from collections import OrderedDict
 
-import rtree
+import six
 
+from rtree.core import RTreeError
 from rtree.index import (
     Index as RTreeIndex,
     Property as RTreeIndexProperty,
 )
 
-from rtree.core import RTreeError
+from shapely.geometry import (
+    box,
+    MultiPoint,
+    Polygon,
+)
 
 from shapely import speedups as shapely_speedups
 
 if shapely_speedups.available:
     shapely_speedups.enable()
-
-from shapely.geometry import (
-    box,
-    Point,
-    MultiPoint,
-    Polygon,
-)
-
-import six
 
 from six.moves import cPickle as cpickle
 
@@ -141,11 +134,11 @@ class PerilArea(Polygon):
             x, y = _coords[0][0], _coords[0][1]
             r = kwargs.get('area_reg_poly_radius') or 0.0016
             self._multipoint = MultiPoint(
-                tuple((x + r*(-1)**i, y + r*(-1)**j) for i in range(2) for j in range(2))
+                tuple((x + r * (-1)**i, y + r * (-1)**j) for i in range(2) for j in range(2))
             )
 
         super(self.__class__, self).__init__(shell=self._multipoint.convex_hull.exterior.coords)
-        
+
         self._coordinates = tuple(self.exterior.coords)
 
         self._centre = self.centroid.x, self.centroid.y
@@ -203,7 +196,7 @@ class PerilAreasIndex(RTreeIndex):
                 _idx_fp = idx_fp
                 if not os.path.isabs(_idx_fp):
                     _idx_fp = os.path.abspath(_idx_fp)
-                
+
                 idx_ext = props.get('idx_extension') or 'idx'
                 dat_ext = props.get('dat_extension') or 'dat'
 
@@ -213,13 +206,13 @@ class PerilAreasIndex(RTreeIndex):
                 super(self.__class__, self).__init__(_idx_fp, *args, **kwargs)
             else:
                 self._peril_areas = OrderedDict({
-                    pa.id:pa for pa in (peril_areas if peril_areas else self._get_peril_areas(areas))
+                    pa.id: pa for pa in (peril_areas if peril_areas else self._get_peril_areas(areas))
                 })
                 self._stream = self._generate_index_entries(
                     ((paid, pa.bounds) for paid, pa in six.iteritems(self._peril_areas)),
                     objects=((paid, pa.bounds, pa.coordinates) for paid, pa in six.iteritems(self._peril_areas))
                 )
-                kwargs['properties'] = RTreeIndexProperty(**index_props)
+                kwargs['properties'] = RTreeIndexProperty(**props)
                 super(self.__class__, self).__init__(self._stream, *args, **kwargs)
 
     def dumps(self, obj):
@@ -243,7 +236,6 @@ class PerilAreasIndex(RTreeIndex):
     @property
     def protocol(self):
         return self._protocol
-    
 
     @property
     def peril_areas(self):
@@ -293,7 +285,7 @@ class PerilAreasIndex(RTreeIndex):
             _non_na_cols = _non_na_cols.union({_peril_id_col, _coverage_type_col, _peril_area_id_col})
 
         for col in six.itervalues(area_poly_coords_cols):
-            if not col in _non_na_cols:
+            if col not in _non_na_cols:
                 _non_na_cols = _non_na_cols.union({col.lower()})
 
         _non_na_cols = tuple(_non_na_cols)
@@ -340,7 +332,7 @@ class PerilAreasIndex(RTreeIndex):
                 peril_areas=peril_areas,
                 index_props=index_props
             )
-        except OasisException as e:
+        except OasisException:
             raise
 
     def save(
@@ -392,7 +384,7 @@ class PerilAreasIndex(RTreeIndex):
                 index.insert(pa.id, pa.bounds, obj=(pa.peril_id, pa.coverage_type, pa.id, pa.bounds, pa.coordinates))
 
             index.close()
-        except (IOError, OSError, RTreeError) as e:
+        except (IOError, OSError, RTreeError):
             raise
 
         return _index_fp

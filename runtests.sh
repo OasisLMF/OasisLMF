@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+find . | grep -E "(__pycache__|\.pyc|\.pyo$)" | xargs rm -rf
+
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 LOG_OUTPUT="$SCRIPT_DIR"/reports
 TAR_OUTPUT="$SCRIPT_DIR"/dist
