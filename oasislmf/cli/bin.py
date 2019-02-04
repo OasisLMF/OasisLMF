@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from ..model_execution.bin import (,
+from ..model_execution.bin import (
     create_binary_files,
     create_binary_tar_file,
     check_conversion_tools,
