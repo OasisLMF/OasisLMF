@@ -742,7 +742,7 @@ class GenerateLossesCmd(OasisBaseCommand):
         if model_package_fp:
             model_package_fp = as_path(model_package_fp, 'Model package path')
 
-        ktools_script_name = inputs.get('ktools_script_name')
+        ktools_script_name = inputs.get('ktools_script_name', default='run_ktools')
 
         start_time = time.time()
         self.logger.info('\nStarting loss generation (@ {})'.format(get_utctimestamp()))
@@ -897,7 +897,7 @@ class RunCmd(OasisBaseCommand):
         parser.add_argument('-m', '--model-data-path', default=None, help='Model data path')
         parser.add_argument('-r', '--model-run-dir-path', default=None, help='Model run directory path')
         parser.add_argument(
-            '-s', '--ktools-script-name', default=None,
+            '-s', '--ktools-script-name', default='run_ktools',
             help='Name of the ktools output script (should not contain any filetype extension)'
         )
         parser.add_argument('-n', '--ktools-num-processes', default=2, help='Number of ktools calculation processes to use')
