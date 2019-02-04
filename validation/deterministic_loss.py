@@ -14,7 +14,7 @@ from shutil import copyfile
 from tabulate import tabulate
 
 # MDK imports
-from oasislmf.exposures import oed
+from oasislmf.model_preparation import oed
 from oasislmf.utils.deterministic_loss import (
     generate_oasis_files,
     generate_losses,

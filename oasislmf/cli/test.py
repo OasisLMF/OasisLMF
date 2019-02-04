@@ -10,7 +10,7 @@ import six
 from argparsetree import BaseCommand
 from backports.tempfile import TemporaryDirectory
 
-from oasislmf.keys.lookup import OasisLookupFactory
+from ..model_preparation.lookup import OasisLookupFactory as olf
 from .. import __version__
 from ..utils.exceptions import OasisException
 from ..utils.conf import replace_in_file
@@ -223,7 +223,7 @@ class GenerateModelTesterDockerFileCmd(OasisBaseCommand):
         dockerfile_src = os.path.join(os.path.dirname(__file__), os.path.pardir, '_data', 'Dockerfile.model_api_tester')
 
         version_file = args.model_version_file or os.path.join(args.model_data_directory, 'ModelVersion.csv')
-        version_info = OasisLookupFactory.get_model_info(version_file)
+        version_info = olf.get_model_info(version_file)
 
         dockerfile_dst = os.path.join(
             args.model_data_directory,

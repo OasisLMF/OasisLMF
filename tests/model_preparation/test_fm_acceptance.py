@@ -35,7 +35,7 @@ from pandas.testing import assert_frame_equal
 from tabulate import tabulate
 from tempfile import NamedTemporaryFile
 
-from oasislmf.exposures.manager import OasisExposuresManager
+from oasislmf.model_preparation.manager import OasisManager as om
 from oasislmf.utils.deterministic_loss import generate_losses
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.fm import (
@@ -72,7 +72,7 @@ class FmAcceptanceTests(TestCase):
         self.canacc_profile = copy.deepcopy(canonical_oed_accounts_profile)
         self.unified_can_profile = unified_canonical_fm_profile_by_level_and_term_group(profiles=[self.canexp_profile, self.canacc_profile])
         self.fm_agg_map = copy.deepcopy(oed_fm_agg_profile)
-        self.manager = OasisExposuresManager()
+        self.manager = om()
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(

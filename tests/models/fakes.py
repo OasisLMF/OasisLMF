@@ -1,5 +1,5 @@
-from oasislmf.exposures.manager import OasisExposuresManager
+from oasislmf.model_preparation.manager import OasisManager as om
 
 
 def fake_model(supplier='supplier', model='model', version='version', resources=None):
-    return OasisExposuresManager().create_model(supplier, model, version, resources=resources)
+    return om().create_model(supplier, model, version, resources=resources)

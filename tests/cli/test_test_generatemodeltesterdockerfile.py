@@ -11,7 +11,7 @@ from backports.tempfile import TemporaryDirectory
 from hypothesis import given
 from hypothesis.strategies import text
 
-from oasislmf.cmd import RootCmd
+from oasislmf.cli import RootCmd
 from oasislmf import __version__
 
 

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
 __all__ = [
-    'OasisExposuresManagerInterface',
-    'OasisExposuresManager'
+    'OasisManagerInterface',
+    'OasisManager'
 ]
 
 import copy
@@ -22,8 +22,7 @@ from interface import (
     implements,
 )
 
-
-from ..keys.lookup import OasisLookupFactory
+from ..models import OasisModel
 from ..utils.concurrency import (
     multiprocess,
     multithread,
@@ -40,12 +39,12 @@ from ..utils.metadata import (
     OED_COVERAGE_TYPES,
 )
 from ..utils.values import get_utctimestamp
-from ..models import OasisModel
-from .pipeline import OasisFilesPipeline
 from .csv_trans import Translator
+from .lookup import OasisLookupFactory
+from .pipeline import OasisFilesPipeline
 
 
-class OasisExposuresManagerInterface(Interface):  # pragma: no cover
+class OasisManagerInterface(Interface):  # pragma: no cover
     """
     Interface class form managing a collection of exposures.
 
@@ -340,7 +339,7 @@ class OasisExposuresManagerInterface(Interface):  # pragma: no cover
         pass
 
 
-class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
+class OasisManager(implements(OasisManagerInterface)):
 
     def __init__(self, oasis_models=None):
         self.logger = logging.getLogger()
@@ -961,7 +960,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
 
             cov_level_id = fm_levels[0]
 
-            coverage_level_preset_data = list(zip(
+            coverage_level_preset_data = [t for t in zip(
                 tuple(cangul_df['item_id'].values),           # 1 - FM item ID
                 tuple(cangul_df['item_id'].values),           # 2 - GUL item ID
                 tuple(cangul_df['peril_id'].values),          # 3 - peril ID
@@ -969,11 +968,11 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 tuple(cangul_df['coverage_id'].values),       # 5 - coverage ID
                 tuple(cangul_df['is_bi_coverage'].values),    # 6 - is BI coverage?
                 tuple(cangul_df['canexp_id'].values),         # 7 - can. exp. DF index
-                (-1,) * len(cangul_df),                         # 8 - can. acc. DF index
-                (-1,) * len(cangul_df),                         # 9 - can. acc. policy num.
-                (cov_level_id,) * len(cangul_df),               # 10 - coverage level ID
-                (1,) * len(cangul_df),                          # 11 - layer ID
-                (-1,) * len(cangul_df),                         # 12 - agg. ID
+                (-1,) * len(cangul_df),                       # 8 - can. acc. DF index
+                (-1,) * len(cangul_df),                       # 9 - can. acc. policy num.
+                (cov_level_id,) * len(cangul_df),             # 10 - coverage level ID
+                (1,) * len(cangul_df),                        # 11 - layer ID
+                (-1,) * len(cangul_df),                       # 12 - agg. ID
                 tuple(cangul_df['tiv_elm'].values),           # 13 - TIV element
                 tuple(cangul_df['tiv'].values),               # 14 -TIV value
                 tuple(cangul_df['tiv_tgid'].values),          # 15 -coverage element/term group ID
@@ -982,7 +981,7 @@ class OasisExposuresManager(implements(OasisExposuresManagerInterface)):
                 tuple(cangul_df['ded_max_elm'].values),       # 18 -deductible max. element
                 tuple(cangul_df['lim_elm'].values),           # 19 -limit element
                 tuple(cangul_df['shr_elm'].values)            # 20 -share element
-            ))
+            )]
 
             def get_canacc_item(i):
                 return canacc_df[(canacc_df['accntnum'] == cangul_df[cangul_df['canexp_id'] == coverage_level_preset_data[i][6]].iloc[0]['accntnum'])].iloc[0]

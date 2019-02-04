@@ -5,7 +5,7 @@ import six
 from backports.tempfile import TemporaryDirectory
 from mock import patch
 
-from oasislmf.cmd import RootCmd
+from oasislmf.cli import RootCmd
 
 
 def get_command(target_dir=None, extras=None):

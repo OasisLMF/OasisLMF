@@ -14,7 +14,7 @@ from hypothesis import (
 from hypothesis.strategies import integers
 from pathlib2 import Path
 
-from oasislmf.exposures.csv_trans import Translator
+from oasislmf.model_preparation.csv_trans import Translator
 from oasislmf.utils.diff import unified_diff
 
 data_dir = str(Path(__file__).parent.joinpath('csv_trans_data'))

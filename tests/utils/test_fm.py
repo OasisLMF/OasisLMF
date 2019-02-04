@@ -30,7 +30,7 @@ from mock import patch, Mock
 
 from tempfile import NamedTemporaryFile
 
-from oasislmf.exposures.manager import OasisExposuresManager
+from oasislmf.model_preparation.manager import OasisManager as om
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.fm import (
     unified_canonical_fm_profile_by_level,

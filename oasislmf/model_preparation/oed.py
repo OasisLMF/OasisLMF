@@ -4,12 +4,14 @@ __all__ = [
     'load_oed_dfs'
 ]
 
-
 import math
-import pandas as pd
 import os
-from oasislmf.utils.data import get_dataframe
+
 from collections import namedtuple
+
+import pandas as pd
+
+from ..utils.data import get_dataframe
 
 
 # TODO - add validator
