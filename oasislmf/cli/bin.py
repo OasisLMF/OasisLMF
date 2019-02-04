@@ -1,5 +1,12 @@
-from ..model_execution.bin import create_binary_files, create_binary_tar_file, check_conversion_tools, \
-    check_inputs_directory, cleanup_bin_directory
+# -*- coding: utf-8 -*-
+
+from ..model_execution.bin import (,
+    create_binary_files,
+    create_binary_tar_file,
+    check_conversion_tools,
+    check_inputs_directory,
+    cleanup_bin_directory,
+)
 from .cleaners import PathCleaner
 from .base import OasisBaseCommand
 

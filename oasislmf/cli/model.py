@@ -13,7 +13,7 @@ import sys
 import pandas as pd
 
 from argparse import RawDescriptionHelpFormatter
-from six import u as unicode
+from six import u as _unicode
 
 from pathlib2 import Path
 
@@ -640,21 +640,18 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
 
         if ri:
             self.logger.info('\nGenerating reinsurance files')
-            items_fp = oasis_files['items']
-            coverages_fp = oasis_files['coverages']
-            fm_xref_fp = oasis_files['fm_xref']
             xref_descriptions = create_xref_description(pd.read_csv(source_accounts_fp), pd.read_csv(source_exposure_fp))
             ri_layers = generate_files_for_reinsurance(
-                pd.read_csv(items_fp),
-                pd.read_csv(coverages_fp),
-                pd.read_csv(fm_xref_fp),
+                pd.read_csv(oasis_files['items']),
+                pd.read_csv(oasis_files['coverages']),
+                pd.read_csv(oasis_files['fm_xref']),
                 xref_descriptions,
                 pd.read_csv(ri_info_fp),
                 pd.read_csv(ri_scope_fp),
                 ri_fp
             )
             with io.open(os.path.join(ri_fp, 'ri_layers.json'), 'w', encoding='utf-8') as f:
-                f.write(unicode(json.dumps(ri_layers, ensure_ascii=False, indent=4)))
+                f.write(_unicode(json.dumps(ri_layers, ensure_ascii=False, indent=4)))
 
         self.logger.info('\nGenerated Oasis files for model: {}'.format(oasis_files))
 
