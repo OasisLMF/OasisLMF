@@ -189,6 +189,8 @@ class TestReinsurance(unittest.TestCase):
                     coverages=direct_layer.coverages,
                     fm_xrefs=direct_layer.fm_xrefs,
                     xref_descriptions=direct_layer.xref_descriptions,
+                    gulsummaryxref=pd.DataFrame(),
+                    fmsummaryxref=pd.DataFrame(),
                     ri_info_df=ri_info_df,
                     ri_scope_df=ri_scope_df,
                     direct_oasis_files_dir='',

@@ -204,7 +204,7 @@ class ReinsuranceLayer(object):
 
     def __init__(self, 
         name, ri_info, ri_scope, items, coverages, fm_xrefs, 
-        xref_descriptions, risk_level, fmsummaryxref=None, gulsummaryxref=None, logger=None):
+        xref_descriptions, risk_level, fmsummaryxref=pd.DataFrame(), gulsummaryxref=pd.DataFrame(), logger=None):
 
         self.logger = logger or logging.getLogger()
         self.name = name
