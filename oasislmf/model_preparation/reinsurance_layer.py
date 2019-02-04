@@ -97,6 +97,8 @@ def generate_files_for_reinsurance(
         coverages,
         fm_xrefs,
         xref_descriptions,
+        gulsummaryxref,
+        fmsummaryxref,
         ri_info_df,
         ri_scope_df,
         direct_oasis_files_dir):
@@ -123,6 +125,8 @@ def generate_files_for_reinsurance(
                 coverages,
                 fm_xrefs,
                 xref_descriptions,
+                gulsummaryxref,
+                fmsummaryxref,
                 ri_info_df,
                 ri_scope_df,
                 previous_inuring_priority,
@@ -149,6 +153,8 @@ def _generate_files_for_reinsurance_risk_level(
         coverages,
         fm_xrefs,
         xref_descriptions,
+        gulsummaryxref,
+        fmsummaryxref,
         ri_info_df,
         ri_scope_df,
         previous_inuring_priority,
@@ -180,6 +186,8 @@ def _generate_files_for_reinsurance_risk_level(
         coverages=coverages,
         fm_xrefs=fm_xrefs,
         xref_descriptions=xref_descriptions,
+        gulsummaryxref=gulsummaryxref,
+        fmsummaryxref=fmsummaryxref,
         risk_level=risk_level
     )
 
@@ -196,7 +204,7 @@ class ReinsuranceLayer(object):
 
     def __init__(self, 
         name, ri_info, ri_scope, items, coverages, fm_xrefs, 
-        xref_descriptions, risk_level, logger=None):
+        xref_descriptions, risk_level, fmsummaryxref=None, gulsummaryxref=None, logger=None):
 
         self.logger = logger or logging.getLogger()
         self.name = name
@@ -205,6 +213,8 @@ class ReinsuranceLayer(object):
         self.items = items
         self.fm_xrefs = fm_xrefs
         self.xref_descriptions = xref_descriptions
+        self.fmsummaryxref = fmsummaryxref
+        self.gulsummaryxref = gulsummaryxref
 
         self.item_ids = list()
         self.item_tivs = list()
@@ -945,5 +955,7 @@ class ReinsuranceLayer(object):
             os.path.join(directory, "fm_policytc.csv"), index=False)
         self.fm_xrefs.to_csv(
             os.path.join(directory, "fm_xref.csv"), index=False)
-        open(os.path.join(directory, "fmsummaryxref.csv"), 'a').close()
-        open(os.path.join(directory, "gulsummaryxref.csv"), 'a').close()
+        self.fmsummaryxref.to_csv(
+            os.path.join(directory, "fmsummaryxref.csv"), index=False)
+        self.gulsummaryxref.to_csv(
+            os.path.join(directory, "gulsummaryxref.csv"), index=False)
