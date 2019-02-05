@@ -711,12 +711,6 @@ def genbash(
 
     do_pwaits(filename, process_counter)
 
-    if mem_limit:
-        print_command(filename, '')
-        print_command(filename, '# --- Remove per process memory limit ---')
-        print_command(filename, '')
-        do_ktools_mem_limit(1, filename)
-
     if ri_output:
         print_command(filename, '')
         print_command(filename, '# --- Do reinsurance loss kats ---')
@@ -736,6 +730,12 @@ def genbash(
         do_kats(RUNTYPE_GROUNDUP_LOSS, analysis_settings, max_process_id, filename, process_counter)
 
     do_kwaits(filename, process_counter)
+
+    if mem_limit:
+        print_command(filename, '')
+        print_command(filename, '# --- Remove per process memory limit ---')
+        print_command(filename, '')
+        do_ktools_mem_limit(1, filename)
 
     print_command(filename, '')
     do_post_wait_processing(RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename, process_counter)

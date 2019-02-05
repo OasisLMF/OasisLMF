@@ -714,6 +714,9 @@ class GenerateLossesCmd(OasisBaseCommand):
         parser.add_argument('-s', '--ktools-script-name', default='run_ktools', help='Relative or absolute path of the output file')
         parser.add_argument('-n', '--ktools-num-processes', default=-1, help='Number of ktools calculation processes to use', type=int)
         parser.add_argument('-p', '--model-package-path', default=None, help='Path containing model specific package')
+        parser.add_argument('--ktools-mem-limit', default=False, help='Force exec failure if Ktools hits memory the system  memory limit', action='store_true')
+        parser.add_argument('--ktools-fifo-relative', default=False, help='Create ktools FIFO queues under the ./FIFO dir', action='store_true')
+        parser.add_argument('--ktools-alloc-rule', default=2, help='Override the allocation used in fmcalc', type=int)
 
     def action(self, args):
         """
@@ -821,7 +824,14 @@ class GenerateLossesCmd(OasisBaseCommand):
                 with io.open(os.path.join(model_run_dir, 'ri_layers.json'), 'r', encoding='utf-8') as f:
                     ri_layers = len(json.load(f))
 
-            model_runner_module.run(analysis_settings, args.ktools_num_processes, filename=script_fp, num_reinsurance_iterations=ri_layers)
+            model_runner_module.run(analysis_settings, 
+                                    args.ktools_num_processes,
+                                    filename=script_fp,
+                                    num_reinsurance_iterations=ri_layers,
+                                    ktools_mem_limit=args.ktools_mem_limit,
+                                    set_alloc_rule=args.ktools_alloc_rule, 
+                                    fifo_tmp_dir=(not args.ktools_fifo_relative))
+
 
         self.logger.info('\nLoss outputs generated in {}'.format(os.path.join(model_run_dir, 'output')))
 
@@ -901,6 +911,9 @@ class RunCmd(OasisBaseCommand):
             help='Name of the ktools output script (should not contain any filetype extension)'
         )
         parser.add_argument('-n', '--ktools-num-processes', default=2, help='Number of ktools calculation processes to use')
+        parser.add_argument('--ktools-mem-limit', default=False, help='Force exec failure if Ktools hits memory the system  memory limit', action='store_true')
+        parser.add_argument('--ktools-fifo-relative', default=False, help='Create ktools FIFO queues under the ./FIFO dir', action='store_true')
+        parser.add_argument('--ktools-alloc-rule', default=2, help='Override the allocation used in fmcalc', type=int)
 
     def action(self, args):
         """
