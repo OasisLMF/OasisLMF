@@ -646,11 +646,11 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
                 pd.read_csv(oasis_files['coverages']),
                 pd.read_csv(oasis_files['fm_xref']),
                 xref_descriptions,
-                pd.read_csv(oasis_files['gulsummaryxref']),
-                pd.read_csv(oasis_files['fmsummaryxref']),
                 pd.read_csv(ri_info_fp),
                 pd.read_csv(ri_scope_fp),
-                ri_fp
+                ri_fp,
+                pd.read_csv(oasis_files['gulsummaryxref']),
+                pd.read_csv(oasis_files['fmsummaryxref']),
             )
             with io.open(os.path.join(ri_fp, 'ri_layers.json'), 'w', encoding='utf-8') as f:
                 f.write(_unicode(json.dumps(ri_layers, ensure_ascii=False, indent=4)))
