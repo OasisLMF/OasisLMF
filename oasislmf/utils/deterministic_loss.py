@@ -90,7 +90,7 @@ def generate_oasis_files(
         fname = os.path.basename(canexp_prof_fp)
         if not os.path.exists(os.path.join(_target_dir, fname)):
             canexp_prof_fp = shutil.copy2(canexp_prof_fp, _target_dir)
-        _canexp_prof = manager.load_canonical_exposures_profile(canonical_exposures_profile_json_path=canexp_prof_fp)
+        _canexp_prof = manager.load_canonical_exposure_profile(canonical_exposure_profile_path=canexp_prof_fp)
     else:
         _canexp_prof = copy.deepcopy(canexp_prof)
 
@@ -100,7 +100,7 @@ def generate_oasis_files(
         fname = os.path.basename(canacc_prof_fp)
         if not os.path.exists(os.path.join(_target_dir, fname)):
             canacc_prof_fp = shutil.copy2(canacc_prof_fp, _target_dir)
-        _canacc_prof = manager.load_canonical_accounts_profile(canonical_accounts_profile_json_path=canacc_prof_fp)
+        _canacc_prof = manager.load_canonical_accounts_profile(canonical_accounts_profile_path=canacc_prof_fp)
     else:
         _canacc_prof = copy.deepcopy(canacc_prof)
 
@@ -117,9 +117,9 @@ def generate_oasis_files(
     # Generate the canonical loc./exposure and accounts files from the source files (in ``target_dir``)
     canexp_fp = os.path.join(target_dir, 'canexp.csv')
     manager.transform_source_to_canonical(
-        source_exposures_file_path=_srcexp_fp,
-        source_to_canonical_exposures_transformation_file_path=_srcexptocan_trans_fp,
-        canonical_exposures_file_path=canexp_fp
+        source_exposure_file_path=_srcexp_fp,
+        source_to_canonical_exposure_transformation_file_path=_srcexptocan_trans_fp,
+        canonical_exposure_file_path=canexp_fp
     )
     canacc_fp = os.path.join(target_dir, 'canacc.csv')
     manager.transform_source_to_canonical(
