@@ -7,7 +7,6 @@ import os
 import string
 
 from collections import OrderedDict
-from future.utils import StringIO
 from unittest import TestCase
 
 import pandas as pd
@@ -119,7 +118,7 @@ class OasisLookupFactoryGetModelExposure(TestCase):
 
     @given(lists(tuples(integers(min_value=0, max_value=100), integers(min_value=0, max_value=100))))
     def test_exposure_string_is_provided___file_content_is_loaded(self, data):
-        stream = StringIO()
+        stream = io.StringIO()
         data = [('first', 'second')] + data
 
         csv.writer(stream).writerows(data)
