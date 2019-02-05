@@ -30,7 +30,7 @@ from subprocess import (
 )
 
 
-class MDKRuntimeTesterException(Exception):
+class MdkModelRunException(Exception):
     pass
 
 
@@ -44,7 +44,7 @@ def get_default_pip_path():
         return
     else:
         if not resp:
-            raise MDKRuntimeTesterException('No default pip path found!')
+            raise MdkModelRunException('No default pip path found!')
         default_pip_path = resp.decode('utf-8').strip()
 
     return default_pip_path
@@ -95,7 +95,7 @@ def pkg_exists(pkg_name):
         return False
     else:
         if not resp:
-            raise MDKRuntimeTesterException('Error while trying to determine whether {} is installed'.format(pkg_name))
+            raise MdkModelRunException('Error while trying to determine whether {} is installed'.format(pkg_name))
         return pkg_name in resp.decode('utf-8').strip()
 
 
@@ -256,7 +256,7 @@ if __name__ == "__main__":
     print('\nProcessing script arguments: {}'.format(json.dumps(args, indent=4, sort_keys=True)))
 
     if not args['pip_path']:
-        raise MDKRuntimeTesterException('pip path could not be determined and/or no pip path provided when calling the script')
+        raise MdkModelRunException('pip path could not be determined and/or no pip path provided when calling the script')
 
     if args['git_transfer_protocol'] not in ['https', 'ssh']:
         args['git_transfer_protocol'] = 'ssh'
@@ -268,16 +268,16 @@ if __name__ == "__main__":
     try:
         pip_install(pkg_uri, pip_path=args['pip_path'])
     except CalledProcessError as e:
-        raise MDKRuntimeTesterException('\nError trying to pip install package: {}'.format(e))
+        raise MdkModelRunException('\nError trying to pip install package: {}'.format(e))
 
     print('\nMDK package successfully installed from branch {}'.format(args['mdk_repo_branch']))
 
-    print('\nCloning {} (branch {}) in {}\n'.format(args['model_repo_name'], args['model_repo_branch'], args['clone_target']))
+    print('\nCloning model repository {} (branch {}) in {}\n'.format(args['model_repo_name'], args['model_repo_branch'], args['clone_target']))
 
     try:
         clone_repo(args['model_repo_name'], args['clone_target'], repo_branch=args['model_repo_branch'], transfer_protocol=args['git_transfer_protocol'])
     except CalledProcessError as e:
-        raise MDKRuntimeTesterException('\nError while trying to clone {} repository: {}\n'.format(args['model_repo_name'], e))
+        raise MdkModelRunException('\nError while trying to clone {} repository: {}\n'.format(args['model_repo_name'], e))
 
     print('\n{} successfully cloned in {}'.format(args['model_repo_name'], args['clone_target']))
 
@@ -293,7 +293,7 @@ if __name__ == "__main__":
     try:
         run_model(model_mdk_config_fp, model_run_dir=model_run_dir)
     except CalledProcessError as e:
-        raise MDKRuntimeTesterException('\nError while trying to run {} via MDK: {}'.format(args['model_repo_name'], e))
+        raise MdkModelRunException('\nError while trying to run {} via MDK: {}'.format(args['model_repo_name'], e))
 
     print('\nModel run OK')
 
