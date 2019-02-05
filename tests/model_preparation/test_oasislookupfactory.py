@@ -117,11 +117,12 @@ class OasisLookupFactoryGetModelExposure(TestCase):
 
             self.assertEqual(res, data)
 
-    def test_exposure_string_is_provided___file_content_is_loaded(self):
+    @given(lists(tuples(integers(min_value=0, max_value=100), integers(min_value=0, max_value=100))))
+    def test_exposure_string_is_provided___file_content_is_loaded(self, data):
 
-        data = [{'1': 1, '2': 2}]
+        columns=['first', 'second']
 
-        exposure_str = _unicode(pd.DataFrame(data=data).to_csv(index=False))
+        exposure_str = _unicode(pd.DataFrame(columns=columns, data=data).to_csv(index=False))
 
         res_str = OasisLookupFactory.get_model_exposure(model_exposure=exposure_str).to_csv(index=False)
 
