@@ -713,7 +713,7 @@ class GenerateLossesCmd(OasisBaseCommand):
         parser.add_argument('-s', '--ktools-script-name', default='run_ktools', help='Relative or absolute path of the output file')
         parser.add_argument('-n', '--ktools-num-processes', default=-1, help='Number of ktools calculation processes to use', type=int)
         parser.add_argument('-p', '--model-package-path', default=None, help='Path containing model specific package')
-        parser.add_argument('--ktools-mem-limit', default=False, help='Force exec failure if Ktools hits memory the system  memory limit', type=bool)
+        parser.add_argument('--ktools-mem-limit', default=False, help='Force exec failure if Ktools hits memory the system  memory limit', action='store_true')
         parser.add_argument('--ktools-fifo-relative', default=False, help='Create ktools FIFO queues under the ./FIFO dir', action='store_true')
         parser.add_argument('--ktools-alloc-rule', default=2, help='Override the allocation used in fmcalc', type=int)
 
