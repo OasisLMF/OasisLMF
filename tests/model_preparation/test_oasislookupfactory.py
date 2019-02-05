@@ -1,6 +1,5 @@
 from __future__ import unicode_literals, print_function
 
-import csv
 import io
 import json
 import os
@@ -106,16 +105,17 @@ class OasisLookupFactoryGetModelExposure(TestCase):
 
     @given(lists(tuples(integers(min_value=0, max_value=100), integers(min_value=0, max_value=100))))
     def test_file_is_provided___file_content_is_loaded(self, data):
-        columns = [('first', 'second')] + data
+        columns = ['first', 'second']
+
+        exposure_str = _unicode(pd.DataFrame(columns=columns, data=data).to_csv(index=False))
 
         with NamedTemporaryFile('w') as f:
-            csv.writer(f).writerows(data)
+            f.writelines(exposure_str)
             f.flush()
 
-            res = OasisLookupFactory.get_model_exposure(model_exposure_fp=f.name)
-            res = [tuple(res)] + [tuple(res.iloc[i]) for i in range(len(res))]
+            res_str = OasisLookupFactory.get_model_exposure(model_exposure_fp=f.name).to_csv(index=False)
 
-            self.assertEqual(res, data)
+            self.assertEqual(exposure_str, res_str)
 
     @given(lists(tuples(integers(min_value=0, max_value=100), integers(min_value=0, max_value=100))))
     def test_exposure_string_is_provided___file_content_is_loaded(self, data):
