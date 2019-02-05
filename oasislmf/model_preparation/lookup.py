@@ -25,9 +25,12 @@ import types
 import uuid
 
 from collections import OrderedDict
+from future.utils import (
+    viewvalues,
+    viewitems,
+)
 
 import pandas as pd
-import six
 
 from shapely.geometry import (
     box,
@@ -40,8 +43,6 @@ if shapely_speedups.available:
     shapely_speedups.enable()
 
 from rtree.core import RTreeError
-
-import six
 
 from ..utils.data import get_dataframe
 from ..utils.exceptions import OasisException
@@ -126,13 +127,13 @@ class OasisBaseLookup(object):
     def __tweak_config_data__(self):
         for section in ('locations', 'peril', 'vulnerability',):
             section_config = self._config.get(section) or {}
-            for k, v in six.iteritems(section_config):
+            for k, v in viewitems(section_config):
                 if is_string(v) and '%%KEYS_DATA_PATH%%' in v:
                     self._config[section][k] = v.replace('%%KEYS_DATA_PATH%%', self._config['keys_data_path'])
                 elif type(v) == list:
                     self._config[section][k] = tuple(v)
                 elif isinstance(v, dict):
-                    for _k, _v in six.iteritems(v):
+                    for _k, _v in viewitems(v):
                         if is_string(_v) and '%%KEYS_DATA_PATH%%' in _v:
                             self._config[section][k][_k] = _v.replace('%%KEYS_DATA_PATH%%', self._config['keys_data_path'])
 
@@ -184,7 +185,7 @@ class OasisBaseLookup(object):
         elif isinstance(locs, types.GeneratorType):
             locs_seq = locs
         elif (isinstance(locs, dict)):
-            locs_seq = six.itervalues(locs)
+            locs_seq = viewvalues(locs)
         elif isinstance(locs, pd.DataFrame):
             locs_seq = (loc for _, loc in locs.iterrows())
 
@@ -324,7 +325,7 @@ class OasisLookupFactory(object):
         if model_exposure_fp:
             loc_df = pd.read_csv(os.path.abspath(model_exposure_fp), float_precision='high')
         elif model_exposure:
-            loc_df = pd.read_csv(six.StringIO(model_exposure), float_precision='high')
+            loc_df = pd.read_csv(io.StringIO(model_exposure), float_precision='high')
         else:
             raise OasisException('Either the model exposure or exposure file path must be specified')
 
@@ -780,7 +781,7 @@ class OasisLookup(OasisBaseLookup):
                     ('status', status),
                     ('message', message),
                 ),
-                six.iteritems(vlookup)
+                viewitems(vlookup)
             )
         }
 
@@ -1028,7 +1029,7 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
             )
 
         col_dtypes = {
-            k.lower():getattr(builtins, v) for k, v in six.iteritems(col_dtypes)
+            k.lower():getattr(builtins, v) for k, v in viewitems(col_dtypes)
         }
 
         key_cols = vuln_config.get('key_cols')
@@ -1122,7 +1123,7 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
                     ('vulnerability_id', vlnid),
                     ('message', vlnmsg)
                 ),
-                six.iteritems(loc_key_col_values)
+                viewitems(loc_key_col_values)
             )
         }
 

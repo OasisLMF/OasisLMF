@@ -1,9 +1,8 @@
 from datetime import datetime
 
-import sys
+from future.utils import string_types
 
 import pytz
-import six
 
 NULL_VALUES = [None, '', 'n/a', 'N/A', 'null', 'Null', 'NULL']
 
@@ -26,10 +25,7 @@ def get_utctimestamp(thedate=None, fmt='%Y-%b-%d %H:%M:%S'):
 
 
 def is_string(s):
-        return type(s) in (
-            six.types.StringTypes if sys.version_info.major < 3
-            else six.string_types
-        )
+        return isinstance(s, string_types)
 
 
 def to_string(val):

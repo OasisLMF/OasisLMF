@@ -7,9 +7,9 @@ __all__ = [
 import builtins
 import io
 
-import pandas as pd
+from future.utils import viewitems
 
-import six
+import pandas as pd
 
 from .exceptions import OasisException
 
@@ -83,9 +83,9 @@ def get_dataframe(
 
     if col_dtypes:
         _col_dtypes = {
-            (k.lower() if lowercase_cols else k): (getattr(builtins, v) if v in ('int', 'bool', 'float', 'str',) else v) for k, v in six.iteritems(col_dtypes)
+            (k.lower() if lowercase_cols else k): (getattr(builtins, v) if v in ('int', 'bool', 'float', 'str',) else v) for k, v in viewitems(col_dtypes)
         }
-        for col, dtype in six.iteritems(_col_dtypes):
+        for col, dtype in viewitems(_col_dtypes):
             df[col] = df[col].astype(dtype) if dtype != int else df[col].astype(object)
 
     if sort_col:

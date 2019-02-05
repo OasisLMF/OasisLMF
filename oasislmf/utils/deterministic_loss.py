@@ -18,9 +18,13 @@ import os
 import shutil
 import subprocess
 
+from future.utils import (
+    string_types,
+    viewitems,
+)
+
 # 3rd party imports
 import pandas as pd
-import six
 
 from tabulate import tabulate
 
@@ -85,7 +89,7 @@ def generate_oasis_files(
         _srcacctocan_trans_fp = shutil.copy2(_srcacctocan_trans_fp, _target_dir)
 
     _canexp_prof = canexp_prof
-    if isinstance(_canexp_prof, six.string_types):
+    if isinstance(_canexp_prof, string_types):
         canexp_prof_fp = ''.join(_canexp_prof) if os.path.isabs(_canexp_prof) else os.path.abspath(''.join(_canexp_prof))
         fname = os.path.basename(canexp_prof_fp)
         if not os.path.exists(os.path.join(_target_dir, fname)):
@@ -95,7 +99,7 @@ def generate_oasis_files(
         _canexp_prof = copy.deepcopy(canexp_prof)
 
     _canacc_prof = canacc_prof
-    if isinstance(_canacc_prof, six.string_types):
+    if isinstance(_canacc_prof, string_types):
         canacc_prof_fp = ''.join(_canacc_prof) if os.path.isabs(_canacc_prof) else os.path.abspath(''.join(_canacc_prof))
         fname = os.path.basename(canacc_prof_fp)
         if not os.path.exists(os.path.join(_target_dir, fname)):
@@ -105,7 +109,7 @@ def generate_oasis_files(
         _canacc_prof = copy.deepcopy(canacc_prof)
 
     _fm_agg_prof = fm_agg_prof
-    if isinstance(_fm_agg_prof, six.string_types):
+    if isinstance(_fm_agg_prof, string_types):
         fm_agg_prof_fp = ''.join(_fm_agg_prof) if os.path.isabs(_fm_agg_prof) else os.path.abspath(''.join(_fm_agg_prof))
         fname = os.path.basename(fm_agg_prof_fp)
         if not os.path.exists(os.path.join(_target_dir, fname)):
@@ -194,7 +198,7 @@ def generate_oasis_files(
     # By this stage all the input files, including source and intermediate files
     # should have been generated in ``target_dir``.
 
-    return {k: v for k, v in itertools.chain(six.iteritems(gul_inputs), six.iteritems(fm_inputs))}
+    return {k: v for k, v in itertools.chain(viewitems(gul_inputs), viewitems(fm_inputs))}
 
 
 def generate_binary_inputs(input_dir, output_dir):

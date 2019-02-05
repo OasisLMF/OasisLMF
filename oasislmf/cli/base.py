@@ -1,14 +1,12 @@
+import io
 import json
 import logging
-
-import sys
-
 import os
-import io
+import sys
 
 from argparsetree import BaseCommand
 
-from oasislmf.utils.exceptions import OasisException
+from ..utils.exceptions import OasisException
 from .cleaners import PathCleaner
 
 

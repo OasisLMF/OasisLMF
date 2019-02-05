@@ -4,6 +4,8 @@ import io
 import json
 import sys
 
+from future.utils import string_types
+
 import six
 
 from argparse import RawDescriptionHelpFormatter
@@ -29,7 +31,7 @@ def load_credentials(login_arg, logger=None):
 
         3. Prompt for username / password
     """
-    if isinstance(login_arg, six.string_types):
+    if isinstance(login_arg, string_types):
         with io.open(login_arg, encoding='utf-8') as f:
             return json.load(f)
 

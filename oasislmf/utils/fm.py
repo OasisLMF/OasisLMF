@@ -15,7 +15,8 @@ __all__ = [
 import io
 import itertools
 import json
-import six
+
+from future.utils import viewvalues
 
 import pandas as pd
 
@@ -37,9 +38,9 @@ def get_coverage_level_fm_terms(level_unified_canonical_profile, level_fm_agg_pr
 
     lfmap = level_fm_agg_profile
 
-    agg_key = tuple(v['field'].lower() for v in six.itervalues(lfmap['FMAggKey']))
+    agg_key = tuple(v['field'].lower() for v in viewvalues(lfmap['FMAggKey']))
 
-    li = sorted([it for it in six.itervalues(level_fm_items)], key=lambda it: tuple(it[k] for k in agg_key))
+    li = sorted([it for it in viewvalues(level_fm_items)], key=lambda it: tuple(it[k] for k in agg_key))
 
     can_df = pd.merge(canexp_df, canacc_df, left_on='accntnum', right_on='accntnum')
 
@@ -83,9 +84,9 @@ def get_layer_level_fm_terms(level_unified_canonical_profile, level_fm_agg_profi
 
     lfmap = level_fm_agg_profile
 
-    agg_key = tuple(v['field'].lower() for v in six.itervalues(lfmap['FMAggKey']))
+    agg_key = tuple(v['field'].lower() for v in viewvalues(lfmap['FMAggKey']))
 
-    li = sorted([it for it in six.itervalues(level_fm_items)], key=lambda it: tuple(it[k] for k in agg_key))
+    li = sorted([it for it in viewvalues(level_fm_items)], key=lambda it: tuple(it[k] for k in agg_key))
 
     can_df = pd.merge(canexp_df, canacc_df, left_on='accntnum', right_on='accntnum')
 
@@ -138,9 +139,9 @@ def get_sub_layer_non_coverage_level_fm_terms(level_unified_canonical_profile, l
 
     lfmap = level_fm_agg_profile
 
-    agg_key = tuple(v['field'].lower() for v in six.itervalues(lfmap['FMAggKey']))
+    agg_key = tuple(v['field'].lower() for v in viewvalues(lfmap['FMAggKey']))
 
-    li = sorted([it for it in six.itervalues(level_fm_items)], key=lambda it: tuple(it[k] for k in agg_key))
+    li = sorted([it for it in viewvalues(level_fm_items)], key=lambda it: tuple(it[k] for k in agg_key))
 
     can_df = pd.merge(canexp_df, canacc_df, left_on='accntnum', right_on='accntnum')
 
@@ -284,10 +285,10 @@ def unified_canonical_fm_profile_by_level(profiles=[], profile_paths=[]):
             with io.open(pp, 'r', encoding='utf-8') as f:
                 profiles.append(json.load(f))
 
-    comb_prof = {k: v for p in profiles for k, v in ((k, v) for k, v in six.iteritems(p) if 'FMLevel' in v)}
+    comb_prof = {k: v for p in profiles for k, v in ((k, v) for k, v in viewitems(p) if 'FMLevel' in v)}
 
     return {
-        int(k): {v['ProfileElementName']: v for v in g} for k, g in itertools.groupby(sorted(six.itervalues(comb_prof), key=lambda v: v['FMLevel']), key=lambda v: v['FMLevel'])
+        int(k): {v['ProfileElementName']: v for v in g} for k, g in itertools.groupby(sorted(viewvalues(comb_prof), key=lambda v: v['FMLevel']), key=lambda v: v['FMLevel'])
     }
 
 
@@ -300,6 +301,6 @@ def unified_canonical_fm_profile_by_level_and_term_group(profiles=[], profile_pa
 
     return {
         k: {
-            _k: {v['FMTermType'].lower(): v for v in g} for _k, g in itertools.groupby(sorted(six.itervalues(comb_prof[k]), key=lambda v: v['FMTermGroupID']), key=lambda v: v['FMTermGroupID'])
+            _k: {v['FMTermType'].lower(): v for v in g} for _k, g in itertools.groupby(sorted(viewvalues(comb_prof[k]), key=lambda v: v['FMTermGroupID']), key=lambda v: v['FMTermGroupID'])
         } for k in comb_prof
     }

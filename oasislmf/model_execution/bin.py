@@ -9,13 +9,16 @@ from __future__ import print_function
 
 import glob
 import logging
-import tarfile
-from itertools import chain
-
 import shutilwhich
-import six
+import tarfile
+
+from itertools import chain
+from future.utils import (
+    viewkeys,
+    viewvalues,
+)
+
 from pathlib2 import Path
-from six import itervalues
 
 __all__ = [
     'create_binary_files',
@@ -189,9 +192,9 @@ def _check_each_inputs_directory(directory_to_check, do_il=False, check_binaries
     """
 
     if do_il:
-        input_files = (f['name'] for f in six.itervalues(INPUT_FILES) if f['type'] != 'optional')
+        input_files = (f['name'] for f in viewvalues(INPUT_FILES) if f['type'] != 'optional')
     else:
-        input_files = (f['name'] for f in six.itervalues(INPUT_FILES) if f['type'] not in ['optional', 'il'])
+        input_files = (f['name'] for f in viewvalues(INPUT_FILES) if f['type'] not in ['optional', 'il'])
 
     for input_file in input_files:
         file_path = os.path.join(directory_to_check, input_file + ".csv")
@@ -242,9 +245,9 @@ def _create_set_of_binary_files(csv_directory, bin_directory, do_il=False):
         os.mkdir(bin_directory)
 
     if do_il:
-        input_files = itervalues(INPUT_FILES)
+        input_files = viewvalues(INPUT_FILES)
     else:
-        input_files = (f for f in itervalues(INPUT_FILES) if f['type'] != 'il')
+        input_files = (f for f in viewvalues(INPUT_FILES) if f['type'] != 'il')
 
     for input_file in input_files:
         conversion_tool = input_file['conversion_tool']
@@ -275,10 +278,10 @@ def check_binary_tar_file(tar_file_path, check_il=False):
     :return: True if all required files are present, False otherwise
     :rtype: bool
     """
-    expected_members = ('{}.bin'.format(f['name']) for f in six.itervalues(GUL_INPUT_FILES))
+    expected_members = ('{}.bin'.format(f['name']) for f in viewvalues(GUL_INPUT_FILES))
 
     if check_il:
-        expected_members = chain(expected_members, ('{}.bin'.format(f['name']) for f in six.itervalues(IL_INPUT_FILES)))
+        expected_members = chain(expected_members, ('{}.bin'.format(f['name']) for f in viewvalues(IL_INPUT_FILES)))
 
     with tarfile.open(tar_file_path) as tar:
         for member in expected_members:
@@ -321,9 +324,9 @@ def check_conversion_tools(do_il=False):
     :rtype: bool  
     """
     if do_il:
-        input_files = six.itervalues(INPUT_FILES)
+        input_files = viewvalues(INPUT_FILES)
     else:
-        input_files = (f for f in six.itervalues(INPUT_FILES) if f['type'] != 'il')
+        input_files = (f for f in viewvalues(INPUT_FILES) if f['type'] != 'il')
 
     for input_file in input_files:
         tool = input_file['conversion_tool']
@@ -339,7 +342,7 @@ def cleanup_bin_directory(directory):
     """
     Clean the tar and binary files.
     """
-    for file in chain([TAR_FILE], (f + '.bin' for f in six.iterkeys(INPUT_FILES))):
+    for file in chain([TAR_FILE], (f + '.bin' for f in viewkeys(INPUT_FILES))):
         file_path = os.path.join(directory, file)
         if os.path.exists(file_path):
             os.remove(file_path)

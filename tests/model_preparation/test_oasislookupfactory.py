@@ -7,6 +7,7 @@ import os
 import string
 
 from collections import OrderedDict
+from future.utils import StringIO
 from unittest import TestCase
 
 import pandas as pd
@@ -29,7 +30,6 @@ from hypothesis.strategies import (
     tuples,
 )
 from mock import Mock, patch
-from six import StringIO
 from tempfile import NamedTemporaryFile
 
 from oasislmf.model_preparation.lookup import OasisLookupFactory

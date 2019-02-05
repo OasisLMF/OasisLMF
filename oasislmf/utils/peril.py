@@ -21,6 +21,13 @@ import types
 import uuid
 
 from collections import OrderedDict
+from future.utils import (
+    PY2,
+    PY3,
+    viewitems,
+    viewkeys,
+    viewvalues,
+)
 
 import six
 
@@ -178,7 +185,7 @@ class PerilAreasIndex(RTreeIndex):
 
     def __init__(self, *args, **kwargs):
 
-            self._protocol = (2 if six.sys.version_info[0] < 3 else cpickle.HIGHEST_PROTOCOL)
+            self._protocol = (2 if PY2 else cpickle.HIGHEST_PROTOCOL)
 
             idx_fp = kwargs.get('fp')
 
@@ -209,8 +216,8 @@ class PerilAreasIndex(RTreeIndex):
                     pa.id: pa for pa in (peril_areas if peril_areas else self._get_peril_areas(areas))
                 })
                 self._stream = self._generate_index_entries(
-                    ((paid, pa.bounds) for paid, pa in six.iteritems(self._peril_areas)),
-                    objects=((paid, pa.bounds, pa.coordinates) for paid, pa in six.iteritems(self._peril_areas))
+                    ((paid, pa.bounds) for paid, pa in viewitems(self._peril_areas)),
+                    objects=((paid, pa.bounds, pa.coordinates) for paid, pa in viewitems(self._peril_areas))
                 )
                 kwargs['properties'] = RTreeIndexProperty(**props)
                 super(self.__class__, self).__init__(self._stream, *args, **kwargs)
@@ -284,7 +291,7 @@ class PerilAreasIndex(RTreeIndex):
         if not set(_non_na_cols).intersection([_peril_id_col, _coverage_type_col, _peril_area_id_col]):
             _non_na_cols = _non_na_cols.union({_peril_id_col, _coverage_type_col, _peril_area_id_col})
 
-        for col in six.itervalues(area_poly_coords_cols):
+        for col in viewvalues(area_poly_coords_cols):
             if col not in _non_na_cols:
                 _non_na_cols = _non_na_cols.union({col.lower()})
 
@@ -304,7 +311,7 @@ class PerilAreasIndex(RTreeIndex):
 
         seq_start = area_poly_coords_seq_start_idx
 
-        len_seq = sum(1 if re.match(r'x(\d+)?', k) else 0 for k in six.iterkeys(coords_cols))
+        len_seq = sum(1 if re.match(r'x(\d+)?', k) else 0 for k in viewkeys(coords_cols))
 
         peril_areas = cls()._get_peril_areas(
             (
@@ -351,7 +358,7 @@ class PerilAreasIndex(RTreeIndex):
 
         class myindex(RTreeIndex):
             def __init__(self, *args, **kwargs):
-                self.protocol = (2 if six.sys.version_info[0] < 3 else cpickle.HIGHEST_PROTOCOL)
+                self.protocol = (2 if PY2 else cpickle.HIGHEST_PROTOCOL)
                 super(self.__class__, self).__init__(*args, **kwargs)
 
             def dumps(self, obj):
@@ -378,7 +385,7 @@ class PerilAreasIndex(RTreeIndex):
             elif isinstance(peril_areas, types.GeneratorType):
                 peril_areas_seq = peril_areas
             elif (isinstance(peril_areas, dict)):
-                peril_areas_seq = six.itervalues(peril_areas)
+                peril_areas_seq = viewvalues(peril_areas)
 
             for pa in peril_areas_seq:
                 index.insert(pa.id, pa.bounds, obj=(pa.peril_id, pa.coverage_type, pa.id, pa.bounds, pa.coordinates))
