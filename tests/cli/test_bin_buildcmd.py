@@ -83,10 +83,10 @@ class BuildCmdParseArgs(TestCase):
 
 
 class BuildCmdRun(TestCase):
-    @patch('oasislmf.cmd.bin.check_conversion_tools')
-    @patch('oasislmf.cmd.bin.check_inputs_directory')
-    @patch('oasislmf.cmd.bin.create_binary_files')
-    @patch('oasislmf.cmd.bin.create_binary_tar_file')
+    @patch('oasislmf.cli.bin.check_conversion_tools')
+    @patch('oasislmf.cli.bin.check_inputs_directory')
+    @patch('oasislmf.cli.bin.create_binary_files')
+    @patch('oasislmf.cli.bin.create_binary_tar_file')
     def test_dst_dir_is_not_supplied___flow_is_correct_using_src_as_dst(self, create_tar_mock, create_bin_mock, check_ins_mock, check_conv_mock):
         with TemporaryDirectory() as src:
             cmd = get_command(src_dir=src, extras={'build-tar': ''})
@@ -99,10 +99,10 @@ class BuildCmdRun(TestCase):
             create_bin_mock.assert_called_once_with(src, src, do_il=False)
             create_tar_mock.assert_called_once_with(src)
 
-    @patch('oasislmf.cmd.bin.check_conversion_tools')
-    @patch('oasislmf.cmd.bin.check_inputs_directory')
-    @patch('oasislmf.cmd.bin.create_binary_files')
-    @patch('oasislmf.cmd.bin.create_binary_tar_file')
+    @patch('oasislmf.cli.bin.check_conversion_tools')
+    @patch('oasislmf.cli.bin.check_inputs_directory')
+    @patch('oasislmf.cli.bin.create_binary_files')
+    @patch('oasislmf.cli.bin.create_binary_tar_file')
     def test_dst_dir_is_supplied___flow_is_correct_using_supplied_dir_as_dst(self, create_tar_mock, create_bin_mock, check_ins_mock, check_conv_mock):
         with TemporaryDirectory() as src, TemporaryDirectory() as dst:
             cmd = get_command(src_dir=src, dst_dir=dst, extras={'build-tar': ''})
@@ -115,10 +115,10 @@ class BuildCmdRun(TestCase):
             create_bin_mock.assert_called_once_with(src, dst, do_il=False)
             create_tar_mock.assert_called_once_with(dst)
 
-    @patch('oasislmf.cmd.bin.check_conversion_tools')
-    @patch('oasislmf.cmd.bin.check_inputs_directory')
-    @patch('oasislmf.cmd.bin.create_binary_files')
-    @patch('oasislmf.cmd.bin.create_binary_tar_file')
+    @patch('oasislmf.cli.bin.check_conversion_tools')
+    @patch('oasislmf.cli.bin.check_inputs_directory')
+    @patch('oasislmf.cli.bin.create_binary_files')
+    @patch('oasislmf.cli.bin.create_binary_tar_file')
     def test_build_tar_is_false___create_tar_file_is_not_called(self, create_tar_mock, create_bin_mock, check_ins_mock, check_conv_mock):
         with TemporaryDirectory() as src:
             cmd = get_command(src_dir=src)
@@ -131,10 +131,10 @@ class BuildCmdRun(TestCase):
             create_bin_mock.assert_called_once_with(src, src, do_il=False)
             create_tar_mock.assert_not_called()
 
-    @patch('oasislmf.cmd.bin.check_conversion_tools')
-    @patch('oasislmf.cmd.bin.check_inputs_directory')
-    @patch('oasislmf.cmd.bin.create_binary_files')
-    @patch('oasislmf.cmd.bin.create_binary_tar_file')
+    @patch('oasislmf.cli.bin.check_conversion_tools')
+    @patch('oasislmf.cli.bin.check_inputs_directory')
+    @patch('oasislmf.cli.bin.create_binary_files')
+    @patch('oasislmf.cli.bin.create_binary_tar_file')
     def test_do_il_is_true___il_files_are_generated(self, create_tar_mock, create_bin_mock, check_ins_mock, check_conv_mock):
         with TemporaryDirectory() as src:
             cmd = get_command(src_dir=src, extras={'do-il': ''})
