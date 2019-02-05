@@ -725,7 +725,7 @@ class TransformSourceToCanonical(TestCase):
             canonical_exposure_file_path
     ):
         trans_call_mock = Mock()
-        with patch('oasislmf.exposures.csv_trans.Translator', Mock(return_value=trans_call_mock)) as trans_mock:
+        with patch('oasislmf.model_preparation.csv_trans.Translator', Mock(return_value=trans_call_mock)) as trans_mock:
             om().transform_source_to_canonical(
                 source_exposure_file_path=source_exposure_file_path,
                 source_to_canonical_exposure_transformation_file_path=source_to_canonical_exposure_transformation_file_path,
@@ -762,7 +762,7 @@ class TransformSourceToCanonical(TestCase):
         model.resources['oasis_files_pipeline'].canonical_exposure_path = canonical_exposure_file_path
 
         trans_call_mock = Mock()
-        with patch('oasislmf.exposures.csv_trans.Translator', Mock(return_value=trans_call_mock)) as trans_mock:
+        with patch('oasislmf.model_preparation.csv_trans.Translator', Mock(return_value=trans_call_mock)) as trans_mock:
             #import ipdb; ipdb.set_trace()
             om().transform_source_to_canonical(
                 source_exposure_file_path=source_exposure_file_path,
@@ -796,7 +796,7 @@ class TransformCanonicalToModel(TestCase):
             model_exposure_file_path):
 
         trans_call_mock = Mock()
-        with patch('oasislmf.exposures.csv_trans.Translator', Mock(return_value=trans_call_mock)) as trans_mock:
+        with patch('oasislmf.model_preparation.csv_trans.Translator', Mock(return_value=trans_call_mock)) as trans_mock:
             om().transform_canonical_to_model(
                 canonical_exposure_file_path=canonical_exposure_file_path,
                 canonical_to_model_exposure_transformation_file_path=canonical_to_model_exposure_transformation_file_path,
@@ -833,7 +833,7 @@ class TransformCanonicalToModel(TestCase):
         model.resources['oasis_files_pipeline'].model_exposure_file_path = model_exposure_file_path
 
         trans_call_mock = Mock()
-        with patch('oasislmf.exposures.csv_trans.Translator', Mock(return_value=trans_call_mock)) as trans_mock:
+        with patch('oasislmf.model_preparation.csv_trans.Translator', Mock(return_value=trans_call_mock)) as trans_mock:
             om().transform_canonical_to_model(
                 canonical_exposure_file_path=canonical_exposure_file_path,
                 canonical_to_model_exposure_transformation_file_path=canonical_to_model_exposure_transformation_file_path,
