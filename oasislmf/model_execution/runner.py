@@ -5,7 +5,7 @@ import subprocess
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from .bash import genbash
-from oasislmf.exposures.oed import ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID
+from oasislmf.model_preparation.oed import ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID
 
 @oasis_log()
 def run(analysis_settings, number_of_processes=-1, num_reinsurance_iterations=0, 
