@@ -11,7 +11,7 @@ from collections import Counter
 
 from oasislmf.model_preparation.oed import (
     ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID, # Alloc Rule 2 (Default)
-    ALLOCATE_TO_ITEMS_BY_GUL_ALLOC_ID,            # Alloc Rule 1 
+    ALLOCATE_TO_ITEMS_BY_GUL_ALLOC_ID,            # Alloc Rule 1
     NO_ALLOCATION_ALLOC_ID,                       # Alloc Rule 0
 )
 
@@ -497,7 +497,7 @@ def genbash(
     fifo_tmp_dir=True,
     mem_limit=False,
     alloc_rule=None,
-    _get_getmodel_cmd=get_getmodel_cmd, 
+    _get_getmodel_cmd=get_getmodel_cmd,
     custom_args={}):
     """
     Generates a bash script containing ktools calculation instructions for an
@@ -710,6 +710,12 @@ def genbash(
     print_command(filename, '')
 
     do_pwaits(filename, process_counter)
+
+    if mem_limit:
+        print_command(filename, '')
+        print_command(filename, '# --- Remove per process memory limit ---')
+        print_command(filename, '')
+        do_ktools_mem_limit(1, filename)
 
     if ri_output:
         print_command(filename, '')
