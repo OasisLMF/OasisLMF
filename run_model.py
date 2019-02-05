@@ -163,6 +163,11 @@ def run_model(model_mdk_config_fp, model_run_dir=os.path.abspath('.')):
     run(cmd_str.split(), check=True)
 
 
+def print_model_dir_tree(model_run_dir, options_str='-h'):
+    cmd_str = 'tree {} {}'.format(options_str, model_run_dir)
+    run(cmd_str.split(), check=True)
+
+
 def model_run_ok(model_run_dir, model_run_mode):
 
     def _is_non_empty_file(fp, prefix_match=False, is_dir=False):
@@ -290,11 +295,22 @@ if __name__ == "__main__":
     except CalledProcessError as e:
         raise MDKRuntimeTesterException('\nError while trying to run {} via MDK: {}'.format(args['model_repo_name'], e))
 
+    print('\nModel run OK')
+
+    print('\nModel run directory has the following structure\n')
+    try:
+        print_model_dir_tree(model_run_dir)
+    except CalledProcessError as e:
+        print('\nError getting or printing model run directory tree - skipping step')
+
+    print('\nChecking correctess of model run directory')
     try:
         model_run_ok(model_run_dir, args['model_run_mode'])
     except AssertionError:
         print('\nModel run error - missing, incorrect or incomplete files in model run dir. {}'.format(model_run_dir))
         sys.exit(1)
+
+    print('\nModel run directory has the expected structure')
 
     print('\nModel run completed successfully')
 
