@@ -15,7 +15,7 @@ def get_command(target_dir=None, extras=None):
 
 
 class CleanCmdRun(TestCase):
-    @patch('oasislmf.cmd.bin.cleanup_bin_directory')
+    @patch('oasislmf.cli.bin.cleanup_bin_directory')
     def test_src_is_not_supplied___cwd_is_cleaned(self, clean_mock):
         cmd = get_command()
 
@@ -24,7 +24,7 @@ class CleanCmdRun(TestCase):
         self.assertEqual(0, res)
         clean_mock.assert_called_once_with(os.path.abspath('.'))
 
-    @patch('oasislmf.cmd.bin.cleanup_bin_directory')
+    @patch('oasislmf.cli.bin.cleanup_bin_directory')
     def test_src_is_supplied___supplied_path_is_cleaned(self, clean_mock):
         with TemporaryDirectory() as d:
             cmd = get_command(target_dir=d)
