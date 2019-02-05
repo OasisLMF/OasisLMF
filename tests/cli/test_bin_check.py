@@ -1,15 +1,15 @@
 from unittest import TestCase
 
 import os
-import six
 from backports.tempfile import TemporaryDirectory
+from future.utils import iteritems
 from mock import patch
 
 from oasislmf.cli import RootCmd
 
 
 def get_command(target_dir=None, extras=None):
-    kwargs_str = ' '.join('--{} {}'.format(k, v) for k, v in six.iteritems(extras or {}))
+    kwargs_str = ' '.join('--{} {}'.format(k, v) for k, v in iteritems(extras or {}))
 
     return RootCmd(argv='bin check {} {}'.format(kwargs_str, target_dir or '').split())
 

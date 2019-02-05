@@ -1,12 +1,12 @@
+import io
 import json
 import os
-import io
 import time
 
 from collections import Counter
+from future.utils import string_types
 from multiprocessing.pool import ThreadPool
 
-import six
 from argparsetree import BaseCommand
 from backports.tempfile import TemporaryDirectory
 
@@ -80,14 +80,14 @@ class TestModelApiCmd(OasisBaseCommand):
 
         do_il = False
         if 'il_output' in analysis_settings['analysis_settings']:
-            if isinstance(analysis_settings['analysis_settings']['il_output'], six.string_types):
+            if isinstance(analysis_settings['analysis_settings']['il_output'], string_types):
                 do_il = analysis_settings['analysis_settings']["il_output"].lower() == 'true'
             else:
                 do_il = bool(analysis_settings['analysis_settings']["il_output"])
 
         do_ri = False
         if 'ri_output' in analysis_settings['analysis_settings']:       
-            if isinstance(analysis_settings['analysis_settings']['ri_output'], six.string_types):
+            if isinstance(analysis_settings['analysis_settings']['ri_output'], string_types):
                 do_ri = analysis_settings['analysis_settings']["ri_output"].lower() == 'true'
             else:
                 do_ri = bool(analysis_settings['analysis_settings']["ri_output"])

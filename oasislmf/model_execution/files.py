@@ -1,6 +1,6 @@
 from __future__ import unicode_literals
 
-import six
+from future.utils import viewitems
 
 INPUT_FILES = {
     'items': {'name': 'items', 'type': 'gul', 'conversion_tool': 'itemtobin'},
@@ -13,9 +13,9 @@ INPUT_FILES = {
     'fm_xref': {'name': 'fm_xref', 'type': 'il', 'conversion_tool': 'fmxreftobin'},
     'fmsummaryxref': {'name': 'fmsummaryxref', 'type': 'il', 'conversion_tool': 'fmsummaryxreftobin'}
 }
-GUL_INPUT_FILES = {k: v for k, v in six.iteritems(INPUT_FILES) if v['type'] == 'gul'}
-IL_INPUT_FILES = {k: v for k, v in six.iteritems(INPUT_FILES) if v['type'] == 'il'}
-OPTIONAL_INPUT_FILES = {k: v for k, v in six.iteritems(INPUT_FILES) if v['type'] == 'optional'}
+GUL_INPUT_FILES = {k: v for k, v in viewitems(INPUT_FILES) if v['type'] == 'gul'}
+IL_INPUT_FILES = {k: v for k, v in viewitems(INPUT_FILES) if v['type'] == 'il'}
+OPTIONAL_INPUT_FILES = {k: v for k, v in viewitems(INPUT_FILES) if v['type'] == 'optional'}
 
 TAR_FILE = 'inputs.tar.gz'
 

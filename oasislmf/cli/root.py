@@ -1,5 +1,6 @@
-from .config import ConfigCmd
 from ..utils.exceptions import OasisException
+
+from .config import ConfigCmd
 from .model import ModelsCmd
 from .base import OasisBaseCommand
 from .test import TestCmd

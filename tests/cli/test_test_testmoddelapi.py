@@ -1,12 +1,12 @@
 import json
+import os
+import shutil
+
 from collections import Counter
+from future.utils import iteritems
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
-import os
-
-import shutil
-import six
 from hypothesis import (
     given,
     HealthCheck,
@@ -204,7 +204,7 @@ class TestModelApiCmdRun(TestCase):
             kwargs['analysis-settings-file'] = os.path.join(analysis_directory, 'analysis_settings.json')
 
         kwargs.update(extras or {})
-        kwargs_str = ' '.join('--{} {}'.format(k, v) for k, v in six.iteritems(kwargs))
+        kwargs_str = ' '.join('--{} {}'.format(k, v) for k, v in iteritems(kwargs))
 
         return RootCmd(argv='test model-api {} {}'.format(kwargs_str, api_server_url).split())
 

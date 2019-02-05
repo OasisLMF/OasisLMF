@@ -1,8 +1,9 @@
 import uuid
+
+from future.utils import iteritems
 from unittest import TestCase
 
 import os
-import six
 from backports.tempfile import TemporaryDirectory
 from mock import patch
 
@@ -11,7 +12,7 @@ from oasislmf.utils.exceptions import OasisException
 
 
 def get_command(src_dir=None, dst_dir=None, extras=None):
-    kwargs_str = ' '.join('--{} {}'.format(k, v) for k, v in six.iteritems(extras or {}))
+    kwargs_str = ' '.join('--{} {}'.format(k, v) for k, v in iteritems(extras or {}))
 
     return RootCmd(argv='bin build {} {} {}'.format(kwargs_str, src_dir or '', dst_dir or '').split())
 

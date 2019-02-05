@@ -9,11 +9,11 @@ import shutil
 import string
 
 from collections import OrderedDict
+from future.utils import itervalues
 from unittest import TestCase
 
 import pandas as pd
 import pytest
-import six
 
 from backports.tempfile import TemporaryDirectory
 from hypothesis import (
@@ -155,7 +155,7 @@ class FmAcceptanceTests(TestCase):
 
             gul_inputs = self.manager.write_gul_input_files(oasis_model=model)
 
-            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(gul_inputs)))
+            self.assertTrue(all(os.path.exists(p) for p in itervalues(gul_inputs)))
 
             guls = pd.merge(
                 pd.merge(pd.read_csv(gul_inputs['items']), pd.read_csv(gul_inputs['coverages']), left_on='coverage_id', right_on='coverage_id'),
@@ -189,7 +189,7 @@ class FmAcceptanceTests(TestCase):
 
             fm_inputs = self.manager.write_fm_input_files(oasis_model=model)
 
-            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_inputs)))
+            self.assertTrue(all(os.path.exists(p) for p in itervalues(fm_inputs)))
 
             fm_programme_df = pd.read_csv(fm_inputs['fm_programme'])
             level_groups = [group for _, group in fm_programme_df.groupby(['level_id'])]
@@ -342,7 +342,7 @@ class FmAcceptanceTests(TestCase):
 
             gul_inputs = self.manager.write_gul_input_files(oasis_model=model)
 
-            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(gul_inputs)))
+            self.assertTrue(all(os.path.exists(p) for p in itervalues(gul_inputs)))
 
             guls = pd.merge(
                 pd.merge(pd.read_csv(gul_inputs['items']), pd.read_csv(gul_inputs['coverages']), left_on='coverage_id', right_on='coverage_id'),
@@ -376,7 +376,7 @@ class FmAcceptanceTests(TestCase):
 
             fm_inputs = self.manager.write_fm_input_files(oasis_model=model)
 
-            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_inputs)))
+            self.assertTrue(all(os.path.exists(p) for p in itervalues(fm_inputs)))
 
             fm_programme_df = pd.read_csv(fm_inputs['fm_programme'])
             level_groups = [group for _, group in fm_programme_df.groupby(['level_id'])]
@@ -538,7 +538,7 @@ class FmAcceptanceTests(TestCase):
 
             gul_inputs = self.manager.write_gul_input_files(oasis_model=model)
 
-            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(gul_inputs)))
+            self.assertTrue(all(os.path.exists(p) for p in itervalues(gul_inputs)))
 
             guls = pd.merge(
                 pd.merge(pd.read_csv(gul_inputs['items']), pd.read_csv(gul_inputs['coverages']), left_on='coverage_id', right_on='coverage_id'),
@@ -572,7 +572,7 @@ class FmAcceptanceTests(TestCase):
 
             fm_inputs = self.manager.write_fm_input_files(oasis_model=model)
 
-            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_inputs)))
+            self.assertTrue(all(os.path.exists(p) for p in itervalues(fm_inputs)))
 
             fm_programme_df = pd.read_csv(fm_inputs['fm_programme'])
             level_groups = [group for _, group in fm_programme_df.groupby(['level_id'])]
@@ -746,7 +746,7 @@ class FmAcceptanceTests(TestCase):
 
             gul_inputs = self.manager.write_gul_input_files(oasis_model=model)
 
-            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(gul_inputs)))
+            self.assertTrue(all(os.path.exists(p) for p in itervalues(gul_inputs)))
 
             guls = pd.merge(
                 pd.merge(pd.read_csv(gul_inputs['items']), pd.read_csv(gul_inputs['coverages']), left_on='coverage_id', right_on='coverage_id'),
@@ -793,7 +793,7 @@ class FmAcceptanceTests(TestCase):
 
             fm_inputs = self.manager.write_fm_input_files(oasis_model=model)
 
-            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_inputs)))
+            self.assertTrue(all(os.path.exists(p) for p in itervalues(fm_inputs)))
 
             fm_programme_df = pd.read_csv(fm_inputs['fm_programme'])
             level_groups = [group for _, group in fm_programme_df.groupby(['level_id'])]
@@ -971,7 +971,7 @@ class FmAcceptanceTests(TestCase):
 
             gul_inputs = self.manager.write_gul_input_files(oasis_model=model)
 
-            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(gul_inputs)))
+            self.assertTrue(all(os.path.exists(p) for p in itervalues(gul_inputs)))
 
             guls = pd.merge(
                 pd.merge(pd.read_csv(gul_inputs['items']), pd.read_csv(gul_inputs['coverages']), left_on='coverage_id', right_on='coverage_id'),
@@ -1018,7 +1018,7 @@ class FmAcceptanceTests(TestCase):
 
             fm_inputs = self.manager.write_fm_input_files(oasis_model=model)
 
-            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_inputs)))
+            self.assertTrue(all(os.path.exists(p) for p in itervalues(fm_inputs)))
 
             fm_programme_df = pd.read_csv(fm_inputs['fm_programme'])
             level_groups = [group for _, group in fm_programme_df.groupby(['level_id'])]
@@ -1198,7 +1198,7 @@ class FmAcceptanceTests(TestCase):
 
             gul_inputs = self.manager.write_gul_input_files(oasis_model=model)
 
-            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(gul_inputs)))
+            self.assertTrue(all(os.path.exists(p) for p in itervalues(gul_inputs)))
 
             guls = pd.merge(
                 pd.merge(pd.read_csv(gul_inputs['items']), pd.read_csv(gul_inputs['coverages']), left_on='coverage_id', right_on='coverage_id'),
@@ -1225,7 +1225,7 @@ class FmAcceptanceTests(TestCase):
 
             fm_inputs = self.manager.write_fm_input_files(oasis_model=model)
 
-            self.assertTrue(all(os.path.exists(p) for p in six.itervalues(fm_inputs)))
+            self.assertTrue(all(os.path.exists(p) for p in itervalues(fm_inputs)))
 
             fm_programme_df = pd.read_csv(fm_inputs['fm_programme'])
             level_groups = [group for _, group in fm_programme_df.groupby(['level_id'])]

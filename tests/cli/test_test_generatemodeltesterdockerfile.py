@@ -6,8 +6,8 @@ from unittest import TestCase
 import os
 import io
 
-import six
 from backports.tempfile import TemporaryDirectory
+from future.utils import iteritems
 from hypothesis import given
 from hypothesis.strategies import text
 
@@ -17,7 +17,7 @@ from oasislmf import __version__
 
 class GenerateModelTesterDockerfileRun(TestCase):
     def get_command(self, api_server_url='http://localhost:8001', extras=None):
-        kwargs_str = ' '.join('--{} {}'.format(k, v) for k, v in six.iteritems(extras or {}))
+        kwargs_str = ' '.join('--{} {}'.format(k, v) for k, v in iteritems(extras or {}))
 
         return RootCmd(argv='test gen-model-tester-dockerfile {} {}'.format(kwargs_str, api_server_url).split())
 

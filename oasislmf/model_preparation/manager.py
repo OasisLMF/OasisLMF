@@ -13,7 +13,12 @@ import logging
 import multiprocessing
 import os
 import shutil
-import six
+
+from future.utils import (
+    viewitems,
+    viewkeys,
+    viewvalues,
+)
 
 import pandas as pd
 
@@ -599,10 +604,10 @@ class OasisManager(implements(OasisManagerInterface)):
 
         profile = None
         if profile_json:
-            profile = {int(k): v for k, v in six.iteritems(json.loads(profile_json))}
+            profile = {int(k): v for k, v in viewitems(json.loads(profile_json))}
         elif profile_path:
             with io.open(profile_path, 'r', encoding='utf-8') as f:
-                profile = {int(k): v for k, v in six.iteritems(json.load(f))}
+                profile = {int(k): v for k, v in viewitems(json.load(f))}
 
         if oasis_model:
             oasis_model.resources['fm_agg_profile'] = profile
@@ -1031,10 +1036,10 @@ class OasisManager(implements(OasisManagerInterface)):
                 it['canacc_id'] = canacc_id
                 preset_items[layer_level][layer_level_min_idx + i] = it
 
-            for it in (it for c in itertools.chain(six.itervalues(preset_items[k]) for k in preset_items) for it in c):
+            for it in (it for c in itertools.chain(viewvalues(preset_items[k]) for k in preset_items) for it in c):
                 it['policy_num'] = canacc_df.iloc[it['canacc_id']]['policynum']
                 lfmaggkey = fmap[it['level_id']]['FMAggKey']
-                for v in six.itervalues(lfmaggkey):
+                for v in viewvalues(lfmaggkey):
                     src = v['src'].lower()
                     if src in ['canexp', 'canacc']:
                         f = v['field'].lower()
@@ -1192,7 +1197,7 @@ class OasisManager(implements(OasisManagerInterface)):
 
             def get_policytc_id(i):
                 return [
-                    k for k in six.iterkeys(policytc_ids) if policytc_ids[k] == {k: fm_items_df.iloc[i][k] for k in ('limit', 'deductible', 'attachment', 'deductible_min', 'deductible_max', 'share', 'calcrule_id',)}
+                    k for k in viewkeys(policytc_ids) if policytc_ids[k] == {k: fm_items_df.iloc[i][k] for k in ('limit', 'deductible', 'attachment', 'deductible_min', 'deductible_max', 'share', 'calcrule_id',)}
                 ][0]
 
             fm_items_df['policytc_id'] = fm_items_df['index'].apply(lambda i: get_policytc_id(i))

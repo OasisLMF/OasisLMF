@@ -32,13 +32,12 @@ __all__ = [
 
 import copy
 import itertools
-import six
 import string
-import six
 
 from itertools import chain
 from chainmap import ChainMap
 from collections import OrderedDict
+from future.utils import itervalues
 
 import pandas as pd
 
@@ -798,14 +797,14 @@ fm_level_names = tuple(k.capitalize() for k in OASIS_FM_LEVELS)
 fm_levels_simple = tuple(
     t for t in set(
         t.get('FMLevel')
-        for t in itertools.chain(six.itervalues(canonical_exposure_profile_simple), six.itervalues(canonical_accounts_profile))
+        for t in itertools.chain(itervalues(canonical_exposure_profile_simple), itervalues(canonical_accounts_profile))
     ) if t
 )
 
 fm_level_names_simple = tuple(
     t[0] for t in sorted([t for t in set(
         (t.get('FMLevelName'), t.get('FMLevel'))
-        for t in itertools.chain(six.itervalues(canonical_exposure_profile_simple), six.itervalues(canonical_accounts_profile))
+        for t in itertools.chain(itervalues(canonical_exposure_profile_simple), itervalues(canonical_accounts_profile))
     ) if t != (None,None)], key=lambda t: t[1])
 )
 
@@ -823,7 +822,7 @@ ECHO_CONVERSION_INPUT_FILES = {k: ChainMap({'conversion_tool': 'echo'}, v) for k
 
 def standard_input_files(min_size=0):
     return lists(
-        sampled_from([target['name'] for target in chain(six.itervalues(GUL_INPUT_FILES), six.itervalues(OPTIONAL_INPUT_FILES))]),
+        sampled_from([target['name'] for target in chain(itervalues(GUL_INPUT_FILES), itervalues(OPTIONAL_INPUT_FILES))]),
         min_size=min_size,
         unique=True,
     )
@@ -831,7 +830,7 @@ def standard_input_files(min_size=0):
 
 def il_input_files(min_size=0):
     return lists(
-        sampled_from([target['name'] for target in six.itervalues(IL_INPUT_FILES)]),
+        sampled_from([target['name'] for target in itervalues(IL_INPUT_FILES)]),
         min_size=min_size,
         unique=True,
     )
@@ -839,7 +838,7 @@ def il_input_files(min_size=0):
 
 def tar_file_targets(min_size=0):
     return lists(
-        sampled_from([target['name'] + '.bin' for target in six.itervalues(INPUT_FILES)]),
+        sampled_from([target['name'] + '.bin' for target in itervalues(INPUT_FILES)]),
         min_size=min_size,
         unique=True,
     )

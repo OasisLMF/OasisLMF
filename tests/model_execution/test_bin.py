@@ -1,20 +1,23 @@
 from __future__ import unicode_literals
 
+import io
 import glob
+import os
+import subprocess
 import tarfile
-from tempfile import NamedTemporaryFile
 
-import pytest 
-import six
 from itertools import chain
 from backports.tempfile import TemporaryDirectory
+from future.utils import (
+    iterkeys,
+    itervalues,
+)
+from copy import copy, deepcopy
+from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
-import os
-import io
-import subprocess
+import pytest 
 
-from copy import copy, deepcopy
 from hypothesis import (
     given,
     HealthCheck,
@@ -213,7 +216,7 @@ class CreateBinaryTarFile(TestCase):
 class CheckConversionTools(TestCase):
     def test_do_il_is_false_il_tools_are_missing___result_is_true(self):
         existing_conversions = deepcopy(INPUT_FILES)
-        for value in six.itervalues(existing_conversions):
+        for value in itervalues(existing_conversions):
             if value['type'] == 'il':
                 value['conversion_tool'] = 'missing_executable'
             else:
@@ -224,7 +227,7 @@ class CheckConversionTools(TestCase):
 
     def test_do_il_is_false_il_tools_are_present_but_non_il_are_missing___errors_is_raised(self):
         existing_conversions = deepcopy(INPUT_FILES)
-        for value in six.itervalues(existing_conversions):
+        for value in itervalues(existing_conversions):
             if value['type'] == 'il':
                 value['conversion_tool'] = 'pytohn'
             else:
@@ -236,7 +239,7 @@ class CheckConversionTools(TestCase):
 
     def test_do_il_is_true_il_tools_are_missing___error_is_raised(self):
         existing_conversions = deepcopy(INPUT_FILES)
-        for value in six.itervalues(existing_conversions):
+        for value in itervalues(existing_conversions):
             if value['type'] == 'il':
                 value['conversion_tool'] = 'missing_executable'
             else:
@@ -248,7 +251,7 @@ class CheckConversionTools(TestCase):
 
     def test_do_il_is_true_non_il_are_missing___errror_is_raised(self):
         existing_conversions = deepcopy(INPUT_FILES)
-        for value in six.itervalues(existing_conversions):
+        for value in itervalues(existing_conversions):
             if value['type'] == 'il':
                 value['conversion_tool'] = 'pytohn'
             else:
@@ -285,7 +288,7 @@ class CheckInputDirectory(TestCase):
 
     def test_do_is_is_false_non_il_input_files_are_present___no_exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for input_file in six.itervalues(GUL_INPUT_FILES):
+            for input_file in itervalues(GUL_INPUT_FILES):
                 Path(os.path.join(d, input_file['name'] + '.csv')).touch()
 
             try:
@@ -300,7 +303,7 @@ class CheckInputDirectory(TestCase):
 
     def test_do_il_is_true_gul_input_files_are_missing__exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for p in six.itervalues(IL_INPUT_FILES):
+            for p in itervalues(IL_INPUT_FILES):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
 
             with self.assertRaises(OasisException):
@@ -308,7 +311,7 @@ class CheckInputDirectory(TestCase):
 
     def test_do_il_is_true_il_input_files_are_missing__exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for p in six.itervalues(GUL_INPUT_FILES):
+            for p in itervalues(GUL_INPUT_FILES):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
 
             with self.assertRaises(OasisException):
@@ -316,7 +319,7 @@ class CheckInputDirectory(TestCase):
 
     def test_do_il_is_true_all_input_files_are_present___no_exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for p in chain(six.itervalues(GUL_INPUT_FILES), six.itervalues(IL_INPUT_FILES)):
+            for p in chain(itervalues(GUL_INPUT_FILES), itervalues(IL_INPUT_FILES)):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
 
             try:
@@ -326,10 +329,10 @@ class CheckInputDirectory(TestCase):
 
     def test_do_il_is_false_il_bin_files_are_present___no_exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for p in chain(six.itervalues(GUL_INPUT_FILES), six.itervalues(IL_INPUT_FILES)):
+            for p in chain(itervalues(GUL_INPUT_FILES), itervalues(IL_INPUT_FILES)):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
 
-            for p in six.itervalues(IL_INPUT_FILES):
+            for p in itervalues(IL_INPUT_FILES):
                 Path(os.path.join(d, p['name'] + '.bin')).touch()
 
             try:
@@ -339,10 +342,10 @@ class CheckInputDirectory(TestCase):
 
     def test_do_il_is_false_gul_bin_files_are_present___exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for p in chain(six.itervalues(GUL_INPUT_FILES), six.itervalues(IL_INPUT_FILES)):
+            for p in chain(itervalues(GUL_INPUT_FILES), itervalues(IL_INPUT_FILES)):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
 
-            for p in six.itervalues(GUL_INPUT_FILES):
+            for p in itervalues(GUL_INPUT_FILES):
                 Path(os.path.join(d, p['name'] + '.bin')).touch()
 
             with self.assertRaises(OasisException):
@@ -350,10 +353,10 @@ class CheckInputDirectory(TestCase):
 
     def test_do_il_is_true_gul_bin_files_are_present___exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for p in chain(six.itervalues(GUL_INPUT_FILES), six.itervalues(IL_INPUT_FILES)):
+            for p in chain(itervalues(GUL_INPUT_FILES), itervalues(IL_INPUT_FILES)):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
 
-            for p in six.itervalues(GUL_INPUT_FILES):
+            for p in itervalues(GUL_INPUT_FILES):
                 Path(os.path.join(d, p['name'] + '.bin')).touch()
 
             with self.assertRaises(OasisException):
@@ -361,10 +364,10 @@ class CheckInputDirectory(TestCase):
 
     def test_do_il_is_true_il_bin_files_are_present___exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for p in chain(six.itervalues(GUL_INPUT_FILES), six.itervalues(IL_INPUT_FILES)):
+            for p in chain(itervalues(GUL_INPUT_FILES), itervalues(IL_INPUT_FILES)):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
 
-            for p in six.itervalues(IL_INPUT_FILES):
+            for p in itervalues(IL_INPUT_FILES):
                 Path(os.path.join(d, p['name'] + '.bin')).touch()
 
             with self.assertRaises(OasisException):
@@ -372,10 +375,10 @@ class CheckInputDirectory(TestCase):
 
     def test_do_il_is_true_no_bin_files_are_present___no_exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for p in chain(six.itervalues(GUL_INPUT_FILES), six.itervalues(IL_INPUT_FILES)):
+            for p in chain(itervalues(GUL_INPUT_FILES), itervalues(IL_INPUT_FILES)):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
 
-            for p in six.itervalues(IL_INPUT_FILES):
+            for p in itervalues(IL_INPUT_FILES):
                 Path(os.path.join(d, p['name'] + '.bin')).touch()
 
             try:
@@ -385,10 +388,10 @@ class CheckInputDirectory(TestCase):
 
     def test_do_il_is_true_bin_files_are_present_but_check_bin_files_are_true___no_exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for p in six.itervalues(INPUT_FILES):
+            for p in itervalues(INPUT_FILES):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
 
-            for p in six.itervalues(INPUT_FILES):
+            for p in itervalues(INPUT_FILES):
                 Path(os.path.join(d, p['name'] + '.bin')).touch()
 
             try:
@@ -398,10 +401,10 @@ class CheckInputDirectory(TestCase):
 
     def test_check_gul_and_il_and_single_ri_directory_structure(self):
         with TemporaryDirectory() as d:
-            for p in six.itervalues(INPUT_FILES):
+            for p in itervalues(INPUT_FILES):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
             os.mkdir(os.path.join(d, "RI_1"))
-            for p in six.itervalues(INPUT_FILES):
+            for p in itervalues(INPUT_FILES):
                 f = os.path.join(d, "RI_1", p['name'] + '.csv')
                 Path(f).touch()
             try:
@@ -411,11 +414,11 @@ class CheckInputDirectory(TestCase):
                 
     def test_check_gul_and_il_and_single_ri_directory_structure_binaries_fail(self):
         with TemporaryDirectory() as d:
-            for p in six.itervalues(INPUT_FILES):
+            for p in itervalues(INPUT_FILES):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
                 Path(os.path.join(d, p['name'] + '.bin')).touch()
             os.mkdir(os.path.join(d, "RI_1"))
-            for p in six.itervalues(INPUT_FILES):
+            for p in itervalues(INPUT_FILES):
                 Path(os.path.join(d, "RI_1", p['name'] + '.csv')).touch()
                 Path(os.path.join(d, "RI_1", p['name'] + '.bin')).touch()
 
@@ -425,12 +428,12 @@ class CheckInputDirectory(TestCase):
 #    @pytest.mark.flaky()
 #    def test_check_gul_and_il_and_single_ri_directory_structure_missing_file_fail(self):
 #        with TemporaryDirectory() as d:
-#            for p in six.itervalues(INPUT_FILES):
+#            for p in itervalues(INPUT_FILES):
 #                Path(os.path.join(d, p['name'] + '.csv')).touch()
 #            os.mkdir(os.path.join(d, "RI_1"))
 #            # Skip the first files
 #            first = True
-#            for p in six.itervalues(INPUT_FILES):
+#            for p in itervalues(INPUT_FILES):
 #                if not first:
 #                    Path(os.path.join(d, "RI_1", p['name'] + '.csv')).touch()
 #                first = False
@@ -440,15 +443,15 @@ class CheckInputDirectory(TestCase):
 
     def test_check_gul_and_il_and_multiple_ri_directories(self):
         with TemporaryDirectory() as d:
-            for p in six.itervalues(INPUT_FILES):
+            for p in itervalues(INPUT_FILES):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
             
             os.mkdir(os.path.join(d, "RI_1"))
-            for p in six.itervalues(INPUT_FILES):
+            for p in itervalues(INPUT_FILES):
                 Path(os.path.join(d, "RI_1", p['name'] + '.csv')).touch()
             
             os.mkdir(os.path.join(d, "RI_2"))
-            for p in six.itervalues(INPUT_FILES):
+            for p in itervalues(INPUT_FILES):
                 Path(os.path.join(d, "RI_2", p['name'] + '.csv')).touch()
 
             try:
@@ -458,15 +461,15 @@ class CheckInputDirectory(TestCase):
 
     def test_check_gul_and_il_and_multiple_ri_directories_binaries_fail(self):
         with TemporaryDirectory() as d:
-            for p in six.itervalues(INPUT_FILES):
+            for p in itervalues(INPUT_FILES):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
                 Path(os.path.join(d, p['name'] + '.bin')).touch()
             os.mkdir(os.path.join(d, "RI_1"))
-            for p in six.itervalues(INPUT_FILES):
+            for p in itervalues(INPUT_FILES):
                 Path(f = os.path.join(d, "RI_1", p['name'] + '.csv')).touch()
                 Path(f = os.path.join(d, "RI_1", p['name'] + '.bin')).touch()
             os.mkdir(os.path.join(d, "RI_2"))
-            for p in six.itervalues(INPUT_FILES):
+            for p in itervalues(INPUT_FILES):
                 Path(os.path.join(d, "RI_2", p['name'] + '.bin')).touch()
                 Path(os.path.join(d, "RI_2", p['name'] + '.bin')).touch()
 
@@ -740,13 +743,13 @@ class CleanBinDirectory(TestCase):
         with TemporaryDirectory() as d:
             Path(os.path.join(d, TAR_FILE)).touch()
 
-            for f in six.iterkeys(INPUT_FILES):
+            for f in iterkeys(INPUT_FILES):
                 Path(os.path.join(d, f + '.bin')).touch()
 
             cleanup_bin_directory(d)
 
             self.assertFalse(os.path.exists(os.path.join(d, TAR_FILE)))
-            for f in six.iterkeys(INPUT_FILES):
+            for f in iterkeys(INPUT_FILES):
                 self.assertFalse(os.path.exists(os.path.join(d, f + '.bin')))
 
 
@@ -756,7 +759,7 @@ class CheckBinTarFile(TestCase):
             tar_file_name = os.path.join(d, 'exposures.tar')
 
             with tarfile.open(tar_file_name, 'w', encoding='utf-8') as tar:
-                for f in six.itervalues(GUL_INPUT_FILES):
+                for f in itervalues(GUL_INPUT_FILES):
                     Path(os.path.join(d, '{}.bin'.format(f['name']))).touch()
 
                 tar.add(d, arcname='/')
@@ -768,7 +771,7 @@ class CheckBinTarFile(TestCase):
             tar_file_name = os.path.join(d, 'exposures.tar')
 
             with tarfile.open(tar_file_name, 'w', encoding='utf-8') as tar:
-                for f in six.itervalues(INPUT_FILES):
+                for f in itervalues(INPUT_FILES):
                     Path(os.path.join(d, '{}.bin'.format(f['name']))).touch()
 
                 tar.add(d, arcname='/')
@@ -776,14 +779,14 @@ class CheckBinTarFile(TestCase):
             self.assertTrue(check_binary_tar_file(tar_file_name, check_il=True))
 
     @given(
-        lists(sampled_from([f['name'] for f in chain(six.itervalues(GUL_INPUT_FILES), six.itervalues(IL_INPUT_FILES))]), min_size=1, unique=True)
+        lists(sampled_from([f['name'] for f in chain(itervalues(GUL_INPUT_FILES), itervalues(IL_INPUT_FILES))]), min_size=1, unique=True)
     )
     def test_some_files_are_missing_check_il_is_true___error_is_raised(self, missing):
         with TemporaryDirectory() as d:
             tar_file_name = os.path.join(d, 'exposures.tar')
 
             with tarfile.open(tar_file_name, 'w', encoding='utf-8') as tar:
-                for f in six.itervalues(INPUT_FILES):
+                for f in itervalues(INPUT_FILES):
                     if f['name'] in missing:
                         continue
 

@@ -9,16 +9,19 @@ __all__ = [
 """
 Logging utils.
 """
-import os
-from six.moves import zip
-import six
-
 import inspect
 import logging
+import os
 import time
 
 from functools import wraps
+from future.utils import viewitems
 from logging.handlers import RotatingFileHandler
+
+from six.moves import zip
+import six
+
+
 
 
 def getargspec(func):
@@ -96,7 +99,7 @@ def oasis_log(*args, **kwargs):
             args_name = getargspec(func)[0]
             args_dict = dict(zip(args_name, args))
 
-            for key, value in six.iteritems(args_dict):
+            for key, value in viewitems(args_dict):
                 if key == "self":
                     continue
                 logger.debug("    {} == {}".format(key, value))
@@ -104,7 +107,7 @@ def oasis_log(*args, **kwargs):
             if len(args) > len(args_name):
                 for i in range(len(args_name), len(args)):
                     logger.debug("    {}".format(args[i]))
-            for key, value in six.iteritems(kwargs):
+            for key, value in viewitems(kwargs):
                 logger.debug("    {} == {}".format(key, value))
 
             start = time.time()

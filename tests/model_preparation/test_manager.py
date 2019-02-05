@@ -10,11 +10,11 @@ import string
 import sys
 
 from collections import OrderedDict
+from future.utils import iteritems
 from unittest import TestCase
 
 import pandas as pd
 import pytest
-import six
 
 from backports.tempfile import TemporaryDirectory
 from tempfile import NamedTemporaryFile
@@ -955,8 +955,8 @@ class GetGulInputItems(TestCase):
         profile = copy.deepcopy(self.profile)
         _p =copy.deepcopy(profile)
 
-        for _k, _v in six.iteritems(_p):
-            for __k, __v in six.iteritems(_v):
+        for _k, _v in iteritems(_p):
+            for __k, __v in iteritems(_v):
                 if 'FM' in __k:
                     profile[_k].pop(__k)
 
@@ -1297,13 +1297,13 @@ class GetFmInputItems(TestCase):
         _cep =copy.deepcopy(cep)
         _cap =copy.deepcopy(cap)
 
-        for _k, _v in six.iteritems(_cep):
-            for __k, __v in six.iteritems(_v):
+        for _k, _v in iteritems(_cep):
+            for __k, __v in iteritems(_v):
                 if 'FM' in __k:
                     cep[_k].pop(__k)
 
-        for _k, _v in six.iteritems(_cap):
-            for __k, __v in six.iteritems(_v):
+        for _k, _v in iteritems(_cap):
+            for __k, __v in iteritems(_v):
                 if 'FM' in __k:
                     cap[_k].pop(__k)
 

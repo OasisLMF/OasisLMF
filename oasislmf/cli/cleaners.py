@@ -1,6 +1,6 @@
 import os
 
-from oasislmf.utils.exceptions import OasisException
+from ..utils.exceptions import OasisException
 
 
 def as_path(value, name, preexists=True):

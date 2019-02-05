@@ -17,8 +17,6 @@ from six import u as _unicode
 
 from pathlib2 import Path
 
-from .base import OasisBaseCommand, InputValues
-from .cleaners import as_path
 from ..model_preparation.csv_trans import Translator
 from ..model_preparation.lookup import OasisLookupFactory as olf
 from ..model_preparation.manager import OasisManager as om
@@ -38,6 +36,9 @@ from ..utils.oed_profiles import (
 from ..utils.path import setcwd
 from ..utils.peril import PerilAreasIndex
 from ..utils.values import get_utctimestamp
+
+from .base import OasisBaseCommand, InputValues
+from .cleaners import as_path
 
 
 class GeneratePerilAreasRtreeFileIndexCmd(OasisBaseCommand):
