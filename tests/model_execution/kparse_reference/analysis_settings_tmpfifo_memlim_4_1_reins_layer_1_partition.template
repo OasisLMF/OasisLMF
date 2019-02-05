@@ -77,6 +77,10 @@ eve 1 1 | getmodel | gulcalc -S0 -L0 -r -c /tmp/%FIFO_DIR%/fifo/gul_P1 -i - | fm
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12
 
 
+# --- Remove per process memory limit ---
+
+ulimit -v $(ktgetmem 1)
+
 # --- Do reinsurance loss kats ---
 
 kat work/kat/ri_S1_eltcalc_P1 > output/ri_S1_eltcalc.csv & kpid1=$!
