@@ -97,11 +97,12 @@ def generate_files_for_reinsurance(
         coverages,
         fm_xrefs,
         xref_descriptions,
-        gulsummaryxref,
-        fmsummaryxref,
         ri_info_df,
         ri_scope_df,
-        direct_oasis_files_dir):
+        direct_oasis_files_dir,
+        gulsummaryxref=pd.DataFrame(),
+        fmsummaryxref=pd.DataFrame()):
+
     """
     Generate files for reinsurance.
     """
