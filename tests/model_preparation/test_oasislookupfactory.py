@@ -10,6 +10,7 @@ from collections import OrderedDict
 from unittest import TestCase
 
 import pandas as pd
+from six import u as _unicode
 
 from backports.tempfile import TemporaryDirectory
 from hypothesis import (
@@ -105,7 +106,7 @@ class OasisLookupFactoryGetModelExposure(TestCase):
 
     @given(lists(tuples(integers(min_value=0, max_value=100), integers(min_value=0, max_value=100))))
     def test_file_is_provided___file_content_is_loaded(self, data):
-        data = [('first', 'second')] + data
+        columns = [('first', 'second')] + data
 
         with NamedTemporaryFile('w') as f:
             csv.writer(f).writerows(data)
@@ -116,17 +117,15 @@ class OasisLookupFactoryGetModelExposure(TestCase):
 
             self.assertEqual(res, data)
 
-    @given(lists(tuples(integers(min_value=0, max_value=100), integers(min_value=0, max_value=100))))
-    def test_exposure_string_is_provided___file_content_is_loaded(self, data):
-        stream = io.StringIO()
-        data = [('first', 'second')] + data
+    def test_exposure_string_is_provided___file_content_is_loaded(self):
 
-        csv.writer(stream).writerows(data)
+        data = [{'1': 1, '2': 2}]
 
-        res = OasisLookupFactory.get_model_exposure(model_exposure=stream.getvalue())
-        res = [tuple(res)] + [tuple(res.iloc[i]) for i in range(len(res))]
+        exposure_str = _unicode(pd.DataFrame(data=data).to_csv(index=False))
 
-        self.assertEqual(res, data)
+        res_str = OasisLookupFactory.get_model_exposure(model_exposure=exposure_str).to_csv(index=False)
+
+        self.assertEqual(exposure_str, res_str)
 
 
 class OasisLookupFactoryWriteOasisKeysFiles(TestCase):
