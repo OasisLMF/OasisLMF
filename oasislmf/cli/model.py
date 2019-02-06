@@ -17,7 +17,6 @@ from six import u as _unicode
 
 from pathlib2 import Path
 
-from ..model_preparation.csv_trans import Translator
 from ..model_preparation.lookup import OasisLookupFactory as olf
 from ..model_preparation.manager import OasisManager as om
 from ..model_preparation.reinsurance_layer import (
@@ -177,153 +176,6 @@ class GeneratePerilAreasRtreeFileIndexCmd(OasisBaseCommand):
         )
 
         self.logger.info('\nSuccessfully generated index files {}.{{idx.dat}}'.format(index_fp))
-
-
-class TransformSourceToCanonicalFileCmd(OasisBaseCommand):
-    """
-    Transform a source exposure/accounts file (in EDM or OED format) to a canonical
-    Oasis format.
-
-    Calling syntax is::
-
-        oasislmf model transform-source-to-canonical
-            [-C /path/to/configuration/file] |
-            -s /path/to/source/file
-            -y 'exposures'|'accounts'
-            [-v /path/to/validation/file]
-            -x /path/to/transformation/file
-            [-o /path/to/output/file]
-    """
-    formatter_class = RawDescriptionHelpFormatter
-
-    def add_args(self, parser):
-        """
-        Adds arguments to the argument parser.
-
-        :param parser: The argument parser object
-        :type parser: ArgumentParser
-        """
-        super(self.__class__, self).add_args(parser)
-
-        parser.add_argument(
-            '-s', '--source-file-path', default=None,
-            help='Source file path',
-        )
-        parser.add_argument(
-            '-y', '--source-file-type', default='exposures',
-            help='Type of source file - exposures or accounts',
-        )
-        parser.add_argument(
-            '-v', '--validation-file-path', default=None, required=False,
-            help='XSD validation file path (optional argument)',
-        )
-        parser.add_argument(
-            '-x', '--transformation-file-path', default=None,
-            help='XSLT transformation file path',
-        )
-        parser.add_argument(
-            '-o', '--output-file-path', default=None,
-            help='Output file path',
-        )
-
-    def action(self, args):
-        """
-        Transform a source exposure/accounts file (in EDM or OED format) to a canonical
-        Oasis format.
-
-        :param args: The arguments from the command line
-        :type args: Namespace
-        """
-        inputs = InputValues(args)
-
-        source_file_path = as_path(inputs.get('source_file_path', required=True, is_path=True), 'Source file path')
-        source_file_type = inputs.get('source_file_type', default='exposures')
-
-        _sft = 'exp' if source_file_type == 'exposures' else 'acc'
-        _utc = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-
-        validation_file_path = as_path(inputs.get('validation_file_path', required=False, is_path=True), 'XSD validation file path')
-        transformation_file_path = as_path(inputs.get('transformation_file_path', required=True, is_path=True), 'XSLT transformation file path')
-
-        output_file_path = as_path(inputs.get('output_file_path', required=False, is_path=True, default='can{}-{}.csv'.format(_sft, _utc)), 'Output file path', preexists=False)
-
-        self.logger.info('\nGenerating a canonical {} file {} from source {} file {}'.format(_sft, output_file_path, _sft, source_file_path))
-
-        translator = Translator(source_file_path, output_file_path, transformation_file_path, xsd_path=validation_file_path, append_row_nums=True)
-
-        translator()
-
-        self.logger.info('\nOutput file {} successfully generated'.format(output_file_path))
-
-
-class TransformCanonicalToModelFileCmd(OasisBaseCommand):
-    """
-    Transform a canonical exposure file (in EDM or OED format) to a "model"
-    format suitable for the model lookup.
-
-    Calling syntax is::
-
-        oasislmf model transform-canonical-to-model
-            [-C /path/to/configuration/file] |
-            -c /path/to/canonical/file
-            [-v /path/to/validation/file]
-            -x /path/to/transformation/file
-            [-o /path/to/output/file]
-    """
-    formatter_class = RawDescriptionHelpFormatter
-
-    def add_args(self, parser):
-        """
-        Adds arguments to the argument parser.
-
-        :param parser: The argument parser object
-        :type parser: ArgumentParser
-        """
-        super(self.__class__, self).add_args(parser)
-
-        parser.add_argument(
-            '-c', '--canonical-file-path', default=None,
-            help='Canonical exposure file path',
-        )
-        parser.add_argument(
-            '-v', '--validation-file-path', default=None, required=False,
-            help='XSD validation file path (optional argument)',
-        )
-        parser.add_argument(
-            '-x', '--transformation-file-path', default=None,
-            help='XSLT transformation file path',
-        )
-        parser.add_argument(
-            '-o', '--output-file-path', default=None,
-            help='Output file path',
-        )
-
-    def action(self, args):
-        """
-        Transform a canonical exposure file (in EDM or OED format) to a "model"
-        format suitable for the model lookup.
-
-        :param args: The arguments from the command line
-        :type args: Namespace
-        """
-        inputs = InputValues(args)
-
-        canonical_file_path = as_path(inputs.get('canonical_file_path', required=True, is_path=True), 'Canonical exposure file path')
-
-        _utc = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-
-        validation_file_path = as_path(inputs.get('validation_file_path', required=False, is_path=True), 'XSD validation file path')
-        transformation_file_path = as_path(inputs.get('transformation_file_path', required=True, is_path=True), 'XSLT transformation file path')
-
-        output_file_path = as_path(inputs.get('output_file_path', required=False, is_path=True, default='modexp-{}.csv'.format(_utc)), 'Output file path', preexists=False)
-
-        self.logger.info('\nGenerating a model exposure file {} from canonical exposure file {}'.format(output_file_path, canonical_file_path))
-
-        translator = Translator(canonical_file_path, output_file_path, transformation_file_path, xsd_path=validation_file_path ,append_row_nums=True)
-
-        translator()
-
-        self.logger.info('\nOutput file {} successfully generated'.format(output_file_path))
 
 
 class GenerateKeysCmd(OasisBaseCommand):
@@ -1013,8 +865,6 @@ class ModelsCmd(OasisBaseCommand):
         * running a model end-to-end
     """
     sub_commands = {
-        'transform-source-to-canonical': TransformSourceToCanonicalFileCmd,
-        'transform-canonical-to-model': TransformCanonicalToModelFileCmd,
         'generate-peril-areas-rtree-file-index': GeneratePerilAreasRtreeFileIndexCmd,
         'generate-keys': GenerateKeysCmd,
         'generate-oasis-files': GenerateOasisFilesCmd,
