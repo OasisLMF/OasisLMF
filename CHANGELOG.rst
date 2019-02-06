@@ -1,6 +1,12 @@
 OasisLMF Changelog
 ==================
 
+`1.2.6`_
+--------
+* Added Reinsurance to CLI
+* Added Ktools run options to CLI
+* Fix for Ktools Memory limits in Genbash
+
 `1.2.5`_
 --------
 * Fix for setting Alloc Rule in genbash
@@ -177,6 +183,7 @@ in the exposure manager
 
 
 
+.. _`1.2.6`:  https://github.com/OasisLMF/OasisLMF/compare/1.2.5...1.2.6
 .. _`1.2.5`:  https://github.com/OasisLMF/OasisLMF/compare/1.2.4...1.2.5
 .. _`1.2.4`:  https://github.com/OasisLMF/OasisLMF/compare/1.2.3...1.2.4
 .. _`1.2.3`:  https://github.com/OasisLMF/OasisLMF/compare/1.2.2...1.2.3
