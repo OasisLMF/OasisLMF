@@ -83,11 +83,10 @@ node {
             }
         }
         
-        stage('Run MDK: ' + model_func) {
+        stage('Run MDK: PiWind') {
             dir(build_workspace) {
                 String PIWIND_BRANCH='master'
                 String MDK_RUN='ri'
-
                 sh 'docker build -f docker/Dockerfile.mdk-tester -t mdk-runner .'
                 sh "docker run mdk-runner --model-repo-branch ${PIWIND_BRANCH} --mdk-repo-branch ${source_branch} --model-run-mode ${MDK_RUN}"
             }
