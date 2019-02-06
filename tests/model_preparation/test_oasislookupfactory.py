@@ -103,7 +103,7 @@ class OasisLookupFactoryGetModelExposure(TestCase):
         with self.assertRaises(OasisException):
             OasisLookupFactory.get_model_exposure()
 
-    @given(lists(tuples(integers(min_value=0, max_value=100), integers(min_value=0, max_value=100))))
+    @given(lists(tuples(integers(min_value=0, max_value=100), integers(min_value=0, max_value=100)), min_size=1, max_size=10))
     def test_file_is_provided___file_content_is_loaded(self, data):
         columns = ['first', 'second']
 
@@ -117,7 +117,7 @@ class OasisLookupFactoryGetModelExposure(TestCase):
 
             self.assertEqual(exposure_str, res_str)
 
-    @given(lists(tuples(integers(min_value=0, max_value=100), integers(min_value=0, max_value=100))))
+    @given(lists(tuples(integers(min_value=0, max_value=100), integers(min_value=0, max_value=100)), min_size=1, max_size=10))
     def test_exposure_string_is_provided___file_content_is_loaded(self, data):
 
         columns=['first', 'second']
