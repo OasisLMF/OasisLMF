@@ -31,7 +31,7 @@ from hypothesis.strategies import (
     text,
     tuples,
 )
-from pandas.testing import assert_frame_equal
+
 from tabulate import tabulate
 from tempfile import NamedTemporaryFile
 
@@ -50,9 +50,9 @@ from oasislmf.utils.metadata import (
     OED_PERILS,
 )
 
-from ..models.fakes import fake_model
+from ...models.fakes import fake_model
 
-from ..data import (
+from ...data import (
     canonical_oed_accounts,
     canonical_oed_accounts_profile,
     canonical_oed_exposure,
