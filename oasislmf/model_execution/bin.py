@@ -9,6 +9,7 @@ from __future__ import print_function
 
 import glob
 import logging
+import re
 import shutilwhich
 import tarfile
 
@@ -44,17 +45,45 @@ def prepare_model_run_directory(
 ):
     """
     Ensures that the model run directory has the correct folder structure in
-    order for the model run script (ktools) to be executed.
+    order for the model run script (ktools) to be executed. Without the RI
+    flag the model run directory will have the following structure
+
+    ::
+
+        <run_directory>
+        ├── fifo/
+        ├── input/
+        │   └── csv/
+        ├── output/
+        ├── static/
+        └── work/
+        ├── analysis_settings.json
+        └── run_ktools.sh
+
+
+    where the direct GUL and/or FM input files exist in the ``input/csv``
+    subfolder and the corresponding binaries exist in the ``input`` subfolder.
+
+    With the RI flag the model run directory has the following structure
 
     ::
 
         <run_directory>
         ├── fifo
         ├── input
-        │   └── csv
+        ├── RI_1
+        ├── RI_2
+        ├── ...
         ├── output
         ├── static
         └── work
+        └── ri_layers.json
+        ├── analysis_settings.json
+        └── run_ktools.sh
+
+    where the direct GUL and/or FM input files, and the corresponding binaries
+    exist in the ``input`` subfolder, and the RI layer input files and binaries
+    exist in the ``RI`` prefixed subfolders.
 
     If any subfolders are missing they are created.
 
@@ -87,6 +116,7 @@ def prepare_model_run_directory(
     :param inputs_archive: path to a tar file containing input files
     :type inputs_archive: str
     """
+    #import ipdb; ipdb.set_trace()
     try:
         for subdir in ['fifo', 'output', 'static', 'work']:
             Path(run_dir_path, subdir).mkdir(parents=True, exist_ok=True)
@@ -99,9 +129,15 @@ def prepare_model_run_directory(
                 input_tarfile.extractall(path=p)
 
         oasis_files_destpath = os.path.join(run_dir_path, 'input', 'csv') if not ri else os.path.join(run_dir_path, 'input')
+
         if oasis_files_src_path and oasis_files_src_path != oasis_files_destpath:
             for p in os.listdir(oasis_files_src_path):
-                shutil.copy2(os.path.join(oasis_files_src_path, p), oasis_files_destpath)
+                src_fp = os.path.join(oasis_files_src_path, p)
+                if not (re.match(r'RI_\d+$', p) or p == 'ri_layers.json'):
+                    shutil.copy2(src_fp, oasis_files_destpath)
+                else:
+                    copy_func = shutil.copytree if re.match(r'RI_\d+$', p) else shutil.copy2
+                    copy_func(src_fp, os.path.join(run_dir_path, p))
 
         if analysis_settings_json_src_file_path:
             analysis_settings_json_dest_file_path = os.path.join(run_dir_path, 'analysis_settings.json')
