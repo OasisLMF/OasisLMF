@@ -416,12 +416,15 @@ class APIClient(object):
             sys.exit(1)
 
     def download_output(self, analysis_id, download_path, filename=None, clean_up=False, overwrite=False):
+        analysis = self.analyses.get(analysis_id).json()    
+
         if not filename:
             filename='analysis_{}_output'.format(analysis_id)
         try:
             output_file = os.path.join(download_path, filename + '.tar')
             r = self.analyses.output_file.download(analysis_id, output_file, overwrite)
-            self.logger.info('Output Downloaded: id={}, filename={}'.format(analysis_id, output_file))
+            r.raise_for_status()
+            self.logger.info('Analysis Download output: filename={}, (id={}'.format(output_file, analysis_id))
             if clean_up:
                 r = self.analyses.delete(analysis_id)
                 r = self.analyses.output_file.delete(analysis_id)
@@ -429,7 +432,7 @@ class APIClient(object):
         except HTTPError as e:
             err_msg = 'API Error: {}, url: {}, msg: {}'.format(r.status_code, r.url, r.text)
             self.logger.error(err_msg)
-            self.logger.error('download_output: Failed')
+            self.logger.error('Analysis Download output: Failed (id={})'.format(analysis_id))
             sys.exit(1)
 
 
