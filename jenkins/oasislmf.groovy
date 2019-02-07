@@ -6,15 +6,19 @@ node {
 
     // Set Default Multibranch config
     try {
-        auto_set_branch = CHANGE_BRANCH
-    } catch (MissingPropertyException e) {
-        auto_set_branch = BRANCH_NAME
+        source_branch = CHANGE_BRANCH
+    } catch (MissingPropertyException e1) {
+        try {
+            source_branch = BRANCH_NAME
+        } catch (MissingPropertyException e2) {
+             source_branch = ""
+        }
     }
 
     properties([
       parameters([
         [$class: 'StringParameterDefinition',  name: 'BUILD_BRANCH', defaultValue: 'master'],
-        [$class: 'StringParameterDefinition',  name: 'SOURCE_BRANCH', defaultValue: auto_set_branch],
+        [$class: 'StringParameterDefinition',  name: 'SOURCE_BRANCH', defaultValue: source_branch],
         [$class: 'StringParameterDefinition',  name: 'PUBLISH_VERSION', defaultValue: ''],
         [$class: 'StringParameterDefinition',  name: 'KTOOLS_VERSION', defaultValue: ''],
         [$class: 'StringParameterDefinition',  name: 'GPG_KEY', defaultValue: 'gpg-privatekey'],
