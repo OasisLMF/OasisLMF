@@ -626,26 +626,19 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             'Reinsurance scope file path'
         )
         
-        inferred_mdk_config = {
+        run_mdk_config = {
             "canonical_accounts_profile_path": canonical_accounts_profile_fp,
-            "canonical_exposure_profile_path": canonical_accounts_profile_fp,
-            "canonical_to_model_exposure_transformation_file_path": canonical_to_model_exposure_transformation_fp,
             "fm_agg_profile_path": fm_agg_profile_fp,
             "lookup_config_file_path": lookup_config_fp,
-            "keys_data_path": keys_data_fp,
-            "model_data_path": model_version_fp,
-            "lookup_package_path": lookup_package_fp,
             "ri_info_file_path": ri_info_fp,
             "ri_scope_file_path": ri_scope_fp,
             "source_accounts_file_path": source_accounts_fp,
-            "source_exposure_file_path": source_exposure_fp,
             "source_to_canonical_accounts_transformation_file_path": source_to_canonical_accounts_transformation_fp,
-            "source_to_canonical_exposure_transformation_file_path": source_to_canonical_exposure_transformation_fp
         }
 
-        model_run_mode = get_model_run_mode(mdk_config=inferred_mdk_config)
-        #fm = model_run_mode == 'fm'
-        ri = model_run_mode == 'ri'
+        run_mode = get_model_run_mode(mdk_config=run_mdk_config)
+        ri = run_mode == 'ri'
+        fm = run_mode in ['fm', 'ri']
 
         start_time = time.time()
         self.logger.info('\nStarting Oasis files generation (@ {}): GUL=True, FM={}, RI={}'.format(get_utctimestamp(), fm, ri))
