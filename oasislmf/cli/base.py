@@ -23,8 +23,10 @@ class InputValues(object):
         if os.path.exists(args.config):
             with io.open(args.config, 'r', encoding='utf-8') as f:
                 self.config = json.load(f)
+        else:
+            raise OasisException('MDK config. file path {} does not exist'.format(self.config_dir))
 
-    def get(self, name, default=None, required=False, is_path=False):
+    def get(self, name, default=None, required=False, call_dir=None, is_path=False):
         """
         Gets the names parameter from the command line arguments.
 
@@ -71,7 +73,7 @@ class InputValues(object):
             value = default
 
         if is_path and value is not None:
-            p = os.path.join(self.config_dir, value)
+            p = os.path.join(self.config_dir if not call_dir else call_dir, value)
             value = os.path.abspath(p) if not os.path.isabs(value) else p
 
         return value
