@@ -6,9 +6,6 @@ Deterministic loss validation
 # Python standard library imports
 import argparse
 import os
-import subprocess
-
-from shutil import copyfile
 
 # Custom library imports
 from tabulate import tabulate
