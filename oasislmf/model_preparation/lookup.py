@@ -44,6 +44,7 @@ if shapely_speedups.available:
 
 from rtree.core import RTreeError
 
+from ..cli.cleaners import as_path
 from ..utils.data import get_dataframe
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
@@ -60,34 +61,6 @@ from ..utils.values import is_string
 
 
 UNKNOWN_ID = -1
-
-def as_path(value, name, preexists=True):
-    """
-    Processes the path and returns the absolute path.
-
-    If the path does not exist and ``preexists`` is true
-    an ``OasisException`` is raised.
-
-    :param value: The path to process
-    :type value: str
-
-    :param name: The name of the path (used for error reporting)
-    :type name: str
-
-    :param preexists: Flag whether to raise an error if the path
-        does not exist.
-    :type preexists: bool
-
-    :return: The absolute path of the input path
-    """
-    if value is not None:
-        value = os.path.abspath(value) if not os.path.isabs(value) else value
-
-    if preexists and not (value is not None and os.path.exists(value)):
-        raise OasisException('{} does not exist: {}'.format(name, value))
-
-    return value
-
 
 class OasisBaseLookup(object):
 
@@ -501,7 +474,7 @@ class OasisLookupFactory(object):
         if not peril_config:
             raise OasisException('No peril config defined in the lookup config')
 
-        _source_exposure_fp = as_path(source_exposure_fp, 'source_exposure_fp', preexists=False)
+        _source_exposure_fp = as_path(source_exposure_fp, 'source_exposure_fp', preexists=(True if not source_exposure else False))
 
         loc_config = lookup.config.get('exposure') or {}
         src_type = 'csv'
@@ -516,7 +489,7 @@ class OasisLookupFactory(object):
             'sort_ascending': loc_config.get('sort_ascending')
         }
 
-        source_exposure_df =  get_dataframe(**kwargs)
+        source_exposure_df = get_dataframe(**kwargs)
 
         locations = (loc for _, loc in source_exposure_df.iterrows())
 
@@ -636,7 +609,7 @@ class OasisLookupFactory(object):
         if not (source_exposure or source_exposure_fp):
             raise OasisException('No source exposures data or file path provided')
 
-        mfp = as_path(source_exposure_fp, 'source_exposure_fp', preexists=False)
+        mfp = as_path(source_exposure_fp, 'source_exposure_fp', preexists=(True if not source_exposure else False))
 
         sfp = as_path(successes_fp, 'successes_fp', preexists=False)
         efp = as_path(errors_fp, 'errors_fp', preexists=False)
@@ -672,13 +645,6 @@ class OasisLookupFactory(object):
                 return fp1, n1, fp2, n2
             return cls.write_json_keys_file(successes, sfp)
         elif format == 'oasis':
-            loc_id_col = None
-            try:
-                loc_id_col = lookup.loc_id_col
-            except AttributeError:
-                loc_id_col = 'locnumber'
-            else:
-                loc_id_col = loc_id_col.lower()
             if efp:
                 fp1, n1 = cls.write_oasis_keys_file(successes, sfp, id_col=keys_id_col)
                 fp2, n2 = cls.write_oasis_keys_errors_file(nonsuccesses, efp, id_col=keys_id_col)

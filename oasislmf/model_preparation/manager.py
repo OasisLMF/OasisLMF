@@ -44,7 +44,7 @@ from ..utils.metadata import (
     OED_COVERAGE_TYPES,
 )
 from ..utils.values import get_utctimestamp
-from .lookup import OasisLookupFactory
+from .lookup import OasisLookupFactory as olf
 from .pipeline import OasisFilesPipeline
 
 
@@ -438,15 +438,17 @@ class OasisManager(implements(OasisManagerInterface)):
 
         source_exposure_fp = kwargs.get('source_exposure_file_path')
         lookup = kwargs.get('lookup')
+        keys_id_col = getattr(lookup, 'loc_id_col') or 'id'
         keys_fp = kwargs.get('keys_file_path')
         keys_errors_fp = kwargs.get('keys_errors_file_path')
 
         for p in (source_exposure_fp, keys_fp, keys_errors_fp,):
             p = os.path.abspath(p) if p and not os.path.isabs(p) else p
 
-        keys_fp, _, keys_errors_fp, _ = OasisLookupFactory().save_results(
+        keys_fp, _, keys_errors_fp, _ = olf.save_results(
             lookup,
-            keys_fp,
+            keys_id_col=keys_id_col,
+            successes_fp=keys_fp,
             errors_fp=keys_errors_fp,
             source_exposure_fp=source_exposure_fp
         )
