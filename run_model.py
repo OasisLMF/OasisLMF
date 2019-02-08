@@ -182,8 +182,6 @@ def model_run_ok(model_run_dir, model_run_mode):
             _fp = os.path.join(dir_name, fn)
             return os.path.getsize(_fp) > 0
 
-    #import ipdb; ipdb.set_trace()
-
     ri = model_run_mode == 'ri'
 
     assert(_is_non_empty_file(model_run_dir, is_dir=True))
@@ -196,8 +194,7 @@ def model_run_ok(model_run_dir, model_run_mode):
     assert(_is_non_empty_file(os.path.join(model_run_dir, 'run_ktools.sh')))
 
     direct_csv_inputs_fp = os.path.join(model_run_dir, 'input', 'csv') if not ri else os.path.join(model_run_dir, 'input')
-    assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'canexp'), prefix_match=True))
-    assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'modexp'), prefix_match=True))
+    assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'srcexp'), prefix_match=True))
     assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'oasiskeys'), prefix_match=True))
     assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'oasiskeys-errors'), prefix_match=True))
 
@@ -219,7 +216,7 @@ def model_run_ok(model_run_dir, model_run_mode):
     assert(_is_non_empty_file(os.path.join(outputs_fp, 'gul_S1_leccalc_full_uncertainty_oep.csv')))
 
     if model_run_mode in ['fm', 'ri']:
-        assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'canacc'), prefix_match=True))
+        assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'srcacc'), prefix_match=True))
 
         assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'fm_programme.csv')))
         assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'fm_profile.csv')))
