@@ -17,6 +17,7 @@ from tabulate import tabulate
 from oasislmf.model_preparation import oed
 from oasislmf.utils.deterministic_loss import (
     generate_oasis_files,
+    generate_binary_inputs,
     generate_losses,
 )
 
@@ -45,48 +46,20 @@ if __name__ == "__main__":
 
     loss_factor = args.loss_factor
 
-    # Create file paths for the source exposure + accounts files + transformation files
-    # and all these are assumed to be already present in the specified input directory
-    srcexp_fp = os.path.join(input_dir, 'location.csv')
-    srcexptocan_trans_fp = os.path.join(input_dir, 'MappingMapToOED_CanLocA.xslt')
-
-    srcacc_fp = os.path.join(input_dir, 'account.csv')
-    srcacctocan_trans_fp = os.path.join(input_dir, 'MappingMapToOED_CanAccA.xslt')
+    # Create file paths for the source exposure + accounts files -
+    # all these are assumed to be already present in the specified input directory
+    srcexp_fp = [os.path.join(input_dir, p) for p in os.listdir(input_dir) if p.startswith('location') or p.startswith('srcexp')][0]
+    srcacc_fp = [os.path.join(input_dir, p) for p in os.listdir(input_dir) if p.startswith('account') or p.startswith('srcacc')][0]
 
     # Start Oasis files generation
-    generate_oasis_files(
+    oasis_files = generate_oasis_files(
         input_dir,
         srcexp_fp,
-        srcexptocan_trans_fp,
-        srcacc_fp,
-        srcacctocan_trans_fp
+        srcacc_fp
     )
 
-    # copy the Oasis files to the output directory and convert to binary
-    input_files = oed.GUL_INPUTS_FILES + oed.IL_INPUTS_FILES
-
-    for input_file in input_files:
-        conversion_tool = oed.CONVERSION_TOOLS[input_file]
-        input_file_path = input_file + ".csv"
-
-        if not os.path.exists(os.path.join(input_dir, input_file_path)):
-            continue
-
-        copyfile(
-            os.path.join(input_dir, input_file_path),
-            os.path.join(output_dir, input_file_path)
-        )
-
-        input_file_path = os.path.join(output_dir, input_file_path)
-
-        output_file_path = os.path.join(output_dir, input_file + ".bin")
-        command = "{} < {} > {}".format(
-            conversion_tool, input_file_path, output_file_path)
-        proc = subprocess.Popen(command, shell=True)
-        proc.wait()
-        if proc.returncode != 0:
-            raise Exception(
-                "Failed to convert {}: {}".format(input_file_path, command))
+    # Generate the binary inputs from the Oasis files
+    generate_binary_inputs(input_dir, output_dir)
 
     losses_df = generate_losses(input_dir, output_dir, loss_percentage_of_tiv=loss_factor, print_losses=False)
     losses_df['event_id'] = losses_df['event_id'].astype(object)

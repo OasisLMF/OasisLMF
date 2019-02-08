@@ -102,7 +102,7 @@ def generate_oasis_files(
         fname = os.path.basename(fm_agg_prof_fp)
         if not os.path.exists(os.path.join(_target_dir, fname)):
             fm_agg_prof_fp = shutil.copy2(fm_agg_prof_fp, _target_dir)
-        _fm_agg_prof = manager.load_fm_aggregation_profile(fm_agg_prof_path=fm_agg_prof_fp)
+        _fm_agg_prof = manager.get_fm_aggregation_profile(fm_agg_prof_path=fm_agg_prof_fp)
     else:
         _fm_agg_prof = copy.deepcopy(fm_agg_prof)
 
@@ -149,7 +149,7 @@ def generate_oasis_files(
         gul_items_df,
         _exp_prof,
         _acc_prof,
-        canacc_fp,
+        _srcacc_fp,
         _fm_agg_prof
     )
     fm_inputs = {

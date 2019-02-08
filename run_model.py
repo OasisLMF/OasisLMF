@@ -125,7 +125,10 @@ def clone_repo(repo_name, target, repo_branch='master', user_or_org_name='OasisL
 
     os.chdir(target)
 
-    repo_url = 'git+{}://git@github.com/{}/{}'.format(transfer_protocol, user_or_org_name, repo_name)
+    repo_url = (
+        'git+ssh://git@github.com/{}/{}'.format(user_or_org_name, repo_name) if transfer_protocol == 'ssh'
+        else 'https://github.com/{}/{}'.format(user_or_org_name, repo_name)
+    )
 
     options_str = '-b {} --single-branch'.format(repo_branch)
 
