@@ -44,7 +44,6 @@ if shapely_speedups.available:
 
 from rtree.core import RTreeError
 
-from ..cli.cleaners import as_path
 from ..utils.data import get_dataframe
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
@@ -61,6 +60,36 @@ from ..utils.values import is_string
 
 
 UNKNOWN_ID = -1
+
+
+def as_path(value, name, preexists=True):
+    """
+    Processes the path and returns the absolute path.
+
+    If the path does not exist and ``preexists`` is true
+    an ``OasisException`` is raised.
+
+    :param value: The path to process
+    :type value: str
+
+    :param name: The name of the path (used for error reporting)
+    :type name: str
+
+    :param preexists: Flag whether to raise an error if the path
+        does not exist.
+    :type preexists: bool
+
+    :return: The absolute path of the input path
+    """
+    if not value:
+        return None
+    if not os.path.isabs(value):
+        value = os.path.abspath(value)
+    if preexists and not os.path.exists(value):
+        raise OasisException('{} does not exist: {}'.format(name, value))
+
+    return value
+
 
 class OasisBaseLookup(object):
 
