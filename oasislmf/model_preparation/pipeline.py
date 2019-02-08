@@ -13,18 +13,12 @@ class OasisFilesPipeline(object):
         model_key=None,
         source_exposure_file_path=None,
         source_accounts_file_path=None,
-        canonical_exposure_file_path=None,
-        canonical_accounts_file_path=None,
-        model_exposure_file_path=None,
         keys_file_path=None,
         keys_errors_file_path=None
     ):
         self._model_key = model_key
         self._source_exposure_file_path = source_exposure_file_path
         self._source_accounts_file_path = source_accounts_file_path
-        self._canonical_exposure_file_path = canonical_exposure_file_path
-        self._canonical_accounts_file_path = canonical_accounts_file_path
-        self._model_exposure_file_path = model_exposure_file_path
         self._keys_file_path = keys_file_path
         self._keys_errors_file_path = keys_errors_file_path
 
@@ -43,10 +37,7 @@ class OasisFilesPipeline(object):
             'source_accounts': self._source_accounts_file_path 
         }
 
-        self._intermediate_files = {
-            'canonical_exposure': self._canonical_exposure_file_path,
-            'canonical_accounts': self._canonical_accounts_file_path,
-            'model_exposure': self._model_exposure_file_path,
+        self._keys_files = {
             'keys': self._keys_file_path,
             'keys_errors': self._keys_errors_file_path
         }
@@ -88,7 +79,7 @@ class OasisFilesPipeline(object):
     @property
     def source_exposure_file_path(self):
         """
-        Source exposures file path property.
+        Source exposure file path property.
 
             :getter: Gets the file path
             :setter: Sets the current file path to the specified file path
@@ -114,48 +105,6 @@ class OasisFilesPipeline(object):
         self._source_accounts_file_path = self.source_files['source_accounts'] = p
 
     @property
-    def canonical_exposure_file_path(self):
-        """
-        Canonical exposures file path property.
-
-            :getter: Gets the file path
-            :setter: Sets the current file path to the specified file path
-        """
-        return self._canonical_exposure_file_path
-
-    @canonical_exposure_file_path.setter
-    def canonical_exposure_file_path(self, p):
-        self._canonical_exposure_file_path = self.intermediate_files['canonical_exposure'] = p
-
-    @property
-    def canonical_accounts_file_path(self):
-        """
-        Canonical accounts file path property.
-
-            :getter: Gets the file path
-            :setter: Sets the current file path to the specified file path
-        """
-        return self._canonical_accounts_file_path
-
-    @canonical_accounts_file_path.setter
-    def canonical_accounts_file_path(self, p):
-        self._canonical_accounts_file_path = self.intermediate_files['canonical_accounts'] = p
-
-    @property
-    def model_exposure_file_path(self):
-        """
-        Model exposures file path property.
-
-            :getter: Gets the file path
-            :setter: Sets the current file path to the specified file path
-        """
-        return self._model_exposure_file_path
-
-    @model_exposure_file_path.setter
-    def model_exposure_file_path(self, p):
-        self._model_exposure_file_path = self.intermediate_files['model_exposure'] = p
-
-    @property
     def keys_file_path(self):
         """
         Oasis keys file path property.
@@ -167,7 +116,7 @@ class OasisFilesPipeline(object):
 
     @keys_file_path.setter
     def keys_file_path(self, p):
-        self._keys_file_path = self.intermediate_files['keys'] = p
+        self._keys_file_path = self.keys_files['keys'] = p
 
     @property
     def keys_errors_file_path(self):
@@ -181,7 +130,7 @@ class OasisFilesPipeline(object):
 
     @keys_errors_file_path.setter
     def keys_errors_file_path(self, p):
-        self._keys_errors_file_path = self.intermediate_files['keys_errors'] = p
+        self._keys_errors_file_path = self.keys_files['keys_errors'] = p
 
     @property
     def items_file_path(self):
@@ -306,15 +255,14 @@ class OasisFilesPipeline(object):
         return self._source_files
 
     @property
-    def intermediate_files(self):
+    def keys_files(self):
         """
-        Oasis intermediate files set property - getter only.
+        Oasis keys files set property - getter only.
 
-            :getter: Gets the complete set of paths of the Oasis intermediate
-            files, including canonical and model exposures files, and keys
-            and keys errors files.
+            :getter: Gets the complete set of paths of the Oasis keys
+            files, including the main keys file and the keys errors file.
         """
-        return self._intermediate_files
+        return self._keys_files
 
     @property
     def gul_input_files(self):
@@ -358,19 +306,17 @@ class OasisFilesPipeline(object):
             :param files_subsets: List of files subset labels (if empty)
                                   then all files subsets are cleared)::
 
-                'source': source exposures file path + source accounts
+                'source': source exposure file path + source accounts
                                 file path
-                'intermediate': canonical exposures file path, model
-                                      exposures file path, keys file path,
-                                      keys errors file path
-                'gul': GUL files
-                'fm': FM files
-                `oasis`: GUL files + GM files
+                'keys':   keys file path, keys errors file path
+                'gul':    GUL input files
+                'fm':     FM input files
+                `oasis`:  GUL + FM input files
 
             :type files_subsets: list
         """
         if not files_subsets:
-            filenames = chain(self.source_files, self.intermediate_files, self.oasis_files)
+            filenames = chain(self.source_files, self.keys_files, self.oasis_files)
         else:
             filenames = chain(fn for fsb in files_subsets for fn in getattr(self, '{}_files'.format(fsb)))
 

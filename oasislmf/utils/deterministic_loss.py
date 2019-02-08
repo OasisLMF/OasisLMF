@@ -38,8 +38,8 @@ from .concurrency import (
 )
 from .exceptions import OasisException
 from .oed_profiles import (
-    get_default_canonical_oed_loc_profile,
-    get_default_canonical_oed_acc_profile,
+    get_default_source_oed_loc_profile,
+    get_default_source_oed_acc_profile,
     get_default_fm_oed_aggregation_profile,
 )
 
@@ -47,11 +47,9 @@ from .oed_profiles import (
 def generate_oasis_files(
     target_dir,
     srcexp_fp,
-    srcexptocan_trans_fp,
     srcacc_fp,
-    srcacctocan_trans_fp,
-    canexp_prof=get_default_canonical_oed_loc_profile(),
-    canacc_prof=get_default_canonical_oed_acc_profile(),
+    exp_prof=get_default_source_oed_loc_profile(),
+    acc_prof=get_default_source_oed_acc_profile(),
     fm_agg_prof=get_default_fm_oed_aggregation_profile()
 ):
     """
@@ -73,40 +71,30 @@ def generate_oasis_files(
     if not os.path.exists(os.path.join(_target_dir, fname)):
         _srcexp_fp = shutil.copy2(_srcexp_fp, _target_dir)
 
-    _srcexptocan_trans_fp = ''.join(srcexptocan_trans_fp) if os.path.isabs(srcexptocan_trans_fp) else os.path.abspath(''.join(srcexptocan_trans_fp))
-    fname = os.path.basename(_srcexptocan_trans_fp)
-    if not os.path.exists(os.path.join(_target_dir, fname)):
-        _srcexptocan_trans_fp = shutil.copy2(_srcexptocan_trans_fp, _target_dir)
-
     _srcacc_fp = ''.join(srcacc_fp) if os.path.isabs(srcacc_fp) else os.path.abspath(''.join(srcacc_fp))
     fname = os.path.basename(_srcacc_fp)
     if not os.path.exists(os.path.join(_target_dir, fname)):
         _srcacc_fp = shutil.copy2(_srcacc_fp, _target_dir)
 
-    _srcacctocan_trans_fp = ''.join(srcacctocan_trans_fp) if os.path.isabs(srcacctocan_trans_fp) else os.path.abspath(''.join(srcacctocan_trans_fp))
-    fname = os.path.basename(_srcacctocan_trans_fp)
-    if not os.path.exists(os.path.join(_target_dir, fname)):
-        _srcacctocan_trans_fp = shutil.copy2(_srcacctocan_trans_fp, _target_dir)
-
-    _canexp_prof = canexp_prof
-    if isinstance(_canexp_prof, string_types):
-        canexp_prof_fp = ''.join(_canexp_prof) if os.path.isabs(_canexp_prof) else os.path.abspath(''.join(_canexp_prof))
-        fname = os.path.basename(canexp_prof_fp)
+    _exp_prof = exp_prof
+    if isinstance(_exp_prof, string_types):
+        exp_prof_fp = ''.join(_exp_prof) if os.path.isabs(_exp_prof) else os.path.abspath(''.join(_exp_prof))
+        fname = os.path.basename(exp_prof_fp)
         if not os.path.exists(os.path.join(_target_dir, fname)):
-            canexp_prof_fp = shutil.copy2(canexp_prof_fp, _target_dir)
-        _canexp_prof = manager.load_canonical_exposure_profile(canonical_exposure_profile_path=canexp_prof_fp)
+            exp_prof_fp = shutil.copy2(exp_prof_fp, _target_dir)
+        _exp_prof = manager.get_exposure_profile(source_exposure_profile_path=exp_prof_fp)
     else:
-        _canexp_prof = copy.deepcopy(canexp_prof)
+        _exp_prof = copy.deepcopy(exp_prof)
 
-    _canacc_prof = canacc_prof
-    if isinstance(_canacc_prof, string_types):
-        canacc_prof_fp = ''.join(_canacc_prof) if os.path.isabs(_canacc_prof) else os.path.abspath(''.join(_canacc_prof))
-        fname = os.path.basename(canacc_prof_fp)
+    _acc_prof = acc_prof
+    if isinstance(_acc_prof, string_types):
+        acc_prof_fp = ''.join(_acc_prof) if os.path.isabs(_acc_prof) else os.path.abspath(''.join(_acc_prof))
+        fname = os.path.basename(acc_prof_fp)
         if not os.path.exists(os.path.join(_target_dir, fname)):
-            canacc_prof_fp = shutil.copy2(canacc_prof_fp, _target_dir)
-        _canacc_prof = manager.load_canonical_accounts_profile(canonical_accounts_profile_path=canacc_prof_fp)
+            acc_prof_fp = shutil.copy2(acc_prof_fp, _target_dir)
+        _acc_prof = manager.get_accounts_profile(source_accounts_profile_path=acc_prof_fp)
     else:
-        _canacc_prof = copy.deepcopy(canacc_prof)
+        _acc_prof = copy.deepcopy(acc_prof)
 
     _fm_agg_prof = fm_agg_prof
     if isinstance(_fm_agg_prof, string_types):
@@ -117,21 +105,6 @@ def generate_oasis_files(
         _fm_agg_prof = manager.load_fm_aggregation_profile(fm_agg_prof_path=fm_agg_prof_fp)
     else:
         _fm_agg_prof = copy.deepcopy(fm_agg_prof)
-
-    # Generate the canonical loc./exposure and accounts files from the source files (in ``target_dir``)
-    canexp_fp = os.path.join(target_dir, 'canexp.csv')
-    manager.transform_source_to_canonical(
-        source_exposure_file_path=_srcexp_fp,
-        source_to_canonical_exposure_transformation_file_path=_srcexptocan_trans_fp,
-        canonical_exposure_file_path=canexp_fp
-    )
-    canacc_fp = os.path.join(target_dir, 'canacc.csv')
-    manager.transform_source_to_canonical(
-        source_type='accounts',
-        source_accounts_file_path=_srcacc_fp,
-        source_to_canonical_accounts_transformation_file_path=_srcacctocan_trans_fp,
-        canonical_accounts_file_path=canacc_fp
-    )
 
     # Mock up the keys file (in ``target_dir``) - keys are generated for assumed
     # coverage type set of {1,2,3,4} present in the source exposure file. These
@@ -152,9 +125,9 @@ def generate_oasis_files(
     # Load the canonical profile from the file path argument
 
     # Generate the GUL files (in ``target_dir``)
-    gul_items_df, canexp_df = manager.get_gul_input_items(
-        _canexp_prof,
-        canexp_fp,
+    gul_items_df, exp_df = manager.get_gul_input_items(
+        _exp_prof,
+        _srcexp_fp,
         keys_fp
     )
     gul_inputs = {
@@ -171,11 +144,11 @@ def generate_oasis_files(
         pass
 
     # Generate the FM files (in ``target_dir``)
-    fm_items_df, canacc_df = manager.get_fm_input_items(
-        canexp_df,
+    fm_items_df, acc_df = manager.get_fm_input_items(
+        exp_df,
         gul_items_df,
-        _canexp_prof,
-        _canacc_prof,
+        _exp_prof,
+        _acc_prof,
         canacc_fp,
         _fm_agg_prof
     )

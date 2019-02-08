@@ -316,18 +316,16 @@ class OasisLookupFactory(object):
         )
 
     @classmethod
-    def get_model_exposure(cls, model_exposure=None, model_exposure_fp=None):
+    def get_source_exposure(cls, source_exposure=None, source_exposure_fp=None):
         """
-        Get the model exposures/location file data as a pandas dataframe given
-        either the path of the model exposures file or the string contents of
-        such a file.
+        Get the source OED exposure/location data as a Pandas dataframe.
         """
-        if model_exposure_fp:
-            loc_df = pd.read_csv(os.path.abspath(model_exposure_fp), float_precision='high')
-        elif model_exposure:
-            loc_df = pd.read_csv(io.StringIO(model_exposure), float_precision='high')
+        if source_exposure_fp:
+            loc_df = pd.read_csv(os.path.abspath(source_exposure_fp), float_precision='high')
+        elif source_exposure:
+            loc_df = pd.read_csv(io.StringIO(source_exposure), float_precision='high')
         else:
-            raise OasisException('Either the model exposure or exposure file path must be specified')
+            raise OasisException('Either the source exposure or exposure file path must be specified')
 
         loc_df = loc_df.where(loc_df.notnull(), None)
         loc_df.columns = loc_df.columns.str.lower()
@@ -335,7 +333,7 @@ class OasisLookupFactory(object):
         return loc_df
 
     @classmethod
-    def write_oasis_keys_file(cls, records, output_file_path, id_col='id'):
+    def write_oasis_keys_file(cls, records, output_file_path, id_col='locnumber'):
         """
         Writes an Oasis keys file from an iterable of keys records.
         """
@@ -360,7 +358,7 @@ class OasisLookupFactory(object):
         return output_file_path, len(records)
 
     @classmethod
-    def write_oasis_keys_errors_file(cls, records, output_file_path, id_col='id'):
+    def write_oasis_keys_errors_file(cls, records, output_file_path, id_col='locnumber'):
         """
         Writes an Oasis keys errors file from an iterable of keys records.
         """
@@ -403,7 +401,7 @@ class OasisLookupFactory(object):
         lookup_config_json=None,
         lookup_config_fp=None,
         lookup_type='combined',
-        loc_id_col='id'
+        loc_id_col='locnumber'
     ):
         """
         Creates a keys lookup class instance for the given model and supplier -
@@ -448,8 +446,8 @@ class OasisLookupFactory(object):
     def get_keys(
         cls,
         lookup=None,
-        model_exposure=None,
-        model_exposure_fp=None,
+        source_exposure=None,
+        source_exposure_fp=None,
         success_only=True
     ):
         """
@@ -462,15 +460,15 @@ class OasisLookupFactory(object):
         records with successful lookups should be returned (default), or all
         records.
         """
-        if not (model_exposure or model_exposure_fp):
-            raise OasisException('No model exposures provided')
+        if not (source_exposure or source_exposure_fp):
+            raise OasisException('No source exposures provided')
 
-        model_loc_df = cls.get_model_exposure(
-            model_exposure_fp=model_exposure_fp,
-            model_exposure=model_exposure
+        loc_df = cls.get_source_exposure(
+            source_exposure_fp=source_exposure_fp,
+            source_exposure=source_exposure
         )
 
-        for record in lookup.process_locations(model_loc_df):
+        for record in lookup.process_locations(loc_df):
             if success_only:
                 if record['status'].lower() == KEYS_STATUS_SUCCESS:
                     yield record
@@ -481,36 +479,36 @@ class OasisLookupFactory(object):
     def get_results(
         cls,
         lookup,
-        model_exposure=None,
-        model_exposure_fp=None,
+        source_exposure=None,
+        source_exposure_fp=None,
         successes_only=False,
         **kwargs
     ):
         """
         Generates lookup results (dicts) for the given model and supplier -
         requires a lookup instance (which can be created using the `create2`
-        method in this factory class), and the model exposures/locations
+        method in this factory class), and the source exposures/locations
         dataframe.
 
         The optional keyword argument ``success_only`` indicates whether only
         results with successful lookup status should be returned (default),
         or all results.
         """
-        if not (model_exposure or model_exposure_fp):
-            raise OasisException('No model exposures data or file path provided')
+        if not (source_exposure or source_exposure_fp):
+            raise OasisException('No source exposures data or file path provided')
 
         peril_config = lookup.config.get('peril')
         if not peril_config:
             raise OasisException('No peril config defined in the lookup config')
 
-        _model_exposure_fp = as_path(model_exposure_fp, 'model_exposure_fp', preexists=False)
+        _source_exposure_fp = as_path(source_exposure_fp, 'source_exposure_fp', preexists=False)
 
         loc_config = lookup.config.get('exposure') or {}
         src_type = 'csv'
 
         kwargs = {
-            'src_data': model_exposure,
-            'src_fp': _model_exposure_fp,
+            'src_data': source_exposure,
+            'src_fp': _source_exposure_fp,
             'src_type': 'csv',
             'non_na_cols': tuple(loc_config.get('non_na_cols') or ()),
             'col_dtypes': loc_config.get('col_dtypes') or {},
@@ -518,9 +516,9 @@ class OasisLookupFactory(object):
             'sort_ascending': loc_config.get('sort_ascending')
         }
 
-        model_exposure_df =  get_dataframe(**kwargs)
+        source_exposure_df =  get_dataframe(**kwargs)
 
-        locations = (loc for _, loc in model_exposure_df.iterrows())
+        locations = (loc for _, loc in source_exposure_df.iterrows())
 
         for result in lookup.bulk_lookup(locations):
             if successes_only:
@@ -537,8 +535,8 @@ class OasisLookupFactory(object):
         keys_file_path=None,
         keys_errors_file_path=None,
         keys_format='oasis',
-        model_exposure=None,
-        model_exposure_fp=None,
+        source_exposure=None,
+        source_exposure_fp=None,
     ):
         """
         Writes a keys file, and optionally a keys error file, for the keys
@@ -564,17 +562,17 @@ class OasisLookupFactory(object):
         the keys file, ``p2`` is the keys errors file path and ``n2`` is the
         number of "unsuccessful" keys records written to keys errors file.
         """
-        if not (model_exposure or model_exposure_fp):
-            raise OasisException('No model exposure or model exposure file path provided')
+        if not (source_exposure or source_exposure_fp):
+            raise OasisException('No source exposure or source exposure file path provided')
 
         _keys_file_path = as_path(keys_file_path, 'keys_file_path', preexists=False)
         _keys_errors_file_path = as_path(keys_errors_file_path, 'keys_errors_file_path', preexists=False)
-        _model_exposure_file_path = as_path(model_exposure_fp, 'model_exposure_fp', preexists=False)
+        _source_exposure_file_path = as_path(source_exposure_fp, 'source_exposure_fp', preexists=False)
 
         keys = cls.get_keys(
             lookup=lookup,
-            model_exposure=model_exposure,
-            model_exposure_fp=_model_exposure_file_path,
+            source_exposure=source_exposure,
+            source_exposure_fp=_source_exposure_file_path,
             success_only=(True if not keys_errors_file_path else False)
         )
 
@@ -606,8 +604,8 @@ class OasisLookupFactory(object):
         lookup,
         successes_fp,
         errors_fp=None,
-        model_exposure=None,
-        model_exposure_fp=None,
+        source_exposure=None,
+        source_exposure_fp=None,
         format='oasis'
     ):
         """
@@ -634,10 +632,10 @@ class OasisLookupFactory(object):
         the keys file, ``p2`` is the keys errors file path and ``n2`` is the
         number of "unsuccessful" keys records written to keys errors file.
         """
-        if not (model_exposure or model_exposure_fp):
-            raise OasisException('No model exposures data or file path provided')
+        if not (source_exposure or source_exposure_fp):
+            raise OasisException('No source exposures data or file path provided')
 
-        mfp = as_path(model_exposure_fp, 'model_exposure_fp', preexists=False)
+        mfp = as_path(source_exposure_fp, 'source_exposure_fp', preexists=False)
 
         sfp = as_path(successes_fp, 'successes_fp', preexists=False)
         efp = as_path(errors_fp, 'errors_fp', preexists=False)
@@ -649,15 +647,15 @@ class OasisLookupFactory(object):
         except AttributeError:
             results = cls.get_keys(
                 lookup=lookup,
-                model_exposure=model_exposure,
-                model_exposure_fp=mfp,
+                source_exposure=source_exposure,
+                source_exposure_fp=mfp,
                 success_only=(False if efp else True)
             )
         else:
             results = cls.get_results(
                 lookup,
-                model_exposure=model_exposure,
-                model_exposure_fp=mfp,
+                source_exposure=source_exposure,
+                source_exposure_fp=mfp,
                 successes_only=(False if efp else True)
             )
 
@@ -677,7 +675,7 @@ class OasisLookupFactory(object):
             try:
                 loc_id_col = lookup.loc_id_col
             except AttributeError:
-                loc_id_col = 'id'
+                loc_id_col = 'locnumber'
             else:
                 loc_id_col = loc_id_col.lower()
             if efp:
@@ -706,7 +704,7 @@ class OasisLookup(OasisBaseLookup):
         peril_areas_index_props=None,
         loc_to_global_areas_boundary_min_distance=0,
         vulnerabilities=None,
-        loc_id_col='id'
+        loc_id_col='locnumber'
     ):
         super(self.__class__, self).__init__(
             config=config,
@@ -820,7 +818,7 @@ class OasisPerilLookup(OasisBaseLookup):
         peril_areas_index=None,
         peril_areas_index_fp=None,
         peril_areas_index_props=None,
-        loc_id_col='id'
+        loc_id_col='locnumber'
     ):
         super(self.__class__, self).__init__(config=config, config_json=config_json, config_fp=config_fp, config_dir=config_dir)
 
@@ -993,7 +991,7 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
         config_fp=None,
         config_dir=None,
         vulnerabilities=None,
-        loc_id_col='id'
+        loc_id_col='locnumber'
     ):
         super(self.__class__, self).__init__(config=config, config_json=config_json, config_fp=config_fp, config_dir=config_dir)
 
