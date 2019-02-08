@@ -125,7 +125,7 @@ class OasisBaseLookup(object):
         self.__tweak_config_data__()
 
     def __tweak_config_data__(self):
-        for section in ('locations', 'peril', 'vulnerability',):
+        for section in ('exposure', 'peril', 'vulnerability',):
             section_config = self._config.get(section) or {}
             for k, v in viewitems(section_config):
                 if is_string(v) and '%%KEYS_DATA_PATH%%' in v:
@@ -505,7 +505,7 @@ class OasisLookupFactory(object):
 
         _model_exposure_fp = as_path(model_exposure_fp, 'model_exposure_fp', preexists=False)
 
-        loc_config = lookup.config.get('locations') or {}
+        loc_config = lookup.config.get('exposure') or {}
         src_type = 'csv'
 
         kwargs = {
@@ -715,7 +715,7 @@ class OasisLookup(OasisBaseLookup):
             config_dir=config_dir,
         )
 
-        loc_config = self.config.get('locations')
+        loc_config = self.config.get('exposure')
         self.loc_id_col = str.lower(str(loc_config.get('id_col') or loc_id_col))
 
         self.peril_lookup = OasisPerilLookup(
@@ -863,12 +863,12 @@ class OasisPerilLookup(OasisBaseLookup):
                 self.config['peril'].get('loc_to_global_areas_boundary_min_distance') or 0
             )
 
-        if self.config.get('locations'):
-            self.loc_id_col = str.lower(str(self.config['locations'].get('id_col') or loc_id_col))
-            self.loc_coords_x_col = str.lower(str(self.config['locations'].get('coords_x_col')) or 'lon')
-            self.loc_coords_y_col = str.lower(str(self.config['locations'].get('coords_y_col')) or 'lat')
-            self.loc_coords_x_bounds = tuple(self.config['locations'].get('coords_x_bounds') or ()) or (-180, 180)
-            self.loc_coords_y_bounds = tuple(self.config['locations'].get('coords_y_bounds') or ()) or (-90, 90)
+        if self.config.get('exposure'):
+            self.loc_id_col = str.lower(str(self.config['exposure'].get('id_col') or loc_id_col))
+            self.loc_coords_x_col = str.lower(str(self.config['exposure'].get('coords_x_col')) or 'lon')
+            self.loc_coords_y_col = str.lower(str(self.config['exposure'].get('coords_y_col')) or 'lat')
+            self.loc_coords_x_bounds = tuple(self.config['exposure'].get('coords_x_bounds') or ()) or (-180, 180)
+            self.loc_coords_y_bounds = tuple(self.config['exposure'].get('coords_y_bounds') or ()) or (-90, 90)
 
     def lookup(self, loc, peril_id, coverage_type):
         """
@@ -1000,8 +1000,8 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
         if vulnerabilities or self.config.get('vulnerability'):
             self.col_dtypes, self.key_cols, self.vuln_id_col, self.vulnerabilities = self.get_vulnerabilities(vulnerabilities=vulnerabilities)
 
-        if self.config.get('locations'):
-            self.loc_id_col = str.lower(str(self.config['locations'].get('id_col') or loc_id_col))
+        if self.config.get('exposure'):
+            self.loc_id_col = str.lower(str(self.config['exposure'].get('id_col') or loc_id_col))
 
     @oasis_log()
     def get_vulnerabilities(self, vulnerabilities=None):
