@@ -7,7 +7,7 @@ import sys
 from argparsetree import BaseCommand
 
 from ..utils.exceptions import OasisException
-from .cleaners import PathCleaner
+from ..utils.path import PathCleaner
 
 
 class InputValues(object):
@@ -73,7 +73,7 @@ class InputValues(object):
             value = default
 
         if is_path and value is not None:
-            p = os.path.join(self.config_dir if not call_dir else call_dir, value)
+            p = os.path.join(self.config_dir if not call_dir else (call_dir if not os.path.isabs(value) else ''), value)
             value = os.path.abspath(p) if not os.path.isabs(value) else p
 
         return value

@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 from __future__ import unicode_literals, absolute_import
 
 __all__ = [
@@ -26,6 +24,7 @@ import uuid
 
 from collections import OrderedDict
 from future.utils import (
+    string_types,
     viewvalues,
     viewitems,
 )
@@ -51,12 +50,7 @@ from ..utils.peril import (
     DEFAULT_RTREE_INDEX_PROPS,
     PerilAreasIndex,
 )
-from ..utils.status import (
-    KEYS_STATUS_FAIL,
-    KEYS_STATUS_NOMATCH,
-    KEYS_STATUS_SUCCESS,
-)
-from ..utils.values import is_string
+from ..utils.metadata import OASIS_KEYS_STATUS
 
 
 UNKNOWN_ID = -1
@@ -130,13 +124,13 @@ class OasisBaseLookup(object):
         for section in ('exposure', 'peril', 'vulnerability',):
             section_config = self._config.get(section) or {}
             for k, v in viewitems(section_config):
-                if is_string(v) and '%%KEYS_DATA_PATH%%' in v:
+                if isinstance(v, string_types) and '%%KEYS_DATA_PATH%%' in v:
                     self._config[section][k] = v.replace('%%KEYS_DATA_PATH%%', self._config['keys_data_path'])
                 elif type(v) == list:
                     self._config[section][k] = tuple(v)
                 elif isinstance(v, dict):
                     for _k, _v in viewitems(v):
-                        if is_string(_v) and '%%KEYS_DATA_PATH%%' in _v:
+                        if isinstance(_v, string_types) and '%%KEYS_DATA_PATH%%' in _v:
                             self._config[section][k][_k] = _v.replace('%%KEYS_DATA_PATH%%', self._config['keys_data_path'])
 
     @property
@@ -263,8 +257,8 @@ class OasisBaseKeysLookup(object):  # pragma: no cover
         Determine the status of the keys lookup.
         """
         if ap_id == UNKNOWN_ID or vul_id == UNKNOWN_ID:
-            return KEYS_STATUS_NOMATCH
-        return KEYS_STATUS_SUCCESS
+            return OASIS_KEYS_STATUS['nomatch']['id']
+        return OASIS_KEYS_STATUS['success']['id']
 
 
 class OasisLookupFactory(object):
@@ -335,7 +329,7 @@ class OasisLookupFactory(object):
         return loc_df
 
     @classmethod
-    def write_oasis_keys_file(cls, records, output_file_path, id_col='id'):
+    def write_oasis_keys_file(cls, records, output_file_path, id_col='locnumber'):
         """
         Writes an Oasis keys file from an iterable of keys records.
         """
@@ -360,7 +354,7 @@ class OasisLookupFactory(object):
         return output_file_path, len(records)
 
     @classmethod
-    def write_oasis_keys_errors_file(cls, records, output_file_path, id_col='id'):
+    def write_oasis_keys_errors_file(cls, records, output_file_path, id_col='locnumber'):
         """
         Writes an Oasis keys errors file from an iterable of keys records.
         """
@@ -472,7 +466,7 @@ class OasisLookupFactory(object):
 
         for record in lookup.process_locations(loc_df):
             if success_only:
-                if record['status'].lower() == KEYS_STATUS_SUCCESS:
+                if record['status'].lower() == OASIS_KEYS_STATUS['success']['id']:
                     yield record
             else:
                 yield record
@@ -524,7 +518,7 @@ class OasisLookupFactory(object):
 
         for result in lookup.bulk_lookup(locations):
             if successes_only:
-                if result['status'].lower() == KEYS_STATUS_SUCCESS:
+                if result['status'].lower() == OASIS_KEYS_STATUS['success']['id']:
                     yield result
             else:
                 yield result
@@ -533,7 +527,7 @@ class OasisLookupFactory(object):
     def save_keys(
         cls,
         lookup=None,
-        keys_id_col='id',
+        keys_id_col='locnumber',
         keys_file_path=None,
         keys_errors_file_path=None,
         keys_format='oasis',
@@ -581,7 +575,7 @@ class OasisLookupFactory(object):
         successes = []
         nonsuccesses = []
         for k in keys:
-            successes.append(k) if k['status'] == KEYS_STATUS_SUCCESS else nonsuccesses.append(k)
+            successes.append(k) if k['status'] == OASIS_KEYS_STATUS['success']['id'] else nonsuccesses.append(k)
 
         if keys_format == 'json':
             if _keys_error_file_path:
@@ -604,7 +598,7 @@ class OasisLookupFactory(object):
     def save_results(
         cls,
         lookup,
-        keys_id_col='id',
+        keys_id_col='locnumber',
         successes_fp=None,
         errors_fp=None,
         source_exposure=None,
@@ -665,7 +659,7 @@ class OasisLookupFactory(object):
         successes = []
         nonsuccesses = []
         for r in results:
-            successes.append(r) if r['status'] == KEYS_STATUS_SUCCESS else nonsuccesses.append(r)
+            successes.append(r) if r['status'] == OASIS_KEYS_STATUS['success']['id'] else nonsuccesses.append(r)
 
         if format == 'json':
             if efp:
@@ -758,8 +752,8 @@ class OasisLookup(OasisBaseLookup):
         # Could optionally call the status lookup method, but faster
         # to avoid or minimise outside function calls in a `for` loop
         status = (
-            KEYS_STATUS_SUCCESS if past == vlnst == KEYS_STATUS_SUCCESS
-            else (KEYS_STATUS_FAIL if (past == KEYS_STATUS_FAIL or vlnst == KEYS_STATUS_FAIL) else KEYS_STATUS_NOMATCH)
+            OASIS_KEYS_STATUS['success']['id'] if past == vlnst == OASIS_KEYS_STATUS['success']['id']
+            else (OASIS_KEYS_STATUS['fail']['id'] if (past == OASIS_KEYS_STATUS['fail']['id'] or vlnst == OASIS_KEYS_STATUS['fail']['id']) else OASIS_KEYS_STATUS['nomatch']['id'])
         )
         
         message = '{}; {}'.format(pamsg, vlnmsg)
@@ -911,9 +905,9 @@ class OasisPerilLookup(OasisBaseLookup):
                 'Peril area lookup: invalid {}/{} ({}, {}) - {}'
                 .format(loc_x_col, loc_y_col, x, y, str(e))
             )
-            return _lookup(loc_id, x, y, KEYS_STATUS_FAIL, peril_id, coverage_type, None, None, None, msg)
+            return _lookup(loc_id, x, y, OASIS_KEYS_STATUS['fail']['id'], peril_id, coverage_type, None, None, None, msg)
 
-        st = KEYS_STATUS_NOMATCH
+        st = OASIS_KEYS_STATUS['nomatch']['id']
         msg = 'No peril area match'
         paid = None
         pabnds = None
@@ -947,7 +941,7 @@ class OasisPerilLookup(OasisBaseLookup):
 
                 if paid == None:
                     msg = 'No intersecting or nearest peril area found for peril ID {} and coverage type {}'.format(peril_id, coverage_type)
-                    return _lookup(loc_id, x, y, KEYS_STATUS_NOMATCH, peril_id, coverage_type, None, None, None, msg)
+                    return _lookup(loc_id, x, y, OASIS_KEYS_STATUS['nomatch']['id'], peril_id, coverage_type, None, None, None, msg)
             except IndexError:
                 pass
             else:
@@ -960,15 +954,15 @@ class OasisPerilLookup(OasisBaseLookup):
                         'distance is {} units'
                         .format(min_dist, loc_to_areas_min_dist)
                     )
-                    return _lookup(loc_id, x, y, KEYS_STATUS_FAIL, peril_id, coverage_type, None, None, None, msg)
-                st = KEYS_STATUS_SUCCESS
+                    return _lookup(loc_id, x, y, OASIS_KEYS_STATUS['fail']['id'], peril_id, coverage_type, None, None, None, msg)
+                st = OASIS_KEYS_STATUS['success']['id']
                 msg = (
                     'Successful peril area lookup: {}'.format(paid)
                 )
         except RTreeError as e:
-            return _lookup(loc_id, x, y, KEYS_STATUS_FAIL, peril_id, coverage_type, None, None, None, str(e))
+            return _lookup(loc_id, x, y, OASIS_KEYS_STATUS['fail']['id'], peril_id, coverage_type, None, None, None, str(e))
         else:
-            st = KEYS_STATUS_SUCCESS
+            st = OASIS_KEYS_STATUS['success']['id']
             msg = 'Successful peril area lookup: {}'.format(paid)
 
         return _lookup(loc_id, x, y, st, peril_id, coverage_type, paid, pabnds, pacoords, msg)
@@ -1126,11 +1120,11 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
                 key_col_dtype = col_dtypes[key_col]
                 key_col_dtype(loc_key_col_values[key_col])
         except (TypeError, ValueError):
-            return _lookup(loc_id, peril_id, coverage_type, KEYS_STATUS_FAIL, None, 'Vulnerability lookup: invalid key column value(s) for location')
+            return _lookup(loc_id, peril_id, coverage_type, OASIS_KEYS_STATUS['fail']['id'], None, 'Vulnerability lookup: invalid key column value(s) for location')
 
         vlnperid = peril_id
         vlncovtype = coverage_type
-        vlnst = KEYS_STATUS_NOMATCH
+        vlnst = OASIS_KEYS_STATUS['nomatch']['id']
         vlnmsg = 'No vulnerability match'
         vlnid = None
 
@@ -1144,7 +1138,7 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
         else:
             vlnperid = peril_id
             vlncovtype = coverage_type
-            vlnst = KEYS_STATUS_SUCCESS
+            vlnst = OASIS_KEYS_STATUS['success']['id']
             vlnmsg = 'Successful vulnerability lookup: {}'.format(vlnid)
 
         return _lookup(loc_id, vlnperid, vlncovtype, vlnst, vlnid, vlnmsg)

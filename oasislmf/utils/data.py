@@ -1,13 +1,16 @@
 # -*- coding: utf-8 -*-
 
 __all__ = [
-    'get_dataframe'
+    'get_dataframe',
+    'get_json'
 ]
 
 import builtins
 import io
+import json
 
 from future.utils import viewitems
+from json import JSONDecodeError
 
 import pandas as pd
 
@@ -20,14 +23,16 @@ def get_dataframe(
     src_buf=None,
     src_data=None,
     float_precision='high',
+    empty_data_error_msg=None,
     lowercase_cols=True,
+    replace_nans_by_none=True,
     required_cols=[],
     defaulted_cols={},
     non_na_cols=(),
     col_dtypes={},
     index_col=True,
     sort_col=None,
-    sort_ascending=None,
+    sort_ascending=None
 ):
     if not (src_fp or src_buf or src_data is not None):
         raise OasisException(
@@ -48,8 +53,14 @@ def get_dataframe(
     elif src_data and (isinstance(src_data, list) or isinstance(src_data, pd.DataFrame)):
         df = pd.DataFrame(data=src_data, dtype=object)
 
+    if empty_data_error_msg and len(df) == 0:
+        raise OasisException(empty_data_error_msg)
+
     if lowercase_cols:
         df.columns = df.columns.str.lower()
+
+    if replace_nans_by_none:
+        df = df.where(df.notnull(), None)
 
     if required_cols:
         _required_cols = [c.lower() for c in required_cols] if lowercase_cols else required_cols
@@ -94,3 +105,23 @@ def get_dataframe(
         df.sort_values(_sort_col, axis=0, ascending=sort_ascending, inplace=True)
 
     return df
+
+
+def get_json(
+        src_fp=None,
+        src_json=None,
+        key_transform=None
+    ):
+
+    if not (src_fp or src_json):
+        raise OasisException('Either a valid JSON file path or JSON string must be provided')
+
+    di = None
+
+    if src_fp:
+        with io.open(src_fp, 'r', encoding='utf-8') as f:
+            di = json.load(f)
+    else:
+        di = json.loads(src_json)
+
+    return di if not key_transform else {key_transform(k): v for k, v in viewitems(di)}

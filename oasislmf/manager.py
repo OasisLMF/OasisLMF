@@ -1,1785 +1,600 @@
-# -*- coding: utf-8 -*-
+from __future__ import (
+    print_function,
+    unicode_literals,
+)
 
 __all__ = [
-    'OasisManagerInterface',
     'OasisManager'
 ]
 
 import copy
 import io
-import itertools
 import json
 import logging
 import multiprocessing
 import os
+import re
 import shutil
 
-from future.utils import (
-    viewitems,
-    viewkeys,
-    viewvalues,
+from builtins import str
+from collections import OrderedDict
+from future.utils import viewitems
+
+from itertools import (
+    chain,
+    product,
 )
 
 import pandas as pd
 
-from interface import (
-    Interface,
-    implements,
-)
+from pathlib2 import Path
+from six import u as _unicode
+from tabulate import tabulate
 
-from ..models import OasisModel
-from ..utils.concurrency import (
+from .cli.base import InputValues
+from .model_execution import runner
+from .model_execution.bin import (
+    csv_to_bin,
+    prepare_model_run_directory,
+    prepare_model_run_inputs,
+)
+from .model_preparation.lookup import OasisLookupFactory as olf
+from .model_preparation.gul_inputs import write_gul_input_files
+from .model_preparation.il_inputs import write_il_input_files
+from .model_preparation.reinsurance_layer import write_ri_input_files
+from .utils.concurrency import (
     multiprocess,
     multithread,
     Task,
 )
-from ..utils.exceptions import OasisException
-from ..utils.fm import (
-    unified_fm_profile_by_level_and_term_group,
-    get_fm_terms_by_level_as_list,
-    get_policytc_ids,
+from .utils.data import get_json
+from .utils.exceptions import OasisException
+from .utils.metadata import OED_COVERAGE_TYPES
+from .utils.oed_profiles import (
+    get_default_accounts_profile,
+    get_default_exposure_profile,
+    get_default_fm_aggregation_profile,
 )
-from ..utils.metadata import (
-    OASIS_COVERAGE_TYPES,
-    OED_COVERAGE_TYPES,
-)
-from ..utils.values import get_utctimestamp
-from .lookup import OasisLookupFactory as olf
-from .pipeline import OasisFilesPipeline
+from .utils.peril import PerilAreasIndex
+from .utils.path import setcwd
+from .utils.values import get_utctimestamp
 
 
-class OasisFilesPipeline(object):
-    def __init__(
+class OasisManager(object):
+
+    def generate_peril_areas_rtree_file_index(
         self,
-        model_key=None,
-        source_exposure_file_path=None,
-        source_accounts_file_path=None,
-        keys_file_path=None,
-        keys_errors_file_path=None
+        keys_data_fp,
+        areas_rtree_index_fp,
+        lookup_config_fp=None,
+        lookup_config=None,
     ):
-        self._model_key = model_key
-        self._source_exposure_file_path = source_exposure_file_path
-        self._source_accounts_file_path = source_accounts_file_path
-        self._keys_file_path = keys_file_path
-        self._keys_errors_file_path = keys_errors_file_path
+        if not (lookup_config or lookup_config_fp):
+            raise OasisException('Either a built-in lookup config. or config. file path is required')
+
+        config = lookup_config or get_json(src_fp=lookup_config_fp)
+
+        config_dir = os.path.dirname(config_fp)
+
+        peril_config = config.get('peril')
+
+        if not peril_config:
+            raise OasisException(
+                'The lookup config must contain a peril-related subdictionary with a key named '
+                '`peril` defining area-peril-related model information'
+            )
+
+        areas_fp = peril_config.get('file_path')
+
+        if not areas_fp:
+            raise OasisException(
+                'The lookup peril config must define the path of a peril areas '
+                '(or area peril) file with the key name `file_path`'
+            )
+
+        if areas_fp.startswith('%%KEYS_DATA_PATH%%'):
+            areas_fp = areas_fp.replace('%%KEYS_DATA_PATH%%', keys_data_fp)
+
+        if not os.path.isabs(areas_fp):
+            areas_fp = os.path.join(config_dir, areas_fp)
+            areas_fp = as_path(areas_fp, 'areas_fp')
+
+        src_type = str.lower(str(peril_config.get('file_type')) or '') or 'csv'
+
+        peril_id_col = str.lower(str(peril_config.get('peril_id_col')) or '') or 'peril_id'
+
+        coverage_config = config.get('coverage')
+
+        if not coverage_config:
+            raise OasisException(
+                'The lookup config must contain a coverage-related subdictionary with a key named '
+                '`coverage` defining coverage related model information'
+            )
+
+        coverage_type_col = str.lower(str(coverage_config.get('coverage_type_col')) or '') or 'coverage_type'
+
+        peril_area_id_col = str.lower(str(peril_config.get('peril_area_id_col')) or '') or 'area_peril_id'
+
+        area_poly_coords_cols = peril_config.get('area_poly_coords_cols')
+
+        if not area_poly_coords_cols:
+            raise OasisException(
+                'The lookup peril config must define the column names of '
+                'the coordinates used to define areas in the peril areas '
+                '(area peril) file using the key `area_poly_coords_cols`'
+            )
+
+        non_na_cols = (
+            tuple(col.lower() for col in peril_config['non_na_cols']) if peril_config.get('non_na_cols')
+            else tuple(col.lower() for col in [peril_area_id_col] + area_poly_coords_cols.values())
+        )
+
+        col_dtypes = peril_config.get('col_dtypes') or {peril_area_id_col: int}
+
+        sort_col = peril_config.get('sort_col') or peril_area_id_col
+
+        area_poly_coords_seq_start_idx = peril_config.get('area_poly_coords_seq_start_idx') or 1
+
+        area_reg_poly_radius = peril_config.get('area_reg_poly_radius') or 0.00166
+
+        index_props = peril_config.get('rtree_index')
+        index_props.pop('filename')
+
+        return PerilAreasIndex.create_from_peril_areas_file(
+            src_fp=areas_fp,
+            src_type=src_type,
+            peril_id_col=peril_id_col,
+            coverage_type_col=coverage_type_col,
+            peril_area_id_col=peril_area_id_col,
+            non_na_cols=non_na_cols,
+            col_dtypes=col_dtypes,
+            sort_col=sort_col,
+            area_poly_coords_cols=area_poly_coords_cols,
+            area_poly_coords_seq_start_idx=area_poly_coords_seq_start_idx,
+            area_reg_poly_radius=area_reg_poly_radius,
+            index_fp=areas_rtree_index_fp,
+            index_props=index_props
+        )
+
+    def generate_keys(
+        self,
+        exposure_fp,
+        lookup_config_fp=None,
+        keys_data_fp=None,
+        model_version_fp=None,
+        lookup_package_fp=None,
+        keys_fp=None,
+        keys_errors_fp=None,
+        keys_id_col='locnumber',
+        keys_format='oasis'
+    ):
+        model_info, lookup = olf.create(
+            lookup_config_fp=lookup_config_fp,
+            model_keys_data_path=keys_data_path,
+            model_version_file_path=model_version_file_path,
+            lookup_package_path=lookup_package_path
+        )
 
-        self._items_file_path = None
-        self._coverages_file_path = None
-        self._gulsummaryxref_file_path = None
+        utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
 
-        self._fm_policytc_file_path = None
-        self._fm_profile_file_path = None
-        self._fm_programme_file_path = None
-        self._fm_xref_file_path = None
-        self._fmsummaryxref_file_path = None
+        keys_fp = keys_fp or '{}-keys.csv'.format(utcnow)
+        keys_errors_fp = keys_errors_fp or '{}-keys-errors.csv'.format(utcnow)
 
-        self._source_files = {
-            'source_exposure': self._source_exposure_file_path,
-            'source_accounts': self._source_accounts_file_path 
-        }
-
-        self._keys_files = {
-            'keys': self._keys_file_path,
-            'keys_errors': self._keys_errors_file_path
-        }
-
-        self._gul_input_files = {
-            'items': self._items_file_path,
-            'coverages': self._coverages_file_path,
-            'gulsummaryxref': self._gulsummaryxref_file_path
-        }
-
-        self._fm_input_files = {
-            'fm_policytc': self._fm_policytc_file_path,
-            'fm_profile': self._fm_profile_file_path,
-            'fm_programme': self._fm_programme_file_path,
-            'fm_xref': self._fm_xref_file_path,
-            'fmsummaryxref': self._fmsummaryxref_file_path
-        }
-
-        self._oasis_files = {k:v for k, v in chain(self._gul_input_files.items(), self._fm_input_files.items())}
-
-    def __str__(self):
-        return '{}: {}'.format(self.__repr__(), self.model_key)
-
-    def __repr__(self):
-        return '{}: {}'.format(self.__class__, self.__dict__)
-
-    def _repr_pretty_(self, p, cycle):
-        p.text(str(self) if not cycle else '...')
-
-    @property
-    def model_key(self):
-        """
-        Model key property - getter only.
-
-            :getter: Gets the key of model to which the pipeline is attached.
-        """
-        return self._model_key
-
-    @property
-    def source_exposure_file_path(self):
-        """
-        Source exposure file path property.
-
-            :getter: Gets the file path
-            :setter: Sets the current file path to the specified file path
-        """
-        return self._source_exposure_file_path
-
-    @source_exposure_file_path.setter
-    def source_exposure_file_path(self, p):
-        self._source_exposure_file_path = self.source_files['source_exposure'] = p
-
-    @property
-    def source_accounts_file_path(self):
-        """
-        Source accounts file path property.
-
-            :getter: Gets the file path
-            :setter: Sets the current file path to the specified file path
-        """
-        return self._source_accounts_file_path
-
-    @source_accounts_file_path.setter
-    def source_accounts_file_path(self, p):
-        self._source_accounts_file_path = self.source_files['source_accounts'] = p
-
-    @property
-    def keys_file_path(self):
-        """
-        Oasis keys file path property.
-
-            :getter: Gets the file path
-            :setter: Sets the current file path to the specified file path
-        """
-        return self._keys_file_path
-
-    @keys_file_path.setter
-    def keys_file_path(self, p):
-        self._keys_file_path = self.keys_files['keys'] = p
-
-    @property
-    def keys_errors_file_path(self):
-        """
-        Oasis keys errors file path property.
-
-            :getter: Gets the file path
-            :setter: Sets the current file path to the specified file path
-        """
-        return self._keys_errors_file_path
-
-    @keys_errors_file_path.setter
-    def keys_errors_file_path(self, p):
-        self._keys_errors_file_path = self.keys_files['keys_errors'] = p
-
-    @property
-    def items_file_path(self):
-        """
-        Oasis items file path property.
-
-            :getter: Gets the file path
-            :setter: Sets the current file path to the specified file path
-        """
-        return self._items_file_path
-
-    @items_file_path.setter
-    def items_file_path(self, p):
-        self._items_file_path = self.gul_input_files['items'] = self.oasis_files['items'] = p
-
-    @property
-    def coverages_file_path(self):
-        """
-        Oasis coverages file path property.
-
-            :getter: Gets the file path
-            :setter: Sets the current file path to the specified file path
-        """
-        return self._coverages_file_path
-
-    @coverages_file_path.setter
-    def coverages_file_path(self, p):
-        self._coverages_file_path = self.gul_input_files['coverages'] = self.oasis_files['coverages'] = p
-
-    @property
-    def gulsummaryxref_file_path(self):
-        """
-        GUL summary file path property.
-
-            :getter: Gets the file path
-            :setter: Sets the current file path to the specified file path
-        """
-        return self._gulsummaryxref_file_path
-
-    @gulsummaryxref_file_path.setter
-    def gulsummaryxref_file_path(self, p):
-        self._gulsummaryxref_file_path = self.gul_input_files['gulsummaryxref'] = self.oasis_files['gulsummaryxref'] = p
-
-    @property
-    def fm_policytc_file_path(self):
-        """
-        FM policy T & C file property.
-
-            :getter: Gets the actual file object
-            :setter: Sets the file to the specified file object
-        """
-        return self._fm_policytc_file_path
-
-    @fm_policytc_file_path.setter
-    def fm_policytc_file_path(self, p):
-        self._fm_policytc_file_path = self.fm_input_files['fm_policytc'] = self.oasis_files['fm_policytc'] = p
-
-    @property
-    def fm_profile_file_path(self):
-        """
-        FM profile file property.
-
-            :getter: Gets the actual file object
-            :setter: Sets the file to the specified file object
-        """
-        return self._fm_profile_file_path
-
-    @fm_profile_file_path.setter
-    def fm_profile_file_path(self, p):
-        self._fm_profile_file_path = self.fm_input_files['fm_profile'] = self.oasis_files['fm_profile'] = p
-
-    @property
-    def fm_programme_file_path(self):
-        """
-        FM programme file property.
-
-            :getter: Gets the actual file object
-            :setter: Sets the file to the specified file object
-        """
-        return self._fm_programme_file_path
-
-    @fm_programme_file_path.setter
-    def fm_programme_file_path(self, p):
-        self._fm_programme_file_path = self.fm_input_files['fm_programme'] = self.oasis_files['fm_programme'] = p
-
-    @property
-    def fm_xref_file_path(self):
-        """
-        FM xref file property.
-
-            :getter: Gets the actual file object
-            :setter: Sets the file to the specified file object
-        """
-        return self._fm_xref_file_path
-
-    @fm_xref_file_path.setter
-    def fm_xref_file_path(self, p):
-        self._fm_xref_file_path = self.fm_input_files['fm_xref'] = self.oasis_files['fm_xref'] = p
-
-    @property
-    def fmsummaryxref_file_path(self):
-        """
-        FM fmsummaryxref file property.
-
-            :getter: Gets the actual file object
-            :setter: Sets the file to the specified file object
-        """
-        return self._fmsummaryxref_file_path
-
-    @fmsummaryxref_file_path.setter
-    def fmsummaryxref_file_path(self, p):
-        self._fmsummaryxref_file_path = self.fm_input_files['fmsummaryxref'] = self.oasis_files['fmsummaryxref'] = p
-
-    @property
-    def source_files(self):
-        """
-        Oasis source files set property - getter only.
-
-            :getter: Gets the complete set of paths of the Oasis source files,
-            including source loc. and acc. files.
-        """
-        return self._source_files
-
-    @property
-    def keys_files(self):
-        """
-        Oasis keys files set property - getter only.
-
-            :getter: Gets the complete set of paths of the Oasis keys
-            files, including the main keys file and the keys errors file.
-        """
-        return self._keys_files
-
-    @property
-    def gul_input_files(self):
-        """
-        Oasis GUL files set property - getter only.
-
-            :getter: Gets the complete set of paths of the generated Oasis
-            GUL files, including  ``items.csv``, ``coverages.csv``, `gulsummaryxref.csv`.
-        """
-        return self._gul_input_files
-
-    @property
-    def fm_input_files(self):
-        """
-        Oasis FM files set property - getter only.
-
-            :getter: Gets the complete set of generated FM files, including
-                     ``fm_policytc.csv``, ``fm_profile.csv``, `fm_programme.csv`,
-                     ``fm_xref.csv``, ``fmsummaryxref.csv``.
-        """
-        return self._fm_input_files
-
-    @property
-    def oasis_files(self):
-        """
-        Oasis GUL + FM files set property - getter only.
-
-            :getter: Gets the complete set of generated GUL + FM files,
-                     including ``items.csv`, ``coverages.csv``,
-                     ``gulsummaryxref.csv``, ``fm_policytc.csv``,
-                     ``fm_profile.csv``, `fm_programme.csv`,
-                     ``fm_xref.csv``, ``fmsummaryxref.csv``.
-        """
-        return self._oasis_files
-
-
-    def clear(self, files_subsets=None):
-        """
-        Clears file path attributes in the pipeline.
-
-            :param files_subsets: List of files subset labels (if empty)
-                                  then all files subsets are cleared)::
-
-                'source': source exposure file path + source accounts
-                                file path
-                'keys':   keys file path, keys errors file path
-                'gul':    GUL input files
-                'fm':     FM input files
-                `oasis`:  GUL + FM input files
-
-            :type files_subsets: list
-        """
-        if not files_subsets:
-            filenames = chain(self.source_files, self.keys_files, self.oasis_files)
-        else:
-            filenames = chain(fn for fsb in files_subsets for fn in getattr(self, '{}_files'.format(fsb)))
-
-        for fn in filenames:
-            setattr(self, '{}_file_path'.format(fn), None)
-
-
-
-class OasisManagerInterface(Interface):  # pragma: no cover
-    """
-    Interface class for the Oasis manager.
-    """
-
-    def __init__(self, oasis_model=None, **kwargs):
-        """
-        Constructor - initialisation
-        """
-        pass
-
-    def get_keys(self, oasis_model=None, **kwargs):
-        """
-        Generates the Oasis keys and keys error files for a given
-        ``oasis_model`` or set of keyword arguments.
-
-        The keys file is a CSV file containing keys lookup information for
-        locations with successful lookups, and has the following headers::
-
-            LocID,PerilID,CoverageTypeID,AreaPerilID,VulnerabilityID
-
-        while the keys error file is a CSV file containing keys lookup
-        information for locations with unsuccessful lookups (failures,
-        no matches) and has the following headers::
-
-            LocID,PerilID,CoverageTypeID,Message
-
-        All the required resources must be provided either in the model object
-        resources dict or the keyword arguments.
-
-        It is up to the specific implementation of this class of how these
-        resources will be named and how they will be used to
-        effect the transformation.
-
-        A "standard" implementation should use the lookup service factory
-        class in ``oasis_utils`` (a submodule of `omdk`) namely
-
-            ``oasis_utils.oasis_keys_lookup_service_utils.KeysLookupServiceFactory``
-
-        :param oasis_model: An Oasis model object
-        :type oasis_model: oasislmf.models.model.OasisModel
-
-        :param kwargs: Optional keyword arguments
-        """
-        pass
-
-    def get_exposure_profile(self, oasis_model=None, **kwargs):
-        """
-        Loads a JSON string or JSON file representation of the
-        exposure profile for a given model.
-
-        :param oasis_model: An Oasis model object
-        :type oasis_model: oasislmf.models.model.OasisModel
-
-        :param kwargs: Optional keyword arguments
-        """
-        pass
-
-    def get_accounts_profile(self, oasis_model=None, **kwargs):
-        """
-        Loads a JSON string or JSON file representation of the
-        accounts profile for a given model.
-
-        :param oasis_model: An Oasis model object
-        :type oasis_model: oasislmf.models.model.OasisModel
-
-        :param kwargs: Optional keyword arguments
-        """
-        pass
-
-    def get_fm_aggregation_profile(self, oasis_model=None, **kwargs):
-        """
-        Loads a JSON string or JSON file representation of the FM
-        aggregation profile for a given model.
-
-        :param oasis_model: An Oasis model object
-        :type oasis_model: oasislmf.models.model.OasisModel
-
-        :param kwargs: Optional keyword arguments
-        """
-        pass
-
-    def generate_gul_input_items(self, exposure_profile, exposure_df, keys_df, **kwargs):
-        """
-        Generates GUL input items.
-
-        :param exposure_profile: Source exposure profile
-        :type exposure_profile: dict
-
-        :param exposure_df: Source exposure
-        :type exposure_df: pandas.DataFrame
-
-        :param keys_df: Keys
-        :type keys_df: pandas.DataFrame
-        """
-        pass
-
-    def generate_fm_input_items(self, exposure_df, gul_items_df, exposure_profile, accounts_profile, accounts_df, fm_agg_profile, **kwargs):
-        """
-        Generates FM input items.
-
-        :param exposure_df: Source exposure
-        :type exposure_df: pandas.DataFrame
-
-        :param gul_items_df: GUL items
-        :type gul_items_df: pandas.DataFrame
-
-        :param exposure_profile: Source exposure profile
-        :type exposure_profile: dict
-
-        :param accounts_profile: Source accounts profile
-        :type accounts_profile: dict
-
-        :param accounts_df: Canonical accounts
-        :param accounts_df: pandas.DataFrame
-
-        :param fm_agg_profile: FM aggregation profile
-        :param fm_agg_profile: dict
-        """
-        pass
-
-    def get_gul_input_items(self, exposure_profile, source_exposure_file_path, keys_file_path, **kwargs):
-        """
-        Loads GUL input items generated by ``generate_gul_input_items`` into a static
-        structure such as a pandas dataframe.
-
-        :param exposure_profile: Source exposure profile
-        :type exposure_profile: dict
-
-        :param source_exposure_file_path: Source exposure file path
-        :type source_exposure_file_path: str
-
-        :param keys_file_path: Keys file path
-        :type keys_file_path: str
-        """
-        pass
-
-    def get_fm_input_items(self, exposure_df, gul_items_df, exposure_profile, accounts_profile, source_accounts_file_path, fm_agg_profile, **kwargs):
-        """
-        Loads FM input items generated by ``generate_fm_input_items`` into a static
-        structure such as a pandas dataframe.
-
-        :param exposure_df: Source exposure
-        :type exposure_df: pandas.DataFrame
-
-        :param gul_items_df: GUL items
-        :type gul_items_df: pandas.DataFrame
-
-        :param exposure_profile: Source exposure profile
-        :type exposure_profile: dict
-
-        :param accounts_profile: Source accounts profile
-        :type accounts_profile: dict
-
-        :param source_accounts_file_path: Source accounts file path
-        :param source_accounts_file_path: str
-
-        :param fm_agg_profile: FM aggregation profile
-        :param fm_agg_profile: dict
-        """
-        pass
-
-    def write_gul_input_files(self, oasis_model=None, **kwargs):
-        """
-        Writes Oasis GUL input files for a given ``oasis_model`` or set of keyword
-        arguments.
-
-        The required resources must be provided either via the model object
-        resources dict or the keyword arguments.
-
-        :param oasis_model: An Oasis model object
-        :type oasis_model: oasislmf.models.model.OasisModel
-
-        :param kwargs: Optional keyword arguments
-        """
-        pass
-
-    def write_fm_input_files(self, oasis_model=None, **kwargs):
-        """
-        Writes Oasis FM input files for a given ``oasis_model`` or set of keyword
-        arguments.
-
-        The required resources must be provided either via the model object
-        resources dict or the keyword arguments.
-
-        :param oasis_model: An Oasis model object
-        :type oasis_model: oasislmf.models.model.OasisModel
-
-        :param kwargs: Optional keyword arguments
-        """
-        pass
-
-    def write_oasis_files(self, oasis_model=None, fm=False, **kwargs):
-        """
-        Writes the full set of Oasis files, which includes GUL input files and
-        possibly also the FM input files (if ``fm`` is ``True``) for a given
-        ``oasis_model`` or set of keyword arguments.
-
-        The required resources must be provided either via the model object
-        resources dict or the keyword arguments.
-
-        :param oasis_model: An Oasis model object
-        :type oasis_model: oasislmf.models.model.OasisModel
-
-        :param kwargs: Optional keyword arguments
-        """
-        pass
-
-    def create_model(self, model_supplier_id, model_id, model_version, resources=None):
-        """
-        Creates an Oasis model object, with attached resources if a resources
-        dict was provided.
-
-        :param model_supplier_id: The model supplier ID
-        :type model_supplier_id: str
-
-        :param model_id: The model ID
-        :type model_id: str
-
-        :param model_version: The model version string
-        :type model_version: str
-
-        :param resources: Optional dictionary of model resources
-        :type resources: dict
-        """
-        pass
-
-
-class OasisManager(implements(OasisManagerInterface)):
-
-    def __init__(self, oasis_model=None):
-        self.logger = logging.getLogger()
-
-        self.logger.debug('Oasis manager {} initialising'.format(self))
-
-        self._model = oasis_model
-
-    @property
-    def model(self):
-        """
-        Model in preparation and/or execution
-
-            :getter: Gets the model
-            :setter: Sets the existing model to specified new model
-        """
-        return self._model
-
-    @model.setter
-    def model(self, oasis_model):
-        self._model = oasis_model
-
-    def get_exposure_profile(self, oasis_model=None, **kwargs):
-        """
-        Loads a JSON string or JSON file representation of the source
-        exposure profile for a given ``oasis_model``, stores this in the
-        model object's resources dict, and returns the object.
-        """
-        kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
-
-        profile_json = kwargs.get('source_exposure_profile_json')
-        profile_json_path = kwargs.get('source_exposure_profile_path')
-
-        profile = None
-        if profile_json:
-            profile = json.loads(profile_json)
-        elif profile_json_path:
-            with io.open(profile_json_path, 'r', encoding='utf-8') as f:
-                profile = json.load(f)
-
-        if oasis_model:
-            oasis_model.resources['source_exposure_profile'] = profile
-
-        return profile
-
-    def get_accounts_profile(self, oasis_model=None, **kwargs):
-        """
-        Loads a JSON string or JSON file representation of the source
-        accounts profile for a given ``oasis_model``, stores this in the
-        model object's resources dict, and returns the object.
-        """
-        kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
-
-        profile_json = kwargs.get('source_accounts_profile_json')
-        profile_json_path = kwargs.get('source_accounts_profile_path')
-
-        profile = None
-        if profile_json:
-            profile = json.loads(profile_json)
-        elif profile_json_path:
-            with io.open(profile_json_path, 'r', encoding='utf-8') as f:
-                profile = json.load(f)
-
-        if oasis_model:
-            oasis_model.resources['source_accounts_profile'] = profile
-
-        return profile
-
-    def get_fm_aggregation_profile(self, oasis_model=None, **kwargs):
-        """
-        Loads a JSON string or JSON file representation of the FM
-        aggregation profile for a given ``oasis_model``, stores this in the
-        model object's resources dict, and returns the object.
-        """
-        kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
-
-        profile_path = kwargs.get('fm_agg_profile_path')
-        profile_json = kwargs.get('fm_agg_profile_json')
-
-        profile = None
-        if profile_json:
-            profile = {int(k): v for k, v in viewitems(json.loads(profile_json))}
-        elif profile_path:
-            with io.open(profile_path, 'r', encoding='utf-8') as f:
-                profile = {int(k): v for k, v in viewitems(json.load(f))}
-
-        if oasis_model:
-            oasis_model.resources['fm_agg_profile'] = profile
-
-        return profile
-
-    def get_lookup_config(self, oasis_model=None, **kwargs):
-        """
-        Loads a lookup config JSON string or file.
-        """
-        kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
-
-        lookup = kwargs.get('lookup')
-
-        if not lookup:
-            return
-
-        try:
-            config = lookup.config
-        except AttributeError:
-            pass
-        else:
-            if oasis_model:
-                oasis_model.resources['lookup_config'] = config
-
-            return config
-
-        config_json = kwargs.get('lookup_config_json')
-        config_fp = kwargs.get('lookup_config_fp')
-
-        config = None
-        if config_json:
-            config = json.loads(config_json)
-        elif config_fp:
-            with io.open(config_fp, 'r', encoding='utf-8') as f:
-                config = json.load(f)
-
-        if oasis_model:
-            oasis_model.resources['lookup_config'] = config
-
-        return config
-
-    def get_keys(self, oasis_model=None, **kwargs):
-        """
-        Generates the Oasis keys and keys error files for a given model object.
-        The keys file is a CSV file containing keys lookup information for
-        locations with successful lookups, and has the following headers::
-
-            LocID,PerilID,CoverageTypeID,AreaPerilID,VulnerabilityID
-
-        while the keys error file is a CSV file containing keys lookup
-        information for locations with unsuccessful lookups (failures,
-        no matches) and has the following headers::
-
-            LocID,PerilID,CoverageTypeID,Message
-
-        By default it is assumed that all the resources required for the
-        transformation are present in the model object's resources dict,
-        if the model is supplied. These can be overridden by providing the
-        relevant optional parameters.
-
-        If no model is supplied then the optional paramenters must be
-        supplied.
-
-        If the model is supplied the result keGy file path is stored in the
-        models ``file_pipeline.keyfile_path`` property.
-
-        :param oasis_model: The model to get keys for
-        :type oasis_model: ``OasisModel``
-
-        :return: The path to the generated keys file
-        """
-        kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
-
-        source_exposure_fp = kwargs.get('source_exposure_file_path')
-        lookup = kwargs.get('lookup')
-        keys_id_col = getattr(lookup, 'loc_id_col') or 'id'
-        keys_fp = kwargs.get('keys_file_path')
-        keys_errors_fp = kwargs.get('keys_errors_file_path')
-
-        for p in (source_exposure_fp, keys_fp, keys_errors_fp,):
-            p = os.path.abspath(p) if p and not os.path.isabs(p) else p
-
-        keys_fp, _, keys_errors_fp, _ = olf.save_results(
+        return olf.save_results(
             lookup,
             keys_id_col=keys_id_col,
             successes_fp=keys_fp,
             errors_fp=keys_errors_fp,
-            source_exposure_fp=source_exposure_fp
+            source_exposure_fp=exposure_fp,
+            format=keys_format
         )
 
-        if oasis_model:
-            oasis_model.resources['oasis_files_pipeline'].keys_file_path = keys_fp
-            oasis_model.resources['oasis_files_pipeline'].keys_errors_file_path = keys_errors_fp
-
-        return keys_fp, keys_errors_fp
-
-    def _process_default_kwargs(self, oasis_model=None, **kwargs):
-        if oasis_model:
-            omr = oasis_model.resources
-            ofp = omr['oasis_files_pipeline']
-
-            kwargs.setdefault('fm', omr.get('fm') or kwargs.get('fm'))
-
-            kwargs.setdefault('logger', omr.get('logger') or logging.getLogger())
-
-            kwargs.setdefault('oasis_files_path', omr.get('oasis_files_path'))
-
-            kwargs.setdefault('source_exposure_file_path', omr.get('source_exposure_file_path') or ofp.source_exposure_file_path)
-
-            kwargs.setdefault('source_exposure_profile', omr.get('source_exposure_profile'))
-            kwargs.setdefault('source_exposure_profile_json', omr.get('source_exposure_profile_json'))
-            kwargs.setdefault('source_exposure_profile_path', omr.get('source_exposure_profile_path'))
-
-            kwargs.setdefault('source_accounts_file_path', omr.get('source_accounts_file_path') or ofp.source_accounts_file_path)
-
-            kwargs.setdefault('source_accounts_profile', omr.get('source_accounts_profile'))
-            kwargs.setdefault('source_accounts_profile_json', omr.get('source_accounts_profile_json'))
-            kwargs.setdefault('source_accounts_profile_path', omr.get('source_accounts_profile_path'))
-
-            kwargs.setdefault('fm_agg_profile', omr.get('fm_agg_profile'))
-            kwargs.setdefault('fm_agg_profile_path', omr.get('fm_agg_profile_path'))
-            kwargs.setdefault('fm_agg_profile_json', omr.get('fm_agg_profile_json'))
-
-            kwargs.setdefault('lookup_config', omr.get('lookup_config'))
-            kwargs.setdefault('lookup_config_json', omr.get('lookup_config_json'))
-            kwargs.setdefault('lookup_config_fp', omr.get('lookup_config_fp'))
-            kwargs.setdefault('lookup', omr.get('lookup'))
-
-            kwargs.setdefault('keys_file_path', ofp.keys_file_path)
-            kwargs.setdefault('keys_errors_file_path', ofp.keys_errors_file_path)
-
-            kwargs.setdefault('exposure_df', omr.get('exposure_df'))
-            kwargs.setdefault('gul_items_df', omr.get('gul_items_df'))
-
-            kwargs.setdefault('items_file_path', ofp.items_file_path)
-            kwargs.setdefault('coverages_file_path', ofp.coverages_file_path)
-            kwargs.setdefault('gulsummaryxref_file_path', ofp.gulsummaryxref_file_path)
-
-            kwargs.setdefault('fm_items_df', omr.get('fm_items_df'))
-            kwargs.setdefault('accounts_df', omr.get('accounts_df'))
-
-            kwargs.setdefault('fm_policytc_file_path', ofp.fm_policytc_file_path)
-            kwargs.setdefault('fm_profile_file_path', ofp.fm_profile_file_path)
-            kwargs.setdefault('fm_policytc_file_path', ofp.fm_programme_file_path)
-            kwargs.setdefault('fm_xref_file_path', ofp.fm_xref_file_path)
-            kwargs.setdefault('fmsummaryxref_file_path', ofp.fmsummaryxref_file_path)
-
-        return kwargs
-
-    def generate_gul_input_items(
+    def generate_oasis_files(
         self,
-        exposure_profile,
-        exposure_df,
-        keys_df
-    ):
-        """
-        Generates GUL input items.
-
-        :param exposure_profile: Source exposure profile
-        :type exposure_profile: dict
-
-        :param exposure_df: Source exposure data frame
-        :type exposure_df: pandas.DataFrame
-
-        :param keys_df: Keys file data frame
-        :type keys_df: pandas.DataFrame
-        """
-        exp_df = exposure_df
-
-        exppf = exposure_profile
-
-        ufp = unified_fm_profile_by_level_and_term_group(profiles=(exppf,))
-
-        if not ufp:
-            raise OasisException(
-                'Source exposure profile is possibly missing FM term information: '
-                'FM term definitions for TIV, limit, deductible, attachment and/or share.'
-            )
-
-        fm_levels = tuple(ufp.keys())
-
-        try:
-            for df in [exp_df, keys_df]:
-                if not df.columns.contains('index'):
-                    df['index'] = pd.Series(data=range(len(df)))
-
-            if not str(exp_df['locnumber'].dtype).startswith('int'):
-                exp_df['locnumber'] = exp_df['locnumber'].astype(int)
-
-            if not str(keys_df['locid'].dtype).startswith('int'):
-                keys_df['locid'] = keys_df['locid'].astype(int)
-
-            merged_df = pd.merge(exp_df, keys_df, left_on='locnumber', right_on='locid').drop_duplicates()
-            merged_df['index'] = pd.Series(data=range(len(merged_df)), dtype=object)
-
-            cov_level_id = fm_levels[0]
-
-            cov_tivs = tuple(t for t in [ufp[cov_level_id][gid].get('tiv') for gid in ufp[cov_level_id]] if t)
-
-            if not cov_tivs:
-                raise OasisException('No coverage fields found in the source exposure profile - please check the source exposure (loc) profile')
-
-            fm_terms = {
-                tiv_tgid: {
-                    term_type: (
-                        ufp[cov_level_id][tiv_tgid][term_type]['ProfileElementName'].lower() if ufp[cov_level_id][tiv_tgid].get(term_type) else None
-                    ) for term_type in ('deductible', 'deductiblemin', 'deductiblemax', 'limit', 'share',)
-                } for tiv_tgid in ufp[cov_level_id]
+        target_dir,
+        exposure_fp,
+        exposure_profile=get_default_exposure_profile(),
+        exposure_profile_fp=None,
+        lookup_config=None,
+        lookup_config_fp=None,
+        keys_data_fp=None,
+        model_version_fp=None,
+        lookup_package_fp=None,
+        supported_oed_cov_types=tuple(OED_COVERAGE_TYPES[k]['id'] for k in OED_COVERAGE_TYPES if k not in ['pd', 'all']),
+        accounts_fp=None,
+        accounts_profile=get_default_accounts_profile(),
+        accounts_profile_fp=None,
+        aggregation_profile=get_default_fm_aggregation_profile(),
+        aggregation_profile_fp=None,
+        ri_info_fp=None,
+        ri_scope_fp=None,
+        fname_prefixes=OrderedDict({
+            'gul': {
+                'items': 'items',
+                'coverages': 'coverages',
+                'gulsummaryxref': 'gulsummaryxref'
+            },
+            'il': {
+                'fm_policytc': 'fm_policytc',
+                'fm_profile': 'fm_profile',
+                'fm_programme': 'fm_programme',
+                'fm_xref': 'fm_xref',
+                'fmsummaryxref': 'fmsummaryxref'
             }
+        })
+    ):
+        # Prepare the target directory and copy the source files, profiles and
+        # model version file into it
+        if not os.path.exists(target_dir):
+            Path(target_dir).mkdir(parents=True, exist_ok=True)
 
-            group_id = 0
-            prev_it_loc_id = -1
-            item_id = 0
-            zero_tiv_items = 0
+        shutil.copy2(exposure_fp, target_dir)
+        for p in (exposure_profile_fp, accounts_fp, accounts_profile_fp, aggregation_profile_fp, lookup_config_fp, model_version_fp, ri_info_fp, ri_scope_fp):
+            if p and os.path.exists(p):
+                shutil.copy2(p, target_dir)
 
-            def positive_tiv_coverages(it):
-                return [t for t in cov_tivs if it.get(t['ProfileElementName'].lower()) and it[t['ProfileElementName'].lower()] > 0 and t['CoverageTypeID'] == it['coveragetypeid']] or [0]
+        # Load the exposure + accounts + FM aggregation profiles + lookup
+        # config. profile from file paths, if present, overriding the defaults
+        exposure_profile = get_json(src_fp=exposure_profile_fp) or exposure_profile
+        accounts_profile = get_json(src_fp=accounts_profile_fp) or accounts_profile
+        aggregation_profile = get_json(src_fp=aggregation_profile_fp, key_transform=int) or aggregation_profile
+        lookup_config = get_json(src_fp=lookup_config_fp) or lookup_config
+        if lookup_config_fp:
+            lookup_config['keys_data_path'] = os.path.dirname(lookup_config_fp)
 
-            for it, ptiv in itertools.chain((it, ptiv) for _, it in merged_df.iterrows() for it, ptiv in itertools.product([it], positive_tiv_coverages(it))):
-                if ptiv == 0:
-                    zero_tiv_items += 1
-                    continue
+        # Generate keys and keys errors files - if no lookup assets provided
+        # then assume the caller is trying to generate Oasis files for
+        # deterministic losses
+        keys_fp = os.path.join(target_dir, 'keys.csv')
+        keys_errors_fp = os.path.join(target_dir, 'keys-errors.csv')
 
-                item_id += 1
-                if it['locnumber'] != prev_it_loc_id:
-                    group_id += 1
-
-                tiv_elm = ptiv['ProfileElementName'].lower()
-                tiv = it[tiv_elm]
-                tiv_tgid = ptiv['FMTermGroupID']
-
-                yield {
-                    'item_id': item_id,
-                    'loc_id': it['locnumber'] - 1,
-                    'peril_id': it['perilid'],
-                    'coverage_type_id': it['coveragetypeid'],
-                    'coverage_id': item_id,
-                    'is_bi_coverage': it['coveragetypeid'] in [OASIS_COVERAGE_TYPES['time']['id'], OED_COVERAGE_TYPES['bi']['id']],
-                    'tiv_elm': tiv_elm,
-                    'tiv': tiv,
-                    'tiv_tgid': tiv_tgid,
-                    'ded_elm': fm_terms[tiv_tgid].get('deductible'),
-                    'ded_min_elm': fm_terms[tiv_tgid].get('deductiblemin'),
-                    'ded_max_elm': fm_terms[tiv_tgid].get('deductiblemax'),
-                    'lim_elm': fm_terms[tiv_tgid].get('limit'),
-                    'shr_elm': fm_terms[tiv_tgid].get('share'),
-                    'areaperil_id': it['areaperilid'],
-                    'vulnerability_id': it['vulnerabilityid'],
-                    'group_id': group_id,
-                    'summary_id': 1,
-                    'summaryset_id': 1
-                }
-                prev_it_loc_id = it['locnumber']
-
-        except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
-            raise OasisException(e)
+        if not (lookup_config or keys_data_fp or model_version_fp or lookup_package_fp):
+            n = len(pd.read_csv(exposure_fp))
+            keys = [
+                {'id': i + 1, 'peril_id': 1, 'coverage_type': j, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
+                for i, j in product(range(n), supported_oed_cov_types)
+            ]
+            _, _ = olf.write_oasis_keys_file(keys, keys_fp)
         else:
-            if zero_tiv_items == len(merged_df):
-                raise OasisException('All source exposure items have zero TIVs - please check the source exposure (loc.) file')
+            _, lookup = olf.create(
+                lookup_config=lookup_config,
+                model_keys_data_path=keys_data_fp,
+                model_version_file_path=model_version_fp,
+                lookup_package_path=lookup_package_fp
+            )
+            f1, n1, f2, n2 = olf.save_results(
+                lookup,
+                keys_id_col='locnumber',
+                successes_fp=keys_fp,
+                errors_fp=keys_errors_fp,
+                source_exposure_fp=exposure_fp
+            )
 
-    def generate_fm_input_items(
-        self,
-        exposure_df,
-        gul_items_df,
-        exposure_profile,
-        accounts_profile,
-        accounts_df,
-        fm_agg_profile
-    ):
-        """
-        Generates FM input items.
-
-        :param exposure_df: Source exposure
-        :type exposure_df: pandas.DataFrame
-
-        :param gul_items_df: GUL items
-        :type gul_items_df: pandas.DataFrame
-
-        :param exposure_profile: Source exposure profile
-        :type exposure_profile: dict
-
-        :param accounts_profile: Source accounts profile
-        :type accounts_profile: dict
-
-        :param accounts_df: Canonical accounts
-        :param accounts_df: pandas.DataFrame
-
-        :param fm_agg_profile: FM aggregation profile
-        :param fm_agg_profile: dict
-        """
-        exppf = exposure_profile
-        accpf = accounts_profile
-
-        exp_df = exposure_df
-
-        acc_df = accounts_df
-
-        for df in [exp_df, gul_items_df, acc_df]:
-            if not df.columns.contains('index'):
-                df['index'] = pd.Series(data=range(len(df)))
-
-        expgul_df = pd.merge(exp_df, gul_items_df, left_on='index', right_on='loc_id')
-        expgul_df['index'] = pd.Series(data=expgul_df.index)
-
-        keys = (
-            'item_id', 'gul_item_id', 'peril_id', 'coverage_type_id', 'coverage_id',
-            'is_bi_coverage', 'loc_id', 'acc_id', 'policy_num', 'level_id', 'layer_id',
-            'agg_id', 'policytc_id', 'deductible', 'deductible_min',
-            'deductible_max', 'attachment', 'limit', 'share', 'calcrule_id', 'tiv_elm',
-            'tiv', 'tiv_tgid', 'ded_elm', 'ded_min_elm', 'ded_max_elm',
-            'lim_elm', 'shr_elm',
+        # Write the GUL input files
+        gul_input_files, gul_inputs_df, exposure_df = write_gul_input_files(
+            exposure_fp,
+            keys_fp,
+            target_dir,
+            exposure_profile=exposure_profile,
+            fname_prefixes=fname_prefixes['gul']
         )
 
-        try:
-            ufp = unified_fm_profile_by_level_and_term_group(profiles=(exppf, accpf,))
-
-            if not ufp:
-                raise OasisException(
-                    'Canonical loc. and/or acc. profiles are possibly missing FM term information: '
-                    'FM term definitions for TIV, limit, deductible and/or share.'
-                )
-
-            fmap = fm_agg_profile
-
-            if not fmap:
-                raise OasisException(
-                    'FM aggregation profile is empty - this is required to perform aggregation'
-                )
-
-            fm_levels = tuple(ufp.keys())
-
-            cov_level_id = fm_levels[0]
-
-            coverage_level_preset_data = [t for t in zip(
-                tuple(expgul_df['item_id'].values),           # 1 - FM item ID
-                tuple(expgul_df['item_id'].values),           # 2 - GUL item ID
-                tuple(expgul_df['peril_id'].values),          # 3 - peril ID
-                tuple(expgul_df['coverage_type_id'].values),  # 4 - coverage type ID
-                tuple(expgul_df['coverage_id'].values),       # 5 - coverage ID
-                tuple(expgul_df['is_bi_coverage'].values),    # 6 - is BI coverage?
-                tuple(expgul_df['loc_id'].values),            # 7 - src. exp. DF index
-                (-1,) * len(expgul_df),                       # 8 - src. acc. DF index
-                (-1,) * len(expgul_df),                       # 9 - src. acc. policy num.
-                (cov_level_id,) * len(expgul_df),             # 10 - coverage level ID
-                (1,) * len(expgul_df),                        # 11 - layer ID
-                (-1,) * len(expgul_df),                       # 12 - agg. ID
-                tuple(expgul_df['tiv_elm'].values),           # 13 - TIV element
-                tuple(expgul_df['tiv'].values),               # 14 -TIV value
-                tuple(expgul_df['tiv_tgid'].values),          # 15 -coverage element/term group ID
-                tuple(expgul_df['ded_elm'].values),           # 16 -deductible element
-                tuple(expgul_df['ded_min_elm'].values),       # 17 -deductible min. element
-                tuple(expgul_df['ded_max_elm'].values),       # 18 -deductible max. element
-                tuple(expgul_df['lim_elm'].values),           # 19 -limit element
-                tuple(expgul_df['shr_elm'].values)            # 20 -share element
-            )]
-
-            def get_acc_item(i):
-                return acc_df[(acc_df['accnumber'] == expgul_df[expgul_df['loc_id'] == coverage_level_preset_data[i][6]].iloc[0]['accnumber'])].iloc[0]
-
-            def get_acc_id(i):
-                return int(get_acc_item(i)['index'])
-
-            coverage_level_preset_items = {
-                i: {
-                    k: v for k, v in zip(
-                        keys,
-                        [i + 1, gul_item_id, peril_id, coverage_type_id, coverage_id, is_bi_coverage, loc_id, get_acc_id(i), policy_num, level_id, layer_id, agg_id, -1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 12, tiv_elm, tiv, tiv_tgid, ded_elm, ded_min_elm, ded_max_elm, lim_elm, shr_elm]
-                    )
-                } for i, (item_id, gul_item_id, peril_id, coverage_type_id, coverage_id, is_bi_coverage, loc_id, _, policy_num, level_id, layer_id, agg_id, tiv_elm, tiv, tiv_tgid, ded_elm, ded_min_elm, ded_max_elm, lim_elm, shr_elm) in enumerate(coverage_level_preset_data)
-            }
-
-            num_cov_items = len(coverage_level_preset_items)
-
-            preset_items = {
-                level_id: (coverage_level_preset_items if level_id == cov_level_id else copy.deepcopy(coverage_level_preset_items)) for level_id in fm_levels
-            }
-
-            for i, (level_id, item_id, it) in enumerate(itertools.chain((level_id, k, v) for level_id in fm_levels[1:] for k, v in preset_items[level_id].items())):
-                it['level_id'] = level_id
-                it['item_id'] = num_cov_items + i + 1
-                it['ded_elm'] = it['ded_min_elm'] = it['ded_max_elm'] = it['lim_elm'] = it['shr_elm'] = None
-
-            num_sub_layer_level_items = sum(len(preset_items[level_id]) for level_id in fm_levels[:-1])
-            layer_level = max(fm_levels)
-            layer_level_items = copy.deepcopy(preset_items[layer_level])
-            layer_level_min_idx = min(layer_level_items)
-
-            def layer_id(i):
-                return list(
-                    acc_df[acc_df['accnumber'] == acc_df.iloc[i]['accnumber']]['polnumber'].values
-                ).index(acc_df.iloc[i]['polnumber']) + 1
-
-            for i, (loc_id, acc_id) in enumerate(
-                itertools.chain((loc_id, acc_id) for loc_id in layer_level_items for loc_id, acc_id in itertools.product(
-                    [loc_id],
-                    acc_df[acc_df['accnumber'] == acc_df.iloc[layer_level_items[loc_id]['acc_id']]['accnumber']]['index'].values)
-                )
-            ):
-                it = copy.deepcopy(layer_level_items[loc_id])
-                it['item_id'] = num_sub_layer_level_items + i + 1
-                it['layer_id'] = layer_id(acc_id)
-                it['acc_id'] = acc_id
-                preset_items[layer_level][layer_level_min_idx + i] = it
-
-            for it in (it for c in itertools.chain(viewvalues(preset_items[k]) for k in preset_items) for it in c):
-                it['policy_num'] = acc_df.iloc[it['acc_id']]['polnumber']
-                lfmaggkey = fmap[it['level_id']]['FMAggKey']
-                for v in viewvalues(lfmaggkey):
-                    src = v['src'].lower()
-                    if src in ['loc', 'acc']:
-                        f = v['field'].lower()
-                        it[f] = exp_df.iloc[it['loc_id']][f] if src == 'loc' else acc_df.iloc[it['acc_id']][f]
-
-            concurrent_tasks = (
-                Task(get_fm_terms_by_level_as_list, args=(ufp[level_id], fmap[level_id], preset_items[level_id], exp_df.copy(deep=True), acc_df.copy(deep=True),), key=level_id)
-                for level_id in fm_levels
-            )
-            num_ps = min(len(fm_levels), multiprocessing.cpu_count())
-            for it in multiprocess(concurrent_tasks, pool_size=num_ps):
-                yield it
-        except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
-            raise OasisException(e)
-
-    def get_gul_input_items(self, exposure_profile, source_exposure_file_path, keys_file_path):
-        """
-        Loads GUL input items generated by ``generate_gul_input_items`` into a static
-        structure such as a pandas dataframe.
-
-        :param exposure_profile: Source exposure profile
-        :type exposure_profile: dict
-
-        :param source_exposure_file_path: Source exposure file path
-        :type source_exposure_file_path: str
-
-        :param keys_file_path: Keys file path
-        :type keys_file_path: str
-        """
-        exppf = exposure_profile
-
-        try:
-            with io.open(source_exposure_file_path, 'r', encoding='utf-8') as cf, io.open(keys_file_path, 'r', encoding='utf-8') as kf:
-                exp_df, keys_df = pd.read_csv(cf, float_precision='high'), pd.read_csv(kf, float_precision='high')
-
-            if len(exp_df) == 0:
-                raise OasisException('No source exposure items found - please check the source exposure (loc) file')
-
-            if len(keys_df) == 0:
-                raise OasisException('No keys items found - please check the model exposures (loc) file')
-
-            exp_df = exp_df.where(exp_df.notnull(), None)
-            exp_df.columns = exp_df.columns.str.lower()
-            exp_df['index'] = pd.Series(data=exp_df.index, dtype=int)
-
-            keys_df = keys_df.where(keys_df.notnull(), None)
-            keys_df.columns = keys_df.columns.str.lower()
-            keys_df['index'] = pd.Series(data=keys_df.index, dtype=int)
-
-            gul_items_df = pd.DataFrame(data=[it for it in self.generate_gul_input_items(exppf, exp_df, keys_df)], dtype=object)
-            gul_items_df['index'] = pd.Series(data=gul_items_df.index, dtype=int)
-
-            for col in gul_items_df.columns:
-                if col == 'peril_id':
-                    gul_items_df[col] = gul_items_df[col].astype(object)
-                elif col.endswith('id'):
-                    gul_items_df[col] = gul_items_df[col].astype(int)
-                elif col == 'tiv':
-                    gul_items_df[col] = gul_items_df[col].astype(float)
-        except (IOError, MemoryError, OasisException, OSError, TypeError, ValueError) as e:
-            raise OasisException(e)
-
-        return gul_items_df, exp_df
-
-    def get_fm_input_items(
-        self,
-        exposure_df,
-        gul_items_df,
-        exposure_profile,
-        accounts_profile,
-        source_accounts_file_path,
-        fm_agg_profile,
-        reduced=True
-    ):
-        """
-        Loads FM input items generated by ``generate_fm_input_items`` into a static
-        structure such as a pandas dataframe.
-
-        :param exposure_df: Source exposure
-        :type exposure_df: pandas.DataFrame
-
-        :param gul_items_df: GUL items
-        :type gul_items_df: pandas.DataFrame
-
-        :param exposure_profile: Source exposure profile
-        :type exposure_profile: dict
-
-        :param accounts_profile: Source accounts profile
-        :type accounts_profile: dict
-
-        :param source_accounts_file_path: Source accounts file path
-        :param source_accounts_file_path: str
-
-        :param fm_agg_profile: FM aggregation profile
-        :param fm_agg_profile: dict
-
-        :param reduced: Whether to generate only FM items with not all zero
-                        values for limit, deductible and share. By default ``True``
-        :param reduced: bool
-        """
-        exp_df = exposure_df
-
-        exppf = exposure_profile
-        accpf = accounts_profile
-
-        fmap = fm_agg_profile
-
-        try:
-            with io.open(source_accounts_file_path, 'r', encoding='utf-8') as f:
-                acc_df = pd.read_csv(f, float_precision='high')
-
-            if len(acc_df) == 0:
-                raise OasisException('No source accounts items')
-
-            acc_df = acc_df.where(acc_df.notnull(), None)
-            acc_df.columns = acc_df.columns.str.lower()
-            acc_df['index'] = pd.Series(data=acc_df.index, dtype=int)
-
-            fm_items = [it for it in self.generate_fm_input_items(exp_df, gul_items_df, exppf, accpf, acc_df, fmap)]
-            fm_items.sort(key=lambda it: it['item_id'])
-
-            fm_items_df = pd.DataFrame(data=fm_items, dtype=object)
-            fm_items_df['index'] = pd.Series(data=fm_items_df.index, dtype=int)
-
-            if reduced:
-                def is_zero_terms_level(level_id):
-                    return not any(
-                        it['deductible'] != 0 or
-                        it['deductible_min'] != 0 or
-                        it['deductible_max'] != 0 or
-                        it['limit'] != 0 or
-                        it['share'] != 0
-                        for _, it in fm_items_df[fm_items_df['level_id'] == level_id].iterrows()
-                    )
-
-                levels = sorted([l for l in set(fm_items_df['level_id'])])
-                non_zero_terms_levels = [lid for lid in levels if lid in [levels[0], levels[-1]] or not is_zero_terms_level(lid)]
-
-                fm_items_df = fm_items_df[(fm_items_df['level_id'].isin(non_zero_terms_levels))]
-
-                fm_items_df['index'] = range(len(fm_items_df))
-
-                fm_items_df['item_id'] = range(1, len(fm_items_df) + 1)
-
-                levels = sorted([l for l in set(fm_items_df['level_id'])])
-
-                def level_id(i):
-                    return levels.index(fm_items_df.iloc[i]['level_id']) + 1
-
-                fm_items_df['level_id'] = fm_items_df['index'].apply(level_id)
-
-            policytc_ids = get_policytc_ids(fm_items_df)
-
-            def get_policytc_id(i):
-                return [
-                    k for k in viewkeys(policytc_ids) if policytc_ids[k] == {k: fm_items_df.iloc[i][k] for k in ('limit', 'deductible', 'attachment', 'deductible_min', 'deductible_max', 'share', 'calcrule_id',)}
-                ][0]
-
-            fm_items_df['policytc_id'] = fm_items_df['index'].apply(lambda i: get_policytc_id(i))
-
-            for col in fm_items_df.columns:
-                if col == 'peril_id':
-                    fm_items_df[col] = fm_items_df[col].astype(object)
-                elif col.endswith('id'):
-                    fm_items_df[col] = fm_items_df[col].astype(int)
-                elif col in ('tiv', 'limit', 'deductible', 'deductible_min', 'deductible_max', 'share',):
-                    fm_items_df[col] = fm_items_df[col].astype(float)
-        except (IOError, MemoryError, OasisException, OSError, TypeError, ValueError) as e:
-            raise OasisException(e)
-
-        return fm_items_df, acc_df
-
-    def write_items_file(self, gul_items_df, items_file_path):
-        """
-        Writes an items file.
-        """
-        try:
-            gul_items_df.to_csv(
-                columns=['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id'],
-                path_or_buf=items_file_path,
-                encoding='utf-8',
-                chunksize=1000,
-                index=False
-            )
-        except (IOError, OSError) as e:
-            raise OasisException(e)
-
-        return items_file_path
-
-    def write_coverages_file(self, gul_items_df, coverages_file_path):
-        """
-        Writes a coverages file.
-        """
-        try:
-            gul_items_df.to_csv(
-                columns=['coverage_id', 'tiv'],
-                path_or_buf=coverages_file_path,
-                encoding='utf-8',
-                chunksize=1000,
-                index=False
-            )
-        except (IOError, OSError) as e:
-            raise OasisException(e)
-
-        return coverages_file_path
-
-    def write_gulsummaryxref_file(self, gul_items_df, gulsummaryxref_file_path):
-        """
-        Writes a gulsummaryxref file.
-        """
-        try:
-            gul_items_df.to_csv(
-                columns=['coverage_id', 'summary_id', 'summaryset_id'],
-                path_or_buf=gulsummaryxref_file_path,
-                encoding='utf-8',
-                chunksize=1000,
-                index=False
-            )
-        except (IOError, OSError) as e:
-            raise OasisException(e)
-
-        return gulsummaryxref_file_path
-
-    def write_fm_policytc_file(self, fm_items_df, fm_policytc_file_path):
-        """
-        Writes an FM policy T & C file.
-        """
-        try:
-            fm_policytc_df = pd.DataFrame(
-                columns=['layer_id', 'level_id', 'agg_id', 'policytc_id'],
-                data=[key[:4] for key, _ in fm_items_df.groupby(['layer_id', 'level_id', 'agg_id', 'policytc_id', 'limit', 'deductible', 'share'])],
-                dtype=object
-            )
-            fm_policytc_df.to_csv(
-                path_or_buf=fm_policytc_file_path,
-                encoding='utf-8',
-                chunksize=1000,
-                index=False
-            )
-        except (IOError, OSError) as e:
-            raise OasisException(e)
-
-        return fm_policytc_file_path
-
-    def write_fm_profile_file(self, fm_items_df, fm_profile_file_path):
-        """
-        Writes an FM profile file.
-        """
-        try:
-            cols = ['policytc_id', 'calcrule_id', 'limit', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'share']
-
-            fm_profile_df = fm_items_df[cols]
-
-            fm_profile_df = pd.DataFrame(
-                columns=cols,
-                data=[key for key, _ in fm_profile_df.groupby(cols)]
-            )
-
-            col_repl = [
-                {'deductible': 'deductible1'},
-                {'deductible_min': 'deductible2'},
-                {'deductible_max': 'deductible3'},
-                {'attachment': 'attachment1'},
-                {'limit': 'limit1'},
-                {'share': 'share1'}
-            ]
-            for repl in col_repl:
-                fm_profile_df.rename(columns=repl, inplace=True)
-
-            n = len(fm_profile_df)
-
-            fm_profile_df['index'] = range(n)
-
-            fm_profile_df['share2'] = fm_profile_df['share3'] = [0] * n
-
-            fm_profile_df.to_csv(
-                columns=['policytc_id', 'calcrule_id', 'deductible1', 'deductible2', 'deductible3', 'attachment1', 'limit1', 'share1', 'share2', 'share3'],
-                path_or_buf=fm_profile_file_path,
-                encoding='utf-8',
-                chunksize=1000,
-                index=False
-            )
-        except (IOError, OSError) as e:
-            raise OasisException(e)
-
-        return fm_profile_file_path
-
-    def write_fm_programme_file(self, fm_items_df, fm_programme_file_path):
-        """
-        Writes a FM programme file.
-        """
-        try:
-            cov_level = fm_items_df['level_id'].min()
-            fm_programme_df = pd.DataFrame(
-                pd.concat([fm_items_df[fm_items_df['level_id'] == cov_level], fm_items_df])[['level_id', 'agg_id']],
-                dtype=int
-            ).reset_index(drop=True)
-
-            num_cov_items = len(fm_items_df[fm_items_df['level_id'] == cov_level])
-
-            for i in range(num_cov_items):
-                fm_programme_df.at[i, 'level_id'] = 0
-
-            def from_agg_id_to_agg_id(from_level_id, to_level_id):
-                iterator = (
-                    (from_level_it, to_level_it)
-                    for (_, from_level_it), (_, to_level_it) in zip(
-                        fm_programme_df[fm_programme_df['level_id'] == from_level_id].iterrows(),
-                        fm_programme_df[fm_programme_df['level_id'] == to_level_id].iterrows()
-                    )
-                )
-                for from_level_it, to_level_it in iterator:
-                    yield from_level_it['agg_id'], to_level_id, to_level_it['agg_id']
-
-            levels = list(set(fm_programme_df['level_id']))
-
-            data = [
-                (from_agg_id, level_id, to_agg_id) for from_level_id, to_level_id in zip(levels, levels[1:]) for from_agg_id, level_id, to_agg_id in from_agg_id_to_agg_id(from_level_id, to_level_id)
-            ]
-
-            fm_programme_df = pd.DataFrame(columns=['from_agg_id', 'level_id', 'to_agg_id'], data=data, dtype=int).drop_duplicates()
-
-            fm_programme_df.to_csv(
-                path_or_buf=fm_programme_file_path,
-                encoding='utf-8',
-                chunksize=1000,
-                index=False
-            )
-        except (IOError, OSError) as e:
-            raise OasisException(e)
-
-        return fm_programme_file_path
-
-    def write_fm_xref_file(self, fm_items_df, fm_xref_file_path):
-        """
-        Writes a FM xref file.
-        """
-        try:
-            data = [
-                (i + 1, agg_id, layer_id) for i, (agg_id, layer_id) in enumerate(itertools.product(set(fm_items_df['agg_id']), set(fm_items_df['layer_id'])))
-            ]
-
-            fm_xref_df = pd.DataFrame(columns=['output', 'agg_id', 'layer_id'], data=data, dtype=int)
-
-            fm_xref_df.to_csv(
-                path_or_buf=fm_xref_file_path,
-                encoding='utf-8',
-                chunksize=1000,
-                index=False
-            )
-        except (IOError, OSError) as e:
-            raise OasisException(e)
-
-        return fm_xref_file_path
-
-    def write_fmsummaryxref_file(self, fm_items_df, fmsummaryxref_file_path):
-        """
-        Writes an FM summaryxref file.
-        """
-        try:
-            data = [
-                (i + 1, 1, 1) for i, _ in enumerate(itertools.product(set(fm_items_df['agg_id']), set(fm_items_df['layer_id'])))
-            ]
-
-            fmsummaryxref_df = pd.DataFrame(columns=['output', 'summary_id', 'summaryset_id'], data=data, dtype=int)
-
-            fmsummaryxref_df.to_csv(
-                path_or_buf=fmsummaryxref_file_path,
-                encoding='utf-8',
-                chunksize=1000,
-                index=False
-            )
-        except (IOError, OSError) as e:
-            raise OasisException(e)
-
-        return fmsummaryxref_file_path
-
-    def write_gul_input_files(self, oasis_model=None, **kwargs):
-        """
-        Writes the standard Oasis GUL input files, namely::
-
-            items.csv
-            coverages.csv
-            gulsummaryxref.csv
-        """
-        kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
-
-        if oasis_model:
-            omr = oasis_model.resources
-            ofp = omr['oasis_files_pipeline']
-
-        exposure_profile = kwargs.get('source_exposure_profile')
-        source_exposure_file_path = kwargs.get('source_exposure_file_path')
-        keys_file_path = kwargs.get('keys_file_path')
-
-        gul_items_df, exp_df = self.get_gul_input_items(exposure_profile, source_exposure_file_path, keys_file_path)
-
-        if oasis_model:
-            omr['exposure_df'] = exp_df
-            omr['gul_items_df'] = gul_items_df
-
-        gul_input_files = (
-            ofp.gul_input_files if oasis_model
-            else {
-                'items': kwargs.get('items_file_path'),
-                'coverages': kwargs.get('coverages_file_path'),
-                'gulsummaryxref': kwargs.get('gulsummaryxref_file_path')
-            }
-        )
-
-        concurrent_tasks = (
-            Task(getattr(self, 'write_{}_file'.format(f)), args=(gul_items_df.copy(deep=True), gul_input_files[f],), key=f)
-            for f in gul_input_files
-        )
-        num_ps = min(len(gul_input_files), multiprocessing.cpu_count())
-        for _, _ in multithread(concurrent_tasks, pool_size=num_ps):
-            pass
-
-        return gul_input_files
-
-    def write_fm_input_files(self, oasis_model=None, **kwargs):
-        """
-        Generate Oasis FM input files, namely::
-
-            fm_policytc.csv
-            fm_profile.csv
-            fm_programm.ecsv
-            fm_xref.csv
-            fm_summaryxref.csv
-        """
-        kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
-
-        if oasis_model:
-            omr = oasis_model.resources
-            ofp = omr['oasis_files_pipeline']
-
-            exp_df, gul_items_df = omr['exposure_df'], omr['gul_items_df']
-            exposure_profile = omr['source_exposure_profile']
-            accounts_profile = omr['source_accounts_profile']
-            source_accounts_file_path = ofp.source_accounts_file_path
-            fm_agg_profile = omr['fm_agg_profile']
-        else:
-            exp_df, gul_items_df = kwargs.get('exposure_df'), kwargs.get('gul_items_df')
-            exposure_profile = kwargs.get('source_exposure_profile')
-            accounts_profile = kwargs.get('source_accounts_profile')
-            source_accounts_file_path = kwargs.get('source_accounts_file_path')
-            fm_agg_profile = kwargs.get('fm_agg_profile')
-
-        fm_items_df, acc_df = self.get_fm_input_items(exp_df, gul_items_df, exposure_profile, accounts_profile, source_accounts_file_path, fm_agg_profile)
-
-        if oasis_model:
-            omr['accounts_df'] = acc_df
-            omr['fm_items_df'] = fm_items_df
-
-        fm_input_files = (
-            ofp.fm_input_files if oasis_model
-            else {
-                'fm_policytc': kwargs.get('fm_policytc_file_path'),
-                'fm_profile': kwargs.get('fm_profile_file_path'),
-                'fm_programme': kwargs.get('fm_programme_file_path'),
-                'fm_xref': kwargs.get('fm_xref_file_path'),
-                'fmsummaryxref': kwargs.get('fmsummaryxref_file_path')
-            }
-        )
-
-        concurrent_tasks = (
-            Task(getattr(self, 'write_{}_file'.format(f)), args=(fm_items_df.copy(deep=True), fm_input_files[f],), key=f)
-            for f in fm_input_files
-        )
-        num_ps = min(len(fm_input_files), multiprocessing.cpu_count())
-        for _, _ in multithread(concurrent_tasks, pool_size=num_ps):
-            pass
-
-        return fm_input_files
-
-    def write_oasis_files(self, oasis_model=None, fm=False, **kwargs):
-        """
-        Writes the Oasis files - GUL + FM (if ``fm`` is ``True``).
-        """
-        gul_input_files = self.write_gul_input_files(oasis_model=oasis_model, **kwargs)
-
-        if not fm:
+        # If no source accounts file path has been provided assume that IL
+        # input files, and therefore also RI input files, are not needed
+        if not accounts_fp:
             return gul_input_files
 
-        fm_input_files = self.write_fm_input_files(oasis_model=oasis_model, **kwargs)
+        # Write the IL/FM input files
+        il_input_files, _, _ = write_il_input_files(
+            exposure_df,
+            gul_inputs_df,
+            accounts_fp,
+            target_dir,
+            exposure_profile=exposure_profile,
+            accounts_profile=accounts_profile,
+            aggregation_profile=aggregation_profile,
+            fname_prefixes=fname_prefixes['il']
+        )
 
-        oasis_files = {k: v for k, v in itertools.chain(gul_input_files.items(), fm_input_files.items())}
+        oasis_files = {k: v for k, v in chain(gul_input_files.items(), il_input_files.items())}
+
+        # If no RI input file paths (info. and scope) have been provided then
+        # no RI input files are needed
+        if not (ri_info_fp or ri_scope_fp):
+            return oasis_files
+
+        # Write the RI input files, and write the returned RI layer info. as a
+        # file, which can be reused by the model runner (in the model execution
+        # stage) to set the number of RI iterations
+        ri_layers = write_ri_input_files(
+            exposure_fp,
+            accounts_fp,
+            oasis_files['items'],
+            oasis_files['coverages'],
+            oasis_files['gulsummaryxref'],
+            oasis_files['fm_xref'],
+            oasis_files['fmsummaryxref'],
+            ri_info_fp,
+            ri_scope_fp,
+            target_dir
+        )
+        with io.open(os.path.join(target_dir, 'ri_layers.json'), 'w', encoding='utf-8') as f:
+            f.write(_unicode(json.dumps(ri_layers, ensure_ascii=False, indent=4)))
+            oasis_files['ri_layers'] = os.path.abspath(f.name)
+            for layer, layer_info in viewitems(ri_layers):
+                oasis_files['RI_{}'.format(layer)] = layer_info['directory']
 
         return oasis_files
 
-    def clear_oasis_files_pipeline(self, oasis_model, **kwargs):
-        """
-        Clears the files pipeline for the given Oasis model object.
-        """
-        oasis_model.resources['oasis_files_pipeline'].clear()
-
-        return oasis_model
-
-    def start_oasis_files_pipeline(
+    def generate_losses(
         self,
-        oasis_model=None,
-        **kwargs
+        model_run_fp,
+        oasis_fp,
+        analysis_settings_fp,
+        model_data_fp,
+        model_package_fp=None,
+        ktools_num_processes=2,
+        ktools_mem_limit=False,
+        ktools_fifo_relative=False,
+        ktools_alloc_rule=2
+    ):
+        il = all(p in os.listdir(oasis_fp) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
+
+        ri = False
+        if os.path.basename(oasis_fp) == 'input':
+            ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(oasis_fp))
+        elif os.path.basename(oasis_fp) == 'csv':
+            ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(oasis_fp)))
+
+        if not os.path.exists(model_run_fp):
+            Path(model_run_fp).mkdir(parents=True, exist_ok=True)
+
+        shutil.copy2(analysis_settings_fp, model_run_fp)
+
+        prepare_model_run_directory(
+            model_run_fp,
+            oasis_fp=oasis_fp,
+            ri=ri,
+            analysis_settings_fp=analysis_settings_fp,
+            model_data_fp=model_data_fp
+        )
+
+        if not ri:
+            csv_to_bin(oasis_fp, os.path.join(model_run_fp, 'input'), il=il)
+        else:
+            contents = os.listdir(model_run_fp)
+            for fp in [os.path.join(model_run_fp, fn) for fn in contents if re.match(r'RI_\d+$', fn) or re.match(r'input$', fn)]:
+                csv_to_bin(fp, fp, il=True, ri=True)
+
+        analysis_settings_fp = os.path.join(model_run_fp, 'analysis_settings.json')
+        try:
+            with io.open(analysis_settings_fp, 'r', encoding='utf-8') as f:
+                analysis_settings = json.load(f)
+
+            if analysis_settings.get('analysis_settings'):
+                analysis_settings = analysis_settings['analysis_settings']
+
+            if il:
+                analysis_settings['il_output'] = True
+            else:
+                analysis_settings['il_output'] = False
+                analysis_settings['il_summaries'] = []
+            
+            if ri:
+                analysis_settings['ri_output'] = True
+            else:
+                analysis_settings['ri_output'] = False
+                analysis_settings['ri_summaries'] = []
+        except (IOError, TypeError, ValueError):
+            raise OasisException('Invalid analysis settings file or file path: {}.'.format(analysis_settings_fp))
+
+        prepare_model_run_inputs(analysis_settings, model_run_fp, ri=ri)
+
+        script_fp = os.path.join(model_run_fp, 'run_ktools.sh')
+
+        if model_package_fp and os.path.exists(os.path.join(model_package_fp, 'supplier_model_runner.py')):
+            path, package_name = model_package_path.rsplit('/')
+            sys.path.append(path)
+            model_runner_module = importlib.import_module('{}.supplier_model_runner'.format(package_name))
+        else:
+            model_runner_module = runner
+
+        with setcwd(model_run_fp) as cwd_path:
+            ri_layers = 0
+            if ri:
+                try:
+                    with io.open(os.path.join(model_run_fp, 'ri_layers.json'), 'r', encoding='utf-8') as f:
+                        ri_layers = len(json.load(f))
+                except IOError:
+                    with io.open(os.path.join(model_run_fp, 'input', 'ri_layers.json'), 'r', encoding='utf-8') as f:
+                        ri_layers = len(json.load(f))
+
+            model_runner_module.run(
+                analysis_settings, 
+                ktools_num_processes,
+                filename=script_fp,
+                num_reinsurance_iterations=ri_layers,
+                ktools_mem_limit=ktools_mem_limit,
+                set_alloc_rule=ktools_alloc_rule, 
+                fifo_tmp_dir=(not ktools_fifo_relative)
+            )
+
+    def generate_deterministic_losses(
+        self,
+        input_dir,
+        output_dir=None,
+        loss_percentage_of_tiv=1.0,
+        net=False,
+        print_losses=True
     ):
         """
-        Starts the files pipeline for the given Oasis model object,
-        which is the generation of the Oasis items, coverages and GUL summary
-        files, and possibly the FM files, from the source exposures file,
-        source accounts file, source exposure profile, and associated
-        validation files and transformation files for the source and
-        intermediate files (source exposure, model exposures).
-
-        :param oasis_model: The Oasis model object
-        :type oasis_model: oasislmf.models.model.OasisModel
-
-        :param kwargs: Keyword arguments
-        :type kwargs: dict
-
-        :return: A dictionary of Oasis files (GUL + FM (if FM option indicated))
+        Generates insured losses from preexisting Oasis files with a specified
+        damage ratio (loss % of TIV).
         """
-        kwargs = self._process_default_kwargs(oasis_model=oasis_model, **kwargs)
+        if not os.path.exists(output_dir):
+            Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-        if oasis_model:
-            omr = oasis_model.resources
-            ofp = omr.get('oasis_files_pipeline') or OasisFilesPipeline(model_key=oasis_model.key)
+        contents = [_p.lower() for p in os.listdir(input_dir)]
+        exposure_fp = [os.path.join(input_dir, p) for p in contents if 'location' in p][0]
+        accounts_fp = [os.path.join(input_dir, p) for p in contents if 'account' in p][0]
 
-        logger = kwargs.get('logger') or logging.getLogger()
+        ri_info_fp = ri_scope_fp = None
+        try:
+            ri_info_fp = [os.path.join(input_dir, p) for p in contents if p.startswith('ri_info') or 'reinsinfo' in p][0]
+        except IndexError:
+            pass
+        else:
+            try:
+                ri_scope_fp = [os.path.join(input_dir, p) for p in contents if p.startswith('ri_scope') or 'reinscope' in p][0]
+            except IndexError:
+                ri_info_fp = None
 
-        logger.info('\nChecking Oasis files directory exists for model')
-        oasis_fp = kwargs.get('oasis_files_path')
-
-        if not oasis_fp:
-            raise OasisException('No Oasis files directory provided')
-        elif not os.path.exists(oasis_fp):
-            raise OasisException('Specified Oasis files directory {} does not exist on the filesystem.'.format(oasis_fp))
-
-        logger.info('\nOasis files directory: {}'.format(oasis_fp))
-
-        utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-
-        logger.info('\nChecking for source exposure file')
-        source_exposure_fp = kwargs.get('source_exposure_file_path')
-
-        if not source_exposure_fp:
-            raise OasisException('No source exposure file path provided')
-        elif not os.path.exists(source_exposure_fp):
-            raise OasisException("Source exposure file path {} does not exist on the filesysem".format(source_exposure_fp))
-
-        _source_exposure_fp = os.path.join(oasis_fp, 'srcexp-{}.csv'.format(utcnow))
-        logger.info('\nFound source exposure file {} - copying to Oasis files directory as {}'.format(source_exposure_fp, _source_exposure_fp))
-        shutil.copy(source_exposure_fp, _source_exposure_fp)
-        kwargs['source_exposure_file_path'] = _source_exposure_fp
-
-        logger.info('\nLoading source exposure profile')
-        exposure_profile = kwargs.get('source_exposure_profile') or self.get_exposure_profile(oasis_model=oasis_model, **kwargs)
-
-        if exposure_profile is None:
-            raise OasisException('No source exposure profile provided')
-
-        logger.info('\nFound source exposure profile: {}'.format(exposure_profile))
-
-        fm = kwargs.get('fm')
-
-        source_accounts_fp = None
-        accounts_profile = None
-        fm_agg_profile = None
-
-        if fm:
-            logger.info('\nChecking for source accounts file')
-            source_accounts_fp = kwargs.get('source_accounts_file_path')
-
-            if not source_accounts_fp:
-                raise OasisException('FM option indicated but no source accounts file path provided in arguments or model resources')
-            elif not os.path.exists(source_accounts_fp):
-                raise OasisException("Source accounts file path {} does not exist on the filesysem.".format(source_accounts_fp))
-
-            _source_accounts_fp = os.path.join(oasis_fp, 'srcacc-{}.csv'.format(utcnow))
-            logger.info('\nFound source accounts file {} - copying to Oasis files directory as {}'.format(source_accounts_fp, _source_accounts_fp))
-            shutil.copy(source_accounts_fp, _source_accounts_fp)
-
-            logger.info('\nLoading source accounts profile')
-            accounts_profile = kwargs.get('source_accounts_profile') or self.get_accounts_profile(oasis_model=oasis_model, **kwargs)
-
-            if accounts_profile is None:
-                raise OasisException('FM option indicated but no source accounts profile provided')
-
-            logger.info('\nLoaded source accounts profile: {}'.format(accounts_profile))
-
-            logger.info('\nLoading FM aggregation profile')
-            fm_agg_profile = kwargs.get('fm_agg_profile') or self.get_fm_aggregation_profile(oasis_model=oasis_model, **kwargs)
-
-            if fm_agg_profile is None:
-                raise OasisException('FM option indicated but no FM aggregation profile provided')
-
-            logger.info('\nLoaded FM aggregation profile: {}'.format(fm_agg_profile))
-
-        utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-
-        keys_fp = os.path.join(oasis_fp, 'oasiskeys-{}.csv'.format(utcnow))
-        keys_errors_fp = os.path.join(oasis_fp, 'oasiskeys-errors-{}.csv'.format(utcnow))
-
-        items_fp = os.path.join(oasis_fp, 'items.csv')
-        coverages_fp = os.path.join(oasis_fp, 'coverages.csv')
-        gulsummaryxref_fp = os.path.join(oasis_fp, 'gulsummaryxref.csv')
-
-        fm_policytc_fp = os.path.join(oasis_fp, 'fm_policytc.csv')
-        fm_profile_fp = os.path.join(oasis_fp, 'fm_profile.csv')
-        fm_programme_fp = os.path.join(oasis_fp, 'fm_programme.csv')
-        fm_xref_fp = os.path.join(oasis_fp, 'fm_xref.csv')
-        fmsummaryxref_fp = os.path.join(oasis_fp, 'fmsummaryxref.csv')
-
-        if oasis_model:
-            ofp.source_exposure_file_path = _source_exposure_fp
-            ofp.source_accounts_file_path = _source_accounts_fp
-
-            ofp.keys_file_path = keys_fp
-            ofp.keys_errors_file_path = keys_errors_fp
-
-            ofp.items_file_path = items_fp
-            ofp.coverages_file_path = coverages_fp
-            ofp.gulsummaryxref_file_path = gulsummaryxref_fp
-
-            ofp.fm_policytc_file_path = fm_policytc_fp
-            ofp.fm_profile_file_path = fm_profile_fp
-            ofp.fm_programme_file_path = fm_programme_fp
-            ofp.fm_xref_file_path = fm_xref_fp
-            ofp.fmsummaryxref_file_path = fmsummaryxref_fp
-
-        kwargs = self._process_default_kwargs(
-            oasis_model=oasis_model,
-            fm=fm,
-            source_exposure_file_path=_source_exposure_fp,
-            source_accounts_file_path=_source_accounts_fp,
-            keys_file_path=keys_fp,
-            keys_errors_file_path=keys_errors_fp,
-            items_file_path=items_fp,
-            coverages_file_path=coverages_fp,
-            gulsummaryxref_file_path=gulsummaryxref_fp,
-            fm_policytc_file_path=fm_policytc_fp,
-            fm_profile_file_path=fm_profile_fp,
-            fm_programme_file_path=fm_programme_fp,
-            fm_xref_file_path=fm_xref_fp,
-            fmsummaryxref_file_path=fmsummaryxref_fp
+        # Start Oasis files generation
+        self.generate_oasis_files(
+            input_dir,
+            exposure_fp,
+            accounts_fp=accounts_fp,
+            ri_info_fp=ri_info_fp,
+            ri_scope_fp=ri_scope_fp
         )
 
-        logger.info('\nGenerating keys file {keys_file_path} and keys errors file {keys_errors_file_path}'.format(**kwargs))
+        csv_to_bin(input_dir, output_dir)
 
-        self.get_keys(oasis_model=oasis_model, **kwargs)
+        # Generate an items and coverages dataframe and set column types (important!!)
+        items_df = pd.merge(
+            pd.read_csv(os.path.join(input_dir, 'items.csv')),
+            pd.read_csv(os.path.join(input_dir, 'coverages.csv'))
+        )
+        for col in items_df:
+            if col != 'tiv':
+                items_df[col] = items_df[col].astype(int)
+            else:
+                items_df[col] = items_df[col].astype(float)
 
-        logger.info('\nGenerating GUL input files')
-        gul_input_files = self.write_gul_input_files(oasis_model=oasis_model, **kwargs)
+        guls_list = []
+        for item_id, tiv in zip(items_df['item_id'], items_df['tiv']):
+            event_loss = loss_percentage_of_tiv * tiv
+            guls_list += [
+                oed.GulRecord(event_id=1, item_id=item_id, sidx=-1, loss=event_loss),
+                oed.GulRecord(event_id=1, item_id=item_id, sidx=-2, loss=0),
+                oed.GulRecord(event_id=1, item_id=item_id, sidx=1, loss=event_loss)
+            ]
 
-        if not fm:
-            return gul_input_files
+        guls_df = pd.DataFrame(guls_list)
+        guls_fp = os.path.join(output_dir, "guls.csv")
+        guls_df.to_csv(guls_fp, index=False)
 
-        logger.info('\nGenerating FM input files')
-        fm_input_files = self.write_fm_input_files(oasis_model=oasis_model, **kwargs)
+        net_flag = "-n" if net else ""
+        ils_bin_fp = os.path.join(input_dir, 'ils.bin')
+        ils_fp = os.path.join(output_dir, 'ils.csv')
+        command = "gultobin -S 1 < {} | fmcalc -p {} {} -a {} | tee {} | fmtocsv > {}".format(
+            guls_fp, output_dir, net_flag, oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID, ils_bin_fp, ils_fp)
+        print("\nRunning command: {}\n".format(command))
+        proc = subprocess.Popen(command, shell=True)
+        proc.wait()
+        if proc.returncode != 0:
+            raise OasisException("Failed to run fm")
 
-        oasis_files = ofp.oasis_files if oasis_model else {k: v for k, v in itertools.chain(gul_input_files.items(), fm_input_files.items())}
+        losses_df = pd.read_csv(ils_fp)
+        losses_df.drop(losses_df[losses_df.sidx != 1].index, inplace=True)
+        losses_df.reset_index(drop=True, inplace=True)
+        del losses_df['sidx']
 
-        return oasis_files
+        if print_losses:
+            # Set ``event_id`` and ``output_id`` column data types to ``object``
+            # to prevent ``tabulate`` from int -> float conversion during console printing
+            losses_df['event_id'] = losses_df['event_id'].astype(object)
+            losses_df['output_id'] = losses_df['output_id'].astype(object)
 
-    def create_model(self, model_supplier_id, model_id, model_version, resources=None):
-        model = OasisModel(
-            model_supplier_id,
-            model_id,
-            model_version,
-            resources=resources
+            print(tabulate(losses_df, headers='keys', tablefmt='psql', floatfmt=".2f"))
+
+            # Reset event ID and output ID column dtypes to int
+            losses_df['event_id'] = losses_df['event_id'].astype(int)
+            losses_df['output_id'] = losses_df['output_id'].astype(int)
+
+        return losses_df
+
+    def run_model(
+        self,
+        exposure_fp,
+        model_run_fp,
+        analysis_settings_fp,
+        model_data_fp,
+        exposure_profile=get_default_exposure_profile(),
+        exposure_profile_fp=None,
+        lookup_config=None,
+        lookup_config_fp=None,
+        keys_data_fp=None,
+        model_version_fp=None,
+        lookup_package_fp=None,
+        supported_oed_cov_types=tuple(OED_COVERAGE_TYPES[k]['id'] for k in OED_COVERAGE_TYPES if k not in ['pd', 'all']),
+        accounts_fp=None,
+        accounts_profile=get_default_accounts_profile(),
+        accounts_profile_fp=None,
+        aggregation_profile=get_default_fm_aggregation_profile(),
+        aggregation_profile_fp=None,
+        ri_info_fp=None,
+        ri_scope_fp=None,
+        oasis_fname_prefixes=OrderedDict({
+            'gul': {
+                'items': 'items',
+                'coverages': 'coverages',
+                'gulsummaryxref': 'gulsummaryxref_fp'
+            },
+            'il': {
+                'fm_policytc': 'fm_policytc',
+                'fm_profile': 'fm_profile',
+                'fm_programme': 'fm_programme',
+                'fm_xref': 'fm_xref',
+                'fmsummaryxref': 'fmsummaryxref'
+            }
+        }),
+        model_package_fp=None,
+        ktools_num_processes=2,
+        ktools_mem_limit=False,
+        ktools_fifo_relative=False,
+        ktools_alloc_rule=2
+    ):
+        il = True if accounts_fp else False
+
+        required_ri_paths = [ri_info_fp, ri_scope_fp]
+
+        ri = all(required_ri_paths) and il
+
+        if not os.path.exists(model_run_fp):
+            Path(model_run_fp).mkdir(parents=True, exist_ok=True)
+
+        oasis_fp = os.path.join(model_run_fp, 'input') if ri else os.path.join(model_run_fp, 'input', 'csv')
+        Path(oasis_fp).mkdir(parents=True, exist_ok=True)
+
+        self.generate_oasis_files(
+            exposure_fp,
+            oasis_fp,
+            exposure_profile=exposure_profile,
+            exposure_profile_fp=exposure_profile_fp,
+            lookup_config=lookup_config,
+            lookup_config_fp=lookup_config_fp,
+            keys_data_fp=keys_data_fp,
+            model_version_fp=model_version_fp,
+            lookup_package_fp=lookup_package_fp,
+            accounts_fp=accounts_fp,
+            accounts_profile=accounts_profile,
+            accounts_profile_fp=accounts_profile_fp,
+            aggregation_profile=aggregation_profile,
+            aggregation_profile_fp=aggregation_profile_fp,
+            ri_info_fp=ri_info_fp,
+            ri_scope_fp=ri_scope_fp,
+            fname_prefixes=oasis_fname_prefixes
         )
 
-        # set default resources
-        omr = model.resources
-
-        omr.setdefault('oasis_files_path', os.path.abspath(os.path.join('Files', model.key.replace('/', '-'))))
-        if not os.path.isabs(omr['oasis_files_path']):
-            omr['oasis_files_path'] = os.path.abspath(omr['oasis_files_path'])
-
-        ofp = OasisFilesPipeline(model_key=model.key)
-        omr['oasis_files_pipeline'] = ofp
-
-        if omr.get('source_exposure_profile') is None:
-            self.get_exposure_profile(oasis_model=model)
-
-        if omr.get('source_accounts_profile') is None:
-            self.get_accounts_profile(oasis_model=model)
-
-        if omr.get('fm_agg_profile') is None:
-            self.get_fm_aggregation_profile(oasis_model=model)
-
-        if omr.get('lookup') and omr.get('lookup_config') is None:
-            self.get_lookup_config(oasis_model=model)
-
-        self.model = model
-
-        return model
+        self.generate_losses(
+            oasis_fp,
+            model_run_fp,
+            analysis_settings_fp,
+            model_data_fp,
+            model_package_fp=model_package_fp,
+            ktools_num_processes=ktools_num_processes,
+            ktools_mem_limit=ktools_mem_limit,
+            ktools_fifo_relative=ktools_fifo_relative,
+            ktools_alloc_rule=ktools_alloc_rule
+        )

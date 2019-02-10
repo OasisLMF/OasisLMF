@@ -4,6 +4,7 @@ from future.utils import string_types
 
 import pytz
 
+
 NULL_VALUES = [None, '', 'n/a', 'N/A', 'null', 'Null', 'NULL']
 
 
@@ -22,11 +23,6 @@ def get_utctimestamp(thedate=None, fmt='%Y-%b-%d %H:%M:%S'):
     """
     d = thedate.astimezone(pytz.utc) if thedate else datetime.utcnow()
     return d.strftime(fmt)
-
-
-def is_string(s):
-        return isinstance(s, string_types)
-
 
 def to_string(val):
     """

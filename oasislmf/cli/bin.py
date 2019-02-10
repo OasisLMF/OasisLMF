@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 
 from ..model_execution.bin import (
-    create_binary_files,
+    csv_to_bin,
     create_binary_tar_file,
     check_conversion_tools,
     check_inputs_directory,
     cleanup_bin_directory,
 )
-from .cleaners import PathCleaner
+from ..utils.path import PathCleaner
 from .base import OasisBaseCommand
 
 
@@ -56,7 +56,7 @@ class BuildCmd(OasisBaseCommand):
 
         check_conversion_tools(do_il=args.do_il)
         check_inputs_directory(args.source, do_il=args.do_il, check_binaries=False)
-        create_binary_files(args.source, destination, do_il=args.do_il)
+        csv_to_bin(args.source, destination, do_il=args.do_il)
 
         if args.build_tar:
             create_binary_tar_file(destination)

@@ -22,7 +22,7 @@ from future.utils import (
 from pathlib2 import Path
 
 __all__ = [
-    'create_binary_files',
+    'csv_to_bin',
     'prepare_model_run_directory',
     'prepare_model_run_inputs'
 ]
@@ -36,11 +36,11 @@ from .files import TAR_FILE, INPUT_FILES, GUL_INPUT_FILES, IL_INPUT_FILES
 
 
 def prepare_model_run_directory(
-    run_dir_path,
-    oasis_files_src_path=None,
+    run_dir,
+    oasis_fp=None,
     ri=False,
-    analysis_settings_json_src_file_path=None,
-    model_data_src_path=None,
+    analysis_settings_fp=None,
+    model_data_fp=None,
     inputs_archive=None,
 ):
     """
@@ -101,57 +101,56 @@ def prepare_model_run_directory(
     :param run_directory: the model run directory
     :type run_directory: str
 
-    :param oasis_files_src_path: path to a set of Oasis files
-    :type oasis_files_src_path: str
+    :param oasis_fp: path to a set of Oasis files
+    :type oasis_fp: str
 
     :param ri: Boolean flag for RI mode
     :type ri: bool
 
-    :param analysis_settings_json_src_file_path: analysis settings JSON file path
-    :type analysis_settings_json_src_file_path: str
+    :param analysis_settings_fp: analysis settings JSON file path
+    :type analysis_settings_fp: str
 
-    :param model_data_src_path: model data source path
-    :type model_data_src_path: str
+    :param model_data_fp: model data source path
+    :type model_data_fp: str
 
     :param inputs_archive: path to a tar file containing input files
     :type inputs_archive: str
     """
-    #import ipdb; ipdb.set_trace()
     try:
         for subdir in ['fifo', 'output', 'static', 'work']:
-            Path(run_dir_path, subdir).mkdir(parents=True, exist_ok=True)
+            Path(run_dir, subdir).mkdir(parents=True, exist_ok=True)
 
         if not inputs_archive:
-            Path(run_dir_path, 'input', 'csv').mkdir(parents=True, exist_ok=True) if not ri else Path(run_dir_path, 'input').mkdir(parents=True, exist_ok=True)
+            Path(run_dir, 'input', 'csv').mkdir(parents=True, exist_ok=True) if not ri else Path(run_dir, 'input').mkdir(parents=True, exist_ok=True)
         else:
             with tarfile.open(inputs_archive) as input_tarfile:
-                p = os.path.join(run_dir_path, 'input') if not ri else os.path.join(run_dir_path, 'input')
+                p = os.path.join(run_dir, 'input') if not ri else os.path.join(run_dir, 'input')
                 input_tarfile.extractall(path=p)
 
-        oasis_files_destpath = os.path.join(run_dir_path, 'input', 'csv') if not ri else os.path.join(run_dir_path, 'input')
+        oasis_files_destpath = os.path.join(run_dir, 'input', 'csv') if not ri else os.path.join(run_dir, 'input')
 
-        if oasis_files_src_path and oasis_files_src_path != oasis_files_destpath:
-            for p in os.listdir(oasis_files_src_path):
-                src_fp = os.path.join(oasis_files_src_path, p)
+        if oasis_fp and oasis_fp != oasis_files_destpath:
+            for p in os.listdir(oasis_fp):
+                src_fp = os.path.join(oasis_fp, p)
                 if not (re.match(r'RI_\d+$', p) or p == 'ri_layers.json'):
                     shutil.copy2(src_fp, oasis_files_destpath)
                 else:
                     copy_func = shutil.copytree if re.match(r'RI_\d+$', p) else shutil.copy2
-                    copy_func(src_fp, os.path.join(run_dir_path, p))
+                    copy_func(src_fp, os.path.join(run_dir, p))
 
-        if analysis_settings_json_src_file_path:
-            analysis_settings_json_dest_file_path = os.path.join(run_dir_path, 'analysis_settings.json')
-            shutil.copyfile(analysis_settings_json_src_file_path, analysis_settings_json_dest_file_path)
+        if analysis_settings_fp:
+            analysis_settings_dest_fp = os.path.join(run_dir, 'analysis_settings.json')
+            shutil.copyfile(analysis_settings_fp, analysis_settings_dest_fp)
 
-        if model_data_src_path:
-            model_data_dest_path = os.path.join(run_dir_path, 'static')
+        if model_data_fp:
+            model_data_dest_fp = os.path.join(run_dir, 'static')
 
-            for path in glob.glob(os.path.join(model_data_src_path, '*')):
+            for path in glob.glob(os.path.join(model_data_fp, '*')):
                 filename = os.path.basename(path)
                 try:
-                    os.symlink(path, os.path.join(model_data_dest_path, filename))
+                    os.symlink(path, os.path.join(model_data_dest_fp, filename))
                 except Exception:
-                    shutil.copytree(model_data_src_path, os.path.join(model_data_dest_path, filename))
+                    shutil.copytree(model_data_fp, os.path.join(model_data_dest_fp, filename))
 
     except OSError as e:
         raise OasisException(e)
@@ -198,36 +197,36 @@ def prepare_model_run_inputs(analysis_settings, run_dir, ri=False):
         raise OasisException(e)
 
 
-def check_inputs_directory(directory_to_check, do_il=False, do_ri=False, check_binaries=True):
+def check_inputs_directory(directory_to_check, il=False, ri=False, check_binaries=True):
     """
     Check that all the required files are present in the directory.
 
     :param directory_to_check: directory containing the CSV files
     :type directory_to_check: string
 
-    :param do_il: check insuured loss files
-    :type do_il: bool
+    :param il: check insuured loss files
+    :type il: bool
 
-    :param do_il: check resinsurance sub-folders
-    :type do_il: bool
+    :param il: check resinsurance sub-folders
+    :type il: bool
 
     :param check_binaries: check binary files are not present
     :type check_binaries: bool
     """
     # Check the top level directory, that containes the core files and any direct FM files
-    _check_each_inputs_directory(directory_to_check, do_il=do_il, check_binaries=check_binaries)
+    _check_each_inputs_directory(directory_to_check, il=il, check_binaries=check_binaries)
 
-    if do_ri:
+    if ri:
         for ri_directory_to_check in glob.glob('{}{}RI_\d+$'.format(directory_to_check, os.path.sep)):
-            _check_each_inputs_directory(ri_directory_to_check, do_il=True, check_binaries=check_binaries)
+            _check_each_inputs_directory(ri_directory_to_check, il=True, check_binaries=check_binaries)
 
 
-def _check_each_inputs_directory(directory_to_check, do_il=False, check_binaries=True):
+def _check_each_inputs_directory(directory_to_check, il=False, check_binaries=True):
     """
     Detailed check of a specific directory
     """
 
-    if do_il:
+    if il:
         input_files = (f['name'] for f in viewvalues(INPUT_FILES) if f['type'] != 'optional')
     else:
         input_files = (f['name'] for f in viewvalues(INPUT_FILES) if f['type'] not in ['optional', 'il'])
@@ -243,7 +242,7 @@ def _check_each_inputs_directory(directory_to_check, do_il=False, check_binaries
                 raise OasisException("Binary file already exists: {}".format(file_path))
 
 
-def create_binary_files(csv_directory, bin_directory, do_il=False, do_ri=False):
+def csv_to_bin(csv_directory, bin_directory, il=False, ri=False):
     """
     Create the binary files.
 
@@ -253,34 +252,34 @@ def create_binary_files(csv_directory, bin_directory, do_il=False, do_ri=False):
     :param bin_directory: the directory to write the binary files
     :type bin_directory: str
 
-    :param do_il: whether to create the binaries required for insured loss calculations
-    :type do_il: bool
+    :param il: whether to create the binaries required for insured loss calculations
+    :type il: bool
 
-    :param do_ri: whether to create the binaries required for reinsurance calculations
-    :type do_ri: bool
+    :param ri: whether to create the binaries required for reinsurance calculations
+    :type ri: bool
 
     :raises OasisException: If one of the conversions fails
     """
     csvdir = os.path.abspath(csv_directory)
     bindir = os.path.abspath(bin_directory)
 
-    do_il = do_il or do_ri
+    il = il or ri
 
-    _create_set_of_binary_files(csvdir, bindir, do_il)
+    _csv_to_bin(csvdir, bindir, il)
 
-    if do_ri:
+    if ri:
         for ri_csvdir in glob.glob('{}{}RI_[0-9]*'.format(csvdir, os.sep)):
-            _create_set_of_binary_files(
-                ri_csvdir, os.path.join(bindir, os.path.basename(ri_csvdir)), do_il=True)
+            _csv_to_bin(
+                ri_csvdir, os.path.join(bindir, os.path.basename(ri_csvdir)), il=True)
 
-def _create_set_of_binary_files(csv_directory, bin_directory, do_il=False):
+def _csv_to_bin(csv_directory, bin_directory, il=False):
     """
     Create a set of binary files.
     """
     if not os.path.exists(bin_directory):
         os.mkdir(bin_directory)
 
-    if do_il:
+    if il:
         input_files = viewvalues(INPUT_FILES)
     else:
         input_files = (f for f in viewvalues(INPUT_FILES) if f['type'] != 'il')
@@ -349,17 +348,17 @@ def create_binary_tar_file(directory):
             tar.add(f, arcname=relpath)
 
 
-def check_conversion_tools(do_il=False):
+def check_conversion_tools(il=False):
     """
     Check that the conversion tools are available
     
-    :param do_il: Flag whether to check insured loss tools
-    :type do_il: bool
+    :param il: Flag whether to check insured loss tools
+    :type il: bool
 
     :return: True if all required tools are present, False otherwise
     :rtype: bool  
     """
-    if do_il:
+    if il:
         input_files = viewvalues(INPUT_FILES)
     else:
         input_files = (f for f in viewvalues(INPUT_FILES) if f['type'] != 'il')

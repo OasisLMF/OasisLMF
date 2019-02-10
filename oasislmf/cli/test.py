@@ -10,13 +10,13 @@ from multiprocessing.pool import ThreadPool
 from argparsetree import BaseCommand
 from backports.tempfile import TemporaryDirectory
 
-from ..model_preparation.lookup import OasisLookupFactory as olf
 from .. import __version__
-from ..utils.exceptions import OasisException
-from ..utils.conf import replace_in_file
 from ..api_client.client import OasisAPIClient
+from ..model_preparation.lookup import OasisLookupFactory as olf
+from ..utils.conf import replace_in_file
+from ..utils.exceptions import OasisException
+from ..utils.path import PathCleaner
 from .base import OasisBaseCommand
-from .cleaners import PathCleaner
 
 
 class TestModelApiCmd(OasisBaseCommand):
