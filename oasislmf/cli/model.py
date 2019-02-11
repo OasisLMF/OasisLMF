@@ -248,6 +248,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         :param args: The arguments from the command line
         :type args: Namespace
         """
+        self.logger.info('\nProcessing arguments')
         inputs = InputValues(args)
 
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
@@ -303,6 +304,13 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             'Reinsurance scope file path'
         )
 
+        il = True if accounts_fp else False
+
+        required_ri_paths = [ri_info_fp, ri_scope_fp]
+
+        ri = all(required_ri_paths) and il
+
+        self.logger.info('\nGenerating Oasis files (GUL=True, IL={}, RI={}'.format(il, ri))
         oasis_files = om().generate_oasis_files(
             oasis_fp,
             exposure_fp,
@@ -318,7 +326,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             ri_scope_fp=ri_scope_fp
         )
 
-        print(oasis_files)
+        self.logger.info('\nOasis files generated: {}'.format(oasis_files))
 
 
 class GenerateLossesCmd(OasisBaseCommand):
@@ -377,13 +385,14 @@ class GenerateLossesCmd(OasisBaseCommand):
         :param args: The arguments from the command line
         :type args: Namespace
         """
+        self.logger.info('\nProcessing arguments')
         inputs = InputValues(args)
 
         call_dir = os.getcwd()
 
         oasis_fp = as_path(
             inputs.get('oasis_files_path', required=True, is_path=True),
-            'Path to direct Oasis files (GUL + FM input files)', preexists=True
+            'Path to direct Oasis files (GUL + optionally FM and RI input files)', preexists=True
         )
 
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
@@ -408,6 +417,14 @@ class GenerateLossesCmd(OasisBaseCommand):
 
         ktools_alloc_rule = inputs.get('ktools_alloc_rule', default=2, required=False)
 
+        il = all(p in os.listdir(oasis_fp) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
+        ri = False
+        if os.path.basename(oasis_fp) == 'input':
+            ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(oasis_fp))
+        elif os.path.basename(oasis_fp) == 'csv':
+            ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(oasis_fp)))
+
+        self.logger.info('\nGenerating losses (GUL=True, IL={}, RI={})'.format(il, ri))
         om().generate_losses(
             model_run_fp,
             oasis_fp,
@@ -419,6 +436,8 @@ class GenerateLossesCmd(OasisBaseCommand):
             ktools_fifo_relative=ktools_fifo_relative,
             ktools_alloc_rule=ktools_alloc_rule
         )
+
+        self.logger.info('\nLosses generated')
 
 
 class GenerateDeterministicLossesCmd(OasisBaseCommand):
@@ -464,7 +483,7 @@ class GenerateDeterministicLossesCmd(OasisBaseCommand):
             help='Output directory')
         parser.add_argument(
             '-i', '--input-dir', type=str, default=None, required=True,
-            help='Input directory - should contain the OED exposure + accounts data + optionally the RI info. and scope files')
+            help='Input directory - should contain the OED exposure file + optionally the accounts, and RI info. and scope files')
         parser.add_argument(
             '-l', '--loss-factor', type=float, default=None,
             help='Loss factor to apply to TIVs.')
@@ -480,6 +499,7 @@ class GenerateDeterministicLossesCmd(OasisBaseCommand):
         :param args: The arguments from the command line
         :type args: Namespace
         """
+        self.logger.info('\nProcessing arguments')
         inputs = InputValues(args)
 
         call_dir = os.getcwd()
@@ -493,11 +513,19 @@ class GenerateDeterministicLossesCmd(OasisBaseCommand):
 
         net_losses = inputs.get('net_losses', default=False, required=False)
 
-        losses_df = om().generate_deterministic_losses(input_dir, output_dir, loss_percentage_of_tiv=loss_factor, net=net_losses, print_losses=False)
+        il = all(p in os.listdir(oasis_fp) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
+        ri = False
+        if os.path.basename(oasis_fp) == 'input':
+            ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(oasis_fp))
+        elif os.path.basename(oasis_fp) == 'csv':
+            ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(oasis_fp)))
 
+        self.logger.info('\nGenerating deterministic losses (GUL=True, IL={}, RI={})'.format(il, ri))
+        losses_df = om().generate_deterministic_losses(input_dir, output_dir, loss_percentage_of_tiv=loss_factor, net=net_losses, print_losses=False)
         losses_df['event_id'] = losses_df['event_id'].astype(object)
         losses_df['output_id'] = losses_df['output_id'].astype(object)
 
+        self.logger.info('\nLosses generated'.format(il, ri))
         print(tabulate(losses_df, headers='keys', tablefmt='psql', floatfmt=".2f"))
 
 
@@ -568,6 +596,7 @@ class RunCmd(OasisBaseCommand):
         :param args: The arguments from the command line
         :type args: Namespace
         """
+        self.logger.info('\nProcessing arguments')
         inputs = InputValues(args)
 
         call_dir = os.getcwd()
@@ -579,7 +608,7 @@ class RunCmd(OasisBaseCommand):
 
         args.model_run_fp = model_run_fp
 
-        source_accounts_fp = as_path(
+        accounts_fp = as_path(
             inputs.get('source_accounts_file_path', required=False, is_path=True), 'Source OED accounts file path'
         )
 
@@ -592,7 +621,7 @@ class RunCmd(OasisBaseCommand):
             'Reinsurance scope file path'
         )
 
-        il = True if source_accounts_fp else False
+        il = True if accounts_fp else False
 
         required_ri_paths = [ri_info_fp, ri_scope_fp]
 
@@ -609,22 +638,24 @@ class RunCmd(OasisBaseCommand):
 
         args.oasis_files_path = os.path.join(model_run_fp, 'input', 'csv') if not ri else os.path.join(model_run_fp, 'input')
 
+        self.logger.info('\nGenerating Oasis files (GUL=True, IL={}, RI={})'.format(il, ri))
         gen_oasis_files_cmd = GenerateOasisFilesCmd()
         gen_oasis_files_cmd.action(args)
 
+        self.logger.info('\nGenerating losses (GUL=True, IL={}, RI={})'.format(il, ri))
         gen_losses_cmd = GenerateLossesCmd()
         gen_losses_cmd.action(args)
 
 
 class ModelsCmd(OasisBaseCommand):
     """
-    Various subcommands for working with models locally, including::
+    Model subcommands::
 
-        * transforming source exposure and/or accounts (financial terms) files (in EDM or OED format) to the canonical Oasis format
         * generating an Rtree file index for the area peril lookup component of the built-in lookup framework
-        * writing keys files from lookups
-        * generating Oasis input CSV files (GUL + optionally FM)
+        * generating keys files from model lookups
+        * generating Oasis input CSV files (GUL + optionally FM and RI)
         * generating losses from a preexisting set of Oasis input CSV files
+        * generating deterministic losses (no model)
         * running a model end-to-end
     """
     sub_commands = {
