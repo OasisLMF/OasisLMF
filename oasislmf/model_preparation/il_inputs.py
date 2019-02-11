@@ -358,8 +358,9 @@ def generate_il_input_items(
     :param aggregation_profile: FM aggregation profile
     :param aggregation_profile: dict
     """
-    exppf = exposure_profile
-    accpf = accounts_profile
+    cep = exposure_profile
+    cap = accounts_profile
+    fmap = aggregation_profile
 
     for df in [exposure_df, gul_inputs_df, accounts_df]:
         if not df.columns.contains('index'):
@@ -378,15 +379,13 @@ def generate_il_input_items(
     )
 
     try:
-        ufp = unified_fm_profile_by_level_and_term_group(profiles=(exppf, accpf,))
+        ufp = unified_fm_profile_by_level_and_term_group(profiles=(cep, cap,))
 
         if not ufp:
             raise OasisException(
                 'Canonical loc. and/or acc. profiles are possibly missing FM term information: '
                 'FM term definitions for TIV, limit, deductible and/or share.'
             )
-
-        fmap = aggregation_profile
 
         if not fmap:
             raise OasisException(
@@ -477,6 +476,8 @@ def generate_il_input_items(
                     f = v['field'].lower()
                     it[f] = exposure_df.iloc[it['loc_id']][f] if src == 'loc' else accounts_df.iloc[it['acc_id']][f]
 
+        #import ipdb; ipdb.set_trace()
+
         concurrent_tasks = (
             Task(get_il_terms_by_level_as_list, args=(ufp[level_id], fmap[level_id], preset_items[level_id], exposure_df.copy(deep=True), accounts_df.copy(deep=True),), key=level_id)
             for level_id in fm_levels
@@ -522,8 +523,8 @@ def get_il_input_items(
                     items with zero financial terms
     :param reduced: bool
     """
-    exppf = exposure_profile
-    accpf = accounts_profile
+    cep = exposure_profile
+    cap = accounts_profile
     fmap = aggregation_profile
 
     try:
@@ -532,8 +533,8 @@ def get_il_input_items(
                 exposure_df,
                 accounts_df,
                 gul_inputs_df,
-                exposure_profile=exppf,
-                accounts_profile=accpf,
+                exposure_profile=cep,
+                accounts_profile=cap,
                 aggregation_profile=fmap
             )
         ]

@@ -9,7 +9,7 @@ import string
 
 from collections import Counter
 
-from ..model_preparation.ri_oed import (
+from ..model_preparation.oed import (
     ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID, # Alloc Rule 2 (Default)
     ALLOCATE_TO_ITEMS_BY_GUL_ALLOC_ID,            # Alloc Rule 1
     NO_ALLOCATION_ALLOC_ID,                       # Alloc Rule 0

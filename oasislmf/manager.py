@@ -15,6 +15,7 @@ import multiprocessing
 import os
 import re
 import shutil
+import subprocess
 
 from builtins import str
 from collections import OrderedDict
@@ -35,12 +36,14 @@ from .cli.base import InputValues
 from .model_execution import runner
 from .model_execution.bin import (
     csv_to_bin,
+    generate_binary_inputs,
     prepare_model_run_directory,
     prepare_model_run_inputs,
 )
 from .model_preparation.lookup import OasisLookupFactory as olf
 from .model_preparation.gul_inputs import write_gul_input_files
 from .model_preparation.il_inputs import write_il_input_files
+from .model_preparation import oed
 from .model_preparation.reinsurance_layer import write_ri_input_files
 from .utils.concurrency import (
     multiprocess,
@@ -228,10 +231,11 @@ class OasisManager(object):
         if not os.path.exists(target_dir):
             Path(target_dir).mkdir(parents=True, exist_ok=True)
 
-        shutil.copy2(exposure_fp, target_dir)
-        for p in (exposure_profile_fp, accounts_fp, accounts_profile_fp, aggregation_profile_fp, lookup_config_fp, model_version_fp, ri_info_fp, ri_scope_fp):
-            if p and os.path.exists(p):
-                shutil.copy2(p, target_dir)
+        for p in (exposure_fp, exposure_profile_fp, accounts_fp, accounts_profile_fp, aggregation_profile_fp, lookup_config_fp, model_version_fp, ri_info_fp, ri_scope_fp):
+            if p in os.listdir(target_dir):
+                os.remove(p)
+            if p and os.path.exists(p) and p != os.path.join(target_dir, os.path.basename(p)):
+                    shutil.copy2(p, target_dir)
 
         # Load the exposure + accounts + FM aggregation profiles + lookup
         # config. profile from file paths, if present, overriding the defaults
@@ -239,7 +243,7 @@ class OasisManager(object):
         accounts_profile = get_json(src_fp=accounts_profile_fp) or accounts_profile
         aggregation_profile = get_json(src_fp=aggregation_profile_fp, key_transform=int) or aggregation_profile
         lookup_config = get_json(src_fp=lookup_config_fp) or lookup_config
-        if lookup_config_fp:
+        if lookup_config:
             lookup_config['keys_data_path'] = os.path.dirname(lookup_config_fp)
 
         # Generate keys and keys errors files - if no lookup assets provided
@@ -251,7 +255,7 @@ class OasisManager(object):
         if not (lookup_config or keys_data_fp or model_version_fp or lookup_package_fp):
             n = len(pd.read_csv(exposure_fp))
             keys = [
-                {'id': i + 1, 'peril_id': 1, 'coverage_type': j, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
+                {'locnumber': i + 1, 'peril_id': 1, 'coverage_type': j, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
                 for i, j in product(range(n), supported_oed_cov_types)
             ]
             _, _ = olf.write_oasis_keys_file(keys, keys_fp)
@@ -434,7 +438,7 @@ class OasisManager(object):
         if not os.path.exists(output_dir):
             Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-        contents = [_p.lower() for p in os.listdir(input_dir)]
+        contents = [p.lower() for p in os.listdir(input_dir)]
         exposure_fp = [os.path.join(input_dir, p) for p in contents if 'location' in p][0]
         accounts_fp = [os.path.join(input_dir, p) for p in contents if 'account' in p][0]
 
@@ -458,7 +462,7 @@ class OasisManager(object):
             ri_scope_fp=ri_scope_fp
         )
 
-        csv_to_bin(input_dir, output_dir)
+        generate_binary_inputs(input_dir, output_dir)
 
         # Generate an items and coverages dataframe and set column types (important!!)
         items_df = pd.merge(
@@ -485,10 +489,9 @@ class OasisManager(object):
         guls_df.to_csv(guls_fp, index=False)
 
         net_flag = "-n" if net else ""
-        ils_bin_fp = os.path.join(input_dir, 'ils.bin')
         ils_fp = os.path.join(output_dir, 'ils.csv')
-        command = "gultobin -S 1 < {} | fmcalc -p {} {} -a {} | tee {} | fmtocsv > {}".format(
-            guls_fp, output_dir, net_flag, oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID, ils_bin_fp, ils_fp)
+        command = "gultobin -S 1 < {} | fmcalc -p {} {} -a {} | tee ils.bin | fmtocsv > {}".format(
+            guls_fp, output_dir, net_flag, oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID, ils_fp)
         print("\nRunning command: {}\n".format(command))
         proc = subprocess.Popen(command, shell=True)
         proc.wait()

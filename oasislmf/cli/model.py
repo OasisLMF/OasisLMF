@@ -27,9 +27,9 @@ from argparse import RawDescriptionHelpFormatter
 
 import pandas as pd
 
-from six import u as _unicode
-
 from pathlib2 import Path
+from six import u as _unicode
+from tabulate import tabulate
 
 from ..manager import OasisManager as om
 
@@ -255,7 +255,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
 
         call_dir = os.getcwd()
 
-        oasis_fp = as_path(inputs.get('oasis_files_path', is_path=True, call_dir=call_dir, default=default_oasis_fp), 'Oasis files path', preexists=False)
+        oasis_fp = as_path(inputs.get('oasis_files_path', is_path=True, default=default_oasis_fp), 'Oasis files path', preexists=False)
 
         lookup_config_fp = as_path(inputs.get('lookup_config_file_path', required=False, is_path=True), 'Lookup config JSON file path', preexists=False)
 
@@ -382,14 +382,14 @@ class GenerateLossesCmd(OasisBaseCommand):
         call_dir = os.getcwd()
 
         oasis_fp = as_path(
-            inputs.get('oasis_files_path', call_dir=call_dir, required=True, is_path=True),
+            inputs.get('oasis_files_path', required=True, is_path=True),
             'Path to direct Oasis files (GUL + FM input files)', preexists=True
         )
 
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
         default_model_run_fp = os.path.join(os.getcwd(), 'runs', 'ProgOasis-{}'.format(utcnow))
 
-        model_run_fp = as_path(inputs.get('model_run_dir', is_path=True, default=default_model_run_fp, call_dir=call_dir), 'Model run directory', preexists=False)
+        model_run_fp = as_path(inputs.get('model_run_dir', is_path=True, default=default_model_run_fp), 'Model run directory', preexists=False)
 
         analysis_settings_fp = as_path(
             inputs.get('analysis_settings_file_path', required=True, is_path=True),
@@ -459,8 +459,6 @@ class GenerateDeterministicLossesCmd(OasisBaseCommand):
         """
         super(self.__class__, self).add_args(parser)
 
-        parser = argparse.ArgumentParser(
-            description='Generate deterministic losses')
         parser.add_argument(
             '-o', '--output-dir', type=str, default=None, required=True,
             help='Output directory')
@@ -482,10 +480,10 @@ class GenerateDeterministicLossesCmd(OasisBaseCommand):
         :param args: The arguments from the command line
         :type args: Namespace
         """
-        inputs = InputValues(parser.parse_args())
+        inputs = InputValues(args)
 
         call_dir = os.getcwd()
-        output_dir = as_path(inputs.get('output_dir', default=os.path.join(call_dir, 'output'), is_path=True, call_dir=call_dir), 'Output directory', preexists=False)
+        output_dir = as_path(inputs.get('output_dir', default=os.path.join(call_dir, 'output'), is_path=True), 'Output directory', preexists=False)
         if not os.path.exists(output_dir):
             Path(output_dir).mkdir(parents=True, exist_ok=True)
 
@@ -510,7 +508,7 @@ class RunCmd(OasisBaseCommand):
     The command line arguments can be supplied in the configuration file
     (``oasislmf.json`` by default or specified with the ``--config`` flag).
     """
-
+    formatter_class = RawDescriptionHelpFormatter
     static_data_fp = os.path.join(os.path.dirname(__file__), os.path.pardir, '_data')
 
     def add_args(self, parser):
@@ -577,7 +575,7 @@ class RunCmd(OasisBaseCommand):
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
         default_model_run_fp = os.path.join(os.getcwd(), 'runs', 'ProgOasis-{}'.format(utcnow))
 
-        model_run_fp = as_path(inputs.get('model_run_dir', is_path=True, default=default_model_run_fp, call_dir=call_dir), 'Model run directory', preexists=False)
+        model_run_fp = as_path(inputs.get('model_run_dir', is_path=True, default=default_model_run_fp), 'Model run directory', preexists=False)
 
         args.model_run_fp = model_run_fp
 

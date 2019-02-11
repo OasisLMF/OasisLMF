@@ -114,7 +114,7 @@ def get_json(
     ):
 
     if not (src_fp or src_json):
-        raise OasisException('Either a valid JSON file path or JSON string must be provided')
+        return
 
     di = None
 
