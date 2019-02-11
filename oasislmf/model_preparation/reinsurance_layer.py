@@ -74,18 +74,18 @@ def create_xref_descriptions(accounts_df, locations_df):
             xref_descriptions += [
                 oed.XrefDescription(
                     xref_id = item_id,
-                    account_number = acc_and_loc.AccNumber,
-                    location_number = acc_and_loc.LocNumber,
-                    location_group = acc_and_loc.LocGroup,
-                    cedant_name = acc_and_loc.CedantName,
-                    producer_name = acc_and_loc.ProducerName,
-                    lob = acc_and_loc.LOB,
-                    country_code = acc_and_loc.CountryCode,
-                    reins_tag = acc_and_loc.ReinsTag,
+                    account_number = acc_and_loc.get('AccNumber'),
+                    location_number = acc_and_loc.get('LocNumber'),
+                    location_group = acc_and_loc.get('LocGroup'),
+                    cedant_name = acc_and_loc.get('CedantName'),
+                    producer_name = acc_and_loc.get('ProducerName'),
+                    lob = acc_and_loc.get('LOB'),
+                    country_code = acc_and_loc.get('CountryCode'),
+                    reins_tag = acc_and_loc.get('ReinsTag'),
                     coverage_type_id = coverage_type,
                     peril_id = peril,
-                    policy_number = acc_and_loc.PolNumber,
-                    portfolio_number = acc_and_loc.PortNumber,
+                    policy_number = acc_and_loc.get('PolNumber'),
+                    portfolio_number = acc_and_loc.get('PortNumber'),
                     tiv = tiv
                 )
             ]

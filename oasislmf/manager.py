@@ -449,7 +449,7 @@ class OasisManager(object):
             pass
         else:
             try:
-                ri_scope_fp = [os.path.join(input_dir, p) for p in contents if p.startswith('ri_scope') or 'reinscope' in p][0]
+                ri_scope_fp = [os.path.join(input_dir, p) for p in contents if p.startswith('ri_scope') or 'reinsscope' in p][0]
             except IndexError:
                 ri_info_fp = None
 

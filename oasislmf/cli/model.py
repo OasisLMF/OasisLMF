@@ -513,12 +513,12 @@ class GenerateDeterministicLossesCmd(OasisBaseCommand):
 
         net_losses = inputs.get('net_losses', default=False, required=False)
 
-        il = all(p in os.listdir(oasis_fp) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
+        il = all(p in os.listdir(input_dir) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
         ri = False
-        if os.path.basename(oasis_fp) == 'input':
-            ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(oasis_fp))
-        elif os.path.basename(oasis_fp) == 'csv':
-            ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(oasis_fp)))
+        if os.path.basename(input_dir) == 'input':
+            ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(input_dir))
+        elif os.path.basename(input_dir) == 'csv':
+            ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(input_dir)))
 
         self.logger.info('\nGenerating deterministic losses (GUL=True, IL={}, RI={})'.format(il, ri))
         losses_df = om().generate_deterministic_losses(input_dir, output_dir, loss_percentage_of_tiv=loss_factor, net=net_losses, print_losses=False)
