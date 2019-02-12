@@ -7,7 +7,7 @@ __all__ = [
     'GenerateLossesCmd',
     'GenerateOasisFilesCmd',
     'GeneratePerilAreasRtreeFileIndexCmd',
-    'ModelsCmd',
+    'ModelCmd',
     'RunCmd'
 ]
 
@@ -645,7 +645,7 @@ class RunCmd(OasisBaseCommand):
         gen_losses_cmd.action(args)
 
 
-class ModelsCmd(OasisBaseCommand):
+class ModelCmd(OasisBaseCommand):
     """
     Model subcommands::
 
