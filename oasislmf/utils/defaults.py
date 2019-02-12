@@ -20,7 +20,7 @@ def get_default_accounts_profile(data_fp=static_data_fp):
 
 
 def get_default_deterministic_analysis_settings(data_fp=static_data_fp):
-    return get_json(src_fp=os.path.join(data_fp, 'det-analysis-settings.json'))
+    return get_json(src_fp=os.path.join(data_fp, 'analysis_settings.json'))
 
 
 def get_default_exposure_profile(data_fp=static_data_fp):
