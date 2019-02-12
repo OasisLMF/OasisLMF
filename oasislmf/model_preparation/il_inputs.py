@@ -49,7 +49,7 @@ from ..utils.concurrency import (
 from ..utils.data import get_dataframe
 from ..utils.exceptions import OasisException
 from ..utils.metadata import OED_FM_LEVELS
-from ..utils.oed_profiles import (
+from ..utils.defaults import (
     get_default_accounts_profile,
     get_default_exposure_profile,
     get_default_fm_aggregation_profile,

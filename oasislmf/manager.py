@@ -53,7 +53,7 @@ from .utils.concurrency import (
 from .utils.data import get_json
 from .utils.exceptions import OasisException
 from .utils.metadata import OED_COVERAGE_TYPES
-from .utils.oed_profiles import (
+from .utils.defaults import (
     get_default_accounts_profile,
     get_default_exposure_profile,
     get_default_fm_aggregation_profile,

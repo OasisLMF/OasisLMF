@@ -26,7 +26,7 @@ from ..utils.concurrency import (
 from ..utils.data import get_dataframe
 from ..utils.exceptions import OasisException
 from ..utils.metadata import OED_COVERAGE_TYPES
-from ..utils.oed_profiles import get_default_exposure_profile
+from ..utils.defaults import get_default_exposure_profile
 from .il_inputs import unified_fm_profile_by_level_and_term_group
 
 

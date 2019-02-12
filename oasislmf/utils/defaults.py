@@ -2,6 +2,7 @@
 
 __all__ = [
     'get_default_accounts_profile',
+    'get_default_deterministic_analysis_settings',
     'get_default_exposure_profile',
     'get_default_fm_aggregation_profile'
 ]
@@ -16,6 +17,10 @@ static_data_fp = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__fil
 
 def get_default_accounts_profile(data_fp=static_data_fp):
     return get_json(src_fp=os.path.join(data_fp, 'oed-acc-profile.json'))
+
+
+def get_default_deterministic_analysis_settings(data_fp=static_data_fp):
+    return get_json(src_fp=os.path.join(data_fp, 'det-analysis-settings.json'))
 
 
 def get_default_exposure_profile(data_fp=static_data_fp):
