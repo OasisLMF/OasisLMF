@@ -5,36 +5,66 @@ __all__ = [
     'get_default_deterministic_analysis_settings',
     'get_default_exposure_profile',
     'get_default_fm_aggregation_profile',
-    KTOOLS_NUM_PROCESSES,
-    KTOOLS_MEM_LIMIT,
-    KTOOLS_FIFO_RELATIVE,
-    KTOOLS_ALLOC_RULE
+    'KTOOLS_NUM_PROCESSES',
+    'KTOOLS_MEM_LIMIT',
+    'KTOOLS_FIFO_RELATIVE',
+    'KTOOLS_ALLOC_RULE',
+    'OASIS_FILES_PREFIXES',
+    'STATIC_DATA_FP'
 ]
 
 import os
 
+from collections import OrderedDict
+
 from .data import get_json
 
 
-static_data_fp = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)), '_data')
+# Path for storing static data/metadata files used in the package
+STATIC_DATA_FP = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)), '_data')
+
+# Default profiles that describe the financial terms in the OED acc. and loc.
+# (exposure) files, as well as how aggregation of FM input items is performed
+# in the different OED FM levels
+def get_default_accounts_profile(path=False):
+    src_fp = os.path.join(STATIC_DATA_FP, 'oed-acc-profile.json')
+    return get_json(src_fp=src_fp) if not path else src_fp
 
 
-def get_default_accounts_profile(data_fp=static_data_fp):
-    return get_json(src_fp=os.path.join(data_fp, 'oed-acc-profile.json'))
+def get_default_exposure_profile(path=False):
+    src_fp = os.path.join(STATIC_DATA_FP, 'oed-loc-profile.json')
+    return get_json(src_fp=src_fp) if not path else src_fp
 
 
-def get_default_deterministic_analysis_settings(data_fp=static_data_fp):
-    return get_json(src_fp=os.path.join(data_fp, 'analysis_settings.json'))
+def get_default_fm_aggregation_profile(path=False):
+    src_fp = os.path.join(STATIC_DATA_FP, 'fm-oed-agg-profile.json')
+    return get_json(src_fp=src_fp, key_transform=int) if not path else src_fp
 
 
-def get_default_exposure_profile(data_fp=static_data_fp):
-    return get_json(src_fp=os.path.join(data_fp, 'oed-loc-profile.json'))
+# Default name prefixes of the Oasis input files (GUL + IL)
+OASIS_FILES_PREFIXES = OrderedDict({
+    'gul': {
+        'items': 'items',
+        'coverages': 'coverages',
+        'gulsummaryxref': 'gulsummaryxref'
+    },
+    'il': {
+        'fm_policytc': 'fm_policytc',
+        'fm_profile': 'fm_profile',
+        'fm_programme': 'fm_programme',
+        'fm_xref': 'fm_xref',
+        'fmsummaryxref': 'fmsummaryxref'
+    }
+})
 
 
-def get_default_fm_aggregation_profile(data_fp=static_data_fp):
-    return get_json(src_fp=os.path.join(data_fp, 'fm-oed-agg-profile.json'), key_transform=int)
+# Default analysis settings for deterministic loss generation
+def get_default_deterministic_analysis_settings(path=False):
+    src_fp = os.path.join(STATIC_DATA_FP, 'analysis_settings.json')
+    return get_json(src_fp=src_fp) if not path else src_fp
 
 
+# Ktools runtime parameters - defaults used during model execution
 KTOOLS_NUM_PROCESSES = 2
 KTOOLS_MEM_LIMIT = False
 KTOOLS_FIFO_RELATIVE = False

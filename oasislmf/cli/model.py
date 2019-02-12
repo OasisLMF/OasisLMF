@@ -40,6 +40,11 @@ from ..utils.path import (
 )
 from ..utils.peril import PerilAreasIndex
 from ..utils.data import get_utctimestamp
+from ..utils.defaults import (
+    get_default_exposure_profile,
+    get_default_accounts_profile,
+    get_default_fm_aggregation_profile,
+)
 from .base import (
     InputValues,
     OasisBaseCommand,
@@ -195,7 +200,6 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
     files and the RI input files.
     """
     formatter_class = RawDescriptionHelpFormatter
-    static_data_fp = os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir, '_data'))
 
     def add_args(self, parser):
         """
@@ -273,7 +277,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         )
 
         exposure_profile_fp = as_path(
-            inputs.get('source_exposure_profile_path', default=os.path.join(self.static_data_fp, 'oed-loc-profile.json'), required=False, is_path=True),
+            inputs.get('source_exposure_profile_path', default=get_default_exposure_profile(path=True), required=False, is_path=True),
             'Source OED exposure profile path'
         )
 
@@ -281,12 +285,12 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             inputs.get('source_accounts_file_path', required=False, is_path=True), 'Source OED accounts file path'
         )
         accounts_profile_fp = as_path(
-            inputs.get('source_accounts_profile_path', default=os.path.join(self.static_data_fp, 'oed-acc-profile.json'), required=False, is_path=True),
+            inputs.get('source_accounts_profile_path', default=get_default_accounts_profile(path=True), required=False, is_path=True),
             'Source OED accounts profile path'
         )
 
         aggregation_profile_fp = as_path(
-            inputs.get('fm_aggregation_profile_path', default=os.path.join(self.static_data_fp, 'fm-oed-agg-profile.json'), required=False, is_path=True),
+            inputs.get('fm_aggregation_profile_path', default=get_default_fm_aggregation_profile(path=True), required=False, is_path=True),
             'FM OED aggregation profile path'
         )
 
@@ -316,7 +320,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             lookup_package_fp=lookup_package_fp,
             accounts_fp=accounts_fp,
             accounts_profile_fp=accounts_profile_fp,
-            aggregation_profile_fp=aggregation_profile_fp,
+            fm_aggregation_profile_fp=aggregation_profile_fp,
             ri_info_fp=ri_info_fp,
             ri_scope_fp=ri_scope_fp
         )
@@ -532,7 +536,7 @@ class RunCmd(OasisBaseCommand):
     (``oasislmf.json`` by default or specified with the ``--config`` flag).
     """
     formatter_class = RawDescriptionHelpFormatter
-    static_data_fp = os.path.join(os.path.dirname(__file__), os.path.pardir, '_data')
+    STATIC_DATA_FP = os.path.join(os.path.dirname(__file__), os.path.pardir, '_data')
 
     def add_args(self, parser):
         """

@@ -335,7 +335,7 @@ def generate_il_input_items(
     gul_inputs_df,
     exposure_profile=get_default_exposure_profile(),
     accounts_profile=get_default_accounts_profile(),
-    aggregation_profile=get_default_fm_aggregation_profile()
+    fm_aggregation_profile=get_default_fm_aggregation_profile()
 ):
     """
     Generates FM input items.
@@ -355,12 +355,12 @@ def generate_il_input_items(
     :param accounts_profile: Source accounts profile
     :type accounts_profile: dict
 
-    :param aggregation_profile: FM aggregation profile
-    :param aggregation_profile: dict
+    :param fm_aggregation_profile: FM aggregation profile
+    :param fm_aggregation_profile: dict
     """
     cep = exposure_profile
     cap = accounts_profile
-    fmap = aggregation_profile
+    fmap = fm_aggregation_profile
 
     for df in [exposure_df, gul_inputs_df, accounts_df]:
         if not df.columns.contains('index'):
@@ -492,7 +492,7 @@ def get_il_input_items(
     gul_inputs_df,
     exposure_profile=get_default_exposure_profile(),
     accounts_profile=get_default_accounts_profile(),
-    aggregation_profile=get_default_fm_aggregation_profile(),
+    fm_aggregation_profile=get_default_fm_aggregation_profile(),
     reduced=True
 ):
     """
@@ -514,8 +514,8 @@ def get_il_input_items(
     :param accounts_profile: OED source accounts profile
     :type accounts_profile: dict
 
-    :param aggregation_profile: FM aggregation profile
-    :param aggregation_profile: dict
+    :param fm_aggregation_profile: FM aggregation profile
+    :param fm_aggregation_profile: dict
 
     :param reduced: Whether to reduce the FM input items table by removing any
                     items with zero financial terms
@@ -523,7 +523,7 @@ def get_il_input_items(
     """
     cep = exposure_profile
     cap = accounts_profile
-    fmap = aggregation_profile
+    fmap = fm_aggregation_profile
 
     try:
         il_items = [
@@ -533,7 +533,7 @@ def get_il_input_items(
                 gul_inputs_df,
                 exposure_profile=cep,
                 accounts_profile=cap,
-                aggregation_profile=fmap
+                fm_aggregation_profile=fmap
             )
         ]
         il_items.sort(key=lambda it: it['item_id'])
@@ -752,8 +752,8 @@ def write_il_input_files(
     target_dir,
     exposure_profile=get_default_exposure_profile(),
     accounts_profile=get_default_accounts_profile(),
-    aggregation_profile=get_default_fm_aggregation_profile(),
-    fname_prefixes={
+    fm_aggregation_profile=get_default_fm_aggregation_profile(),
+    oasis_files_prefixes={
         'fm_policytc': 'fm_policytc',
         'fm_profile': 'fm_profile',
         'fm_programme': 'fm_programme',
@@ -778,11 +778,11 @@ def write_il_input_files(
         gul_inputs_df,
         exposure_profile=exposure_profile,
         accounts_profile=accounts_profile,
-        aggregation_profile=aggregation_profile
+        fm_aggregation_profile=fm_aggregation_profile
     )
 
     il_input_files = {
-        k: os.path.join(target_dir, '{}.csv'.format(fname_prefixes[k])) for k in viewkeys(fname_prefixes)
+        k: os.path.join(target_dir, '{}.csv'.format(oasis_files_prefixes[k])) for k in viewkeys(oasis_files_prefixes)
     }
 
     concurrent_tasks = (

@@ -234,7 +234,7 @@ def write_gul_input_files(
     keys_fp,
     target_dir,
     exposure_profile=get_default_exposure_profile(),
-    fname_prefixes={
+    oasis_files_prefixes={
         'items': 'items',
         'coverages': 'coverages',
         'gulsummaryxref': 'gulsummaryxref'
@@ -250,7 +250,7 @@ def write_gul_input_files(
     gul_inputs_df, exposure_df = get_gul_input_items(exposure_fp, keys_fp)
 
     gul_input_files = {
-        k: os.path.join(target_dir, '{}.csv'.format(fname_prefixes[k])) for k in viewkeys(fname_prefixes)
+        k: os.path.join(target_dir, '{}.csv'.format(oasis_files_prefixes[k])) for k in viewkeys(oasis_files_prefixes)
     }
 
     concurrent_tasks = (
