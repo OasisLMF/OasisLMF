@@ -25,8 +25,6 @@ import sys
 
 from argparse import RawDescriptionHelpFormatter
 
-import pandas as pd
-
 from pathlib2 import Path
 from six import u as _unicode
 from tabulate import tabulate
