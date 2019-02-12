@@ -2,17 +2,21 @@
 
 __all__ = [
     'get_dataframe',
-    'get_json'
+    'get_json',
+    'get_timestamp',
+    'get_utctimestamp'
 ]
 
 import builtins
 import io
 import json
 
+from datetime import datetime
 from future.utils import viewitems
 from json import JSONDecodeError
 
 import pandas as pd
+import pytz
 
 from .exceptions import OasisException
 
@@ -125,3 +129,20 @@ def get_json(
         di = json.loads(src_json)
 
     return di if not key_transform else {key_transform(k): v for k, v in viewitems(di)}
+
+
+def get_timestamp(thedate=None, fmt='%Y%m%d%H%M%S'):
+    """ Get a timestamp """
+    d = thedate if thedate else datetime.now()
+    return d.strftime(fmt)
+
+
+def get_utctimestamp(thedate=None, fmt='%Y-%b-%d %H:%M:%S'):
+    """
+    Returns a UTC timestamp for a given ``datetime.datetime`` in the
+    specified string format - the default format is::
+
+        YYYY-MMM-DD HH:MM:SS
+    """
+    d = thedate.astimezone(pytz.utc) if thedate else datetime.utcnow()
+    return d.strftime(fmt)

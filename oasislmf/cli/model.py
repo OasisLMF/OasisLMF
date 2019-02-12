@@ -33,20 +33,17 @@ from ..manager import OasisManager as om
 
 from ..model_preparation.lookup import OasisLookupFactory as olf
 from ..utils.exceptions import OasisException
-from ..utils.defaults import (
-    get_default_exposure_profile,
-    get_default_accounts_profile,
-    get_default_fm_aggregation_profile,
-)
 from ..utils.data import get_json
 from ..utils.path import (
     as_path,
     setcwd,
 )
 from ..utils.peril import PerilAreasIndex
-from ..utils.values import get_utctimestamp
-
-from .base import OasisBaseCommand, InputValues
+from ..utils.data import get_utctimestamp
+from .base import (
+    InputValues,
+    OasisBaseCommand,
+)
 
 
 class GeneratePerilAreasRtreeFileIndexCmd(OasisBaseCommand):

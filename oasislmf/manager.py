@@ -50,20 +50,84 @@ from .utils.concurrency import (
     multithread,
     Task,
 )
-from .utils.data import get_json
+from .utils.data import (
+    get_json,
+    get_utctimestamp,
+)
 from .utils.exceptions import OasisException
+from .utils.log import oasis_log
 from .utils.metadata import OED_COVERAGE_TYPES
 from .utils.defaults import (
     get_default_accounts_profile,
+    get_default_deterministic_analysis_settings,
     get_default_exposure_profile,
     get_default_fm_aggregation_profile,
+    KTOOLS_NUM_PROCESSES,
+    KTOOLS_MEM_LIMIT,
+    KTOOLS_FIFO_RELATIVE,
+    KTOOLS_ALLOC_RULE,
 )
 from .utils.peril import PerilAreasIndex
 from .utils.path import setcwd
-from .utils.values import get_utctimestamp
 
 
 class OasisManager(object):
+
+    @oasis_log
+    def __init__(
+        self,
+        exposure_profile=None,
+        accounts_profile=None,
+        fm_aggregation_profile=None,
+        deterministic_analysis_settings=None
+    ):
+        # Set defaults for static data or runtime parameters
+        self._default_exposure_profile = exposure_profile or get_default_exposure_profile()
+        self._default_supported_oed_coverage_types = tuple(OED_COVERAGE_TYPES[k]['id'] for k in OED_COVERAGE_TYPES if k not in ['pd', 'all'])
+        self._default_accounts_profile = accounts_profile or get_default_accounts_profile()
+        self._default_fm_aggregation_profile = fm_aggregation_profile or get_default_fm_aggregation_profile()
+        self._default_deterministic_analysis_settings = deterministic_analysis_settings or get_default_deterministic_analysis_settings()
+        self._ktools_num_processes = KTOOLS_NUM_PROCESSES
+        self._ktools_mem_limit = KTOOLS_MEM_LIMIT
+        self._ktools_fifo_relative = KTOOLS_FIFO_RELATIVE
+        self._ktools_alloc_rule = KTOOLS_ALLOC_RULE
+
+    @property
+    def default_exposure_profile(self):
+        return self._default_exposure_profile
+
+    @property
+    def default_supported_oed_coverage_types(self):
+        return self._default_supported_oed_coverage_types
+
+    @property
+    def default_accounts_profile(self):
+        return self._default_accounts_profile
+
+    @property
+    def default_fm_aggregation_profile(self):
+        return self._default_fm_aggregation_profile
+
+    @property
+    def default_deterministic_analysis_settings(self):
+        return self._default_deterministic_analysis_settings
+
+    @property
+    def ktools_num_processes(self):
+        return self._ktools_num_processes
+
+    @property
+    def ktools_mem_limit(self):
+        return self._ktools_mem_limit
+
+    @property
+    def ktools_fifo_relative(self):
+        return self._ktools_fifo_relative
+
+    @property
+    def ktools_alloc_rule(self):
+        return self._ktools_alloc_rule
+
 
     def generate_peril_areas_rtree_file_index(
         self,
@@ -168,9 +232,12 @@ class OasisManager(object):
         lookup_package_fp=None,
         keys_fp=None,
         keys_errors_fp=None,
-        keys_id_col='locnumber',
+        keys_id_col=None,
         keys_format='oasis'
     ):
+        _keys_id_col = keys_id_col or 'locnumber'
+        _keys_format = keys_format or 'oasis'
+
         model_info, lookup = olf.create(
             lookup_config_fp=lookup_config_fp,
             model_keys_data_path=keys_data_path,
@@ -185,29 +252,29 @@ class OasisManager(object):
 
         return olf.save_results(
             lookup,
-            keys_id_col=keys_id_col,
+            keys_id_col=_keys_id_col,
             successes_fp=keys_fp,
             errors_fp=keys_errors_fp,
             source_exposure_fp=exposure_fp,
-            format=keys_format
+            format=_keys_format
         )
 
     def generate_oasis_files(
         self,
         target_dir,
         exposure_fp,
-        exposure_profile=get_default_exposure_profile(),
+        exposure_profile=self.default_exposure_profile,
         exposure_profile_fp=None,
         lookup_config=None,
         lookup_config_fp=None,
         keys_data_fp=None,
         model_version_fp=None,
         lookup_package_fp=None,
-        supported_oed_cov_types=tuple(OED_COVERAGE_TYPES[k]['id'] for k in OED_COVERAGE_TYPES if k not in ['pd', 'all']),
+        supported_oed_coverage_types=self.default_supported_oed_coverage_types,
         accounts_fp=None,
-        accounts_profile=get_default_accounts_profile(),
+        accounts_profile=self.default_accounts_profile,
         accounts_profile_fp=None,
-        aggregation_profile=get_default_fm_aggregation_profile(),
+        fm_aggregation_profile=self.default_fm_aggregation_profile,
         aggregation_profile_fp=None,
         ri_info_fp=None,
         ri_scope_fp=None,
@@ -241,7 +308,7 @@ class OasisManager(object):
         # config. profile from file paths, if present, overriding the defaults
         exposure_profile = get_json(src_fp=exposure_profile_fp) or exposure_profile
         accounts_profile = get_json(src_fp=accounts_profile_fp) or accounts_profile
-        aggregation_profile = get_json(src_fp=aggregation_profile_fp, key_transform=int) or aggregation_profile
+        fm_aggregation_profile = get_json(src_fp=aggregation_profile_fp, key_transform=int) or fm_aggregation_profile
         lookup_config = get_json(src_fp=lookup_config_fp) or lookup_config
         if lookup_config:
             lookup_config['keys_data_path'] = os.path.dirname(lookup_config_fp)
@@ -256,7 +323,7 @@ class OasisManager(object):
             n = len(pd.read_csv(exposure_fp))
             keys = [
                 {'locnumber': i + 1, 'peril_id': 1, 'coverage_type': j, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
-                for i, j in product(range(n), supported_oed_cov_types)
+                for i, j in product(range(n), supported_oed_coverage_types)
             ]
             _, _ = olf.write_oasis_keys_file(keys, keys_fp)
         else:
@@ -296,7 +363,7 @@ class OasisManager(object):
             target_dir,
             exposure_profile=exposure_profile,
             accounts_profile=accounts_profile,
-            aggregation_profile=aggregation_profile,
+            fm_aggregation_profile=fm_aggregation_profile,
             fname_prefixes=fname_prefixes['il']
         )
 
@@ -337,10 +404,10 @@ class OasisManager(object):
         analysis_settings_fp,
         model_data_fp,
         model_package_fp=None,
-        ktools_num_processes=2,
-        ktools_mem_limit=False,
-        ktools_fifo_relative=False,
-        ktools_alloc_rule=2
+        ktools_num_processes=self.ktools_num_processes,
+        ktools_mem_limit=self.ktools_mem_limit,
+        ktools_fifo_relative=self.ktools_fifo_relative,
+        ktools_alloc_rule=self.ktools_alloc_rule
     ):
         il = all(p in os.listdir(oasis_fp) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
 
@@ -523,18 +590,18 @@ class OasisManager(object):
         model_run_fp,
         analysis_settings_fp,
         model_data_fp,
-        exposure_profile=get_default_exposure_profile(),
+        exposure_profile=self.default_exposure_profile,
         exposure_profile_fp=None,
         lookup_config=None,
         lookup_config_fp=None,
         keys_data_fp=None,
         model_version_fp=None,
         lookup_package_fp=None,
-        supported_oed_cov_types=tuple(OED_COVERAGE_TYPES[k]['id'] for k in OED_COVERAGE_TYPES if k not in ['pd', 'all']),
+        supported_oed_coverage_types=self.default_supported_oed_coverage_types,
         accounts_fp=None,
-        accounts_profile=get_default_accounts_profile(),
+        accounts_profile=self.default_accounts_profile,
         accounts_profile_fp=None,
-        aggregation_profile=get_default_fm_aggregation_profile(),
+        fm_aggregation_profile=set.default_fm_aggregation_profile,
         aggregation_profile_fp=None,
         ri_info_fp=None,
         ri_scope_fp=None,
@@ -553,10 +620,10 @@ class OasisManager(object):
             }
         }),
         model_package_fp=None,
-        ktools_num_processes=2,
-        ktools_mem_limit=False,
-        ktools_fifo_relative=False,
-        ktools_alloc_rule=2
+        ktools_num_processes=self.ktools_num_processes,
+        ktools_mem_limit=self.ktools_mem_limit,
+        ktools_fifo_relative=self.ktools_fifo_relative,
+        ktools_alloc_rule=self.ktools_alloc_rule
     ):
         il = True if accounts_fp else False
 
@@ -580,10 +647,11 @@ class OasisManager(object):
             keys_data_fp=keys_data_fp,
             model_version_fp=model_version_fp,
             lookup_package_fp=lookup_package_fp,
+            supported_oed_coverage_types=supported_oed_coverage_types,
             accounts_fp=accounts_fp,
             accounts_profile=accounts_profile,
             accounts_profile_fp=accounts_profile_fp,
-            aggregation_profile=aggregation_profile,
+            fm_aggregation_profile=fm_aggregation_profile,
             aggregation_profile_fp=aggregation_profile_fp,
             ri_info_fp=ri_info_fp,
             ri_scope_fp=ri_scope_fp,

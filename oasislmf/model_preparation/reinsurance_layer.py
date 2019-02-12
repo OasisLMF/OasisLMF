@@ -25,7 +25,7 @@ from ..utils.exceptions import OasisException
 from . import oed
 
 
-# Meta-data about an inuring layer
+# Metadata about an inuring layer
 InuringLayer = namedtuple(
     "InuringLayer",
     "inuring_priority reins_numbers is_valid validation_messages")
