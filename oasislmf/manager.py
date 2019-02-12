@@ -297,9 +297,9 @@ class OasisManager(object):
         # Get the exposure + accounts + FM aggregation profiles + lookup
         # config. profiles either from the optional arguments if present, or
         # then manager defaults
-        exposure_profile = exposure_profile or get_json(src_fp=exposure_profile_fp) or self.exposure_profile
-        accounts_profile = accounts_profile or get_json(src_fp=accounts_profile_fp) or self.accounts_profile
-        fm_aggregation_profile = fm_aggregation_profile or get_json(src_fp=fm_aggregation_profile_fp, key_transform=int) or self.fm_aggregation_profile
+        exposure_profile = exposure_profile or get_json(src_fp=exposure_profile_fp) or self.default_exposure_profile
+        accounts_profile = accounts_profile or get_json(src_fp=accounts_profile_fp) or self.default_accounts_profile
+        fm_aggregation_profile = fm_aggregation_profile or get_json(src_fp=fm_aggregation_profile_fp, key_transform=int) or self.default_fm_aggregation_profile
         lookup_config = get_json(src_fp=lookup_config_fp) or lookup_config
         if lookup_config:
             lookup_config['keys_data_path'] = os.path.dirname(lookup_config_fp)
@@ -390,7 +390,7 @@ class OasisManager(object):
 
         return oasis_files
 
-    def generate_losses(
+    def generate_model_losses(
         self,
         model_run_fp,
         oasis_fp,
@@ -405,13 +405,15 @@ class OasisManager(object):
         il = all(p in os.listdir(oasis_fp) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
 
         ri = False
-        if os.path.basename(oasis_fp) == 'input':
-            ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(oasis_fp))
-        elif os.path.basename(oasis_fp) == 'csv':
+        if os.path.basename(oasis_fp) == 'csv':
             ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(oasis_fp)))
+        else:
+            ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(oasis_fp))
 
         if not os.path.exists(model_run_fp):
             Path(model_run_fp).mkdir(parents=True, exist_ok=True)
+
+        analysis_settings_fn = os.path.basename(analysis_settings_fp)
 
         shutil.copy2(analysis_settings_fp, model_run_fp)
 
@@ -430,9 +432,9 @@ class OasisManager(object):
             for fp in [os.path.join(model_run_fp, fn) for fn in contents if re.match(r'RI_\d+$', fn) or re.match(r'input$', fn)]:
                 csv_to_bin(fp, fp, il=True, ri=True)
 
-        analysis_settings_fp = os.path.join(model_run_fp, 'analysis_settings.json')
+        _analysis_settings_fp = os.path.join(model_run_fp, analysis_settings_fn)
         try:
-            with io.open(analysis_settings_fp, 'r', encoding='utf-8') as f:
+            with io.open(_analysis_settings_fp, 'r', encoding='utf-8') as f:
                 analysis_settings = json.load(f)
 
             if analysis_settings.get('analysis_settings'):
@@ -450,7 +452,7 @@ class OasisManager(object):
                 analysis_settings['ri_output'] = False
                 analysis_settings['ri_summaries'] = []
         except (IOError, TypeError, ValueError):
-            raise OasisException('Invalid analysis settings file or file path: {}.'.format(analysis_settings_fp))
+            raise OasisException('Invalid analysis settings file or file path: {}.'.format(_analysis_settings_fp))
 
         prepare_model_run_inputs(analysis_settings, model_run_fp, ri=ri)
 
@@ -474,8 +476,8 @@ class OasisManager(object):
                         ri_layers = len(json.load(f))
 
             model_runner_module.run(
-                analysis_settings, 
-                (ktools_num_processes or self.ktools_num_processes),
+                analysis_settings,
+                number_of_processes=(ktools_num_processes or self.ktools_num_processes),
                 filename=script_fp,
                 num_reinsurance_iterations=ri_layers,
                 ktools_mem_limit=(ktools_mem_limit or self.ktools_mem_limit),
@@ -483,46 +485,55 @@ class OasisManager(object):
                 fifo_tmp_dir=(not (ktools_fifo_relative or self.ktools_fifo_relative))
             )
 
-    def run_deterministic(
+    def generate_deterministic_losses(
         self,
         input_dir,
         output_dir=None,
+        analysis_settings_fp=None,
         loss_percentage_of_tiv=1.0,
         net=False,
         print_losses=True
     ):
-        """
-        Generates insured losses from preexisting Oasis files with a specified
-        damage ratio (loss % of TIV).
-        """
-        if not os.path.exists(output_dir):
-            Path(output_dir).mkdir(parents=True, exist_ok=True)
+        import ipdb; ipdb.set_trace()
+        output_dir = output_dir or input_dir
 
-        contents = [p.lower() for p in os.listdir(input_dir)]
-        exposure_fp = [os.path.join(input_dir, p) for p in contents if 'location' in p][0]
-        accounts_fp = [os.path.join(input_dir, p) for p in contents if 'account' in p][0]
+        il = all(p in os.listdir(input_dir) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
 
-        ri_info_fp = ri_scope_fp = None
-        try:
-            ri_info_fp = [os.path.join(input_dir, p) for p in contents if p.startswith('ri_info') or 'reinsinfo' in p][0]
-        except IndexError:
-            pass
-        else:
-            try:
-                ri_scope_fp = [os.path.join(input_dir, p) for p in contents if p.startswith('ri_scope') or 'reinsscope' in p][0]
-            except IndexError:
-                ri_info_fp = None
+        ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(input_dir))
 
-        # Start Oasis files generation
-        self.generate_oasis_files(
+        analysis_settings_fp = analysis_settings_fp or get_default_deterministic_analysis_settings(path=True)
+
+        prepare_model_run_directory(
             input_dir,
-            exposure_fp,
-            accounts_fp=accounts_fp,
-            ri_info_fp=ri_info_fp,
-            ri_scope_fp=ri_scope_fp
+            oasis_fp=input_dir,
+            ri=ri,
+            analysis_settings_fp=analysis_settings_fp
         )
 
-        generate_binary_inputs(input_dir, output_dir)
+        csv_to_bin(input_dir, input_dir, il=il, ri=ri)
+
+        try:
+            with io.open(analysis_settings_fp, 'r', encoding='utf-8') as f:
+                analysis_settings = json.load(f)
+
+            if analysis_settings.get('analysis_settings'):
+                analysis_settings = analysis_settings['analysis_settings']
+
+            if il:
+                analysis_settings['il_output'] = True
+            else:
+                analysis_settings['il_output'] = False
+                analysis_settings['il_summaries'] = []
+            
+            if ri:
+                analysis_settings['ri_output'] = True
+            else:
+                analysis_settings['ri_output'] = False
+                analysis_settings['ri_summaries'] = []
+        except (IOError, TypeError, ValueError):
+            raise OasisException('Invalid analysis settings file or file path: {}.'.format(analysis_settings_fp))
+
+        prepare_model_run_inputs(analysis_settings, input_dir, ri=ri)
 
         # Generate an items and coverages dataframe and set column types (important!!)
         items_df = pd.merge(
@@ -563,19 +574,64 @@ class OasisManager(object):
         losses_df.reset_index(drop=True, inplace=True)
         del losses_df['sidx']
 
+        return losses_df
+
+
+
+    def run_deterministic(
+        self,
+        input_dir,
+        output_dir=None,
+        analysis_settings_fp=None,
+        loss_percentage_of_tiv=1.0,
+        net=False,
+        print_losses=True
+    ):
+        """
+        Generates insured losses from preexisting Oasis files with a specified
+        damage ratio (loss % of TIV).
+        """
+        #if not os.path.exists(output_dir):
+        #    Path(output_dir).mkdir(parents=True, exist_ok=True)
+
+        contents = [p.lower() for p in os.listdir(input_dir)]
+        exposure_fp = [os.path.join(input_dir, p) for p in contents if 'location' in p][0]
+        accounts_fp = [os.path.join(input_dir, p) for p in contents if 'account' in p][0]
+
+        ri_info_fp = ri_scope_fp = None
+        try:
+            ri_info_fp = [os.path.join(input_dir, p) for p in contents if p.startswith('ri_info') or 'reinsinfo' in p][0]
+        except IndexError:
+            pass
+        else:
+            try:
+                ri_scope_fp = [os.path.join(input_dir, p) for p in contents if p.startswith('ri_scope') or 'reinsscope' in p][0]
+            except IndexError:
+                ri_info_fp = None
+
+        # Start Oasis files generation
+        self.generate_oasis_files(
+            input_dir,
+            exposure_fp,
+            accounts_fp=accounts_fp,
+            ri_info_fp=ri_info_fp,
+            ri_scope_fp=ri_scope_fp
+        )
+        import ipdb; ipdb.set_trace()
+        losses_df = self.generate_deterministic_losses(
+            output_dir,
+            input_dir,
+            analysis_settings_fp=(analysis_settings_fp or get_default_deterministic_analysis_settings(path=True)),
+            loss_percentage_of_tiv=loss_percentage_of_tiv,
+            net=net,
+            print_losses=print_losses
+        )
+
         if print_losses:
-            # Set ``event_id`` and ``output_id`` column data types to ``object``
-            # to prevent ``tabulate`` from int -> float conversion during console printing
-            losses_df['event_id'] = losses_df['event_id'].astype(object)
-            losses_df['output_id'] = losses_df['output_id'].astype(object)
-
-            print(tabulate(losses_df, headers='keys', tablefmt='psql', floatfmt=".2f"))
-
-            # Reset event ID and output ID column dtypes to int
-            losses_df['event_id'] = losses_df['event_id'].astype(int)
-            losses_df['output_id'] = losses_df['output_id'].astype(int)
+            print(losses_df)
 
         return losses_df
+
 
     def run_model(
         self,
@@ -620,7 +676,7 @@ class OasisManager(object):
         self.generate_oasis_files(
             exposure_fp,
             oasis_fp,
-            exposure_profile=(exposure_profile or self.exposure_profile),
+            exposure_profile=(exposure_profile or self.default_exposure_profile),
             exposure_profile_fp=exposure_profile_fp,
             lookup_config=lookup_config,
             lookup_config_fp=lookup_config_fp,

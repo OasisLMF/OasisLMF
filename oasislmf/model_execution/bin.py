@@ -123,23 +123,24 @@ def prepare_model_run_directory(
         for subdir in ['fifo', 'output', 'static', 'work']:
             Path(run_dir, subdir).mkdir(parents=True, exist_ok=True)
 
-        if not inputs_archive:
-            Path(run_dir, 'input', 'csv').mkdir(parents=True, exist_ok=True) if not ri else Path(run_dir, 'input').mkdir(parents=True, exist_ok=True)
-        else:
-            with tarfile.open(inputs_archive) as input_tarfile:
-                p = os.path.join(run_dir, 'input') if not ri else os.path.join(run_dir, 'input')
-                input_tarfile.extractall(path=p)
+        if model_data_fp:
+            if not inputs_archive:
+                Path(run_dir, 'input', 'csv').mkdir(parents=True, exist_ok=True) if not ri else Path(run_dir, 'input').mkdir(parents=True, exist_ok=True)
+            else:
+                with tarfile.open(inputs_archive) as input_tarfile:
+                    p = os.path.join(run_dir, 'input') if not ri else os.path.join(run_dir, 'input')
+                    input_tarfile.extractall(path=p)
 
-        oasis_files_destpath = os.path.join(run_dir, 'input', 'csv') if not ri else os.path.join(run_dir, 'input')
+            oasis_files_destpath = os.path.join(run_dir, 'input', 'csv') if not ri else os.path.join(run_dir, 'input')
 
-        if oasis_fp and oasis_fp != oasis_files_destpath:
-            for p in os.listdir(oasis_fp):
-                src_fp = os.path.join(oasis_fp, p)
-                if not (re.match(r'RI_\d+$', p) or p == 'ri_layers.json'):
-                    shutil.copy2(src_fp, oasis_files_destpath)
-                else:
-                    copy_func = shutil.copytree if re.match(r'RI_\d+$', p) else shutil.copy2
-                    copy_func(src_fp, os.path.join(run_dir, p))
+            if oasis_fp and oasis_fp != oasis_files_destpath:
+                for p in os.listdir(oasis_fp):
+                    src_fp = os.path.join(oasis_fp, p)
+                    if not (re.match(r'RI_\d+$', p) or p == 'ri_layers.json'):
+                        shutil.copy2(src_fp, oasis_files_destpath)
+                    else:
+                        copy_func = shutil.copytree if re.match(r'RI_\d+$', p) else shutil.copy2
+                        copy_func(src_fp, os.path.join(run_dir, p))
 
         if analysis_settings_fp:
             analysis_settings_dest_fp = os.path.join(run_dir, 'analysis_settings.json')
@@ -190,12 +191,13 @@ def prepare_model_run_inputs(analysis_settings, run_dir, ri=False):
     try:
         model_settings = analysis_settings.get('model_settings', {})
 
-        _prepare_input_bin(run_dir, 'events', model_settings, setting_key='event_set', ri=ri)
-        _prepare_input_bin(run_dir, 'returnperiods', model_settings, ri=ri)
-        _prepare_input_bin(run_dir, 'occurrence', model_settings, setting_key='event_occurrence_id', ri=ri)
+        if model_settings:
+            _prepare_input_bin(run_dir, 'events', model_settings, setting_key='event_set', ri=ri)
+            _prepare_input_bin(run_dir, 'returnperiods', model_settings, ri=ri)
+            _prepare_input_bin(run_dir, 'occurrence', model_settings, setting_key='event_occurrence_id', ri=ri)
 
-        if os.path.exists(os.path.join(run_dir, 'static', 'periods.bin')):
-            _prepare_input_bin(run_dir, 'periods', model_settings, ri=ri)
+            if os.path.exists(os.path.join(run_dir, 'static', 'periods.bin')):
+                _prepare_input_bin(run_dir, 'periods', model_settings, ri=ri)
     except (OSError, IOError) as e:
         raise OasisException(e)
 

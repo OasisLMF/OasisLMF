@@ -491,14 +491,21 @@ def get_getmodel_cmd(number_of_samples, gul_threshold, use_random_number_file, c
 
     return cmd
 
+
+def deterministic():
+    pass
+
 def genbash(
-    max_process_id, analysis_settings, filename,
+    max_process_id,
+    analysis_settings,
     num_reinsurance_iterations=0,
     fifo_tmp_dir=True,
     mem_limit=False,
     alloc_rule=None,
+    filename='run_kools.sh',
     _get_getmodel_cmd=get_getmodel_cmd,
-    custom_args={}):
+    custom_args={}
+):
     """
     Generates a bash script containing ktools calculation instructions for an
     Oasis model.

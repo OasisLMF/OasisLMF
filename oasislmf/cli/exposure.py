@@ -30,6 +30,7 @@ from ..manager import OasisManager as om
 
 from ..utils.exceptions import OasisException
 from ..utils.data import get_json
+from ..utils.defaults import get_default_deterministic_analysis_settings
 from ..utils.path import (
     as_path,
     setcwd,
@@ -113,15 +114,40 @@ class RunDeterministicCmd(OasisBaseCommand):
 
         net_losses = inputs.get('net_losses', default=False, required=False)
 
-        il = all(p in os.listdir(input_dir) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
-        ri = False
-        if os.path.basename(input_dir) == 'input':
-            ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(input_dir))
-        elif os.path.basename(input_dir) == 'csv':
-            ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(input_dir)))
+        il = ri = False
+        try:
+            li = [fn for fn in os.listdir(input_dir) if fn.lower().startswith('account')][0]
+        except IndexError:
+            pass
+        else:
+            il = True
+            try:
+                li = [fn for fn in os.listdir(input_dir) if 'reinsinfo' in fn.lower()][0]
+            except IndexError:
+                pass
+            else:
+                try:
+                    li = [fn for fn in os.listdir(input_dir) if 'reinsscope' in fn.lower()][0]
+                except IndexError:
+                    pass
+                else:
+                    ri = True
+
+        analysis_settings_fp = None
+        try:
+            analysis_settings_fp = [fn.lower() for fn in os.listdir(input_dir) if fn == 'analysis_settings.json'][0]
+        except IndexError:
+            analysis_settings_fp = get_default_deterministic_analysis_settings(path=True)
 
         self.logger.info('\nGenerating deterministic losses (GUL=True, IL={}, RI={})'.format(il, ri))
-        losses_df = om().run_deterministic(input_dir, output_dir, loss_percentage_of_tiv=loss_factor, net=net_losses, print_losses=False)
+        losses_df = om().run_deterministic(
+            input_dir,
+            output_dir,
+            analysis_settings_fp=analysis_settings_fp,
+            loss_percentage_of_tiv=loss_factor,
+            net=net_losses,
+            print_losses=False
+        )
         losses_df['event_id'] = losses_df['event_id'].astype(object)
         losses_df['output_id'] = losses_df['output_id'].astype(object)
 
