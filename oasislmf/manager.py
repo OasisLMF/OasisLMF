@@ -423,7 +423,7 @@ class OasisManager(object):
                 fifo_tmp_dir=(not ktools_fifo_relative)
             )
 
-    def generate_deterministic_losses(
+    def run_deterministic(
         self,
         input_dir,
         output_dir=None,

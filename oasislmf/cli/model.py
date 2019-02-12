@@ -519,7 +519,7 @@ class GenerateDeterministicLossesCmd(OasisBaseCommand):
             ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(input_dir)))
 
         self.logger.info('\nGenerating deterministic losses (GUL=True, IL={}, RI={})'.format(il, ri))
-        losses_df = om().generate_deterministic_losses(input_dir, output_dir, loss_percentage_of_tiv=loss_factor, net=net_losses, print_losses=False)
+        losses_df = om().run_deterministic(input_dir, output_dir, loss_percentage_of_tiv=loss_factor, net=net_losses, print_losses=False)
         losses_df['event_id'] = losses_df['event_id'].astype(object)
         losses_df['output_id'] = losses_df['output_id'].astype(object)
 
