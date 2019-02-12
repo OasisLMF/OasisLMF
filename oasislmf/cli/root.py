@@ -1,6 +1,7 @@
 from ..utils.exceptions import OasisException
 
 from .config import ConfigCmd
+from .exposure import ExposureCmd
 from .model import ModelsCmd
 from .base import OasisBaseCommand
 from .test import TestCmd
@@ -18,6 +19,7 @@ class RootCmd(OasisBaseCommand):
         'version': VersionCmd,
         'bin': BinCmd,
         'model': ModelsCmd,
+        'exposure': ExposureCmd,
         'api': ApiCmd,
         'config': ConfigCmd
     }
