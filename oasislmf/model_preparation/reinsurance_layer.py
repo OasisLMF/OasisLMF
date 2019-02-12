@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 __all__ = [
-    'create_xref_descriptions',
+    'generate_xref_descriptions',
     'generate_files_for_reinsurance',
     'ReinsuranceLayer',
     'write_ri_input_files'
@@ -41,21 +41,19 @@ def _get_location_tiv(location, coverage_type_id):
     }
     return switcher.get(coverage_type_id, 0)
 
-def create_xref_descriptions(accounts_df, locations_df):
+def generate_xref_descriptions(accounts_fp, locations_fp):
 
-    accounts = accounts_df
-    locations = locations_df
+    accounts = pd.read_csv(accounts_fp)
+    locations = pd.read_csv(locations_fp)
     coverage_id = 0
     item_id = 0
     group_id = 0
     policy_agg_id = 0
     profile_id = 0
 
-    xref_descriptions = []
-
     site_agg_id = 0
 
-    accounts_and_locations = pd.merge(accounts_df, locations_df, left_on='AccNumber', right_on='AccNumber')
+    accounts_and_locations = pd.merge(accounts, locations, left_on='AccNumber', right_on='AccNumber')
 
     for acc_and_loc, coverage_type, peril in product((acc for _, acc in accounts_and_locations.iterrows()), oed.COVERAGE_TYPES, oed.PERILS):
 
@@ -71,26 +69,22 @@ def create_xref_descriptions(accounts_df, locations_df):
             coverage_id += 1
             item_id += 1
 
-            xref_descriptions += [
-                oed.XrefDescription(
-                    xref_id = item_id,
-                    account_number = acc_and_loc.get('AccNumber'),
-                    location_number = acc_and_loc.get('LocNumber'),
-                    location_group = acc_and_loc.get('LocGroup'),
-                    cedant_name = acc_and_loc.get('CedantName'),
-                    producer_name = acc_and_loc.get('ProducerName'),
-                    lob = acc_and_loc.get('LOB'),
-                    country_code = acc_and_loc.get('CountryCode'),
-                    reins_tag = acc_and_loc.get('ReinsTag'),
-                    coverage_type_id = coverage_type,
-                    peril_id = peril,
-                    policy_number = acc_and_loc.get('PolNumber'),
-                    portfolio_number = acc_and_loc.get('PortNumber'),
-                    tiv = tiv
-                )
-            ]
-
-    return pd.DataFrame(xref_descriptions)
+            yield oed.XrefDescription(
+                xref_id = item_id,
+                account_number = acc_and_loc.get('AccNumber'),
+                location_number = acc_and_loc.get('LocNumber'),
+                location_group = acc_and_loc.get('LocGroup'),
+                cedant_name = acc_and_loc.get('CedantName'),
+                producer_name = acc_and_loc.get('ProducerName'),
+                lob = acc_and_loc.get('LOB'),
+                country_code = acc_and_loc.get('CountryCode'),
+                reins_tag = acc_and_loc.get('ReinsTag'),
+                coverage_type_id = coverage_type,
+                peril_id = peril,
+                policy_number = acc_and_loc.get('PolNumber'),
+                portfolio_number = acc_and_loc.get('PortNumber'),
+                tiv = tiv
+            )
 
 
 def generate_files_for_reinsurance(
@@ -210,7 +204,7 @@ def write_ri_input_files(
         ri_scope_fp,
         target_dir
     ):
-    xref_descriptions = create_xref_descriptions(pd.read_csv(accounts_fp), pd.read_csv(exposure_fp))
+    xref_descriptions = pd.DataFrame(generate_xref_descriptions(accounts_fp, exposure_fp))
     return generate_files_for_reinsurance(
         pd.read_csv(items_fp),
         pd.read_csv(coverages_fp),
