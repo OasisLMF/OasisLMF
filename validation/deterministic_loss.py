@@ -37,8 +37,14 @@ if __name__ == "__main__":
         os.mkdir(output_dir)
     input_dir = os.path.abspath(args.input_dir) if not os.path.isabs(args.input_dir) else args.input_dir
     loss_factor = args.loss_factor
-    
-    (ri_layers, xref_descriptions) = generate_oasis_files(input_dir, output_dir)
+
+    srcexptocan_trans_fp = os.path.join(input_dir, 'MappingMapToOED_CanLocA.xslt')
+    srcacctocan_trans_fp = os.path.join(input_dir, 'MappingMapToOED_CanAccA.xslt')
+
+
+    (ri_layers, xref_descriptions) = generate_oasis_files(
+        input_dir, output_dir, 
+        srcexptocan_trans_fp, srcacctocan_trans_fp)
     net_losses = generate_losses(
         output_dir, xref_descriptions, loss_percentage_of_tiv=loss_factor, ri_layers=ri_layers)
 

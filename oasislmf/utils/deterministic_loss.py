@@ -51,13 +51,12 @@ from oasislmf.model_preparation.reinsurance_layer import (
 )
 
 
-def generate_oasis_files(input_dir, output_dir):
+def generate_oasis_files(
+    input_dir, output_dir,
+    srcexptocan_trans_fp, srcacctocan_trans_fp): 
 
     srcexp_fp = os.path.join(input_dir, 'location.csv')
-    srcexptocan_trans_fp = os.path.join(input_dir, 'MappingMapToOED_CanLocA.xslt')
-
     srcacc_fp = os.path.join(input_dir, 'account.csv')
-    srcacctocan_trans_fp = os.path.join(input_dir, 'MappingMapToOED_CanAccA.xslt')
 
     _generate_il_files(
         output_dir,
@@ -341,7 +340,6 @@ def _run_fm_il(
 
     command = "gultobin -S 1 < {0} | fmcalc -p {1} -a {2} | tee {3} | fmtocsv > {4}".format(
         guls_fp, analysis_dir, oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID, ils_bin_fp, ils_fp)
-    print("\nRunning command: {}\n".format(command))
     proc = subprocess.Popen(command, shell=True)
     proc.wait()
     if proc.returncode != 0:
