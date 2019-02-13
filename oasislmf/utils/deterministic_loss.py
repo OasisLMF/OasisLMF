@@ -2,7 +2,6 @@
 
 __all__ = [
     'generate_oasis_files',
-    'generate_binary_inputs',
     'generate_losses'
 ]
 
@@ -17,6 +16,9 @@ import multiprocessing
 import os
 import shutil
 import subprocess
+import json
+
+from collections import OrderedDict
 
 from future.utils import (
     string_types,
@@ -25,8 +27,6 @@ from future.utils import (
 
 # 3rd party imports
 import pandas as pd
-
-from tabulate import tabulate
 
 # Oasis imports (including loading profile defaults)
 from ..model_preparation import oed
@@ -42,9 +42,58 @@ from .oed_profiles import (
     get_default_canonical_oed_acc_profile,
     get_default_fm_oed_aggregation_profile,
 )
+from ..model_execution.bin import (
+    create_binary_files
+)
+from oasislmf.model_preparation.reinsurance_layer import (
+    create_xref_description,
+    generate_files_for_reinsurance,
+)
 
 
 def generate_oasis_files(
+    input_dir, output_dir,
+    srcexptocan_trans_fp, srcacctocan_trans_fp): 
+
+    srcexp_fp = os.path.join(input_dir, 'location.csv')
+    srcacc_fp = os.path.join(input_dir, 'account.csv')
+
+    _generate_il_files(
+        output_dir,
+        srcexp_fp,
+        srcexptocan_trans_fp,
+        srcacc_fp,
+        srcacctocan_trans_fp
+    )
+
+    xref_descriptions = create_xref_description(pd.read_csv(srcacc_fp), pd.read_csv(srcexp_fp))
+    (ri_info_df, ri_scope_df, do_reinsurance) = oed.load_oed_dfs(input_dir)
+    ri_layers = None
+    if do_reinsurance:
+        oed_validator = oed.OedValidator()
+        (is_valid, error_msgs) = oed_validator.validate(ri_info_df, ri_scope_df)
+        if not is_valid:
+            print("Validation Failed:")
+            for m in error_msgs:
+                print(json.dumps(m, indent=4, sort_keys=True))
+            exit(1)
+        items = pd.read_csv(os.path.join(output_dir, "items.csv"))
+        coverages = pd.read_csv(os.path.join(output_dir, "coverages.csv"))
+        fm_xrefs = pd.read_csv(os.path.join(output_dir, "fm_xref.csv"))
+        ri_layers = generate_files_for_reinsurance(
+            items=items,
+            coverages=coverages,
+            fm_xrefs=fm_xrefs,
+            xref_descriptions=xref_descriptions,
+            ri_info_df=ri_info_df,
+            ri_scope_df=ri_scope_df,
+            direct_oasis_files_dir=output_dir
+        )
+
+    return (ri_layers, xref_descriptions)
+
+
+def _generate_il_files(
     target_dir,
     srcexp_fp,
     srcexptocan_trans_fp,
@@ -60,6 +109,7 @@ def generate_oasis_files(
     profiles and an FM OED aggregation profile, in the specified ``target_dir``,
     using simulated keys data.
     """
+
     # Create exposure manager instance
     manager = om()
 
@@ -201,43 +251,31 @@ def generate_oasis_files(
     return {k: v for k, v in itertools.chain(viewitems(gul_inputs), viewitems(fm_inputs))}
 
 
-def generate_binary_inputs(input_dir, output_dir):
-    """
-    Converts Oasis files (GUL + IL/FM input CSV files) in the input
-    directory to binary input files in the target/output directory.
-    """
+def generate_losses(output_dir, xref_descriptions, loss_percentage_of_tiv=1.0, ri_layers=None):
 
-    _input_dir = ''.join(input_dir) if os.path.isabs(input_dir) else os.path.abspath(''.join(input_dir))
+    net_losses = OrderedDict()
+    net_losses['Direct'] = _generate_losses_il(output_dir, xref_descriptions, loss_percentage_of_tiv=1.0)
 
-    _output_dir = ''.join(output_dir) if os.path.isabs(output_dir) else os.path.abspath(''.join(output_dir))
-    if not os.path.exists(_output_dir):
-        os.mkdir(_output_dir)
+    if ri_layers is not None:
+        for idx in ri_layers:
+            if idx < 2:
+                input_name = "ils"
+            else:
+                input_name = ri_layers[idx - 1]['directory']
 
-    # copy the Oasis files to the output directory and convert to binary
-    input_files = oed.GUL_INPUTS_FILES + oed.IL_INPUTS_FILES
-
-    for f in input_files:
-        conversion_tool = oed.CONVERSION_TOOLS[f]
-        input_fp = "{}.csv".format(f)
-
-        if not os.path.exists(os.path.join(_input_dir, input_fp)):
-            continue
-
-        shutil.copy2(os.path.join(_input_dir, input_fp), _output_dir)
-
-        input_fp = os.path.join(_output_dir, input_fp)
-
-        output_fp = os.path.join(_output_dir, "{}.bin".format(f))
-        command = "{} < {} > {}".format(
-            conversion_tool, input_fp, output_fp)
-        proc = subprocess.Popen(command, shell=True)
-        proc.wait()
-        if proc.returncode != 0:
-            raise OasisException(
-                "Failed to convert {}: {}".format(input_fp, command))
+            create_binary_files(ri_layers[idx]['directory'],
+                                ri_layers[idx]['directory'],
+                                do_il=True)
+            reinsurance_layer_losses_df = _run_fm_ri(
+                output_dir, input_name, ri_layers[idx]['directory'], xref_descriptions)
+            output_name = "Inuring_priority:{} - Risk_level:{}".format(
+                ri_layers[idx]['inuring_priority'],
+                ri_layers[idx]['risk_level'])
+            net_losses[output_name] = reinsurance_layer_losses_df
+    return net_losses
 
 
-def generate_losses(input_dir, output_dir=None, loss_percentage_of_tiv=1.0, net=False, print_losses=True):
+def _generate_losses_il(input_dir, xref_descriptions, output_dir=None, loss_percentage_of_tiv=1.0, net=False):
     """
     Generates insured losses from preexisting Oasis files with a specified
     damage ratio (loss % of TIV).
@@ -256,7 +294,7 @@ def generate_losses(input_dir, output_dir=None, loss_percentage_of_tiv=1.0, net=
     if not os.path.exists(_output_dir):
         os.mkdir(_output_dir)
 
-    generate_binary_inputs(_input_dir, _output_dir)
+    create_binary_files(_input_dir, _output_dir, do_il=True)
 
     # Generate an items and coverages dataframe and set column types (important!!)
     items_df = pd.merge(
@@ -282,33 +320,95 @@ def generate_losses(input_dir, output_dir=None, loss_percentage_of_tiv=1.0, net=
     guls_fp = os.path.join(_output_dir, "guls.csv")
     guls_df.to_csv(guls_fp, index=False)
 
-    net_flag = ""
-    if net:
-        net_flag = "-n"
-    ils_fp = os.path.join(_output_dir, 'ils.csv')
-    command = "gultobin -S 1 < {} | fmcalc -p {} {} -a {} | tee ils.bin | fmtocsv > {}".format(
-        guls_fp, _output_dir, net_flag, oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID, ils_fp)
-    print("\nRunning command: {}\n".format(command))
+    return _run_fm_il(
+        guls_df,
+        _output_dir,
+        xref_descriptions,
+        allocation=oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID)
+
+
+def _run_fm_il(
+        guls_df,
+        analysis_dir,
+        xref_descriptions,
+        allocation=oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID):
+
+    guls_fp = os.path.join(analysis_dir, 'guls.csv')
+
+    ils_fp = os.path.join(analysis_dir, 'ils.csv')
+    ils_bin_fp = os.path.join(analysis_dir, 'ils.bin')
+
+    command = "gultobin -S 1 < {0} | fmcalc -p {1} -a {2} | tee {3} | fmtocsv > {4}".format(
+        guls_fp, analysis_dir, oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID, ils_bin_fp, ils_fp)
     proc = subprocess.Popen(command, shell=True)
     proc.wait()
     if proc.returncode != 0:
         raise OasisException("Failed to run fm")
 
     losses_df = pd.read_csv(ils_fp)
+
     losses_df.drop(losses_df[losses_df.sidx != 1].index, inplace=True)
-    losses_df.reset_index(drop=True, inplace=True)
     del losses_df['sidx']
+    guls_df.drop(guls_df[guls_df.sidx != 1].index, inplace=True)
+    del guls_df['event_id']
+    del guls_df['sidx']
+    guls_df = pd.merge(
+        xref_descriptions,
+        guls_df, left_on=['xref_id'], right_on=['item_id'])
+    losses_df = pd.merge(
+        guls_df,
+        losses_df, left_on='xref_id', right_on='output_id',
+        suffixes=["_gul", "_il"])
+    del losses_df['event_id']
+    del losses_df['output_id']
+    del losses_df['xref_id']
+    del losses_df['item_id']
 
-    if print_losses:
-        # Set ``event_id`` and ``output_id`` column data types to ``object``
-        # to prevent ``tabulate`` from int -> float conversion during console printing
-        losses_df['event_id'] = losses_df['event_id'].astype(object)
-        losses_df['output_id'] = losses_df['output_id'].astype(object)
+    return losses_df
 
-        print(tabulate(losses_df, headers='keys', tablefmt='psql', floatfmt=".2f"))
 
-        # Reset event ID and output ID column dtypes to int
-        losses_df['event_id'] = losses_df['event_id'].astype(int)
-        losses_df['output_id'] = losses_df['output_id'].astype(int)
+def _run_fm_ri(
+        analysis_dir,
+        input_name,
+        output_name,
+        xref_descriptions,
+        allocation=oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID,):
+
+    ceded_fp = os.path.join(analysis_dir, '{}.csv'.format(input_name))
+    ceded_bin_fp = os.path.join(analysis_dir, '{}.bin'.format(input_name))
+
+    net_fp = os.path.join(analysis_dir, '{}.csv'.format(output_name))
+    net_bin_fp = os.path.join(analysis_dir, '{}.bin'.format(output_name))
+
+    command = "fmcalc -p {0} -n -a {2} < {1} | tee {3} | fmtocsv > {4}".format(
+        os.path.join(analysis_dir, output_name),
+        ceded_bin_fp,
+        allocation,
+        net_bin_fp, net_fp)
+    proc = subprocess.Popen(command, shell=True)
+    proc.wait()
+    if proc.returncode != 0:
+        raise Exception("Failed to run fm")
+
+    losses_df = pd.read_csv(net_fp)
+    inputs_df = pd.read_csv(ceded_fp)
+
+    losses_df.drop(losses_df[losses_df.sidx != 1].index, inplace=True)
+    inputs_df.drop(inputs_df[inputs_df.sidx != 1].index, inplace=True)
+    losses_df = pd.merge(
+        inputs_df,
+        losses_df, left_on='output_id', right_on='output_id',
+        suffixes=('_ceded', '_net'))
+
+    losses_df = pd.merge(
+        xref_descriptions,
+        losses_df, left_on='xref_id', right_on='output_id')
+
+    del losses_df['event_id_ceded']
+    del losses_df['sidx_ceded']
+    del losses_df['event_id_net']
+    del losses_df['sidx_net']
+    del losses_df['output_id']
+    del losses_df['xref_id']
 
     return losses_df
