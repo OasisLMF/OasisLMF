@@ -12,7 +12,7 @@ import logging
 from ..utils.exceptions import OasisException
 
 class SessionManager(Session):
-    def __init__(self, api_url, username, password, timeout=1, retries=3, retry_delay=1, logger=None, **kwargs):
+    def __init__(self, api_url, username, password, timeout=15, retries=5, retry_delay=1, logger=None, **kwargs):
         super(SessionManager, self).__init__(**kwargs)
         self.logger = logger or logging.getLogger()
 
@@ -105,8 +105,7 @@ class SessionManager(Session):
             try:
                 r = super(SessionManager, self).get(url, timeout=self.timeout, **kwargs)
             except (HTTPError, ConnectionError, ReadTimeout) as e:
-                r = e
-                if self.__recoverable(r, url, 'GET', counter):
+                if self.__recoverable(e, url, 'GET', counter):
                     continue
             return r
 
@@ -117,8 +116,7 @@ class SessionManager(Session):
             try:
                 r = super(SessionManager, self).post(url, timeout=self.timeout, **kwargs)
             except (HTTPError, ConnectionError, ReadTimeout) as e:
-                r = e
-                if self.__recoverable(r, url, 'POST', counter):
+                if self.__recoverable(e, url, 'POST', counter):
                     continue
             return r
 
@@ -129,8 +127,7 @@ class SessionManager(Session):
             try:
                 r = super(SessionManager, self).delete(url, timeout=self.timeout, **kwargs)
             except (HTTPError, ConnectionError, ReadTimeout) as e:
-                r = e
-                if self.__recoverable(r, url, 'DELETE', counter):
+                if self.__recoverable(e, url, 'DELETE', counter):
                     continue
             return r
 
@@ -141,7 +138,6 @@ class SessionManager(Session):
             try:
                 r = super(SessionManager, self).put(url, timeout=self.timeout, **kwargs)
             except (HTTPError, ConnectionError, ReadTimeout) as e:
-                r = e
-                if self.__recoverable(r, url, 'OPTIONS', counter):
+                if self.__recoverable(e, url, 'OPTIONS', counter):
                     continue
             return r
