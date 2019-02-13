@@ -29,7 +29,10 @@ from tabulate import tabulate
 from ..manager import OasisManager as om
 
 from ..utils.exceptions import OasisException
-from ..utils.data import get_json
+from ..utils.data import (
+    get_json,
+    print_dataframe,
+)
 from ..utils.defaults import get_default_deterministic_analysis_settings
 from ..utils.path import (
     as_path,
@@ -140,18 +143,14 @@ class RunDeterministicCmd(OasisBaseCommand):
             analysis_settings_fp = get_default_deterministic_analysis_settings(path=True)
 
         self.logger.info('\nGenerating deterministic losses (GUL=True, IL={}, RI={})'.format(il, ri))
-        losses_df = om().run_deterministic(
+        direct_losses, ri_final_layer_losses = om().run_deterministic(
             input_dir,
             output_dir,
             loss_percentage_of_tiv=loss_factor,
-            net=net_losses,
-            print_losses=False
+            net=net_losses
         )
-        losses_df['event_id'] = losses_df['event_id'].astype(object)
-        losses_df['output_id'] = losses_df['output_id'].astype(object)
-
-        self.logger.info('\nLosses generated'.format(il, ri))
-        print(tabulate(losses_df, headers='keys', tablefmt='psql', floatfmt=".2f"))
+        print_dataframe(direct_losses, header='Direct losses', objectify_cols=['event_id', 'output_id'], headers='keys', tablefmt='psql', floatfmt=".2f")
+        print_dataframe(ri_final_layer_losses, header='Reinsurance losses', objectify_cols=['event_id', 'output_id'], headers='keys', tablefmt='psql', floatfmt=".2f")
 
 
 class ValidateCmd(OasisBaseCommand):

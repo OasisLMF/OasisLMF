@@ -57,7 +57,6 @@ from .utils.concurrency import (
 from .utils.data import (
     get_json,
     get_utctimestamp,
-    print_dataframe,
 )
 from .utils.exceptions import OasisException
 from .utils.log import oasis_log
@@ -569,15 +568,16 @@ class OasisManager(object):
                 else:
                     def run_ri_layer(layer):
                         layer_inputs_fp = os.path.join(input_dir, 'RI_{}'.format(layer))
+                        _input = 'gultobin -S 1 < {} | fmcalc -p {} -a 2 | tee ils.bin |'.format(guls_fp, input_dir) if layer == 1 else ''
                         pipe_in_previous_layer = '< ri{}.bin'.format(layer - 1) if layer > 1 else ''
 
-                        cmd = 'fmcalc -p {} -n -a 2 {}| tee ri{}.bin | fmtocsv > ri{}.csv'.format(layer_inputs_fp, pipe_in_previous_layer, layer, layer)
+                        cmd = '{} fmcalc -p {} -n -a 2 {}| tee ri{}.bin | fmtocsv > ri{}.csv'.format(_input, layer_inputs_fp, pipe_in_previous_layer, layer, layer)
                         print("\nGenerating deterministic RI layer {} losses with command: {}\n".format(layer, cmd))
                         try:
                             check_call(cmd, shell=True)
                         except CalledProcessError as e:
                             raise OasisException(e)
-                        layer_losses = pd.read_csv('ri{}'.format(layer))
+                        layer_losses = pd.read_csv('ri{}.csv'.format(layer))
                         layer_losses.drop(layer_losses[layer_losses.sidx != 1].index, inplace=True)
                         layer_losses.reset_index(drop=True, inplace=True)
                         del layer_losses['sidx']
@@ -595,8 +595,7 @@ class OasisManager(object):
         input_dir,
         output_dir=None,
         loss_percentage_of_tiv=1.0,
-        net=False,
-        print_losses=True
+        net=False
     ):
         """
         Generates insured losses from preexisting Oasis files with a specified
@@ -635,15 +634,6 @@ class OasisManager(object):
             loss_percentage_of_tiv=loss_percentage_of_tiv,
             net=net
         )
-
-        if print_losses:
-            direct_losses['event_id'] = direct_losses['event_id'].astype(object)
-            direct_losses['output_id'] = direct_losses['output_id'].astype(object)
-            ri_final_layer_losses['event_id'] = ri_final_layer_losses['event_id'].astype(object)
-            ri_final_layer_losses['output_id'] = ri_final_layer_losses['output_id'].astype(object)
-
-            print_dataframe(direct_losses, headers='keys', tablefmt='psql', floatfmt=".2f")
-            print_dataframe(ri_final_layer_losses, headers='keys', tablefmt='psql', floatfmt=".2f")
 
         return direct_losses, ri_final_layer_losses
 

@@ -152,5 +152,9 @@ def get_utctimestamp(thedate=None, fmt='%Y-%b-%d %H:%M:%S'):
     return d.strftime(fmt)
 
 
-def print_dataframe(frame, headers='keys', tablefmt='psql', floatfmt=".2f", sep=' ', end='\n', file=sys.stdout, flush=False):
-    print(tabulate(headers=headers, tablefmt=tablefmt, floatfmt=floatfmt), sep=sep, end=end, file=file, flush=flush)
+def print_dataframe(frame, objectify_cols=[], header=None, headers='keys', tablefmt='psql', floatfmt=".2f", sep=' ', end='\n', file=sys.stdout, flush=False):
+    for col in objectify_cols:
+        frame[col] = frame[col].astype(object)
+    if header:
+        print('\n{}'.format(header))
+    print(tabulate(frame, headers=headers, tablefmt=tablefmt, floatfmt=floatfmt), sep=sep, end=end, file=file, flush=flush)
