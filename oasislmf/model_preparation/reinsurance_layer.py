@@ -32,10 +32,10 @@ InuringLayer = namedtuple(
 
 def _get_location_tiv(location, coverage_type_id):
     switcher = {
-        oed.BUILDING_COVERAGE_TYPE_ID: location.BuildingTIV,
-        oed.OTHER_BUILDING_COVERAGE_TYPE_ID: location.OtherTIV,
-        oed.CONTENTS_COVERAGE_TYPE_ID: location.ContentsTIV,
-        oed.TIME_COVERAGE_TYPE_ID: location.BITIV
+        oed.BUILDING_COVERAGE_TYPE_ID: location.get('BuildingTIV', 1),
+        oed.OTHER_BUILDING_COVERAGE_TYPE_ID: location.get('OtherTIV', 2),
+        oed.CONTENTS_COVERAGE_TYPE_ID: location.get('ContentsTIV', 3),
+        oed.TIME_COVERAGE_TYPE_ID: location.get('BITIV', 4)
     }
     return switcher.get(coverage_type_id, 0)
 
@@ -56,7 +56,7 @@ def create_xref_description(accounts_df, locations_df):
         policy_agg_id = policy_agg_id + 1
         profile_id = profile_id + 1
 
-        for location_index, location in locations.loc[locations["AccNumber"] == policy.AccNumber].iterrows():
+        for location_index, location in locations.loc[locations["AccNumber"] == policy.get('AccNumber')].iterrows():
             group_id = group_id + 1
             site_agg_id = site_agg_id + 1
             profile_id = profile_id + 1
@@ -72,18 +72,18 @@ def create_xref_description(accounts_df, locations_df):
                         xref_descriptions_list.append(
                             oed.XrefDescription(
                                 xref_id=item_id,
-                                account_number=location.AccNumber,
-                                location_number=location.LocNumber,
-                                location_group=location.LocGroup,
-                                cedant_name = policy.CedantName,
-                                producer_name = policy.ProducerName,
-                                lob = policy.LOB,
-                                country_code = location.CountryCode,
-                                reins_tag = location.ReinsTag,
+                                account_number=location.get('AccNumber'),
+                                location_number=location.get('LocNumber'),
+                                location_group=location.get('LocGroup'),
+                                cedant_name = policy.get('CedantName'),
+                                producer_name = policy.get('ProducerName'),
+                                lob = policy.get('LOB'),
+                                country_code = location.get('CountryCode'),
+                                reins_tag = location.get('ReinsTag'),
                                 coverage_type_id=coverage_type_id,
                                 peril_id=peril,
-                                policy_number=policy.PolNumber,    
-                                portfolio_number=policy.PortNumber,
+                                policy_number=policy.get('PolNumber'),    
+                                portfolio_number=policy.get('PortNumber'),
                                 tiv=tiv
                             )
                         )
