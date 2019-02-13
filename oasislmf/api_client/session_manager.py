@@ -93,7 +93,8 @@ class SessionManager(Session):
         """
         try:
             url = urljoin(self.url_base, 'healthcheck/')
-            return super(SessionManager, self).get(url, timeout=self.timeout)
+            #return super(SessionManager, self).get(url, timeout=self.timeout)
+            return self.get(url)
         except Exception as e:    
             err_msg = 'Health check failed: Unable to connect to {}'.format(self.url_base)
             raise OasisException(err_msg)
