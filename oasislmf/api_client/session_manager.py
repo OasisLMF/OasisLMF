@@ -12,7 +12,7 @@ import logging
 from ..utils.exceptions import OasisException
 
 class SessionManager(Session):
-    def __init__(self, api_url, username, password, timeout=15, retries=5, retry_delay=1, logger=None, **kwargs):
+    def __init__(self, api_url, username, password, timeout=25, retries=5, retry_delay=1, logger=None, **kwargs):
         super(SessionManager, self).__init__(**kwargs)
         self.logger = logger or logging.getLogger()
 
@@ -79,7 +79,7 @@ class SessionManager(Session):
             else:
                 return False
         self.logger.debug("Recoverable error [{}] from {} {}, retry #{} in {}s".format(error, request, url, counter, self.retry_delay))
-        time.sleep(self.retry_delay)
+        time.sleep(self.retry_delay*counter)
         return True
 
 
