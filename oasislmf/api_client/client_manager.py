@@ -238,7 +238,7 @@ class API_analyses(ApiEndpoint):
 # --- API Main Client ------------------------------------------------------- #
 
 class APIClient(object):
-    def __init__(self, api_url, api_ver, username, password, timeout=2, logger=None):
+    def __init__(self, api_url, api_ver, username, password, timeout=25, logger=None):
         self.logger = logger or logging.getLogger()
 
         self.api        = SessionManager(api_url, username, password, timeout)
