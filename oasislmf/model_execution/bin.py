@@ -1,15 +1,24 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-    Python utilities used for setting up the resources needed to complete a
-    model run, i.e. generating ktools outputs from Oasis files.
+    Python utilities used for setting up the structure of the run directory
+    in which to prepare the inputs to run a model or generate deterministic
+    losses, and store the outputs.
 """
 
 from __future__ import print_function
 
+__all__ = [
+    'csv_to_bin',
+    'prepare_run_directory',
+    'prepare_run_inputs'
+]
+
 import glob
 import logging
+import os
 import re
+import shutil
 import shutilwhich
 import subprocess
 import tarfile
@@ -22,23 +31,13 @@ from future.utils import (
 
 from pathlib2 import Path
 
-__all__ = [
-    'csv_to_bin',
-    'generate_binary_inputs',
-    'prepare_model_run_directory',
-    'prepare_model_run_inputs'
-]
-
-import os
-import shutil
-import subprocess
 
 from ..model_preparation import oed
 from ..utils.exceptions import OasisException
 from .files import TAR_FILE, INPUT_FILES, GUL_INPUT_FILES, IL_INPUT_FILES
 
 
-def prepare_model_run_directory(
+def prepare_run_directory(
     run_dir,
     oasis_fp=None,
     ri=False,
@@ -178,7 +177,7 @@ def _prepare_input_bin(run_dir, bin_name, model_settings, setting_key=None, ri=F
         shutil.copyfile(model_data_bin_fp, bin_fp)
 
 
-def prepare_model_run_inputs(analysis_settings, run_dir, ri=False):
+def prepare_run_inputs(analysis_settings, run_dir, ri=False):
     """
     Sets up binary files in the model inputs directory.
 
@@ -276,45 +275,6 @@ def csv_to_bin(csv_directory, bin_directory, il=False, ri=False):
         for ri_csvdir in glob.glob('{}{}RI_[0-9]*'.format(csvdir, os.sep)):
             _csv_to_bin(
                 ri_csvdir, os.path.join(bindir, os.path.basename(ri_csvdir)), il=True)
-
-
-def generate_binary_inputs(input_dir, output_dir):
-    """
-    Copied from the old deterministic loss module - used for CSV to BIN
-    conversion in deterministic loss scenario.
-
-    Converts Oasis files (GUL + IL/FM input CSV files) in the input
-    directory to binary input files in the target/output directory.
-    """
-
-    _input_dir = ''.join(input_dir) if os.path.isabs(input_dir) else os.path.abspath(''.join(input_dir))
-
-    _output_dir = ''.join(output_dir) if os.path.isabs(output_dir) else os.path.abspath(''.join(output_dir))
-    if not os.path.exists(_output_dir):
-        os.mkdir(_output_dir)
-
-    # copy the Oasis files to the output directory and convert to binary
-    input_files = oed.GUL_INPUTS_FILES + oed.IL_INPUTS_FILES
-
-    for f in input_files:
-        conversion_tool = oed.CONVERSION_TOOLS[f]
-        input_fp = "{}.csv".format(f)
-
-        if not os.path.exists(os.path.join(_input_dir, input_fp)):
-            continue
-
-        shutil.copy2(os.path.join(_input_dir, input_fp), _output_dir)
-
-        input_fp = os.path.join(_output_dir, input_fp)
-
-        output_fp = os.path.join(_output_dir, "{}.bin".format(f))
-        command = "{} < {} > {}".format(
-            conversion_tool, input_fp, output_fp)
-        proc = subprocess.Popen(command, shell=True)
-        proc.wait()
-        if proc.returncode != 0:
-            raise OasisException(
-                "Failed to convert {}: {}".format(input_fp, command))
 
 
 def _csv_to_bin(csv_directory, bin_directory, il=False):

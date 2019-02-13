@@ -36,9 +36,8 @@ from .cli.base import InputValues
 from .model_execution import runner
 from .model_execution.bin import (
     csv_to_bin,
-    generate_binary_inputs,
-    prepare_model_run_directory,
-    prepare_model_run_inputs,
+    prepare_run_directory,
+    prepare_run_inputs,
 )
 from .model_preparation.lookup import OasisLookupFactory as olf
 from .model_preparation.gul_inputs import write_gul_input_files
@@ -135,6 +134,7 @@ class OasisManager(object):
         return self._ktools_alloc_rule
 
 
+    @oasis_log
     def generate_peril_areas_rtree_file_index(
         self,
         keys_data_fp,
@@ -229,6 +229,7 @@ class OasisManager(object):
             index_props=index_props
         )
 
+    @oasis_log
     def generate_keys(
         self,
         exposure_fp,
@@ -262,6 +263,7 @@ class OasisManager(object):
             format=keys_format
         )
 
+    @oasis_log
     def generate_oasis_files(
         self,
         target_dir,
@@ -390,6 +392,7 @@ class OasisManager(object):
 
         return oasis_files
 
+    @oasis_log
     def generate_model_losses(
         self,
         model_run_fp,
@@ -417,7 +420,7 @@ class OasisManager(object):
 
         shutil.copy2(analysis_settings_fp, model_run_fp)
 
-        prepare_model_run_directory(
+        prepare_run_directory(
             model_run_fp,
             oasis_fp=oasis_fp,
             ri=ri,
@@ -454,7 +457,7 @@ class OasisManager(object):
         except (IOError, TypeError, ValueError):
             raise OasisException('Invalid analysis settings file or file path: {}.'.format(_analysis_settings_fp))
 
-        prepare_model_run_inputs(analysis_settings, model_run_fp, ri=ri)
+        prepare_run_inputs(analysis_settings, model_run_fp, ri=ri)
 
         script_fp = os.path.join(model_run_fp, 'run_ktools.sh')
 
@@ -485,6 +488,9 @@ class OasisManager(object):
                 fifo_tmp_dir=(not (ktools_fifo_relative or self.ktools_fifo_relative))
             )
 
+        return model_run_fp
+
+    @oasis_log
     def generate_deterministic_losses(
         self,
         input_dir,
@@ -494,7 +500,6 @@ class OasisManager(object):
         net=False,
         print_losses=True
     ):
-        import ipdb; ipdb.set_trace()
         output_dir = output_dir or input_dir
 
         il = all(p in os.listdir(input_dir) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
@@ -503,7 +508,7 @@ class OasisManager(object):
 
         analysis_settings_fp = analysis_settings_fp or get_default_deterministic_analysis_settings(path=True)
 
-        prepare_model_run_directory(
+        prepare_run_directory(
             input_dir,
             oasis_fp=input_dir,
             ri=ri,
@@ -516,8 +521,9 @@ class OasisManager(object):
             with io.open(analysis_settings_fp, 'r', encoding='utf-8') as f:
                 analysis_settings = json.load(f)
 
-            if analysis_settings.get('analysis_settings'):
-                analysis_settings = analysis_settings['analysis_settings']
+            analysis_settings = analysis_settings.get('analysis_settings', None)
+            if not isinstance(analysis_settings, dict):
+                raise ValueError('No analysis settings found')
 
             if il:
                 analysis_settings['il_output'] = True
@@ -530,10 +536,10 @@ class OasisManager(object):
             else:
                 analysis_settings['ri_output'] = False
                 analysis_settings['ri_summaries'] = []
-        except (IOError, TypeError, ValueError):
-            raise OasisException('Invalid analysis settings file or file path: {}.'.format(analysis_settings_fp))
+        except (IOError, TypeError, ValueError) as e:
+            raise OasisException('Invalid analysis settings file or file path {}: {}.'.format(analysis_settings_fp, e))
 
-        prepare_model_run_inputs(analysis_settings, input_dir, ri=ri)
+        prepare_run_inputs(analysis_settings, input_dir, ri=ri)
 
         # Generate an items and coverages dataframe and set column types (important!!)
         items_df = pd.merge(
@@ -577,7 +583,7 @@ class OasisManager(object):
         return losses_df
 
 
-
+    @oasis_log
     def run_deterministic(
         self,
         input_dir,
@@ -617,7 +623,7 @@ class OasisManager(object):
             ri_info_fp=ri_info_fp,
             ri_scope_fp=ri_scope_fp
         )
-        import ipdb; ipdb.set_trace()
+
         losses_df = self.generate_deterministic_losses(
             output_dir,
             input_dir,
@@ -633,6 +639,7 @@ class OasisManager(object):
         return losses_df
 
 
+    @oasis_log
     def run_model(
         self,
         exposure_fp,
@@ -673,7 +680,7 @@ class OasisManager(object):
         oasis_fp = os.path.join(model_run_fp, 'input') if ri else os.path.join(model_run_fp, 'input', 'csv')
         Path(oasis_fp).mkdir(parents=True, exist_ok=True)
 
-        self.generate_oasis_files(
+        oasis_files = self.generate_oasis_files(
             exposure_fp,
             oasis_fp,
             exposure_profile=(exposure_profile or self.default_exposure_profile),
@@ -694,7 +701,7 @@ class OasisManager(object):
             oasis_files_prefixes=(oasis_files_prefixes or self.oasis_files_prefixes)
         )
 
-        self.generate_losses(
+        model_run_fp = self.generate_losses(
             oasis_fp,
             model_run_fp,
             analysis_settings_fp,
@@ -705,3 +712,5 @@ class OasisManager(object):
             ktools_fifo_relative=(ktools_fifo_relative or self.ktools_fifo_relative),
             ktools_alloc_rule=(ktools_alloc_rule or self.ktools_alloc_rule)
         )
+
+        return oasis_files, model_run_fp

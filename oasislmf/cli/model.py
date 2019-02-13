@@ -28,6 +28,7 @@ from argparse import RawDescriptionHelpFormatter
 from pathlib2 import Path
 from six import u as _unicode
 from tabulate import tabulate
+from tqdm import tqdm
 
 from ..manager import OasisManager as om
 
@@ -216,11 +217,11 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
         parser.add_argument('-l', '--lookup-package-path', default=None, help='Lookup package path')
         parser.add_argument(
-            '-p', '--source-exposure-profile-path', default=None,
+            '-e', '--source-exposure-profile-path', default=None,
             help='Source (OED) exposure profile path'
         )
         parser.add_argument(
-            '-q', '--source-accounts-profile-path', default=None,
+            '-b', '--source-accounts-profile-path', default=None,
             help='Source (OED) accounts profile path'
         )
         parser.add_argument('-x', '--source-exposure-file-path', default=None, help='Source exposure file path')
@@ -309,7 +310,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
 
         ri = all(required_ri_paths) and il
 
-        self.logger.info('\nGenerating Oasis files (GUL=True, IL={}, RI={}'.format(il, ri))
+        self.logger.info('\nGenerating Oasis files (GUL=True, IL={}, RI={})'.format(il, ri))
         oasis_files = om().generate_oasis_files(
             oasis_fp,
             exposure_fp,
@@ -384,7 +385,7 @@ class GenerateLossesCmd(OasisBaseCommand):
         :param args: The arguments from the command line
         :type args: Namespace
         """
-        self.logger.info('\nProcessing arguments')
+        self.logger.info('\nProcessing arguments for Oasis files generation')
         inputs = InputValues(args)
 
         call_dir = os.getcwd()
@@ -424,7 +425,7 @@ class GenerateLossesCmd(OasisBaseCommand):
             ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(oasis_fp)))
 
         self.logger.info('\nGenerating losses (GUL=True, IL={}, RI={})'.format(il, ri))
-        om().generate_losses(
+        om().generate_model_losses(
             model_run_fp,
             oasis_fp,
             analysis_settings_fp,
@@ -439,95 +440,6 @@ class GenerateLossesCmd(OasisBaseCommand):
         self.logger.info('\nLosses generated')
 
 
-class GenerateDeterministicLossesCmd(OasisBaseCommand):
-    """
-    Generates deterministic losses using the installed ktools framework given
-    direct Oasis files (GUL + IL input files & optionally RI input files).
-
-    The command line arguments can be supplied in the configuration file
-    (``oasislmf.json`` by default or specified with the ``--config`` flag).
-    Run ``oasislmf config --help`` for more information.
-
-    The script creates a time-stamped folder in the model run directory and
-    sets that as the new model run directory, copies the analysis settings
-    JSON file into the run directory and creates the following folder
-    structure
-    ::
-
-        ├── analysis_settings.json
-        ├── fifo/
-        ├── input/
-        ├── output/
-        ├── static/
-        └── work/
-
-    Depending on the OS type the model data is symlinked (Linux, Darwin) or
-    copied (Cygwin, Windows) into the ``static`` subfolder. The input files
-    are kept in the ``input`` subfolder and the losses are generated as CSV
-    files in the ``output`` subfolder.
-    """
-    formatter_class = RawDescriptionHelpFormatter
-
-    def add_args(self, parser):
-        """
-        Adds arguments to the argument parser.
-
-        :param parser: The argument parser object
-        :type parser: ArgumentParser
-        """
-        super(self.__class__, self).add_args(parser)
-
-        parser.add_argument(
-            '-o', '--output-dir', type=str, default=None, required=True,
-            help='Output directory')
-        parser.add_argument(
-            '-i', '--input-dir', type=str, default=None, required=True,
-            help='Input directory - should contain the OED exposure file + optionally the accounts, and RI info. and scope files')
-        parser.add_argument(
-            '-l', '--loss-factor', type=float, default=None,
-            help='Loss factor to apply to TIVs.')
-        parser.add_argument(
-            '-n', '--net-losses', default=False, help='Net losses', action='store_true'
-            )
-
-    def action(self, args):
-        """
-        Generates deterministic losses using the installed ktools framework given
-        direct Oasis files (GUL + IL input files & optionally RI input files).
-
-        :param args: The arguments from the command line
-        :type args: Namespace
-        """
-        self.logger.info('\nProcessing arguments')
-        inputs = InputValues(args)
-
-        call_dir = os.getcwd()
-        output_dir = as_path(inputs.get('output_dir', default=os.path.join(call_dir, 'output'), is_path=True), 'Output directory', preexists=False)
-        if not os.path.exists(output_dir):
-            Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-        input_dir = as_path(inputs.get('input_dir', default=call_dir, is_path=True), 'Input directory', preexists=True)
-
-        loss_factor = inputs.get('loss_factor', default=1.0, required=False)
-
-        net_losses = inputs.get('net_losses', default=False, required=False)
-
-        il = all(p in os.listdir(input_dir) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
-        ri = False
-        if os.path.basename(input_dir) == 'input':
-            ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(input_dir))
-        elif os.path.basename(input_dir) == 'csv':
-            ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(input_dir)))
-
-        self.logger.info('\nGenerating deterministic losses (GUL=True, IL={}, RI={})'.format(il, ri))
-        losses_df = om().run_deterministic(input_dir, output_dir, loss_percentage_of_tiv=loss_factor, net=net_losses, print_losses=False)
-        losses_df['event_id'] = losses_df['event_id'].astype(object)
-        losses_df['output_id'] = losses_df['output_id'].astype(object)
-
-        self.logger.info('\nLosses generated'.format(il, ri))
-        print(tabulate(losses_df, headers='keys', tablefmt='psql', floatfmt=".2f"))
-
-
 class RunCmd(OasisBaseCommand):
     """
     Run models end to end.
@@ -536,7 +448,6 @@ class RunCmd(OasisBaseCommand):
     (``oasislmf.json`` by default or specified with the ``--config`` flag).
     """
     formatter_class = RawDescriptionHelpFormatter
-    STATIC_DATA_FP = os.path.join(os.path.dirname(__file__), os.path.pardir, '_data')
 
     def add_args(self, parser):
         """
@@ -554,11 +465,11 @@ class RunCmd(OasisBaseCommand):
         parser.add_argument('-c', '--lookup-config-file-path', default=None, help='Built-in lookup config JSON file path')
 
         parser.add_argument(
-            '-p', '--source-exposure-profile-path', default=None,
+            '-e', '--source-exposure-profile-path', default=None,
             help='Source OED exposure profile path'
         )
         parser.add_argument(
-            '-q', '--source-accounts-profile-path', default=None,
+            '-b', '--source-accounts-profile-path', default=None,
             help='Source OED accounts profile path'
         )
         
@@ -583,6 +494,7 @@ class RunCmd(OasisBaseCommand):
         )
         parser.add_argument('-d', '--model-data-path', default=None, help='Model data path')
         parser.add_argument('-r', '--model-run-dir', default=None, help='Model run directory path')
+        parser.add_argument('-p', '--model-package-path', default=None, help='Path containing model specific package')
         parser.add_argument('-n', '--ktools-num-processes', default=2, help='Number of ktools calculation processes to use')
         parser.add_argument('-m', '--ktools-mem-limit', default=False, help='Force exec failure if Ktools hits memory the system  memory limit', action='store_true')
         parser.add_argument('-f', '--ktools-fifo-relative', default=False, help='Create ktools fifo queues under the ./fifo dir', action='store_true')
@@ -595,7 +507,7 @@ class RunCmd(OasisBaseCommand):
         :param args: The arguments from the command line
         :type args: Namespace
         """
-        self.logger.info('\nProcessing arguments')
+        self.logger.info('\nProcessing arguments for model run')
         inputs = InputValues(args)
 
         call_dir = os.getcwd()
@@ -606,6 +518,10 @@ class RunCmd(OasisBaseCommand):
         model_run_fp = as_path(inputs.get('model_run_dir', is_path=True, default=default_model_run_fp), 'Model run directory', preexists=False)
 
         args.model_run_fp = model_run_fp
+
+        model_package_fp = as_path(inputs.get('model_package_path', required=False, is_path=True), 'Model package path')
+
+        args.model_package_fp = model_package_fp
 
         accounts_fp = as_path(
             inputs.get('source_accounts_file_path', required=False, is_path=True), 'Source OED accounts file path'
@@ -637,13 +553,11 @@ class RunCmd(OasisBaseCommand):
 
         args.oasis_files_path = os.path.join(model_run_fp, 'input', 'csv') if not ri else os.path.join(model_run_fp, 'input')
 
-        self.logger.info('\nGenerating Oasis files (GUL=True, IL={}, RI={})'.format(il, ri))
-        gen_oasis_files_cmd = GenerateOasisFilesCmd()
-        gen_oasis_files_cmd.action(args)
-
-        self.logger.info('\nGenerating losses (GUL=True, IL={}, RI={})'.format(il, ri))
-        gen_losses_cmd = GenerateLossesCmd()
-        gen_losses_cmd.action(args)
+        commands = [GenerateOasisFilesCmd(args), GenerateLossesCmd(args)]
+        with tqdm(total=len(commands)) as pbar:
+            for command in commands:
+                command.action(args)
+                pbar.update(1)
 
 
 class ModelCmd(OasisBaseCommand):
@@ -662,6 +576,5 @@ class ModelCmd(OasisBaseCommand):
         'generate-keys': GenerateKeysCmd,
         'generate-oasis-files': GenerateOasisFilesCmd,
         'generate-losses': GenerateLossesCmd,
-        'generate-deterministic-losses': GenerateDeterministicLossesCmd,
         'run': RunCmd,
     }

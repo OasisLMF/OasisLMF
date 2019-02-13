@@ -48,6 +48,7 @@ from ..utils.concurrency import (
 )
 from ..utils.data import get_dataframe
 from ..utils.exceptions import OasisException
+from ..utils.log import oasis_log
 from ..utils.metadata import OED_FM_LEVELS
 from ..utils.defaults import (
     get_default_accounts_profile,
@@ -329,6 +330,7 @@ def unified_fm_profile_by_level_and_term_group(profiles=[], profile_paths=[]):
     }
 
 
+@oasis_log
 def generate_il_input_items(
     exposure_df,
     accounts_df,
@@ -486,6 +488,8 @@ def generate_il_input_items(
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
         raise OasisException(e)
 
+
+@oasis_log
 def get_il_input_items(
     exposure_df,
     accounts_df,
@@ -745,6 +749,7 @@ def write_fmsummaryxref_file(il_inputs_df, fmsummaryxref_fp):
     return fmsummaryxref_fp
 
 
+@oasis_log
 def write_il_input_files(
     exposure_df,
     gul_inputs_df,
