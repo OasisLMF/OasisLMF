@@ -36,7 +36,7 @@ from tabulate import tabulate
 from tempfile import NamedTemporaryFile
 
 from oasislmf.model_preparation.manager import OasisManager as om
-from oasislmf.utils.deterministic_loss import generate_losses
+from oasislmf.utils.deterministic_loss import generate_losses_for_fm_tests
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.fm import (
     unified_canonical_fm_profile_by_level_and_term_group,
@@ -253,7 +253,8 @@ class FmAcceptanceTests(TestCase):
             )
             bins_dir = os.path.join(oasis_dir, 'bin')
             os.mkdir(bins_dir)
-            actual_losses = generate_losses(oasis_dir, bins_dir, print_losses=False)
+            actual_losses = generate_losses_for_fm_tests(oasis_dir, bins_dir, print_losses=False)
+
             losses_ok = actual_losses.equals(expected_losses)
             self.assertTrue(losses_ok)
             if losses_ok:
@@ -449,7 +450,7 @@ class FmAcceptanceTests(TestCase):
             )
             bins_dir = os.path.join(oasis_dir, 'bin')
             os.mkdir(bins_dir)
-            actual_losses = generate_losses(oasis_dir, bins_dir, print_losses=False)
+            actual_losses = generate_losses_for_fm_tests(oasis_dir, bins_dir, print_losses=False)
             losses_ok = actual_losses.equals(expected_losses)
             self.assertTrue(losses_ok)
             if losses_ok:
@@ -645,7 +646,7 @@ class FmAcceptanceTests(TestCase):
             )
             bins_dir = os.path.join(oasis_dir, 'bin')
             os.mkdir(bins_dir)
-            actual_losses = generate_losses(oasis_dir, bins_dir, print_losses=False)
+            actual_losses = generate_losses_for_fm_tests(oasis_dir, bins_dir, print_losses=False)
             losses_ok = actual_losses.equals(expected_losses)
             self.assertTrue(losses_ok)
             if losses_ok:
@@ -870,7 +871,7 @@ class FmAcceptanceTests(TestCase):
             )
             bins_dir = os.path.join(oasis_dir, 'bin')
             os.mkdir(bins_dir)
-            actual_losses = generate_losses(oasis_dir, bins_dir, print_losses=False)
+            actual_losses = generate_losses_for_fm_tests(oasis_dir, bins_dir, print_losses=False)
             losses_ok = actual_losses.equals(expected_losses)
             self.assertTrue(losses_ok)
             if losses_ok:
@@ -1095,7 +1096,7 @@ class FmAcceptanceTests(TestCase):
             )
             bins_dir = os.path.join(oasis_dir, 'bin')
             os.mkdir(bins_dir)
-            actual_losses = generate_losses(oasis_dir, bins_dir, print_losses=False)
+            actual_losses = generate_losses_for_fm_tests(oasis_dir, bins_dir, print_losses=False)
             losses_ok = actual_losses.equals(expected_losses)
             self.assertTrue(losses_ok)
             if losses_ok:
@@ -1313,7 +1314,7 @@ class FmAcceptanceTests(TestCase):
             )
             bins_dir = os.path.join(oasis_dir, 'bin')
             os.mkdir(bins_dir)
-            actual_losses = generate_losses(oasis_dir, bins_dir, print_losses=False)
+            actual_losses = generate_losses_for_fm_tests(oasis_dir, bins_dir, print_losses=False)
             losses_ok = actual_losses.equals(expected_losses)
             self.assertTrue(losses_ok)
             if losses_ok:

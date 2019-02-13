@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from __future__ import print_function
+
 __all__ = [
     'generate_oasis_files',
     'generate_losses'
@@ -27,6 +29,8 @@ from future.utils import (
 
 # 3rd party imports
 import pandas as pd
+
+from tabulate import tabulate
 
 # Oasis imports (including loading profile defaults)
 from ..model_preparation import oed
@@ -249,6 +253,83 @@ def _generate_il_files(
     # should have been generated in ``target_dir``.
 
     return {k: v for k, v in itertools.chain(viewitems(gul_inputs), viewitems(fm_inputs))}
+
+
+def generate_losses_for_fm_tests(input_dir, output_dir=None, loss_percentage_of_tiv=1.0, net=False, print_losses=True):
+    """
+    Generates insured losses from preexisting Oasis files with a specified
+    damage ratio (loss % of TIV).
+    """
+    _input_dir = ''.join(input_dir) if os.path.isabs(input_dir) else os.path.abspath(''.join(input_dir))
+
+    if not os.path.exists(_input_dir):
+        raise OasisException('Input directory containing Oasis files does not exist!')
+
+    _output_dir = output_dir
+    if not _output_dir:
+        _output_dir = _input_dir
+    else:
+        _output_dir = ''.join(_output_dir) if os.path.isabs(_output_dir) else os.path.abspath(''.join(_output_dir))
+
+    if not os.path.exists(_output_dir):
+        os.mkdir(_output_dir)
+
+    create_binary_files(_input_dir, _output_dir, do_il=True)
+
+    # Generate an items and coverages dataframe and set column types (important!!)
+    items_df = pd.merge(
+        pd.read_csv(os.path.join(_input_dir, 'items.csv')),
+        pd.read_csv(os.path.join(_input_dir, 'coverages.csv'))
+    )
+    for col in items_df:
+        if col != 'tiv':
+            items_df[col] = items_df[col].astype(int)
+        else:
+            items_df[col] = items_df[col].astype(float)
+
+    guls_list = []
+    for item_id, tiv in zip(items_df['item_id'], items_df['tiv']):
+        event_loss = loss_percentage_of_tiv * tiv
+        guls_list += [
+            oed.GulRecord(event_id=1, item_id=item_id, sidx=-1, loss=event_loss),
+            oed.GulRecord(event_id=1, item_id=item_id, sidx=-2, loss=0),
+            oed.GulRecord(event_id=1, item_id=item_id, sidx=1, loss=event_loss)
+        ]
+
+    guls_df = pd.DataFrame(guls_list)
+    guls_fp = os.path.join(_output_dir, "guls.csv")
+    guls_df.to_csv(guls_fp, index=False)
+
+    net_flag = ""
+    if net:
+        net_flag = "-n"
+    ils_fp = os.path.join(_output_dir, 'ils.csv')
+    command = "gultobin -S 1 < {} | fmcalc -p {} {} -a {} | tee ils.bin | fmtocsv > {}".format(
+        guls_fp, _output_dir, net_flag, oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID, ils_fp)
+    print("\nRunning command: {}\n".format(command))
+    proc = subprocess.Popen(command, shell=True)
+    proc.wait()
+    if proc.returncode != 0:
+        raise OasisException("Failed to run fm")
+
+    losses_df = pd.read_csv(ils_fp)
+    losses_df.drop(losses_df[losses_df.sidx != 1].index, inplace=True)
+    losses_df.reset_index(drop=True, inplace=True)
+    del losses_df['sidx']
+
+    if print_losses:
+        # Set ``event_id`` and ``output_id`` column data types to ``object``
+        # to prevent ``tabulate`` from int -> float conversion during console printing
+        losses_df['event_id'] = losses_df['event_id'].astype(object)
+        losses_df['output_id'] = losses_df['output_id'].astype(object)
+
+        print(tabulate(losses_df, headers='keys', tablefmt='psql', floatfmt=".2f"))
+
+        # Reset event ID and output ID column dtypes to int
+        losses_df['event_id'] = losses_df['event_id'].astype(int)
+        losses_df['output_id'] = losses_df['output_id'].astype(int)
+
+    return losses_df
 
 
 def generate_losses(output_dir, xref_descriptions, loss_percentage_of_tiv=1.0, ri_layers=None):
