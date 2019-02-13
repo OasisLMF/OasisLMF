@@ -32,10 +32,10 @@ InuringLayer = namedtuple(
 
 def _get_location_tiv(location, coverage_type_id):
     switcher = {
-        oed.BUILDING_COVERAGE_TYPE_ID: location.get('BuildingTIV', 1),
-        oed.OTHER_BUILDING_COVERAGE_TYPE_ID: location.get('OtherTIV', 2),
-        oed.CONTENTS_COVERAGE_TYPE_ID: location.get('ContentsTIV', 3),
-        oed.TIME_COVERAGE_TYPE_ID: location.get('BITIV', 4)
+        oed.BUILDING_COVERAGE_TYPE_ID: location.get('BuildingTIV', 0),
+        oed.OTHER_BUILDING_COVERAGE_TYPE_ID: location.get('OtherTIV', 0),
+        oed.CONTENTS_COVERAGE_TYPE_ID: location.get('ContentsTIV', 0),
+        oed.TIME_COVERAGE_TYPE_ID: location.get('BITIV', 0)
     }
     return switcher.get(coverage_type_id, 0)
 
