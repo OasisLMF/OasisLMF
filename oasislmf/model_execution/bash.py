@@ -492,9 +492,6 @@ def get_getmodel_cmd(number_of_samples, gul_threshold, use_random_number_file, c
     return cmd
 
 
-def deterministic():
-    pass
-
 def genbash(
     max_process_id,
     analysis_settings,

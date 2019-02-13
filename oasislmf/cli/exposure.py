@@ -143,7 +143,6 @@ class RunDeterministicCmd(OasisBaseCommand):
         losses_df = om().run_deterministic(
             input_dir,
             output_dir,
-            analysis_settings_fp=analysis_settings_fp,
             loss_percentage_of_tiv=loss_factor,
             net=net_losses,
             print_losses=False

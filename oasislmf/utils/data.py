@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from __future__ import print_function
+
 __all__ = [
     'get_dataframe',
     'get_json',
@@ -10,10 +12,12 @@ __all__ = [
 import builtins
 import io
 import json
+import sys
 
 from datetime import datetime
 from future.utils import viewitems
 from json import JSONDecodeError
+from tabulate import tabulate
 
 import pandas as pd
 import pytz
@@ -146,3 +150,7 @@ def get_utctimestamp(thedate=None, fmt='%Y-%b-%d %H:%M:%S'):
     """
     d = thedate.astimezone(pytz.utc) if thedate else datetime.utcnow()
     return d.strftime(fmt)
+
+
+def print_dataframe(frame, headers='keys', tablefmt='psql', floatfmt=".2f", sep=' ', end='\n', file=sys.stdout, flush=False):
+    print(tabulate(headers=headers, tablefmt=tablefmt, floatfmt=floatfmt), sep=sep, end=end, file=file, flush=flush)

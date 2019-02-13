@@ -15,11 +15,16 @@ import multiprocessing
 import os
 import re
 import shutil
-import subprocess
 
 from builtins import str
 from collections import OrderedDict
 from future.utils import viewitems
+from json import JSONDecodeError
+from subprocess import (
+    CalledProcessError,
+    check_call,
+    run,
+)
 
 from itertools import (
     chain,
@@ -52,6 +57,7 @@ from .utils.concurrency import (
 from .utils.data import (
     get_json,
     get_utctimestamp,
+    print_dataframe,
 )
 from .utils.exceptions import OasisException
 from .utils.log import oasis_log
@@ -495,10 +501,8 @@ class OasisManager(object):
         self,
         input_dir,
         output_dir=None,
-        analysis_settings_fp=None,
         loss_percentage_of_tiv=1.0,
-        net=False,
-        print_losses=True
+        net=False
     ):
         output_dir = output_dir or input_dir
 
@@ -506,40 +510,7 @@ class OasisManager(object):
 
         ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(input_dir))
 
-        analysis_settings_fp = analysis_settings_fp or get_default_deterministic_analysis_settings(path=True)
-
-        prepare_run_directory(
-            input_dir,
-            oasis_fp=input_dir,
-            ri=ri,
-            analysis_settings_fp=analysis_settings_fp
-        )
-
         csv_to_bin(input_dir, input_dir, il=il, ri=ri)
-
-        try:
-            with io.open(analysis_settings_fp, 'r', encoding='utf-8') as f:
-                analysis_settings = json.load(f)
-
-            analysis_settings = analysis_settings.get('analysis_settings', None)
-            if not isinstance(analysis_settings, dict):
-                raise ValueError('No analysis settings found')
-
-            if il:
-                analysis_settings['il_output'] = True
-            else:
-                analysis_settings['il_output'] = False
-                analysis_settings['il_summaries'] = []
-            
-            if ri:
-                analysis_settings['ri_output'] = True
-            else:
-                analysis_settings['ri_output'] = False
-                analysis_settings['ri_summaries'] = []
-        except (IOError, TypeError, ValueError) as e:
-            raise OasisException('Invalid analysis settings file or file path {}: {}.'.format(analysis_settings_fp, e))
-
-        prepare_run_inputs(analysis_settings, input_dir, ri=ri)
 
         # Generate an items and coverages dataframe and set column types (important!!)
         items_df = pd.merge(
@@ -567,28 +538,62 @@ class OasisManager(object):
 
         net_flag = "-n" if net else ""
         ils_fp = os.path.join(output_dir, 'ils.csv')
-        command = "gultobin -S 1 < {} | fmcalc -p {} {} -a {} | tee ils.bin | fmtocsv > {}".format(
-            guls_fp, output_dir, net_flag, oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID, ils_fp)
-        print("\nRunning command: {}\n".format(command))
-        proc = subprocess.Popen(command, shell=True)
-        proc.wait()
-        if proc.returncode != 0:
-            raise OasisException("Failed to run fm")
+        cmd = 'gultobin -S 1 < {} | fmcalc -p {} {} -a {} | tee ils.bin | fmtocsv > {}'.format(
+            guls_fp, output_dir, net_flag, oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID, ils_fp
+        )
+        print("\nGenerating deterministic direct losses with command: {}\n".format(cmd))
+        try:
+            check_call(cmd, shell=True)
+        except CalledProcessError as e:
+            raise OasisException(e)
 
-        losses_df = pd.read_csv(ils_fp)
-        losses_df.drop(losses_df[losses_df.sidx != 1].index, inplace=True)
-        losses_df.reset_index(drop=True, inplace=True)
-        del losses_df['sidx']
+        direct_losses = pd.read_csv(ils_fp)
+        direct_losses.drop(direct_losses[direct_losses.sidx != 1].index, inplace=True)
+        direct_losses.reset_index(drop=True, inplace=True)
+        del direct_losses['sidx']
 
-        return losses_df
+        if ri:
+            try:
+                [fn for fn in os.listdir(input_dir) if fn == 'ri_layers.json'][0]
+            except IndexError:
+                raise OasisException(
+                    'No RI layers JSON file "ri_layers.json " found in the '
+                    'input directory despite presence of RI input files'
+                )
+            else:
+                try:
+                    with io.open(os.path.join(input_dir, 'ri_layers.json'), 'r', encoding='utf-8') as f:
+                        ri_layers = len(json.load(f))
+                except (IOError, JSONDecodeError, OSError, TypeError) as e:
+                    raise OasisException('Error trying to read the RI layers file: {}'.format(e))
+                else:
+                    def run_ri_layer(layer):
+                        layer_inputs_fp = os.path.join(input_dir, 'RI_{}'.format(layer))
+                        pipe_in_previous_layer = '< ri{}.bin'.format(layer - 1) if layer > 1 else ''
 
+                        cmd = 'fmcalc -p {} -n -a 2 {}| tee ri{}.bin | fmtocsv > ri{}.csv'.format(layer_inputs_fp, pipe_in_previous_layer, layer, layer)
+                        print("\nGenerating deterministic RI layer {} losses with command: {}\n".format(layer, cmd))
+                        try:
+                            check_call(cmd, shell=True)
+                        except CalledProcessError as e:
+                            raise OasisException(e)
+                        layer_losses = pd.read_csv('ri{}'.format(layer))
+                        layer_losses.drop(layer_losses[layer_losses.sidx != 1].index, inplace=True)
+                        layer_losses.reset_index(drop=True, inplace=True)
+                        del layer_losses['sidx']
+
+                        return layer_losses
+
+                    for i in range(1, ri_layers + 1):
+                        layer_losses = run_ri_layer(i)
+                        if i in [1, ri_layers]:
+                            return direct_losses, layer_losses
 
     @oasis_log
     def run_deterministic(
         self,
         input_dir,
         output_dir=None,
-        analysis_settings_fp=None,
         loss_percentage_of_tiv=1.0,
         net=False,
         print_losses=True
@@ -624,19 +629,23 @@ class OasisManager(object):
             ri_scope_fp=ri_scope_fp
         )
 
-        losses_df = self.generate_deterministic_losses(
+        direct_losses, ri_final_layer_losses = self.generate_deterministic_losses(
             output_dir,
             input_dir,
-            analysis_settings_fp=(analysis_settings_fp or get_default_deterministic_analysis_settings(path=True)),
             loss_percentage_of_tiv=loss_percentage_of_tiv,
-            net=net,
-            print_losses=print_losses
+            net=net
         )
 
         if print_losses:
-            print(losses_df)
+            direct_losses['event_id'] = direct_losses['event_id'].astype(object)
+            direct_losses['output_id'] = direct_losses['output_id'].astype(object)
+            ri_final_layer_losses['event_id'] = ri_final_layer_losses['event_id'].astype(object)
+            ri_final_layer_losses['output_id'] = ri_final_layer_losses['output_id'].astype(object)
 
-        return losses_df
+            print_dataframe(direct_losses, headers='keys', tablefmt='psql', floatfmt=".2f")
+            print_dataframe(ri_final_layer_losses, headers='keys', tablefmt='psql', floatfmt=".2f")
+
+        return direct_losses, ri_final_layer_losses
 
 
     @oasis_log
