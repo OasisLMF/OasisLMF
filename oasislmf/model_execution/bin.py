@@ -34,9 +34,11 @@ from pathlib2 import Path
 
 from ..model_preparation import oed
 from ..utils.exceptions import OasisException
+from ..utils.log import oasis_log
 from .files import TAR_FILE, INPUT_FILES, GUL_INPUT_FILES, IL_INPUT_FILES
 
 
+@oasis_log
 def prepare_run_directory(
     run_dir,
     oasis_fp=None,
@@ -177,6 +179,7 @@ def _prepare_input_bin(run_dir, bin_name, model_settings, setting_key=None, ri=F
         shutil.copyfile(model_data_bin_fp, bin_fp)
 
 
+@oasis_log
 def prepare_run_inputs(analysis_settings, run_dir, ri=False):
     """
     Sets up binary files in the model inputs directory.
@@ -201,6 +204,7 @@ def prepare_run_inputs(analysis_settings, run_dir, ri=False):
         raise OasisException(e)
 
 
+@oasis_log
 def check_inputs_directory(directory_to_check, il=False, ri=False, check_binaries=True):
     """
     Check that all the required files are present in the directory.
@@ -246,6 +250,7 @@ def _check_each_inputs_directory(directory_to_check, il=False, check_binaries=Tr
                 raise OasisException("Binary file already exists: {}".format(file_path))
 
 
+@oasis_log
 def csv_to_bin(csv_directory, bin_directory, il=False, ri=False):
     """
     Create the binary files.
@@ -303,6 +308,7 @@ def _csv_to_bin(csv_directory, bin_directory, il=False):
         except subprocess.CalledProcessError as e:
             raise OasisException(e)
 
+@oasis_log
 def check_binary_tar_file(tar_file_path, check_il=False):
     """
     Checks that all required files are present
@@ -333,6 +339,7 @@ def check_binary_tar_file(tar_file_path, check_il=False):
     return True
 
 
+@oasis_log
 def create_binary_tar_file(directory):
     """
     Package the binaries in a gzipped tar.
@@ -353,6 +360,7 @@ def create_binary_tar_file(directory):
             tar.add(f, arcname=relpath)
 
 
+@oasis_log
 def check_conversion_tools(il=False):
     """
     Check that the conversion tools are available
@@ -378,6 +386,7 @@ def check_conversion_tools(il=False):
     return True
 
 
+@oasis_log
 def cleanup_bin_directory(directory):
     """
     Clean the tar and binary files.
