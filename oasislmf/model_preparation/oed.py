@@ -286,11 +286,11 @@ def load_oed_dfs(oed_dir, show_all=False):
             ri_info_df = ri_info_df[OED_REINS_INFO_FIELDS].copy()
             ri_scope_df = ri_scope_df[OED_REINS_SCOPE_FIELDS].copy()
 
-        # Ensure Percent feilds are float
-        info_float_cols = ['CededPercent', 'PlacedPercent', 'TreatyShare']
-        scope_float_cols = ['CededPercent']
-        ri_info_df[info_float_cols] = ri_info_df[info_float_cols].astype(float)
-        ri_scope_df[scope_float_cols] = ri_scope_df[scope_float_cols].astype(float)
+            # Ensure Percent feilds are float
+            info_float_cols = ['CededPercent', 'PlacedPercent', 'TreatyShare']
+            scope_float_cols = ['CededPercent']
+            ri_info_df[info_float_cols] = ri_info_df[info_float_cols].astype(float)
+            ri_scope_df[scope_float_cols] = ri_scope_df[scope_float_cols].astype(float)
 
     return (ri_info_df, ri_scope_df, do_reinsurance)
 
