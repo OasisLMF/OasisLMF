@@ -4,6 +4,7 @@ OasisLMF Changelog
 `1.2.8`_
 --------
 * Hotfix for Ktools, version is now 3.0.5
+* Hotfix for API Client Upload timeout issue
 
 `1.2.7`_
 --------
