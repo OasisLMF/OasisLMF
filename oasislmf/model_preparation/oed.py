@@ -14,7 +14,7 @@ from collections import namedtuple
 import pandas as pd
 
 from ..utils.data import get_dataframe
-
+from ..utils.Exceptions import OasisException
 
 # TODO - add validator
 class OedValidator(object):
@@ -251,8 +251,7 @@ def load_oed_dfs(oed_dir, show_all=False):
     do_reinsurance = True
     if oed_dir is not None:
         if not os.path.exists(oed_dir):
-            print("Path does not exist: {}".format(oed_dir))
-            exit(1)
+            raise OasisException("OED directory does not exist: {}".format(oed_dir))
 
         # RI files
         oed_ri_info_file = os.path.join(oed_dir, "ri_info.csv")
