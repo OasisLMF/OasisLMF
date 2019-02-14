@@ -14,7 +14,7 @@ from collections import namedtuple
 import pandas as pd
 
 from ..utils.data import get_dataframe
-from ..utils.Exceptions import OasisException
+from ..utils.exceptions import OasisException
 
 # TODO - add validator
 class OedValidator(object):
