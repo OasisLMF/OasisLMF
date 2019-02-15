@@ -385,7 +385,7 @@ class GenerateLossesCmd(OasisBaseCommand):
         :param args: The arguments from the command line
         :type args: Namespace
         """
-        self.logger.info('\nProcessing arguments for Oasis files generation')
+        self.logger.info('\nProcessing arguments for generating model losses')
         inputs = InputValues(args)
 
         call_dir = os.getcwd()
@@ -437,7 +437,7 @@ class GenerateLossesCmd(OasisBaseCommand):
             ktools_alloc_rule=ktools_alloc_rule
         )
 
-        self.logger.info('\nLosses generated')
+        self.logger.info('\nLosses generated in {}'.format(model_run_fp))
 
 
 class RunCmd(OasisBaseCommand):
@@ -558,6 +558,8 @@ class RunCmd(OasisBaseCommand):
             for command in commands:
                 command.action(args)
                 pbar.update(1)
+
+        self.logger.info('\nModel run completed successfully in {}'.format(model_run_fp))
 
 
 class ModelCmd(OasisBaseCommand):

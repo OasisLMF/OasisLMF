@@ -142,7 +142,7 @@ class RunCmd(OasisBaseCommand):
         except IndexError:
             analysis_settings_fp = get_default_deterministic_analysis_settings(path=True)
 
-        self.logger.info('\nGenerating deterministic losses (GUL=True, IL={}, RI={})'.format(il, ri))
+        self.logger.info('\nRunning deterministic losses (GUL=True, IL={}, RI={})'.format(il, ri))
         direct_losses, ri_final_layer_losses = om().run_deterministic(
             input_dir,
             output_dir,
