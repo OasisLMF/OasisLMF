@@ -716,4 +716,4 @@ class OasisManager(object):
             ktools_alloc_rule=(ktools_alloc_rule or self.ktools_alloc_rule)
         )
 
-        return oasis_files, model_run_fp
+        return model_run_fp
