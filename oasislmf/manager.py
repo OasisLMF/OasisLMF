@@ -82,21 +82,27 @@ class OasisManager(object):
     def __init__(
         self,
         exposure_profile=None,
+        supported_oed_coverage_types=None,
         accounts_profile=None,
         fm_aggregation_profile=None,
-        deterministic_analysis_settings=None
+        deterministic_analysis_settings=None,
+        ktools_num_processes=None,
+        ktools_mem_limit=None,
+        ktools_fifo_relative=None,
+        ktools_alloc_rule=None,
+        oasis_files_prefixes=None
     ):
         # Set defaults for static data or runtime parameters
         self._default_exposure_profile = exposure_profile or get_default_exposure_profile()
-        self._default_supported_oed_coverage_types = tuple(OED_COVERAGE_TYPES[k]['id'] for k in OED_COVERAGE_TYPES if k not in ['pd', 'all'])
+        self._default_supported_oed_coverage_types = supported_oed_coverage_types or tuple(OED_COVERAGE_TYPES[k]['id'] for k in OED_COVERAGE_TYPES if k not in ['pd', 'all'])
         self._default_accounts_profile = accounts_profile or get_default_accounts_profile()
         self._default_fm_aggregation_profile = fm_aggregation_profile or get_default_fm_aggregation_profile()
         self._default_deterministic_analysis_settings = deterministic_analysis_settings or get_default_deterministic_analysis_settings()
-        self._ktools_num_processes = KTOOLS_NUM_PROCESSES
-        self._ktools_mem_limit = KTOOLS_MEM_LIMIT
-        self._ktools_fifo_relative = KTOOLS_FIFO_RELATIVE
-        self._ktools_alloc_rule = KTOOLS_ALLOC_RULE
-        self._oasis_files_prefixes = OASIS_FILES_PREFIXES
+        self._ktools_num_processes = ktools_num_processes or KTOOLS_NUM_PROCESSES
+        self._ktools_mem_limit = ktools_mem_limit or KTOOLS_MEM_LIMIT
+        self._ktools_fifo_relative = ktools_fifo_relative or KTOOLS_FIFO_RELATIVE
+        self._ktools_alloc_rule = ktools_alloc_rule or KTOOLS_ALLOC_RULE
+        self._oasis_files_prefixes = oasis_files_prefixes or OASIS_FILES_PREFIXES
 
     @property
     def default_exposure_profile(self):
@@ -137,7 +143,6 @@ class OasisManager(object):
     @property
     def ktools_alloc_rule(self):
         return self._ktools_alloc_rule
-
 
     @oasis_log
     def generate_peril_areas_rtree_file_index(
@@ -636,7 +641,6 @@ class OasisManager(object):
         )
 
         return direct_losses, ri_final_layer_losses
-
 
     @oasis_log
     def run_model(
