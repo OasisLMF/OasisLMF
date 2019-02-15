@@ -4,7 +4,7 @@ from __future__ import print_function
 
 __all__ = [
     'ExposureCmd',
-    'RunDeterministicCmd',
+    'RunCmd',
     'ValidateCmd'
 ]
 
@@ -44,7 +44,7 @@ from .base import (
 )
 
 
-class RunDeterministicCmd(OasisBaseCommand):
+class RunCmd(OasisBaseCommand):
     """
     Generates deterministic losses using the installed ktools framework given
     direct Oasis files (GUL + IL input files & optionally RI input files).
@@ -165,6 +165,6 @@ class ExposureCmd(OasisBaseCommand):
         * validate OED exposure (not yet implemented)
     """
     sub_commands = {
-        'run-deterministic': RunDeterministicCmd,
+        'run': RunCmd,
         'validate': ValidateCmd
     }
