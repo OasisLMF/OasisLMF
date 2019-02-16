@@ -298,12 +298,18 @@ class OasisManager(object):
         ri_scope_fp=None,
         oasis_files_prefixes=None
     ):
+        # Check whether the invocation indicates a deterministic or model
+        # analysis/run - the CLI supports deterministic analyses via a command
+        # `oasislmf exposure run` which requires a preexisting input files
+        # directory, which is usually the same as the analysis/output directory
+        deterministic = not(lookup_config or keys_data_fp or model_version_fp or lookup_package_fp)
+
         # Prepare the target directory and copy the source files, profiles and
         # model version file into it
         if not os.path.exists(target_dir):
             Path(target_dir).mkdir(parents=True, exist_ok=True)
         else:
-            empty_dir(target_dir)
+            empty_dir(target_dir) if not deterministic else None
 
         for p in (exposure_fp, exposure_profile_fp, accounts_fp, accounts_profile_fp, fm_aggregation_profile_fp, lookup_config_fp, model_version_fp, ri_info_fp, ri_scope_fp):
             if p in os.listdir(target_dir):
@@ -328,7 +334,7 @@ class OasisManager(object):
         keys_errors_fp = os.path.join(target_dir, 'keys-errors.csv')
 
         cov_types = supported_oed_coverage_types or self.supported_oed_coverage_types
-        if not (lookup_config or keys_data_fp or model_version_fp or lookup_package_fp):
+        if deterministic:
             n = len(pd.read_csv(exposure_fp))
             keys = [
                 {'locnumber': i + 1, 'peril_id': 1, 'coverage_type': j, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
