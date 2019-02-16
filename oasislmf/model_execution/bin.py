@@ -41,11 +41,11 @@ from .files import TAR_FILE, INPUT_FILES, GUL_INPUT_FILES, IL_INPUT_FILES
 @oasis_log
 def prepare_run_directory(
     run_dir,
-    oasis_fp=None,
-    ri=False,
-    analysis_settings_fp=None,
-    model_data_fp=None,
+    oasis_src_fp,
+    model_data_fp,
+    analysis_settings_fp,
     inputs_archive=None,
+    ri=False,
 ):
     """
     Ensures that the model run directory has the correct folder structure in
@@ -121,42 +121,37 @@ def prepare_run_directory(
     :type inputs_archive: str
     """
     try:
+        #import ipdb; ipdb.set_trace()
         for subdir in ['fifo', 'output', 'static', 'work']:
             Path(run_dir, subdir).mkdir(parents=True, exist_ok=True)
 
-        if model_data_fp:
-            if not inputs_archive:
-                Path(run_dir, 'input', 'csv').mkdir(parents=True, exist_ok=True) if not ri else Path(run_dir, 'input').mkdir(parents=True, exist_ok=True)
+        if not inputs_archive:
+            Path(run_dir, 'input', 'csv').mkdir(parents=True, exist_ok=True) if not ri else Path(run_dir, 'input').mkdir(parents=True, exist_ok=True)
+        else:
+            with tarfile.open(inputs_archive) as input_tarfile:
+                p = os.path.join(run_dir, 'input') if not ri else os.path.join(run_dir, 'input')
+                input_tarfile.extractall(path=p)
+
+        oasis_dst_fp = os.path.join(run_dir, 'input', 'csv') if not ri else os.path.join(run_dir, 'input')
+
+        for p in os.listdir(oasis_src_fp):
+            src_fp = os.path.join(oasis_src_fp, p)
+            if not (re.match(r'RI_\d+$', p) or p == 'ri_layers.json'):
+                shutil.copy2(src_fp, oasis_dst_fp) if not os.path.exists(os.path.join(oasis_dst_fp, p)) else None
             else:
-                with tarfile.open(inputs_archive) as input_tarfile:
-                    p = os.path.join(run_dir, 'input') if not ri else os.path.join(run_dir, 'input')
-                    input_tarfile.extractall(path=p)
+                shutil.move(src_fp, run_dir)
 
-            oasis_files_destpath = os.path.join(run_dir, 'input', 'csv') if not ri else os.path.join(run_dir, 'input')
+        analysis_settings_fn = os.path.basename(analysis_settings_fp)
+        shutil.copy2(analysis_settings_fp, run_dir) if not os.path.exists(os.path.join(oasis_dst_fp, analysis_settings_fn)) else None
 
-            if oasis_fp and oasis_fp != oasis_files_destpath:
-                for p in os.listdir(oasis_fp):
-                    src_fp = os.path.join(oasis_fp, p)
-                    if not (re.match(r'RI_\d+$', p) or p == 'ri_layers.json'):
-                        shutil.copy2(src_fp, oasis_files_destpath)
-                    else:
-                        copy_func = shutil.copytree if re.match(r'RI_\d+$', p) else shutil.copy2
-                        copy_func(src_fp, os.path.join(run_dir, p))
+        model_data_dst_fp = os.path.join(run_dir, 'static')
 
-        if analysis_settings_fp:
-            analysis_settings_dest_fp = os.path.join(run_dir, 'analysis_settings.json')
-            shutil.copyfile(analysis_settings_fp, analysis_settings_dest_fp)
-
-        if model_data_fp:
-            model_data_dest_fp = os.path.join(run_dir, 'static')
-
-            for path in glob.glob(os.path.join(model_data_fp, '*')):
-                filename = os.path.basename(path)
-                try:
-                    os.symlink(path, os.path.join(model_data_dest_fp, filename))
-                except Exception:
-                    shutil.copytree(model_data_fp, os.path.join(model_data_dest_fp, filename))
-
+        for path in glob.glob(os.path.join(model_data_fp, '*')):
+            fn = os.path.basename(path)
+            try:
+                os.symlink(path, os.path.join(model_data_dst_fp, fn))
+            except Exception:
+                shutil.copytree(model_data_fp, os.path.join(model_data_dst_fp, fn))
     except OSError as e:
         raise OasisException(e)
 

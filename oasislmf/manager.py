@@ -73,7 +73,10 @@ from .utils.defaults import (
     OASIS_FILES_PREFIXES,
 )
 from .utils.peril import PerilAreasIndex
-from .utils.path import setcwd
+from .utils.path import (
+    empty_dir,
+    setcwd,
+)
 
 
 class OasisManager(object):
@@ -299,6 +302,8 @@ class OasisManager(object):
         # model version file into it
         if not os.path.exists(target_dir):
             Path(target_dir).mkdir(parents=True, exist_ok=True)
+        else:
+            empty_dir(target_dir)
 
         for p in (exposure_fp, exposure_profile_fp, accounts_fp, accounts_profile_fp, fm_aggregation_profile_fp, lookup_config_fp, model_version_fp, ri_info_fp, ri_scope_fp):
             if p in os.listdir(target_dir):
@@ -426,16 +431,12 @@ class OasisManager(object):
         if not os.path.exists(model_run_fp):
             Path(model_run_fp).mkdir(parents=True, exist_ok=True)
 
-        analysis_settings_fn = os.path.basename(analysis_settings_fp)
-
-        shutil.copy2(analysis_settings_fp, model_run_fp)
-
         prepare_run_directory(
             model_run_fp,
-            oasis_fp=oasis_fp,
-            ri=ri,
-            analysis_settings_fp=analysis_settings_fp,
-            model_data_fp=model_data_fp
+            oasis_fp,
+            model_data_fp,
+            analysis_settings_fp,
+            ri=ri
         )
 
         if not ri:
@@ -445,6 +446,7 @@ class OasisManager(object):
             for fp in [os.path.join(model_run_fp, fn) for fn in contents if re.match(r'RI_\d+$', fn) or re.match(r'input$', fn)]:
                 csv_to_bin(fp, fp, il=True, ri=True)
 
+        analysis_settings_fn = os.path.basename(analysis_settings_fp)
         _analysis_settings_fp = os.path.join(model_run_fp, analysis_settings_fn)
         try:
             with io.open(_analysis_settings_fp, 'r', encoding='utf-8') as f:
@@ -679,6 +681,8 @@ class OasisManager(object):
 
         if not os.path.exists(model_run_fp):
             Path(model_run_fp).mkdir(parents=True, exist_ok=True)
+        else:
+            empty_dir(model_run_dir)
 
         oasis_fp = os.path.join(model_run_fp, 'input') if ri else os.path.join(model_run_fp, 'input', 'csv')
         Path(oasis_fp).mkdir(parents=True, exist_ok=True)

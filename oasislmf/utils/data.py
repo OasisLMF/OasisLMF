@@ -115,22 +115,13 @@ def get_dataframe(
     return df
 
 
-def get_json(
-        src_fp=None,
-        src_json=None,
-        key_transform=None
-    ):
-
-    if not (src_fp or src_json):
-        return
-
+def get_json(src_fp, key_transform=None):
     di = None
-
-    if src_fp:
+    try:
         with io.open(src_fp, 'r', encoding='utf-8') as f:
             di = json.load(f)
-    else:
-        di = json.loads(src_json)
+    except (IOError, JSONDecodeError, OSError, TypeError) as e:
+        return
 
     return di if not key_transform else {key_transform(k): v for k, v in viewitems(di)}
 

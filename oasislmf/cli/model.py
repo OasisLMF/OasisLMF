@@ -37,6 +37,7 @@ from ..utils.exceptions import OasisException
 from ..utils.data import get_json
 from ..utils.path import (
     as_path,
+    empty_dir,
     setcwd,
 )
 from ..utils.peril import PerilAreasIndex
@@ -93,7 +94,7 @@ class GeneratePerilAreasRtreeFileIndexCmd(OasisBaseCommand):
 
         config_fp = as_path(inputs.get('lookup_config_file_path', required=True, is_path=True), 'Built-in lookup config file path', preexists=True)
 
-        keys_data_fp = as_path(inputs.get('keys_data_path', required=True, is_path=True), 'Keys config file path', preexists=True)
+        keys_data_fp = as_path(inputs.get('keys_data_path', required=True, is_path=True), 'Keys config file path', is_dir=True, preexists=True)
 
         index_fp = as_path(inputs.get('index_file_path', required=True, is_path=True), 'Index output file path', preexists=False)
 
@@ -168,9 +169,9 @@ class GenerateKeysCmd(OasisBaseCommand):
 
         config_fp = as_path(inputs.get('lookup_config_file_path', required=False, is_path=True), 'Lookup config JSON file path',)
 
-        keys_data_fp = as_path(inputs.get('keys_data_path', required=False, is_path=True), 'Keys data path', preexists=False)
+        keys_data_fp = as_path(inputs.get('keys_data_path', required=False, is_path=True), 'Keys data path', is_dir=True, preexists=False)
         model_version_fp = as_path(inputs.get('model_version_file_path', required=False, is_path=True), 'Model version file path', preexists=False)
-        lookup_package_fp = as_path(inputs.get('lookup_package_path', required=False, is_path=True), 'Lookup package path', preexists=False)
+        lookup_package_fp = as_path(inputs.get('lookup_package_path', required=False, is_path=True), 'Lookup package path', is_dir=True, preexists=False)
 
         if not (config_fp or (keys_data_fp and model_version_fp and lookup_package_fp)):
             raise OasisException(
@@ -254,15 +255,13 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
         default_oasis_fp = os.path.join(os.getcwd(), 'runs', 'OasisFiles-{}'.format(utcnow))
 
-        call_dir = os.getcwd()
-
-        oasis_fp = as_path(inputs.get('oasis_files_path', is_path=True, default=default_oasis_fp), 'Oasis files path', preexists=False)
+        oasis_fp = as_path(inputs.get('oasis_files_path', is_path=True, default=default_oasis_fp), 'Oasis files path', is_dir=True, preexists=False)
 
         lookup_config_fp = as_path(inputs.get('lookup_config_file_path', required=False, is_path=True), 'Lookup config JSON file path', preexists=False)
 
         keys_data_fp = as_path(inputs.get('keys_data_path', required=False, is_path=True), 'Keys data path', preexists=False)
-        model_version_fp = as_path(inputs.get('model_version_file_path', required=False, is_path=True), 'Model version file path', preexists=False)
-        lookup_package_fp = as_path(inputs.get('lookup_package_path', required=False, is_path=True), 'Lookup package path', preexists=False)
+        model_version_fp = as_path(inputs.get('model_version_file_path', required=False, is_path=True), 'Model version file path', is_dir=True, preexists=False)
+        lookup_package_fp = as_path(inputs.get('lookup_package_path', required=False, is_path=True), 'Lookup package path', is_dir=True, preexists=False)
 
         if not (lookup_config_fp or (keys_data_fp and model_version_fp and lookup_package_fp)):
             raise OasisException(
@@ -388,26 +387,24 @@ class GenerateLossesCmd(OasisBaseCommand):
         self.logger.info('\nProcessing arguments for generating model losses')
         inputs = InputValues(args)
 
-        call_dir = os.getcwd()
-
         oasis_fp = as_path(
             inputs.get('oasis_files_path', required=True, is_path=True),
-            'Path to direct Oasis files (GUL + optionally FM and RI input files)', preexists=True
+            'Path to direct Oasis files (GUL + optionally FM and RI input files)', is_dir=True, preexists=True
         )
 
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
         default_model_run_fp = os.path.join(os.getcwd(), 'runs', 'ProgOasis-{}'.format(utcnow))
 
-        model_run_fp = as_path(inputs.get('model_run_dir', is_path=True, default=default_model_run_fp), 'Model run directory', preexists=False)
+        model_run_fp = as_path(inputs.get('model_run_dir', is_path=True, default=default_model_run_fp), 'Model run directory', is_dir=True, preexists=False)
 
         analysis_settings_fp = as_path(
             inputs.get('analysis_settings_file_path', required=True, is_path=True),
             'Model analysis settings file path'
         )
 
-        model_data_fp = as_path(inputs.get('model_data_path', required=True, is_path=True), 'Model data path')
+        model_data_fp = as_path(inputs.get('model_data_path', required=True, is_path=True), 'Model data path', is_dir=True)
 
-        model_package_fp = as_path(inputs.get('model_package_path', required=False, is_path=True), 'Model package path')
+        model_package_fp = as_path(inputs.get('model_package_path', required=False, is_path=True), 'Model package path', is_dir=True)
 
         ktools_num_processes = inputs.get('ktools_num_processes', default=2, required=False)
 
@@ -510,16 +507,17 @@ class RunCmd(OasisBaseCommand):
         self.logger.info('\nProcessing arguments for model run')
         inputs = InputValues(args)
 
-        call_dir = os.getcwd()
-
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
         default_model_run_fp = os.path.join(os.getcwd(), 'runs', 'ProgOasis-{}'.format(utcnow))
 
-        model_run_fp = as_path(inputs.get('model_run_dir', is_path=True, default=default_model_run_fp), 'Model run directory', preexists=False)
+        model_run_fp = as_path(inputs.get('model_run_dir', is_path=True, default=default_model_run_fp), 'Model run directory', is_dir=True, preexists=False)
+
+        if os.path.exists(model_run_fp):
+            empty_dir(model_run_fp)
 
         args.model_run_fp = model_run_fp
 
-        model_package_fp = as_path(inputs.get('model_package_path', required=False, is_path=True), 'Model package path')
+        model_package_fp = as_path(inputs.get('model_package_path', required=False, is_path=True), 'Model package path', is_dir=True)
 
         args.model_package_fp = model_package_fp
 
@@ -578,5 +576,5 @@ class ModelCmd(OasisBaseCommand):
         'generate-keys': GenerateKeysCmd,
         'generate-oasis-files': GenerateOasisFilesCmd,
         'generate-losses': GenerateLossesCmd,
-        'run': RunCmd,
+        'run': RunCmd
     }
