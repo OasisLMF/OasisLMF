@@ -93,11 +93,11 @@ class OasisManager(object):
         oasis_files_prefixes=None
     ):
         # Set defaults for static data or runtime parameters
-        self._default_exposure_profile = exposure_profile or get_default_exposure_profile()
-        self._default_supported_oed_coverage_types = supported_oed_coverage_types or tuple(OED_COVERAGE_TYPES[k]['id'] for k in OED_COVERAGE_TYPES if k not in ['pd', 'all'])
-        self._default_accounts_profile = accounts_profile or get_default_accounts_profile()
-        self._default_fm_aggregation_profile = fm_aggregation_profile or get_default_fm_aggregation_profile()
-        self._default_deterministic_analysis_settings = deterministic_analysis_settings or get_default_deterministic_analysis_settings()
+        self._exposure_profile = exposure_profile or get_default_exposure_profile()
+        self._supported_oed_coverage_types = supported_oed_coverage_types or tuple(OED_COVERAGE_TYPES[k]['id'] for k in OED_COVERAGE_TYPES if k not in ['pd', 'all'])
+        self._accounts_profile = accounts_profile or get_default_accounts_profile()
+        self._fm_aggregation_profile = fm_aggregation_profile or get_default_fm_aggregation_profile()
+        self._deterministic_analysis_settings = deterministic_analysis_settings or get_default_deterministic_analysis_settings()
         self._ktools_num_processes = ktools_num_processes or KTOOLS_NUM_PROCESSES
         self._ktools_mem_limit = ktools_mem_limit or KTOOLS_MEM_LIMIT
         self._ktools_fifo_relative = ktools_fifo_relative or KTOOLS_FIFO_RELATIVE
@@ -105,24 +105,24 @@ class OasisManager(object):
         self._oasis_files_prefixes = oasis_files_prefixes or OASIS_FILES_PREFIXES
 
     @property
-    def default_exposure_profile(self):
-        return self._default_exposure_profile
+    def exposure_profile(self):
+        return self._exposure_profile
 
     @property
-    def default_supported_oed_coverage_types(self):
-        return self._default_supported_oed_coverage_types
+    def supported_oed_coverage_types(self):
+        return self._supported_oed_coverage_types
 
     @property
-    def default_accounts_profile(self):
-        return self._default_accounts_profile
+    def accounts_profile(self):
+        return self._accounts_profile
 
     @property
-    def default_fm_aggregation_profile(self):
-        return self._default_fm_aggregation_profile
+    def fm_aggregation_profile(self):
+        return self._fm_aggregation_profile
 
     @property
-    def default_deterministic_analysis_settings(self):
-        return self._default_deterministic_analysis_settings
+    def deterministic_analysis_settings(self):
+        return self._deterministic_analysis_settings
 
     @property
     def oasis_files_prefixes(self):
@@ -309,9 +309,9 @@ class OasisManager(object):
         # Get the exposure + accounts + FM aggregation profiles + lookup
         # config. profiles either from the optional arguments if present, or
         # then manager defaults
-        exposure_profile = exposure_profile or get_json(src_fp=exposure_profile_fp) or self.default_exposure_profile
-        accounts_profile = accounts_profile or get_json(src_fp=accounts_profile_fp) or self.default_accounts_profile
-        fm_aggregation_profile = fm_aggregation_profile or get_json(src_fp=fm_aggregation_profile_fp, key_transform=int) or self.default_fm_aggregation_profile
+        exposure_profile = exposure_profile or get_json(src_fp=exposure_profile_fp) or self.exposure_profile
+        accounts_profile = accounts_profile or get_json(src_fp=accounts_profile_fp) or self.accounts_profile
+        fm_aggregation_profile = fm_aggregation_profile or get_json(src_fp=fm_aggregation_profile_fp, key_transform=int) or self.fm_aggregation_profile
         lookup_config = get_json(src_fp=lookup_config_fp) or lookup_config
         if lookup_config:
             lookup_config['keys_data_path'] = os.path.dirname(lookup_config_fp)
@@ -322,7 +322,7 @@ class OasisManager(object):
         keys_fp = os.path.join(target_dir, 'keys.csv')
         keys_errors_fp = os.path.join(target_dir, 'keys-errors.csv')
 
-        cov_types = supported_oed_coverage_types or self.default_supported_oed_coverage_types
+        cov_types = supported_oed_coverage_types or self.supported_oed_coverage_types
         if not (lookup_config or keys_data_fp or model_version_fp or lookup_package_fp):
             n = len(pd.read_csv(exposure_fp))
             keys = [
@@ -686,7 +686,7 @@ class OasisManager(object):
         oasis_files = self.generate_oasis_files(
             exposure_fp,
             oasis_fp,
-            exposure_profile=(exposure_profile or self.default_exposure_profile),
+            exposure_profile=(exposure_profile or self.exposure_profile),
             exposure_profile_fp=exposure_profile_fp,
             lookup_config=lookup_config,
             lookup_config_fp=lookup_config_fp,
