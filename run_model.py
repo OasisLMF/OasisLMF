@@ -68,7 +68,7 @@ def parse_args():
 
     parser.add_argument('-d', '--model-run-mode', default='ri', help='Model run mode - `gul` for GUL only, `fm` for GUL + FM, `ri` for GUL + FM + RI')
 
-    parser.add_argument('-c', '--no-cleanup', action='store_true', default=False, help='Whether to cleanup installed MDK installed package and model repository')
+    parser.add_argument('-n', '--no-cleanup', action='store_true', default=False, help='Whether to cleanup installed MDK installed package and model repository')
 
     args = vars(parser.parse_args())
 
@@ -167,14 +167,14 @@ def print_model_dir_tree(model_run_dir, options_str='-h'):
 
 def model_run_ok(model_run_dir, model_run_mode):
 
-    def _is_non_empty_file(fp, prefix_match=False, is_dir=False):
-        if not prefix_match:
+    def _is_non_empty_file(fp, substr_match=False, is_dir=False):
+        if not substr_match:
             return (os.path.isfile(fp) if not is_dir else os.path.isdir(fp)) and os.path.getsize(fp) > 0
         else:
-            prefix, dir_name, dir_contents = os.path.basename(fp), os.path.dirname(fp), os.listdir(os.path.dirname(fp))
+            substr, dir_name, dir_contents = os.path.basename(fp), os.path.dirname(fp), os.listdir(os.path.dirname(fp))
             try:
-                fn = [fn for fn in dir_contents if fn.startswith(prefix)][0]
-            except IndexError:
+                fn = [fn for fn in dir_contents if substr.lower() in fn.lower()][0]
+            except (AttributeError, IndexError):
                 return False
             _fp = os.path.join(dir_name, fn)
             return os.path.getsize(_fp) > 0
@@ -191,9 +191,12 @@ def model_run_ok(model_run_dir, model_run_mode):
     assert(_is_non_empty_file(os.path.join(model_run_dir, 'run_ktools.sh')))
 
     direct_csv_inputs_fp = os.path.join(model_run_dir, 'input', 'csv') if not ri else os.path.join(model_run_dir, 'input')
-    assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'srcexp'), prefix_match=True))
-    assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'oasiskeys'), prefix_match=True))
-    assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'oasiskeys-errors'), prefix_match=True))
+    try:
+        assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'srcexp'), substr_match=True))
+    except AssertionError:
+        assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'sourceloc'), substr_match=True))
+    assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'keys.csv'), substr_match=True))
+    assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'keys-errors'), substr_match=True))
 
     assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'items.csv')))
     assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'coverages.csv')))
@@ -213,7 +216,10 @@ def model_run_ok(model_run_dir, model_run_mode):
     assert(_is_non_empty_file(os.path.join(outputs_fp, 'gul_S1_leccalc_full_uncertainty_oep.csv')))
 
     if model_run_mode in ['fm', 'ri']:
-        assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'srcacc'), prefix_match=True))
+        try:
+            assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'srcacc'), substr_match=True))
+        except AssertionError:
+            assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'sourceacc'), substr_match=True))
 
         assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'fm_programme.csv')))
         assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'fm_profile.csv')))
@@ -233,7 +239,15 @@ def model_run_ok(model_run_dir, model_run_mode):
         assert(_is_non_empty_file(os.path.join(outputs_fp, 'il_S1_leccalc_full_uncertainty_oep.csv')))
 
         if model_run_mode == 'ri':
-            assert(_is_non_empty_file(os.path.join(model_run_dir, 'RI'), prefix_match=True))
+            try:
+                assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'reinsinfo'), substr_match=True))
+            except AssertionError:
+                assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'ri_info'), substr_match=True))
+            try:
+                assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'reinsscope'), substr_match=True))
+            except AssertionError:
+                assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'ri_scope'), substr_match=True))
+            assert(_is_non_empty_file(os.path.join(model_run_dir, 'RI'), substr_match=True))
 
     return True
 

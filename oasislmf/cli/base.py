@@ -16,7 +16,6 @@ class InputValues(object):
     the command line or the configuration file.
     """
     def __init__(self, args):
-        #import ipdb; ipdb.set_trace()
         self.args = args
 
         self.config_fp = None

@@ -121,7 +121,6 @@ def prepare_run_directory(
     :type inputs_archive: str
     """
     try:
-        #import ipdb; ipdb.set_trace()
         for subdir in ['fifo', 'output', 'static', 'work']:
             Path(run_dir, subdir).mkdir(parents=True, exist_ok=True)
 
