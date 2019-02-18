@@ -516,6 +516,10 @@ class OasisManager(object):
         loss_percentage_of_tiv=1.0,
         net=False
     ):
+        losses = OrderedDict({
+            'gul': None, 'il': None, 'ri': None
+        })
+
         output_dir = output_dir or input_dir
 
         il = all(p in os.listdir(input_dir) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
@@ -535,34 +539,40 @@ class OasisManager(object):
             else:
                 items_df[col] = items_df[col].astype(float)
 
-        guls_list = []
+        guls_items = []
         for item_id, tiv in zip(items_df['item_id'], items_df['tiv']):
             event_loss = loss_percentage_of_tiv * tiv
-            guls_list += [
+            guls_items += [
                 oed.GulRecord(event_id=1, item_id=item_id, sidx=-1, loss=event_loss),
                 oed.GulRecord(event_id=1, item_id=item_id, sidx=-2, loss=0),
                 oed.GulRecord(event_id=1, item_id=item_id, sidx=1, loss=event_loss)
             ]
 
-        guls_df = pd.DataFrame(guls_list)
+        guls = pd.DataFrame(guls_items)
         guls_fp = os.path.join(output_dir, "guls.csv")
-        guls_df.to_csv(guls_fp, index=False)
+        guls.to_csv(guls_fp, index=False)
 
         net_flag = "-n" if net else ""
         ils_fp = os.path.join(output_dir, 'ils.csv')
         cmd = 'gultobin -S 1 < {} | fmcalc -p {} {} -a {} | tee ils.bin | fmtocsv > {}'.format(
             guls_fp, output_dir, net_flag, oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID, ils_fp
         )
-        print("\nGenerating deterministic direct losses with command: {}\n".format(cmd))
+        print("\nGenerating deterministic insured losses with command: {}\n".format(cmd))
         try:
             check_call(cmd, shell=True)
         except CalledProcessError as e:
             raise OasisException(e)
 
-        direct_losses = pd.read_csv(ils_fp)
-        direct_losses.drop(direct_losses[direct_losses.sidx != 1].index, inplace=True)
-        direct_losses.reset_index(drop=True, inplace=True)
-        del direct_losses['sidx']
+        guls.drop(guls[guls['sidx'] != 1].index, inplace=True)
+        guls.reset_index(drop=True, inplace=True)
+        guls.drop('sidx', axis=1, inplace=True)
+        losses['gul'] = guls
+
+        ils = pd.read_csv(ils_fp)
+        ils.drop(ils[ils['sidx'] != 1].index, inplace=True)
+        ils.reset_index(drop=True, inplace=True)
+        ils.drop('sidx', axis=1, inplace=True)
+        losses['il'] = ils
 
         if ri:
             try:
@@ -590,17 +600,19 @@ class OasisManager(object):
                             check_call(cmd, shell=True)
                         except CalledProcessError as e:
                             raise OasisException(e)
-                        layer_losses = pd.read_csv('ri{}.csv'.format(layer))
-                        layer_losses.drop(layer_losses[layer_losses.sidx != 1].index, inplace=True)
-                        layer_losses.reset_index(drop=True, inplace=True)
-                        del layer_losses['sidx']
+                        rils = pd.read_csv('ri{}.csv'.format(layer))
+                        rils.drop(rils[rils['sidx'] != 1].index, inplace=True)
+                        rils.drop('sidx', axis=1, inplace=True)
+                        rils.reset_index(drop=True, inplace=True)
 
-                        return layer_losses
+                        return rils
 
                     for i in range(1, ri_layers + 1):
-                        layer_losses = run_ri_layer(i)
+                        rils = run_ri_layer(i)
                         if i in [1, ri_layers]:
-                            return direct_losses, layer_losses
+                            losses['ri'] = rils
+
+        return losses
 
     @oasis_log
     def run_deterministic(
@@ -641,14 +653,14 @@ class OasisManager(object):
             ri_scope_fp=ri_scope_fp
         )
 
-        direct_losses, ri_final_layer_losses = self.generate_deterministic_losses(
+        losses = self.generate_deterministic_losses(
             output_dir,
             input_dir,
             loss_percentage_of_tiv=loss_percentage_of_tiv,
             net=net
         )
 
-        return direct_losses, ri_final_layer_losses
+        return losses['gul'], losses['il'], losses['ri']
 
     @oasis_log
     def run_model(

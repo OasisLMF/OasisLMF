@@ -143,14 +143,16 @@ class RunCmd(OasisBaseCommand):
             analysis_settings_fp = get_default_deterministic_analysis_settings(path=True)
 
         self.logger.info('\nRunning deterministic losses (GUL=True, IL={}, RI={})'.format(il, ri))
-        direct_losses, ri_final_layer_losses = om().run_deterministic(
+        guls, ils, rils = om().run_deterministic(
             input_dir,
             output_dir,
             loss_percentage_of_tiv=loss_factor,
             net=net_losses
         )
-        print_dataframe(direct_losses, header='Direct losses', objectify_cols=['event_id', 'output_id'], headers='keys', tablefmt='psql', floatfmt=".2f")
-        print_dataframe(ri_final_layer_losses, header='Reinsurance losses', objectify_cols=['event_id', 'output_id'], headers='keys', tablefmt='psql', floatfmt=".2f")
+        print_dataframe(guls, header='Ground-up losses', objectify_cols=guls.columns, headers='keys', tablefmt='psql', floatfmt=".2f")
+        print_dataframe(ils, header='Insured losses', objectify_cols=ils.columns, headers='keys', tablefmt='psql', floatfmt=".2f")
+        if rils is not None:
+            print_dataframe(rils, header='Reinsurance losses', objectify_cols=rils.columns, headers='keys', tablefmt='psql', floatfmt=".2f")
 
 
 class ValidateCmd(OasisBaseCommand):
