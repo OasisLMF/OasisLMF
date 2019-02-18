@@ -1,6 +1,15 @@
 OasisLMF Changelog
 ==================
 
+`1.2.8`_
+--------
+* Hotfix for Ktools, version is now 3.0.5
+* Hotfix for API Client Upload timeout issue
+
+`1.2.7`_
+--------
+* Hotfix in Generate-Losses command 
+
 `1.2.6`_
 --------
 * Added Reinsurance to CLI
@@ -181,8 +190,8 @@ in the exposure manager
 
 * Add console logging
 
-
-
+.. _`1.2.8`:  https://github.com/OasisLMF/OasisLMF/compare/1.2.7...1.2.8
+.. _`1.2.7`:  https://github.com/OasisLMF/OasisLMF/compare/1.2.6...1.2.7
 .. _`1.2.6`:  https://github.com/OasisLMF/OasisLMF/compare/1.2.5...1.2.6
 .. _`1.2.5`:  https://github.com/OasisLMF/OasisLMF/compare/1.2.4...1.2.5
 .. _`1.2.4`:  https://github.com/OasisLMF/OasisLMF/compare/1.2.3...1.2.4

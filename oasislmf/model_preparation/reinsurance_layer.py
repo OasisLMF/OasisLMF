@@ -34,10 +34,10 @@ InuringLayer = namedtuple(
 
 def _get_location_tiv(location, coverage_type_id):
     switcher = {
-        oed.BUILDING_COVERAGE_TYPE_ID: location.BuildingTIV,
-        oed.OTHER_BUILDING_COVERAGE_TYPE_ID: location.OtherTIV,
-        oed.CONTENTS_COVERAGE_TYPE_ID: location.ContentsTIV,
-        oed.TIME_COVERAGE_TYPE_ID: location.BITIV
+        oed.BUILDING_COVERAGE_TYPE_ID: location.get('BuildingTIV', 0),
+        oed.OTHER_BUILDING_COVERAGE_TYPE_ID: location.get('OtherTIV', 0),
+        oed.CONTENTS_COVERAGE_TYPE_ID: location.get('ContentsTIV', 0),
+        oed.TIME_COVERAGE_TYPE_ID: location.get('BITIV', 0)
     }
     return switcher.get(coverage_type_id, 0)
 
@@ -264,7 +264,7 @@ class ReinsuranceLayer(object):
             parent=parent,
             level_id=level_id,
             agg_id=agg_id,
-            portfolio_number=portfolio_number,            
+            portfolio_number=portfolio_number,
             account_number=account_number,
             policy_number=policy_number,
             location_group=location_group,
@@ -575,7 +575,7 @@ class ReinsuranceLayer(object):
                 current_location_number = row.location_number
                 current_location_group = row.location_group
 
-            self._add_item_node(row.xref_id, current_location_node)            
+            self._add_item_node(row.xref_id, current_location_node)
             
         return program_node
 
@@ -715,7 +715,7 @@ class ReinsuranceLayer(object):
 
         add_profiles_args.fmprofiles_list.append(
             oed.get_reinsurance_profile(
-                profile_id,                    
+                profile_id,
                 limit=add_profiles_args.ri_info_row.RiskLimit,
                 ceded=add_profiles_args.ri_info_row.CededPercent,
             ))
