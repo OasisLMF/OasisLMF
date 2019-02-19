@@ -37,7 +37,6 @@ from pathlib2 import Path
 from six import u as _unicode
 from tabulate import tabulate
 
-from .cli.base import InputValues
 from .model_execution import runner
 from .model_execution.bin import (
     csv_to_bin,
