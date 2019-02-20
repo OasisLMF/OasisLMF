@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
 __all__ = [
-    'get_dataframe'
+    'get_dataframe',
+    'PANDAS_BASIC_DTYPES'
 ]
 
 import builtins
@@ -9,10 +10,22 @@ import io
 
 from future.utils import viewitems
 
+import numpy as np
 import pandas as pd
 
 from .exceptions import OasisException
 
+
+PANDAS_BASIC_DTYPES = {
+    'int': np.int64,
+    builtins.int: np.int64,
+    'float': np.float64,
+    builtins.float: np.float64,
+    'bool': np.bool,
+    builtins.bool: np.bool,
+    'str': np.object,
+    builtins.str: np.object
+}
 
 def get_dataframe(
     src_fp=None,
@@ -86,7 +99,7 @@ def get_dataframe(
             (k.lower() if lowercase_cols else k): (getattr(builtins, v) if v in ('int', 'bool', 'float', 'str',) else v) for k, v in viewitems(col_dtypes)
         }
         for col, dtype in viewitems(_col_dtypes):
-            df[col] = df[col].astype(dtype) if dtype != int else df[col].astype(object)
+            df[col] = df[col].astype(PANDAS_BASIC_DTYPES[dtype])
 
     if sort_col:
         _sort_col = sort_col.lower() if lowercase_cols else sort_col
