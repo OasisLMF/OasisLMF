@@ -143,6 +143,7 @@
         "FMLevel": 2,
         "FMTermType": "Deductible",
         "FMTermGroupID": 1,
+        "CoverageTypeID": [1,2,3],
         "ProfileType": "Loc"
     },
     "LocLimit5PD": {
@@ -152,6 +153,7 @@
         "FMLevel": 2,
         "FMTermType": "Limit",
         "FMTermGroupID": 1,
+        "CoverageTypeID": [1,2,3],
         "ProfileType": "Loc"
     },
     "LocDed6All": {

@@ -36,7 +36,7 @@ from tabulate import tabulate
 from tempfile import NamedTemporaryFile
 
 from oasislmf.model_preparation.manager import OasisManager as om
-from oasislmf.utils.deterministic_loss import generate_losses
+from oasislmf.utils.deterministic_loss import generate_losses_for_fm_tests
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.fm import (
     unified_canonical_fm_profile_by_level_and_term_group,
@@ -74,7 +74,7 @@ class FmAcceptanceTests(TestCase):
         self.fm_agg_map = copy.deepcopy(oed_fm_agg_profile)
         self.manager = om()
 
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=2)
     @given(
         exposure=canonical_oed_exposure(
             from_account_nums=just(1),
@@ -253,7 +253,8 @@ class FmAcceptanceTests(TestCase):
             )
             bins_dir = os.path.join(oasis_dir, 'bin')
             os.mkdir(bins_dir)
-            actual_losses = generate_losses(oasis_dir, bins_dir, print_losses=False)
+            actual_losses = generate_losses_for_fm_tests(oasis_dir, bins_dir, print_losses=False)
+
             losses_ok = actual_losses.equals(expected_losses)
             self.assertTrue(losses_ok)
             if losses_ok:
@@ -261,7 +262,7 @@ class FmAcceptanceTests(TestCase):
                 actual_losses['output_id'] = actual_losses['output_id'].astype(object)
                 print('Correct losses generated for FM3:\n{}'.format(tabulate(actual_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
 
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=2)
     @given(
         exposure=canonical_oed_exposure(
             from_account_nums=just(1),
@@ -449,7 +450,7 @@ class FmAcceptanceTests(TestCase):
             )
             bins_dir = os.path.join(oasis_dir, 'bin')
             os.mkdir(bins_dir)
-            actual_losses = generate_losses(oasis_dir, bins_dir, print_losses=False)
+            actual_losses = generate_losses_for_fm_tests(oasis_dir, bins_dir, print_losses=False)
             losses_ok = actual_losses.equals(expected_losses)
             self.assertTrue(losses_ok)
             if losses_ok:
@@ -457,7 +458,7 @@ class FmAcceptanceTests(TestCase):
                 actual_losses['output_id'] = actual_losses['output_id'].astype(object)
                 print('Correct losses generated for FM4:\n{}'.format(tabulate(actual_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
 
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=2)
     @given(
         exposure=canonical_oed_exposure(
             from_account_nums=just(1),
@@ -645,7 +646,7 @@ class FmAcceptanceTests(TestCase):
             )
             bins_dir = os.path.join(oasis_dir, 'bin')
             os.mkdir(bins_dir)
-            actual_losses = generate_losses(oasis_dir, bins_dir, print_losses=False)
+            actual_losses = generate_losses_for_fm_tests(oasis_dir, bins_dir, print_losses=False)
             losses_ok = actual_losses.equals(expected_losses)
             self.assertTrue(losses_ok)
             if losses_ok:
@@ -653,7 +654,7 @@ class FmAcceptanceTests(TestCase):
                 actual_losses['output_id'] = actual_losses['output_id'].astype(object)
                 print('Correct losses generated for FM5:\n{}'.format(tabulate(actual_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
 
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=2)
     @given(
         exposure=canonical_oed_exposure(
             from_account_nums=just(1),
@@ -870,7 +871,7 @@ class FmAcceptanceTests(TestCase):
             )
             bins_dir = os.path.join(oasis_dir, 'bin')
             os.mkdir(bins_dir)
-            actual_losses = generate_losses(oasis_dir, bins_dir, print_losses=False)
+            actual_losses = generate_losses_for_fm_tests(oasis_dir, bins_dir, print_losses=False)
             losses_ok = actual_losses.equals(expected_losses)
             self.assertTrue(losses_ok)
             if losses_ok:
@@ -878,7 +879,7 @@ class FmAcceptanceTests(TestCase):
                 actual_losses['output_id'] = actual_losses['output_id'].astype(object)
                 print('Correct losses generated for FM6:\n{}'.format(tabulate(actual_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
 
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=2)
     @given(
         exposure=canonical_oed_exposure(
             from_account_nums=just(1),
@@ -1095,7 +1096,7 @@ class FmAcceptanceTests(TestCase):
             )
             bins_dir = os.path.join(oasis_dir, 'bin')
             os.mkdir(bins_dir)
-            actual_losses = generate_losses(oasis_dir, bins_dir, print_losses=False)
+            actual_losses = generate_losses_for_fm_tests(oasis_dir, bins_dir, print_losses=False)
             losses_ok = actual_losses.equals(expected_losses)
             self.assertTrue(losses_ok)
             if losses_ok:
@@ -1103,7 +1104,7 @@ class FmAcceptanceTests(TestCase):
                 actual_losses['output_id'] = actual_losses['output_id'].astype(object)
                 print('Correct losses generated for FM7:\n{}'.format(tabulate(actual_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
 
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=2)
     @given(
         exposure=canonical_oed_exposure(
             from_account_nums=just(1),
@@ -1313,7 +1314,7 @@ class FmAcceptanceTests(TestCase):
             )
             bins_dir = os.path.join(oasis_dir, 'bin')
             os.mkdir(bins_dir)
-            actual_losses = generate_losses(oasis_dir, bins_dir, print_losses=False)
+            actual_losses = generate_losses_for_fm_tests(oasis_dir, bins_dir, print_losses=False)
             losses_ok = actual_losses.equals(expected_losses)
             self.assertTrue(losses_ok)
             if losses_ok:

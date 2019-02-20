@@ -115,12 +115,14 @@ class TestModelApiCmdLoadAnalysisSettingsJson(TestCase):
 
             self.assertEqual(conf, res_conf)
             self.assertFalse(do_il)
-            self.assertFalse(do_ri)            
+            self.assertFalse(do_ri)
 
 
 class TestModelApiCmdRunAnalysis(TestCase):
+    @settings(suppress_health_check=[HealthCheck.too_slow], deadline=None, max_examples=1)
     @given(
-        text(), text(), dictionaries(text(), text()), booleans(), booleans(), integers(min_value=0, max_value=5), integers(min_value=0, max_value=5))
+        text(), text(), dictionaries(text(), text()), booleans(), booleans(), integers(min_value=0, max_value=5), integers(min_value=0, max_value=5)
+    )
     def test_no_errors_are_raised___completed_is_incremented(self, 
         input_dir, output_dir, settings, do_il, do_ri, initial_complete, initial_failed):
         client = OasisAPIClient('http://localhost:8001')
@@ -140,7 +142,7 @@ class TestModelApiCmdRunAnalysis(TestCase):
             input_dir, bin_directory=ANY, do_il=do_il, do_ri=do_ri, do_build=True)
         client.run_analysis_and_poll.assert_called_once_with(settings, 'input_location', output_dir)
 
-    @settings(suppress_health_check=[HealthCheck.too_slow])
+    @settings(suppress_health_check=[HealthCheck.too_slow], deadline=None, max_examples=1)
     @given(
         text(), text(), dictionaries(text(), text()), booleans(), booleans(), integers(min_value=0, max_value=5), integers(min_value=0, max_value=5))
     def test_uploading_raises_an_error___failed_counter_is_incremented(self, 
@@ -159,8 +161,10 @@ class TestModelApiCmdRunAnalysis(TestCase):
         self.assertEqual(initial_complete, counter['completed'])
         self.assertEqual(initial_failed + 1, counter['failed'])
 
+    @settings(suppress_health_check=[HealthCheck.too_slow], deadline=None, max_examples=1)
     @given(
-        text(), text(), dictionaries(text(), text()), booleans(), booleans(), integers(min_value=0, max_value=5), integers(min_value=0, max_value=5))
+        text(), text(), dictionaries(text(), text()), booleans(), booleans(), integers(min_value=0, max_value=5), integers(min_value=0, max_value=5)
+    )
     def test_run_and_poll_raises_an_error___failed_counter_is_incremented(self, 
         input_dir, output_dir, settings, do_il, do_ri, initial_complete, initial_failed):
 
