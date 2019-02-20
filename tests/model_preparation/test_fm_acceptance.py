@@ -74,7 +74,7 @@ class FmAcceptanceTests(TestCase):
         self.fm_agg_map = copy.deepcopy(oed_fm_agg_profile)
         self.manager = om()
 
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=2)
     @given(
         exposure=canonical_oed_exposure(
             from_account_nums=just(1),
@@ -262,7 +262,7 @@ class FmAcceptanceTests(TestCase):
                 actual_losses['output_id'] = actual_losses['output_id'].astype(object)
                 print('Correct losses generated for FM3:\n{}'.format(tabulate(actual_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
 
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=2)
     @given(
         exposure=canonical_oed_exposure(
             from_account_nums=just(1),
@@ -458,7 +458,7 @@ class FmAcceptanceTests(TestCase):
                 actual_losses['output_id'] = actual_losses['output_id'].astype(object)
                 print('Correct losses generated for FM4:\n{}'.format(tabulate(actual_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
 
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=2)
     @given(
         exposure=canonical_oed_exposure(
             from_account_nums=just(1),
@@ -654,7 +654,7 @@ class FmAcceptanceTests(TestCase):
                 actual_losses['output_id'] = actual_losses['output_id'].astype(object)
                 print('Correct losses generated for FM5:\n{}'.format(tabulate(actual_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
 
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=2)
     @given(
         exposure=canonical_oed_exposure(
             from_account_nums=just(1),
@@ -879,7 +879,7 @@ class FmAcceptanceTests(TestCase):
                 actual_losses['output_id'] = actual_losses['output_id'].astype(object)
                 print('Correct losses generated for FM6:\n{}'.format(tabulate(actual_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
 
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=2)
     @given(
         exposure=canonical_oed_exposure(
             from_account_nums=just(1),
@@ -1104,7 +1104,7 @@ class FmAcceptanceTests(TestCase):
                 actual_losses['output_id'] = actual_losses['output_id'].astype(object)
                 print('Correct losses generated for FM7:\n{}'.format(tabulate(actual_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
 
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=2)
     @given(
         exposure=canonical_oed_exposure(
             from_account_nums=just(1),

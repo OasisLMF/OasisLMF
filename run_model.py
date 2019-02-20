@@ -191,11 +191,13 @@ def model_run_ok(model_run_dir, model_run_mode):
     assert(_is_non_empty_file(os.path.join(model_run_dir, 'run_ktools.sh')))
 
     direct_csv_inputs_fp = os.path.join(model_run_dir, 'input', 'csv') if not ri else os.path.join(model_run_dir, 'input')
+
     try:
         assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'srcexp'), substr_match=True))
     except AssertionError:
         assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'sourceloc'), substr_match=True))
-    assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'keys.csv'), substr_match=True))
+
+    assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'keys'), substr_match=True))
     assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'keys-errors'), substr_match=True))
 
     assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'items.csv')))
@@ -239,14 +241,7 @@ def model_run_ok(model_run_dir, model_run_mode):
         assert(_is_non_empty_file(os.path.join(outputs_fp, 'il_S1_leccalc_full_uncertainty_oep.csv')))
 
         if model_run_mode == 'ri':
-            try:
-                assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'reinsinfo'), substr_match=True))
-            except AssertionError:
-                assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'ri_info'), substr_match=True))
-            try:
-                assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'reinsscope'), substr_match=True))
-            except AssertionError:
-                assert(_is_non_empty_file(os.path.join(direct_csv_inputs_fp, 'ri_scope'), substr_match=True))
+            assert(_is_non_empty_file(os.path.join(model_run_dir, 'ri_layers'), substr_match=True))
             assert(_is_non_empty_file(os.path.join(model_run_dir, 'RI'), substr_match=True))
 
     return True
