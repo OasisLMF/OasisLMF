@@ -690,11 +690,14 @@ class OasisManager(implements(OasisManagerInterface)):
         for p in (model_exposure_file_path, keys_file_path, keys_errors_file_path,):
             p = os.path.abspath(p) if p and not os.path.isabs(p) else p
 
+        loc_id_col = kwargs.get('loc_id_col', 'id')
+
         keys_file_path, _, keys_errors_file_path, _ = OasisLookupFactory().save_results(
             lookup,
             keys_file_path,
             errors_fp=keys_errors_file_path,
-            model_exposure_fp=model_exposure_file_path
+            model_exposure_fp=model_exposure_file_path,
+            loc_id_col=loc_id_col
         )
 
         if oasis_model:
