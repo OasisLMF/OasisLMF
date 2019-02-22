@@ -233,7 +233,8 @@ class CreateModel(TestCase):
                 lookup,
                 keys_file_path,
                 errors_fp=keys_errors_file_path,
-                model_exposure_fp=exposure_file_path
+                model_exposure_fp=exposure_file_path,
+                loc_id_col='id'
             )
             self.assertEqual(model.resources['oasis_files_pipeline'].keys_file_path, keys_file_path)
             self.assertEqual(res_keys_file_path, keys_file_path)
@@ -290,7 +291,8 @@ class CreateModel(TestCase):
                 lookup,
                 keys_fp,
                 errors_fp=keys_errors_fp,
-                model_exposure_fp=exposure_fp
+                model_exposure_fp=exposure_fp,
+                loc_id_col='id'
             )
             self.assertEqual(model.resources['oasis_files_pipeline'].keys_file_path, keys_fp)
             self.assertEqual(res_keys_file_path, keys_fp)
@@ -886,7 +888,8 @@ class GetKeys(TestCase):
                 lookup,
                 keys_file_path,
                 errors_fp=keys_errors_file_path,
-                model_exposure_fp=exposure_file_path
+                model_exposure_fp=exposure_file_path,
+                loc_id_col='id'
             )
             self.assertEqual(model.resources['oasis_files_pipeline'].keys_file_path, keys_file_path)
             self.assertEqual(res_keys_file_path, keys_file_path)
@@ -929,7 +932,8 @@ class GetKeys(TestCase):
                 lookup,
                 keys_fp,
                 errors_fp=keys_errors_fp,
-                model_exposure_fp=exposures_fp
+                model_exposure_fp=exposures_fp,
+                loc_id_col='id'
             )
             self.assertEqual(model.resources['oasis_files_pipeline'].keys_file_path, keys_fp)
             self.assertEqual(res_keys_file_path, keys_fp)
