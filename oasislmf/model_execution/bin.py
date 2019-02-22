@@ -125,7 +125,7 @@ def prepare_model_run_directory(
             Path(run_dir_path, 'input', 'csv').mkdir(parents=True, exist_ok=True) if not ri else Path(run_dir_path, 'input').mkdir(parents=True, exist_ok=True)
         else:
             with tarfile.open(inputs_archive) as input_tarfile:
-                p = os.path.join(run_dir_path, 'input') if not ri else os.path.join(run_dir_path, 'input')
+                p = os.path.join(run_dir_path, 'input') if not ri else os.path.join(run_dir_path)
                 input_tarfile.extractall(path=p)
 
         oasis_files_destpath = os.path.join(run_dir_path, 'input', 'csv') if not ri else os.path.join(run_dir_path, 'input')

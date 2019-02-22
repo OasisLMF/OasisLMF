@@ -608,6 +608,7 @@ class OasisLookupFactory(object):
         errors_fp=None,
         model_exposure=None,
         model_exposure_fp=None,
+        loc_id_col='id',
         format='oasis'
     ):
         """

@@ -9,12 +9,6 @@ reinsurance losses. In practice, the test model repository will generally be
 PiWind.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-)
-
 import argparse
 import copy
 import io
@@ -74,7 +68,7 @@ def parse_args():
 
     parser.add_argument('-d', '--model-run-mode', default='ri', help='Model run mode - `gul` for GUL only, `fm` for GUL + FM, `ri` for GUL + FM + RI')
 
-    parser.add_argument('-c', '--no-cleanup', action='store_true', default=False, help='Whether to cleanup installed MDK installed package and model repository')
+    parser.add_argument('-n', '--no-cleanup', action='store_true', default=False, help='Whether to cleanup installed MDK installed package and model repository')
 
     args = vars(parser.parse_args())
 
@@ -125,7 +119,10 @@ def clone_repo(repo_name, target, repo_branch='master', user_or_org_name='OasisL
 
     os.chdir(target)
 
-    repo_url = 'git+{}://git@github.com/{}/{}'.format(transfer_protocol, user_or_org_name, repo_name)
+    repo_url = (
+        'git+ssh://git@github.com/{}/{}'.format(user_or_org_name, repo_name) if transfer_protocol == 'ssh'
+        else 'https://github.com/{}/{}'.format(user_or_org_name, repo_name)
+    )
 
     options_str = '-b {} --single-branch'.format(repo_branch)
 
