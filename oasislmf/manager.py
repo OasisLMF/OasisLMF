@@ -251,7 +251,7 @@ class OasisManager(object):
         lookup_package_fp=None,
         keys_fp=None,
         keys_errors_fp=None,
-        keys_id_col=None,
+        loc_id_col=None,
         keys_format=None
     ):
         model_info, lookup = olf.create(
@@ -268,7 +268,7 @@ class OasisManager(object):
 
         return olf.save_results(
             lookup,
-            keys_id_col=keys_id_col,
+            loc_id_col=loc_id_col,
             successes_fp=keys_fp,
             errors_fp=keys_errors_fp,
             source_exposure_fp=exposure_fp,
@@ -349,7 +349,7 @@ class OasisManager(object):
             )
             f1, n1, f2, n2 = olf.save_results(
                 lookup,
-                keys_id_col='locnumber',
+                loc_id_col='locnumber',
                 successes_fp=keys_fp,
                 errors_fp=keys_errors_fp,
                 source_exposure_fp=exposure_fp

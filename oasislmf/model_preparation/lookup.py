@@ -527,7 +527,7 @@ class OasisLookupFactory(object):
     def save_keys(
         cls,
         lookup=None,
-        keys_id_col='locnumber',
+        loc_id_col='locnumber',
         keys_file_path=None,
         keys_errors_file_path=None,
         keys_format='oasis',
@@ -586,11 +586,11 @@ class OasisLookupFactory(object):
             return cls.write_json_keys_file(successes, _keys_file_path)
         elif keys_format == 'oasis':
             if _keys_errors_file_path:
-                fp1, n1 = cls.write_oasis_keys_file(successes, _keys_file_path, id_col=keys_id_col)
-                fp2, n2 = cls.write_oasis_keys_errors_file(nonsuccesses, _keys_errors_file_path, id_col=keys_id_col)
+                fp1, n1 = cls.write_oasis_keys_file(successes, _keys_file_path, id_col=loc_id_col)
+                fp2, n2 = cls.write_oasis_keys_errors_file(nonsuccesses, _keys_errors_file_path, id_col=loc_id_col)
 
                 return fp1, n1, fp2, n2
-            return cls.write_oasis_keys_file(successes, _keys_file_path, id_col=keys_id_col)
+            return cls.write_oasis_keys_file(successes, _keys_file_path, id_col=loc_id_col)
         else:
             raise OasisException("Unrecognised keys file output format - valid formats are 'oasis' or 'json'")
 
@@ -598,7 +598,7 @@ class OasisLookupFactory(object):
     def save_results(
         cls,
         lookup,
-        keys_id_col='locnumber',
+        loc_id_col='locnumber',
         successes_fp=None,
         errors_fp=None,
         source_exposure=None,
@@ -669,10 +669,10 @@ class OasisLookupFactory(object):
             return cls.write_json_keys_file(successes, sfp)
         elif format == 'oasis':
             if efp:
-                fp1, n1 = cls.write_oasis_keys_file(successes, sfp, id_col=keys_id_col)
-                fp2, n2 = cls.write_oasis_keys_errors_file(nonsuccesses, efp, id_col=keys_id_col)
+                fp1, n1 = cls.write_oasis_keys_file(successes, sfp, id_col=loc_id_col)
+                fp2, n2 = cls.write_oasis_keys_errors_file(nonsuccesses, efp, id_col=loc_id_col)
                 return fp1, n1, fp2, n2
-            return cls.write_oasis_keys_file(successes, sfp, id_col=keys_id_col)
+            return cls.write_oasis_keys_file(successes, sfp, id_col=loc_id_col)
         else:
             raise OasisException("Unrecognised lookup file output format - valid formats are 'oasis' or 'json'")
 
