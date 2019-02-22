@@ -128,7 +128,7 @@ def prepare_run_directory(
             Path(run_dir, 'input', 'csv').mkdir(parents=True, exist_ok=True) if not ri else Path(run_dir, 'input').mkdir(parents=True, exist_ok=True)
         else:
             with tarfile.open(inputs_archive) as input_tarfile:
-                p = os.path.join(run_dir, 'input') if not ri else os.path.join(run_dir, 'input')
+                p = os.path.join(run_dir, 'input') if not ri else os.path.join(run_dir)
                 input_tarfile.extractall(path=p)
 
         oasis_dst_fp = os.path.join(run_dir, 'input', 'csv') if not ri else os.path.join(run_dir, 'input')
