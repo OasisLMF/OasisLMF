@@ -171,6 +171,9 @@ def merge_dataframes(left, right, **kwargs):
 
     drop_cols = [k for k in set(_left.columns).intersection(_right.columns) if k and k not in [kwargs.get('left_on'), 'index']]
 
+    drop_duplicates = kwargs.get('drop_duplicates', True)
+    kwargs.pop('drop_duplicates') if 'drop_duplicates' in kwargs else None
+
     merge = pd.merge(
         _left.drop(drop_cols, axis=1),
         _right,
@@ -178,7 +181,9 @@ def merge_dataframes(left, right, **kwargs):
     )
     merge['index'] = merge.index
 
-    return merge.drop(['index_x', 'index_y'], axis=1)
+    merge.drop(['index_x', 'index_y'], axis=1, inplace=True)
+
+    return merge if not drop_duplicates else merge.drop_duplicates()
 
 
 def print_dataframe(frame, objectify_cols=[], header=None, headers='keys', tablefmt='psql', floatfmt=".2f", sep=' ', end='\n', file=sys.stdout, flush=False):

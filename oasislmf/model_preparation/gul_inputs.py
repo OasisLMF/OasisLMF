@@ -23,12 +23,20 @@ from ..utils.concurrency import (
     multithread,
     Task,
 )
-from ..utils.data import get_dataframe
+from ..utils.data import (
+    get_dataframe,
+    merge_dataframes,
+)
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.metadata import OED_COVERAGE_TYPES
 from ..utils.defaults import get_default_exposure_profile
-from .il_inputs import unified_fm_profile_by_level_and_term_group
+from .il_inputs import (
+    get_sub_layer_calcrule_id,
+    unified_fm_profile_by_level_and_term_group,
+    unified_fm_terms_by_level_and_term_group,
+    unified_id_terms,
+)
 
 
 @oasis_log
@@ -59,36 +67,32 @@ def generate_gul_input_items(
             'FM term definitions for TIV, limit, deductible, attachment and/or share.'
         )
 
-    fm_levels = tuple(ufp.keys())
+    id_terms = unified_id_terms(unified_profile_by_level_and_term_group=ufp)
+    loc_id = id_terms['locid']
+    acc_id = id_terms['accid']
+
+    fm_levels = tuple(ufp)[1:]
 
     try:
         for df in [exposure_df, keys_df]:
-            if not df.columns.contains('index'):
-                df['index'] = pd.Series(data=range(len(df)))
+            df['index'] = df.get('index', range(len(df)))
 
-        if not str(exposure_df['locnumber'].dtype).startswith('int'):
-            exposure_df['locnumber'] = exposure_df['locnumber'].astype(int)
+        if not str(exposure_df[loc_id].dtype).startswith('int'):
+            exposure_df[loc_id] = exposure_df[loc_id].astype(int)
 
         if not str(keys_df['locid'].dtype).startswith('int'):
             keys_df['locid'] = keys_df['locid'].astype(int)
 
-        merged_df = pd.merge(exposure_df, keys_df, left_on='locnumber', right_on='locid').drop_duplicates()
-        merged_df['index'] = pd.Series(data=range(len(merged_df)), dtype=object)
+        expkeys_df = merge_dataframes(exposure_df, keys_df, left_on=loc_id, right_on='locid', how='outer')
 
-        cov_level_id = fm_levels[0]
+        cov_level = min(fm_levels)
 
-        cov_tivs = tuple(t for t in [ufp[cov_level_id][gid].get('tiv') for gid in ufp[cov_level_id]] if t)
+        cov_tivs = tuple(t for t in [ufp[cov_level][gid].get('tiv') for gid in ufp[cov_level]] if t)
 
         if not cov_tivs:
             raise OasisException('No coverage fields found in the source exposure profile - please check the source exposure (loc) profile')
 
-        fm_terms = {
-            tiv_tgid: {
-                term_type: (
-                    ufp[cov_level_id][tiv_tgid][term_type]['ProfileElementName'].lower() if ufp[cov_level_id][tiv_tgid].get(term_type) else None
-                ) for term_type in ('deductible', 'deductiblemin', 'deductiblemax', 'limit',)
-            } for tiv_tgid in ufp[cov_level_id]
-        }
+        fm_terms = unified_fm_terms_by_level_and_term_group(unified_profile_by_level_and_term_group=ufp)[cov_level]
 
         group_id = 0
         prev_it_loc_id = -1
@@ -98,46 +102,60 @@ def generate_gul_input_items(
         def positive_tiv_coverages(it):
             return [t for t in cov_tivs if it.get(t['ProfileElementName'].lower()) and it[t['ProfileElementName'].lower()] > 0 and t['CoverageTypeID'] == it['coveragetypeid']] or [0]
 
-        for it, ptiv in chain((it, ptiv) for _, it in merged_df.iterrows() for it, ptiv in product([it], positive_tiv_coverages(it))):
+        for _it, ptiv in chain((_it, ptiv) for _, _it in expkeys_df.iterrows() for _it, ptiv in product([_it], positive_tiv_coverages(_it))):
             if ptiv == 0:
                 zero_tiv_items += 1
                 continue
 
             item_id += 1
-            if it['locnumber'] != prev_it_loc_id:
+            if _it[loc_id] != prev_it_loc_id:
                 group_id += 1
 
             tiv_elm = ptiv['ProfileElementName'].lower()
-            tiv = it[tiv_elm]
+            tiv = _it[tiv_elm]
             tiv_tgid = ptiv['FMTermGroupID']
 
-            yield {
+            it = {
                 'item_id': item_id,
-                'loc_id': it['locnumber'],
-                'acc_id': it['accnumber'],
-                'peril_id': it['perilid'],
-                'coverage_type_id': it['coveragetypeid'],
+                'loc_id': _it[loc_id],
+                'acc_id': _it[acc_id],
+                'peril_id': _it['perilid'],
+                'coverage_type_id': _it['coveragetypeid'],
                 'coverage_id': item_id,
-                'is_bi_coverage': it['coveragetypeid'] == OED_COVERAGE_TYPES['bi']['id'],
+                'is_bi_coverage': _it['coveragetypeid'] == OED_COVERAGE_TYPES['bi']['id'],
                 'tiv_elm': tiv_elm,
                 'tiv': tiv,
                 'tiv_tgid': tiv_tgid,
-                'deductible': it.get(fm_terms[tiv_tgid].get('deductible') or None) or 0,
-                'deductible_min': it.get(fm_terms[tiv_tgid].get('deductiblemin') or None) or 0,
-                'deductible_max': it.get(fm_terms[tiv_tgid].get('deductiblemax') or None) or 0,
-                'limit': it.get(fm_terms[tiv_tgid].get('limit') or None) or 0,
-                'areaperil_id': it['areaperilid'],
-                'vulnerability_id': it['vulnerabilityid'],
+                'deductible': _it.get(fm_terms[tiv_tgid].get('deductible') or None) or 0.0,
+                'deductible_min': _it.get(fm_terms[tiv_tgid].get('deductiblemin') or None) or 0.0,
+                'deductible_max': _it.get(fm_terms[tiv_tgid].get('deductiblemax') or None) or 0.0,
+                'limit': _it.get(fm_terms[tiv_tgid].get('limit') or None) or 0.0,
+                'areaperil_id': _it['areaperilid'],
+                'vulnerability_id': _it['vulnerabilityid'],
                 'group_id': group_id,
                 'summary_id': 1,
                 'summaryset_id': 1
             }
-            prev_it_loc_id = it['locnumber']
+
+            it['deductible_code'] = 0 if (it['deductible'] == 0 or it['deductible'] >= 1) else 2
+            it['limit_code'] = 0 if (it['limit'] == 0 or it['limit'] >= 1) else 2
+            it['calcrule_id'] = get_sub_layer_calcrule_id(
+                it['deductible'],
+                it['deductible_min'],
+                it['deductible_max'],
+                it['limit'],
+                ded_code=it['deductible_code'],
+                lim_code=it['limit_code']
+            )
+
+            yield it
+
+            prev_it_loc_id = _it[loc_id]
 
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
         raise OasisException(e)
     else:
-        if zero_tiv_items == len(merged_df):
+        if zero_tiv_items == len(expkeys_df):
             raise OasisException('All source exposure items have zero TIVs - please check the source exposure (loc.) file')
 
 
