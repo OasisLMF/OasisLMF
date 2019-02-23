@@ -58,10 +58,7 @@ from hypothesis.strategies import (
 from oasislmf.utils.metadata import (
     DEDUCTIBLE_TYPES,
     FM_TERMS,
-    OASIS_COVERAGE_TYPES,
-    OASIS_FM_LEVELS,
     OASIS_KEYS_STATUS,
-    OASIS_PERILS,
     OED_COVERAGE_TYPES,
     OED_FM_LEVELS,
     OED_PERILS,
@@ -76,723 +73,13 @@ from oasislmf.model_execution.files import (
 
 calcrule_ids = (1, 4, 5, 6, 7, 8, 10, 11, 12, 12, 13, 14, 15, 16, 19, 21,)
 
-canonical_accounts_profile = {
-    "BLANDEDAMT": {
-        "ProfileElementName": "BLANDEDAMT",
-        "DeductibleType": "B",
-        "FieldName": "BlanketDeductible",
-        "FMLevelName": "Account",
-        "FMLevel": 5,
-        "FMTermType": "Deductible",
-        "FMTermGroupID": 1,
-        "ProfileType": "Acc"
-    },
-    "MINDEDAMT": {
-        "ProfileElementName": "MINDEDAMT",
-        "DeductibleType": "MI",
-        "FieldName": "BlanketMinDeductible",
-        "FMLevelName": "Account",
-        "FMLevel": 5,
-        "FMTermType": "DeductibleMin",
-        "FMTermGroupID": 1,
-        "ProfileType": "Acc"
-    },
-    "MAXDEDAMT": {
-        "ProfileElementName": "MAXDEDAMT",
-        "DeductibleType": "MA",
-        "FieldName": "BlanketMaxDeductible",
-        "FMLevelName": "Account",
-        "FMLevel": 5,
-        "FMTermType": "DeductibleMax",
-        "FMTermGroupID": 1,
-        "ProfileType": "Acc"
-    },
-    "UNDCOVAMT": {
-        "ProfileElementName": "UNDCOVAMT",
-        "DeductibleType": "B",
-        "FieldName": "AttachmentPoint",
-        "FMLevelName": "Layer",
-        "FMLevel": 6,
-        "FMTermType": "Deductible",
-        "FMTermGroupID": 1,
-        "ProfileType": "Acc"
-    },
-    "PARTOF": {
-        "ProfileElementName": "PARTOF",
-        "FieldName": "LayerLimit",
-        "FMLevelName": "Layer",
-        "FMLevel": 6,
-        "FMTermType": "Limit",
-        "FMTermGroupID": 1,
-        "ProfileType": "Acc"
-    },
-    "BLANLIMAMT": {
-        "ProfileElementName": "BLANLIMAMT",
-        "FieldName": "BlanketLimit",
-        "FMLevelName": "Layer",
-        "FMLevel": 6,
-        "FMTermType": "Share",
-        "FMTermGroupID": 1,
-        "ProfileType": "Acc"
-    }
-}
-
-
-canonical_exposure_profile = {
-    'COND1DEDUCTIBLE': {
-        'DeductibleType': 'B',
-        'FMLevel': 4,
-        'FMLevelName': 'Sublimit',
-        'FMTermGroupID': 1,
-        'FMTermType': 'Deductible',
-        'FieldName': 'SubLimitDeductible',
-        'ProfileElementName': 'COND1DEDUCTIBLE',
-        'ProfileType': 'Loc'
-    },
-    'COND1LIMIT': {
-        'FMLevel': 4,
-        'FMLevelName': 'Sublimit',
-        'FMTermGroupID': 1,
-        'FMTermType': 'Limit',
-        'FieldName': 'SubLimitLimit',
-        'ProfileElementName': 'COND1LIMIT',
-        'ProfileType': 'Loc'
-    },
-    'WSCOMBINEDDED': {
-        'DeductibleType': 'B',
-        'FMLevel': 2,
-        'FMLevelName': 'Combined',
-        'FMTermGroupID': 1,
-        'FMTermType': 'Deductible',
-        'FieldName': 'CombinedDeductible',
-        'ProfileElementName': 'WSCOMBINEDDED',
-        'ProfileType': 'Loc'
-    },
-    'WSCOMBINEDLIM': {
-        'FMLevel': 2,
-        'FMLevelName': 'Combined',
-        'FMTermGroupID': 1,
-        'FMTermType': 'Limit',
-        'FieldName': 'CombinedLimit',
-        'ProfileElementName': 'WSCOMBINEDLIM',
-        'ProfileType': 'Loc'
-    },
-    'WSCV1DED': {
-        'CoverageTypeID': 1,
-        'DeductibleType': 'B',
-        'FMLevel': 1,
-        'FMLevelName': 'Coverage',
-        'FMTermGroupID': 1,
-        'FMTermType': 'Deductible',
-        'FieldName': 'BuildingsDeductible',
-        'ProfileElementName': 'WSCV1DED',
-        'ProfileType': 'Loc'
-    },
-    'WSCV1LIMIT': {
-        'CoverageTypeID': 1,
-        'FMLevel': 1,
-        'FMLevelName': 'Coverage',
-        'FMTermGroupID': 1,
-        'FMTermType': 'Limit',
-        'FieldName': 'BuildingsLimit',
-        'ProfileElementName': 'WSCV1LIMIT',
-        'ProfileType': 'Loc'
-    },
-    'WSCV1VAL': {
-        'CoverageTypeID': 1,
-        'FMLevel': 1,
-        'FMLevelName': 'Coverage',
-        'FMTermGroupID': 1,
-        'FMTermType': 'TIV',
-        'FieldName': 'BuildingsTIV',
-        'ProfileElementName': 'WSCV1VAL',
-        'ProfileType': 'Loc'
-    },
-    'WSCV2DED': {
-        'CoverageTypeID': 2,
-        'DeductibleType': 'B',
-        'FMLevel': 1,
-        'FMLevelName': 'Coverage',
-        'FMTermGroupID': 2,
-        'FMTermType': 'Deductible',
-        'FieldName': 'OtherDeductible',
-        'ProfileElementName': 'WSCV2DED',
-        'ProfileType': 'Loc'
-    },
-    'WSCV2LIMIT': {
-        'CoverageTypeID': 2,
-        'FMLevel': 1,
-        'FMLevelName': 'Coverage',
-        'FMTermGroupID': 2,
-        'FMTermType': 'Limit',
-        'FieldName': 'OtherLimit',
-        'ProfileElementName': 'WSCV2LIMIT',
-        'ProfileType': 'Loc'
-    },
-    'WSCV2VAL': {
-        'CoverageTypeID': 2,
-        'FMLevel': 1,
-        'FMLevelName': 'Coverage',
-        'FMTermGroupID': 2,
-        'FMTermType': 'TIV',
-        'FieldName': 'OtherTIV',
-        'ProfileElementName': 'WSCV2VAL',
-        'ProfileType': 'Loc'
-    },
-    'WSCV3DED': {
-        'CoverageTypeID': 3,
-        'DeductibleType': 'B',
-        'FMLevel': 1,
-        'FMLevelName': 'Coverage',
-        'FMTermGroupID': 3,
-        'FMTermType': 'Deductible',
-        'FieldName': 'ContentsDeductible',
-        'ProfileElementName': 'WSCV3DED',
-        'ProfileType': 'Loc'
-    },
-    'WSCV3LIMIT': {
-        'CoverageTypeID': 3,
-        'FMLevel': 1,
-        'FMLevelName': 'Coverage',
-        'FMTermGroupID': 3,
-        'FMTermType': 'Limit',
-        'FieldName': 'ContentsLimit',
-        'ProfileElementName': 'WSCV3LIMIT',
-        'ProfileType': 'Loc'
-    },
-    'WSCV3VAL': {
-        'CoverageTypeID': 3,
-        'FMLevel': 1,
-        'FMLevelName': 'Coverage',
-        'FMTermGroupID': 3,
-        'FMTermType': 'TIV',
-        'FieldName': 'ContentsTIV',
-        'ProfileElementName': 'WSCV3VAL',
-        'ProfileType': 'Loc'
-    },
-    'WSCV4DED': {
-        'CoverageTypeID': 4,
-        'DeductibleType': 'B',
-        'FMLevel': 1,
-        'FMLevelName': 'Coverage',
-        'FMTermGroupID': 4,
-        'FMTermType': 'Deductible',
-        'FieldName': 'TimeDeductible',
-        'ProfileElementName': 'WSCV4DED',
-        'ProfileType': 'Loc'
-    },
-    'WSCV4LIMIT': {
-        'CoverageTypeID': 4,
-        'FMLevel': 1,
-        'FMLevelName': 'Coverage',
-        'FMTermGroupID': 4,
-        'FMTermType': 'Limit',
-        'FieldName': 'TimeLimit',
-        'ProfileElementName': 'WSCV4LIMIT',
-        'ProfileType': 'Loc'
-    },
-    'WSCV4VAL': {
-        'CoverageTypeID': 4,
-        'FMLevel': 1,
-        'FMLevelName': 'Coverage',
-        'FMTermGroupID': 4,
-        'FMTermType': 'TIV',
-        'FieldName': 'TimeTIV',
-        'ProfileElementName': 'WSCV4VAL',
-        'ProfileType': 'Loc'
-    },
-    'WSSITEDED': {
-        'DeductibleType': 'B',
-        'FMLevel': 3,
-        'FMLevelName': 'Site',
-        'FMTermGroupID': 1,
-        'FMTermType': 'Deductible',
-        'FieldName': 'SiteDeductible',
-        'ProfileElementName': 'WSSITEDED',
-        'ProfileType': 'Loc'
-    },
-    'WSSITELIM': {
-        'FMLevel': 3,
-        'FMLevelName': 'Site',
-        'FMTermGroupID': 1,
-        'FMTermType': 'Limit',
-        'FieldName': 'SiteLimit',
-        'ProfileElementName': 'WSSITELIM',
-        'ProfileType': 'Loc'
-    }
-}
-
-canonical_exposure_profile_simple = {
-    'WSCV1DED': {
-        'CoverageTypeID': 1,
-        'DeductibleType': 'B',
-        'FMLevel': 1,
-        'FMLevelName': 'Coverage',
-        'FMTermGroupID': 1,
-        'FMTermType': 'Deductible',
-        'FieldName': 'CoverageDeductible',
-        'PerilID': 1,
-        'ProfileElementName': 'WSCV1DED',
-        'ProfileType': 'Loc'
-    },
-    'WSCV1LIMIT': {
-        'CoverageTypeID': 1,
-        'FMLevel': 1,
-        'FMLevelName': 'Coverage',
-        'FMTermGroupID': 1,
-        'FMTermType': 'Limit',
-        'FieldName': 'CoverageLimit',
-        'PerilID': 1,
-        'ProfileElementName': 'WSCV1LIMIT',
-        'ProfileType': 'Loc'
-    },
-    'WSCV1VAL': {
-        'CoverageTypeID': 1,
-        'FMLevel': 1,
-        'FMLevelName': 'Coverage',
-        'FMTermGroupID': 1,
-        'FMTermType': 'TIV',
-        'FieldName': 'TIV',
-        'PerilID': 1,
-        'ProfileElementName': 'WSCV1VAL',
-        'ProfileType': 'Loc'
-    }
-}
-
-canonical_oed_exposure_profile = {
-    "BuildingTIV": {
-        "ProfileElementName": "BuildingTIV",
-        "FieldName": "TIV",
-        "PerilID": 1,
-        "CoverageTypeID": 1,
-        "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
-        "FMTermType": "TIV",
-        "FMTermGroupID": 1,
-        "ProfileType": "Loc"
-    },
-    "LocDed1Building": {
-        "ProfileElementName": "LocDed1Building",
-        "FieldName": "CoverageDeductible",
-        "DeductibleType": "B",
-        "PerilID": 1,
-        "CoverageTypeID": 1,
-        "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
-        "FMTermType": "Deductible",
-        "FMTermGroupID": 1,
-        "ProfileType": "Loc"
-    },
-    "LocLimit1Building": {
-        "ProfileElementName": "LocLimit1Building",
-        "FieldName": "CoverageLimit",
-        "PerilID": 1,
-        "CoverageTypeID": 1,
-        "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
-        "FMTermType": "Limit",
-        "FMTermGroupID": 1,
-        "ProfileType": "Loc"
-    },
-    "OtherTIV": {
-        "ProfileElementName": "OtherTIV",
-        "FieldName": "TIV",
-        "PerilID": 1,
-        "CoverageTypeID": 2,
-        "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
-        "FMTermType": "TIV",
-        "FMTermGroupID": 2,
-        "ProfileType": "Loc"
-    },
-    "LocDed2Other": {
-        "ProfileElementName": "LocDed2Other",
-        "FieldName": "CoverageDeductible",
-        "DeductibleType": "B",
-        "PerilID": 1,
-        "CoverageTypeID": 2,
-        "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
-        "FMTermType": "Deductible",
-        "FMTermGroupID": 2,
-        "ProfileType": "Loc"
-    },
-    "LocLimit2Other": {
-        "ProfileElementName": "LocLimit2Other",
-        "FieldName": "CoverageLimit",
-        "PerilID": 1,
-        "CoverageTypeID": 2,
-        "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
-        "FMTermType": "Limit",
-        "FMTermGroupID": 2,
-        "ProfileType": "Loc"
-    },
-    "ContentsTIV": {
-        "ProfileElementName": "ContentsTIV",
-        "FieldName": "TIV",
-        "PerilID": 1,
-        "CoverageTypeID": 3,
-        "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
-        "FMTermType": "TIV",
-        "FMTermGroupID": 3,
-        "ProfileType": "Loc"
-    },
-    "LocDed3Contents": {
-        "ProfileElementName": "LocDed3Contents",
-        "FieldName": "CoverageDeductible",
-        "DeductibleType": "B",
-        "PerilID": 1,
-        "CoverageTypeID": 3,
-        "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
-        "FMTermType": "Deductible",
-        "FMTermGroupID": 3,
-        "ProfileType": "Loc"
-    },
-    "LocLimit3Contents": {
-        "ProfileElementName": "LocLimit3Contents",
-        "FieldName": "CoverageLimit",
-        "PerilID": 1,
-        "CoverageTypeID": 3,
-        "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
-        "FMTermType": "Limit",
-        "FMTermGroupID": 3,
-        "ProfileType": "Loc"
-    },
-    "BITIV": {
-        "ProfileElementName": "BITIV",
-        "FieldName": "TIV",
-        "PerilID": 1,
-        "CoverageTypeID": 4,
-        "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
-        "FMTermType": "TIV",
-        "FMTermGroupID": 4,
-        "ProfileType": "Loc"
-    },
-    "LocDed4BI": {
-        "ProfileElementName": "LocDed4BI",
-        "FieldName": "CoverageDeductible",
-        "DeductibleType": "B",
-        "PerilID": 1,
-        "CoverageTypeID": 4,
-        "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
-        "FMTermType": "Deductible",
-        "FMTermGroupID": 4,
-        "ProfileType": "Loc"
-    },
-    "LocLimit4BI": {
-        "ProfileElementName": "LocLimit4BI",
-        "FieldName": "CoverageLimit",
-        "PerilID": 1,
-        "CoverageTypeID": 4,
-        "FMLevelName": "SiteCoverage",
-        "FMLevel": 1,
-        "FMTermType": "Limit",
-        "FMTermGroupID": 4,
-        "ProfileType": "Loc"
-    },
-    "LocDed5PD": {
-        "ProfileElementName": "LocDed5PD",
-        "FieldName": "SitePDDeductible",
-        "DeductibleType": "B",
-        "FMLevelName": "SitePD",
-        "FMLevel": 2,
-        "FMTermType": "Deductible",
-        "FMTermGroupID": 1,
-        "CoverageTypeID": [1,2,3],
-        "ProfileType": "Loc"
-    },
-    "LocLimit5PD": {
-        "ProfileElementName": "LocLimit5PD",
-        "FieldName": "SitePDLimit",
-        "FMLevelName": "SitePD",
-        "FMLevel": 2,
-        "FMTermType": "Limit",
-        "FMTermGroupID": 1,
-        "CoverageTypeID": [1,2,3],
-        "ProfileType": "Loc"
-    },
-    "LocDed6All": {
-        "ProfileElementName": "LocDed6All",
-        "FieldName": "SiteAllDeductible",
-        "DeductibleType": "B",
-        "FMLevelName": "SiteAll",
-        "FMLevel": 3,
-        "FMTermType": "Deductible",
-        "FMTermGroupID": 1,
-        "ProfileType": "Loc"
-    },
-    "LocLimit6All": {
-        "ProfileElementName": "LocLimit6All",
-        "FieldName": "SiteAllLimit",
-        "FMLevelName": "SiteAll",
-        "FMLevel": 3,
-        "FMTermType": "Limit",
-        "FMTermGroupID": 1,
-        "ProfileType": "Loc"
-    }
-}
-
-canonical_oed_accounts_profile = {
-    "CondDed6All": {
-        "ProfileElementName": "CondDed6All",
-        "FieldName": "CondAllDeductible",
-        "DeductibleType": "B",
-        "FMLevelName": "CondAll",
-        "FMLevel": 6,
-        "FMTermType": "Deductible",
-        "FMTermGroupID": 1,
-        "ProfileType": "Acc"
-    },
-    "CondLimit6All": {
-        "ProfileElementName": "CondLimit6All",
-        "FieldName": "CondAllLimit",
-        "FMLevelName": "CondAll",
-        "FMLevel": 6,
-        "FMTermType": "Limit",
-        "FMTermGroupID": 1,
-        "ProfileType": "Acc"
-    },
-    "PolDed6All": {
-        "ProfileElementName": "PolDed6All",
-        "DeductibleType": "B",
-        "FieldName": "BlanketDeductible",
-        "FMLevelName": "PolAll",
-        "FMLevel": 9,
-        "FMTermType": "Deductible",
-        "FMTermGroupID": 1,
-        "ProfileType": "Acc"
-    },
-    "PolMinDed6All": {
-        "ProfileElementName": "PolMinDed6All",
-        "DeductibleType": "MI",
-        "FieldName": "BlanketMinDeductible",
-        "FMLevelName": "PolAll",
-        "FMLevel": 9,
-        "FMTermType": "DeductibleMin",
-        "FMTermGroupID": 1,
-        "ProfileType": "Acc"
-    },
-    "PolMaxDed6All": {
-        "ProfileElementName": "PolMaxDed6All",
-        "DeductibleType": "MA",
-        "FieldName": "BlanketMaxDeductible",
-        "FMLevelName": "PolAll",
-        "FMLevel": 9,
-        "FMTermType": "DeductibleMax",
-        "FMTermGroupID": 1,
-        "ProfileType": "Acc"
-    },
-    "LayerAttachment": {
-        "ProfileElementName": "LayerAttachment",
-        "DeductibleType": "B",
-        "FieldName": "AttachmentPoint",
-        "FMLevelName": "PolLayer",
-        "FMLevel": 10,
-        "FMTermType": "Deductible",
-        "FMTermGroupID": 1,
-        "ProfileType": "Acc"
-    },
-    "LayerLimit": {
-        "ProfileElementName": "LayerLimit",
-        "FieldName": "LayerLimit",
-        "FMLevelName": "PolLayer",
-        "FMLevel": 10,
-        "FMTermType": "Limit",
-        "FMTermGroupID": 1,
-        "ProfileType": "Acc"
-    },
-    "LayerParticipation": {
-        "ProfileElementName": "LayerParticipation",
-        "FieldName": "LayerParticipation",
-        "FMLevelName": "PolLayer",
-        "FMLevel": 10,
-        "FMTermType": "Share",
-        "FMTermGroupID": 1,
-        "ProfileType": "Acc"
-    }
-}
-
-coverage_type_ids = tuple(OASIS_COVERAGE_TYPES[k]['id'] for k in OASIS_COVERAGE_TYPES)
+coverage_type_ids = tuple(OED_COVERAGE_TYPES[k]['id'] for k in OED_COVERAGE_TYPES)
 
 deductible_types = tuple(DEDUCTIBLE_TYPES[k]['id'] for k in DEDUCTIBLE_TYPES)
 
-oasis_fm_agg_profile = {
-    1: {
-        "FMLevel": 1,
-        "FMLevelName": "Coverage",
-        "FMAggKey": {
-            "ItemID": {
-                "src": "FM",
-                "field": "item_id",
-                "name": "Item ID"
-            }
-        }
-    },
-    2: {
-        "FMLevel": 2,
-        "FMLevelName": "Combined",
-        "FMAggKey": {
-            "LocID": {
-                "src": "FM",
-                "field": "canexp_id",
-                "name": "Location ID"
-            },
-            "IsBICoverage": {
-                "src": "FM",
-                "field": "is_bi_coverage",
-                "name": "Is BI coverage?"
-            }
-        }
-    },
-    3: {
-        "FMLevel": 3,
-        "FMLevel": "Site",
-        "FMAggKey": {
-            "LocID":  {
-                "src": "FM",
-                "field": "canexp_id",
-                "name": "Location ID"
-            }
-        }
-    },
-    4: {
-        "FMLevel": 4,
-        "FMLevelName": "Sublimit",
-        "FMAggKey": {
-            "AccntNum":  {
-                "src": "FM",
-                "field": "canacc_id",
-                "name": "Account no."
-            },
-            "SublimitRef": {
-                "src": "CanExp",
-                "field": "cond1name",
-                "name": "Sublimit ref."
-            }
-        }
-    },
-    5: {
-        "FMLevel": 5,
-        "FMLevelName": "Account",
-        "FMAggKey": {
-            "AccntNum": {
-                "src": "FM",
-                "field": "canacc_id",
-                "name": "Account no."
-            }
-        }
-    },
-    6: {
-        "FMLevel": 6,
-        "FMLevelName": "Layer",
-        "FMAggKey": {
-            "AccntNum": {
-                "src": "FM",
-                "field": "canacc_id",
-                "name": "Account no."
-            },
-            "PolicyNum": {
-                "src": "FM",
-                "field": "policy_num",
-                "name": "Account policy no."
-            }
-        }
-    }
-}
+fm_levels = tuple(OED_FM_LEVELS[k]['id'] for k in OED_FM_LEVELS)
 
-oed_fm_agg_profile = {
-    1: {
-        "FMLevel": 1,
-        "FMLevelName": "SiteCoverage",
-        "FMAggKey": {
-            "ItemID": {
-                "src": "FM",
-                "field": "item_id",
-                "name": "Item ID"
-            }
-        }
-    },
-    2: {
-        "FMLevel": 2,
-        "FMLevelName": "SitePD",
-        "FMAggKey": {
-            "LocID": {
-                "src": "FM",
-                "field": "canexp_id",
-                "name": "Location ID"
-            },
-            "IsBICoverage": {
-                "src": "FM",
-                "field": "is_bi_coverage",
-                "name": "Is BI coverage?"
-            }
-        }
-    },
-    3: {
-        "FMLevel": 3,
-        "FMLevel": "SiteAll",
-        "FMAggKey": {
-            "LocID":  {
-                "src": "FM",
-                "field": "canexp_id",
-                "name": "Location ID"
-            }
-        }
-    },
-    6: {
-        "FMLevel": 6,
-        "FMLevelName": "CondAll",
-        "FMAggKey": {
-            "AccntNum":  {
-                "src": "FM",
-                "field": "canacc_id",
-                "name": "Account no."
-            },
-            "CondNum": {
-                "src": "CanAcc",
-                "field": "condnumber",
-                "name": "Condition no."
-            }
-        }
-    },
-    9: {
-        "FMLevel": 9,
-        "FMLevelName": "PolAll",
-        "FMAggKey": {
-            "AccntNum": {
-                "src": "FM",
-                "field": "canacc_id",
-                "name": "Account no."
-            }
-        }
-    },
-    10: {
-        "FMLevel": 10,
-        "FMLevelName": "PolLayer",
-        "FMAggKey": {
-            "AccntNum": {
-                "src": "CanAcc",
-                "field": "accntnum",
-                "name": "Account no."
-            },
-            "PortfolioNum": {
-                "src": "CanAcc",
-                "field": "portnumber",
-                "name": "Account portfolio no."
-            }
-        }
-    }
-}
-
-fm_levels = tuple(OASIS_FM_LEVELS[k]['id'] for k in OASIS_FM_LEVELS)
-
-fm_level_names = tuple(k.capitalize() for k in OASIS_FM_LEVELS)
+fm_level_names = tuple(k.capitalize() for k in OED_FM_LEVELS)
 
 fm_levels_simple = tuple(
     t for t in set(
@@ -843,63 +130,22 @@ def tar_file_targets(min_size=0):
         unique=True,
     )
 
-oasis_tiv_elements = tuple(v['ProfileElementName'].lower() for v in canonical_exposure_profile.values() if v.get('FMTermType') and v.get('FMTermType').lower() == 'tiv')
-
 oed_tiv_elements = tuple(v['ProfileElementName'].lower() for v in canonical_oed_exposure_profile.values() if v.get('FMTermType') and v.get('FMTermType').lower() == 'tiv')
 
-def canonical_accounts(
-    from_account_nums=integers(min_value=1, max_value=10**5),
-    from_policy_nums=text(alphabet=string.ascii_letters, min_size=2, max_size=10),
-    from_policy_types=integers(min_value=1, max_value=10),
-    from_account_deductibles=floats(min_value=0.0, max_value=10**6),
-    from_account_min_deductibles=floats(min_value=0.0, max_value=10**6),
-    from_account_max_deductibles=floats(min_value=0.0, max_value=10**6),
-    from_account_limits=floats(min_value=0.0, max_value=10**6),
-    from_layer_deductibles=floats(min_value=0.0, max_value=10**6),
-    from_layer_limits=floats(min_value=0.0, max_value=10**6),
-    from_layer_shares=floats(min_value=0.0, max_value=10**6),
-    size=None,
-    min_size=0,
-    max_size=10
-):
-    def _sequence(li):
-        for i, r in enumerate(li):
-            r['row_id'] = i + 1
-
-        return li
-
-    return lists(
-        fixed_dictionaries(
-            {
-                'accntnum': from_account_nums,
-                'policynum': from_policy_nums,
-                'policytype': from_policy_types,
-                'undcovamt': from_layer_deductibles,
-                'partof': from_layer_limits,
-                'blandedamt': from_account_deductibles,
-                'mindedamt': from_account_min_deductibles,
-                'maxdedamt': from_account_max_deductibles,
-                'blanlimamt': from_account_limits
-            }
-        ),
-        min_size=(size if size is not None else min_size),
-        max_size=(size if size is not None else max_size)
-    ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
-
-def canonical_oed_accounts(
+def source_oed_accounts(
     from_account_nums=integers(min_value=1, max_value=10**6),
     from_portfolio_nums=integers(min_value=1, max_value=10**6),
     from_policy_nums=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
     from_policy_perils=sampled_from(oed_peril_ids),
-    from_sublimit_deductibles=floats(min_value=0.0, max_value=10**6),
-    from_sublimit_limits=floats(min_value=0.0, max_value=10**6),
+    from_condall_deductibles=floats(min_value=0.0, max_value=10**6),
+    from_condall_limits=floats(min_value=0.0, max_value=10**6),
     from_cond_numbers=integers(min_value=1, max_value=10**6),
-    from_account_deductibles=floats(min_value=0.0, max_value=10**6),
-    from_account_min_deductibles=floats(min_value=0.0, max_value=10**6),
-    from_account_max_deductibles=floats(min_value=0.0, max_value=10**6),
-    from_layer_deductibles=floats(min_value=0.0, max_value=10**6),
-    from_layer_limits=floats(min_value=0.0, max_value=10**6),
-    from_layer_shares=floats(min_value=0.0, max_value=10**6),
+    from_policyall_deductibles=floats(min_value=0.0, max_value=10**6),
+    from_policyall_min_deductibles=floats(min_value=0.0, max_value=10**6),
+    from_policyall_max_deductibles=floats(min_value=0.0, max_value=10**6),
+    from_policy_layer_deductibles=floats(min_value=0.0, max_value=10**6),
+    from_policy_layer_limits=floats(min_value=0.0, max_value=10**6),
+    from_policy_layer_shares=floats(min_value=0.0, max_value=10**6),
     size=None,
     min_size=0,
     max_size=10
@@ -917,102 +163,27 @@ def canonical_oed_accounts(
                 'portnumber': from_portfolio_nums,
                 'polnumber': from_policy_nums,
                 'polperil': from_policy_perils,
-                'condded6all': from_sublimit_deductibles,
-                'condlimit6all': from_sublimit_limits,
+                'condded6all': from_condall_deductibles,
+                'condlimit6all': from_condall_limits,
                 'condnumber': from_cond_numbers,
-                'polded6all': from_account_deductibles,
-                'polminded6all': from_account_min_deductibles,
-                'polmaxded6all': from_account_max_deductibles,
-                'layerattachment': from_layer_deductibles,
-                'layerlimit': from_layer_limits,
-                'layerparticipation': from_layer_shares
+                'polded6all': from_policyall_deductibles,
+                'polminded6all': from_policyall_min_deductibles,
+                'polmaxded6all': from_policyall_max_deductibles,
+                'layerattachment': from_policy_layer_deductibles,
+                'layerlimit': from_policy_layer_limits,
+                'layerparticipation': from_policy_layer_shares
             }
         ),
         min_size=(size if size is not None else min_size),
         max_size=(size if size is not None else max_size)
     ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
 
-def canonical_exposure(
-    from_account_nums=integers(min_value=1, max_value=10**6),
-    from_building_classes=integers(min_value=1, max_value=3),
-    from_building_schemes=text(alphabet=string.ascii_letters, min_size=1, max_size=3),
-    from_cities=text(alphabet=string.ascii_letters, min_size=2, max_size=20),
-    from_countries=text(alphabet=string.ascii_letters, min_size=2, max_size=20),
-    from_cresta_ids=text(alphabet=string.ascii_letters, min_size=1, max_size=10),
-    from_deductibles1=floats(min_value=0.0, allow_infinity=False),
-    from_deductibles2=floats(min_value=0.0, allow_infinity=False),
-    from_deductibles3=floats(min_value=0.0, allow_infinity=False),
-    from_deductibles4=floats(min_value=0.0, allow_infinity=False),
-    from_latitudes=floats(min_value=0.0, max_value=90.0),
-    from_limits1=floats(min_value=0.0, allow_infinity=False),
-    from_limits2=floats(min_value=0.0, allow_infinity=False),
-    from_limits3=floats(min_value=0.0, allow_infinity=False),
-    from_limits4=floats(min_value=0.0, allow_infinity=False),
-    from_location_nums=integers(min_value=1, max_value=10**12),
-    from_longitudes=floats(min_value=-180.0, max_value=180.0),
-    from_num_builings=integers(min_value=1, max_value=10),
-    from_num_stories=integers(min_value=1, max_value=10),
-    from_occ_schemes=text(alphabet=string.ascii_letters, min_size=1, max_size=3),
-    from_occ_types=text(alphabet=string.ascii_letters, min_size=1, max_size=3),
-    from_postal_codes=text(alphabet=string.ascii_letters, min_size=6, max_size=8),
-    from_states=text(alphabet=string.ascii_letters, min_size=2, max_size=20),
-    from_tivs1=floats(min_value=0.0, allow_infinity=False),
-    from_tivs2=floats(min_value=0.0, allow_infinity=False),
-    from_tivs3=floats(min_value=0.0, allow_infinity=False),
-    from_tivs4=floats(min_value=0.0, allow_infinity=False),
-    from_years_built=integers(min_value=1900, max_value=2018),
-    from_years_upgraded=integers(min_value=1900, max_value=2018),
-    size=None,
-    min_size=0,
-    max_size=10
-):
-    def _sequence(li):
-        for i, r in enumerate(li):
-            r['row_id'] = r['locnum'] = i + 1
 
-        return li
-
-    return lists(
-        fixed_dictionaries(
-            {
-                'accntnum': from_account_nums,
-                'bldgclass': from_building_classes,
-                'bldgscheme': from_building_schemes,
-                'city': from_cities,
-                'country': from_countries,
-                'cresta': from_cresta_ids,
-                'latitude': from_latitudes,
-                'longitude': from_longitudes,
-                'numbldgs': from_num_builings,
-                'numstories': from_num_stories,
-                'occscheme': from_occ_schemes,
-                'occtype': from_occ_types,
-                'postalcode': from_postal_codes,
-                'state': from_states,
-                'wscv1ded': from_deductibles1,
-                'wscv1limit': from_limits1,
-                'wscv1val': from_tivs1,
-                'wscv2ded': from_deductibles2,
-                'wscv2limit': from_limits2,
-                'wscv2val': from_tivs2,
-                'wscv3ded': from_deductibles3,
-                'wscv3limit': from_limits3,
-                'wscv3val': from_tivs3,
-                'wscv4ded': from_deductibles4,
-                'wscv4limit': from_limits4,
-                'wscv4val': from_tivs4,
-                'yearbuilt': from_years_built,
-                'yearupgrad': from_years_upgraded
-            }
-        ),
-        min_size=(size if size is not None else min_size),
-        max_size=(size if size is not None else max_size)
-    ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
-
-def canonical_oed_exposure(
+def source_oed_exposure(
     from_account_nums=integers(min_value=1, max_value=10**6),
     from_location_nums=integers(min_value=1, max_value=10**6),
     from_location_names=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
+    from_location_groups=text(alphabet=string.ascii_letters, min_size=1, max_size=20),
     from_country_codes=text(alphabet=string.ascii_uppercase, min_size=2, max_size=2),
     from_area_codes=text(min_size=1, max_size=20),
     from_location_perils=sampled_from(oed_peril_ids),
@@ -1032,7 +203,7 @@ def canonical_oed_exposure(
     from_combined_limits=floats(min_value=0.0, allow_infinity=False),
     from_site_deductibles=floats(min_value=0.0, allow_infinity=False),
     from_site_limits=floats(min_value=0.0, allow_infinity=False),
-    from_cond_tags=integers(min_value=1, max_value=10**6),
+    from_cond_numbers=integers(min_value=1, max_value=10**6),
     size=None,
     min_size=0,
     max_size=10
@@ -1050,6 +221,7 @@ def canonical_oed_exposure(
                 'accnumber': from_account_nums,
                 'locnumber': from_location_nums,
                 'locname': from_location_names,
+                'locgroup': from_location_groups,
                 'countrycode': from_country_codes,
                 'areacode': from_area_codes,
                 'locperil': from_location_perils,
@@ -1069,7 +241,7 @@ def canonical_oed_exposure(
                 'loclimit5pd': from_combined_limits,
                 'locded6all': from_site_deductibles,
                 'loclimit6all': from_site_limits,
-                'condtag': from_cond_tags,
+                'condnumber': from_cond_numbers,
             }
         ),
         min_size=(size if size is not None else min_size),
@@ -1078,12 +250,12 @@ def canonical_oed_exposure(
 
 
 def fm_input_items(
-    from_canexp_ids=integers(min_value=0, max_value=9),
-    from_canacc_ids=integers(min_value=0, max_value=9),
+    from_srcexp_ids=integers(min_value=0, max_value=9),
+    from_srcacc_ids=integers(min_value=0, max_value=9),
     from_policy_nums=text(alphabet=string.ascii_letters, min_size=2, max_size=10),
-    from_peril_ids=just(OASIS_PERILS['wind']['id']),
+    from_peril_ids=just(OED_PERILS['WTC']['id']),
     from_coverage_type_ids=sampled_from(coverage_type_ids),
-    from_coverage_ids=integers(min_value=0, max_value=9),
+    from_coverage_ids=integers(min_value=1, max_value=10),
     from_is_bi_coverage=sampled_from([True, False]),
     from_level_ids=integers(min_value=1, max_value=10),
     from_layer_ids=integers(min_value=1, max_value=10),

@@ -86,7 +86,7 @@ def generate_gul_input_items(
             tiv_tgid: {
                 term_type: (
                     ufp[cov_level_id][tiv_tgid][term_type]['ProfileElementName'].lower() if ufp[cov_level_id][tiv_tgid].get(term_type) else None
-                ) for term_type in ('deductible', 'deductiblemin', 'deductiblemax', 'limit', 'share',)
+                ) for term_type in ('deductible', 'deductiblemin', 'deductiblemax', 'limit',)
             } for tiv_tgid in ufp[cov_level_id]
         }
 
@@ -113,7 +113,8 @@ def generate_gul_input_items(
 
             yield {
                 'item_id': item_id,
-                'loc_id': it['locnumber'] - 1,
+                'loc_id': it['locnumber'],
+                'acc_id': it['accnumber'],
                 'peril_id': it['perilid'],
                 'coverage_type_id': it['coveragetypeid'],
                 'coverage_id': item_id,
@@ -121,11 +122,10 @@ def generate_gul_input_items(
                 'tiv_elm': tiv_elm,
                 'tiv': tiv,
                 'tiv_tgid': tiv_tgid,
-                'ded_elm': fm_terms[tiv_tgid].get('deductible'),
-                'ded_min_elm': fm_terms[tiv_tgid].get('deductiblemin'),
-                'ded_max_elm': fm_terms[tiv_tgid].get('deductiblemax'),
-                'lim_elm': fm_terms[tiv_tgid].get('limit'),
-                'shr_elm': fm_terms[tiv_tgid].get('share'),
+                'deductible': it.get(fm_terms[tiv_tgid].get('deductible') or None) or 0,
+                'deductible_min': it.get(fm_terms[tiv_tgid].get('deductiblemin') or None) or 0,
+                'deductible_max': it.get(fm_terms[tiv_tgid].get('deductiblemax') or None) or 0,
+                'limit': it.get(fm_terms[tiv_tgid].get('limit') or None) or 0,
                 'areaperil_id': it['areaperilid'],
                 'vulnerability_id': it['vulnerabilityid'],
                 'group_id': group_id,

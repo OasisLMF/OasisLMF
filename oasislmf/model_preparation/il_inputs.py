@@ -12,6 +12,7 @@ __all__ = [
     'get_sub_layer_non_coverage_level_il_terms',
     'unified_fm_profile_by_level',
     'unified_fm_profile_by_level_and_term_group',
+    'unified_fm_terms_by_level_and_term_group',
     'write_il_input_files',
     'write_fmsummaryxref_file',
     'write_fm_policytc_file',
@@ -27,6 +28,7 @@ import multiprocessing
 import os
 import sys
 
+from collections import OrderedDict
 from itertools import (
     chain,
     groupby,
@@ -46,7 +48,10 @@ from ..utils.concurrency import (
     multithread,
     Task,
 )
-from ..utils.data import get_dataframe
+from ..utils.data import (
+    get_dataframe,
+    merge_dataframes,
+)
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.metadata import OED_FM_LEVELS
@@ -316,18 +321,58 @@ def unified_fm_profile_by_level(profiles=[], profile_paths=[]):
     }
 
 
-def unified_fm_profile_by_level_and_term_group(profiles=[], profile_paths=[]):
+def unified_fm_profile_by_level_and_term_group(profiles=[], profile_paths=[], unified_profile_by_level=None):
 
-    if not (profiles or profile_paths):
-        raise OasisException('A list of source profiles (loc. or acc.) or a list of source profile paths must be provided')
+    if not (profiles or profile_paths or unified_profile_by_level):
+        raise OasisException('A list of source profiles (loc. or acc.), or source profile paths, or a unified FM profile grouped by level, must be provided')
 
-    comb_prof = unified_fm_profile_by_level(profiles=profiles, profile_paths=profile_paths)
+    ufp = unified_profile_by_level
+
+    if ufp:
+        return {
+            k: {
+                _k: {v['FMTermType'].lower(): v for v in g} for _k, g in groupby(sorted(viewvalues(ufp[k]), key=lambda v: v['FMTermGroupID']), key=lambda v: v['FMTermGroupID'])
+            } for k in ufp
+        }
+
+    ufp = unified_fm_profile_by_level(profiles=profiles, profile_paths=profile_paths)
 
     return {
         k: {
-            _k: {v['FMTermType'].lower(): v for v in g} for _k, g in groupby(sorted(viewvalues(comb_prof[k]), key=lambda v: v['FMTermGroupID']), key=lambda v: v['FMTermGroupID'])
-        } for k in comb_prof
+            _k: {v['FMTermType'].lower(): v for v in g} for _k, g in groupby(sorted(viewvalues(ufp[k]), key=lambda v: v['FMTermGroupID']), key=lambda v: v['FMTermGroupID'])
+        } for k in ufp
     }
+
+
+def unified_fm_terms_by_level_and_term_group(profiles=[], profile_paths=[], unified_profile_by_level_and_term_group=None):
+
+    ufp = unified_profile_by_level_and_term_group
+
+    if not (profiles or profile_paths or unified_profile_by_level_and_term_group):
+        raise OasisException('A list of source profiles (loc. or acc.), or source profile paths, or a unified FM profile grouped by level and term group, must be provided')
+
+    if ufp:
+        return OrderedDict({
+            level: {
+                tiv_tgid: {
+                    term_type: (
+                        ufp[level][tiv_tgid][term_type]['ProfileElementName'].lower() if ufp[level][tiv_tgid].get(term_type) else None
+                    ) for term_type in ('deductible', 'deductiblemin', 'deductiblemax', 'limit', 'share',)
+                } for tiv_tgid in ufp[level]
+            } for level in ufp
+        })
+
+    ufp = unified_fm_profile_by_level_and_term_group(profiles=profiles, profile_paths=profile_paths)
+
+    return OrderedDict({
+        level: {
+            tiv_tgid: {
+                term_type: (
+                    ufp[level][tiv_tgid][term_type]['ProfileElementName'].lower() if ufp[level][tiv_tgid].get(term_type) else None
+                ) for term_type in ('deductible', 'deductiblemin', 'deductiblemax', 'limit', 'share',)
+            } for tiv_tgid in ufp[level]
+        } for level in ufp
+    })
 
 
 @oasis_log
@@ -362,131 +407,154 @@ def generate_il_input_items(
     """
     cep = exposure_profile
     cap = accounts_profile
+
+    ufp = unified_fm_profile_by_level_and_term_group(profiles=(cep, cap,))
+
+    if not ufp:
+        raise OasisException(
+            'Canonical loc. and/or acc. profiles are possibly missing FM term information: '
+            'FM term definitions for TIV, limit, deductible and/or share.'
+        )
+
     fmap = fm_aggregation_profile
 
-    for df in [exposure_df, gul_inputs_df, accounts_df]:
-        if not df.columns.contains('index'):
-            df['index'] = pd.Series(data=range(len(df)))
+    if not fmap:
+        raise OasisException(
+            'FM aggregation profile is empty - this is required to perform aggregation'
+        )
 
-    expgul_df = pd.merge(exposure_df, gul_inputs_df, left_on='index', right_on='loc_id')
-    expgul_df['index'] = pd.Series(data=expgul_df.index)
+    fm_levels = sorted(ufp.keys())
 
-    keys = (
-        'item_id', 'gul_item_id', 'peril_id', 'coverage_type_id', 'coverage_id',
-        'is_bi_coverage', 'loc_id', 'acc_id', 'policy_num', 'level_id', 'layer_id',
-        'agg_id', 'policytc_id', 'deductible', 'deductible_min',
-        'deductible_max', 'attachment', 'limit', 'share', 'calcrule_id', 'tiv_elm',
-        'tiv', 'tiv_tgid', 'ded_elm', 'ded_min_elm', 'ded_max_elm',
-        'lim_elm', 'shr_elm',
-    )
+    cov_level = min(fm_levels)
+    layer_level = max(fm_levels)
 
     try:
-        ufp = unified_fm_profile_by_level_and_term_group(profiles=(cep, cap,))
+        for df in [exposure_df, gul_inputs_df, accounts_df]:
+            df['index'] = df.get('index', range(len(df)))
 
-        if not ufp:
-            raise OasisException(
-                'Canonical loc. and/or acc. profiles are possibly missing FM term information: '
-                'FM term definitions for TIV, limit, deductible and/or share.'
-            )
-
-        if not fmap:
-            raise OasisException(
-                'FM aggregation profile is empty - this is required to perform aggregation'
-            )
-
-        fm_levels = tuple(ufp.keys())
-
-        cov_level_id = fm_levels[0]
-
-        coverage_level_preset_data = [t for t in zip(
-            tuple(expgul_df['item_id'].values),           # 1 - FM item ID
-            tuple(expgul_df['item_id'].values),           # 2 - GUL item ID
-            tuple(expgul_df['peril_id'].values),          # 3 - peril ID
-            tuple(expgul_df['coverage_type_id'].values),  # 4 - coverage type ID
-            tuple(expgul_df['coverage_id'].values),       # 5 - coverage ID
-            tuple(expgul_df['is_bi_coverage'].values),    # 6 - is BI coverage?
-            tuple(expgul_df['loc_id'].values),            # 7 - src. exp. DF index
-            (-1,) * len(expgul_df),                       # 8 - src. acc. DF index
-            (-1,) * len(expgul_df),                       # 9 - src. acc. policy num.
-            (cov_level_id,) * len(expgul_df),             # 10 - coverage level ID
-            (1,) * len(expgul_df),                        # 11 - layer ID
-            (-1,) * len(expgul_df),                       # 12 - agg. ID
-            tuple(expgul_df['tiv_elm'].values),           # 13 - TIV element
-            tuple(expgul_df['tiv'].values),               # 14 -TIV value
-            tuple(expgul_df['tiv_tgid'].values),          # 15 -coverage element/term group ID
-            tuple(expgul_df['ded_elm'].values),           # 16 -deductible element
-            tuple(expgul_df['ded_min_elm'].values),       # 17 -deductible min. element
-            tuple(expgul_df['ded_max_elm'].values),       # 18 -deductible max. element
-            tuple(expgul_df['lim_elm'].values),           # 19 -limit element
-            tuple(expgul_df['shr_elm'].values)            # 20 -share element
-        )]
-
-        def get_acc_item(i):
-            return accounts_df[(accounts_df['accnumber'] == expgul_df[expgul_df['loc_id'] == coverage_level_preset_data[i][6]].iloc[0]['accnumber'])].iloc[0]
-
-        def get_acc_id(i):
-            return int(get_acc_item(i)['index'])
-
-        coverage_level_preset_items = {
-            i: {
-                k: v for k, v in zip(
-                    keys,
-                    [i + 1, gul_item_id, peril_id, coverage_type_id, coverage_id, is_bi_coverage, loc_id, get_acc_id(i), policy_num, level_id, layer_id, agg_id, -1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 12, tiv_elm, tiv, tiv_tgid, ded_elm, ded_min_elm, ded_max_elm, lim_elm, shr_elm]
-                )
-            } for i, (item_id, gul_item_id, peril_id, coverage_type_id, coverage_id, is_bi_coverage, loc_id, _, policy_num, level_id, layer_id, agg_id, tiv_elm, tiv, tiv_tgid, ded_elm, ded_min_elm, ded_max_elm, lim_elm, shr_elm) in enumerate(coverage_level_preset_data)
-        }
-
-        num_cov_items = len(coverage_level_preset_items)
-
-        preset_items = {
-            level_id: (coverage_level_preset_items if level_id == cov_level_id else copy.deepcopy(coverage_level_preset_items)) for level_id in fm_levels
-        }
-
-        for i, (level_id, item_id, it) in enumerate(chain((level_id, k, v) for level_id in fm_levels[1:] for k, v in preset_items[level_id].items())):
-            it['level_id'] = level_id
-            it['item_id'] = num_cov_items + i + 1
-            it['ded_elm'] = it['ded_min_elm'] = it['ded_max_elm'] = it['lim_elm'] = it['shr_elm'] = None
-
-        num_sub_layer_level_items = sum(len(preset_items[level_id]) for level_id in fm_levels[:-1])
-        layer_level = max(fm_levels)
-        layer_level_items = copy.deepcopy(preset_items[layer_level])
-        layer_level_min_idx = min(layer_level_items)
-
-        def layer_id(i):
-            return list(
-                accounts_df[accounts_df['accnumber'] == accounts_df.iloc[i]['accnumber']]['polnumber'].values
-            ).index(accounts_df.iloc[i]['polnumber']) + 1
-
-        for i, (loc_id, acc_id) in enumerate(
-            chain((loc_id, acc_id) for loc_id in layer_level_items for loc_id, acc_id in product(
-                [loc_id],
-                accounts_df[accounts_df['accnumber'] == accounts_df.iloc[layer_level_items[loc_id]['acc_id']]['accnumber']]['index'].values)
-            )
-        ):
-            it = copy.deepcopy(layer_level_items[loc_id])
-            it['item_id'] = num_sub_layer_level_items + i + 1
-            it['layer_id'] = layer_id(acc_id)
-            it['acc_id'] = acc_id
-            preset_items[layer_level][layer_level_min_idx + i] = it
-
-        for it in (it for c in chain(viewvalues(preset_items[k]) for k in preset_items) for it in c):
-            it['policy_num'] = accounts_df.iloc[it['acc_id']]['polnumber']
-            lfmaggkey = fmap[it['level_id']]['FMAggKey']
-            for v in viewvalues(lfmaggkey):
-                src = v['src'].lower()
-                if src in ['loc', 'acc']:
-                    f = v['field'].lower()
-                    it[f] = exposure_df.iloc[it['loc_id']][f] if src == 'loc' else accounts_df.iloc[it['acc_id']][f]
-
-        concurrent_tasks = (
-            Task(get_il_terms_by_level_as_list, args=(ufp[level_id], fmap[level_id], preset_items[level_id], exposure_df.copy(deep=True), accounts_df.copy(deep=True),), key=level_id)
-            for level_id in fm_levels
+        expgul_df = merge_dataframes(
+            exposure_df,
+            gul_inputs_df,
+            left_on='locnumber',
+            right_on='loc_id',
+            how='outer'
         )
-        num_ps = min(len(fm_levels), multiprocessing.cpu_count())
-        for it in multiprocess(concurrent_tasks, pool_size=num_ps):
-            yield it
+
+        il_inputs_df = merge_dataframes(
+            expgul_df,
+            accounts_df,
+            left_on='acc_id',
+            right_on='accnumber',
+            how='outer'
+        )
+
+        layers = OrderedDict({
+            (k, p): tuple(v['polnumber'].unique()).index(p) + 1 for k, v in il_inputs_df.groupby(['accnumber']) for p in v['polnumber'].unique()
+        })
+
+        il_inputs_df['layer_id'] = il_inputs_df['index'].apply(lambda i: layers[(il_inputs_df.iloc[i]['accnumber'], il_inputs_df.iloc[i]['polnumber'])])
+
+        il_inputs_df = il_inputs_df[il_inputs_df['layer_id'] == 1].reset_index()
+        il_inputs_df['index'] = il_inputs_df.index
+
+        il_inputs_df['item_id'] = il_inputs_df['gul_item_id'] = il_inputs_df['index'].apply(lambda i: i + 1)
+
+        def convert_fractional_terms_to_wholes(df, terms):
+            for term in terms:
+                def prod(_df):
+                    return _df['tiv'] * _df[term]
+                df['temp'] = prod(df[['tiv', term]].where(df[term] < 1))
+                df[term] = df[[term, 'temp']].max(axis=1)
+
+            return df.drop('temp', axis=1)
+
+        terms = ['deductible', 'deductible_min', 'deductible_max', 'limit']
+
+        il_inputs_df = convert_fractional_terms_to_wholes(il_inputs_df, terms)
+
+        n = len(il_inputs_df)
+
+        il_inputs_df['level_id'] = [cov_level] * n
+
+        il_inputs_df['agg_id'] = [-1] * n
+        il_inputs_df['attachment'] = [0] * n
+        il_inputs_df['calcrule_id'] = [-1] * n
+
+        il_inputs_df['share'] = [0] * n
+        il_inputs_df['policytc_id'] = [-1] * n
+
+        fm_terms = unified_fm_terms_by_level_and_term_group(unified_profile_by_level_and_term_group=ufp)
+
+        def set_non_coverage_level_fm_terms(df, level, terms, term_defaults=None):
+            term_defaults = term_defaults or {t:0.0 for t in terms}
+            for term in terms:
+                df[term] = df.get(fm_terms[level][1].get(term), [term_defaults.get(term) or 0.0] * n)
+            return df
+
+        for level in fm_levels[1:-1]:
+            level_df = il_inputs_df[il_inputs_df['level_id'] == 1].copy(deep=True)
+            level_df['level_id'] = [level] * n
+            set_non_coverage_level_fm_terms(level_df, level, terms)
+            convert_fractional_terms_to_wholes(level_df, terms)
+            il_inputs_df = pd.concat([il_inputs_df, level_df], ignore_index=True)
+
+
+        il_inputs_df['index'] = il_inputs_df.index
+        il_inputs_df['item_id'] = il_inputs_df['index'].apply(lambda i: i + 1)
+
+        layer_df = merge_dataframes(
+            il_inputs_df[il_inputs_df['level_id'] == 1],
+            accounts_df,
+            left_on='acc_id',
+            right_on='accnumber',
+            how='outer'
+        )        
+        layer_df['level_id'] = [layer_level] * len(layer_df)
+        layer_df['layer_id'] = layer_df['index'].apply(lambda i: layers[(layer_df.iloc[i]['accnumber'], layer_df.iloc[i]['polnumber'])])
+
+        n = len(layer_df)
+
+        terms += ['share']
+        set_non_coverage_level_fm_terms(layer_df, layer_level, terms, term_defaults={'limit': 9999999999, 'share': 1.0})
+        terms.remove('share')
+        layer_df = convert_fractional_terms_to_wholes(layer_df, terms)
+
+        il_inputs_df = pd.concat([il_inputs_df, layer_df], ignore_index=True)
+        il_inputs_df['index'] = il_inputs_df.index
+        il_inputs_df['item_id'] = il_inputs_df['index'].apply(lambda i: i + 1)
+        il_inputs_df['policy_num'] = il_inputs_df['polnumber']
+
+        import ipdb; ipdb.set_trace()
+
+        agg_keys = {
+            level: tuple(v['field'].lower() for v in viewvalues(fmap[level]['FMAggKey']))
+            for level in fm_levels
+        }
+
+
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
         raise OasisException(e)
+
+        """
+            for it in (it for c in chain(viewvalues(preset_items[k]) for k in preset_items) for it in c):
+                it['policy_num'] = accounts_df.iloc[it['acc_id']]['polnumber']
+                lfmaggkey = fmap[it['level_id']]['FMAggKey']
+                for v in viewvalues(lfmaggkey):
+                    src = v['src'].lower()
+                    if src in ['loc', 'acc']:
+                        f = v['field'].lower()
+                        it[f] = exposure_df.iloc[it['loc_id']][f] if src == 'loc' else accounts_df.iloc[it['acc_id']][f]
+
+            concurrent_tasks = (
+                Task(get_il_terms_by_level_as_list, args=(ufp[level_id], fmap[level_id], preset_items[level_id], exposure_df.copy(deep=True), accounts_df.copy(deep=True),), key=level_id)
+                for level_id in fm_levels
+            )
+            num_ps = min(len(fm_levels), multiprocessing.cpu_count())
+            for it in multiprocess(concurrent_tasks, pool_size=num_ps):
+                yield it
+        except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
+            raise OasisException(e)
+        """
 
 
 @oasis_log

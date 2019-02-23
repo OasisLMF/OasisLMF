@@ -7,6 +7,7 @@ __all__ = [
     'get_json',
     'get_timestamp',
     'get_utctimestamp',
+    'merge_dataframe',
     'PANDAS_BASIC_DTYPES'
 ]
 
@@ -154,6 +155,30 @@ def get_utctimestamp(thedate=None, fmt='%Y-%b-%d %H:%M:%S'):
     """
     d = thedate.astimezone(pytz.utc) if thedate else datetime.utcnow()
     return d.strftime(fmt)
+
+
+def merge_dataframes(left, right, **kwargs):
+    """
+    Merges two dataframes by ensuring there is no duplication of columns.
+    """
+
+    _left = left.copy(deep=True)
+    _right = right.copy(deep=True)
+
+    for df in [_left, _right]:
+        if df.get('index') is None:
+            df['index'] = range(len(df))
+
+    drop_cols = [k for k in set(_left.columns).intersection(_right.columns) if k and k not in [kwargs.get('left_on'), 'index']]
+
+    merge = pd.merge(
+        _left.drop(drop_cols, axis=1),
+        _right,
+        **kwargs
+    )
+    merge['index'] = merge.index
+
+    return merge.drop(['index_x', 'index_y'], axis=1)
 
 
 def print_dataframe(frame, objectify_cols=[], header=None, headers='keys', tablefmt='psql', floatfmt=".2f", sep=' ', end='\n', file=sys.stdout, flush=False):
