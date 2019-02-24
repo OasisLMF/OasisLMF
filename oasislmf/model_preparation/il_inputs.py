@@ -1,13 +1,10 @@
 # -*- coding: utf-8 -*-
 
 __all__ = [
-    'generate_il_input_items',
     'get_il_input_items',
     'get_layer_calcrule_id',
-    'get_layer_calcrule_id_for_dict_or_pandas_series',
     'get_policytc_ids',
     'get_sub_layer_calcrule_id',
-    'get_sub_layer_calcrule_id_for_dict_or_pandas_series',
     'unified_fm_profile_by_level',
     'unified_fm_profile_by_level_and_term_group',
     'unified_fm_terms_by_level_and_term_group',
@@ -95,13 +92,6 @@ def get_layer_calcrule_id(att=0.0, lim=9999999999, shr=1.0):
         return 2
 
 
-def get_layer_calcrule_id_for_dict_or_pandas_series(dict_or_series):
-
-    ds = dict_or_series
-
-    return get_layer_calcrule_id(ds['attachment'], ds['limit'], ds['share'])
-
-
 def get_sub_layer_calcrule_id(ded, ded_min, ded_max, lim, ded_code=0, lim_code=0):
 
     if (ded > 0 and ded_code == 0) and (ded_min == ded_max == 0) and (lim > 0 and lim_code == 0):
@@ -134,12 +124,6 @@ def get_sub_layer_calcrule_id(ded, ded_min, ded_max, lim, ded_code=0, lim_code=0
         return 19
     elif (ded > 0 and ded_code in [0, 2]) and (ded_min > 0 and ded_max > 0) and (lim == lim_code == 0):
         return 21
-
-
-def get_sub_layer_calcrule_id_for_dict_or_pandas_series(dict_or_series):
-    ds = dict_or_series
-
-    return get_sub_layer_calcrule_id(ds['deductible'], ds['deductible_min'], ds['deductible_max'], ds['limit'])
 
 
 def unified_fm_profile_by_level(profiles=[], profile_paths=[]):
@@ -232,10 +216,11 @@ def unified_id_terms(profiles=[], profile_paths=[], unified_profile_by_level=Non
 
 
 @oasis_log
-def generate_il_input_items(
+def get_il_input_items(
     exposure_df,
     gul_inputs_df,
-    accounts_df,
+    accounts_df=None,
+    accounts_fp=None,
     exposure_profile=get_default_exposure_profile(),
     accounts_profile=get_default_accounts_profile(),
     fm_aggregation_profile=get_default_fm_aggregation_profile(),
@@ -261,10 +246,26 @@ def generate_il_input_items(
 
     :param fm_aggregation_profile: FM aggregation profile
     :param fm_aggregation_profile: dict
+
+    :param reduced: Whether to reduce the IL input items table by removing any
+                    items with zero financial terms
+    :param reduced: bool
     """
+    # Get the accounts frame either directly or from a file path if provided
+    accounts_df = accounts_df if accounts_df is not None else get_dataframe(src_fp=accounts_fp)
+
+    if not (accounts_df is not None or accounts_fp):
+        raise OasisException('No accounts frame or file path provided')
+
+    # The main IL inputs frame that this method will return to the caller -
+    # initially an empty frame
+    il_inputs_df = pd.DataFrame()
+
+    # Get the OED profiles describing exposure, accounts, and using these also
+    # unified exposure + accounts profile and the aggregation profile
     cep = exposure_profile
     cap = accounts_profile
-
+    
     ufp = unified_fm_profile_by_level_and_term_group(profiles=(cep, cap,))
 
     if not ufp:
@@ -274,12 +275,6 @@ def generate_il_input_items(
             'FM term definitions for TIV, deductibles, limit, and/or share.'
         )
 
-    id_terms = unified_id_terms(unified_profile_by_level_and_term_group=ufp)
-    loc_id = id_terms['locid']
-    acc_id = id_terms['accid']
-    policy_num = id_terms['polid']
-    portfolio_num = id_terms['portid']
-
     fmap = fm_aggregation_profile
 
     if not fmap:
@@ -287,15 +282,38 @@ def generate_il_input_items(
             'FM aggregation profile is empty - this is required to perform aggregation'
         )
 
-    fm_levels = tuple(ufp)[1:]
+    # Get the ID terms profile and use that to define the column names for loc.
+    # ID, acc. ID, policy no. and portfolio no., as used in the source exposure
+    # and accounts files. This is to ensure that the method never makes hard
+    # coded references to the corresponding columns in the source files, as
+    # that would mean that changes to these column names in the source files
+    # may break the method
+    id_terms = unified_id_terms(unified_profile_by_level_and_term_group=ufp)
+    loc_id = id_terms['locid']
+    acc_id = id_terms['accid']
+    policy_num = id_terms['polid']
+    portfolio_num = id_terms['portid']
 
+    # Define the FM levels from the unified profile, including the coverage
+    # level (the first level) and the layer level (the last level) - the FM
+    # levels thus obtained should correspond to the FM levels in the OED
+    # spec., as the profiles are based on the same spec.
+    fm_levels = tuple(ufp)[1:]
     cov_level = min(fm_levels)
     layer_level = max(fm_levels)
 
     try:
+        # Set index columns in the exposure, GUL inputs and accounts items
+        # frames, if not already present
         for df in [exposure_df, gul_inputs_df, accounts_df]:
             df['index'] = df.get('index', range(len(df)))
 
+        #import ipdb; ipdb.set_trace()
+
+        # Merge the exposure and GUL inputs frames on loc. ID - this will
+        # produce a frame of N x M rows where N is the no. of location items
+        # and M is the no. of coverage types supported by the model as found
+        # in the keys data in the GUL inputs frame
         expgul_df = merge_dataframes(
             exposure_df,
             gul_inputs_df,
@@ -304,6 +322,9 @@ def generate_il_input_items(
             how='outer'
         )
 
+        # Merge the combined exposure and GUL inputs frame with the accounts
+        # frame on acc. ID - this will be the main IL inputs frame that the
+        # method will continue to work on and eventually return to the caller.
         il_inputs_df = merge_dataframes(
             expgul_df,
             accounts_df,
@@ -311,60 +332,118 @@ def generate_il_input_items(
             right_on=acc_id,
             how='outer'
         )
+
+        # Set the policy no. and portfolio no. columns explicitly in the
+        # IL inputs frame using the internal names `policy_num` and
+        # `portfolio_num`
         il_inputs_df['policy_num'] = il_inputs_df[policy_num]
         il_inputs_df['portfolio_num'] = il_inputs_df[portfolio_num]
 
+        # Start the layering process - as the previous merge will have linked
+        # locations with accounts with multiple policies, producing inputs
+        # with multiple layers, and we need to start by completing the coverage
+        # level inputs for layer 1 items only, we layer the items by using a
+        # dictionary of distinct account/policy. no. combinations
         layers = OrderedDict({
             (k, p): tuple(v[policy_num].unique()).index(p) + 1 for k, v in il_inputs_df.groupby(['acc_id']) for p in v['policy_num'].unique()
         })
 
-        def get_layer_id(dict_or_series):
-            ds = dict_or_series
-            return layers[(ds['acc_id'], ds['policy_num'])]
+        def get_layer_id(row):
+            return layers[(row['acc_id'], row['policy_num'])]
 
+        # Perform the initial layering
         il_inputs_df['layer_id'] = il_inputs_df.apply(get_layer_id, axis=1)
 
+        # Select only the layer 1 items and resequence the index, item IDs and
+        # also set the cov. level ID
         il_inputs_df = il_inputs_df[il_inputs_df['layer_id'] == 1].reset_index()
         il_inputs_df['index'] = il_inputs_df.index
-
         il_inputs_df['item_id'] = il_inputs_df['gul_item_id'] = il_inputs_df['index'].apply(lambda i: i + 1)
 
         n = len(il_inputs_df)
 
         il_inputs_df['level_id'] = [cov_level] * n
+
+        # Set defaults and/or temp. values for agg. ID, attachment, share and
+        # policy TC ID
         il_inputs_df['agg_id'] = [-1] * n
         il_inputs_df['attachment'] = [0] * n
         il_inputs_df['share'] = [0] * n
         il_inputs_df['policytc_id'] = [-1] * n
 
+        # At this stage the IL inputs frame should only contain coverage level
+        # layer 1 inputs, and the financial terms are already present from the
+        # earlier merge with the exposure and GUL inputs frame - the GUL inputs
+        # frame should already contain the coverage level terms
+
+        # Get the unified FM terms profile, and define some utility methods for
+        # column wise operations relating to processing the financial terms for
+        # the different levels
         fm_terms = unified_fm_terms_by_level_and_term_group(unified_profile_by_level_and_term_group=ufp)
 
-        def set_non_coverage_level_fm_terms(df, level, terms, term_defaults=None):
+        def set_non_coverage_level_financial_terms(level_df, level, terms, term_defaults=None):
             term_defaults = term_defaults or {t: 0.0 for t in terms}
             for term in terms:
-                df[term] = df.get(fm_terms[level][1].get(term), [term_defaults.get(term) or 0.0] * len(df))
-            return df
+                level_df[term] = level_df.get(fm_terms[level][1].get(term), [term_defaults.get(term) or 0.0] * len(level_df))
+            return level_df
 
-        def get_deductible_code(dict_or_series):
-            return 0 if dict_or_series['deductible'] >= 1 else 2
+        def has_nonzero_financial_terms(level_df, terms):
+            return level_df[terms].any().any()
 
-        def get_limit_code(dict_or_series):
-            return 0 if dict_or_series['limit'] >= 1 else 2
+        def get_deductible_code(row):
+            return 0 if row['deductible'] >= 1 else 2
 
+        def get_limit_code(row):
+            return 0 if row['limit'] >= 1 else 2
+
+        # This is used to store the level IDs prior to any resequencing of the
+        # levels as a result of removing levels with no financial terms, as
+        # determined by the value of ``reduced``
+        orig_levels = set()
+
+        # A helper method to resequence the levels in the current IL inputs frame
+        def reset_levels():
+            new_levels = il_inputs_df['level_id'].unique().tolist()
+            orig_levels.update(new_levels)
+            il_inputs_df['level_id'] = il_inputs_df.apply(lambda row: new_levels.index(row['level_id']) + 1, axis=1)
+
+        # The basic list of financial term types for sub-layer levels - the
+        # layer level has the same list of terms but has an additional
+        # ``share`` term
         terms = ['deductible', 'deductible_min', 'deductible_max', 'limit']
 
+        # The sub-layer level calc. rule ID method
+        def _get_sub_layer_calcrule_id(row):
+            return get_sub_layer_calcrule_id(
+                row['deductible'],
+                row['deductible_min'],
+                row['deductible_max'],
+                row['limit'],
+                ded_code=row['deductible_code'],
+                lim_code=row['limit_code']
+            )
+
+        # The main loop for processing the financial terms for each sub-layer
+        # non-coverage level (currently, 2, 3, 6, 9), including setting the 
+        # calc. rule IDs, and append each level to the current IL inputs frame
         for level in fm_levels[1:-1]:
             level_df = il_inputs_df[il_inputs_df['level_id'] == 1].copy(deep=True)
             level_df['level_id'] = [level] * n
-            set_non_coverage_level_fm_terms(level_df, level, terms)
-            level_df['deductible_code'] = level_df.apply(get_deductible_code, axis=1)
-            level_df['limit_code'] = level_df.apply(get_limit_code, axis=1)
-            level_df['calcrule_id'] = level_df.apply(get_sub_layer_calcrule_id_for_dict_or_pandas_series, axis=1)
-            il_inputs_df = pd.concat([il_inputs_df, level_df], ignore_index=True)
+            set_non_coverage_level_financial_terms(level_df, level, terms)
+            if has_nonzero_financial_terms(level_df, terms) or not reduced:
+                level_df['deductible_code'] = level_df.apply(get_deductible_code, axis=1)
+                level_df['limit_code'] = level_df.apply(get_limit_code, axis=1)
+                level_df['calcrule_id'] = level_df.apply(_get_sub_layer_calcrule_id, axis=1)
+                il_inputs_df = pd.concat([il_inputs_df, level_df], ignore_index=True)
 
-            il_inputs_df['index'] = il_inputs_df.index
-            il_inputs_df['item_id'] = il_inputs_df['index'].apply(lambda i: i + 1)
+        # Resequence the index and item IDs, as the earlier repeated
+        # concatenation would have produced a non-sequential index
+        il_inputs_df['index'] = il_inputs_df.index
+        il_inputs_df['item_id'] = il_inputs_df['index'].apply(lambda i: i + 1)
 
+        # Process the layer level inputs separately - we start with merging
+        # the coverage level layer 1 inputs with the accounts frame to create
+        # a separate layer level frame
         layer_df = merge_dataframes(
             il_inputs_df[il_inputs_df['level_id'] == 1],
             accounts_df,
@@ -373,172 +452,94 @@ def generate_il_input_items(
             how='outer'
         )
 
+        # In the layer frame set the layer level ID, acc. ID and policy num.,
+        # and perform the initial layering
         layer_df['level_id'] = [layer_level] * len(layer_df)
         layer_df['acc_id'] = layer_df[acc_id]
         layer_df['policy_num'] = layer_df[policy_num]
         layer_df['layer_id'] = layer_df.apply(get_layer_id, axis=1)
 
+        # The layer level calc. rule ID method
+        def _get_layer_calcrule_id(row):
+            return get_layer_calcrule_id(row['attachment'], row['limit'], row['share'])
+
+        # Still in the layer frame, now process the financial terms for this
+        # level, and then append that to the main IL inputs frame
         terms += ['share']
-        set_non_coverage_level_fm_terms(layer_df, layer_level, terms, term_defaults={'limit': 9999999999, 'share': 1.0})
+        set_non_coverage_level_financial_terms(layer_df, layer_level, terms, term_defaults={'limit': 9999999999, 'share': 1.0})
         layer_df['attachment'] = layer_df['deductible']
         terms.remove('share')
-        layer_df['calcrule_id'] = layer_df.apply(get_layer_calcrule_id_for_dict_or_pandas_series, axis=1)
+        layer_df['calcrule_id'] = layer_df.apply(_get_layer_calcrule_id, axis=1)
         il_inputs_df = pd.concat([il_inputs_df, layer_df], ignore_index=True)
 
+        # Resequence the levels in the main IL inputs frame - this is necessary
+        # as the ``reduced`` option would mean that some intermediate levels
+        # with no financial terms would have been removed, thereby producing
+        # non-sequential levels
+        reset_levels()
+
+        # Resequence the index and item IDs
         il_inputs_df['index'] = il_inputs_df.index
-
-        if reduced:
-            il_inputs_df.drop(il_inputs_df[
-                (il_inputs_df['level_id'].isin(fm_levels[1:-1])) & 
-                (il_inputs_df['deductible'] == 0) & 
-                (il_inputs_df['deductible_min'] == 0) & 
-                (il_inputs_df['deductible_max'] == 0) &
-                (il_inputs_df['deductible_max'] == 0) &
-                (il_inputs_df['limit'] == 0) &
-                (il_inputs_df['share'] == 0)].index,
-                inplace=True
-            )
-
-            il_inputs_df.index = range(len(il_inputs_df))
-            il_inputs_df['index'] = il_inputs_df.index
-            il_inputs_df['item_id'] = il_inputs_df['index'].apply(lambda i: i + 1)
-
-            new_levels = il_inputs_df['level_id'].unique().tolist()
-
-            def reset_level_id(dict_or_series):
-                ds = dict_or_series
-                return new_levels.index(ds['level_id']) + 1
-
-            il_inputs_df['level_id'] = il_inputs_df.apply(reset_level_id, axis=1)
-
         il_inputs_df['item_id'] = il_inputs_df['index'].apply(lambda i: i + 1)
-        il_inputs_df['acc_id'] = il_inputs_df[acc_id]
-        il_inputs_df['policy_num'] = il_inputs_df[policy_num]
 
-        import ipdb; ipdb.set_trace()
-
-        agg_keys = {
+        # Start the aggregation process by creating a dict of (level, agg. key)
+        # combinations using the FM aggregation profile
+        agg_keys = OrderedDict({
+            i + 1: tuple(v['field'].lower() for v in viewvalues(fmap[level]['FMAggKey']))
+            for i, level in enumerate(sorted(orig_levels))
+        }) if reduced else OrderedDict({
             level: tuple(v['field'].lower() for v in viewvalues(fmap[level]['FMAggKey']))
             for level in fm_levels
+        })
+
+        # Store the aggregation groups for each level in a "lookup" dict
+        agg_groups = {
+            level: [[it['item_id'] for _, it in v.iterrows()] for _, v in il_inputs_df[il_inputs_df['level_id'] == level].groupby(agg_keys[level])]
+            for level in il_inputs_df['level_id'].unique()
         }
 
-        pass
+        # The helper method to perform column wise aggregation - for each
+        # row/input set the agg. ID to be index of the corresponding agg.
+        # group for that input in the lookup dict (+ 1)
+        def get_agg_id(row):
+            try: 
+                item_group = [g for g in agg_groups[row['level_id']] if row['item_id'] in g][0]
+            except IndexError:
+                return -1
+
+            return agg_groups[row['level_id']].index(item_group) + 1
+
+        # Perform aggregation
+        il_inputs_df['agg_id'] = il_inputs_df.apply(get_agg_id, axis=1)
+
+        # The policy TC ID calculation - a policy TC ID is a unique ID for a 
+        # unique combination of financial terms (including calc. rule ID),
+        # namely, limit, deductible, attachment, deductible min., deductible
+        # max., share, calc. rule ID (in that order) for an input item
+        #
+        # Given that every input now in the main IL inputs frame will have
+        # these financial terms defined, a policy TC ID can be assigned to
+        # each.
+        #
+        # The first step is to get the policy TC ID dict, which creates the
+        # unique combinations of these terms present in the IL inputs frame,
+        # each identified by a unique ID. Then the policy TC IDs are set
+        # column wise by looking up the index of a given input item's
+        # combination of these financial terms in the policy TC dict.
+        policytc_ids = get_policytc_ids(il_inputs_df)
+        policytc_terms = ('limit', 'deductible', 'attachment', 'deductible_min', 'deductible_max', 'share', 'calcrule_id',)
+
+        def get_policytc_id(row):
+            try:
+                return [
+                    k for k in viewkeys(policytc_ids) if policytc_ids[k] == {k: row[k] for k in policytc_terms}
+                ][0]
+            except IndexError:
+                return -1
+
+        il_inputs_df['policytc_id'] = il_inputs_df.apply(get_policytc_id, axis=1)
 
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
-        raise OasisException(e)
-
-        """
-            for it in (it for c in chain(viewvalues(preset_items[k]) for k in preset_items) for it in c):
-                it['policy_num'] = accounts_df.iloc[it['acc_id']]['polnumber']
-                lfmaggkey = fmap[it['level_id']]['FMAggKey']
-                for v in viewvalues(lfmaggkey):
-                    src = v['src'].lower()
-                    if src in ['loc', 'acc']:
-                        f = v['field'].lower()
-                        it[f] = exposure_df.iloc[it['loc_id']][f] if src == 'loc' else accounts_df.iloc[it['acc_id']][f]
-        """
-
-
-@oasis_log
-def get_il_input_items(
-    exposure_df,
-    gul_inputs_df,
-    accounts_df,
-    exposure_profile=get_default_exposure_profile(),
-    accounts_profile=get_default_accounts_profile(),
-    fm_aggregation_profile=get_default_fm_aggregation_profile(),
-    reduced=True
-):
-    """
-    Loads FM input items generated by ``generate_il_input_items`` into a static
-    structure such as a pandas dataframe.
-
-    :param exposure_df: OED source exposure
-    :type exposure_df: pandas.DataFrame
-
-    :param gul_inputs_df: GUL input items
-    :type gul_inputs_df: pandas.DataFrame
-
-    :param accounts_df: OED source accounts
-    :type accounts_df: pandas.DataFrame
-
-    :param exposure_profile: OED source exposure profile
-    :type exposure_profile: dict
-
-    :param accounts_profile: OED source accounts profile
-    :type accounts_profile: dict
-
-    :param fm_aggregation_profile: FM aggregation profile
-    :param fm_aggregation_profile: dict
-
-    :param reduced: Whether to reduce the FM input items table by removing any
-                    items with zero financial terms
-    :param reduced: bool
-    """
-    cep = exposure_profile
-    cap = accounts_profile
-    fmap = fm_aggregation_profile
-
-    try:
-        il_items = [
-            it for it in generate_il_input_items(
-                exposure_df,
-                accounts_df,
-                gul_inputs_df,
-                exposure_profile=cep,
-                accounts_profile=cap,
-                fm_aggregation_profile=fmap
-            )
-        ]
-        il_items.sort(key=lambda it: it['item_id'])
-
-        il_inputs_df = pd.DataFrame(data=il_items, dtype=object)
-        il_inputs_df['index'] = pd.Series(data=il_inputs_df.index, dtype=int)
-
-        if reduced:
-            def is_zero_terms_level(level_id):
-                return not any(
-                    it['deductible'] != 0 or
-                    it['deductible_min'] != 0 or
-                    it['deductible_max'] != 0 or
-                    it['limit'] != 0 or
-                    it['share'] != 0
-                    for _, it in il_inputs_df[il_inputs_df['level_id'] == level_id].iterrows()
-                )
-
-            levels = sorted([l for l in set(il_inputs_df['level_id'])])
-            non_zero_terms_levels = [lid for lid in levels if lid in [levels[0], levels[-1]] or not is_zero_terms_level(lid)]
-
-            il_inputs_df = il_inputs_df[(il_inputs_df['level_id'].isin(non_zero_terms_levels))]
-
-            il_inputs_df['index'] = range(len(il_inputs_df))
-
-            il_inputs_df['item_id'] = range(1, len(il_inputs_df) + 1)
-
-            levels = sorted([l for l in set(il_inputs_df['level_id'])])
-
-            def level_id(i):
-                return levels.index(il_inputs_df.iloc[i]['level_id']) + 1
-
-            il_inputs_df['level_id'] = il_inputs_df['index'].apply(level_id)
-
-        policytc_ids = get_policytc_ids(il_inputs_df)
-
-        def get_policytc_id(i):
-            return [
-                k for k in viewkeys(policytc_ids) if policytc_ids[k] == {k: il_inputs_df.iloc[i][k] for k in ('limit', 'deductible', 'attachment', 'deductible_min', 'deductible_max', 'share', 'calcrule_id',)}
-            ][0]
-
-        il_inputs_df['policytc_id'] = il_inputs_df['index'].apply(lambda i: get_policytc_id(i))
-
-        for col in il_inputs_df.columns:
-            if col == 'peril_id':
-                il_inputs_df[col] = il_inputs_df[col].astype(object)
-            elif col.endswith('id'):
-                il_inputs_df[col] = il_inputs_df[col].astype(int)
-            elif col in ('tiv', 'limit', 'deductible', 'deductible_min', 'deductible_max', 'share',):
-                il_inputs_df[col] = il_inputs_df[col].astype(float)
-    except (IOError, MemoryError, OasisException, OSError, TypeError, ValueError) as e:
         raise OasisException(e)
 
     return il_inputs_df, accounts_df
