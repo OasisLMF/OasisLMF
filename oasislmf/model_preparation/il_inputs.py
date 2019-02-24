@@ -227,7 +227,7 @@ def get_il_input_items(
     reduced=True
 ):
     """
-    Generates FM input items.
+    Generates and returns a frame of IL input items.
 
     :param exposure_df: OED source exposure
     :type exposure_df: pandas.DataFrame
@@ -307,8 +307,6 @@ def get_il_input_items(
         # frames, if not already present
         for df in [exposure_df, gul_inputs_df, accounts_df]:
             df['index'] = df.get('index', range(len(df)))
-
-        #import ipdb; ipdb.set_trace()
 
         # Merge the exposure and GUL inputs frames on loc. ID - this will
         # produce a frame of N x M rows where N is the no. of location items
@@ -482,6 +480,8 @@ def get_il_input_items(
         il_inputs_df['index'] = il_inputs_df.index
         il_inputs_df['item_id'] = il_inputs_df['index'].apply(lambda i: i + 1)
 
+        # ~ 13 seconds to get to this step for a PiWind 10K run
+
         # Start the aggregation process by creating a dict of (level, agg. key)
         # combinations using the FM aggregation profile
         agg_keys = OrderedDict({
@@ -494,7 +494,8 @@ def get_il_input_items(
 
         # Store the aggregation groups for each level in a "lookup" dict
         agg_groups = {
-            level: [[it['item_id'] for _, it in v.iterrows()] for _, v in il_inputs_df[il_inputs_df['level_id'] == level].groupby(agg_keys[level])]
+            level: [[it['item_id'] for _, it in v.iterrows()]
+            for _, v in il_inputs_df[il_inputs_df['level_id'] == level].groupby(agg_keys[level])]
             for level in il_inputs_df['level_id'].unique()
         }
 
@@ -704,8 +705,9 @@ def write_fmsummaryxref_file(il_inputs_df, fmsummaryxref_fp):
 def write_il_input_files(
     exposure_df,
     gul_inputs_df,
-    accounts_fp,
     target_dir,
+    accounts_df=None,
+    accounts_fp=None,
     exposure_profile=get_default_exposure_profile(),
     accounts_profile=get_default_accounts_profile(),
     fm_aggregation_profile=get_default_fm_aggregation_profile(),
@@ -726,12 +728,16 @@ def write_il_input_files(
         fm_xref.csv
         fmsummaryxref.csv
     """
-    accounts_df = get_dataframe(src_fp=accounts_fp, empty_data_error_msg='No accounts data found in the source accounts (acc.) file')
+    # Get the accounts frame either directly or from a file path if provided
+    accounts_df = accounts_df if accounts_df is not None else get_dataframe(src_fp=accounts_fp)
+
+    if not (accounts_df is not None or accounts_fp):
+        raise OasisException('No accounts frame or file path provided')
 
     il_inputs_df, _ = get_il_input_items(
         exposure_df,
-        accounts_df,
         gul_inputs_df,
+        accounts_df=accounts_df,
         exposure_profile=exposure_profile,
         accounts_profile=accounts_profile,
         fm_aggregation_profile=fm_aggregation_profile
