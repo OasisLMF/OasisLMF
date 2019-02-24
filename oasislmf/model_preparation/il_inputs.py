@@ -60,30 +60,19 @@ from ..utils.defaults import (
 
 def get_policytc_ids(il_inputs_df):
 
-    columns = [
-        col for col in il_inputs_df.columns if col not in ('limit', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'share', 'calcrule_id',)
-    ]
+    policytc_terms = ['limit', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'share', 'calcrule_id']
+    drop_cols = set(il_inputs_df.columns).difference(policytc_terms)
 
-    policytc_df = il_inputs_df.drop(columns, axis=1).drop_duplicates()
+    policytc_df = il_inputs_df.drop(drop_cols, axis=1).drop_duplicates()[policytc_terms]
 
     for col in policytc_df.columns:
         policytc_df[col] = policytc_df[col].astype(float) if col != 'calcrule_id' else policytc_df[col].astype(int)
 
-    policytc_df['index'] = range(1, len(policytc_df) + 1)
-
     policytc_ids = {
-        i: {
-            'limit': policytc_df.iloc[i - 1]['limit'],
-            'deductible': policytc_df.iloc[i - 1]['deductible'],
-            'deductible_min': policytc_df.iloc[i - 1]['deductible_min'],
-            'deductible_max': policytc_df.iloc[i - 1]['deductible_max'],
-            'attachment': policytc_df.iloc[i - 1]['attachment'],
-            'share': policytc_df.iloc[i - 1]['share'],
-            'calcrule_id': int(policytc_df.iloc[i - 1]['calcrule_id'])
-        } for i in policytc_df['index']
+        k: i + 1 for i, (k, _) in enumerate(policytc_df.groupby(policytc_terms))
     }
 
-    return policytc_ids
+    return policytc_ids, policytc_terms
 
 
 def get_layer_calcrule_id(att=0.0, lim=9999999999, shr=1.0):
@@ -297,10 +286,13 @@ def get_il_input_items(
     # Define the FM levels from the unified profile, including the coverage
     # level (the first level) and the layer level (the last level) - the FM
     # levels thus obtained should correspond to the FM levels in the OED
-    # spec., as the profiles are based on the same spec.
+    # spec., as the profiles are based on the same spec. Also get the FM
+    # terms profile
     fm_levels = tuple(ufp)[1:]
     cov_level = min(fm_levels)
     layer_level = max(fm_levels)
+
+    fm_terms = unified_fm_terms_by_level_and_term_group(unified_profile_by_level_and_term_group=ufp)
 
     try:
         # Set index columns in the exposure, GUL inputs and accounts items
@@ -355,16 +347,14 @@ def get_il_input_items(
         # Select only the layer 1 items and resequence the index, item IDs and
         # also set the cov. level ID
         il_inputs_df = il_inputs_df[il_inputs_df['layer_id'] == 1].reset_index()
+        n = len(il_inputs_df)
+        il_inputs_df['level_id'] = [cov_level] * n
         il_inputs_df['index'] = il_inputs_df.index
         il_inputs_df['item_id'] = il_inputs_df['gul_item_id'] = il_inputs_df['index'].apply(lambda i: i + 1)
 
-        n = len(il_inputs_df)
-
-        il_inputs_df['level_id'] = [cov_level] * n
-
-        # Set defaults and/or temp. values for agg. ID, attachment, share and
-        # policy TC ID
-        il_inputs_df['agg_id'] = [-1] * n
+        # Set defaults and/or temp. values for attachment, share and policy TC
+        # ID - the attachment and share columns are not relevant to the
+        # coverage level, but are required for the layer level
         il_inputs_df['attachment'] = [0] * n
         il_inputs_df['share'] = [0] * n
         il_inputs_df['policytc_id'] = [-1] * n
@@ -373,11 +363,6 @@ def get_il_input_items(
         # layer 1 inputs, and the financial terms are already present from the
         # earlier merge with the exposure and GUL inputs frame - the GUL inputs
         # frame should already contain the coverage level terms
-
-        # Get the unified FM terms profile, and define some utility methods for
-        # column wise operations relating to processing the financial terms for
-        # the different levels
-        fm_terms = unified_fm_terms_by_level_and_term_group(unified_profile_by_level_and_term_group=ufp)
 
         def set_non_coverage_level_financial_terms(level_df, level, terms, term_defaults=None):
             term_defaults = term_defaults or {t: 0.0 for t in terms}
@@ -389,10 +374,10 @@ def get_il_input_items(
             return level_df[terms].any().any()
 
         def get_deductible_code(row):
-            return 0 if row['deductible'] >= 1 else 2
+            return 0 if (row['deductible'] == 0 or row['deductible'] >= 1) else 2
 
         def get_limit_code(row):
-            return 0 if row['limit'] >= 1 else 2
+            return 0 if (row['limit'] == 0 or row['limit'] >= 1) else 2
 
         # This is used to store the level IDs prior to any resequencing of the
         # levels as a result of removing levels with no financial terms, as
@@ -421,6 +406,22 @@ def get_il_input_items(
                 lim_code=row['limit_code']
             )
 
+        # A helper method to perform aggregation for a given level inputs DF
+        def set_level_agg_ids(level_df, level):
+            agg_key = tuple(v['field'].lower() for v in viewvalues(fmap[level]['FMAggKey']))
+            agg_groups = [
+                [it['item_id'] for _, it in v.iterrows()] for _, v in level_df.groupby(agg_key)
+            ]
+            def get_agg_id(row):
+                try:
+                    item_group = [g for g in agg_groups if row['item_id'] in g][0]
+                except IndexError:
+                    return -1
+                return agg_groups.index(item_group) + 1
+
+            level_df['agg_id'] = level_df.apply(get_agg_id, axis=1)
+            return level_df['agg_id']
+
         # The main loop for processing the financial terms for each sub-layer
         # non-coverage level (currently, 2, 3, 6, 9), including setting the 
         # calc. rule IDs, and append each level to the current IL inputs frame
@@ -432,6 +433,7 @@ def get_il_input_items(
                 level_df['deductible_code'] = level_df.apply(get_deductible_code, axis=1)
                 level_df['limit_code'] = level_df.apply(get_limit_code, axis=1)
                 level_df['calcrule_id'] = level_df.apply(_get_sub_layer_calcrule_id, axis=1)
+                set_level_agg_ids(level_df, level)
                 il_inputs_df = pd.concat([il_inputs_df, level_df], ignore_index=True)
 
         # Resequence the index and item IDs, as the earlier repeated
@@ -468,6 +470,7 @@ def get_il_input_items(
         layer_df['attachment'] = layer_df['deductible']
         terms.remove('share')
         layer_df['calcrule_id'] = layer_df.apply(_get_layer_calcrule_id, axis=1)
+        set_level_agg_ids(layer_df, layer_level)
         il_inputs_df = pd.concat([il_inputs_df, layer_df], ignore_index=True)
 
         # Resequence the levels in the main IL inputs frame - this is necessary
@@ -479,39 +482,6 @@ def get_il_input_items(
         # Resequence the index and item IDs
         il_inputs_df['index'] = il_inputs_df.index
         il_inputs_df['item_id'] = il_inputs_df['index'].apply(lambda i: i + 1)
-
-        # ~ 13 seconds to get to this step for a PiWind 10K run
-
-        # Start the aggregation process by creating a dict of (level, agg. key)
-        # combinations using the FM aggregation profile
-        agg_keys = OrderedDict({
-            i + 1: tuple(v['field'].lower() for v in viewvalues(fmap[level]['FMAggKey']))
-            for i, level in enumerate(sorted(orig_levels))
-        }) if reduced else OrderedDict({
-            level: tuple(v['field'].lower() for v in viewvalues(fmap[level]['FMAggKey']))
-            for level in fm_levels
-        })
-
-        # Store the aggregation groups for each level in a "lookup" dict
-        agg_groups = {
-            level: [[it['item_id'] for _, it in v.iterrows()]
-            for _, v in il_inputs_df[il_inputs_df['level_id'] == level].groupby(agg_keys[level])]
-            for level in il_inputs_df['level_id'].unique()
-        }
-
-        # The helper method to perform column wise aggregation - for each
-        # row/input set the agg. ID to be index of the corresponding agg.
-        # group for that input in the lookup dict (+ 1)
-        def get_agg_id(row):
-            try: 
-                item_group = [g for g in agg_groups[row['level_id']] if row['item_id'] in g][0]
-            except IndexError:
-                return -1
-
-            return agg_groups[row['level_id']].index(item_group) + 1
-
-        # Perform aggregation
-        il_inputs_df['agg_id'] = il_inputs_df.apply(get_agg_id, axis=1)
 
         # The policy TC ID calculation - a policy TC ID is a unique ID for a 
         # unique combination of financial terms (including calc. rule ID),
@@ -527,16 +497,10 @@ def get_il_input_items(
         # each identified by a unique ID. Then the policy TC IDs are set
         # column wise by looking up the index of a given input item's
         # combination of these financial terms in the policy TC dict.
-        policytc_ids = get_policytc_ids(il_inputs_df)
-        policytc_terms = ('limit', 'deductible', 'attachment', 'deductible_min', 'deductible_max', 'share', 'calcrule_id',)
+        policytc_ids, policytc_terms = get_policytc_ids(il_inputs_df)
 
         def get_policytc_id(row):
-            try:
-                return [
-                    k for k in viewkeys(policytc_ids) if policytc_ids[k] == {k: row[k] for k in policytc_terms}
-                ][0]
-            except IndexError:
-                return -1
+            return policytc_ids[tuple(row[policytc_terms].values)]
 
         il_inputs_df['policytc_id'] = il_inputs_df.apply(get_policytc_id, axis=1)
 

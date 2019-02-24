@@ -132,6 +132,7 @@ def generate_gul_input_items(
                 'limit': _it.get(fm_terms[tiv_tgid].get('limit') or None) or 0.0,
                 'areaperil_id': _it['areaperilid'],
                 'vulnerability_id': _it['vulnerabilityid'],
+                'agg_id': item_id,
                 'group_id': group_id,
                 'summary_id': 1,
                 'summaryset_id': 1
