@@ -27,6 +27,7 @@ def prepare_input_files_directory(
     target_dir,
     exposure_fp,
     exposure_profile_fp=None,
+    keys_fp=None,
     lookup_config_fp=None,
     model_version_fp=None,
     accounts_fp=None,
@@ -45,7 +46,7 @@ def prepare_input_files_directory(
         paths = [p for p in (
             exposure_fp, exposure_profile_fp, accounts_fp, accounts_profile_fp,
                 fm_aggregation_profile_fp, lookup_config_fp, model_version_fp,
-                ri_info_fp, ri_scope_fp
+                keys_fp, ri_info_fp, ri_scope_fp
             )
             if p
         ]

@@ -291,6 +291,7 @@ class OasisManager(object):
         exposure_fp,
         exposure_profile=None,
         exposure_profile_fp=None,
+        keys_fp=None,
         lookup_config=None,
         lookup_config_fp=None,
         keys_data_fp=None,
@@ -310,7 +311,7 @@ class OasisManager(object):
         # analysis/run - the CLI supports deterministic analyses via a command
         # `oasislmf exposure run` which requires a preexisting input files
         # directory, which is usually the same as the analysis/output directory
-        deterministic = not((lookup_config or lookup_config_fp) or (keys_data_fp and model_version_fp and lookup_package_fp))
+        deterministic = not(keys_fp or (lookup_config or lookup_config_fp) or (keys_data_fp and model_version_fp and lookup_package_fp))
 
         # Prepare the target directory and copy the source files, profiles and
         # model version file into it
@@ -318,6 +319,7 @@ class OasisManager(object):
             target_dir,
             exposure_fp,
             exposure_profile_fp=exposure_profile_fp,
+            keys_fp=keys_fp,
             lookup_config_fp=lookup_config_fp,
             model_version_fp=model_version_fp,
             accounts_fp=accounts_fp,
@@ -338,40 +340,46 @@ class OasisManager(object):
         if lookup_config:
             lookup_config['keys_data_path'] = os.path.abspath(os.path.dirname(lookup_config_fp))
 
-        # Generate keys and keys errors files - if no lookup assets provided
-        # then assume the caller is trying to generate Oasis files for
-        # deterministic losses
-        keys_fp = os.path.join(target_dir, 'keys.csv')
-        keys_errors_fp = os.path.join(target_dir, 'keys-errors.csv')
+        # If a preexisting model lookup keys file path has not been provided,
+        # then it is asssumed some model lookup assets have been provided, so
+        # as to allow the lookup to be instantiated and called to generated
+        # the keys file. Otherwise if no model keys file path or lookup assets
+        # were provided then a "deterministic" keys file is generated.
+        _keys_fp = _keys_errors_fp = None
+        if not keys_fp:
+            _keys_fp = os.path.join(target_dir, 'keys.csv')
+            _keys_errors_fp = os.path.join(target_dir, 'keys-errors.csv')
 
-        cov_types = supported_oed_coverage_types or self.supported_oed_coverage_types
-        if deterministic:
-            n = len(pd.read_csv(exposure_fp))
-            keys = [
-                {'locnumber': i + 1, 'peril_id': 1, 'coverage_type': j, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
-                for i, j in product(range(n), cov_types)
-            ]
-            _, _ = olf.write_oasis_keys_file(keys, keys_fp)
+            cov_types = supported_oed_coverage_types or self.supported_oed_coverage_types
+            if deterministic:
+                n = len(pd.read_csv(exposure_fp))
+                keys = [
+                    {'locnumber': i + 1, 'peril_id': 1, 'coverage_type': j, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
+                    for i, j in product(range(n), cov_types)
+                ]
+                _, _ = olf.write_oasis_keys_file(keys, _keys_fp)
+            else:
+                _, lookup = olf.create(
+                    lookup_config=lookup_config,
+                    model_keys_data_path=keys_data_fp,
+                    model_version_file_path=model_version_fp,
+                    lookup_package_path=lookup_package_fp
+                )
+                f1, n1, f2, n2 = olf.save_results(
+                    lookup,
+                    loc_id_col='locnumber',
+                    successes_fp=_keys_fp,
+                    errors_fp=_keys_errors_fp,
+                    source_exposure_fp=exposure_fp
+                )
         else:
-            _, lookup = olf.create(
-                lookup_config=lookup_config,
-                model_keys_data_path=keys_data_fp,
-                model_version_file_path=model_version_fp,
-                lookup_package_path=lookup_package_fp
-            )
-            f1, n1, f2, n2 = olf.save_results(
-                lookup,
-                loc_id_col='locnumber',
-                successes_fp=keys_fp,
-                errors_fp=keys_errors_fp,
-                source_exposure_fp=exposure_fp
-            )
+            _keys_fp = os.path.join(target_dir, os.path.basename(keys_fp))
 
         # Write the GUL input files
         files_prefixes = oasis_files_prefixes or self.oasis_files_prefixes
         gul_input_files, gul_inputs_df, exposure_df = write_gul_input_files(
             exposure_fp,
-            keys_fp,
+            _keys_fp,
             target_dir,
             exposure_profile=exposure_profile,
             oasis_files_prefixes=files_prefixes['gul']
