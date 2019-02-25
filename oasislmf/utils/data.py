@@ -1,6 +1,13 @@
-# -*- coding: utf-8 -*-
-
+from __future__ import absolute_import
+from __future__ import division
 from __future__ import print_function
+from __future__ import unicode_literals
+
+from builtins import open as io_open
+from builtins import str
+
+from future import standard_library
+standard_library.install_aliases()
 
 __all__ = [
     'get_dataframe',
@@ -132,7 +139,7 @@ def get_dataframe(
 def get_json(src_fp, key_transform=None):
     di = None
     try:
-        with io.open(src_fp, 'r', encoding='utf-8') as f:
+        with io_open(src_fp, 'r', encoding='utf-8') as f:
             di = json.load(f)
     except (IOError, JSONDecodeError, OSError, TypeError) as e:
         return

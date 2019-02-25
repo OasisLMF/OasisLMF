@@ -1,7 +1,13 @@
-from __future__ import (
-    print_function,
-    unicode_literals,
-)
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
+from builtins import open as io_open
+from builtins import str
+
+from future import standard_library
+standard_library.install_aliases()
 
 __all__ = [
     'OasisManager'
@@ -44,10 +50,11 @@ from .model_execution.bin import (
     prepare_run_directory,
     prepare_run_inputs,
 )
-from .model_preparation.lookup import OasisLookupFactory as olf
+from .model_preparation import oed
 from .model_preparation.gul_inputs import write_gul_input_files
 from .model_preparation.il_inputs import write_il_input_files
-from .model_preparation import oed
+from .model_preparation.lookup import OasisLookupFactory as olf
+from .model_preparation.utils import prepare_input_files_directory
 from .model_preparation.reinsurance_layer import write_ri_input_files
 from .utils.concurrency import (
     multiprocess,
@@ -311,9 +318,10 @@ class OasisManager(object):
         if not os.path.exists(target_dir):
             Path(target_dir).mkdir(parents=True, exist_ok=True)
 
-        for p in (exposure_fp, exposure_profile_fp, accounts_fp, accounts_profile_fp, fm_aggregation_profile_fp, lookup_config_fp, model_version_fp, ri_info_fp, ri_scope_fp):
-            if p and os.path.exists(p):
-                shutil.copy2(p, target_dir) if not filecmp.cmp(p, os.path.join(target_dir, os.path.basename(p)), shallow=False) else None
+        for src in (exposure_fp, exposure_profile_fp, accounts_fp, accounts_profile_fp, fm_aggregation_profile_fp, lookup_config_fp, model_version_fp, ri_info_fp, ri_scope_fp):
+            if src and os.path.exists(src):
+                dst = os.path.join(target_dir, os.path.basename(src))
+                shutil.copy2(src, target_dir) if not (os.path.exists(dst) and filecmp.cmp(src, dst, shallow=False)) else None
 
         # Get the exposure + accounts + FM aggregation profiles + lookup
         # config. profiles either from the optional arguments if present, or
@@ -404,7 +412,7 @@ class OasisManager(object):
             ri_scope_fp,
             target_dir
         )
-        with io.open(os.path.join(target_dir, 'ri_layers.json'), 'w', encoding='utf-8') as f:
+        with io_open(os.path.join(target_dir, 'ri_layers.json'), 'w', encoding='utf-8') as f:
             f.write(_unicode(json.dumps(ri_layers, ensure_ascii=False, indent=4)))
             oasis_files['ri_layers'] = os.path.abspath(f.name)
             for layer, layer_info in viewitems(ri_layers):
@@ -454,7 +462,7 @@ class OasisManager(object):
         analysis_settings_fn = os.path.basename(analysis_settings_fp)
         _analysis_settings_fp = os.path.join(model_run_fp, analysis_settings_fn)
         try:
-            with io.open(_analysis_settings_fp, 'r', encoding='utf-8') as f:
+            with io_open(_analysis_settings_fp, 'r', encoding='utf-8') as f:
                 analysis_settings = json.load(f)
 
             if analysis_settings.get('analysis_settings'):
@@ -489,10 +497,10 @@ class OasisManager(object):
             ri_layers = 0
             if ri:
                 try:
-                    with io.open(os.path.join(model_run_fp, 'ri_layers.json'), 'r', encoding='utf-8') as f:
+                    with io_open(os.path.join(model_run_fp, 'ri_layers.json'), 'r', encoding='utf-8') as f:
                         ri_layers = len(json.load(f))
                 except IOError:
-                    with io.open(os.path.join(model_run_fp, 'input', 'ri_layers.json'), 'r', encoding='utf-8') as f:
+                    with io_open(os.path.join(model_run_fp, 'input', 'ri_layers.json'), 'r', encoding='utf-8') as f:
                         ri_layers = len(json.load(f))
 
             model_runner_module.run(
@@ -583,7 +591,7 @@ class OasisManager(object):
                 )
             else:
                 try:
-                    with io.open(os.path.join(input_dir, 'ri_layers.json'), 'r', encoding='utf-8') as f:
+                    with io_open(os.path.join(input_dir, 'ri_layers.json'), 'r', encoding='utf-8') as f:
                         ri_layers = len(json.load(f))
                 except (IOError, JSONDecodeError, OSError, TypeError) as e:
                     raise OasisException('Error trying to read the RI layers file: {}'.format(e))

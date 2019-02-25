@@ -1,3 +1,14 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
+from builtins import open as io_open
+from builtins import str
+
+from future import standard_library
+standard_library.install_aliases()
+
 """
 Metadata definitions for Oasis and OED exposure data + insurance data + peril
 & cat. modelling data + Oasis keys status and Celery task status flags

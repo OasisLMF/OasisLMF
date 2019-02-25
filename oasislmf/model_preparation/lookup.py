@@ -1,4 +1,13 @@
-from __future__ import unicode_literals, absolute_import
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
+from builtins import open as io_open
+from builtins import str
+
+from future import standard_library
+standard_library.install_aliases()
 
 __all__ = [
     'OasisBaseLookup',
@@ -98,7 +107,7 @@ class OasisBaseLookup(object):
         elif config_fp:
             self.config_dir = config_dir or os.path.dirname(config_fp)
             _config_fp = as_path(config_fp, 'config_fp')
-            with io.open(_config_fp, 'r', encoding='utf-8') as f:
+            with io_open(_config_fp, 'r', encoding='utf-8') as f:
                 self._config = json.load(f)
 
         keys_data_path = self._config.get('keys_data_path')
@@ -271,7 +280,7 @@ class OasisLookupFactory(object):
         """
         Get model information from the model version file.
         """
-        with io.open(model_version_file_path, 'r', encoding='utf-8') as f:
+        with io_open(model_version_file_path, 'r', encoding='utf-8') as f:
             return next(csv.DictReader(
                 f, fieldnames=['supplier_id', 'model_id', 'model_version']
             ))
@@ -382,7 +391,7 @@ class OasisLookupFactory(object):
         """
         Writes the keys records as a simple list to file.
         """
-        with io.open(output_file_path, 'w', encoding='utf-8') as f:
+        with io_open(output_file_path, 'w', encoding='utf-8') as f:
             f.write(u'{}'.format(json.dumps(records, sort_keys=True, indent=4, ensure_ascii=False)))
 
             return output_file_path, len(records)
