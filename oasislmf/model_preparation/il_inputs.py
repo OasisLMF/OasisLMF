@@ -63,13 +63,13 @@ def get_policytc_ids(il_inputs_df):
     policytc_terms = ['limit', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'share', 'calcrule_id']
     drop_cols = set(il_inputs_df.columns).difference(policytc_terms)
 
-    policytc_df = il_inputs_df.drop(drop_cols, axis=1).drop_duplicates()[policytc_terms]
+    policytc_df = il_inputs_df.drop(drop_cols, axis=1)[policytc_terms].drop_duplicates()
 
     for col in policytc_df.columns:
         policytc_df[col] = policytc_df[col].astype(float) if col != 'calcrule_id' else policytc_df[col].astype(int)
 
     policytc_ids = {
-        k: i + 1 for i, (k, _) in enumerate(policytc_df.groupby(policytc_terms))
+        k: i + 1 for i, (k, _) in enumerate(policytc_df.groupby(policytc_terms, sort=False))
     }
 
     return policytc_ids, policytc_terms
@@ -367,7 +367,9 @@ def get_il_input_items(
         def set_non_coverage_level_financial_terms(level_df, level, terms, term_defaults=None):
             term_defaults = term_defaults or {t: 0.0 for t in terms}
             for term in terms:
-                level_df[term] = level_df.get(fm_terms[level][1].get(term), [term_defaults.get(term) or 0.0] * len(level_df))
+                level_df[term] = level_df.get(fm_terms[level][1].get(term))
+                if not level_df[term].any():
+                    level_df[term] = [term_defaults.get(term) or 0.0] * len(level_df)
             return level_df
 
         def has_nonzero_financial_terms(level_df, terms):
@@ -465,8 +467,9 @@ def get_il_input_items(
 
         # Still in the layer frame, now process the financial terms for this
         # level, and then append that to the main IL inputs frame
-        terms += ['share']
-        set_non_coverage_level_financial_terms(layer_df, layer_level, terms, term_defaults={'limit': 9999999999, 'share': 1.0})
+        terms = ['deductible', 'limit', 'share']
+        term_defaults={'deductible': 0.0, 'limit': 9999999999, 'share': 1.0}
+        set_non_coverage_level_financial_terms(layer_df, layer_level, terms, term_defaults=term_defaults)
         layer_df['attachment'] = layer_df['deductible']
         terms.remove('share')
         layer_df['calcrule_id'] = layer_df.apply(_get_layer_calcrule_id, axis=1)
