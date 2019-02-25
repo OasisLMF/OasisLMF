@@ -1,0 +1,83 @@
+{
+    "1": {
+        "FMLevel": 1,
+        "FMLevelName": "SiteCoverage",
+        "FMAggKey": {
+            "ItemID": {
+                "src": "FM",
+                "field": "item_id",
+                "name": "Item ID"
+            }
+        }
+    },
+    "2": {
+        "FMLevel": 2,
+        "FMLevelName": "SitePD",
+        "FMAggKey": {
+            "LocID": {
+                "src": "FM",
+                "field": "canexp_id",
+                "name": "Location ID"
+            },
+            "IsBICoverage": {
+                "src": "FM",
+                "field": "is_bi_coverage",
+                "name": "Is BI coverage?"
+            }
+        }
+    },
+    "3": {
+        "FMLevel": 3,
+        "FMLevel": "SiteAll",
+        "FMAggKey": {
+            "LocID":  {
+                "src": "FM",
+                "field": "canexp_id",
+                "name": "Location ID"
+            }
+        }
+    },
+    "6": {
+        "FMLevel": 6,
+        "FMLevelName": "CondAll",
+        "FMAggKey": {
+            "AccntNum":  {
+                "src": "FM",
+                "field": "canacc_id",
+                "name": "Account no."
+            },
+            "CondNum": {
+                "src": "CanAcc",
+                "field": "condnumber",
+                "name": "Condition no."
+            }
+        }
+    },
+    "9": {
+        "FMLevel": 9,
+        "FMLevelName": "PolAll",
+        "FMAggKey": {
+            "AccntNum": {
+                "src": "FM",
+                "field": "canacc_id",
+                "name": "Account no."
+            }
+        }
+    },
+    "10": {
+        "FMLevel": 10,
+        "FMLevelName": "PolLayer",
+        "FMAggKey": {
+            "AccntNum": {
+                "src": "CanAcc",
+                "field": "accntnum",
+                "name": "Account no."
+            },
+            "PortfolioNum": {
+                "src": "CanAcc",
+                "field": "portnumber",
+                "name": "Account portfolio no."
+            }
+        }
+    }
+}
