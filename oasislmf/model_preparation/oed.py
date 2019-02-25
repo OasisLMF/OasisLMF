@@ -9,8 +9,6 @@ from builtins import str
 from future import standard_library
 standard_library.install_aliases()
 
-from __future__ import print_function
-
 __all__ = [
     'load_oed_dfs',
     'OedValidator'
