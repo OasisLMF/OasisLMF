@@ -709,7 +709,8 @@ def write_il_input_files(
         'fm_programme': 'fm_programme',
         'fm_xref': 'fm_xref',
         'fmsummaryxref': 'fmsummaryxref'
-    }
+    },
+    write_inputs_table_to_file=False
 ):
     """
     Generate standard Oasis FM input files, namely::
@@ -740,7 +741,8 @@ def write_il_input_files(
         fm_aggregation_profile=fm_aggregation_profile
     )
 
-    il_inputs_df.to_csv(path_or_buf=os.path.join(target_dir, 'il_inputs.csv'), index=False, encoding='utf-8', chunksize=1000)
+    if write_inputs_table_to_file:
+        il_inputs_df.to_csv(path_or_buf=os.path.join(target_dir, 'il_inputs.csv'), index=False, encoding='utf-8', chunksize=1000)
 
     il_input_files = {
         k: os.path.join(target_dir, '{}.csv'.format(oasis_files_prefixes[k])) for k in viewkeys(oasis_files_prefixes)
