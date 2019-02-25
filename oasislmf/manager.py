@@ -314,14 +314,18 @@ class OasisManager(object):
 
         # Prepare the target directory and copy the source files, profiles and
         # model version file into it
-        target_dir = as_path(target_dir, 'target Oasis files directory', is_dir=True, preexists=False)
-        if not os.path.exists(target_dir):
-            Path(target_dir).mkdir(parents=True, exist_ok=True)
-
-        for src in (exposure_fp, exposure_profile_fp, accounts_fp, accounts_profile_fp, fm_aggregation_profile_fp, lookup_config_fp, model_version_fp, ri_info_fp, ri_scope_fp):
-            if src and os.path.exists(src):
-                dst = os.path.join(target_dir, os.path.basename(src))
-                shutil.copy2(src, target_dir) if not (os.path.exists(dst) and filecmp.cmp(src, dst, shallow=False)) else None
+        target_dir = prepare_input_files_directory(
+            target_dir,
+            exposure_fp,
+            exposure_profile_fp=exposure_profile_fp,
+            lookup_config_fp=lookup_config_fp,
+            model_version_fp=model_version_fp,
+            accounts_fp=accounts_fp,
+            accounts_profile_fp=accounts_profile_fp,
+            fm_aggregation_profile_fp=fm_aggregation_profile_fp,
+            ri_info_fp=ri_info_fp,
+            ri_scope_fp=ri_scope_fp
+        )
 
         # Get the exposure + accounts + FM aggregation profiles + lookup
         # config. profiles either from the optional arguments if present, or

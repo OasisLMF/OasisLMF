@@ -20,6 +20,7 @@ import shutil
 from pathlib2 import Path
 
 from ..utils.exceptions import OasisException
+from ..utils.path import as_path
 
 
 def prepare_input_files_directory(
