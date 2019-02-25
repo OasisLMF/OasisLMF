@@ -65,7 +65,10 @@ from ..utils.defaults import (
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.path import as_path
-from ..utils.metadata import OED_FM_LEVELS
+from ..utils.metadata import (
+    OED_COVERAGE_TYPES,
+    OED_FM_LEVELS,
+)
 
 
 def get_policytc_ids(il_inputs_df):
@@ -377,11 +380,25 @@ def get_il_input_items(
         # earlier merge with the exposure and GUL inputs frame - the GUL inputs
         # frame should already contain the coverage level terms
 
+        all_cov_types = [
+            v['id'] for k, v in viewitems(OED_COVERAGE_TYPES) if k in ['buildings','other','contents','bi']
+        ]
+
         def set_non_coverage_level_financial_terms(level_df, level, terms_and_defaults):
+            n = len(level_df)
             for term, default in viewitems(terms_and_defaults):
-                level_df[term] = level_df.get(fm_terms[level][1].get(term))
+                src_col = fm_terms[level][1].get(term)
+                if not src_col or src_col not in level_df.columns:
+                    level_df[term] = [default] * n
+                    continue
+                level_cov_types = level_df['coverage_type_id']
+                supp_cov_types = ufp[level][1][term].get('CoverageTypeID') or all_cov_types
+                level_df[term] = level_df[
+                    [src_col, 'coverage_type_id']
+                ].where(level_cov_types.isin(supp_cov_types), 0)[[src_col]]
+                level_df['coverage_type_id'] = level_cov_types
                 if not level_df[term].any():
-                    level_df[term] = [default or 0.0] * len(level_df)
+                    level_df[term] = [default or 0.0] * n
             return level_df
 
         def has_nonzero_financial_terms(level_df, terms):
