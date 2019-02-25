@@ -740,6 +740,8 @@ def write_il_input_files(
         fm_aggregation_profile=fm_aggregation_profile
     )
 
+    il_inputs_df.to_csv(path_or_buf=os.path.join(target_dir, 'il_inputs.csv'), index=False, encoding='utf-8', chunksize=1000)
+
     il_input_files = {
         k: os.path.join(target_dir, '{}.csv'.format(oasis_files_prefixes[k])) for k in viewkeys(oasis_files_prefixes)
     }

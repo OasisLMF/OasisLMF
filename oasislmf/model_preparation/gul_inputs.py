@@ -266,6 +266,8 @@ def write_gul_input_files(
     """
     gul_inputs_df, exposure_df = get_gul_input_items(exposure_fp, keys_fp)
 
+    gul_inputs_df.to_csv(path_or_buf=os.path.join(target_dir, 'gul_inputs.csv'), index=False, encoding='utf-8', chunksize=1000)
+
     gul_input_files = {
         k: os.path.join(target_dir, '{}.csv'.format(oasis_files_prefixes[k])) for k in viewkeys(oasis_files_prefixes)
     }
