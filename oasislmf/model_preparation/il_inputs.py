@@ -225,8 +225,7 @@ def get_il_input_items(
     accounts_fp=None,
     exposure_profile=get_default_exposure_profile(),
     accounts_profile=get_default_accounts_profile(),
-    fm_aggregation_profile=get_default_fm_aggregation_profile(),
-    reduced=True
+    fm_aggregation_profile=get_default_fm_aggregation_profile()
 ):
     """
     Generates and returns a Pandas dataframe of IL input items.
@@ -380,10 +379,27 @@ def get_il_input_items(
         # earlier merge with the exposure and GUL inputs frame - the GUL inputs
         # frame should already contain the coverage level terms
 
+        # A helper method to determine whether a given level of IL inputs has
+        # non-zero financial terms
+        def has_nonzero_financial_terms(level_df, terms):
+            try:
+                return level_df[terms].any().any()
+            except KeyError:
+                return
+
+        # Filter out any intermediate FM levels from the original list of FM
+        # levels which have no financial terms
+        fm_levels = [
+            l for l in fm_levels[1:-1] if has_nonzero_financial_terms(il_inputs_df, [v for v in viewvalues(fm_terms[l][1]) if v])
+        ]
+
+        # Define a list of all supported OED coverage types in the exposure
         all_cov_types = [
             v['id'] for k, v in viewitems(OED_COVERAGE_TYPES) if k in ['buildings','other','contents','bi']
         ]
 
+        # Various helper methods to process the financial terms for the 
+        # intermediate FM levels
         def set_non_coverage_level_financial_terms(level_df, level, terms_and_defaults):
             n = len(level_df)
             for term, default in viewitems(terms_and_defaults):
@@ -401,19 +417,11 @@ def get_il_input_items(
                     level_df[term] = [default or 0.0] * n
             return level_df
 
-        def has_nonzero_financial_terms(level_df, terms):
-            return level_df[terms].any().any()
-
         def get_deductible_code(row):
             return 0 if (row['deductible'] == 0 or row['deductible'] >= 1) else 2
 
         def get_limit_code(row):
             return 0 if (row['limit'] == 0 or row['limit'] >= 1) else 2
-
-        # This is used to store the level IDs prior to any resequencing of the
-        # levels as a result of removing levels with no financial terms, as
-        # determined by the value of ``reduced``
-        orig_levels = set()
 
         # A helper method to resequence the levels in the current IL inputs frame
         def reset_levels(levels_df, orig_levels):
@@ -452,19 +460,23 @@ def get_il_input_items(
         # ``share`` term
         terms = ('deductible', 'deductible_min', 'deductible_max', 'limit',)
 
+        # This is used to store the level IDs prior to any resequencing of the
+        # levels as a result of removing levels with no financial terms, as
+        # determined by the value of ``reduced``
+        orig_levels = set()
+
         # The main loop for processing the financial terms for each sub-layer
         # non-coverage level (currently, 2, 3, 6, 9), including setting the 
         # calc. rule IDs, and append each level to the current IL inputs frame
-        for level in fm_levels[1:-1]:
+        for level in fm_levels:
             level_df = il_inputs_df[il_inputs_df['level_id'] == 1].copy(deep=True)
             level_df['level_id'] = [level] * n
             set_non_coverage_level_financial_terms(level_df, level, {t: 0.0 for t in terms})
-            if has_nonzero_financial_terms(level_df, list(terms)) or not reduced:
-                level_df['deductible_code'] = level_df.apply(get_deductible_code, axis=1)
-                level_df['limit_code'] = level_df.apply(get_limit_code, axis=1)
-                level_df['calcrule_id'] = level_df.apply(_get_sub_layer_calcrule_id, axis=1)
-                level_df['agg_id'] = set_level_agg_ids(level_df, level)
-                il_inputs_df = pd.concat([il_inputs_df, level_df], ignore_index=True)
+            level_df['deductible_code'] = level_df.apply(get_deductible_code, axis=1)
+            level_df['limit_code'] = level_df.apply(get_limit_code, axis=1)
+            level_df['calcrule_id'] = level_df.apply(_get_sub_layer_calcrule_id, axis=1)
+            level_df['agg_id'] = set_level_agg_ids(level_df, level)
+            il_inputs_df = pd.concat([il_inputs_df, level_df], ignore_index=True)
 
         # Resequence the index and item IDs, as the earlier repeated
         # concatenation would have produced a non-sequential index
@@ -502,9 +514,8 @@ def get_il_input_items(
         il_inputs_df = pd.concat([il_inputs_df, layer_df], ignore_index=True)
 
         # Resequence the levels in the main IL inputs frame - this is necessary
-        # as the ``reduced`` option would mean that some intermediate levels
-        # with no financial terms would have been removed, thereby producing
-        # non-sequential levels
+        # as the earlier filtering out of intermediate FM levels with no
+        # financial terms would have produced a non-sequential list of FM levels
         il_inputs_df['level_id'] = reset_levels(il_inputs_df, orig_levels)
 
         # Resequence the index and item IDs
