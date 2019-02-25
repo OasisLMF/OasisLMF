@@ -216,28 +216,31 @@ def get_il_input_items(
     reduced=True
 ):
     """
-    Generates and returns a frame of IL input items.
+    Generates and returns a Pandas dataframe of IL input items.
 
     :param exposure_df: OED source exposure
     :type exposure_df: pandas.DataFrame
 
-    :param accounts_df: OED source accounts
-    :param accounts_df: pandas.DataFrame
-
     :param gul_inputs_df: GUL input items
     :type gul_inputs_df: pandas.DataFrame
 
-    :param exposure_profile: Source exposure profile
+    :param accounts_df: OED source accounts dataframe (optional)
+    :param accounts_df: pandas.DataFrame
+
+    :param accounts_df: OED source accounts file path (optional)
+    :param accounts_df: str
+
+    :param exposure_profile: Source exposure profile (optional)
     :type exposure_profile: dict
 
-    :param accounts_profile: Source accounts profile
+    :param accounts_profile: Source accounts profile (optional)
     :type accounts_profile: dict
 
-    :param fm_aggregation_profile: FM aggregation profile
+    :param fm_aggregation_profile: FM aggregation profile (optional)
     :param fm_aggregation_profile: dict
 
     :param reduced: Whether to reduce the IL input items table by removing any
-                    items with zero financial terms
+                    items with zero financial terms (optional)
     :param reduced: bool
     """
     # Get the accounts frame either directly or from a file path if provided
@@ -252,10 +255,10 @@ def get_il_input_items(
 
     # Get the OED profiles describing exposure, accounts, and using these also
     # unified exposure + accounts profile and the aggregation profile
-    cep = exposure_profile
-    cap = accounts_profile
+    exppf = exposure_profile
+    accpf = accounts_profile
     
-    ufp = unified_fm_profile_by_level_and_term_group(profiles=(cep, cap,))
+    ufp = unified_fm_profile_by_level_and_term_group(profiles=(exppf, accpf,))
 
     if not ufp:
         raise OasisException(
@@ -696,7 +699,9 @@ def write_il_input_files(
         fmsummaryxref.csv
     """
     # Get the accounts frame either directly or from a file path if provided
-    accounts_df = accounts_df if accounts_df is not None else get_dataframe(src_fp=accounts_fp)
+    accounts_df = accounts_df if accounts_df is not None else get_dataframe(
+        src_fp=accounts_fp, empty_data_error_msg='No source accounts information found in the source accounts file'
+    )
 
     if not (accounts_df is not None or accounts_fp):
         raise OasisException('No accounts frame or file path provided')
