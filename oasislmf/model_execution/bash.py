@@ -458,7 +458,10 @@ def do_kwaits(filename, process_counter):
     do_waits('kpid', process_counter['kpid_monitor_count'], filename)
 
 
-def get_getmodel_cmd(number_of_samples, gul_threshold, use_random_number_file, coverage_output, item_output, **kwargs):
+def get_getmodel_cmd(
+    number_of_samples, gul_threshold, use_random_number_file, 
+    coverage_output, item_output,
+    process_id, max_process_id, **kwargs):
     """
     Gets the getmodel ktools command
 
@@ -480,7 +483,9 @@ def get_getmodel_cmd(number_of_samples, gul_threshold, use_random_number_file, c
     :return: The generated getmodel command
     """
 
-    cmd = 'getmodel | gulcalc -S{} -L{}'.format(number_of_samples, gul_threshold)
+    cmd = 'eve {0} {1} | getmodel | gulcalc -S{2} -L{3}'.format(
+        process_id, max_process_id,
+        number_of_samples, gul_threshold)
 
     if use_random_number_file:
         cmd = '{} -r'.format(cmd)
@@ -638,10 +643,11 @@ def genbash(
             }
             getmodel_args.update(custom_args)
             getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
-            main_cmd = 'eve {0} {1} | {2} | fmcalc -a {3} | tee {4}fifo/il_P{0}'.format(
+            main_cmd = '{2} | fmcalc -a {3} > {4}fifo/il_P{0}  &'.format(
                 process_id, max_process_id, getmodel_cmd,
                 alloc_rule,
                 fifo_queue_dir)
+
             for i in range(1, num_reinsurance_iterations + 1):
                 main_cmd = "{0} | fmcalc -a {3} -n -p RI_{2}".format(
                     main_cmd, os.sep, i, ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID)
@@ -665,7 +671,7 @@ def genbash(
             }
             getmodel_args.update(custom_args)
             getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
-            main_cmd = 'eve {0} {1} | {2} | fmcalc -a {3} > {4}fifo/il_P{0}  &'.format(
+            main_cmd = '{2} | fmcalc -a {3} > {4}fifo/il_P{0}  &'.format(
                 process_id, max_process_id, getmodel_cmd,
                 alloc_rule,
                 fifo_queue_dir)
@@ -689,7 +695,7 @@ def genbash(
                 getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
                 print_command(
                     filename,
-                    'eve {0} {1} | {2} > {3}fifo/gul_P{0}  &'.format(process_id, max_process_id, getmodel_cmd, fifo_queue_dir)
+                    '{2} > {3}fifo/gul_P{0}  &'.format(process_id, max_process_id, getmodel_cmd, fifo_queue_dir)
                 )
             if il_output and 'il_summaries' in analysis_settings:
                 getmodel_args = {
@@ -705,7 +711,7 @@ def genbash(
                 getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
                 print_command(
                     filename,
-                    "eve {0} {1} | {2} | fmcalc -a {3} > {4}fifo/il_P{0}  &".format(
+                    "{2} | fmcalc -a {3} > {4}fifo/il_P{0}  &".format(
                         process_id, max_process_id, getmodel_cmd,
                         alloc_rule,
                         fifo_queue_dir)

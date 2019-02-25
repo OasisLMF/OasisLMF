@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 from future.utils import viewitems
 
 INPUT_FILES = {
+    'complex_items': {'name': 'complex_items', 'type': 'gul', 'conversion_tool': 'complex_itemtobin'},
     'items': {'name': 'items', 'type': 'gul', 'conversion_tool': 'itemtobin'},
     'coverages': {'name': 'coverages', 'type': 'gul', 'conversion_tool': 'coveragetobin'},
     'gulsummaryxref': {'name': 'gulsummaryxref', 'type': 'gul', 'conversion_tool': 'gulsummaryxreftobin'},

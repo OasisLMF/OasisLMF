@@ -14,7 +14,8 @@ __all__ = [
     'write_coverages_file',
     'write_gulsummaryxref_file',
     'write_gul_input_files',
-    'write_items_file'
+    'write_items_file',
+    'write_complex_items_file'
 ]
 
 import os
@@ -152,13 +153,20 @@ def get_gul_input_items(
                     'deductible_min': _it.get(fm_terms[tiv_tgid].get('deductiblemin') or None) or 0.0,
                     'deductible_max': _it.get(fm_terms[tiv_tgid].get('deductiblemax') or None) or 0.0,
                     'limit': _it.get(fm_terms[tiv_tgid].get('limit') or None) or 0.0,
-                    'areaperil_id': _it['areaperilid'],
-                    'vulnerability_id': _it['vulnerabilityid'],
                     'agg_id': item_id,
                     'group_id': group_id,
                     'summary_id': 1,
                     'summaryset_id': 1
                 }
+
+                if "modeldata" in _it:
+                    it["model_data"] = _it["modeldata"]
+                    it['areaperil_id'] = -1
+                    it['vulnerability_id'] = -1
+                else:
+                    it['areaperil_id'] = _it['areaperilid'],
+                    it['vulnerability_id'] = _it['vulnerabilityid']
+
                 if it['deductible'] < 1:
                     it['deductible'] *= it['tiv']
                 if it['limit'] < 1:
@@ -194,6 +202,23 @@ def get_gul_input_items(
         raise OasisException(e)
 
     return gul_inputs_df, exposure_df
+
+
+def write_complex_items_file(gul_inputs_df, items_fp):
+    """
+    Writes an items file.
+    """
+    try:
+        if "model_data" in gul_inputs_df.columns:
+            gul_inputs_df.to_csv(
+                columns=['item_id', 'coverage_id', 'model_data', 'group_id'],
+                path_or_buf=items_fp,
+                encoding='utf-8',
+                chunksize=1000,
+                index=False
+            )
+    except (IOError, OSError) as e:
+        raise OasisException(e)
 
 
 def write_items_file(gul_inputs_df, items_fp):
@@ -258,6 +283,7 @@ def write_gul_input_files(
     exposure_profile=get_default_exposure_profile(),
     oasis_files_prefixes={
         'items': 'items',
+        'complex_items': 'complex_items',        
         'coverages': 'coverages',
         'gulsummaryxref': 'gulsummaryxref'
     },
@@ -279,11 +305,14 @@ def write_gul_input_files(
         gul_inputs_df.to_csv(path_or_buf=os.path.join(target_dir, 'gul_inputs.csv'), index=False, encoding='utf-8', chunksize=1000)
 
     gul_input_files = {
-        k: os.path.join(target_dir, '{}.csv'.format(oasis_files_prefixes[k])) for k in viewkeys(oasis_files_prefixes)
+        k: os.path.join(target_dir, '{}.csv'.format(oasis_files_prefixes[k])) 
+        for k in viewkeys(oasis_files_prefixes)
     }
 
     concurrent_tasks = (
-        Task(getattr(sys.modules[__name__], 'write_{}_file'.format(f)), args=(gul_inputs_df.copy(deep=True), gul_input_files[f],), key=f)
+        Task(
+            getattr(sys.modules[__name__], 'write_{}_file'.format(f)), 
+            args=(gul_inputs_df.copy(deep=True), gul_input_files[f],), key=f)
         for f in gul_input_files
     )
     num_ps = min(len(gul_input_files), multiprocessing.cpu_count())
