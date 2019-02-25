@@ -3,6 +3,8 @@
 __all__ = [
     'as_path',
     'empty_dir',
+    'PathCleaner',
+    'setcwd'
 ]
 
 import os

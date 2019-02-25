@@ -9,6 +9,7 @@ __all__ = [
 
 import copy
 import io
+import filecmp
 import json
 import logging
 import multiprocessing
@@ -73,6 +74,7 @@ from .utils.defaults import (
 )
 from .utils.peril import PerilAreasIndex
 from .utils.path import (
+    as_path,
     empty_dir,
     setcwd,
 )
@@ -301,20 +303,17 @@ class OasisManager(object):
         # analysis/run - the CLI supports deterministic analyses via a command
         # `oasislmf exposure run` which requires a preexisting input files
         # directory, which is usually the same as the analysis/output directory
-        deterministic = not(lookup_config or keys_data_fp or model_version_fp or lookup_package_fp)
+        deterministic = not((lookup_config or lookup_config_fp) or (keys_data_fp and model_version_fp and lookup_package_fp))
 
         # Prepare the target directory and copy the source files, profiles and
         # model version file into it
+        target_dir = as_path(target_dir, 'target Oasis files directory', is_dir=True, preexists=False)
         if not os.path.exists(target_dir):
             Path(target_dir).mkdir(parents=True, exist_ok=True)
-        else:
-            empty_dir(target_dir) if not deterministic else None
 
         for p in (exposure_fp, exposure_profile_fp, accounts_fp, accounts_profile_fp, fm_aggregation_profile_fp, lookup_config_fp, model_version_fp, ri_info_fp, ri_scope_fp):
-            if p in os.listdir(target_dir):
-                os.remove(p)
-            if p and os.path.exists(p) and p != os.path.join(target_dir, os.path.basename(p)):
-                    shutil.copy2(p, target_dir)
+            if p and os.path.exists(p):
+                shutil.copy2(p, target_dir) if not filecmp.cmp(p, os.path.join(target_dir, os.path.basename(p)), shallow=False) else None
 
         # Get the exposure + accounts + FM aggregation profiles + lookup
         # config. profiles either from the optional arguments if present, or
@@ -322,9 +321,10 @@ class OasisManager(object):
         exposure_profile = exposure_profile or get_json(src_fp=exposure_profile_fp) or self.exposure_profile
         accounts_profile = accounts_profile or get_json(src_fp=accounts_profile_fp) or self.accounts_profile
         fm_aggregation_profile = fm_aggregation_profile or get_json(src_fp=fm_aggregation_profile_fp, key_transform=int) or self.fm_aggregation_profile
+
         lookup_config = get_json(src_fp=lookup_config_fp) or lookup_config
         if lookup_config:
-            lookup_config['keys_data_path'] = os.path.dirname(lookup_config_fp)
+            lookup_config['keys_data_path'] = os.path.abspath(os.path.dirname(lookup_config_fp))
 
         # Generate keys and keys errors files - if no lookup assets provided
         # then assume the caller is trying to generate Oasis files for
@@ -374,8 +374,8 @@ class OasisManager(object):
         il_input_files, _, _ = write_il_input_files(
             exposure_df,
             gul_inputs_df,
-            accounts_fp,
             target_dir,
+            accounts_fp=accounts_fp,
             exposure_profile=exposure_profile,
             accounts_profile=accounts_profile,
             fm_aggregation_profile=fm_aggregation_profile,
