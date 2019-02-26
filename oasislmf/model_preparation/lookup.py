@@ -122,10 +122,12 @@ class OasisBaseLookup(object):
 
         self._coverage_type_col = peril_config.get('coverage_type_col') or 'coverage_type'
 
+        self._config.setdefault('exposure', self._config.get('exposure') or self._config.get('locations') or {})
+
         self.__tweak_config_data__()
 
     def __tweak_config_data__(self):
-        for section in ('locations', 'peril', 'vulnerability',):
+        for section in ('exposure', 'locations', 'peril', 'vulnerability',):
             section_config = self._config.get(section) or {}
             for k, v in viewitems(section_config):
                 if is_string(v) and '%%KEYS_DATA_PATH%%' in v:
