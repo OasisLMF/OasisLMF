@@ -37,10 +37,11 @@ from ..utils.data import (
     get_dataframe,
     merge_dataframes,
 )
+from ..utils.defaults import get_default_exposure_profile
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
-from ..utils.metadata import OED_COVERAGE_TYPES
-from ..utils.defaults import get_default_exposure_profile
+from ..utils.metadata import COVERAGE_TYPES
+from ..utils.path import as_path
 from .il_inputs import (
     get_sub_layer_calcrule_id,
     unified_fm_profile_by_level_and_term_group,
@@ -69,8 +70,16 @@ def get_gul_input_items(
     """
     gul_inputs_df = pd.DataFrame()
 
-    exposure_df = get_dataframe(src_fp=exposure_fp, empty_data_error_msg='No source exposure found in the source exposure (loc.) file')
-    keys_df = get_dataframe(src_fp=keys_fp, empty_data_error_msg='No keys found in the keys file')
+    exposure_df = get_dataframe(
+        src_fp=exposure_fp,
+        col_dtypes={'LocNumber': 'str', 'AccNumber': 'str', 'PortNumber': 'str'},
+        empty_data_error_msg='No exposure found in the source exposure (loc.) file'
+    )
+    keys_df = get_dataframe(
+        src_fp=keys_fp,
+        col_dtypes={'LocID': 'str'},
+        empty_data_error_msg='No keys found in the keys file'
+    )
 
     exppf = exposure_profile
 
@@ -85,18 +94,14 @@ def get_gul_input_items(
     id_terms = unified_id_terms(unified_profile_by_level_and_term_group=ufp)
     loc_id = id_terms['locid']
     acc_id = id_terms['accid']
+    policy_num = id_terms['polid']
+    portfolio_num = id_terms['portid']
 
     fm_levels = tuple(ufp)[1:]
 
     try:
         for df in [exposure_df, keys_df]:
             df['index'] = df.get('index', range(len(df)))
-
-        if not str(exposure_df[loc_id].dtype).startswith('int'):
-            exposure_df[loc_id] = exposure_df[loc_id].astype(int)
-
-        if not str(keys_df['locid'].dtype).startswith('int'):
-            keys_df['locid'] = keys_df['locid'].astype(int)
 
         expkeys_df = merge_dataframes(exposure_df, keys_df, left_on=loc_id, right_on='locid', how='outer')
 
@@ -134,11 +139,12 @@ def get_gul_input_items(
                 it = {
                     'item_id': item_id,
                     'loc_id': _it[loc_id],
+                    'portfolio_num': _it[portfolio_num],
                     'acc_id': _it[acc_id],
                     'peril_id': _it['perilid'],
                     'coverage_type_id': _it['coveragetypeid'],
                     'coverage_id': item_id,
-                    'is_bi_coverage': _it['coveragetypeid'] == OED_COVERAGE_TYPES['bi']['id'],
+                    'is_bi_coverage': _it['coveragetypeid'] == COVERAGE_TYPES['bi']['id'],
                     'tiv_elm': tiv_elm,
                     'tiv': tiv,
                     'tiv_tgid': tiv_tgid,
@@ -153,16 +159,15 @@ def get_gul_input_items(
                     'summary_id': 1,
                     'summaryset_id': 1
                 }
-
-                it['deductible_code'] = 0 if (it['deductible'] == 0 or it['deductible'] >= 1) else 2
-                it['limit_code'] = 0 if (it['limit'] == 0 or it['limit'] >= 1) else 2
+                if it['deductible'] < 1:
+                    it['deductible'] *= it['tiv']
+                if it['limit'] < 1:
+                    it['limit'] *= it['tiv']
                 it['calcrule_id'] = get_sub_layer_calcrule_id(
                     it['deductible'],
                     it['deductible_min'],
                     it['deductible_max'],
-                    it['limit'],
-                    ded_code=it['deductible_code'],
-                    lim_code=it['limit_code']
+                    it['limit']
                 )
 
                 yield it
@@ -179,7 +184,7 @@ def get_gul_input_items(
 
     try:
         for col in gul_inputs_df.columns:
-            if col == 'peril_id':
+            if col in ['peril_id', 'loc_id', 'acc_id', 'portfolio_num']:
                 gul_inputs_df[col] = gul_inputs_df[col].astype(object)
             elif col.endswith('id'):
                 gul_inputs_df[col] = gul_inputs_df[col].astype(int)
@@ -265,9 +270,12 @@ def write_gul_input_files(
         coverages.csv
         gulsummaryxref.csv
     """
-    gul_inputs_df, exposure_df = get_gul_input_items(exposure_fp, keys_fp)
+    # Clean the target directory path
+    target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
 
-    if write_gul_input_files:
+    gul_inputs_df, exposure_df = get_gul_input_items(exposure_fp, keys_fp, exposure_profile=exposure_profile)
+
+    if write_inputs_table_to_file:
         gul_inputs_df.to_csv(path_or_buf=os.path.join(target_dir, 'gul_inputs.csv'), index=False, encoding='utf-8', chunksize=1000)
 
     gul_input_files = {

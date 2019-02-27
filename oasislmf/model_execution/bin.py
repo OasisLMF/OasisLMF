@@ -9,6 +9,11 @@
 from __future__ import print_function
 
 __all__ = [
+    'check_binary_tar_file',
+    'check_conversion_tools',
+    'check_inputs_directory',
+    'cleanup_bin_directory',
+    'create_binary_tar_file',
     'csv_to_bin',
     'prepare_run_directory',
     'prepare_run_inputs'

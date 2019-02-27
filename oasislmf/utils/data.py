@@ -14,7 +14,7 @@ __all__ = [
     'get_json',
     'get_timestamp',
     'get_utctimestamp',
-    'merge_dataframe',
+    'merge_dataframes',
     'PANDAS_BASIC_DTYPES'
 ]
 
@@ -47,6 +47,7 @@ PANDAS_BASIC_DTYPES = {
     builtins.float: np.float64,
     'bool': np.bool,
     builtins.bool: np.bool,
+    'object': np.object,
     'str': np.object,
     builtins.str: np.object
 }
@@ -128,7 +129,7 @@ def get_dataframe(
 
     if col_dtypes:
         _col_dtypes = {
-            (k.lower() if lowercase_cols else k): (getattr(builtins, v) if v in ('int', 'bool', 'float', 'str',) else v) for k, v in viewitems(col_dtypes)
+            (k.lower() if lowercase_cols else k): (getattr(builtins, v) if v in ('int', 'bool', 'float', 'object', 'str',) else v) for k, v in viewitems(col_dtypes)
         }
         for col, dtype in viewitems(_col_dtypes):
             df[col] = df[col].astype(PANDAS_BASIC_DTYPES[dtype])

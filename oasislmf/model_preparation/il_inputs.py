@@ -66,8 +66,8 @@ from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.path import as_path
 from ..utils.metadata import (
-    OED_COVERAGE_TYPES,
-    OED_FM_LEVELS,
+    COVERAGE_TYPES,
+    FM_LEVELS,
 )
 
 
@@ -256,7 +256,11 @@ def get_il_input_items(
     :param reduced: bool
     """
     # Get the accounts frame either directly or from a file path if provided
-    accounts_df = accounts_df if accounts_df is not None else get_dataframe(src_fp=accounts_fp)
+    accounts_df = accounts_df if accounts_df is not None else get_dataframe(
+        src_fp=accounts_fp,
+        col_dtypes={'AccNumber': 'str', 'PolNumber': 'str', 'PortNumber': 'str'},
+        empty_data_error_msg='No accounts found in the source accounts (loc.) file'
+    )
 
     if not (accounts_df is not None or accounts_fp):
         raise OasisException('No accounts frame or file path provided')
@@ -350,7 +354,7 @@ def get_il_input_items(
         # level inputs for layer 1 items only, we layer the items by using a
         # dictionary of distinct account/policy. no. combinations
         layers = OrderedDict({
-            (k, p): tuple(v[policy_num].unique()).index(p) + 1 for k, v in il_inputs_df.groupby(['acc_id']) for p in v['policy_num'].unique()
+            (int(k), int(p)): tuple(v[policy_num].unique()).index(p) + 1 for k, v in il_inputs_df.groupby(['acc_id']) for p in v['policy_num'].unique()
         })
 
         def get_layer_id(row):
@@ -395,7 +399,7 @@ def get_il_input_items(
 
         # Define a list of all supported OED coverage types in the exposure
         all_cov_types = [
-            v['id'] for k, v in viewitems(OED_COVERAGE_TYPES) if k in ['buildings','other','contents','bi']
+            v['id'] for k, v in viewitems(COVERAGE_TYPES) if k in ['buildings','other','contents','bi']
         ]
 
         # Various helper methods to process the financial terms for the 
@@ -416,6 +420,13 @@ def get_il_input_items(
                 if not level_df[term].any():
                     level_df[term] = [default or 0.0] * n
             return level_df
+
+        def convert_fractional_terms_to_wholes(level_df, terms):
+            for term in terms:
+                def prod(_df):
+                    return _df['tiv'] * _df[term]
+                level_df['temp'] = prod(level_df[['tiv', term]].where(level_df[term] < 1))
+                level_df[term] = level_df[[term, 'temp']].max(axis=1)
 
         def get_deductible_code(row):
             return 0 if (row['deductible'] == 0 or row['deductible'] >= 1) else 2
@@ -472,6 +483,7 @@ def get_il_input_items(
             level_df = il_inputs_df[il_inputs_df['level_id'] == 1].copy(deep=True)
             level_df['level_id'] = [level] * n
             set_non_coverage_level_financial_terms(level_df, level, {t: 0.0 for t in terms})
+            convert_fractional_terms_to_wholes(level_df, terms)
             level_df['deductible_code'] = level_df.apply(get_deductible_code, axis=1)
             level_df['limit_code'] = level_df.apply(get_limit_code, axis=1)
             level_df['calcrule_id'] = level_df.apply(_get_sub_layer_calcrule_id, axis=1)
@@ -735,18 +747,11 @@ def write_il_input_files(
     # Clean the target directory path
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
 
-    # Get the accounts frame either directly or from a file path if provided
-    accounts_df = accounts_df if accounts_df is not None else get_dataframe(
-        src_fp=accounts_fp, empty_data_error_msg='No source accounts information found in the source accounts file'
-    )
-
-    if not (accounts_df is not None or accounts_fp):
-        raise OasisException('No accounts frame or file path provided')
-
     il_inputs_df, _ = get_il_input_items(
         exposure_df,
         gul_inputs_df,
         accounts_df=accounts_df,
+        accounts_fp=accounts_fp,
         exposure_profile=exposure_profile,
         accounts_profile=accounts_profile,
         fm_aggregation_profile=fm_aggregation_profile

@@ -36,7 +36,7 @@ class BuildCmd(OasisBaseCommand):
         )
 
         parser.add_argument(
-            '--do-il', action='store_true',
+            '--il', action='store_true',
             help='Flag to build insured loss calculation binaries.'
         )
 
@@ -54,9 +54,9 @@ class BuildCmd(OasisBaseCommand):
         """
         destination = args.destination or args.source
 
-        check_conversion_tools(do_il=args.do_il)
-        check_inputs_directory(args.source, do_il=args.do_il, check_binaries=False)
-        csv_to_bin(args.source, destination, do_il=args.do_il)
+        check_conversion_tools(il=args.il)
+        check_inputs_directory(args.source, il=args.il, check_binaries=False)
+        csv_to_bin(args.source, destination, il=args.il)
 
         if args.build_tar:
             create_binary_tar_file(destination)
@@ -111,7 +111,7 @@ class CheckCmd(OasisBaseCommand):
         )
 
         parser.add_argument(
-            '--do-il', action='store_true',
+            '--il', action='store_true',
             help='Flag to check insured loss calculation inputs.'
         )
 
@@ -127,8 +127,8 @@ class CheckCmd(OasisBaseCommand):
         :param args: The arguments from the command line
         :type args: Namespace
         """
-        check_inputs_directory(args.target, do_il=args.do_il, check_binaries=args.check_binaries)
-        check_conversion_tools(do_il=args.do_il)
+        check_inputs_directory(args.target, il=args.il, check_binaries=args.check_binaries)
+        check_conversion_tools(il=args.il)
 
 
 class BinCmd(OasisBaseCommand):

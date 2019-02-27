@@ -72,7 +72,7 @@ from .utils.data import (
 )
 from .utils.exceptions import OasisException
 from .utils.log import oasis_log
-from .utils.metadata import OED_COVERAGE_TYPES
+from .utils.metadata import COVERAGE_TYPES
 from .utils.defaults import (
     get_default_accounts_profile,
     get_default_deterministic_analysis_settings,
@@ -110,7 +110,7 @@ class OasisManager(object):
     ):
         # Set defaults for static data or runtime parameters
         self._exposure_profile = exposure_profile or get_default_exposure_profile()
-        self._supported_oed_coverage_types = supported_oed_coverage_types or tuple(OED_COVERAGE_TYPES[k]['id'] for k in OED_COVERAGE_TYPES if k not in ['pd', 'all'])
+        self._supported_oed_coverage_types = supported_oed_coverage_types or tuple(COVERAGE_TYPES[k]['id'] for k in COVERAGE_TYPES if k not in ['pd', 'all'])
         self._accounts_profile = accounts_profile or get_default_accounts_profile()
         self._fm_aggregation_profile = fm_aggregation_profile or get_default_fm_aggregation_profile()
         self._deterministic_analysis_settings = deterministic_analysis_settings or get_default_deterministic_analysis_settings()
@@ -550,7 +550,7 @@ class OasisManager(object):
 
         ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(input_dir))
 
-        csv_to_bin(input_dir, input_dir, il=il, ri=ri)
+        csv_to_bin(input_dir, output_dir, il=il, ri=ri)
 
         # Generate an items and coverages dataframe and set column types (important!!)
         items_df = pd.merge(

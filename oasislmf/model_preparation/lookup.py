@@ -508,7 +508,7 @@ class OasisLookupFactory(object):
 
         _source_exposure_fp = as_path(source_exposure_fp, 'source_exposure_fp', preexists=(True if not source_exposure else False))
 
-        loc_config = lookup.config.get('exposure') or {}
+        loc_config = lookup.config.get('exposure') or lookup.config.get('locations') or {}
         src_type = 'csv'
 
         kwargs = {
@@ -712,7 +712,7 @@ class OasisLookup(OasisBaseLookup):
             config_dir=config_dir,
         )
 
-        loc_config = self.config.get('exposure')
+        loc_config = self.config.get('exposure') or lookup.config.get('locations')
         self.loc_id_col = str.lower(str(loc_config.get('id_col') or loc_id_col))
 
         self.peril_lookup = OasisPerilLookup(
@@ -860,7 +860,7 @@ class OasisPerilLookup(OasisBaseLookup):
                 self.config['peril'].get('loc_to_global_areas_boundary_min_distance') or 0
             )
 
-        if self.config.get('exposure'):
+        if self.config.get('exposure') or self.config.get('locations'):
             self.loc_id_col = str.lower(str(self.config['exposure'].get('id_col') or loc_id_col))
             self.loc_coords_x_col = str.lower(str(self.config['exposure'].get('coords_x_col')) or 'lon')
             self.loc_coords_y_col = str.lower(str(self.config['exposure'].get('coords_y_col')) or 'lat')
@@ -997,7 +997,7 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
         if vulnerabilities or self.config.get('vulnerability'):
             self.col_dtypes, self.key_cols, self.vuln_id_col, self.vulnerabilities = self.get_vulnerabilities(vulnerabilities=vulnerabilities)
 
-        if self.config.get('exposure'):
+        if self.config.get('exposure') or self.config.get('locations'):
             self.loc_id_col = str.lower(str(self.config['exposure'].get('id_col') or loc_id_col))
 
     @oasis_log()
