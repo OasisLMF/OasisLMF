@@ -26,7 +26,12 @@ import shutil
 from builtins import str
 from collections import OrderedDict
 from future.utils import viewitems
-from json import JSONDecodeError
+
+try:
+    from json import JSONDecodeError
+except ImportError:
+    from builtins import ValueError as JSONDecodeError
+
 from subprocess import (
     CalledProcessError,
     check_call,

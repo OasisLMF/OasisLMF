@@ -25,7 +25,12 @@ import sys
 
 from datetime import datetime
 from future.utils import viewitems
-from json import JSONDecodeError
+
+try:
+    from json import JSONDecodeError
+except ImportError:
+    from builtins import ValueError as JSONDecodeError
+
 from tabulate import tabulate
 
 import numpy as np
