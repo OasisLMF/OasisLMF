@@ -354,7 +354,7 @@ def get_il_input_items(
         # level inputs for layer 1 items only, we layer the items by using a
         # dictionary of distinct account/policy. no. combinations
         layers = OrderedDict({
-            (int(k), int(p)): tuple(v[policy_num].unique()).index(p) + 1 for k, v in il_inputs_df.groupby(['acc_id']) for p in v['policy_num'].unique()
+            (k, p): tuple(v[policy_num].unique()).index(p) + 1 for k, v in il_inputs_df.groupby(['acc_id']) for p in v['policy_num'].unique()
         })
 
         def get_layer_id(row):
