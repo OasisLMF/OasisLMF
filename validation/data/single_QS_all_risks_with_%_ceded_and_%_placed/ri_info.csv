@@ -1,2 +1,0 @@
-ReinsNumber,ReinsLayerNumber,ReinsName,ReinsPerilCode,ReinsInceptionDate,ReinsExpiryDate,CededPercent,RiskLimit,RiskAttachment,OccLimit,OccAttachment,OccurenceFranchiseDed,OccurenceReverseFranchise,AggregateLimit,AggregateAttachmentPoint,ReinsCurrency,InuringPriority,ReinsType,AttachmentBasis,ReinstatementNumber,ReinstatementCharge,ReinsPremium,ReinsHoursClause,PlacedPercent,DeemedPercentPlaced,ReinsFXrate,TreatyShare,UseReinsDates
-1,1,ABC QS,WW1,1/1/2018,31/12/2018,0.5,0,0,0,0,0,0,0,0,USD,1,QS,LO,99,0,6,,0.8,1,1,1,No

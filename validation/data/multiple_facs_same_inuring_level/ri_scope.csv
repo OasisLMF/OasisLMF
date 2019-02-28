@@ -1,5 +1,0 @@
-ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsTag,CededPercent,RiskLevel
-1,1,1,1,,1,,,,,,1.0,LOC
-2,1,1,1,,2,,,,,,1.0,LOC
-3,1,1,1,,,,,,,,1.0,POL
-4,1,2,,,,,,,,,1.0,ACC
