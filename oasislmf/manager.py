@@ -678,8 +678,8 @@ class OasisManager(object):
         )
 
         losses = self.generate_deterministic_losses(
-            output_dir,
             input_dir,
+            output_dir=output_dir,
             loss_percentage_of_tiv=loss_percentage_of_tiv,
             net=net
         )
