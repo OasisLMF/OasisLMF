@@ -23,8 +23,8 @@ class CheckCmdRun(TestCase):
         res = cmd.run()
 
         self.assertEqual(0, res)
-        check_inputs_mock.assert_called_once_with(os.path.abspath('.'), do_il=False, check_binaries=False)
-        check_conv_tools.assert_called_once_with(do_il=False)
+        check_inputs_mock.assert_called_once_with(os.path.abspath('.'), il=False, check_binaries=False)
+        check_conv_tools.assert_called_once_with(il=False)
 
     @patch('oasislmf.cli.bin.check_inputs_directory')
     @patch('oasislmf.cli.bin.check_conversion_tools')
@@ -35,20 +35,20 @@ class CheckCmdRun(TestCase):
             res = cmd.run()
 
             self.assertEqual(0, res)
-            check_inputs_mock.assert_called_once_with(d, do_il=False, check_binaries=False)
-            check_conv_tools.assert_called_once_with(do_il=False)
+            check_inputs_mock.assert_called_once_with(d, il=False, check_binaries=False)
+            check_conv_tools.assert_called_once_with(il=False)
 
     @patch('oasislmf.cli.bin.check_inputs_directory')
     @patch('oasislmf.cli.bin.check_conversion_tools')
     def test_do_il_is_true___il_input_files_are_checked(self, check_conv_tools, check_inputs_mock):
         with TemporaryDirectory() as d:
-            cmd = get_command(target_dir=d, extras={'do-il': ''})
+            cmd = get_command(target_dir=d, extras={'il': ''})
 
             res = cmd.run()
 
             self.assertEqual(0, res)
-            check_inputs_mock.assert_called_once_with(d, do_il=True, check_binaries=False)
-            check_conv_tools.assert_called_once_with(do_il=True)
+            check_inputs_mock.assert_called_once_with(d, il=True, check_binaries=False)
+            check_conv_tools.assert_called_once_with(il=True)
 
     @patch('oasislmf.cli.bin.check_inputs_directory')
     @patch('oasislmf.cli.bin.check_conversion_tools')
@@ -59,5 +59,5 @@ class CheckCmdRun(TestCase):
             res = cmd.run()
 
             self.assertEqual(0, res)
-            check_inputs_mock.assert_called_once_with(d, do_il=False, check_binaries=True)
-            check_conv_tools.assert_called_once_with(do_il=False)
+            check_inputs_mock.assert_called_once_with(d, il=False, check_binaries=True)
+            check_conv_tools.assert_called_once_with(il=False)
