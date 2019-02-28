@@ -118,7 +118,7 @@ ECHO_CONVERSION_INPUT_FILES = {k: ChainMap({'conversion_tool': 'echo'}, v) for k
 
 def standard_input_files(min_size=0):
     return lists(
-        sampled_from([target['name'] for target in chain(itervalues(GUL_INPUT_FILES), itervalues(OPTIONAL_INPUT_FILES))]),
+        sampled_from([target['name'] for target in chain(viewvalues(GUL_INPUT_FILES), viewvalues(OPTIONAL_INPUT_FILES))]),
         min_size=min_size,
         unique=True,
     )
@@ -126,7 +126,7 @@ def standard_input_files(min_size=0):
 
 def il_input_files(min_size=0):
     return lists(
-        sampled_from([target['name'] for target in itervalues(IL_INPUT_FILES)]),
+        sampled_from([target['name'] for target in viewvalues(IL_INPUT_FILES)]),
         min_size=min_size,
         unique=True,
     )
@@ -134,7 +134,7 @@ def il_input_files(min_size=0):
 
 def tar_file_targets(min_size=0):
     return lists(
-        sampled_from([target['name'] + '.bin' for target in itervalues(INPUT_FILES)]),
+        sampled_from([target['name'] + '.bin' for target in viewvalues(INPUT_FILES)]),
         min_size=min_size,
         unique=True,
     )
