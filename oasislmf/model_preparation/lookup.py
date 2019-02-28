@@ -321,7 +321,7 @@ class OasisLookupFactory(object):
         )
 
     @classmethod
-    def get_source_exposure(cls, source_exposure=None, source_exposure_fp=None):
+    def get_exposure(cls, source_exposure=None, source_exposure_fp=None):
         """
         Get the source OED exposure/location data as a Pandas dataframe.
         """
@@ -468,7 +468,7 @@ class OasisLookupFactory(object):
         if not (source_exposure or source_exposure_fp):
             raise OasisException('No source exposures provided')
 
-        loc_df = cls.get_source_exposure(
+        loc_df = cls.get_exposure(
             source_exposure_fp=source_exposure_fp,
             source_exposure=source_exposure
         )
@@ -506,7 +506,7 @@ class OasisLookupFactory(object):
         if not peril_config:
             raise OasisException('No peril config defined in the lookup config')
 
-        _source_exposure_fp = as_path(source_exposure_fp, 'source_exposure_fp', preexists=(True if not source_exposure else False))
+        _source_exposure_fp = as_path(source_exposure_fp, 'Source exposure file path', preexists=(True if not source_exposure else False))
 
         loc_config = lookup.config.get('exposure') or lookup.config.get('locations') or {}
         src_type = 'csv'
@@ -521,9 +521,9 @@ class OasisLookupFactory(object):
             'sort_ascending': loc_config.get('sort_ascending')
         }
 
-        source_exposure_df = get_dataframe(**kwargs)
+        exposure_df = get_dataframe(**kwargs)
 
-        locations = (loc for _, loc in source_exposure_df.iterrows())
+        locations = (loc for _, loc in exposure_df.iterrows())
 
         for result in lookup.bulk_lookup(locations):
             if successes_only:
@@ -660,8 +660,8 @@ class OasisLookupFactory(object):
         else:
             results = cls.get_results(
                 lookup,
-                source_exposure=source_exposure,
-                source_exposure_fp=mfp,
+                exposure=source_exposure,
+                exposure_fp=mfp,
                 successes_only=(False if efp else True)
             )
 
