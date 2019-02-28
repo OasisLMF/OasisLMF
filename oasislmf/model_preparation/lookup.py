@@ -345,7 +345,7 @@ class OasisLookupFactory(object):
         Writes an Oasis keys file from an iterable of keys records.
         """
         heading_row = OrderedDict([
-            (loc_id_col, 'LocID'),
+            (id_col, 'LocID'),
             ('peril_id', 'PerilID'),
             ('coverage_type', 'CoverageTypeID'),
             ('area_peril_id', 'AreaPerilID'),
@@ -370,7 +370,7 @@ class OasisLookupFactory(object):
         Writes an Oasis keys errors file from an iterable of keys records.
         """
         heading_row = OrderedDict([
-            (loc_id_col, 'LocID'),
+            (id_col, 'LocID'),
             ('peril_id', 'PerilID'),
             ('coverage_type', 'CoverageTypeID'),
             ('message', 'Message'),
@@ -662,8 +662,8 @@ class OasisLookupFactory(object):
         else:
             results = cls.get_results(
                 lookup,
-                exposure=source_exposure,
-                exposure_fp=mfp,
+                source_exposure=source_exposure,
+                source_exposure_fp=mfp,
                 successes_only=(False if efp else True)
             )
 
@@ -687,10 +687,10 @@ class OasisLookupFactory(object):
             else:
                 loc_id_col = loc_id_col.lower()
             if efp:
-                fp1, n1 = cls.write_oasis_keys_file(successes, sfp, loc_id_col=loc_id_col)
-                fp2, n2 = cls.write_oasis_keys_errors_file(nonsuccesses, efp, loc_id_col=loc_id_col)
+                fp1, n1 = cls.write_oasis_keys_file(successes, sfp, id_col=loc_id_col)
+                fp2, n2 = cls.write_oasis_keys_errors_file(nonsuccesses, efp, id_col=loc_id_col)
                 return fp1, n1, fp2, n2
-            return cls.write_oasis_keys_file(successes, sfp, loc_id_col=loc_id_col)
+            return cls.write_oasis_keys_file(successes, sfp, id_col=loc_id_col)
         else:
             raise OasisException("Unrecognised lookup file output format - valid formats are 'oasis' or 'json'")
 
