@@ -19,6 +19,7 @@ node {
       parameters([
         [$class: 'StringParameterDefinition',  name: 'BUILD_BRANCH', defaultValue: 'master'],
         [$class: 'StringParameterDefinition',  name: 'SOURCE_BRANCH', defaultValue: source_branch],
+        [$class: 'StringParameterDefinition',  name: 'PIWIND_BRANCH', defaultValue: 'develop'],
         [$class: 'StringParameterDefinition',  name: 'PUBLISH_VERSION', defaultValue: ''],
         [$class: 'StringParameterDefinition',  name: 'KTOOLS_VERSION', defaultValue: ''],
         [$class: 'StringParameterDefinition',  name: 'GPG_KEY', defaultValue: 'gpg-privatekey'],
@@ -45,6 +46,7 @@ node {
     String gpg_key          = params.GPG_KEY
     String gpg_pass         = params.GPG_PASSPHRASE
     String twine_account    = params.TWINE_ACCOUNT
+    String model_branch     = params.PIWIND_BRANCH  // Git repo branch to build from
     String source_branch    = params.SOURCE_BRANCH  // Git repo branch to build from
     String source_name      = 'oasislmf'
     String source_varient   = 'pip' // Platform to build for
@@ -89,10 +91,9 @@ node {
         
         stage('Run MDK: PiWind') {
             dir(build_workspace) {
-                String PIWIND_BRANCH='master'
                 String MDK_RUN='ri'
                 sh 'docker build -f docker/Dockerfile.mdk-tester -t mdk-runner .'
-                sh "docker run mdk-runner --model-repo-branch ${PIWIND_BRANCH} --mdk-repo-branch ${source_branch} --model-run-mode ${MDK_RUN}"
+                sh "docker run mdk-runner --model-repo-branch ${model_branch} --mdk-repo-branch ${source_branch} --model-run-mode ${MDK_RUN}"
             }
         }
 

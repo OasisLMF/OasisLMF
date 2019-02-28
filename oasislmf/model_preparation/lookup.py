@@ -127,6 +127,8 @@ class OasisBaseLookup(object):
 
         self._coverage_type_col = peril_config.get('coverage_type_col') or 'coverage_type'
 
+        self._config.setdefault('exposure', self._config.get('exposure') or self._config.get('locations') or {})
+
         self.__tweak_config_data__()
 
     def __tweak_config_data__(self):
@@ -343,7 +345,7 @@ class OasisLookupFactory(object):
         Writes an Oasis keys file from an iterable of keys records.
         """
         heading_row = OrderedDict([
-            (id_col, 'LocID'),
+            (loc_id_col, 'LocID'),
             ('peril_id', 'PerilID'),
             ('coverage_type', 'CoverageTypeID'),
             ('area_peril_id', 'AreaPerilID'),
@@ -368,7 +370,7 @@ class OasisLookupFactory(object):
         Writes an Oasis keys errors file from an iterable of keys records.
         """
         heading_row = OrderedDict([
-            (id_col, 'LocID'),
+            (loc_id_col, 'LocID'),
             ('peril_id', 'PerilID'),
             ('coverage_type', 'CoverageTypeID'),
             ('message', 'Message'),
@@ -677,11 +679,18 @@ class OasisLookupFactory(object):
                 return fp1, n1, fp2, n2
             return cls.write_json_keys_file(successes, sfp)
         elif format == 'oasis':
+            loc_id_col = None
+            try:
+                loc_id_col = lookup.loc_id_col
+            except AttributeError:
+                loc_id_col = id_col
+            else:
+                loc_id_col = loc_id_col.lower()
             if efp:
-                fp1, n1 = cls.write_oasis_keys_file(successes, sfp, id_col=loc_id_col)
-                fp2, n2 = cls.write_oasis_keys_errors_file(nonsuccesses, efp, id_col=loc_id_col)
+                fp1, n1 = cls.write_oasis_keys_file(successes, sfp, loc_id_col=loc_id_col)
+                fp2, n2 = cls.write_oasis_keys_errors_file(nonsuccesses, efp, loc_id_col=loc_id_col)
                 return fp1, n1, fp2, n2
-            return cls.write_oasis_keys_file(successes, sfp, id_col=loc_id_col)
+            return cls.write_oasis_keys_file(successes, sfp, loc_id_col=loc_id_col)
         else:
             raise OasisException("Unrecognised lookup file output format - valid formats are 'oasis' or 'json'")
 
