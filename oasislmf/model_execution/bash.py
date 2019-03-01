@@ -644,7 +644,7 @@ def genbash(
             }
             getmodel_args.update(custom_args)
             getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
-            main_cmd = '{2} | fmcalc -a {3} > {4}fifo/il_P{0}  &'.format(
+            main_cmd = '{2} | fmcalc -a {3} | tee {4}fifo/il_P{0}'.format(
                 process_id, max_process_id, getmodel_cmd,
                 alloc_rule,
                 fifo_queue_dir)
