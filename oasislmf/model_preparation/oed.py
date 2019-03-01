@@ -27,7 +27,7 @@ from ..utils.data import get_dataframe
 from ..utils.exceptions import OasisException
 
 # TODO - add validator
-class OedValidator(str):
+class OedValidator(object):
 
     def __init__(self, ri_info_rules=None, ri_scope_rules=None):
         self.rules_ode_scope = ri_info_rules
