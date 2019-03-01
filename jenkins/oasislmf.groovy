@@ -89,11 +89,19 @@ node {
             }
         }
         
-        stage('Run MDK: PiWind') {
+        stage('Run MDK: PiWind 3.6') {
             dir(build_workspace) {
                 String MDK_RUN='ri'
                 sh 'docker build -f docker/Dockerfile.mdk-tester -t mdk-runner .'
-                sh "docker run mdk-runner --model-repo-branch ${model_branch} --mdk-repo-branch ${source_branch} --model-run-mode ${MDK_RUN}"
+                sh "docker run mdk-runner python run_model.py --model-repo-branch ${model_branch} --mdk-repo-branch ${source_branch} --model-run-mode ${MDK_RUN}"
+            }
+        }
+
+        stage('Run MDK: PiWind 2.7') {
+            dir(build_workspace) {
+                String MDK_RUN='ri'
+                sh 'docker build -f docker/Dockerfile.mdk-tester -t mdk-runner .'
+                sh "docker run mdk-runner python2.7 run_model.py --model-repo-branch ${model_branch} --mdk-repo-branch ${source_branch} --model-run-mode ${MDK_RUN}"
             }
         }
 

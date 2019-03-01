@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -62,7 +64,7 @@ def get_dataframe(
     empty_data_error_msg=None,
     lowercase_cols=True,
     replace_nans_by_none=True,
-    required_cols=[],
+    required_cols=(),
     defaulted_cols={},
     non_na_cols=(),
     col_dtypes={},

@@ -1,5 +1,6 @@
+# -*- coding: utf-8 -*-
 import multiprocessing
-import subprocess
+import subprocess32 as subprocess
 
 from ..model_preparation.oed import ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID
 from ..utils.exceptions import OasisException

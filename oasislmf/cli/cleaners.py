@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import os
 
 from future.utils import string_types
