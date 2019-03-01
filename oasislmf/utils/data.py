@@ -61,7 +61,7 @@ def get_dataframe(
     empty_data_error_msg=None,
     lowercase_cols=True,
     replace_nans_by_none=True,
-    required_cols=[],
+    required_cols=(),
     defaulted_cols={},
     non_na_cols=(),
     col_dtypes={},
