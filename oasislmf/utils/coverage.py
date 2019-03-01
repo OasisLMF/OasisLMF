@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 # Coverage codes
 BUILDING_COVERAGE_CODE = 1
 OTHER_STRUCTURES_COVERAGE_CODE = 2

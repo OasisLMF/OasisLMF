@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from argparse import RawDescriptionHelpFormatter
 
 from .base import OasisBaseCommand

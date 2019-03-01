@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -23,7 +25,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import time
 import sys
 
@@ -66,12 +67,12 @@ class RunCmd(OasisBaseCommand):
     structure
     ::
 
-        ├── analysis_settings.json
-        ├── fifo/
-        ├── input/
-        ├── output/
-        ├── static/
-        └── work/
+        |── analysis_settings.json
+        |── fifo/
+        |── input/
+        |── output/
+        |── static/
+        |── work/
 
     Depending on the OS type the model data is symlinked (Linux, Darwin) or
     copied (Cygwin, Windows) into the ``static`` subfolder. The input files

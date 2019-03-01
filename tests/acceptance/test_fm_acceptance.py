@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -82,7 +84,7 @@ class FmAcceptanceTests(TestCase):
         self.unified_profile = unified_fm_profile_by_level_and_term_group(profiles=[self.exposure_profile, self.accounts_profile])
         self.fm_aggregation_profile = self.manager.fm_aggregation_profile
 
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=2)
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=1)
     @given(
         exposure=source_exposure(
             from_account_nums=just('1'),
@@ -254,7 +256,7 @@ class FmAcceptanceTests(TestCase):
                 actual_direct_losses['output_id'] = actual_direct_losses['output_id'].astype(object)
                 print('Correct losses generated for FM3:\n{}'.format(tabulate(actual_direct_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
 
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=2)
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=1)
     @given(
         exposure=source_exposure(
             from_account_nums=just('1'),
@@ -431,7 +433,7 @@ class FmAcceptanceTests(TestCase):
                 actual_direct_losses['output_id'] = actual_direct_losses['output_id'].astype(object)
                 print('Correct losses generated for FM4:\n{}'.format(tabulate(actual_direct_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
 
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=2)
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=1)
     @given(
         exposure=source_exposure(
             from_account_nums=just('1'),
@@ -608,7 +610,7 @@ class FmAcceptanceTests(TestCase):
                 actual_direct_losses['output_id'] = actual_direct_losses['output_id'].astype(object)
                 print('Correct losses generated for FM5:\n{}'.format(tabulate(actual_direct_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
 
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=2)
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=1)
     @given(
         exposure=source_exposure(
             from_account_nums=just('1'),
@@ -814,7 +816,7 @@ class FmAcceptanceTests(TestCase):
                 actual_direct_losses['output_id'] = actual_direct_losses['output_id'].astype(object)
                 print('Correct losses generated for FM6:\n{}'.format(tabulate(actual_direct_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
 
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=2)
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=1)
     @given(
         exposure=source_exposure(
             from_account_nums=just('1'),
@@ -1020,7 +1022,7 @@ class FmAcceptanceTests(TestCase):
                 actual_direct_losses['output_id'] = actual_direct_losses['output_id'].astype(object)
                 print('Correct losses generated for FM7:\n{}'.format(tabulate(actual_direct_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
 
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=2)
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=1)
     @given(
         exposure=source_exposure(
             from_account_nums=just('1'),

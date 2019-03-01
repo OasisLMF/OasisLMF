@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
     Provides a simple class to build Oasis API clients.
 """

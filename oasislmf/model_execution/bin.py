@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
     Python utilities used for setting up the structure of the run directory
@@ -19,13 +18,14 @@ __all__ = [
     'prepare_run_inputs'
 ]
 
+import filecmp
 import glob
 import logging
 import os
 import re
 import shutil
 import shutilwhich
-import subprocess
+import subprocess32 as subprocess
 import tarfile
 
 from itertools import chain
@@ -139,14 +139,17 @@ def prepare_run_directory(
         oasis_dst_fp = os.path.join(run_dir, 'input', 'csv') if not ri else os.path.join(run_dir, 'input')
 
         for p in os.listdir(oasis_src_fp):
-            src_fp = os.path.join(oasis_src_fp, p)
+            src = os.path.join(oasis_src_fp, p)
+            if src.endswith('.tar') or src.endswith('.tar.gz'):
+                continue
+            dst = os.path.join(oasis_dst_fp, p)
             if not (re.match(r'RI_\d+$', p) or p == 'ri_layers.json'):
-                shutil.copy2(src_fp, oasis_dst_fp) if not os.path.exists(os.path.join(oasis_dst_fp, p)) else None
+                shutil.copy2(src, oasis_dst_fp) if not (os.path.exists(dst) and filecmp.cmp(src, dst)) else None
             else:
-                shutil.move(src_fp, run_dir)
+                shutil.move(src, run_dir)
 
-        analysis_settings_fn = os.path.basename(analysis_settings_fp)
-        shutil.copy2(analysis_settings_fp, run_dir) if not os.path.exists(os.path.join(oasis_dst_fp, analysis_settings_fn)) else None
+        dst = os.path.join(run_dir, 'analysis_settings.json')
+        shutil.copy(analysis_settings_fp, dst) if not (os.path.exists(dst) and filecmp.cmp(analysis_settings_fp, dst, shallow=False)) else None
 
         model_data_dst_fp = os.path.join(run_dir, 'static')
 
@@ -192,13 +195,12 @@ def prepare_run_inputs(analysis_settings, run_dir, ri=False):
     try:
         model_settings = analysis_settings.get('model_settings', {})
 
-        if model_settings:
-            _prepare_input_bin(run_dir, 'events', model_settings, setting_key='event_set', ri=ri)
-            _prepare_input_bin(run_dir, 'returnperiods', model_settings, ri=ri)
-            _prepare_input_bin(run_dir, 'occurrence', model_settings, setting_key='event_occurrence_id', ri=ri)
+        _prepare_input_bin(run_dir, 'events', model_settings, setting_key='event_set', ri=ri)
+        _prepare_input_bin(run_dir, 'returnperiods', model_settings, ri=ri)
+        _prepare_input_bin(run_dir, 'occurrence', model_settings, setting_key='event_occurrence_id', ri=ri)
 
-            if os.path.exists(os.path.join(run_dir, 'static', 'periods.bin')):
-                _prepare_input_bin(run_dir, 'periods', model_settings, ri=ri)
+        if os.path.exists(os.path.join(run_dir, 'static', 'periods.bin')):
+            _prepare_input_bin(run_dir, 'periods', model_settings, ri=ri)
     except (OSError, IOError) as e:
         raise OasisException(e)
 

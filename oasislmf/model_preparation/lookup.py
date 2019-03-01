@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -126,6 +128,8 @@ class OasisBaseLookup(object):
         self._coverage_types = tuple(coverage_config.get('coverage_types') or ())
 
         self._coverage_type_col = peril_config.get('coverage_type_col') or 'coverage_type'
+
+        self._config.setdefault('exposure', self._config.get('exposure') or self._config.get('locations') or {})
 
         self.__tweak_config_data__()
 
@@ -321,7 +325,7 @@ class OasisLookupFactory(object):
         )
 
     @classmethod
-    def get_source_exposure(cls, source_exposure=None, source_exposure_fp=None):
+    def get_exposure(cls, source_exposure=None, source_exposure_fp=None):
         """
         Get the source OED exposure/location data as a Pandas dataframe.
         """
@@ -477,7 +481,7 @@ class OasisLookupFactory(object):
         if not (source_exposure or source_exposure_fp):
             raise OasisException('No source exposures provided')
 
-        loc_df = cls.get_source_exposure(
+        loc_df = cls.get_exposure(
             source_exposure_fp=source_exposure_fp,
             source_exposure=source_exposure
         )
@@ -515,7 +519,7 @@ class OasisLookupFactory(object):
         if not peril_config:
             raise OasisException('No peril config defined in the lookup config')
 
-        _source_exposure_fp = as_path(source_exposure_fp, 'source_exposure_fp', preexists=(True if not source_exposure else False))
+        _source_exposure_fp = as_path(source_exposure_fp, 'Source exposure file path', preexists=(True if not source_exposure else False))
 
         loc_config = lookup.config.get('exposure') or lookup.config.get('locations') or {}
         src_type = 'csv'
@@ -530,9 +534,9 @@ class OasisLookupFactory(object):
             'sort_ascending': loc_config.get('sort_ascending')
         }
 
-        source_exposure_df = get_dataframe(**kwargs)
+        exposure_df = get_dataframe(**kwargs)
 
-        locations = (loc for _, loc in source_exposure_df.iterrows())
+        locations = (loc for _, loc in exposure_df.iterrows())
 
         for result in lookup.bulk_lookup(locations):
             if successes_only:
@@ -686,6 +690,13 @@ class OasisLookupFactory(object):
                 return fp1, n1, fp2, n2
             return cls.write_json_keys_file(successes, sfp)
         elif format == 'oasis':
+            loc_id_col = None
+            try:
+                loc_id_col = lookup.loc_id_col
+            except AttributeError:
+                loc_id_col = id_col
+            else:
+                loc_id_col = loc_id_col.lower()
             if efp:
                 fp1, n1 = cls.write_oasis_keys_file(successes, sfp, id_col=loc_id_col)
                 fp2, n2 = cls.write_oasis_keys_errors_file(nonsuccesses, efp, id_col=loc_id_col)

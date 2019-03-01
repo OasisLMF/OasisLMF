@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -21,7 +23,7 @@ import logging
 import math
 import os
 import shutil
-import subprocess
+import subprocess32 as subprocess
 
 from collections import namedtuple
 from itertools import product
@@ -33,6 +35,7 @@ import pandas as pd
 from ..utils.exceptions import OasisException
 from . import oed
 
+from six import string_types
 
 # Metadata about an inuring layer
 InuringLayer = namedtuple(
@@ -355,7 +358,8 @@ class ReinsuranceLayer(object):
 
     def _is_valid_id(self, id_to_check):
         is_valid = self._is_defined(id_to_check) and \
-            ((type(id_to_check) is str and id_to_check != "") or 
+            ((isinstance(id_to_check, string_types) and id_to_check != "")
+            or 
             (isinstance(id_to_check, numbers.Number) and id_to_check > 0))
         return is_valid
 

@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -31,13 +33,6 @@ class OedValidator(object):
         self.rules_ode_scope = ri_info_rules
         self.rules_ode_info = ri_scope_rules
 
-        int_or_float = [pd.np.dtype('int64'), pd.np.dtype('float64')]
-        float_only = [pd.np.dtype('float64')]
-        str_only = [str]
-        int_only = [pd.np.dtype('int64')]
-        int_or_str = [pd.np.dtype('int64'), str]
-        object_or_str = [pd.np.dtype('O'), str]
-
         self.ri_info_required_cols = [
             'ReinsNumber', 'ReinsPeril', 'PlacedPercent',
             'InuringPriority', 'ReinsType'
@@ -52,37 +47,9 @@ class OedValidator(object):
             'OccAttachment': 0.0,
             'TreatyShare': 0.0}
 
-        self.ri_info_expected_dtypes = {
-            'ReinsNumber': int_or_float,
-#            'ReinsLayerNumber': int_or_float,
-            'CededPercent': float_only,
-            'RiskLimit': int_or_float,
-            'RiskAttachment': int_or_float,
-            'OccLimit': int_or_float,
-            'OccAttachment': int_or_float,
-            'InuringPriority': int_or_float,
-            'ReinsType': object_or_str,
-            'PlacedPercent': float_only,
-            'TreatyShare': float_only}
-
         self.ri_scope_required_cols = {
             'ReinsNumber', 'RiskLevel'
             }
-
-        self.ri_scope_expected_dtypes = {
-            'ReinsNumber': int_or_float,
-            'PortNumber': int_or_float + object_or_str,
-            'AccNumber': int_or_float + object_or_str,
-            'LocGroup': int_or_float + object_or_str,
-            'PolNumber': int_or_float + object_or_str,
-            'LocNumber': int_or_float + object_or_str,
-            'CedantName': int_or_float + object_or_str,
-            'ProducerName': int_or_float + object_or_str,
-            'LOB': int_or_float + object_or_str,
-            'CountryCode': int_or_float + object_or_str,
-            'ReinsTag': int_or_float + object_or_str,
-            'RiskLevel': object_or_str,
-            'CededPercent': float_only}
 
         self.error_structure = {
         }
@@ -100,26 +67,6 @@ class OedValidator(object):
         src_values = df_dest[column_name].unique().tolist()
         missing_df = df_src[~df_src.isin({column_name: src_values})].dropna()
         return missing_df[column_name].tolist()
-
-    def _check_df_dtypes(self, dtypes_given, dtypes_expected):
-        '''
-        - All column headers must match
-        - All datatypes much match
-        '''
-        msg_type_check = []
-        msg_string = "Type error in column '{}': expected '{}'  found '{}'"
-
-        dtypes_diff = set(dtypes_given.keys()) - set(dtypes_expected.keys()) 
-        if len(dtypes_diff) > 0:
-            return (False, "Column header mismatch: {}".format(
-                ', '.join(dtypes_diff)
-            ))
-
-        for col in dtypes_expected.keys():
-            if dtypes_given[col] not in dtypes_expected[col]:
-                msg_type_check.append(msg_string.format(
-                    col, dtypes_expected[col], dtypes_given[col]))
-        return msg_type_check
 
     def _all_scope_non_specific(self, scope_df):
         return scope_df[['AccountNumber',
@@ -147,26 +94,6 @@ class OedValidator(object):
         Validate OED resinurance structure before running calculations.
         '''
         error_list = []
-
-        # CHECK - Datatypes ri_info
-        given_dtypes = ri_info_df.dtypes.to_dict()
-        error_msg = self._check_df_dtypes(given_dtypes,
-                                          self.ri_info_expected_dtypes)
-        if error_msg:
-            error_list.append(self._error_struture(
-                "datatypes",
-                "ri_info file",
-                error_msg))
-
-        # CHECK - Datatypes ri_scope
-        given_dtypes = ri_scope_df.dtypes.to_dict()
-        error_msg = self._check_df_dtypes(given_dtypes,
-                                          self.ri_scope_expected_dtypes)
-        if error_msg:
-            error_list.append(self._error_struture(
-                "datatypes",
-                "ri_info file",
-                error_msg))
 
         for inuring_priority in range(1, ri_info_df['InuringPriority'].max() + 1):
             inuring_priority_ri_info_df = ri_info_df[ri_info_df.InuringPriority == inuring_priority]
@@ -275,11 +202,13 @@ def load_oed_dfs(oed_dir, show_all=False):
             ri_info_df = get_dataframe(
                 oed_ri_info_file, lowercase_cols=False, 
                 required_cols=RI_INFO_REQUIRED_COLS,
-                defaulted_cols=RI_INFO_DEFAULTS)
+                defaulted_cols=RI_INFO_DEFAULTS,
+                col_dtypes=RI_INFO_DTYPES)
             ri_scope_df = get_dataframe(
                 oed_ri_scope_file, lowercase_cols=False,
                 required_cols=RI_SCOPE_REQUIRED_COLS,
-                defaulted_cols=RI_SCOPE_DEFAULTS)
+                defaulted_cols=RI_SCOPE_DEFAULTS,
+                col_dtypes=RI_SCOPE_DTYPES)
 
             # Treat empty Risk Level as portfolio level scope.
             # Also need nan, as this is produced when 
@@ -426,6 +355,34 @@ RI_SCOPE_DEFAULTS = {
     'ReinsTag': '',
     'CededPercent': 1.0
 }
+
+RI_INFO_DTYPES = {
+    'ReinsNumber': "int",
+    'CededPercent': "float",
+    'RiskLimit': "float",
+    'RiskAttachment': "float",
+    'OccLimit': "float",
+    'OccAttachment': "float",
+    'InuringPriority': "int",
+    'ReinsType': "str",
+    'PlacedPercent': "float",
+    'TreatyShare': "float"}
+
+RI_SCOPE_DTYPES = {
+    'ReinsNumber': "int",
+    'PortNumber': "str",
+    'AccNumber': "str",
+    'LocGroup': "str",
+    'PolNumber': "str",
+    'LocNumber': "str",
+    'CedantName': "str",
+    'ProducerName': "str",
+    'LOB': "str",
+    'CountryCode': "str",
+    'ReinsTag': "str",
+    'RiskLevel': "str",
+    'CededPercent': "float"}
+
 
 POLICYITEM_LEVEL = 0
 LOCATION_LEVEL = 1

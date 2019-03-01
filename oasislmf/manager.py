@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -32,7 +34,7 @@ try:
 except ImportError:
     from builtins import ValueError as JSONDecodeError
 
-from subprocess import (
+from subprocess32 import (
     CalledProcessError,
     check_call,
     run,
@@ -67,6 +69,7 @@ from .utils.concurrency import (
     Task,
 )
 from .utils.data import (
+    get_dataframe,
     get_json,
     get_utctimestamp,
 )
@@ -357,10 +360,14 @@ class OasisManager(object):
 
             cov_types = supported_oed_coverage_types or self.supported_oed_coverage_types
             if deterministic:
-                n = len(pd.read_csv(exposure_fp))
+                loc_numbers = (loc_num['locnumber'] for _, loc_num in get_dataframe(
+                    src_fp=exposure_fp,
+                    col_dtypes={'LocNumber': 'str', 'AccNumber': 'str', 'PortNumber': 'str'},
+                    empty_data_error_msg='No exposure found in the source exposure (loc.) file'
+                )[['locnumber']].iterrows())
                 keys = [
-                    {'locnumber': i + 1, 'peril_id': 1, 'coverage_type': j, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
-                    for i, j in product(range(n), cov_types)
+                    {'locnumber': loc_num, 'peril_id': 1, 'coverage_type': cov_type, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
+                    for i, (loc_num, cov_type) in enumerate(product(loc_numbers, cov_types))
                 ]
                 _, _ = olf.write_oasis_keys_file(keys, _keys_fp)
             else:
@@ -681,8 +688,8 @@ class OasisManager(object):
         )
 
         losses = self.generate_deterministic_losses(
-            output_dir,
             input_dir,
+            output_dir=output_dir,
             loss_percentage_of_tiv=loss_percentage_of_tiv,
             net=net
         )

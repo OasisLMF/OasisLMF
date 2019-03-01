@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -10,6 +12,7 @@ from future import standard_library
 standard_library.install_aliases()
 
 __all__ = [
+    'set_col_dtypes',
     'get_dataframe',
     'get_json',
     'get_timestamp',
@@ -61,7 +64,7 @@ def get_dataframe(
     empty_data_error_msg=None,
     lowercase_cols=True,
     replace_nans_by_none=True,
-    required_cols=[],
+    required_cols=(),
     defaulted_cols={},
     non_na_cols=(),
     col_dtypes={},
@@ -128,11 +131,7 @@ def get_dataframe(
         df['index'] = range(len(df))
 
     if col_dtypes:
-        _col_dtypes = {
-            (k.lower() if lowercase_cols else k): (getattr(builtins, v) if v in ('int', 'bool', 'float', 'object', 'str',) else v) for k, v in viewitems(col_dtypes)
-        }
-        for col, dtype in viewitems(_col_dtypes):
-            df[col] = df[col].astype(PANDAS_BASIC_DTYPES[dtype])
+        set_col_dtypes(df, col_dtypes)
 
     if sort_col:
         _sort_col = sort_col.lower() if lowercase_cols else sort_col
@@ -140,6 +139,15 @@ def get_dataframe(
         df.sort_values(_sort_col, axis=0, ascending=sort_ascending, inplace=True)
 
     return df
+
+
+def set_col_dtypes(df, col_dtypes):
+    _col_dtypes = {
+        k: (getattr(builtins, v) if v in ('int', 'bool', 'float', 'object', 'str') else v) for k, v in viewitems(col_dtypes)
+    }
+    for col, dtype in viewitems(_col_dtypes):
+        if col in df:
+            df[col] = df[col].astype(PANDAS_BASIC_DTYPES[dtype])
 
 
 def get_json(src_fp, key_transform=None):
