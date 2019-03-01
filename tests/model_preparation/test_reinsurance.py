@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import os
-import subprocess
+import subprocess32 as subprocess
 import time
 import unittest
 

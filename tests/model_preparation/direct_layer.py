@@ -1,5 +1,5 @@
 import os
-import subprocess
+import subprocess32 as subprocess
 import shutil
 
 import pandas as pd
