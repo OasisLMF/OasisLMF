@@ -55,6 +55,7 @@ def get_default_fm_aggregation_profile(path=False):
 # Default name prefixes of the Oasis input files (GUL + IL)
 OASIS_FILES_PREFIXES = OrderedDict({
     'gul': {
+        'complex_items': 'complex_items',        
         'items': 'items',
         'coverages': 'coverages',
         'gulsummaryxref': 'gulsummaryxref'

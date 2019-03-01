@@ -346,13 +346,22 @@ class OasisLookupFactory(object):
         """
         Writes an Oasis keys file from an iterable of keys records.
         """
-        heading_row = OrderedDict([
-            (id_col, 'LocID'),
-            ('peril_id', 'PerilID'),
-            ('coverage_type', 'CoverageTypeID'),
-            ('area_peril_id', 'AreaPerilID'),
-            ('vulnerability_id', 'VulnerabilityID'),
-        ])
+
+        if len(records) > 0 and 'model_data' in records[0]:
+            heading_row = OrderedDict([
+                (id_col, 'LocID'),
+                ('peril_id', 'PerilID'),
+                ('coverage_type', 'CoverageTypeID'),
+                ('model_data', 'ModelData'),
+            ])
+        else:
+            heading_row = OrderedDict([
+                (id_col, 'LocID'),
+                ('peril_id', 'PerilID'),
+                ('coverage_type', 'CoverageTypeID'),
+                ('area_peril_id', 'AreaPerilID'),
+                ('vulnerability_id', 'VulnerabilityID'),
+            ])
 
         pd.DataFrame(
             columns=heading_row.keys(),

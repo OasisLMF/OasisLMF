@@ -268,14 +268,14 @@ class OasisManager(object):
         lookup_package_fp=None,
         keys_fp=None,
         keys_errors_fp=None,
-        loc_id_col=None,
+        keys_id_col='locnumber',
         keys_format=None
     ):
         model_info, lookup = olf.create(
             lookup_config_fp=lookup_config_fp,
-            model_keys_data_path=keys_data_path,
-            model_version_file_path=model_version_file_path,
-            lookup_package_path=lookup_package_path
+            model_keys_data_path=keys_data_fp,
+            model_version_file_path=model_version_fp,
+            lookup_package_path=lookup_package_fp
         )
 
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
@@ -457,6 +457,7 @@ class OasisManager(object):
         ktools_fifo_relative=None,
         ktools_alloc_rule=None
     ):
+
         il = all(p in os.listdir(oasis_fp) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
 
         ri = False
@@ -516,6 +517,8 @@ class OasisManager(object):
             model_runner_module = importlib.import_module('{}.supplier_model_runner'.format(package_name))
         else:
             model_runner_module = runner
+
+        print(runner)
 
         with setcwd(model_run_fp) as cwd_path:
             ri_layers = 0
