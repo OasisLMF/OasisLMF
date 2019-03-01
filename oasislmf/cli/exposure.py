@@ -66,12 +66,12 @@ class RunCmd(OasisBaseCommand):
     structure
     ::
 
-        ├── analysis_settings.json
-        ├── fifo/
-        ├── input/
-        ├── output/
-        ├── static/
-        └── work/
+        |── analysis_settings.json
+        |── fifo/
+        |── input/
+        |── output/
+        |── static/
+        |── work/
 
     Depending on the OS type the model data is symlinked (Linux, Darwin) or
     copied (Cygwin, Windows) into the ``static`` subfolder. The input files

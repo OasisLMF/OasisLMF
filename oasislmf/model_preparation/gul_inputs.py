@@ -75,7 +75,7 @@ def get_gul_input_items(
         col_dtypes={'LocNumber': 'str', 'AccNumber': 'str', 'PortNumber': 'str'},
         required_cols=(
             'LocNumber', 'AccNumber', 'PortNumber', 'CountryCode',
-            'LocPerilsCovered', 'LocCurrency',
+            'LocPerilsCovered',
             'BuildingTIV', 'OtherTIV', 'ContentsTIV', 'BITIV',),
         empty_data_error_msg='No exposure found in the source exposure (loc.) file'
     )
