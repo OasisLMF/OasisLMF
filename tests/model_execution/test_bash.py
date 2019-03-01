@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from __future__ import unicode_literals
 
 import hashlib
@@ -46,10 +48,10 @@ class Genbash(TestCase):
         genbash(
             num_partitions,
             analysis_settings,
-            output_filename,
-            num_reinsurance_iterations,
-            fifo_tmp_dir,
-            mem_limit
+            filename=output_filename,
+            num_reinsurance_iterations=num_reinsurance_iterations,
+            fifo_tmp_dir=fifo_tmp_dir,
+            mem_limit=mem_limit
         )
 
     def check(self, name):
@@ -78,10 +80,6 @@ class Genbash(TestCase):
         ktools_script = ktools_script.replace('%FIFO_DIR%', tmp_fifo_dir)
         with io.open(ref_script, 'w') as f:
           f.write(ktools_script)
-
-
-        
-
 
     def test_gul_summarycalc_1_partition(self):
         self.genbash("gul_summarycalc_1_output", 1)

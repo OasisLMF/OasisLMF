@@ -16,7 +16,7 @@
         "FMAggKey": {
             "LocID": {
                 "src": "FM",
-                "field": "canexp_id",
+                "field": "loc_id",
                 "name": "Location ID"
             },
             "IsBICoverage": {
@@ -32,7 +32,7 @@
         "FMAggKey": {
             "LocID":  {
                 "src": "FM",
-                "field": "canexp_id",
+                "field": "loc_id",
                 "name": "Location ID"
             }
         }
@@ -43,13 +43,8 @@
         "FMAggKey": {
             "AccntNum":  {
                 "src": "FM",
-                "field": "canacc_id",
+                "field": "acc_id",
                 "name": "Account no."
-            },
-            "CondNum": {
-                "src": "CanAcc",
-                "field": "condnumber",
-                "name": "Condition no."
             }
         }
     },
@@ -59,7 +54,7 @@
         "FMAggKey": {
             "AccntNum": {
                 "src": "FM",
-                "field": "canacc_id",
+                "field": "acc_id",
                 "name": "Account no."
             }
         }
@@ -69,12 +64,12 @@
         "FMLevelName": "PolLayer",
         "FMAggKey": {
             "AccntNum": {
-                "src": "CanAcc",
-                "field": "accntnum",
+                "src": "Acc",
+                "field": "accnumber",
                 "name": "Account no."
             },
             "PortfolioNum": {
-                "src": "CanAcc",
+                "src": "Acc",
                 "field": "portnumber",
                 "name": "Account portfolio no."
             }

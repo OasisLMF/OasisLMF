@@ -1,9 +1,13 @@
+# -*- coding: utf-8 -*-
+
 import pandas as pd
+import numpy as np
 from unittest import TestCase
 from tempfile import NamedTemporaryFile
-from oasislmf.utils.data import get_dataframe
+from oasislmf.utils.data import get_dataframe, set_col_dtypes
 from oasislmf.utils.exceptions import OasisException
 from pandas.util.testing import assert_frame_equal
+import pandas.api.types as pd_types
 
 class GetDataFrame(TestCase):
 
@@ -122,3 +126,37 @@ class GetDataFrame(TestCase):
             ref_df = pd.DataFrame.from_dict(ref_data)
 
         assert_frame_equal(df, ref_df)
+
+    def test_set_col_dtypes(self):
+        data = {
+                'a': [1,3]
+        }
+        df = pd.DataFrame.from_dict(data)
+        assert pd_types.is_integer_dtype(df.a.dtype)
+        
+    def test_set_col_dtypes_change_to_float(self):
+        data = {
+                'a': [1,3]
+        }
+        df = pd.DataFrame.from_dict(data)
+        set_col_dtypes(df, {"a": "float"})
+        print(df.a.dtype)
+        assert pd_types.is_float_dtype(df.a.dtype)
+
+    def test_set_col_dtypes_change_to_string(self):
+        data = {
+                'a': [1,3]
+        }
+        df = pd.DataFrame.from_dict(data)
+        set_col_dtypes(df, {"a": "str"})
+        print(df.a.dtype)
+        assert pd_types.is_string_dtype(df.a.dtype)
+
+    def test_set_col_dtypes_ignore_extra_columns(self):
+        data = {
+                'a': [1,3]
+        }
+        df = pd.DataFrame.from_dict(data)
+        set_col_dtypes(df, {"a": "str", "b": "int"})
+        print(df.a.dtype)
+        assert pd_types.is_string_dtype(df.a.dtype)

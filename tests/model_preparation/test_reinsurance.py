@@ -1,5 +1,7 @@
+# -*- coding: utf-8 -*-
+
 import os
-import subprocess
+import subprocess32 as subprocess
 import time
 import unittest
 
@@ -18,6 +20,7 @@ from oasislmf.model_preparation import (
     reinsurance_layer,
 )
 from oasislmf.model_execution import bin
+from oasislmf.utils.data import get_dataframe, set_col_dtypes
 from .direct_layer import DirectLayer
 
 cwd = os.path.dirname(os.path.realpath(__file__))
@@ -104,7 +107,7 @@ fm_examples = [
 
 test_cases = []
 for case in test_examples + fm_examples:
-#for case in ['simple_CAT_XL_filter_P2_A3']:
+#for case in ['simple_CXL_port_acc_filter']:
     test_cases.append((
         case,
         os.path.join(input_dir, case),
@@ -208,9 +211,9 @@ class TestReinsurance(unittest.TestCase):
                         input_name = "ils"
                     else:
                         input_name = ri_layers[idx - 1]['directory']
-                    bin.create_binary_files(ri_layers[idx]['directory'],
+                    bin.csv_to_bin(ri_layers[idx]['directory'],
                                             ri_layers[idx]['directory'],
-                                            do_il=True)
+                                            il=True)
 
                     reinsurance_layer_losses_df = self._run_fm(
                         input_name,
@@ -276,13 +279,39 @@ class TestReinsurance(unittest.TestCase):
                 "{}.csv".format(key.replace(' ', '_'))
             )    
 
-            expected_df = pd.read_csv(expected_file)
+            dtypes = {
+                "portfolio_number": "str",
+                "policy_number": "str",
+                "account_number": "str",
+                "location_number": "str",
+                "location_group": "str",
+                "cedant_name": "str",
+                "producer_name": "str",
+                "lob": "str",
+                "country_code": "str",
+                "reins_tag": "str",
+                "coverage_type_id": "str",
+                "peril_id": "str",
+                "tiv": "float",
+                "loss_gul": "float",
+                "loss_il": "float",
+                "loss_net": "float"
+            }
+
+            expected_df = get_dataframe(expected_file, index_col=False)
+
             found_df = net_losses[key]
             found_df.to_csv("{}.csv".format(key.replace(' ', '_')))
 
             expected_df = expected_df.replace(np.nan, '', regex=True)
             found_df = found_df.replace(np.nan, '', regex=True)
 
-            found_df.to_csv("/tmp/expected.csv", index=False)
+            set_col_dtypes(expected_df, dtypes)
+            set_col_dtypes(found_df, dtypes)
+            
+            expected_df.to_csv("/tmp/expected.csv", index=False)
+
+            print(found_df.dtypes)
+            print(expected_df.dtypes)
 
             assert_frame_equal(found_df, expected_df)

@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import json
 import os
 import shutil
@@ -46,7 +48,7 @@ class TestModelApiCmdLoadAnalysisSettingsJson(TestCase):
         conf = {
             'analysis_settings': {
                 'il_output': True,
-                'ri_output': True,                
+                'ri_output': True,
                 'foo': 'bar',
             }
         }
@@ -139,7 +141,7 @@ class TestModelApiCmdRunAnalysis(TestCase):
         self.assertEqual(initial_complete + 1, counter['completed'])
         self.assertEqual(initial_failed, counter['failed'])
         client.upload_inputs_from_directory.assert_called_once_with(
-            input_dir, bin_directory=ANY, do_il=do_il, do_ri=do_ri, do_build=True)
+            input_dir, bin_directory=ANY, il=do_il, ri=do_ri, do_build=True)
         client.run_analysis_and_poll.assert_called_once_with(settings, 'input_location', output_dir)
 
     @settings(suppress_health_check=[HealthCheck.too_slow], deadline=None, max_examples=1)
@@ -303,7 +305,7 @@ class TestModelApiCmdRun(TestCase):
         res = cmd.run()
 
         self.assertEqual(1, res)
-        cmd.logger.error.assert_called_once_with('Input directory does not exist: {}'.format(os.path.join(self.directory, 'input')))
+        cmd.logger.error.assert_called_once_with('The path {} (Input directory) is indicated as preexisting but does not exist'.format(os.path.join(self.directory, 'input')))
 
     def test_analysis_settings_file_does_not_exist___error_is_raised(self):
         os.remove(os.path.join(self.directory, 'analysis_settings.json'))
@@ -314,7 +316,7 @@ class TestModelApiCmdRun(TestCase):
         res = cmd.run()
 
         self.assertEqual(1, res)
-        cmd.logger.error.assert_called_once_with('Analysis settings does not exist: {}'.format(os.path.join(self.directory, 'analysis_settings.json')))
+        cmd.logger.error.assert_called_once_with('The path {} (Analysis settings) is indicated as preexisting but does not exist'.format(os.path.join(self.directory, 'analysis_settings.json')))
 
     @given(integers(min_value=1, max_value=5))
     def test_client_health_check_fails___error_is_written_to_the_log(self, health_check_attempts):

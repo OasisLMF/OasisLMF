@@ -1,9 +1,21 @@
 # -*- coding: utf-8 -*-
 
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
+from builtins import open as io_open
+from builtins import str
+
+from future import standard_library
+standard_library.install_aliases()
+
 __all__ = [
-    'create_xref_description',
+    'generate_xref_descriptions',
     'generate_files_for_reinsurance',
     'ReinsuranceLayer',
+    'write_ri_input_files'
 ]
 
 import json
@@ -11,9 +23,10 @@ import logging
 import math
 import os
 import shutil
-import subprocess
+import subprocess32 as subprocess
 
 from collections import namedtuple
+from itertools import product
 
 import anytree
 import numbers
@@ -22,8 +35,9 @@ import pandas as pd
 from ..utils.exceptions import OasisException
 from . import oed
 
+from six import string_types
 
-# Meta-data about an inuring layer
+# Metadata about an inuring layer
 InuringLayer = namedtuple(
     "InuringLayer",
     "inuring_priority reins_numbers is_valid validation_messages")
@@ -39,57 +53,51 @@ def _get_location_tiv(location, coverage_type_id):
     }
     return switcher.get(coverage_type_id, 0)
 
-def create_xref_description(accounts_df, locations_df):
 
-    accounts = accounts_df
-    locations = locations_df
+def generate_xref_descriptions(accounts_fp, locations_fp):
+
+    accounts = pd.read_csv(accounts_fp)
+    locations = pd.read_csv(locations_fp)
     coverage_id = 0
     item_id = 0
     group_id = 0
     policy_agg_id = 0
     profile_id = 0
 
-    xref_descriptions_list = list()
-
     site_agg_id = 0
-    for policy_index, policy in accounts.iterrows():
-        policy_agg_id = policy_agg_id + 1
-        profile_id = profile_id + 1
 
-        for location_index, location in locations.loc[locations["AccNumber"] == policy.get('AccNumber')].iterrows():
-            group_id = group_id + 1
-            site_agg_id = site_agg_id + 1
-            profile_id = profile_id + 1
+    accounts_and_locations = pd.merge(accounts, locations, left_on='AccNumber', right_on='AccNumber')
 
-            for coverage_type_id in oed.COVERAGE_TYPES:
-                tiv = _get_location_tiv(location, coverage_type_id)
-                if tiv > 0:
-                    coverage_id = coverage_id + 1
+    for acc_and_loc, coverage_type, peril in product((acc for _, acc in accounts_and_locations.iterrows()), oed.COVERAGE_TYPES, oed.PERILS):
 
-                    for peril in oed.PERILS:
-                        item_id = item_id + 1
+        tiv = _get_location_tiv(acc_and_loc, coverage_type)
 
-                        xref_descriptions_list.append(
-                            oed.XrefDescription(
-                                xref_id=item_id,
-                                account_number=location.get('AccNumber'),
-                                location_number=location.get('LocNumber'),
-                                location_group=location.get('LocGroup'),
-                                cedant_name = policy.get('CedantName'),
-                                producer_name = policy.get('ProducerName'),
-                                lob = policy.get('LOB'),
-                                country_code = location.get('CountryCode'),
-                                reins_tag = location.get('ReinsTag'),
-                                coverage_type_id=coverage_type_id,
-                                peril_id=peril,
-                                policy_number=policy.get('PolNumber'),    
-                                portfolio_number=policy.get('PortNumber'),
-                                tiv=tiv
-                            )
-                        )
+        if tiv > 0:
+            policy_agg_id += 1
+            profile_id += 1
+            group_id += 1
+            site_agg_id += 1
+            profile_id += 1
 
-    return pd.DataFrame(xref_descriptions_list)
+            coverage_id += 1
+            item_id += 1
 
+            yield oed.XrefDescription(
+                xref_id = item_id,
+                account_number = acc_and_loc.get('AccNumber'),
+                location_number = acc_and_loc.get('LocNumber'),
+                location_group = acc_and_loc.get('LocGroup'),
+                cedant_name = acc_and_loc.get('CedantName'),
+                producer_name = acc_and_loc.get('ProducerName'),
+                lob = acc_and_loc.get('LOB'),
+                country_code = acc_and_loc.get('CountryCode'),
+                reins_tag = acc_and_loc.get('ReinsTag'),
+                coverage_type_id = coverage_type,
+                peril_id = peril,
+                policy_number = acc_and_loc.get('PolNumber'),
+                portfolio_number = acc_and_loc.get('PortNumber'),
+                tiv = tiv
+            )
 
 
 def generate_files_for_reinsurance(
@@ -106,7 +114,6 @@ def generate_files_for_reinsurance(
     """
     Generate files for reinsurance.
     """
-
     inuring_metadata = {}
     previous_inuring_priority = None
     previous_risk_level = None
@@ -198,6 +205,32 @@ def _generate_files_for_reinsurance_risk_level(
     return output_dir
 
 
+def write_ri_input_files(
+        exposure_fp,
+        accounts_fp,
+        items_fp,
+        coverages_fp,
+        gulsummaryxref_fp,
+        fm_xref_fp,
+        fmsummaryxref_fp,
+        ri_info_fp,
+        ri_scope_fp,
+        target_dir
+    ):
+    xref_descriptions = pd.DataFrame(generate_xref_descriptions(accounts_fp, exposure_fp))
+    return generate_files_for_reinsurance(
+        pd.read_csv(items_fp),
+        pd.read_csv(coverages_fp),
+        pd.read_csv(fm_xref_fp),
+        xref_descriptions,
+        pd.read_csv(ri_info_fp),
+        pd.read_csv(ri_scope_fp),
+        target_dir,
+        gulsummaryxref=pd.read_csv(gulsummaryxref_fp),
+        fmsummaryxref=pd.read_csv(fmsummaryxref_fp)
+    )
+
+
 class ReinsuranceLayer(object):
     """
     Generates ktools inputs and runs financial module for a reinsurance structure.
@@ -243,7 +276,7 @@ class ReinsuranceLayer(object):
             parent=parent,
             level_id=level_id,
             agg_id=agg_id,
-            portfolio_number=portfolio_number,            
+            portfolio_number=portfolio_number,
             account_number=account_number,
             policy_number=policy_number,
             location_group=location_group,
@@ -325,7 +358,8 @@ class ReinsuranceLayer(object):
 
     def _is_valid_id(self, id_to_check):
         is_valid = self._is_defined(id_to_check) and \
-            ((type(id_to_check) is str and id_to_check != "") or 
+            ((isinstance(id_to_check, string_types) and id_to_check != "")
+            or 
             (isinstance(id_to_check, numbers.Number) and id_to_check > 0))
         return is_valid
 
@@ -554,7 +588,7 @@ class ReinsuranceLayer(object):
                 current_location_number = row.location_number
                 current_location_group = row.location_group
 
-            self._add_item_node(row.xref_id, current_location_node)            
+            self._add_item_node(row.xref_id, current_location_node)
             
         return program_node
 
@@ -694,7 +728,7 @@ class ReinsuranceLayer(object):
 
         add_profiles_args.fmprofiles_list.append(
             oed.get_reinsurance_profile(
-                profile_id,                    
+                profile_id,
                 limit=add_profiles_args.ri_info_row.RiskLimit,
                 ceded=add_profiles_args.ri_info_row.CededPercent,
             ))

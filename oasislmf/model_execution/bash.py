@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 
 from __future__ import unicode_literals
 
@@ -9,7 +10,7 @@ import string
 
 from collections import Counter
 
-from oasislmf.model_preparation.oed import (
+from ..model_preparation.oed import (
     ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID, # Alloc Rule 2 (Default)
     ALLOCATE_TO_ITEMS_BY_GUL_ALLOC_ID,            # Alloc Rule 1
     NO_ALLOCATION_ALLOC_ID,                       # Alloc Rule 0
@@ -347,7 +348,7 @@ def do_any(runtype, analysis_settings, process_id, filename, process_counter, fi
         print_command(filename, '')
 
 
-def do_ri(analysis_settings, max_process_id, filename, process_counter, num_reinsurance_iterations, fifo_dir=''):
+def ri(analysis_settings, max_process_id, filename, process_counter, num_reinsurance_iterations, fifo_dir=''):
     for process_id in range(1, max_process_id + 1):
         do_any(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
@@ -359,7 +360,7 @@ def do_ri(analysis_settings, max_process_id, filename, process_counter, num_rein
             RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, fifo_dir, num_reinsurance_iterations)
 
 
-def do_il(analysis_settings, max_process_id, filename, process_counter, fifo_dir=''):
+def il(analysis_settings, max_process_id, filename, process_counter, fifo_dir=''):
     for process_id in range(1, max_process_id + 1):
         do_any(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
@@ -381,7 +382,7 @@ def do_gul(analysis_settings, max_process_id, filename, process_counter, fifo_di
         do_summarycalcs(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, fifo_dir)
 
 
-def do_il_make_fifo(analysis_settings, max_process_id, filename, fifo_dir=''):
+def il_make_fifo(analysis_settings, max_process_id, filename, fifo_dir=''):
     for process_id in range(1, max_process_id + 1):
         do_make_fifos(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, fifo_dir)
 
@@ -391,12 +392,12 @@ def do_gul_make_fifo(analysis_settings, max_process_id, filename, fifo_dir=''):
         do_make_fifos(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, fifo_dir)
 
 
-def do_ri_make_fifo(analysis_settings, max_process_id, filename, fifo_dir=''):
+def ri_make_fifo(analysis_settings, max_process_id, filename, fifo_dir=''):
     for process_id in range(1, max_process_id + 1):
         do_make_fifos(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, fifo_dir)
 
 
-def do_il_remove_fifo(analysis_settings, max_process_id, filename, fifo_dir=''):
+def il_remove_fifo(analysis_settings, max_process_id, filename, fifo_dir=''):
     for process_id in range(1, max_process_id + 1):
         do_remove_fifos(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, fifo_dir)
 
@@ -406,7 +407,7 @@ def do_gul_remove_fifo(analysis_settings, max_process_id, filename, fifo_dir='')
         do_remove_fifos(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, fifo_dir)
 
 
-def do_ri_remove_fifo(analysis_settings, max_process_id, filename, fifo_dir=''):
+def ri_remove_fifo(analysis_settings, max_process_id, filename, fifo_dir=''):
     for process_id in range(1, max_process_id + 1):
         do_remove_fifos(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, fifo_dir)
 
@@ -491,14 +492,18 @@ def get_getmodel_cmd(number_of_samples, gul_threshold, use_random_number_file, c
 
     return cmd
 
+
 def genbash(
-    max_process_id, analysis_settings, filename,
+    max_process_id,
+    analysis_settings,
     num_reinsurance_iterations=0,
     fifo_tmp_dir=True,
     mem_limit=False,
     alloc_rule=None,
+    filename='run_kools.sh',
     _get_getmodel_cmd=get_getmodel_cmd,
-    custom_args={}):
+    custom_args={}
+):
     """
     Generates a bash script containing ktools calculation instructions for an
     Oasis model.
@@ -584,11 +589,11 @@ def genbash(
         create_workfolders(RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename)
 
     if il_output:
-        do_il_make_fifo(analysis_settings, max_process_id, filename, fifo_queue_dir)
+        il_make_fifo(analysis_settings, max_process_id, filename, fifo_queue_dir)
         create_workfolders(RUNTYPE_INSURED_LOSS, analysis_settings, filename)
 
     if ri_output:
-        do_ri_make_fifo(analysis_settings, max_process_id, filename, fifo_queue_dir)
+        ri_make_fifo(analysis_settings, max_process_id, filename, fifo_queue_dir)
         create_workfolders(RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename)
         print_command(filename, '')
 
@@ -596,13 +601,13 @@ def genbash(
         print_command(filename, '')
         print_command(filename, '# --- Do reinsurance loss computes ---')
         print_command(filename, '')
-        do_ri(analysis_settings, max_process_id, filename, process_counter, num_reinsurance_iterations, fifo_queue_dir)
+        ri(analysis_settings, max_process_id, filename, process_counter, num_reinsurance_iterations, fifo_queue_dir)
 
     if il_output:
         print_command(filename, '')
         print_command(filename, '# --- Do insured loss computes ---')
         print_command(filename, '')
-        do_il(analysis_settings, max_process_id, filename, process_counter, fifo_queue_dir)
+        il(analysis_settings, max_process_id, filename, process_counter, fifo_queue_dir)
 
     if mem_limit:
         print_command(filename, '')
@@ -752,11 +757,11 @@ def genbash(
     print_command(filename, '')
 
     if ri_output:
-        do_ri_remove_fifo(analysis_settings, max_process_id, filename, fifo_queue_dir)
+        ri_remove_fifo(analysis_settings, max_process_id, filename, fifo_queue_dir)
         remove_workfolders(RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename)
 
     if il_output:
-        do_il_remove_fifo(analysis_settings, max_process_id, filename, fifo_queue_dir)
+        il_remove_fifo(analysis_settings, max_process_id, filename, fifo_queue_dir)
         remove_workfolders(RUNTYPE_INSURED_LOSS, analysis_settings, filename)
 
     # If fifo dir is in /tmp/*/ then clean up

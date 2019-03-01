@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import json
 import string
 from argparse import Namespace
@@ -89,7 +91,7 @@ class InputValuesGet(TestCase):
 
     def test_variable_is_a_path___path_is_relative_to_config_file(self):
         with NamedTemporaryFile('w') as conf_file:
-            json.dump({'foo': './some/path'}, conf_file)
+            json.dump({'foo': 'some/path'}, conf_file)
             conf_file.flush()
 
             expected_result = os.path.abspath(

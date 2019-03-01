@@ -3,12 +3,12 @@ FM3
 
 acc
 ---
-ROW_ID,AccNumber,PortNumber,PolNumber,PolPeril,CondDed6All,CondLimit6All,CondNumber,PolDed6All,PolMinDed6All,PolMaxDed6All,LayerAttachment,LayerLimit,LayerParticipation
+AccNumber,PortNumber,PolNumber,PolPeril,CondDed6All,CondLimit6All,CondNumber,PolDed6All,PolMinDed6All,PolMaxDed6All,LayerAttachment,LayerLimit,LayerParticipation
 1,1,1,1,WTC;WEC;BFR;OO1,0,0,1,0,0,0,0,0,1
 
 loc
 ---
-ROW_ID,AccNumber,LocNumber,LocName,AreaCode,CountryCode,LocPeril,BuildingTIV,LocDed1Building,LocLimit1Building,OtherTIV,LocDed2Other,LocLimit2Other,ContentsTIV,LocDed3Contents,LocLimit3Contents,BITIV,LocDed4BI,LocLimit4BI,LocDed5PD,LocLimit5PD,LocDed6All,LocLimit6All,CondTag
+AccNumber,LocNumber,LocName,AreaCode,CountryCode,LocPeril,BuildingTIV,LocDed1Building,LocLimit1Building,OtherTIV,LocDed2Other,LocLimit2Other,ContentsTIV,LocDed3Contents,LocLimit3Contents,BITIV,LocDed4BI,LocLimit4BI,LocDed5PD,LocLimit5PD,LocDed6All,LocLimit6All,CondTag
 1,1,1,Location 1,CA,US,WTC;WEC;BFR;OO1,1000000,50000,900000,100000,5000,90000,50000,2500,45000,20000,0,18000,0,0,0,0,1
 
 keys

@@ -1,5 +1,16 @@
 # -*- coding: utf-8 -*-
 
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+from __future__ import unicode_literals
+
+from builtins import open as io_open
+from builtins import str
+
+from future import standard_library
+standard_library.install_aliases()
+
 """
     Utilities for running system or file-related commands, and other OS-related utilities.
 """
@@ -19,7 +30,7 @@ def load_ini_file(ini_file_path):
     Reads an INI file and returns it as a dictionary.
     """
     try:
-        with io.open(ini_file_path, 'r', encoding='utf-8') as f:
+        with io_open(ini_file_path, 'r', encoding='utf-8') as f:
             lines = [
                 l.strip() for l in [l for l in f.read().split('\n') if l and not l.startswith('[')]
             ]
@@ -56,10 +67,10 @@ def replace_in_file(source_file_path, target_file_path, var_names, var_values):
         raise OasisException('Number of variable names does not equal the number of variable values to replace - please check and try again.')
 
     try:
-        with io.open(source_file_path, 'r') as f:
+        with io_open(source_file_path, 'r') as f:
             lines = f.readlines()
 
-        with io.open(target_file_path, 'w') as f:
+        with io_open(target_file_path, 'w') as f:
             for i in range(len(lines)):
                 outline = inline = lines[i]
 
