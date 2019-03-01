@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import multiprocessing
 import subprocess32 as subprocess
 
