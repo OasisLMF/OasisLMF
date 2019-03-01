@@ -71,6 +71,7 @@ def get_gul_input_items(
     :param exposure_profile: OED source exposure profile
     :type exposure_profile: dict
     """
+    #import ipdb; ipdb.set_trace()
     gul_inputs_df = pd.DataFrame()
 
     exposure_df = get_dataframe(
@@ -149,6 +150,9 @@ def get_gul_input_items(
                     'portfolio_num': _it[portfolio_num],
                     'acc_id': _it[acc_id],
                     'peril_id': _it['perilid'],
+                    'model_data': _it.get('modeldata'),
+                    'areaperil_id': -1 if _it.get('modeldata') else _it['areaperilid'],
+                    'vulnerabilityid': -1 if _it.get('modeldata') else _it['vulnerabilityid'],
                     'coverage_type_id': _it['coveragetypeid'],
                     'coverage_id': item_id,
                     'is_bi_coverage': _it['coveragetypeid'] == COVERAGE_TYPES['bi']['id'],
@@ -164,14 +168,6 @@ def get_gul_input_items(
                     'summary_id': 1,
                     'summaryset_id': 1
                 }
-
-                if "modeldata" in _it:
-                    it["model_data"] = _it["modeldata"]
-                    it['areaperil_id'] = -1
-                    it['vulnerability_id'] = -1
-                else:
-                    it['areaperil_id'] = _it['areaperilid'],
-                    it['vulnerability_id'] = _it['vulnerabilityid']
 
                 if it['deductible'] < 1:
                     it['deductible'] *= it['tiv']
@@ -200,7 +196,7 @@ def get_gul_input_items(
         for col in gul_inputs_df.columns:
             if col in ['peril_id', 'loc_id', 'acc_id', 'portfolio_num']:
                 gul_inputs_df[col] = gul_inputs_df[col].astype(object)
-            elif col.endswith('id'):
+            elif col.endswith('id') and not col.startswith('areaperil'):
                 gul_inputs_df[col] = gul_inputs_df[col].astype(int)
             elif col == 'tiv':
                 gul_inputs_df[col] = gul_inputs_df[col].astype(float)
