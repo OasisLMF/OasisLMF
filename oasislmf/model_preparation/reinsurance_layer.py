@@ -21,7 +21,7 @@ import logging
 import math
 import os
 import shutil
-import subprocess
+import subprocess32 as subprocess
 
 from collections import namedtuple
 from itertools import product

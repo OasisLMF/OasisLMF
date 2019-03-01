@@ -32,7 +32,7 @@ try:
 except ImportError:
     from builtins import ValueError as JSONDecodeError
 
-from subprocess import (
+from subprocess32 import (
     CalledProcessError,
     check_call,
     run,

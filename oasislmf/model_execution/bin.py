@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
     Python utilities used for setting up the structure of the run directory
@@ -26,7 +25,7 @@ import os
 import re
 import shutil
 import shutilwhich
-import subprocess
+import subprocess32 as subprocess
 import tarfile
 
 from itertools import chain
