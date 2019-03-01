@@ -10,6 +10,7 @@ from future import standard_library
 standard_library.install_aliases()
 
 __all__ = [
+    'set_col_dtypes',
     'get_dataframe',
     'get_json',
     'get_timestamp',
@@ -128,11 +129,7 @@ def get_dataframe(
         df['index'] = range(len(df))
 
     if col_dtypes:
-        _col_dtypes = {
-            (k.lower() if lowercase_cols else k): (getattr(builtins, v) if v in ('int', 'bool', 'float', 'object', 'str',) else v) for k, v in viewitems(col_dtypes)
-        }
-        for col, dtype in viewitems(_col_dtypes):
-            df[col] = df[col].astype(PANDAS_BASIC_DTYPES[dtype])
+        set_col_dtypes(df, col_dtypes)
 
     if sort_col:
         _sort_col = sort_col.lower() if lowercase_cols else sort_col
@@ -140,6 +137,15 @@ def get_dataframe(
         df.sort_values(_sort_col, axis=0, ascending=sort_ascending, inplace=True)
 
     return df
+
+
+def set_col_dtypes(df, col_dtypes):
+    _col_dtypes = {
+        k: (getattr(builtins, v) if v in ('int', 'bool', 'float', 'object', 'str') else v) for k, v in viewitems(col_dtypes)
+    }
+    for col, dtype in viewitems(_col_dtypes):
+        if col in df:
+            df[col] = df[col].astype(PANDAS_BASIC_DTYPES[dtype])
 
 
 def get_json(src_fp, key_transform=None):
