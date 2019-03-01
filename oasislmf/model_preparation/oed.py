@@ -1,9 +1,19 @@
 # -*- coding: utf-8 -*-
 
+from __future__ import absolute_import
+from __future__ import division
 from __future__ import print_function
+from __future__ import unicode_literals
+
+from builtins import open as io_open
+from builtins import str
+
+from future import standard_library
+standard_library.install_aliases()
 
 __all__ = [
-    'load_oed_dfs'
+    'load_oed_dfs',
+    'OedValidator'
 ]
 
 import math
@@ -14,7 +24,7 @@ from collections import namedtuple
 import pandas as pd
 
 from ..utils.data import get_dataframe
-
+from ..utils.exceptions import OasisException
 
 # TODO - add validator
 class OedValidator(object):
@@ -251,8 +261,7 @@ def load_oed_dfs(oed_dir, show_all=False):
     do_reinsurance = True
     if oed_dir is not None:
         if not os.path.exists(oed_dir):
-            print("Path does not exist: {}".format(oed_dir))
-            exit(1)
+            raise OasisException("OED directory does not exist: {}".format(oed_dir))
 
         # RI files
         oed_ri_info_file = os.path.join(oed_dir, "ri_info.csv")
@@ -286,11 +295,11 @@ def load_oed_dfs(oed_dir, show_all=False):
             ri_info_df = ri_info_df[OED_REINS_INFO_FIELDS].copy()
             ri_scope_df = ri_scope_df[OED_REINS_SCOPE_FIELDS].copy()
 
-        # Ensure Percent feilds are float
-        info_float_cols = ['CededPercent', 'PlacedPercent', 'TreatyShare']
-        scope_float_cols = ['CededPercent']
-        ri_info_df[info_float_cols] = ri_info_df[info_float_cols].astype(float)
-        ri_scope_df[scope_float_cols] = ri_scope_df[scope_float_cols].astype(float)
+            # Ensure Percent feilds are float
+            info_float_cols = ['CededPercent', 'PlacedPercent', 'TreatyShare']
+            scope_float_cols = ['CededPercent']
+            ri_info_df[info_float_cols] = ri_info_df[info_float_cols].astype(float)
+            ri_scope_df[scope_float_cols] = ri_scope_df[scope_float_cols].astype(float)
 
     return (ri_info_df, ri_scope_df, do_reinsurance)
 

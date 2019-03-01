@@ -1,0 +1,61 @@
+{
+    "analysis_settings": {
+        "analysis_tag": 13,
+        "exposure_location": "L:",
+        "gul_output": true,
+        "gul_summaries": [
+            {
+                "aalcalc": true,
+                "eltcalc": true,
+                "id": 1,
+                "lec_output": true,
+                "leccalc": {
+                    "outputs": {
+                        "full_uncertainty_aep": true,
+                        "full_uncertainty_oep": true
+                    },
+                "return_period_file": true
+                }
+            }
+        ],
+        "gul_threshold": 0,
+        "ri_output": true,
+        "ri_summaries": [
+            {
+                "aalcalc": true,
+                "eltcalc": true,
+                "id": 1,
+                "lec_output": true,
+                "leccalc": {
+                    "outputs": {
+                        "full_uncertainty_aep": true,
+                        "full_uncertainty_oep": true
+                    },
+                    "return_period_file": true
+                }
+            }
+        ],
+        "il_output": true,
+        "il_summaries": [
+            {
+                "aalcalc": true,
+                "eltcalc": true,
+                "id": 1,
+                "lec_output": true,
+                "leccalc": {
+                    "outputs": {
+                        "full_uncertainty_aep": true,
+                        "full_uncertainty_oep": true
+                    },
+                    "return_period_file": true
+                }
+            }
+        ],
+        "model_settings": {},
+        "model_version_id": null,
+        "module_supplier_id": null,
+        "number_of_samples": 10,
+        "prog_id": 12,
+        "source_tag": "det_analysis"
+    }
+}

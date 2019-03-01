@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 
 import getpass
 import io
@@ -11,12 +12,10 @@ import six
 from argparse import RawDescriptionHelpFormatter
 from pathlib2 import Path
 
-from ..utils.exceptions import OasisException
-
-from .cleaners import as_path, PathCleaner
-from .base import OasisBaseCommand, InputValues
-
 from ..api_client.client_manager import APIClient
+from ..utils.exceptions import OasisException
+from ..utils.path import as_path, PathCleaner
+from .base import OasisBaseCommand, InputValues
 
 
 def load_credentials(login_arg, logger=None):

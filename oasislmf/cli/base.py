@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import io
 import json
 import logging
@@ -7,7 +8,7 @@ import sys
 from argparsetree import BaseCommand
 
 from ..utils.exceptions import OasisException
-from .cleaners import PathCleaner
+from ..utils.path import PathCleaner
 
 
 class InputValues(object):
@@ -18,15 +19,22 @@ class InputValues(object):
     def __init__(self, args):
         self.args = args
 
+        self.config_fp = None
         self.config = {}
-        self.config_dir = os.path.dirname(args.config)
-        if os.path.exists(args.config):
-            with io.open(args.config, 'r', encoding='utf-8') as f:
-                self.config = json.load(f)
-        else:
-            raise OasisException('MDK config. file path {} does not exist'.format(self.config_dir))
 
-    def get(self, name, default=None, required=False, call_dir=None, is_path=False):
+        try:
+            self.config_fp = os.path.abspath(args.config)
+        except (AttributeError, OSError, TypeError):
+            pass
+        else:
+            self.config_dir = os.path.dirname(self.config_fp)
+            try:
+                with io.open(self.config_fp, 'r', encoding='utf-8') as f:
+                    self.config = json.load(f)
+            except FileNotFoundError:
+                raise OasisException('MDK config. file path {} provided does not exist'.format(self.config_fp))
+
+    def get(self, name, default=None, required=False, is_path=False):
         """
         Gets the names parameter from the command line arguments.
 
@@ -58,23 +66,29 @@ class InputValues(object):
         :return: The found value or the default
         """
         value = None
+
         cmd_value = getattr(self.args, name, None)
+        config_value = self.config.get(name)
+
         if cmd_value is not None:
             value = cmd_value
-        elif name in self.config:
+            if is_path and not os.path.isabs(value):
+                value = os.path.abspath(value)
+        elif config_value is not None:
             value = self.config[name]
+            if is_path and not os.path.isabs(value):
+                value = os.path.join(self.config_dir, value)
 
         if required and value is None:
             raise OasisException(
-                '{} could not be found in the command args or config file ({}) but is required'.format(name, self.args.config)
+                'Required argument {} could not be found in the command args or the MDK config. file'.format(name)
             )
 
         if value is None:
             value = default
 
-        if is_path and value is not None:
-            p = os.path.join(self.config_dir if not call_dir else call_dir, value)
-            value = os.path.abspath(p) if not os.path.isabs(value) else p
+        if is_path and value is not None and not os.path.isabs(value):
+            value = os.path.abspath(value) if cmd_value else os.path.join(self.config_dir, value)
 
         return value
 
@@ -103,8 +117,8 @@ class OasisBaseCommand(BaseCommand):
         """
         parser.add_argument('-V', '--verbose', action='store_true', help='Use verbose logging.')
         parser.add_argument(
-            '-C', '--config', type=PathCleaner('Config file', preexists=False),
-            help='The oasislmf config to load', default='./oasislmf.json'
+            '-C', '--config', required=False, type=PathCleaner('MDK config. JSON file', preexists=True),
+            help='MDK config. JSON file', default=None
         )
 
     def parse_args(self):

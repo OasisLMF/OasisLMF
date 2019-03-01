@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import io
 import json
 import os
@@ -10,13 +11,13 @@ from multiprocessing.pool import ThreadPool
 from argparsetree import BaseCommand
 from backports.tempfile import TemporaryDirectory
 
-from ..model_preparation.lookup import OasisLookupFactory as olf
 from .. import __version__
-from ..utils.exceptions import OasisException
-from ..utils.conf import replace_in_file
 from ..api_client.client import OasisAPIClient
+from ..model_preparation.lookup import OasisLookupFactory as olf
+from ..utils.conf import replace_in_file
+from ..utils.exceptions import OasisException
+from ..utils.path import PathCleaner
 from .base import OasisBaseCommand
-from .cleaners import PathCleaner
 
 
 class TestModelApiCmd(OasisBaseCommand):
@@ -66,7 +67,7 @@ class TestModelApiCmd(OasisBaseCommand):
     def load_analysis_settings_json(self, analysis_settings_file):
         """
         Loads the analysis settings JSON file into a dict, also creates a separate
-        boolean ``do_il`` for doing insured loss calculations.
+        boolean ``il`` for doing insured loss calculations.
 
         :param analysis_settings_file: Path to the analysis settings file to load
         :type analysis_settings_file: str
@@ -78,21 +79,21 @@ class TestModelApiCmd(OasisBaseCommand):
         with io.open(analysis_settings_file, encoding='utf-8') as f:
             analysis_settings = json.load(f)
 
-        do_il = False
+        il = False
         if 'il_output' in analysis_settings['analysis_settings']:
             if isinstance(analysis_settings['analysis_settings']['il_output'], string_types):
-                do_il = analysis_settings['analysis_settings']["il_output"].lower() == 'true'
+                il = analysis_settings['analysis_settings']["il_output"].lower() == 'true'
             else:
-                do_il = bool(analysis_settings['analysis_settings']["il_output"])
+                il = bool(analysis_settings['analysis_settings']["il_output"])
 
-        do_ri = False
+        ri = False
         if 'ri_output' in analysis_settings['analysis_settings']:       
             if isinstance(analysis_settings['analysis_settings']['ri_output'], string_types):
-                do_ri = analysis_settings['analysis_settings']["ri_output"].lower() == 'true'
+                ri = analysis_settings['analysis_settings']["ri_output"].lower() == 'true'
             else:
-                do_ri = bool(analysis_settings['analysis_settings']["ri_output"])
+                ri = bool(analysis_settings['analysis_settings']["ri_output"])
 
-        return analysis_settings, do_il, do_ri
+        return analysis_settings, il, ri
 
     
     def run_analysis(self, args):
@@ -101,12 +102,12 @@ class TestModelApiCmd(OasisBaseCommand):
         threads.
 
         :param args: a tuple containing (client, input_directory, output_directory,
-            analysis_settings, do_il, counter)
+            analysis_settings, il, counter)
         :type args: tuple
         """
         (
             client, input_directory, output_directory, 
-            analysis_settings, do_il, do_ri, counter, completed_order, index
+            analysis_settings, il, ri, counter, completed_order, index
          ) = args
 
         time.sleep(2 + index)
@@ -115,7 +116,7 @@ class TestModelApiCmd(OasisBaseCommand):
             with TemporaryDirectory() as upload_directory:
                 input_location = client.upload_inputs_from_directory(
                     input_directory, bin_directory=upload_directory,
-                    do_il=do_il, do_ri=do_ri, do_build=True)
+                    il=il, ri=ri, do_build=True)
                 client.run_analysis_and_poll(analysis_settings, input_location, output_directory)
                 counter['completed'] += 1
                 completed_order.append(index)
@@ -146,8 +147,8 @@ class TestModelApiCmd(OasisBaseCommand):
         # Load analysis settings JSON file and set up boolean for doing insured
         # loss calculations
         self.logger.info('Loading analysis settings JSON file:')
-        analysis_settings, do_il, do_ri = self.load_analysis_settings_json(args.analysis_settings_file)
-        self.logger.info('  OK: analysis_settings={}, do_il={}, do_ri={}'.format(analysis_settings, do_il, do_ri))
+        analysis_settings, il, ri = self.load_analysis_settings_json(args.analysis_settings_file)
+        self.logger.info('  OK: analysis_settings={}, il={}, ri={}'.format(analysis_settings, il, ri))
 
         # Prepare and run analyses
         self.logger.info('Running {} analyses'.format(args.num_analyses))
@@ -159,7 +160,7 @@ class TestModelApiCmd(OasisBaseCommand):
             self.run_analysis,
             ((
                 client, args.input_directory, args.output_directory, 
-                analysis_settings, do_il, do_ri, counter,
+                analysis_settings, il, ri, counter,
                 completed_order, i+1 
                 ) for i in range(args.num_analyses))
         )

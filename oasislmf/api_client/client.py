@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
     Provides a simple class to build Oasis API clients.
 """
@@ -23,7 +24,7 @@ from six.moves import urllib
 from ..model_execution.files import TAR_FILE
 from ..model_execution.bin import (
     create_binary_tar_file,
-    create_binary_files,
+    csv_to_bin,
     check_inputs_directory,
     cleanup_bin_directory,
     check_conversion_tools,
@@ -100,7 +101,7 @@ class OasisAPIClient(object):
             if do_build:
                 check_inputs_directory(directory, do_il=do_il, do_ri=do_ri)
                 check_conversion_tools(do_il=do_il)
-                create_binary_files(directory, bin_directory, do_il=do_il, do_ri=do_ri)
+                csv_to_bin(directory, bin_directory, do_il=do_il, do_ri=do_ri)
                 create_binary_tar_file(bin_directory)
 
             self._logger.debug("Uploading inputs")

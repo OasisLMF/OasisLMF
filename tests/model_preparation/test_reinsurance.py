@@ -1,5 +1,7 @@
+# -*- coding: utf-8 -*-
+
 import os
-import subprocess
+import subprocess32 as subprocess
 import time
 import unittest
 
@@ -208,9 +210,9 @@ class TestReinsurance(unittest.TestCase):
                         input_name = "ils"
                     else:
                         input_name = ri_layers[idx - 1]['directory']
-                    bin.create_binary_files(ri_layers[idx]['directory'],
+                    bin.csv_to_bin(ri_layers[idx]['directory'],
                                             ri_layers[idx]['directory'],
-                                            do_il=True)
+                                            il=True)
 
                     reinsurance_layer_losses_df = self._run_fm(
                         input_name,

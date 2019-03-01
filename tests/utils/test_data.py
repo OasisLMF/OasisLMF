@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import pandas as pd
 from unittest import TestCase
 from tempfile import NamedTemporaryFile

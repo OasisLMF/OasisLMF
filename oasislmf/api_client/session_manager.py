@@ -1,4 +1,5 @@
 #!/bin/env python
+# -*- coding: utf-8 -*-
 
 import requests
 from requests import codes as status 
@@ -12,7 +13,7 @@ import logging
 from ..utils.exceptions import OasisException
 
 class SessionManager(Session):
-    def __init__(self, api_url, username, password, timeout=1, retries=3, retry_delay=1, logger=None, **kwargs):
+    def __init__(self, api_url, username, password, timeout=25, retries=5, retry_delay=1, logger=None, **kwargs):
         super(SessionManager, self).__init__(**kwargs)
         self.logger = logger or logging.getLogger()
 
@@ -79,7 +80,7 @@ class SessionManager(Session):
             else:
                 return False
         self.logger.debug("Recoverable error [{}] from {} {}, retry #{} in {}s".format(error, request, url, counter, self.retry_delay))
-        time.sleep(self.retry_delay)
+        time.sleep(self.retry_delay*counter)
         return True
 
 
@@ -93,7 +94,8 @@ class SessionManager(Session):
         """
         try:
             url = urljoin(self.url_base, 'healthcheck/')
-            return super(SessionManager, self).get(url, timeout=self.timeout)
+            #return super(SessionManager, self).get(url, timeout=self.timeout)
+            return self.get(url)
         except Exception as e:    
             err_msg = 'Health check failed: Unable to connect to {}'.format(self.url_base)
             raise OasisException(err_msg)
@@ -105,8 +107,7 @@ class SessionManager(Session):
             try:
                 r = super(SessionManager, self).get(url, timeout=self.timeout, **kwargs)
             except (HTTPError, ConnectionError, ReadTimeout) as e:
-                r = e
-                if self.__recoverable(r, url, 'GET', counter):
+                if self.__recoverable(e, url, 'GET', counter):
                     continue
             return r
 
@@ -117,8 +118,7 @@ class SessionManager(Session):
             try:
                 r = super(SessionManager, self).post(url, timeout=self.timeout, **kwargs)
             except (HTTPError, ConnectionError, ReadTimeout) as e:
-                r = e
-                if self.__recoverable(r, url, 'POST', counter):
+                if self.__recoverable(e, url, 'POST', counter):
                     continue
             return r
 
@@ -129,8 +129,7 @@ class SessionManager(Session):
             try:
                 r = super(SessionManager, self).delete(url, timeout=self.timeout, **kwargs)
             except (HTTPError, ConnectionError, ReadTimeout) as e:
-                r = e
-                if self.__recoverable(r, url, 'DELETE', counter):
+                if self.__recoverable(e, url, 'DELETE', counter):
                     continue
             return r
 
@@ -141,7 +140,6 @@ class SessionManager(Session):
             try:
                 r = super(SessionManager, self).put(url, timeout=self.timeout, **kwargs)
             except (HTTPError, ConnectionError, ReadTimeout) as e:
-                r = e
-                if self.__recoverable(r, url, 'OPTIONS', counter):
+                if self.__recoverable(e, url, 'OPTIONS', counter):
                     continue
             return r

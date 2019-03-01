@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import json
 import os
 import shutil
@@ -46,7 +48,7 @@ class TestModelApiCmdLoadAnalysisSettingsJson(TestCase):
         conf = {
             'analysis_settings': {
                 'il_output': True,
-                'ri_output': True,                
+                'ri_output': True,
                 'foo': 'bar',
             }
         }
@@ -115,12 +117,14 @@ class TestModelApiCmdLoadAnalysisSettingsJson(TestCase):
 
             self.assertEqual(conf, res_conf)
             self.assertFalse(do_il)
-            self.assertFalse(do_ri)            
+            self.assertFalse(do_ri)
 
 
 class TestModelApiCmdRunAnalysis(TestCase):
+    @settings(suppress_health_check=[HealthCheck.too_slow], deadline=None, max_examples=1)
     @given(
-        text(), text(), dictionaries(text(), text()), booleans(), booleans(), integers(min_value=0, max_value=5), integers(min_value=0, max_value=5))
+        text(), text(), dictionaries(text(), text()), booleans(), booleans(), integers(min_value=0, max_value=5), integers(min_value=0, max_value=5)
+    )
     def test_no_errors_are_raised___completed_is_incremented(self, 
         input_dir, output_dir, settings, do_il, do_ri, initial_complete, initial_failed):
         client = OasisAPIClient('http://localhost:8001')
@@ -137,10 +141,10 @@ class TestModelApiCmdRunAnalysis(TestCase):
         self.assertEqual(initial_complete + 1, counter['completed'])
         self.assertEqual(initial_failed, counter['failed'])
         client.upload_inputs_from_directory.assert_called_once_with(
-            input_dir, bin_directory=ANY, do_il=do_il, do_ri=do_ri, do_build=True)
+            input_dir, bin_directory=ANY, il=do_il, ri=do_ri, do_build=True)
         client.run_analysis_and_poll.assert_called_once_with(settings, 'input_location', output_dir)
 
-    @settings(suppress_health_check=[HealthCheck.too_slow])
+    @settings(suppress_health_check=[HealthCheck.too_slow], deadline=None, max_examples=1)
     @given(
         text(), text(), dictionaries(text(), text()), booleans(), booleans(), integers(min_value=0, max_value=5), integers(min_value=0, max_value=5))
     def test_uploading_raises_an_error___failed_counter_is_incremented(self, 
@@ -159,8 +163,10 @@ class TestModelApiCmdRunAnalysis(TestCase):
         self.assertEqual(initial_complete, counter['completed'])
         self.assertEqual(initial_failed + 1, counter['failed'])
 
+    @settings(suppress_health_check=[HealthCheck.too_slow], deadline=None, max_examples=1)
     @given(
-        text(), text(), dictionaries(text(), text()), booleans(), booleans(), integers(min_value=0, max_value=5), integers(min_value=0, max_value=5))
+        text(), text(), dictionaries(text(), text()), booleans(), booleans(), integers(min_value=0, max_value=5), integers(min_value=0, max_value=5)
+    )
     def test_run_and_poll_raises_an_error___failed_counter_is_incremented(self, 
         input_dir, output_dir, settings, do_il, do_ri, initial_complete, initial_failed):
 
@@ -299,7 +305,7 @@ class TestModelApiCmdRun(TestCase):
         res = cmd.run()
 
         self.assertEqual(1, res)
-        cmd.logger.error.assert_called_once_with('Input directory does not exist: {}'.format(os.path.join(self.directory, 'input')))
+        cmd.logger.error.assert_called_once_with('The path {} (Input directory) is indicated as preexisting but does not exist'.format(os.path.join(self.directory, 'input')))
 
     def test_analysis_settings_file_does_not_exist___error_is_raised(self):
         os.remove(os.path.join(self.directory, 'analysis_settings.json'))
@@ -310,7 +316,7 @@ class TestModelApiCmdRun(TestCase):
         res = cmd.run()
 
         self.assertEqual(1, res)
-        cmd.logger.error.assert_called_once_with('Analysis settings does not exist: {}'.format(os.path.join(self.directory, 'analysis_settings.json')))
+        cmd.logger.error.assert_called_once_with('The path {} (Analysis settings) is indicated as preexisting but does not exist'.format(os.path.join(self.directory, 'analysis_settings.json')))
 
     @given(integers(min_value=1, max_value=5))
     def test_client_health_check_fails___error_is_written_to_the_log(self, health_check_attempts):

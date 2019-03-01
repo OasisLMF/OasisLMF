@@ -1,4 +1,31 @@
 {
+    "AccNumber": {
+        "ProfileElementName": "AccNumber",
+        "FieldName": "AccNumber",
+        "FMLevelName": "ID",
+        "FMLevel": 0,
+        "FMTermType": "AccID",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "PolNumber": {
+        "ProfileElementName": "PolNumber",
+        "FieldName": "PolNumber",
+        "FMLevelName": "ID",
+        "FMLevel": 0,
+        "FMTermType": "PolID",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "PortNumber": {
+        "ProfileElementName": "PortNumber",
+        "FieldName": "PortNumber",
+        "FMLevelName": "ID",
+        "FMLevel": 0,
+        "FMTermType": "PortID",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
     "CondDed6All": {
         "ProfileElementName": "CondDed6All",
         "FieldName": "CondAllDeductible",
