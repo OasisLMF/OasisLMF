@@ -143,12 +143,17 @@ def get_gul_input_items(
                 tiv = _it[tiv_elm]
                 tiv_tgid = ptiv['FMTermGroupID']
 
+                complex_model_data = _it.get('modeldata')
+
                 it = {
                     'item_id': item_id,
                     'loc_id': _it[loc_id],
                     'portfolio_num': _it[portfolio_num],
                     'acc_id': _it[acc_id],
                     'peril_id': _it['perilid'],
+                    'areaperil_id': -1 if complex_model_data else _it['areaperilid'],
+                    'vulnerability_id': -1 if complex_model_data else _it['vulnerabilityid'],
+                    'model_data': complex_model_data,
                     'coverage_type_id': _it['coveragetypeid'],
                     'coverage_id': item_id,
                     'is_bi_coverage': _it['coveragetypeid'] == COVERAGE_TYPES['bi']['id'],
@@ -164,14 +169,6 @@ def get_gul_input_items(
                     'summary_id': 1,
                     'summaryset_id': 1
                 }
-
-                if "modeldata" in _it:
-                    it["model_data"] = _it["modeldata"]
-                    it['areaperil_id'] = -1
-                    it['vulnerability_id'] = -1
-                else:
-                    it['areaperil_id'] = _it['areaperilid']
-                    it['vulnerability_id'] = _it['vulnerabilityid']
 
                 if it['deductible'] < 1:
                     it['deductible'] *= it['tiv']
@@ -210,19 +207,18 @@ def get_gul_input_items(
     return gul_inputs_df, exposure_df
 
 
-def write_complex_items_file(gul_inputs_df, items_fp):
+def write_complex_items_file(gul_inputs_df, complex_items_fp):
     """
     Writes an items file.
     """
     try:
-        if "model_data" in gul_inputs_df.columns:
-            gul_inputs_df.to_csv(
-                columns=['item_id', 'coverage_id', 'model_data', 'group_id'],
-                path_or_buf=items_fp,
-                encoding='utf-8',
-                chunksize=1000,
-                index=False
-            )
+        gul_inputs_df.to_csv(
+            columns=['item_id', 'coverage_id', 'model_data', 'group_id'],
+            path_or_buf=items_fp,
+            encoding='utf-8',
+            chunksize=1000,
+            index=False
+        )
     except (IOError, OSError) as e:
         raise OasisException(e)
 
@@ -289,7 +285,7 @@ def write_gul_input_files(
     exposure_profile=get_default_exposure_profile(),
     oasis_files_prefixes={
         'items': 'items',
-        'complex_items': 'complex_items',        
+        'complex_items': 'complex_items',
         'coverages': 'coverages',
         'gulsummaryxref': 'gulsummaryxref'
     },
@@ -301,6 +297,8 @@ def write_gul_input_files(
         items.csv
         coverages.csv
         gulsummaryxref.csv
+
+    with the addition of a complex items file in case of a complex/custom model
     """
     # Clean the target directory path
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
@@ -309,6 +307,11 @@ def write_gul_input_files(
 
     if write_inputs_table_to_file:
         gul_inputs_df.to_csv(path_or_buf=os.path.join(target_dir, 'gul_inputs.csv'), index=False, encoding='utf-8', chunksize=1000)
+
+    if not gul_inputs_df[['model_data']].any().any():
+        gul_inputs_df.drop(['model_data'], axis=1, inplace=True)
+        if oasis_files_prefixes.get('complex_items'):
+            oasis_files_prefixes.pop('complex_items')
 
     gul_input_files = {
         k: os.path.join(target_dir, '{}.csv'.format(oasis_files_prefixes[k])) 
