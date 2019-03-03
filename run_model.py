@@ -285,7 +285,7 @@ if __name__ == "__main__":
     print('\n{} successfully cloned in {}'.format(args['model_repo_name'], args['clone_target']))
 
     local_model_repo_fp = os.path.join(args['clone_target'], args['model_repo_name'])
-    model_mdk_config_fp = os.path.join(local_model_repo_fp, 'oasislmf-oed.json')
+    model_mdk_config_fp = os.path.join(local_model_repo_fp, 'oasislmf.json')
 
     print('\nAdjusting {} MDK config. file to suit model run mode "{}"'.format(args['model_repo_name'], args['model_run_mode'].upper()))
     apply_model_run_mode(args['model_run_mode'], model_mdk_config_fp)

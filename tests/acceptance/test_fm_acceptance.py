@@ -150,8 +150,10 @@ class FmAcceptanceTests(TestCase):
                 ef.name, kf.name, oasis_dir,
                 exposure_profile=self.exposure_profile
             )
-
-            self.assertTrue(all(os.path.exists(p) for p in viewvalues(gul_input_files)))
+    
+            for p in viewvalues(gul_input_files): 
+                if not p.endswith("complex_items.csv"):
+                    self.assertTrue(os.path.exists(p))
 
             guls = pd.merge(
                 pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
@@ -183,7 +185,9 @@ class FmAcceptanceTests(TestCase):
                 fm_aggregation_profile=self.fm_aggregation_profile
             )
 
-            self.assertTrue(all(os.path.exists(p) for p in viewvalues(il_input_files)))
+            for p in viewvalues(il_input_files): 
+                if not p.endswith("complex_items.csv"):
+                    self.assertTrue(os.path.exists(p))
 
             fm_programme_df = pd.read_csv(il_input_files['fm_programme'])
             level_groups = [group for _, group in fm_programme_df.groupby(['level_id'])]
@@ -320,7 +324,9 @@ class FmAcceptanceTests(TestCase):
 
             gul_input_files, gul_inputs, exposure_df = write_gul_input_files(ef.name, kf.name, oasis_dir, exposure_profile=self.exposure_profile)
 
-            self.assertTrue(all(os.path.exists(p) for p in viewvalues(gul_input_files)))
+            for p in viewvalues(gul_input_files): 
+                if not p.endswith("complex_items.csv"):
+                    self.assertTrue(os.path.exists(p))
 
             guls = pd.merge(
                 pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
@@ -352,7 +358,9 @@ class FmAcceptanceTests(TestCase):
                 fm_aggregation_profile=self.fm_aggregation_profile
             )
 
-            self.assertTrue(all(os.path.exists(p) for p in viewvalues(il_input_files)))
+            for p in viewvalues(il_input_files): 
+                if not p.endswith("complex_items.csv"):
+                    self.assertTrue(os.path.exists(p))
 
             fm_programme_df = pd.read_csv(il_input_files['fm_programme'])
             level_groups = [group for _, group in fm_programme_df.groupby(['level_id'])]
@@ -497,7 +505,9 @@ class FmAcceptanceTests(TestCase):
 
             gul_input_files, gul_inputs, exposure_df = write_gul_input_files(ef.name, kf.name, oasis_dir, exposure_profile=self.exposure_profile)
 
-            self.assertTrue(all(os.path.exists(p) for p in viewvalues(gul_input_files)))
+            for p in viewvalues(gul_input_files): 
+                if not p.endswith("complex_items.csv"):
+                    self.assertTrue(os.path.exists(p))
 
             guls = pd.merge(
                 pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
@@ -529,7 +539,9 @@ class FmAcceptanceTests(TestCase):
                 fm_aggregation_profile=self.fm_aggregation_profile
             )
 
-            self.assertTrue(all(os.path.exists(p) for p in viewvalues(il_input_files)))
+            for p in viewvalues(il_input_files): 
+                if not p.endswith("complex_items.csv"):
+                    self.assertTrue(os.path.exists(p))
 
             fm_programme_df = pd.read_csv(il_input_files['fm_programme'])
             level_groups = [group for _, group in fm_programme_df.groupby(['level_id'])]
@@ -686,7 +698,9 @@ class FmAcceptanceTests(TestCase):
 
             gul_input_files, gul_inputs, exposure_df = write_gul_input_files(ef.name, kf.name, oasis_dir, exposure_profile=self.exposure_profile)
 
-            self.assertTrue(all(os.path.exists(p) for p in viewvalues(gul_input_files)))
+            for p in viewvalues(gul_input_files): 
+                if not p.endswith("complex_items.csv"):
+                    self.assertTrue(os.path.exists(p))
 
             guls = pd.merge(
                 pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
@@ -731,7 +745,9 @@ class FmAcceptanceTests(TestCase):
                 fm_aggregation_profile=self.fm_aggregation_profile
             )
 
-            self.assertTrue(all(os.path.exists(p) for p in viewvalues(il_input_files)))
+            for p in viewvalues(il_input_files): 
+                if not p.endswith("complex_items.csv"):
+                    self.assertTrue(os.path.exists(p))
 
             fm_programme_df = pd.read_csv(il_input_files['fm_programme'])
             level_groups = [group for _, group in fm_programme_df.groupby(['level_id'])]
@@ -892,7 +908,9 @@ class FmAcceptanceTests(TestCase):
 
             gul_input_files, gul_inputs, exposure_df = write_gul_input_files(ef.name, kf.name, oasis_dir, exposure_profile=self.exposure_profile)
 
-            self.assertTrue(all(os.path.exists(p) for p in viewvalues(gul_input_files)))
+            for p in viewvalues(gul_input_files): 
+                if not p.endswith("complex_items.csv"):
+                    self.assertTrue(os.path.exists(p))
 
             guls = pd.merge(
                 pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
@@ -937,7 +955,9 @@ class FmAcceptanceTests(TestCase):
                 fm_aggregation_profile=self.fm_aggregation_profile
             )
 
-            self.assertTrue(all(os.path.exists(p) for p in viewvalues(il_input_files)))
+            for p in viewvalues(il_input_files): 
+                if not p.endswith("complex_items.csv"):
+                    self.assertTrue(os.path.exists(p))
 
             fm_programme_df = pd.read_csv(il_input_files['fm_programme'])
             level_groups = [group for _, group in fm_programme_df.groupby(['level_id'])]
@@ -1101,7 +1121,9 @@ class FmAcceptanceTests(TestCase):
 
             gul_input_files, gul_inputs, exposure_df = write_gul_input_files(ef.name, kf.name, oasis_dir, exposure_profile=self.exposure_profile)
 
-            self.assertTrue(all(os.path.exists(p) for p in viewvalues(gul_input_files)))
+            for p in viewvalues(gul_input_files): 
+                if not p.endswith("complex_items.csv"):
+                    self.assertTrue(os.path.exists(p))
 
             guls = pd.merge(
                 pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
@@ -1126,7 +1148,9 @@ class FmAcceptanceTests(TestCase):
                 fm_aggregation_profile=self.fm_aggregation_profile
             )
 
-            self.assertTrue(all(os.path.exists(p) for p in viewvalues(il_input_files)))
+            for p in viewvalues(il_input_files): 
+                if not p.endswith("complex_items.csv"):
+                    self.assertTrue(os.path.exists(p))
 
             fm_programme_df = pd.read_csv(il_input_files['fm_programme'])
             level_groups = [group for _, group in fm_programme_df.groupby(['level_id'])]
