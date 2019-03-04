@@ -34,7 +34,7 @@ import sys
 from argparse import RawDescriptionHelpFormatter
 
 from pathlib2 import Path
-from six import u as _unicode
+from six import text_type as _unicode
 from tabulate import tabulate
 from tqdm import tqdm
 
