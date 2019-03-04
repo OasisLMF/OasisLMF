@@ -1,6 +1,14 @@
 OasisLMF Changelog
 ==================
 
+`1.3.0`_
+--------
+* Remove CSV file transformations from Oasis files generation - use OED source exposure directly
+* Integrate backend RI functionality with the CLI model subcommands - full RI losses can now be generated
+* Add new CLI subcommand for deterministic loss generation including direct and RI losses
+* Optimise FM component (13x speedup achieved)
+* Add support for custom complex models, python version of ground up losses `gulcalc.py`
+
 `1.2.8`_
 --------
 * Hotfix for Ktools, version is now 3.0.5
@@ -190,6 +198,7 @@ in the exposure manager
 
 * Add console logging
 
+.. _`1.3.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.2.8...1.3.0
 .. _`1.2.8`:  https://github.com/OasisLMF/OasisLMF/compare/1.2.7...1.2.8
 .. _`1.2.7`:  https://github.com/OasisLMF/OasisLMF/compare/1.2.6...1.2.7
 .. _`1.2.6`:  https://github.com/OasisLMF/OasisLMF/compare/1.2.5...1.2.6
