@@ -59,6 +59,12 @@ node {
     env.PIPELINE_LOAD =  script_dir + source_sh             // required for pipeline.sh calls
     sh 'env'
 
+    if (params.PUBLISH && ! source_branch.matches("release/(.*)"){
+        // fail fast, only branches named `release/*` are valid for publish
+        sh "echo `Publish Only allowed on a release/* branch`"
+        sh "exit 1"
+    }
+
     try {
         parallel(
             clone_build: {
