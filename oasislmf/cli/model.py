@@ -351,12 +351,15 @@ class GenerateLossesCmd(OasisBaseCommand):
     structure
     ::
 
-        ├── analysis_settings.json
-        ├── fifo/
-        ├── input/
-        ├── output/
-        ├── static/
-        └── work/
+        |-- analysis_settings.json
+        |-- fifo
+        |-- input
+        |-- output
+        |-- RI_1
+        |-- ri_layers.json
+        |-- run_ktools.sh
+        |-- static
+        `-- work
 
     Depending on the OS type the model data is symlinked (Linux, Darwin) or
     copied (Cygwin, Windows) into the ``static`` subfolder. The input files

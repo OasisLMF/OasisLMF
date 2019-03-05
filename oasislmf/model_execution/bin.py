@@ -60,14 +60,14 @@ def prepare_run_directory(
     ::
 
         <run_directory>
-        ├── fifo/
-        ├── input/
-        │   └── csv/
-        ├── output/
-        ├── static/
-        └── work/
-        ├── analysis_settings.json
-        └── run_ktools.sh
+        |-- fifo/
+        |-- input/
+        |   `-- csv/
+        |-- output/
+        |-- static/
+        |-- work/
+        |-- analysis_settings.json
+        `-- run_ktools.sh
 
 
     where the direct GUL and/or FM input files exist in the ``input/csv``
@@ -76,19 +76,19 @@ def prepare_run_directory(
     With the RI flag the model run directory has the following structure
 
     ::
-
+                                                                                            
         <run_directory>
-        ├── fifo
-        ├── input
-        ├── RI_1
-        ├── RI_2
-        ├── ...
-        ├── output
-        ├── static
-        └── work
-        └── ri_layers.json
-        ├── analysis_settings.json
-        └── run_ktools.sh
+        |-- fifo
+        |-- input
+        |-- RI_1
+        |-- RI_2
+        |-- ...
+        |-- output
+        |-- static
+        |-- work
+        |-- ri_layers.json
+        |-- analysis_settings.json
+        `-- run_ktools.sh
 
     where the direct GUL and/or FM input files, and the corresponding binaries
     exist in the ``input`` subfolder, and the RI layer input files and binaries
