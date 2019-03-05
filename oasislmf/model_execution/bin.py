@@ -148,7 +148,7 @@ def prepare_run_directory(
             else:
                 shutil.move(src, run_dir)
 
-        dst = os.path.join(run_dir, 'analysis_settings.json')
+        dst = os.path.join(run_dir, os.path.basename(analysis_settings_fp))
         shutil.copy(analysis_settings_fp, dst) if not (os.path.exists(dst) and filecmp.cmp(analysis_settings_fp, dst, shallow=False)) else None
 
         model_data_dst_fp = os.path.join(run_dir, 'static')
