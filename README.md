@@ -4,16 +4,20 @@
 
 # OasisLMF
 
-The `oasislmf` Python package, loosely called the *model development kit (MDK)* or the *MDK package*, provides a command line interface and reusable libraries for developing and running Oasis models end-to-end, locally or remotely via the Oasis API. For running models locally the CLI provides a `model` subcommand with the following main subcommands:
+The `oasislmf` Python package, loosely called the *model development kit (MDK)* or the *MDK package*, provides a command line interface and reusable libraries primarly for developing and running Oasis models end-to-end locally, or remotely via the Oasis API, for the purpose of generating group-up losses (GUL), direct/insured losses (IL) and reinsurance losses (RIL). The package also provides end users with a way to generate deterministic losses at all levels, GUL, IL or RIL.
+
+For running models locally the CLI provides a `model` subcommand with the following main subcommands:
 
 * `model generate-keys`: generates Oasis keys files that model lookups would generate; these are essentially line items of (location ID, peril ID, coverage type ID, area peril ID, vulnerability ID) where peril ID and coverage type ID span the full set of perils and coverage types that the model supports
-* `model generate-oasis-files`: generates the Oasis input CSV files, from which ground up loss (GUL), direct insured losses (IL/FM) and/or reinsurance losses are generated; it requires the provision of source exposure and optionally source accounts and reinsurance info. and scope files (in OED or RMS format), canonical profiles and aggregation profiles that describe the financial terms in "canonical" versions of the source exposure and accounts files, and other model data related assets
-* `model generate-losses`: generates GUL, or GUL + IL, or GUL + IL + RI losses from pre-generated Oasis files
-* `model run`: runs the model from start to finish by generating losses (GUL, or GUL + IL, or GUL + IL + RI) from the source data, canonical and aggregation profiles, and model data.
+* `model generate-oasis-files`: generates the Oasis input CSV files for losses (GUL, GUL + IL, or GUL + IL + RIL); it requires the provision of source exposure and optionally source accounts and reinsurance info. and scope files (in OED format), as well as assets for instantiating model lookups and generating keys files
+* `model generate-losses`: generates losses (GUL, or GUL + IL, or GUL + IL + RIL) from a set of pre-existing Oasis files
+* `model run`: runs the model from start to finish by generating losses (GUL, or GUL + IL, or GUL + IL + RIL) from the source exposure, and optionally source accounts and reinsurance info. and scope files (in OED or RMS format), as well as assets for instantiating model lookups and generating keys files
 
 For remote model execution the `api` subcommand provides the following main subcommand:
 
 * `api run`: runs the model remotely (same as `model run`) but via the Oasis API
+
+For generating deterministic losses (GUL, or GUL + IL, or GUL + IL + RIL) the CLI provides an `exposure run` subcommand.
 
 The reusable libraries are organised into several sub-packages, the most relevant of which from a model developer or user's perspective are:
 
