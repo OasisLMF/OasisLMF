@@ -1,6 +1,12 @@
 OasisLMF Changelog
 ==================
 
+
+`1.3.1`_
+--------
+* Hotfix for path issue with the analysis_setttings file
+* Downgraded ktools from `3.0.6` to `3.0.5` fix pending in fmcalc
+
 `1.3.0`_
 --------
 * Remove CSV file transformations from Oasis files generation - use OED source exposure directly
@@ -198,6 +204,7 @@ in the exposure manager
 
 * Add console logging
 
+.. _`1.3.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.0...1.3.1
 .. _`1.3.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.2.8...1.3.0
 .. _`1.2.8`:  https://github.com/OasisLMF/OasisLMF/compare/1.2.7...1.2.8
 .. _`1.2.7`:  https://github.com/OasisLMF/OasisLMF/compare/1.2.6...1.2.7
