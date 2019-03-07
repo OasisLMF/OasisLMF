@@ -15,11 +15,16 @@ node {
         }
     }
 
+    set_piwind_branch='develop'
+    if (source_branch.matches("master") || source_branch.matches("hotfix/(.*)") || source_branch.matches("release/(.*)")){
+        set_piwind_branch='master'
+    }
+
     properties([
       parameters([
         [$class: 'StringParameterDefinition',  name: 'BUILD_BRANCH', defaultValue: 'master'],
         [$class: 'StringParameterDefinition',  name: 'SOURCE_BRANCH', defaultValue: source_branch],
-        [$class: 'StringParameterDefinition',  name: 'PIWIND_BRANCH', defaultValue: 'develop'],
+        [$class: 'StringParameterDefinition',  name: 'PIWIND_BRANCH', defaultValue: set_piwind_branch],
         [$class: 'StringParameterDefinition',  name: 'PUBLISH_VERSION', defaultValue: ''],
         [$class: 'StringParameterDefinition',  name: 'KTOOLS_VERSION', defaultValue: ''],
         [$class: 'StringParameterDefinition',  name: 'GPG_KEY', defaultValue: 'gpg-privatekey'],
