@@ -1,31 +1,31 @@
-FM5
+FM4
 ===
 
 can. acc.
 ---------
 ROW_ID,AccNumber,PortNumber,PolNumber,PolPeril,CondDed6All,CondLimit6All,CondNumber,PolDed6All,PolMinDed6All,PolMaxDed6All,LayerAttachment,LayerLimit,LayerParticipation
-1,1,1,1,WTC;WEC;BFR;OO1,0,0,1,0,0,0,0,0,1
+1,1,1,1,WTC;WEC;BFR;OO1,0,0,76511,0,0,0,0,0,1
 
 can. loc.
 ---------
 ROW_ID,AccNumber,LocNumber,LocName,AreaCode,CountryCode,LocPeril,BuildingTIV,LocDed1Building,LocLimit1Building,OtherTIV,LocDed2Other,LocLimit2Other,ContentsTIV,LocDed3Contents,LocLimit3Contents,BITIV,LocDed4BI,LocLimit4BI,LocDed5PD,LocLimit5PD,LocDed6All,LocLimit6All,CondTag
-1,1,1,Location 1,CA,US,WTC;WEC;BFR;OO1,1000000,0,0,100000,0,0,50000,0,0,20000,0,0,0,0,1000,1000000,1
+1,1,1,Location 1,CA,US,WTC;WEC;BFR;OO1,1000000,0,0,100000,0,0,50000,0,0,20000,2000,18000,1000,1000000,0,0,119587
 
 keys
 ----
 LocID,PerilID,CoverageTypeID,AreaPerilID,VulnerabilityID
 1,1,1,1,1
-1,1,2,1,1
-1,1,3,1,1
-1,1,4,1,1
+1,1,2,1,2
+1,1,3,1,3
+1,1,4,1,4
 
 items.csv
 ---------
 item_id,coverage_id,areaperil_id,vulnerability_id,group_id
 1,1,1,1,1
-2,2,1,1,1
-3,3,1,1,1
-4,4,1,1,1
+2,2,1,2,1
+3,3,1,3,1
+4,4,1,4,1
 
 coverages.csv
 -------------
@@ -53,15 +53,17 @@ from_agg_id,level_id,to_agg_id
 1,2,1
 2,2,1
 3,2,1
-4,2,1
+4,2,2
 1,3,1
+2,3,1
 
 fm_profile.csv
 --------------
 policytc_id,calcrule_id,deductible1,deductible2,deductible3,attachment1,limit1,share1,share2,share3
 1,12,0.0,0.0,0.0,0.0,0.0,0.0,0,0
-2,1,1000.0,0.0,0.0,0.0,1000000.0,0.0,0,0
-3,2,0.0,0.0,0.0,0.0,9999999999.0,1.0,0,0
+2,1,2000.0,0.0,0.0,0.0,18000.0,0.0,0,0
+3,1,1000.0,0.0,0.0,0.0,1000000.0,0.0,0,0
+4,2,0.0,0.0,0.0,0.0,9999999999.0,1.0,0,0
 
 fm_policytc.csv
 ---------------
@@ -69,9 +71,10 @@ layer_id,level_id,agg_id,policytc_id
 1,1,1,1
 1,1,2,1
 1,1,3,1
-1,1,4,1
-1,2,1,2
-1,3,1,3
+1,1,4,2
+1,2,1,3
+1,2,2,1
+1,3,1,4
 
 fm_xref.csv
 -----------
@@ -92,11 +95,22 @@ output,summary_id,summaryset_id
 losses (loss factor = 1.0)
 --------------------------
 
+Ground-up losses
++----+------------+-----------+------------+
+|    |   event_id |   item_id |       loss |
+|----+------------+-----------+------------|
+|  0 |          1 |         1 | 1000000.00 |
+|  1 |          1 |         2 |  100000.00 |
+|  2 |          1 |         3 |   50000.00 |
+|  3 |          1 |         4 |   20000.00 |
++----+------------+-----------+------------+
+
+Insured losses
 +----+------------+-------------+-----------+
 |    |   event_id |   output_id |      loss |
 |----+------------+-------------+-----------|
-|  2 |          1 |           1 | 854700.88 |
-|  5 |          1 |           2 |  85470.09 |
-|  8 |          1 |           3 |  42735.04 |
-| 11 |          1 |           4 |  17094.02 |
+|  0 |          1 |           1 | 869565.25 |
+|  1 |          1 |           2 |  86956.52 |
+|  2 |          1 |           3 |  43478.26 |
+|  3 |          1 |           4 |  18000.00 |
 +----+------------+-------------+-----------+
