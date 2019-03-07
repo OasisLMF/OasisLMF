@@ -214,7 +214,7 @@ def write_complex_items_file(gul_inputs_df, complex_items_fp):
     try:
         gul_inputs_df.to_csv(
             columns=['item_id', 'coverage_id', 'model_data', 'group_id'],
-            path_or_buf=items_fp,
+            path_or_buf=complex_items_fp,
             encoding='utf-8',
             chunksize=1000,
             index=False

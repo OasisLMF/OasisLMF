@@ -11,7 +11,7 @@ from collections import OrderedDict
 from unittest import TestCase
 
 import pandas as pd
-from six import u as _unicode
+from six import text_type as _unicode
 
 from backports.tempfile import TemporaryDirectory
 from hypothesis import (

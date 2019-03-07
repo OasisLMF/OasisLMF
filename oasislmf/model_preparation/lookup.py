@@ -690,13 +690,6 @@ class OasisLookupFactory(object):
                 return fp1, n1, fp2, n2
             return cls.write_json_keys_file(successes, sfp)
         elif format == 'oasis':
-            loc_id_col = None
-            try:
-                loc_id_col = lookup.loc_id_col
-            except AttributeError:
-                loc_id_col = id_col
-            else:
-                loc_id_col = loc_id_col.lower()
             if efp:
                 fp1, n1 = cls.write_oasis_keys_file(successes, sfp, id_col=loc_id_col)
                 fp2, n2 = cls.write_oasis_keys_errors_file(nonsuccesses, efp, id_col=loc_id_col)

@@ -15,11 +15,16 @@ node {
         }
     }
 
+    set_piwind_branch='develop'
+    if (source_branch.matches("master") || source_branch.matches("hotfix/(.*)") || source_branch.matches("release/(.*)")){
+        set_piwind_branch='master'
+    }
+
     properties([
       parameters([
         [$class: 'StringParameterDefinition',  name: 'BUILD_BRANCH', defaultValue: 'master'],
         [$class: 'StringParameterDefinition',  name: 'SOURCE_BRANCH', defaultValue: source_branch],
-        [$class: 'StringParameterDefinition',  name: 'PIWIND_BRANCH', defaultValue: 'develop'],
+        [$class: 'StringParameterDefinition',  name: 'PIWIND_BRANCH', defaultValue: set_piwind_branch],
         [$class: 'StringParameterDefinition',  name: 'PUBLISH_VERSION', defaultValue: ''],
         [$class: 'StringParameterDefinition',  name: 'KTOOLS_VERSION', defaultValue: ''],
         [$class: 'StringParameterDefinition',  name: 'GPG_KEY', defaultValue: 'gpg-privatekey'],
@@ -59,6 +64,12 @@ node {
     env.PIPELINE_LOAD =  script_dir + source_sh             // required for pipeline.sh calls
     sh 'env'
 
+    if (params.PUBLISH && ! source_branch.matches("release/(.*)") ){
+        // fail fast, only branches named `release/*` are valid for publish
+        sh "echo `Publish Only allowed on a release/* branch`"
+        sh "exit 1"
+    }
+
     try {
         parallel(
             clone_build: {
@@ -92,16 +103,16 @@ node {
         stage('Run MDK: PiWind 3.6') {
             dir(build_workspace) {
                 String MDK_RUN='ri'
-                sh 'docker build -f docker/Dockerfile.mdk-tester -t mdk-runner .'
-                sh "docker run mdk-runner python run_model.py --model-repo-branch ${model_branch} --mdk-repo-branch ${source_branch} --model-run-mode ${MDK_RUN}"
+                sh 'docker build -f docker/Dockerfile.mdk-tester-3.6 -t mdk-runner-3.6 .'
+                sh "docker run mdk-runner-3.6 --model-repo-branch ${model_branch} --mdk-repo-branch ${source_branch} --model-run-mode ${MDK_RUN}"
             }
         }
 
         stage('Run MDK: PiWind 2.7') {
             dir(build_workspace) {
                 String MDK_RUN='ri'
-                sh 'docker build -f docker/Dockerfile.mdk-tester -t mdk-runner .'
-                sh "docker run mdk-runner python2.7 run_model.py --model-repo-branch ${model_branch} --mdk-repo-branch ${source_branch} --model-run-mode ${MDK_RUN}"
+                sh 'docker build -f docker/Dockerfile.mdk-tester-2.7 -t mdk-runner-2.7 .'
+                sh "docker run mdk-runner-2.7 --model-repo-branch ${model_branch} --mdk-repo-branch ${source_branch} --model-run-mode ${MDK_RUN}"
             }
         }
 
