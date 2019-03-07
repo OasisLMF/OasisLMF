@@ -8,7 +8,9 @@ flake8
 freezegun
 future
 hypothesis
+ipdb
 mock
+parameterized
 pip-tools>=2.0.2
 pytest
 pytest-cov
@@ -16,8 +18,5 @@ pytest-ignore-flaky
 mock
 responses
 Sphinx
-tox
-parameterized
 tabulate
-backports.tempfile
-backports.weakref
+tox
