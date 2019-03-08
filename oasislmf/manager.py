@@ -484,7 +484,7 @@ class OasisManager(object):
             for fp in [os.path.join(model_run_fp, fn) for fn in contents if re.match(r'RI_\d+$', fn) or re.match(r'input$', fn)]:
                 csv_to_bin(fp, fp, il=True, ri=True)
 
-        analysis_settings_fn = os.path.basename(analysis_settings_fp)
+        analysis_settings_fn = 'analysis_settings.json'
         _analysis_settings_fp = os.path.join(model_run_fp, analysis_settings_fn)
         try:
             with io_open(_analysis_settings_fp, 'r', encoding='utf-8') as f:
