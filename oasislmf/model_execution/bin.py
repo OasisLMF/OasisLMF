@@ -147,8 +147,8 @@ def prepare_run_directory(
                 shutil.copy2(src, oasis_dst_fp) if not (os.path.exists(dst) and filecmp.cmp(src, dst)) else None
             else:
                 shutil.move(src, run_dir)
-
-        dst = os.path.join(run_dir, os.path.basename(analysis_settings_fp))
+        
+        dst = os.path.join(run_dir, 'analysis_settings.json')
         shutil.copy(analysis_settings_fp, dst) if not (os.path.exists(dst) and filecmp.cmp(analysis_settings_fp, dst, shallow=False)) else None
 
         model_data_dst_fp = os.path.join(run_dir, 'static')

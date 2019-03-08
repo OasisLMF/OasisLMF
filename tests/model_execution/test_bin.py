@@ -536,7 +536,7 @@ class PrepareRunDirectory(TestCase):
 
             prepare_run_directory(run_dir, oasis_src_fp, model_data_fp, analysis_settings_fp.name)
 
-            with io_open(os.path.join(run_dir, analysis_settings_fp.name), encoding='utf-8') as expected_analysis_settings:
+            with io_open(os.path.join(run_dir, 'analysis_settings.json'), encoding='utf-8') as expected_analysis_settings:
                 self.assertEqual('{"analysis_settings": "analysis_settings"}', expected_analysis_settings.read())
 
     def test_model_data_src_is_supplied___symlink_to_output_dir_static_is_created(self):
