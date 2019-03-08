@@ -484,7 +484,7 @@ class OasisManager(object):
             for fp in [os.path.join(model_run_fp, fn) for fn in contents if re.match(r'RI_\d+$', fn) or re.match(r'input$', fn)]:
                 csv_to_bin(fp, fp, il=True, ri=True)
 
-        analysis_settings_fn = os.path.basename(analysis_settings_fp)
+        analysis_settings_fn = 'analysis_settings.json'
         _analysis_settings_fp = os.path.join(model_run_fp, analysis_settings_fn)
         try:
             with io_open(_analysis_settings_fp, 'r', encoding='utf-8') as f:
@@ -625,16 +625,23 @@ class OasisManager(object):
                 else:
                     def run_ri_layer(layer):
                         layer_inputs_fp = os.path.join(input_dir, 'RI_{}'.format(layer))
-                        _input = 'gultobin -S 1 < {} | fmcalc -p {} -a 2 | tee ils.bin |'.format(guls_fp, input_dir) if layer == 1 else ''
+                        _input = 'gultobin -S 1 < {} | fmcalc -p {} -a {} | tee ils.bin |'.format(guls_fp, input_dir, oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID) if layer == 1 else ''
                         pipe_in_previous_layer = '< ri{}.bin'.format(layer - 1) if layer > 1 else ''
-
-                        cmd = '{} fmcalc -p {} -n -a 2 {}| tee ri{}.bin | fmtocsv > ri{}.csv'.format(_input, layer_inputs_fp, pipe_in_previous_layer, layer, layer)
+                        ri_layer_fp = os.path.join(output_dir, 'ri{}.csv'.format(layer))
+                        cmd = '{} fmcalc -p {} -n -a {} {}| tee ri{}.bin | fmtocsv > {}'.format(
+                            _input,
+                            layer_inputs_fp,
+                            oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID,
+                            pipe_in_previous_layer,
+                            layer,
+                            ri_layer_fp
+                        )
                         print("\nGenerating deterministic RI layer {} losses with command: {}\n".format(layer, cmd))
                         try:
                             check_call(cmd, shell=True)
                         except CalledProcessError as e:
                             raise OasisException(e)
-                        rils = pd.read_csv('ri{}.csv'.format(layer))
+                        rils = pd.read_csv(ri_layer_fp)
                         rils.drop(rils[rils['sidx'] != 1].index, inplace=True)
                         rils.drop('sidx', axis=1, inplace=True)
                         rils.reset_index(drop=True, inplace=True)
