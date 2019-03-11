@@ -106,11 +106,13 @@ class GeneratePerilAreasRtreeFileIndexCmd(OasisBaseCommand):
 
         index_fp = as_path(inputs.get('index_file_path', required=True, is_path=True), 'Index output file path', preexists=False)
 
-        om().generate_peril_areas_rtree_file_index(
+        _index_fp = om().generate_peril_areas_rtree_file_index(
             keys_data_fp,
             index_fp,
             lookup_config_fp=config_fp
         )
+
+        self.logger.info('\nGenerated peril areas Rtree file index {}\n'.format(_index_fp))
 
 
 class GenerateKeysCmd(OasisBaseCommand):
