@@ -208,6 +208,9 @@ class GenerateKeysCmd(OasisBaseCommand):
             keys_format=keys_format
         )
 
+        self.logger.info('\nKeys file {} generated with {} items'.format(f1, n1))
+        self.logger.info('\nKeys errors file {} generated with {} items'.format(f2, n2))
+
 
 class GenerateOasisFilesCmd(OasisBaseCommand):
     """
