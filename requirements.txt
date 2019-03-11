@@ -6,9 +6,11 @@
 #
 alabaster==0.7.10         # via sphinx
 anytree==2.4.3
+appnope==0.1.0            # via ipython
 argparsetree==0.0.5
 attrs==17.4.0             # via hypothesis, pytest
 babel==2.5.3              # via sphinx
+backcall==0.1.0           # via ipython
 backports.tempfile==1.0
 backports.weakref==1.0.post1
 billiard==3.5.0.4
@@ -19,6 +21,7 @@ click==6.7                # via pip-tools
 configparser==3.5.0
 cookies==2.2.1            # via responses
 coverage==4.4.2
+decorator==4.3.2          # via ipython, traitlets
 discover==0.4.0
 docutils==0.14            # via sphinx
 first==2.0.1              # via pip-tools
@@ -28,6 +31,10 @@ future==0.16.0
 hypothesis==3.44.16
 idna==2.6                 # via requests
 imagesize==0.7.1          # via sphinx
+ipdb==0.11
+ipython-genutils==0.2.0   # via traitlets
+ipython==7.3.0            # via ipdb
+jedi==0.13.3              # via ipython
 jinja2==2.10              # via sphinx
 jsonpickle==0.9.5
 lxml==4.1.1
@@ -37,14 +44,19 @@ mock==2.0.0
 numpy==1.14.0             # via pandas
 pandas==0.24.1
 parameterized==0.6.1
+parso==0.3.4              # via jedi
 pathlib2==2.3.0
 pbr==3.1.1                # via mock
+pexpect==4.6.0            # via ipython
+pickleshare==0.7.5        # via ipython
 pip-tools==2.0.2
 pluggy==0.6.0             # via pytest, tox
+prompt-toolkit==2.0.9     # via ipython
+ptyprocess==0.6.0         # via pexpect
 py==1.5.2                 # via pytest, tox
 pycodestyle==2.3.1        # via flake8
 pyflakes==1.6.0           # via flake8
-pygments==2.2.0           # via sphinx
+pygments==2.2.0           # via ipython, sphinx
 pyodbc==4.0.21
 pytest-cov==2.5.1
 pytest-ignore-flaky==0.1.1
@@ -66,5 +78,7 @@ subprocess32==3.5.3
 tabulate==0.8.2
 tox==2.9.1
 tqdm==4.31.1
+traitlets==4.3.2          # via ipython
 urllib3==1.23             # via requests
 virtualenv==15.1.0        # via tox
+wcwidth==0.1.7            # via prompt-toolkit
