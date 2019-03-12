@@ -75,16 +75,16 @@ def get_gul_input_items(
 
     exposure_df = get_dataframe(
         src_fp=exposure_fp,
-        col_dtypes={'LocNumber': 'str', 'AccNumber': 'str', 'PortNumber': 'str'},
+        col_dtypes={'locnumber': 'str', 'accnumber': 'str', 'portnumber': 'str'},
         required_cols=(
-            'LocNumber', 'AccNumber', 'PortNumber', 'CountryCode',
-            'LocPerilsCovered',
-            'BuildingTIV', 'OtherTIV', 'ContentsTIV', 'BITIV',),
+            'locnumber', 'accnumber', 'portnumber', 'countrycode',
+            'locperilscovered',
+            'buildingtiv', 'othertiv', 'contentstiv', 'bitiv',),
         empty_data_error_msg='No exposure found in the source exposure (loc.) file'
     )
     keys_df = get_dataframe(
         src_fp=keys_fp,
-        col_dtypes={'LocID': 'str'},
+        col_dtypes={'locid': 'str'},
         empty_data_error_msg='No keys found in the keys file'
     )
 
