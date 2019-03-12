@@ -772,5 +772,6 @@ def genbash(
 
     # If fifo dir is in /tmp/*/ then clean up
     if re.search(r"((/tmp/)[A-Za-z0-9_-]+(/))", fifo_queue_dir) and fifo_tmp_dir:
+        print_command(filename, 'rm {}fifo/*'.format(fifo_queue_dir))
         print_command(filename, 'rmdir {}fifo'.format(fifo_queue_dir))
         print_command(filename, 'rmdir {}'.format(fifo_queue_dir))
