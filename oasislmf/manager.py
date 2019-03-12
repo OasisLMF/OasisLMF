@@ -176,7 +176,7 @@ class OasisManager(object):
 
         config = lookup_config or get_json(src_fp=lookup_config_fp)
 
-        config_dir = os.path.dirname(config_fp)
+        config_dir = os.path.dirname(lookup_config_fp) if lookup_config_fp else keys_data_fp
 
         peril_config = config.get('peril')
 
@@ -285,7 +285,7 @@ class OasisManager(object):
 
         return olf.save_results(
             lookup,
-            loc_id_col=loc_id_col,
+            loc_id_col=keys_id_col,
             successes_fp=keys_fp,
             errors_fp=keys_errors_fp,
             source_exposure_fp=exposure_fp,
