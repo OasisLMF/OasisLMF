@@ -1,6 +1,12 @@
 OasisLMF Changelog
 ==================
 
+`1.3.3`_
+--------
+* Hotfix for GUL files generation  
+* Hotfix for lookup index generation
+* Hotfix for ktools bash script 
+
 `1.3.2`_
 --------
 * Hotfix fix for analysis_settings custom model worker
@@ -208,6 +214,7 @@ in the exposure manager
 
 * Add console logging
 
+.. _`1.3.3`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.2...1.3.2
 .. _`1.3.2`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.1...1.3.2
 .. _`1.3.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.0...1.3.1
 .. _`1.3.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.2.8...1.3.0

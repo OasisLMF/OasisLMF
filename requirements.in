@@ -1,6 +1,8 @@
 -r ./requirements-package.in
 
 anytree
+backports.tempfile
+backports.weakref
 configparser>=3.5.0
 coverage
 discover
@@ -8,16 +10,18 @@ flake8
 freezegun
 future
 hypothesis
+ipdb
 mock
+parameterized
 pip-tools>=2.0.2
 pytest
 pytest-cov
 pytest-ignore-flaky
-mock
 responses
 Sphinx
-tox
-parameterized
 tabulate
-backports.tempfile
-backports.weakref
+tox
+
+
+
+

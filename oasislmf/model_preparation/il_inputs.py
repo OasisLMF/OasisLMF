@@ -260,8 +260,8 @@ def get_il_input_items(
     # Get the accounts frame either directly or from a file path if provided
     accounts_df = accounts_df if accounts_df is not None else get_dataframe(
         src_fp=accounts_fp,
-        col_dtypes={'AccNumber': 'str', 'PolNumber': 'str', 'PortNumber': 'str'},
-        required_cols=('AccNumber', 'PolNumber', 'PortNumber',),
+        col_dtypes={'accnumber': 'str', 'polnumber': 'str', 'portnumber': 'str'},
+        required_cols=('accnumber', 'polnumber', 'portnumber',),
         empty_data_error_msg='No accounts found in the source accounts (loc.) file'
     )
 

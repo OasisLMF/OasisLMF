@@ -106,11 +106,13 @@ class GeneratePerilAreasRtreeFileIndexCmd(OasisBaseCommand):
 
         index_fp = as_path(inputs.get('index_file_path', required=True, is_path=True), 'Index output file path', preexists=False)
 
-        om().generate_peril_areas_rtree_file_index(
+        _index_fp = om().generate_peril_areas_rtree_file_index(
             keys_data_fp,
             index_fp,
             lookup_config_fp=config_fp
         )
+
+        self.logger.info('\nGenerated peril areas Rtree file index {}\n'.format(_index_fp))
 
 
 class GenerateKeysCmd(OasisBaseCommand):
@@ -192,6 +194,9 @@ class GenerateKeysCmd(OasisBaseCommand):
 
         exposure_fp = as_path(inputs.get('source_exposure_file_path', required=True, is_path=True), 'Source exposure file path')
 
+        keys_fp = as_path(inputs.get('keys_file_path', required=False, is_path=True), 'Keys file path', preexists=False)
+        keys_errors_fp = as_path(inputs.get('keys_errors_file_path', required=False, is_path=True), 'Keys errors file path', preexists=False)
+
         keys_format = inputs.get('keys_format', default='oasis')
 
         f1, n1, f2, n2 = om().generate_keys(
@@ -200,8 +205,13 @@ class GenerateKeysCmd(OasisBaseCommand):
             keys_data_fp=keys_data_fp,
             model_version_fp=model_version_fp,
             lookup_package_fp=lookup_package_fp,
+            keys_fp=keys_fp,
+            keys_errors_fp=keys_errors_fp,
             keys_format=keys_format
         )
+
+        self.logger.info('\nKeys file {} generated with {} items'.format(f1, n1))
+        self.logger.info('\nKeys errors file {} generated with {} items'.format(f2, n2))
 
 
 class GenerateOasisFilesCmd(OasisBaseCommand):
