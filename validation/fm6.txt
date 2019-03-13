@@ -1,16 +1,16 @@
 FM6
 ===
 
-can. acc.
+acc.
 ---------
-ROW_ID,AccNumber,PortNumber,PolNumber,PolPeril,CondDed6All,CondLimit6All,CondNumber,PolDed6All,PolMinDed6All,PolMaxDed6All,LayerAttachment,LayerLimit,LayerParticipation
-1,1,1,1,WTC;WEC;BFR;OO1,0,0,1,50000,0,0,0,2500000,1
+AccNumber,PortNumber,PolNumber,PolPeril,CondDed6All,CondLimit6All,CondNumber,PolDed6All,PolMinDed6All,PolMaxDed6All,LayerAttachment,LayerLimit,LayerParticipation
+1,1,1,WTC;WEC;BFR;OO1,0,0,1,50000,0,0,0,2500000,1
 
-can. loc.
+loc.
 ---------
-ROW_ID,AccNumber,LocNumber,LocName,AreaCode,CountryCode,LocPeril,BuildingTIV,LocDed1Building,LocLimit1Building,OtherTIV,LocDed2Other,LocLimit2Other,ContentsTIV,LocDed3Contents,LocLimit3Contents,BITIV,LocDed4BI,LocLimit4BI,LocDed5PD,LocLimit5PD,LocDed6All,LocLimit6All,CondTag
-1,1,1,Location 1,CA,US,WTC;WEC;BFR;OO1,1000000,0,0,100000,0,0,50000,0,0,20000,0,0,0,0,0,0,1
-2,1,2,Location 2,CA,US,WTC;WEC;BFR;OO1,1700000,0,0,30000,0,0,1000000,0,0,50000,0,0,0,0,0,0,1
+AccNumber,LocNumber,LocName,AreaCode,CountryCode,LocPeril,BuildingTIV,LocDed1Building,LocLimit1Building,OtherTIV,LocDed2Other,LocLimit2Other,ContentsTIV,LocDed3Contents,LocLimit3Contents,BITIV,LocDed4BI,LocLimit4BI,LocDed5PD,LocLimit5PD,LocDed6All,LocLimit6All,CondTag
+1,1,Location 1,CA,US,WTC;WEC;BFR;OO1,1000000,0,0,100000,0,0,50000,0,0,20000,0,0,0,0,0,0,1
+1,2,Location 2,CA,US,WTC;WEC;BFR;OO1,1700000,0,0,30000,0,0,1000000,0,0,50000,0,0,0,0,0,0,1
 
 keys
 ----

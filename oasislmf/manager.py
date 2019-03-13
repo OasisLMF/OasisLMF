@@ -600,12 +600,14 @@ class OasisManager(object):
         guls.drop(guls[guls['sidx'] != 1].index, inplace=True)
         guls.reset_index(drop=True, inplace=True)
         guls.drop('sidx', axis=1, inplace=True)
+        guls = guls[(guls[['loss']] != 0).any(axis=1)]
         losses['gul'] = guls
 
         ils = pd.read_csv(ils_fp)
         ils.drop(ils[ils['sidx'] != 1].index, inplace=True)
         ils.reset_index(drop=True, inplace=True)
         ils.drop('sidx', axis=1, inplace=True)
+        ils = ils[(ils[['loss']] != 0).any(axis=1)]
         losses['il'] = ils
 
         if ri:
@@ -645,6 +647,7 @@ class OasisManager(object):
                         rils.drop(rils[rils['sidx'] != 1].index, inplace=True)
                         rils.drop('sidx', axis=1, inplace=True)
                         rils.reset_index(drop=True, inplace=True)
+                        rils = rils[(rils[['loss']] != 0).any(axis=1)]
 
                         return rils
 

@@ -24,11 +24,16 @@ import os
 import multiprocessing
 import sys
 
+from collections import OrderedDict
 from itertools import (
     chain,
     product,
 )
-from future.utils import viewkeys
+from future.utils import (
+    viewitems,
+    viewkeys,
+    viewvalues,
+)
 
 import pandas as pd
 
@@ -71,25 +76,7 @@ def get_gul_input_items(
     :param exposure_profile: OED source exposure profile
     :type exposure_profile: dict
     """
-    gul_inputs_df = pd.DataFrame()
-
-    exposure_df = get_dataframe(
-        src_fp=exposure_fp,
-        col_dtypes={'locnumber': 'str', 'accnumber': 'str', 'portnumber': 'str'},
-        required_cols=(
-            'locnumber', 'accnumber', 'portnumber', 'countrycode',
-            'locperilscovered',
-            'buildingtiv', 'othertiv', 'contentstiv', 'bitiv',),
-        empty_data_error_msg='No exposure found in the source exposure (loc.) file'
-    )
-    keys_df = get_dataframe(
-        src_fp=keys_fp,
-        col_dtypes={'locid': 'str'},
-        empty_data_error_msg='No keys found in the keys file'
-    )
-
     exppf = exposure_profile
-
     ufp = unified_fm_profile_by_level_and_term_group(profiles=(exppf,))
 
     if not ufp:
@@ -101,107 +88,87 @@ def get_gul_input_items(
     id_terms = unified_id_terms(unified_profile_by_level_and_term_group=ufp)
     loc_id = id_terms['locid']
     acc_id = id_terms['accid']
-    policy_num = id_terms['polid']
     portfolio_num = id_terms['portid']
 
-    fm_levels = tuple(ufp)[1:]
+    exposure_df = get_dataframe(
+        src_fp=exposure_fp,
+        col_dtypes={loc_id: 'str', acc_id: 'str', portfolio_num: 'str'},
+        required_cols=(loc_id, acc_id, portfolio_num,),
+        empty_data_error_msg='No data found in the source exposure (loc.) file'
+    )
+
+    keys_df = get_dataframe(
+        src_fp=keys_fp,
+        col_dtypes={'locid': 'str'},
+        empty_data_error_msg='No keys found in the keys file'
+    )
+
+    for df in [exposure_df, keys_df]:
+        df['index'] = df.get('index', range(len(df)))
+
+    tiv_terms = OrderedDict({v['tiv']['CoverageTypeID']:v['tiv']['ProfileElementName'].lower() for k, v in viewitems(ufp[1])})
+
+    cov_level = COVERAGE_TYPES['buildings']['id']
+    cov_fm_terms = unified_fm_terms_by_level_and_term_group(unified_profile_by_level_and_term_group=ufp)[cov_level]
 
     try:
-        for df in [exposure_df, keys_df]:
-            df['index'] = df.get('index', range(len(df)))
+        gul_inputs_df = merge_dataframes(exposure_df, keys_df, left_on=loc_id, right_on='locid', how='outer')
+        gul_inputs_df = gul_inputs_df[(gul_inputs_df[[v for v in viewvalues(tiv_terms)]] != 0).any(axis=1)]
 
-        expkeys_df = merge_dataframes(exposure_df, keys_df, left_on=loc_id, right_on='locid', how='outer')
+        gul_inputs_df['loc_id'] = gul_inputs_df[loc_id]
+        gul_inputs_df['group_id'] = [
+            gidx + 1 for gidx, (_, group) in enumerate(
+                gul_inputs_df.groupby(by=['loc_id'])) for _, (gidx, _) in enumerate(product([gidx], group['loc_id'].tolist())
+            )
+        ]
+        gul_inputs_df['portfolio_num'] = gul_inputs_df[portfolio_num]
+        gul_inputs_df['acc_id'] = gul_inputs_df[acc_id]
 
-        cov_level = min(fm_levels)
+        gul_inputs_df.rename(
+            columns={
+                'perilid': 'peril_id',
+                'coveragetypeid': 'coverage_type_id',
+                'areaperilid': 'areaperil_id',
+                'vulnerabilityid': 'vulnerability_id'
+            },
+            inplace=True
+        )
 
-        cov_tivs = tuple(t for t in [ufp[cov_level][gid].get('tiv') for gid in ufp[cov_level]] if t)
+        gul_inputs_df['model_data'] = gul_inputs_df.get('modeldata')
+        if gul_inputs_df['model_data'].any():
+            gul_inputs_df['areaperil_id'] = gul_inputs_df['vulnerability_id'] = [-1] * len(gul_inputs_df)
 
-        if not cov_tivs:
-            raise OasisException('No coverage fields found in the source exposure profile - please check the source exposure (loc) profile')
+        def get_bi_coverage(row):
+            return row['coverage_type_id'] == COVERAGE_TYPES['bi']['id']
 
-        fm_terms = unified_fm_terms_by_level_and_term_group(unified_profile_by_level_and_term_group=ufp)[cov_level]
+        gul_inputs_df['is_bi_coverage'] = gul_inputs_df.apply(get_bi_coverage, axis=1)
 
-        group_id = 0
-        prev_it_loc_id = -1
-        item_id = 0
-        zero_tiv_items = 0
+        def get_tiv(row):
+            return row.get(tiv_terms[row['coverage_type_id']]) or 0.0
 
-        def positive_tiv_coverages(it):
-            return [t for t in cov_tivs if it.get(t['ProfileElementName'].lower()) and it[t['ProfileElementName'].lower()] > 0 and t['CoverageTypeID'] == it['coveragetypeid']] or [0]
+        gul_inputs_df['tiv'] = gul_inputs_df.apply(get_tiv, axis=1)
 
-        def generate_items(group_id, prev_it_loc_id, item_id, zero_tiv_items):
-            for _it, ptiv in chain((_it, ptiv) for _, _it in expkeys_df.iterrows() for _it, ptiv in product([_it], positive_tiv_coverages(_it))):
-                if ptiv == 0:
-                    zero_tiv_items += 1
-                    continue
+        def get_term_val(row, term_type=None):
+            val = row.get(cov_fm_terms[row['coverage_type_id']][term_type]) or 0.0
+            if term_type in ('deductible', 'limit',) and val > 0 and val < 1:
+                val *= row['tiv']
+            return val
 
-                item_id += 1
-                if _it[loc_id] != prev_it_loc_id:
-                    group_id += 1
+        gul_inputs_df['deductible'] = gul_inputs_df.apply(get_term_val, axis=1, term_type='deductible')
+        gul_inputs_df['deductible_min'] = gul_inputs_df.apply(get_term_val, axis=1, term_type='deductiblemin')
+        gul_inputs_df['deductible_max'] = gul_inputs_df.apply(get_term_val, axis=1, term_type='deductiblemax')
+        gul_inputs_df['limit'] = gul_inputs_df.apply(get_term_val, axis=1, term_type='limit')
 
-                tiv_elm = ptiv['ProfileElementName'].lower()
-                tiv = _it[tiv_elm]
-                tiv_tgid = ptiv['FMTermGroupID']
+        def _get_sub_layer_calcrule_id(row):
+            return get_sub_layer_calcrule_id(row['deductible'], row['deductible_min'], row['deductible_max'], row['limit'])
 
-                complex_model_data = _it.get('modeldata')
+        gul_inputs_df['calcrule_id'] = gul_inputs_df.apply(_get_sub_layer_calcrule_id, axis=1)
 
-                it = {
-                    'item_id': item_id,
-                    'loc_id': _it[loc_id],
-                    'portfolio_num': _it[portfolio_num],
-                    'acc_id': _it[acc_id],
-                    'peril_id': _it['perilid'],
-                    'areaperil_id': -1 if complex_model_data else _it['areaperilid'],
-                    'vulnerability_id': -1 if complex_model_data else _it['vulnerabilityid'],
-                    'model_data': complex_model_data,
-                    'coverage_type_id': _it['coveragetypeid'],
-                    'coverage_id': item_id,
-                    'is_bi_coverage': _it['coveragetypeid'] == COVERAGE_TYPES['bi']['id'],
-                    'tiv_elm': tiv_elm,
-                    'tiv': tiv,
-                    'tiv_tgid': tiv_tgid,
-                    'deductible': _it.get(fm_terms[tiv_tgid].get('deductible') or None) or 0.0,
-                    'deductible_min': _it.get(fm_terms[tiv_tgid].get('deductiblemin') or None) or 0.0,
-                    'deductible_max': _it.get(fm_terms[tiv_tgid].get('deductiblemax') or None) or 0.0,
-                    'limit': _it.get(fm_terms[tiv_tgid].get('limit') or None) or 0.0,
-                    'agg_id': item_id,
-                    'group_id': group_id,
-                    'summary_id': 1,
-                    'summaryset_id': 1
-                }
+        gul_inputs_df['item_id'] = range(1, len(gul_inputs_df) + 1)
+        gul_inputs_df['coverage_id'] = gul_inputs_df['agg_id'] = gul_inputs_df['item_id']
 
-                if it['deductible'] < 1:
-                    it['deductible'] *= it['tiv']
-                if it['limit'] < 1:
-                    it['limit'] *= it['tiv']
-                it['calcrule_id'] = get_sub_layer_calcrule_id(
-                    it['deductible'],
-                    it['deductible_min'],
-                    it['deductible_max'],
-                    it['limit']
-                )
-
-                yield it
-
-                prev_it_loc_id = _it[loc_id]
-
-        gul_inputs_df = pd.DataFrame(data=[it for it in generate_items(group_id, prev_it_loc_id, item_id, zero_tiv_items)])
-        gul_inputs_df['index'] = gul_inputs_df.index
+        gul_inputs_df['summary_id'] = gul_inputs_df['summaryset_id'] = [1] * len(gul_inputs_df)
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
-        raise OasisException(e)
-    else:
-        if zero_tiv_items == len(expkeys_df):
-            raise OasisException('All source exposure items have zero TIVs - please check the source exposure (loc.) file')
-
-    try:
-        for col in gul_inputs_df.columns:
-            if col in ['peril_id', 'loc_id', 'acc_id', 'portfolio_num']:
-                gul_inputs_df[col] = gul_inputs_df[col].astype(object)
-            elif col.endswith('id'):
-                gul_inputs_df[col] = gul_inputs_df[col].astype(int)
-            elif col == 'tiv':
-                gul_inputs_df[col] = gul_inputs_df[col].astype(float)
-    except (IOError, MemoryError, OasisException, OSError, TypeError, ValueError) as e:
         raise OasisException(e)
 
     return gul_inputs_df, exposure_df

@@ -257,12 +257,31 @@ def get_il_input_items(
                     items with zero financial terms (optional)
     :param reduced: bool
     """
+    # Get the OED profiles describing exposure, accounts, and using these also
+    # unified exposure + accounts profile and the aggregation profile
+    exppf = exposure_profile
+    accpf = accounts_profile
+    
+    ufp = unified_fm_profile_by_level_and_term_group(profiles=(exppf, accpf,))
+
+    # Get the ID terms profile and use that to define the column names for loc.
+    # ID, acc. ID, policy no. and portfolio no., as used in the source exposure
+    # and accounts files. This is to ensure that the method never makes hard
+    # coded references to the corresponding columns in the source files, as
+    # that would mean that changes to these column names in the source files
+    # may break the method
+    id_terms = unified_id_terms(unified_profile_by_level_and_term_group=ufp)
+    loc_id = id_terms['locid']
+    acc_id = id_terms['accid']
+    policy_num = id_terms['polid']
+    portfolio_num = id_terms['portid']
+
     # Get the accounts frame either directly or from a file path if provided
     accounts_df = accounts_df if accounts_df is not None else get_dataframe(
         src_fp=accounts_fp,
-        col_dtypes={'accnumber': 'str', 'polnumber': 'str', 'portnumber': 'str'},
-        required_cols=('accnumber', 'polnumber', 'portnumber',),
-        empty_data_error_msg='No accounts found in the source accounts (loc.) file'
+        col_dtypes={acc_id: 'str', policy_num: 'str', portfolio_num: 'str'},
+        required_cols=(acc_id, policy_num, portfolio_num,),
+        empty_data_error_msg='No data found in the source accounts (loc.) file'
     )
 
     if not (accounts_df is not None or accounts_fp):
@@ -271,13 +290,6 @@ def get_il_input_items(
     # The main IL inputs frame that this method will return to the caller -
     # initially an empty frame
     il_inputs_df = pd.DataFrame()
-
-    # Get the OED profiles describing exposure, accounts, and using these also
-    # unified exposure + accounts profile and the aggregation profile
-    exppf = exposure_profile
-    accpf = accounts_profile
-    
-    ufp = unified_fm_profile_by_level_and_term_group(profiles=(exppf, accpf,))
 
     if not ufp:
         raise OasisException(
@@ -293,17 +305,7 @@ def get_il_input_items(
             'FM aggregation profile is empty - this is required to perform aggregation'
         )
 
-    # Get the ID terms profile and use that to define the column names for loc.
-    # ID, acc. ID, policy no. and portfolio no., as used in the source exposure
-    # and accounts files. This is to ensure that the method never makes hard
-    # coded references to the corresponding columns in the source files, as
-    # that would mean that changes to these column names in the source files
-    # may break the method
-    id_terms = unified_id_terms(unified_profile_by_level_and_term_group=ufp)
-    loc_id = id_terms['locid']
-    acc_id = id_terms['accid']
-    policy_num = id_terms['polid']
-    portfolio_num = id_terms['portid']
+
 
     # Define the FM levels from the unified profile, including the coverage
     # level (the first level) and the layer level (the last level) - the FM
@@ -458,7 +460,7 @@ def get_il_input_items(
         def set_level_agg_ids(level_df, level):
             agg_key = tuple(v['field'].lower() for v in viewvalues(fmap[level]['FMAggKey']))
             agg_groups = [
-                [it['item_id'] for _, it in v.iterrows()] for _, v in level_df.groupby(agg_key)
+                [it['item_id'] for _, it in v.iterrows()] for _, v in level_df.groupby(by=list(agg_key))
             ]
             def get_agg_id(row):
                 try:
@@ -491,7 +493,7 @@ def get_il_input_items(
             level_df['limit_code'] = level_df.apply(get_limit_code, axis=1)
             level_df['calcrule_id'] = level_df.apply(_get_sub_layer_calcrule_id, axis=1)
             level_df['agg_id'] = set_level_agg_ids(level_df, level)
-            il_inputs_df = pd.concat([il_inputs_df, level_df], ignore_index=True)
+            il_inputs_df = pd.concat([il_inputs_df, level_df], ignore_index=True, sort=True)
 
         # Resequence the index and item IDs, as the earlier repeated
         # concatenation would have produced a non-sequential index
@@ -526,7 +528,7 @@ def get_il_input_items(
         layer_df['attachment'] = layer_df['deductible']
         layer_df['calcrule_id'] = layer_df.apply(_get_layer_calcrule_id, axis=1)
         layer_df['agg_id'] = set_level_agg_ids(layer_df, layer_level)
-        il_inputs_df = pd.concat([il_inputs_df, layer_df], ignore_index=True)
+        il_inputs_df = pd.concat([il_inputs_df, layer_df], ignore_index=True, sort=True)
 
         # Resequence the levels in the main IL inputs frame - this is necessary
         # as the earlier filtering out of intermediate FM levels with no
