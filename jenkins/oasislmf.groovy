@@ -4,26 +4,15 @@ node {
     sh 'sudo /var/lib/jenkins/jenkins-chown'
     deleteDir() // wipe out the workspace
 
-    // Set Default Multibranch config
-    try {
-        source_branch = CHANGE_BRANCH
-    } catch (MissingPropertyException e1) {
-        try {
-            source_branch = BRANCH_NAME
-        } catch (MissingPropertyException e2) {
-             source_branch = ""
-        }
-    }
-
     set_piwind_branch='develop'
-    if (source_branch.matches("master") || source_branch.matches("hotfix/(.*)") || source_branch.matches("release/(.*)")){
+    if (BRANCH_NAME.matches("master") || BRANCH_NAME.matches("hotfix/(.*)") || BRANCH_NAME.matches("release/(.*)")){
         set_piwind_branch='master'
     }
 
     properties([
       parameters([
         [$class: 'StringParameterDefinition',  name: 'BUILD_BRANCH', defaultValue: 'master'],
-        [$class: 'StringParameterDefinition',  name: 'SOURCE_BRANCH', defaultValue: source_branch],
+        [$class: 'StringParameterDefinition',  name: 'SOURCE_BRANCH', defaultValue: BRANCH_NAME],
         [$class: 'StringParameterDefinition',  name: 'PIWIND_BRANCH', defaultValue: set_piwind_branch],
         [$class: 'StringParameterDefinition',  name: 'PUBLISH_VERSION', defaultValue: ''],
         [$class: 'StringParameterDefinition',  name: 'KTOOLS_VERSION', defaultValue: ''],
@@ -38,7 +27,7 @@ node {
 
 
 
-    // Build vars 
+    // Build vars
     String build_repo = 'git@github.com:OasisLMF/build.git'
     String build_branch = params.BUILD_BRANCH
     String build_workspace = 'oasis_build'
@@ -59,6 +48,13 @@ node {
     String source_workspace = "${source_varient}_workspace"
     String source_sh        = '/buildscript/utils.sh'
     String source_func      = "${source_varient}_${source_name}".toLowerCase()   // function name reference <function>_<model>_<varient>
+
+    String MDK_RUN='ri'
+    String MDK_BRANCH = source_branch
+    if (source_branch.matches("PR-[0-9]+")){
+        //Note will still fail on remote PR.. 
+        MDK_BRANCH = CHANGE_BRANCH
+    }    
 
     //env.PYTHON_ENV_DIR = "${script_dir}/pyth-env"           // Virtualenv location
     env.PIPELINE_LOAD =  script_dir + source_sh             // required for pipeline.sh calls
@@ -83,8 +79,21 @@ node {
                 stage('Clone: ' + source_name) {
                     sshagent (credentials: [git_creds]) {
                         dir(source_workspace) {
-                           sh "git clone -b ${source_branch} ${source_git_url} ."
-                        }
+                            sh "git clone --recursive ${source_git_url} ."
+                            if (source_branch.matches("PR-[0-9]+")){
+                                // Checkout PR and merge into target branch, test on the result
+                                sh "git fetch origin pull/$CHANGE_ID/head:$BRANCH_NAME"
+                                sh "git checkout $BRANCH_NAME"
+                                sh "git format-patch $CHANGE_TARGET --stdout > ${BRANCH_NAME}.patch"
+                                sh "git checkout $CHANGE_TARGET"
+                                sh "git apply --stat ${BRANCH_NAME}.patch"  // Print files changed
+                                sh "git apply --check ${BRANCH_NAME}.patch" // Check for merge conflicts
+                                sh "git apply ${BRANCH_NAME}.patch"         // Apply the patch
+                            } else {
+                                // Checkout branch
+                                sh "git checkout -b ${source_branch}"
+                            }   
+                        }   
                     }
                 }
             }
@@ -99,20 +108,18 @@ node {
                 }
             }
         }
-        
+
         stage('Run MDK: PiWind 3.6') {
             dir(build_workspace) {
-                String MDK_RUN='ri'
                 sh 'docker build -f docker/Dockerfile.mdk-tester-3.6 -t mdk-runner-3.6 .'
-                sh "docker run mdk-runner-3.6 --model-repo-branch ${model_branch} --mdk-repo-branch ${source_branch} --model-run-mode ${MDK_RUN}"
+                sh "docker run mdk-runner-3.6 --model-repo-branch ${model_branch} --mdk-repo-branch ${MDK_BRANCH} --model-run-mode ${MDK_RUN}"
             }
         }
 
         stage('Run MDK: PiWind 2.7') {
             dir(build_workspace) {
-                String MDK_RUN='ri'
                 sh 'docker build -f docker/Dockerfile.mdk-tester-2.7 -t mdk-runner-2.7 .'
-                sh "docker run mdk-runner-2.7 --model-repo-branch ${model_branch} --mdk-repo-branch ${source_branch} --model-run-mode ${MDK_RUN}"
+                sh "docker run mdk-runner-2.7 --model-repo-branch ${model_branch} --mdk-repo-branch ${MDK_BRANCH} --model-run-mode ${MDK_RUN}"
             }
         }
 
@@ -125,7 +132,7 @@ node {
         // Access to stored GPG key
         // https://jenkins.io/doc/pipeline/steps/credentials-binding/
         //
-        // gpg_key  --> Jenkins credentialId  type 'Secret file', GPG key  
+        // gpg_key  --> Jenkins credentialId  type 'Secret file', GPG key
         // gpg_pass --> Jenkins credentialId  type 'Secret text', passphrase for the above key
         if (params.PUBLISH){
             stage('Sign Package: ' + source_func) {
@@ -141,18 +148,18 @@ node {
                     }
                 }
                 // delete GPG key from jenkins account
-                sh "rm -r ${gpg_dir}" 
-            }    
+                sh "rm -r ${gpg_dir}"
+            }
             stage ('Publish: ' + source_func) {
                 dir(source_workspace) {
                     // Commit new verion numbers before pushing package
                     sshagent (credentials: [git_creds]) {
                         sh PIPELINE + " commit_vers_oasislmf ${vers_pypi}"
                     }
-                    // Publish package 
+                    // Publish package
                     withCredentials([usernamePassword(credentialsId: twine_account, usernameVariable: 'TWINE_USERNAME', passwordVariable: 'TWINE_PASSWORD')]) {
                         sh PIPELINE + ' push_oasislmf'
-                    }    
+                    }
                 }
             }
         }
