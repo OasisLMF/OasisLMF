@@ -38,7 +38,7 @@ node {
 
 
 
-    // Build vars 
+    // Build vars
     String build_repo = 'git@github.com:OasisLMF/build.git'
     String build_branch = params.BUILD_BRANCH
     String build_workspace = 'oasis_build'
@@ -99,7 +99,7 @@ node {
                 }
             }
         }
-        
+
         stage('Run MDK: PiWind 3.6') {
             dir(build_workspace) {
                 String MDK_RUN='ri'
@@ -125,7 +125,7 @@ node {
         // Access to stored GPG key
         // https://jenkins.io/doc/pipeline/steps/credentials-binding/
         //
-        // gpg_key  --> Jenkins credentialId  type 'Secret file', GPG key  
+        // gpg_key  --> Jenkins credentialId  type 'Secret file', GPG key
         // gpg_pass --> Jenkins credentialId  type 'Secret text', passphrase for the above key
         if (params.PUBLISH){
             stage('Sign Package: ' + source_func) {
@@ -141,18 +141,18 @@ node {
                     }
                 }
                 // delete GPG key from jenkins account
-                sh "rm -r ${gpg_dir}" 
-            }    
+                sh "rm -r ${gpg_dir}"
+            }
             stage ('Publish: ' + source_func) {
                 dir(source_workspace) {
                     // Commit new verion numbers before pushing package
                     sshagent (credentials: [git_creds]) {
                         sh PIPELINE + " commit_vers_oasislmf ${vers_pypi}"
                     }
-                    // Publish package 
+                    // Publish package
                     withCredentials([usernamePassword(credentialsId: twine_account, usernameVariable: 'TWINE_USERNAME', passwordVariable: 'TWINE_PASSWORD')]) {
                         sh PIPELINE + ' push_oasislmf'
-                    }    
+                    }
                 }
             }
         }
