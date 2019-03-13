@@ -49,6 +49,13 @@ node {
     String source_sh        = '/buildscript/utils.sh'
     String source_func      = "${source_varient}_${source_name}".toLowerCase()   // function name reference <function>_<model>_<varient>
 
+    String MDK_RUN='ri'
+    String MDK_BRANCH = source_branch
+    if (source_branch.matches("PR-[0-9]+")){
+        //Note will still fail on remote PR.. 
+        MDK_BRANCH = CHANGE_BRANCH
+    }    
+
     //env.PYTHON_ENV_DIR = "${script_dir}/pyth-env"           // Virtualenv location
     env.PIPELINE_LOAD =  script_dir + source_sh             // required for pipeline.sh calls
     sh 'env'
@@ -104,17 +111,15 @@ node {
 
         stage('Run MDK: PiWind 3.6') {
             dir(build_workspace) {
-                String MDK_RUN='ri'
                 sh 'docker build -f docker/Dockerfile.mdk-tester-3.6 -t mdk-runner-3.6 .'
-                sh "docker run mdk-runner-3.6 --model-repo-branch ${model_branch} --mdk-repo-branch ${source_branch} --model-run-mode ${MDK_RUN}"
+                sh "docker run mdk-runner-3.6 --model-repo-branch ${model_branch} --mdk-repo-branch ${MDK_BRANCH} --model-run-mode ${MDK_RUN}"
             }
         }
 
         stage('Run MDK: PiWind 2.7') {
             dir(build_workspace) {
-                String MDK_RUN='ri'
                 sh 'docker build -f docker/Dockerfile.mdk-tester-2.7 -t mdk-runner-2.7 .'
-                sh "docker run mdk-runner-2.7 --model-repo-branch ${model_branch} --mdk-repo-branch ${source_branch} --model-run-mode ${MDK_RUN}"
+                sh "docker run mdk-runner-2.7 --model-repo-branch ${model_branch} --mdk-repo-branch ${MDK_BRANCH} --model-run-mode ${MDK_RUN}"
             }
         }
 
