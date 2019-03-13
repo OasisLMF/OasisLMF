@@ -91,7 +91,7 @@ node {
                                 sh "git apply ${BRANCH_NAME}.patch"         // Apply the patch
                             } else {
                                 // Checkout branch
-                                sh "git checkout -b ${source_branch}"
+                                sh "git checkout ${source_branch}"
                             }   
                         }   
                     }
