@@ -231,6 +231,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         super(self.__class__, self).add_args(parser)
 
         parser.add_argument('-o', '--oasis-files-path', default=None, help='Path to the directory in which to generate the Oasis files')
+        parser.add_argument('-z', '--keys-file-path', default=None, help='Pre-generated keys file path')
         parser.add_argument('-c', '--lookup-config-file-path', default=None, help='Lookup config JSON file path')
         parser.add_argument('-k', '--keys-data-path', default=None, help='Model lookup/keys data path')
         parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
@@ -274,6 +275,8 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         default_oasis_fp = os.path.join(os.getcwd(), 'runs', 'OasisFiles-{}'.format(utcnow))
 
         oasis_fp = as_path(inputs.get('oasis_files_path', is_path=True, default=default_oasis_fp), 'Oasis files path', is_dir=True, preexists=False)
+
+        keys_fp = as_path(inputs.get('keys_file_path', required=False, is_path=True), 'Pre-generated keys file path', preexists=True)
 
         lookup_config_fp = as_path(inputs.get('lookup_config_file_path', required=False, is_path=True), 'Lookup config JSON file path', preexists=False)
 
@@ -332,6 +335,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             oasis_fp,
             exposure_fp,
             exposure_profile_fp=exposure_profile_fp,
+            keys_fp=keys_fp,
             lookup_config_fp=lookup_config_fp,
             keys_data_fp=keys_data_fp,
             model_version_fp=model_version_fp,
@@ -476,6 +480,7 @@ class RunCmd(OasisBaseCommand):
         """
         super(self.__class__, self).add_args(parser)
 
+        parser.add_argument('-z', '--keys-file-path', default=None, help='Pre-generated keys file path')
         parser.add_argument('-k', '--keys-data-path', default=None, help='Model lookup/keys data path')
         parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
 

@@ -344,11 +344,7 @@ class OasisManager(object):
         accounts_profile = accounts_profile or get_json(src_fp=accounts_profile_fp) or self.accounts_profile
         fm_aggregation_profile = fm_aggregation_profile or get_json(src_fp=fm_aggregation_profile_fp, key_transform=int) or self.fm_aggregation_profile
 
-        lookup_config = get_json(src_fp=lookup_config_fp) or lookup_config
-        if lookup_config:
-            lookup_config['keys_data_path'] = os.path.abspath(os.path.dirname(lookup_config_fp))
-
-        # If a preexisting model lookup keys file path has not been provided,
+        # If a pre-generated keys file path has not been provided,
         # then it is asssumed some model lookup assets have been provided, so
         # as to allow the lookup to be instantiated and called to generated
         # the keys file. Otherwise if no model keys file path or lookup assets
@@ -359,6 +355,7 @@ class OasisManager(object):
             _keys_errors_fp = os.path.join(target_dir, 'keys-errors.csv')
 
             cov_types = supported_oed_coverage_types or self.supported_oed_coverage_types
+
             if deterministic:
                 loc_numbers = (loc_num['locnumber'] for _, loc_num in get_dataframe(
                     src_fp=exposure_fp,
@@ -371,6 +368,10 @@ class OasisManager(object):
                 ]
                 _, _ = olf.write_oasis_keys_file(keys, _keys_fp)
             else:
+                lookup_config = get_json(src_fp=lookup_config_fp) or lookup_config
+                if lookup_config:
+                    lookup_config['keys_data_path'] = os.path.abspath(os.path.dirname(lookup_config_fp))
+
                 _, lookup = olf.create(
                     lookup_config=lookup_config,
                     model_keys_data_path=keys_data_fp,
