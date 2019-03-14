@@ -16,17 +16,14 @@ The MDK provides a way to implement a data- and configuration-driven keys lookup
 
 to generate such an index from scratch from a source area peril dict. CSV file. The index is stored as a set of binary files, and it has a number of properties which be fine-tuned at the point of creation as well as when it is running.
 
-1.3. The columns of the area peril CSV file must represent mappings of an area peril function, which must be a function of the area polygons, and peril and coverage type. For example, in an upcoming upgrade of the PiWind
-model, which will support the wind storm surge (``WSS``) and wind tropical
-cyclone (``WTC``) perils, and buildings and contents coverage types (1, 3),
-the area peril dict. CSV file defines the columns
+1.3. The columns of the area peril CSV file must represent mappings of an area peril function, which must be a function of the area polygons, and peril and coverage type. For example, in an upcoming upgrade of the PiWind model, which will support the wind storm surge (``WSS``) and wind tropical
+cyclone (``WTC``) perils, and buildings and contents coverage types (1, 3), the area peril dict. CSV file defines the columns
 
 ::
 
     PERIL_ID,COVERAGE_TYPE,LON1,LAT1,LON2,LAT2,LON3,LAT3,LON4,LAT4,AREA_PERIL_ID
 
-where ``LON1,LAT1,...,LON4,LAT4`` are the columns for representing the
-longitude/latitudes of the four-sided underlying area polygons, ``PERIL_ID`` and ``COVERAGE_TYPE`` are the columns for the peril and coverage type combinations, and ``AREA_PERIL_ID`` is the area peril ID column
+where ``LON1,LAT1,...,LON4,LAT4`` are the columns for representing the longitude/latitudes of the four-sided underlying area polygons, ``PERIL_ID`` and ``COVERAGE_TYPE`` are the columns for the peril and coverage type combinations, and ``AREA_PERIL_ID`` is the area peril ID column
 
 1.4. The underlying area peril function is viewed as the map
 
@@ -34,13 +31,13 @@ longitude/latitudes of the four-sided underlying area polygons, ``PERIL_ID`` and
 
     (PERIL_ID, COVERAGE_TYPE, LON1, LAT1, ... , LON4, LAT4) |--> AREA_PERIL_ID
 
-and the entries of the CSV file must be mappings of this function.
+and the entries of the CSV file must be its mappings.
 
 1.5. For example, for a given area, with corner points given by 
 
 ::
 
-    -0.9176515,52.7339933,-0.9176515,52.74005981,-0.91158499,52.7339933,-0.91158499,52.74005981,1
+    -0.9176515,52.7339933,-0.9176515,52.74005981,-0.91158499,52.7339933,-0.91158499,52.74005981
 
 the CSV file defines four mappings, one for each peril and coverage type
 combination (``(WTC, 1)``, ``(WTC, 3)``, ``(WSS, 1)``, ``(WSS, 3)``), and the
@@ -197,7 +194,7 @@ The relevant flags here are ``-c`` for the lookup config. file path, ``-d`` for 
 
     (PERIL_ID, COVERAGE_TYPE, **<LOC. PROPS>) |--> VULNERABILITY_ID
 
-and the entries of the file must representing the mappings of this function.
+and the entries of the file must representing its mappings.
 
 Here ``**<LOC PROPS>`` represents a sequence of columns representing loc. properties relevant for the vulnerability lookup for your model, including occupancy code, scheme, building class, etc. The column names pertaining to the location properties should be OED-compatible, e.g. ``OccupancyCode``. The `vulnerability section of the PiWind lookup configuration file <https://github.com/OasisLMF/OasisPiWind/blob/kamdev/keys_data/PiWind/lookup.json#L71>`_ can be used as an example.
 
@@ -334,9 +331,9 @@ These properties basically describe certain key columns in the source exposure f
     {'model': {'supplier_id': 'OasisLMF',
     'model_id': 'PiWind',
     'model_version': '0.0.0.1'},
-    'keys_data_path': '/Users/srm/Documents/sandeep/cst/dev/oasis/OasisPiWind/keys_data/PiWind',
+    'keys_data_path': '/path/to/OasisPiWind/keys_data/PiWind',
     'coverage': {'coverage_types': [1, 3], 'coverage_type_col': 'COVERAGE_TYPE'},
-    'peril': {'peril_ids': ('WTC', 'WSS'),
+    'peril': {'peril_ids': ['WTC', 'WSS'],
     ...
     ...
     'vulnerability': {'file_path': '/Users/srm/Documents/sandeep/cst/dev/oasis/OasisPiWind/keys_data/PiWind/vulnerability_dictOED3.csv',
