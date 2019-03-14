@@ -136,7 +136,7 @@ def get_gul_input_items(
 
         gul_inputs_df['model_data'] = gul_inputs_df.get('modeldata')
         if gul_inputs_df['model_data'].any():
-            gul_inputs_df['areaperil_id'] = gul_inputs_df['vulnerability_id'] = [-1] * len(gul_inputs_df)
+            gul_inputs_df['areaperil_id'] = gul_inputs_df['vulnerability_id'] = [-1]
 
         def get_bi_coverage(row):
             return row['coverage_type_id'] == COVERAGE_TYPES['bi']['id']
@@ -150,7 +150,7 @@ def get_gul_input_items(
 
         def get_term_val(row, term_type=None):
             val = row.get(cov_fm_terms[row['coverage_type_id']][term_type]) or 0.0
-            if term_type in ('deductible', 'limit',) and val > 0 and val < 1:
+            if term_type in ('deductible', 'limit',) and val < 1:
                 val *= row['tiv']
             return val
 
@@ -167,7 +167,7 @@ def get_gul_input_items(
         gul_inputs_df['item_id'] = range(1, len(gul_inputs_df) + 1)
         gul_inputs_df['coverage_id'] = gul_inputs_df['agg_id'] = gul_inputs_df['item_id']
 
-        gul_inputs_df['summary_id'] = gul_inputs_df['summaryset_id'] = [1] * len(gul_inputs_df)
+        gul_inputs_df['summary_id'] = gul_inputs_df['summaryset_id'] = [1]
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
         raise OasisException(e)
 
