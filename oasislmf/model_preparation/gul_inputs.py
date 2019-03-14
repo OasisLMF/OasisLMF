@@ -115,14 +115,11 @@ def get_gul_input_items(
         gul_inputs_df = merge_dataframes(exposure_df, keys_df, left_on=loc_id, right_on='locid', how='outer')
         gul_inputs_df = gul_inputs_df[(gul_inputs_df[[v for v in viewvalues(tiv_terms)]] != 0).any(axis=1)]
 
-        gul_inputs_df['loc_id'] = gul_inputs_df[loc_id]
         gul_inputs_df['group_id'] = [
             gidx + 1 for gidx, (_, group) in enumerate(
-                gul_inputs_df.groupby(by=['loc_id'])) for _, (gidx, _) in enumerate(product([gidx], group['loc_id'].tolist())
+                gul_inputs_df.groupby(by=[loc_id])) for _, (gidx, _) in enumerate(product([gidx], group[loc_id].tolist())
             )
         ]
-        gul_inputs_df['portfolio_num'] = gul_inputs_df[portfolio_num]
-        gul_inputs_df['acc_id'] = gul_inputs_df[acc_id]
 
         gul_inputs_df.rename(
             columns={
