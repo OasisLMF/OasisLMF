@@ -272,5 +272,6 @@ rm -rf work/kat
 rm work/gul_S1_summaryleccalc/*
 rmdir work/gul_S1_summaryleccalc
 
+rm /tmp/%FIFO_DIR%/fifo/*
 rmdir /tmp/%FIFO_DIR%/fifo
 rmdir /tmp/%FIFO_DIR%/
