@@ -59,7 +59,10 @@ from .model_execution.bin import (
 )
 from .model_preparation import oed
 from .model_preparation.gul_inputs import write_gul_input_files
-from .model_preparation.il_inputs import write_il_input_files
+from .model_preparation.il_inputs import (
+    unified_id_terms,
+    write_il_input_files,
+)
 from .model_preparation.lookup import OasisLookupFactory as olf
 from .model_preparation.utils import prepare_input_files_directory
 from .model_preparation.reinsurance_layer import write_ri_input_files
@@ -337,11 +340,14 @@ class OasisManager(object):
             ri_scope_fp=ri_scope_fp
         )
 
-        # Get the exposure + accounts + FM aggregation profiles + lookup
-        # config. profiles either from the optional arguments if present, or
-        # then manager defaults
+        # Get the profiles defining the exposure and accounts files, ID related
+        # terms in these files, and FM aggregation hierarchy
         exposure_profile = exposure_profile or get_json(src_fp=exposure_profile_fp) or self.exposure_profile
         accounts_profile = accounts_profile or get_json(src_fp=accounts_profile_fp) or self.accounts_profile
+        id_terms = unified_id_terms(profiles=(exposure_profile, accounts_profile,))
+        loc_id = id_terms['locid']
+        acc_id = id_terms['accid']
+        portfolio_num = id_terms['portid']
         fm_aggregation_profile = fm_aggregation_profile or get_json(src_fp=fm_aggregation_profile_fp, key_transform=int) or self.fm_aggregation_profile
 
         # If a pre-generated keys file path has not been provided,
@@ -357,13 +363,13 @@ class OasisManager(object):
             cov_types = supported_oed_coverage_types or self.supported_oed_coverage_types
 
             if deterministic:
-                loc_numbers = (loc_num['locnumber'] for _, loc_num in get_dataframe(
+                loc_numbers = (loc_num[loc_id] for _, loc_num in get_dataframe(
                     src_fp=exposure_fp,
-                    col_dtypes={'LocNumber': 'str', 'AccNumber': 'str', 'PortNumber': 'str'},
+                    col_dtypes={loc_id: 'str', acc_id: 'str', portfolio_num: 'str'},
                     empty_data_error_msg='No exposure found in the source exposure (loc.) file'
-                )[['locnumber']].iterrows())
+                )[[loc_id]].iterrows())
                 keys = [
-                    {'locnumber': loc_num, 'peril_id': 1, 'coverage_type': cov_type, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
+                    {loc_id: loc_num, 'peril_id': 1, 'coverage_type': cov_type, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
                     for i, (loc_num, cov_type) in enumerate(product(loc_numbers, cov_types))
                 ]
                 _, _ = olf.write_oasis_keys_file(keys, _keys_fp)
@@ -380,7 +386,7 @@ class OasisManager(object):
                 )
                 f1, n1, f2, n2 = olf.save_results(
                     lookup,
-                    loc_id_col='locnumber',
+                    loc_id_col=loc_id,
                     successes_fp=_keys_fp,
                     errors_fp=_keys_errors_fp,
                     source_exposure_fp=exposure_fp

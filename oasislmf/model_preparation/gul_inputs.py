@@ -51,7 +51,7 @@ from ..utils.log import oasis_log
 from ..utils.metadata import COVERAGE_TYPES
 from ..utils.path import as_path
 from .il_inputs import (
-    get_sub_layer_calcrule_id,
+    get_sub_layer_calcrule_ids,
     unified_fm_profile_by_level_and_term_group,
     unified_fm_terms_by_level_and_term_group,
     unified_id_terms,
@@ -103,9 +103,6 @@ def get_gul_input_items(
         empty_data_error_msg='No keys found in the keys file'
     )
 
-    for df in [exposure_df, keys_df]:
-        df['index'] = df.get('index', range(len(df)))
-
     tiv_terms = OrderedDict({v['tiv']['CoverageTypeID']:v['tiv']['ProfileElementName'].lower() for k, v in viewitems(ufp[1])})
 
     cov_level = COVERAGE_TYPES['buildings']['id']
@@ -114,7 +111,6 @@ def get_gul_input_items(
     try:
         gul_inputs_df = merge_dataframes(exposure_df, keys_df, left_on=loc_id, right_on='locid', how='outer')
         gul_inputs_df = gul_inputs_df[(gul_inputs_df[[v for v in viewvalues(tiv_terms)]] != 0).any(axis=1)]
-
         gul_inputs_df['group_id'] = [
             gidx + 1 for gidx, (_, group) in enumerate(
                 gul_inputs_df.groupby(by=[loc_id])) for _, (gidx, _) in enumerate(product([gidx], group[loc_id].tolist())
@@ -133,7 +129,7 @@ def get_gul_input_items(
 
         gul_inputs_df['model_data'] = gul_inputs_df.get('modeldata')
         if gul_inputs_df['model_data'].any():
-            gul_inputs_df['areaperil_id'] = gul_inputs_df['vulnerability_id'] = [-1]
+            gul_inputs_df['areaperil_id'] = gul_inputs_df['vulnerability_id'] = -1
 
         def get_bi_coverage(row):
             return row['coverage_type_id'] == COVERAGE_TYPES['bi']['id']
@@ -145,26 +141,31 @@ def get_gul_input_items(
 
         gul_inputs_df['tiv'] = gul_inputs_df.apply(get_tiv, axis=1)
 
-        def get_term_val(row, term_type=None):
-            val = row.get(cov_fm_terms[row['coverage_type_id']][term_type]) or 0.0
-            if term_type in ('deductible', 'limit',) and val < 1:
+        def get_term_val(row, term=None):
+            val = row.get(cov_fm_terms[row['coverage_type_id']][term]) or 0.0
+            if term in ('deductible', 'limit',) and val < 1:
                 val *= row['tiv']
             return val
 
-        gul_inputs_df['deductible'] = gul_inputs_df.apply(get_term_val, axis=1, term_type='deductible')
-        gul_inputs_df['deductible_min'] = gul_inputs_df.apply(get_term_val, axis=1, term_type='deductiblemin')
-        gul_inputs_df['deductible_max'] = gul_inputs_df.apply(get_term_val, axis=1, term_type='deductiblemax')
-        gul_inputs_df['limit'] = gul_inputs_df.apply(get_term_val, axis=1, term_type='limit')
+        gul_inputs_df['deductible'] = gul_inputs_df.apply(get_term_val, axis=1, term='deductible')
+        gul_inputs_df['deductible_min'] = gul_inputs_df.apply(get_term_val, axis=1, term='deductiblemin')
+        gul_inputs_df['deductible_max'] = gul_inputs_df.apply(get_term_val, axis=1, term='deductiblemax')
+        gul_inputs_df['limit'] = gul_inputs_df.apply(get_term_val, axis=1, term='limit')
 
+        calcrule_ids = get_sub_layer_calcrule_ids(gul_inputs_df)
         def _get_sub_layer_calcrule_id(row):
-            return get_sub_layer_calcrule_id(row['deductible'], row['deductible_min'], row['deductible_max'], row['limit'])
+            return calcrule_ids[(row['deductible'], row['deductible_min'], row['deductible_max'], row['limit'])]
 
         gul_inputs_df['calcrule_id'] = gul_inputs_df.apply(_get_sub_layer_calcrule_id, axis=1)
 
-        gul_inputs_df['item_id'] = range(1, len(gul_inputs_df) + 1)
-        gul_inputs_df['coverage_id'] = gul_inputs_df['agg_id'] = gul_inputs_df['item_id']
-
-        gul_inputs_df['summary_id'] = gul_inputs_df['summaryset_id'] = [1]
+        item_ids = range(1, len(gul_inputs_df) + 1)
+        gul_inputs_df = gul_inputs_df.assign(
+            item_id=item_ids,
+            coverage_id=item_ids,
+            agg_id=item_ids,
+            summary_id=1,
+            summaryset_id=1
+        )
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
         raise OasisException(e)
 
@@ -272,24 +273,18 @@ def write_gul_input_files(
     if write_inputs_table_to_file:
         gul_inputs_df.to_csv(path_or_buf=os.path.join(target_dir, 'gul_inputs.csv'), index=False, encoding='utf-8', chunksize=1000)
 
-    if not gul_inputs_df[['model_data']].any().any():
+    if not gul_inputs_df['model_data'].any():
         gul_inputs_df.drop(['model_data'], axis=1, inplace=True)
         if oasis_files_prefixes.get('complex_items'):
             oasis_files_prefixes.pop('complex_items')
 
     gul_input_files = {
         k: os.path.join(target_dir, '{}.csv'.format(oasis_files_prefixes[k])) 
-        for k in viewkeys(oasis_files_prefixes)
+        for k in oasis_files_prefixes
     }
 
-    concurrent_tasks = (
-        Task(
-            getattr(sys.modules[__name__], 'write_{}_file'.format(f)), 
-            args=(gul_inputs_df.copy(deep=True), gul_input_files[f],), key=f)
-        for f in gul_input_files
-    )
-    num_ps = min(len(gul_input_files), multiprocessing.cpu_count())
-    for _, _ in multithread(concurrent_tasks, pool_size=num_ps):
-        pass
+    this_module = sys.modules[__name__]
+    for k, v in viewitems(gul_input_files):
+        getattr(this_module, 'write_{}_file'.format(k))(gul_inputs_df, v)
 
     return gul_input_files, gul_inputs_df, exposure_df
