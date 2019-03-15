@@ -85,7 +85,7 @@ def get_policytc_ids(il_inputs_df):
         policytc_df[col] = policytc_df[col].astype(float) if col != 'calcrule_id' else policytc_df[col].astype(int)
 
     policytc_ids = {
-        k: i + 1 for i, (k, _) in enumerate(policytc_df.groupby(policytc_terms, sort=True))
+        k: i + 1 for i, (k, _) in enumerate(policytc_df.groupby(policytc_terms, sort=False))
     }
 
     return policytc_ids, policytc_terms
@@ -138,7 +138,7 @@ def get_sub_layer_calcrule_ids(gul_or_il_inputs_df):
     calcrule_ids_df = gul_or_il_inputs_df.drop(drop_cols, axis=1)[calcrule_id_terms].drop_duplicates()
 
     calcrule_ids = {
-        k: get_sub_layer_calcrule_id(*k) for k, _ in calcrule_ids_df.groupby(calcrule_id_terms, sort=True)
+        k: get_sub_layer_calcrule_id(*k) for k, _ in calcrule_ids_df.groupby(calcrule_id_terms, sort=False)
     }
 
     return calcrule_ids
@@ -396,7 +396,7 @@ def get_il_input_items(
 
         # Filter out any intermediate FM levels from the original list of FM
         # levels which have no financial terms
-        fm_levels = [
+        intermediate_fm_levels = [
             l for l in fm_levels[1:-1] if has_nonzero_financial_terms(il_inputs_df, [v for v in viewvalues(fm_terms[l][1]) if v])
         ]
 
@@ -462,26 +462,23 @@ def get_il_input_items(
         # determined by the value of ``reduced``
         orig_levels = set()
 
-        if fm_levels:
-            # The main loop for processing the financial terms for each sub-layer
-            # non-coverage level (currently, 2, 3, 6, 9), including setting the 
-            # calc. rule IDs, and append each level to the current IL inputs frame
-            for level in fm_levels:
-                level_df = il_inputs_df[il_inputs_df['level_id'] == cov_level].copy(deep=True)
-                level_df['level_id'] = level
-                set_non_coverage_level_financial_terms(level_df, level, {t: 0.0 for t in terms})
-                convert_fractional_terms_to_wholes(level_df, terms)
-                level_df['agg_id'] = set_level_agg_ids(level_df, level)
-                il_inputs_df = pd.concat([il_inputs_df, level_df], sort=True, ignore_index=True)
+        # The main loop for processing the financial terms for each sub-layer
+        # non-coverage level (currently, 2, 3, 6, 9), including setting the 
+        # calc. rule IDs, and append each level to the current IL inputs frame
+        for level in intermediate_fm_levels:
+            level_df = il_inputs_df[il_inputs_df['level_id'] == cov_level].copy(deep=True)
+            level_df['level_id'] = level
+            set_non_coverage_level_financial_terms(level_df, level, {t: 0.0 for t in terms})
+            convert_fractional_terms_to_wholes(level_df, terms)
+            level_df['agg_id'] = set_level_agg_ids(level_df, level)
+            il_inputs_df = pd.concat([il_inputs_df, level_df], sort=True, ignore_index=True)
 
-            # Create the sub-layer calc. rule IDs dict and define a column setter
-            calcrule_ids = get_sub_layer_calcrule_ids(il_inputs_df)
-            def _get_sub_layer_calcrule_id(row):
-                return calcrule_ids[(row['deductible'], row['deductible_min'], row['deductible_max'], row['limit'])]
+        # Create the sub-layer calc. rule IDs dict and set calcrule IDs
+        calcrule_ids = get_sub_layer_calcrule_ids(il_inputs_df)
+        def _get_sub_layer_calcrule_id(row):
+            return calcrule_ids[(row['deductible'], row['deductible_min'], row['deductible_max'], row['limit'])]
 
-            il_inputs_df[il_inputs_df['level_id'] > cov_level]['calcrule_id'] = il_inputs_df[il_inputs_df['level_id'] > cov_level].apply(
-                _get_sub_layer_calcrule_id, axis=1
-            )
+        il_inputs_df['calcrule_id'] = il_inputs_df.apply(_get_sub_layer_calcrule_id, axis=1)
 
         # Resequence the index and item IDs, as the earlier repeated
         # concatenation would have produced a non-sequential index
@@ -559,7 +556,9 @@ def write_fm_policytc_file(il_inputs_df, fm_policytc_fp):
     try:
         fm_policytc_df = pd.DataFrame(
             columns=['layer_id', 'level_id', 'agg_id', 'policytc_id'],
-            data=[key[:4] for key, _ in il_inputs_df.groupby(['layer_id', 'level_id', 'agg_id', 'policytc_id', 'limit', 'deductible', 'share'])],
+            data=[key[:4] for key, _ in il_inputs_df.drop_duplicates().groupby(
+                ['layer_id', 'level_id', 'agg_id', 'policytc_id', 'limit', 'deductible', 'share'], sort=False
+            )],
             dtype=object
         )
         fm_policytc_df.to_csv(
@@ -580,11 +579,11 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp):
     try:
         cols = ['policytc_id', 'calcrule_id', 'limit', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'share']
 
-        fm_profile_df = il_inputs_df[cols]
+        fm_profile_df = il_inputs_df[cols].drop_duplicates()
 
         fm_profile_df = pd.DataFrame(
             columns=cols,
-            data=[key for key, _ in fm_profile_df.groupby(cols)]
+            data=[key for key, _ in fm_profile_df.groupby(cols, sort=False)]
         )
 
         col_repl = [
@@ -602,7 +601,7 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp):
 
         fm_profile_df['index'] = range(n)
 
-        fm_profile_df['share2'] = fm_profile_df['share3'] = [0] * n
+        fm_profile_df['share2'] = fm_profile_df['share3'] = 0
 
         fm_profile_df.to_csv(
             columns=['policytc_id', 'calcrule_id', 'deductible1', 'deductible2', 'deductible3', 'attachment1', 'limit1', 'share1', 'share2', 'share3'],
@@ -621,7 +620,7 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp):
     Writes a FM programme file.
     """
     try:
-        cov_level = il_inputs_df['level_id'].min()
+        cov_level = FM_LEVELS['site coverage']['id']
         fm_programme_df = pd.DataFrame(
             pd.concat([il_inputs_df[il_inputs_df['level_id'] == cov_level], il_inputs_df])[['level_id', 'agg_id']],
             dtype=int

@@ -152,16 +152,11 @@ def get_gul_input_items(
         gul_inputs_df['deductible_max'] = gul_inputs_df.apply(get_term_val, axis=1, term='deductiblemax')
         gul_inputs_df['limit'] = gul_inputs_df.apply(get_term_val, axis=1, term='limit')
 
-        calcrule_ids = get_sub_layer_calcrule_ids(gul_inputs_df)
-        def _get_sub_layer_calcrule_id(row):
-            return calcrule_ids[(row['deductible'], row['deductible_min'], row['deductible_max'], row['limit'])]
-
-        gul_inputs_df['calcrule_id'] = gul_inputs_df.apply(_get_sub_layer_calcrule_id, axis=1)
-
         item_ids = range(1, len(gul_inputs_df) + 1)
         gul_inputs_df = gul_inputs_df.assign(
             item_id=item_ids,
             coverage_id=item_ids,
+            calcrule_id=-1,
             agg_id=item_ids,
             summary_id=1,
             summaryset_id=1
