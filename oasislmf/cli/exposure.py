@@ -55,29 +55,11 @@ from .base import (
 class RunCmd(OasisBaseCommand):
     """
     Generates deterministic losses using the installed ktools framework given
-    direct Oasis files (GUL + IL input files & optionally RI input files).
+    direct Oasis files (GUL + optionally IL and RI input files).
 
     The command line arguments can be supplied in the configuration file
     (``oasislmf.json`` by default or specified with the ``--config`` flag).
     Run ``oasislmf config --help`` for more information.
-
-    The script creates a time-stamped folder in the model run directory and
-    sets that as the new model run directory, copies the analysis settings
-    JSON file into the run directory and creates the following folder
-    structure
-    ::
-
-        |── analysis_settings.json
-        |── fifo/
-        |── input/
-        |── output/
-        |── static/
-        |── work/
-
-    Depending on the OS type the model data is symlinked (Linux, Darwin) or
-    copied (Cygwin, Windows) into the ``static`` subfolder. The input files
-    are kept in the ``input`` subfolder and the losses are generated as CSV
-    files in the ``output`` subfolder.
     """
     formatter_class = RawDescriptionHelpFormatter
 
@@ -106,7 +88,7 @@ class RunCmd(OasisBaseCommand):
     def action(self, args):
         """
         Generates deterministic losses using the installed ktools framework given
-        direct Oasis files (GUL + IL input files & optionally RI input files).
+        direct Oasis files (GUL + optionally IL and RI input files).
 
         :param args: The arguments from the command line
         :type args: Namespace

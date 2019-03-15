@@ -590,9 +590,9 @@ class ModelCmd(OasisBaseCommand):
     """
     Model subcommands::
 
-        * generating an Rtree file index for the area peril lookup component of the built-in lookup framework
+        * generating an Rtree spatial index for the area peril lookup component of the built-in lookup framework
         * generating keys files from model lookups
-        * generating Oasis input CSV files (GUL + optionally FM and RI)
+        * generating Oasis input CSV files (GUL [+ IL, RI])
         * generating losses from a preexisting set of Oasis input CSV files
         * generating deterministic losses (no model)
         * running a model end-to-end

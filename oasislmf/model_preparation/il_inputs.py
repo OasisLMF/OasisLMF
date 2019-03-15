@@ -501,7 +501,7 @@ def get_il_input_items(
         layer_df['level_id'] = layer_level
         layer_df['layer_id'] = layer_df.apply(get_layer_id, axis=1)
 
-        # The layer level calc. rule ID method
+        # The layer level calc. rule ID setter
         def _get_layer_calcrule_id(row):
             return get_layer_calcrule_id(row['attachment'], row['limit'], row['share'])
 
