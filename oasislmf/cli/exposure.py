@@ -41,7 +41,6 @@ from ..utils.data import (
     get_json,
     print_dataframe,
 )
-from ..utils.defaults import get_default_deterministic_analysis_settings
 from ..utils.path import (
     as_path,
     setcwd,
@@ -126,12 +125,6 @@ class RunCmd(OasisBaseCommand):
                 else:
                     ri = True
 
-        analysis_settings_fp = None
-        try:
-            analysis_settings_fp = [fn.lower() for fn in os.listdir(input_dir) if fn == 'analysis_settings.json'][0]
-        except IndexError:
-            analysis_settings_fp = get_default_deterministic_analysis_settings(path=True)
-
         self.logger.info('\nRunning deterministic losses (GUL=True, IL={}, RI={})'.format(il, ri))
         guls, ils, rils = om().run_deterministic(
             input_dir,
@@ -139,10 +132,11 @@ class RunCmd(OasisBaseCommand):
             loss_percentage_of_tiv=loss_factor,
             net=net_losses
         )
-        print_dataframe(guls, header='Ground-up losses', objectify_cols=guls.columns, headers='keys', tablefmt='psql', floatfmt=".2f")
-        print_dataframe(ils, header='Insured losses', objectify_cols=ils.columns, headers='keys', tablefmt='psql', floatfmt=".2f")
-        if rils is not None:
-            print_dataframe(rils, header='Reinsurance losses', objectify_cols=rils.columns, headers='keys', tablefmt='psql', floatfmt=".2f")
+        print_dataframe(guls, header='Ground-up losses', objectify_cols=guls.columns)
+        if il:
+            print_dataframe(ils, header='Insured losses', objectify_cols=ils.columns)
+        if ri:
+            print_dataframe(rils, header='Reinsurance losses', objectify_cols=rils.columns)
 
 
 class ValidateCmd(OasisBaseCommand):
