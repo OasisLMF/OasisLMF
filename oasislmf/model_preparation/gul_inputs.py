@@ -20,6 +20,7 @@ __all__ = [
     'write_complex_items_file'
 ]
 
+import copy
 import os
 import multiprocessing
 import sys
@@ -35,7 +36,9 @@ from future.utils import (
     viewvalues,
 )
 
+import numpy as np
 import pandas as pd
+import swifter
 
 from ..utils.concurrency import (
     multithread,
@@ -45,7 +48,10 @@ from ..utils.data import (
     get_dataframe,
     merge_dataframes,
 )
-from ..utils.defaults import get_default_exposure_profile
+from ..utils.defaults import (
+    get_default_exposure_profile,
+    OASIS_FILES_PREFIXES,
+)
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.metadata import COVERAGE_TYPES
@@ -102,6 +108,9 @@ def get_gul_input_items(
         col_dtypes={'locid': 'str'},
         empty_data_error_msg='No keys found in the keys file'
     )
+    if keys_df.get('modeldata'):
+        keys_df.rename({'modeldata': 'model_data'}, inplace=True)
+        keys_df['areaperilid'] = keys_df['vulnerabilityid'] = -1
 
     tiv_terms = OrderedDict({v['tiv']['CoverageTypeID']:v['tiv']['ProfileElementName'].lower() for k, v in viewitems(ufp[1])})
 
@@ -127,37 +136,37 @@ def get_gul_input_items(
             inplace=True
         )
 
-        gul_inputs_df['model_data'] = gul_inputs_df.get('modeldata')
-        if gul_inputs_df['model_data'].any():
-            gul_inputs_df['areaperil_id'] = gul_inputs_df['vulnerability_id'] = -1
+        gul_inputs_df['is_bi_coverage'] = gul_inputs_df['coverage_type_id'].where(gul_inputs_df['coverage_type_id'] == COVERAGE_TYPES['bi']['id'], False)
 
-        def get_bi_coverage(row):
-            return row['coverage_type_id'] == COVERAGE_TYPES['bi']['id']
+        reduced_cols = ['coverage_type_id'] + [v for v in viewvalues(tiv_terms)] + [v[t] for v in viewvalues(cov_fm_terms) for t in v if v[t]]
 
-        gul_inputs_df['is_bi_coverage'] = gul_inputs_df.apply(get_bi_coverage, axis=1)
+        def _generate_il_terms():
+            for _, row in gul_inputs_df[reduced_cols].iterrows():
+                yield [
+                    row[tiv_terms[row['coverage_type_id']]],
+                    row.get(cov_fm_terms[row['coverage_type_id']].get('deductible')) or 0.0,
+                    row.get(cov_fm_terms[row['coverage_type_id']].get('deductible_min')) or 0.0,
+                    row.get(cov_fm_terms[row['coverage_type_id']].get('deductible_max')) or 0.0,
+                    row.get(cov_fm_terms[row['coverage_type_id']].get('limit')) or 0.0
+                ]
 
-        def get_tiv(row):
-            return row.get(tiv_terms[row['coverage_type_id']]) or 0.0
-
-        gul_inputs_df['tiv'] = gul_inputs_df.apply(get_tiv, axis=1)
-
-        def get_term_val(row, term=None):
-            val = row.get(cov_fm_terms[row['coverage_type_id']][term]) or 0.0
-            if term in ('deductible', 'limit',) and val < 1:
-                val *= row['tiv']
-            return val
-
-        gul_inputs_df['deductible'] = gul_inputs_df.apply(get_term_val, axis=1, term='deductible')
-        gul_inputs_df['deductible_min'] = gul_inputs_df.apply(get_term_val, axis=1, term='deductiblemin')
-        gul_inputs_df['deductible_max'] = gul_inputs_df.apply(get_term_val, axis=1, term='deductiblemax')
-        gul_inputs_df['limit'] = gul_inputs_df.apply(get_term_val, axis=1, term='limit')
+        tiv_and_il_term_cols = ['tiv', 'deductible', 'deductible_min', 'deductible_max', 'limit']
+        gul_inputs_df = gul_inputs_df.join(pd.DataFrame(data=[it for it in _generate_il_terms()], columns=tiv_and_il_term_cols, index=gul_inputs_df.index))
+        gul_inputs_df['deductible'] = gul_inputs_df['deductible'].where(
+            (gul_inputs_df['deductible'] == 0) | (gul_inputs_df['deductible'] >= 1),
+            gul_inputs_df['tiv'] * gul_inputs_df['deductible'],
+            axis=0
+        )
+        gul_inputs_df['limit'] = gul_inputs_df['limit'].where(
+            (gul_inputs_df['limit'] == 0) | (gul_inputs_df['limit'] >= 1),
+            gul_inputs_df['tiv'] * gul_inputs_df['limit'],
+            axis=0
+        )
 
         item_ids = range(1, len(gul_inputs_df) + 1)
         gul_inputs_df = gul_inputs_df.assign(
             item_id=item_ids,
             coverage_id=item_ids,
-            calcrule_id=-1,
-            agg_id=item_ids,
             summary_id=1,
             summaryset_id=1
         )
@@ -176,7 +185,8 @@ def write_complex_items_file(gul_inputs_df, complex_items_fp):
             columns=['item_id', 'coverage_id', 'model_data', 'group_id'],
             path_or_buf=complex_items_fp,
             encoding='utf-8',
-            chunksize=1000,
+            mode='a',
+            chunksize=100000,
             index=False
         )
     except (IOError, OSError) as e:
@@ -192,7 +202,8 @@ def write_items_file(gul_inputs_df, items_fp):
             columns=['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id'],
             path_or_buf=items_fp,
             encoding='utf-8',
-            chunksize=1000,
+            mode='a',
+            chunksize=100000,
             index=False
         )
     except (IOError, OSError) as e:
@@ -210,7 +221,8 @@ def write_coverages_file(gul_inputs_df, coverages_fp):
             columns=['coverage_id', 'tiv'],
             path_or_buf=coverages_fp,
             encoding='utf-8',
-            chunksize=1000,
+            mode='a',
+            chunksize=100000,
             index=False
         )
     except (IOError, OSError) as e:
@@ -228,7 +240,8 @@ def write_gulsummaryxref_file(gul_inputs_df, gulsummaryxref_fp):
             columns=['coverage_id', 'summary_id', 'summaryset_id'],
             path_or_buf=gulsummaryxref_fp,
             encoding='utf-8',
-            chunksize=1000,
+            mode='a',
+            chunksize=100000,
             index=False
         )
     except (IOError, OSError) as e:
@@ -243,12 +256,7 @@ def write_gul_input_files(
     keys_fp,
     target_dir,
     exposure_profile=get_default_exposure_profile(),
-    oasis_files_prefixes={
-        'items': 'items',
-        'complex_items': 'complex_items',
-        'coverages': 'coverages',
-        'gulsummaryxref': 'gulsummaryxref'
-    },
+    oasis_files_prefixes=copy.deepcopy(OASIS_FILES_PREFIXES['gul']),
     write_inputs_table_to_file=False
 ):
     """
@@ -268,18 +276,17 @@ def write_gul_input_files(
     if write_inputs_table_to_file:
         gul_inputs_df.to_csv(path_or_buf=os.path.join(target_dir, 'gul_inputs.csv'), index=False, encoding='utf-8', chunksize=1000)
 
-    if not gul_inputs_df['model_data'].any():
-        gul_inputs_df.drop(['model_data'], axis=1, inplace=True)
+    if not gul_inputs_df.get('model_data'):
         if oasis_files_prefixes.get('complex_items'):
             oasis_files_prefixes.pop('complex_items')
 
     gul_input_files = {
-        k: os.path.join(target_dir, '{}.csv'.format(oasis_files_prefixes[k])) 
-        for k in oasis_files_prefixes
+        fn: os.path.join(target_dir, '{}.csv'.format(oasis_files_prefixes[fn])) 
+        for fn in oasis_files_prefixes
     }
 
     this_module = sys.modules[__name__]
-    for k, v in viewitems(gul_input_files):
-        getattr(this_module, 'write_{}_file'.format(k))(gul_inputs_df, v)
+    for fn, fp in viewitems(gul_input_files):
+        getattr(this_module, 'write_{}_file'.format(fn))(gul_inputs_df.copy(deep=True), fp)
 
     return gul_input_files, gul_inputs_df, exposure_df

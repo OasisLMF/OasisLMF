@@ -131,7 +131,7 @@ def get_dataframe(
         df['index'] = range(len(df))
 
     if col_dtypes:
-        set_col_dtypes(df, col_dtypes, lowercase_cols=lowercase_cols)
+        set_col_dtypes(df, col_dtypes)
 
     if sort_col:
         _sort_col = sort_col.lower() if lowercase_cols else sort_col
@@ -141,9 +141,9 @@ def get_dataframe(
     return df
 
 
-def set_col_dtypes(df, col_dtypes, lowercase_cols=True):
+def set_col_dtypes(df, col_dtypes):
     _col_dtypes = {
-        (k.lower() if lowercase_cols else k): (getattr(builtins, v) if v in ('int', 'bool', 'float', 'object', 'str') else v) for k, v in viewitems(col_dtypes)
+        k: (getattr(builtins, v) if v in ('int', 'bool', 'float', 'object', 'str') else v) for k, v in viewitems(col_dtypes)
     }
     for col, dtype in viewitems(_col_dtypes):
         if col in df:

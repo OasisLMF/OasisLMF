@@ -330,7 +330,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
 
         ri = all(required_ri_paths) and il
 
-        self.logger.info('\nGenerating Oasis files (GUL=True, IL={}, RI={})'.format(il, ri))
+        self.logger.info('\nGenerating Oasis files (GUL=True, IL={}, RIL={})'.format(il, ri))
         oasis_files = om().generate_oasis_files(
             oasis_fp,
             exposure_fp,
@@ -446,7 +446,7 @@ class GenerateLossesCmd(OasisBaseCommand):
         elif os.path.basename(oasis_fp) == 'csv':
             ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(oasis_fp)))
 
-        self.logger.info('\nGenerating losses (GUL=True, IL={}, RI={})'.format(il, ri))
+        self.logger.info('\nGenerating losses (GUL=True, IL={}, RIL={})'.format(il, ri))
         om().generate_model_losses(
             model_run_fp,
             oasis_fp,

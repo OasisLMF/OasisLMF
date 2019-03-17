@@ -14,7 +14,6 @@ standard_library.install_aliases()
 __all__ = [
     'get_il_input_items',
     'get_layer_calcrule_id',
-    'get_policytc_ids',
     'get_sub_layer_calcrule_id',
     'get_sub_layer_calcrule_ids',
     'unified_fm_profile_by_level',
@@ -64,6 +63,7 @@ from ..utils.defaults import (
     get_default_accounts_profile,
     get_default_exposure_profile,
     get_default_fm_aggregation_profile,
+    OASIS_FILES_PREFIXES,
 )
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
@@ -77,9 +77,8 @@ from ..utils.metadata import (
 def get_policytc_ids(il_inputs_df):
 
     policytc_terms = ['limit', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'share', 'calcrule_id']
-    drop_cols = set(il_inputs_df.columns).difference(policytc_terms)
 
-    policytc_df = il_inputs_df.drop(drop_cols, axis=1)[policytc_terms].drop_duplicates()
+    policytc_df = il_inputs_df[policytc_terms]
 
     for col in policytc_df.columns:
         policytc_df[col] = policytc_df[col].astype(float) if col != 'calcrule_id' else policytc_df[col].astype(int)
@@ -173,9 +172,11 @@ def unified_fm_profile_by_level_and_term_group(profiles=[], profile_paths=[], un
 
     ufp = ufp or unified_fm_profile_by_level(profiles=profiles, profile_paths=profile_paths)
 
+    from_profile_fm_term_types = {'deductible': 'deductible', 'deductiblemin': 'deductible_min', 'deductiblemax': 'deductible_max', 'limit': 'limit', 'share': 'share'}
+
     return OrderedDict({
         k: {
-            _k: {v['FMTermType'].lower(): v for v in g} for _k, g in groupby(sorted(viewvalues(ufp[k]), key=lambda v: v['FMTermGroupID']), key=lambda v: v['FMTermGroupID'])
+            _k: {(from_profile_fm_term_types.get(v['FMTermType'].lower()) or v['FMTermType'].lower()): v for v in g} for _k, g in groupby(sorted(viewvalues(ufp[k]), key=lambda v: v['FMTermGroupID']), key=lambda v: v['FMTermGroupID'])
         } for k in sorted(ufp)
     })
 
@@ -200,7 +201,7 @@ def unified_fm_terms_by_level_and_term_group(profiles=[], profile_paths=[], unif
             tiv_tgid: {
                 term_type: (
                     ufp[level][tiv_tgid][term_type]['ProfileElementName'].lower() if ufp[level][tiv_tgid].get(term_type) else None
-                ) for term_type in ('deductible', 'deductiblemin', 'deductiblemax', 'limit', 'share',)
+                ) for term_type in ('deductible', 'deductible_min', 'deductible_max', 'limit', 'share',)
             } for tiv_tgid in ufp[level]
         } for level in sorted(ufp)[1:]
     })
@@ -315,10 +316,6 @@ def get_il_input_items(
     if not (accounts_df is not None or accounts_fp):
         raise OasisException('No accounts frame or file path provided')
 
-    # The main IL inputs frame that this method will return to the caller -
-    # initially an empty frame
-    il_inputs_df = pd.DataFrame()
-
     # Define the FM levels from the unified profile, including the coverage
     # level (the first level) and the layer level (the last level) - the FM
     # levels thus obtained should correspond to the FM levels in the OED
@@ -361,10 +358,9 @@ def get_il_input_items(
             return layers[(row[acc_id], row[policy_num])]
 
         # Perform the initial layering
-        il_inputs_df['layer_id'] = il_inputs_df.apply(get_layer_id, axis=1)
+        il_inputs_df['layer_id'] = il_inputs_df[[acc_id, policy_num]].apply(get_layer_id, axis=1)
 
-        # Select only the layer 1 items and resequence the index, item IDs and
-        # also set the cov. level ID
+        # Select only the layer 1 items and resequence the index
         il_inputs_df = il_inputs_df[il_inputs_df['layer_id'] == 1].reset_index()
         n = len(il_inputs_df)
 
@@ -373,11 +369,12 @@ def get_il_input_items(
         # are not relevant to the coverage level, but are required for the layer
         # level
         il_inputs_df = il_inputs_df.assign(
+            item_id=range(1, n + 1),
             level_id=cov_level,
-            item_id=range(1, len(il_inputs_df) + 1),
+            agg_id=range(1, n + 1),
             attachment=0,
             share=0,
-            policytc_id=-1,
+            calcrule_id=-1,
             index=il_inputs_df.index
         )
 
@@ -405,37 +402,11 @@ def get_il_input_items(
             v['id'] for k, v in viewitems(COVERAGE_TYPES) if k in ['buildings','other','contents','bi']
         ]
 
-        # Various helper methods to process the financial terms for the 
-        # intermediate FM levels
-        def set_non_coverage_level_financial_terms(level_df, level, terms_and_defaults):
-            n = len(level_df)
-            for term, default in viewitems(terms_and_defaults):
-                src_col = fm_terms[level][1].get(term)
-                if not src_col or src_col not in level_df.columns:
-                    level_df[term] = default
-                    continue
-                level_cov_types = level_df['coverage_type_id']
-                supp_cov_types = ufp[level][1][term].get('CoverageTypeID') or all_cov_types
-                level_df[term] = level_df[
-                    [src_col, 'coverage_type_id']
-                ].where(level_cov_types.isin(supp_cov_types), 0)[[src_col]]
-                level_df['coverage_type_id'] = level_cov_types
-                if not level_df[term].any():
-                    level_df[term] = default or 0.0
-            return level_df
-
-        def convert_fractional_terms_to_wholes(level_df, terms):
-            for term in terms:
-                def prod(_df):
-                    return _df['tiv'] * _df[term]
-                level_df['temp'] = prod(level_df[['tiv', term]].where(level_df[term] < 1))
-                level_df[term] = level_df[[term, 'temp']].max(axis=1)
-
         # A helper method to resequence the levels in the current IL inputs frame
         def reset_levels(levels_df, orig_levels):
             new_levels = levels_df['level_id'].unique().tolist()
             orig_levels.update(new_levels)
-            return levels_df.apply(lambda row: new_levels.index(row['level_id']) + 1, axis=1)
+            return levels_df[['level_id']].apply(lambda row: new_levels.index(row['level_id']) + 1, axis=1)
 
         # A helper method to perform aggregation for a given level inputs DF
         def set_level_agg_ids(level_df, level):
@@ -455,7 +426,7 @@ def get_il_input_items(
         # The basic list of financial term types for sub-layer levels - the
         # layer level has the same list of terms but has an additional
         # ``share`` term
-        terms = ('deductible', 'deductible_min', 'deductible_max', 'limit',)
+        terms = ['deductible', 'deductible_min', 'deductible_max', 'limit']
 
         # This is used to store the level IDs prior to any resequencing of the
         # levels as a result of removing levels with no financial terms, as
@@ -468,8 +439,22 @@ def get_il_input_items(
         for level in intermediate_fm_levels:
             level_df = il_inputs_df[il_inputs_df['level_id'] == cov_level].copy(deep=True)
             level_df['level_id'] = level
-            set_non_coverage_level_financial_terms(level_df, level, {t: 0.0 for t in terms})
-            convert_fractional_terms_to_wholes(level_df, terms)
+            level_df[terms] = 0.0
+            level_df[terms] = level_df[[(v[t] or t) for v in viewvalues(fm_terms[level]) for t in terms]]
+            if ufp[level][1].get('deductible'):
+                level_df['deductible'] = level_df['deductible'].where(level_df['coverage_type_id'].isin(ufp[level][1]['deductible'].get('CoverageTypeID') or all_cov_types), 0)
+            if ufp[level][1].get('limit'):
+                level_df['limit'] = level_df['limit'].where(level_df['coverage_type_id'].isin(ufp[level][1]['limit'].get('CoverageTypeID') or all_cov_types), 0)
+            level_df['deductible'] = level_df['deductible'].where(
+                (level_df['deductible'] == 0) | (level_df['deductible'] >= 1),
+                level_df['tiv'] * level_df['deductible'],
+                axis=0
+            )
+            level_df['limit'] = level_df['limit'].where(
+                (level_df['limit'] == 0) | (level_df['limit'] >= 1),
+                level_df['tiv'] * level_df['limit'],
+                axis=0
+            )
             level_df['agg_id'] = set_level_agg_ids(level_df, level)
             il_inputs_df = pd.concat([il_inputs_df, level_df], sort=True, ignore_index=True)
 
@@ -478,7 +463,7 @@ def get_il_input_items(
         def _get_sub_layer_calcrule_id(row):
             return calcrule_ids[(row['deductible'], row['deductible_min'], row['deductible_max'], row['limit'])]
 
-        il_inputs_df['calcrule_id'] = il_inputs_df.apply(_get_sub_layer_calcrule_id, axis=1)
+        il_inputs_df['calcrule_id'] = il_inputs_df[terms].apply(_get_sub_layer_calcrule_id, axis=1)
 
         # Resequence the index and item IDs, as the earlier repeated
         # concatenation would have produced a non-sequential index
@@ -499,49 +484,32 @@ def get_il_input_items(
         # In the layer frame set the layer level ID, acc. ID and policy num.,
         # and perform the initial layering
         layer_df['level_id'] = layer_level
-        layer_df['layer_id'] = layer_df.apply(get_layer_id, axis=1)
+        layer_df['layer_id'] = layer_df[[acc_id, policy_num]].apply(get_layer_id, axis=1)
 
         # The layer level calc. rule ID setter
         def _get_layer_calcrule_id(row):
             return get_layer_calcrule_id(row['attachment'], row['limit'], row['share'])
 
+        terms = ['deductible', 'limit', 'share']
+
         # Still in the layer frame, now process the financial terms for this
         # level, and then append that to the main IL inputs frame
-        set_non_coverage_level_financial_terms(layer_df, layer_level, {'deductible': 0.0, 'limit': 9999999999, 'share': 1.0})
+        layer_df[terms] = 0.0, 9999999999, 1.0
+        layer_df[terms] = layer_df[[(v[t] or t) for v in viewvalues(fm_terms[layer_level]) for t in terms]]
+        layer_df['limit'] = layer_df['limit'].where(layer_df['limit'] != 0, 9999999999)
         layer_df['attachment'] = layer_df['deductible']
-        layer_df['calcrule_id'] = layer_df.apply(_get_layer_calcrule_id, axis=1)
+        layer_df['share'] = layer_df['share'].where(layer_df['share'] != 0, 1.0)
+        layer_df['calcrule_id'] = layer_df[['attachment', 'limit', 'share']].apply(_get_layer_calcrule_id, axis=1)
         layer_df['agg_id'] = set_level_agg_ids(layer_df, layer_level)
         il_inputs_df = pd.concat([il_inputs_df, layer_df], sort=True, ignore_index=True)
 
-        # Resequence the levels in the main IL inputs frame - this is necessary
-        # as the earlier filtering out of intermediate FM levels with no
-        # financial terms would have produced a non-sequential list of FM levels
+        # Only keep the required columns and resequence the levels, index and
+        # item IDs - this is necessary as the earlier filtering out of
+        # intermediate FM levels with no financial terms would have produced
+        # a non-sequential list of FM levels and/or index and item IDs
         il_inputs_df['level_id'] = reset_levels(il_inputs_df, orig_levels)
-
-        # Resequence the index and item IDs
         il_inputs_df['index'] = il_inputs_df.index
         il_inputs_df['item_id'] = range(1, len(il_inputs_df) + 1)
-
-        # The policy TC ID calculation - a policy TC ID is a unique ID for a 
-        # unique combination of financial terms (including calc. rule ID),
-        # namely, limit, deductible, attachment, deductible min., deductible
-        # max., share, calc. rule ID (in that order) for an input item
-        #
-        # Given that every input now in the main IL inputs frame will have
-        # these financial terms defined, a policy TC ID can be assigned to
-        # each.
-        #
-        # The first step is to get the policy TC ID dict, which creates the
-        # unique combinations of these terms present in the IL inputs frame,
-        # each identified by a unique ID. Then the policy TC IDs are set
-        # column wise by looking up the index of a given input item's
-        # combination of these financial terms in the policy TC dict.
-        policytc_ids, policytc_terms = get_policytc_ids(il_inputs_df)
-
-        def get_policytc_id(row):
-            return policytc_ids[tuple(row[policytc_terms].values)]
-
-        il_inputs_df['policytc_id'] = il_inputs_df.apply(get_policytc_id, axis=1)
 
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
         raise OasisException(e)
@@ -554,16 +522,26 @@ def write_fm_policytc_file(il_inputs_df, fm_policytc_fp):
     Writes an FM policy T & C file.
     """
     try:
-        fm_policytc_df = pd.DataFrame(
-            columns=['layer_id', 'level_id', 'agg_id', 'policytc_id'],
-            data=[key[:4] for key, _ in il_inputs_df.drop_duplicates().groupby(
-                ['layer_id', 'level_id', 'agg_id', 'policytc_id', 'limit', 'deductible', 'share'], sort=False
-            )],
-            dtype=object
-        )
+        cols = ['layer_id', 'level_id', 'agg_id', 'calcrule_id', 'limit', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'share']
+        fm_policytc_df = il_inputs_df[cols].drop_duplicates()
+
+        fm_policytc_df['policytc_id'] = pd.factorize(
+            pd._libs.lib.fast_zip([
+                fm_policytc_df['calcrule_id'].values,
+                fm_policytc_df['deductible'].values,
+                fm_policytc_df['deductible_min'].values,
+                fm_policytc_df['deductible_max'].values,
+                fm_policytc_df['attachment'].values,
+                fm_policytc_df['limit'].values,
+                fm_policytc_df['share'].values
+            ])
+        )[0] + 1
+
+        fm_policytc_df = fm_policytc_df[cols[:3] + ['policytc_id']]
         fm_policytc_df.to_csv(
             path_or_buf=fm_policytc_fp,
             encoding='utf-8',
+            mode='a',
             chunksize=1000,
             index=False
         )
@@ -577,29 +555,33 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp):
     Writes an FM profile file.
     """
     try:
-        cols = ['policytc_id', 'calcrule_id', 'limit', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'share']
+        cols = ['calcrule_id', 'limit', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'share']
 
         fm_profile_df = il_inputs_df[cols].drop_duplicates()
 
-        fm_profile_df = pd.DataFrame(
-            columns=cols,
-            data=[key for key, _ in fm_profile_df.groupby(cols, sort=False)]
+        fm_profile_df['policytc_id'] = pd.factorize(
+            pd._libs.lib.fast_zip([
+                fm_profile_df['calcrule_id'].values,
+                fm_profile_df['deductible'].values,
+                fm_profile_df['deductible_min'].values,
+                fm_profile_df['deductible_max'].values,
+                fm_profile_df['attachment'].values,
+                fm_profile_df['limit'].values,
+                fm_profile_df['share'].values
+            ])
+        )[0] + 1
+
+        fm_profile_df.rename(
+            columns={
+                'deductible': 'deductible1',
+                'deductible_min': 'deductible2',
+                'deductible_max': 'deductible3',
+                'attachment': 'attachment1',
+                'limit': 'limit1',
+                'share': 'share1'
+            },
+            inplace=True
         )
-
-        col_repl = [
-            {'deductible': 'deductible1'},
-            {'deductible_min': 'deductible2'},
-            {'deductible_max': 'deductible3'},
-            {'attachment': 'attachment1'},
-            {'limit': 'limit1'},
-            {'share': 'share1'}
-        ]
-        for repl in col_repl:
-            fm_profile_df.rename(columns=repl, inplace=True)
-
-        n = len(fm_profile_df)
-
-        fm_profile_df['index'] = range(n)
 
         fm_profile_df['share2'] = fm_profile_df['share3'] = 0
 
@@ -607,7 +589,8 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp):
             columns=['policytc_id', 'calcrule_id', 'deductible1', 'deductible2', 'deductible3', 'attachment1', 'limit1', 'share1', 'share2', 'share3'],
             path_or_buf=fm_profile_fp,
             encoding='utf-8',
-            chunksize=1000,
+            mode='a',
+            chunksize=100000,
             index=False
         )
     except (IOError, OSError) as e:
@@ -621,15 +604,12 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp):
     """
     try:
         cov_level = FM_LEVELS['site coverage']['id']
+
+        cov_level_df = il_inputs_df[il_inputs_df['level_id'] == 1][['agg_id']].assign(level_id=0)
         fm_programme_df = pd.DataFrame(
-            pd.concat([il_inputs_df[il_inputs_df['level_id'] == cov_level], il_inputs_df])[['level_id', 'agg_id']],
+            pd.concat([cov_level_df, il_inputs_df], sort=True, ignore_index=True)[['level_id', 'agg_id']],
             dtype=int
         ).reset_index(drop=True)
-
-        num_cov_items = len(il_inputs_df[il_inputs_df['level_id'] == cov_level])
-
-        for i in range(num_cov_items):
-            fm_programme_df.at[i, 'level_id'] = 0
 
         def from_agg_id_to_agg_id(from_level_id, to_level_id):
             iterator = (
@@ -645,7 +625,9 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp):
         levels = list(set(fm_programme_df['level_id']))
 
         data = [
-            (from_agg_id, level_id, to_agg_id) for from_level_id, to_level_id in zip(levels, levels[1:]) for from_agg_id, level_id, to_agg_id in from_agg_id_to_agg_id(from_level_id, to_level_id)
+            (from_agg_id, level_id, to_agg_id)
+            for from_level_id, to_level_id in zip(levels, levels[1:])
+            for from_agg_id, level_id, to_agg_id in from_agg_id_to_agg_id(from_level_id, to_level_id)
         ]
 
         fm_programme_df = pd.DataFrame(columns=['from_agg_id', 'level_id', 'to_agg_id'], data=data, dtype=int).drop_duplicates()
@@ -653,7 +635,8 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp):
         fm_programme_df.to_csv(
             path_or_buf=fm_programme_fp,
             encoding='utf-8',
-            chunksize=1000,
+            mode='a',
+            chunksize=100000,
             index=False
         )
     except (IOError, OSError) as e:
@@ -675,7 +658,8 @@ def write_fm_xref_file(il_inputs_df, fm_xref_fp):
         fm_xref_df.to_csv(
             path_or_buf=fm_xref_fp,
             encoding='utf-8',
-            chunksize=1000,
+            mode='a',
+            chunksize=100000,
             index=False
         )
     except (IOError, OSError) as e:
@@ -697,7 +681,8 @@ def write_fmsummaryxref_file(il_inputs_df, fmsummaryxref_fp):
         fmsummaryxref_df.to_csv(
             path_or_buf=fmsummaryxref_fp,
             encoding='utf-8',
-            chunksize=1000,
+            mode='a',
+            chunksize=100000,
             index=False
         )
     except (IOError, OSError) as e:
@@ -716,13 +701,7 @@ def write_il_input_files(
     exposure_profile=get_default_exposure_profile(),
     accounts_profile=get_default_accounts_profile(),
     fm_aggregation_profile=get_default_fm_aggregation_profile(),
-    oasis_files_prefixes={
-        'fm_policytc': 'fm_policytc',
-        'fm_profile': 'fm_profile',
-        'fm_programme': 'fm_programme',
-        'fm_xref': 'fm_xref',
-        'fmsummaryxref': 'fmsummaryxref'
-    },
+    oasis_files_prefixes=copy.deepcopy(OASIS_FILES_PREFIXES['il']),
     write_inputs_table_to_file=False
 ):
     """
@@ -751,11 +730,11 @@ def write_il_input_files(
         il_inputs_df.to_csv(path_or_buf=os.path.join(target_dir, 'il_inputs.csv'), index=False, encoding='utf-8', chunksize=1000)
 
     il_input_files = {
-        k: os.path.join(target_dir, '{}.csv'.format(oasis_files_prefixes[k])) for k in oasis_files_prefixes
+        fn: os.path.join(target_dir, '{}.csv'.format(oasis_files_prefixes[fn])) for fn in oasis_files_prefixes
     }
 
     this_module = sys.modules[__name__]
-    for k, v in viewitems(il_input_files):
-        getattr(this_module, 'write_{}_file'.format(k))(il_inputs_df, v)
+    for fn, fp in viewitems(il_input_files):
+        getattr(this_module, 'write_{}_file'.format(fn))(il_inputs_df.copy(deep=True), fp)
 
     return il_input_files, il_inputs_df, accounts_df
