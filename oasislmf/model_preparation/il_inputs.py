@@ -247,17 +247,17 @@ def get_il_input_items(
     """
     Generates and returns a Pandas dataframe of IL input items.
 
-    :param exposure_df: OED source exposure
+    :param exposure_df: Source exposure
     :type exposure_df: pandas.DataFrame
 
     :param gul_inputs_df: GUL input items
     :type gul_inputs_df: pandas.DataFrame
 
-    :param accounts_df: OED source accounts dataframe (optional)
+    :param accounts_df: Source accounts dataframe (optional)
     :param accounts_df: pandas.DataFrame
 
-    :param accounts_df: OED source accounts file path (optional)
-    :param accounts_df: str
+    :param accounts_fp: Source accounts file path (optional)
+    :param accounts_fp: str
 
     :param exposure_profile: Source exposure profile (optional)
     :type exposure_profile: dict
@@ -268,9 +268,11 @@ def get_il_input_items(
     :param fm_aggregation_profile: FM aggregation profile (optional)
     :param fm_aggregation_profile: dict
 
-    :param reduced: Whether to reduce the IL input items table by removing any
-                    items with zero financial terms (optional)
-    :param reduced: bool
+    :return: IL inputs dataframe
+    :rtype: pandas.DataFrame
+
+    :return Accounts dataframe
+    :rtype: pandas.DataFrame 
     """
     # Get the OED profiles describing exposure, accounts, and using these also
     # unified exposure + accounts profile and the aggregation profile
@@ -520,6 +522,15 @@ def get_il_input_items(
 def write_fm_policytc_file(il_inputs_df, fm_policytc_fp):
     """
     Writes an FM policy T & C file.
+
+    :param il_inputs_df: IL inputs dataframe
+    :type il_inputs_df: pandas.DataFrame
+
+    :param fm_policytc_fp: FM policy TC file path
+    :type fm_policytc_fp: str
+
+    :return: FM policy TC file path
+    :rtype: str
     """
     try:
         cols = ['layer_id', 'level_id', 'agg_id', 'calcrule_id', 'limit', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'share']
@@ -553,6 +564,15 @@ def write_fm_policytc_file(il_inputs_df, fm_policytc_fp):
 def write_fm_profile_file(il_inputs_df, fm_profile_fp):
     """
     Writes an FM profile file.
+
+    :param il_inputs_df: IL inputs dataframe
+    :type il_inputs_df: pandas.DataFrame
+
+    :param fm_profile_fp: FM profile file path
+    :type fm_profile_fp: str
+
+    :return: FM profile file path
+    :rtype: str
     """
     try:
         cols = ['calcrule_id', 'limit', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'share']
@@ -600,7 +620,16 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp):
 
 def write_fm_programme_file(il_inputs_df, fm_programme_fp):
     """
-    Writes a FM programme file.
+    Writes an FM programme file.
+
+    :param il_inputs_df: IL inputs dataframe
+    :type il_inputs_df: pandas.DataFrame
+
+    :param fm_programme_fp: FM programme file path
+    :type fm_programme_fp: str
+
+    :return: FM programme file path
+    :rtype: str
     """
     try:
         cov_level = FM_LEVELS['site coverage']['id']
@@ -646,7 +675,16 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp):
 
 def write_fm_xref_file(il_inputs_df, fm_xref_fp):
     """
-    Writes a FM xref file.
+    Writes an FM xref file.
+
+    :param il_inputs_df: IL inputs dataframe
+    :type il_inputs_df: pandas.DataFrame
+
+    :param fm_xref_fp: FM xref file path
+    :type fm_xref_fp: str
+
+    :return: FM xref file path
+    :rtype: str
     """
     try:
         data = [
@@ -670,6 +708,15 @@ def write_fm_xref_file(il_inputs_df, fm_xref_fp):
 def write_fmsummaryxref_file(il_inputs_df, fmsummaryxref_fp):
     """
     Writes an FM summaryxref file.
+
+    :param il_inputs_df: IL inputs dataframe
+    :type il_inputs_df: pandas.DataFrame
+
+    :param fmsummaryxref_fp: FM summary xref file path
+    :type fmsummaryxref_fp: str
+
+    :return: FM summary xref file path
+    :rtype: str
     """
     try:
         data = [
@@ -705,13 +752,53 @@ def write_il_input_files(
     write_inputs_table_to_file=False
 ):
     """
-    Generate standard Oasis FM input files, namely::
+    Writes standard Oasis IL input files, namely
+    ::
 
         fm_policytc.csv
         fm_profile.csv
         fm_programme.csv
         fm_xref.csv
         fmsummaryxref.csv
+
+    :param exposure_df: Exposure dataframe
+    :type exposure_df: pandas.DataFrame
+
+    :param gul_inputs_df: GUL inputs dataframe
+    :type gul_inputs_df: pandas.DataFrame
+
+    :param target_dir: Target directory in which to write the files
+    :type target_dir: str
+
+    :param accounts_df: Accounts dataframe (optional)
+    :type accounts_df: pandas.DataFrame
+
+    :param accounts_fp: Accounts file path (optional)
+    :type accounts_fp: str
+
+    :param exposure_profile: Exposure profile (optional)
+    :type exposure_profile: dict
+
+    :param accounts_profile: Accounts profile (optional)
+    :type accounts_profile: dict
+
+    :param fm_aggregation_profile: FM aggregation profile (optional)
+    :param fm_aggregation_profile: dict
+
+    :param oasis_files_prefixes: Oasis IL input file name prefixes
+    :param oasis_files_prefixes: dict
+
+    :param write_inputs_table_to_file: Whether to write the IL inputs table to file
+    :param write_inputs_table_to_file: bool
+
+    :return: IL input files dict
+    :rtype: dict
+
+    :return: IL inputs dataframe
+    :rtype: pandas.DataFrame
+
+    :return: Accounts dataframe
+    :rtype: pandas.DataFrame
     """
     # Clean the target directory path
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
