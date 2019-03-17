@@ -163,13 +163,18 @@ def get_gul_input_items(
         # Set the BI coverage boolean column - this is used during IL inputs
         # generation to exclude deductibles and limits relating to BI coverages
         # from being included in higher FM levels
-        gul_inputs_df['is_bi_coverage'] = gul_inputs_df['coverage_type_id'].where(gul_inputs_df['coverage_type_id'] == COVERAGE_TYPES['bi']['id'], False)
+        bi_cov_type = COVERAGE_TYPES['bi']['id']
+        gul_inputs_df['is_bi_coverage'] = np.where(gul_inputs_df['coverage_type_id'] == bi_cov_type, True, False)
+        #gul_inputs_df['is_bi_coverage'] = gul_inputs_df['coverage_type_id'].where(gul_inputs_df['coverage_type_id'] == COVERAGE_TYPES['bi']['id'], False)
 
         # A list of column names to use for processing the coverage level
         # IL terms
         reduced_cols = ['coverage_type_id'] + [v for v in viewvalues(tiv_terms)] + [v[t] for v in viewvalues(cov_fm_terms) for t in v if v[t]]
 
-        # The coverage level FM/IL terms generator
+        # The coverage level FM/IL terms generator - various options were tried
+        # for processing these terms into the GUL inputs table, including
+        # ``pandas.DataFrame.apply``, but a ``for`` loop as used in this
+        # generator was the quickest
         def _generate_il_terms():
             for _, row in gul_inputs_df[reduced_cols].iterrows():
                 yield [
@@ -212,7 +217,7 @@ def get_gul_input_items(
     return gul_inputs_df, exposure_df
 
 
-def write_complex_items_file(gul_inputs_df, complex_items_fp):
+def write_complex_items_file(gul_inputs_df, complex_items_fp, chunksize=100000):
     """
     Writes an items file.
 
@@ -231,14 +236,14 @@ def write_complex_items_file(gul_inputs_df, complex_items_fp):
             path_or_buf=complex_items_fp,
             encoding='utf-8',
             mode='a',
-            chunksize=100000,
+            chunksize=chunksize,
             index=False
         )
     except (IOError, OSError) as e:
         raise OasisException(e)
 
 
-def write_items_file(gul_inputs_df, items_fp):
+def write_items_file(gul_inputs_df, items_fp, chunksize=100000):
     """
     Writes an items file.
 
@@ -257,7 +262,7 @@ def write_items_file(gul_inputs_df, items_fp):
             path_or_buf=items_fp,
             encoding='utf-8',
             mode='a',
-            chunksize=100000,
+            chunksize=chunksize,
             index=False
         )
     except (IOError, OSError) as e:
@@ -266,7 +271,7 @@ def write_items_file(gul_inputs_df, items_fp):
     return items_fp
 
 
-def write_coverages_file(gul_inputs_df, coverages_fp):
+def write_coverages_file(gul_inputs_df, coverages_fp, chunksize=100000):
     """
     Writes a coverages file.
 
@@ -285,7 +290,7 @@ def write_coverages_file(gul_inputs_df, coverages_fp):
             path_or_buf=coverages_fp,
             encoding='utf-8',
             mode='a',
-            chunksize=100000,
+            chunksize=chunksize,
             index=False
         )
     except (IOError, OSError) as e:
@@ -294,17 +299,17 @@ def write_coverages_file(gul_inputs_df, coverages_fp):
     return coverages_fp
 
 
-def write_gulsummaryxref_file(gul_inputs_df, gulsummaryxref_fp):
+def write_gulsummaryxref_file(gul_inputs_df, gulsummaryxref_fp, chunksize=100000):
     """
-    Writes a GUL summary xref file.
+    Writes a summary xref file.
 
     :param gul_inputs_df: GUL inputs dataframe
     :type gul_inputs_df: pandas.DataFrame
 
-    :param gulsummaryxref_fp: GUL summary xref file path
+    :param gulsummaryxref_fp: Summary xref file path
     :type gulsummaryxref_fp: str
 
-    :return: GUL summary xref file path
+    :return: Summary xref file path
     :rtype: str
     """
     try:
@@ -313,7 +318,7 @@ def write_gulsummaryxref_file(gul_inputs_df, gulsummaryxref_fp):
             path_or_buf=gulsummaryxref_fp,
             encoding='utf-8',
             mode='a',
-            chunksize=100000,
+            chunksize=chunksize,
             index=False
         )
     except (IOError, OSError) as e:
@@ -373,7 +378,7 @@ def write_gul_input_files(
     gul_inputs_df, exposure_df = get_gul_input_items(exposure_fp, keys_fp, exposure_profile=exposure_profile)
 
     if write_inputs_table_to_file:
-        gul_inputs_df.to_csv(path_or_buf=os.path.join(target_dir, 'gul_inputs.csv'), index=False, encoding='utf-8', chunksize=1000)
+        gul_inputs_df.to_csv(path_or_buf=os.path.join(target_dir, 'gul_inputs.csv'), index=False, encoding='utf-8', chunksize=100000)
 
     if not gul_inputs_df.get('model_data'):
         if oasis_files_prefixes.get('complex_items'):
@@ -385,7 +390,12 @@ def write_gul_input_files(
     }
 
     this_module = sys.modules[__name__]
-    for fn, fp in viewitems(gul_input_files):
-        getattr(this_module, 'write_{}_file'.format(fn))(gul_inputs_df.copy(deep=True), fp)
+    concurrent_tasks = (
+        Task(getattr(this_module, 'write_{}_file'.format(fn)), args=(gul_inputs_df.copy(deep=True), gul_input_files[fn], 100000,), key=fn)
+        for fn in gul_input_files
+    )
+    num_ps = min(len(gul_input_files), multiprocessing.cpu_count())
+    for _, _ in multithread(concurrent_tasks, pool_size=num_ps):
+        pass
 
     return gul_input_files, gul_inputs_df, exposure_df

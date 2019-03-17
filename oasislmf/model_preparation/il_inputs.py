@@ -519,7 +519,7 @@ def get_il_input_items(
     return il_inputs_df, accounts_df
 
 
-def write_fm_policytc_file(il_inputs_df, fm_policytc_fp):
+def write_fm_policytc_file(il_inputs_df, fm_policytc_fp, chunksize=100000):
     """
     Writes an FM policy T & C file.
 
@@ -553,7 +553,7 @@ def write_fm_policytc_file(il_inputs_df, fm_policytc_fp):
             path_or_buf=fm_policytc_fp,
             encoding='utf-8',
             mode='a',
-            chunksize=1000,
+            chunksize=chunksize,
             index=False
         )
     except (IOError, OSError) as e:
@@ -561,7 +561,7 @@ def write_fm_policytc_file(il_inputs_df, fm_policytc_fp):
 
     return fm_policytc_fp
 
-def write_fm_profile_file(il_inputs_df, fm_profile_fp):
+def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
     """
     Writes an FM profile file.
 
@@ -610,7 +610,7 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp):
             path_or_buf=fm_profile_fp,
             encoding='utf-8',
             mode='a',
-            chunksize=100000,
+            chunksize=chunksize,
             index=False
         )
     except (IOError, OSError) as e:
@@ -618,7 +618,7 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp):
 
     return fm_profile_fp
 
-def write_fm_programme_file(il_inputs_df, fm_programme_fp):
+def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
     """
     Writes an FM programme file.
 
@@ -665,7 +665,7 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp):
             path_or_buf=fm_programme_fp,
             encoding='utf-8',
             mode='a',
-            chunksize=100000,
+            chunksize=chunksize,
             index=False
         )
     except (IOError, OSError) as e:
@@ -673,7 +673,7 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp):
 
     return fm_programme_fp
 
-def write_fm_xref_file(il_inputs_df, fm_xref_fp):
+def write_fm_xref_file(il_inputs_df, fm_xref_fp, chunksize=100000):
     """
     Writes an FM xref file.
 
@@ -697,7 +697,7 @@ def write_fm_xref_file(il_inputs_df, fm_xref_fp):
             path_or_buf=fm_xref_fp,
             encoding='utf-8',
             mode='a',
-            chunksize=100000,
+            chunksize=chunksize,
             index=False
         )
     except (IOError, OSError) as e:
@@ -705,17 +705,17 @@ def write_fm_xref_file(il_inputs_df, fm_xref_fp):
 
     return fm_xref_fp
 
-def write_fmsummaryxref_file(il_inputs_df, fmsummaryxref_fp):
+def write_fmsummaryxref_file(il_inputs_df, fmsummaryxref_fp, chunksize=100000):
     """
-    Writes an FM summaryxref file.
+    Writes a summary xref file.
 
     :param il_inputs_df: IL inputs dataframe
     :type il_inputs_df: pandas.DataFrame
 
-    :param fmsummaryxref_fp: FM summary xref file path
+    :param fmsummaryxref_fp: Summary xref file path
     :type fmsummaryxref_fp: str
 
-    :return: FM summary xref file path
+    :return: Summary xref file path
     :rtype: str
     """
     try:
@@ -729,7 +729,7 @@ def write_fmsummaryxref_file(il_inputs_df, fmsummaryxref_fp):
             path_or_buf=fmsummaryxref_fp,
             encoding='utf-8',
             mode='a',
-            chunksize=100000,
+            chunksize=chunksize,
             index=False
         )
     except (IOError, OSError) as e:
@@ -814,14 +814,19 @@ def write_il_input_files(
     )
 
     if write_inputs_table_to_file:
-        il_inputs_df.to_csv(path_or_buf=os.path.join(target_dir, 'il_inputs.csv'), index=False, encoding='utf-8', chunksize=1000)
+        il_inputs_df.to_csv(path_or_buf=os.path.join(target_dir, 'il_inputs.csv'), index=False, encoding='utf-8', chunksize=100000)
 
     il_input_files = {
         fn: os.path.join(target_dir, '{}.csv'.format(oasis_files_prefixes[fn])) for fn in oasis_files_prefixes
     }
 
     this_module = sys.modules[__name__]
-    for fn, fp in viewitems(il_input_files):
-        getattr(this_module, 'write_{}_file'.format(fn))(il_inputs_df.copy(deep=True), fp)
+    concurrent_tasks = (
+        Task(getattr(this_module, 'write_{}_file'.format(fn)), args=(il_inputs_df.copy(deep=True), il_input_files[fn], 100000,), key=fn)
+        for fn in il_input_files
+    )
+    num_ps = min(len(il_input_files), multiprocessing.cpu_count())
+    for _, _ in multithread(concurrent_tasks, pool_size=num_ps):
+        pass
 
     return il_input_files, il_inputs_df, accounts_df
