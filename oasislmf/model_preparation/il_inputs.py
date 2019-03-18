@@ -719,11 +719,11 @@ def write_fmsummaryxref_file(il_inputs_df, fmsummaryxref_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        data = [
-            (i + 1, 1, 1) for i, _ in enumerate(product(set(il_inputs_df['agg_id']), set(il_inputs_df['layer_id'])))
-        ]
-
-        fmsummaryxref_df = pd.DataFrame(columns=['output', 'summary_id', 'summaryset_id'], data=data, dtype=int)
+        fmsummaryxref_df = pd.DataFrame(
+            columns=['output', 'summary_id', 'summaryset_id'],
+            data=[(i + 1, 1, 1) for i, _ in enumerate(product(set(il_inputs_df['agg_id']), set(il_inputs_df['layer_id'])))],
+            dtype=int
+        )
 
         fmsummaryxref_df.to_csv(
             path_or_buf=fmsummaryxref_fp,

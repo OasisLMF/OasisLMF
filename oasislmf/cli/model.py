@@ -284,13 +284,14 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         model_version_fp = as_path(inputs.get('model_version_file_path', required=False, is_path=True), 'Model version file path', is_dir=True, preexists=False)
         lookup_package_fp = as_path(inputs.get('lookup_package_path', required=False, is_path=True), 'Lookup package path', is_dir=True, preexists=False)
 
-        if not (lookup_config_fp or (keys_data_fp and model_version_fp and lookup_package_fp)):
+        if not (keys_fp or lookup_config_fp or (keys_data_fp and model_version_fp and lookup_package_fp)):
             raise OasisException(
-                'No lookup assets provided to generate the mandatory keys '
-                'file - for built-in lookups the lookup config. JSON file '
-                'path must be provided, or for custom lookups the keys data '
-                'path + model version file path + lookup package path must be '
-                'provided'
+                'No pre-generated keys file provided, and no lookup assets '
+                'provided to generate a keys file - if you do not have a '
+                'pre-generated keys file then lookup assets must be provided - '
+                'for a built-in lookup the lookup config. JSON file path must '
+                'be provided, or for custom lookups the keys data path + model '
+                'version file path + lookup package path must be provided'
             )
 
         exposure_fp = as_path(
