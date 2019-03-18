@@ -44,9 +44,11 @@ from .exceptions import OasisException
 
 
 PANDAS_BASIC_DTYPES = {
-    'int': np.int64,
+    'int32': np.int32,
+    'int64': np.int64,
     builtins.int: np.int64,
-    'float': np.float64,
+    'float32': np.float32,
+    'float64': np.float64,
     builtins.float: np.float64,
     'bool': np.bool,
     builtins.bool: np.bool,
@@ -88,8 +90,10 @@ def get_dataframe(
         df = pd.read_json(src_fp, precise_float=(True if float_precision == 'high' else False))
     elif src_buf and src_type == 'json':
         df = pd.read_json(io.StringIO(src_buf), precise_float=(True if float_precision == 'high' else False))
-    elif src_data and (isinstance(src_data, list) or isinstance(src_data, pd.DataFrame)):
-        df = pd.DataFrame(data=src_data, dtype=object)
+    elif src_data and isinstance(src_data, list):
+        df = pd.DataFrame(data=src_data)
+    elif src_data and  isinstance(src_data, pd.DataFrame):
+        df = src_data.copy(deep=True)
 
     if empty_data_error_msg and len(df) == 0:
         raise OasisException(empty_data_error_msg)
@@ -142,10 +146,9 @@ def get_dataframe(
 
 
 def set_col_dtypes(df, col_dtypes):
-    _col_dtypes = {
-        k: (getattr(builtins, v) if v in ('int', 'bool', 'float', 'object', 'str') else v) for k, v in viewitems(col_dtypes)
-    }
-    for col, dtype in viewitems(_col_dtypes):
+    for col, dtype in viewitems(col_dtypes):
+        if dtype in ('int', 'bool', 'float', 'object', 'str',):
+            dtype = getattr(builtins, dtype)
         if col in df:
             df[col] = df[col].astype(PANDAS_BASIC_DTYPES[dtype])
 
