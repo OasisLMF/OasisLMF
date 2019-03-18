@@ -60,7 +60,6 @@ from ..utils.log import oasis_log
 from ..utils.metadata import COVERAGE_TYPES
 from ..utils.path import as_path
 from .il_inputs import (
-    get_sub_layer_calcrule_ids,
     unified_fm_profile_by_level_and_term_group,
     unified_fm_terms_by_level_and_term_group,
     unified_id_terms,
@@ -185,11 +184,7 @@ def get_gul_input_items(
             gul_inputs_df.loc[cov_type_group.index, ['is_bi_coverage'] + terms] = cov_type_group[['is_bi_coverage'] + terms]
 
         # Set the group ID - group by loc. number
-        gul_inputs_df['group_id'] = [
-            gidx + 1 for gidx, (_, group) in enumerate(
-                gul_inputs_df.groupby(by=[loc_id])) for _, (gidx, _) in enumerate(product([gidx], group[loc_id].tolist())
-            )
-        ]
+        gul_inputs_df['group_id'] = pd.factorize(pd._libs.lib.fast_zip([gul_inputs_df[loc_id].values]))[0] + 1
 
         # Set the item IDs and coverage IDs, and defaults for summary and
         # summary set IDs

@@ -50,6 +50,7 @@ from future.utils import (
 
 import pandas as pd
 pd.options.mode.chained_assignment = None
+import numpy as np
 
 from ..utils.concurrency import (
     multiprocess,
@@ -353,15 +354,9 @@ def get_il_input_items(
         # with multiple layers, and we need to start by completing the coverage
         # level inputs for layer 1 items only, we layer the items by using a
         # dictionary of distinct account/policy. no. combinations
-        layers = OrderedDict({
-            (k, p): tuple(v[policy_num].unique()).index(p) + 1 for k, v in il_inputs_df.groupby([acc_id]) for p in v[policy_num].unique()
-        })
-
-        def get_layer_id(row):
-            return layers[(row[acc_id], row[policy_num])]
-
-        # Perform the initial layering
-        il_inputs_df['layer_id'] = il_inputs_df[[acc_id, policy_num]].apply(get_layer_id, axis=1)
+        il_inputs_df['layer_id'] = pd.factorize(
+            pd._libs.lib.fast_zip([il_inputs_df[acc_id].values, il_inputs_df[policy_num].values])
+        )[0] + 1
 
         # Select only the layer 1 items and resequence the index
         il_inputs_df = il_inputs_df[il_inputs_df['layer_id'] == 1].reset_index()
@@ -440,23 +435,30 @@ def get_il_input_items(
         # non-coverage level (currently, 2, 3, 6, 9), including setting the 
         # calc. rule IDs, and append each level to the current IL inputs frame
         for level in intermediate_fm_levels:
-            level_df = il_inputs_df[il_inputs_df['level_id'] == cov_level].copy(deep=True)
+            term_cols = [(term_col or term) for term, term_col in viewitems(fm_terms[level][1]) if term != 'share']
+            level_df = il_inputs_df[il_inputs_df['level_id'] == cov_level]
             level_df['level_id'] = level
             level_df[terms] = 0.0
-            level_df[terms] = level_df[[(v[t] or t) for v in viewvalues(fm_terms[level]) for t in terms]]
-            if ufp[level][1].get('deductible'):
-                level_df['deductible'] = level_df['deductible'].where(level_df['coverage_type_id'].isin(ufp[level][1]['deductible'].get('CoverageTypeID') or all_cov_types), 0)
-            if ufp[level][1].get('limit'):
-                level_df['limit'] = level_df['limit'].where(level_df['coverage_type_id'].isin(ufp[level][1]['limit'].get('CoverageTypeID') or all_cov_types), 0)
-            level_df['deductible'] = level_df['deductible'].where(
-                (level_df['deductible'] == 0) | (level_df['deductible'] >= 1),
-                level_df['tiv'] * level_df['deductible'],
-                axis=0
+            level_df[terms] = level_df[term_cols]
+            level_df['deductible'] = np.where(
+                level_df['coverage_type_id'].isin((ufp[level][1].get('deductible') or {}).get('CoverageTypeID') or all_cov_types),
+                level_df['deductible'],
+                0
             )
-            level_df['limit'] = level_df['limit'].where(
+            level_df['deductible'] = np.where(
+                (level_df['deductible'] == 0) | (level_df['deductible'] >= 1),
+                level_df['deductible'],
+                level_df['tiv'] * level_df['deductible'],
+            )
+            level_df['limit'] = np.where(
+                level_df['coverage_type_id'].isin((ufp[level][1].get('limit') or {}).get('CoverageTypeID') or all_cov_types),
+                level_df['limit'],
+                0
+            )
+            level_df['limit'] = np.where(
                 (level_df['limit'] == 0) | (level_df['limit'] >= 1),
+                level_df['limit'],
                 level_df['tiv'] * level_df['limit'],
-                axis=0
             )
             level_df['agg_id'] = set_level_agg_ids(level_df, level)
             il_inputs_df = pd.concat([il_inputs_df, level_df], sort=True, ignore_index=True)
@@ -487,7 +489,9 @@ def get_il_input_items(
         # In the layer frame set the layer level ID, acc. ID and policy num.,
         # and perform the initial layering
         layer_df['level_id'] = layer_level
-        layer_df['layer_id'] = layer_df[[acc_id, policy_num]].apply(get_layer_id, axis=1)
+        layer_df['layer_id'] = pd.factorize(
+            pd._libs.lib.fast_zip([layer_df[acc_id].values, layer_df[policy_num].values])
+        )[0] + 1
 
         # The layer level calc. rule ID setter
         def _get_layer_calcrule_id(row):
