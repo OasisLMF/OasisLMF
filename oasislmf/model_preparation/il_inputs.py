@@ -58,6 +58,7 @@ from ..utils.concurrency import (
     Task,
 )
 from ..utils.data import (
+    factorize_dataframe,
     get_dataframe,
     merge_dataframes,
 )
@@ -74,22 +75,6 @@ from ..utils.metadata import (
     COVERAGE_TYPES,
     FM_LEVELS,
 )
-
-
-def get_policytc_ids(il_inputs_df):
-
-    policytc_terms = ['limit', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'share', 'calcrule_id']
-
-    policytc_df = il_inputs_df[policytc_terms]
-
-    for col in policytc_df.columns:
-        policytc_df[col] = policytc_df[col].astype(float) if col != 'calcrule_id' else policytc_df[col].astype(int)
-
-    policytc_ids = {
-        k: i + 1 for i, (k, _) in enumerate(policytc_df.groupby(policytc_terms, sort=False))
-    }
-
-    return policytc_ids, policytc_terms
 
 
 def get_layer_calcrule_id(att=0.0, lim=9999999999, shr=1.0):
@@ -183,7 +168,13 @@ def unified_fm_profile_by_level_and_term_group(profiles=[], profile_paths=[], un
     })
 
 
-def unified_fm_terms_by_level_and_term_group(profiles=[], profile_paths=[], unified_profile_by_level=None, unified_profile_by_level_and_term_group=None):
+def unified_fm_terms_by_level_and_term_group(
+    profiles=[],
+    profile_paths=[],
+    unified_profile_by_level=None,
+    unified_profile_by_level_and_term_group=None,
+    lowercase=True
+):
 
     ufpl = copy.deepcopy(unified_profile_by_level or {})
     ufp = copy.deepcopy(unified_profile_by_level_and_term_group or {})
@@ -202,14 +193,17 @@ def unified_fm_terms_by_level_and_term_group(profiles=[], profile_paths=[], unif
         level: {
             tiv_tgid: {
                 term_type: (
-                    ufp[level][tiv_tgid][term_type]['ProfileElementName'].lower() if ufp[level][tiv_tgid].get(term_type) else None
+                    (
+                        ufp[level][tiv_tgid][term_type]['ProfileElementName'].lower() if lowercase
+                        else ufp[level][tiv_tgid][term_type]['ProfileElementName']
+                    ) if ufp[level][tiv_tgid].get(term_type) else None
                 ) for term_type in ('deductible', 'deductible_min', 'deductible_max', 'limit', 'share',)
             } for tiv_tgid in ufp[level]
         } for level in sorted(ufp)[1:]
     })
 
 
-def unified_id_terms(profiles=[], profile_paths=[], unified_profile_by_level=None, unified_profile_by_level_and_term_group=None):
+def unified_id_terms(profiles=[], profile_paths=[], unified_profile_by_level=None, unified_profile_by_level_and_term_group=None, lowercase=True):
 
     ufpl = copy.deepcopy(unified_profile_by_level or {})
     ufp = copy.deepcopy(unified_profile_by_level_and_term_group or {})
@@ -225,13 +219,13 @@ def unified_id_terms(profiles=[], profile_paths=[], unified_profile_by_level=Non
     ufp = ufp or unified_fm_profile_by_level_and_term_group(unified_profile_by_level=ufpl)
 
     id_terms = OrderedDict({
-        k.lower(): v['ProfileElementName'].lower()
+        k.lower(): (v['ProfileElementName'].lower() if lowercase else v['ProfileElementName'])
         for k, v in sorted(viewitems(ufp[0][1]))
     })
-    id_terms.setdefault('locid', 'locnumber')
-    id_terms.setdefault('accid', 'accnumber')
-    id_terms.setdefault('polid', 'polnumber')
-    id_terms.setdefault('portid', 'portnumber')
+    id_terms.setdefault('locid', ('locnumber' if lowercase else 'LocNumber'))
+    id_terms.setdefault('accid', 'accnumber'  if lowercase else 'AccNumber')
+    id_terms.setdefault('polid', 'polnumber'  if lowercase else 'PolNumber')
+    id_terms.setdefault('portid', 'portnumber'  if lowercase else 'PortNumber')
 
     return id_terms
 
@@ -314,7 +308,8 @@ def get_il_input_items(
         src_fp=accounts_fp,
         col_dtypes={acc_id: 'str', policy_num: 'str', portfolio_num: 'str'},
         required_cols=(acc_id, policy_num, portfolio_num,),
-        empty_data_error_msg='No accounts found in the source accounts (loc.) file'
+        empty_data_error_msg='No accounts found in the source accounts (loc.) file',
+        memory_map=True
     )
 
     if not (accounts_df is not None or accounts_fp):
@@ -438,6 +433,7 @@ def get_il_input_items(
             term_cols = [(term_col or term) for term, term_col in viewitems(fm_terms[level][1]) if term != 'share']
             level_df = il_inputs_df[il_inputs_df['level_id'] == cov_level]
             level_df['level_id'] = level
+            level_df[term_cols] = level_df[term_cols].where(level_df[term_cols].notnull(), 0.0)
             level_df[terms] = 0.0
             level_df[terms] = level_df[term_cols]
             level_df['deductible'] = np.where(
@@ -460,7 +456,12 @@ def get_il_input_items(
                 level_df['limit'],
                 level_df['tiv'] * level_df['limit'],
             )
-            level_df['agg_id'] = set_level_agg_ids(level_df, level)
+            agg_key = list(v['field'].lower() for v in viewvalues(fmap[level]['FMAggKey']))
+            level_df['agg_id'] = pd.factorize(
+                pd._libs.lib.fast_zip(
+                    [level_df[t].values for t in agg_key]
+                )
+            )[0] + 1
             il_inputs_df = pd.concat([il_inputs_df, level_df], sort=True, ignore_index=True)
 
         # Create the sub-layer calc. rule IDs dict and set calcrule IDs
@@ -502,12 +503,19 @@ def get_il_input_items(
         # Still in the layer frame, now process the financial terms for this
         # level, and then append that to the main IL inputs frame
         layer_df[terms] = 0.0, 9999999999, 1.0
-        layer_df[terms] = layer_df[[(v[t] or t) for v in viewvalues(fm_terms[layer_level]) for t in terms]]
+        term_cols = [(v[t] or t) for v in viewvalues(fm_terms[layer_level]) for t in terms]
+        layer_df[term_cols] = layer_df[term_cols].where(layer_df[term_cols].notnull(), 0.0)
+        layer_df[terms] = layer_df[term_cols]
         layer_df['limit'] = layer_df['limit'].where(layer_df['limit'] != 0, 9999999999)
         layer_df['attachment'] = layer_df['deductible']
         layer_df['share'] = layer_df['share'].where(layer_df['share'] != 0, 1.0)
         layer_df['calcrule_id'] = layer_df[['attachment', 'limit', 'share']].apply(_get_layer_calcrule_id, axis=1)
-        layer_df['agg_id'] = set_level_agg_ids(layer_df, layer_level)
+        agg_key = list(v['field'].lower() for v in viewvalues(fmap[layer_level]['FMAggKey']))
+        layer_df['agg_id'] = pd.factorize(
+            pd._libs.lib.fast_zip(
+                [layer_df[t].values for t in agg_key]
+            )
+        )[0] + 1
         il_inputs_df = pd.concat([il_inputs_df, layer_df], sort=True, ignore_index=True)
 
         # Only keep the required columns and resequence the levels, index and
@@ -541,17 +549,7 @@ def write_fm_policytc_file(il_inputs_df, fm_policytc_fp, chunksize=100000):
         cols = ['layer_id', 'level_id', 'agg_id', 'calcrule_id', 'limit', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'share']
         fm_policytc_df = il_inputs_df[cols].drop_duplicates()
 
-        fm_policytc_df['policytc_id'] = pd.factorize(
-            pd._libs.lib.fast_zip([
-                fm_policytc_df['calcrule_id'].values,
-                fm_policytc_df['deductible'].values,
-                fm_policytc_df['deductible_min'].values,
-                fm_policytc_df['deductible_max'].values,
-                fm_policytc_df['attachment'].values,
-                fm_policytc_df['limit'].values,
-                fm_policytc_df['share'].values
-            ])
-        )[0] + 1
+        fm_policytc_df['policytc_id'] = factorize_dataframe(fm_policytc_df, cols[3:], enumerate_only=True)
 
         fm_policytc_df = fm_policytc_df[cols[:3] + ['policytc_id']]
         fm_policytc_df.to_csv(
@@ -584,17 +582,7 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
 
         fm_profile_df = il_inputs_df[cols].drop_duplicates()
 
-        fm_profile_df['policytc_id'] = pd.factorize(
-            pd._libs.lib.fast_zip([
-                fm_profile_df['calcrule_id'].values,
-                fm_profile_df['deductible'].values,
-                fm_profile_df['deductible_min'].values,
-                fm_profile_df['deductible_max'].values,
-                fm_profile_df['attachment'].values,
-                fm_profile_df['limit'].values,
-                fm_profile_df['share'].values
-            ])
-        )[0] + 1
+        fm_profile_df['policytc_id'] = factorize_dataframe(fm_profile_df, cols, enumerate_only=True)
 
         fm_profile_df.rename(
             columns={

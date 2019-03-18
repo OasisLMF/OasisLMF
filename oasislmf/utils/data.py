@@ -12,13 +12,14 @@ from future import standard_library
 standard_library.install_aliases()
 
 __all__ = [
-    'set_col_dtypes',
+    'factorize_dataframe',
     'get_dataframe',
     'get_json',
     'get_timestamp',
     'get_utctimestamp',
     'merge_dataframes',
-    'PANDAS_BASIC_DTYPES'
+    'PANDAS_BASIC_DTYPES',
+    'set_col_dtypes'
 ]
 
 import builtins
@@ -57,11 +58,26 @@ PANDAS_BASIC_DTYPES = {
     builtins.str: np.object
 }
 
+
+def factorize_dataframe(
+        df,
+        by_cols,
+        enumerate_only=False
+    ):
+        factors = pd.factorize(
+            pd._libs.lib.fast_zip(
+                [df[t].values for t in by_cols]
+            )
+        )
+        return factors[0] + 1 if enumerate_only else factors
+
+
 def get_dataframe(
     src_fp=None,
     src_type='csv',
     src_buf=None,
     src_data=None,
+    csv_cols=None,
     float_precision='high',
     empty_data_error_msg=None,
     lowercase_cols=True,
@@ -72,7 +88,8 @@ def get_dataframe(
     col_dtypes={},
     index_col=True,
     sort_col=None,
-    sort_ascending=None
+    sort_ascending=None,
+    memory_map=False
 ):
     if not (src_fp or src_buf or src_data is not None):
         raise OasisException(
@@ -83,9 +100,9 @@ def get_dataframe(
     df = None
 
     if src_fp and src_type == 'csv':
-        df = pd.read_csv(src_fp, float_precision=float_precision)
+        df = pd.read_csv(src_fp, float_precision=float_precision, usecols=csv_cols, memory_map=memory_map)
     elif src_buf and src_type == 'csv':
-        df = pd.read_csv(io.StringIO(src_buf), float_precision=float_precision)
+        df = pd.read_csv(io.StringIO(src_buf), float_precision=float_precision, usecols=csv_cols, memory_map=memory_map)
     elif src_fp and src_type == 'json':
         df = pd.read_json(src_fp, precise_float=(True if float_precision == 'high' else False))
     elif src_buf and src_type == 'json':

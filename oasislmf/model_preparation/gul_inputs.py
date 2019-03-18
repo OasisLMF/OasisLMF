@@ -48,6 +48,7 @@ from ..utils.concurrency import (
     Task,
 )
 from ..utils.data import (
+    factorize_dataframe,
     get_dataframe,
     merge_dataframes,
 )
@@ -120,7 +121,8 @@ def get_gul_input_items(
         src_fp=exposure_fp,
         col_dtypes={loc_id: 'str', acc_id: 'str', portfolio_num: 'str'},
         required_cols=(loc_id, acc_id, portfolio_num,),
-        empty_data_error_msg='No data found in the source exposure (loc.) file'
+        empty_data_error_msg='No data found in the source exposure (loc.) file',
+        memory_map=True
     )
 
     for col in [v for v in viewvalues(tiv_terms)] + [_v for v in viewvalues(cov_fm_terms) for _v in viewvalues(v) if _v]:
@@ -129,7 +131,8 @@ def get_gul_input_items(
     keys_df = get_dataframe(
         src_fp=keys_fp,
         col_dtypes={'locid': 'str'},
-        empty_data_error_msg='No keys found in the keys file'
+        empty_data_error_msg='No keys found in the keys file',
+        memory_map=True
     )
 
     # If the keys file relates to a complex/custom model then look for a
@@ -144,7 +147,9 @@ def get_gul_input_items(
         # keys dataframes on loc. number/loc. ID, and filter out any row with
         # zero values for TIVs for all coverage types
         gul_inputs_df = merge_dataframes(exposure_df, keys_df, left_on=loc_id, right_on='locid', how='outer')
-        gul_inputs_df = gul_inputs_df[(gul_inputs_df[[v for v in viewvalues(tiv_terms)]] != 0).any(axis=1)]
+        tiv_cols = [v for v in viewvalues(tiv_terms)]
+        gul_inputs_df = gul_inputs_df[(gul_inputs_df[tiv_cols] != 0).any(axis=1)]
+        gul_inputs_df.loc[:, tiv_cols] = gul_inputs_df[tiv_cols].where(gul_inputs_df.notnull(), 0.0)
 
         # Rename the peril ID, coverage type ID, area peril ID & vulnerability
         # ID columns (sourced from the keys frame)
@@ -161,11 +166,11 @@ def get_gul_input_items(
         gul_inputs_df = gul_inputs_df.assign(
             is_bi_coverage=False, tiv=0.0, deductible=0.0, deductible_min=0.0, deductible_max=0.0, limit=0.0
         )
-
         for cov_type, cov_type_group in gul_inputs_df.groupby(by=['coverage_type_id'], sort=True):
             cov_type_group['is_bi_coverage'] = np.where(cov_type == COVERAGE_TYPES['bi']['id'], True, False)
             terms = ['tiv', 'deductible', 'deductible_min', 'deductible_max', 'limit']
             term_cols = [tiv_terms[cov_type]] + [(term_col or term) for term, term_col in viewitems(cov_fm_terms[cov_type]) if term != 'share']
+            cov_type_group[term_cols] = cov_type_group[term_cols].where(cov_type_group.notnull(), 0.0)
             cov_type_group[terms] = cov_type_group[term_cols]
             cov_type_group['deductible'] = np.where(
                 (cov_type_group['deductible'] == 0) | (cov_type_group['deductible'] >= 1),
@@ -184,7 +189,8 @@ def get_gul_input_items(
             gul_inputs_df.loc[cov_type_group.index, ['is_bi_coverage'] + terms] = cov_type_group[['is_bi_coverage'] + terms]
 
         # Set the group ID - group by loc. number
-        gul_inputs_df['group_id'] = pd.factorize(pd._libs.lib.fast_zip([gul_inputs_df[loc_id].values]))[0] + 1
+        gul_inputs_df['group_id'] = factorize_dataframe(gul_inputs_df, [loc_id], enumerate_only=True)
+        #gul_inputs_df['group_id'] = pd.factorize(pd._libs.lib.fast_zip([gul_inputs_df[loc_id].values]))[0] + 1
 
         # Set the item IDs and coverage IDs, and defaults for summary and
         # summary set IDs
