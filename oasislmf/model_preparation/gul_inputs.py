@@ -168,15 +168,15 @@ def get_gul_input_items(
             terms = ['tiv', 'deductible', 'deductible_min', 'deductible_max', 'limit']
             term_cols = [tiv_terms[cov_type]] + [(term_col or term) for term, term_col in viewitems(cov_fm_terms[cov_type]) if term != 'share']
             cov_type_group[terms] = cov_type_group[term_cols]
-            cov_type_group['deductible'] = cov_type_group['deductible'].where(
+            cov_type_group['deductible'] = np.where(
                 (cov_type_group['deductible'] == 0) | (cov_type_group['deductible'] >= 1),
+                cov_type_group['deductible'],
                 cov_type_group['tiv'] * cov_type_group['deductible'],
-                axis=0
             )
-            cov_type_group['limit'] = cov_type_group['limit'].where(
+            cov_type_group['limit'] = np.where(
                 (cov_type_group['limit'] == 0) | (cov_type_group['limit'] >= 1),
+                cov_type_group['limit'],
                 cov_type_group['tiv'] * cov_type_group['limit'],
-                axis=0
             )
             other_cov_type_term_cols = [v for k, v in viewitems(tiv_terms) if k != cov_type] + [
                 _v for k, v in viewitems(cov_fm_terms) for _v in viewvalues(v) if _v if k != 1
