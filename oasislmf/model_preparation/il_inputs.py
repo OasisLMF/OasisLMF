@@ -49,6 +49,7 @@ from future.utils import (
 )
 
 import pandas as pd
+pd.options.mode.chained_assignment = None
 
 from ..utils.concurrency import (
     multiprocess,
@@ -552,7 +553,7 @@ def write_fm_policytc_file(il_inputs_df, fm_policytc_fp, chunksize=100000):
         fm_policytc_df.to_csv(
             path_or_buf=fm_policytc_fp,
             encoding='utf-8',
-            mode='a',
+            mode=('w' if os.path.exists(fm_policytc_fp) else 'a'),
             chunksize=chunksize,
             index=False
         )
@@ -609,7 +610,7 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
             columns=['policytc_id', 'calcrule_id', 'deductible1', 'deductible2', 'deductible3', 'attachment1', 'limit1', 'share1', 'share2', 'share3'],
             path_or_buf=fm_profile_fp,
             encoding='utf-8',
-            mode='a',
+            mode=('w' if os.path.exists(fm_profile_fp) else 'a'),
             chunksize=chunksize,
             index=False
         )
@@ -664,7 +665,7 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
         fm_programme_df.to_csv(
             path_or_buf=fm_programme_fp,
             encoding='utf-8',
-            mode='a',
+            mode=('w' if os.path.exists(fm_programme_fp) else 'a'),
             chunksize=chunksize,
             index=False
         )
@@ -696,7 +697,7 @@ def write_fm_xref_file(il_inputs_df, fm_xref_fp, chunksize=100000):
         fm_xref_df.to_csv(
             path_or_buf=fm_xref_fp,
             encoding='utf-8',
-            mode='a',
+            mode=('w' if os.path.exists(fm_xref_fp) else 'a'),
             chunksize=chunksize,
             index=False
         )
@@ -728,7 +729,7 @@ def write_fmsummaryxref_file(il_inputs_df, fmsummaryxref_fp, chunksize=100000):
         fmsummaryxref_df.to_csv(
             path_or_buf=fmsummaryxref_fp,
             encoding='utf-8',
-            mode='a',
+            mode=('w' if os.path.exists(fmsummaryxref_fp) else 'a'),
             chunksize=chunksize,
             index=False
         )

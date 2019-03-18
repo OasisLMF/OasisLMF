@@ -38,6 +38,9 @@ from future.utils import (
 
 import numpy as np
 import pandas as pd
+
+pd.options.mode.chained_assignment = None
+
 import swifter
 
 from ..utils.concurrency import (
@@ -106,6 +109,13 @@ def get_gul_input_items(
     acc_id = id_terms['accid']
     portfolio_num = id_terms['portid']
 
+    # Get the TIV column names and corresponding coverage types
+    tiv_terms = OrderedDict({v['tiv']['CoverageTypeID']:v['tiv']['ProfileElementName'].lower() for k, v in viewitems(ufp[1])})
+
+    # Define the cov. level and get the cov. level IL/FM terms
+    cov_level = COVERAGE_TYPES['buildings']['id']
+    cov_fm_terms = unified_fm_terms_by_level_and_term_group(unified_profile_by_level_and_term_group=ufp)[cov_level]
+
     # Load the exposure and keys dataframes
     exposure_df = get_dataframe(
         src_fp=exposure_fp,
@@ -113,6 +123,9 @@ def get_gul_input_items(
         required_cols=(loc_id, acc_id, portfolio_num,),
         empty_data_error_msg='No data found in the source exposure (loc.) file'
     )
+
+    for col in [v for v in viewvalues(tiv_terms)] + [_v for v in viewvalues(cov_fm_terms) for _v in viewvalues(v) if _v]:
+        exposure_df[col] = exposure_df.get(col,  0.0)
 
     keys_df = get_dataframe(
         src_fp=keys_fp,
@@ -127,26 +140,12 @@ def get_gul_input_items(
         keys_df.rename({'modeldata': 'model_data'}, inplace=True)
         keys_df['areaperilid'] = keys_df['vulnerabilityid'] = -1
 
-    # Get the TIV column names and corresponding coverage types
-    tiv_terms = OrderedDict({v['tiv']['CoverageTypeID']:v['tiv']['ProfileElementName'].lower() for k, v in viewitems(ufp[1])})
-
-    # Define the cov. level and get the cov. level IL/FM terms
-    cov_level = COVERAGE_TYPES['buildings']['id']
-    cov_fm_terms = unified_fm_terms_by_level_and_term_group(unified_profile_by_level_and_term_group=ufp)[cov_level]
-
     try:
         # Create the basic GUL input dataframe from merging the exposure and
         # keys dataframes on loc. number/loc. ID, and filter out any row with
         # zero values for TIVs for all coverage types
         gul_inputs_df = merge_dataframes(exposure_df, keys_df, left_on=loc_id, right_on='locid', how='outer')
         gul_inputs_df = gul_inputs_df[(gul_inputs_df[[v for v in viewvalues(tiv_terms)]] != 0).any(axis=1)]
-
-        # Set the group ID - group by loc. number
-        gul_inputs_df['group_id'] = [
-            gidx + 1 for gidx, (_, group) in enumerate(
-                gul_inputs_df.groupby(by=[loc_id])) for _, (gidx, _) in enumerate(product([gidx], group[loc_id].tolist())
-            )
-        ]
 
         # Rename the peril ID, coverage type ID, area peril ID & vulnerability
         # ID columns (sourced from the keys frame)
@@ -160,47 +159,37 @@ def get_gul_input_items(
             inplace=True
         )
 
-        # Set the BI coverage boolean column - this is used during IL inputs
-        # generation to exclude deductibles and limits relating to BI coverages
-        # from being included in higher FM levels
-        bi_cov_type = COVERAGE_TYPES['bi']['id']
-        gul_inputs_df['is_bi_coverage'] = np.where(gul_inputs_df['coverage_type_id'] == bi_cov_type, True, False)
-        #gul_inputs_df['is_bi_coverage'] = gul_inputs_df['coverage_type_id'].where(gul_inputs_df['coverage_type_id'] == COVERAGE_TYPES['bi']['id'], False)
-
-        # A list of column names to use for processing the coverage level
-        # IL terms
-        reduced_cols = ['coverage_type_id'] + [v for v in viewvalues(tiv_terms)] + [v[t] for v in viewvalues(cov_fm_terms) for t in v if v[t]]
-
-        # The coverage level FM/IL terms generator - various options were tried
-        # for processing these terms into the GUL inputs table, including
-        # ``pandas.DataFrame.apply``, but a ``for`` loop as used in this
-        # generator was the quickest
-        def _generate_il_terms():
-            for _, row in gul_inputs_df[reduced_cols].iterrows():
-                yield [
-                    row[tiv_terms[row['coverage_type_id']]],
-                    row.get(cov_fm_terms[row['coverage_type_id']].get('deductible')) or 0.0,
-                    row.get(cov_fm_terms[row['coverage_type_id']].get('deductible_min')) or 0.0,
-                    row.get(cov_fm_terms[row['coverage_type_id']].get('deductible_max')) or 0.0,
-                    row.get(cov_fm_terms[row['coverage_type_id']].get('limit')) or 0.0
-                ]
-
-        # Process the coverage level IL terms
-        tiv_and_il_term_cols = ['tiv', 'deductible', 'deductible_min', 'deductible_max', 'limit']
-        gul_inputs_df = gul_inputs_df.join(pd.DataFrame(data=[it for it in _generate_il_terms()], columns=tiv_and_il_term_cols, index=gul_inputs_df.index))
-
-        # For deductibles and limits convert any fractional values > 0 and < 1
-        # to TIV shares
-        gul_inputs_df['deductible'] = gul_inputs_df['deductible'].where(
-            (gul_inputs_df['deductible'] == 0) | (gul_inputs_df['deductible'] >= 1),
-            gul_inputs_df['tiv'] * gul_inputs_df['deductible'],
-            axis=0
+        gul_inputs_df = gul_inputs_df.assign(
+            is_bi_coverage=False, tiv=0.0, deductible=0.0, deductible_min=0.0, deductible_max=0.0, limit=0.0
         )
-        gul_inputs_df['limit'] = gul_inputs_df['limit'].where(
-            (gul_inputs_df['limit'] == 0) | (gul_inputs_df['limit'] >= 1),
-            gul_inputs_df['tiv'] * gul_inputs_df['limit'],
-            axis=0
-        )
+
+        for cov_type, cov_type_group in gul_inputs_df.groupby(by=['coverage_type_id'], sort=True):
+            cov_type_group['is_bi_coverage'] = np.where(cov_type == COVERAGE_TYPES['bi']['id'], True, False)
+            terms = ['tiv', 'deductible', 'deductible_min', 'deductible_max', 'limit']
+            term_cols = [tiv_terms[cov_type]] + [(term_col or term) for term, term_col in viewitems(cov_fm_terms[cov_type]) if term != 'share']
+            cov_type_group[terms] = cov_type_group[term_cols]
+            cov_type_group['deductible'] = cov_type_group['deductible'].where(
+                (cov_type_group['deductible'] == 0) | (cov_type_group['deductible'] >= 1),
+                cov_type_group['tiv'] * cov_type_group['deductible'],
+                axis=0
+            )
+            cov_type_group['limit'] = cov_type_group['limit'].where(
+                (cov_type_group['limit'] == 0) | (cov_type_group['limit'] >= 1),
+                cov_type_group['tiv'] * cov_type_group['limit'],
+                axis=0
+            )
+            other_cov_type_term_cols = [v for k, v in viewitems(tiv_terms) if k != cov_type] + [
+                _v for k, v in viewitems(cov_fm_terms) for _v in viewvalues(v) if _v if k != 1
+            ]
+            cov_type_group[other_cov_type_term_cols] = 0
+            gul_inputs_df.loc[cov_type_group.index, ['is_bi_coverage'] + terms] = cov_type_group[['is_bi_coverage'] + terms]
+
+        # Set the group ID - group by loc. number
+        gul_inputs_df['group_id'] = [
+            gidx + 1 for gidx, (_, group) in enumerate(
+                gul_inputs_df.groupby(by=[loc_id])) for _, (gidx, _) in enumerate(product([gidx], group[loc_id].tolist())
+            )
+        ]
 
         # Set the item IDs and coverage IDs, and defaults for summary and
         # summary set IDs
@@ -235,7 +224,7 @@ def write_complex_items_file(gul_inputs_df, complex_items_fp, chunksize=100000):
             columns=['item_id', 'coverage_id', 'model_data', 'group_id'],
             path_or_buf=complex_items_fp,
             encoding='utf-8',
-            mode='a',
+            mode=('w' if os.path.exists(complex_items_fp) else 'a'),
             chunksize=chunksize,
             index=False
         )
@@ -261,7 +250,7 @@ def write_items_file(gul_inputs_df, items_fp, chunksize=100000):
             columns=['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id'],
             path_or_buf=items_fp,
             encoding='utf-8',
-            mode='a',
+            mode=('w' if os.path.exists(items_fp) else 'a'),
             chunksize=chunksize,
             index=False
         )
@@ -289,7 +278,7 @@ def write_coverages_file(gul_inputs_df, coverages_fp, chunksize=100000):
             columns=['coverage_id', 'tiv'],
             path_or_buf=coverages_fp,
             encoding='utf-8',
-            mode='a',
+            mode=('w' if os.path.exists(coverages_fp) else 'a'),
             chunksize=chunksize,
             index=False
         )
@@ -317,7 +306,7 @@ def write_gulsummaryxref_file(gul_inputs_df, gulsummaryxref_fp, chunksize=100000
             columns=['coverage_id', 'summary_id', 'summaryset_id'],
             path_or_buf=gulsummaryxref_fp,
             encoding='utf-8',
-            mode='a',
+            mode=('w' if os.path.exists(gulsummaryxref_fp) else 'a'),
             chunksize=chunksize,
             index=False
         )

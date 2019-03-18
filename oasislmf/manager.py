@@ -46,6 +46,7 @@ from itertools import (
 )
 
 import pandas as pd
+pd.options.mode.chained_assignment = None
 
 from pathlib2 import Path
 from six import text_type as _unicode
