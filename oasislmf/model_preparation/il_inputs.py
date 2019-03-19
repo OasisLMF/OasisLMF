@@ -349,9 +349,7 @@ def get_il_input_items(
         # with multiple layers, and we need to start by completing the coverage
         # level inputs for layer 1 items only, we layer the items by using a
         # dictionary of distinct account/policy. no. combinations
-        il_inputs_df['layer_id'] = pd.factorize(
-            pd._libs.lib.fast_zip([il_inputs_df[acc_id].values, il_inputs_df[policy_num].values])
-        )[0] + 1
+        il_inputs_df['layer_id'] = factorize_dataframe(il_inputs_df, [acc_id, policy_num], enumerate_only=True)
 
         # Select only the layer 1 items and resequence the index
         il_inputs_df = il_inputs_df[il_inputs_df['layer_id'] == 1].reset_index()
@@ -401,21 +399,6 @@ def get_il_input_items(
             orig_levels.update(new_levels)
             return levels_df[['level_id']].apply(lambda row: new_levels.index(row['level_id']) + 1, axis=1)
 
-        # A helper method to perform aggregation for a given level inputs DF
-        def set_level_agg_ids(level_df, level):
-            agg_key = tuple(v['field'].lower() for v in viewvalues(fmap[level]['FMAggKey']))
-            agg_groups = [
-                [it['item_id'] for _, it in v.iterrows()] for _, v in level_df.groupby(by=list(agg_key))
-            ]
-            def get_agg_id(row):
-                try:
-                    item_group = [g for g in agg_groups if row['item_id'] in g][0]
-                except IndexError:
-                    return -1
-                return agg_groups.index(item_group) + 1
-
-            return level_df.apply(get_agg_id, axis=1)
-
         # The basic list of financial term types for sub-layer levels - the
         # layer level has the same list of terms but has an additional
         # ``share`` term
@@ -456,12 +439,8 @@ def get_il_input_items(
                 level_df['limit'],
                 level_df['tiv'] * level_df['limit'],
             )
-            agg_key = list(v['field'].lower() for v in viewvalues(fmap[level]['FMAggKey']))
-            level_df['agg_id'] = pd.factorize(
-                pd._libs.lib.fast_zip(
-                    [level_df[t].values for t in agg_key]
-                )
-            )[0] + 1
+            agg_key = tuple(v['field'].lower() for v in viewvalues(fmap[level]['FMAggKey']))
+            level_df['agg_id'] = factorize_dataframe(level_df, list(agg_key), enumerate_only=True)
             il_inputs_df = pd.concat([il_inputs_df, level_df], sort=True, ignore_index=True)
 
         # Create the sub-layer calc. rule IDs dict and set calcrule IDs
@@ -490,9 +469,7 @@ def get_il_input_items(
         # In the layer frame set the layer level ID, acc. ID and policy num.,
         # and perform the initial layering
         layer_df['level_id'] = layer_level
-        layer_df['layer_id'] = pd.factorize(
-            pd._libs.lib.fast_zip([layer_df[acc_id].values, layer_df[policy_num].values])
-        )[0] + 1
+        layer_df['layer_id'] = factorize_dataframe(layer_df, [acc_id, policy_num], enumerate_only=True)
 
         # The layer level calc. rule ID setter
         def _get_layer_calcrule_id(row):
@@ -510,12 +487,8 @@ def get_il_input_items(
         layer_df['attachment'] = layer_df['deductible']
         layer_df['share'] = layer_df['share'].where(layer_df['share'] != 0, 1.0)
         layer_df['calcrule_id'] = layer_df[['attachment', 'limit', 'share']].apply(_get_layer_calcrule_id, axis=1)
-        agg_key = list(v['field'].lower() for v in viewvalues(fmap[layer_level]['FMAggKey']))
-        layer_df['agg_id'] = pd.factorize(
-            pd._libs.lib.fast_zip(
-                [layer_df[t].values for t in agg_key]
-            )
-        )[0] + 1
+        agg_key = tuple(v['field'].lower() for v in viewvalues(fmap[layer_level]['FMAggKey']))
+        layer_df['agg_id'] = factorize_dataframe(layer_df, list(agg_key), enumerate_only=True)
         il_inputs_df = pd.concat([il_inputs_df, layer_df], sort=True, ignore_index=True)
 
         # Only keep the required columns and resequence the levels, index and
