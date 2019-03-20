@@ -175,7 +175,7 @@ def _prepare_input_bin(run_dir, bin_name, model_settings, setting_key=None, ri=F
             model_data_bin_fp = os.path.join(run_dir, 'static', '{}.bin'.format(bin_name))
         else:
             # Format for data file names
-            setting_val = setting_val.replace(' ', '_').lower()
+            setting_val = str(setting_val).replace(' ', '_').lower()
             model_data_bin_fp = os.path.join(run_dir, 'static', '{}_{}.bin'.format(bin_name, setting_val))
 
         if not os.path.exists(model_data_bin_fp):
