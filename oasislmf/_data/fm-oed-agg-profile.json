@@ -5,8 +5,8 @@
         "FMAggKey": {
             "ItemID": {
                 "src": "FM",
-                "field": "item_id",
-                "name": "Item ID"
+                "field": "gul_input_id",
+                "name": "GUL input item ID"
             }
         }
     },

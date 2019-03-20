@@ -1207,17 +1207,19 @@ class FmAcceptanceTests(TestCase):
 
             layer1_group = layer_groups[0]
             self.assertEqual(len(layer1_group), 6)
+            self.assertEqual(layer1_group['output'].values.tolist(), [1,3,5,7,9,11])
             self.assertEqual(layer1_group['agg_id'].values.tolist(), [1,2,3,4,5,6])
 
             layer2_group = layer_groups[1]
             self.assertEqual(len(layer2_group), 6)
+            self.assertEqual(layer2_group['output'].values.tolist(), [2,4,6,8,10,12])
             self.assertEqual(layer2_group['agg_id'].values.tolist(), [1,2,3,4,5,6])
 
             fmsummaryxref_df = pd.read_csv(il_input_files['fmsummaryxref'])
             self.assertEqual(len(fmsummaryxref_df), 12)
             self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1,2,3,4,5,6,7,8,9,10,11,12])
-            self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1,1,1,1,1,1,1,1,1,1,1,1])
-            self.assertEqual(fmsummaryxref_df['summaryset_id'].values.tolist(), [1,1,1,1,1,1,1,1,1,1,1,1])
+            self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1]* 12)
+            self.assertEqual(fmsummaryxref_df['summaryset_id'].values.tolist(), [1] * 12)
 
             expected_direct_losses = pd.DataFrame(
                 columns=['event_id', 'output_id', 'loss'],
@@ -1236,6 +1238,7 @@ class FmAcceptanceTests(TestCase):
                     (1,12,361861.00)
                 ]
             )
+
             bins_dir = os.path.join(oasis_dir, 'bin')
             os.mkdir(bins_dir)
             actual_direct_losses = self.manager.generate_deterministic_losses(oasis_dir, output_dir=bins_dir)['il']

@@ -146,7 +146,10 @@ def get_gul_input_items(
         # Create the basic GUL input dataframe from merging the exposure and
         # keys dataframes on loc. number/loc. ID, and filter out any row with
         # zero values for TIVs for all coverage types
-        gul_inputs_df = merge_dataframes(exposure_df, keys_df, left_on=loc_id, right_on='locid', how='outer')
+        gul_inputs_df = merge_dataframes(exposure_df, keys_df, left_on=loc_id, right_on='locid', how='inner')
+
+        del keys_df
+
         tiv_cols = [v for v in viewvalues(tiv_terms)]
         gul_inputs_df = gul_inputs_df[(gul_inputs_df[tiv_cols] != 0).any(axis=1)]
         gul_inputs_df.loc[:, tiv_cols] = gul_inputs_df[tiv_cols].where(gul_inputs_df.notnull(), 0.0)
@@ -367,8 +370,10 @@ def write_gul_input_files(
 
     gul_inputs_df, exposure_df = get_gul_input_items(exposure_fp, keys_fp, exposure_profile=exposure_profile)
 
+    chunksize = min(10**6, len(gul_inputs_df))
+
     if write_inputs_table_to_file:
-        gul_inputs_df.to_csv(path_or_buf=os.path.join(target_dir, 'gul_inputs.csv'), index=False, encoding='utf-8', chunksize=100000)
+        gul_inputs_df.to_csv(path_or_buf=os.path.join(target_dir, 'gul_inputs.csv'), index=False, encoding='utf-8', chunksize=chunksize)
 
     if not gul_inputs_df.get('model_data'):
         if oasis_files_prefixes.get('complex_items'):
@@ -381,7 +386,7 @@ def write_gul_input_files(
 
     this_module = sys.modules[__name__]
     concurrent_tasks = (
-        Task(getattr(this_module, 'write_{}_file'.format(fn)), args=(gul_inputs_df.copy(deep=True), gul_input_files[fn], 100000,), key=fn)
+        Task(getattr(this_module, 'write_{}_file'.format(fn)), args=(gul_inputs_df.copy(deep=True), gul_input_files[fn], chunksize,), key=fn)
         for fn in gul_input_files
     )
     num_ps = min(len(gul_input_files), multiprocessing.cpu_count())
