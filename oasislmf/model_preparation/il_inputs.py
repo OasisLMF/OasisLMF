@@ -82,59 +82,6 @@ from ..utils.metadata import (
 )
 
 
-def get_layer_calcrule_id(att=0.0, lim=9999999999, shr=1.0):
-
-    if att > 0 or lim > 0 or shr > 0:
-        return 2
-
-
-def get_sub_layer_calcrule_id(ded, ded_min, ded_max, lim, ded_code=0, lim_code=0):
-
-    if (ded > 0 and ded_code == 0) and (ded_min == ded_max == 0) and (lim > 0 and lim_code == 0):
-        return 1
-    elif (ded > 0 and ded_code == 2) and (ded_min == ded_max == 0) and (lim > 0 and lim_code == 0):
-        return 4
-    elif (ded > 0 and ded_code == 1) and (ded_min == ded_max == 0) and (lim > 0 and lim_code == 1):
-        return 5
-    elif (ded > 0 and ded_code == 2) and (ded_min == ded_max == 0) and (lim == lim_code == 0):
-        return 6
-    elif (ded == ded_code == 0) and (ded_min == 0 and ded_max > 0) and (lim > 0 and lim_code == 0):
-        return 7
-    elif (ded == ded_code == 0) and (ded_min > 0 and ded_max == 0) and (lim > 0 and lim_code == 0):
-        return 8
-    elif (ded == ded_code == 0) and (ded_min == 0 and ded_max > 0) and (lim == lim_code == 0):
-        return 10
-    elif (ded == ded_code == 0) and (ded_min > 0 and ded_max == 0) and (lim == lim_code == 0):
-        return 11
-    elif (ded >= 0 and ded_code == 0) and (ded_min == ded_max == 0) and (lim == lim_code == 0):
-        return 12
-    elif (ded == ded_code == 0) and (ded_min > 0 and ded_max > 0) and (lim == lim_code == 0):
-        return 13
-    elif (ded == ded_code == 0) and (ded_min == ded_max == 0) and (lim > 0 and lim_code == 0):
-        return 14
-    elif (ded == ded_code == 0) and (ded_min == ded_max == 0) and (lim > 0 and lim_code == 1):
-        return 15
-    elif (ded > 0 and ded_code == 1) and (ded_min == ded_max == 0) and (lim == lim_code == 0):
-        return 16
-    elif (ded > 0 and ded_code == 1) and (ded_min > 0 and ded_max > 0) and (lim == lim_code == 0):
-        return 19
-    elif (ded > 0 and ded_code in [0, 2]) and (ded_min > 0 and ded_max > 0) and (lim == lim_code == 0):
-        return 21
-
-
-def get_sub_layer_calcrule_ids(gul_or_il_inputs_df):
-    calcrule_id_terms = ['deductible', 'deductible_min', 'deductible_max', 'limit']
-    drop_cols = set(gul_or_il_inputs_df.columns).difference(calcrule_id_terms)
-
-    calcrule_ids_df = gul_or_il_inputs_df.drop(drop_cols, axis=1)[calcrule_id_terms].drop_duplicates()
-
-    calcrule_ids = {
-        k: get_sub_layer_calcrule_id(*k) for k, _ in calcrule_ids_df.groupby(calcrule_id_terms, sort=False)
-    }
-
-    return calcrule_ids
-
-
 def unified_fm_profile_by_level(profiles=[], profile_paths=[]):
 
     if not (profiles or profile_paths):
@@ -771,7 +718,7 @@ def write_il_input_files(
         fm_aggregation_profile=fm_aggregation_profile
     )
 
-    chunksize = min(10**6, len(il_inputs_df))
+    chunksize = min(10**5, len(il_inputs_df))
 
     if write_inputs_table_to_file:
         il_inputs_df.to_csv(path_or_buf=os.path.join(target_dir, 'il_inputs.csv'), index=False, encoding='utf-8', chunksize=chunksize)

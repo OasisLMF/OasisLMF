@@ -201,7 +201,6 @@ def get_gul_input_items(
 
         # Set the group ID - group by loc. number
         gul_inputs_df['group_id'] = factorize_dataframe(gul_inputs_df, [loc_id], enumerate_only=True)
-        #gul_inputs_df['group_id'] = pd.factorize(pd._libs.lib.fast_zip([gul_inputs_df[loc_id].values]))[0] + 1
 
         # Set the item IDs and coverage IDs, and defaults for summary and
         # summary set IDs
@@ -378,7 +377,7 @@ def write_gul_input_files(
 
     gul_inputs_df, exposure_df = get_gul_input_items(exposure_fp, keys_fp, exposure_profile=exposure_profile)
 
-    chunksize = min(10**6, len(gul_inputs_df))
+    chunksize = min(10**5, len(gul_inputs_df))
 
     if write_inputs_table_to_file:
         gul_inputs_df.to_csv(path_or_buf=os.path.join(target_dir, 'gul_inputs.csv'), index=False, encoding='utf-8', chunksize=chunksize)
