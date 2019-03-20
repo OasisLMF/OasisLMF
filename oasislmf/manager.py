@@ -39,7 +39,8 @@ from subprocess32 import (
     check_call,
     run,
 )
-
+import sys
+import importlib
 from itertools import (
     chain,
     product,
@@ -512,7 +513,7 @@ class OasisManager(object):
         script_fp = os.path.join(model_run_fp, 'run_ktools.sh')
 
         if model_package_fp and os.path.exists(os.path.join(model_package_fp, 'supplier_model_runner.py')):
-            path, package_name = model_package_path.rsplit('/')
+            path, package_name = os.path.split(model_package_fp)
             sys.path.append(path)
             model_runner_module = importlib.import_module('{}.supplier_model_runner'.format(package_name))
         else:
