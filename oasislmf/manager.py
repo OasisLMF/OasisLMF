@@ -24,6 +24,8 @@ import multiprocessing
 import os
 import re
 import shutil
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from builtins import str
 from collections import OrderedDict

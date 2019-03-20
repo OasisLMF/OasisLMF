@@ -13,6 +13,7 @@ standard_library.install_aliases()
 
 __all__ = [
     'factorize_dataframe',
+    'fast_zip_dataframe_cols',
     'get_dataframe',
     'get_json',
     'get_timestamp',
@@ -26,6 +27,8 @@ import builtins
 import io
 import json
 import sys
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from datetime import datetime
 from future.utils import viewitems
@@ -39,6 +42,7 @@ from tabulate import tabulate
 
 import numpy as np
 import pandas as pd
+pd.options.mode.chained_assignment = None
 import pytz
 
 from .exceptions import OasisException
@@ -64,13 +68,14 @@ def factorize_dataframe(
         by_cols,
         enumerate_only=False
     ):
-        factors = pd.factorize(
-            pd._libs.lib.fast_zip(
-                [df[t].values for t in by_cols]
-            )
-        )
+        factors = pd.factorize(fast_zip_dataframe_cols(df, by_cols))
         return factors[0] + 1 if enumerate_only else factors
 
+
+def fast_zip_dataframe_cols(df, cols):
+    return pd._libs.lib.fast_zip(
+        [df[t].values for t in cols]
+    )
 
 def get_dataframe(
     src_fp=None,
@@ -202,15 +207,18 @@ def merge_dataframes(left, right, **kwargs):
     """
     Merges two dataframes by ensuring there is no duplication of columns.
     """
-
     _left = left.copy(deep=True)
+    _left['index'] = _left.get('index', _left.index)
     _right = right.copy(deep=True)
+    _right['index'] = _right.get('index', _right.index)
 
-    for df in [_left, _right]:
-        if df.get('index') is None:
-            df['index'] = range(len(df))
+    left_keys = kwargs.get('left_on') or kwargs.get('on') or []
+    left_keys = [left_keys] if isinstance(left_keys, str) else left_keys
 
-    drop_cols = [k for k in set(_left.columns).intersection(_right.columns) if k and k not in [kwargs.get('left_on'), 'index']]
+    drop_cols = [
+        k for k in set(_left.columns).intersection(_right.columns)
+        if k and k not in left_keys + ['index']
+    ]
 
     drop_duplicates = kwargs.get('drop_duplicates', True)
     kwargs.pop('drop_duplicates') if 'drop_duplicates' in kwargs else None

@@ -24,6 +24,8 @@ import copy
 import os
 import multiprocessing
 import sys
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from collections import OrderedDict
 from itertools import (
@@ -143,9 +145,10 @@ def get_gul_input_items(
         keys_df['areaperilid'] = keys_df['vulnerabilityid'] = -1
 
     try:
-        # Create the basic GUL input dataframe from merging the exposure and
-        # keys dataframes on loc. number/loc. ID, and filter out any row with
-        # zero values for TIVs for all coverage types
+        # Create the basic GUL inputs dataframe from merging the exposure and
+        # keys dataframes on loc. number/loc. ID; filter out any rows with
+        # zeros for TIVs for all coverage types, and replace any nulls in the
+        # TIV columns with zeros
         gul_inputs_df = merge_dataframes(exposure_df, keys_df, left_on=loc_id, right_on='locid', how='inner')
 
         del keys_df
@@ -166,9 +169,14 @@ def get_gul_input_items(
             inplace=True
         )
 
+        # Set defaults for BI coverage boolean, TIV, deductibles and limit
         gul_inputs_df = gul_inputs_df.assign(
             is_bi_coverage=False, tiv=0.0, deductible=0.0, deductible_min=0.0, deductible_max=0.0, limit=0.0
         )
+
+        # Group the rows in the GUL inputs table by coverage type, and set the
+        # IL terms (and BI coverage boolean) in each group and update the
+        # corresponding frame section in the GUL inputs table
         for cov_type, cov_type_group in gul_inputs_df.groupby(by=['coverage_type_id'], sort=True):
             cov_type_group['is_bi_coverage'] = np.where(cov_type == COVERAGE_TYPES['bi']['id'], True, False)
             terms = ['tiv', 'deductible', 'deductible_min', 'deductible_max', 'limit']

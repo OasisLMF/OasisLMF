@@ -34,6 +34,8 @@ import json
 import multiprocessing
 import os
 import sys
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from collections import OrderedDict
 from itertools import (
@@ -59,14 +61,17 @@ from ..utils.concurrency import (
 )
 from ..utils.data import (
     factorize_dataframe,
+    fast_zip_dataframe_cols,
     get_dataframe,
     merge_dataframes,
 )
 from ..utils.defaults import (
+    get_calc_rules,
     get_default_accounts_profile,
     get_default_exposure_profile,
     get_default_fm_aggregation_profile,
     OASIS_FILES_PREFIXES,
+    STATIC_DATA_FP,
 )
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
@@ -424,14 +429,6 @@ def get_il_input_items(
                 level_df['tiv'] * level_df['limit'],
             )
             il_inputs_df = pd.concat([il_inputs_df, level_df], sort=True, ignore_index=True)
-            del level_df
-
-        # Create the sub-layer calc. rule IDs dict and set calcrule IDs
-        calcrule_ids = get_sub_layer_calcrule_ids(il_inputs_df)
-        def _get_sub_layer_calcrule_id(row):
-            return calcrule_ids[(row['deductible'], row['deductible_min'], row['deductible_max'], row['limit'])]
-
-        il_inputs_df['calcrule_id'] = il_inputs_df[terms].apply(_get_sub_layer_calcrule_id, axis=1)
 
         # Resequence the index and item IDs, as the earlier repeated
         # concatenation would have produced a non-sequential index
@@ -469,11 +466,26 @@ def get_il_input_items(
         layer_df['limit'] = layer_df['limit'].where(layer_df['limit'] != 0, 9999999999)
         layer_df['attachment'] = layer_df['deductible']
         layer_df['share'] = layer_df['share'].where(layer_df['share'] != 0, 1.0)
-        layer_df['calcrule_id'] = layer_df[['attachment', 'limit', 'share']].apply(_get_layer_calcrule_id, axis=1)
 
         il_inputs_df = pd.concat([il_inputs_df, layer_df], sort=True, ignore_index=True)
 
         del layer_df
+
+        calc_rules = get_calc_rules().drop(['desc'], axis=1)
+        calc_rules['id_key'] = calc_rules['id_key'].apply(eval)
+
+        terms = ['deductible', 'deductible_min', 'deductible_max', 'limit', 'share', 'attachment']
+        terms_indicators = ['{}_gt_0'.format(t) for t in terms]
+        types_and_codes = ['deductible_type', 'deductible_code', 'limit_type', 'limit_code']
+
+        il_inputs_calc_rules_df = il_inputs_df.loc[:, terms + terms_indicators + types_and_codes + ['calcrule_id']]
+        for t, ti in zip(terms, terms_indicators):
+            il_inputs_calc_rules_df[ti] = np.where(il_inputs_calc_rules_df[t] > 0, 1, 0)
+        for t in types_and_codes:
+            il_inputs_calc_rules_df[t] = 0
+        il_inputs_calc_rules_df['id_key'] = fast_zip_dataframe_cols(il_inputs_calc_rules_df, terms_indicators + types_and_codes)
+        il_inputs_calc_rules_df = merge_dataframes(il_inputs_calc_rules_df, calc_rules, how='left', on='id_key')
+        il_inputs_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id']
 
         # Only keep the required columns and resequence the levels, index and
         # item IDs - this is necessary as the earlier filtering out of
@@ -512,8 +524,7 @@ def write_fm_policytc_file(il_inputs_df, fm_policytc_fp, chunksize=100000):
         ]
         fm_policytc_df['policytc_id'] = factorize_dataframe(fm_policytc_df, cols[3:], enumerate_only=True)
 
-        fm_policytc_df = fm_policytc_df[cols[:3] + ['policytc_id']]
-        fm_policytc_df.to_csv(
+        fm_policytc_df[cols[:3] + ['policytc_id']].to_csv(
             path_or_buf=fm_policytc_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(fm_policytc_fp) else 'a'),
@@ -607,15 +618,15 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
 
         levels = list(set(fm_programme_df['level_id']))
 
-        data = [
-            (from_agg_id, level_id, to_agg_id)
-            for from_level_id, to_level_id in zip(levels, levels[1:])
-            for from_agg_id, level_id, to_agg_id in from_agg_id_to_agg_id(from_level_id, to_level_id)
-        ]
-
-        fm_programme_df = pd.DataFrame(columns=['from_agg_id', 'level_id', 'to_agg_id'], data=data, dtype=int).drop_duplicates()
-
-        fm_programme_df.to_csv(
+        pd.DataFrame(
+            columns=['from_agg_id', 'level_id', 'to_agg_id'],
+            data=[
+                (from_agg_id, level_id, to_agg_id)
+                for from_level_id, to_level_id in zip(levels, levels[1:])
+                for from_agg_id, level_id, to_agg_id in from_agg_id_to_agg_id(from_level_id, to_level_id)
+            ],
+            dtype=int
+        ).drop_duplicates().to_csv(
             path_or_buf=fm_programme_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(fm_programme_fp) else 'a'),
@@ -642,14 +653,13 @@ def write_fm_xref_file(il_inputs_df, fm_xref_fp, chunksize=100000):
     """
     try:
         cov_level_df = il_inputs_df[il_inputs_df['level_id'] == COVERAGE_TYPES['buildings']['id']]
-        fm_xref_df = pd.DataFrame(
+        pd.DataFrame(
             {
                 'output': factorize_dataframe(cov_level_df, ['gul_input_id', 'layer_id'], enumerate_only=True),
                 'agg_id': cov_level_df['gul_input_id'],
                 'layer_id': cov_level_df['layer_id']
             }
-        )
-        fm_xref_df.to_csv(
+        ).to_csv(
             path_or_buf=fm_xref_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(fm_xref_fp) else 'a'),
@@ -676,14 +686,13 @@ def write_fmsummaryxref_file(il_inputs_df, fmsummaryxref_fp, chunksize=100000):
     """
     try:
         cov_level_df = il_inputs_df[il_inputs_df['level_id'] == COVERAGE_TYPES['buildings']['id']]
-        fmsummaryxref_df = pd.DataFrame(
+        pd.DataFrame(
             {
                 'output': factorize_dataframe(cov_level_df, ['gul_input_id', 'layer_id'], enumerate_only=True),
                 'summary_id': 1,
                 'summaryset_id': 1
             }
-        )
-        fmsummaryxref_df.to_csv(
+        ).to_csv(
             path_or_buf=fmsummaryxref_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(fmsummaryxref_fp) else 'a'),
