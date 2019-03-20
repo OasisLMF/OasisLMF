@@ -597,36 +597,27 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        cov_level = FM_LEVELS['site coverage']['id']
-
-        cov_level_df = il_inputs_df[il_inputs_df['level_id'] == cov_level][['agg_id']].assign(level_id=0)
-        fm_programme_df = pd.DataFrame(
-            pd.concat([cov_level_df, il_inputs_df], sort=True, ignore_index=True)[['level_id', 'agg_id']],
-            dtype=int
+        fm_programme_df = pd.concat(
+            [
+                il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].min()][['agg_id']].assign(level_id=0),
+                il_inputs_df[['level_id', 'agg_id']]
+            ]
         ).reset_index(drop=True)
 
-        def from_agg_id_to_agg_id(from_level_id, to_level_id):
-            iterator = (
-                (from_level_it, to_level_it)
-                for (_, from_level_it), (_, to_level_it) in zip(
-                    fm_programme_df[fm_programme_df['level_id'] == from_level_id].iterrows(),
-                    fm_programme_df[fm_programme_df['level_id'] == to_level_id].iterrows()
-                )
-            )
-            for from_level_it, to_level_it in iterator:
-                yield from_level_it['agg_id'], to_level_id, to_level_it['agg_id']
+        min_level, max_level = 0, fm_programme_df['level_id'].max()
 
-        levels = list(set(fm_programme_df['level_id']))
+        fm_programme_df = pd.DataFrame(
+            {
+                'from_agg_id': fm_programme_df[fm_programme_df['level_id'] < max_level]['agg_id'],
+                'level_id': fm_programme_df[fm_programme_df['level_id'] > min_level]['level_id'].reset_index(drop=True),
+                'to_agg_id': fm_programme_df[fm_programme_df['level_id'] > min_level]['agg_id'].reset_index(drop=True)
+            },
+        ).dropna(axis=0).drop_duplicates()
 
-        pd.DataFrame(
-            columns=['from_agg_id', 'level_id', 'to_agg_id'],
-            data=[
-                (from_agg_id, level_id, to_agg_id)
-                for from_level_id, to_level_id in zip(levels, levels[1:])
-                for from_agg_id, level_id, to_agg_id in from_agg_id_to_agg_id(from_level_id, to_level_id)
-            ],
-            dtype=int
-        ).drop_duplicates().to_csv(
+        for col in fm_programme_df.columns:
+            fm_programme_df[col] = fm_programme_df[col].astype(int)
+
+        fm_programme_df.to_csv(
             path_or_buf=fm_programme_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(fm_programme_fp) else 'a'),
@@ -652,7 +643,7 @@ def write_fm_xref_file(il_inputs_df, fm_xref_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        cov_level_df = il_inputs_df[il_inputs_df['level_id'] == COVERAGE_TYPES['buildings']['id']]
+        cov_level_df = il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].min()]
         pd.DataFrame(
             {
                 'output': factorize_dataframe(cov_level_df, ['gul_input_id', 'layer_id'], enumerate_only=True),
@@ -685,7 +676,7 @@ def write_fmsummaryxref_file(il_inputs_df, fmsummaryxref_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        cov_level_df = il_inputs_df[il_inputs_df['level_id'] == COVERAGE_TYPES['buildings']['id']]
+        cov_level_df = il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].min()]
         pd.DataFrame(
             {
                 'output': factorize_dataframe(cov_level_df, ['gul_input_id', 'layer_id'], enumerate_only=True),
