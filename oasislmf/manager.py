@@ -403,7 +403,7 @@ class OasisManager(object):
 
         # Get the GUL input items and exposure dataframes
         gul_inputs_df, exposure_df = get_gul_input_items(
-            exposure_fp, keys_fp, exposure_profile=exposure_profile
+            exposure_fp, _keys_fp, exposure_profile=exposure_profile
         )
 
         # Write the GUL input files
