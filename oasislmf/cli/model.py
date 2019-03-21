@@ -542,11 +542,11 @@ class RunCmd(OasisBaseCommand):
         if os.path.exists(model_run_fp):
             empty_dir(model_run_fp)
 
-        args.model_run_fp = model_run_fp
+        args.model_run_dir = model_run_fp
 
         model_package_fp = as_path(inputs.get('model_package_path', required=False, is_path=True), 'Model package path', is_dir=True)
 
-        args.model_package_fp = model_package_fp
+        args.model_package_path = model_package_fp
 
         accounts_fp = as_path(
             inputs.get('source_accounts_file_path', required=False, is_path=True), 'Source OED accounts file path'
@@ -578,10 +578,10 @@ class RunCmd(OasisBaseCommand):
 
         args.oasis_files_path = os.path.join(model_run_fp, 'input', 'csv') if not ri else os.path.join(model_run_fp, 'input')
 
-        commands = [GenerateOasisFilesCmd(args), GenerateLossesCmd(args)]
-        with tqdm(total=len(commands)) as pbar:
-            for command in commands:
-                command.action(args)
+        cmds = [GenerateOasisFilesCmd(args), GenerateLossesCmd(args)]
+        with tqdm(total=len(cmds)) as pbar:
+            for cmd in cmds:
+                cmd.action(args)
                 pbar.update(1)
 
         self.logger.info('\nModel run completed successfully in {}'.format(model_run_fp))
