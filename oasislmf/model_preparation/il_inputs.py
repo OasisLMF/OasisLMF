@@ -645,19 +645,14 @@ def write_fmsummaryxref_file(il_inputs_df, fmsummaryxref_fp, chunksize=100000):
 
 @oasis_log
 def write_il_input_files(
-    exposure_df,
-    gul_inputs_df,
+    il_inputs_df,
     target_dir,
-    accounts_df=None,
-    accounts_fp=None,
-    exposure_profile=get_default_exposure_profile(),
-    accounts_profile=get_default_accounts_profile(),
-    fm_aggregation_profile=get_default_fm_aggregation_profile(),
     oasis_files_prefixes=copy.deepcopy(OASIS_FILES_PREFIXES['il']),
     write_inputs_table_to_file=False
 ):
     """
-    Writes standard Oasis IL input files, namely
+    Writes standard Oasis IL input files to a target directory using a
+    pre-generated dataframe of IL inputs dataframe. The files written are
     ::
 
         fm_policytc.csv
@@ -666,29 +661,11 @@ def write_il_input_files(
         fm_xref.csv
         fmsummaryxref.csv
 
-    :param exposure_df: Exposure dataframe
+    :param il_inputs_df: IL inputs dataframe
     :type exposure_df: pandas.DataFrame
-
-    :param gul_inputs_df: GUL inputs dataframe
-    :type gul_inputs_df: pandas.DataFrame
 
     :param target_dir: Target directory in which to write the files
     :type target_dir: str
-
-    :param accounts_df: Accounts dataframe (optional)
-    :type accounts_df: pandas.DataFrame
-
-    :param accounts_fp: Accounts file path (optional)
-    :type accounts_fp: str
-
-    :param exposure_profile: Exposure profile (optional)
-    :type exposure_profile: dict
-
-    :param accounts_profile: Accounts profile (optional)
-    :type accounts_profile: dict
-
-    :param fm_aggregation_profile: FM aggregation profile (optional)
-    :param fm_aggregation_profile: dict
 
     :param oasis_files_prefixes: Oasis IL input file name prefixes
     :param oasis_files_prefixes: dict
@@ -698,25 +675,9 @@ def write_il_input_files(
 
     :return: IL input files dict
     :rtype: dict
-
-    :return: IL inputs dataframe
-    :rtype: pandas.DataFrame
-
-    :return: Accounts dataframe
-    :rtype: pandas.DataFrame
     """
     # Clean the target directory path
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
-
-    il_inputs_df, _ = get_il_input_items(
-        exposure_df,
-        gul_inputs_df,
-        accounts_df=accounts_df,
-        accounts_fp=accounts_fp,
-        exposure_profile=exposure_profile,
-        accounts_profile=accounts_profile,
-        fm_aggregation_profile=fm_aggregation_profile
-    )
 
     chunksize = min(10**5, len(il_inputs_df))
 
@@ -741,4 +702,4 @@ def write_il_input_files(
         for fn, fp in viewitems(il_input_files):
             getattr(this_module, 'write_{}_file'.format(fn))(il_inputs_df, fp, chunksize)
 
-    return il_input_files, il_inputs_df, accounts_df
+    return il_input_files

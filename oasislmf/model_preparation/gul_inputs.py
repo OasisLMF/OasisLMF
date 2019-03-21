@@ -327,15 +327,15 @@ def write_gulsummaryxref_file(gul_inputs_df, gulsummaryxref_fp, chunksize=100000
 
 @oasis_log
 def write_gul_input_files(
-    exposure_fp,
-    keys_fp,
+    gul_inputs_df,
     target_dir,
-    exposure_profile=get_default_exposure_profile(),
     oasis_files_prefixes=copy.deepcopy(OASIS_FILES_PREFIXES['gul']),
     write_inputs_table_to_file=False
 ):
     """
-    Writes the standard Oasis GUL input files, namely::
+    Writes the standard Oasis GUL input files to a target directory, using a
+    pre-generated dataframe of GUL input items. The files written are
+    ::
 
         items.csv
         coverages.csv
@@ -343,17 +343,11 @@ def write_gul_input_files(
 
     and optionally a complex items file in case of a complex/custom model.
 
-    :param exposure_fp: Exposure file path
-    :type exposure_fp: str
-
-    :param keys_fp: Keys file path
-    :type keys_fp: str
+    :param gul_inputs_df: GUL inputs dataframe
+    :type gul_inputs_df: pandas.DataFrame
 
     :param target_dir: Target directory in which to write the files
     :type target_dir: str
-
-    :param exposure_profile: Exposure profile (optional)
-    :type exposure_profile: dict
 
     :param oasis_files_prefixes: Oasis GUL input file name prefixes
     :param oasis_files_prefixes: dict
@@ -363,17 +357,9 @@ def write_gul_input_files(
 
     :return: GUL input files dict
     :rtype: dict
-
-    :return: GUL inputs dataframe
-    :rtype: pandas.DataFrame
-
-    :return: Exposure dataframe
-    :rtype: pandas.DataFrame
     """
     # Clean the target directory path
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
-
-    gul_inputs_df, exposure_df = get_gul_input_items(exposure_fp, keys_fp, exposure_profile=exposure_profile)
 
     chunksize = min(10**5, len(gul_inputs_df))
 
@@ -403,4 +389,4 @@ def write_gul_input_files(
         for fn, fp in viewitems(gul_input_files):
             getattr(this_module, 'write_{}_file'.format(fn))(gul_inputs_df, fp, chunksize)
 
-    return gul_input_files, gul_inputs_df, exposure_df
+    return gul_input_files

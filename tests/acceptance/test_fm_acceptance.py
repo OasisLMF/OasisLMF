@@ -146,11 +146,9 @@ class FmAcceptanceTests(TestCase):
             write_source_files(exposure, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
-            gul_input_files, gul_inputs, exposure_df  = write_gul_input_files(
-                ef.name, kf.name, oasis_dir,
-                exposure_profile=self.exposure_profile
-            )
-    
+            gul_inputs, exposure_df = get_gul_input_items(ef.name, kf.name)
+            gul_input_files = write_gul_input_files(gul_inputs, oasis_dir)
+
             for p in viewvalues(gul_input_files): 
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
@@ -178,12 +176,12 @@ class FmAcceptanceTests(TestCase):
             tivs = [exposure[0][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
             self.assertEqual(loc1_items['tiv'].values.tolist(), tivs)
 
-            il_input_files, il_inputs, accounts_df = write_il_input_files(
-                exposure_df, gul_inputs, oasis_dir,
-                accounts_fp=af.name, exposure_profile=self.exposure_profile,
-                accounts_profile=self.accounts_profile,
-                fm_aggregation_profile=self.fm_aggregation_profile
+            il_inputs, _ = get_il_input_items(
+                exposure_df,
+                gul_inputs,
+                accounts_fp=af.name
             )
+            il_input_files = write_il_input_files(il_inputs, oasis_dir)
 
             for p in viewvalues(il_input_files): 
                 if not p.endswith("complex_items.csv"):
@@ -322,7 +320,8 @@ class FmAcceptanceTests(TestCase):
             write_source_files(exposure, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
-            gul_input_files, gul_inputs, exposure_df = write_gul_input_files(ef.name, kf.name, oasis_dir, exposure_profile=self.exposure_profile)
+            gul_inputs, exposure_df = get_gul_input_items(ef.name, kf.name)
+            gul_input_files = write_gul_input_files(gul_inputs, oasis_dir)
 
             for p in viewvalues(gul_input_files): 
                 if not p.endswith("complex_items.csv"):
@@ -351,12 +350,12 @@ class FmAcceptanceTests(TestCase):
             tivs = [exposure[0][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
             self.assertEqual(loc1_items['tiv'].values.tolist(), tivs)
 
-            il_input_files, il_inputs, accounts_df = write_il_input_files(
-                exposure_df, gul_inputs, oasis_dir,
-                accounts_fp=af.name, exposure_profile=self.exposure_profile,
-                accounts_profile=self.accounts_profile,
-                fm_aggregation_profile=self.fm_aggregation_profile
+            il_inputs, _ = get_il_input_items(
+                exposure_df,
+                gul_inputs,
+                accounts_fp=af.name
             )
+            il_input_files = write_il_input_files(il_inputs, oasis_dir)
 
             for p in viewvalues(il_input_files): 
                 if not p.endswith("complex_items.csv"):
@@ -503,7 +502,8 @@ class FmAcceptanceTests(TestCase):
             write_source_files(exposure, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
-            gul_input_files, gul_inputs, exposure_df = write_gul_input_files(ef.name, kf.name, oasis_dir, exposure_profile=self.exposure_profile)
+            gul_inputs, exposure_df = get_gul_input_items(ef.name, kf.name)
+            gul_input_files = write_gul_input_files(gul_inputs, oasis_dir)
 
             for p in viewvalues(gul_input_files): 
                 if not p.endswith("complex_items.csv"):
@@ -532,12 +532,12 @@ class FmAcceptanceTests(TestCase):
             tivs = [exposure[0][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
             self.assertEqual(loc1_items['tiv'].values.tolist(), tivs)
 
-            il_input_files, il_inputs, accounts_df = write_il_input_files(
-                exposure_df, gul_inputs, oasis_dir,
-                accounts_fp=af.name, exposure_profile=self.exposure_profile,
-                accounts_profile=self.accounts_profile,
-                fm_aggregation_profile=self.fm_aggregation_profile
+            il_inputs, _ = get_il_input_items(
+                exposure_df,
+                gul_inputs,
+                accounts_fp=af.name
             )
+            il_input_files = write_il_input_files(il_inputs, oasis_dir)
 
             for p in viewvalues(il_input_files): 
                 if not p.endswith("complex_items.csv"):
@@ -696,7 +696,8 @@ class FmAcceptanceTests(TestCase):
             write_source_files(exposure, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
-            gul_input_files, gul_inputs, exposure_df = write_gul_input_files(ef.name, kf.name, oasis_dir, exposure_profile=self.exposure_profile)
+            gul_inputs, exposure_df = get_gul_input_items(ef.name, kf.name)
+            gul_input_files = write_gul_input_files(gul_inputs, oasis_dir)
 
             for p in viewvalues(gul_input_files): 
                 if not p.endswith("complex_items.csv"):
@@ -738,12 +739,12 @@ class FmAcceptanceTests(TestCase):
             tivs = [exposure[1][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
             self.assertEqual(loc2_items['tiv'].values.tolist(), tivs)
 
-            il_input_files, il_inputs, accounts_df = write_il_input_files(
-                exposure_df, gul_inputs, oasis_dir,
-                accounts_fp=af.name, exposure_profile=self.exposure_profile,
-                accounts_profile=self.accounts_profile,
-                fm_aggregation_profile=self.fm_aggregation_profile
+            il_inputs, _ = get_il_input_items(
+                exposure_df,
+                gul_inputs,
+                accounts_fp=af.name
             )
+            il_input_files = write_il_input_files(il_inputs, oasis_dir)
 
             for p in viewvalues(il_input_files): 
                 if not p.endswith("complex_items.csv"):
@@ -906,7 +907,8 @@ class FmAcceptanceTests(TestCase):
             write_source_files(exposure, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
-            gul_input_files, gul_inputs, exposure_df = write_gul_input_files(ef.name, kf.name, oasis_dir, exposure_profile=self.exposure_profile)
+            gul_inputs, exposure_df = get_gul_input_items(ef.name, kf.name)
+            gul_input_files = write_gul_input_files(gul_inputs, oasis_dir)
 
             for p in viewvalues(gul_input_files): 
                 if not p.endswith("complex_items.csv"):
@@ -948,12 +950,12 @@ class FmAcceptanceTests(TestCase):
             tivs = [exposure[1][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
             self.assertEqual(loc2_items['tiv'].values.tolist(), tivs)
 
-            il_input_files, il_inputs, accounts_df = write_il_input_files(
-                exposure_df, gul_inputs, oasis_dir,
-                accounts_fp=af.name, exposure_profile=self.exposure_profile,
-                accounts_profile=self.accounts_profile,
-                fm_aggregation_profile=self.fm_aggregation_profile
+            il_inputs, _ = get_il_input_items(
+                exposure_df,
+                gul_inputs,
+                accounts_fp=af.name
             )
+            il_input_files = write_il_input_files(il_inputs, oasis_dir)
 
             for p in viewvalues(il_input_files): 
                 if not p.endswith("complex_items.csv"):
@@ -1119,7 +1121,8 @@ class FmAcceptanceTests(TestCase):
             write_source_files(exposure, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
-            gul_input_files, gul_inputs, exposure_df = write_gul_input_files(ef.name, kf.name, oasis_dir, exposure_profile=self.exposure_profile)
+            gul_inputs, exposure_df = get_gul_input_items(ef.name, kf.name)
+            gul_input_files = write_gul_input_files(gul_inputs, oasis_dir)
 
             for p in viewvalues(gul_input_files): 
                 if not p.endswith("complex_items.csv"):
@@ -1141,12 +1144,12 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(guls['group_id'].values.tolist(), [1,2,3,4,5,6])
             self.assertEqual(guls['tiv'].values.tolist(), [1000000,1000000,1000000,2000000,2000000,2000000])
 
-            il_input_files, il_inputs, accounts_df = write_il_input_files(
-                exposure_df, gul_inputs, oasis_dir,
-                accounts_fp=af.name, exposure_profile=self.exposure_profile,
-                accounts_profile=self.accounts_profile,
-                fm_aggregation_profile=self.fm_aggregation_profile
+            il_inputs, _ = get_il_input_items(
+                exposure_df,
+                gul_inputs,
+                accounts_fp=af.name
             )
+            il_input_files = write_il_input_files(il_inputs, oasis_dir)
 
             for p in viewvalues(il_input_files): 
                 if not p.endswith("complex_items.csv"):

@@ -61,8 +61,12 @@ from .model_execution.bin import (
     prepare_run_inputs,
 )
 from .model_preparation import oed
-from .model_preparation.gul_inputs import write_gul_input_files
+from .model_preparation.gul_inputs import (
+    get_gul_input_items,
+    write_gul_input_files,
+)
 from .model_preparation.il_inputs import (
+    get_il_input_items,
     unified_id_terms,
     write_il_input_files,
 )
@@ -397,13 +401,16 @@ class OasisManager(object):
         else:
             _keys_fp = os.path.join(target_dir, os.path.basename(keys_fp))
 
+        # Get the GUL input items and exposure dataframes
+        gul_inputs_df, exposure_df = get_gul_input_items(
+            exposure_fp, keys_fp, exposure_profile=exposure_profile
+        )
+
         # Write the GUL input files
         files_prefixes = oasis_files_prefixes or self.oasis_files_prefixes
-        gul_input_files, gul_inputs_df, exposure_df = write_gul_input_files(
-            exposure_fp,
-            _keys_fp,
+        gul_input_files = write_gul_input_files(
+            gul_inputs_df,
             target_dir,
-            exposure_profile=exposure_profile,
             oasis_files_prefixes=files_prefixes['gul']
         )
 
@@ -412,22 +419,28 @@ class OasisManager(object):
         if not accounts_fp:
             return gul_input_files
 
-        # Write the IL/FM input files
-        il_input_files, _, _ = write_il_input_files(
+        # Get the IL input items
+        il_inputs_df, _ = get_il_input_items(
             exposure_df,
             gul_inputs_df,
-            target_dir,
             accounts_fp=accounts_fp,
             exposure_profile=exposure_profile,
             accounts_profile=accounts_profile,
-            fm_aggregation_profile=fm_aggregation_profile,
+            fm_aggregation_profile=fm_aggregation_profile
+        )
+
+        # Write the IL/FM input files
+        il_input_files = write_il_input_files(
+            il_inputs_df,
+            target_dir,
             oasis_files_prefixes=files_prefixes['il']
         )
 
+        # Combine the GUL and IL input file paths into a single dict (for convenience)
         oasis_files = {k: v for k, v in chain(gul_input_files.items(), il_input_files.items())}
 
         # If no RI input file paths (info. and scope) have been provided then
-        # no RI input files are needed
+        # no RI input files are needed, just return the GUL and IL Oasis files
         if not (ri_info_fp or ri_scope_fp):
             return oasis_files
 
