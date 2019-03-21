@@ -42,7 +42,6 @@ from hypothesis.strategies import (
     text,
     tuples,
 )
-from tabulate import tabulate
 from tempfile import NamedTemporaryFile
 
 from oasislmf.manager import OasisManager as om
@@ -55,6 +54,7 @@ from oasislmf.model_preparation.il_inputs import (
     unified_fm_profile_by_level_and_term_group,
     write_il_input_files,
 )
+from oasislmf.utils.data import print_dataframe
 from oasislmf.utils.defaults import (
     get_default_exposure_profile,
     get_default_accounts_profile,
@@ -256,7 +256,9 @@ class FmAcceptanceTests(TestCase):
             if losses_ok:
                 actual_direct_losses['event_id'] = actual_direct_losses['event_id'].astype(object)
                 actual_direct_losses['output_id'] = actual_direct_losses['output_id'].astype(object)
-                print('Correct losses generated for FM3:\n{}'.format(tabulate(actual_direct_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
+                print_dataframe(
+                    actual_direct_losses, table_header='Insured losses', objectify_cols=actual_direct_losses.columns, end='\n\n'
+                )
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=1)
     @given(
@@ -438,7 +440,9 @@ class FmAcceptanceTests(TestCase):
             if losses_ok:
                 actual_direct_losses['event_id'] = actual_direct_losses['event_id'].astype(object)
                 actual_direct_losses['output_id'] = actual_direct_losses['output_id'].astype(object)
-                print('Correct losses generated for FM4:\n{}'.format(tabulate(actual_direct_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
+                print_dataframe(
+                    actual_direct_losses, table_header='Insured losses', objectify_cols=actual_direct_losses.columns, end='\n\n'
+                )
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=1)
     @given(
@@ -620,7 +624,9 @@ class FmAcceptanceTests(TestCase):
             if losses_ok:
                 actual_direct_losses['event_id'] = actual_direct_losses['event_id'].astype(object)
                 actual_direct_losses['output_id'] = actual_direct_losses['output_id'].astype(object)
-                print('Correct losses generated for FM5:\n{}'.format(tabulate(actual_direct_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
+                print_dataframe(
+                    actual_direct_losses, table_header='Insured losses', objectify_cols=actual_direct_losses.columns, end='\n\n'
+                )
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=1)
     @given(
@@ -831,7 +837,9 @@ class FmAcceptanceTests(TestCase):
             if losses_ok:
                 actual_direct_losses['event_id'] = actual_direct_losses['event_id'].astype(object)
                 actual_direct_losses['output_id'] = actual_direct_losses['output_id'].astype(object)
-                print('Correct losses generated for FM6:\n{}'.format(tabulate(actual_direct_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
+                print_dataframe(
+                    actual_direct_losses, table_header='Insured losses', objectify_cols=actual_direct_losses.columns, end='\n\n'
+                )
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=1)
     @given(
@@ -1042,7 +1050,9 @@ class FmAcceptanceTests(TestCase):
             if losses_ok:
                 actual_direct_losses['event_id'] = actual_direct_losses['event_id'].astype(object)
                 actual_direct_losses['output_id'] = actual_direct_losses['output_id'].astype(object)
-                print('Correct losses generated for FM7:\n{}'.format(tabulate(actual_direct_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
+                print_dataframe(
+                    actual_direct_losses, table_header='Insured losses', objectify_cols=actual_direct_losses.columns, end='\n\n'
+                )
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=1)
     @given(
@@ -1250,4 +1260,6 @@ class FmAcceptanceTests(TestCase):
             if losses_ok:
                 actual_direct_losses['event_id'] = actual_direct_losses['event_id'].astype(object)
                 actual_direct_losses['output_id'] = actual_direct_losses['output_id'].astype(object)
-                print('Correct losses generated for FM40:\n{}'.format(tabulate(actual_direct_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
+                print_dataframe(
+                    actual_direct_losses, table_header='Insured losses', objectify_cols=actual_direct_losses.columns, end='\n\n'
+                )

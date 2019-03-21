@@ -235,9 +235,20 @@ def merge_dataframes(left, right, **kwargs):
     return merge if not drop_duplicates else merge.drop_duplicates()
 
 
-def print_dataframe(frame, objectify_cols=[], header=None, headers='keys', tablefmt='psql', floatfmt=".2f", sep=' ', end='\n', file=sys.stdout, flush=False):
+def print_dataframe(
+    df,
+    objectify_cols=[],
+    table_header=None,
+    column_headers='keys',
+    tablefmt='psql',
+    floatfmt=".2f",
+    sep=' ',
+    end='\n',
+    file=sys.stdout,
+    flush=False
+):
     for col in objectify_cols:
-        frame[col] = frame[col].astype(object)
-    if header:
-        print('\n{}'.format(header))
-    print(tabulate(frame, headers=headers, tablefmt=tablefmt, floatfmt=floatfmt), sep=sep, end=end, file=file, flush=flush)
+        df[col] = df[col].astype(object)
+    if table_header:
+        print('\n{}'.format(table_header))
+    print(tabulate(df, headers=column_headers, tablefmt=tablefmt, floatfmt=floatfmt), sep=sep, end=end, file=file, flush=flush)
