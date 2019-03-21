@@ -279,7 +279,6 @@ def get_il_input_items(
 
     fm_terms = unified_fm_terms_by_level_and_term_group(unified_profile_by_level_and_term_group=ufp)
 
-    #import ipdb; ipdb.set_trace()
     try:
         # Merge the combined exposure and GUL inputs frame with the accounts
         # frame on acc. ID - this will be the main IL inputs frame that the
@@ -358,9 +357,9 @@ def get_il_input_items(
             level_df['level_id'] = level
             agg_key = tuple(v['field'].lower() for v in viewvalues(fmap[level]['FMAggKey']))
             level_df['agg_id'] = factorize_dataframe(level_df, list(agg_key), enumerate_only=True)
-            level_df[term_cols] = level_df[term_cols].where(level_df[term_cols].notnull(), 0.0)
-            level_df[terms] = 0.0
-            level_df[terms] = level_df[term_cols]
+            level_df.loc[:, term_cols] = level_df.loc[:, term_cols].where(level_df.loc[:, term_cols].notnull(), 0.0).values
+            level_df.loc[:, terms] = 0.0
+            level_df.loc[:, terms] = level_df.loc[:, term_cols].values
             level_df['deductible'] = np.where(
                 level_df['coverage_type_id'].isin((ufp[level][1].get('deductible') or {}).get('CoverageTypeID') or all_cov_types),
                 level_df['deductible'],
@@ -408,8 +407,8 @@ def get_il_input_items(
 
         # Process the financial terms for the layer level
         term_cols = [(v[t] or t) for v in viewvalues(fm_terms[layer_level]) for t in terms]
-        layer_df[term_cols] = layer_df[term_cols].where(layer_df[term_cols].notnull(), 0.0)
-        layer_df[terms] = layer_df[term_cols]
+        layer_df.loc[:, term_cols] = layer_df.loc[:, term_cols].where(layer_df.notnull(), 0.0).values
+        layer_df.loc[:, terms] = layer_df.loc[:, term_cols].values
         layer_df['limit'] = layer_df['limit'].where(layer_df['limit'] != 0, 9999999999)
         layer_df['attachment'] = layer_df['deductible']
         layer_df['share'] = layer_df['share'].where(layer_df['share'] != 0, 1.0)
@@ -691,7 +690,7 @@ def write_il_input_files(
 
     this_module = sys.modules[__name__]
 
-    if len(il_inputs_df) <= 10**5:
+    if len(il_inputs_df) <= chunksize:
         concurrent_tasks = (
             Task(getattr(this_module, 'write_{}_file'.format(fn)), args=(il_inputs_df.copy(deep=True), il_input_files[fn], chunksize,), key=fn)
             for fn in il_input_files
