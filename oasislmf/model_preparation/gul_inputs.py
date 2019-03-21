@@ -174,28 +174,36 @@ def get_gul_input_items(
 
         # Group the rows in the GUL inputs table by coverage type, and set the
         # IL terms (and BI coverage boolean) in each group and update the
-        # corresponding frame section in the GUL inputs table
+        # corresponding frame section in the GUL inputs table        import ipdb; ipdb.set_trace()
         for cov_type, cov_type_group in gul_inputs_df.groupby(by=['coverage_type_id'], sort=True):
             cov_type_group['is_bi_coverage'] = np.where(cov_type == COVERAGE_TYPES['bi']['id'], True, False)
             terms = ['tiv', 'deductible', 'deductible_min', 'deductible_max', 'limit']
             term_cols = [tiv_terms[cov_type]] + [(term_col or term) for term, term_col in viewitems(cov_fm_terms[cov_type]) if term != 'share']
             cov_type_group[term_cols] = cov_type_group[term_cols].where(cov_type_group.notnull(), 0.0)
             cov_type_group[terms] = cov_type_group[term_cols]
-            cov_type_group['deductible'] = np.where(
-                (cov_type_group['deductible'] == 0) | (cov_type_group['deductible'] >= 1),
-                cov_type_group['deductible'],
-                cov_type_group['tiv'] * cov_type_group['deductible'],
-            )
-            cov_type_group['limit'] = np.where(
-                (cov_type_group['limit'] == 0) | (cov_type_group['limit'] >= 1),
-                cov_type_group['limit'],
-                cov_type_group['tiv'] * cov_type_group['limit'],
-            )
-            other_cov_type_term_cols = [v for k, v in viewitems(tiv_terms) if k != cov_type] + [
-                _v for k, v in viewitems(cov_fm_terms) for _v in viewvalues(v) if _v if k != 1
-            ]
-            cov_type_group[other_cov_type_term_cols] = 0
+            cov_type_group = cov_type_group[(cov_type_group[['tiv']] != 0).any(axis=1)]
+            if not cov_type_group.any().any():
+                cov_type_group[terms] = 0.0
+            else:
+                cov_type_group['deductible'] = np.where(
+                    (cov_type_group['deductible'] == 0) | (cov_type_group['deductible'] >= 1),
+                    cov_type_group['deductible'],
+                    cov_type_group['tiv'] * cov_type_group['deductible'],
+                )
+                cov_type_group['limit'] = np.where(
+                    (cov_type_group['limit'] == 0) | (cov_type_group['limit'] >= 1),
+                    cov_type_group['limit'],
+                    cov_type_group['tiv'] * cov_type_group['limit'],
+                )
+                other_cov_type_term_cols = [v for k, v in viewitems(tiv_terms) if k != cov_type] + [
+                    _v for k, v in viewitems(cov_fm_terms) for _v in viewvalues(v) if _v if k != 1
+                ]
+                cov_type_group[other_cov_type_term_cols] = 0
             gul_inputs_df.loc[cov_type_group.index, ['is_bi_coverage'] + terms] = cov_type_group[['is_bi_coverage'] + terms]
+
+        #import ipdb; ipdb.set_trace()
+        # Remove any rows with zeros in the ``tiv`` column and reset the index
+        gul_inputs_df = gul_inputs_df[(gul_inputs_df[['tiv']] != 0).any(axis=1)].reset_index()
 
         # Set the group ID - group by loc. number
         gul_inputs_df['group_id'] = factorize_dataframe(gul_inputs_df, [loc_id], enumerate_only=True)

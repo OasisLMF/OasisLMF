@@ -279,6 +279,7 @@ def get_il_input_items(
 
     fm_terms = unified_fm_terms_by_level_and_term_group(unified_profile_by_level_and_term_group=ufp)
 
+    #import ipdb; ipdb.set_trace()
     try:
         # Merge the combined exposure and GUL inputs frame with the accounts
         # frame on acc. ID - this will be the main IL inputs frame that the
@@ -294,7 +295,7 @@ def get_il_input_items(
             accounts_df,
             left_on=acc_id,
             right_on=acc_id,
-            how='outer'
+            how='inner'
         )
         if 'index' in il_inputs_df:
             il_inputs_df.drop('index', axis=1, inplace=True)
