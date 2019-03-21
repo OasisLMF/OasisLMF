@@ -308,6 +308,7 @@ def get_il_input_items(
         il_inputs_df = il_inputs_df.assign(
             level_id=cov_level,
             gul_input_id=gul_input_ids,
+            cov_item_id=il_inputs_df.index + 1,
             item_id=range(1, len(il_inputs_df) + 1),
             agg_id=gul_input_ids,
             layer_id=-1,
@@ -316,7 +317,7 @@ def get_il_input_items(
             calcrule_id=-1,
             index=il_inputs_df.index
         )
-        il_inputs_df.sort_values('gul_input_id', axis=0, inplace=True)
+        il_inputs_df.sort_values('cov_item_id', axis=0, inplace=True)
 
         # At this stage the IL inputs frame should only contain coverage level
         # layer 1 inputs, and the financial terms are already present from the
@@ -418,8 +419,12 @@ def get_il_input_items(
 
         del layer_df
 
-        il_inputs_df['layer_id'] = factorize_dataframe(il_inputs_df, [acc_id, policy_num], enumerate_only=True)
-        il_inputs_df['level_id'] = factorize_dataframe(il_inputs_df, ['level_id'], enumerate_only=True)
+        il_inputs_df.loc[:, ['layer_id', 'level_id']] = [
+            [i, j] for i, j in pd._libs.lib.fast_zip([
+                factorize_dataframe(il_inputs_df, [acc_id, policy_num], enumerate_only=True),
+                factorize_dataframe(il_inputs_df, ['level_id'], enumerate_only=True)
+            ])
+        ]
         il_inputs_df['item_id'] = range(1, len(il_inputs_df) + 1)
 
         # Set the calc. rule IDs
