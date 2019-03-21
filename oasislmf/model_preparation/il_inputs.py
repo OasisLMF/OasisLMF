@@ -260,8 +260,9 @@ def get_il_input_items(
         src_fp=accounts_fp,
         col_dtypes={acc_id: 'str', policy_num: 'str', portfolio_num: 'str'},
         required_cols=(acc_id, policy_num, portfolio_num,),
+        index_col=False,
         empty_data_error_msg='No accounts found in the source accounts (loc.) file',
-        memory_map=True
+        memory_map=True,
     )
 
     if not (accounts_df is not None or accounts_fp):
@@ -295,6 +296,9 @@ def get_il_input_items(
             right_on=acc_id,
             how='outer'
         )
+        if 'index' in il_inputs_df:
+            il_inputs_df.drop('index', axis=1, inplace=True)
+
         del [gul_inputs_df, exposure_df]
 
         # Set the cov. level ID, GUL and IL input item IDs, agg. ID,
@@ -377,9 +381,8 @@ def get_il_input_items(
             )
             il_inputs_df = pd.concat([il_inputs_df, level_df], sort=True, ignore_index=True)
 
-        # Resequence the index and item IDs, as the earlier repeated
-        # concatenation would have produced a non-sequential index
-        il_inputs_df['index'] = il_inputs_df.index
+        # Resequence the item IDs, as the earlier repeated concatenation of
+        # the intermediate level frames may have produced a non-sequential index
         il_inputs_df['item_id'] = range(1, len(il_inputs_df) + 1)
 
         # Process the layer level inputs separately - we start with merging
@@ -398,15 +401,10 @@ def get_il_input_items(
         agg_key = tuple(v['field'].lower() for v in viewvalues(fmap[layer_level]['FMAggKey']))
         layer_df['agg_id'] = factorize_dataframe(layer_df, list(agg_key), enumerate_only=True)
 
-        # The layer level calc. rule ID setter
-        def _get_layer_calcrule_id(row):
-            return get_layer_calcrule_id(row['attachment'], row['limit'], row['share'])
-
         # The layer level FM terms
         terms = ['deductible', 'limit', 'share']
 
-        # Still in the layer frame, now process the financial terms for this
-        # level, and then append that to the main IL inputs frame
+        # Process the financial terms for the layer level
         term_cols = [(v[t] or t) for v in viewvalues(fm_terms[layer_level]) for t in terms]
         layer_df[term_cols] = layer_df[term_cols].where(layer_df[term_cols].notnull(), 0.0)
         layer_df[terms] = layer_df[term_cols]
@@ -414,10 +412,17 @@ def get_il_input_items(
         layer_df['attachment'] = layer_df['deductible']
         layer_df['share'] = layer_df['share'].where(layer_df['share'] != 0, 1.0)
 
+        # Join the IL inputs and layer level frames, and set layer ID, level ID
+        # and item IDs
         il_inputs_df = pd.concat([il_inputs_df, layer_df], sort=True, ignore_index=True)
 
         del layer_df
 
+        il_inputs_df['layer_id'] = factorize_dataframe(il_inputs_df, [acc_id, policy_num], enumerate_only=True)
+        il_inputs_df['level_id'] = factorize_dataframe(il_inputs_df, ['level_id'], enumerate_only=True)
+        il_inputs_df['item_id'] = range(1, len(il_inputs_df) + 1)
+
+        # Set the calc. rule IDs
         calc_rules = get_calc_rules().drop(['desc'], axis=1)
         calc_rules['id_key'] = calc_rules['id_key'].apply(eval)
 
@@ -433,16 +438,6 @@ def get_il_input_items(
         il_inputs_calc_rules_df['id_key'] = fast_zip_dataframe_cols(il_inputs_calc_rules_df, terms_indicators + types_and_codes)
         il_inputs_calc_rules_df = merge_dataframes(il_inputs_calc_rules_df, calc_rules, how='left', on='id_key')
         il_inputs_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id']
-
-        # Only keep the required columns and resequence the levels, index and
-        # item IDs - this is necessary as the earlier filtering out of
-        # intermediate FM levels with no financial terms would have produced
-        # a non-sequential list of FM levels and/or index and item IDs
-        il_inputs_df['layer_id'] = factorize_dataframe(il_inputs_df, [acc_id, policy_num], enumerate_only=True)
-        il_inputs_df['level_id'] = factorize_dataframe(il_inputs_df, ['level_id'], enumerate_only=True)
-        il_inputs_df['index'] = il_inputs_df.index
-        il_inputs_df['item_id'] = range(1, len(il_inputs_df) + 1)
-
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
         raise OasisException(e)
 
