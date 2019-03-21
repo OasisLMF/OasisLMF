@@ -597,7 +597,7 @@ def write_fm_xref_file(il_inputs_df, fm_xref_fp, chunksize=100000):
                 'agg_id': cov_level_df['gul_input_id'],
                 'layer_id': cov_level_df['layer_id']
             }
-        ).to_csv(
+        ).drop_duplicates().to_csv(
             path_or_buf=fm_xref_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(fm_xref_fp) else 'a'),
@@ -630,7 +630,7 @@ def write_fmsummaryxref_file(il_inputs_df, fmsummaryxref_fp, chunksize=100000):
                 'summary_id': 1,
                 'summaryset_id': 1
             }
-        ).to_csv(
+        ).drop_duplicates().to_csv(
             path_or_buf=fmsummaryxref_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(fmsummaryxref_fp) else 'a'),

@@ -238,6 +238,7 @@ def merge_dataframes(left, right, **kwargs):
 def print_dataframe(
     df,
     objectify_cols=[],
+    show_index=False,
     table_header=None,
     column_headers='keys',
     tablefmt='psql',
@@ -245,10 +246,21 @@ def print_dataframe(
     sep=' ',
     end='\n',
     file=sys.stdout,
-    flush=False
-):
+    flush=False,
+    **tabulate_kwargs
+):  
+    _df = df.copy(deep=True)
+
     for col in objectify_cols:
-        df[col] = df[col].astype(object)
+        _df[col] = _df[col].astype(object)
+
     if table_header:
         print('\n{}'.format(table_header))
-    print(tabulate(df, headers=column_headers, tablefmt=tablefmt, floatfmt=floatfmt), sep=sep, end=end, file=file, flush=flush)
+
+    if tabulate_kwargs:
+        tabulate_kwargs.pop('headers') if 'headers' in tabulate_kwargs else None
+        tabulate_kwargs.pop('tablefmt') if 'tablefmt' in tabulate_kwargs else None
+        tabulate_kwargs.pop('floatfmt') if 'floatfmt' in tabulate_kwargs else None
+        tabulate_kwargs.pop('showindex') if 'showindex' in tabulate_kwargs else None
+
+    print(tabulate(_df, headers=column_headers, tablefmt=tablefmt, showindex=show_index, floatfmt=floatfmt, **tabulate_kwargs), sep=sep, end=end, file=file, flush=flush)
