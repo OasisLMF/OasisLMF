@@ -59,7 +59,7 @@ def get_default_fm_aggregation_profile(path=False):
 # Ktools calc. rules
 def get_calc_rules(path=False):
     src_fp=os.path.join(STATIC_DATA_FP, 'calc-rules.csv')
-    return get_dataframe(src_fp=src_fp, index_col=False) if not path else src_fp
+    return get_dataframe(src_fp=src_fp) if not path else src_fp
 
 
 # Default name prefixes of the Oasis input files (GUL + IL)

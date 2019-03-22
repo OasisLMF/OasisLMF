@@ -91,7 +91,7 @@ def get_dataframe(
     defaulted_cols={},
     non_na_cols=(),
     col_dtypes={},
-    index_col=True,
+    index=None,
     sort_col=None,
     sort_ascending=None,
     memory_map=False
@@ -115,10 +115,13 @@ def get_dataframe(
     elif src_data and isinstance(src_data, list):
         df = pd.DataFrame(data=src_data)
     elif src_data and  isinstance(src_data, pd.DataFrame):
-        df = src_data.copy(deep=True)
+        df = pd.DataFrame(src_data)
 
-    if empty_data_error_msg and len(df) == 0:
+    if len(df) == 0:
         raise OasisException(empty_data_error_msg)
+
+    if index:
+        df.index = index
 
     if lowercase_cols:
         df.columns = df.columns.str.lower()
@@ -152,9 +155,6 @@ def get_dataframe(
     if non_na_cols:
         _non_na_cols = tuple(col.lower() for col in non_na_cols) if lowercase_cols else non_na_cols
         df.dropna(subset=_non_na_cols, inplace=True)
-
-    if index_col:
-        df['index'] = range(len(df))
 
     if col_dtypes:
         set_col_dtypes(df, col_dtypes)

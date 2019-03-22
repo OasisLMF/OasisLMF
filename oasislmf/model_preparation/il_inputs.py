@@ -260,7 +260,6 @@ def get_il_input_items(
         src_fp=accounts_fp,
         col_dtypes={acc_id: 'str', policy_num: 'str', portfolio_num: 'str'},
         required_cols=(acc_id, policy_num, portfolio_num,),
-        index_col=False,
         empty_data_error_msg='No accounts found in the source accounts (loc.) file',
         memory_map=True,
     )

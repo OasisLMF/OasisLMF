@@ -261,7 +261,7 @@ def write_complex_items_file(gul_inputs_df, complex_items_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        gul_inputs_df.to_csv(
+        gul_inputs_df.drop_duplicates().to_csv(
             columns=['item_id', 'coverage_id', 'model_data', 'group_id'],
             path_or_buf=complex_items_fp,
             encoding='utf-8',
@@ -287,7 +287,7 @@ def write_items_file(gul_inputs_df, items_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        gul_inputs_df.to_csv(
+        gul_inputs_df.drop_duplicates().to_csv(
             columns=['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id'],
             path_or_buf=items_fp,
             encoding='utf-8',
@@ -315,7 +315,7 @@ def write_coverages_file(gul_inputs_df, coverages_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        gul_inputs_df.to_csv(
+        gul_inputs_df.drop_duplicates().to_csv(
             columns=['coverage_id', 'tiv'],
             path_or_buf=coverages_fp,
             encoding='utf-8',
@@ -343,7 +343,7 @@ def write_gulsummaryxref_file(gul_inputs_df, gulsummaryxref_fp, chunksize=100000
     :rtype: str
     """
     try:
-        gul_inputs_df.to_csv(
+        gul_inputs_df.drop_duplicates().to_csv(
             columns=['coverage_id', 'summary_id', 'summaryset_id'],
             path_or_buf=gulsummaryxref_fp,
             encoding='utf-8',
