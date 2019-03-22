@@ -174,10 +174,11 @@ def get_gul_input_items(
 
         # Group the rows in the GUL inputs table by coverage type, and set the
         # IL terms (and BI coverage boolean) in each group and update the
-        # corresponding frame section in the GUL inputs table        import ipdb; ipdb.set_trace()
+        # corresponding frame section in the GUL inputs table
+        terms = ['tiv', 'deductible', 'deductible_min', 'deductible_max', 'limit']
+
         for cov_type, cov_type_group in gul_inputs_df.groupby(by=['coverage_type_id'], sort=True):
             cov_type_group['is_bi_coverage'] = np.where(cov_type == COVERAGE_TYPES['bi']['id'], True, False)
-            terms = ['tiv', 'deductible', 'deductible_min', 'deductible_max', 'limit']
             term_cols = [tiv_terms[cov_type]] + [(term_col or term) for term, term_col in viewitems(cov_fm_terms[cov_type]) if term != 'share']
             cov_type_group.loc[:, term_cols] = cov_type_group.loc[:, term_cols].where(cov_type_group.notnull(), 0.0)
             cov_type_group.loc[:, terms] = cov_type_group.loc[:, term_cols].values
@@ -215,6 +216,19 @@ def get_gul_input_items(
             coverage_id=item_ids,
             summary_id=1,
             summaryset_id=1
+        )
+
+        usecols = (
+            [loc_id, acc_id, portfolio_num] +
+            ['tiv'] + terms +
+            ['peril_id', 'coverage_type_id', 'areaperil_id', 'vulnerability_id'] +
+            (['model_data'] if 'model_data' in gul_inputs_df else []) +
+            ['is_bi_coverage', 'group_id', 'item_id', 'coverage_id', 'summary_id', 'summaryset_id']
+        )
+        gul_inputs_df.drop(
+            [c for c in gul_inputs_df.columns if c not in usecols],
+            axis=1,
+            inplace=True
         )
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
         raise OasisException(e)

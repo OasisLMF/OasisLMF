@@ -296,8 +296,17 @@ def get_il_input_items(
             right_on=acc_id,
             how='inner'
         )
-        if 'index' in il_inputs_df:
-            il_inputs_df.drop('index', axis=1, inplace=True)
+
+        usecols = (
+            gul_inputs_df.columns.to_list() +
+            [loc_id, acc_id, portfolio_num, policy_num] +
+            [__v for v in viewvalues(fm_terms) for _v in viewvalues(v) for __v in viewvalues(_v) if __v]
+        )
+        il_inputs_df.drop(
+            [c for c in il_inputs_df.columns if c not in usecols],
+            axis=1,
+            inplace=True
+        )
 
         del [gul_inputs_df, exposure_df]
 
@@ -326,9 +335,9 @@ def get_il_input_items(
 
         # A helper method to determine whether a given level of IL inputs has
         # non-zero financial terms
-        def has_nonzero_financial_terms(level_df, terms):
+        def has_nonzero_financial_terms(df, terms):
             try:
-                return level_df[terms].any().any()
+                return df[terms].any().any()
             except KeyError:
                 return
 
