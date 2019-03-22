@@ -297,6 +297,16 @@ def get_il_input_items(
             how='inner'
         )
 
+        if il_inputs_df.empty:
+            raise OasisException(
+                'Inner merge of the GUL inputs + exposure file dataframe '
+                'and the accounts file dataframe ({}) on acc. number '
+                'is empty - '
+                'please check that the acc. number columns in the exposure '
+                'and accounts files respectively have a non-empty '
+                'intersection'.format(accounts_fp)
+            )
+
         usecols = (
             gul_inputs_df.columns.to_list() +
             [loc_id, acc_id, portfolio_num, policy_num] +

@@ -149,6 +149,16 @@ def get_gul_input_items(
         # TIV columns with zeros
         gul_inputs_df = merge_dataframes(exposure_df, keys_df, left_on=loc_id, right_on='locid', how='inner')
 
+        if gul_inputs_df.empty:
+            raise OasisException(
+                'Inner merge of the exposure file dataframe ({}) '
+                'and the keys file dataframe ({}) on loc. number/loc. ID '
+                'is empty - '
+                'please check that the loc. number and loc. ID columns '
+                'in the exposure and keys files respectively have a non-empty '
+                'intersection'.format(exposure_fp, keys_fp)
+            )
+
         del keys_df
 
         tiv_cols = [v for v in viewvalues(tiv_terms)]
@@ -218,6 +228,7 @@ def get_gul_input_items(
             summaryset_id=1
         )
 
+        # Drop all unnecessary columns
         usecols = (
             [loc_id, acc_id, portfolio_num] +
             ['tiv'] + terms +
