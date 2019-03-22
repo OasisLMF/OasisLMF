@@ -146,23 +146,23 @@ class FmAcceptanceTests(TestCase):
             write_source_files(exposure, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
-            gul_inputs, exposure_df = get_gul_input_items(ef.name, kf.name)
-            gul_input_files = write_gul_input_files(gul_inputs, oasis_dir)
+            gul_inputs_df, exposure_df = get_gul_input_items(ef.name, kf.name)
+            gul_input_files = write_gul_input_files(gul_inputs_df, oasis_dir)
 
             for p in viewvalues(gul_input_files): 
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
-            guls = pd.merge(
+            gul_inputs = pd.merge(
                 pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
                 pd.read_csv(gul_input_files['gulsummaryxref']),
                 left_on='coverage_id',
                 right_on='coverage_id'
             )
 
-            self.assertEqual(len(guls), 4)
+            self.assertEqual(len(gul_inputs), 4)
 
-            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in guls.groupby('group_id')]
+            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in gul_inputs.groupby('group_id')]
             self.assertEqual(len(loc_groups), 1)
 
             loc1_id, loc1_items = loc_groups[0]
@@ -178,7 +178,7 @@ class FmAcceptanceTests(TestCase):
 
             il_inputs, _ = get_il_input_items(
                 exposure_df,
-                gul_inputs,
+                gul_inputs_df,
                 accounts_fp=af.name
             )
             il_input_files = write_il_input_files(il_inputs, oasis_dir)
@@ -322,23 +322,23 @@ class FmAcceptanceTests(TestCase):
             write_source_files(exposure, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
-            gul_inputs, exposure_df = get_gul_input_items(ef.name, kf.name)
-            gul_input_files = write_gul_input_files(gul_inputs, oasis_dir)
+            gul_inputs_df, exposure_df = get_gul_input_items(ef.name, kf.name)
+            gul_input_files = write_gul_input_files(gul_inputs_df, oasis_dir)
 
             for p in viewvalues(gul_input_files): 
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
-            guls = pd.merge(
+            gul_inputs = pd.merge(
                 pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
                 pd.read_csv(gul_input_files['gulsummaryxref']),
                 left_on='coverage_id',
                 right_on='coverage_id'
             )
 
-            self.assertEqual(len(guls), 4)
+            self.assertEqual(len(gul_inputs), 4)
 
-            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in guls.groupby('group_id')]
+            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in gul_inputs.groupby('group_id')]
             self.assertEqual(len(loc_groups), 1)
 
             loc1_id, loc1_items = loc_groups[0]
@@ -354,7 +354,7 @@ class FmAcceptanceTests(TestCase):
 
             il_inputs, _ = get_il_input_items(
                 exposure_df,
-                gul_inputs,
+                gul_inputs_df,
                 accounts_fp=af.name
             )
             il_input_files = write_il_input_files(il_inputs, oasis_dir)
@@ -506,23 +506,23 @@ class FmAcceptanceTests(TestCase):
             write_source_files(exposure, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
-            gul_inputs, exposure_df = get_gul_input_items(ef.name, kf.name)
-            gul_input_files = write_gul_input_files(gul_inputs, oasis_dir)
+            gul_inputs_df, exposure_df = get_gul_input_items(ef.name, kf.name)
+            gul_input_files = write_gul_input_files(gul_inputs_df, oasis_dir)
 
             for p in viewvalues(gul_input_files): 
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
-            guls = pd.merge(
+            gul_inputs = pd.merge(
                 pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
                 pd.read_csv(gul_input_files['gulsummaryxref']),
                 left_on='coverage_id',
                 right_on='coverage_id'
             )
 
-            self.assertEqual(len(guls), 4)
+            self.assertEqual(len(gul_inputs), 4)
 
-            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in guls.groupby('group_id')]
+            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in gul_inputs.groupby('group_id')]
             self.assertEqual(len(loc_groups), 1)
 
             loc1_id, loc1_items = loc_groups[0]
@@ -538,7 +538,7 @@ class FmAcceptanceTests(TestCase):
 
             il_inputs, _ = get_il_input_items(
                 exposure_df,
-                gul_inputs,
+                gul_inputs_df,
                 accounts_fp=af.name
             )
             il_input_files = write_il_input_files(il_inputs, oasis_dir)
@@ -702,23 +702,23 @@ class FmAcceptanceTests(TestCase):
             write_source_files(exposure, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
-            gul_inputs, exposure_df = get_gul_input_items(ef.name, kf.name)
-            gul_input_files = write_gul_input_files(gul_inputs, oasis_dir)
+            gul_inputs_df, exposure_df = get_gul_input_items(ef.name, kf.name)
+            gul_input_files = write_gul_input_files(gul_inputs_df, oasis_dir)
 
             for p in viewvalues(gul_input_files): 
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
-            guls = pd.merge(
+            gul_inputs = pd.merge(
                 pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
                 pd.read_csv(gul_input_files['gulsummaryxref']),
                 left_on='coverage_id',
                 right_on='coverage_id'
             )
 
-            self.assertEqual(len(guls), 8)
+            self.assertEqual(len(gul_inputs), 8)
 
-            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in guls.groupby('group_id')]
+            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in gul_inputs.groupby('group_id')]
             self.assertEqual(len(loc_groups), 2)
 
             loc1_id, loc1_items = loc_groups[0]
@@ -747,7 +747,7 @@ class FmAcceptanceTests(TestCase):
 
             il_inputs, _ = get_il_input_items(
                 exposure_df,
-                gul_inputs,
+                gul_inputs_df,
                 accounts_fp=af.name
             )
             il_input_files = write_il_input_files(il_inputs, oasis_dir)
@@ -915,23 +915,23 @@ class FmAcceptanceTests(TestCase):
             write_source_files(exposure, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
-            gul_inputs, exposure_df = get_gul_input_items(ef.name, kf.name)
-            gul_input_files = write_gul_input_files(gul_inputs, oasis_dir)
+            gul_inputs_df, exposure_df = get_gul_input_items(ef.name, kf.name)
+            gul_input_files = write_gul_input_files(gul_inputs_df, oasis_dir)
 
             for p in viewvalues(gul_input_files): 
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
-            guls = pd.merge(
+            gul_inputs = pd.merge(
                 pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
                 pd.read_csv(gul_input_files['gulsummaryxref']),
                 left_on='coverage_id',
                 right_on='coverage_id'
             )
 
-            self.assertEqual(len(guls), 8)
+            self.assertEqual(len(gul_inputs), 8)
 
-            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in guls.groupby('group_id')]
+            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in gul_inputs.groupby('group_id')]
             self.assertEqual(len(loc_groups), 2)
 
             loc1_id, loc1_items = loc_groups[0]
@@ -960,7 +960,7 @@ class FmAcceptanceTests(TestCase):
 
             il_inputs, _ = get_il_input_items(
                 exposure_df,
-                gul_inputs,
+                gul_inputs_df,
                 accounts_fp=af.name
             )
             il_input_files = write_il_input_files(il_inputs, oasis_dir)
@@ -1131,32 +1131,32 @@ class FmAcceptanceTests(TestCase):
             write_source_files(exposure, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
-            gul_inputs, exposure_df = get_gul_input_items(ef.name, kf.name)
-            gul_input_files = write_gul_input_files(gul_inputs, oasis_dir)
+            gul_inputs_df, exposure_df = get_gul_input_items(ef.name, kf.name)
+            gul_input_files = write_gul_input_files(gul_inputs_df, oasis_dir)
 
             for p in viewvalues(gul_input_files): 
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
-            guls = pd.merge(
+            gul_inputs = pd.merge(
                 pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
                 pd.read_csv(gul_input_files['gulsummaryxref']),
                 left_on='coverage_id',
                 right_on='coverage_id'
             )
 
-            self.assertEqual(len(guls), 6)
+            self.assertEqual(len(gul_inputs), 6)
 
-            self.assertEqual(guls['item_id'].values.tolist(), [1,2,3,4,5,6])
-            self.assertEqual(guls['coverage_id'].values.tolist(), [1,2,3,4,5,6])
-            self.assertEqual(guls['areaperil_id'].values.tolist(), [1,1,1,1,1,1])
-            self.assertEqual(guls['vulnerability_id'].values.tolist(), [1,1,1,1,1,1])
-            self.assertEqual(guls['group_id'].values.tolist(), [1,2,3,4,5,6])
-            self.assertEqual(guls['tiv'].values.tolist(), [1000000,1000000,1000000,2000000,2000000,2000000])
+            self.assertEqual(gul_inputs['item_id'].values.tolist(), [1,2,3,4,5,6])
+            self.assertEqual(gul_inputs['coverage_id'].values.tolist(), [1,2,3,4,5,6])
+            self.assertEqual(gul_inputs['areaperil_id'].values.tolist(), [1,1,1,1,1,1])
+            self.assertEqual(gul_inputs['vulnerability_id'].values.tolist(), [1,1,1,1,1,1])
+            self.assertEqual(gul_inputs['group_id'].values.tolist(), [1,2,3,4,5,6])
+            self.assertEqual(gul_inputs['tiv'].values.tolist(), [1000000,1000000,1000000,2000000,2000000,2000000])
 
             il_inputs, _ = get_il_input_items(
                 exposure_df,
-                gul_inputs,
+                gul_inputs_df,
                 accounts_fp=af.name
             )
             il_input_files = write_il_input_files(il_inputs, oasis_dir)
