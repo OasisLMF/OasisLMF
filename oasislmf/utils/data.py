@@ -20,7 +20,7 @@ __all__ = [
     'get_utctimestamp',
     'merge_dataframes',
     'PANDAS_BASIC_DTYPES',
-    'set_col_dtypes'
+    'set_dataframe_column_dtypes'
 ]
 
 import builtins
@@ -88,7 +88,7 @@ def get_dataframe(
     lowercase_cols=True,
     replace_nans_by_none=True,
     required_cols=(),
-    defaulted_cols={},
+    col_defaults={},
     non_na_cols=(),
     col_dtypes={},
     index=None,
@@ -142,22 +142,22 @@ def get_dataframe(
     # with 0 values, so that when it is loaded into the frame the 'X' will have
     # 0 values, as expected.
     #
-    # In this sense, defaulting of column values via the `defaulted_cols`
+    # In this sense, defaulting of column values via the `col_defaults`
     # optional argument is redundant - but there may be some cases where it is
     # convenient to have this feature at the code level.
 
-    if defaulted_cols:
-        _defaulted_cols = {k.lower(): v for k, v in viewitems(defaulted_cols)} if lowercase_cols else defaulted_cols
-        defaults = {c for c in _defaulted_cols}.difference({c for c in df.columns})
+    if col_defaults:
+        _col_defaults = {k.lower(): v for k, v in viewitems(col_defaults)} if lowercase_cols else col_defaults
+        defaults = {c for c in _col_defaults}.difference({c for c in df.columns})
         for col in defaults:
-            df[col] = _defaulted_cols[col]
+            df[col] = df.get(col, _col_defaults[col])
 
     if non_na_cols:
         _non_na_cols = tuple(col.lower() for col in non_na_cols) if lowercase_cols else non_na_cols
         df.dropna(subset=_non_na_cols, inplace=True)
 
     if col_dtypes:
-        set_col_dtypes(df, col_dtypes)
+        set_dataframe_column_dtypes(df, col_dtypes)
 
     if sort_col:
         _sort_col = sort_col.lower() if lowercase_cols else sort_col
@@ -167,7 +167,7 @@ def get_dataframe(
     return df
 
 
-def set_col_dtypes(df, col_dtypes):
+def set_dataframe_column_dtypes(df, col_dtypes):
     for col, dtype in viewitems(col_dtypes):
         if dtype in ('int', 'bool', 'float', 'object', 'str',):
             dtype = getattr(builtins, dtype)

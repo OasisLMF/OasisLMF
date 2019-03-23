@@ -51,6 +51,7 @@ from ..utils.data import (
     factorize_dataframe,
     get_dataframe,
     merge_dataframes,
+    set_dataframe_column_dtypes,
 )
 from ..utils.defaults import (
     get_default_exposure_profile,
@@ -114,25 +115,44 @@ def get_gul_input_items(
 
     # Define the cov. level and get the cov. level IL/FM terms
     cov_level = COVERAGE_TYPES['buildings']['id']
-    cov_fm_terms = unified_fm_terms_by_level_and_term_group(unified_profile_by_level_and_term_group=ufp)[cov_level]
+    cov_il_terms = unified_fm_terms_by_level_and_term_group(unified_profile_by_level_and_term_group=ufp)[cov_level]
+
+    tiv_and_cov_il_terms = [v for v in viewvalues(tiv_terms)] + [_v for v in viewvalues(cov_il_terms) for _v in viewvalues(v) if _v]
+
+    col_dtypes = {t: ('float32' if t in tiv_and_cov_il_terms else 'str') for t in tiv_and_cov_il_terms + [loc_id, acc_id, portfolio_num]}
 
     # Load the exposure and keys dataframes
     exposure_df = get_dataframe(
         src_fp=exposure_fp,
-        col_dtypes={loc_id: 'str', acc_id: 'str', portfolio_num: 'str'},
         required_cols=(loc_id, acc_id, portfolio_num,),
+        col_dtypes=col_dtypes,
+        col_defaults={t: 0.0 for t in tiv_and_cov_il_terms},
         empty_data_error_msg='No data found in the source exposure (loc.) file',
         memory_map=True
     )
 
-    for col in [v for v in viewvalues(tiv_terms)] + [_v for v in viewvalues(cov_fm_terms) for _v in viewvalues(v) if _v]:
-        exposure_df[col] = exposure_df.get(col,  0.0)
-
+    col_dtypes = {
+        'locid': 'str',
+        'perilid': 'str',
+        'coveragetypeid': 'int32',
+        'areaperilid': 'int32',
+        'vulnerabilityid': 'int32'
+    }
     keys_df = get_dataframe(
         src_fp=keys_fp,
-        col_dtypes={'locid': 'str'},
+        col_dtypes=col_dtypes,
         empty_data_error_msg='No keys found in the keys file',
         memory_map=True
+    )
+    keys_df.rename(
+        columns={
+            'locid': 'locnumber',
+            'perilid': 'peril_id',
+            'coveragetypeid': 'coverage_type_id',
+            'areaperilid': 'areaperil_id',
+            'vulnerabilityid': 'vulnerability_id'
+        },
+        inplace=True
     )
 
     # If the keys file relates to a complex/custom model then look for a
@@ -140,14 +160,14 @@ def get_gul_input_items(
     # and vulnerability ID columns
     if keys_df.get('modeldata'):
         keys_df.rename({'modeldata': 'model_data'}, inplace=True)
-        keys_df['areaperilid'] = keys_df['vulnerabilityid'] = -1
+        keys_df['areaperil_id'] = keys_df['vulnerability_id'] = -1
 
     try:
         # Create the basic GUL inputs dataframe from merging the exposure and
         # keys dataframes on loc. number/loc. ID; filter out any rows with
         # zeros for TIVs for all coverage types, and replace any nulls in the
         # TIV columns with zeros
-        gul_inputs_df = merge_dataframes(exposure_df, keys_df, left_on=loc_id, right_on='locid', how='inner')
+        gul_inputs_df = merge_dataframes(exposure_df, keys_df, left_on=loc_id, right_on=loc_id, how='inner')
 
         if gul_inputs_df.empty:
             raise OasisException(
@@ -161,21 +181,9 @@ def get_gul_input_items(
 
         del keys_df
 
-        tiv_cols = [v for v in viewvalues(tiv_terms)]
-        gul_inputs_df = gul_inputs_df[(gul_inputs_df[tiv_cols] != 0).any(axis=1)]
-        gul_inputs_df.loc[:, tiv_cols] = gul_inputs_df[tiv_cols].where(gul_inputs_df.notnull(), 0.0)
-
-        # Rename the peril ID, coverage type ID, area peril ID & vulnerability
-        # ID columns (sourced from the keys frame)
-        gul_inputs_df.rename(
-            columns={
-                'perilid': 'peril_id',
-                'coveragetypeid': 'coverage_type_id',
-                'areaperilid': 'areaperil_id',
-                'vulnerabilityid': 'vulnerability_id'
-            },
-            inplace=True
-        )
+        _tiv_cols = list(tiv_terms.values())
+        gul_inputs_df = gul_inputs_df[(gul_inputs_df[_tiv_cols] != 0).any(axis=1)]
+        gul_inputs_df.loc[:, _tiv_cols] = gul_inputs_df[_tiv_cols].where(gul_inputs_df.notnull(), 0.0)
 
         # Set defaults for BI coverage boolean, TIV, deductibles and limit
         gul_inputs_df = gul_inputs_df.assign(
@@ -189,7 +197,7 @@ def get_gul_input_items(
 
         for cov_type, cov_type_group in gul_inputs_df.groupby(by=['coverage_type_id'], sort=True):
             cov_type_group['is_bi_coverage'] = np.where(cov_type == COVERAGE_TYPES['bi']['id'], True, False)
-            term_cols = [tiv_terms[cov_type]] + [(term_col or term) for term, term_col in viewitems(cov_fm_terms[cov_type]) if term != 'share']
+            term_cols = [tiv_terms[cov_type]] + [(term_col or term) for term, term_col in viewitems(cov_il_terms[cov_type]) if term != 'share']
             cov_type_group.loc[:, term_cols] = cov_type_group.loc[:, term_cols].where(cov_type_group.notnull(), 0.0)
             cov_type_group.loc[:, terms] = cov_type_group.loc[:, term_cols].values
             cov_type_group = cov_type_group[(cov_type_group[['tiv']] != 0).any(axis=1)]
@@ -207,7 +215,7 @@ def get_gul_input_items(
                     cov_type_group['tiv'] * cov_type_group['limit'],
                 )
             other_cov_type_term_cols = [v for k, v in viewitems(tiv_terms) if k != cov_type] + [
-                _v for k, v in viewitems(cov_fm_terms) for _v in viewvalues(v) if _v if k != 1
+                _v for k, v in viewitems(cov_il_terms) for _v in viewvalues(v) if _v if k != 1
             ]
             cov_type_group.loc[:, other_cov_type_term_cols] = 0
             gul_inputs_df.loc[cov_type_group.index, ['is_bi_coverage'] + terms] = cov_type_group[['is_bi_coverage'] + terms]
@@ -241,6 +249,12 @@ def get_gul_input_items(
             axis=1,
             inplace=True
         )
+
+        col_dtypes = {
+            **{t: 'float32' for t in ['tiv'] + terms},
+            **{t: 'int32' for t in ['group_id', 'item_id', 'coverage_id', 'summary_id', 'summaryset_id']}
+        }
+        set_dataframe_column_dtypes(gul_inputs_df, col_dtypes)
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
         raise OasisException(e)
 

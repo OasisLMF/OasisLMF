@@ -202,12 +202,12 @@ def load_oed_dfs(oed_dir, show_all=False):
             ri_info_df = get_dataframe(
                 oed_ri_info_file, lowercase_cols=False, 
                 required_cols=RI_INFO_REQUIRED_COLS,
-                defaulted_cols=RI_INFO_DEFAULTS,
+                col_defaults=RI_INFO_DEFAULTS,
                 col_dtypes=RI_INFO_DTYPES)
             ri_scope_df = get_dataframe(
                 oed_ri_scope_file, lowercase_cols=False,
                 required_cols=RI_SCOPE_REQUIRED_COLS,
-                defaulted_cols=RI_SCOPE_DEFAULTS,
+                col_defaults=RI_SCOPE_DEFAULTS,
                 col_dtypes=RI_SCOPE_DTYPES)
 
             # Treat empty Risk Level as portfolio level scope.

@@ -65,6 +65,7 @@ from ..utils.data import (
     fast_zip_dataframe_cols,
     get_dataframe,
     merge_dataframes,
+    set_dataframe_column_dtypes,
 )
 from ..utils.defaults import (
     get_calc_rules,
@@ -256,10 +257,18 @@ def get_il_input_items(
     policy_num = id_terms['polid']
     portfolio_num = id_terms['portid']
 
+    accounts_il_terms = unified_fm_terms_by_level_and_term_group(profiles=(accpf,))
+    accounts_il_cols = [__v for v in viewvalues(accounts_il_terms) for _v in viewvalues(v) for __v in viewvalues(_v) if __v]
+    col_dtypes = {
+        **{t: 'float32' for t in accounts_il_cols},
+        **{t: 'str' for t in [loc_id, acc_id, portfolio_num, policy_num]}
+    }
+
     # Get the accounts frame either directly or from a file path if provided
     accounts_df = accounts_df if accounts_df is not None else get_dataframe(
         src_fp=accounts_fp,
-        col_dtypes={acc_id: 'str', policy_num: 'str', portfolio_num: 'str'},
+        col_dtypes=col_dtypes,
+        col_defaults={t: 0.0 for t in accounts_il_cols},
         required_cols=(acc_id, policy_num, portfolio_num,),
         empty_data_error_msg='No accounts found in the source accounts (loc.) file',
         memory_map=True,
@@ -276,7 +285,6 @@ def get_il_input_items(
     fm_levels = tuple(ufp)[1:]
     cov_level = min(fm_levels)
     layer_level = max(fm_levels)
-
     fm_terms = unified_fm_terms_by_level_and_term_group(unified_profile_by_level_and_term_group=ufp)
 
     try:
@@ -360,6 +368,19 @@ def get_il_input_items(
             share=0,
             calcrule_id=-1
         )
+
+        col_dtypes = {
+            **{t: 'int32' for t in ['level_id', 'gul_input_id', 'item_id', 'agg_id', 'layer_id', 'calcrule_id']},
+            **{t: 'float32' for t in ['attachment', 'share']}
+        }
+        set_dataframe_column_dtypes(il_inputs_df, col_dtypes)
+
+        # Layer the items, drop any items with layer IDs > 1, reset index ad
+        # order items by GUL input ID.
+        il_inputs_df['layer_id'] = factorize_dataframe(il_inputs_df, [acc_id, policy_num], enumerate_only=True)
+        il_inputs_df = il_inputs_df[il_inputs_df['layer_id'] == 1]
+        il_inputs_df.reset_index(drop=True, inplace=True)
+        il_inputs_df.sort_values('gul_input_id', axis=0, inplace=True)
 
         # At this stage the IL inputs frame should only contain coverage level
         # layer 1 inputs, and the financial terms are already present from the
