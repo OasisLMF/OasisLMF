@@ -52,6 +52,7 @@ from future.utils import (
 
 import pandas as pd
 pd.options.mode.chained_assignment = None
+import numba
 import numpy as np
 
 from ..utils.concurrency import (
@@ -296,6 +297,13 @@ def get_il_input_items(
             how='inner'
         )
 
+        # At this point the IL inputs frame will contain essentially only
+        # coverage level items, but will include multiple items relating to
+        # single GUL input items (the higher layer items).
+
+        # If the merge is empty raise an exception - this will happen usually
+        # if there are no common acc. numbers between the GUL input items and
+        # the accounts listed in the accounts file
         if il_inputs_df.empty:
             raise OasisException(
                 'Inner merge of the GUL inputs + exposure file dataframe '
@@ -306,6 +314,7 @@ def get_il_input_items(
                 'intersection'.format(accounts_fp)
             )
 
+        # Drop all unnecessary columns.
         usecols = (
             gul_inputs_df.columns.to_list() +
             [loc_id, acc_id, portfolio_num, policy_num] +
@@ -317,25 +326,40 @@ def get_il_input_items(
             inplace=True
         )
 
+        # Mark the GUL inputs and exposure file dataframes for deletion
         del [gul_inputs_df, exposure_df]
 
-        # Set the cov. level ID, GUL and IL input item IDs, agg. ID,
-        # and defaults and/or temp. values for layer ID + financial terms
-        # + calcrule IDs
+        # The layer ID function
+        def get_layer_ids(_il_inputs_df):
+            acc_ids = _il_inputs_df[acc_id].values
+            policy_nums = _il_inputs_df[policy_num].values
+            return np.hstack((
+                pd.factorize(list(accnum_group))[0] + 1
+                for _, accnum_group in groupby(pd._libs.lib.fast_zip([acc_ids, policy_nums]), key=lambda pair: pair[0])
+            ))
+
+        # Perform the initial layering, drop all items with layer IDs > 1,
+        # reset the index
+        il_inputs_df['layer_id'] = get_layer_ids(il_inputs_df[[acc_id, policy_num]])
+        il_inputs_df = il_inputs_df[il_inputs_df['layer_id'] == 1]
+        il_inputs_df.reset_index(drop=True, inplace=True)
+
+        # Set the GUL input item IDs by enumerating loc. number + coverage type
+        # ID combinations
         gul_input_ids = factorize_dataframe(il_inputs_df, [loc_id, 'coverage_type_id'], enumerate_only=True)
+        il_inputs_df['gul_input_id'] = gul_input_ids
+
+        # Now set the IL input item IDs, and some other required columns such
+        # as the level ID, agg. ID, and initial values for some financial terms
+        # and the calcrule ID.
         il_inputs_df = il_inputs_df.assign(
+            item_id=il_inputs_df.index + 1,
             level_id=cov_level,
-            gul_input_id=gul_input_ids,
-            cov_item_id=il_inputs_df.index + 1,
-            item_id=range(1, len(il_inputs_df) + 1),
             agg_id=gul_input_ids,
-            layer_id=-1,
             attachment=0,
             share=0,
-            calcrule_id=-1,
-            index=il_inputs_df.index
+            calcrule_id=-1
         )
-        il_inputs_df.sort_values('cov_item_id', axis=0, inplace=True)
 
         # At this stage the IL inputs frame should only contain coverage level
         # layer 1 inputs, and the financial terms are already present from the
@@ -405,18 +429,20 @@ def get_il_input_items(
         il_inputs_df['item_id'] = range(1, len(il_inputs_df) + 1)
 
         # Process the layer level inputs separately - we start with merging
-        # the coverage level inputs with the accounts frame to create
+        # the coverage level layer 1 items with the accounts frame to create
         # a separate layer level frame, on which further processing is performed
+        cov_level_layer1_df = il_inputs_df[il_inputs_df['level_id'] == cov_level]
         layer_df = merge_dataframes(
-            il_inputs_df[il_inputs_df['level_id'] == cov_level],
+            cov_level_layer1_df,
             accounts_df,
             left_on=acc_id,
             right_on=acc_id,
             how='inner'
         )
 
-        # In the layer frame set the layer level ID and agg. ID
+        # Set the layer level, layer IDs and agg. IDs
         layer_df['level_id'] = layer_level
+        layer_df['layer_id'] = get_layer_ids(layer_df[[acc_id, policy_num]])
         agg_key = tuple(v['field'].lower() for v in viewvalues(fmap[layer_level]['FMAggKey']))
         layer_df['agg_id'] = factorize_dataframe(layer_df, list(agg_key), enumerate_only=True)
 
@@ -432,17 +458,13 @@ def get_il_input_items(
         layer_df['share'] = layer_df['share'].where(layer_df['share'] != 0, 1.0)
 
         # Join the IL inputs and layer level frames, and set layer ID, level ID
-        # and item IDs
+        # and IL item IDs
         il_inputs_df = pd.concat([il_inputs_df, layer_df], sort=True, ignore_index=True)
 
         del layer_df
 
-        il_inputs_df.loc[:, ['layer_id', 'level_id']] = [
-            [i, j] for i, j in pd._libs.lib.fast_zip([
-                factorize_dataframe(il_inputs_df, [acc_id, policy_num], enumerate_only=True),
-                factorize_dataframe(il_inputs_df, ['level_id'], enumerate_only=True)
-            ])
-        ]
+        # Resequence the level IDs and item IDs
+        il_inputs_df['level_id'] = factorize_dataframe(il_inputs_df, ['level_id'], enumerate_only=True)
         il_inputs_df['item_id'] = range(1, len(il_inputs_df) + 1)
 
         # Set the calc. rule IDs
@@ -608,12 +630,12 @@ def write_fm_xref_file(il_inputs_df, fm_xref_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        cov_level_df = il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].min()]
+        cov_level_layers_df = il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].max()]
         pd.DataFrame(
             {
-                'output': factorize_dataframe(cov_level_df, ['gul_input_id', 'layer_id'], enumerate_only=True),
-                'agg_id': cov_level_df['gul_input_id'],
-                'layer_id': cov_level_df['layer_id']
+                'output': factorize_dataframe(cov_level_layers_df, ['gul_input_id', 'layer_id'], enumerate_only=True),
+                'agg_id': cov_level_layers_df['gul_input_id'],
+                'layer_id': cov_level_layers_df['layer_id']
             }
         ).drop_duplicates().to_csv(
             path_or_buf=fm_xref_fp,
@@ -641,10 +663,10 @@ def write_fmsummaryxref_file(il_inputs_df, fmsummaryxref_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        cov_level_df = il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].min()]
+        cov_level_layers_df = il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].max()]
         pd.DataFrame(
             {
-                'output': factorize_dataframe(cov_level_df, ['gul_input_id', 'layer_id'], enumerate_only=True),
+                'output': factorize_dataframe(cov_level_layers_df, ['gul_input_id', 'layer_id'], enumerate_only=True),
                 'summary_id': 1,
                 'summaryset_id': 1
             }
