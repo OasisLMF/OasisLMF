@@ -121,7 +121,9 @@ def get_gul_input_items(
 
     col_dtypes = {t: ('float32' if t in tiv_and_cov_il_terms else 'str') for t in tiv_and_cov_il_terms + [loc_id, acc_id, portfolio_num]}
 
-    # Load the exposure and keys dataframes
+    # Load the exposure and keys dataframes - set 32-bit numeric data types
+    # for all numeric columns - and in the keys frame rename some columns
+    # to align with underscored-naming convention
     exposure_df = get_dataframe(
         src_fp=exposure_fp,
         required_cols=(loc_id, acc_id, portfolio_num,),
@@ -226,12 +228,14 @@ def get_gul_input_items(
         # Set the group ID - group by loc. number
         gul_inputs_df['group_id'] = factorize_dataframe(gul_inputs_df, [loc_id], enumerate_only=True)
 
-        # Set the item IDs and coverage IDs, and defaults for summary and
+        # Set the item IDs and coverage IDs, and defaults for layer ID, agg. ID and summary and
         # summary set IDs
         item_ids = range(1, len(gul_inputs_df) + 1)
         gul_inputs_df = gul_inputs_df.assign(
             item_id=item_ids,
             coverage_id=item_ids,
+            layer_ids=1,
+            agg_id=item_ids,
             summary_id=1,
             summaryset_id=1
         )
@@ -242,7 +246,7 @@ def get_gul_input_items(
             ['tiv'] + terms +
             ['peril_id', 'coverage_type_id', 'areaperil_id', 'vulnerability_id'] +
             (['model_data'] if 'model_data' in gul_inputs_df else []) +
-            ['is_bi_coverage', 'group_id', 'item_id', 'coverage_id', 'summary_id', 'summaryset_id']
+            ['is_bi_coverage', 'group_id', 'item_id', 'coverage_id', 'layer_id', 'agg_id', 'summary_id', 'summaryset_id']
         )
         gul_inputs_df.drop(
             [c for c in gul_inputs_df.columns if c not in usecols],
@@ -252,7 +256,7 @@ def get_gul_input_items(
 
         col_dtypes = {
             **{t: 'float32' for t in ['tiv'] + terms},
-            **{t: 'int32' for t in ['group_id', 'item_id', 'coverage_id', 'summary_id', 'summaryset_id']}
+            **{t: 'int32' for t in ['group_id', 'item_id', 'coverage_id', 'layer_id', 'agg_id', 'summary_id', 'summaryset_id']}
         }
         set_dataframe_column_dtypes(gul_inputs_df, col_dtypes)
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:

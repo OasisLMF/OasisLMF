@@ -261,6 +261,7 @@ def get_il_input_items(
     accounts_il_cols = [__v for v in viewvalues(accounts_il_terms) for _v in viewvalues(v) for __v in viewvalues(_v) if __v]
     col_dtypes = {
         **{t: 'float32' for t in accounts_il_cols},
+        **{t: 'int32' for t in ['layer_id', 'layerid']},
         **{t: 'str' for t in [loc_id, acc_id, portfolio_num, policy_num]}
     }
 
@@ -276,6 +277,19 @@ def get_il_input_items(
 
     if not (accounts_df is not None or accounts_fp):
         raise OasisException('No accounts frame or file path provided')
+
+    # The layer ID function = use this to set a layer ID column in the accounts
+    # frame for enumerating (acc. num., policy num.) for different accounts
+    def get_layer_ids(df):
+        acc_ids = df[acc_id].values
+        policy_nums = df[policy_num].values
+        return np.hstack((
+            pd.factorize(list(accnum_group))[0] + 1
+            for _, accnum_group in groupby(pd._libs.lib.fast_zip([acc_ids, policy_nums]), key=lambda t: t[0])
+        ))
+
+    if 'layer_id' not in accounts_df or 'layerid' not in accounts_df:
+        accounts_df['layer_id'] = get_layer_ids(accounts_df)
 
     # Define the FM levels from the unified profile, including the coverage
     # level (the first level) and the layer level (the last level) - the FM
@@ -326,6 +340,7 @@ def get_il_input_items(
         usecols = (
             gul_inputs_df.columns.to_list() +
             [loc_id, acc_id, portfolio_num, policy_num] +
+            ['is_bi_coverage', 'group_id', 'item_id', 'coverage_id', 'layer_id', 'agg_id', 'summary_id', 'summaryset_id'] +
             [__v for v in viewvalues(fm_terms) for _v in viewvalues(v) for __v in viewvalues(_v) if __v]
         )
         il_inputs_df.drop(
@@ -337,47 +352,31 @@ def get_il_input_items(
         # Mark the GUL inputs and exposure file dataframes for deletion
         del [gul_inputs_df, exposure_df]
 
-        # The layer ID function
-        def get_layer_ids(_il_inputs_df):
-            acc_ids = _il_inputs_df[acc_id].values
-            policy_nums = _il_inputs_df[policy_num].values
-            return np.hstack((
-                pd.factorize(list(accnum_group))[0] + 1
-                for _, accnum_group in groupby(pd._libs.lib.fast_zip([acc_ids, policy_nums]), key=lambda pair: pair[0])
-            ))
-
-        # Perform the initial layering, drop all items with layer IDs > 1,
-        # reset the index
-        il_inputs_df['layer_id'] = get_layer_ids(il_inputs_df[[acc_id, policy_num]])
-        il_inputs_df = il_inputs_df[il_inputs_df['layer_id'] == 1]
-        il_inputs_df.reset_index(drop=True, inplace=True)
-
         # Set the GUL input item IDs by enumerating loc. number + coverage type
         # ID combinations
         gul_input_ids = factorize_dataframe(il_inputs_df, [loc_id, 'coverage_type_id'], enumerate_only=True)
         il_inputs_df['gul_input_id'] = gul_input_ids
 
         # Now set the IL input item IDs, and some other required columns such
-        # as the level ID, agg. ID, and initial values for some financial terms
+        # as the level ID, and initial values for some financial terms
         # and the calcrule ID.
         il_inputs_df = il_inputs_df.assign(
             item_id=il_inputs_df.index + 1,
             level_id=cov_level,
-            agg_id=gul_input_ids,
             attachment=0,
             share=0,
             calcrule_id=-1
         )
 
+        # Set data types for the newer columns just added
         col_dtypes = {
-            **{t: 'int32' for t in ['level_id', 'gul_input_id', 'item_id', 'agg_id', 'layer_id', 'calcrule_id']},
+            **{t: 'int32' for t in ['gul_input_id', 'item_id', 'level_id', 'calcrule_id']},
             **{t: 'float32' for t in ['attachment', 'share']}
         }
         set_dataframe_column_dtypes(il_inputs_df, col_dtypes)
 
-        # Layer the items, drop any items with layer IDs > 1, reset index ad
-        # order items by GUL input ID.
-        il_inputs_df['layer_id'] = factorize_dataframe(il_inputs_df, [acc_id, policy_num], enumerate_only=True)
+        # Drop any items with layer IDs > 1, reset index ad order items by
+        # GUL input ID.
         il_inputs_df = il_inputs_df[il_inputs_df['layer_id'] == 1]
         il_inputs_df.reset_index(drop=True, inplace=True)
         il_inputs_df.sort_values('gul_input_id', axis=0, inplace=True)
@@ -451,7 +450,7 @@ def get_il_input_items(
 
         # Process the layer level inputs separately - we start with merging
         # the coverage level layer 1 items with the accounts frame to create
-        # a separate layer level frame, on which further processing is performed
+        # a separate layer level frame, on which further processing is 
         cov_level_layer1_df = il_inputs_df[il_inputs_df['level_id'] == cov_level]
         layer_df = merge_dataframes(
             cov_level_layer1_df,
@@ -463,7 +462,6 @@ def get_il_input_items(
 
         # Set the layer level, layer IDs and agg. IDs
         layer_df['level_id'] = layer_level
-        layer_df['layer_id'] = get_layer_ids(layer_df[[acc_id, policy_num]])
         agg_key = tuple(v['field'].lower() for v in viewvalues(fmap[layer_level]['FMAggKey']))
         layer_df['agg_id'] = factorize_dataframe(layer_df, list(agg_key), enumerate_only=True)
 
