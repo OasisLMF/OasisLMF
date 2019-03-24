@@ -429,13 +429,14 @@ def write_gul_input_files(
     }
 
     this_module = sys.modules[__name__]
+    cpu_count = multiprocessing.cpu_count()
 
-    if len(gul_inputs_df) <= chunksize:
+    if len(gul_inputs_df) <= chunksize and cpu_count >= len(gul_input_files):
         concurrent_tasks = (
             Task(getattr(this_module, 'write_{}_file'.format(fn)), args=(gul_inputs_df.copy(deep=True), gul_input_files[fn], chunksize,), key=fn)
             for fn in gul_input_files
         )
-        num_ps = min(len(gul_input_files), multiprocessing.cpu_count())
+        num_ps = min(len(gul_input_files), cpu_count)
         for _, _ in multithread(concurrent_tasks, pool_size=num_ps):
             pass
     else:
