@@ -235,7 +235,7 @@ def get_gul_input_items(
         gul_inputs_df = gul_inputs_df.assign(
             item_id=item_ids,
             coverage_id=item_ids,
-            layer_ids=1,
+            layer_id=1,
             agg_id=item_ids,
             summary_id=1,
             summaryset_id=1
