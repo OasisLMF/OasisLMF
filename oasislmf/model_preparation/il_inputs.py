@@ -528,7 +528,7 @@ def write_fm_policytc_file(il_inputs_df, fm_policytc_fp, chunksize=100000):
         cols = ['layer_id', 'level_id', 'agg_id', 'calcrule_id', 'limit', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'share']
         fm_policytc_df = il_inputs_df[cols].drop_duplicates()
         fm_policytc_df = fm_policytc_df[
-            (fm_policytc_df['layer_id']==1) |
+            (fm_policytc_df['layer_id'] == 1) |
             (fm_policytc_df['level_id'] == fm_policytc_df['level_id'].max())
         ]
         fm_policytc_df['policytc_id'] = factorize_ndarray(fm_policytc_df[cols[3:]].values, col_idxs=range(len(cols[3:])), enumerate_only=True)
@@ -626,8 +626,7 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
             },
         ).dropna(axis=0).drop_duplicates()
 
-        for col in fm_programme_df.columns:
-            fm_programme_df[col] = fm_programme_df[col].astype(int)
+        set_dataframe_column_dtypes(fm_programme_df, {t: 'int32' for t in fm_programme_df.columns})
 
         fm_programme_df.to_csv(
             path_or_buf=fm_programme_fp,
