@@ -67,7 +67,7 @@ PANDAS_BASIC_DTYPES = {
 
 def factorize_ndarray(ndarr, row_idxs=None, col_idxs=None, enumerate_only=False):
     _ndarr = ndarr[:, col_idxs].transpose() if col_idxs else ndarr[row_idxs, :]
-    ft = pd.factorize(fast_zip_nparrays(*[ar for ar in _ndarr]))
+    ft = pd.factorize(fast_zip_nparrays(*(ar for ar in _ndarr)))
     return (ft[0] + 1) if enumerate_only else ft
 
 
@@ -95,7 +95,7 @@ def fast_zip_nparrays(*nparrays):
 
 
 def fast_zip_dataframe_columns(df, cols):
-    return fast_zip_nparrays(*[df[col].values for col in cols])
+    return fast_zip_nparrays(*(df[col].values for col in cols))
 
 
 def get_dataframe(

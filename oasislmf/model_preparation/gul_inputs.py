@@ -139,7 +139,8 @@ def get_gul_input_items(
         'perilid': 'str',
         'coveragetypeid': 'int32',
         'areaperilid': 'int32',
-        'vulnerabilityid': 'int32'
+        'vulnerabilityid': 'int32',
+        'modeldata': 'object'
     }
     keys_df = get_dataframe(
         src_fp=keys_fp,
@@ -153,7 +154,8 @@ def get_gul_input_items(
             'perilid': 'peril_id',
             'coveragetypeid': 'coverage_type_id',
             'areaperilid': 'areaperil_id',
-            'vulnerabilityid': 'vulnerability_id'
+            'vulnerabilityid': 'vulnerability_id',
+            'modeldata': 'model_data'
         },
         inplace=True
     )
@@ -161,8 +163,7 @@ def get_gul_input_items(
     # If the keys file relates to a complex/custom model then look for a
     # ``modeldata`` column in the keys file, and ignore the area peril
     # and vulnerability ID columns
-    if keys_df.get('modeldata'):
-        keys_df.rename({'modeldata': 'model_data'}, inplace=True)
+    if keys_df.get('model_data'):
         keys_df['areaperil_id'] = keys_df['vulnerability_id'] = -1
 
     try:
@@ -204,7 +205,7 @@ def get_gul_input_items(
             cov_type_group.loc[:, term_cols] = cov_type_group.loc[:, term_cols].where(cov_type_group.notnull(), 0.0)
             cov_type_group.loc[:, terms] = cov_type_group.loc[:, term_cols].values
             cov_type_group = cov_type_group[(cov_type_group[['tiv']] != 0).any(axis=1)]
-            if not cov_type_group.any().any():
+            if cov_type_group.empty:
                 cov_type_group[terms] = 0.0
             else:
                 cov_type_group['deductible'] = np.where(
@@ -257,7 +258,8 @@ def get_gul_input_items(
 
         col_dtypes = {
             **{t: 'float32' for t in ['tiv'] + terms},
-            **{t: 'int32' for t in ['group_id', 'item_id', 'coverage_id', 'layer_id', 'agg_id', 'summary_id', 'summaryset_id']}
+            **{t: 'int32' for t in ['group_id', 'item_id', 'coverage_id', 'layer_id', 'agg_id', 'summary_id', 'summaryset_id']},
+            **{'is_bi_coverage': 'bool'}
         }
         set_dataframe_column_dtypes(gul_inputs_df, col_dtypes)
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
@@ -281,8 +283,7 @@ def write_complex_items_file(gul_inputs_df, complex_items_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        gul_inputs_df.drop_duplicates().to_csv(
-            columns=['item_id', 'coverage_id', 'model_data', 'group_id'],
+        gul_inputs_df[['item_id', 'coverage_id', 'model_data', 'group_id']].drop_duplicates().to_csv(
             path_or_buf=complex_items_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(complex_items_fp) else 'a'),
@@ -308,8 +309,7 @@ def write_items_file(gul_inputs_df, items_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        gul_inputs_df.drop_duplicates().to_csv(
-            columns=['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id'],
+        gul_inputs_df[['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id']].drop_duplicates().to_csv(
             path_or_buf=items_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(items_fp) else 'a'),
@@ -337,8 +337,7 @@ def write_coverages_file(gul_inputs_df, coverages_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        gul_inputs_df.drop_duplicates().to_csv(
-            columns=['coverage_id', 'tiv'],
+        gul_inputs_df[['coverage_id', 'tiv']].drop_duplicates().to_csv(
             path_or_buf=coverages_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(coverages_fp) else 'a'),
@@ -366,8 +365,7 @@ def write_gulsummaryxref_file(gul_inputs_df, gulsummaryxref_fp, chunksize=100000
     :rtype: str
     """
     try:
-        gul_inputs_df.drop_duplicates().to_csv(
-            columns=['coverage_id', 'summary_id', 'summaryset_id'],
+        gul_inputs_df[['coverage_id', 'summary_id', 'summaryset_id']].drop_duplicates().to_csv(
             path_or_buf=gulsummaryxref_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(gulsummaryxref_fp) else 'a'),
@@ -444,4 +442,8 @@ def write_gul_input_files(
         for fn, fp in viewitems(gul_input_files):
             getattr(this_module, 'write_{}_file'.format(fn))(gul_inputs_df, fp, chunksize)
 
+    gul_input_files = {
+        fn: os.path.join(target_dir, '{}.csv'.format(oasis_files_prefixes[fn])) 
+        for fn in oasis_files_prefixes
+    }
     return gul_input_files

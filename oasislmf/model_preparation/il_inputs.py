@@ -359,19 +359,20 @@ def get_il_input_items(
         il_inputs_df['gul_input_id'] = gul_input_ids
 
         # Now set the IL input item IDs, and some other required columns such
-        # as the level ID, and initial values for some financial terms
-        # and the calcrule ID.
+        # as the level ID, and initial values for some financial terms,
+        # including the calcrule ID and policy TC ID
         il_inputs_df = il_inputs_df.assign(
             item_id=il_inputs_df.index + 1,
             level_id=cov_level,
             attachment=0,
             share=0,
-            calcrule_id=-1
+            calcrule_id=-1,
+            policytc_id=-1
         )
 
         # Set data types for the newer columns just added
         col_dtypes = {
-            **{t: 'int32' for t in ['gul_input_id', 'item_id', 'level_id', 'calcrule_id']},
+            **{t: 'int32' for t in ['gul_input_id', 'item_id', 'level_id', 'calcrule_id', 'policytc_id']},
             **{t: 'float32' for t in ['attachment', 'share']}
         }
         set_dataframe_column_dtypes(il_inputs_df, col_dtypes)
@@ -485,7 +486,7 @@ def get_il_input_items(
 
         # Resequence the level IDs and item IDs
         il_inputs_df['level_id'] = factorize_ndarray(il_inputs_df[['level_id']].values, col_idxs=[0], enumerate_only=True)
-        il_inputs_df['item_id'] = range(1, len(il_inputs_df) + 1)
+        il_inputs_df['item_id'] = il_inputs_df.index + 1
 
         # Set the calc. rule IDs
         calc_rules = get_calc_rules().drop(['desc'], axis=1)
@@ -560,7 +561,7 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        cols = ['calcrule_id', 'limit', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'share']
+        cols = ['policytc_id', 'calcrule_id', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'limit', 'share']
 
         fm_profile_df = il_inputs_df[cols].drop_duplicates()
 
@@ -580,8 +581,7 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
 
         fm_profile_df['share2'] = fm_profile_df['share3'] = 0
 
-        fm_profile_df.to_csv(
-            columns=['policytc_id', 'calcrule_id', 'deductible1', 'deductible2', 'deductible3', 'attachment1', 'limit1', 'share1', 'share2', 'share3'],
+        fm_profile_df[fm_profile_df.columns.to_list() + ['share1', 'share2']].to_csv(
             path_or_buf=fm_profile_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(fm_profile_fp) else 'a'),
