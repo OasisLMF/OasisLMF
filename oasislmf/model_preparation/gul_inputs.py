@@ -261,6 +261,7 @@ def get_gul_input_items(
     return gul_inputs_df, exposure_df
 
 
+@oasis_log
 def write_complex_items_file(gul_inputs_df, complex_items_fp, chunksize=100000):
     """
     Writes an items file.
@@ -287,6 +288,7 @@ def write_complex_items_file(gul_inputs_df, complex_items_fp, chunksize=100000):
         raise OasisException(e)
 
 
+@oasis_log
 def write_items_file(gul_inputs_df, items_fp, chunksize=100000):
     """
     Writes an items file.
@@ -315,6 +317,7 @@ def write_items_file(gul_inputs_df, items_fp, chunksize=100000):
     return items_fp
 
 
+@oasis_log
 def write_coverages_file(gul_inputs_df, coverages_fp, chunksize=100000):
     """
     Writes a coverages file.
@@ -343,6 +346,7 @@ def write_coverages_file(gul_inputs_df, coverages_fp, chunksize=100000):
     return coverages_fp
 
 
+@oasis_log
 def write_gulsummaryxref_file(gul_inputs_df, gulsummaryxref_fp, chunksize=100000):
     """
     Writes a summary xref file.

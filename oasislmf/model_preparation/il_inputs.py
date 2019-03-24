@@ -510,6 +510,7 @@ def get_il_input_items(
     return il_inputs_df, accounts_df
 
 
+@oasis_log
 def write_fm_policytc_file(il_inputs_df, fm_policytc_fp, chunksize=100000):
     """
     Writes an FM policy T & C file.
@@ -544,6 +545,8 @@ def write_fm_policytc_file(il_inputs_df, fm_policytc_fp, chunksize=100000):
 
     return fm_policytc_fp
 
+
+@oasis_log
 def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
     """
     Writes an FM profile file.
@@ -591,6 +594,8 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
 
     return fm_profile_fp
 
+
+@oasis_log
 def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
     """
     Writes an FM programme file.
@@ -637,6 +642,8 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
 
     return fm_programme_fp
 
+
+@oasis_log
 def write_fm_xref_file(il_inputs_df, fm_xref_fp, chunksize=100000):
     """
     Writes an FM xref file.
@@ -670,6 +677,8 @@ def write_fm_xref_file(il_inputs_df, fm_xref_fp, chunksize=100000):
 
     return fm_xref_fp
 
+
+@oasis_log
 def write_fmsummaryxref_file(il_inputs_df, fmsummaryxref_fp, chunksize=100000):
     """
     Writes a summary xref file.
