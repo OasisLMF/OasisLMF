@@ -13,7 +13,9 @@ standard_library.install_aliases()
 
 __all__ = [
     'factorize_dataframe',
-    'fast_zip_dataframe_cols',
+    'factorize_ndarray',
+    'fast_zip_dataframe_columns',
+    'fast_zip_nparrays',
     'get_dataframe',
     'get_json',
     'get_timestamp',
@@ -63,19 +65,38 @@ PANDAS_BASIC_DTYPES = {
 }
 
 
+def factorize_ndarray(ndarr, row_idxs=None, col_idxs=None, enumerate_only=False):
+    _ndarr = ndarr[:, col_idxs].transpose() if col_idxs else ndarr[row_idxs, :]
+    ft = pd.factorize(fast_zip_nparrays(*[ar for ar in _ndarr]))
+    return (ft[0] + 1) if enumerate_only else ft
+
+
 def factorize_dataframe(
         df,
-        by_cols,
+        by_row_labels=None,
+        by_row_indices=None,
+        by_col_labels=None,
+        by_col_indices=None,
         enumerate_only=False
     ):
-        factors = pd.factorize(fast_zip_dataframe_cols(df, by_cols))
-        return factors[0] + 1 if enumerate_only else factors
+        by_row_indices = by_row_indices or (None if not by_row_labels else [df.index.get_loc(label) for label in by_row_labels])
+        by_col_indices = by_col_indices or (None if not by_col_labels else [df.columns.get_loc(label) for label in by_col_labels])
+
+        return factorize_ndarray(
+            df.values,
+            row_idxs=by_row_indices,
+            col_idxs=by_col_indices,
+            enumerate_only=enumerate_only
+        )
 
 
-def fast_zip_dataframe_cols(df, cols):
-    return pd._libs.lib.fast_zip(
-        [df[t].values for t in cols]
-    )
+def fast_zip_nparrays(*nparrays):
+    return pd._libs.lib.fast_zip([arr for arr in nparrays])
+
+
+def fast_zip_dataframe_columns(df, cols):
+    return fast_zip_nparrays(*[df[col].values for col in cols])
+
 
 def get_dataframe(
     src_fp=None,

@@ -49,6 +49,7 @@ from ..utils.concurrency import (
 )
 from ..utils.data import (
     factorize_dataframe,
+    factorize_ndarray,
     get_dataframe,
     merge_dataframes,
     set_dataframe_column_dtypes,
@@ -226,7 +227,7 @@ def get_gul_input_items(
         gul_inputs_df = gul_inputs_df[(gul_inputs_df[['tiv']] != 0).any(axis=1)].reset_index()
 
         # Set the group ID - group by loc. number
-        gul_inputs_df['group_id'] = factorize_dataframe(gul_inputs_df, [loc_id], enumerate_only=True)
+        gul_inputs_df['group_id'] = factorize_ndarray(gul_inputs_df[[loc_id]].values, col_idxs=[0], enumerate_only=True)
 
         # Set the item IDs and coverage IDs, and defaults for layer ID, agg. ID and summary and
         # summary set IDs

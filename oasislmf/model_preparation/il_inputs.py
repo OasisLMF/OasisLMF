@@ -62,7 +62,8 @@ from ..utils.concurrency import (
 )
 from ..utils.data import (
     factorize_dataframe,
-    fast_zip_dataframe_cols,
+    factorize_ndarray,
+    fast_zip_nparrays,
     get_dataframe,
     merge_dataframes,
     set_dataframe_column_dtypes,
@@ -284,8 +285,8 @@ def get_il_input_items(
         acc_ids = df[acc_id].values
         policy_nums = df[policy_num].values
         return np.hstack((
-            pd.factorize(list(accnum_group))[0] + 1
-            for _, accnum_group in groupby(pd._libs.lib.fast_zip([acc_ids, policy_nums]), key=lambda t: t[0])
+            factorize_ndarray(np.asarray(list(accnum_group)), col_idxs=range(2), enumerate_only=True)
+            for _, accnum_group in groupby(fast_zip_nparrays(acc_ids, policy_nums), key=lambda t: t[0])
         ))
 
     if 'layer_id' not in accounts_df or 'layerid' not in accounts_df:
@@ -354,7 +355,7 @@ def get_il_input_items(
 
         # Set the GUL input item IDs by enumerating loc. number + coverage type
         # ID combinations
-        gul_input_ids = factorize_dataframe(il_inputs_df, [loc_id, 'coverage_type_id'], enumerate_only=True)
+        gul_input_ids = factorize_ndarray(il_inputs_df[[loc_id, 'coverage_type_id']].values, col_idxs=range(2), enumerate_only=True)
         il_inputs_df['gul_input_id'] = gul_input_ids
 
         # Now set the IL input item IDs, and some other required columns such
@@ -417,8 +418,8 @@ def get_il_input_items(
             term_cols = [(term_col or term) for term, term_col in viewitems(fm_terms[level][1]) if term != 'share']
             level_df = il_inputs_df[il_inputs_df['level_id'] == cov_level]
             level_df['level_id'] = level
-            agg_key = tuple(v['field'].lower() for v in viewvalues(fmap[level]['FMAggKey']))
-            level_df['agg_id'] = factorize_dataframe(level_df, list(agg_key), enumerate_only=True)
+            agg_key = [v['field'].lower() for v in viewvalues(fmap[level]['FMAggKey'])]
+            level_df['agg_id'] = factorize_ndarray(level_df[agg_key].values, col_idxs=range(len(agg_key)), enumerate_only=True)
             level_df.loc[:, term_cols] = level_df.loc[:, term_cols].where(level_df.loc[:, term_cols].notnull(), 0.0).values
             level_df.loc[:, terms] = 0.0
             level_df.loc[:, terms] = level_df.loc[:, term_cols].values
@@ -462,8 +463,8 @@ def get_il_input_items(
 
         # Set the layer level, layer IDs and agg. IDs
         layer_df['level_id'] = layer_level
-        agg_key = tuple(v['field'].lower() for v in viewvalues(fmap[layer_level]['FMAggKey']))
-        layer_df['agg_id'] = factorize_dataframe(layer_df, list(agg_key), enumerate_only=True)
+        agg_key = [v['field'].lower() for v in viewvalues(fmap[layer_level]['FMAggKey'])]
+        layer_df['agg_id'] = factorize_ndarray(layer_df[agg_key].values, col_idxs=range(len(agg_key)), enumerate_only=True)
 
         # The layer level FM terms
         terms = ['deductible', 'limit', 'share']
@@ -483,7 +484,7 @@ def get_il_input_items(
         del layer_df
 
         # Resequence the level IDs and item IDs
-        il_inputs_df['level_id'] = factorize_dataframe(il_inputs_df, ['level_id'], enumerate_only=True)
+        il_inputs_df['level_id'] = factorize_ndarray(il_inputs_df[['level_id']].values, col_idxs=[0], enumerate_only=True)
         il_inputs_df['item_id'] = range(1, len(il_inputs_df) + 1)
 
         # Set the calc. rule IDs
@@ -499,7 +500,7 @@ def get_il_input_items(
             il_inputs_calc_rules_df[ti] = np.where(il_inputs_calc_rules_df[t] > 0, 1, 0)
         for t in types_and_codes:
             il_inputs_calc_rules_df[t] = 0
-        il_inputs_calc_rules_df['id_key'] = fast_zip_dataframe_cols(il_inputs_calc_rules_df, terms_indicators + types_and_codes)
+        il_inputs_calc_rules_df['id_key'] = fast_zip_nparrays(*il_inputs_calc_rules_df[terms_indicators + types_and_codes].transpose().values)
         il_inputs_calc_rules_df = merge_dataframes(il_inputs_calc_rules_df, calc_rules, how='left', on='id_key')
         il_inputs_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id']
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
@@ -529,7 +530,7 @@ def write_fm_policytc_file(il_inputs_df, fm_policytc_fp, chunksize=100000):
             (fm_policytc_df['layer_id']==1) |
             (fm_policytc_df['level_id'] == fm_policytc_df['level_id'].max())
         ]
-        fm_policytc_df['policytc_id'] = factorize_dataframe(fm_policytc_df, cols[3:], enumerate_only=True)
+        fm_policytc_df['policytc_id'] = factorize_ndarray(fm_policytc_df[cols[3:]].values, col_idxs=range(len(cols[3:])), enumerate_only=True)
 
         fm_policytc_df[cols[:3] + ['policytc_id']].to_csv(
             path_or_buf=fm_policytc_fp,
@@ -563,7 +564,7 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
 
         fm_profile_df = il_inputs_df[cols].drop_duplicates()
 
-        fm_profile_df['policytc_id'] = factorize_dataframe(fm_profile_df, cols, enumerate_only=True)
+        fm_profile_df['policytc_id'] = factorize_ndarray(fm_profile_df[cols].values, col_idxs=range(len(cols)), enumerate_only=True)
 
         fm_profile_df.rename(
             columns={
@@ -659,7 +660,7 @@ def write_fm_xref_file(il_inputs_df, fm_xref_fp, chunksize=100000):
         cov_level_layers_df = il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].max()]
         pd.DataFrame(
             {
-                'output': factorize_dataframe(cov_level_layers_df, ['gul_input_id', 'layer_id'], enumerate_only=True),
+                'output': factorize_ndarray(cov_level_layers_df[['gul_input_id', 'layer_id']].values, col_idxs=range(2), enumerate_only=True),
                 'agg_id': cov_level_layers_df['gul_input_id'],
                 'layer_id': cov_level_layers_df['layer_id']
             }
@@ -694,7 +695,7 @@ def write_fmsummaryxref_file(il_inputs_df, fmsummaryxref_fp, chunksize=100000):
         cov_level_layers_df = il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].max()]
         pd.DataFrame(
             {
-                'output': factorize_dataframe(cov_level_layers_df, ['gul_input_id', 'layer_id'], enumerate_only=True),
+                'output': factorize_ndarray(cov_level_layers_df[['gul_input_id', 'layer_id']].values, col_idxs=range(2), enumerate_only=True),
                 'summary_id': 1,
                 'summaryset_id': 1
             }
