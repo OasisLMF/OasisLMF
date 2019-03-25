@@ -52,7 +52,6 @@ from future.utils import (
 
 import pandas as pd
 pd.options.mode.chained_assignment = None
-import numba
 import numpy as np
 
 from ..utils.concurrency import (
