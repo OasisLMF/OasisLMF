@@ -77,7 +77,7 @@ class FileEndpoint(object):
             self.logger.error(r.text)
             self.logger.error(err_msg)
 
-    def download(self, ID, file_path, chuck_size=1024, overrwrite=False):
+    def download(self, ID, file_path, chunk_size=1024, overwrite=False):
         abs_fp = os.path.realpath(os.path.expanduser(file_path))
 
         # Check and create base dir
@@ -85,14 +85,14 @@ class FileEndpoint(object):
             os.makedirs(os.path.dirname(file_path))
 
         # Check if file exists
-        if os.path.exists(abs_fp) and not overrwrite:
+        if os.path.exists(abs_fp) and not overwrite:
             error_message = 'Local file alreday exists: {}'.format(abs_fp)
             raise IOError(error_message)
 
         r = self.session.get(self._build_url(ID), stream=True)
         if  r.ok:
             with io.open(abs_fp, 'wb') as f:
-                for chunk in r.iter_content(chunk_size=chuck_size):
+                for chunk in r.iter_content(chunk_size=chunk_size):
                     f.write(chunk)
         else:
             self.logger.error('Download failed')
@@ -423,7 +423,7 @@ class APIClient(object):
             filename='analysis_{}_output'.format(analysis_id)
         try:
             output_file = os.path.join(download_path, filename + '.tar')
-            r = self.analyses.output_file.download(analysis_id, output_file, overwrite)
+            r = self.analyses.output_file.download(analysis_id, output_file, overwrite=overwrite)
             r.raise_for_status()
             self.logger.info('Analysis Download output: filename={}, (id={}'.format(output_file, analysis_id))
             if clean_up:
