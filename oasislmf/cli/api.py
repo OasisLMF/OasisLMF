@@ -12,7 +12,7 @@ import six
 from argparse import RawDescriptionHelpFormatter
 from pathlib2 import Path
 
-from ..api_client.client_manager import APIClient
+from ..api.client import APIClient
 from ..utils.exceptions import OasisException
 from ..utils.path import as_path, PathCleaner
 from .base import OasisBaseCommand, InputValues
@@ -52,11 +52,9 @@ def load_credentials(login_arg, logger=None):
 
 
 def open_api_connection(input_args, logger):
-    if not input_args.get('api_server_url'):
-        logger.error('Error: argument `--api-server-url` not set')
-        sys.exit(1)
     try:
         credentials = load_credentials(input_args.get('api_server_login'), logger=logger)
+        logger.info('Connecting to - {}'.format(input_args.get('api_server_url')))
         return APIClient(api_url=input_args.get('api_server_url'),
                 api_ver='V1',
                 username=credentials['username'],
@@ -80,8 +78,8 @@ class GetApiCmd(OasisBaseCommand):
         super(self.__class__, self).add_args(parser)
         parser.add_argument(
             '-u','--api-server-url', type=str,
-            default=None,
-            help='Oasis API server URL (including protocol and port), e.g. http://localhost:8001',
+            default="http://localhost:8000",
+            help='Oasis API server URL (including protocol and port), e.g. http://localhost:8000',
         )
         parser.add_argument(
             '-l', '--api-server-login', type=PathCleaner('credentials file', preexists=False), default=None,
@@ -126,8 +124,8 @@ class DelApiCmd(OasisBaseCommand):
         super(self.__class__, self).add_args(parser)
         parser.add_argument(
             '-u','--api-server-url', type=str,
-            default=None,
-            help='Oasis API server URL (including protocol and port), e.g. http://localhost:8001',
+            default="http://localhost:8000",
+            help='Oasis API server URL (including protocol and port), e.g. http://localhost:8000',
         )
         parser.add_argument(
             '-l', '--api-server-login', type=PathCleaner('credentials file', preexists=False), default=None,
@@ -216,8 +214,8 @@ class PutApiModelCmd(OasisBaseCommand):
         super(self.__class__, self).add_args(parser)
         parser.add_argument(
             '-u','--api-server-url', type=str,
-            default=None,
-            help='Oasis API server URL (including protocol and port), e.g. http://localhost:8001',
+            default="http://localhost:8000",
+            help='Oasis API server URL (including protocol and port), e.g. http://localhost:8000',
         )
         parser.add_argument(
             '-l', '--api-server-login',
@@ -259,8 +257,8 @@ class RunApiCmd(OasisBaseCommand):
         # API Connection
         parser.add_argument(
             '-u','--api-server-url', type=str,
-            default=None,
-            help='Oasis API server URL (including protocol and port), e.g. http://localhost:8001',
+            default="http://localhost:8000",
+            help='Oasis API server URL (including protocol and port), e.g. http://localhost:8000',
         )
         parser.add_argument(
             '-l', '--api-server-login',
@@ -333,7 +331,6 @@ class RunApiCmd(OasisBaseCommand):
         analysis = api.create_analysis(
             portfolio_id=portfolio['id'],
             model_id=inputs.get('model_id'),
-            analysis_settings_fp=path_settings,
         )
         self.logger.info('Loaded analysis settings:')
         self.logger.info(json.dumps(analysis, indent=4))

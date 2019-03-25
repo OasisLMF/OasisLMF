@@ -12,9 +12,9 @@ import logging
 
 from ..utils.exceptions import OasisException
 
-class SessionManager(Session):
+class APISession(Session):
     def __init__(self, api_url, username, password, timeout=25, retries=5, retry_delay=1, logger=None, **kwargs):
-        super(SessionManager, self).__init__(**kwargs)
+        super(APISession, self).__init__(**kwargs)
         self.logger = logger or logging.getLogger()
 
         # Extended class vars
@@ -53,7 +53,7 @@ class SessionManager(Session):
     def _refresh_token(self):
         self.headers['authorization'] = 'Bearer {}'.format(self.tkn_refresh)
         url = urljoin(self.url_base, 'refresh_token/')
-        r = super(SessionManager, self).post(url, timeout=self.timeout)
+        r = super(APISession, self).post(url, timeout=self.timeout)
         if r.status_code == status.ok:
             self.tkn_access  = r.json()['access_token']
             self.headers['authorization'] = 'Bearer {}'.format(self.tkn_access)
@@ -94,7 +94,7 @@ class SessionManager(Session):
         """
         try:
             url = urljoin(self.url_base, 'healthcheck/')
-            #return super(SessionManager, self).get(url, timeout=self.timeout)
+            #return super(APISession, self).get(url, timeout=self.timeout)
             return self.get(url)
         except Exception as e:    
             err_msg = 'Health check failed: Unable to connect to {}'.format(self.url_base)
@@ -105,7 +105,7 @@ class SessionManager(Session):
         while True:
             counter += 1
             try:
-                r = super(SessionManager, self).get(url, timeout=self.timeout, **kwargs)
+                r = super(APISession, self).get(url, timeout=self.timeout, **kwargs)
             except (HTTPError, ConnectionError, ReadTimeout) as e:
                 if self.__recoverable(e, url, 'GET', counter):
                     continue
@@ -116,7 +116,7 @@ class SessionManager(Session):
         while True:
             counter += 1
             try:
-                r = super(SessionManager, self).post(url, timeout=self.timeout, **kwargs)
+                r = super(APISession, self).post(url, timeout=self.timeout, **kwargs)
             except (HTTPError, ConnectionError, ReadTimeout) as e:
                 if self.__recoverable(e, url, 'POST', counter):
                     continue
@@ -127,7 +127,7 @@ class SessionManager(Session):
         while True:
             counter += 1
             try:
-                r = super(SessionManager, self).delete(url, timeout=self.timeout, **kwargs)
+                r = super(APISession, self).delete(url, timeout=self.timeout, **kwargs)
             except (HTTPError, ConnectionError, ReadTimeout) as e:
                 if self.__recoverable(e, url, 'DELETE', counter):
                     continue
@@ -138,7 +138,7 @@ class SessionManager(Session):
         while True:
             counter += 1
             try:
-                r = super(SessionManager, self).put(url, timeout=self.timeout, **kwargs)
+                r = super(APISession, self).put(url, timeout=self.timeout, **kwargs)
             except (HTTPError, ConnectionError, ReadTimeout) as e:
                 if self.__recoverable(e, url, 'OPTIONS', counter):
                     continue
