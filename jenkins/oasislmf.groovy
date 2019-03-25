@@ -83,12 +83,8 @@ node {
                             if (source_branch.matches("PR-[0-9]+")){
                                 // Checkout PR and merge into target branch, test on the result
                                 sh "git fetch origin pull/$CHANGE_ID/head:$BRANCH_NAME"
-                                sh "git checkout $BRANCH_NAME"
-                                sh "git format-patch $CHANGE_TARGET --stdout > ${BRANCH_NAME}.patch"
                                 sh "git checkout $CHANGE_TARGET"
-                                sh "git apply --stat ${BRANCH_NAME}.patch"  // Print files changed
-                                sh "git apply --check ${BRANCH_NAME}.patch" // Check for merge conflicts
-                                sh "git apply ${BRANCH_NAME}.patch"         // Apply the patch
+                                sh "git merge $BRANCH_NAME"
                             } else {
                                 // Checkout branch
                                 sh "git checkout ${source_branch}"
