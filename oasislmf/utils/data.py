@@ -12,10 +12,11 @@ from future import standard_library
 standard_library.install_aliases()
 
 __all__ = [
+    'factorize_array',
     'factorize_dataframe',
     'factorize_ndarray',
+    'fast_zip_arrays',
     'fast_zip_dataframe_columns',
-    'fast_zip_nparrays',
     'get_dataframe',
     'get_json',
     'get_timestamp',
@@ -65,10 +66,21 @@ PANDAS_BASIC_DTYPES = {
 }
 
 
-def factorize_ndarray(ndarr, row_idxs=None, col_idxs=None, enumerate_only=False):
+def factorize_array(arr, enumerate_only=True):
+    ft = pd.factorize(arr)
+    return ft[0] + 1 if enumerate_only else ft
+
+
+def factorize_ndarray(ndarr, row_idxs=[], col_idxs=[], enumerate_only=False):
     _ndarr = ndarr[:, col_idxs].transpose() if col_idxs else ndarr[row_idxs, :]
-    ft = pd.factorize(fast_zip_nparrays(*(ar for ar in _ndarr)))
-    return (ft[0] + 1) if enumerate_only else ft
+    rows, cols = _ndarr.shape
+    
+    if rows == 1:
+        return factorize_array(_ndarr[0])
+
+    factors = pd.factorize(fast_zip_arrays(*(arr for arr in _ndarr)))
+
+    return (factors[0] + 1) if enumerate_only else factors
 
 
 def factorize_dataframe(
@@ -90,12 +102,12 @@ def factorize_dataframe(
         )
 
 
-def fast_zip_nparrays(*nparrays):
+def fast_zip_arrays(*nparrays):
     return pd._libs.lib.fast_zip([arr for arr in nparrays])
 
 
 def fast_zip_dataframe_columns(df, cols):
-    return fast_zip_nparrays(*(df[col].values for col in cols))
+    return fast_zip_arrays(*(df[col].values for col in cols))
 
 
 def get_dataframe(

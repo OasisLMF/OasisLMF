@@ -60,9 +60,8 @@ from ..utils.concurrency import (
     Task,
 )
 from ..utils.data import (
-    factorize_dataframe,
     factorize_ndarray,
-    fast_zip_nparrays,
+    fast_zip_arrays,
     get_dataframe,
     merge_dataframes,
     set_dataframe_column_dtypes,
@@ -285,7 +284,7 @@ def get_il_input_items(
         policy_nums = df[policy_num].values
         return np.hstack((
             factorize_ndarray(np.asarray(list(accnum_group)), col_idxs=range(2), enumerate_only=True)
-            for _, accnum_group in groupby(fast_zip_nparrays(acc_ids, policy_nums), key=lambda t: t[0])
+            for _, accnum_group in groupby(fast_zip_arrays(acc_ids, policy_nums), key=lambda t: t[0])
         ))
 
     if 'layer_id' not in accounts_df or 'layerid' not in accounts_df:
@@ -500,7 +499,7 @@ def get_il_input_items(
             il_inputs_calc_rules_df[ti] = np.where(il_inputs_calc_rules_df[t] > 0, 1, 0)
         for t in types_and_codes:
             il_inputs_calc_rules_df[t] = 0
-        il_inputs_calc_rules_df['id_key'] = fast_zip_nparrays(*il_inputs_calc_rules_df[terms_indicators + types_and_codes].transpose().values)
+        il_inputs_calc_rules_df['id_key'] = [t for t in fast_zip_arrays(*il_inputs_calc_rules_df[terms_indicators + types_and_codes].transpose().values)]
         il_inputs_calc_rules_df = merge_dataframes(il_inputs_calc_rules_df, calc_rules, how='left', on='id_key')
         il_inputs_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id']
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
