@@ -241,16 +241,14 @@ def merge_dataframes(left, right, **kwargs):
     Merges two dataframes by ensuring there is no duplication of columns.
     """
     _left = left.copy(deep=True)
-    _left['index'] = _left.get('index', _left.index)
     _right = right.copy(deep=True)
-    _right['index'] = _right.get('index', _right.index)
 
     left_keys = kwargs.get('left_on') or kwargs.get('on') or []
     left_keys = [left_keys] if isinstance(left_keys, str) else left_keys
 
     drop_cols = [
         k for k in set(_left.columns).intersection(_right.columns)
-        if k and k not in left_keys + ['index']
+        if k and k not in left_keys
     ]
 
     drop_duplicates = kwargs.get('drop_duplicates', True)
@@ -261,9 +259,6 @@ def merge_dataframes(left, right, **kwargs):
         _right,
         **kwargs
     )
-    merge['index'] = merge.index
-
-    merge.drop(['index_x', 'index_y'], axis=1, inplace=True)
 
     return merge if not drop_duplicates else merge.drop_duplicates()
 
