@@ -494,7 +494,7 @@ def get_il_input_items(
         terms_indicators = ['{}_gt_0'.format(t) for t in terms]
         types_and_codes = ['deductible_type', 'deductible_code', 'limit_type', 'limit_code']
 
-        il_inputs_calc_rules_df = il_inputs_df.loc[:, terms + terms_indicators + types_and_codes + ['calcrule_id']]
+        il_inputs_calc_rules_df = il_inputs_df.loc[:, ['item_id'] + terms + terms_indicators + types_and_codes + ['calcrule_id']]
         for t, ti in zip(terms, terms_indicators):
             il_inputs_calc_rules_df[ti] = np.where(il_inputs_calc_rules_df[t] > 0, 1, 0)
         for t in types_and_codes:
