@@ -24,7 +24,7 @@ except ImportError:
     from urllib2 import urlopen, URLError
 
 
-KTOOLS_VERSION = '3.0.5'
+KTOOLS_VERSION = '3.0.6'
 
 SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -275,13 +275,13 @@ setup(
     author='Oasis LMF',
     author_email="support@oasislmf.org",
     keywords='oasis lmf loss modeling framework',
+    python_requires='>=3',
     install_requires=reqs,
     classifiers=[
         'Development Status :: 4 - Beta',
         'License :: OSI Approved :: BSD License',
         'Operating System :: OS Independent',
         'Programming Language :: Python',
-        'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
