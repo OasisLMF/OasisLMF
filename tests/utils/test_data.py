@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 from unittest import TestCase
 from tempfile import NamedTemporaryFile
-from oasislmf.utils.data import get_dataframe, set_col_dtypes
+from oasislmf.utils.data import get_dataframe, set_dataframe_column_dtypes
 from oasislmf.utils.exceptions import OasisException
 from pandas.util.testing import assert_frame_equal
 import pandas.api.types as pd_types
@@ -17,7 +17,7 @@ class GetDataFrame(TestCase):
                 'a,b\n1,2\n3,4',
             ])
             f.flush()
-            df = get_dataframe(f.name, index_col=False)
+            df = get_dataframe(f.name, index=False)
             
             ref_data = {
                 'a': [1,3],
@@ -35,7 +35,7 @@ class GetDataFrame(TestCase):
             ])
             f.flush()
             df = get_dataframe(
-                f.name, lowercase_cols=False, index_col=False, required_cols=['A','b'])
+                f.name, lowercase_cols=False, index=False, required_cols=['A','b'])
             
             ref_data = {
                 'A': [1,3],
@@ -53,7 +53,7 @@ class GetDataFrame(TestCase):
             ])
             f.flush()
             df = get_dataframe(
-                f.name, index_col=False, lowercase_cols=True, required_cols=['A','B'])
+                f.name, index=False, lowercase_cols=True, required_cols=['A','B'])
             
             ref_data = {
                 'a': [1,3],
@@ -71,7 +71,7 @@ class GetDataFrame(TestCase):
                     'a,b\n1,2\n3,4',
                 ])
                 f.flush()
-                df = get_dataframe(f.name, index_col=False, required_cols=['a','b','c'])
+                df = get_dataframe(f.name, index=False, required_cols=['a','b','c'])
 
     def test_all_default_cols_present_in_csv(self):
         with NamedTemporaryFile('w') as f:
@@ -80,7 +80,7 @@ class GetDataFrame(TestCase):
             ])
             f.flush()
             df = get_dataframe(
-                f.name, index_col=False, defaulted_cols={'a': 1, 'b': 2})
+                f.name, index=False, col_defaults={'a': 1, 'b': 2})
 
             ref_data = {
                 'a': [1,3],
@@ -97,7 +97,7 @@ class GetDataFrame(TestCase):
                 'a,b\n1,2\n3,4',
             ])
             f.flush()
-            df = get_dataframe(f.name, index_col=False, defaulted_cols={'c': 'abc'})
+            df = get_dataframe(f.name, index=False, col_defaults={'c': 'abc'})
 
             ref_data = {
                 'a': [1,3],
@@ -115,7 +115,7 @@ class GetDataFrame(TestCase):
                 'a,b\n1,2\n3,4',
             ])
             f.flush()
-            df = get_dataframe(f.name, index_col=False, defaulted_cols={'c': 9.99})
+            df = get_dataframe(f.name, index=False, col_defaults={'c': 9.99})
 
             ref_data = {
                 'a': [1,3],
@@ -127,36 +127,36 @@ class GetDataFrame(TestCase):
 
         assert_frame_equal(df, ref_df)
 
-    def test_set_col_dtypes(self):
+    def test_set_dataframe_column_dtypes(self):
         data = {
                 'a': [1,3]
         }
         df = pd.DataFrame.from_dict(data)
         assert pd_types.is_integer_dtype(df.a.dtype)
         
-    def test_set_col_dtypes_change_to_float(self):
+    def test_set_dataframe_column_dtypes_change_to_float(self):
         data = {
                 'a': [1,3]
         }
         df = pd.DataFrame.from_dict(data)
-        set_col_dtypes(df, {"a": "float"})
+        set_dataframe_column_dtypes(df, {"a": "float"})
         print(df.a.dtype)
         assert pd_types.is_float_dtype(df.a.dtype)
 
-    def test_set_col_dtypes_change_to_string(self):
+    def test_set_dataframe_column_dtypes_change_to_string(self):
         data = {
                 'a': [1,3]
         }
         df = pd.DataFrame.from_dict(data)
-        set_col_dtypes(df, {"a": "str"})
+        set_dataframe_column_dtypes(df, {"a": "str"})
         print(df.a.dtype)
         assert pd_types.is_string_dtype(df.a.dtype)
 
-    def test_set_col_dtypes_ignore_extra_columns(self):
+    def test_set_dataframe_column_dtypes_ignore_extra_columns(self):
         data = {
                 'a': [1,3]
         }
         df = pd.DataFrame.from_dict(data)
-        set_col_dtypes(df, {"a": "str", "b": "int"})
+        set_dataframe_column_dtypes(df, {"a": "str", "b": "int"})
         print(df.a.dtype)
         assert pd_types.is_string_dtype(df.a.dtype)

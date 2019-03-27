@@ -231,6 +231,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         super(self.__class__, self).add_args(parser)
 
         parser.add_argument('-o', '--oasis-files-path', default=None, help='Path to the directory in which to generate the Oasis files')
+        parser.add_argument('-z', '--keys-file-path', default=None, help='Pre-generated keys file path')
         parser.add_argument('-c', '--lookup-config-file-path', default=None, help='Lookup config JSON file path')
         parser.add_argument('-k', '--keys-data-path', default=None, help='Model lookup/keys data path')
         parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
@@ -275,19 +276,22 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
 
         oasis_fp = as_path(inputs.get('oasis_files_path', is_path=True, default=default_oasis_fp), 'Oasis files path', is_dir=True, preexists=False)
 
+        keys_fp = as_path(inputs.get('keys_file_path', required=False, is_path=True), 'Pre-generated keys file path', preexists=True)
+
         lookup_config_fp = as_path(inputs.get('lookup_config_file_path', required=False, is_path=True), 'Lookup config JSON file path', preexists=False)
 
         keys_data_fp = as_path(inputs.get('keys_data_path', required=False, is_path=True), 'Keys data path', preexists=False)
         model_version_fp = as_path(inputs.get('model_version_file_path', required=False, is_path=True), 'Model version file path', is_dir=True, preexists=False)
         lookup_package_fp = as_path(inputs.get('lookup_package_path', required=False, is_path=True), 'Lookup package path', is_dir=True, preexists=False)
 
-        if not (lookup_config_fp or (keys_data_fp and model_version_fp and lookup_package_fp)):
+        if not (keys_fp or lookup_config_fp or (keys_data_fp and model_version_fp and lookup_package_fp)):
             raise OasisException(
-                'No lookup assets provided to generate the mandatory keys '
-                'file - for built-in lookups the lookup config. JSON file '
-                'path must be provided, or for custom lookups the keys data '
-                'path + model version file path + lookup package path must be '
-                'provided'
+                'No pre-generated keys file provided, and no lookup assets '
+                'provided to generate a keys file - if you do not have a '
+                'pre-generated keys file then lookup assets must be provided - '
+                'for a built-in lookup the lookup config. JSON file path must '
+                'be provided, or for custom lookups the keys data path + model '
+                'version file path + lookup package path must be provided'
             )
 
         exposure_fp = as_path(
@@ -327,11 +331,12 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
 
         ri = all(required_ri_paths) and il
 
-        self.logger.info('\nGenerating Oasis files (GUL=True, IL={}, RI={})'.format(il, ri))
+        self.logger.info('\nGenerating Oasis files (GUL=True, IL={}, RIL={})'.format(il, ri))
         oasis_files = om().generate_oasis_files(
             oasis_fp,
             exposure_fp,
             exposure_profile_fp=exposure_profile_fp,
+            keys_fp=keys_fp,
             lookup_config_fp=lookup_config_fp,
             keys_data_fp=keys_data_fp,
             model_version_fp=model_version_fp,
@@ -442,7 +447,7 @@ class GenerateLossesCmd(OasisBaseCommand):
         elif os.path.basename(oasis_fp) == 'csv':
             ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(oasis_fp)))
 
-        self.logger.info('\nGenerating losses (GUL=True, IL={}, RI={})'.format(il, ri))
+        self.logger.info('\nGenerating losses (GUL=True, IL={}, RIL={})'.format(il, ri))
         om().generate_model_losses(
             model_run_fp,
             oasis_fp,
@@ -476,6 +481,7 @@ class RunCmd(OasisBaseCommand):
         """
         super(self.__class__, self).add_args(parser)
 
+        parser.add_argument('-z', '--keys-file-path', default=None, help='Pre-generated keys file path')
         parser.add_argument('-k', '--keys-data-path', default=None, help='Model lookup/keys data path')
         parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
 
@@ -536,11 +542,11 @@ class RunCmd(OasisBaseCommand):
         if os.path.exists(model_run_fp):
             empty_dir(model_run_fp)
 
-        args.model_run_fp = model_run_fp
+        args.model_run_dir = model_run_fp
 
         model_package_fp = as_path(inputs.get('model_package_path', required=False, is_path=True), 'Model package path', is_dir=True)
 
-        args.model_package_fp = model_package_fp
+        args.model_package_path = model_package_fp
 
         accounts_fp = as_path(
             inputs.get('source_accounts_file_path', required=False, is_path=True), 'Source OED accounts file path'
@@ -572,10 +578,10 @@ class RunCmd(OasisBaseCommand):
 
         args.oasis_files_path = os.path.join(model_run_fp, 'input', 'csv') if not ri else os.path.join(model_run_fp, 'input')
 
-        commands = [GenerateOasisFilesCmd(args), GenerateLossesCmd(args)]
-        with tqdm(total=len(commands)) as pbar:
-            for command in commands:
-                command.action(args)
+        cmds = [GenerateOasisFilesCmd(args), GenerateLossesCmd(args)]
+        with tqdm(total=len(cmds)) as pbar:
+            for cmd in cmds:
+                cmd.action(args)
                 pbar.update(1)
 
         self.logger.info('\nModel run completed successfully in {}'.format(model_run_fp))
@@ -585,9 +591,9 @@ class ModelCmd(OasisBaseCommand):
     """
     Model subcommands::
 
-        * generating an Rtree file index for the area peril lookup component of the built-in lookup framework
+        * generating an Rtree spatial index for the area peril lookup component of the built-in lookup framework
         * generating keys files from model lookups
-        * generating Oasis input CSV files (GUL + optionally FM and RI)
+        * generating Oasis input CSV files (GUL [+ IL, RI])
         * generating losses from a preexisting set of Oasis input CSV files
         * generating deterministic losses (no model)
         * running a model end-to-end

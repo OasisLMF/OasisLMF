@@ -4,70 +4,70 @@ rm -R -f output/*
 rm -R -f work/*
 
 mkdir work/kat
-mkdir -p /tmp/dIhaaqY0DM/fifo
-mkfifo /tmp/dIhaaqY0DM/fifo/gul_P1
+mkdir -p /tmp/GS9BVbclP8/fifo
+mkfifo /tmp/GS9BVbclP8/fifo/gul_P1
 
-mkfifo /tmp/dIhaaqY0DM/fifo/gul_S1_summary_P1
-mkfifo /tmp/dIhaaqY0DM/fifo/gul_S1_summaryeltcalc_P1
-mkfifo /tmp/dIhaaqY0DM/fifo/gul_S1_eltcalc_P1
-mkfifo /tmp/dIhaaqY0DM/fifo/gul_S1_summarysummarycalc_P1
-mkfifo /tmp/dIhaaqY0DM/fifo/gul_S1_summarycalc_P1
-mkfifo /tmp/dIhaaqY0DM/fifo/gul_S1_summarypltcalc_P1
-mkfifo /tmp/dIhaaqY0DM/fifo/gul_S1_pltcalc_P1
+mkfifo /tmp/GS9BVbclP8/fifo/gul_S1_summary_P1
+mkfifo /tmp/GS9BVbclP8/fifo/gul_S1_summaryeltcalc_P1
+mkfifo /tmp/GS9BVbclP8/fifo/gul_S1_eltcalc_P1
+mkfifo /tmp/GS9BVbclP8/fifo/gul_S1_summarysummarycalc_P1
+mkfifo /tmp/GS9BVbclP8/fifo/gul_S1_summarycalc_P1
+mkfifo /tmp/GS9BVbclP8/fifo/gul_S1_summarypltcalc_P1
+mkfifo /tmp/GS9BVbclP8/fifo/gul_S1_pltcalc_P1
 
 mkdir work/gul_S1_summaryaalcalc
-mkfifo /tmp/dIhaaqY0DM/fifo/il_P1
+mkfifo /tmp/GS9BVbclP8/fifo/il_P1
 
-mkfifo /tmp/dIhaaqY0DM/fifo/il_S1_summary_P1
-mkfifo /tmp/dIhaaqY0DM/fifo/il_S1_summaryeltcalc_P1
-mkfifo /tmp/dIhaaqY0DM/fifo/il_S1_eltcalc_P1
-mkfifo /tmp/dIhaaqY0DM/fifo/il_S1_summarysummarycalc_P1
-mkfifo /tmp/dIhaaqY0DM/fifo/il_S1_summarycalc_P1
-mkfifo /tmp/dIhaaqY0DM/fifo/il_S1_summarypltcalc_P1
-mkfifo /tmp/dIhaaqY0DM/fifo/il_S1_pltcalc_P1
+mkfifo /tmp/GS9BVbclP8/fifo/il_S1_summary_P1
+mkfifo /tmp/GS9BVbclP8/fifo/il_S1_summaryeltcalc_P1
+mkfifo /tmp/GS9BVbclP8/fifo/il_S1_eltcalc_P1
+mkfifo /tmp/GS9BVbclP8/fifo/il_S1_summarysummarycalc_P1
+mkfifo /tmp/GS9BVbclP8/fifo/il_S1_summarycalc_P1
+mkfifo /tmp/GS9BVbclP8/fifo/il_S1_summarypltcalc_P1
+mkfifo /tmp/GS9BVbclP8/fifo/il_S1_pltcalc_P1
 
 mkdir work/il_S1_summaryaalcalc
-mkfifo /tmp/dIhaaqY0DM/fifo/ri_P1
+mkfifo /tmp/GS9BVbclP8/fifo/ri_P1
 
-mkfifo /tmp/dIhaaqY0DM/fifo/ri_S1_summary_P1
-mkfifo /tmp/dIhaaqY0DM/fifo/ri_S1_summaryeltcalc_P1
-mkfifo /tmp/dIhaaqY0DM/fifo/ri_S1_eltcalc_P1
-mkfifo /tmp/dIhaaqY0DM/fifo/ri_S1_summarysummarycalc_P1
-mkfifo /tmp/dIhaaqY0DM/fifo/ri_S1_summarycalc_P1
-mkfifo /tmp/dIhaaqY0DM/fifo/ri_S1_summarypltcalc_P1
-mkfifo /tmp/dIhaaqY0DM/fifo/ri_S1_pltcalc_P1
+mkfifo /tmp/GS9BVbclP8/fifo/ri_S1_summary_P1
+mkfifo /tmp/GS9BVbclP8/fifo/ri_S1_summaryeltcalc_P1
+mkfifo /tmp/GS9BVbclP8/fifo/ri_S1_eltcalc_P1
+mkfifo /tmp/GS9BVbclP8/fifo/ri_S1_summarysummarycalc_P1
+mkfifo /tmp/GS9BVbclP8/fifo/ri_S1_summarycalc_P1
+mkfifo /tmp/GS9BVbclP8/fifo/ri_S1_summarypltcalc_P1
+mkfifo /tmp/GS9BVbclP8/fifo/ri_S1_pltcalc_P1
 
 mkdir work/ri_S1_summaryaalcalc
 
 
 # --- Do reinsurance loss computes ---
 
-eltcalc < /tmp/dIhaaqY0DM/fifo/ri_S1_summaryeltcalc_P1 > work/kat/ri_S1_eltcalc_P1 & pid1=$!
-summarycalctocsv < /tmp/dIhaaqY0DM/fifo/ri_S1_summarysummarycalc_P1 > work/kat/ri_S1_summarycalc_P1 & pid2=$!
-pltcalc < /tmp/dIhaaqY0DM/fifo/ri_S1_summarypltcalc_P1 > work/kat/ri_S1_pltcalc_P1 & pid3=$!
+eltcalc < /tmp/GS9BVbclP8/fifo/ri_S1_summaryeltcalc_P1 > work/kat/ri_S1_eltcalc_P1 & pid1=$!
+summarycalctocsv < /tmp/GS9BVbclP8/fifo/ri_S1_summarysummarycalc_P1 > work/kat/ri_S1_summarycalc_P1 & pid2=$!
+pltcalc < /tmp/GS9BVbclP8/fifo/ri_S1_summarypltcalc_P1 > work/kat/ri_S1_pltcalc_P1 & pid3=$!
 
-tee < /tmp/dIhaaqY0DM/fifo/ri_S1_summary_P1 /tmp/dIhaaqY0DM/fifo/ri_S1_summaryeltcalc_P1 /tmp/dIhaaqY0DM/fifo/ri_S1_summarypltcalc_P1 /tmp/dIhaaqY0DM/fifo/ri_S1_summarysummarycalc_P1 work/ri_S1_summaryaalcalc/P1.bin > /dev/null & pid4=$!
-summarycalc -f -p RI_1 -1 /tmp/dIhaaqY0DM/fifo/ri_S1_summary_P1 < /tmp/dIhaaqY0DM/fifo/ri_P1 &
+tee < /tmp/GS9BVbclP8/fifo/ri_S1_summary_P1 /tmp/GS9BVbclP8/fifo/ri_S1_summaryeltcalc_P1 /tmp/GS9BVbclP8/fifo/ri_S1_summarypltcalc_P1 /tmp/GS9BVbclP8/fifo/ri_S1_summarysummarycalc_P1 work/ri_S1_summaryaalcalc/P1.bin > /dev/null & pid4=$!
+summarycalc -f -p RI_1 -1 /tmp/GS9BVbclP8/fifo/ri_S1_summary_P1 < /tmp/GS9BVbclP8/fifo/ri_P1 &
 
 # --- Do insured loss computes ---
 
-eltcalc < /tmp/dIhaaqY0DM/fifo/il_S1_summaryeltcalc_P1 > work/kat/il_S1_eltcalc_P1 & pid5=$!
-summarycalctocsv < /tmp/dIhaaqY0DM/fifo/il_S1_summarysummarycalc_P1 > work/kat/il_S1_summarycalc_P1 & pid6=$!
-pltcalc < /tmp/dIhaaqY0DM/fifo/il_S1_summarypltcalc_P1 > work/kat/il_S1_pltcalc_P1 & pid7=$!
+eltcalc < /tmp/GS9BVbclP8/fifo/il_S1_summaryeltcalc_P1 > work/kat/il_S1_eltcalc_P1 & pid5=$!
+summarycalctocsv < /tmp/GS9BVbclP8/fifo/il_S1_summarysummarycalc_P1 > work/kat/il_S1_summarycalc_P1 & pid6=$!
+pltcalc < /tmp/GS9BVbclP8/fifo/il_S1_summarypltcalc_P1 > work/kat/il_S1_pltcalc_P1 & pid7=$!
 
-tee < /tmp/dIhaaqY0DM/fifo/il_S1_summary_P1 /tmp/dIhaaqY0DM/fifo/il_S1_summaryeltcalc_P1 /tmp/dIhaaqY0DM/fifo/il_S1_summarypltcalc_P1 /tmp/dIhaaqY0DM/fifo/il_S1_summarysummarycalc_P1 work/il_S1_summaryaalcalc/P1.bin > /dev/null & pid8=$!
-summarycalc -f  -1 /tmp/dIhaaqY0DM/fifo/il_S1_summary_P1 < /tmp/dIhaaqY0DM/fifo/il_P1 &
+tee < /tmp/GS9BVbclP8/fifo/il_S1_summary_P1 /tmp/GS9BVbclP8/fifo/il_S1_summaryeltcalc_P1 /tmp/GS9BVbclP8/fifo/il_S1_summarypltcalc_P1 /tmp/GS9BVbclP8/fifo/il_S1_summarysummarycalc_P1 work/il_S1_summaryaalcalc/P1.bin > /dev/null & pid8=$!
+summarycalc -f  -1 /tmp/GS9BVbclP8/fifo/il_S1_summary_P1 < /tmp/GS9BVbclP8/fifo/il_P1 &
 
 # --- Do ground up loss computes ---
 
-eltcalc < /tmp/dIhaaqY0DM/fifo/gul_S1_summaryeltcalc_P1 > work/kat/gul_S1_eltcalc_P1 & pid9=$!
-summarycalctocsv < /tmp/dIhaaqY0DM/fifo/gul_S1_summarysummarycalc_P1 > work/kat/gul_S1_summarycalc_P1 & pid10=$!
-pltcalc < /tmp/dIhaaqY0DM/fifo/gul_S1_summarypltcalc_P1 > work/kat/gul_S1_pltcalc_P1 & pid11=$!
+eltcalc < /tmp/GS9BVbclP8/fifo/gul_S1_summaryeltcalc_P1 > work/kat/gul_S1_eltcalc_P1 & pid9=$!
+summarycalctocsv < /tmp/GS9BVbclP8/fifo/gul_S1_summarysummarycalc_P1 > work/kat/gul_S1_summarycalc_P1 & pid10=$!
+pltcalc < /tmp/GS9BVbclP8/fifo/gul_S1_summarypltcalc_P1 > work/kat/gul_S1_pltcalc_P1 & pid11=$!
 
-tee < /tmp/dIhaaqY0DM/fifo/gul_S1_summary_P1 /tmp/dIhaaqY0DM/fifo/gul_S1_summaryeltcalc_P1 /tmp/dIhaaqY0DM/fifo/gul_S1_summarypltcalc_P1 /tmp/dIhaaqY0DM/fifo/gul_S1_summarysummarycalc_P1 work/gul_S1_summaryaalcalc/P1.bin > /dev/null & pid12=$!
-summarycalc -g  -1 /tmp/dIhaaqY0DM/fifo/gul_S1_summary_P1 < /tmp/dIhaaqY0DM/fifo/gul_P1 &
+tee < /tmp/GS9BVbclP8/fifo/gul_S1_summary_P1 /tmp/GS9BVbclP8/fifo/gul_S1_summaryeltcalc_P1 /tmp/GS9BVbclP8/fifo/gul_S1_summarypltcalc_P1 /tmp/GS9BVbclP8/fifo/gul_S1_summarysummarycalc_P1 work/gul_S1_summaryaalcalc/P1.bin > /dev/null & pid12=$!
+summarycalc -g  -1 /tmp/GS9BVbclP8/fifo/gul_S1_summary_P1 < /tmp/GS9BVbclP8/fifo/gul_P1 &
 
-eve 1 1 | getmodel | gulcalc -S0 -L0 -r -c /tmp/dIhaaqY0DM/fifo/gul_P1 -i - | fmcalc -a 2 | tee /tmp/dIhaaqY0DM/fifo/il_P1 | fmcalc -a 2 -n -p RI_1 > /tmp/dIhaaqY0DM/fifo/ri_P1 &
+eve 1 1 | getmodel | gulcalc -S0 -L0 -r -c /tmp/GS9BVbclP8/fifo/gul_P1 -i - | fmcalc -a 2 | tee /tmp/GS9BVbclP8/fifo/il_P1 | fmcalc -a 2 -n -p RI_1 > /tmp/GS9BVbclP8/fifo/ri_P1 &
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12
 
@@ -97,45 +97,46 @@ aalcalc -Kil_S1_summaryaalcalc > output/il_S1_aalcalc.csv & lpid2=$!
 aalcalc -Kgul_S1_summaryaalcalc > output/gul_S1_aalcalc.csv & lpid3=$!
 wait $lpid1 $lpid2 $lpid3
 
-rm /tmp/dIhaaqY0DM/fifo/gul_P1
+rm /tmp/GS9BVbclP8/fifo/gul_P1
 
-rm /tmp/dIhaaqY0DM/fifo/gul_S1_summary_P1
-rm /tmp/dIhaaqY0DM/fifo/gul_S1_summaryeltcalc_P1
-rm /tmp/dIhaaqY0DM/fifo/gul_S1_eltcalc_P1
-rm /tmp/dIhaaqY0DM/fifo/gul_S1_summarysummarycalc_P1
-rm /tmp/dIhaaqY0DM/fifo/gul_S1_summarycalc_P1
-rm /tmp/dIhaaqY0DM/fifo/gul_S1_summarypltcalc_P1
-rm /tmp/dIhaaqY0DM/fifo/gul_S1_pltcalc_P1
+rm /tmp/GS9BVbclP8/fifo/gul_S1_summary_P1
+rm /tmp/GS9BVbclP8/fifo/gul_S1_summaryeltcalc_P1
+rm /tmp/GS9BVbclP8/fifo/gul_S1_eltcalc_P1
+rm /tmp/GS9BVbclP8/fifo/gul_S1_summarysummarycalc_P1
+rm /tmp/GS9BVbclP8/fifo/gul_S1_summarycalc_P1
+rm /tmp/GS9BVbclP8/fifo/gul_S1_summarypltcalc_P1
+rm /tmp/GS9BVbclP8/fifo/gul_S1_pltcalc_P1
 
 rm -rf work/kat
 rm -rf work/gul_S1_summaryaalcalc/*
 rmdir work/gul_S1_summaryaalcalc
 
-rm /tmp/dIhaaqY0DM/fifo/ri_P1
+rm /tmp/GS9BVbclP8/fifo/ri_P1
 
-rm /tmp/dIhaaqY0DM/fifo/ri_S1_summary_P1
-rm /tmp/dIhaaqY0DM/fifo/ri_S1_summaryeltcalc_P1
-rm /tmp/dIhaaqY0DM/fifo/ri_S1_eltcalc_P1
-rm /tmp/dIhaaqY0DM/fifo/ri_S1_summarysummarycalc_P1
-rm /tmp/dIhaaqY0DM/fifo/ri_S1_summarycalc_P1
-rm /tmp/dIhaaqY0DM/fifo/ri_S1_summarypltcalc_P1
-rm /tmp/dIhaaqY0DM/fifo/ri_S1_pltcalc_P1
+rm /tmp/GS9BVbclP8/fifo/ri_S1_summary_P1
+rm /tmp/GS9BVbclP8/fifo/ri_S1_summaryeltcalc_P1
+rm /tmp/GS9BVbclP8/fifo/ri_S1_eltcalc_P1
+rm /tmp/GS9BVbclP8/fifo/ri_S1_summarysummarycalc_P1
+rm /tmp/GS9BVbclP8/fifo/ri_S1_summarycalc_P1
+rm /tmp/GS9BVbclP8/fifo/ri_S1_summarypltcalc_P1
+rm /tmp/GS9BVbclP8/fifo/ri_S1_pltcalc_P1
 
 rm -rf work/kat
 rm -rf work/ri_S1_summaryaalcalc/*
 rmdir work/ri_S1_summaryaalcalc
-rm /tmp/dIhaaqY0DM/fifo/il_P1
+rm /tmp/GS9BVbclP8/fifo/il_P1
 
-rm /tmp/dIhaaqY0DM/fifo/il_S1_summary_P1
-rm /tmp/dIhaaqY0DM/fifo/il_S1_summaryeltcalc_P1
-rm /tmp/dIhaaqY0DM/fifo/il_S1_eltcalc_P1
-rm /tmp/dIhaaqY0DM/fifo/il_S1_summarysummarycalc_P1
-rm /tmp/dIhaaqY0DM/fifo/il_S1_summarycalc_P1
-rm /tmp/dIhaaqY0DM/fifo/il_S1_summarypltcalc_P1
-rm /tmp/dIhaaqY0DM/fifo/il_S1_pltcalc_P1
+rm /tmp/GS9BVbclP8/fifo/il_S1_summary_P1
+rm /tmp/GS9BVbclP8/fifo/il_S1_summaryeltcalc_P1
+rm /tmp/GS9BVbclP8/fifo/il_S1_eltcalc_P1
+rm /tmp/GS9BVbclP8/fifo/il_S1_summarysummarycalc_P1
+rm /tmp/GS9BVbclP8/fifo/il_S1_summarycalc_P1
+rm /tmp/GS9BVbclP8/fifo/il_S1_summarypltcalc_P1
+rm /tmp/GS9BVbclP8/fifo/il_S1_pltcalc_P1
 
 rm -rf work/kat
 rm -rf work/il_S1_summaryaalcalc/*
 rmdir work/il_S1_summaryaalcalc
-rmdir /tmp/dIhaaqY0DM/fifo
-rmdir /tmp/dIhaaqY0DM/
+rm /tmp/GS9BVbclP8/fifo/*
+rmdir /tmp/GS9BVbclP8/fifo
+rmdir /tmp/GS9BVbclP8/

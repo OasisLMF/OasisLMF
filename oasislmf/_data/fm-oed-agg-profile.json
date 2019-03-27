@@ -5,8 +5,8 @@
         "FMAggKey": {
             "ItemID": {
                 "src": "FM",
-                "field": "item_id",
-                "name": "Item ID"
+                "field": "gul_input_id",
+                "name": "GUL input item ID"
             }
         }
     },
@@ -16,7 +16,7 @@
         "FMAggKey": {
             "LocID": {
                 "src": "FM",
-                "field": "loc_id",
+                "field": "locnumber",
                 "name": "Location ID"
             },
             "IsBICoverage": {
@@ -32,7 +32,7 @@
         "FMAggKey": {
             "LocID":  {
                 "src": "FM",
-                "field": "loc_id",
+                "field": "locnumber",
                 "name": "Location ID"
             }
         }
@@ -43,7 +43,7 @@
         "FMAggKey": {
             "AccntNum":  {
                 "src": "FM",
-                "field": "acc_id",
+                "field": "accnumber",
                 "name": "Account no."
             }
         }
@@ -54,7 +54,7 @@
         "FMAggKey": {
             "AccntNum": {
                 "src": "FM",
-                "field": "acc_id",
+                "field": "accnumber",
                 "name": "Account no."
             }
         }
@@ -64,12 +64,12 @@
         "FMLevelName": "PolLayer",
         "FMAggKey": {
             "AccntNum": {
-                "src": "Acc",
+                "src": "FM",
                 "field": "accnumber",
                 "name": "Account no."
             },
             "PortfolioNum": {
-                "src": "Acc",
+                "src": "FM",
                 "field": "portnumber",
                 "name": "Account portfolio no."
             }

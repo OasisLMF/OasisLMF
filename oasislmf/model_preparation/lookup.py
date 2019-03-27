@@ -1092,7 +1092,6 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
             src_type=src_type,
             float_precision=float_precision,
             lowercase_cols=True,
-            index_col=True,
             non_na_cols=non_na_cols,
             col_dtypes=col_dtypes,
             sort_col=sort_col,
