@@ -219,7 +219,7 @@ class TestReinsurance(unittest.TestCase):
                         input_name,
                         ri_layers[idx]['directory'],
                         direct_layer.xref_descriptions)
-                    output_name = "Inuring_priority:{} - Risk_level:{}".format(ri_layers[idx]['inuring_priority'],
+                    output_name = "Inuring_priority_{} - Risk_level_{}".format(ri_layers[idx]['inuring_priority'],
                                                                                ri_layers[idx]['risk_level'])
                     net_losses[output_name] = reinsurance_layer_losses_df
 
