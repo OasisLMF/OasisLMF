@@ -52,7 +52,6 @@ node {
     String MDK_RUN='ri'
     String MDK_BRANCH = source_branch
     if (source_branch.matches("PR-[0-9]+")){
-        //Note will still fail on remote PR.. 
         MDK_BRANCH = "refs/pull/$CHANGE_ID/merge"
     }    
 
