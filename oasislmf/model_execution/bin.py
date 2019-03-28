@@ -156,7 +156,10 @@ def prepare_run_directory(
         for path in glob.glob(os.path.join(model_data_fp, '*')):
             fn = os.path.basename(path)
             try:
-                os.symlink(path, os.path.join(model_data_dst_fp, fn))
+                if os.name == 'nt':
+                    shutil.copy(path, os.path.join(model_data_dst_fp, fn))
+                else:
+                    os.symlink(path, os.path.join(model_data_dst_fp, fn))
             except Exception:
                 shutil.copytree(model_data_fp, os.path.join(model_data_dst_fp, fn))
     except OSError as e:
