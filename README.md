@@ -26,6 +26,12 @@ The reusable libraries are organised into several sub-packages, the most relevan
 * `model_execution`
 * `utils`
 
+## Python Support 
+
+Starting from 1st January 2019, pandas will no longer be supporting Python 2. As pandas is heavily used in OasisLMF the last version supporting Python 2.7   
+is `oasislmf (1.3.3)` published (12 March 2019).
+
+
 ## Installation
 
 The latest released version of the package can be installed using `pip` (or `pip3` if using Python 3):
@@ -54,8 +60,11 @@ The PiWind demonstration model uses the built-in lookup framework, therefore run
 
 For GNU/Linux the following is a specific list of required system libraries
 
- * unixodbc unixodbc-dev
  * **Debian**: g++ compiler build-essential, libtool, zlib1g-dev autoconf on debian distros
+ ```
+ sudo apt install g++ build-essential libtool zlib1g-dev autoconf
+ ```
+
  * **Red Hat**: 'Development Tools' and zlib-devel
 
 ### Python

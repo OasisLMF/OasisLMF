@@ -41,7 +41,6 @@ from ..utils.data import (
     get_json,
     print_dataframe,
 )
-from ..utils.defaults import get_default_deterministic_analysis_settings
 from ..utils.path import (
     as_path,
     setcwd,
@@ -55,29 +54,11 @@ from .base import (
 class RunCmd(OasisBaseCommand):
     """
     Generates deterministic losses using the installed ktools framework given
-    direct Oasis files (GUL + IL input files & optionally RI input files).
+    direct Oasis files (GUL + optionally IL and RI input files).
 
     The command line arguments can be supplied in the configuration file
     (``oasislmf.json`` by default or specified with the ``--config`` flag).
     Run ``oasislmf config --help`` for more information.
-
-    The script creates a time-stamped folder in the model run directory and
-    sets that as the new model run directory, copies the analysis settings
-    JSON file into the run directory and creates the following folder
-    structure
-    ::
-
-        |── analysis_settings.json
-        |── fifo/
-        |── input/
-        |── output/
-        |── static/
-        |── work/
-
-    Depending on the OS type the model data is symlinked (Linux, Darwin) or
-    copied (Cygwin, Windows) into the ``static`` subfolder. The input files
-    are kept in the ``input`` subfolder and the losses are generated as CSV
-    files in the ``output`` subfolder.
     """
     formatter_class = RawDescriptionHelpFormatter
 
@@ -106,7 +87,7 @@ class RunCmd(OasisBaseCommand):
     def action(self, args):
         """
         Generates deterministic losses using the installed ktools framework given
-        direct Oasis files (GUL + IL input files & optionally RI input files).
+        direct Oasis files (GUL + optionally IL and RI input files).
 
         :param args: The arguments from the command line
         :type args: Namespace
@@ -144,12 +125,6 @@ class RunCmd(OasisBaseCommand):
                 else:
                     ri = True
 
-        analysis_settings_fp = None
-        try:
-            analysis_settings_fp = [fn.lower() for fn in os.listdir(input_dir) if fn == 'analysis_settings.json'][0]
-        except IndexError:
-            analysis_settings_fp = get_default_deterministic_analysis_settings(path=True)
-
         self.logger.info('\nRunning deterministic losses (GUL=True, IL={}, RI={})'.format(il, ri))
         guls, ils, rils = om().run_deterministic(
             input_dir,
@@ -157,10 +132,11 @@ class RunCmd(OasisBaseCommand):
             loss_percentage_of_tiv=loss_factor,
             net=net_losses
         )
-        print_dataframe(guls, header='Ground-up losses', objectify_cols=guls.columns, headers='keys', tablefmt='psql', floatfmt=".2f")
-        print_dataframe(ils, header='Insured losses', objectify_cols=ils.columns, headers='keys', tablefmt='psql', floatfmt=".2f")
-        if rils is not None:
-            print_dataframe(rils, header='Reinsurance losses', objectify_cols=rils.columns, headers='keys', tablefmt='psql', floatfmt=".2f")
+        print_dataframe(guls, table_header='Ground-up losses (loss_factor={}; net={})'.format(loss_factor, net_losses), objectify_cols=guls.columns)
+        if il:
+            print_dataframe(ils, table_header='Direct insured losses (loss_factor={}; net={})'.format(loss_factor, net_losses), objectify_cols=ils.columns)
+        if ri:
+            print_dataframe(rils, table_header='Reinsurance losses  (loss_factor={}; net={})'.format(loss_factor, net_losses), objectify_cols=rils.columns)
 
 
 class ValidateCmd(OasisBaseCommand):

@@ -33,6 +33,7 @@ import numbers
 import pandas as pd
 
 from ..utils.exceptions import OasisException
+from ..utils.log import oasis_log
 from . import oed
 
 from six import string_types
@@ -100,6 +101,7 @@ def generate_xref_descriptions(accounts_fp, locations_fp):
             )
 
 
+@oasis_log
 def generate_files_for_reinsurance(
         items,
         coverages,
@@ -205,6 +207,7 @@ def _generate_files_for_reinsurance_risk_level(
     return output_dir
 
 
+@oasis_log
 def write_ri_input_files(
         exposure_fp,
         accounts_fp,

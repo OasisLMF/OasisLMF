@@ -42,7 +42,6 @@ from hypothesis.strategies import (
     text,
     tuples,
 )
-from tabulate import tabulate
 from tempfile import NamedTemporaryFile
 
 from oasislmf.manager import OasisManager as om
@@ -55,6 +54,7 @@ from oasislmf.model_preparation.il_inputs import (
     unified_fm_profile_by_level_and_term_group,
     write_il_input_files,
 )
+from oasislmf.utils.data import print_dataframe
 from oasislmf.utils.defaults import (
     get_default_exposure_profile,
     get_default_accounts_profile,
@@ -146,25 +146,23 @@ class FmAcceptanceTests(TestCase):
             write_source_files(exposure, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
-            gul_input_files, gul_inputs, exposure_df  = write_gul_input_files(
-                ef.name, kf.name, oasis_dir,
-                exposure_profile=self.exposure_profile
-            )
-    
+            gul_inputs_df, exposure_df = get_gul_input_items(ef.name, kf.name)
+            gul_input_files = write_gul_input_files(gul_inputs_df, oasis_dir)
+
             for p in viewvalues(gul_input_files): 
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
-            guls = pd.merge(
+            gul_inputs = pd.merge(
                 pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
                 pd.read_csv(gul_input_files['gulsummaryxref']),
                 left_on='coverage_id',
                 right_on='coverage_id'
             )
 
-            self.assertEqual(len(guls), 4)
+            self.assertEqual(len(gul_inputs), 4)
 
-            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in guls.groupby('group_id')]
+            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in gul_inputs.groupby('group_id')]
             self.assertEqual(len(loc_groups), 1)
 
             loc1_id, loc1_items = loc_groups[0]
@@ -176,14 +174,14 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(loc1_items['vulnerability_id'].values.tolist(), [1,1,1,1])
             self.assertEqual(set(loc1_items['group_id'].values), {1})
             tivs = [exposure[0][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
-            self.assertEqual(loc1_items['tiv'].values.tolist(), tivs)
+            self.assertEqual([round(v, 5) for v in loc1_items['tiv'].values.tolist()], tivs)
 
-            il_input_files, il_inputs, accounts_df = write_il_input_files(
-                exposure_df, gul_inputs, oasis_dir,
-                accounts_fp=af.name, exposure_profile=self.exposure_profile,
-                accounts_profile=self.accounts_profile,
-                fm_aggregation_profile=self.fm_aggregation_profile
+            il_inputs, _ = get_il_input_items(
+                exposure_df,
+                gul_inputs_df,
+                accounts_fp=af.name
             )
+            il_input_files = write_il_input_files(il_inputs, oasis_dir)
 
             for p in viewvalues(il_input_files): 
                 if not p.endswith("complex_items.csv"):
@@ -203,16 +201,16 @@ class FmAcceptanceTests(TestCase):
 
             fm_profile_df = pd.read_csv(il_input_files['fm_profile'])
             self.assertEqual(len(fm_profile_df), 5)
-            self.assertEqual(fm_profile_df['policytc_id'].values.tolist(), [1,2,3,4,5])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['policytc_id'].values.tolist()], [1,2,3,4,5])
             self.assertEqual(fm_profile_df['calcrule_id'].values.tolist(), [1,1,1,14,2])
-            self.assertEqual(fm_profile_df['deductible1'].values.tolist(), [50000,5000,2500,0,0])
-            self.assertEqual(fm_profile_df['deductible2'].values.tolist(), [0,0,0,0,0])
-            self.assertEqual(fm_profile_df['deductible3'].values.tolist(), [0,0,0,0,0])
-            self.assertEqual(fm_profile_df['attachment1'].values.tolist(), [0,0,0,0,0])
-            self.assertEqual(fm_profile_df['limit1'].values.tolist(), [900000,90000,45000,18000,9999999999])
-            self.assertEqual(fm_profile_df['share1'].values.tolist(), [0,0,0,0,1])
-            self.assertEqual(fm_profile_df['share2'].values.tolist(), [0,0,0,0,0])
-            self.assertEqual(fm_profile_df['share3'].values.tolist(), [0,0,0,0,0])
+            self.assertEqual([round(v, 5) for v in [round(v, 5) for v in fm_profile_df['deductible1'].values.tolist()]], [50000,5000,2500,0,0])
+            self.assertEqual([round(v, 5) for v in [round(v, 5) for v in fm_profile_df['deductible2'].values.tolist()]], [0,0,0,0,0])
+            self.assertEqual([round(v, 5) for v in [round(v, 5) for v in fm_profile_df['deductible3'].values.tolist()]], [0,0,0,0,0])
+            self.assertEqual([round(v, 5) for v in [round(v, 5) for v in fm_profile_df['attachment1'].values.tolist()]], [0,0,0,0,0])
+            self.assertEqual([round(v, 5) for v in [round(v, 5) for v in fm_profile_df['limit1'].values.tolist()]], [900000,90000,45000,18000,9999999999])
+            self.assertEqual([round(v, 5) for v in [round(v, 5) for v in fm_profile_df['share1'].values.tolist()]], [0,0,0,0,1])
+            self.assertEqual([round(v, 5) for v in [round(v, 5) for v in fm_profile_df['share2'].values.tolist()]], [0,0,0,0,0])
+            self.assertEqual([round(v, 5) for v in [round(v, 5) for v in fm_profile_df['share3'].values.tolist()]], [0,0,0,0,0])
 
             fm_policytc_df = pd.read_csv(il_input_files['fm_policytc'])
             level_groups = [group for _, group in fm_policytc_df.groupby(['level_id'])]
@@ -258,7 +256,9 @@ class FmAcceptanceTests(TestCase):
             if losses_ok:
                 actual_direct_losses['event_id'] = actual_direct_losses['event_id'].astype(object)
                 actual_direct_losses['output_id'] = actual_direct_losses['output_id'].astype(object)
-                print('Correct losses generated for FM3:\n{}'.format(tabulate(actual_direct_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
+                print_dataframe(
+                    actual_direct_losses, table_header='Insured losses', objectify_cols=actual_direct_losses.columns, end='\n\n'
+                )
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=1)
     @given(
@@ -322,22 +322,23 @@ class FmAcceptanceTests(TestCase):
             write_source_files(exposure, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
-            gul_input_files, gul_inputs, exposure_df = write_gul_input_files(ef.name, kf.name, oasis_dir, exposure_profile=self.exposure_profile)
+            gul_inputs_df, exposure_df = get_gul_input_items(ef.name, kf.name)
+            gul_input_files = write_gul_input_files(gul_inputs_df, oasis_dir)
 
             for p in viewvalues(gul_input_files): 
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
-            guls = pd.merge(
+            gul_inputs = pd.merge(
                 pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
                 pd.read_csv(gul_input_files['gulsummaryxref']),
                 left_on='coverage_id',
                 right_on='coverage_id'
             )
 
-            self.assertEqual(len(guls), 4)
+            self.assertEqual(len(gul_inputs), 4)
 
-            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in guls.groupby('group_id')]
+            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in gul_inputs.groupby('group_id')]
             self.assertEqual(len(loc_groups), 1)
 
             loc1_id, loc1_items = loc_groups[0]
@@ -351,12 +352,12 @@ class FmAcceptanceTests(TestCase):
             tivs = [exposure[0][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
             self.assertEqual(loc1_items['tiv'].values.tolist(), tivs)
 
-            il_input_files, il_inputs, accounts_df = write_il_input_files(
-                exposure_df, gul_inputs, oasis_dir,
-                accounts_fp=af.name, exposure_profile=self.exposure_profile,
-                accounts_profile=self.accounts_profile,
-                fm_aggregation_profile=self.fm_aggregation_profile
+            il_inputs, _ = get_il_input_items(
+                exposure_df,
+                gul_inputs_df,
+                accounts_fp=af.name
             )
+            il_input_files = write_il_input_files(il_inputs, oasis_dir)
 
             for p in viewvalues(il_input_files): 
                 if not p.endswith("complex_items.csv"):
@@ -382,14 +383,14 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(len(fm_profile_df), 4)
             self.assertEqual(fm_profile_df['policytc_id'].values.tolist(), [1,2,3,4])
             self.assertEqual(fm_profile_df['calcrule_id'].values.tolist(), [12,1,1,2])
-            self.assertEqual(fm_profile_df['deductible1'].values.tolist(), [0,2000,1000,0])
-            self.assertEqual(fm_profile_df['deductible2'].values.tolist(), [0,0,0,0])
-            self.assertEqual(fm_profile_df['deductible3'].values.tolist(), [0,0,0,0])
-            self.assertEqual(fm_profile_df['attachment1'].values.tolist(), [0,0,0,0])
-            self.assertEqual(fm_profile_df['limit1'].values.tolist(), [0,18000,1000000,9999999999])
-            self.assertEqual(fm_profile_df['share1'].values.tolist(), [0,0,0,1])
-            self.assertEqual(fm_profile_df['share2'].values.tolist(), [0,0,0,0])
-            self.assertEqual(fm_profile_df['share3'].values.tolist(), [0,0,0,0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['deductible1'].values.tolist()], [0,2000,1000,0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['deductible2'].values.tolist()], [0,0,0,0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['deductible3'].values.tolist()], [0,0,0,0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['attachment1'].values.tolist()], [0,0,0,0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['limit1'].values.tolist()], [0,18000,1000000,9999999999])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['share1'].values.tolist()], [0,0,0,1])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['share2'].values.tolist()], [0,0,0,0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['share3'].values.tolist()], [0,0,0,0])
 
             fm_policytc_df = pd.read_csv(il_input_files['fm_policytc'])
             level_groups = [group for _, group in fm_policytc_df.groupby(['level_id'])]
@@ -439,7 +440,9 @@ class FmAcceptanceTests(TestCase):
             if losses_ok:
                 actual_direct_losses['event_id'] = actual_direct_losses['event_id'].astype(object)
                 actual_direct_losses['output_id'] = actual_direct_losses['output_id'].astype(object)
-                print('Correct losses generated for FM4:\n{}'.format(tabulate(actual_direct_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
+                print_dataframe(
+                    actual_direct_losses, table_header='Insured losses', objectify_cols=actual_direct_losses.columns, end='\n\n'
+                )
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=1)
     @given(
@@ -503,22 +506,23 @@ class FmAcceptanceTests(TestCase):
             write_source_files(exposure, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
-            gul_input_files, gul_inputs, exposure_df = write_gul_input_files(ef.name, kf.name, oasis_dir, exposure_profile=self.exposure_profile)
+            gul_inputs_df, exposure_df = get_gul_input_items(ef.name, kf.name)
+            gul_input_files = write_gul_input_files(gul_inputs_df, oasis_dir)
 
             for p in viewvalues(gul_input_files): 
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
-            guls = pd.merge(
+            gul_inputs = pd.merge(
                 pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
                 pd.read_csv(gul_input_files['gulsummaryxref']),
                 left_on='coverage_id',
                 right_on='coverage_id'
             )
 
-            self.assertEqual(len(guls), 4)
+            self.assertEqual(len(gul_inputs), 4)
 
-            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in guls.groupby('group_id')]
+            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in gul_inputs.groupby('group_id')]
             self.assertEqual(len(loc_groups), 1)
 
             loc1_id, loc1_items = loc_groups[0]
@@ -532,12 +536,12 @@ class FmAcceptanceTests(TestCase):
             tivs = [exposure[0][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
             self.assertEqual(loc1_items['tiv'].values.tolist(), tivs)
 
-            il_input_files, il_inputs, accounts_df = write_il_input_files(
-                exposure_df, gul_inputs, oasis_dir,
-                accounts_fp=af.name, exposure_profile=self.exposure_profile,
-                accounts_profile=self.accounts_profile,
-                fm_aggregation_profile=self.fm_aggregation_profile
+            il_inputs, _ = get_il_input_items(
+                exposure_df,
+                gul_inputs_df,
+                accounts_fp=af.name
             )
+            il_input_files = write_il_input_files(il_inputs, oasis_dir)
 
             for p in viewvalues(il_input_files): 
                 if not p.endswith("complex_items.csv"):
@@ -563,14 +567,14 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(len(fm_profile_df), 3)
             self.assertEqual(fm_profile_df['policytc_id'].values.tolist(), [1,2,3])
             self.assertEqual(fm_profile_df['calcrule_id'].values.tolist(), [12,1,2])
-            self.assertEqual(fm_profile_df['deductible1'].values.tolist(), [0,1000,0])
-            self.assertEqual(fm_profile_df['deductible2'].values.tolist(), [0,0,0])
-            self.assertEqual(fm_profile_df['deductible3'].values.tolist(), [0,0,0])
-            self.assertEqual(fm_profile_df['attachment1'].values.tolist(), [0,0,0])
-            self.assertEqual(fm_profile_df['limit1'].values.tolist(), [0,1000000,9999999999])
-            self.assertEqual(fm_profile_df['share1'].values.tolist(), [0,0,1])
-            self.assertEqual(fm_profile_df['share2'].values.tolist(), [0,0,0])
-            self.assertEqual(fm_profile_df['share3'].values.tolist(), [0,0,0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['deductible1'].values.tolist()], [0,1000,0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['deductible2'].values.tolist()], [0,0,0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['deductible3'].values.tolist()], [0,0,0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['attachment1'].values.tolist()], [0,0,0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['limit1'].values.tolist()], [0,1000000,9999999999])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['share1'].values.tolist()], [0,0,1])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['share2'].values.tolist()], [0,0,0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['share3'].values.tolist()], [0,0,0])
 
             fm_policytc_df = pd.read_csv(il_input_files['fm_policytc'])
             level_groups = [group for _, group in fm_policytc_df.groupby(['level_id'])]
@@ -620,7 +624,9 @@ class FmAcceptanceTests(TestCase):
             if losses_ok:
                 actual_direct_losses['event_id'] = actual_direct_losses['event_id'].astype(object)
                 actual_direct_losses['output_id'] = actual_direct_losses['output_id'].astype(object)
-                print('Correct losses generated for FM5:\n{}'.format(tabulate(actual_direct_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
+                print_dataframe(
+                    actual_direct_losses, table_header='Insured losses', objectify_cols=actual_direct_losses.columns, end='\n\n'
+                )
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=1)
     @given(
@@ -696,22 +702,23 @@ class FmAcceptanceTests(TestCase):
             write_source_files(exposure, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
-            gul_input_files, gul_inputs, exposure_df = write_gul_input_files(ef.name, kf.name, oasis_dir, exposure_profile=self.exposure_profile)
+            gul_inputs_df, exposure_df = get_gul_input_items(ef.name, kf.name)
+            gul_input_files = write_gul_input_files(gul_inputs_df, oasis_dir)
 
             for p in viewvalues(gul_input_files): 
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
-            guls = pd.merge(
+            gul_inputs = pd.merge(
                 pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
                 pd.read_csv(gul_input_files['gulsummaryxref']),
                 left_on='coverage_id',
                 right_on='coverage_id'
             )
 
-            self.assertEqual(len(guls), 8)
+            self.assertEqual(len(gul_inputs), 8)
 
-            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in guls.groupby('group_id')]
+            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in gul_inputs.groupby('group_id')]
             self.assertEqual(len(loc_groups), 2)
 
             loc1_id, loc1_items = loc_groups[0]
@@ -738,12 +745,12 @@ class FmAcceptanceTests(TestCase):
             tivs = [exposure[1][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
             self.assertEqual(loc2_items['tiv'].values.tolist(), tivs)
 
-            il_input_files, il_inputs, accounts_df = write_il_input_files(
-                exposure_df, gul_inputs, oasis_dir,
-                accounts_fp=af.name, exposure_profile=self.exposure_profile,
-                accounts_profile=self.accounts_profile,
-                fm_aggregation_profile=self.fm_aggregation_profile
+            il_inputs, _ = get_il_input_items(
+                exposure_df,
+                gul_inputs_df,
+                accounts_fp=af.name
             )
+            il_input_files = write_il_input_files(il_inputs, oasis_dir)
 
             for p in viewvalues(il_input_files): 
                 if not p.endswith("complex_items.csv"):
@@ -769,14 +776,14 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(len(fm_profile_df), 3)
             self.assertEqual(fm_profile_df['policytc_id'].values.tolist(), [1,2,3])
             self.assertEqual(fm_profile_df['calcrule_id'].values.tolist(), [12,12,2])
-            self.assertEqual(fm_profile_df['deductible1'].values.tolist(), [0,50000,0])
-            self.assertEqual(fm_profile_df['deductible2'].values.tolist(), [0,0,0])
-            self.assertEqual(fm_profile_df['deductible3'].values.tolist(), [0,0,0])
-            self.assertEqual(fm_profile_df['attachment1'].values.tolist(), [0,0,0])
-            self.assertEqual(fm_profile_df['limit1'].values.tolist(), [0,0,2500000])
-            self.assertEqual(fm_profile_df['share1'].values.tolist(), [0,0,1])
-            self.assertEqual(fm_profile_df['share2'].values.tolist(), [0,0,0])
-            self.assertEqual(fm_profile_df['share3'].values.tolist(), [0,0,0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['deductible1'].values.tolist()], [0,50000,0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['deductible2'].values.tolist()], [0,0,0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['deductible3'].values.tolist()], [0,0,0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['attachment1'].values.tolist()], [0,0,0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['limit1'].values.tolist()], [0,0,2500000])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['share1'].values.tolist()], [0,0,1])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['share2'].values.tolist()], [0,0,0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['share3'].values.tolist()], [0,0,0])
 
             fm_policytc_df = pd.read_csv(il_input_files['fm_policytc'])
             level_groups = [group for _, group in fm_policytc_df.groupby(['level_id'])]
@@ -830,7 +837,9 @@ class FmAcceptanceTests(TestCase):
             if losses_ok:
                 actual_direct_losses['event_id'] = actual_direct_losses['event_id'].astype(object)
                 actual_direct_losses['output_id'] = actual_direct_losses['output_id'].astype(object)
-                print('Correct losses generated for FM6:\n{}'.format(tabulate(actual_direct_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
+                print_dataframe(
+                    actual_direct_losses, table_header='Insured losses', objectify_cols=actual_direct_losses.columns, end='\n\n'
+                )
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=1)
     @given(
@@ -906,22 +915,23 @@ class FmAcceptanceTests(TestCase):
             write_source_files(exposure, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
-            gul_input_files, gul_inputs, exposure_df = write_gul_input_files(ef.name, kf.name, oasis_dir, exposure_profile=self.exposure_profile)
+            gul_inputs_df, exposure_df = get_gul_input_items(ef.name, kf.name)
+            gul_input_files = write_gul_input_files(gul_inputs_df, oasis_dir)
 
             for p in viewvalues(gul_input_files): 
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
-            guls = pd.merge(
+            gul_inputs = pd.merge(
                 pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
                 pd.read_csv(gul_input_files['gulsummaryxref']),
                 left_on='coverage_id',
                 right_on='coverage_id'
             )
 
-            self.assertEqual(len(guls), 8)
+            self.assertEqual(len(gul_inputs), 8)
 
-            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in guls.groupby('group_id')]
+            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in gul_inputs.groupby('group_id')]
             self.assertEqual(len(loc_groups), 2)
 
             loc1_id, loc1_items = loc_groups[0]
@@ -948,12 +958,12 @@ class FmAcceptanceTests(TestCase):
             tivs = [exposure[1][t] for t in ['buildingtiv','othertiv','contentstiv','bitiv']]
             self.assertEqual(loc2_items['tiv'].values.tolist(), tivs)
 
-            il_input_files, il_inputs, accounts_df = write_il_input_files(
-                exposure_df, gul_inputs, oasis_dir,
-                accounts_fp=af.name, exposure_profile=self.exposure_profile,
-                accounts_profile=self.accounts_profile,
-                fm_aggregation_profile=self.fm_aggregation_profile
+            il_inputs, _ = get_il_input_items(
+                exposure_df,
+                gul_inputs_df,
+                accounts_fp=af.name
             )
+            il_input_files = write_il_input_files(il_inputs, oasis_dir)
 
             for p in viewvalues(il_input_files): 
                 if not p.endswith("complex_items.csv"):
@@ -979,14 +989,14 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(len(fm_profile_df), 5)
             self.assertEqual(fm_profile_df['policytc_id'].values.tolist(), [1,2,3,4,5])
             self.assertEqual(fm_profile_df['calcrule_id'].values.tolist(), [12,12,12,12,2])
-            self.assertEqual(fm_profile_df['deductible1'].values.tolist(), [10000,5000,0,50000,0])
-            self.assertEqual(fm_profile_df['deductible2'].values.tolist(), [0,0,0,0,0])
-            self.assertEqual(fm_profile_df['deductible3'].values.tolist(), [0,0,0,0,0])
-            self.assertEqual(fm_profile_df['attachment1'].values.tolist(), [0,0,0,0,0])
-            self.assertEqual(fm_profile_df['limit1'].values.tolist(), [0,0,0,0,2500000])
-            self.assertEqual(fm_profile_df['share1'].values.tolist(), [0,0,0,0,1])
-            self.assertEqual(fm_profile_df['share2'].values.tolist(), [0,0,0,0,0])
-            self.assertEqual(fm_profile_df['share3'].values.tolist(), [0,0,0,0,0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['deductible1'].values.tolist()], [10000,5000,0,50000,0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['deductible2'].values.tolist()], [0,0,0,0,0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['deductible3'].values.tolist()], [0,0,0,0,0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['attachment1'].values.tolist()], [0,0,0,0,0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['limit1'].values.tolist()], [0,0,0,0,2500000])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['share1'].values.tolist()], [0,0,0,0,1])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['share2'].values.tolist()], [0,0,0,0,0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['share3'].values.tolist()], [0,0,0,0,0])
 
             fm_policytc_df = pd.read_csv(il_input_files['fm_policytc'])
             level_groups = [group for _, group in fm_policytc_df.groupby(['level_id'])]
@@ -1040,7 +1050,9 @@ class FmAcceptanceTests(TestCase):
             if losses_ok:
                 actual_direct_losses['event_id'] = actual_direct_losses['event_id'].astype(object)
                 actual_direct_losses['output_id'] = actual_direct_losses['output_id'].astype(object)
-                print('Correct losses generated for FM7:\n{}'.format(tabulate(actual_direct_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
+                print_dataframe(
+                    actual_direct_losses, table_header='Insured losses', objectify_cols=actual_direct_losses.columns, end='\n\n'
+                )
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=1)
     @given(
@@ -1119,34 +1131,35 @@ class FmAcceptanceTests(TestCase):
             write_source_files(exposure, ef.name, accounts, af.name)
             write_keys_files(keys, kf.name)
 
-            gul_input_files, gul_inputs, exposure_df = write_gul_input_files(ef.name, kf.name, oasis_dir, exposure_profile=self.exposure_profile)
+            gul_inputs_df, exposure_df = get_gul_input_items(ef.name, kf.name)
+            gul_input_files = write_gul_input_files(gul_inputs_df, oasis_dir)
 
             for p in viewvalues(gul_input_files): 
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
-            guls = pd.merge(
+            gul_inputs = pd.merge(
                 pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
                 pd.read_csv(gul_input_files['gulsummaryxref']),
                 left_on='coverage_id',
                 right_on='coverage_id'
             )
 
-            self.assertEqual(len(guls), 6)
+            self.assertEqual(len(gul_inputs), 6)
 
-            self.assertEqual(guls['item_id'].values.tolist(), [1,2,3,4,5,6])
-            self.assertEqual(guls['coverage_id'].values.tolist(), [1,2,3,4,5,6])
-            self.assertEqual(guls['areaperil_id'].values.tolist(), [1,1,1,1,1,1])
-            self.assertEqual(guls['vulnerability_id'].values.tolist(), [1,1,1,1,1,1])
-            self.assertEqual(guls['group_id'].values.tolist(), [1,2,3,4,5,6])
-            self.assertEqual(guls['tiv'].values.tolist(), [1000000,1000000,1000000,2000000,2000000,2000000])
+            self.assertEqual(gul_inputs['item_id'].values.tolist(), [1,2,3,4,5,6])
+            self.assertEqual(gul_inputs['coverage_id'].values.tolist(), [1,2,3,4,5,6])
+            self.assertEqual(gul_inputs['areaperil_id'].values.tolist(), [1,1,1,1,1,1])
+            self.assertEqual(gul_inputs['vulnerability_id'].values.tolist(), [1,1,1,1,1,1])
+            self.assertEqual(gul_inputs['group_id'].values.tolist(), [1,2,3,4,5,6])
+            self.assertEqual([round(v, 5) for v in gul_inputs['tiv'].values.tolist()], [1000000,1000000,1000000,2000000,2000000,2000000])
 
-            il_input_files, il_inputs, accounts_df = write_il_input_files(
-                exposure_df, gul_inputs, oasis_dir,
-                accounts_fp=af.name, exposure_profile=self.exposure_profile,
-                accounts_profile=self.accounts_profile,
-                fm_aggregation_profile=self.fm_aggregation_profile
+            il_inputs, _ = get_il_input_items(
+                exposure_df,
+                gul_inputs_df,
+                accounts_fp=af.name
             )
+            il_input_files = write_il_input_files(il_inputs, oasis_dir)
 
             for p in viewvalues(il_input_files): 
                 if not p.endswith("complex_items.csv"):
@@ -1172,14 +1185,14 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(len(fm_profile_df), 6)
             self.assertEqual(fm_profile_df['policytc_id'].values.tolist(), [1,2,3,4,5,6])
             self.assertEqual(fm_profile_df['calcrule_id'].values.tolist(), [12,12,12,12,2,2])
-            self.assertEqual(fm_profile_df['deductible1'].values.tolist(), [10000,50000,15000,200000,0,1500000])
-            self.assertEqual(fm_profile_df['deductible2'].values.tolist(), [0,0,0,0,0,0])
-            self.assertEqual(fm_profile_df['deductible3'].values.tolist(), [0,0,0,0,0,0])
-            self.assertEqual(fm_profile_df['attachment1'].values.tolist(), [0,0,0,0,0,1500000])
-            self.assertEqual(fm_profile_df['limit1'].values.tolist(), [0,0,0,0,1500000,3500000])
-            self.assertEqual(fm_profile_df['share1'].values.tolist(), [0,0,0,0,0.1,0.5])
-            self.assertEqual(fm_profile_df['share2'].values.tolist(), [0,0,0,0,0,0])
-            self.assertEqual(fm_profile_df['share3'].values.tolist(), [0,0,0,0,0,0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['deductible1'].values.tolist()], [10000,50000,15000,200000,0,1500000])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['deductible2'].values.tolist()], [0,0,0,0,0,0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['deductible3'].values.tolist()], [0,0,0,0,0,0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['attachment1'].values.tolist()], [0,0,0,0,0,1500000])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['limit1'].values.tolist()], [0,0,0,0,1500000,3500000])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['share1'].values.tolist()], [0,0,0,0,0.1,0.5])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['share2'].values.tolist()], [0,0,0,0,0,0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['share3'].values.tolist()], [0,0,0,0,0,0])
 
             fm_policytc_df = pd.read_csv(il_input_files['fm_policytc'])
             level_groups = [group for _, group in fm_policytc_df.groupby(['level_id'])]
@@ -1207,17 +1220,19 @@ class FmAcceptanceTests(TestCase):
 
             layer1_group = layer_groups[0]
             self.assertEqual(len(layer1_group), 6)
+            self.assertEqual(layer1_group['output'].values.tolist(), [1,3,5,7,9,11])
             self.assertEqual(layer1_group['agg_id'].values.tolist(), [1,2,3,4,5,6])
 
             layer2_group = layer_groups[1]
             self.assertEqual(len(layer2_group), 6)
+            self.assertEqual(layer2_group['output'].values.tolist(), [2,4,6,8,10,12])
             self.assertEqual(layer2_group['agg_id'].values.tolist(), [1,2,3,4,5,6])
 
             fmsummaryxref_df = pd.read_csv(il_input_files['fmsummaryxref'])
             self.assertEqual(len(fmsummaryxref_df), 12)
             self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1,2,3,4,5,6,7,8,9,10,11,12])
-            self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1,1,1,1,1,1,1,1,1,1,1,1])
-            self.assertEqual(fmsummaryxref_df['summaryset_id'].values.tolist(), [1,1,1,1,1,1,1,1,1,1,1,1])
+            self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1]* 12)
+            self.assertEqual(fmsummaryxref_df['summaryset_id'].values.tolist(), [1] * 12)
 
             expected_direct_losses = pd.DataFrame(
                 columns=['event_id', 'output_id', 'loss'],
@@ -1236,6 +1251,7 @@ class FmAcceptanceTests(TestCase):
                     (1,12,361861.00)
                 ]
             )
+
             bins_dir = os.path.join(oasis_dir, 'bin')
             os.mkdir(bins_dir)
             actual_direct_losses = self.manager.generate_deterministic_losses(oasis_dir, output_dir=bins_dir)['il']
@@ -1244,4 +1260,6 @@ class FmAcceptanceTests(TestCase):
             if losses_ok:
                 actual_direct_losses['event_id'] = actual_direct_losses['event_id'].astype(object)
                 actual_direct_losses['output_id'] = actual_direct_losses['output_id'].astype(object)
-                print('Correct losses generated for FM40:\n{}'.format(tabulate(actual_direct_losses, headers='keys', tablefmt='psql', floatfmt=".2f")))
+                print_dataframe(
+                    actual_direct_losses, table_header='Insured losses', objectify_cols=actual_direct_losses.columns, end='\n\n'
+                )

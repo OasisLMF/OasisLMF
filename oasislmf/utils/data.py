@@ -12,19 +12,25 @@ from future import standard_library
 standard_library.install_aliases()
 
 __all__ = [
-    'set_col_dtypes',
+    'factorize_dataframe',
+    'factorize_ndarray',
+    'fast_zip_dataframe_columns',
+    'fast_zip_nparrays',
     'get_dataframe',
     'get_json',
     'get_timestamp',
     'get_utctimestamp',
     'merge_dataframes',
-    'PANDAS_BASIC_DTYPES'
+    'PANDAS_BASIC_DTYPES',
+    'set_dataframe_column_dtypes'
 ]
 
 import builtins
 import io
 import json
 import sys
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from datetime import datetime
 from future.utils import viewitems
@@ -38,15 +44,18 @@ from tabulate import tabulate
 
 import numpy as np
 import pandas as pd
+pd.options.mode.chained_assignment = None
 import pytz
 
 from .exceptions import OasisException
 
 
 PANDAS_BASIC_DTYPES = {
-    'int': np.int64,
+    'int32': np.int32,
+    'int64': np.int64,
     builtins.int: np.int64,
-    'float': np.float64,
+    'float32': np.float32,
+    'float64': np.float64,
     builtins.float: np.float64,
     'bool': np.bool,
     builtins.bool: np.bool,
@@ -55,22 +64,58 @@ PANDAS_BASIC_DTYPES = {
     builtins.str: np.object
 }
 
+
+def factorize_ndarray(ndarr, row_idxs=None, col_idxs=None, enumerate_only=False):
+    _ndarr = ndarr[:, col_idxs].transpose() if col_idxs else ndarr[row_idxs, :]
+    ft = pd.factorize(fast_zip_nparrays(*(ar for ar in _ndarr)))
+    return (ft[0] + 1) if enumerate_only else ft
+
+
+def factorize_dataframe(
+        df,
+        by_row_labels=None,
+        by_row_indices=None,
+        by_col_labels=None,
+        by_col_indices=None,
+        enumerate_only=False
+    ):
+        by_row_indices = by_row_indices or (None if not by_row_labels else [df.index.get_loc(label) for label in by_row_labels])
+        by_col_indices = by_col_indices or (None if not by_col_labels else [df.columns.get_loc(label) for label in by_col_labels])
+
+        return factorize_ndarray(
+            df.values,
+            row_idxs=by_row_indices,
+            col_idxs=by_col_indices,
+            enumerate_only=enumerate_only
+        )
+
+
+def fast_zip_nparrays(*nparrays):
+    return pd._libs.lib.fast_zip([arr for arr in nparrays])
+
+
+def fast_zip_dataframe_columns(df, cols):
+    return fast_zip_nparrays(*(df[col].values for col in cols))
+
+
 def get_dataframe(
     src_fp=None,
     src_type='csv',
     src_buf=None,
     src_data=None,
+    csv_cols=None,
     float_precision='high',
     empty_data_error_msg=None,
     lowercase_cols=True,
     replace_nans_by_none=True,
     required_cols=(),
-    defaulted_cols={},
+    col_defaults={},
     non_na_cols=(),
     col_dtypes={},
-    index_col=True,
+    index=None,
     sort_col=None,
-    sort_ascending=None
+    sort_ascending=None,
+    memory_map=False
 ):
     if not (src_fp or src_buf or src_data is not None):
         raise OasisException(
@@ -81,18 +126,23 @@ def get_dataframe(
     df = None
 
     if src_fp and src_type == 'csv':
-        df = pd.read_csv(src_fp, float_precision=float_precision)
+        df = pd.read_csv(src_fp, float_precision=float_precision, usecols=csv_cols, memory_map=memory_map)
     elif src_buf and src_type == 'csv':
-        df = pd.read_csv(io.StringIO(src_buf), float_precision=float_precision)
+        df = pd.read_csv(io.StringIO(src_buf), float_precision=float_precision, usecols=csv_cols, memory_map=memory_map)
     elif src_fp and src_type == 'json':
         df = pd.read_json(src_fp, precise_float=(True if float_precision == 'high' else False))
     elif src_buf and src_type == 'json':
         df = pd.read_json(io.StringIO(src_buf), precise_float=(True if float_precision == 'high' else False))
-    elif src_data and (isinstance(src_data, list) or isinstance(src_data, pd.DataFrame)):
-        df = pd.DataFrame(data=src_data, dtype=object)
+    elif src_data and isinstance(src_data, list):
+        df = pd.DataFrame(data=src_data)
+    elif src_data and  isinstance(src_data, pd.DataFrame):
+        df = pd.DataFrame(src_data)
 
-    if empty_data_error_msg and len(df) == 0:
+    if len(df) == 0:
         raise OasisException(empty_data_error_msg)
+
+    if index:
+        df.index = index
 
     if lowercase_cols:
         df.columns = df.columns.str.lower()
@@ -113,25 +163,22 @@ def get_dataframe(
     # with 0 values, so that when it is loaded into the frame the 'X' will have
     # 0 values, as expected.
     #
-    # In this sense, defaulting of column values via the `defaulted_cols`
+    # In this sense, defaulting of column values via the `col_defaults`
     # optional argument is redundant - but there may be some cases where it is
     # convenient to have this feature at the code level.
 
-    if defaulted_cols:
-        _defaulted_cols = {k.lower(): v for k, v in viewitems(defaulted_cols)} if lowercase_cols else defaulted_cols
-        defaults = {c for c in _defaulted_cols}.difference({c for c in df.columns})
+    if col_defaults:
+        _col_defaults = {k.lower(): v for k, v in viewitems(col_defaults)} if lowercase_cols else col_defaults
+        defaults = {c for c in _col_defaults}.difference({c for c in df.columns})
         for col in defaults:
-            df[col] = _defaulted_cols[col]
+            df[col] = df.get(col, _col_defaults[col])
 
     if non_na_cols:
         _non_na_cols = tuple(col.lower() for col in non_na_cols) if lowercase_cols else non_na_cols
         df.dropna(subset=_non_na_cols, inplace=True)
 
-    if index_col:
-        df['index'] = range(len(df))
-
     if col_dtypes:
-        set_col_dtypes(df, col_dtypes, lowercase_cols=lowercase_cols)
+        set_dataframe_column_dtypes(df, col_dtypes)
 
     if sort_col:
         _sort_col = sort_col.lower() if lowercase_cols else sort_col
@@ -141,11 +188,10 @@ def get_dataframe(
     return df
 
 
-def set_col_dtypes(df, col_dtypes, lowercase_cols=True):
-    _col_dtypes = {
-        (k.lower() if lowercase_cols else k): (getattr(builtins, v) if v in ('int', 'bool', 'float', 'object', 'str') else v) for k, v in viewitems(col_dtypes)
-    }
-    for col, dtype in viewitems(_col_dtypes):
+def set_dataframe_column_dtypes(df, col_dtypes):
+    for col, dtype in viewitems(col_dtypes):
+        if dtype in ('int', 'bool', 'float', 'object', 'str',):
+            dtype = getattr(builtins, dtype)
         if col in df:
             df[col] = df[col].astype(PANDAS_BASIC_DTYPES[dtype])
 
@@ -182,15 +228,18 @@ def merge_dataframes(left, right, **kwargs):
     """
     Merges two dataframes by ensuring there is no duplication of columns.
     """
-
     _left = left.copy(deep=True)
+    _left['index'] = _left.get('index', _left.index)
     _right = right.copy(deep=True)
+    _right['index'] = _right.get('index', _right.index)
 
-    for df in [_left, _right]:
-        if df.get('index') is None:
-            df['index'] = range(len(df))
+    left_keys = kwargs.get('left_on') or kwargs.get('on') or []
+    left_keys = [left_keys] if isinstance(left_keys, str) else left_keys
 
-    drop_cols = [k for k in set(_left.columns).intersection(_right.columns) if k and k not in [kwargs.get('left_on'), 'index']]
+    drop_cols = [
+        k for k in set(_left.columns).intersection(_right.columns)
+        if k and k not in left_keys + ['index']
+    ]
 
     drop_duplicates = kwargs.get('drop_duplicates', True)
     kwargs.pop('drop_duplicates') if 'drop_duplicates' in kwargs else None
@@ -207,9 +256,32 @@ def merge_dataframes(left, right, **kwargs):
     return merge if not drop_duplicates else merge.drop_duplicates()
 
 
-def print_dataframe(frame, objectify_cols=[], header=None, headers='keys', tablefmt='psql', floatfmt=".2f", sep=' ', end='\n', file=sys.stdout, flush=False):
+def print_dataframe(
+    df,
+    objectify_cols=[],
+    show_index=False,
+    table_header=None,
+    column_headers='keys',
+    tablefmt='psql',
+    floatfmt=".2f",
+    sep=' ',
+    end='\n',
+    file=sys.stdout,
+    flush=False,
+    **tabulate_kwargs
+):  
+    _df = df.copy(deep=True)
+
     for col in objectify_cols:
-        frame[col] = frame[col].astype(object)
-    if header:
-        print('\n{}'.format(header))
-    print(tabulate(frame, headers=headers, tablefmt=tablefmt, floatfmt=floatfmt), sep=sep, end=end, file=file, flush=flush)
+        _df[col] = _df[col].astype(object)
+
+    if table_header:
+        print('\n{}'.format(table_header))
+
+    if tabulate_kwargs:
+        tabulate_kwargs.pop('headers') if 'headers' in tabulate_kwargs else None
+        tabulate_kwargs.pop('tablefmt') if 'tablefmt' in tabulate_kwargs else None
+        tabulate_kwargs.pop('floatfmt') if 'floatfmt' in tabulate_kwargs else None
+        tabulate_kwargs.pop('showindex') if 'showindex' in tabulate_kwargs else None
+
+    print(tabulate(_df, headers=column_headers, tablefmt=tablefmt, showindex=show_index, floatfmt=floatfmt, **tabulate_kwargs), sep=sep, end=end, file=file, flush=flush)

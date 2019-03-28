@@ -12,6 +12,7 @@ from future import standard_library
 standard_library.install_aliases()
 
 __all__ = [
+    'get_calc_rules',
     'get_default_accounts_profile',
     'get_default_deterministic_analysis_settings',
     'get_default_exposure_profile',
@@ -28,7 +29,10 @@ import os
 
 from collections import OrderedDict
 
-from .data import get_json
+from .data import (
+    get_dataframe,
+    get_json,
+)
 
 
 # Path for storing static data/metadata files used in the package
@@ -52,10 +56,16 @@ def get_default_fm_aggregation_profile(path=False):
     return get_json(src_fp=src_fp, key_transform=int) if not path else src_fp
 
 
+# Ktools calc. rules
+def get_calc_rules(path=False):
+    src_fp=os.path.join(STATIC_DATA_FP, 'calc-rules.csv')
+    return get_dataframe(src_fp=src_fp) if not path else src_fp
+
+
 # Default name prefixes of the Oasis input files (GUL + IL)
 OASIS_FILES_PREFIXES = OrderedDict({
     'gul': {
-        'complex_items': 'complex_items',        
+        'complex_items': 'complex_items',
         'items': 'items',
         'coverages': 'coverages',
         'gulsummaryxref': 'gulsummaryxref'

@@ -24,6 +24,8 @@ import multiprocessing
 import os
 import re
 import shutil
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from builtins import str
 from collections import OrderedDict
@@ -47,6 +49,7 @@ from itertools import (
 )
 
 import pandas as pd
+pd.options.mode.chained_assignment = None
 
 from pathlib2 import Path
 from six import text_type as _unicode
@@ -59,8 +62,15 @@ from .model_execution.bin import (
     prepare_run_inputs,
 )
 from .model_preparation import oed
-from .model_preparation.gul_inputs import write_gul_input_files
-from .model_preparation.il_inputs import write_il_input_files
+from .model_preparation.gul_inputs import (
+    get_gul_input_items,
+    write_gul_input_files,
+)
+from .model_preparation.il_inputs import (
+    get_il_input_items,
+    unified_id_terms,
+    write_il_input_files,
+)
 from .model_preparation.lookup import OasisLookupFactory as olf
 from .model_preparation.utils import prepare_input_files_directory
 from .model_preparation.reinsurance_layer import write_ri_input_files
@@ -338,18 +348,17 @@ class OasisManager(object):
             ri_scope_fp=ri_scope_fp
         )
 
-        # Get the exposure + accounts + FM aggregation profiles + lookup
-        # config. profiles either from the optional arguments if present, or
-        # then manager defaults
+        # Get the profiles defining the exposure and accounts files, ID related
+        # terms in these files, and FM aggregation hierarchy
         exposure_profile = exposure_profile or get_json(src_fp=exposure_profile_fp) or self.exposure_profile
         accounts_profile = accounts_profile or get_json(src_fp=accounts_profile_fp) or self.accounts_profile
+        id_terms = unified_id_terms(profiles=(exposure_profile, accounts_profile,))
+        loc_id = id_terms['locid']
+        acc_id = id_terms['accid']
+        portfolio_num = id_terms['portid']
         fm_aggregation_profile = fm_aggregation_profile or get_json(src_fp=fm_aggregation_profile_fp, key_transform=int) or self.fm_aggregation_profile
 
-        lookup_config = get_json(src_fp=lookup_config_fp) or lookup_config
-        if lookup_config:
-            lookup_config['keys_data_path'] = os.path.abspath(os.path.dirname(lookup_config_fp))
-
-        # If a preexisting model lookup keys file path has not been provided,
+        # If a pre-generated keys file path has not been provided,
         # then it is asssumed some model lookup assets have been provided, so
         # as to allow the lookup to be instantiated and called to generated
         # the keys file. Otherwise if no model keys file path or lookup assets
@@ -360,18 +369,23 @@ class OasisManager(object):
             _keys_errors_fp = os.path.join(target_dir, 'keys-errors.csv')
 
             cov_types = supported_oed_coverage_types or self.supported_oed_coverage_types
+
             if deterministic:
-                loc_numbers = (loc_num['locnumber'] for _, loc_num in get_dataframe(
+                loc_numbers = (loc_num[loc_id] for _, loc_num in get_dataframe(
                     src_fp=exposure_fp,
-                    col_dtypes={'LocNumber': 'str', 'AccNumber': 'str', 'PortNumber': 'str'},
+                    col_dtypes={loc_id: 'str', acc_id: 'str', portfolio_num: 'str'},
                     empty_data_error_msg='No exposure found in the source exposure (loc.) file'
-                )[['locnumber']].iterrows())
+                )[[loc_id]].iterrows())
                 keys = [
-                    {'locnumber': loc_num, 'peril_id': 1, 'coverage_type': cov_type, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
+                    {loc_id: loc_num, 'peril_id': 1, 'coverage_type': cov_type, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
                     for i, (loc_num, cov_type) in enumerate(product(loc_numbers, cov_types))
                 ]
                 _, _ = olf.write_oasis_keys_file(keys, _keys_fp)
             else:
+                lookup_config = get_json(src_fp=lookup_config_fp) or lookup_config
+                if lookup_config:
+                    lookup_config['keys_data_path'] = os.path.abspath(os.path.dirname(lookup_config_fp))
+
                 _, lookup = olf.create(
                     lookup_config=lookup_config,
                     model_keys_data_path=keys_data_fp,
@@ -380,7 +394,7 @@ class OasisManager(object):
                 )
                 f1, n1, f2, n2 = olf.save_results(
                     lookup,
-                    loc_id_col='locnumber',
+                    loc_id_col=loc_id,
                     successes_fp=_keys_fp,
                     errors_fp=_keys_errors_fp,
                     source_exposure_fp=exposure_fp
@@ -388,13 +402,16 @@ class OasisManager(object):
         else:
             _keys_fp = os.path.join(target_dir, os.path.basename(keys_fp))
 
+        # Get the GUL input items and exposure dataframes
+        gul_inputs_df, exposure_df = get_gul_input_items(
+            exposure_fp, _keys_fp, exposure_profile=exposure_profile
+        )
+
         # Write the GUL input files
         files_prefixes = oasis_files_prefixes or self.oasis_files_prefixes
-        gul_input_files, gul_inputs_df, exposure_df = write_gul_input_files(
-            exposure_fp,
-            _keys_fp,
+        gul_input_files = write_gul_input_files(
+            gul_inputs_df,
             target_dir,
-            exposure_profile=exposure_profile,
             oasis_files_prefixes=files_prefixes['gul']
         )
 
@@ -403,22 +420,28 @@ class OasisManager(object):
         if not accounts_fp:
             return gul_input_files
 
-        # Write the IL/FM input files
-        il_input_files, _, _ = write_il_input_files(
+        # Get the IL input items
+        il_inputs_df, _ = get_il_input_items(
             exposure_df,
             gul_inputs_df,
-            target_dir,
             accounts_fp=accounts_fp,
             exposure_profile=exposure_profile,
             accounts_profile=accounts_profile,
-            fm_aggregation_profile=fm_aggregation_profile,
+            fm_aggregation_profile=fm_aggregation_profile
+        )
+
+        # Write the IL/FM input files
+        il_input_files = write_il_input_files(
+            il_inputs_df,
+            target_dir,
             oasis_files_prefixes=files_prefixes['il']
         )
 
+        # Combine the GUL and IL input file paths into a single dict (for convenience)
         oasis_files = {k: v for k, v in chain(gul_input_files.items(), il_input_files.items())}
 
         # If no RI input file paths (info. and scope) have been provided then
-        # no RI input files are needed
+        # no RI input files are needed, just return the GUL and IL Oasis files
         if not (ri_info_fp or ri_scope_fp):
             return oasis_files
 
@@ -592,7 +615,7 @@ class OasisManager(object):
         cmd = 'gultobin -S 1 < {} | fmcalc -p {} {} -a {} | tee ils.bin | fmtocsv > {}'.format(
             guls_fp, output_dir, net_flag, oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID, ils_fp
         )
-        print("\nGenerating deterministic insured losses with command: {}\n".format(cmd))
+        print("\nGenerating deterministic ground-up and direct insured losses with command: {}\n".format(cmd))
         try:
             check_call(cmd, shell=True)
         except CalledProcessError as e:
@@ -601,12 +624,16 @@ class OasisManager(object):
         guls.drop(guls[guls['sidx'] != 1].index, inplace=True)
         guls.reset_index(drop=True, inplace=True)
         guls.drop('sidx', axis=1, inplace=True)
+        guls = guls[(guls[['loss']] != 0).any(axis=1)]
+        guls['item_id'] = range(1, len(guls) + 1)
         losses['gul'] = guls
 
         ils = pd.read_csv(ils_fp)
         ils.drop(ils[ils['sidx'] != 1].index, inplace=True)
         ils.reset_index(drop=True, inplace=True)
         ils.drop('sidx', axis=1, inplace=True)
+        ils = ils[(ils[['loss']] != 0).any(axis=1)]
+        ils['output_id'] = range(1, len(ils) + 1)
         losses['il'] = ils
 
         if ri:
@@ -646,12 +673,14 @@ class OasisManager(object):
                         rils.drop(rils[rils['sidx'] != 1].index, inplace=True)
                         rils.drop('sidx', axis=1, inplace=True)
                         rils.reset_index(drop=True, inplace=True)
+                        rils = rils[(rils[['loss']] != 0).any(axis=1)]
 
                         return rils
 
                     for i in range(1, ri_layers + 1):
                         rils = run_ri_layer(i)
                         if i in [1, ri_layers]:
+                            rils['output_id'] = range(1, len(rils) + 1)
                             losses['ri'] = rils
 
         return losses
