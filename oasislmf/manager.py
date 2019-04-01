@@ -244,7 +244,7 @@ class OasisManager(object):
 
         col_dtypes = peril_config.get('col_dtypes') or {peril_area_id_col: int}
 
-        sort_col = peril_config.get('sort_col') or peril_area_id_col
+        sort_cols = peril_config.get('sort_cols') or peril_area_id_col
 
         area_poly_coords_seq_start_idx = peril_config.get('area_poly_coords_seq_start_idx') or 1
 
@@ -261,7 +261,7 @@ class OasisManager(object):
             peril_area_id_col=peril_area_id_col,
             non_na_cols=non_na_cols,
             col_dtypes=col_dtypes,
-            sort_col=sort_col,
+            sort_cols=sort_cols,
             area_poly_coords_cols=area_poly_coords_cols,
             area_poly_coords_seq_start_idx=area_poly_coords_seq_start_idx,
             area_reg_poly_radius=area_reg_poly_radius,
@@ -356,7 +356,11 @@ class OasisManager(object):
         loc_id = id_terms['locid']
         acc_id = id_terms['accid']
         portfolio_num = id_terms['portid']
-        fm_aggregation_profile = fm_aggregation_profile or get_json(src_fp=fm_aggregation_profile_fp, key_transform=int) or self.fm_aggregation_profile
+        fm_aggregation_profile = (
+            fm_aggregation_profile or
+            ({int(k): v for k, v in viewitems(get_json(src_fp=fm_aggregation_profile_fp))} if fm_aggregation_profile_fp else {}) or
+            self.fm_aggregation_profile
+        )
 
         # If a pre-generated keys file path has not been provided,
         # then it is asssumed some model lookup assets have been provided, so

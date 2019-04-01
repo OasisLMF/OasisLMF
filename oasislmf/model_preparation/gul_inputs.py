@@ -128,7 +128,7 @@ def get_gul_input_items(
         src_fp=exposure_fp,
         required_cols=(loc_id, acc_id, portfolio_num,),
         col_dtypes=col_dtypes,
-        col_defaults={t: 0.0 for t in tiv_and_cov_il_terms},
+        #col_defaults={t: 0.0 for t in tiv_and_cov_il_terms},
         empty_data_error_msg='No data found in the source exposure (loc.) file',
         memory_map=True
     )
@@ -139,7 +139,7 @@ def get_gul_input_items(
         'coveragetypeid': 'int32',
         'areaperilid': 'int32',
         'vulnerabilityid': 'int32',
-        'modeldata': 'object'
+        'modeldata': 'str'
     }
     keys_df = get_dataframe(
         src_fp=keys_fp,
@@ -227,7 +227,7 @@ def get_gul_input_items(
         gul_inputs_df = gul_inputs_df[(gul_inputs_df[['tiv']] != 0).any(axis=1)].reset_index()
 
         # Set the group ID - group by loc. number
-        gul_inputs_df['group_id'] = factorize_array(gul_inputs_df[loc_id].values, enumerate_only=True)
+        gul_inputs_df['group_id'] = factorize_array(gul_inputs_df[loc_id].values)[0]
 
         # Set the item IDs and coverage IDs, and defaults for layer ID, agg. ID and summary and
         # summary set IDs
@@ -413,7 +413,7 @@ def write_gul_input_files(
     # Clean the target directory path
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
 
-    chunksize = min(10**5, len(gul_inputs_df))
+    chunksize = min(2*10**5, len(gul_inputs_df))
 
     if write_inputs_table_to_file:
         gul_inputs_df.to_csv(path_or_buf=os.path.join(target_dir, 'gul_inputs.csv'), index=False, encoding='utf-8', chunksize=chunksize)
@@ -442,8 +442,4 @@ def write_gul_input_files(
         for fn, fp in viewitems(gul_input_files):
             getattr(this_module, 'write_{}_file'.format(fn))(gul_inputs_df, fp, chunksize)
 
-    gul_input_files = {
-        fn: os.path.join(target_dir, '{}.csv'.format(oasis_files_prefixes[fn])) 
-        for fn in oasis_files_prefixes
-    }
     return gul_input_files
