@@ -270,7 +270,7 @@ def get_dataframe(
 
     if sort_cols:
         _sort_cols = (
-            [(col.lower() if lowercase_cols else col) for col in sort_cols] if isinstance(sort_cols, list)
+            [(col.lower() if lowercase_cols else col) for col in sort_cols] if (isinstance(sort_cols, list) or isinstance(sort_cols, tuple) or isinstance(sort_cols, set))
             else (sort_cols.lower() if lowercase_cols else sort_cols)
         )
         sort_ascending = sort_ascending if sort_ascending is not None else True

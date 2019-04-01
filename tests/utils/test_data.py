@@ -676,7 +676,7 @@ class TestGetDataframe(TestCase):
             max_size=10
         )
     )
-    def test_get_dataframe__from_csv_file__set_sort_col_option_on_single_col_and_use_defaults_for_all_other_options(self, data):
+    def test_get_dataframe__from_csv_file__set_sort_cols_option_on_single_col_and_use_defaults_for_all_other_options(self, data):
         with NamedTemporaryFile('w') as fp:
             data = [{k: (v if k != 'int_col' else np.random.choice(range(10))) for k, v in viewitems(it)} for it in data]
             df = pd.DataFrame(data)
@@ -703,7 +703,7 @@ class TestGetDataframe(TestCase):
             max_size=10
         )
     )
-    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_sort_col_option_on_single_col_and_use_defaults_for_all_other_options(self, data):
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_sort_cols_option_on_single_col_and_use_defaults_for_all_other_options(self, data):
         with NamedTemporaryFile('w') as fp:
             data = [{k: (v if k != 'IntCol' else np.random.choice(range(10))) for k, v in viewitems(it)} for it in data]
             df = pd.DataFrame(data)
@@ -731,7 +731,7 @@ class TestGetDataframe(TestCase):
             max_size=10
         )
     )
-    def test_get_dataframe__from_csv_file__set_sort_col_option_on_two_cols_and_use_defaults_for_all_other_options(self, data):
+    def test_get_dataframe__from_csv_file__set_sort_cols_option_on_two_cols_and_use_defaults_for_all_other_options(self, data):
         with NamedTemporaryFile('w') as fp:
             data = [
                 {k: (v if k not in ('int_col', 'str_col') else (np.random.choice(range(10)) if k == 'int_col' else np.random.choice(list(string.ascii_lowercase)))) for k, v in viewitems(it)}
@@ -761,7 +761,7 @@ class TestGetDataframe(TestCase):
             max_size=10
         )
     )
-    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_sort_col_option_on_two_cols_and_use_defaults_for_all_other_options(self, data):
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_sort_cols_option_on_two_cols_and_use_defaults_for_all_other_options(self, data):
         with NamedTemporaryFile('w') as fp:
             data = [
                 {k: (v if k not in ('IntCol', 'STR_COL') else (np.random.choice(range(10)) if k == 'IntCol' else np.random.choice(list(string.ascii_lowercase)))) for k, v in viewitems(it)}
@@ -1011,7 +1011,7 @@ class TestGetDataframe(TestCase):
             max_size=10
         )
     )
-    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false_and_sort_col_option_on_single_col_and_use_defaults_for_all_other_options(self, data):
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false_and_sort_cols_option_on_single_col_and_use_defaults_for_all_other_options(self, data):
         with NamedTemporaryFile('w') as fp:
             data = [{k: (v if k != 'IntCol' else np.random.choice(range(10))) for k, v in viewitems(it)} for it in data]
             df = pd.DataFrame(data)
@@ -1038,7 +1038,7 @@ class TestGetDataframe(TestCase):
             max_size=10
         )
     )
-    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false_and_sort_col_option_on_two_cols_and_use_defaults_for_all_other_options(self, data):
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false_and_sort_cols_option_on_two_cols_and_use_defaults_for_all_other_options(self, data):
         with NamedTemporaryFile('w') as fp:
             data = [
                 {k: (v if k not in ('IntCol', 'STR_COL') else (np.random.choice(range(10)) if k == 'IntCol' else np.random.choice(list(string.ascii_lowercase)))) for k, v in viewitems(it)}
