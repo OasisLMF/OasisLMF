@@ -355,7 +355,11 @@ class OasisManager(object):
         loc_id = id_terms['locid']
         acc_id = id_terms['accid']
         portfolio_num = id_terms['portid']
-        fm_aggregation_profile = fm_aggregation_profile or get_json(src_fp=fm_aggregation_profile_fp, key_transform=int) or self.fm_aggregation_profile
+        fm_aggregation_profile = (
+            fm_aggregation_profile or
+            ({int(k): v for k, v in viewitems(get_json(src_fp=fm_aggregation_profile_fp))} if fm_aggregation_profile_fp else {}) or
+            self.fm_aggregation_profile
+        )
 
         # If a pre-generated keys file path has not been provided,
         # then it is asssumed some model lookup assets have been provided, so

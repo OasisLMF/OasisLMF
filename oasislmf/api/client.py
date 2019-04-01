@@ -9,7 +9,7 @@ import time
 
 from requests.exceptions import *
 from requests_toolbelt import MultipartEncoder
-from .session_manager import SessionManager
+from .session import APISession
 
 from ..utils.exceptions import OasisException
 
@@ -72,12 +72,11 @@ class FileEndpoint(object):
                 r.raise_for_status()
                 return r
         except HTTPError as e:
-            print(r.text)
             err_msg = 'File upload Failed: {}, file: {},  url: {}:'.format(r.status_code, file_path, r.url)
             self.logger.error(r.text)
             self.logger.error(err_msg)
 
-    def download(self, ID, file_path, chuck_size=1024, overrwrite=False):
+    def download(self, ID, file_path, overwrite=True, chuck_size=1024):
         abs_fp = os.path.realpath(os.path.expanduser(file_path))
 
         # Check and create base dir
@@ -85,16 +84,19 @@ class FileEndpoint(object):
             os.makedirs(os.path.dirname(file_path))
 
         # Check if file exists
-        if os.path.exists(abs_fp) and not overrwrite:
-            error_message = 'Local file alreday exists: {}'.format(abs_fp)
-            raise IOError(error_message)
+        if os.path.exists(abs_fp):
+            if overwrite:
+                os.remove(abs_fp)
+            else:
+                error_message = 'Local file alreday exists: {}'.format(abs_fp)
+                raise IOError(error_message)
 
-        r = self.session.get(self._build_url(ID), stream=True)
-        if  r.ok:
+        try:
             with io.open(abs_fp, 'wb') as f:
+                r = self.session.get(self._build_url(ID), stream=True)
                 for chunk in r.iter_content(chunk_size=chuck_size):
                     f.write(chunk)
-        else:
+        except:
             self.logger.error('Download failed')
            # exception_message = 'GET {} failed: {}'.format(response.request.url, response.status_code)
            # self._logger.error(exception_message)
@@ -242,7 +244,7 @@ class APIClient(object):
     def __init__(self, api_url, api_ver, username, password, timeout=25, logger=None):
         self.logger = logger or logging.getLogger()
 
-        self.api        = SessionManager(api_url, username, password, timeout)
+        self.api        = APISession(api_url, username, password, timeout)
         self.models     = API_models(self.api, '{}{}/models/'.format(self.api.url_base, api_ver))
         self.portfolios = API_portfolios(self.api, '{}{}/portfolios/'.format(self.api.url_base, api_ver))
         self.analyses   = API_analyses(self.api,'{}{}/analyses/'.format(self.api.url_base, api_ver))
@@ -416,14 +418,13 @@ class APIClient(object):
             self.logger.error('run_analysis: failed')
             sys.exit(1)
 
-    def download_output(self, analysis_id, download_path, filename=None, clean_up=False, overwrite=False):
+    def download_output(self, analysis_id, download_path, filename=None, clean_up=False, overwrite=True):
         analysis = self.analyses.get(analysis_id).json()    
-
         if not filename:
             filename='analysis_{}_output'.format(analysis_id)
         try:
             output_file = os.path.join(download_path, filename + '.tar')
-            r = self.analyses.output_file.download(analysis_id, output_file, overwrite)
+            r = self.analyses.output_file.download(ID=analysis_id, file_path=output_file, overwrite=overwrite)
             r.raise_for_status()
             self.logger.info('Analysis Download output: filename={}, (id={}'.format(output_file, analysis_id))
             if clean_up:

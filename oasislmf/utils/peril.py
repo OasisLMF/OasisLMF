@@ -315,7 +315,7 @@ class PerilAreasIndex(RTreeIndex):
             src_type=src_type,
             non_na_cols=_non_na_cols,
             col_dtypes=col_dtypes,
-            sort_col=(_peril_area_id_col or _sort_col)
+            sort_cols=(_peril_area_id_col or _sort_col)
         )
 
         coords_cols = area_poly_coords_cols

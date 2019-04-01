@@ -4,7 +4,7 @@ RUN  mkdir /tmp/output && \
      mkdir /var/log/oasis
 
 RUN apt-get update && apt-get install -y --no-install-recommends \ 
-            vim unixodbc-dev libspatialindex-dev python-dev && rm -rf /var/lib/apt/lists/* 
+            vim libspatialindex-dev && rm -rf /var/lib/apt/lists/* 
 
 #COPY ./ /home/
 WORKDIR /home

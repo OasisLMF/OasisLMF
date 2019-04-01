@@ -12,167 +12,12 @@ from argparsetree import BaseCommand
 from backports.tempfile import TemporaryDirectory
 
 from .. import __version__
-from ..api_client.client import OasisAPIClient
 from ..model_preparation.lookup import OasisLookupFactory as olf
 from ..utils.conf import replace_in_file
 from ..utils.exceptions import OasisException
 from ..utils.path import PathCleaner
 from .base import OasisBaseCommand
 
-
-class TestModelApiCmd(OasisBaseCommand):
-    """
-    Tests a model api server
-    """
-
-    def add_args(self, parser):
-        """
-        Adds arguments to the argument parser.
-
-        :param parser: The argument parser object
-        :type parser: ArgumentParser
-        """
-        super(TestModelApiCmd, self).add_args(parser)
-
-        parser.add_argument(
-            'api_server_url', type=str,
-            help='Oasis API server URL (including protocol and port), e.g. http://localhost:8001',
-        )
-
-        parser.add_argument(
-            '-a', '--analysis-settings-file', type=PathCleaner('Analysis settings'), default='./analysis_settings.json',
-            help="Analysis settings JSON file (absolute or relative file path)"
-        )
-
-        parser.add_argument(
-            '-i', '--input-directory', type=PathCleaner('Input directory'), default='./input',
-            help="Input data directory (absolute or relative file path)"
-        )
-
-        parser.add_argument(
-            '-o', '--output-directory', type=PathCleaner('Output directory', preexists=False), default='./output',
-            help="Output data directory (absolute or relative file path)"
-        )
-
-        parser.add_argument(
-            '-n', '--num-analyses', metavar='N', type=int, default='1',
-            help='The number of analyses to run.'
-        )
-
-        parser.add_argument(
-            '-c', '--health-check-attempts', type=int, default=1,
-            help='The maximum number of health check attempts.'
-        )
-
-    def load_analysis_settings_json(self, analysis_settings_file):
-        """
-        Loads the analysis settings JSON file into a dict, also creates a separate
-        boolean ``il`` for doing insured loss calculations.
-
-        :param analysis_settings_file: Path to the analysis settings file to load
-        :type analysis_settings_file: str
-
-        :return: a 2 tuple containing the analysis settings dictionary and a bool
-            signifying whether il processing is enabled
-        """
-
-        with io.open(analysis_settings_file, encoding='utf-8') as f:
-            analysis_settings = json.load(f)
-
-        il = False
-        if 'il_output' in analysis_settings['analysis_settings']:
-            if isinstance(analysis_settings['analysis_settings']['il_output'], string_types):
-                il = analysis_settings['analysis_settings']["il_output"].lower() == 'true'
-            else:
-                il = bool(analysis_settings['analysis_settings']["il_output"])
-
-        ri = False
-        if 'ri_output' in analysis_settings['analysis_settings']:       
-            if isinstance(analysis_settings['analysis_settings']['ri_output'], string_types):
-                ri = analysis_settings['analysis_settings']["ri_output"].lower() == 'true'
-            else:
-                ri = bool(analysis_settings['analysis_settings']["ri_output"])
-
-        return analysis_settings, il, ri
-
-    
-    def run_analysis(self, args):
-        """
-        Invokes model analysis in the client - is used as a worker function for
-        threads.
-
-        :param args: a tuple containing (client, input_directory, output_directory,
-            analysis_settings, il, counter)
-        :type args: tuple
-        """
-        (
-            client, input_directory, output_directory, 
-            analysis_settings, il, ri, counter, completed_order, index
-         ) = args
-
-        time.sleep(2 + index)
-
-        try:
-            with TemporaryDirectory() as upload_directory:
-                input_location = client.upload_inputs_from_directory(
-                    input_directory, bin_directory=upload_directory,
-                    il=il, ri=ri, do_build=True)
-                client.run_analysis_and_poll(analysis_settings, input_location, output_directory)
-                counter['completed'] += 1
-                completed_order.append(index)
-
-        except Exception as e:
-            client._logger.exception("Model API test failed: {}".format(str(e)))
-            counter['failed'] += 1
-
-    def action(self, args):
-        """
-        Runs the api checks for the model
-
-        :param args: The arguments from the command line
-        :type args: Namespace
-        """
-
-        # get client
-        client = OasisAPIClient(args.api_server_url, self.logger)
-
-        # Do a server healthcheck
-        if not client.health_check(args.health_check_attempts):
-            raise OasisException('Health check failed for {}.'.format(args.api_server_url))
-
-        # Make output directory if it does not exist
-        if not os.path.exists(args.output_directory):
-            os.mkdir(args.output_directory)
-
-        # Load analysis settings JSON file and set up boolean for doing insured
-        # loss calculations
-        self.logger.info('Loading analysis settings JSON file:')
-        analysis_settings, il, ri = self.load_analysis_settings_json(args.analysis_settings_file)
-        self.logger.info('  OK: analysis_settings={}, il={}, ri={}'.format(analysis_settings, il, ri))
-
-        # Prepare and run analyses
-        self.logger.info('Running {} analyses'.format(args.num_analyses))
-        counter = Counter()
-        completed_order = []
-
-        threads = ThreadPool(processes=args.num_analyses)
-        threads.map(
-            self.run_analysis,
-            ((
-                client, args.input_directory, args.output_directory, 
-                analysis_settings, il, ri, counter,
-                completed_order, i+1 
-                ) for i in range(args.num_analyses))
-        )
-
-        threads.close()
-        threads.join()
-
-        # Summary of run results
-        self.logger.info("Finished: {} completed, {} failed".format(counter['completed'], counter['failed']))
-        self.logger.info("Completion sequence: {}".format(', '.join((map(str, completed_order)))))
-
-        return 0
 
 
 class GenerateModelTesterDockerFileCmd(OasisBaseCommand):
@@ -255,6 +100,5 @@ class TestCmd(BaseCommand):
     """
 
     sub_commands = {
-        'model-api': TestModelApiCmd,
         'gen-model-tester-dockerfile': GenerateModelTesterDockerFileCmd,
     }

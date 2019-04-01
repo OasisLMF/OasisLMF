@@ -20,7 +20,7 @@ from oasislmf.model_preparation import (
     reinsurance_layer,
 )
 from oasislmf.model_execution import bin
-from oasislmf.utils.data import get_dataframe, set_col_dtypes
+from oasislmf.utils.data import get_dataframe, set_dataframe_column_dtypes
 from .direct_layer import DirectLayer
 
 cwd = os.path.dirname(os.path.realpath(__file__))
@@ -298,7 +298,7 @@ class TestReinsurance(unittest.TestCase):
                 "loss_net": "float"
             }
 
-            expected_df = get_dataframe(expected_file, index_col=False)
+            expected_df = get_dataframe(expected_file, index=False)
 
             found_df = net_losses[key]
             found_df.to_csv("{}.csv".format(key.replace(' ', '_')))
@@ -306,8 +306,8 @@ class TestReinsurance(unittest.TestCase):
             expected_df = expected_df.replace(np.nan, '', regex=True)
             found_df = found_df.replace(np.nan, '', regex=True)
 
-            set_col_dtypes(expected_df, dtypes)
-            set_col_dtypes(found_df, dtypes)
+            set_dataframe_column_dtypes(expected_df, dtypes)
+            set_dataframe_column_dtypes(found_df, dtypes)
             
             expected_df.to_csv("/tmp/expected.csv", index=False)
 
