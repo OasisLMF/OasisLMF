@@ -2,6 +2,7 @@
 
 import logging
 from logging.handlers import RotatingFileHandler
+import os.path
 from random import random
 from unittest import TestCase
 
@@ -105,9 +106,10 @@ class OasisLog(TestCase):
 class ReadLogConfig(TestCase):
     @given(sampled_from([logging.CRITICAL, logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG]))
     def test_log_config_is_loaded___logger_is_updated(self, level):
+        log_file_path = os.path.abspath(os.path.join("tmp", "log_file.txt"))
         with patch('logging.root', logging.RootLogger(logging.NOTSET)):
             read_log_config({
-                'LOG_FILE': '/tmp/log_file.txt',
+                'LOG_FILE': log_file_path,
                 'LOG_LEVEL': level,
                 'LOG_MAX_SIZE_IN_BYTES': 100,
                 'LOG_BACKUP_COUNT': 10,
@@ -120,7 +122,7 @@ class ReadLogConfig(TestCase):
             self.assertEqual(1, len(logger.handlers))
             handler = logger.handlers[0]
             self.assertIsInstance(handler, RotatingFileHandler)
-            self.assertEqual('/tmp/log_file.txt', handler.baseFilename)
+            self.assertEqual(log_file_path, handler.baseFilename)
             self.assertEqual(100, handler.maxBytes)
             self.assertEqual(10, handler.backupCount)
 
@@ -130,8 +132,9 @@ class SetRotatingLogger(TestCase):
         level=sampled_from([logging.CRITICAL, logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG])
     )
     def test_rotating_log_config_is_loaded___logger_is_set(self, level):
+        log_file_path = os.path.abspath(os.path.join("tmp", "log_file.txt"))
         with patch('logging.root', logging.RootLogger(logging.NOTSET)):
-            set_rotating_logger(log_file_path='/tmp/log_file.txt', log_level=level, max_file_size=100, max_backups=10)
+            set_rotating_logger(log_file_path=log_file_path, log_level=level, max_file_size=100, max_backups=10)
 
             logger = logging.getLogger()
 
@@ -140,6 +143,6 @@ class SetRotatingLogger(TestCase):
             self.assertEqual(1, len(logger.handlers))
             handler = logger.handlers[0]
             self.assertIsInstance(handler, RotatingFileHandler)
-            self.assertEqual('/tmp/log_file.txt', handler.baseFilename)
+            self.assertEqual(log_file_path, handler.baseFilename)
             self.assertEqual(100, handler.maxBytes)
             self.assertEqual(10, handler.backupCount)

@@ -11,7 +11,6 @@ from builtins import str
 from future import standard_library
 standard_library.install_aliases()
 
-import io
 import glob
 import os
 import shutil
@@ -33,13 +32,13 @@ import pytest
 from hypothesis import (
     given,
     HealthCheck,
-    settings,
+    settings
 )
 from hypothesis.strategies import sampled_from, lists
 from mock import patch, Mock
 from pathlib2 import Path
 
-from oasislmf.model_execution.files import GUL_INPUT_FILES, OPTIONAL_INPUT_FILES, IL_INPUT_FILES, TAR_FILE, INPUT_FILES
+from oasislmf.model_execution.files import GUL_INPUT_FILES, IL_INPUT_FILES, TAR_FILE, INPUT_FILES
 from oasislmf.model_execution.bin import (
     check_binary_tar_file,
     check_conversion_tools,
@@ -56,8 +55,9 @@ from tests.data import (
     standard_input_files,
     il_input_files,
     tar_file_targets,
-    ECHO_CONVERSION_INPUT_FILES,
+    ECHO_CONVERSION_INPUT_FILES
 )
+
 
 class CsvToBin(TestCase):
     def test_directory_only_contains_excluded_files___tar_is_empty(self):
@@ -70,6 +70,7 @@ class CsvToBin(TestCase):
             self.assertEqual(0, len(glob.glob(os.path.join(csv_dir, '*.bin'))))
 
     @given(standard_input_files(min_size=1), il_input_files(min_size=1))
+    @settings(deadline=1000, suppress_health_check=[HealthCheck.too_slow])
     def test_contains_il_and_standard_files_but_il_is_false___il_files_are_excluded(self, standard, il):
         with patch('oasislmf.model_execution.bin.INPUT_FILES', ECHO_CONVERSION_INPUT_FILES), TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
             for target in chain(standard, il):
@@ -83,6 +84,7 @@ class CsvToBin(TestCase):
                 self.assertTrue(os.path.exists(os.path.join(bin_dir, filename)))
 
     @given(standard_input_files(min_size=1), il_input_files(min_size=1))
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     def test_contains_il_and_standard_files_but_il_is_true___all_files_are_included(self, standard, il):
         with patch('oasislmf.model_execution.bin.INPUT_FILES', ECHO_CONVERSION_INPUT_FILES), TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
             for target in chain(standard, il):
@@ -104,7 +106,7 @@ class CsvToBin(TestCase):
                     csv_to_bin(csv_dir, bin_dir, il=True)
 
     @given(standard_input_files(min_size=1), il_input_files(min_size=1))
-    @settings(deadline=600, suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     def test_single_ri_folder(self, standard, il):
         with patch('oasislmf.model_execution.bin.INPUT_FILES', ECHO_CONVERSION_INPUT_FILES), TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
             files = standard + il
@@ -126,11 +128,11 @@ class CsvToBin(TestCase):
             self.assertEqual(len(files), len(glob.glob(os.path.join(bin_dir, 'RI_1{}*.bin'.format(os.sep)))))
             for filename in (f + '.bin' for f in files):
                 self.assertTrue(os.path.exists(os.path.join(bin_dir, 'RI_1', filename)))
-
+            print("ok")
 
     @pytest.mark.flaky
     @given(standard_input_files(min_size=1), il_input_files(min_size=1))
-    @settings(deadline=800, suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     def test_multiple_ri_folders(self, standard, il):
         with patch('oasislmf.model_execution.bin.INPUT_FILES', ECHO_CONVERSION_INPUT_FILES), TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
             files = standard + il
@@ -146,7 +148,6 @@ class CsvToBin(TestCase):
             for target in files:
                 with io_open(os.path.join(csv_dir, "RI_2", target + '.csv'), 'w', encoding='utf-8') as f:
                     f.write(target)
-
 
             csv_to_bin(csv_dir, bin_dir, il=True, ri=True)
 
@@ -201,7 +202,8 @@ class CreateBinaryTarFile(TestCase):
 
             all_targets = copy(targets)
             for t in targets:
-                all_targets.append("RI_1{}{}".format(os.sep, t))
+                # tarfile converts os-specific separators to forward slashes
+                all_targets.append("RI_1/{}".format(t))
 
             with tarfile.open(os.path.join(d, TAR_FILE), 'r:gz', encoding='utf-8') as tar:
                 self.assertEqual(len(all_targets), len(tar.getnames()))
@@ -225,12 +227,14 @@ class CreateBinaryTarFile(TestCase):
 
             all_targets = copy(targets)
             for t in targets:
-                all_targets.append("RI_1{}{}".format(os.sep, t))
-                all_targets.append("RI_2{}{}".format(os.sep, t))
+                # tarfile converts os-specific separators to forward slashes
+                all_targets.append("RI_1/{}".format(t))
+                all_targets.append("RI_2/{}".format(t))
 
             with tarfile.open(os.path.join(d, TAR_FILE), 'r:gz', encoding='utf-8') as tar:
                 self.assertEqual(len(all_targets), len(tar.getnames()))
                 self.assertEqual(set(all_targets), set(tar.getnames()))
+
 
 class CheckConversionTools(TestCase):
     def test_il_is_false_il_tools_are_missing___result_is_true(self):
@@ -485,8 +489,8 @@ class CheckInputsDirectory(TestCase):
                 Path(os.path.join(d, p['name'] + '.bin')).touch()
             os.mkdir(os.path.join(d, "RI_1"))
             for p in viewvalues(INPUT_FILES):
-                Path(f = os.path.join(d, "RI_1", p['name'] + '.csv')).touch()
-                Path(f = os.path.join(d, "RI_1", p['name'] + '.bin')).touch()
+                Path(f=os.path.join(d, "RI_1", p['name'] + '.csv')).touch()
+                Path(f=os.path.join(d, "RI_1", p['name'] + '.bin')).touch()
             os.mkdir(os.path.join(d, "RI_2"))
             for p in viewvalues(INPUT_FILES):
                 Path(os.path.join(d, "RI_2", p['name'] + '.bin')).touch()
@@ -495,12 +499,14 @@ class CheckInputsDirectory(TestCase):
             with self.assertRaises(OasisException):
                 check_inputs_directory(d, il=True, ri=True, check_binaries=True)
 
+
 class PrepareRunDirectory(TestCase):
     def test_directory_is_empty___child_directories_are_created(self):
-        with TemporaryDirectory() as run_dir, TemporaryDirectory() as oasis_src_fp, TemporaryDirectory() as model_data_fp, NamedTemporaryFile() as analysis_settings_fp:
-            prepare_run_directory(run_dir, oasis_src_fp, model_data_fp, analysis_settings_fp.name)
+        with TemporaryDirectory() as run_dir, TemporaryDirectory() as oasis_src_fp, TemporaryDirectory() as model_data_fp:
+            analysis_settings_fp = os.path.join(oasis_src_fp, "settings.json")
+            Path(analysis_settings_fp).touch()
+            prepare_run_directory(run_dir, oasis_src_fp, model_data_fp, analysis_settings_fp)
 
-            #self.assertTrue(os.path.exists(os.path.join(d, 'fifo')))
             self.assertTrue(os.path.exists(os.path.join(run_dir, 'input')))
             self.assertTrue(os.path.exists(os.path.join(run_dir, 'input', 'csv')))
             self.assertTrue(os.path.exists(os.path.join(run_dir, 'output')))
@@ -508,13 +514,14 @@ class PrepareRunDirectory(TestCase):
             self.assertTrue(os.path.exists(os.path.join(run_dir, 'work')))
 
     def test_directory_has_some_existing_directories___other_child_directories_are_created(self):
-        with TemporaryDirectory() as run_dir, TemporaryDirectory() as oasis_src_fp, TemporaryDirectory() as model_data_fp, NamedTemporaryFile() as analysis_settings_fp:
+        with TemporaryDirectory() as run_dir, TemporaryDirectory() as oasis_src_fp, TemporaryDirectory() as model_data_fp:
+            analysis_settings_fp = os.path.join(oasis_src_fp, "settings.json")
+            Path(analysis_settings_fp).touch()
             os.mkdir(os.path.join(run_dir, 'fifo'))
             os.mkdir(os.path.join(run_dir, 'input'))
 
-            prepare_run_directory(run_dir, oasis_src_fp, model_data_fp, analysis_settings_fp.name)
+            prepare_run_directory(run_dir, oasis_src_fp, model_data_fp, analysis_settings_fp)
 
-            #self.assertTrue(os.path.exists(os.path.join(d, 'fifo')))
             self.assertTrue(os.path.exists(os.path.join(run_dir, 'input')))
             self.assertTrue(os.path.exists(os.path.join(run_dir, 'input', 'csv')))
             self.assertTrue(os.path.exists(os.path.join(run_dir, 'output')))
@@ -522,43 +529,54 @@ class PrepareRunDirectory(TestCase):
             self.assertTrue(os.path.exists(os.path.join(run_dir, 'work')))
 
     def test_input_directory_is_supplied___input_files_are_copied_to_input_csv(self):
-        with TemporaryDirectory() as run_dir, TemporaryDirectory() as oasis_src_fp, TemporaryDirectory() as model_data_fp, NamedTemporaryFile() as analysis_settings_fp:
+        with TemporaryDirectory() as run_dir, TemporaryDirectory() as oasis_src_fp, TemporaryDirectory() as model_data_fp:
+            analysis_settings_fp = os.path.join(oasis_src_fp, "settings.json")
+            Path(analysis_settings_fp).touch()
             Path(os.path.join(oasis_src_fp, 'a_file.csv')).touch()
 
-            prepare_run_directory(run_dir, oasis_src_fp, model_data_fp, analysis_settings_fp.name)
+            prepare_run_directory(run_dir, oasis_src_fp, model_data_fp, analysis_settings_fp)
 
             self.assertTrue(os.path.exists(os.path.join(run_dir, 'input', 'csv', 'a_file.csv')))
 
     def test_analysis_settings_file_is_supplied___file_is_copied_into_run_dir(self):
-        with TemporaryDirectory() as run_dir, TemporaryDirectory() as oasis_src_fp, TemporaryDirectory() as model_data_fp, NamedTemporaryFile('w') as analysis_settings_fp:
-            analysis_settings_fp.write('{"analysis_settings": "analysis_settings"}')
-            analysis_settings_fp.flush()
+        analysis_settings_fp = NamedTemporaryFile('w', delete=False)
+        try:
+            with TemporaryDirectory() as run_dir, TemporaryDirectory() as oasis_src_fp, TemporaryDirectory() as model_data_fp:
+                analysis_settings_fp.write('{"analysis_settings": "analysis_settings"}')
+                analysis_settings_fp.close()
 
-            prepare_run_directory(run_dir, oasis_src_fp, model_data_fp, analysis_settings_fp.name)
+                prepare_run_directory(run_dir, oasis_src_fp, model_data_fp, analysis_settings_fp.name)
 
-            with io_open(os.path.join(run_dir, 'analysis_settings.json'), encoding='utf-8') as expected_analysis_settings:
-                self.assertEqual('{"analysis_settings": "analysis_settings"}', expected_analysis_settings.read())
+                with io_open(os.path.join(run_dir, 'analysis_settings.json'), encoding='utf-8') as expected_analysis_settings:
+                    self.assertEqual('{"analysis_settings": "analysis_settings"}', expected_analysis_settings.read())
+        finally:
+            os.remove(analysis_settings_fp.name)
 
     def test_model_data_src_is_supplied___symlink_to_output_dir_static_is_created(self):
-        with TemporaryDirectory() as run_dir, TemporaryDirectory() as oasis_src_fp, TemporaryDirectory() as model_data_fp, NamedTemporaryFile() as analysis_settings_fp:
+        with TemporaryDirectory() as run_dir, TemporaryDirectory() as oasis_src_fp, TemporaryDirectory() as model_data_fp:
+            analysis_settings_fp = os.path.join(oasis_src_fp, "settings.json")
+            Path(analysis_settings_fp).touch()
             Path(os.path.join(model_data_fp, 'linked_file')).touch()
 
-            prepare_run_directory(run_dir, oasis_src_fp, model_data_fp, analysis_settings_fp.name)
+            prepare_run_directory(run_dir, oasis_src_fp, model_data_fp, analysis_settings_fp)
 
             self.assertTrue(os.path.exists(os.path.join(run_dir, 'static', 'linked_file')))
 
     def test_model_data_src_is_supplied_sym_link_raises___input_is_copied_from_static(self):
-        with TemporaryDirectory() as run_dir, TemporaryDirectory() as oasis_src_fp, TemporaryDirectory() as model_data_fp, NamedTemporaryFile() as analysis_settings_fp:
-            #import ipdb; ipdb.set_trace()
+        with TemporaryDirectory() as run_dir, TemporaryDirectory() as oasis_src_fp, TemporaryDirectory() as model_data_fp:
+            analysis_settings_fp = os.path.join(oasis_src_fp, "settings.json")
+            Path(analysis_settings_fp).touch()
             Path(os.path.join(model_data_fp, 'linked_file')).touch()
 
             with patch('os.symlink', Mock(side_effect=OSError())):
-                prepare_run_directory(run_dir, oasis_src_fp, model_data_fp, analysis_settings_fp.name)
+                prepare_run_directory(run_dir, oasis_src_fp, model_data_fp, analysis_settings_fp)
 
             self.assertTrue(os.path.exists(os.path.join(run_dir, 'static', 'linked_file')))
 
     def test_inputs_archive_is_supplied_no_ri___archive_is_extracted_into_inputs(self):
-        with TemporaryDirectory() as run_dir, TemporaryDirectory() as oasis_src_fp, TemporaryDirectory() as model_data_fp, NamedTemporaryFile() as analysis_settings_fp:
+        with TemporaryDirectory() as run_dir, TemporaryDirectory() as oasis_src_fp, TemporaryDirectory() as model_data_fp:
+            analysis_settings_fp = os.path.join(oasis_src_fp, "settings.json")
+            Path(analysis_settings_fp).touch()
             tar_path = os.path.join(oasis_src_fp, 'archive.tar')
 
             with tarfile.open(tar_path, 'w', encoding='utf-8') as tar:
@@ -566,12 +584,14 @@ class PrepareRunDirectory(TestCase):
                 archived_file_path.touch()
                 tar.add(str(archived_file_path), arcname='archived_file')
 
-            prepare_run_directory(run_dir, oasis_src_fp, model_data_fp, analysis_settings_fp.name, inputs_archive=tar_path)
+            prepare_run_directory(run_dir, oasis_src_fp, model_data_fp, analysis_settings_fp, inputs_archive=tar_path)
 
             self.assertTrue(Path(run_dir, 'input', 'archived_file').exists())
 
     def test_inputs_archive_is_supplied_with_ri___archive_is_extracted_into_run_dir(self):
-        with TemporaryDirectory() as run_dir, TemporaryDirectory() as oasis_src_fp, TemporaryDirectory() as model_data_fp, NamedTemporaryFile() as analysis_settings_fp:
+        with TemporaryDirectory() as run_dir, TemporaryDirectory() as oasis_src_fp, TemporaryDirectory() as model_data_fp:
+            analysis_settings_fp = os.path.join(oasis_src_fp, "settings.json")
+            Path(analysis_settings_fp).touch()
             tar_path = os.path.join(oasis_src_fp, 'archive.tar')
 
             with tarfile.open(tar_path, 'w', encoding='utf-8') as tar:
@@ -579,15 +599,16 @@ class PrepareRunDirectory(TestCase):
                 archived_file_path.touch()
                 tar.add(str(archived_file_path), arcname='archived_file')
 
-            prepare_run_directory(run_dir, oasis_src_fp, model_data_fp, analysis_settings_fp.name, inputs_archive=tar_path, ri=True)
+            prepare_run_directory(run_dir, oasis_src_fp, model_data_fp, analysis_settings_fp, inputs_archive=tar_path, ri=True)
 
             self.assertTrue(Path(run_dir, 'archived_file').exists())
 
     def test_inputs_archive_with_subfolder_is_supplied_no_ri___archive_is_extracted_into_inputs(self):
-        with TemporaryDirectory() as run_dir, TemporaryDirectory() as oasis_src_fp, TemporaryDirectory() as model_data_fp, NamedTemporaryFile() as analysis_settings_fp:
+        with TemporaryDirectory() as run_dir, TemporaryDirectory() as oasis_src_fp, TemporaryDirectory() as model_data_fp:
+            analysis_settings_fp = os.path.join(oasis_src_fp, "settings.json")
+            Path(analysis_settings_fp).touch()
             tar_path = os.path.join(oasis_src_fp, 'archive.tar')
 
-            #import ipdb; ipdb.set_trace()
             with tarfile.open(tar_path, 'w') as tar:
                 archived_file_path = Path(oasis_src_fp, 'archived_file')
                 archived_file_path.touch()
@@ -599,7 +620,7 @@ class PrepareRunDirectory(TestCase):
                 tar.add(str(archived_file_path), arcname='sub1{}archived_file'.format(os.sep))
                 shutil.rmtree(os.path.join(oasis_src_fp, "sub1"))
 
-            prepare_run_directory(run_dir, oasis_src_fp, model_data_fp, analysis_settings_fp.name, inputs_archive=tar_path)
+            prepare_run_directory(run_dir, oasis_src_fp, model_data_fp, analysis_settings_fp, inputs_archive=tar_path)
 
             self.assertTrue(Path(run_dir, 'input', 'archived_file').exists())
             self.assertTrue(Path(run_dir, 'input', 'sub1', 'archived_file').exists())
