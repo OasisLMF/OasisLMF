@@ -7,7 +7,6 @@ import json
 import os
 import string
 
-from collections import OrderedDict
 from unittest import TestCase
 
 import pandas as pd
@@ -17,11 +16,9 @@ from backports.tempfile import TemporaryDirectory
 from hypothesis import (
     given,
     HealthCheck,
-    reproduce_failure,
     settings,
 )
 from hypothesis.strategies import (
-    booleans,
     fixed_dictionaries,
     integers,
     just,
@@ -34,18 +31,6 @@ from mock import Mock, patch
 from tempfile import NamedTemporaryFile
 
 from oasislmf.model_preparation.lookup import OasisLookupFactory as olf
-from oasislmf.utils.coverage import (
-    BUILDING_COVERAGE_CODE,
-    CONTENTS_COVERAGE_CODE,
-    OTHER_STRUCTURES_COVERAGE_CODE,
-    TIME_COVERAGE_CODE,
-)
-from oasislmf.utils.peril import (
-    PERIL_ID_FLOOD,
-    PERIL_ID_QUAKE,
-    PERIL_ID_SURGE,
-    PERIL_ID_WIND,
-)
 from oasislmf.utils.status import (
     KEYS_STATUS_FAIL,
     KEYS_STATUS_NOMATCH,
@@ -121,7 +106,7 @@ class OasisLookupFactoryGetSourceExposure(TestCase):
 
     @given(lists(tuples(integers(min_value=0, max_value=100), integers(min_value=0, max_value=100)), min_size=1, max_size=10))
     def test_exposure_string_is_provided___file_content_is_loaded(self, data):
-        columns=['first', 'second']
+        columns = ['first', 'second']
 
         exposure_str = _unicode(pd.DataFrame(columns=columns, data=data).to_csv(index=False))
 
@@ -213,7 +198,7 @@ class OasisLookupFactoryGetKeys(TestCase):
             list(olf.get_keys(self.create_fake_lookup()))
 
     @given(text(min_size=1, max_size=10, alphabet=string.ascii_letters), text(min_size=1, max_size=10, alphabet=string.ascii_letters))
-    def test_source_exposure_path_is_provided___path_is_passed_to_get_model_exposure_result_is_passed_to_lokkup_process_locations(self, path, result):
+    def test_source_exposure_path_is_provided___path_is_passed_to_get_model_exposure_result_is_passed_to_lookup_process_locations(self, path, result):
         with patch('oasislmf.model_preparation.lookup.OasisLookupFactory.get_exposure', Mock(return_value=result)):
             list(olf.get_keys(self.create_fake_lookup(), source_exposure_fp=path))
 

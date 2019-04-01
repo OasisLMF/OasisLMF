@@ -22,7 +22,6 @@ __all__ = [
 
 import builtins
 import csv
-import imp
 import importlib
 import io
 import itertools
@@ -212,7 +211,8 @@ class OasisBaseKeysLookup(object):  # pragma: no cover
         keys_data_directory=None,
         supplier=None,
         model_name=None,
-        model_version=None
+        model_version=None,
+        complex_lookup_config_fp=None
     ):
         """
         Class constructor
@@ -225,6 +225,7 @@ class OasisBaseKeysLookup(object):  # pragma: no cover
         self.supplier = supplier
         self.model_name = model_name
         self.model_version = model_version
+        self.complex_lookup_config_fp = complex_lookup_config_fp
 
     @oasis_log()
     def process_locations(self, loc_df):
@@ -305,13 +306,14 @@ class OasisLookupFactory(object):
 
         sys.path.insert(0, parent_dir)
         lookup_package = importlib.import_module(package_name)
-        imp.reload(lookup_package)
+        importlib.reload(lookup_package)
         sys.path.pop(0)
 
         return lookup_package
 
     @classmethod
-    def get_lookup_class_instance(cls, lookup_package, keys_data_path, model_info):
+    def get_lookup_class_instance(cls, lookup_package, keys_data_path, model_info,
+                                  complex_lookup_config_fp):
         """
         Get the keys lookup class instance.
         """
@@ -321,7 +323,8 @@ class OasisLookupFactory(object):
             keys_data_directory=keys_data_path,
             supplier=model_info['supplier_id'],
             model_name=model_info['model_id'],
-            model_version=model_info['model_version']
+            model_version=model_info['model_version'],
+            complex_lookup_config_fp=complex_lookup_config_fp
         )
 
     @classmethod
@@ -418,6 +421,7 @@ class OasisLookupFactory(object):
         lookup_config=None,
         lookup_config_json=None,
         lookup_config_fp=None,
+        complex_lookup_config_fp=None,
         lookup_type='combined',
         loc_id_col='locnumber'
     ):
@@ -429,7 +433,7 @@ class OasisLookupFactory(object):
         model information from the model version file and `klc` is the lookup
         service class instance for the model.
         """
-        if (lookup_config or lookup_config_json or lookup_config_fp):
+        if lookup_config or lookup_config_json or lookup_config_fp:
             lookup = OasisLookup(
                 config=lookup_config,
                 config_json=lookup_config_json,
@@ -454,11 +458,19 @@ class OasisLookupFactory(object):
             _model_keys_data_path = as_path(model_keys_data_path, 'model_keys_data_path', preexists=True)
             _model_version_file_path = as_path(model_version_file_path, 'model_version_file_path', preexists=True)
             _lookup_package_path = as_path(lookup_package_path, 'lookup_package_path', preexists=True)
+            _complex_lookup_config_fp = as_path(complex_lookup_config_fp, 'complex_lookup_config_fp', preexists=True)
 
             model_info = cls.get_model_info(_model_version_file_path)
             lookup_package = cls.get_lookup_package(_lookup_package_path)
+
+            lookup = cls.get_lookup_class_instance(
+                lookup_package=lookup_package,
+                keys_data_path=_model_keys_data_path,
+                model_info=model_info,
+                complex_lookup_config_fp=_complex_lookup_config_fp
+            )
         
-            return model_info, cls.get_lookup_class_instance(lookup_package, _model_keys_data_path, model_info)
+            return model_info, lookup
 
     @classmethod
     def get_keys(
@@ -600,7 +612,7 @@ class OasisLookupFactory(object):
             successes.append(k) if k['status'] == OASIS_KEYS_STATUS['success']['id'] else nonsuccesses.append(k)
 
         if keys_format == 'json':
-            if _keys_error_file_path:
+            if _keys_errors_file_path:
                 fp1, n1 = cls.write_json_keys_file(successes, _keys_file_path)
                 fp2, n2 = cls.write_json_keys_file(nonsuccesses, _keys_errors_file_path)
 
@@ -725,7 +737,7 @@ class OasisLookup(OasisBaseLookup):
             config_dir=config_dir,
         )
 
-        loc_config = self.config.get('exposure') or lookup.config.get('locations')
+        loc_config = self.config.get('exposure') or self.config.get('locations')
         self.loc_id_col = str.lower(str(loc_config.get('id_col') or loc_id_col))
 
         self.peril_lookup = OasisPerilLookup(
@@ -750,7 +762,7 @@ class OasisLookup(OasisBaseLookup):
             loc_id_col=self.loc_id_col
         )
 
-    def lookup(self, loc, peril_id, coverage_type):
+    def lookup(self, loc, peril_id, coverage_type, **kwargs):
 
         loc_id_col = self.loc_id_col
         loc_id = loc.get(loc_id_col) or int(uuid.UUID(bytes=os.urandom(16)).hex[:16], 16)
@@ -880,7 +892,7 @@ class OasisPerilLookup(OasisBaseLookup):
             self.loc_coords_x_bounds = tuple(self.config['exposure'].get('coords_x_bounds') or ()) or (-180, 180)
             self.loc_coords_y_bounds = tuple(self.config['exposure'].get('coords_y_bounds') or ()) or (-90, 90)
 
-    def lookup(self, loc, peril_id, coverage_type):
+    def lookup(self, loc, peril_id, coverage_type, **kwargs):
         """
         Area peril lookup for an individual lon/lat location item, which can be
         provided as a dict or a Pandas series. The data structure should contain
@@ -1100,7 +1112,7 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
 
         return col_dtypes, key_cols, vuln_id_col, _vuln_dict((v for _, v in vuln_df.iterrows()), key_cols, vuln_id_col)
 
-    def lookup(self, loc, peril_id, coverage_type):
+    def lookup(self, loc, peril_id, coverage_type, **kwargs):
         """
         Vulnerability lookup for an individual location item, which could be a dict or a
         Pandas series.

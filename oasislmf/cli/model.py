@@ -20,35 +20,20 @@ __all__ = [
     'RunCmd'
 ]
 
-import argparse
-import io
-import importlib
-import inspect
-import json
 import os
 import re
-import shutil
-import time
-import sys
 
 from argparse import RawDescriptionHelpFormatter
 
-from pathlib2 import Path
-from six import text_type as _unicode
-from tabulate import tabulate
 from tqdm import tqdm
 
 from ..manager import OasisManager as om
 
-from ..model_preparation.lookup import OasisLookupFactory as olf
 from ..utils.exceptions import OasisException
-from ..utils.data import get_json
 from ..utils.path import (
     as_path,
     empty_dir,
-    setcwd,
 )
-from ..utils.peril import PerilAreasIndex
 from ..utils.data import get_utctimestamp
 from ..utils.defaults import (
     get_default_exposure_profile,
@@ -166,6 +151,7 @@ class GenerateKeysCmd(OasisBaseCommand):
         parser.add_argument('-d', '--keys-data-path', default=None, help='Model lookup/keys data path')
         parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
         parser.add_argument('-l', '--lookup-package-path', default=None, help='Model lookup package path')
+        parser.add_argument('-m', '--complex-lookup-config-file-path', default=None, help='Complex lookup config JSON file path')
         parser.add_argument('-f', '--keys-format', choices=['oasis', 'json'], help='Keys files output format')
 
     def action(self, args):
@@ -177,11 +163,27 @@ class GenerateKeysCmd(OasisBaseCommand):
         """
         inputs = InputValues(args)
 
-        config_fp = as_path(inputs.get('lookup_config_file_path', required=False, is_path=True), 'Lookup config JSON file path',)
+        config_fp = as_path(
+            inputs.get('lookup_config_file_path', required=False, is_path=True),
+            'Lookup config JSON file path'
+        )
 
-        keys_data_fp = as_path(inputs.get('keys_data_path', required=False, is_path=True), 'Keys data path', is_dir=True, preexists=False)
-        model_version_fp = as_path(inputs.get('model_version_file_path', required=False, is_path=True), 'Model version file path', preexists=False)
-        lookup_package_fp = as_path(inputs.get('lookup_package_path', required=False, is_path=True), 'Lookup package path', is_dir=True, preexists=False)
+        keys_data_fp = as_path(
+            inputs.get('keys_data_path', required=False, is_path=True),
+            'Keys data path', is_dir=True, preexists=False
+        )
+        model_version_fp = as_path(
+            inputs.get('model_version_file_path', required=False, is_path=True),
+            'Model version file path', preexists=False
+        )
+        lookup_package_fp = as_path(
+            inputs.get('lookup_package_path', required=False, is_path=True),
+            'Lookup package path', is_dir=True, preexists=False
+        )
+        complex_lookup_config_fp = as_path(
+            inputs.get('complex_lookup_config_file_path', required=False, is_path=True),
+            'Complex lookup config JSON file path', preexists=False
+        )
 
         if not (config_fp or (keys_data_fp and model_version_fp and lookup_package_fp)):
             raise OasisException(
@@ -205,6 +207,7 @@ class GenerateKeysCmd(OasisBaseCommand):
             keys_data_fp=keys_data_fp,
             model_version_fp=model_version_fp,
             lookup_package_fp=lookup_package_fp,
+            complex_lookup_config_fp=complex_lookup_config_fp,
             keys_fp=keys_fp,
             keys_errors_fp=keys_errors_fp,
             keys_format=keys_format
@@ -236,29 +239,14 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         parser.add_argument('-k', '--keys-data-path', default=None, help='Model lookup/keys data path')
         parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
         parser.add_argument('-l', '--lookup-package-path', default=None, help='Lookup package path')
-        parser.add_argument(
-            '-e', '--source-exposure-profile-path', default=None,
-            help='Source (OED) exposure profile path'
-        )
-        parser.add_argument(
-            '-b', '--source-accounts-profile-path', default=None,
-            help='Source (OED) accounts profile path'
-        )
+        parser.add_argument('-m', '--complex-lookup-config-file-path', default=None, help='Complex lookup config JSON file path')
+        parser.add_argument('-e', '--source-exposure-profile-path', default=None, help='Source (OED) exposure profile path')
+        parser.add_argument('-b', '--source-accounts-profile-path', default=None, help='Source (OED) accounts profile path')
         parser.add_argument('-x', '--source-exposure-file-path', default=None, help='Source exposure file path')
         parser.add_argument('-y', '--source-accounts-file-path', default=None, help='Source accounts file path')
-
-        parser.add_argument(
-            '-g', '--fm-aggregation-profile-path', default=None, help='FM (OED) aggregation profile path'
-
-        )
-        parser.add_argument(
-            '-i', '--ri-info-file-path', default=None,
-            help='Reinsurance info. file path'
-        )
-        parser.add_argument(
-            '-s', '--ri-scope-file-path', default=None,
-            help='Reinsurance scope file path'
-        )
+        parser.add_argument('-g', '--fm-aggregation-profile-path', default=None, help='FM (OED) aggregation profile path')
+        parser.add_argument('-i', '--ri-info-file-path', default=None, help='Reinsurance info. file path')
+        parser.add_argument('-s', '--ri-scope-file-path', default=None, help='Reinsurance scope file path')
 
     def action(self, args):
         """
@@ -274,15 +262,37 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
         default_oasis_fp = os.path.join(os.getcwd(), 'runs', 'OasisFiles-{}'.format(utcnow))
 
-        oasis_fp = as_path(inputs.get('oasis_files_path', is_path=True, default=default_oasis_fp), 'Oasis files path', is_dir=True, preexists=False)
+        oasis_fp = as_path(
+            inputs.get('oasis_files_path', is_path=True, default=default_oasis_fp),
+            'Oasis files path', is_dir=True, preexists=False
+        )
 
-        keys_fp = as_path(inputs.get('keys_file_path', required=False, is_path=True), 'Pre-generated keys file path', preexists=True)
+        keys_fp = as_path(
+            inputs.get('keys_file_path', required=False, is_path=True),
+            'Pre-generated keys file path', preexists=True
+        )
 
-        lookup_config_fp = as_path(inputs.get('lookup_config_file_path', required=False, is_path=True), 'Lookup config JSON file path', preexists=False)
+        lookup_config_fp = as_path(
+            inputs.get('lookup_config_file_path', required=False, is_path=True),
+            'Lookup config JSON file path', preexists=False
+        )
 
-        keys_data_fp = as_path(inputs.get('keys_data_path', required=False, is_path=True), 'Keys data path', preexists=False)
-        model_version_fp = as_path(inputs.get('model_version_file_path', required=False, is_path=True), 'Model version file path', is_dir=True, preexists=False)
-        lookup_package_fp = as_path(inputs.get('lookup_package_path', required=False, is_path=True), 'Lookup package path', is_dir=True, preexists=False)
+        keys_data_fp = as_path(
+            inputs.get('keys_data_path', required=False, is_path=True),
+            'Keys data path', preexists=False
+        )
+        model_version_fp = as_path(
+            inputs.get('model_version_file_path', required=False, is_path=True),
+            'Model version file path', is_dir=True, preexists=False
+        )
+        lookup_package_fp = as_path(
+            inputs.get('lookup_package_path', required=False, is_path=True),
+            'Lookup package path', is_dir=True, preexists=False
+        )
+        complex_lookup_config_fp = as_path(
+            inputs.get('complex_lookup_config_file_path', required=False, is_path=True),
+            'Complex lookup config JSON file path', preexists=False
+        )
 
         if not (keys_fp or lookup_config_fp or (keys_data_fp and model_version_fp and lookup_package_fp)):
             raise OasisException(
@@ -341,6 +351,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             keys_data_fp=keys_data_fp,
             model_version_fp=model_version_fp,
             lookup_package_fp=lookup_package_fp,
+            complex_lookup_config_fp=complex_lookup_config_fp,
             accounts_fp=accounts_fp,
             accounts_profile_fp=accounts_profile_fp,
             fm_aggregation_profile_fp=aggregation_profile_fp,

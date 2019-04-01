@@ -15,15 +15,9 @@ __all__ = [
     'OasisManager'
 ]
 
-import copy
-import io
-import filecmp
 import json
-import logging
-import multiprocessing
 import os
 import re
-import shutil
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -53,7 +47,6 @@ pd.options.mode.chained_assignment = None
 
 from pathlib2 import Path
 from six import text_type as _unicode
-from tabulate import tabulate
 
 from .model_execution import runner
 from .model_execution.bin import (
@@ -74,11 +67,6 @@ from .model_preparation.il_inputs import (
 from .model_preparation.lookup import OasisLookupFactory as olf
 from .model_preparation.utils import prepare_input_files_directory
 from .model_preparation.reinsurance_layer import write_ri_input_files
-from .utils.concurrency import (
-    multiprocess,
-    multithread,
-    Task,
-)
 from .utils.data import (
     get_dataframe,
     get_json,
@@ -316,6 +304,7 @@ class OasisManager(object):
         keys_data_fp=None,
         model_version_fp=None,
         lookup_package_fp=None,
+        complex_lookup_config_fp=None,
         supported_oed_coverage_types=None,
         accounts_fp=None,
         accounts_profile=None,
@@ -341,6 +330,7 @@ class OasisManager(object):
             keys_fp=keys_fp,
             lookup_config_fp=lookup_config_fp,
             model_version_fp=model_version_fp,
+            complex_lookup_config_fp=complex_lookup_config_fp,
             accounts_fp=accounts_fp,
             accounts_profile_fp=accounts_profile_fp,
             fm_aggregation_profile_fp=fm_aggregation_profile_fp,
@@ -390,7 +380,8 @@ class OasisManager(object):
                     lookup_config=lookup_config,
                     model_keys_data_path=keys_data_fp,
                     model_version_file_path=model_version_fp,
-                    lookup_package_path=lookup_package_fp
+                    lookup_package_path=lookup_package_fp,
+                    complex_lookup_config_fp=complex_lookup_config_fp
                 )
                 f1, n1, f2, n2 = olf.save_results(
                     lookup,
@@ -771,7 +762,7 @@ class OasisManager(object):
         if not os.path.exists(model_run_fp):
             Path(model_run_fp).mkdir(parents=True, exist_ok=True)
         else:
-            empty_dir(model_run_dir)
+            empty_dir(model_run_fp)
 
         oasis_fp = os.path.join(model_run_fp, 'input') if ri else os.path.join(model_run_fp, 'input', 'csv')
         Path(oasis_fp).mkdir(parents=True, exist_ok=True)
