@@ -298,7 +298,7 @@ class TestReinsurance(unittest.TestCase):
                 "loss_net": "float"
             }
 
-            expected_df = get_dataframe(expected_file, index=False)
+            expected_df = get_dataframe(expected_file)
 
             found_df = net_losses[key]
             found_df.to_csv("{}.csv".format(key.replace(' ', '_')))
@@ -309,7 +309,7 @@ class TestReinsurance(unittest.TestCase):
             set_dataframe_column_dtypes(expected_df, dtypes)
             set_dataframe_column_dtypes(found_df, dtypes)
             
-            expected_df.to_csv("/tmp/expected.csv", index=False)
+            expected_df.to_csv("/tmp/expected.csv")
 
             print(found_df.dtypes)
             print(expected_df.dtypes)
