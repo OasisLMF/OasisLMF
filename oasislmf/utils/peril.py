@@ -276,7 +276,7 @@ class PerilAreasIndex(RTreeIndex):
         peril_area_id_col='area_peril_id',
         non_na_cols=('peril_id', 'coverage_type', 'area_peril_id',),
         col_dtypes={'peril_id': int, 'coverage_type': int, 'area_peril_id': int},
-        sort_col='area_peril_id',
+        sort_cols=['area_peril_id'],
         area_poly_coords_cols={},
         area_poly_coords_seq_start_idx=1,
         area_reg_poly_radius=0.00166,
@@ -308,14 +308,14 @@ class PerilAreasIndex(RTreeIndex):
 
         _non_na_cols = tuple(_non_na_cols)
 
-        _sort_col = sort_col.lower()
+        _sort_cols = [col.lower() for col in sort_cols]
 
         areas_df = get_dataframe(
             src_fp=_src_fp,
             src_type=src_type,
             non_na_cols=_non_na_cols,
             col_dtypes=col_dtypes,
-            sort_cols=(_peril_area_id_col or _sort_col)
+            sort_cols=(_sort_cols or [_peril_area_id_col])
         )
 
         coords_cols = area_poly_coords_cols

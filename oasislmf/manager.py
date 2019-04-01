@@ -244,7 +244,7 @@ class OasisManager(object):
 
         col_dtypes = peril_config.get('col_dtypes') or {peril_area_id_col: int}
 
-        sort_col = peril_config.get('sort_col') or peril_area_id_col
+        sort_cols = peril_config.get('sort_cols') or peril_area_id_col
 
         area_poly_coords_seq_start_idx = peril_config.get('area_poly_coords_seq_start_idx') or 1
 
@@ -261,7 +261,7 @@ class OasisManager(object):
             peril_area_id_col=peril_area_id_col,
             non_na_cols=non_na_cols,
             col_dtypes=col_dtypes,
-            sort_col=sort_col,
+            sort_cols=sort_cols,
             area_poly_coords_cols=area_poly_coords_cols,
             area_poly_coords_seq_start_idx=area_poly_coords_seq_start_idx,
             area_reg_poly_radius=area_reg_poly_radius,
