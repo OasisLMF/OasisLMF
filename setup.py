@@ -275,7 +275,7 @@ setup(
     author='Oasis LMF',
     author_email="support@oasislmf.org",
     keywords='oasis lmf loss modeling framework',
-    python_requires='>=3',
+    python_requires='>=3.6',
     install_requires=reqs,
     classifiers=[
         'Development Status :: 4 - Beta',
