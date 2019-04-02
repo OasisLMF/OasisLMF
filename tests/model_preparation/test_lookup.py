@@ -100,7 +100,6 @@ class OasisLookupFactoryGetSourceExposure(TestCase):
 
         try:
             f.writelines(exposure_str)
-            f.flush()
             f.close()
 
             res_str = olf.get_exposure(source_exposure_fp=f.name).to_csv(index=False)

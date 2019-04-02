@@ -768,7 +768,7 @@ class PrepareRunInputs(TestCase):
             with self.assertRaises(OasisException):
                 prepare_run_inputs({}, d)
 
-    def test_periods_bin_already_exists___existing_bin_is_uncahnged(self):
+    def test_periods_bin_already_exists___existing_bin_is_unchanged(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
 
