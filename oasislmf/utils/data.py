@@ -259,7 +259,7 @@ def get_dataframe(
     if col_defaults:
         _col_defaults = {k.lower(): v for k, v in viewitems(col_defaults)} if lowercase_cols else col_defaults
         for col, val in viewitems(_col_defaults):
-            df[col] = val
+            df.loc[:, col].fillna(val, inplace=True)
 
     if non_na_cols:
         _non_na_cols = tuple(col.lower() for col in non_na_cols) if lowercase_cols else non_na_cols
