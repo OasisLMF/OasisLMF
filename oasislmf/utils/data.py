@@ -265,7 +265,7 @@ def get_dataframe(
         _non_na_cols = tuple(col.lower() for col in non_na_cols) if lowercase_cols else non_na_cols
         df.dropna(subset=_non_na_cols, inplace=True)
 
-    if col_dtypes and not col_dtypes_set :
+    if col_dtypes and not col_dtypes_set:
         set_dataframe_column_dtypes(df, col_dtypes)
 
     if sort_cols:
