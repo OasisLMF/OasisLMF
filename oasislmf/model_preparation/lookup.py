@@ -285,6 +285,9 @@ class OasisLookupFactory(object):
         """
         Get model information from the model version file.
         """
+        if not model_version_file_path:
+            raise OasisException("Unable to get model version data without model_version_file_path")
+
         with io_open(model_version_file_path, 'r', encoding='utf-8') as f:
             return next(csv.DictReader(
                 f, fieldnames=['supplier_id', 'model_id', 'model_version']
@@ -298,6 +301,9 @@ class OasisLookupFactory(object):
         `var/www/oasis` in the keys server Docker container) from the given
         path.
         """
+        if not lookup_package_path:
+            raise OasisException("Unable to import lookup package without lookup_package_path")
+
         if lookup_package_path and not os.path.isabs(lookup_package_path):
             lookup_package_path = os.path.abspath(lookup_package_path)
 

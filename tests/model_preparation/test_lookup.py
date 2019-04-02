@@ -43,17 +43,24 @@ from tests.data import keys
 
 class OasisLookupFactoryCreate(TestCase):
 
-    def write_version_file(self, supplier, model, version, path):
+    @staticmethod
+    def write_version_file(supplier, model, version, path):
         with io.open(path, 'w', encoding='utf-8') as f:
             f.write('{},{},{}'.format(supplier, model, version))
 
-    def write_py_module(self, model, path):
+    @staticmethod
+    def write_py_module(model, path):
         with io.open(path, 'w', encoding='utf-8') as f:
             f.writelines([
                 'from oasislmf.model_preparation.lookup import OasisBaseKeysLookup\n',
                 'class {}KeysLookup(OasisBaseKeysLookup):\n'.format(model),
                 '    pass\n'
             ])
+
+    @staticmethod
+    def write_complex_config_file(data, path):
+        with io.open(path, "w", encoding='utf-8') as f:
+            f.write(data)
 
     @given(
         supplier=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
@@ -74,7 +81,7 @@ class OasisLookupFactoryCreate(TestCase):
             _, instance = olf.create(
                 model_keys_data_path=keys_path,
                 model_version_file_path=version_path,
-                lookup_package_path=module_path,
+                lookup_package_path=module_path
             )
 
             self.assertEqual(type(instance).__name__, '{}KeysLookup'.format(model))
@@ -82,6 +89,177 @@ class OasisLookupFactoryCreate(TestCase):
             self.assertEqual(instance.model_name, model)
             self.assertEqual(instance.model_version, version)
             self.assertEqual(instance.keys_data_directory, keys_path)
+            self.assertEqual(instance.complex_lookup_config_fp, None)
+
+    @given(
+        supplier=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+        model=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+        version=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+    )
+    def test_keys_path_not_supplied___correct_instance_is_created_with_correct_model_info_and_keys_path(self, supplier, model, version):
+        with TemporaryDirectory() as d:
+            version_path = os.path.join(d, 'version.csv')
+            self.write_version_file(supplier, model, version, version_path)
+
+            module_path = os.path.join(d, '{}_lookup.py'.format(model))
+            self.write_py_module(model, module_path)
+
+            _, instance = olf.create(
+                model_version_file_path=version_path,
+                lookup_package_path=module_path
+            )
+
+            self.assertEqual(type(instance).__name__, '{}KeysLookup'.format(model))
+            self.assertEqual(instance.supplier, supplier)
+            self.assertEqual(instance.model_name, model)
+            self.assertEqual(instance.model_version, version)
+            self.assertEqual(instance.keys_data_directory, os.path.join(os.sep, 'var', 'oasis', 'keys_data'))
+            self.assertEqual(instance.complex_lookup_config_fp, None)
+
+    @given(
+        supplier=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+        model=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+        version=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+        complex_lookup_data=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+    )
+    def test_complex_lookup_config_is_supplied___correct_instance_is_created_with_correct_config_path(self, supplier, model, version, complex_lookup_data):
+        with TemporaryDirectory() as d:
+            keys_path = os.path.join(d, 'keys')
+            os.mkdir(keys_path)
+
+            version_path = os.path.join(d, 'version.csv')
+            self.write_version_file(supplier, model, version, version_path)
+
+            module_path = os.path.join(d, '{}_lookup.py'.format(model))
+            self.write_py_module(model, module_path)
+
+            complex_lookup_config_path = os.path.join(d, 'lookup_config.json'.format(model))
+            self.write_complex_config_file(complex_lookup_data, complex_lookup_config_path)
+
+            _, instance = olf.create(
+                model_keys_data_path=keys_path,
+                model_version_file_path=version_path,
+                lookup_package_path=module_path,
+                complex_lookup_config_fp=complex_lookup_config_path
+            )
+
+            self.assertEqual(type(instance).__name__, '{}KeysLookup'.format(model))
+            self.assertEqual(instance.supplier, supplier)
+            self.assertEqual(instance.model_name, model)
+            self.assertEqual(instance.model_version, version)
+            self.assertEqual(instance.keys_data_directory, keys_path)
+            self.assertEqual(instance.complex_lookup_config_fp, complex_lookup_config_path)
+
+    @given(
+        model=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+    )
+    def test_version_file_missing___correct_exception_raised(self, model):
+        with TemporaryDirectory() as d:
+            version_path = os.path.join(d, 'version.csv')
+
+            module_path = os.path.join(d, '{}_lookup.py'.format(model))
+            self.write_py_module(model, module_path)
+
+            with self.assertRaisesRegexp(OasisException,
+                                         r"model_version_file_path does not exist.*"):
+                _, instance = olf.create(
+                    model_version_file_path=version_path
+                )
+
+    @given(
+        supplier=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+        model=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+        version=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+    )
+    def test_lookup_module_file_missing___correct_exception_raised(self, supplier, model, version):
+        with TemporaryDirectory() as d:
+            version_path = os.path.join(d, 'version.csv')
+            self.write_version_file(supplier, model, version, version_path)
+
+            module_path = os.path.join(d, '{}_lookup.py'.format(model))
+
+            with self.assertRaisesRegexp(OasisException,
+                                         r"lookup_package_path does not exist.*"):
+                _, instance = olf.create(
+                    model_version_file_path=version_path,
+                    lookup_package_path=module_path
+                )
+
+    @given(
+        supplier=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+        model=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+        version=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+    )
+    def test_lookup_module_file_missing___correct_exception_raised(self, supplier, model, version):
+        with TemporaryDirectory() as d:
+            keys_path = os.path.join(d, 'keys')
+
+            version_path = os.path.join(d, 'version.csv')
+            self.write_version_file(supplier, model, version, version_path)
+
+            module_path = os.path.join(d, '{}_lookup.py'.format(model))
+            self.write_py_module(model, module_path)
+
+            with self.assertRaisesRegexp(OasisException,
+                                         r"model_keys_data_path does not exist.*"):
+                _, instance = olf.create(
+                    model_version_file_path=version_path,
+                    lookup_package_path=module_path,
+                    model_keys_data_path=keys_path
+                )
+
+    @given(
+        supplier=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+        model=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+        version=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+    )
+    def test_complex_config_file_missing___correct_exception_raised(self, supplier, model, version):
+        with TemporaryDirectory() as d:
+            version_path = os.path.join(d, 'version.csv')
+            self.write_version_file(supplier, model, version, version_path)
+
+            module_path = os.path.join(d, '{}_lookup.py'.format(model))
+            self.write_py_module(model, module_path)
+
+            complex_lookup_config_path = os.path.join(d, 'lookup_config.json'.format(model))
+
+            with self.assertRaisesRegexp(OasisException,
+                                         r"complex_lookup_config_fp does not exist.*"):
+                _, instance = olf.create(
+                    model_version_file_path=version_path,
+                    lookup_package_path=module_path,
+                    complex_lookup_config_fp=complex_lookup_config_path
+                )
+
+    @given(
+        supplier=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+        model=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+        version=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+    )
+    def test_lookup_package_path_not_supplied___correct_exception_raised(self, supplier, model, version):
+        with TemporaryDirectory() as d:
+            version_path = os.path.join(d, 'version.csv')
+            self.write_version_file(supplier, model, version, version_path)
+
+            with self.assertRaisesRegexp(OasisException,
+                                         r"Unable to import lookup package without lookup_package_path"):
+                _, instance = olf.create(
+                    model_version_file_path=version_path
+                )
+
+    @given(
+        model=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
+    )
+    def test_model_version_file_path_not_supplied___correct_exception_raised(self, model):
+        with TemporaryDirectory() as d:
+            module_path = os.path.join(d, '{}_lookup.py'.format(model))
+            self.write_py_module(model, module_path)
+
+            with self.assertRaisesRegexp(OasisException,
+                                         r"Unable to get model version data without model_version_file_path"):
+                _, instance = olf.create(
+                    lookup_package_path=module_path
+                )
 
 
 class OasisLookupFactoryGetSourceExposure(TestCase):
