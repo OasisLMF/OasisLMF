@@ -107,15 +107,14 @@ fm_examples = [
 
 test_cases = []
 for case in test_examples + fm_examples:
-#for case in ['simple_CXL_port_acc_filter']:
     test_cases.append((
         case,
         os.path.join(input_dir, case),
         os.path.join(expected_output_dir, case)
     ))
 
-class TestReinsurance(unittest.TestCase):
 
+class TestReinsurance(unittest.TestCase):
     def _run_fm(
             self,
             input_name,
@@ -223,6 +222,9 @@ class TestReinsurance(unittest.TestCase):
                                                                                ri_layers[idx]['risk_level'])
                     net_losses[output_name] = reinsurance_layer_losses_df
 
+                    # Chdir out of temporary directory before it's deleted
+                    os.chdir(initial_dir)
+
                     return net_losses
 
         finally:
@@ -310,8 +312,5 @@ class TestReinsurance(unittest.TestCase):
             set_dataframe_column_dtypes(found_df, dtypes)
             
             expected_df.to_csv("/tmp/expected.csv", index=False)
-
-            print(found_df.dtypes)
-            print(expected_df.dtypes)
 
             assert_frame_equal(found_df, expected_df)

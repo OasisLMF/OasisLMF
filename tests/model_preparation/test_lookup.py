@@ -96,13 +96,17 @@ class OasisLookupFactoryGetSourceExposure(TestCase):
 
         exposure_str = _unicode(pd.DataFrame(columns=columns, data=data).to_csv(index=False))
 
-        with NamedTemporaryFile('w') as f:
+        f = NamedTemporaryFile('w', delete=False)
+
+        try:
             f.writelines(exposure_str)
-            f.flush()
+            f.close()
 
             res_str = olf.get_exposure(source_exposure_fp=f.name).to_csv(index=False)
 
             self.assertEqual(exposure_str, res_str)
+        finally:
+            os.remove(f.name)
 
     @given(lists(tuples(integers(min_value=0, max_value=100), integers(min_value=0, max_value=100)), min_size=1, max_size=10))
     def test_exposure_string_is_provided___file_content_is_loaded(self, data):
@@ -271,4 +275,3 @@ class OasisLookupFactoryWriteKeys(TestCase):
                 success_only=True
             )
             write_oasis_keys_file_mock.assert_called_once_with(data, keys_file_path, id_col='locnumber')
-

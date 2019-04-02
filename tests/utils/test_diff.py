@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import os
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
@@ -25,16 +26,21 @@ class UnifiedDiff(TestCase):
             unified_diff('first', 'second')
 
     def test_two_files_are_the_same___result_is_empty(self):
-        with NamedTemporaryFile(mode='w') as f:
+        f = NamedTemporaryFile(mode='w', delete=False)
+        try:
             f.write('content')
-            f.flush()
+            f.close()
 
             diff = list(unified_diff(f.name, f.name))
 
             self.assertEqual(0, len(diff))
+        finally:
+            os.remove(f.name)
 
     def test_two_files_are_different___result_is_list_of_differences(self):
-        with NamedTemporaryFile(mode='w') as first, NamedTemporaryFile(mode='w') as second:
+        first = NamedTemporaryFile(mode='w', delete=False)
+        second = NamedTemporaryFile(mode='w', delete=False)
+        try:
             first.writelines([
                 'HEADING\n',
                 'first\n',
@@ -42,7 +48,7 @@ class UnifiedDiff(TestCase):
                 'second\n',
                 'FOOTER\n'
             ])
-            first.flush()
+            first.close()
 
             second.writelines([
                 'HEADING\n',
@@ -51,7 +57,7 @@ class UnifiedDiff(TestCase):
                 'fourth\n',
                 'FOOTER\n'
             ])
-            second.flush()
+            second.close()
 
             diff = list(unified_diff(first.name, second.name))
 
@@ -67,9 +73,14 @@ class UnifiedDiff(TestCase):
                 '+fourth\n',
                 ' FOOTER\n',
             ])
+        finally:
+            os.remove(first.name)
+            os.remove(second.name)
 
     def test_two_files_are_different_as_string_is_true___result_is_concatenated_list_of_differences(self):
-        with NamedTemporaryFile(mode='w') as first, NamedTemporaryFile(mode='w') as second:
+        first = NamedTemporaryFile(mode='w', delete=False)
+        second = NamedTemporaryFile(mode='w', delete=False)
+        try:
             first.writelines([
                 'HEADING\n',
                 'first\n',
@@ -77,7 +88,7 @@ class UnifiedDiff(TestCase):
                 'second\n',
                 'FOOTER\n'
             ])
-            first.flush()
+            first.close()
 
             second.writelines([
                 'HEADING\n',
@@ -86,7 +97,7 @@ class UnifiedDiff(TestCase):
                 'fourth\n',
                 'FOOTER\n'
             ])
-            second.flush()
+            second.close()
 
             diff = unified_diff(first.name, second.name, as_string=True)
 
@@ -102,3 +113,6 @@ class UnifiedDiff(TestCase):
                 '+fourth\n',
                 ' FOOTER\n',
             ]))
+        finally:
+            os.remove(first.name)
+            os.remove(second.name)
