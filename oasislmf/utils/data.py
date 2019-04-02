@@ -105,7 +105,7 @@ def factorize_ndarray(ndarr, row_idxs=[], col_idxs=[]):
 
     _ndarr = ndarr[:, col_idxs].transpose() if col_idxs else ndarr[row_idxs, :]
     rows, _ = _ndarr.shape
-    
+
     if rows == 1:
         return factorize_array(_ndarr[0])
 
@@ -211,22 +211,22 @@ def get_dataframe(
         k: getattr(builtins, v) if v in ('int', 'float', 'str', 'bool',) else PANDAS_BASIC_DTYPES[v]
         for k, v in viewitems(col_dtypes)
     }
-    col_dtypes_set = False
+    #col_dtypes_set = False
 
     df = None
 
 
     if src_fp and src_type == 'csv':
-        df = pd.read_csv(src_fp, dtype=_col_dtypes, float_precision=float_precision, usecols=subset_cols, memory_map=memory_map)
+        df = pd.read_csv(src_fp,  float_precision=float_precision, usecols=subset_cols, memory_map=memory_map)
         col_dtypes_set = True
     elif src_buf and src_type == 'csv':
-        df = pd.read_csv(io.StringIO(src_buf), dtype=_col_dtypes, float_precision=float_precision, usecols=subset_cols, memory_map=memory_map)
+        df = pd.read_csv(io.StringIO(src_buf),  float_precision=float_precision, usecols=subset_cols, memory_map=memory_map)
         col_dtypes_set = True
     elif src_fp and src_type == 'json':
-        df = pd.read_json(src_fp, dtype=_col_dtypes, precise_float=(True if float_precision == 'high' else False))
+        df = pd.read_json(src_fp,  precise_float=(True if float_precision == 'high' else False))
         col_dtypes_set = True
     elif src_buf and src_type == 'json':
-        df = pd.read_json(io.StringIO(src_buf), dtype=_col_dtypes, precise_float=(True if float_precision == 'high' else False))
+        df = pd.read_json(io.StringIO(src_buf),  precise_float=(True if float_precision == 'high' else False))
         col_dtypes_set = True
     elif src_data and isinstance(src_data, list):
         df = pd.DataFrame(data=src_data)
@@ -259,14 +259,15 @@ def get_dataframe(
     if col_defaults:
         _col_defaults = {k.lower(): v for k, v in viewitems(col_defaults)} if lowercase_cols else col_defaults
         for col, val in viewitems(_col_defaults):
-            df.loc[:, col].fillna(val, inplace=True)
+            df.loc[:, col] = df.loc[:, col].fillna(val) if col in df else val
 
     if non_na_cols:
         _non_na_cols = tuple(col.lower() for col in non_na_cols) if lowercase_cols else non_na_cols
         df.dropna(subset=_non_na_cols, inplace=True)
 
-    if col_dtypes and not col_dtypes_set:
-        set_dataframe_column_dtypes(df, col_dtypes)
+    if col_dtypes:
+        _col_dtypes = {k.lower(): v for k, v in viewitems(col_dtypes)} if lowercase_cols else col_dtypes
+        set_dataframe_column_dtypes(df, _col_dtypes)
 
     if sort_cols:
         _sort_cols = (
@@ -368,7 +369,7 @@ def print_dataframe(
     file=sys.stdout,
     flush=False,
     **tabulate_kwargs
-):  
+):
     _df = df.copy(deep=True)
 
     for col in objectify_cols:

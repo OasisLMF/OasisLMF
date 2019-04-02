@@ -568,7 +568,8 @@ class TestGetDataframe(TestCase):
             df.to_csv(path_or_buf=fp.name, columns=df.columns, encoding='utf-8', index=False)
 
             expected = df.copy(deep=True)
-            expected.loc[:, ['str_col', 'int_col', 'float_col']] = defaults['str_col'], defaults['int_col'], defaults['float_col']
+            for col, default in viewitems(defaults):
+                expected.loc[:, col].fillna(defaults[col], inplace=True)
 
             result = get_dataframe(src_fp=fp.name, col_defaults=defaults)
 
@@ -600,7 +601,8 @@ class TestGetDataframe(TestCase):
 
             expected = df.copy(deep=True)
             expected.columns = expected.columns.str.lower()
-            expected.loc[:, ['str_col', 'int_col', 'floatcol']] = defaults['STR_COL'], defaults['int_col'], defaults['FloatCol']
+            for col, default in viewitems(defaults):
+                expected.loc[:, col.lower()].fillna(defaults[col], inplace=True)
 
             result = get_dataframe(src_fp=fp.name, col_defaults=defaults)
 
@@ -963,7 +965,8 @@ class TestGetDataframe(TestCase):
             df.to_csv(path_or_buf=fp.name, columns=df.columns, encoding='utf-8', index=False)
 
             expected = df.copy(deep=True)
-            expected.loc[:, ['STR_COL', 'int_col', 'FloatCol']] = defaults['STR_COL'], defaults['int_col'], defaults['FloatCol']
+            for col, default in viewitems(defaults):
+                expected.loc[:, col].fillna(defaults[col], inplace=True)
 
             result = get_dataframe(src_fp=fp.name, col_defaults=defaults, lowercase_cols=False)
 
