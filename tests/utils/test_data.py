@@ -195,7 +195,6 @@ def dataframes_are_identical(df1, df2):
 
 def set_method_name(name):
     def wrapper(f):
-        import ipdb; ipdb.set_trace()
         f.__name__ = name
         f.__qualname__ = ''.join(f.__qualname__.split('.')[:-1] + ['.', name])
         return f

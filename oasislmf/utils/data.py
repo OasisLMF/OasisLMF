@@ -206,12 +206,10 @@ def get_dataframe(
             'appropriate data structure or Pandas DataFrame must be provided'
         )
 
-    #import ipdb; ipdb.set_trace()
     _col_dtypes = {
         k: getattr(builtins, v) if v in ('int', 'float', 'str', 'bool',) else PANDAS_BASIC_DTYPES[v]
         for k, v in viewitems(col_dtypes)
     }
-    #col_dtypes_set = False
 
     df = None
 
