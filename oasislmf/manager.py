@@ -350,8 +350,8 @@ class OasisManager(object):
 
         # Get the profiles defining the exposure and accounts files, ID related
         # terms in these files, and FM aggregation hierarchy
-        exposure_profile = exposure_profile or get_json(src_fp=exposure_profile_fp) or self.exposure_profile
-        accounts_profile = accounts_profile or get_json(src_fp=accounts_profile_fp) or self.accounts_profile
+        exposure_profile = exposure_profile or (get_json(src_fp=exposure_profile_fp) if exposure_profile_fp else self.exposure_profile)
+        accounts_profile = accounts_profile or (get_json(src_fp=accounts_profile_fp) if accounts_profile_fp else self.accounts_profile)
         id_terms = unified_id_terms(profiles=(exposure_profile, accounts_profile,))
         loc_id = id_terms['locid']
         acc_id = id_terms['accid']
@@ -701,9 +701,8 @@ class OasisManager(object):
         Generates insured losses from preexisting Oasis files with a specified
         damage ratio (loss % of TIV).
         """
-        #if not os.path.exists(output_dir):
-        #    Path(output_dir).mkdir(parents=True, exist_ok=True)
-
+        if not os.path.exists(output_dir):
+            Path(output_dir).mkdir(parents=True, exist_ok=True)
         contents = [p.lower() for p in os.listdir(input_dir)]
         exposure_fp = [os.path.join(input_dir, p) for p in contents if 'location' in p][0]
         accounts_fp = [os.path.join(input_dir, p) for p in contents if 'account' in p][0]
