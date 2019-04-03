@@ -6,16 +6,17 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 from builtins import open as io_open
-from builtins import str
+from builtins import int, str
 
 from future import standard_library
 standard_library.install_aliases()
 
 __all__ = [
+    'factorize_array',
     'factorize_dataframe',
     'factorize_ndarray',
+    'fast_zip_arrays',
     'fast_zip_dataframe_columns',
-    'fast_zip_nparrays',
     'get_dataframe',
     'get_json',
     'get_timestamp',
@@ -59,16 +60,58 @@ PANDAS_BASIC_DTYPES = {
     builtins.float: np.float64,
     'bool': np.bool,
     builtins.bool: np.bool,
-    'object': np.object,
     'str': np.object,
     builtins.str: np.object
 }
 
 
-def factorize_ndarray(ndarr, row_idxs=None, col_idxs=None, enumerate_only=False):
+def factorize_array(arr):
+    """
+    Groups a 1D Numpy array by item value, and optionally enumerates the
+    groups, starting from 1. The default or assumed type is a Nunpy
+    array, although a Python list, tuple or Pandas series will work too.
+
+    :param arr: 1D Numpy array (or list, tuple, or Pandas series)
+    :type arr: numpy.ndarray
+
+    :return: A 2-tuple consisting of the enumeration and the value groups
+    :rtype: tuple
+    """
+    enum, groups = pd.factorize(arr)
+
+    return enum + 1, groups
+
+
+def factorize_ndarray(ndarr, row_idxs=[], col_idxs=[]):
+    """
+    Groups an n-D Numpy array by item value, and optionally enumerates the
+    groups, starting from 1. The default or assumed type is a Nunpy
+    array, although a Python list, tuple or Pandas series will work too.
+
+    :param ndarr: n-D Numpy array (or appropriate Python structure or Pandas dataframe)
+    :type ndarr: numpy.ndarray
+
+    :param row_idxs: A list of row indices to use for factorization (optional)
+    :type row_idxs: list
+
+    :param col_idxs: A list of column indices to use for factorization (optional)
+    :type col_idxs: list
+
+    :return: A 2-tuple consisting of the enumeration and the value groups
+    :rtype: tuple
+    """
+    if not (row_idxs or col_idxs):
+        raise OasisException('A list of row indices or column indices must be provided')
+
     _ndarr = ndarr[:, col_idxs].transpose() if col_idxs else ndarr[row_idxs, :]
-    ft = pd.factorize(fast_zip_nparrays(*(ar for ar in _ndarr)))
-    return (ft[0] + 1) if enumerate_only else ft
+    rows, _ = _ndarr.shape
+
+    if rows == 1:
+        return factorize_array(_ndarr[0])
+
+    enum, groups = pd.factorize(fast_zip_arrays(*(arr for arr in _ndarr)))
+
+    return enum + 1, groups
 
 
 def factorize_dataframe(
@@ -76,26 +119,68 @@ def factorize_dataframe(
         by_row_labels=None,
         by_row_indices=None,
         by_col_labels=None,
-        by_col_indices=None,
-        enumerate_only=False
+        by_col_indices=None
     ):
-        by_row_indices = by_row_indices or (None if not by_row_labels else [df.index.get_loc(label) for label in by_row_labels])
-        by_col_indices = by_col_indices or (None if not by_col_labels else [df.columns.get_loc(label) for label in by_col_labels])
+    """
+    Groups a selection of rows or columns of a Pandas DataFrame array by value,
+    and optionally enumerates the groups, starting from 1.
 
-        return factorize_ndarray(
-            df.values,
-            row_idxs=by_row_indices,
-            col_idxs=by_col_indices,
-            enumerate_only=enumerate_only
-        )
+    :param df: Pandas DataFrame
+    :type: pandas.DataFrame
+
+    :param by_row_labels: A list or tuple of row labels
+    :type by_row_labels: list, tuple
+
+    :param by_row_indices: A list or tuple of row indices
+    :type by_row_indices: list, tuple
+
+    :param by_col_labels: A list or tuple of column labels
+    :type by_col_labels: list, tuple
+
+    :param by_col_indices: A list or tuple of column indices
+    :type by_col_indices: list, tuple
+
+    :return: A 2-tuple consisting of the enumeration and the value groups
+    :rtype: tuple
+    """
+    by_row_indices = by_row_indices or (None if not by_row_labels else [df.index.get_loc(label) for label in by_row_labels])
+    by_col_indices = by_col_indices or (None if not by_col_labels else [df.columns.get_loc(label) for label in by_col_labels])
+
+    return factorize_ndarray(
+        df.values,
+        row_idxs=by_row_indices,
+        col_idxs=by_col_indices
+    )
 
 
-def fast_zip_nparrays(*nparrays):
-    return pd._libs.lib.fast_zip([arr for arr in nparrays])
+def fast_zip_arrays(*arrays):
+    """
+    Speedy zip of a sequence or ordered iterable of Numpy arrays (Python
+    iterables with ordered elements such as lists and tuples, or iterators
+    or generators of these, will also work).
+
+    :param arrays: An iterable or iterator or generator of Numpy arrays
+    :type arrays: list, tuple, collections.Iterator, types.GeneratorType
+
+    :return: A Numpy 1D array of ``n``-tuples of the zipped ``n`` sequences
+    :rtype: np.array
+    """
+    return pd._libs.lib.fast_zip([arr for arr in arrays])
 
 
 def fast_zip_dataframe_columns(df, cols):
-    return fast_zip_nparrays(*(df[col].values for col in cols))
+    """
+    Speedy zip of a sequence or ordered iterable of Pandas DataFrame columns
+    (Python iterables with ordered elements such as lists and tuples, or
+    iterators or generators of these, will also work).
+
+    :param df: Pandas DataFrame
+    :type df: pandas.DataFrame
+
+    :cols: An iterable or iterator or generator of Pandas DataFrame columns
+    :type cols: list, tuple, collections.Iterator, types.GeneratorType
+    """
+    return fast_zip_arrays(*(df[col].values for col in cols))
 
 
 def get_dataframe(
@@ -103,36 +188,44 @@ def get_dataframe(
     src_type='csv',
     src_buf=None,
     src_data=None,
-    csv_cols=None,
+    col_dtypes={},
+    subset_cols=None,
     float_precision='high',
     empty_data_error_msg=None,
     lowercase_cols=True,
-    replace_nans_by_none=True,
     required_cols=(),
     col_defaults={},
     non_na_cols=(),
-    col_dtypes={},
-    index=None,
-    sort_col=None,
+    sort_cols=None,
     sort_ascending=None,
     memory_map=False
 ):
     if not (src_fp or src_buf or src_data is not None):
         raise OasisException(
             'A CSV or JSON file path or a string buffer of such a file or an '
-            'appropriate data structure or dataframe must be provided'
+            'appropriate data structure or Pandas DataFrame must be provided'
         )
+
+    _col_dtypes = {
+        k: getattr(builtins, v) if v in ('int', 'float', 'str', 'bool',) else PANDAS_BASIC_DTYPES[v]
+        for k, v in viewitems(col_dtypes)
+    }
 
     df = None
 
+
     if src_fp and src_type == 'csv':
-        df = pd.read_csv(src_fp, float_precision=float_precision, usecols=csv_cols, memory_map=memory_map)
+        df = pd.read_csv(src_fp,  float_precision=float_precision, usecols=subset_cols, memory_map=memory_map)
+        col_dtypes_set = True
     elif src_buf and src_type == 'csv':
-        df = pd.read_csv(io.StringIO(src_buf), float_precision=float_precision, usecols=csv_cols, memory_map=memory_map)
+        df = pd.read_csv(io.StringIO(src_buf),  float_precision=float_precision, usecols=subset_cols, memory_map=memory_map)
+        col_dtypes_set = True
     elif src_fp and src_type == 'json':
-        df = pd.read_json(src_fp, precise_float=(True if float_precision == 'high' else False))
+        df = pd.read_json(src_fp,  precise_float=(True if float_precision == 'high' else False))
+        col_dtypes_set = True
     elif src_buf and src_type == 'json':
-        df = pd.read_json(io.StringIO(src_buf), precise_float=(True if float_precision == 'high' else False))
+        df = pd.read_json(io.StringIO(src_buf),  precise_float=(True if float_precision == 'high' else False))
+        col_dtypes_set = True
     elif src_data and isinstance(src_data, list):
         df = pd.DataFrame(data=src_data)
     elif src_data and  isinstance(src_data, pd.DataFrame):
@@ -141,14 +234,8 @@ def get_dataframe(
     if len(df) == 0:
         raise OasisException(empty_data_error_msg)
 
-    if index:
-        df.index = index
-
     if lowercase_cols:
         df.columns = df.columns.str.lower()
-
-    if replace_nans_by_none:
-        df = df.where(df.notnull(), None)
 
     if required_cols:
         _required_cols = [c.lower() for c in required_cols] if lowercase_cols else required_cols
@@ -169,59 +256,75 @@ def get_dataframe(
 
     if col_defaults:
         _col_defaults = {k.lower(): v for k, v in viewitems(col_defaults)} if lowercase_cols else col_defaults
-        defaults = {c for c in _col_defaults}.difference({c for c in df.columns})
-        for col in defaults:
-            df[col] = df.get(col, _col_defaults[col])
+        for col, val in viewitems(_col_defaults):
+            df.loc[:, col] = df.loc[:, col].fillna(val) if col in df else val
 
     if non_na_cols:
         _non_na_cols = tuple(col.lower() for col in non_na_cols) if lowercase_cols else non_na_cols
         df.dropna(subset=_non_na_cols, inplace=True)
 
     if col_dtypes:
-        set_dataframe_column_dtypes(df, col_dtypes)
+        _col_dtypes = {k.lower(): v for k, v in viewitems(col_dtypes)} if lowercase_cols else col_dtypes
+        set_dataframe_column_dtypes(df, _col_dtypes)
 
-    if sort_col:
-        _sort_col = sort_col.lower() if lowercase_cols else sort_col
+    if sort_cols:
+        _sort_cols = (
+            [(col.lower() if lowercase_cols else col) for col in sort_cols] if (isinstance(sort_cols, list) or isinstance(sort_cols, tuple) or isinstance(sort_cols, set))
+            else (sort_cols.lower() if lowercase_cols else sort_cols)
+        )
         sort_ascending = sort_ascending if sort_ascending is not None else True
-        df.sort_values(_sort_col, axis=0, ascending=sort_ascending, inplace=True)
+        df.sort_values(_sort_cols, axis=0, ascending=sort_ascending, inplace=True)
 
     return df
 
 
-def set_dataframe_column_dtypes(df, col_dtypes):
-    for col, dtype in viewitems(col_dtypes):
-        if dtype in ('int', 'bool', 'float', 'object', 'str',):
-            dtype = getattr(builtins, dtype)
-        if col in df:
-            df[col] = df[col].astype(PANDAS_BASIC_DTYPES[dtype])
+def get_json(src_fp):
+    """
+    Loads JSON from file.
 
+    :param src_fp: Source JSON file path
+    :type src_fp: str
 
-def get_json(src_fp, key_transform=None):
-    di = None
+    :return: dict
+    :rtype: dict
+    """
     try:
         with io_open(src_fp, 'r', encoding='utf-8') as f:
-            di = json.load(f)
+            return json.load(f)
     except (IOError, JSONDecodeError, OSError, TypeError) as e:
-        return
-
-    return di if not key_transform else {key_transform(k): v for k, v in viewitems(di)}
+        raise OasisException('Error trying to load JSON from {}'.format(src_fp))
 
 
-def get_timestamp(thedate=None, fmt='%Y%m%d%H%M%S'):
-    """ Get a timestamp """
-    d = thedate if thedate else datetime.now()
-    return d.strftime(fmt)
-
-
-def get_utctimestamp(thedate=None, fmt='%Y-%b-%d %H:%M:%S'):
+def get_timestamp(thedate=datetime.now(), fmt='%Y%m%d%H%M%S'):
     """
-    Returns a UTC timestamp for a given ``datetime.datetime`` in the
-    specified string format - the default format is::
+    Get a timestamp string from a ``datetime.datetime`` object
 
-        YYYY-MMM-DD HH:MM:SS
+    :param thedate: ``datetime.datetime`` object
+    :type thedate: datetime.datetime
+
+    :param fmt: Timestamp format string
+    :type fmt: str
+
+    :return: Timestamp string
+    :rtype: str
     """
-    d = thedate.astimezone(pytz.utc) if thedate else datetime.utcnow()
-    return d.strftime(fmt)
+    return thedate.strftime(fmt)
+
+
+def get_utctimestamp(thedate=datetime.utcnow(), fmt='%Y-%b-%d %H:%M:%S'):
+    """
+    Get a UTC timestamp string from a ``datetime.datetime`` object
+
+    :param thedate: ``datetime.datetime`` object
+    :type thedate: datetime.datetime
+
+    :param fmt: Timestamp format string, default is "%Y-%b-%d %H:%M:%S"
+    :type fmt: str
+
+    :return: UTC timestamp string
+    :rtype: str
+    """
+    return thedate.astimezone(pytz.utc).strftime(fmt)
 
 
 def merge_dataframes(left, right, **kwargs):
@@ -229,16 +332,14 @@ def merge_dataframes(left, right, **kwargs):
     Merges two dataframes by ensuring there is no duplication of columns.
     """
     _left = left.copy(deep=True)
-    _left['index'] = _left.get('index', _left.index)
     _right = right.copy(deep=True)
-    _right['index'] = _right.get('index', _right.index)
 
     left_keys = kwargs.get('left_on') or kwargs.get('on') or []
     left_keys = [left_keys] if isinstance(left_keys, str) else left_keys
 
     drop_cols = [
         k for k in set(_left.columns).intersection(_right.columns)
-        if k and k not in left_keys + ['index']
+        if k and k not in left_keys
     ]
 
     drop_duplicates = kwargs.get('drop_duplicates', True)
@@ -249,9 +350,6 @@ def merge_dataframes(left, right, **kwargs):
         _right,
         **kwargs
     )
-    merge['index'] = merge.index
-
-    merge.drop(['index_x', 'index_y'], axis=1, inplace=True)
 
     return merge if not drop_duplicates else merge.drop_duplicates()
 
@@ -269,7 +367,7 @@ def print_dataframe(
     file=sys.stdout,
     flush=False,
     **tabulate_kwargs
-):  
+):
     _df = df.copy(deep=True)
 
     for col in objectify_cols:
@@ -285,3 +383,11 @@ def print_dataframe(
         tabulate_kwargs.pop('showindex') if 'showindex' in tabulate_kwargs else None
 
     print(tabulate(_df, headers=column_headers, tablefmt=tablefmt, showindex=show_index, floatfmt=floatfmt, **tabulate_kwargs), sep=sep, end=end, file=file, flush=flush)
+
+
+def set_dataframe_column_dtypes(df, col_dtypes):
+    for col, dtype in viewitems(col_dtypes):
+        if dtype in ('int', 'bool', 'float', 'object', 'str',):
+            dtype = getattr(builtins, dtype)
+        if col in df:
+            df[col] = df[col].astype(PANDAS_BASIC_DTYPES[dtype])
