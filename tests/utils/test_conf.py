@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import os
 import socket
 from unittest import TestCase
 
@@ -13,55 +14,65 @@ from oasislmf.utils.exceptions import OasisException
 
 class LoadInIFile(TestCase):
     def test_values_are_bool___values_are_correctly_converted_to_bool_value(self):
-        with NamedTemporaryFile(mode='w') as f:
+        f = NamedTemporaryFile(mode='w', delete=False)
+        try:
             f.writelines([
                 '[section]\n',
                 'a = True\n',
                 'b = False\n',
             ])
-            f.flush()
+            f.close()
 
             conf = load_ini_file(f.name)
 
             self.assertTrue(conf['a'])
             self.assertFalse(conf['b'])
+        finally:
+            os.remove(f.name)
 
     def test_values_are_int___values_are_correctly_converted_to_int_value(self):
-        with NamedTemporaryFile(mode='w') as f:
+        f = NamedTemporaryFile(mode='w', delete=False)
+        try:
             f.writelines([
                 '[section]\n',
                 'a = 1\n',
                 'b = 2\n',
             ])
-            f.flush()
+            f.close()
 
             conf = load_ini_file(f.name)
 
             self.assertEqual(1, conf['a'])
             self.assertEqual(2, conf['b'])
+        finally:
+            os.remove(f.name)
 
     def test_values_are_float___value_are_correctly_converted_to_int_value(self):
-        with NamedTemporaryFile(mode='w') as f:
+        f = NamedTemporaryFile(mode='w', delete=False)
+        try:
             f.writelines([
                 '[section]\n',
                 'a = 1.1\n',
                 'b = 2.2\n',
             ])
-            f.flush()
+            f.close()
 
             conf = load_ini_file(f.name)
 
             self.assertEqual(1.1, conf['a'])
             self.assertEqual(2.2, conf['b'])
+        finally:
+            os.remove(f.name)
 
     def test_values_are_ip_addresses___values_are_converted_into_ip_string_format(self):
-        with NamedTemporaryFile(mode='w') as f:
+        f = NamedTemporaryFile(mode='w', delete=False)
+        try:
             f.writelines([
                 '[section]\n',
                 'a = 127.0.0.1\n',
                 'b = 127.127.127.127\n',
             ])
-            f.flush()
+            f.close()
 
             conf = load_ini_file(f.name)
 
@@ -69,20 +80,25 @@ class LoadInIFile(TestCase):
 
             self.assertEqual(ipf('127.0.0.1'), conf['a'])
             self.assertEqual(ipf('127.127.127.127'), conf['b'])
+        finally:
+            os.remove(f.name)
 
     def test_values_are_string_values___values_are_unchanged(self):
-        with NamedTemporaryFile(mode='w') as f:
+        f = NamedTemporaryFile(mode='w', delete=False)
+        try:
             f.writelines([
                 '[section]\n',
                 'a = first.value\n',
                 'b = another value\n',
             ])
-            f.flush()
+            f.close()
 
             conf = load_ini_file(f.name)
 
             self.assertEqual('first.value', conf['a'])
             self.assertEqual('another value', conf['b'])
+        finally:
+            os.remove(f.name)
 
     def test_io_error_is_raised_when_opening_file___exception_is_converted_to_oasis_exception(self):
         def raising_function(*args, **kwargs):
@@ -102,32 +118,46 @@ class ReplaceInFile(TestCase):
             replace_in_file('first_path', 'second_path', ['fist_arg'], ['first_val', 'second_val'])
 
     def test_input_file_does_not_include_any_var_names___file_is_unchanged(self):
-        with NamedTemporaryFile(mode='w') as input_file, NamedTemporaryFile(mode='r') as output_file:
+        input_file = NamedTemporaryFile(mode='w', delete=False)
+        output_file = NamedTemporaryFile(mode='w', delete=False)
+        try:
+            # Close immediately so that replace_in_file can open it
+            output_file.close()
             input_file.writelines([
                 'some_var some_val\n',
             ])
-            input_file.flush()
+            input_file.close()
 
             replace_in_file(input_file.name, output_file.name, ['first_arg', 'second_arg'], ['first_val', 'second_val'])
 
-            output_file.seek(0)
-            data = output_file.read()
+            with open(output_file.name) as f:
+                data = f.read()
 
             self.assertEqual('some_var some_val\n', data)
+        finally:
+            os.remove(input_file.name)
+            os.remove(output_file.name)
 
     def test_input_file_includes_some_var_names___input_names_are_replaced_with_values(self):
-        with NamedTemporaryFile(mode='w') as input_file, NamedTemporaryFile(mode='r') as output_file:
+        input_file = NamedTemporaryFile(mode='w', delete=False)
+        output_file = NamedTemporaryFile(mode='w', delete=False)
+        try:
+            # Close immediately so that replace_in_file can open it
+            output_file.close()
             input_file.writelines([
                 'some_var first_arg\n',
             ])
-            input_file.flush()
+            input_file.close()
 
             replace_in_file(input_file.name, output_file.name, ['first_arg', 'second_arg'], ['first_val', 'second_val'])
 
-            output_file.seek(0)
-            data = output_file.read()
+            with open(output_file.name) as f:
+                data = f.read()
 
             self.assertEqual('some_var first_val\n', data)
+        finally:
+            os.remove(input_file.name)
+            os.remove(output_file.name)
 
     def test_io_error_is_raised_when_opening_file___exception_is_converted_to_oasis_exception(self):
         def raising_function(*args, **kwargs):

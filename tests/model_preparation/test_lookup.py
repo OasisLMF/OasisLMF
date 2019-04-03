@@ -7,7 +7,6 @@ import json
 import os
 import string
 
-from collections import OrderedDict
 from unittest import TestCase
 
 import pandas as pd
@@ -17,11 +16,9 @@ from backports.tempfile import TemporaryDirectory
 from hypothesis import (
     given,
     HealthCheck,
-    reproduce_failure,
     settings,
 )
 from hypothesis.strategies import (
-    booleans,
     fixed_dictionaries,
     integers,
     just,
@@ -34,18 +31,6 @@ from mock import Mock, patch
 from tempfile import NamedTemporaryFile
 
 from oasislmf.model_preparation.lookup import OasisLookupFactory as olf
-from oasislmf.utils.coverage import (
-    BUILDING_COVERAGE_CODE,
-    CONTENTS_COVERAGE_CODE,
-    OTHER_STRUCTURES_COVERAGE_CODE,
-    TIME_COVERAGE_CODE,
-)
-from oasislmf.utils.peril import (
-    PERIL_ID_FLOOD,
-    PERIL_ID_QUAKE,
-    PERIL_ID_SURGE,
-    PERIL_ID_WIND,
-)
 from oasislmf.utils.status import (
     KEYS_STATUS_FAIL,
     KEYS_STATUS_NOMATCH,
@@ -111,17 +96,21 @@ class OasisLookupFactoryGetSourceExposure(TestCase):
 
         exposure_str = _unicode(pd.DataFrame(columns=columns, data=data).to_csv(index=False))
 
-        with NamedTemporaryFile('w') as f:
+        f = NamedTemporaryFile('w', delete=False)
+
+        try:
             f.writelines(exposure_str)
-            f.flush()
+            f.close()
 
             res_str = olf.get_exposure(source_exposure_fp=f.name).to_csv(index=False)
 
             self.assertEqual(exposure_str, res_str)
+        finally:
+            os.remove(f.name)
 
     @given(lists(tuples(integers(min_value=0, max_value=100), integers(min_value=0, max_value=100)), min_size=1, max_size=10))
     def test_exposure_string_is_provided___file_content_is_loaded(self, data):
-        columns=['first', 'second']
+        columns = ['first', 'second']
 
         exposure_str = _unicode(pd.DataFrame(columns=columns, data=data).to_csv(index=False))
 
@@ -286,4 +275,3 @@ class OasisLookupFactoryWriteKeys(TestCase):
                 success_only=True
             )
             write_oasis_keys_file_mock.assert_called_once_with(data, keys_file_path, id_col='locnumber')
-

@@ -3,10 +3,11 @@
 from __future__ import unicode_literals
 
 import hashlib
+import io
 import json
 import os
-import io
 import shutil
+from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
 from oasislmf.model_execution.bash import genbash
@@ -25,6 +26,15 @@ class Genbash(TestCase):
         if os.path.exists(KPARSE_OUTPUT_FOLDER):
             shutil.rmtree(KPARSE_OUTPUT_FOLDER)
         os.makedirs(KPARSE_OUTPUT_FOLDER)
+
+    def setUp(self):
+        self.temp_reference_file = None
+
+    def tearDown(self):
+        if self.temp_reference_file is not None:
+            # If already closed, no exception is raised
+            self.temp_reference_file.close()
+            os.remove(self.temp_reference_file.name)
 
     def md5(self, fname):
         hash_md5 = hashlib.md5()
@@ -54,32 +64,32 @@ class Genbash(TestCase):
             mem_limit=mem_limit
         )
 
-    def check(self, name):
+    def check(self, name, reference_filename=None):
         output_filename = os.path.join(KPARSE_OUTPUT_FOLDER, "{}.sh".format(name))
-        reference_filename = os.path.join(KPARSE_REFERENCE_FOLDER, "{}.sh".format(name))
+        if not reference_filename:
+            reference_filename = os.path.join(KPARSE_REFERENCE_FOLDER, "{}.sh".format(name))
 
         d = diff.unified_diff(reference_filename, output_filename, as_string=True)
         if d:
             self.fail(d)
 
     def update_fifo_tmpfile(self, name):
-        ## Read random fifo dir name from generated file and replace in reference 
+        self.temp_reference_file = NamedTemporaryFile("w+", delete=False)
+        # Read random fifo dir name from generated file and replace in reference
         output_filename = os.path.join(KPARSE_OUTPUT_FOLDER, "{}.sh".format(name))
         ref_template = os.path.join(KPARSE_REFERENCE_FOLDER, "{}.template".format(name))
-        ref_script = os.path.join(KPARSE_REFERENCE_FOLDER, "{}.sh".format(name))
         with io.open(output_filename, 'r') as f:
-           for line in f:  
-               if '/tmp/' in line:
-                   tmp_fifo_dir = line.split('/')[-2]
-                   print(tmp_fifo_dir)
-                   break
+            for line in f:
+                if '/tmp/' in line:
+                    tmp_fifo_dir = line.split('/')[-2]
+                    break
         
         # Replace placeholder '%FIFO_DIR%' with '<RandomDirName>'
         with io.open(ref_template, 'r') as f:
-          ktools_script = f.read()
+            ktools_script = f.read()
         ktools_script = ktools_script.replace('%FIFO_DIR%', tmp_fifo_dir)
-        with io.open(ref_script, 'w') as f:
-          f.write(ktools_script)
+        self.temp_reference_file.write(ktools_script)
+        self.temp_reference_file.close()
 
     def test_gul_summarycalc_1_partition(self):
         self.genbash("gul_summarycalc_1_output", 1)
@@ -406,19 +416,23 @@ class Genbash(TestCase):
     def test_gul_il_lec_2_output_10_partitions_tmpfifo(self):
         self.genbash("gul_il_lec_2_tmpfifo_output", 10, 0, True)
         self.update_fifo_tmpfile("gul_il_lec_2_tmpfifo_output_10_partition")
-        self.check("gul_il_lec_2_tmpfifo_output_10_partition")
+        self.check("gul_il_lec_2_tmpfifo_output_10_partition",
+                   self.temp_reference_file.name)
 
     def test_gul_agg_ws_mean_lec_20_partition_tmpfifo_memlim(self):
         self.genbash("gul_agg_ws_mean_lec_1_tmpfifo_memlim_output", 20, 0, True, True)
         self.update_fifo_tmpfile("gul_agg_ws_mean_lec_1_tmpfifo_memlim_output_20_partition")
-        self.check("gul_agg_ws_mean_lec_1_tmpfifo_memlim_output_20_partition")
+        self.check("gul_agg_ws_mean_lec_1_tmpfifo_memlim_output_20_partition",
+                   self.temp_reference_file.name)
 
     def test_analysis_settings_3_0_reins_iters_tmpfifo(self):
         self.genbash("analysis_settings_tmpfifo_3", 1, 1, True)
         self.update_fifo_tmpfile("analysis_settings_tmpfifo_3_1_reins_layer_1_partition")
-        self.check("analysis_settings_tmpfifo_3_1_reins_layer_1_partition")
+        self.check("analysis_settings_tmpfifo_3_1_reins_layer_1_partition",
+                   self.temp_reference_file.name)
 
     def test_analysis_settings_4_0_reins_iters_tmpfifo_memlim(self):
         self.genbash("analysis_settings_tmpfifo_memlim_4", 1, 1, True, True)
         self.update_fifo_tmpfile("analysis_settings_tmpfifo_memlim_4_1_reins_layer_1_partition")
-        self.check("analysis_settings_tmpfifo_memlim_4_1_reins_layer_1_partition")
+        self.check("analysis_settings_tmpfifo_memlim_4_1_reins_layer_1_partition",
+                   self.temp_reference_file.name)
