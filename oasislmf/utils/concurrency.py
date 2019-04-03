@@ -19,6 +19,7 @@ except ImportError:
 import sys
 import types
 
+import psutil
 import billiard
 
 from signal import (
@@ -31,11 +32,16 @@ from threading import (
 )
 
 __all__ = [
+    'get_num_cpus',
     'multiprocess',
     'multithread',
     'SignalHandler',
     'Task'
 ]
+
+
+def get_num_cpus(logical=False):
+    return psutil.cpu_count(logical=logical)
 
 
 class SignalHandler(object):
@@ -113,7 +119,7 @@ class Task(object):
         return self._is_done
 
 
-def multithread(tasks, pool_size=10):
+def multithread(tasks, pool_size=get_num_cpus(logical=True)):
     """
     Executes several tasks concurrently via ``threading`` threads, puts the
     results into a queue, and generates these back to the caller.
@@ -161,7 +167,7 @@ def multithread(tasks, pool_size=10):
         yield key, result
 
 
-def multiprocess(tasks, pool_size=10):
+def multiprocess(tasks, pool_size=get_num_cpus()):
     """
     Executes several tasks concurrently via Python ``multiprocessing``
     processes, puts the results into a queue, and generates these back to the

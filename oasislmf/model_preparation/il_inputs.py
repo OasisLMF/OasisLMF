@@ -55,6 +55,7 @@ pd.options.mode.chained_assignment = None
 import numpy as np
 
 from ..utils.concurrency import (
+    get_num_cpus,
     multiprocess,
     multithread,
     Task,
@@ -751,15 +752,15 @@ def write_il_input_files(
     }
 
     this_module = sys.modules[__name__]
-    cpu_count = multiprocessing.cpu_count()
+    cpu_count = get_num_cpus()
 
-    if len(il_inputs_df) <= chunksize and cpu_count >= len(il_input_files):
-        concurrent_tasks = (
+    if len(il_inputs_df) <= chunksize or cpu_count >= len(il_input_files):
+        tasks = (
             Task(getattr(this_module, 'write_{}_file'.format(fn)), args=(il_inputs_df.copy(deep=True), il_input_files[fn], chunksize,), key=fn)
             for fn in il_input_files
         )
         num_ps = min(len(il_input_files), cpu_count)
-        for _, _ in multithread(concurrent_tasks, pool_size=num_ps):
+        for _, _ in multithread(tasks, pool_size=num_ps):
             pass
     else:
         for fn, fp in viewitems(il_input_files):
