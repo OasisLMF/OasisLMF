@@ -4,30 +4,35 @@
 
 # OasisLMF
 
-The `oasislmf` Python package, loosely called the *model development kit (MDK)* or the *MDK package*, provides a command line toolkit for developing and running Oasis models end-to-end locally, or remotely via the Oasis API. to generate groud-up losses (GUL), direct/insured losses (IL) and reinsurance losses (RIL). The package also provides end users with a way to generate deterministic losses at all these levels.
+The `oasislmf` Python package, loosely called the *model development kit (MDK)* or the *MDK package*, provides a command line toolkit for developing, testing and running Oasis models end-to-end locally, or remotely via the Oasis API. It can generate ground-up losses (GUL), direct/insured losses (IL) and reinsurance losses (RIL). It can also generate deterministic losses at all these levels.
 
-For running models locally the CLI provides a `model` subcommand with the following main subcommands:
+For running models locally the CLI provides a `model` subcommand with the following options:
 
-* `model generate-keys`: generates Oasis keys files from model lookups; these are essentially line items of (location ID, peril ID, coverage type ID, area peril ID, vulnerability ID) where peril ID and coverage type ID span the full set of perils and coverage types that the model supports; if the model lookup is a complex model the keys file will have the same format except that area peril ID and vulnerability ID are replaced by a model data JSON string
+* `model generate-keys`: generates Oasis keys files from model lookups; these are essentially line items of (location ID, peril ID, coverage type ID, area peril ID, vulnerability ID) where peril ID and coverage type ID span the full set of perils and coverage types that the model supports; if the lookup is for a complex/custom model the keys file will have the same format except that area peril ID and vulnerability ID are replaced by a model data JSON string
 * `model generate-oasis-files`: generates the Oasis input CSV files for losses (GUL, GUL + IL, or GUL + IL + RIL); it requires the provision of source exposure and optionally source accounts and reinsurance info. and scope files (in OED format), as well as assets for instantiating model lookups and generating keys files
 * `model generate-losses`: generates losses (GUL, or GUL + IL, or GUL + IL + RIL) from a set of pre-existing Oasis files
-* `model run`: runs the model from start to finish by generating losses (GUL, or GUL + IL, or GUL + IL + RIL) from the source exposure, and optionally source accounts and reinsurance info. and scope files (in OED or RMS format), as well as assets for instantiating model lookups and generating keys files
+* `model run`: runs the model from start to finish by generating losses (GUL, or GUL + IL, or GUL + IL + RIL) from the source exposure, and optionally source accounts and reinsurance info. and scope files (in OED or RMS format), as well as assets related to lookup instantiation and keys file generation
 
 For remote model execution the `api` subcommand provides the following main subcommand:
 
 * `api run`: runs the model remotely (same as `model run`) but via the Oasis API
 
-For generating deterministic losses (GUL, or GUL + IL, or GUL + IL + RIL) the CLI provides an `exposure run` subcommand.
+For generating deterministic losses an `exposure run` subcommand is available:
+
+* `exposure run`: generates deterministic losses (GUL, or GUL + IL, or GUL + IL + RIL)
 
 The reusable libraries are organised into several sub-packages, the most relevant of which from a model developer or user's perspective are:
 
+* `api_client`
 * `model_preparation`
 * `model_execution`
 * `utils`
 
-## Python Support 
+## Minimum Python Requirements
 
-Starting from 1st January 2019, Pandas will no longer be supporting Python 2. As Pandas is a key dependency in the MDK we are dropping Python 2 (2.7) support as of this release (1.3.4). The last version which still supports Python 2.7 is version `1.3.3` (published 12/03/2019).
+Starting from 1st January 2019, Pandas will no longer be supporting Python 2. As Pandas is a key dependency of the MDK we are **dropping Python 2 (2.7) support** as of this release (1.3.4). The last version which still supports Python 2.7 is version `1.3.3` (published 12/03/2019).
+
+Also for this release (and all future releases) a **minimum of Python 3.6 is required**.
 
 
 ## Installation
