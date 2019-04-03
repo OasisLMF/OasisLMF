@@ -548,7 +548,7 @@ class OasisLookupFactory(object):
             'src_type': 'csv',
             'non_na_cols': tuple(loc_config.get('non_na_cols') or ()),
             'col_dtypes': loc_config.get('col_dtypes') or {},
-            'sort_col': loc_config.get('sort_col'),
+            'sort_cols': loc_config.get('sort_cols'),
             'sort_ascending': loc_config.get('sort_ascending')
         }
 
@@ -1102,7 +1102,7 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
 
         non_na_cols = vuln_config.get('non_na_cols') or tuple(col.lower() for col in list(key_cols) + [vuln_id_col])
 
-        sort_col = vuln_config.get('sort_col') or vuln_id_col
+        sort_cols = vuln_config.get('sort_cols') or vuln_id_col
         sort_ascending = vuln_config.get('sort_ascending')
 
         vuln_df = get_dataframe(
@@ -1112,7 +1112,7 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
             lowercase_cols=True,
             non_na_cols=non_na_cols,
             col_dtypes=col_dtypes,
-            sort_col=sort_col,
+            sort_cols=sort_cols,
             sort_ascending=sort_ascending
         )
 

@@ -232,7 +232,7 @@ class OasisManager(object):
 
         col_dtypes = peril_config.get('col_dtypes') or {peril_area_id_col: int}
 
-        sort_col = peril_config.get('sort_col') or peril_area_id_col
+        sort_cols = peril_config.get('sort_cols') or peril_area_id_col
 
         area_poly_coords_seq_start_idx = peril_config.get('area_poly_coords_seq_start_idx') or 1
 
@@ -249,7 +249,7 @@ class OasisManager(object):
             peril_area_id_col=peril_area_id_col,
             non_na_cols=non_na_cols,
             col_dtypes=col_dtypes,
-            sort_col=sort_col,
+            sort_cols=sort_cols,
             area_poly_coords_cols=area_poly_coords_cols,
             area_poly_coords_seq_start_idx=area_poly_coords_seq_start_idx,
             area_reg_poly_radius=area_reg_poly_radius,
@@ -340,13 +340,17 @@ class OasisManager(object):
 
         # Get the profiles defining the exposure and accounts files, ID related
         # terms in these files, and FM aggregation hierarchy
-        exposure_profile = exposure_profile or get_json(src_fp=exposure_profile_fp) or self.exposure_profile
-        accounts_profile = accounts_profile or get_json(src_fp=accounts_profile_fp) or self.accounts_profile
+        exposure_profile = exposure_profile or (get_json(src_fp=exposure_profile_fp) if exposure_profile_fp else self.exposure_profile)
+        accounts_profile = accounts_profile or (get_json(src_fp=accounts_profile_fp) if accounts_profile_fp else self.accounts_profile)
         id_terms = unified_id_terms(profiles=(exposure_profile, accounts_profile,))
         loc_id = id_terms['locid']
         acc_id = id_terms['accid']
         portfolio_num = id_terms['portid']
-        fm_aggregation_profile = fm_aggregation_profile or get_json(src_fp=fm_aggregation_profile_fp, key_transform=int) or self.fm_aggregation_profile
+        fm_aggregation_profile = (
+            fm_aggregation_profile or
+            ({int(k): v for k, v in viewitems(get_json(src_fp=fm_aggregation_profile_fp))} if fm_aggregation_profile_fp else {}) or
+            self.fm_aggregation_profile
+        )
 
         # If a pre-generated keys file path has not been provided,
         # then it is asssumed some model lookup assets have been provided, so
@@ -688,9 +692,8 @@ class OasisManager(object):
         Generates insured losses from preexisting Oasis files with a specified
         damage ratio (loss % of TIV).
         """
-        #if not os.path.exists(output_dir):
-        #    Path(output_dir).mkdir(parents=True, exist_ok=True)
-
+        if not os.path.exists(output_dir):
+            Path(output_dir).mkdir(parents=True, exist_ok=True)
         contents = [p.lower() for p in os.listdir(input_dir)]
         exposure_fp = [os.path.join(input_dir, p) for p in contents if 'location' in p][0]
         accounts_fp = [os.path.join(input_dir, p) for p in contents if 'account' in p][0]

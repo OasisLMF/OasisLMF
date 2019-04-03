@@ -55,14 +55,14 @@ pd.options.mode.chained_assignment = None
 import numpy as np
 
 from ..utils.concurrency import (
+    get_num_cpus,
     multiprocess,
     multithread,
     Task,
 )
 from ..utils.data import (
-    factorize_dataframe,
     factorize_ndarray,
-    fast_zip_nparrays,
+    fast_zip_arrays,
     get_dataframe,
     merge_dataframes,
     set_dataframe_column_dtypes,
@@ -260,16 +260,15 @@ def get_il_input_items(
     accounts_il_terms = unified_fm_terms_by_level_and_term_group(profiles=(accpf,))
     accounts_il_cols = [__v for v in viewvalues(accounts_il_terms) for _v in viewvalues(v) for __v in viewvalues(_v) if __v]
     col_dtypes = {
+        **{t: 'str' for t in [loc_id, acc_id, portfolio_num, policy_num]},
         **{t: 'float32' for t in accounts_il_cols},
-        **{t: 'int32' for t in ['layer_id', 'layerid']},
-        **{t: 'str' for t in [loc_id, acc_id, portfolio_num, policy_num]}
+        **{t: 'int32' for t in ['layer_id', 'layerid']}
     }
 
     # Get the accounts frame either directly or from a file path if provided
     accounts_df = accounts_df if accounts_df is not None else get_dataframe(
         src_fp=accounts_fp,
         col_dtypes=col_dtypes,
-        col_defaults={t: 0.0 for t in accounts_il_cols},
         required_cols=(acc_id, policy_num, portfolio_num,),
         empty_data_error_msg='No accounts found in the source accounts (loc.) file',
         memory_map=True,
@@ -284,8 +283,8 @@ def get_il_input_items(
         acc_ids = df[acc_id].values
         policy_nums = df[policy_num].values
         return np.hstack((
-            factorize_ndarray(np.asarray(list(accnum_group)), col_idxs=range(2), enumerate_only=True)
-            for _, accnum_group in groupby(fast_zip_nparrays(acc_ids, policy_nums), key=lambda t: t[0])
+            factorize_ndarray(np.asarray(list(accnum_group)), col_idxs=range(2))[0]
+            for _, accnum_group in groupby(fast_zip_arrays(acc_ids, policy_nums), key=lambda t: t[0])
         ))
 
     if 'layer_id' not in accounts_df or 'layerid' not in accounts_df:
@@ -354,7 +353,7 @@ def get_il_input_items(
 
         # Set the GUL input item IDs by enumerating loc. number + coverage type
         # ID combinations
-        gul_input_ids = factorize_ndarray(il_inputs_df[[loc_id, 'coverage_type_id']].values, col_idxs=range(2), enumerate_only=True)
+        gul_input_ids = factorize_ndarray(il_inputs_df[[loc_id, 'coverage_type_id']].values, col_idxs=range(2))[0]
         il_inputs_df['gul_input_id'] = gul_input_ids
 
         # Now set the IL input item IDs, and some other required columns such
@@ -387,19 +386,16 @@ def get_il_input_items(
         # earlier merge with the exposure and GUL inputs frame - the GUL inputs
         # frame should already contain the coverage level terms
 
-        # A helper method to determine whether a given level of IL inputs has
-        # non-zero financial terms
-        def has_nonzero_financial_terms(df, terms):
-            try:
-                return df[terms].any().any()
-            except KeyError:
-                return
-
         # Filter out any intermediate FM levels from the original list of FM
         # levels which have no financial terms
-        intermediate_fm_levels = [
-            l for l in fm_levels[1:-1] if has_nonzero_financial_terms(il_inputs_df, [v for v in viewvalues(fm_terms[l][1]) if v])
-        ]
+        def level_has_fm_terms(level):
+            try:
+                return il_inputs_df[[v for v in viewvalues(fm_terms[level][1]) if v]].any().any()
+            except KeyError:
+                return False
+        #import ipdb; ipdb.set_trace()
+
+        intermediate_fm_levels = tuple(l for l in fm_levels[1:-1] if level_has_fm_terms(l))
 
         # Define a list of all supported OED coverage types in the exposure
         all_cov_types = [
@@ -419,7 +415,7 @@ def get_il_input_items(
             level_df = il_inputs_df[il_inputs_df['level_id'] == cov_level]
             level_df['level_id'] = level
             agg_key = [v['field'].lower() for v in viewvalues(fmap[level]['FMAggKey'])]
-            level_df['agg_id'] = factorize_ndarray(level_df[agg_key].values, col_idxs=range(len(agg_key)), enumerate_only=True)
+            level_df['agg_id'] = factorize_ndarray(level_df[agg_key].values, col_idxs=range(len(agg_key)))[0]
             level_df.loc[:, term_cols] = level_df.loc[:, term_cols].where(level_df.loc[:, term_cols].notnull(), 0.0).values
             level_df.loc[:, terms] = 0.0
             level_df.loc[:, terms] = level_df.loc[:, term_cols].values
@@ -464,7 +460,7 @@ def get_il_input_items(
         # Set the layer level, layer IDs and agg. IDs
         layer_df['level_id'] = layer_level
         agg_key = [v['field'].lower() for v in viewvalues(fmap[layer_level]['FMAggKey'])]
-        layer_df['agg_id'] = factorize_ndarray(layer_df[agg_key].values, col_idxs=range(len(agg_key)), enumerate_only=True)
+        layer_df['agg_id'] = factorize_ndarray(layer_df[agg_key].values, col_idxs=range(len(agg_key)))[0]
 
         # The layer level FM terms
         terms = ['deductible', 'limit', 'share']
@@ -483,8 +479,10 @@ def get_il_input_items(
 
         del layer_df
 
-        # Resequence the level IDs and item IDs
-        il_inputs_df['level_id'] = factorize_ndarray(il_inputs_df[['level_id']].values, col_idxs=[0], enumerate_only=True)
+        # Resequence the level IDs and item IDs, but also store the "old" level
+        # IDs (before the resequencing)
+        il_inputs_df['orig_level_id'] = il_inputs_df['level_id']
+        il_inputs_df['level_id'] = factorize_ndarray(il_inputs_df[['level_id']].values, col_idxs=[0])[0]
         il_inputs_df['item_id'] = il_inputs_df.index + 1
 
         # Set the calc. rule IDs
@@ -495,12 +493,12 @@ def get_il_input_items(
         terms_indicators = ['{}_gt_0'.format(t) for t in terms]
         types_and_codes = ['deductible_type', 'deductible_code', 'limit_type', 'limit_code']
 
-        il_inputs_calc_rules_df = il_inputs_df.loc[:, terms + terms_indicators + types_and_codes + ['calcrule_id']]
+        il_inputs_calc_rules_df = il_inputs_df.loc[:, ['item_id'] + terms + terms_indicators + types_and_codes + ['calcrule_id']]
         for t, ti in zip(terms, terms_indicators):
             il_inputs_calc_rules_df[ti] = np.where(il_inputs_calc_rules_df[t] > 0, 1, 0)
         for t in types_and_codes:
             il_inputs_calc_rules_df[t] = 0
-        il_inputs_calc_rules_df['id_key'] = fast_zip_nparrays(*il_inputs_calc_rules_df[terms_indicators + types_and_codes].transpose().values)
+        il_inputs_calc_rules_df['id_key'] = [t for t in fast_zip_arrays(*il_inputs_calc_rules_df[terms_indicators + types_and_codes].transpose().values)]
         il_inputs_calc_rules_df = merge_dataframes(il_inputs_calc_rules_df, calc_rules, how='left', on='id_key')
         il_inputs_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id']
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
@@ -530,7 +528,7 @@ def write_fm_policytc_file(il_inputs_df, fm_policytc_fp, chunksize=100000):
             (fm_policytc_df['layer_id'] == 1) |
             (fm_policytc_df['level_id'] == fm_policytc_df['level_id'].max())
         ]
-        fm_policytc_df['policytc_id'] = factorize_ndarray(fm_policytc_df[cols[3:]].values, col_idxs=range(len(cols[3:])), enumerate_only=True)
+        fm_policytc_df['policytc_id'] = factorize_ndarray(fm_policytc_df[cols[3:]].values, col_idxs=range(len(cols[3:])))[0]
 
         fm_policytc_df[cols[:3] + ['policytc_id']].to_csv(
             path_or_buf=fm_policytc_fp,
@@ -564,7 +562,7 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
 
         fm_profile_df = il_inputs_df[cols].drop_duplicates()
 
-        fm_profile_df['policytc_id'] = factorize_ndarray(fm_profile_df[cols].values, col_idxs=range(len(cols)), enumerate_only=True)
+        fm_profile_df['policytc_id'] = factorize_ndarray(fm_profile_df[cols].values, col_idxs=range(len(cols)))[0]
 
         fm_profile_df.rename(
             columns={
@@ -578,9 +576,9 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
             inplace=True
         )
 
-        fm_profile_df['share2'] = fm_profile_df['share3'] = 0
+        fm_profile_df = fm_profile_df.assign(share2=0.0, share3=0.0)
 
-        fm_profile_df[fm_profile_df.columns.to_list() + ['share1', 'share2']].to_csv(
+        fm_profile_df[fm_profile_df.columns].to_csv(
             path_or_buf=fm_profile_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(fm_profile_fp) else 'a'),
@@ -658,7 +656,7 @@ def write_fm_xref_file(il_inputs_df, fm_xref_fp, chunksize=100000):
         cov_level_layers_df = il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].max()]
         pd.DataFrame(
             {
-                'output': factorize_ndarray(cov_level_layers_df[['gul_input_id', 'layer_id']].values, col_idxs=range(2), enumerate_only=True),
+                'output': factorize_ndarray(cov_level_layers_df[['gul_input_id', 'layer_id']].values, col_idxs=range(2))[0],
                 'agg_id': cov_level_layers_df['gul_input_id'],
                 'layer_id': cov_level_layers_df['layer_id']
             }
@@ -693,7 +691,7 @@ def write_fmsummaryxref_file(il_inputs_df, fmsummaryxref_fp, chunksize=100000):
         cov_level_layers_df = il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].max()]
         pd.DataFrame(
             {
-                'output': factorize_ndarray(cov_level_layers_df[['gul_input_id', 'layer_id']].values, col_idxs=range(2), enumerate_only=True),
+                'output': factorize_ndarray(cov_level_layers_df[['gul_input_id', 'layer_id']].values, col_idxs=range(2))[0],
                 'summary_id': 1,
                 'summaryset_id': 1
             }
@@ -746,7 +744,7 @@ def write_il_input_files(
     # Clean the target directory path
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
 
-    chunksize = min(10**5, len(il_inputs_df))
+    chunksize = min(2*10**5, len(il_inputs_df))
 
     if write_inputs_table_to_file:
         il_inputs_df.to_csv(path_or_buf=os.path.join(target_dir, 'il_inputs.csv'), index=False, encoding='utf-8', chunksize=chunksize)
@@ -756,15 +754,15 @@ def write_il_input_files(
     }
 
     this_module = sys.modules[__name__]
-    cpu_count = multiprocessing.cpu_count()
+    cpu_count = get_num_cpus()
 
-    if len(il_inputs_df) <= chunksize and cpu_count >= len(il_input_files):
-        concurrent_tasks = (
+    if len(il_inputs_df) <= chunksize or cpu_count >= len(il_input_files):
+        tasks = (
             Task(getattr(this_module, 'write_{}_file'.format(fn)), args=(il_inputs_df.copy(deep=True), il_input_files[fn], chunksize,), key=fn)
             for fn in il_input_files
         )
         num_ps = min(len(il_input_files), cpu_count)
-        for _, _ in multithread(concurrent_tasks, pool_size=num_ps):
+        for _, _ in multithread(tasks, pool_size=num_ps):
             pass
     else:
         for fn, fp in viewitems(il_input_files):
