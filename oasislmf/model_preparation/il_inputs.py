@@ -479,7 +479,9 @@ def get_il_input_items(
 
         del layer_df
 
-        # Resequence the level IDs and item IDs
+        # Resequence the level IDs and item IDs, but also store the "old" level
+        # IDs (before the resequencing)
+        il_inputs_df['orig_level_id'] = il_inputs_df['level_id']
         il_inputs_df['level_id'] = factorize_ndarray(il_inputs_df[['level_id']].values, col_idxs=[0])[0]
         il_inputs_df['item_id'] = il_inputs_df.index + 1
 
