@@ -573,8 +573,10 @@ def genbash(
 
     print_command(filename, '#!/bin/bash')
 
+    # Set -e so that any failures result in immediate exit, notifying caller of the problem.
     print_command(filename, '')
     print_command(filename, 'set -e')
+    print_command(filename, '')
 
     print_command(filename, 'rm -R -f output/*')
     if not fifo_tmp_dir:
@@ -757,11 +759,14 @@ def genbash(
     do_awaits(filename, process_counter)  # waits for aalcalc
     do_lwaits(filename, process_counter)  # waits for leccalc
 
+    # Set +e so that errors during file removal don't cause failures
+    print_command(filename, '')
+    print_command(filename, 'set +e')
+    print_command(filename, '')
+
     if gul_output:
         do_gul_remove_fifo(analysis_settings, max_process_id, filename, fifo_queue_dir)
         remove_workfolders(RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename)
-
-    print_command(filename, '')
 
     if ri_output:
         ri_remove_fifo(analysis_settings, max_process_id, filename, fifo_queue_dir)
