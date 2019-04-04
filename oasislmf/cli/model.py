@@ -497,6 +497,7 @@ class RunCmd(OasisBaseCommand):
         parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
 
         parser.add_argument('-l', '--lookup-package-path', default=None, help='Model lookup package path')
+        parser.add_argument('-m', '--complex-lookup-config-file-path', default=None, help='Complex lookup config JSON file path')
         parser.add_argument('-c', '--lookup-config-file-path', default=None, help='Built-in lookup config JSON file path')
 
         parser.add_argument(
