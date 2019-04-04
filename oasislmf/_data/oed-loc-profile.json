@@ -17,6 +17,24 @@
         "FMTermGroupID": 1,
         "ProfileType": "Loc"
     },
+    "PortNumber": {
+        "ProfileElementName": "PortNumber",
+        "FieldName": "PortNumber",
+        "FMLevelName": "ID",
+        "FMLevel": 0,
+        "FMTermType": "PortID",
+        "FMTermGroupID": 1,
+        "ProfileType": "Loc"
+    },
+    "CondNumber": {
+        "ProfileElementName": "CondNumber",
+        "FieldName": "CondNumber",
+        "FMLevelName": "ID",
+        "FMLevel": 0,
+        "FMTermType": "CondID",
+        "FMTermGroupID": 1,
+        "ProfileType": "Loc"
+    },
     "BuildingTIV": {
         "ProfileElementName": "BuildingTIV",
         "FieldName": "TIV",

@@ -87,6 +87,7 @@ def get_gul_input_items(
     loc_id = id_terms['locid']
     acc_id = id_terms['accid']
     portfolio_num = id_terms['portid']
+    cond_num = id_terms['condid']
 
     # Get the TIV column names and corresponding coverage types
     tiv_terms = OrderedDict({v['tiv']['CoverageTypeID']: v['tiv']['ProfileElementName'].lower() for k, v in ufp[1].items()})
@@ -105,7 +106,7 @@ def get_gul_input_items(
     # to align with underscored-naming convention
     exposure_df = get_dataframe(
         src_fp=exposure_fp,
-        required_cols=(loc_id, acc_id, portfolio_num,),
+        required_cols=(loc_id, acc_id, portfolio_num, cond_num,),
         col_dtypes=col_dtypes,
         col_defaults=col_defaults,
         empty_data_error_msg='No data found in the source exposure (loc.) file',
@@ -162,6 +163,9 @@ def get_gul_input_items(
             )
 
         del keys_df
+
+        gul_inputs_df[cond_num].fillna(0, inplace=True)
+        gul_inputs_df[cond_num] = gul_inputs_df[cond_num].astype('int32')
 
         _tiv_cols = list(tiv_terms.values())
         gul_inputs_df = gul_inputs_df[(gul_inputs_df[_tiv_cols] != 0).any(axis=1)]
@@ -222,7 +226,7 @@ def get_gul_input_items(
 
         # Drop all unnecessary columns
         usecols = (
-            [loc_id, acc_id, portfolio_num] +
+            [loc_id, acc_id, portfolio_num, cond_num] +
             ['tiv'] + terms +
             ['peril_id', 'coverage_type_id', 'areaperil_id', 'vulnerability_id'] +
             (['model_data'] if 'model_data' in gul_inputs_df else []) +

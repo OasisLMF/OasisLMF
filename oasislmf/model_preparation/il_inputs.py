@@ -228,6 +228,7 @@ def get_il_input_items(
     acc_id = id_terms['accid']
     policy_num = id_terms['polid']
     portfolio_num = id_terms['portid']
+    cond_num = id_terms['condid']
 
     accounts_il_terms = unified_fm_terms_by_level_and_term_group(profiles=(accpf,))
     accounts_il_cols = [__v for v in accounts_il_terms.values() for _v in v.values() for __v in _v.values() if __v]
@@ -236,7 +237,7 @@ def get_il_input_items(
     col_dtypes = {
         **{t: 'str' for t in [loc_id, acc_id, portfolio_num, policy_num]},
         **{t: 'float32' for t in accounts_il_cols},
-        **{t: 'int32' for t in ['layer_id', 'layerid']}
+        **{t: 'int32' for t in [cond_num, 'layer_id', 'layerid']}
     }
 
     # Get the accounts frame either directly or from a file path if provided
@@ -275,6 +276,8 @@ def get_il_input_items(
     layer_level = max(fm_levels)
     fm_terms = unified_fm_terms_by_level_and_term_group(unified_profile_by_level_and_term_group=ufp)
 
+    #import ipdb; ipdb.set_trace()
+
     try:
         # Merge the combined exposure and GUL inputs frame with the accounts
         # frame on acc. ID - this will be the main IL inputs frame that the
@@ -288,8 +291,8 @@ def get_il_input_items(
                 how='inner'
             ),
             accounts_df,
-            left_on=acc_id,
-            right_on=acc_id,
+            left_on=[portfolio_num, acc_id, cond_num],
+            right_on=[portfolio_num, acc_id, cond_num],
             how='inner'
         )
 
@@ -313,7 +316,7 @@ def get_il_input_items(
         # Drop all unnecessary columns.
         usecols = (
             gul_inputs_df.columns.to_list() +
-            [loc_id, acc_id, portfolio_num, policy_num] +
+            [loc_id, acc_id, portfolio_num, policy_num, cond_num] +
             ['is_bi_coverage', 'group_id', 'item_id', 'coverage_id', 'layer_id', 'agg_id', 'summary_id', 'summaryset_id'] +
             [__v for v in fm_terms.values() for _v in v.values() for __v in _v.values() if __v]
         )

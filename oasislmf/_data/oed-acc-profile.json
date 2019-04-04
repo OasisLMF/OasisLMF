@@ -26,6 +26,15 @@
         "FMTermGroupID": 1,
         "ProfileType": "Acc"
     },
+    "CondNumber": {
+        "ProfileElementName": "CondNumber",
+        "FieldName": "CondNumber",
+        "FMLevelName": "ID",
+        "FMLevel": 0,
+        "FMTermType": "CondID",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
     "CondDed6All": {
         "ProfileElementName": "CondDed6All",
         "FieldName": "CondAllDeductible",
