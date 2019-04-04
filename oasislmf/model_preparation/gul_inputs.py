@@ -276,7 +276,7 @@ def write_complex_items_file(gul_inputs_df, complex_items_fp, chunksize=100000):
     :param gul_inputs_df: GUL inputs dataframe
     :type gul_inputs_df: pandas.DataFrame
 
-    :param compex_items_fp: Complex/custom model items file path
+    :param complex_items_fp: Complex/custom model items file path
     :type complex_items_fp: str
 
     :return: Complex/custom model items file path
@@ -291,7 +291,7 @@ def write_complex_items_file(gul_inputs_df, complex_items_fp, chunksize=100000):
             index=False
         )
     except (IOError, OSError) as e:
-        raise OasisException(e)
+        raise OasisException from e
 
 
 @oasis_log
@@ -317,7 +317,7 @@ def write_items_file(gul_inputs_df, items_fp, chunksize=100000):
             index=False
         )
     except (IOError, OSError) as e:
-        raise OasisException(e)
+        raise OasisException from e
 
     return items_fp
 
@@ -345,7 +345,7 @@ def write_coverages_file(gul_inputs_df, coverages_fp, chunksize=100000):
             index=False
         )
     except (IOError, OSError) as e:
-        raise OasisException(e)
+        raise OasisException from e
 
     return coverages_fp
 
@@ -373,7 +373,7 @@ def write_gulsummaryxref_file(gul_inputs_df, gulsummaryxref_fp, chunksize=100000
             index=False
         )
     except (IOError, OSError) as e:
-        raise OasisException(e)
+        raise OasisException from e
 
     return gulsummaryxref_fp
 
