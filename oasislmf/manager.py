@@ -376,7 +376,8 @@ class OasisManager(object):
                 ]
                 _, _ = olf.write_oasis_keys_file(keys, _keys_fp)
             else:
-                lookup_config = get_json(src_fp=lookup_config_fp) or lookup_config
+                if lookup_config_fp:
+                    lookup_config = get_json(src_fp=lookup_config_fp) or lookup_config
                 if lookup_config:
                     lookup_config['keys_data_path'] = os.path.abspath(os.path.dirname(lookup_config_fp))
 
