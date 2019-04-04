@@ -263,7 +263,7 @@ def get_gul_input_items(
         }
         set_dataframe_column_dtypes(gul_inputs_df, col_dtypes)
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
-        raise OasisException(e)
+        raise OasisException from e
 
     return gul_inputs_df, exposure_df
 
