@@ -32,6 +32,7 @@ def prepare_input_files_directory(
     keys_fp=None,
     lookup_config_fp=None,
     model_version_fp=None,
+    complex_lookup_config_fp=None,
     accounts_fp=None,
     accounts_profile_fp=None,
     fm_aggregation_profile_fp=None,
@@ -46,11 +47,10 @@ def prepare_input_files_directory(
             Path(target_dir).mkdir(parents=True, exist_ok=True)
 
         paths = [p for p in (
-            exposure_fp, exposure_profile_fp, accounts_fp, accounts_profile_fp,
+                exposure_fp, exposure_profile_fp, accounts_fp, accounts_profile_fp,
                 fm_aggregation_profile_fp, lookup_config_fp, model_version_fp,
-                keys_fp, ri_info_fp, ri_scope_fp
-            )
-            if p
+                complex_lookup_config_fp, keys_fp, ri_info_fp, ri_scope_fp
+            ) if p
         ]
         for src in paths:
             if src and os.path.exists(src):

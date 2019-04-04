@@ -1,6 +1,5 @@
 -r ./requirements-package.in
 
-anytree
 backports.tempfile
 backports.weakref
 configparser>=3.5.0
@@ -19,5 +18,4 @@ pytest-cov
 pytest-ignore-flaky
 responses
 Sphinx
-tabulate
 tox
