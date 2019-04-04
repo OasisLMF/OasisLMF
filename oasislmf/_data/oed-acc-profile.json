@@ -36,6 +36,26 @@
         "FMTermGroupID": 1,
         "ProfileType": "Acc"
     },
+    "CondMinDed6All": {
+        "ProfileElementName": "CondMinDed6All",
+        "FieldName": "CondAllMinDeductible",
+        "DeductibleType": "MI",
+        "FMLevelName": "CondAll",
+        "FMLevel": 6,
+        "FMTermType": "DeductibleMin",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "CondMaxDed6All": {
+        "ProfileElementName": "CondMaxDed6All",
+        "FieldName": "CondAllMaxDeductible",
+        "DeductibleType": "MA",
+        "FMLevelName": "CondAll",
+        "FMLevel": 6,
+        "FMTermType": "DeductibleMax",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
     "CondLimit6All": {
         "ProfileElementName": "CondLimit6All",
         "FieldName": "CondAllLimit",
