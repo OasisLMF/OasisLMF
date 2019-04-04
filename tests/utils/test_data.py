@@ -94,7 +94,6 @@ class TestFactorizeArrays(TestCase):
         self.assertTrue(arrays_are_identical(expected_groups, result_groups))
         self.assertTrue(arrays_are_identical(expected_enum, result_enum))
 
-
     @settings(max_examples=1)
     @given(
         num_chars=integers(min_value=2, max_value=len(string.ascii_lowercase + string.digits)),
@@ -111,7 +110,7 @@ class TestFactorizeArrays(TestCase):
         with self.assertRaises(OasisException):
             factorize_ndarray(ndarr)
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         num_chars=integers(min_value=2, max_value=len(string.ascii_lowercase + string.digits)),
         str_len=integers(min_value=2, max_value=100),
@@ -138,7 +137,7 @@ class TestFactorizeArrays(TestCase):
         self.assertTrue(arrays_are_identical(expected_groups, result_groups))
         self.assertTrue(arrays_are_identical(expected_enum, result_enum))
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         num_chars=integers(min_value=2, max_value=len(string.ascii_lowercase + string.digits)),
         str_len=integers(min_value=2, max_value=100),
@@ -160,7 +159,7 @@ class TestFactorizeArrays(TestCase):
         expected_groups[:] = groups
         expected_enum = np.array([groups.index(x) + 1 for x in zipped])
 
-        result_enum, result_groups  = factorize_ndarray(ndarr, col_idxs=col_idxs)
+        result_enum, result_groups = factorize_ndarray(ndarr, col_idxs=col_idxs)
 
         self.assertTrue(arrays_are_identical(expected_groups, result_groups))
         self.assertTrue(arrays_are_identical(expected_enum, result_enum))
@@ -204,7 +203,6 @@ def set_method_name(name):
 
 class TestGetDataframe(TestCase):
 
-    @settings(max_examples=1)
     def test_get_dataframe__no_src_fp_or_buf_or_data_provided__oasis_exception_is_raised(self):
         with self.assertRaises(OasisException):
             get_dataframe(src_fp=None, src_buf=None, src_data=None)
@@ -224,15 +222,19 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file__use_default_options(self, data):
-        with NamedTemporaryFile('w') as fp:
+        fp = NamedTemporaryFile('w', delete=False)
+        try:
             df = pd.DataFrame(data)
-            df.to_csv(path_or_buf=fp.name, columns=df.columns, encoding='utf-8', index=False)
+            df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            fp.close()
 
             expected = df.copy(deep=True)
 
             result = get_dataframe(src_fp=fp.name)
 
             self.assertTrue(dataframes_are_identical(result, expected))
+        finally:
+            os.remove(fp.name)
 
     @settings(max_examples=10)
     @given(
@@ -249,9 +251,11 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__use_default_options(self, data):
-        with NamedTemporaryFile('w') as fp:
+        fp = NamedTemporaryFile('w', delete=False)
+        try:
             df = pd.DataFrame(data)
-            df.to_csv(path_or_buf=fp.name, columns=df.columns, encoding='utf-8', index=False)
+            df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            fp.close()
 
             expected = df.copy(deep=True)
             expected.columns = expected.columns.str.lower()
@@ -259,6 +263,8 @@ class TestGetDataframe(TestCase):
             result = get_dataframe(src_fp=fp.name)
 
             self.assertTrue(dataframes_are_identical(result, expected))
+        finally:
+            os.remove(fp.name)
 
     @settings(max_examples=10)
     @given(
@@ -279,17 +285,21 @@ class TestGetDataframe(TestCase):
         })
     )
     def test_get_dataframe__from_csv_file__set_col_dtypes_option_and_use_defaults_for_all_other_options(self, data, dtypes):
-        with NamedTemporaryFile('w') as fp:
+        fp = NamedTemporaryFile('w', delete=False)
+        try:
             df = pd.DataFrame(data)
             for col, dtype in viewitems(dtypes):
                 df[col] = df[col].astype(dtype)
-            df.to_csv(path_or_buf=fp.name, columns=df.columns, encoding='utf-8', index=False)
+            df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            fp.close()
 
             expected = pd.read_csv(fp.name, dtype=dtypes)
 
             result = get_dataframe(src_fp=fp.name, col_dtypes=dtypes)
 
             self.assertTrue(dataframes_are_identical(result, expected))
+        finally:
+            os.remove(fp.name)
 
     @settings(max_examples=10)
     @given(
@@ -310,11 +320,13 @@ class TestGetDataframe(TestCase):
         })
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_col_dtypes_option_and_use_defaults_for_all_other_options(self, data, dtypes):
-        with NamedTemporaryFile('w') as fp:
+        fp = NamedTemporaryFile('w', delete=False)
+        try:
             df = pd.DataFrame(data)
             for col, dtype in viewitems(dtypes):
                 df[col] = df[col].astype(dtype)
-            df.to_csv(path_or_buf=fp.name, columns=df.columns, encoding='utf-8', index=False)
+            df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            fp.close()
 
             expected = pd.read_csv(fp.name, dtype=dtypes)
             expected.columns = expected.columns.str.lower()
@@ -322,6 +334,8 @@ class TestGetDataframe(TestCase):
             result = get_dataframe(src_fp=fp.name, col_dtypes=dtypes)
 
             self.assertTrue(dataframes_are_identical(result, expected))
+        finally:
+            os.remove(fp.name)
 
     @settings(max_examples=10)
     @given(
@@ -345,9 +359,11 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file__set_subset_cols_option_and_use_defaults_for_all_other_options(self, data, subset_cols):
-        with NamedTemporaryFile('w') as fp:
+        fp = NamedTemporaryFile('w', delete=False)
+        try:
             df = pd.DataFrame(data)
-            df.to_csv(path_or_buf=fp.name, columns=df.columns, encoding='utf-8', index=False)
+            df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            fp.close()
 
             expected = df.drop([col for col in df.columns if col not in subset_cols], axis=1)
 
@@ -357,6 +373,8 @@ class TestGetDataframe(TestCase):
             )
 
             self.assertTrue(dataframes_are_identical(result, expected))
+        finally:
+            os.remove(fp.name)
 
     @settings(max_examples=10)
     @given(
@@ -380,9 +398,11 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_subset_cols_option_and_use_defaults_for_all_other_options(self, data, subset_cols):
-        with NamedTemporaryFile('w') as fp:
+        fp = NamedTemporaryFile('w', delete=False)
+        try:
             df = pd.DataFrame(data)
-            df.to_csv(path_or_buf=fp.name, columns=df.columns, encoding='utf-8', index=False)
+            df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            fp.close()
 
             expected = df.drop([col for col in df.columns if col not in subset_cols], axis=1)
             expected.columns = expected.columns.str.lower()
@@ -393,13 +413,17 @@ class TestGetDataframe(TestCase):
             )
 
             self.assertTrue(dataframes_are_identical(result, expected))
+        finally:
+            os.remove(fp.name)
 
     @settings(max_examples=10)
     @given(empty_data_err_msg=text(min_size=1, max_size=10, alphabet=string.ascii_lowercase))
     def test_get_dataframe__from_empty_csv_file__set_empty_data_err_msg_and_defaults_for_all_other_options__oasis_exception_is_raised_with_empty_data_err_msg(self, empty_data_err_msg):
-        with NamedTemporaryFile('w') as fp:
+        fp = NamedTemporaryFile('w', delete=False)
+        try:
             df = pd.DataFrame()
-            df.to_csv(path_or_buf=fp.name)
+            df.to_csv(path_or_buf=fp)
+            fp.close()
 
             with self.assertRaises(OasisException):
                 try:
@@ -407,6 +431,8 @@ class TestGetDataframe(TestCase):
                 except OasisException as e:
                     self.assertEqual(str(e), empty_data_err_msg)
                     raise e
+        finally:
+            os.remove(fp.name)
 
     @settings(max_examples=10)
     @given(
@@ -430,9 +456,11 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file__set_required_cols_option_and_use_defaults_for_all_other_options(self, data, required_cols):
-        with NamedTemporaryFile('w') as fp:
+        fp = NamedTemporaryFile('w', delete=False)
+        try:
             df = pd.DataFrame(data)
-            df.to_csv(path_or_buf=fp.name, columns=df.columns, encoding='utf-8', index=False)
+            df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            fp.close()
 
             expected = df.copy(deep=True)
 
@@ -442,6 +470,8 @@ class TestGetDataframe(TestCase):
             )
 
             self.assertTrue(dataframes_are_identical(result, expected))
+        finally:
+            os.remove(fp.name)
 
     @settings(max_examples=10)
     @given(
@@ -465,9 +495,11 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_required_cols_option_and_use_defaults_for_all_other_options(self, data, required_cols):
-        with NamedTemporaryFile('w') as fp:
+        fp = NamedTemporaryFile('w', delete=False)
+        try:
             df = pd.DataFrame(data)
-            df.to_csv(path_or_buf=fp.name, columns=df.columns, encoding='utf-8', index=False)
+            df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            fp.close()
 
             expected = df.copy(deep=True)
             expected.columns = expected.columns.str.lower()
@@ -478,6 +510,8 @@ class TestGetDataframe(TestCase):
             )
 
             self.assertTrue(dataframes_are_identical(result, expected))
+        finally:
+            os.remove(fp.name)
 
     @settings(max_examples=10)
     @given(
@@ -501,15 +535,19 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_missing_some_required_cols__set_required_cols_option_and_use_defaults_for_all_other_options__oasis_exception_is_raised(self, data, missing_cols):
-        with NamedTemporaryFile('w') as fp:
+        fp = NamedTemporaryFile('w', delete=False)
+        try:
             df = pd.DataFrame(data)
-            df.drop(missing_cols, axis=1).to_csv(path_or_buf=fp.name, encoding='utf-8', index=False)
+            df.drop(missing_cols, axis=1).to_csv(path_or_buf=fp, encoding='utf-8', index=False)
+            fp.close()
 
             with self.assertRaises(OasisException):
                 get_dataframe(
                     src_fp=fp.name,
                     required_cols=df.columns.tolist()
                 )
+        finally:
+            os.remove(fp.name)
 
     @settings(max_examples=10)
     @given(
@@ -533,15 +571,19 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols_and_missing_some_required_cols__set_required_cols_option_and_use_defaults_for_all_other_options__oasis_exception_is_raised(self, data, missing_cols):
-        with NamedTemporaryFile('w') as fp:
+        fp = NamedTemporaryFile('w', delete=False)
+        try:
             df = pd.DataFrame(data)
-            df.drop(missing_cols, axis=1).to_csv(path_or_buf=fp.name, encoding='utf-8', index=False)
+            df.drop(missing_cols, axis=1).to_csv(path_or_buf=fp, encoding='utf-8', index=False)
+            fp.close()
 
             with self.assertRaises(OasisException):
                 get_dataframe(
                     src_fp=fp.name,
                     required_cols=df.columns.tolist()
                 )
+        finally:
+            os.remove(fp.name)
 
     @settings(max_examples=10)
     @given(
@@ -563,9 +605,11 @@ class TestGetDataframe(TestCase):
         })
     )
     def test_get_dataframe__from_csv_file__set_col_defaults_option_and_use_defaults_for_all_other_options(self, data, defaults):
-        with NamedTemporaryFile('w') as fp: 
+        fp = NamedTemporaryFile("w", delete=False)
+        try:
             df = pd.DataFrame(data)
-            df.to_csv(path_or_buf=fp.name, columns=df.columns, encoding='utf-8', index=False)
+            df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            fp.close()
 
             expected = df.copy(deep=True)
             for col, default in viewitems(defaults):
@@ -574,6 +618,8 @@ class TestGetDataframe(TestCase):
             result = get_dataframe(src_fp=fp.name, col_defaults=defaults)
 
             self.assertTrue(dataframes_are_identical(result, expected))
+        finally:
+            os.remove(fp.name)
 
     @settings(max_examples=10)
     @given(
@@ -595,9 +641,11 @@ class TestGetDataframe(TestCase):
         })
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_col_defaults_option_and_use_defaults_for_all_other_options(self, data, defaults):
-        with NamedTemporaryFile('w') as fp: 
+        fp = NamedTemporaryFile("w", delete=False)
+        try:
             df = pd.DataFrame(data)
-            df.to_csv(path_or_buf=fp.name, columns=df.columns, encoding='utf-8', index=False)
+            df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            fp.close()
 
             expected = df.copy(deep=True)
             expected.columns = expected.columns.str.lower()
@@ -607,6 +655,8 @@ class TestGetDataframe(TestCase):
             result = get_dataframe(src_fp=fp.name, col_defaults=defaults)
 
             self.assertTrue(dataframes_are_identical(result, expected))
+        finally:
+            os.remove(fp.name)
 
     @settings(max_examples=10)
     @given(
@@ -622,11 +672,13 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_with_nulls_in_some_columns__set_non_na_cols_option_and_use_defaults_for_all_other_options(self, data):
-        with NamedTemporaryFile('w') as fp:
+        fp = NamedTemporaryFile('w', delete=False)
+        try:
             data[-1]['int_col'] = np.nan
             data[-2]['str_col'] = np.nan
             df = pd.DataFrame(data)
-            df.to_csv(path_or_buf=fp.name, columns=df.columns, encoding='utf-8', index=False)
+            df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            fp.close()
 
             non_na_cols = ['int_col', 'str_col']
             expected = df.dropna(subset=non_na_cols, axis=0)
@@ -634,6 +686,8 @@ class TestGetDataframe(TestCase):
             result = get_dataframe(src_fp=fp.name, non_na_cols=non_na_cols)
 
             self.assertTrue(dataframes_are_identical(result, expected))
+        finally:
+            os.remove(fp.name)
 
     @settings(max_examples=10)
     @given(
@@ -649,11 +703,13 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols_and_nulls_in_some_columns__set_non_na_cols_option_and_use_defaults_for_all_other_options(self, data):
-        with NamedTemporaryFile('w') as fp:
+        fp = NamedTemporaryFile("w", delete=False)
+        try:
             data[-1]['int_col'] = np.nan
             data[-2]['STR_COL'] = np.nan
             df = pd.DataFrame(data)
-            df.to_csv(path_or_buf=fp.name, columns=df.columns, encoding='utf-8', index=False)
+            df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            fp.close()
 
             non_na_cols = ['int_col', 'STR_COL']
             expected = df.dropna(subset=non_na_cols, axis=0)
@@ -662,6 +718,8 @@ class TestGetDataframe(TestCase):
             result = get_dataframe(src_fp=fp.name, non_na_cols=non_na_cols)
 
             self.assertTrue(dataframes_are_identical(result, expected))
+        finally:
+            os.remove(fp.name)
 
     @settings(max_examples=10)
     @given(
@@ -678,10 +736,12 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file__set_sort_cols_option_on_single_col_and_use_defaults_for_all_other_options(self, data):
-        with NamedTemporaryFile('w') as fp:
+        fp = NamedTemporaryFile("w", delete=False)
+        try:
             data = [{k: (v if k != 'int_col' else np.random.choice(range(10))) for k, v in viewitems(it)} for it in data]
             df = pd.DataFrame(data)
-            df.to_csv(path_or_buf=fp.name, columns=df.columns, encoding='utf-8', index=False)
+            df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            fp.close()
 
             sort_cols = ['int_col']
             expected = df.sort_values(sort_cols, axis=0)
@@ -689,6 +749,8 @@ class TestGetDataframe(TestCase):
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols)
 
             self.assertTrue(dataframes_are_identical(result, expected))
+        finally:
+            os.remove(fp.name)
 
     @settings(max_examples=10)
     @given(
@@ -705,10 +767,12 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_sort_cols_option_on_single_col_and_use_defaults_for_all_other_options(self, data):
-        with NamedTemporaryFile('w') as fp:
+        fp = NamedTemporaryFile("w", delete=False)
+        try:
             data = [{k: (v if k != 'IntCol' else np.random.choice(range(10))) for k, v in viewitems(it)} for it in data]
             df = pd.DataFrame(data)
-            df.to_csv(path_or_buf=fp.name, columns=df.columns, encoding='utf-8', index=False)
+            df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            fp.close()
 
             sort_cols = ['IntCol']
             expected = df.sort_values(sort_cols, axis=0)
@@ -717,6 +781,8 @@ class TestGetDataframe(TestCase):
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols)
 
             self.assertTrue(dataframes_are_identical(result, expected))
+        finally:
+            os.remove(fp.name)
 
     @settings(max_examples=10)
     @given(
@@ -733,13 +799,15 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file__set_sort_cols_option_on_two_cols_and_use_defaults_for_all_other_options(self, data):
-        with NamedTemporaryFile('w') as fp:
+        fp = NamedTemporaryFile("w", delete=False)
+        try:
             data = [
                 {k: (v if k not in ('int_col', 'str_col') else (np.random.choice(range(10)) if k == 'int_col' else np.random.choice(list(string.ascii_lowercase)))) for k, v in viewitems(it)}
                 for it in data
             ]
             df = pd.DataFrame(data)
-            df.to_csv(path_or_buf=fp.name, columns=df.columns, encoding='utf-8', index=False)
+            df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            fp.close()
 
             sort_cols = ['int_col', 'str_col']
             expected = df.sort_values(sort_cols, axis=0)
@@ -747,6 +815,8 @@ class TestGetDataframe(TestCase):
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols)
 
             self.assertTrue(dataframes_are_identical(result, expected))
+        finally:
+            os.remove(fp.name)
 
     @settings(max_examples=10)
     @given(
@@ -763,13 +833,15 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_sort_cols_option_on_two_cols_and_use_defaults_for_all_other_options(self, data):
-        with NamedTemporaryFile('w') as fp:
+        fp = NamedTemporaryFile("w", delete=False)
+        try:
             data = [
                 {k: (v if k not in ('IntCol', 'STR_COL') else (np.random.choice(range(10)) if k == 'IntCol' else np.random.choice(list(string.ascii_lowercase)))) for k, v in viewitems(it)}
                 for it in data
             ]
             df = pd.DataFrame(data)
-            df.to_csv(path_or_buf=fp.name, columns=df.columns, encoding='utf-8', index=False)
+            df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            fp.close()
 
             sort_cols = ['IntCol', 'STR_COL']
             expected = df.sort_values(sort_cols, axis=0)
@@ -778,6 +850,8 @@ class TestGetDataframe(TestCase):
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols)
 
             self.assertTrue(dataframes_are_identical(result, expected))
+        finally:
+            os.remove(fp.name)
 
     @settings(max_examples=10)
     @given(
@@ -794,15 +868,19 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_columns___set_lowercase_cols_option_to_false_and_use_defaults_for_all_other_options(self, data):
-        with NamedTemporaryFile('w') as fp:
+        fp = NamedTemporaryFile("w", delete=False)
+        try:
             df = pd.DataFrame(data)
-            df.to_csv(path_or_buf=fp.name, columns=df.columns, encoding='utf-8', index=False)
+            df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            fp.close()
 
             expected = df.copy(deep=True)
 
             result = get_dataframe(src_fp=fp.name, lowercase_cols=False)
 
             self.assertTrue(dataframes_are_identical(result, expected))
+        finally:
+            os.remove(fp.name)
 
     @settings(max_examples=10)
     @given(
@@ -823,17 +901,21 @@ class TestGetDataframe(TestCase):
         })
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_columns__set_lowercase_col_option_to_false_and_col_dtypes_option_and_use_defaults_for_all_other_options(self, data, dtypes):
-        with NamedTemporaryFile('w') as fp:
+        fp = NamedTemporaryFile("w", delete=False)
+        try:
             df = pd.DataFrame(data)
             for col, dtype in viewitems(dtypes):
                 df[col] = df[col].astype(dtype)
-            df.to_csv(path_or_buf=fp.name, columns=df.columns, encoding='utf-8', index=False)
+            df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            fp.close()
 
             expected = pd.read_csv(fp.name, dtype=dtypes)
 
             result = get_dataframe(src_fp=fp.name, col_dtypes=dtypes, lowercase_cols=False)
 
             self.assertTrue(dataframes_are_identical(result, expected))
+        finally:
+            os.remove(fp.name)
 
     @settings(max_examples=10)
     @given(
@@ -857,9 +939,11 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false_and_subset_cols_option_and_use_defaults_for_all_other_options(self, data, subset_cols):
-        with NamedTemporaryFile('w') as fp:
+        fp = NamedTemporaryFile("w", delete=False)
+        try:
             df = pd.DataFrame(data)
-            df.to_csv(path_or_buf=fp.name, columns=df.columns, encoding='utf-8', index=False)
+            df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            fp.close()
 
             expected = df.drop([col for col in df.columns if col not in subset_cols], axis=1)
 
@@ -870,6 +954,8 @@ class TestGetDataframe(TestCase):
             )
 
             self.assertTrue(dataframes_are_identical(result, expected))
+        finally:
+            os.remove(fp.name)
 
     @settings(max_examples=10)
     @given(
@@ -893,9 +979,11 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false_and_required_cols_option_and_use_defaults_for_all_other_options(self, data, required_cols):
-        with NamedTemporaryFile('w') as fp:
+        fp = NamedTemporaryFile("w", delete=False)
+        try:
             df = pd.DataFrame(data)
-            df.to_csv(path_or_buf=fp.name, columns=df.columns, encoding='utf-8', index=False)
+            df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            fp.close()
 
             expected = df.copy(deep=True)
 
@@ -906,6 +994,8 @@ class TestGetDataframe(TestCase):
             )
 
             self.assertTrue(dataframes_are_identical(result, expected))
+        finally:
+            os.remove(fp.name)
 
     @settings(max_examples=10)
     @given(
@@ -929,9 +1019,11 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols_and_missing_some_required_cols__set_lowercase_cols_option_to_false_and_required_cols_option_and_use_defaults_for_all_other_options__oasis_exception_is_raised(self, data, missing_cols):
-        with NamedTemporaryFile('w') as fp:
+        fp = NamedTemporaryFile("w", delete=False)
+        try:
             df = pd.DataFrame(data)
-            df.drop(missing_cols, axis=1).to_csv(path_or_buf=fp.name, encoding='utf-8', index=False)
+            df.drop(missing_cols, axis=1).to_csv(path_or_buf=fp, encoding='utf-8', index=False)
+            fp.close()
 
             with self.assertRaises(OasisException):
                 get_dataframe(
@@ -939,6 +1031,8 @@ class TestGetDataframe(TestCase):
                     required_cols=df.columns.tolist(),
                     lowercase_cols=False
                 )
+        finally:
+            os.remove(fp.name)
 
     @settings(max_examples=10)
     @given(
@@ -960,9 +1054,11 @@ class TestGetDataframe(TestCase):
         })
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false_and_col_defaults_option_and_use_defaults_for_all_other_options(self, data, defaults):
-        with NamedTemporaryFile('w') as fp:
+        fp = NamedTemporaryFile("w", delete=False)
+        try:
             df = pd.DataFrame(data)
-            df.to_csv(path_or_buf=fp.name, columns=df.columns, encoding='utf-8', index=False)
+            df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            fp.close()
 
             expected = df.copy(deep=True)
             for col, default in viewitems(defaults):
@@ -971,6 +1067,8 @@ class TestGetDataframe(TestCase):
             result = get_dataframe(src_fp=fp.name, col_defaults=defaults, lowercase_cols=False)
 
             self.assertTrue(dataframes_are_identical(result, expected))
+        finally:
+            os.remove(fp.name)
 
     @settings(max_examples=10)
     @given(
@@ -986,11 +1084,13 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols_and_nulls_in_some_columns__set_lowercase_cols_option_to_false_and_non_na_cols_option_and_use_defaults_for_all_other_options(self, data):
-        with NamedTemporaryFile('w') as fp:
+        fp = NamedTemporaryFile("w", delete=False)
+        try:
             data[-1]['int_col'] = np.nan
             data[-2]['STR_COL'] = np.nan
             df = pd.DataFrame(data)
-            df.to_csv(path_or_buf=fp.name, columns=df.columns, encoding='utf-8', index=False)
+            df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            fp.close()
 
             non_na_cols = ['int_col', 'STR_COL']
             expected = df.dropna(subset=non_na_cols, axis=0)
@@ -998,6 +1098,8 @@ class TestGetDataframe(TestCase):
             result = get_dataframe(src_fp=fp.name, non_na_cols=non_na_cols, lowercase_cols=False)
 
             self.assertTrue(dataframes_are_identical(result, expected))
+        finally:
+            os.remove(fp.name)
 
     @settings(max_examples=10)
     @given(
@@ -1014,10 +1116,12 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false_and_sort_cols_option_on_single_col_and_use_defaults_for_all_other_options(self, data):
-        with NamedTemporaryFile('w') as fp:
+        fp = NamedTemporaryFile("w", delete=False)
+        try:
             data = [{k: (v if k != 'IntCol' else np.random.choice(range(10))) for k, v in viewitems(it)} for it in data]
             df = pd.DataFrame(data)
-            df.to_csv(path_or_buf=fp.name, columns=df.columns, encoding='utf-8', index=False)
+            df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            fp.close()
 
             sort_cols = ['IntCol']
             expected = df.sort_values(sort_cols, axis=0)
@@ -1025,6 +1129,8 @@ class TestGetDataframe(TestCase):
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols, lowercase_cols=False)
 
             self.assertTrue(dataframes_are_identical(result, expected))
+        finally:
+            os.remove(fp.name)
 
     @settings(max_examples=10)
     @given(
@@ -1041,13 +1147,15 @@ class TestGetDataframe(TestCase):
         )
     )
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false_and_sort_cols_option_on_two_cols_and_use_defaults_for_all_other_options(self, data):
-        with NamedTemporaryFile('w') as fp:
+        fp = NamedTemporaryFile("w", delete=False)
+        try:
             data = [
                 {k: (v if k not in ('IntCol', 'STR_COL') else (np.random.choice(range(10)) if k == 'IntCol' else np.random.choice(list(string.ascii_lowercase)))) for k, v in viewitems(it)}
                 for it in data
             ]
             df = pd.DataFrame(data)
-            df.to_csv(path_or_buf=fp.name, columns=df.columns, encoding='utf-8', index=False)
+            df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
+            fp.close()
 
             sort_cols = ['IntCol', 'STR_COL']
             expected = df.sort_values(sort_cols, axis=0)
@@ -1055,6 +1163,8 @@ class TestGetDataframe(TestCase):
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols, lowercase_cols=False)
 
             self.assertTrue(dataframes_are_identical(result, expected))
+        finally:
+            os.remove(fp.name)
 
 class TestGetJson(TestCase):
 
@@ -1079,13 +1189,16 @@ class TestGetJson(TestCase):
     )
     def test_get_json__with_nesting_depth_of_1(self, data):
         expected = copy.deepcopy(data)
-        with NamedTemporaryFile('w') as f1:
+        f1 = NamedTemporaryFile("w", delete=False)
+        try:
             f1.write(json.dumps(expected, indent=4, sort_keys=True))
-            f1.flush()
+            f1.close()
 
             with io_open(f1.name, 'r', encoding='utf-8') as f2:
                 result = json.load(f2)
                 self.assertEqual(result, expected)
+        finally:
+            os.remove(f1.name)
 
 
 class TestGetTimestamp(TestCase):
@@ -1100,10 +1213,12 @@ class TestGetTimestamp(TestCase):
         result = get_timestamp(dt, fmt=fmt)
 
         self.assertEqual(result, expected)
-    @settings(max_examples=10)
 
+    # Windows does not support converting datetimes after 3001-01-01T20:59:59
+    @settings(max_examples=10, deadline=None)
     @given(
-        dt=datetimes(min_value=datetime.now()),
+        dt=datetimes(min_value=datetime.now(),
+                     max_value=datetime(3001, 1, 1)),
         fmt=just('%Y-%b-%d %H:%M:%S')
     )
     def test_get_utctimestamp(self, dt, fmt):
