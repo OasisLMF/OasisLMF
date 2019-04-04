@@ -574,6 +574,7 @@ def genbash(
     print_command(filename, '#!/bin/bash')
 
     print_command(filename, '')
+    print_command(filename, 'set -e')
 
     print_command(filename, 'rm -R -f output/*')
     if not fifo_tmp_dir:
