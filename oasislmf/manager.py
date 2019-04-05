@@ -185,7 +185,7 @@ class OasisManager(object):
         if not (lookup_config or lookup_config_fp):
             raise OasisException('Either a built-in lookup config. or config. file path is required')
 
-        config = lookup_config or get_json(src_fp=lookup_config_fp)
+        config = get_json(src_fp=lookup_config_fp) if lookup_config_fp else lookup_config
 
         config_dir = os.path.dirname(lookup_config_fp) if lookup_config_fp else keys_data_fp
 
@@ -386,7 +386,7 @@ class OasisManager(object):
                 ]
                 _, _ = olf.write_oasis_keys_file(keys, _keys_fp)
             else:
-                lookup_config = get_json(src_fp=lookup_config_fp) or lookup_config
+                lookup_config = get_json(src_fp=lookup_config_fp) if lookup_config_fp else lookup_config
                 if lookup_config:
                     lookup_config['keys_data_path'] = os.path.abspath(os.path.dirname(lookup_config_fp))
 

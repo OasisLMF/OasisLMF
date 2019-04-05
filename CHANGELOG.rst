@@ -1,6 +1,10 @@
 OasisLMF Changelog
 ==================
 
+`1.3.6`_
+-------
+* Hotfix - Custom lookup issue in manager 
+
 `1.3.5`_
 -------
 * Issue found in ktools `3.0.7` hotfix downgrad to `3.0.6` 
@@ -227,6 +231,7 @@ in the exposure manager
 
 * Add console logging
 
+.. _`1.3.6`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.5...1.3.6
 .. _`1.3.5`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.4...1.3.5
 .. _`1.3.4`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.3...1.3.4
 .. _`1.3.3`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.2...1.3.3
