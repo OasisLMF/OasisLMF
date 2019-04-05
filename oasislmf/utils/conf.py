@@ -35,7 +35,7 @@ def load_ini_file(ini_file_path):
                 l.strip() for l in [l for l in f.read().split('\n') if l and not l.startswith('[')]
             ]
     except IOError as e:
-        raise OasisException(str(e))
+        raise OasisException from e
 
     di = {
         kv[0].strip(): kv[1].strip() for kv in tuple(line.split('=') for line in lines)
@@ -82,4 +82,4 @@ def replace_in_file(source_file_path, target_file_path, var_names, var_values):
                         outline = outline.replace(var_name, var_value)
                 f.write(outline)
     except (OSError, IOError) as e:
-        raise OasisException(str(e))
+        raise OasisException from e

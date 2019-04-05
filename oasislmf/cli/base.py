@@ -102,6 +102,8 @@ class OasisBaseCommand(BaseCommand):
     """
     def __init__(self, *args, **kwargs):
         self._logger = None
+        self.args = None
+        self.log_verbose = False
         super(OasisBaseCommand, self).__init__(*args, **kwargs)
 
     def add_args(self, parser):
@@ -129,18 +131,19 @@ class OasisBaseCommand(BaseCommand):
         """
         try:
             self.args = super(OasisBaseCommand, self).parse_args()
-            self.setup_logger(self.args.verbose)
+            self.log_verbose = self.args.verbose
+            self.setup_logger()
             return self.args
         except Exception:
-            self.setup_logger(False)
+            self.setup_logger()
             raise
 
-    def setup_logger(self, verbose):
+    def setup_logger(self):
         """
         The logger to use for the command with the verbosity set
         """
         if not self._logger:
-            if verbose:
+            if self.log_verbose:
                 log_level = logging.DEBUG
                 log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
             else:

@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 rm -R -f output/*
 rm -R -f fifo/*
 rm -R -f work/*
@@ -27,6 +29,9 @@ wait $pid1
 
 leccalc -r -Kgul_S1_summaryleccalc -m output/gul_S1_leccalc_wheatsheaf_mean_oep.csv & lpid1=$!
 wait $lpid1
+
+
+set +e
 
 rm fifo/gul_P1
 

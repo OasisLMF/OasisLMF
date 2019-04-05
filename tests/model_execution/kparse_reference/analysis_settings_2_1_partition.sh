@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 rm -R -f output/*
 rm -R -f fifo/*
 rm -R -f work/*
@@ -41,6 +43,9 @@ wait $kpid1 $kpid2 $kpid3
 
 aalcalc -Kgul_S1_summaryaalcalc > output/gul_S1_aalcalc.csv & lpid1=$!
 wait $lpid1
+
+
+set +e
 
 rm fifo/gul_P1
 
