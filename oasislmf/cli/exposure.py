@@ -38,7 +38,6 @@ from ..manager import OasisManager as om
 
 from ..utils.exceptions import OasisException
 from ..utils.data import (
-    get_json,
     print_dataframe,
 )
 from ..utils.path import (
