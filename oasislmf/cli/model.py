@@ -151,7 +151,7 @@ class GenerateKeysCmd(OasisBaseCommand):
         parser.add_argument('-d', '--keys-data-path', default=None, help='Model lookup/keys data path')
         parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
         parser.add_argument('-l', '--lookup-package-path', default=None, help='Model lookup package path')
-        parser.add_argument('-m', '--complex-lookup-config-file-path', default=None, help='Complex lookup config JSON file path')
+        parser.add_argument('-L', '--complex-lookup-config-file-path', default=None, help='Complex lookup config JSON file path')
         parser.add_argument('-f', '--keys-format', choices=['oasis', 'json'], help='Keys files output format')
 
     def action(self, args):
@@ -239,7 +239,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         parser.add_argument('-k', '--keys-data-path', default=None, help='Model lookup/keys data path')
         parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
         parser.add_argument('-l', '--lookup-package-path', default=None, help='Lookup package path')
-        parser.add_argument('-m', '--complex-lookup-config-file-path', default=None, help='Complex lookup config JSON file path')
+        parser.add_argument('-L', '--complex-lookup-config-file-path', default=None, help='Complex lookup config JSON file path')
         parser.add_argument('-e', '--source-exposure-profile-path', default=None, help='Source (OED) exposure profile path')
         parser.add_argument('-b', '--source-accounts-profile-path', default=None, help='Source (OED) accounts profile path')
         parser.add_argument('-x', '--source-exposure-file-path', default=None, help='Source exposure file path')
@@ -497,6 +497,7 @@ class RunCmd(OasisBaseCommand):
         parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
 
         parser.add_argument('-l', '--lookup-package-path', default=None, help='Model lookup package path')
+        parser.add_argument('-L', '--complex-lookup-config-file-path', default=None, help='Complex lookup config JSON file path')
         parser.add_argument('-c', '--lookup-config-file-path', default=None, help='Built-in lookup config JSON file path')
 
         parser.add_argument(

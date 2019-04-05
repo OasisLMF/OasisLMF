@@ -163,7 +163,7 @@ def get_gul_input_items(
     # If the keys file relates to a complex/custom model then look for a
     # ``modeldata`` column in the keys file, and ignore the area peril
     # and vulnerability ID columns
-    if keys_df.get('model_data'):
+    if 'model_data' in keys_df:
         keys_df['areaperil_id'] = keys_df['vulnerability_id'] = -1
 
     try:
@@ -276,7 +276,7 @@ def write_complex_items_file(gul_inputs_df, complex_items_fp, chunksize=100000):
     :param gul_inputs_df: GUL inputs dataframe
     :type gul_inputs_df: pandas.DataFrame
 
-    :param compex_items_fp: Complex/custom model items file path
+    :param complex_items_fp: Complex/custom model items file path
     :type complex_items_fp: str
 
     :return: Complex/custom model items file path
@@ -419,7 +419,7 @@ def write_gul_input_files(
     if write_inputs_table_to_file:
         gul_inputs_df.to_csv(path_or_buf=os.path.join(target_dir, 'gul_inputs.csv'), index=False, encoding='utf-8', chunksize=chunksize)
 
-    if not gul_inputs_df.get('model_data'):
+    if 'model_data' not in gul_inputs_df:
         if oasis_files_prefixes.get('complex_items'):
             oasis_files_prefixes.pop('complex_items')
 
