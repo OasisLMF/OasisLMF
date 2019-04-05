@@ -502,7 +502,7 @@ def get_il_input_items(
         il_inputs_calc_rules_df = merge_dataframes(il_inputs_calc_rules_df, calc_rules, how='left', on='id_key')
         il_inputs_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id']
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
-        raise OasisException from e
+        raise OasisException(e)
 
     return il_inputs_df, accounts_df
 
@@ -538,7 +538,7 @@ def write_fm_policytc_file(il_inputs_df, fm_policytc_fp, chunksize=100000):
             index=False
         )
     except (IOError, OSError) as e:
-        raise OasisException from e
+        raise OasisException(e)
 
     return fm_policytc_fp
 
@@ -586,7 +586,7 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
             index=False
         )
     except (IOError, OSError) as e:
-        raise OasisException from e
+        raise OasisException(e)
 
     return fm_profile_fp
 
@@ -633,7 +633,7 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
             index=False
         )
     except (IOError, OSError) as e:
-        raise OasisException from e
+        raise OasisException(e)
 
     return fm_programme_fp
 
@@ -668,7 +668,7 @@ def write_fm_xref_file(il_inputs_df, fm_xref_fp, chunksize=100000):
             index=False
         )
     except (IOError, OSError) as e:
-        raise OasisException from e
+        raise OasisException(e)
 
     return fm_xref_fp
 
@@ -703,7 +703,7 @@ def write_fmsummaryxref_file(il_inputs_df, fmsummaryxref_fp, chunksize=100000):
             index=False
         )
     except (IOError, OSError) as e:
-        raise OasisException from e
+        raise OasisException(e)
 
     return fmsummaryxref_fp
 

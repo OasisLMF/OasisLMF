@@ -57,6 +57,6 @@ def prepare_input_files_directory(
                 dst = os.path.join(target_dir, os.path.basename(src))
                 shutil.copy2(src, target_dir) if not (os.path.exists(dst) and filecmp.cmp(src, dst, shallow=False)) else None
     except (FileNotFoundError, IOError, OSError, shutil.Error, TypeError, ValueError) as e:
-        raise OasisException from e
+        raise OasisException(e)
 
     return target_dir

@@ -163,7 +163,7 @@ def prepare_run_directory(
             except Exception:
                 shutil.copytree(model_data_fp, os.path.join(model_data_dst_fp, fn))
     except OSError as e:
-        raise OasisException from e
+        raise OasisException(e)
 
 
 def _prepare_input_bin(run_dir, bin_name, model_settings, setting_key=None, ri=False):
@@ -205,7 +205,7 @@ def prepare_run_inputs(analysis_settings, run_dir, ri=False):
         if os.path.exists(os.path.join(run_dir, 'static', 'periods.bin')):
             _prepare_input_bin(run_dir, 'periods', model_settings, ri=ri)
     except (OSError, IOError) as e:
-        raise OasisException from e
+        raise OasisException(e)
 
 
 @oasis_log
@@ -310,7 +310,7 @@ def _csv_to_bin(csv_directory, bin_directory, il=False):
         try:
             subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
         except subprocess.CalledProcessError as e:
-            raise OasisException from e
+            raise OasisException(e)
 
 @oasis_log
 def check_binary_tar_file(tar_file_path, check_il=False):

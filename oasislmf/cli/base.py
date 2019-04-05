@@ -102,7 +102,6 @@ class OasisBaseCommand(BaseCommand):
     """
     def __init__(self, *args, **kwargs):
         self._logger = None
-        self._verbose = False
         super(OasisBaseCommand, self).__init__(*args, **kwargs)
 
     def add_args(self, parser):
@@ -140,7 +139,6 @@ class OasisBaseCommand(BaseCommand):
         """
         The logger to use for the command with the verbosity set
         """
-        self._verbose = verbose
         if not self._logger:
             if verbose:
                 log_level = logging.DEBUG

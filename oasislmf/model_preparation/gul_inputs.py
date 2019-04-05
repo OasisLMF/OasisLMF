@@ -263,7 +263,7 @@ def get_gul_input_items(
         }
         set_dataframe_column_dtypes(gul_inputs_df, col_dtypes)
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
-        raise OasisException from e
+        raise OasisException(e)
 
     return gul_inputs_df, exposure_df
 
@@ -291,7 +291,7 @@ def write_complex_items_file(gul_inputs_df, complex_items_fp, chunksize=100000):
             index=False
         )
     except (IOError, OSError) as e:
-        raise OasisException from e
+        raise OasisException(e)
 
 
 @oasis_log
@@ -317,7 +317,7 @@ def write_items_file(gul_inputs_df, items_fp, chunksize=100000):
             index=False
         )
     except (IOError, OSError) as e:
-        raise OasisException from e
+        raise OasisException(e)
 
     return items_fp
 
@@ -345,7 +345,7 @@ def write_coverages_file(gul_inputs_df, coverages_fp, chunksize=100000):
             index=False
         )
     except (IOError, OSError) as e:
-        raise OasisException from e
+        raise OasisException(e)
 
     return coverages_fp
 
@@ -373,7 +373,7 @@ def write_gulsummaryxref_file(gul_inputs_df, gulsummaryxref_fp, chunksize=100000
             index=False
         )
     except (IOError, OSError) as e:
-        raise OasisException from e
+        raise OasisException(e)
 
     return gulsummaryxref_fp
 
