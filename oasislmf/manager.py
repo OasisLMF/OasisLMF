@@ -614,7 +614,7 @@ class OasisManager(object):
         try:
             check_call(cmd, shell=True)
         except CalledProcessError as e:
-            raise OasisException(e)
+            raise OasisException from e
 
         guls.drop(guls[guls['sidx'] != 1].index, inplace=True)
         guls.reset_index(drop=True, inplace=True)
@@ -663,7 +663,7 @@ class OasisManager(object):
                         try:
                             check_call(cmd, shell=True)
                         except CalledProcessError as e:
-                            raise OasisException(e)
+                            raise OasisException from e
                         rils = pd.read_csv(ri_layer_fp)
                         rils.drop(rils[rils['sidx'] != 1].index, inplace=True)
                         rils.drop('sidx', axis=1, inplace=True)

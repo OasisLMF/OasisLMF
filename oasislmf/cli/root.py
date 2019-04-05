@@ -39,5 +39,9 @@ class RootCmd(OasisBaseCommand):
         try:
             return super(OasisBaseCommand, self).run(args=args)
         except OasisException as e:
-            self.logger.error(str(e))
+            if self.log_verbose:
+                # Log with traceback
+                self.logger.exception(str(e))
+            else:
+                self.logger.error(str(e))
             return 1
