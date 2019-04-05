@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 rm -R -f output/*
 rm -R -f fifo/*
 rm -R -f work/*
@@ -29,6 +31,9 @@ wait $pid1 $pid2
 kat work/kat/il_S1_eltcalc_P1 > output/il_S1_eltcalc.csv & kpid1=$!
 wait $kpid1
 
+
+
+set +e
 
 
 rm fifo/il_P1

@@ -31,10 +31,12 @@ WAIT_PROCESSING_SWITCHES = {
     'wheatsheaf_mean_oep': '-m',
 }
 
+
 def print_command(command_file, cmd):
     """
     Writes the supplied command to the end of the generated script
 
+    :param command_file: File to append command to.
     :param cmd: The command to append
     """
     with io.open(command_file, "a", encoding='utf-8') as myfile:
@@ -178,7 +180,8 @@ def remove_workfolders(runtype, analysis_settings, filename):
 def do_make_fifos(runtype, analysis_settings, process_id, filename, fifo_dir=''):
     do_fifos('mkfifo', runtype, analysis_settings, process_id, filename, fifo_dir)
 
-def do_ktools_mem_limit(max_process_id ,filename):
+
+def do_ktools_mem_limit(max_process_id, filename):
     """
         Set each Ktools pipeline to trap and terminate on hitting its
         memory allocation limit
@@ -187,6 +190,7 @@ def do_ktools_mem_limit(max_process_id ,filename):
     """
     cmd_mem_limit = 'ulimit -v $(ktgetmem {})'.format(max_process_id)
     print_command(filename, cmd_mem_limit)
+
 
 def do_remove_fifos(runtype, analysis_settings, process_id, filename, fifo_dir=''):
     do_fifos('rm', runtype, analysis_settings, process_id, filename, fifo_dir)
@@ -241,8 +245,8 @@ def do_kats(runtype, analysis_settings, max_process_id, filename, process_counte
     return anykats
 
 
-def do_summarycalcs(
-    runtype, analysis_settings, process_id, filename, fifo_dir='', num_reinsurance_iterations=0):
+def do_summarycalcs(runtype, analysis_settings, process_id, filename, fifo_dir='',
+                    num_reinsurance_iterations=0):
 
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
@@ -344,7 +348,6 @@ def do_any(runtype, analysis_settings, process_id, filename, process_counter, fi
                     )
                 )
 
-
         print_command(filename, '')
 
 
@@ -421,6 +424,9 @@ def do_waits(wait_variable, wait_count, filename):
 
     :param wait_count: The number of processes to wait for
     :type wait_count: int
+
+    :param filename: Script to add waits to
+    :type filename: str
     """
     if wait_count > 0:
         cmd = 'wait'
@@ -460,9 +466,9 @@ def do_kwaits(filename, process_counter):
 
 
 def get_getmodel_cmd(
-    number_of_samples, gul_threshold, use_random_number_file, 
-    coverage_output, item_output,
-    process_id, max_process_id, **kwargs):
+        number_of_samples, gul_threshold, use_random_number_file,
+        coverage_output, item_output,
+        process_id, max_process_id, **kwargs):
     """
     Gets the getmodel ktools command
 
@@ -573,6 +579,9 @@ def genbash(
 
     print_command(filename, '#!/bin/bash')
 
+    # Use 'set -e' so that any errors in script commands are passed back
+    print_command(filename, '')
+    print_command(filename, 'set -e')
     print_command(filename, '')
 
     print_command(filename, 'rm -R -f output/*')
@@ -630,7 +639,7 @@ def genbash(
 
     for process_id in range(1, max_process_id + 1):
 
-        ##! Should be able to streamline the logic a little
+        # ! Should be able to streamline the logic a little
         if num_reinsurance_iterations > 0 and ri_output:
 
             getmodel_args = {
@@ -755,6 +764,11 @@ def genbash(
 
     do_awaits(filename, process_counter)  # waits for aalcalc
     do_lwaits(filename, process_counter)  # waits for leccalc
+
+    # Unset '-e' so that a failure to remove temoprary files doesn't kill the entire model run
+    print_command(filename, '')
+    print_command(filename, 'set +e')
+    print_command(filename, '')
 
     if gul_output:
         do_gul_remove_fifo(analysis_settings, max_process_id, filename, fifo_queue_dir)

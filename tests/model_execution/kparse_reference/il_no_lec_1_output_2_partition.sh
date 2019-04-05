@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 rm -R -f output/*
 rm -R -f fifo/*
 rm -R -f work/*
@@ -64,6 +66,9 @@ wait $kpid1 $kpid2 $kpid3
 
 aalcalc -Kil_S1_summaryaalcalc > output/il_S1_aalcalc.csv & lpid1=$!
 wait $lpid1
+
+
+set +e
 
 rm -rf work/kat
 

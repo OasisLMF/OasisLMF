@@ -46,6 +46,6 @@ def compress_data(s):
 
         compressed += compressor.flush()
     except zlib.error as e:
-        raise OasisException(str(e))
+        raise OasisException from e
 
     return compressed

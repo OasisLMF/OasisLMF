@@ -37,7 +37,7 @@ def unified_diff(file1, file2, as_string=False):
                     tofile=f2.name,
                 )
     except (OSError, IOError) as e:
-        raise OasisException(str(e))
+        raise OasisException from e
 
     if as_string:
         return ''.join(diff)
