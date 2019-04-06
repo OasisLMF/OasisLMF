@@ -1,16 +1,3 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-from builtins import open as io_open
-from builtins import int, str
-
-from future import standard_library
-standard_library.install_aliases()
-
 __all__ = [
     'factorize_array',
     'factorize_dataframe',
@@ -34,7 +21,6 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from datetime import datetime
-from future.utils import viewitems
 
 try:
     from json import JSONDecodeError
@@ -208,7 +194,7 @@ def get_dataframe(
 
     _col_dtypes = {
         k: getattr(builtins, v) if v in ('int', 'float', 'str', 'bool',) else PANDAS_BASIC_DTYPES[v]
-        for k, v in viewitems(col_dtypes)
+        for k, v in col_dtypes.items()
     }
 
     df = None
@@ -255,8 +241,8 @@ def get_dataframe(
     # convenient to have this feature at the code level.
 
     if col_defaults:
-        _col_defaults = {k.lower(): v for k, v in viewitems(col_defaults)} if lowercase_cols else col_defaults
-        for col, val in viewitems(_col_defaults):
+        _col_defaults = {k.lower(): v for k, v in col_defaults.items()} if lowercase_cols else col_defaults
+        for col, val in _col_defaults.items():
             df.loc[:, col] = df.loc[:, col].fillna(val) if col in df else val
 
     if non_na_cols:
@@ -264,7 +250,7 @@ def get_dataframe(
         df.dropna(subset=_non_na_cols, inplace=True)
 
     if col_dtypes:
-        _col_dtypes = {k.lower(): v for k, v in viewitems(col_dtypes)} if lowercase_cols else col_dtypes
+        _col_dtypes = {k.lower(): v for k, v in col_dtypes.items()} if lowercase_cols else col_dtypes
         set_dataframe_column_dtypes(df, _col_dtypes)
 
     if sort_cols:
@@ -289,7 +275,7 @@ def get_json(src_fp):
     :rtype: dict
     """
     try:
-        with io_open(src_fp, 'r', encoding='utf-8') as f:
+        with io.open(src_fp, 'r', encoding='utf-8') as f:
             return json.load(f)
     except (IOError, JSONDecodeError, OSError, TypeError) as e:
         raise OasisException('Error trying to load JSON from {}'.format(src_fp))
@@ -386,7 +372,7 @@ def print_dataframe(
 
 
 def set_dataframe_column_dtypes(df, col_dtypes):
-    for col, dtype in viewitems(col_dtypes):
+    for col, dtype in col_dtypes.items():
         if dtype in ('int', 'bool', 'float', 'object', 'str',):
             dtype = getattr(builtins, dtype)
         if col in df:

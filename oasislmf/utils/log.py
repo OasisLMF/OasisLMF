@@ -1,16 +1,3 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-from builtins import open as io_open
-from builtins import str
-
-from future import standard_library
-standard_library.install_aliases()
-
 __all__ = [
     'oasis_log',
     'read_log_config',
@@ -26,7 +13,6 @@ import os
 import time
 
 from functools import wraps
-from future.utils import viewitems
 from logging.handlers import RotatingFileHandler
 
 from six.moves import zip
@@ -110,7 +96,7 @@ def oasis_log(*args, **kwargs):
             args_name = getargspec(func)[0]
             args_dict = dict(zip(args_name, args))
 
-            for key, value in viewitems(args_dict):
+            for key, value in args_dict.items():
                 if key == "self":
                     continue
                 logger.debug("    {} == {}".format(key, value))
@@ -118,7 +104,7 @@ def oasis_log(*args, **kwargs):
             if len(args) > len(args_name):
                 for i in range(len(args_name), len(args)):
                     logger.debug("    {}".format(args[i]))
-            for key, value in viewitems(kwargs):
+            for key, value in kwargs.items():
                 logger.debug("    {} == {}".format(key, value))
 
             start = time.time()

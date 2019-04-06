@@ -1,16 +1,3 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-from builtins import open as io_open
-from builtins import str
-
-from future import standard_library
-standard_library.install_aliases()
-
 __all__ = [
     'get_gul_input_items',
     'write_coverages_file',
@@ -31,11 +18,6 @@ from collections import OrderedDict
 from itertools import (
     chain,
     product,
-)
-from future.utils import (
-    viewitems,
-    viewkeys,
-    viewvalues,
 )
 
 import numpy as np
@@ -112,13 +94,13 @@ def get_gul_input_items(
     portfolio_num = id_terms['portid']
 
     # Get the TIV column names and corresponding coverage types
-    tiv_terms = OrderedDict({v['tiv']['CoverageTypeID']:v['tiv']['ProfileElementName'].lower() for k, v in viewitems(ufp[1])})
+    tiv_terms = OrderedDict({v['tiv']['CoverageTypeID']:v['tiv']['ProfileElementName'].lower() for k, v in ufp[1].items()})
 
     # Define the cov. level and get the cov. level IL/FM terms
     cov_level = COVERAGE_TYPES['buildings']['id']
     cov_il_terms = unified_fm_terms_by_level_and_term_group(unified_profile_by_level_and_term_group=ufp)[cov_level]
 
-    tiv_and_cov_il_terms = [v for v in viewvalues(tiv_terms)] + [_v for v in viewvalues(cov_il_terms) for _v in viewvalues(v) if _v]
+    tiv_and_cov_il_terms = [v for v in tiv_terms.values()] + [_v for v in cov_il_terms.values() for _v in v.values() if _v]
 
     col_dtypes = {t: ('float32' if t in tiv_and_cov_il_terms else 'str') for t in tiv_and_cov_il_terms + [loc_id, acc_id, portfolio_num]}
 
@@ -201,7 +183,7 @@ def get_gul_input_items(
 
         for cov_type, cov_type_group in gul_inputs_df.groupby(by=['coverage_type_id'], sort=True):
             cov_type_group['is_bi_coverage'] = np.where(cov_type == COVERAGE_TYPES['bi']['id'], True, False)
-            term_cols = [tiv_terms[cov_type]] + [(term_col or term) for term, term_col in viewitems(cov_il_terms[cov_type]) if term != 'share']
+            term_cols = [tiv_terms[cov_type]] + [(term_col or term) for term, term_col in cov_il_terms[cov_type].items() if term != 'share']
             cov_type_group.loc[:, term_cols] = cov_type_group.loc[:, term_cols].where(cov_type_group.notnull(), 0.0)
             cov_type_group.loc[:, terms] = cov_type_group.loc[:, term_cols].values
             cov_type_group = cov_type_group[(cov_type_group[['tiv']] != 0).any(axis=1)]
@@ -218,8 +200,8 @@ def get_gul_input_items(
                     cov_type_group['limit'],
                     cov_type_group['tiv'] * cov_type_group['limit'],
                 )
-            other_cov_type_term_cols = [v for k, v in viewitems(tiv_terms) if k != cov_type] + [
-                _v for k, v in viewitems(cov_il_terms) for _v in viewvalues(v) if _v if k != 1
+            other_cov_type_term_cols = [v for k, v in tiv_terms.items() if k != cov_type] + [
+                _v for k, v in cov_il_terms.items() for _v in v.values() if _v if k != 1
             ]
             cov_type_group.loc[:, other_cov_type_term_cols] = 0
             gul_inputs_df.loc[cov_type_group.index, ['is_bi_coverage'] + terms] = cov_type_group[['is_bi_coverage'] + terms]
@@ -440,7 +422,7 @@ def write_gul_input_files(
         for _, _ in multithread(tasks, pool_size=num_ps):
             pass
     else:
-        for fn, fp in viewitems(gul_input_files):
+        for fn, fp in gul_input_files.items():
             getattr(this_module, 'write_{}_file'.format(fn))(gul_inputs_df, fp, chunksize)
 
     return gul_input_files

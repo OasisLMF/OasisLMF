@@ -1,11 +1,9 @@
-# -*- coding: utf-8 -*-
 import io
 import json
 import os
 import time
 
 from collections import Counter
-from future.utils import string_types
 from multiprocessing.pool import ThreadPool
 
 from argparsetree import BaseCommand

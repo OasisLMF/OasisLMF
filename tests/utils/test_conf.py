@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import os
 import socket
 from unittest import TestCase

@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 # HTTP request/response MIME types and character set encoding type constants
 MIME_TYPE_CSV = 'text/csv'
 MIME_TYPE_JSON = 'application/json'

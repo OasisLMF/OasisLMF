@@ -1,16 +1,3 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-from builtins import open as io_open
-from builtins import str
-
-from future import standard_library
-standard_library.install_aliases()
-
 __all__ = [
     'generate_xref_descriptions',
     'generate_files_for_reinsurance',
@@ -35,8 +22,6 @@ import pandas as pd
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from . import oed
-
-from six import string_types
 
 # Metadata about an inuring layer
 InuringLayer = namedtuple(
@@ -361,7 +346,7 @@ class ReinsuranceLayer(object):
 
     def _is_valid_id(self, id_to_check):
         is_valid = self._is_defined(id_to_check) and \
-            ((isinstance(id_to_check, string_types) and id_to_check != "")
+            ((isinstance(id_to_check, str) and id_to_check != "")
             or 
             (isinstance(id_to_check, numbers.Number) and id_to_check > 0))
         return is_valid

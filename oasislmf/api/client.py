@@ -1,5 +1,5 @@
 #!/bin/env python
-# -*- coding: utf-8 -*-
+
 
 import io
 import logging
@@ -14,12 +14,12 @@ from .session import APISession
 from ..utils.exceptions import OasisException
 
 __all__ = [
+    'APIClient'
     'ApiEndpoint',
-    'FileEndpoint',
+    'API_analyses',
     'API_models',
     'API_portfolios',
-    'API_analyses',
-    'APIClient'
+    'FileEndpoint',
 ]
 
 # --- API Endpoint mapping to functions ------------------------------------- #

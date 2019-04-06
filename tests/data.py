@@ -1,14 +1,3 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-from builtins import open as io_open
-from builtins import str
-
-from future import standard_library
-standard_library.install_aliases()
-
 __all__ = [
     'all_cov_types',
     'all_fm_levels',
@@ -39,11 +28,6 @@ import string
 from itertools import chain
 from chainmap import ChainMap
 from collections import OrderedDict
-from future.utils import (
-    viewitems,
-    viewkeys,
-    viewvalues,
-)
 
 import pandas as pd
 
@@ -83,42 +67,42 @@ from oasislmf.model_execution.files import (
 
 calcrules = (1, 4, 5, 6, 7, 8, 10, 11, 12, 12, 13, 14, 15, 16, 19, 21,)
 
-all_cov_types = tuple(v['id'] for v in viewvalues(COVERAGE_TYPES))
+all_cov_types = tuple(v['id'] for v in COVERAGE_TYPES.values())
 
-supp_cov_types = tuple(v['id'] for k, v in viewitems(COVERAGE_TYPES) if k not in ['pd', 'all'])
+supp_cov_types = tuple(v['id'] for k, v in COVERAGE_TYPES.items() if k not in ['pd', 'all'])
 
-deductible_and_limit_types = tuple(v['id'] for v in viewvalues(DEDUCTIBLE_AND_LIMIT_TYPES))
+deductible_and_limit_types = tuple(v['id'] for v in DEDUCTIBLE_AND_LIMIT_TYPES.values())
 
-deductible_codes = tuple(v['id'] for v in viewvalues(DEDUCTIBLE_CODES))
+deductible_codes = tuple(v['id'] for v in DEDUCTIBLE_CODES.values())
 
-limit_codes = tuple(v['id'] for v in viewvalues(LIMIT_CODES))
+limit_codes = tuple(v['id'] for v in LIMIT_CODES.values())
 
-all_fm_levels = tuple(v['id'] for v in viewvalues(FM_LEVELS))
+all_fm_levels = tuple(v['id'] for v in FM_LEVELS.values())
 
-supp_fm_levels = tuple(v['id'] for k, v in viewitems(FM_LEVELS) if k not in [
+supp_fm_levels = tuple(v['id'] for k, v in FM_LEVELS.items() if k not in [
     'cond coverage', 'cond pd', 'policy coverage', 'policy pd', 'account coverage', 'account pd', 'account all'
 ])
 
 all_fm_level_names = tuple(k for k in FM_LEVELS)
 
-supp_fm_level_names = tuple(k for k, v in viewitems(FM_LEVELS) if v['id'] in supp_fm_levels)
+supp_fm_level_names = tuple(k for k, v in FM_LEVELS.items() if v['id'] in supp_fm_levels)
 
 fm_terms = tuple(k for k in FM_TERMS)
 
 fm_profile_types = ('acc', 'loc',)
 
-keys_status_flags = tuple(v['id'] for v in viewvalues(OASIS_KEYS_STATUS))
+keys_status_flags = tuple(v['id'] for v in OASIS_KEYS_STATUS.values())
 
-perils = tuple(v['id'] for v in viewvalues(PERILS))
+perils = tuple(v['id'] for v in PERILS.values())
 
-peril_groups = tuple(v['id'] for v in viewvalues(PERIL_GROUPS))
+peril_groups = tuple(v['id'] for v in PERIL_GROUPS.values())
 
 # Used simple echo command rather than ktools conversion utility for testing purposes
 ECHO_CONVERSION_INPUT_FILES = {k: ChainMap({'conversion_tool': 'echo'}, v) for k, v in INPUT_FILES.items()}
 
 def standard_input_files(min_size=0):
     return lists(
-        sampled_from([target['name'] for target in chain(viewvalues(GUL_INPUT_FILES), viewvalues(OPTIONAL_INPUT_FILES))]),
+        sampled_from([target['name'] for target in chain(GUL_INPUT_FILES.values(), OPTIONAL_INPUT_FILES.values())]),
         min_size=min_size,
         unique=True,
     )
@@ -126,7 +110,7 @@ def standard_input_files(min_size=0):
 
 def il_input_files(min_size=0):
     return lists(
-        sampled_from([target['name'] for target in viewvalues(IL_INPUT_FILES)]),
+        sampled_from([target['name'] for target in IL_INPUT_FILES.values()]),
         min_size=min_size,
         unique=True,
     )
@@ -134,7 +118,7 @@ def il_input_files(min_size=0):
 
 def tar_file_targets(min_size=0):
     return lists(
-        sampled_from([target['name'] + '.bin' for target in viewvalues(INPUT_FILES)]),
+        sampled_from([target['name'] + '.bin' for target in INPUT_FILES.values()]),
         min_size=min_size,
         unique=True,
     )

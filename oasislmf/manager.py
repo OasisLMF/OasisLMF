@@ -1,20 +1,8 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-from builtins import open as io_open
-from builtins import str
-
-from future import standard_library
-standard_library.install_aliases()
-
 __all__ = [
     'OasisManager'
 ]
 
+import io
 import json
 import os
 import re
@@ -23,7 +11,6 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from builtins import str
 from collections import OrderedDict
-from future.utils import viewitems
 
 try:
     from json import JSONDecodeError
@@ -348,7 +335,7 @@ class OasisManager(object):
         portfolio_num = id_terms['portid']
         fm_aggregation_profile = (
             fm_aggregation_profile or
-            ({int(k): v for k, v in viewitems(get_json(src_fp=fm_aggregation_profile_fp))} if fm_aggregation_profile_fp else {}) or
+            ({int(k): v for k, v in get_json(src_fp=fm_aggregation_profile_fp).items()} if fm_aggregation_profile_fp else {}) or
             self.fm_aggregation_profile
         )
 
@@ -455,10 +442,10 @@ class OasisManager(object):
             ri_scope_fp,
             target_dir
         )
-        with io_open(os.path.join(target_dir, 'ri_layers.json'), 'w', encoding='utf-8') as f:
+        with io.open(os.path.join(target_dir, 'ri_layers.json'), 'w', encoding='utf-8') as f:
             f.write(_unicode(json.dumps(ri_layers, ensure_ascii=False, indent=4)))
             oasis_files['ri_layers'] = os.path.abspath(f.name)
-            for layer, layer_info in viewitems(ri_layers):
+            for layer, layer_info in ri_layers.items():
                 oasis_files['RI_{}'.format(layer)] = layer_info['directory']
 
         return oasis_files
@@ -506,7 +493,7 @@ class OasisManager(object):
         analysis_settings_fn = 'analysis_settings.json'
         _analysis_settings_fp = os.path.join(model_run_fp, analysis_settings_fn)
         try:
-            with io_open(_analysis_settings_fp, 'r', encoding='utf-8') as f:
+            with io.open(_analysis_settings_fp, 'r', encoding='utf-8') as f:
                 analysis_settings = json.load(f)
 
             if analysis_settings.get('analysis_settings'):
@@ -543,10 +530,10 @@ class OasisManager(object):
             ri_layers = 0
             if ri:
                 try:
-                    with io_open(os.path.join(model_run_fp, 'ri_layers.json'), 'r', encoding='utf-8') as f:
+                    with io.open(os.path.join(model_run_fp, 'ri_layers.json'), 'r', encoding='utf-8') as f:
                         ri_layers = len(json.load(f))
                 except IOError:
-                    with io_open(os.path.join(model_run_fp, 'input', 'ri_layers.json'), 'r', encoding='utf-8') as f:
+                    with io.open(os.path.join(model_run_fp, 'input', 'ri_layers.json'), 'r', encoding='utf-8') as f:
                         ri_layers = len(json.load(f))
 
             model_runner_module.run(
@@ -641,7 +628,7 @@ class OasisManager(object):
                 )
             else:
                 try:
-                    with io_open(os.path.join(input_dir, 'ri_layers.json'), 'r', encoding='utf-8') as f:
+                    with io.open(os.path.join(input_dir, 'ri_layers.json'), 'r', encoding='utf-8') as f:
                         ri_layers = len(json.load(f))
                 except (IOError, JSONDecodeError, OSError, TypeError) as e:
                     raise OasisException('Error trying to read the RI layers file: {}'.format(e))

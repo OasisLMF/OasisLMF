@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from .. import __version__
 from .base import OasisBaseCommand
 

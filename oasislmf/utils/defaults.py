@@ -1,18 +1,3 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-from builtins import open as io_open
-from builtins import str
-
-from future import standard_library
-standard_library.install_aliases()
-
-from future.utils import viewitems
-
 __all__ = [
     'get_calc_rules',
     'get_default_accounts_profile',
@@ -55,7 +40,7 @@ def get_default_exposure_profile(path=False):
 
 def get_default_fm_aggregation_profile(path=False):
     src_fp = os.path.join(STATIC_DATA_FP, 'fm-oed-agg-profile.json')
-    return {int(k): v for k, v in viewitems(get_json(src_fp=src_fp))} if not path else src_fp
+    return {int(k): v for k, v in get_json(src_fp=src_fp).items()} if not path else src_fp
 
 
 # Ktools calc. rules

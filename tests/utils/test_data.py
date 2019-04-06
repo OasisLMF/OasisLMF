@@ -1,17 +1,3 @@
-# -*- coding: utf-8 -*-
-
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-from builtins import open as io_open
-from builtins import str
-
-from future import standard_library
-standard_library.install_aliases()
-
 import copy
 import io
 import itertools
@@ -23,7 +9,6 @@ import sys
 
 from collections import OrderedDict
 from datetime import datetime
-from future.utils import viewitems, viewvalues
 from unittest import TestCase
 
 import numpy as np
@@ -288,7 +273,7 @@ class TestGetDataframe(TestCase):
         fp = NamedTemporaryFile('w', delete=False)
         try:
             df = pd.DataFrame(data)
-            for col, dtype in viewitems(dtypes):
+            for col, dtype in dtypes.items():
                 df[col] = df[col].astype(dtype)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
             fp.close()
@@ -323,7 +308,7 @@ class TestGetDataframe(TestCase):
         fp = NamedTemporaryFile('w', delete=False)
         try:
             df = pd.DataFrame(data)
-            for col, dtype in viewitems(dtypes):
+            for col, dtype in dtypes.items():
                 df[col] = df[col].astype(dtype)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
             fp.close()
@@ -612,7 +597,7 @@ class TestGetDataframe(TestCase):
             fp.close()
 
             expected = df.copy(deep=True)
-            for col, default in viewitems(defaults):
+            for col, default in defaults.items():
                 expected.loc[:, col].fillna(defaults[col], inplace=True)
 
             result = get_dataframe(src_fp=fp.name, col_defaults=defaults)
@@ -649,7 +634,7 @@ class TestGetDataframe(TestCase):
 
             expected = df.copy(deep=True)
             expected.columns = expected.columns.str.lower()
-            for col, default in viewitems(defaults):
+            for col, default in defaults.items():
                 expected.loc[:, col.lower()].fillna(defaults[col], inplace=True)
 
             result = get_dataframe(src_fp=fp.name, col_defaults=defaults)
@@ -738,7 +723,7 @@ class TestGetDataframe(TestCase):
     def test_get_dataframe__from_csv_file__set_sort_cols_option_on_single_col_and_use_defaults_for_all_other_options(self, data):
         fp = NamedTemporaryFile("w", delete=False)
         try:
-            data = [{k: (v if k != 'int_col' else np.random.choice(range(10))) for k, v in viewitems(it)} for it in data]
+            data = [{k: (v if k != 'int_col' else np.random.choice(range(10))) for k, v in it.items()} for it in data]
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
             fp.close()
@@ -769,7 +754,7 @@ class TestGetDataframe(TestCase):
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_sort_cols_option_on_single_col_and_use_defaults_for_all_other_options(self, data):
         fp = NamedTemporaryFile("w", delete=False)
         try:
-            data = [{k: (v if k != 'IntCol' else np.random.choice(range(10))) for k, v in viewitems(it)} for it in data]
+            data = [{k: (v if k != 'IntCol' else np.random.choice(range(10))) for k, v in it.items()} for it in data]
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
             fp.close()
@@ -802,7 +787,7 @@ class TestGetDataframe(TestCase):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             data = [
-                {k: (v if k not in ('int_col', 'str_col') else (np.random.choice(range(10)) if k == 'int_col' else np.random.choice(list(string.ascii_lowercase)))) for k, v in viewitems(it)}
+                {k: (v if k not in ('int_col', 'str_col') else (np.random.choice(range(10)) if k == 'int_col' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
                 for it in data
             ]
             df = pd.DataFrame(data)
@@ -836,7 +821,7 @@ class TestGetDataframe(TestCase):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             data = [
-                {k: (v if k not in ('IntCol', 'STR_COL') else (np.random.choice(range(10)) if k == 'IntCol' else np.random.choice(list(string.ascii_lowercase)))) for k, v in viewitems(it)}
+                {k: (v if k not in ('IntCol', 'STR_COL') else (np.random.choice(range(10)) if k == 'IntCol' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
                 for it in data
             ]
             df = pd.DataFrame(data)
@@ -904,7 +889,7 @@ class TestGetDataframe(TestCase):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             df = pd.DataFrame(data)
-            for col, dtype in viewitems(dtypes):
+            for col, dtype in dtypes.items():
                 df[col] = df[col].astype(dtype)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
             fp.close()
@@ -1061,7 +1046,7 @@ class TestGetDataframe(TestCase):
             fp.close()
 
             expected = df.copy(deep=True)
-            for col, default in viewitems(defaults):
+            for col, default in defaults.items():
                 expected.loc[:, col].fillna(defaults[col], inplace=True)
 
             result = get_dataframe(src_fp=fp.name, col_defaults=defaults, lowercase_cols=False)
@@ -1118,7 +1103,7 @@ class TestGetDataframe(TestCase):
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false_and_sort_cols_option_on_single_col_and_use_defaults_for_all_other_options(self, data):
         fp = NamedTemporaryFile("w", delete=False)
         try:
-            data = [{k: (v if k != 'IntCol' else np.random.choice(range(10))) for k, v in viewitems(it)} for it in data]
+            data = [{k: (v if k != 'IntCol' else np.random.choice(range(10))) for k, v in it.items()} for it in data]
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
             fp.close()
@@ -1150,7 +1135,7 @@ class TestGetDataframe(TestCase):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             data = [
-                {k: (v if k not in ('IntCol', 'STR_COL') else (np.random.choice(range(10)) if k == 'IntCol' else np.random.choice(list(string.ascii_lowercase)))) for k, v in viewitems(it)}
+                {k: (v if k not in ('IntCol', 'STR_COL') else (np.random.choice(range(10)) if k == 'IntCol' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
                 for it in data
             ]
             df = pd.DataFrame(data)

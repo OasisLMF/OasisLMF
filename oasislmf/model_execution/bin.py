@@ -1,12 +1,8 @@
-# -*- coding: utf-8 -*-
 """
     Python utilities used for setting up the structure of the run directory
     in which to prepare the inputs to run a model or generate deterministic
     losses, and store the outputs.
 """
-
-from __future__ import print_function
-
 __all__ = [
     'check_binary_tar_file',
     'check_conversion_tools',

@@ -1,16 +1,3 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-from builtins import open as io_open
-from builtins import str
-
-from future import standard_library
-standard_library.install_aliases()
-
 __all__ = [
     'OasisBaseLookup',
     'OasisBaseKeysLookup',
@@ -33,11 +20,6 @@ import types
 import uuid
 
 from collections import OrderedDict
-from future.utils import (
-    string_types,
-    viewvalues,
-    viewitems,
-)
 
 import pandas as pd
 
@@ -108,7 +90,7 @@ class OasisBaseLookup(object):
         elif config_fp:
             self.config_dir = config_dir or os.path.dirname(config_fp)
             _config_fp = as_path(config_fp, 'config_fp')
-            with io_open(_config_fp, 'r', encoding='utf-8') as f:
+            with io.open(_config_fp, 'r', encoding='utf-8') as f:
                 self._config = json.load(f)
 
         keys_data_path = self._config.get('keys_data_path')
@@ -135,14 +117,14 @@ class OasisBaseLookup(object):
     def __tweak_config_data__(self):
         for section in ('exposure', 'peril', 'vulnerability',):
             section_config = self._config.get(section) or {}
-            for k, v in viewitems(section_config):
-                if isinstance(v, string_types) and '%%KEYS_DATA_PATH%%' in v:
+            for k, v in section_config.items():
+                if isinstance(v, str) and '%%KEYS_DATA_PATH%%' in v:
                     self._config[section][k] = v.replace('%%KEYS_DATA_PATH%%', self._config['keys_data_path'])
                 elif type(v) == list:
                     self._config[section][k] = tuple(v)
                 elif isinstance(v, dict):
-                    for _k, _v in viewitems(v):
-                        if isinstance(_v, string_types) and '%%KEYS_DATA_PATH%%' in _v:
+                    for _k, _v in v.items():
+                        if isinstance(_v, str) and '%%KEYS_DATA_PATH%%' in _v:
                             self._config[section][k][_k] = _v.replace('%%KEYS_DATA_PATH%%', self._config['keys_data_path'])
 
     @property
@@ -193,7 +175,7 @@ class OasisBaseLookup(object):
         elif isinstance(locs, types.GeneratorType):
             locs_seq = locs
         elif (isinstance(locs, dict)):
-            locs_seq = viewvalues(locs)
+            locs_seq = locs.values()
         elif isinstance(locs, pd.DataFrame):
             locs_seq = (loc for _, loc in locs.iterrows())
 
@@ -288,7 +270,7 @@ class OasisLookupFactory(object):
         if not model_version_file_path:
             raise OasisException("Unable to get model version data without model_version_file_path")
 
-        with io_open(model_version_file_path, 'r', encoding='utf-8') as f:
+        with io.open(model_version_file_path, 'r', encoding='utf-8') as f:
             return next(csv.DictReader(
                 f, fieldnames=['supplier_id', 'model_id', 'model_version']
             ))
@@ -413,7 +395,7 @@ class OasisLookupFactory(object):
         """
         Writes the keys records as a simple list to file.
         """
-        with io_open(output_file_path, 'w', encoding='utf-8') as f:
+        with io.open(output_file_path, 'w', encoding='utf-8') as f:
             f.write(u'{}'.format(json.dumps(records, sort_keys=True, indent=4, ensure_ascii=False)))
 
             return output_file_path, len(records)
@@ -809,7 +791,7 @@ class OasisLookup(OasisBaseLookup):
                     ('status', status),
                     ('message', message),
                 ),
-                viewitems(vlookup)
+                vlookup.items()
             )
         }
 
@@ -1057,7 +1039,7 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
             )
 
         col_dtypes = {
-            k.lower():getattr(builtins, v) for k, v in viewitems(col_dtypes)
+            k.lower():getattr(builtins, v) for k, v in col_dtypes.items()
         }
 
         key_cols = vuln_config.get('key_cols')
@@ -1150,7 +1132,7 @@ class OasisVulnerabilityLookup(OasisBaseLookup):
                     ('vulnerability_id', vlnid),
                     ('message', vlnmsg)
                 ),
-                viewitems(loc_key_col_values)
+                loc_key_col_values.items()
             )
         }
 
