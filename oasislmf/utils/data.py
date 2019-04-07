@@ -236,9 +236,12 @@ def get_dataframe(
     # convenient to have this feature at the code level.
 
     if col_defaults:
-        _col_defaults = {k.lower(): v for k, v in col_defaults.items()} if lowercase_cols else col_defaults
-        for col, val in _col_defaults.items():
-            df.loc[:, col] = df.loc[:, col].fillna(val) if col in df else val
+        _col_defaults = {k.lower(): v for k, v in viewitems(col_defaults)} if lowercase_cols else col_defaults
+        for col, val in viewitems(_col_defaults):
+            if col in df:
+                df.loc[:, col] = df.loc[:, col].fillna(val)
+            else:
+                df[col] = val
 
     if non_na_cols:
         _non_na_cols = tuple(col.lower() for col in non_na_cols) if lowercase_cols else non_na_cols
