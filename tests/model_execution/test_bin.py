@@ -2,7 +2,7 @@ import glob
 import io
 import os
 import shutil
-import subprocess32 as subprocess
+import subprocess
 import tarfile
 
 from itertools import chain

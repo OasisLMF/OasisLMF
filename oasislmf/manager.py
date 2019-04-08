@@ -3,10 +3,13 @@ __all__ = [
 ]
 
 import io
+import importlib
 import json
 import os
 import re
+import sys
 import warnings
+
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from builtins import str
@@ -17,13 +20,12 @@ try:
 except ImportError:
     from builtins import ValueError as JSONDecodeError
 
-from subprocess32 import (
+from subprocess import (
     CalledProcessError,
     check_call,
     run,
 )
-import sys
-import importlib
+
 from itertools import (
     chain,
     product,

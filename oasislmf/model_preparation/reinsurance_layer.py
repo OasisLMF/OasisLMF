@@ -10,7 +10,7 @@ import logging
 import math
 import os
 import shutil
-import subprocess32 as subprocess
+import subprocess
 
 from collections import namedtuple
 from itertools import product
