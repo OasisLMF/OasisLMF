@@ -15,7 +15,6 @@ __all__ = [
 import copy
 import io
 import json
-import multiprocessing
 import os
 import sys
 import warnings
@@ -23,9 +22,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from collections import OrderedDict
 from itertools import (
-    chain,
     groupby,
-    product,
 )
 
 import pandas as pd
@@ -34,7 +31,6 @@ import numpy as np
 
 from ..utils.concurrency import (
     get_num_cpus,
-    multiprocess,
     multithread,
     Task,
 )
@@ -51,14 +47,12 @@ from ..utils.defaults import (
     get_default_exposure_profile,
     get_default_fm_aggregation_profile,
     OASIS_FILES_PREFIXES,
-    STATIC_DATA_FP,
 )
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.path import as_path
 from ..utils.metadata import (
     COVERAGE_TYPES,
-    FM_LEVELS,
 )
 
 
@@ -69,7 +63,7 @@ def unified_fm_profile_by_level(profiles=[], profile_paths=[]):
 
     if not profiles:
         for pp in profile_paths:
-            with io_open(pp, 'r', encoding='utf-8') as f:
+            with io.open(pp, 'r', encoding='utf-8') as f:
                 profiles.append(json.load(f))
 
     comb_prof = {k: v for p in profiles for k, v in ((k, v) for k, v in p.items() if 'FMLevel' in v)}
@@ -155,9 +149,9 @@ def unified_id_terms(profiles=[], profile_paths=[], unified_profile_by_level=Non
         for k, v in sorted(ufp[0][1].items())
     })
     id_terms.setdefault('locid', ('locnumber' if lowercase else 'LocNumber'))
-    id_terms.setdefault('accid', 'accnumber'  if lowercase else 'AccNumber')
-    id_terms.setdefault('polid', 'polnumber'  if lowercase else 'PolNumber')
-    id_terms.setdefault('portid', 'portnumber'  if lowercase else 'PortNumber')
+    id_terms.setdefault('accid', 'accnumber' if lowercase else 'AccNumber')
+    id_terms.setdefault('polid', 'polnumber' if lowercase else 'PolNumber')
+    id_terms.setdefault('portid', 'portnumber' if lowercase else 'PortNumber')
 
     return id_terms
 
@@ -200,13 +194,13 @@ def get_il_input_items(
     :rtype: pandas.DataFrame
 
     :return Accounts dataframe
-    :rtype: pandas.DataFrame 
+    :rtype: pandas.DataFrame
     """
     # Get the OED profiles describing exposure, accounts, and using these also
     # unified exposure + accounts profile and the aggregation profile
     exppf = exposure_profile
     accpf = accounts_profile
-    
+
     ufp = unified_fm_profile_by_level_and_term_group(profiles=(exppf, accpf,))
 
     if not ufp:
@@ -237,6 +231,8 @@ def get_il_input_items(
 
     accounts_il_terms = unified_fm_terms_by_level_and_term_group(profiles=(accpf,))
     accounts_il_cols = [__v for v in accounts_il_terms.values() for _v in v.values() for __v in _v.values() if __v]
+
+    col_defaults = {t: 0.0 for t in accounts_il_cols}
     col_dtypes = {
         **{t: 'str' for t in [loc_id, acc_id, portfolio_num, policy_num]},
         **{t: 'float32' for t in accounts_il_cols},
@@ -247,6 +243,7 @@ def get_il_input_items(
     accounts_df = accounts_df if accounts_df is not None else get_dataframe(
         src_fp=accounts_fp,
         col_dtypes=col_dtypes,
+        col_defaults=col_defaults,
         required_cols=(acc_id, policy_num, portfolio_num,),
         empty_data_error_msg='No accounts found in the source accounts (loc.) file',
         memory_map=True,
@@ -371,13 +368,12 @@ def get_il_input_items(
                 return il_inputs_df[[v for v in fm_terms[level][1].values() if v]].any().any()
             except KeyError:
                 return False
-        #import ipdb; ipdb.set_trace()
 
         intermediate_fm_levels = tuple(l for l in fm_levels[1:-1] if level_has_fm_terms(l))
 
         # Define a list of all supported OED coverage types in the exposure
         all_cov_types = [
-            v['id'] for k, v in COVERAGE_TYPES.items() if k in ['buildings','other','contents','bi']
+            v['id'] for k, v in COVERAGE_TYPES.items() if k in ['buildings', 'other', 'contents', 'bi']
         ]
 
         # The basic list of financial term types for sub-layer levels - the
@@ -386,7 +382,7 @@ def get_il_input_items(
         terms = ['deductible', 'deductible_min', 'deductible_max', 'limit']
 
         # The main loop for processing the financial terms for each sub-layer
-        # non-coverage level (currently, 2, 3, 6, 9), including setting the 
+        # non-coverage level (currently, 2, 3, 6, 9), including setting the
         # calc. rule IDs, and append each level to the current IL inputs frame
         for level in intermediate_fm_levels:
             term_cols = [(term_col or term) for term, term_col in fm_terms[level][1].items() if term != 'share']
@@ -425,7 +421,7 @@ def get_il_input_items(
 
         # Process the layer level inputs separately - we start with merging
         # the coverage level layer 1 items with the accounts frame to create
-        # a separate layer level frame, on which further processing is 
+        # a separate layer level frame, on which further processing is
         cov_level_layer1_df = il_inputs_df[il_inputs_df['level_id'] == cov_level]
         layer_df = merge_dataframes(
             cov_level_layer1_df,
@@ -722,7 +718,7 @@ def write_il_input_files(
     # Clean the target directory path
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
 
-    chunksize = min(2*10**5, len(il_inputs_df))
+    chunksize = min(2 * 10**5, len(il_inputs_df))
 
     if write_inputs_table_to_file:
         il_inputs_df.to_csv(path_or_buf=os.path.join(target_dir, 'il_inputs.csv'), index=False, encoding='utf-8', chunksize=chunksize)

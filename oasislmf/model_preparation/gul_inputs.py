@@ -9,16 +9,11 @@ __all__ = [
 
 import copy
 import os
-import multiprocessing
 import sys
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from collections import OrderedDict
-from itertools import (
-    chain,
-    product,
-)
 
 import numpy as np
 import pandas as pd
@@ -94,7 +89,7 @@ def get_gul_input_items(
     portfolio_num = id_terms['portid']
 
     # Get the TIV column names and corresponding coverage types
-    tiv_terms = OrderedDict({v['tiv']['CoverageTypeID']:v['tiv']['ProfileElementName'].lower() for k, v in ufp[1].items()})
+    tiv_terms = OrderedDict({v['tiv']['CoverageTypeID']: v['tiv']['ProfileElementName'].lower() for k, v in ufp[1].items()})
 
     # Define the cov. level and get the cov. level IL/FM terms
     cov_level = COVERAGE_TYPES['buildings']['id']
@@ -102,6 +97,7 @@ def get_gul_input_items(
 
     tiv_and_cov_il_terms = [v for v in tiv_terms.values()] + [_v for v in cov_il_terms.values() for _v in v.values() if _v]
 
+    col_defaults = {t: 0.0 for t in tiv_and_cov_il_terms}
     col_dtypes = {t: ('float32' if t in tiv_and_cov_il_terms else 'str') for t in tiv_and_cov_il_terms + [loc_id, acc_id, portfolio_num]}
 
     # Load the exposure and keys dataframes - set 32-bit numeric data types
@@ -111,7 +107,7 @@ def get_gul_input_items(
         src_fp=exposure_fp,
         required_cols=(loc_id, acc_id, portfolio_num,),
         col_dtypes=col_dtypes,
-        #col_defaults={t: 0.0 for t in tiv_and_cov_il_terms},
+        col_defaults=col_defaults,
         empty_data_error_msg='No data found in the source exposure (loc.) file',
         memory_map=True
     )
@@ -396,7 +392,7 @@ def write_gul_input_files(
     # Clean the target directory path
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
 
-    chunksize = min(2*10**5, len(gul_inputs_df))
+    chunksize = min(2 * 10**5, len(gul_inputs_df))
 
     if write_inputs_table_to_file:
         gul_inputs_df.to_csv(path_or_buf=os.path.join(target_dir, 'gul_inputs.csv'), index=False, encoding='utf-8', chunksize=chunksize)
@@ -406,7 +402,7 @@ def write_gul_input_files(
             oasis_files_prefixes.pop('complex_items')
 
     gul_input_files = {
-        fn: os.path.join(target_dir, '{}.csv'.format(oasis_files_prefixes[fn])) 
+        fn: os.path.join(target_dir, '{}.csv'.format(oasis_files_prefixes[fn]))
         for fn in oasis_files_prefixes
     }
 
