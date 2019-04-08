@@ -1179,7 +1179,7 @@ class TestGetJson(TestCase):
             f1.write(json.dumps(expected, indent=4, sort_keys=True))
             f1.close()
 
-            with io_open(f1.name, 'r', encoding='utf-8') as f2:
+            with io.open(f1.name, 'r', encoding='utf-8') as f2:
                 result = json.load(f2)
                 self.assertEqual(result, expected)
         finally:

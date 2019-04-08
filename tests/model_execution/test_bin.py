@@ -1,4 +1,5 @@
 import glob
+import io
 import os
 import shutil
 import subprocess32 as subprocess
@@ -49,7 +50,7 @@ from tests.data import (
 class CsvToBin(TestCase):
     def test_directory_only_contains_excluded_files___tar_is_empty(self):
         with TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
-            with io_open(os.path.join(csv_dir, 'another_file'), 'w', encoding='utf-8') as f:
+            with io.open(os.path.join(csv_dir, 'another_file'), 'w', encoding='utf-8') as f:
                 f.write('file data')
 
             csv_to_bin(csv_dir, bin_dir)
@@ -61,7 +62,7 @@ class CsvToBin(TestCase):
     def test_contains_il_and_standard_files_but_il_is_false___il_files_are_excluded(self, standard, il):
         with patch('oasislmf.model_execution.bin.INPUT_FILES', ECHO_CONVERSION_INPUT_FILES), TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
             for target in chain(standard, il):
-                with io_open(os.path.join(csv_dir, target + '.csv'), 'w', encoding='utf-8') as f:
+                with io.open(os.path.join(csv_dir, target + '.csv'), 'w', encoding='utf-8') as f:
                     f.write(target)
 
             csv_to_bin(csv_dir, bin_dir, il=False)
@@ -75,7 +76,7 @@ class CsvToBin(TestCase):
     def test_contains_il_and_standard_files_but_il_is_true___all_files_are_included(self, standard, il):
         with patch('oasislmf.model_execution.bin.INPUT_FILES', ECHO_CONVERSION_INPUT_FILES), TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
             for target in chain(standard, il):
-                with io_open(os.path.join(csv_dir, target + '.csv'), 'w', encoding='utf-8') as f:
+                with io.open(os.path.join(csv_dir, target + '.csv'), 'w', encoding='utf-8') as f:
                     f.write(target)
 
             csv_to_bin(csv_dir, bin_dir, il=True)
@@ -99,11 +100,11 @@ class CsvToBin(TestCase):
             files = standard + il
 
             for target in files:
-                with io_open(os.path.join(csv_dir, target + '.csv'), 'w', encoding='utf-8') as f:
+                with io.open(os.path.join(csv_dir, target + '.csv'), 'w', encoding='utf-8') as f:
                     f.write(target)
             os.mkdir(os.path.join(csv_dir, "RI_1"))
             for target in files:
-                with io_open(os.path.join(csv_dir, "RI_1", target + '.csv'), 'w', encoding='utf-8') as f:
+                with io.open(os.path.join(csv_dir, "RI_1", target + '.csv'), 'w', encoding='utf-8') as f:
                     f.write(target)
 
             csv_to_bin(csv_dir, bin_dir, il=True, ri=True)
@@ -125,15 +126,15 @@ class CsvToBin(TestCase):
             files = standard + il
 
             for target in files:
-                with io_open(os.path.join(csv_dir, target + '.csv'), 'w', encoding='utf-8') as f:
+                with io.open(os.path.join(csv_dir, target + '.csv'), 'w', encoding='utf-8') as f:
                     f.write(target)
             os.mkdir(os.path.join(csv_dir, "RI_1"))
             for target in files:
-                with io_open(os.path.join(csv_dir, "RI_1", target + '.csv'), 'w', encoding='utf-8') as f:
+                with io.open(os.path.join(csv_dir, "RI_1", target + '.csv'), 'w', encoding='utf-8') as f:
                     f.write(target)
             os.mkdir(os.path.join(csv_dir, "RI_2"))
             for target in files:
-                with io_open(os.path.join(csv_dir, "RI_2", target + '.csv'), 'w', encoding='utf-8') as f:
+                with io.open(os.path.join(csv_dir, "RI_2", target + '.csv'), 'w', encoding='utf-8') as f:
                     f.write(target)
 
             csv_to_bin(csv_dir, bin_dir, il=True, ri=True)
@@ -154,7 +155,7 @@ class CsvToBin(TestCase):
 class CreateBinaryTarFile(TestCase):
     def test_directory_only_contains_excluded_files___tar_is_empty(self):
         with TemporaryDirectory() as d:
-            with io_open(os.path.join(d, 'another_file'), 'w', encoding='utf-8') as f:
+            with io.open(os.path.join(d, 'another_file'), 'w', encoding='utf-8') as f:
                 f.write('file data')
 
             create_binary_tar_file(d)
@@ -166,7 +167,7 @@ class CreateBinaryTarFile(TestCase):
     def test_directory_contains_some_target_files___target_files_are_included(self, targets):
         with TemporaryDirectory() as d:
             for target in targets:
-                with io_open(os.path.join(d, target), 'w', encoding='utf-8') as f:
+                with io.open(os.path.join(d, target), 'w', encoding='utf-8') as f:
                     f.write(target)
 
             create_binary_tar_file(d)
@@ -180,9 +181,9 @@ class CreateBinaryTarFile(TestCase):
         with TemporaryDirectory() as d:
             os.mkdir(os.path.join(d, 'RI_1'))
             for target in targets:
-                with io_open(os.path.join(d, target), 'w', encoding='utf-8') as f:
+                with io.open(os.path.join(d, target), 'w', encoding='utf-8') as f:
                     f.write(target)
-                with io_open(os.path.join(d, 'RI_1', target), 'w', encoding='utf-8') as f:
+                with io.open(os.path.join(d, 'RI_1', target), 'w', encoding='utf-8') as f:
                     f.write(target)
 
             create_binary_tar_file(d)
@@ -203,11 +204,11 @@ class CreateBinaryTarFile(TestCase):
             os.mkdir(os.path.join(d, 'RI_2'))
             
             for target in targets:
-                with io_open(os.path.join(d, target), 'w', encoding='utf-8') as f:
+                with io.open(os.path.join(d, target), 'w', encoding='utf-8') as f:
                     f.write(target)
-                with io_open(os.path.join(d, 'RI_1', target), 'w', encoding='utf-8') as f:
+                with io.open(os.path.join(d, 'RI_1', target), 'w', encoding='utf-8') as f:
                     f.write(target)
-                with io_open(os.path.join(d, 'RI_2', target), 'w', encoding='utf-8') as f:
+                with io.open(os.path.join(d, 'RI_2', target), 'w', encoding='utf-8') as f:
                     f.write(target)                
 
             create_binary_tar_file(d)
@@ -534,7 +535,7 @@ class PrepareRunDirectory(TestCase):
 
                 prepare_run_directory(run_dir, oasis_src_fp, model_data_fp, analysis_settings_fp.name)
 
-                with io_open(os.path.join(run_dir, 'analysis_settings.json'), encoding='utf-8') as expected_analysis_settings:
+                with io.open(os.path.join(run_dir, 'analysis_settings.json'), encoding='utf-8') as expected_analysis_settings:
                     self.assertEqual('{"analysis_settings": "analysis_settings"}', expected_analysis_settings.read())
         finally:
             os.remove(analysis_settings_fp.name)
@@ -631,39 +632,39 @@ class PrepareRunInputs(TestCase):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
 
-            with io_open(os.path.join(d, 'input', 'events.bin'), 'w', encoding='utf-8') as events_file:
+            with io.open(os.path.join(d, 'input', 'events.bin'), 'w', encoding='utf-8') as events_file:
                 events_file.write('events bin')
                 events_file.flush()
 
                 prepare_run_inputs({}, d)
 
-            with io_open(os.path.join(d, 'input', 'events.bin'), 'r', encoding='utf-8') as new_events_file:
+            with io.open(os.path.join(d, 'input', 'events.bin'), 'r', encoding='utf-8') as new_events_file:
                 self.assertEqual('events bin', new_events_file.read())
 
     def test_events_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
 
-            with io_open(os.path.join(d, 'static', 'events.bin'), 'w', encoding='utf-8') as events_file:
+            with io.open(os.path.join(d, 'static', 'events.bin'), 'w', encoding='utf-8') as events_file:
                 events_file.write('events bin')
                 events_file.flush()
 
                 prepare_run_inputs({}, d)
 
-            with io_open(os.path.join(d, 'input', 'events.bin'), 'r', encoding='utf-8') as new_events_file:
+            with io.open(os.path.join(d, 'input', 'events.bin'), 'r', encoding='utf-8') as new_events_file:
                 self.assertEqual('events bin', new_events_file.read())
 
     def test_events_bin_doesnt_not_exist_event_set_is_specified___event_set_specific_bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
 
-            with io_open(os.path.join(d, 'static', 'events_from_set.bin'), 'w', encoding='utf-8') as events_file:
+            with io.open(os.path.join(d, 'static', 'events_from_set.bin'), 'w', encoding='utf-8') as events_file:
                 events_file.write('events from set bin')
                 events_file.flush()
 
                 prepare_run_inputs({'model_settings': {'event_set': 'from set'}}, d)
 
-            with io_open(os.path.join(d, 'input', 'events.bin'), 'r', encoding='utf-8') as new_events_file:
+            with io.open(os.path.join(d, 'input', 'events.bin'), 'r', encoding='utf-8') as new_events_file:
                 self.assertEqual('events from set bin', new_events_file.read())
 
     def test_no_events_bin_exists___oasis_exception_is_raised(self):
@@ -678,26 +679,26 @@ class PrepareRunInputs(TestCase):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
 
-            with io_open(os.path.join(d, 'input', 'returnperiods.bin'), 'w', encoding='utf-8') as returnperiods_file:
+            with io.open(os.path.join(d, 'input', 'returnperiods.bin'), 'w', encoding='utf-8') as returnperiods_file:
                 returnperiods_file.write('returnperiods bin')
                 returnperiods_file.flush()
 
                 prepare_run_inputs({}, d)
 
-            with io_open(os.path.join(d, 'input', 'returnperiods.bin'), 'r', encoding='utf-8') as new_returnperiods_file:
+            with io.open(os.path.join(d, 'input', 'returnperiods.bin'), 'r', encoding='utf-8') as new_returnperiods_file:
                 self.assertEqual('returnperiods bin', new_returnperiods_file.read())
 
     def test_returnperiods_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
 
-            with io_open(os.path.join(d, 'static', 'returnperiods.bin'), 'w', encoding='utf-8') as returnperiods_file:
+            with io.open(os.path.join(d, 'static', 'returnperiods.bin'), 'w', encoding='utf-8') as returnperiods_file:
                 returnperiods_file.write('returnperiods bin')
                 returnperiods_file.flush()
 
                 prepare_run_inputs({}, d)
 
-            with io_open(os.path.join(d, 'input', 'returnperiods.bin'), 'r', encoding='utf-8') as new_returnperiods_file:
+            with io.open(os.path.join(d, 'input', 'returnperiods.bin'), 'r', encoding='utf-8') as new_returnperiods_file:
                 self.assertEqual('returnperiods bin', new_returnperiods_file.read())
 
     def test_no_returnperiods_bin_exists___oasis_exception_is_raised(self):
@@ -712,39 +713,39 @@ class PrepareRunInputs(TestCase):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
 
-            with io_open(os.path.join(d, 'input', 'occurrence.bin'), 'w', encoding='utf-8') as occurrence_file:
+            with io.open(os.path.join(d, 'input', 'occurrence.bin'), 'w', encoding='utf-8') as occurrence_file:
                 occurrence_file.write('occurrence bin')
                 occurrence_file.flush()
 
                 prepare_run_inputs({}, d)
 
-            with io_open(os.path.join(d, 'input', 'occurrence.bin'), 'r', encoding='utf-8') as new_occurrence_file:
+            with io.open(os.path.join(d, 'input', 'occurrence.bin'), 'r', encoding='utf-8') as new_occurrence_file:
                 self.assertEqual('occurrence bin', new_occurrence_file.read())
 
     def test_occurrence_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
 
-            with io_open(os.path.join(d, 'static', 'occurrence.bin'), 'w', encoding='utf-8') as occurrence_file:
+            with io.open(os.path.join(d, 'static', 'occurrence.bin'), 'w', encoding='utf-8') as occurrence_file:
                 occurrence_file.write('occurrence bin')
                 occurrence_file.flush()
 
                 prepare_run_inputs({}, d)
 
-            with io_open(os.path.join(d, 'input', 'occurrence.bin'), 'r', encoding='utf-8') as new_occurrence_file:
+            with io.open(os.path.join(d, 'input', 'occurrence.bin'), 'r', encoding='utf-8') as new_occurrence_file:
                 self.assertEqual('occurrence bin', new_occurrence_file.read())
 
     def test_occurrence_bin_doesnt_not_exist_event_set_is_specified___event_occurrence_id_specific_bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
 
-            with io_open(os.path.join(d, 'static', 'occurrence_occurrence_id.bin'), 'w', encoding='utf-8') as occurrence_file:
+            with io.open(os.path.join(d, 'static', 'occurrence_occurrence_id.bin'), 'w', encoding='utf-8') as occurrence_file:
                 occurrence_file.write('occurrence occurrence id bin')
                 occurrence_file.flush()
 
                 prepare_run_inputs({'model_settings': {'event_occurrence_id': 'occurrence id'}}, d)
 
-            with io_open(os.path.join(d, 'input', 'occurrence.bin'), 'r', encoding='utf-8') as new_occurrence_file:
+            with io.open(os.path.join(d, 'input', 'occurrence.bin'), 'r', encoding='utf-8') as new_occurrence_file:
                 self.assertEqual('occurrence occurrence id bin', new_occurrence_file.read())
 
     def test_no_occurrence_bin_exists___oasis_exception_is_raised(self):
@@ -759,26 +760,26 @@ class PrepareRunInputs(TestCase):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
 
-            with io_open(os.path.join(d, 'input', 'periods.bin'), 'w', encoding='utf-8') as periods_file:
+            with io.open(os.path.join(d, 'input', 'periods.bin'), 'w', encoding='utf-8') as periods_file:
                 periods_file.write('periods bin')
                 periods_file.flush()
 
                 prepare_run_inputs({}, d)
 
-            with io_open(os.path.join(d, 'input', 'periods.bin'), 'r', encoding='utf-8') as new_periods_file:
+            with io.open(os.path.join(d, 'input', 'periods.bin'), 'r', encoding='utf-8') as new_periods_file:
                 self.assertEqual('periods bin', new_periods_file.read())
 
     def test_periods_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
         with TemporaryDirectory() as d:
             self.make_fake_bins(d)
 
-            with io_open(os.path.join(d, 'static', 'periods.bin'), 'w', encoding='utf-8') as periods_file:
+            with io.open(os.path.join(d, 'static', 'periods.bin'), 'w', encoding='utf-8') as periods_file:
                 periods_file.write('periods bin')
                 periods_file.flush()
 
                 prepare_run_inputs({}, d)
 
-            with io_open(os.path.join(d, 'input', 'periods.bin'), 'r', encoding='utf-8') as new_periods_file:
+            with io.open(os.path.join(d, 'input', 'periods.bin'), 'r', encoding='utf-8') as new_periods_file:
                 self.assertEqual('periods bin', new_periods_file.read())
 
 
