@@ -612,7 +612,7 @@ class OasisManager(object):
         losses['gul'] = guls
 
         ils = pd.read_csv(ils_fp)
-        ils.drop(ils[ils['sidx'] != 1].index, inplace=True)
+        ils.drop(ils[ils['sidx'] != -3].index, inplace=True)
         ils.reset_index(drop=True, inplace=True)
         ils.drop('sidx', axis=1, inplace=True)
         ils = ils[(ils[['loss']] != 0).any(axis=1)]
@@ -653,7 +653,7 @@ class OasisManager(object):
                         except CalledProcessError as e:
                             raise OasisException from e
                         rils = pd.read_csv(ri_layer_fp)
-                        rils.drop(rils[rils['sidx'] != 1].index, inplace=True)
+                        rils.drop(rils[rils['sidx'] != -3].index, inplace=True)
                         rils.drop('sidx', axis=1, inplace=True)
                         rils.reset_index(drop=True, inplace=True)
                         rils = rils[(rils[['loss']] != 0).any(axis=1)]
