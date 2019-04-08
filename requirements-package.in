@@ -17,7 +17,6 @@ rtree>=0.8.3
 requests-toolbelt
 shapely>=1.6.4.post1
 shutilwhich
-six>=1.11.0
 subprocess32
 tabulate>=0.8.2
 tqdm

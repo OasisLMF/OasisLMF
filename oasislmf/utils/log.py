@@ -15,11 +15,6 @@ import time
 from functools import wraps
 from logging.handlers import RotatingFileHandler
 
-from six.moves import zip
-import six
-
-
-
 
 def getargspec(func):
     if hasattr(inspect, 'getfullargspec'):
@@ -89,7 +84,7 @@ def oasis_log(*args, **kwargs):
         @wraps(func)
         def wrapper(*args, **kwargs):
             func_name = func.__name__
-            caller_module_name = six.get_function_globals(func)['__name__']
+            caller_module_name = func.__globals__.get('__name__')
             logger.info("STARTED: {}.{}".format(
                 caller_module_name, func_name))
 

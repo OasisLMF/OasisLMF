@@ -33,7 +33,6 @@ import pandas as pd
 pd.options.mode.chained_assignment = None
 
 from pathlib2 import Path
-from six import text_type as _unicode
 
 from .model_execution import runner
 from .model_execution.bin import (
@@ -443,7 +442,7 @@ class OasisManager(object):
             target_dir
         )
         with io.open(os.path.join(target_dir, 'ri_layers.json'), 'w', encoding='utf-8') as f:
-            f.write(_unicode(json.dumps(ri_layers, ensure_ascii=False, indent=4)))
+            f.write(json.dumps(ri_layers, ensure_ascii=False, indent=4))
             oasis_files['ri_layers'] = os.path.abspath(f.name)
             for layer, layer_info in ri_layers.items():
                 oasis_files['RI_{}'.format(layer)] = layer_info['directory']

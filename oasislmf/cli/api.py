@@ -3,10 +3,6 @@ import io
 import json
 import sys
 
-from future.utils import string_types
-
-import six
-
 from argparse import RawDescriptionHelpFormatter
 from pathlib2 import Path
 
@@ -28,7 +24,7 @@ def load_credentials(login_arg, logger=None):
 
         3. Prompt for username / password
     """
-    if isinstance(login_arg, string_types):
+    if isinstance(login_arg, str):
         with io.open(login_arg, encoding='utf-8') as f:
             return json.load(f)
 
@@ -41,7 +37,7 @@ def load_credentials(login_arg, logger=None):
 
     try:
         api_login = {}
-        api_login['username'] = six.moves.input('Username: ')
+        api_login['username'] = input('Username: ')
         api_login['password'] = getpass.getpass('Password: ')
         return api_login
     except KeyboardInterrupt as e:
@@ -193,7 +189,7 @@ class DelApiCmd(OasisBaseCommand):
             return True
 
         try:
-            check = str(six.moves.input("%s (Y/N): " % question_str)).lower().strip()
+            check = str(input("%s (Y/N): " % question_str)).lower().strip()
             if check[0] == 'y':
                 return True
             elif check[0] == 'n':

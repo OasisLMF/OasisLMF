@@ -18,7 +18,6 @@ import sys
 from argparse import RawDescriptionHelpFormatter
 
 from pathlib2 import Path
-from six import text_type as _unicode
 from tabulate import tabulate
 
 from ..manager import OasisManager as om

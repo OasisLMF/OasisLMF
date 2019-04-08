@@ -6,7 +6,6 @@ import string
 from unittest import TestCase
 
 import pandas as pd
-from six import text_type as _unicode
 
 from backports.tempfile import TemporaryDirectory
 from hypothesis import (
@@ -268,7 +267,7 @@ class OasisLookupFactoryGetSourceExposure(TestCase):
     def test_file_is_provided___file_content_is_loaded(self, data):
         columns = ['first', 'second']
 
-        exposure_str = _unicode(pd.DataFrame(columns=columns, data=data).to_csv(index=False))
+        exposure_str = pd.DataFrame(columns=columns, data=data).to_csv(index=False).to_string()
 
         f = NamedTemporaryFile('w', delete=False)
 
@@ -286,7 +285,7 @@ class OasisLookupFactoryGetSourceExposure(TestCase):
     def test_exposure_string_is_provided___file_content_is_loaded(self, data):
         columns = ['first', 'second']
 
-        exposure_str = _unicode(pd.DataFrame(columns=columns, data=data).to_csv(index=False))
+        exposure_str = pd.DataFrame(columns=columns, data=data).to_csv(index=False).to_string()
 
         res_str = olf.get_exposure(source_exposure=exposure_str).to_csv(index=False)
 
