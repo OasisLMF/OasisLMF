@@ -20,8 +20,6 @@ import uuid
 
 from collections import OrderedDict
 
-import six
-
 from rtree.core import RTreeError
 from rtree.index import (
     Index as RTreeIndex,
@@ -39,7 +37,7 @@ from shapely import speedups as shapely_speedups
 if shapely_speedups.available:
     shapely_speedups.enable()
 
-import _pickle as cPickle
+import pickle
 
 from .exceptions import OasisException
 from .data import get_dataframe
@@ -176,7 +174,7 @@ class PerilAreasIndex(RTreeIndex):
 
     def __init__(self, *args, **kwargs):
 
-            self._protocol = cPickle.HIGHEST_PROTOCOL
+            self._protocol = pickle.HIGHEST_PROTOCOL
 
             idx_fp = kwargs.get('fp')
 
@@ -214,10 +212,10 @@ class PerilAreasIndex(RTreeIndex):
                 super(self.__class__, self).__init__(self._stream, *args, **kwargs)
 
     def dumps(self, obj):
-        return cPickle.dumps(obj, protocol=self.protocol)
+        return pickle.dumps(obj, protocol=self.protocol)
 
     def loads(self, data):
-        return cPickle.loads(data)
+        return pickle.loads(data)
 
     def _get_peril_areas(self, areas):
         for peril_id, coverage_type, peril_area_id, coordinates, other_props in areas:
@@ -349,14 +347,14 @@ class PerilAreasIndex(RTreeIndex):
 
         class myindex(RTreeIndex):
             def __init__(self, *args, **kwargs):
-                self.protocol = cPickle.HIGHEST_PROTOCOL
+                self.protocol = pickle.HIGHEST_PROTOCOL
                 super(self.__class__, self).__init__(*args, **kwargs)
 
             def dumps(self, obj):
-                return cPickle.dumps(obj, protocol=self.protocol)
+                return pickle.dumps(obj, protocol=self.protocol)
 
             def loads(self, obj):
-                return cPickle.loads(obj)
+                return pickle.loads(obj)
 
         try:
             index = myindex(_index_fp, properties=RTreeIndexProperty(**index_props))
