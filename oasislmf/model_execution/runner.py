@@ -1,7 +1,6 @@
 import multiprocessing
 import os
 import shutil
-import shutilwhich
 
 import subprocess
 
@@ -18,7 +17,7 @@ def run(
     num_reinsurance_iterations=0,
     ktools_mem_limit=False,
     set_alloc_rule=ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID,
-    fifo_tmp_dir=True, 
+    fifo_tmp_dir=True,
     filename='run_ktools.sh'
 ):
     if number_of_processes == -1:
@@ -32,14 +31,15 @@ def run(
     if shutil.which(custom_gulcalc_cmd):
 
         def custom_get_getmodel_cmd(
-            number_of_samples, 
-            gul_threshold, 
-            use_random_number_file, 
-            coverage_output, 
+            number_of_samples,
+            gul_threshold,
+            use_random_number_file,
+            coverage_output,
             item_output,
             process_id,
             max_process_id,
-            **kwargs):
+            **kwargs
+        ):
 
             cmd = "{} -e {} {} -a {} -p {}".format(
                 custom_gulcalc_cmd,
