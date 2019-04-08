@@ -1,21 +1,13 @@
-import io
-import json
 import os
-import time
-
-from collections import Counter
-from multiprocessing.pool import ThreadPool
 
 from argparsetree import BaseCommand
-from backports.tempfile import TemporaryDirectory
 
 from .. import __version__
 from ..model_preparation.lookup import OasisLookupFactory as olf
 from ..utils.conf import replace_in_file
-from ..utils.exceptions import OasisException
+
 from ..utils.path import PathCleaner
 from .base import OasisBaseCommand
-
 
 
 class GenerateModelTesterDockerFileCmd(OasisBaseCommand):

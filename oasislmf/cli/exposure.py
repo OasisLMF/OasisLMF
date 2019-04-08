@@ -4,31 +4,19 @@ __all__ = [
     'ValidateCmd'
 ]
 
-import argparse
-import io
-import importlib
-import inspect
-import json
 import os
-import re
-import shutil
-import time
-import sys
 
 from argparse import RawDescriptionHelpFormatter
 
 from pathlib2 import Path
-from tabulate import tabulate
 
 from ..manager import OasisManager as om
 
-from ..utils.exceptions import OasisException
 from ..utils.data import (
     print_dataframe,
 )
 from ..utils.path import (
     as_path,
-    setcwd,
 )
 from .base import (
     InputValues,
@@ -57,17 +45,19 @@ class RunCmd(OasisBaseCommand):
         super(self.__class__, self).add_args(parser)
 
         parser.add_argument(
-            '-o', '--output-dir', type=str, default=None, required=True,
-            help='Output directory')
+            '-o', '--output-dir', type=str, default=None, required=True, help='Output directory'
+        )
         parser.add_argument(
             '-i', '--input-dir', type=str, default=None, required=True,
-            help='Input directory - should contain the OED exposure file + optionally the accounts, and RI info. and scope files')
+            help='Input directory - should contain the OED exposure file + optionally the accounts, and RI info. and scope files'
+        )
         parser.add_argument(
             '-l', '--loss-factor', type=float, default=None,
-            help='Loss factor to apply to TIVs.')
+            help='Loss factor to apply to TIVs.'
+        )
         parser.add_argument(
             '-n', '--net-losses', default=False, help='Net losses', action='store_true'
-            )
+        )
 
     def action(self, args):
         """
@@ -93,18 +83,18 @@ class RunCmd(OasisBaseCommand):
 
         il = ri = False
         try:
-            li = [fn for fn in os.listdir(input_dir) if fn.lower().startswith('account')][0]
+            [fn for fn in os.listdir(input_dir) if fn.lower().startswith('account')][0]
         except IndexError:
             pass
         else:
             il = True
             try:
-                li = [fn for fn in os.listdir(input_dir) if 'reinsinfo' in fn.lower()][0]
+                [fn for fn in os.listdir(input_dir) if 'reinsinfo' in fn.lower()][0]
             except IndexError:
                 pass
             else:
                 try:
-                    li = [fn for fn in os.listdir(input_dir) if 'reinsscope' in fn.lower()][0]
+                    [fn for fn in os.listdir(input_dir) if 'reinsscope' in fn.lower()][0]
                 except IndexError:
                     pass
                 else:

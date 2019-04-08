@@ -24,7 +24,7 @@ def as_path(path, label, preexists=True):
 
     :return: The absolute path of the input path
     """
-    
+
     if not isinstance(path, string_types):
         return
     _path = ''.join(path)
