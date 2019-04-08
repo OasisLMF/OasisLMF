@@ -23,7 +23,6 @@ except ImportError:
 from subprocess import (
     CalledProcessError,
     check_call,
-    run,
 )
 
 from itertools import (
@@ -505,7 +504,7 @@ class OasisManager(object):
             else:
                 analysis_settings['il_output'] = False
                 analysis_settings['il_summaries'] = []
-            
+
             if ri:
                 analysis_settings['ri_output'] = True
             else:
@@ -527,7 +526,7 @@ class OasisManager(object):
 
         print(runner)
 
-        with setcwd(model_run_fp) as cwd_path:
+        with setcwd(model_run_fp):
             ri_layers = 0
             if ri:
                 try:
@@ -543,7 +542,7 @@ class OasisManager(object):
                 filename=script_fp,
                 num_reinsurance_iterations=ri_layers,
                 ktools_mem_limit=(ktools_mem_limit or self.ktools_mem_limit),
-                set_alloc_rule=(ktools_alloc_rule or self.ktools_alloc_rule), 
+                set_alloc_rule=(ktools_alloc_rule or self.ktools_alloc_rule),
                 fifo_tmp_dir=(not (ktools_fifo_relative or self.ktools_fifo_relative))
             )
 
@@ -791,4 +790,4 @@ class OasisManager(object):
             ktools_alloc_rule=(ktools_alloc_rule or self.ktools_alloc_rule)
         )
 
-        return model_run_fp
+        return model_run_fp, oasis_files
