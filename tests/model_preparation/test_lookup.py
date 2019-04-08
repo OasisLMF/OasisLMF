@@ -267,7 +267,7 @@ class OasisLookupFactoryGetSourceExposure(TestCase):
     def test_file_is_provided___file_content_is_loaded(self, data):
         columns = ['first', 'second']
 
-        exposure_str = pd.DataFrame(columns=columns, data=data).to_csv(index=False).to_string()
+        exposure_str = pd.DataFrame(columns=columns, data=data).to_csv(index=False)
 
         f = NamedTemporaryFile('w', delete=False)
 
@@ -285,7 +285,7 @@ class OasisLookupFactoryGetSourceExposure(TestCase):
     def test_exposure_string_is_provided___file_content_is_loaded(self, data):
         columns = ['first', 'second']
 
-        exposure_str = pd.DataFrame(columns=columns, data=data).to_csv(index=False).to_string()
+        exposure_str = pd.DataFrame(columns=columns, data=data).to_csv(index=False)
 
         res_str = olf.get_exposure(source_exposure=exposure_str).to_csv(index=False)
 
