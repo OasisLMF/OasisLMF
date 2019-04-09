@@ -7,7 +7,7 @@ OasisLMF Changelog
 
 `1.3.5`_
 -------
-* Issue found in ktools `3.0.7` hotfix downgrad to `3.0.6` 
+* Issue found in ktools `3.0.7` hotfix downgrade to `3.0.6` 
 
 `1.3.4`_
 --------
