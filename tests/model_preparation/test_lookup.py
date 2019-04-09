@@ -166,7 +166,7 @@ class OasisLookupFactoryCreate(TestCase):
         model=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
         version=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
     )
-    def test_lookup_module_file_missing___correct_exception_raised(self, supplier, model, version):
+    def test_lookup_package_path_missing___correct_exception_raised(self, supplier, model, version):
         with TemporaryDirectory() as d:
             version_path = os.path.join(d, 'version.csv')
             self.write_version_file(supplier, model, version, version_path)
@@ -185,7 +185,7 @@ class OasisLookupFactoryCreate(TestCase):
         model=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
         version=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
     )
-    def test_lookup_module_file_missing___correct_exception_raised(self, supplier, model, version):
+    def test_model_keys_data_path_missing___correct_exception_raised(self, supplier, model, version):
         with TemporaryDirectory() as d:
             keys_path = os.path.join(d, 'keys')
 
@@ -430,10 +430,9 @@ class OasisLookupFactoryWriteKeys(TestCase):
         data=keys(from_statuses=just(KEYS_STATUS_SUCCESS), size=10)
     )
     def test_produced_keys_are_passed_to_write_oasis_keys_file(self, data):
-        with TemporaryDirectory() as d,\
-             patch('oasislmf.model_preparation.lookup.OasisLookupFactory.get_keys', Mock(return_value=(r for r in data))) as get_keys_mock,\
-             patch('oasislmf.model_preparation.lookup.OasisLookupFactory.write_oasis_keys_file') as write_oasis_keys_file_mock:
-
+        get_keys_path = 'oasislmf.model_preparation.lookup.OasisLookupFactory.get_keys'
+        write_oasis_keys_file_path = 'oasislmf.model_preparation.lookup.OasisLookupFactory.write_oasis_keys_file'
+        with TemporaryDirectory() as d, patch(get_keys_path, Mock(return_value=(r for r in data))) as get_keys_mock, patch(write_oasis_keys_file_path) as write_oasis_keys_file_mock:
             keys_file_path = os.path.join(d, 'piwind-keys.csv')
             olf.save_keys(
                 lookup=self.create_fake_lookup(),

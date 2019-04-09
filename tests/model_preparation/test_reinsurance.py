@@ -70,7 +70,7 @@ test_examples = [
     'simple_CXL_port_acc_loc_filter',
     'simple_CXL_port_filter',
     'simple_CXL_port_acc_filter'
-    ]
+]
 
 fm_examples = [
     'fm24',
@@ -88,7 +88,7 @@ fm_examples = [
 #     'single_acc_level_fac_with_lgr_scope_error',
 #     'single_lgr_level_fac_with_acc_scope_error',
 #     'single_lgr_level_fac_with_loc_scope_error',
-#     'single_lgr_level_fac_with_pol_scope_error',                
+#     'single_lgr_level_fac_with_pol_scope_error',
 #     'single_loc_level_pr_with_pol_scope_error',
 #     'single_loc_level_pr_with_acc_scope_error',
 #     'single_loc_level_pr_with_lgr_scope_error',
@@ -100,7 +100,7 @@ fm_examples = [
 #     'single_acc_level_pr_with_lgr_scope_error',
 #     'single_lgr_level_pr_with_acc_scope_error',
 #     'single_lgr_level_pr_with_loc_scope_error',
-#     'single_lgr_level_pr_with_pol_scope_error',                
+#     'single_lgr_level_pr_with_pol_scope_error',
 # ]
 
 test_cases = []
@@ -202,15 +202,17 @@ class TestReinsurance(unittest.TestCase):
                     {'inuring_priority': 1, 'risk_level': 'ACC', 'directory': 'run/RI_2'}
                     {'inuring_priority': 2, 'risk_level': 'LOC', 'directory': 'run/RI_3'}
                     {'inuring_priority': 3, 'risk_level': 'LOC', 'directory': 'run/RI_4'}
-    
+
                     '''
                     if idx < 2:
                         input_name = "ils"
                     else:
                         input_name = ri_layers[idx - 1]['directory']
-                    bin.csv_to_bin(ri_layers[idx]['directory'],
-                                            ri_layers[idx]['directory'],
-                                            il=True)
+                    bin.csv_to_bin(
+                        ri_layers[idx]['directory'],
+                        ri_layers[idx]['directory'],
+                        il=True
+                    )
 
                     reinsurance_layer_losses_df = self._run_fm(
                         input_name,
@@ -229,7 +231,6 @@ class TestReinsurance(unittest.TestCase):
             os.chdir(initial_dir)
             t_end = time.time()
             print("Exec time: {}".format(t_end - t_start))
-
 
     def _load_acc_and_loc_dfs(self, oed_dir):
 
@@ -263,7 +264,7 @@ class TestReinsurance(unittest.TestCase):
 
         (
             ri_info_df,
-            ri_scope_df, 
+            ri_scope_df,
             do_reinsurance
         ) = oed.load_oed_dfs(case_dir)
 
@@ -275,9 +276,9 @@ class TestReinsurance(unittest.TestCase):
 
         for key in net_losses.keys():
             expected_file = os.path.join(
-                expected_dir, 
+                expected_dir,
                 "{}.csv".format(key.replace(' ', '_'))
-            )    
+            )
 
             dtypes = {
                 "portfolio_number": "str",
@@ -308,7 +309,7 @@ class TestReinsurance(unittest.TestCase):
 
             set_dataframe_column_dtypes(expected_df, dtypes)
             set_dataframe_column_dtypes(found_df, dtypes)
-            
+
             expected_df.to_csv("/tmp/expected.csv")
 
             assert_frame_equal(found_df, expected_df)
