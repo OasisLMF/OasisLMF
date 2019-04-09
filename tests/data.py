@@ -21,8 +21,6 @@ __all__ = [
     'write_keys_files'
 ]
 
-import copy
-import itertools
 import string
 
 from itertools import chain
@@ -31,17 +29,13 @@ from collections import OrderedDict
 
 import pandas as pd
 
-from hypothesis import given
 from hypothesis.strategies import (
-    booleans,
     fixed_dictionaries,
     integers,
-    just,
     lists,
     nothing,
     sampled_from,
     text,
-    tuples,
     floats,
 )
 
@@ -53,7 +47,6 @@ from oasislmf.utils.metadata import (
     FM_TERMS,
     LIMIT_CODES,
     OASIS_KEYS_STATUS,
-    OASIS_TASK_STATUS,
     PERILS,
     PERIL_GROUPS,
 )
@@ -62,7 +55,7 @@ from oasislmf.model_execution.files import (
     GUL_INPUT_FILES,
     IL_INPUT_FILES,
     OPTIONAL_INPUT_FILES,
-    TAR_FILE, INPUT_FILES,
+    INPUT_FILES,
 )
 
 calcrules = (1, 4, 5, 6, 7, 8, 10, 11, 12, 12, 13, 14, 15, 16, 19, 21,)
@@ -100,6 +93,7 @@ peril_groups = tuple(v['id'] for v in PERIL_GROUPS.values())
 # Used simple echo command rather than ktools conversion utility for testing purposes
 ECHO_CONVERSION_INPUT_FILES = {k: ChainMap({'conversion_tool': 'echo'}, v) for k, v in INPUT_FILES.items()}
 
+
 def standard_input_files(min_size=0):
     return lists(
         sampled_from([target['name'] for target in chain(GUL_INPUT_FILES.values(), OPTIONAL_INPUT_FILES.values())]),
@@ -122,6 +116,7 @@ def tar_file_targets(min_size=0):
         min_size=min_size,
         unique=True,
     )
+
 
 def source_accounts(
     from_account_nums=text(alphabet=(string.ascii_letters + string.digits), min_size=1, max_size=40),
@@ -370,7 +365,7 @@ def write_source_files(
 
         pd.DataFrame(
             columns=heading_row.keys(),
-            data=[heading_row]+exposure
+            data=[heading_row] + exposure
         ).to_csv(
             path_or_buf=exposure_fp,
             index=False,
@@ -401,7 +396,7 @@ def write_source_files(
 
         pd.DataFrame(
             columns=heading_row.keys(),
-            data=[heading_row]+accounts
+            data=[heading_row] + accounts
         ).to_csv(
             path_or_buf=accounts_fp,
             index=False,
@@ -427,7 +422,7 @@ def write_keys_files(
 
     pd.DataFrame(
         columns=heading_row.keys(),
-        data=[heading_row]+keys,
+        data=[heading_row] + keys,
     ).to_csv(
         path_or_buf=keys_file_path,
         index=False,
@@ -445,7 +440,7 @@ def write_keys_files(
 
         pd.DataFrame(
             columns=heading_row.keys(),
-            data=[heading_row]+keys_errors,
+            data=[heading_row] + keys_errors,
         ).to_csv(
             path_or_buf=keys_errors_file_path,
             index=False,
