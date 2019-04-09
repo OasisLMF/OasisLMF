@@ -1,20 +1,13 @@
-# -*- coding: utf-8 -*-
-
 import getpass
 import io
 import json
 import sys
 
-from future.utils import string_types
-
-import six
-
 from argparse import RawDescriptionHelpFormatter
-from pathlib2 import Path
 
 from ..api.client import APIClient
 from ..utils.exceptions import OasisException
-from ..utils.path import as_path, PathCleaner
+from ..utils.path import PathCleaner
 from .base import OasisBaseCommand, InputValues
 
 
@@ -30,20 +23,18 @@ def load_credentials(login_arg, logger=None):
 
         3. Prompt for username / password
     """
-    if isinstance(login_arg, string_types):
+    if isinstance(login_arg, str):
         with io.open(login_arg, encoding='utf-8') as f:
             return json.load(f)
-
     elif isinstance(login_arg, dict):
-        if {'password','username'} <= {k for k in login_arg.keys()}:
+        if {'password', 'username'} <= {k for k in login_arg.keys()}:
             return login_arg
-
     else:
         logger.info('No Login provided - Fallback to prompt')
 
     try:
         api_login = {}
-        api_login['username'] = six.moves.input('Username: ')
+        api_login['username'] = input('Username: ')
         api_login['password'] = getpass.getpass('Password: ')
         return api_login
     except KeyboardInterrupt as e:
@@ -55,17 +46,17 @@ def open_api_connection(input_args, logger):
     try:
         credentials = load_credentials(input_args.get('api_server_login'), logger=logger)
         logger.info('Connecting to - {}'.format(input_args.get('api_server_url')))
-        return APIClient(api_url=input_args.get('api_server_url'),
-                api_ver='V1',
-                username=credentials['username'],
-                password=credentials['password'],
-                logger=logger)
+        return APIClient(
+            api_url=input_args.get('api_server_url'),
+            api_ver='V1',
+            username=credentials['username'],
+            password=credentials['password'],
+            logger=logger
+        )
     except OasisException as e:
         logger.error('API Connection error:')
         logger.error(e)
         sys.exit(1)
-
-
 
 
 class GetApiCmd(OasisBaseCommand):
@@ -77,7 +68,7 @@ class GetApiCmd(OasisBaseCommand):
     def add_args(self, parser):
         super(self.__class__, self).add_args(parser)
         parser.add_argument(
-            '-u','--api-server-url', type=str,
+            '-u', '--api-server-url', type=str,
             default="http://localhost:8000",
             help='Oasis API server URL (including protocol and port), e.g. http://localhost:8000',
         )
@@ -91,14 +82,13 @@ class GetApiCmd(OasisBaseCommand):
             help='Fetch the list of stored models',
         )
         parser.add_argument(
-            '-p', '--portfolios',  type=bool, const=True, default=False, nargs='?', required=False,
+            '-p', '--portfolios', type=bool, const=True, default=False, nargs='?', required=False,
             help='Fetch the list of stored portfolios',
         )
         parser.add_argument(
-            '-a', '--analyses',  type=bool, const=True, default=False, nargs='?', required=False,
+            '-a', '--analyses', type=bool, const=True, default=False, nargs='?', required=False,
             help='Fetch the list of stored analyses',
         )
-
 
     def action(self, args):
         inputs = InputValues(args)
@@ -115,15 +105,13 @@ class GetApiCmd(OasisBaseCommand):
             self.logger.info(json.dumps(resp.json(), indent=4, sort_keys=True))
 
 
-
 class DelApiCmd(OasisBaseCommand):
     formatter_class = RawDescriptionHelpFormatter
-
 
     def add_args(self, parser):
         super(self.__class__, self).add_args(parser)
         parser.add_argument(
-            '-u','--api-server-url', type=str,
+            '-u', '--api-server-url', type=str,
             default="http://localhost:8000",
             help='Oasis API server URL (including protocol and port), e.g. http://localhost:8000',
         )
@@ -184,7 +172,7 @@ class DelApiCmd(OasisBaseCommand):
                     r.raise_for_status()
                     self.logger.info('Record deleted')
 
-        except Exception as e:    
+        except Exception as e:
             self.logger.error("Error on delete ref({}):".format(id_ref))
             self.logger.error(r.text)
 
@@ -195,7 +183,7 @@ class DelApiCmd(OasisBaseCommand):
             return True
 
         try:
-            check = str(six.moves.input("%s (Y/N): " % question_str)).lower().strip()
+            check = str(input("%s (Y/N): " % question_str)).lower().strip()
             if check[0] == 'y':
                 return True
             elif check[0] == 'n':
@@ -207,13 +195,13 @@ class DelApiCmd(OasisBaseCommand):
             self.logger.error('\nKeyboard Interrupt, exiting.')
 
 
-
 class PutApiModelCmd(OasisBaseCommand):
     formatter_class = RawDescriptionHelpFormatter
+
     def add_args(self, parser):
         super(self.__class__, self).add_args(parser)
         parser.add_argument(
-            '-u','--api-server-url', type=str,
+            '-u', '--api-server-url', type=str,
             default="http://localhost:8000",
             help='Oasis API server URL (including protocol and port), e.g. http://localhost:8000',
         )
@@ -222,20 +210,18 @@ class PutApiModelCmd(OasisBaseCommand):
             type=PathCleaner('credentials file', preexists=False), default=None,
             help='Json file with {"username":"<USER>", "password":"<PASS>"}', required=False,
         )
-
-
         # Required
-        parser.add_argument('--supplier-id', type=str, default=None,
-            required=True,
-            help='The supplier ID for the model.'
+        parser.add_argument(
+            '--supplier-id', type=str, default=None,
+            required=True, help='The supplier ID for the model.'
         )
-        parser.add_argument('--model-id', type=str, default=None,
-            required=True,
-            help='The model ID for the model.'
+        parser.add_argument(
+            '--model-id', type=str, default=None,
+            required=True, help='The model ID for the model.'
         )
-        parser.add_argument('--version-id', type=str, default=None,
-            required=True,
-            help='The version ID for the model.'
+        parser.add_argument(
+            '--version-id', type=str, default=None,
+            required=True, help='The version ID for the model.'
         )
 
     def action(self, args):
@@ -249,14 +235,14 @@ class PutApiModelCmd(OasisBaseCommand):
         )
 
 
-
 class RunApiCmd(OasisBaseCommand):
     formatter_class = RawDescriptionHelpFormatter
+
     def add_args(self, parser):
         super(self.__class__, self).add_args(parser)
         # API Connection
         parser.add_argument(
-            '-u','--api-server-url', type=str,
+            '-u', '--api-server-url', type=str,
             default="http://localhost:8000",
             help='Oasis API server URL (including protocol and port), e.g. http://localhost:8000',
         )
@@ -265,35 +251,37 @@ class RunApiCmd(OasisBaseCommand):
             type=PathCleaner('credentials file', preexists=False), default=None,
             help='Json file with {"username":"<USER>", "password":"<PASS>"}', required=False,
         )
-
-
         # Required
-        parser.add_argument('-m', '--model-id', type=int, default=None,
+        parser.add_argument(
+            '-m', '--model-id', type=int, default=None,
             required=True,
             help='API `id` of a model to run the analysis with'
         )
-        parser.add_argument('-j', '--analysis-settings-json-file-path',
+        parser.add_argument(
+            '-j', '--analysis-settings-json-file-path',
             type=PathCleaner('analysis settings file'), default=None,
             help='Analysis settings JSON file path'
         )
-        parser.add_argument('-x', '--source-exposures-file-path',
+        parser.add_argument(
+            '-x', '--source-exposures-file-path',
             type=PathCleaner('Source exposures file'), default=None,
             help='OED Source exposures file path'
         )
-
-
         # Optional
-        parser.add_argument('-y', '--source-accounts-file-path',
+        parser.add_argument(
+            '-y', '--source-accounts-file-path',
             type=PathCleaner('Source accounts file', preexists=False),
             default=None, required=False,
             help='OED Source accounts file path'
         )
-        parser.add_argument('-i', '--ri-info-file-path',
+        parser.add_argument(
+            '-i', '--ri-info-file-path',
             type=PathCleaner('Reinsurances Info file', preexists=False),
             default=None, required=False,
             help='OED Reinsurances Info file path'
         )
-        parser.add_argument('-r', '--ri-scope-file-path',
+        parser.add_argument(
+            '-r', '--ri-scope-file-path',
             type=PathCleaner('Reinsurance Scope file', preexists=False),
             default=None, required=False,
             help='OED Reinsurance Scope file path'
@@ -303,7 +291,6 @@ class RunApiCmd(OasisBaseCommand):
             type=PathCleaner('Output directory', preexists=False), default='./',
             help="Output data directory (absolute or relative file path)"
         )
-
 
     def action(self, args):
         inputs = InputValues(args)
@@ -349,7 +336,6 @@ class RunApiCmd(OasisBaseCommand):
 
         # Clean up
         api.portfolios.delete(portfolio['id'])
-
 
 
 class ApiCmd(OasisBaseCommand):

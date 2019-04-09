@@ -1,12 +1,8 @@
-# -*- coding: utf-8 -*-
 """
     Python utilities used for setting up the structure of the run directory
     in which to prepare the inputs to run a model or generate deterministic
     losses, and store the outputs.
 """
-
-from __future__ import print_function
-
 __all__ = [
     'check_binary_tar_file',
     'check_conversion_tools',
@@ -25,19 +21,13 @@ import os
 import re
 import shutil
 import shutilwhich
-import subprocess32 as subprocess
+import subprocess
 import tarfile
 
 from itertools import chain
-from future.utils import (
-    viewkeys,
-    viewvalues,
-)
 
 from pathlib2 import Path
 
-
-from ..model_preparation import oed
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from .files import TAR_FILE, INPUT_FILES, GUL_INPUT_FILES, IL_INPUT_FILES
@@ -76,7 +66,6 @@ def prepare_run_directory(
     With the RI flag the model run directory has the following structure
 
     ::
-                                                                                            
         <run_directory>
         |-- fifo
         |-- input
@@ -147,7 +136,7 @@ def prepare_run_directory(
                 shutil.copy2(src, oasis_dst_fp) if not (os.path.exists(dst) and filecmp.cmp(src, dst)) else None
             else:
                 shutil.move(src, run_dir)
-        
+
         dst = os.path.join(run_dir, 'analysis_settings.json')
         shutil.copy(analysis_settings_fp, dst) if not (os.path.exists(dst) and filecmp.cmp(analysis_settings_fp, dst, shallow=False)) else None
 
@@ -239,9 +228,9 @@ def _check_each_inputs_directory(directory_to_check, il=False, check_binaries=Tr
     """
 
     if il:
-        input_files = (f['name'] for f in viewvalues(INPUT_FILES) if f['type'] != 'optional')
+        input_files = (f['name'] for f in INPUT_FILES.values() if f['type'] != 'optional')
     else:
-        input_files = (f['name'] for f in viewvalues(INPUT_FILES) if f['type'] not in ['optional', 'il'])
+        input_files = (f['name'] for f in INPUT_FILES.values() if f['type'] not in ['optional', 'il'])
 
     for input_file in input_files:
         file_path = os.path.join(directory_to_check, input_file + ".csv")
@@ -294,9 +283,9 @@ def _csv_to_bin(csv_directory, bin_directory, il=False):
         os.mkdir(bin_directory)
 
     if il:
-        input_files = viewvalues(INPUT_FILES)
+        input_files = INPUT_FILES.values()
     else:
-        input_files = (f for f in viewvalues(INPUT_FILES) if f['type'] != 'il')
+        input_files = (f for f in INPUT_FILES.values() if f['type'] != 'il')
 
     for input_file in input_files:
         conversion_tool = input_file['conversion_tool']
@@ -311,6 +300,7 @@ def _csv_to_bin(csv_directory, bin_directory, il=False):
             subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
         except subprocess.CalledProcessError as e:
             raise OasisException from e
+
 
 @oasis_log
 def check_binary_tar_file(tar_file_path, check_il=False):
@@ -328,10 +318,10 @@ def check_binary_tar_file(tar_file_path, check_il=False):
     :return: True if all required files are present, False otherwise
     :rtype: bool
     """
-    expected_members = ('{}.bin'.format(f['name']) for f in viewvalues(GUL_INPUT_FILES))
+    expected_members = ('{}.bin'.format(f['name']) for f in GUL_INPUT_FILES.values())
 
     if check_il:
-        expected_members = chain(expected_members, ('{}.bin'.format(f['name']) for f in viewvalues(IL_INPUT_FILES)))
+        expected_members = chain(expected_members, ('{}.bin'.format(f['name']) for f in IL_INPUT_FILES.values()))
 
     with tarfile.open(tar_file_path) as tar:
         for member in expected_members:
@@ -347,13 +337,11 @@ def check_binary_tar_file(tar_file_path, check_il=False):
 def create_binary_tar_file(directory):
     """
     Package the binaries in a gzipped tar.
-    
-    :param directory: Path containing the binaries
-    :type tar_file_path: str    
-    """
-    with tarfile.open(
-        os.path.join(directory, TAR_FILE),"w:gz") as tar:
 
+    :param directory: Path containing the binaries
+    :type tar_file_path: str
+    """
+    with tarfile.open(os.path.join(directory, TAR_FILE), "w:gz") as tar:
         for f in glob.glob('{}*{}*.bin'.format(directory, os.sep)):
             logging.info("Adding {} {}".format(f, os.path.relpath(f, directory)))
             relpath = os.path.relpath(f, directory)
@@ -368,17 +356,17 @@ def create_binary_tar_file(directory):
 def check_conversion_tools(il=False):
     """
     Check that the conversion tools are available
-    
+
     :param il: Flag whether to check insured loss tools
     :type il: bool
 
     :return: True if all required tools are present, False otherwise
-    :rtype: bool  
+    :rtype: bool
     """
     if il:
-        input_files = viewvalues(INPUT_FILES)
+        input_files = INPUT_FILES.values()
     else:
-        input_files = (f for f in viewvalues(INPUT_FILES) if f['type'] != 'il')
+        input_files = (f for f in INPUT_FILES.values() if f['type'] != 'il')
 
     for input_file in input_files:
         tool = input_file['conversion_tool']
@@ -395,7 +383,7 @@ def cleanup_bin_directory(directory):
     """
     Clean the tar and binary files.
     """
-    for file in chain([TAR_FILE], (f + '.bin' for f in viewkeys(INPUT_FILES))):
+    for file in chain([TAR_FILE], (f + '.bin' for f in INPUT_FILES.keys())):
         file_path = os.path.join(directory, file)
         if os.path.exists(file_path):
             os.remove(file_path)

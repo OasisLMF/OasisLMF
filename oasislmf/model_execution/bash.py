@@ -1,7 +1,3 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import unicode_literals
-
 import io
 import os
 import random
@@ -11,9 +7,9 @@ import string
 from collections import Counter
 
 from ..model_preparation.oed import (
-    ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID, # Alloc Rule 2 (Default)
-    ALLOCATE_TO_ITEMS_BY_GUL_ALLOC_ID,            # Alloc Rule 1
-    NO_ALLOCATION_ALLOC_ID,                       # Alloc Rule 0
+    ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID,  # Alloc Rule 2 (Default)
+    ALLOCATE_TO_ITEMS_BY_GUL_ALLOC_ID,             # Alloc Rule 1
+    NO_ALLOCATION_ALLOC_ID,                        # Alloc Rule 0
 )
 
 RUNTYPE_GROUNDUP_LOSS = 'gul'
@@ -594,8 +590,9 @@ def genbash(
 
     # Create tmp dir for FIFO queues (Windows support)
     if fifo_tmp_dir:
-        fifo_queue_dir = '/tmp/{}/'.format(''.join(
-                          random.choice(string.ascii_letters + string.digits) for _ in range(10)))
+        fifo_queue_dir = '/tmp/{}/'.format(
+            ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(10))
+        )
         print_command(filename, 'mkdir -p {}fifo'.format(fifo_queue_dir))
 
     if gul_output:
@@ -643,13 +640,13 @@ def genbash(
         if num_reinsurance_iterations > 0 and ri_output:
 
             getmodel_args = {
-                'number_of_samples'      : number_of_samples,
-                'gul_threshold'          : gul_threshold,
-                'use_random_number_file' : use_random_number_file,
-                'coverage_output'        : '{}fifo/gul_P{}'.format(fifo_queue_dir, process_id),
-                'item_output'            : '-',
-                'process_id'             : process_id,
-                'max_process_id'         : max_process_id
+                'number_of_samples': number_of_samples,
+                'gul_threshold': gul_threshold,
+                'use_random_number_file': use_random_number_file,
+                'coverage_output': '{}fifo/gul_P{}'.format(fifo_queue_dir, process_id),
+                'item_output': '-',
+                'process_id': process_id,
+                'max_process_id': max_process_id
             }
             getmodel_args.update(custom_args)
             getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
@@ -671,13 +668,13 @@ def genbash(
 
         elif gul_output and il_output:
             getmodel_args = {
-                'number_of_samples'      : number_of_samples,
-                'gul_threshold'          : gul_threshold,
-                'use_random_number_file' : use_random_number_file,
-                'coverage_output'        : '{}fifo/gul_P{}'.format(fifo_queue_dir, process_id),
-                'item_output'            : '-',
-                'process_id'             : process_id,
-                'max_process_id'         : max_process_id
+                'number_of_samples': number_of_samples,
+                'gul_threshold': gul_threshold,
+                'use_random_number_file': use_random_number_file,
+                'coverage_output': '{}fifo/gul_P{}'.format(fifo_queue_dir, process_id),
+                'item_output': '-',
+                'process_id': process_id,
+                'max_process_id': max_process_id
             }
             getmodel_args.update(custom_args)
             getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
@@ -693,13 +690,13 @@ def genbash(
         else:
             if gul_output and 'gul_summaries' in analysis_settings:
                 getmodel_args = {
-                    'number_of_samples'      : number_of_samples,
-                    'gul_threshold'          : gul_threshold,
-                    'use_random_number_file' : use_random_number_file,
-                    'coverage_output'        : '-',
-                    'item_output'            : '',
-                    'process_id'             : process_id,
-                    'max_process_id'         : max_process_id
+                    'number_of_samples': number_of_samples,
+                    'gul_threshold': gul_threshold,
+                    'use_random_number_file': use_random_number_file,
+                    'coverage_output': '-',
+                    'item_output': '',
+                    'process_id': process_id,
+                    'max_process_id': max_process_id
                 }
                 getmodel_args.update(custom_args)
                 getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
@@ -709,13 +706,13 @@ def genbash(
                 )
             if il_output and 'il_summaries' in analysis_settings:
                 getmodel_args = {
-                    'number_of_samples'      : number_of_samples,
-                    'gul_threshold'          : gul_threshold,
-                    'use_random_number_file' : use_random_number_file,
-                    'coverage_output'        : '',
-                    'item_output'            : '-',
-                    'process_id'             : process_id,
-                    'max_process_id'         : max_process_id
+                    'number_of_samples': number_of_samples,
+                    'gul_threshold': gul_threshold,
+                    'use_random_number_file': use_random_number_file,
+                    'coverage_output': '',
+                    'item_output': '-',
+                    'process_id': process_id,
+                    'max_process_id': max_process_id
                 }
                 getmodel_args.update(custom_args)
                 getmodel_cmd = _get_getmodel_cmd(**getmodel_args)

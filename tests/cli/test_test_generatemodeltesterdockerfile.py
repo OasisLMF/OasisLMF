@@ -1,12 +1,8 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import unicode_literals
-
-import string
-from unittest import TestCase
-
-import os
 import io
+import os
+import string
+
+from unittest import TestCase
 
 from backports.tempfile import TemporaryDirectory
 from future.utils import iteritems

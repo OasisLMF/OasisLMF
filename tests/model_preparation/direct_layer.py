@@ -1,5 +1,5 @@
 import os
-import subprocess32 as subprocess
+import subprocess
 import shutil
 
 import pandas as pd
@@ -141,14 +141,14 @@ class DirectLayer(object):
                                     account_number=location.AccNumber,
                                     location_number=location.LocNumber,
                                     location_group=location.LocGroup,
-                                    cedant_name = policy.CedantName,
-                                    producer_name = policy.ProducerName,
-                                    lob = policy.LOB,
-                                    country_code = location.CountryCode,
-                                    reins_tag = location.ReinsTag,
+                                    cedant_name=policy.CedantName,
+                                    producer_name=policy.ProducerName,
+                                    lob=policy.LOB,
+                                    country_code=location.CountryCode,
+                                    reins_tag=location.ReinsTag,
                                     coverage_type_id=coverage_type_id,
                                     peril_id=peril,
-                                    policy_number=policy.PolNumber,    
+                                    policy_number=policy.PolNumber,
                                     portfolio_number=policy.PortNumber,
                                     tiv=tiv
                                 )
@@ -197,18 +197,17 @@ class DirectLayer(object):
                 raise Exception(
                     "Failed to convert {}: {}".format(input_file_path, command))
 
-
     def report_item_ids(self):
         """
         return a dataframe showing the relationship between item_id's and Locations
         """
-        locations_list  = [self.item_id_dict[ID].LocNumber for ID in self.item_ids] 
+        locations_list = [self.item_id_dict[ID].LocNumber for ID in self.item_ids]
         from_agg_ids = self.fmprogrammes[self.fmprogrammes['level_id'] == 1].from_agg_id.tolist()
         item_map_df = pd.concat([
-            self.items[['item_id','coverage_id']],
+            self.items[['item_id', 'coverage_id']],
             self.coverages['tiv'],
             pd.DataFrame({'LocNumber': locations_list})
-        ],axis=1)  
+        ], axis=1)
         # filter 'item_id' that exisit in 'from_agg_id'
         return item_map_df[item_map_df['item_id'].isin(from_agg_ids)]
 

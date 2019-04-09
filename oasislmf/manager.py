@@ -1,42 +1,30 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-from builtins import open as io_open
-from builtins import str
-
-from future import standard_library
-standard_library.install_aliases()
-
 __all__ = [
     'OasisManager'
 ]
 
+import io
+import importlib
 import json
 import os
 import re
+import sys
 import warnings
+
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from builtins import str
 from collections import OrderedDict
-from future.utils import viewitems
 
 try:
     from json import JSONDecodeError
 except ImportError:
     from builtins import ValueError as JSONDecodeError
 
-from subprocess32 import (
+from subprocess import (
     CalledProcessError,
     check_call,
-    run,
 )
-import sys
-import importlib
+
 from itertools import (
     chain,
     product,
@@ -46,7 +34,6 @@ import pandas as pd
 pd.options.mode.chained_assignment = None
 
 from pathlib2 import Path
-from six import text_type as _unicode
 
 from .model_execution import runner
 from .model_execution.bin import (
@@ -348,7 +335,7 @@ class OasisManager(object):
         portfolio_num = id_terms['portid']
         fm_aggregation_profile = (
             fm_aggregation_profile or
-            ({int(k): v for k, v in viewitems(get_json(src_fp=fm_aggregation_profile_fp))} if fm_aggregation_profile_fp else {}) or
+            ({int(k): v for k, v in get_json(src_fp=fm_aggregation_profile_fp).items()} if fm_aggregation_profile_fp else {}) or
             self.fm_aggregation_profile
         )
 
@@ -455,10 +442,10 @@ class OasisManager(object):
             ri_scope_fp,
             target_dir
         )
-        with io_open(os.path.join(target_dir, 'ri_layers.json'), 'w', encoding='utf-8') as f:
-            f.write(_unicode(json.dumps(ri_layers, ensure_ascii=False, indent=4)))
+        with io.open(os.path.join(target_dir, 'ri_layers.json'), 'w', encoding='utf-8') as f:
+            f.write(json.dumps(ri_layers, ensure_ascii=False, indent=4))
             oasis_files['ri_layers'] = os.path.abspath(f.name)
-            for layer, layer_info in viewitems(ri_layers):
+            for layer, layer_info in ri_layers.items():
                 oasis_files['RI_{}'.format(layer)] = layer_info['directory']
 
         return oasis_files
@@ -506,7 +493,7 @@ class OasisManager(object):
         analysis_settings_fn = 'analysis_settings.json'
         _analysis_settings_fp = os.path.join(model_run_fp, analysis_settings_fn)
         try:
-            with io_open(_analysis_settings_fp, 'r', encoding='utf-8') as f:
+            with io.open(_analysis_settings_fp, 'r', encoding='utf-8') as f:
                 analysis_settings = json.load(f)
 
             if analysis_settings.get('analysis_settings'):
@@ -517,7 +504,7 @@ class OasisManager(object):
             else:
                 analysis_settings['il_output'] = False
                 analysis_settings['il_summaries'] = []
-            
+
             if ri:
                 analysis_settings['ri_output'] = True
             else:
@@ -539,14 +526,14 @@ class OasisManager(object):
 
         print(runner)
 
-        with setcwd(model_run_fp) as cwd_path:
+        with setcwd(model_run_fp):
             ri_layers = 0
             if ri:
                 try:
-                    with io_open(os.path.join(model_run_fp, 'ri_layers.json'), 'r', encoding='utf-8') as f:
+                    with io.open(os.path.join(model_run_fp, 'ri_layers.json'), 'r', encoding='utf-8') as f:
                         ri_layers = len(json.load(f))
                 except IOError:
-                    with io_open(os.path.join(model_run_fp, 'input', 'ri_layers.json'), 'r', encoding='utf-8') as f:
+                    with io.open(os.path.join(model_run_fp, 'input', 'ri_layers.json'), 'r', encoding='utf-8') as f:
                         ri_layers = len(json.load(f))
 
             model_runner_module.run(
@@ -555,7 +542,7 @@ class OasisManager(object):
                 filename=script_fp,
                 num_reinsurance_iterations=ri_layers,
                 ktools_mem_limit=(ktools_mem_limit or self.ktools_mem_limit),
-                set_alloc_rule=(ktools_alloc_rule or self.ktools_alloc_rule), 
+                set_alloc_rule=(ktools_alloc_rule or self.ktools_alloc_rule),
                 fifo_tmp_dir=(not (ktools_fifo_relative or self.ktools_fifo_relative))
             )
 
@@ -624,7 +611,7 @@ class OasisManager(object):
         losses['gul'] = guls
 
         ils = pd.read_csv(ils_fp)
-        ils.drop(ils[ils['sidx'] != 1].index, inplace=True)
+        ils.drop(ils[ils['sidx'] != -3].index, inplace=True)
         ils.reset_index(drop=True, inplace=True)
         ils.drop('sidx', axis=1, inplace=True)
         ils = ils[(ils[['loss']] != 0).any(axis=1)]
@@ -641,7 +628,7 @@ class OasisManager(object):
                 )
             else:
                 try:
-                    with io_open(os.path.join(input_dir, 'ri_layers.json'), 'r', encoding='utf-8') as f:
+                    with io.open(os.path.join(input_dir, 'ri_layers.json'), 'r', encoding='utf-8') as f:
                         ri_layers = len(json.load(f))
                 except (IOError, JSONDecodeError, OSError, TypeError) as e:
                     raise OasisException('Error trying to read the RI layers file: {}'.format(e))
@@ -665,7 +652,7 @@ class OasisManager(object):
                         except CalledProcessError as e:
                             raise OasisException from e
                         rils = pd.read_csv(ri_layer_fp)
-                        rils.drop(rils[rils['sidx'] != 1].index, inplace=True)
+                        rils.drop(rils[rils['sidx'] != -3].index, inplace=True)
                         rils.drop('sidx', axis=1, inplace=True)
                         rils.reset_index(drop=True, inplace=True)
                         rils = rils[(rils[['loss']] != 0).any(axis=1)]
@@ -803,4 +790,4 @@ class OasisManager(object):
             ktools_alloc_rule=(ktools_alloc_rule or self.ktools_alloc_rule)
         )
 
-        return model_run_fp
+        return model_run_fp, oasis_files

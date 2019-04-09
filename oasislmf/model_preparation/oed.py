@@ -1,16 +1,3 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-from builtins import open as io_open
-from builtins import str
-
-from future import standard_library
-standard_library.install_aliases()
-
 __all__ = [
     'load_oed_dfs',
     'OedValidator'
@@ -21,10 +8,9 @@ import os
 
 from collections import namedtuple
 
-import pandas as pd
-
 from ..utils.data import get_dataframe
 from ..utils.exceptions import OasisException
+
 
 # TODO - add validator
 class OedValidator(object):
@@ -36,23 +22,22 @@ class OedValidator(object):
         self.ri_info_required_cols = [
             'ReinsNumber', 'ReinsPeril', 'PlacedPercent',
             'InuringPriority', 'ReinsType'
-            ]
+        ]
 
         self.ri_info_defaults = {
-#            'ReinsLayerNumber': '',
             'CededPercent': 1.0,
             'RiskLimit': 0.0,
             'RiskAttachment': 0.0,
             'OccLimit': 0.0,
             'OccAttachment': 0.0,
-            'TreatyShare': 0.0}
+            'TreatyShare': 0.0
+        }
 
         self.ri_scope_required_cols = {
             'ReinsNumber', 'RiskLevel'
-            }
-
-        self.error_structure = {
         }
+
+        self.error_structure = {}
 
     def _unique_reins(self, reins_info_df):
         '''
@@ -129,7 +114,7 @@ class OedValidator(object):
                 ))
                 continue
 
-            #CHECK - ri_type is supported
+            # CHECK - ri_type is supported
             ri_type = reins_types_found[0]
             if ri_type not in REINS_TYPES:
                 error_list.append(self._error_struture(
@@ -182,7 +167,6 @@ def load_oed_dfs(oed_dir, show_all=False):
     """
     Load OED data files.
     """
-
     do_reinsurance = True
     if oed_dir is not None:
         if not os.path.exists(oed_dir):
@@ -200,7 +184,7 @@ def load_oed_dfs(oed_dir, show_all=False):
             do_reinsurance = False
         elif oed_ri_info_file_exists and oed_ri_scope_file_exists:
             ri_info_df = get_dataframe(
-                oed_ri_info_file, lowercase_cols=False, 
+                oed_ri_info_file, lowercase_cols=False,
                 required_cols=RI_INFO_REQUIRED_COLS,
                 col_defaults=RI_INFO_DEFAULTS,
                 col_dtypes=RI_INFO_DTYPES)
@@ -211,9 +195,9 @@ def load_oed_dfs(oed_dir, show_all=False):
                 col_dtypes=RI_SCOPE_DTYPES)
 
             # Treat empty Risk Level as portfolio level scope.
-            # Also need nan, as this is produced when 
+            # Also need nan, as this is produced when
             # a single row with empty Risk Level is loaded.
-            ri_scope_df.RiskLevel.fillna(REINS_RISK_LEVEL_PORTFOLIO, inplace = True)
+            ri_scope_df.RiskLevel.fillna(REINS_RISK_LEVEL_PORTFOLIO, inplace=True)
         else:
             print("Both reinsurance files must exist: {} {}".format(
                 oed_ri_info_file, oed_ri_scope_file))
@@ -232,7 +216,9 @@ def load_oed_dfs(oed_dir, show_all=False):
 
 #
 # Ktools constants
-# 
+#
+
+
 DEDUCTIBLE_AND_LIMIT_CALCRULE_ID = 1
 FRANCHISE_DEDUCTIBLE_AND_LIMIT_CALCRULE_ID = 3
 DEDUCTIBLE_ONLY_CALCRULE_ID = 12
@@ -321,26 +307,25 @@ LARGE_VALUE = 9999999999999
 
 # --- OED constants --------------------------------------------------------- #
 RI_INFO_REQUIRED_COLS = [
-    'ReinsNumber', 
-    #'ReinsPeril', 
+    'ReinsNumber',
     'PlacedPercent',
-    'InuringPriority', 
+    'InuringPriority',
     'ReinsType'
-    ]
+]
 
 RI_INFO_DEFAULTS = {
-#    'ReinsLayerNumber': '',
     'CededPercent': 1.0,
     'RiskLimit': 0.0,
     'RiskAttachment': 0.0,
     'OccLimit': 0.0,
     'OccAttachment': 0.0,
-    'TreatyShare': 1.0}
+    'TreatyShare': 1.0
+}
 
 RI_SCOPE_REQUIRED_COLS = {
-    'ReinsNumber', 
+    'ReinsNumber',
     'RiskLevel'
-    }
+}
 
 RI_SCOPE_DEFAULTS = {
     'PortNumber': '',
@@ -366,7 +351,8 @@ RI_INFO_DTYPES = {
     'InuringPriority': "int",
     'ReinsType': "str",
     'PlacedPercent': "float",
-    'TreatyShare': "float"}
+    'TreatyShare': "float"
+}
 
 RI_SCOPE_DTYPES = {
     'ReinsNumber': "int",
@@ -381,7 +367,8 @@ RI_SCOPE_DTYPES = {
     'CountryCode': "str",
     'ReinsTag': "str",
     'RiskLevel': "str",
-    'CededPercent': "float"}
+    'CededPercent': "float"
+}
 
 
 POLICYITEM_LEVEL = 0
@@ -404,8 +391,7 @@ REINS_TYPES = [
     REINS_TYPE_QUOTA_SHARE,
     REINS_TYPE_SURPLUS_SHARE,
     REINS_TYPE_PER_RISK,
-    REINS_TYPE_CAT_XL,
-    #REINS_TYPE_AGG_XL <-- not implemented yet
+    REINS_TYPE_CAT_XL
 ]
 
 REINS_RISK_LEVEL_PORTFOLIO = "SEL"
@@ -454,7 +440,6 @@ OED_LOCATION_FIELDS = [
 
 OED_REINS_INFO_FIELDS = [
     'ReinsNumber',
-#    'ReinsLayerNumber',
     'CededPercent',
     'RiskLimit',
     'RiskAttachment',
@@ -477,7 +462,7 @@ OED_REINS_SCOPE_FIELDS = [
     'ProducerName',
     'LOB',
     'CountryCode',
-    'ReinsTag',    
+    'ReinsTag',
     'RiskLevel',
     'CededPercent'
 ]
@@ -503,10 +488,14 @@ FmXref = namedtuple(
     "FmXref", "output_id agg_id layer_id")
 
 XrefDescription = namedtuple(
-    "Description", ("xref_id portfolio_number policy_number account_number location_number location_group " +\
-    "cedant_name producer_name lob country_code reins_tag coverage_type_id peril_id tiv"))
-GulRecord = namedtuple(
-    "GulRecord", "event_id item_id sidx loss")
+    "Description",
+    (
+        "xref_id portfolio_number policy_number account_number location_number location_group "
+        "cedant_name producer_name lob country_code reins_tag coverage_type_id peril_id tiv"
+    )
+)
+GulRecord = namedtuple("GulRecord", "event_id item_id sidx loss")
+
 
 def get_no_loss_profile(profile_id):
     return FmProfile(
@@ -566,8 +555,10 @@ def get_profile(
 def _value_is_empty(value):
     return (
         value == "" or
-        value == None or
-        math.isnan(value))
+        value is None or
+        math.isnan(value)
+    )
+
 
 def get_reinsurance_profile(
     profile_id,

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from ..utils.exceptions import OasisException
 
 from .config import ConfigCmd
