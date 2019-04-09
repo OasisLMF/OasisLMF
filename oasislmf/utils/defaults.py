@@ -42,7 +42,7 @@ def get_default_exposure_profile(path=False):
 
 def get_default_fm_aggregation_profile(path=False):
     src_fp = os.path.join(STATIC_DATA_FP, 'default_fm_agg_profile.json')
-    return {int(k): v for k, v in viewitems(get_json(src_fp=src_fp))} if not path else src_fp
+    return {int(k): v for k, v in get_json(src_fp=src_fp).items()} if not path else src_fp
 
 # Ktools calc. rules
 def get_calc_rules(path=False):

@@ -7,10 +7,6 @@ import tarfile
 
 from itertools import chain
 from backports.tempfile import TemporaryDirectory
-from future.utils import (
-    viewkeys,
-    viewvalues,
-)
 from copy import copy, deepcopy
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
@@ -227,7 +223,7 @@ class CreateBinaryTarFile(TestCase):
 class CheckConversionTools(TestCase):
     def test_il_is_false_il_tools_are_missing___result_is_true(self):
         existing_conversions = deepcopy(INPUT_FILES)
-        for value in viewvalues(existing_conversions):
+        for value in existing_conversions.values():
             if value['type'] == 'il':
                 value['conversion_tool'] = 'missing_executable'
             else:
@@ -238,7 +234,7 @@ class CheckConversionTools(TestCase):
 
     def test_il_is_false_il_tools_are_present_but_non_il_are_missing___errors_is_raised(self):
         existing_conversions = deepcopy(INPUT_FILES)
-        for value in viewvalues(existing_conversions):
+        for value in existing_conversions.values():
             if value['type'] == 'il':
                 value['conversion_tool'] = 'pytohn'
             else:
@@ -250,7 +246,7 @@ class CheckConversionTools(TestCase):
 
     def test_il_is_true_il_tools_are_missing___error_is_raised(self):
         existing_conversions = deepcopy(INPUT_FILES)
-        for value in viewvalues(existing_conversions):
+        for value in existing_conversions.values():
             if value['type'] == 'il':
                 value['conversion_tool'] = 'missing_executable'
             else:
@@ -262,7 +258,7 @@ class CheckConversionTools(TestCase):
 
     def test_il_is_true_non_il_are_missing___errror_is_raised(self):
         existing_conversions = deepcopy(INPUT_FILES)
-        for value in viewvalues(existing_conversions):
+        for value in existing_conversions.values():
             if value['type'] == 'il':
                 value['conversion_tool'] = 'pytohn'
             else:
@@ -274,7 +270,7 @@ class CheckConversionTools(TestCase):
 
     def test_il_is_true_conversion_tools_all_exist___result_is_true(self):
         existing_conversions = deepcopy(INPUT_FILES)
-        for value in viewvalues(existing_conversions):
+        for value in existing_conversions.values():
             value['conversion_tool'] = 'python'
 
         with patch('oasislmf.model_execution.bin.INPUT_FILES', existing_conversions):
@@ -299,7 +295,7 @@ class CheckInputsDirectory(TestCase):
 
     def test_do_is_is_false_non_il_input_files_are_present___no_exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for input_file in viewvalues(GUL_INPUT_FILES):
+            for input_file in GUL_INPUT_FILES.values():
                 Path(os.path.join(d, input_file['name'] + '.csv')).touch()
 
             try:
@@ -314,7 +310,7 @@ class CheckInputsDirectory(TestCase):
 
     def test_il_is_true_gul_input_files_are_missing__exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for p in viewvalues(IL_INPUT_FILES):
+            for p in IL_INPUT_FILES.values():
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
 
             with self.assertRaises(OasisException):
@@ -322,7 +318,7 @@ class CheckInputsDirectory(TestCase):
 
     def test_il_is_true_il_input_files_are_missing__exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for p in viewvalues(GUL_INPUT_FILES):
+            for p in GUL_INPUT_FILES.values():
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
 
             with self.assertRaises(OasisException):
@@ -330,7 +326,7 @@ class CheckInputsDirectory(TestCase):
 
     def test_il_is_true_all_input_files_are_present___no_exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for p in chain(viewvalues(GUL_INPUT_FILES), viewvalues(IL_INPUT_FILES)):
+            for p in chain(GUL_INPUT_FILES.values(), IL_INPUT_FILES.values()):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
 
             try:
@@ -340,10 +336,10 @@ class CheckInputsDirectory(TestCase):
 
     def test_il_is_false_il_bin_files_are_present___no_exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for p in chain(viewvalues(GUL_INPUT_FILES), viewvalues(IL_INPUT_FILES)):
+            for p in chain(GUL_INPUT_FILES.values(), IL_INPUT_FILES.values()):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
 
-            for p in viewvalues(IL_INPUT_FILES):
+            for p in IL_INPUT_FILES.values():
                 Path(os.path.join(d, p['name'] + '.bin')).touch()
 
             try:
@@ -353,10 +349,10 @@ class CheckInputsDirectory(TestCase):
 
     def test_il_is_false_gul_bin_files_are_present___exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for p in chain(viewvalues(GUL_INPUT_FILES), viewvalues(IL_INPUT_FILES)):
+            for p in chain(GUL_INPUT_FILES.values(), IL_INPUT_FILES.values()):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
 
-            for p in viewvalues(GUL_INPUT_FILES):
+            for p in GUL_INPUT_FILES.values():
                 Path(os.path.join(d, p['name'] + '.bin')).touch()
 
             with self.assertRaises(OasisException):
@@ -364,10 +360,10 @@ class CheckInputsDirectory(TestCase):
 
     def test_il_is_true_gul_bin_files_are_present___exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for p in chain(viewvalues(GUL_INPUT_FILES), viewvalues(IL_INPUT_FILES)):
+            for p in chain(GUL_INPUT_FILES.values(), IL_INPUT_FILES.values()):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
 
-            for p in viewvalues(GUL_INPUT_FILES):
+            for p in GUL_INPUT_FILES.values():
                 Path(os.path.join(d, p['name'] + '.bin')).touch()
 
             with self.assertRaises(OasisException):
@@ -375,10 +371,10 @@ class CheckInputsDirectory(TestCase):
 
     def test_il_is_true_il_bin_files_are_present___exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for p in chain(viewvalues(GUL_INPUT_FILES), viewvalues(IL_INPUT_FILES)):
+            for p in chain(GUL_INPUT_FILES.values(), IL_INPUT_FILES.values()):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
 
-            for p in viewvalues(IL_INPUT_FILES):
+            for p in IL_INPUT_FILES.values():
                 Path(os.path.join(d, p['name'] + '.bin')).touch()
 
             with self.assertRaises(OasisException):
@@ -386,10 +382,10 @@ class CheckInputsDirectory(TestCase):
 
     def test_il_is_true_no_bin_files_are_present___no_exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for p in chain(viewvalues(GUL_INPUT_FILES), viewvalues(IL_INPUT_FILES)):
+            for p in chain(GUL_INPUT_FILES.values(), IL_INPUT_FILES.values()):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
 
-            for p in viewvalues(IL_INPUT_FILES):
+            for p in IL_INPUT_FILES.values():
                 Path(os.path.join(d, p['name'] + '.bin')).touch()
 
             try:
@@ -399,10 +395,10 @@ class CheckInputsDirectory(TestCase):
 
     def test_il_is_true_bin_files_are_present_but_check_bin_files_are_true___no_exception_is_raised(self):
         with TemporaryDirectory() as d:
-            for p in viewvalues(INPUT_FILES):
+            for p in INPUT_FILES.values():
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
 
-            for p in viewvalues(INPUT_FILES):
+            for p in INPUT_FILES.values():
                 Path(os.path.join(d, p['name'] + '.bin')).touch()
 
             try:
@@ -412,10 +408,10 @@ class CheckInputsDirectory(TestCase):
 
     def test_check_gul_and_il_and_single_ri_directory_structure(self):
         with TemporaryDirectory() as d:
-            for p in viewvalues(INPUT_FILES):
+            for p in INPUT_FILES.values():
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
             os.mkdir(os.path.join(d, "RI_1"))
-            for p in viewvalues(INPUT_FILES):
+            for p in INPUT_FILES.values():
                 f = os.path.join(d, "RI_1", p['name'] + '.csv')
                 Path(f).touch()
             try:
@@ -425,44 +421,28 @@ class CheckInputsDirectory(TestCase):
 
     def test_check_gul_and_il_and_single_ri_directory_structure_binaries_fail(self):
         with TemporaryDirectory() as d:
-            for p in viewvalues(INPUT_FILES):
+            for p in INPUT_FILES.values():
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
                 Path(os.path.join(d, p['name'] + '.bin')).touch()
             os.mkdir(os.path.join(d, "RI_1"))
-            for p in viewvalues(INPUT_FILES):
+            for p in INPUT_FILES.values():
                 Path(os.path.join(d, "RI_1", p['name'] + '.csv')).touch()
                 Path(os.path.join(d, "RI_1", p['name'] + '.bin')).touch()
 
             with self.assertRaises(OasisException):
                 check_inputs_directory(d, il=True, ri=True, check_binaries=True)
 
-#    @pytest.mark.flaky()
-#    def test_check_gul_and_il_and_single_ri_directory_structure_missing_file_fail(self):
-#        with TemporaryDirectory() as d:
-#            for p in viewkeys(INPUT_FILES):
-#                Path(os.path.join(d, p['name'] + '.csv')).touch()
-#            os.mkdir(os.path.join(d, "RI_1"))
-#            # Skip the first files
-#            first = True
-#            for p in viewkeys(INPUT_FILES):
-#                if not first:
-#                    Path(os.path.join(d, "RI_1", p['name'] + '.csv')).touch()
-#                first = False
-#
-#            with self.assertRaises(OasisException):
-#                check_inputs_directory(d, il=True, ri=True, check_binaries=True)
-
     def test_check_gul_and_il_and_multiple_ri_directories(self):
         with TemporaryDirectory() as d:
-            for p in viewvalues(INPUT_FILES):
+            for p in INPUT_FILES.values():
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
 
             os.mkdir(os.path.join(d, "RI_1"))
-            for p in viewvalues(INPUT_FILES):
+            for p in INPUT_FILES.values():
                 Path(os.path.join(d, "RI_1", p['name'] + '.csv')).touch()
 
             os.mkdir(os.path.join(d, "RI_2"))
-            for p in viewvalues(INPUT_FILES):
+            for p in INPUT_FILES.values():
                 Path(os.path.join(d, "RI_2", p['name'] + '.csv')).touch()
 
             try:
@@ -472,15 +452,15 @@ class CheckInputsDirectory(TestCase):
 
     def test_check_gul_and_il_and_multiple_ri_directories_binaries_fail(self):
         with TemporaryDirectory() as d:
-            for p in viewvalues(INPUT_FILES):
+            for p in INPUT_FILES.values():
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
                 Path(os.path.join(d, p['name'] + '.bin')).touch()
             os.mkdir(os.path.join(d, "RI_1"))
-            for p in viewvalues(INPUT_FILES):
+            for p in INPUT_FILES.values():
                 Path(f=os.path.join(d, "RI_1", p['name'] + '.csv')).touch()
                 Path(f=os.path.join(d, "RI_1", p['name'] + '.bin')).touch()
             os.mkdir(os.path.join(d, "RI_2"))
-            for p in viewvalues(INPUT_FILES):
+            for p in INPUT_FILES.values():
                 Path(os.path.join(d, "RI_2", p['name'] + '.bin')).touch()
                 Path(os.path.join(d, "RI_2", p['name'] + '.bin')).touch()
 
@@ -788,13 +768,13 @@ class CleanBinDirectory(TestCase):
         with TemporaryDirectory() as d:
             Path(os.path.join(d, TAR_FILE)).touch()
 
-            for f in viewvalues(INPUT_FILES):
+            for f in INPUT_FILES.values():
                 Path(os.path.join(d, f['name'] + '.bin')).touch()
 
             cleanup_bin_directory(d)
 
             self.assertFalse(os.path.exists(os.path.join(d, TAR_FILE)))
-            for f in viewkeys(INPUT_FILES):
+            for f in INPUT_FILES:
                 self.assertFalse(os.path.exists(os.path.join(d, f + '.bin')))
 
 
@@ -804,7 +784,7 @@ class CheckBinTarFile(TestCase):
             tar_file_name = os.path.join(d, 'exposures.tar')
 
             with tarfile.open(tar_file_name, 'w', encoding='utf-8') as tar:
-                for f in viewvalues(GUL_INPUT_FILES):
+                for f in GUL_INPUT_FILES.values():
                     Path(os.path.join(d, '{}.bin'.format(f['name']))).touch()
 
                 tar.add(d, arcname='/')
@@ -816,7 +796,7 @@ class CheckBinTarFile(TestCase):
             tar_file_name = os.path.join(d, 'exposures.tar')
 
             with tarfile.open(tar_file_name, 'w', encoding='utf-8') as tar:
-                for f in viewvalues(INPUT_FILES):
+                for f in INPUT_FILES.values():
                     Path(os.path.join(d, '{}.bin'.format(f['name']))).touch()
 
                 tar.add(d, arcname='/')
@@ -824,14 +804,14 @@ class CheckBinTarFile(TestCase):
             self.assertTrue(check_binary_tar_file(tar_file_name, check_il=True))
 
     @given(
-        lists(sampled_from([f['name'] for f in chain(viewvalues(GUL_INPUT_FILES), viewvalues(IL_INPUT_FILES))]), min_size=1, unique=True)
+        lists(sampled_from([f['name'] for f in chain(GUL_INPUT_FILES.values(), IL_INPUT_FILES.values())]), min_size=1, unique=True)
     )
     def test_some_files_are_missing_check_il_is_true___error_is_raised(self, missing):
         with TemporaryDirectory() as d:
             tar_file_name = os.path.join(d, 'exposures.tar')
 
             with tarfile.open(tar_file_name, 'w', encoding='utf-8') as tar:
-                for f in viewvalues(INPUT_FILES):
+                for f in INPUT_FILES.values():
                     if f['name'] in missing:
                         continue
 
