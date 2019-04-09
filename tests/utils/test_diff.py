@@ -1,4 +1,3 @@
-import io
 import os
 from tempfile import NamedTemporaryFile
 from unittest import TestCase

@@ -1,11 +1,8 @@
 import copy
 import io
-import itertools
 import json
 import os
-import shutil
 import string
-import sys
 
 from collections import OrderedDict
 from datetime import datetime
@@ -13,19 +10,13 @@ from unittest import TestCase
 
 import numpy as np
 import pandas as pd
-import pytest
 import pytz
 
-from backports.tempfile import TemporaryDirectory
 from hypothesis import (
     given,
-    HealthCheck,
-    reproduce_failure,
     settings,
 )
 from hypothesis.strategies import (
-    characters,
-    data,
     datetimes,
     integers,
     fixed_dictionaries,
@@ -34,7 +25,6 @@ from hypothesis.strategies import (
     lists,
     sampled_from,
     text,
-    tuples,
 )
 from pandas.util.testing import assert_frame_equal
 from tempfile import NamedTemporaryFile
@@ -74,7 +64,7 @@ class TestFactorizeArrays(TestCase):
         expected_groups = list(OrderedDict({s: s for s in strings}))
         expected_enum = np.array([expected_groups.index(s) + 1 for s in strings])
 
-        result_enum, result_groups  = factorize_array(strings)
+        result_enum, result_groups = factorize_array(strings)
 
         self.assertTrue(arrays_are_identical(expected_groups, result_groups))
         self.assertTrue(arrays_are_identical(expected_enum, result_enum))
@@ -117,7 +107,7 @@ class TestFactorizeArrays(TestCase):
         expected_groups[:] = groups
         expected_enum = np.array([groups.index(x) + 1 for x in zipped])
 
-        result_enum, result_groups  = factorize_ndarray(ndarr, row_idxs=row_idxs)
+        result_enum, result_groups = factorize_ndarray(ndarr, row_idxs=row_idxs)
 
         self.assertTrue(arrays_are_identical(expected_groups, result_groups))
         self.assertTrue(arrays_are_identical(expected_enum, result_enum))
@@ -172,7 +162,7 @@ class TestFastZipArrays(TestCase):
 def dataframes_are_identical(df1, df2):
     try:
         assert_frame_equal(df1, df2)
-    except:
+    except AssertionError:
         return False
 
     return True
@@ -337,7 +327,7 @@ class TestGetDataframe(TestCase):
         ),
         subset_cols=just(
             np.random.choice(
-                ['str_col','int_col','float_col','bool_col','null_col'],
+                ['str_col', 'int_col', 'float_col', 'bool_col', 'null_col'],
                 np.random.choice(range(1, 6)),
                 replace=False
             ).tolist()
@@ -376,7 +366,7 @@ class TestGetDataframe(TestCase):
         ),
         subset_cols=just(
             np.random.choice(
-                ['STR_COL','int_col','FloatCol','boolCol','null_col'],
+                ['STR_COL', 'int_col', 'FloatCol', 'boolCol', 'null_col'],
                 np.random.choice(range(1, 6)),
                 replace=False
             ).tolist()
@@ -434,7 +424,7 @@ class TestGetDataframe(TestCase):
         ),
         required_cols=just(
             np.random.choice(
-                ['str_col','int_col','float_col','bool_col','null_col'],
+                ['str_col', 'int_col', 'float_col', 'bool_col', 'null_col'],
                 np.random.choice(range(1, 6)),
                 replace=False
             ).tolist()
@@ -473,7 +463,7 @@ class TestGetDataframe(TestCase):
         ),
         required_cols=just(
             np.random.choice(
-                ['STR_COL','int_col','FloatCol','boolCol','null_col'],
+                ['STR_COL', 'int_col', 'FloatCol', 'boolCol', 'null_col'],
                 np.random.choice(range(1, 6)),
                 replace=False
             ).tolist()
@@ -513,7 +503,7 @@ class TestGetDataframe(TestCase):
         ),
         missing_cols=just(
             np.random.choice(
-                ['str_col','int_col','float_col','bool_col','null_col'],
+                ['str_col', 'int_col', 'float_col', 'bool_col', 'null_col'],
                 np.random.choice(range(1, 5)),
                 replace=False
             ).tolist()
@@ -549,7 +539,7 @@ class TestGetDataframe(TestCase):
         ),
         missing_cols=just(
             np.random.choice(
-                ['STR_COL','int_col','FloatCol','boolCol','null_col'],
+                ['STR_COL', 'int_col', 'FloatCol', 'boolCol', 'null_col'],
                 np.random.choice(range(1, 5)),
                 replace=False
             ).tolist()
@@ -917,7 +907,7 @@ class TestGetDataframe(TestCase):
         ),
         subset_cols=just(
             np.random.choice(
-                ['STR_COL','int_col','FloatCol','boolCol','null_col'],
+                ['STR_COL', 'int_col', 'FloatCol', 'boolCol', 'null_col'],
                 np.random.choice(range(1, 6)),
                 replace=False
             ).tolist()
@@ -957,7 +947,7 @@ class TestGetDataframe(TestCase):
         ),
         required_cols=just(
             np.random.choice(
-                ['STR_COL','int_col','FloatCol','boolCol','null_col'],
+                ['STR_COL', 'int_col', 'FloatCol', 'boolCol', 'null_col'],
                 np.random.choice(range(1, 6)),
                 replace=False
             ).tolist()
@@ -997,7 +987,7 @@ class TestGetDataframe(TestCase):
         ),
         missing_cols=just(
             np.random.choice(
-                ['STR_COL','int_col','FloatCol','boolCol','null_col'],
+                ['STR_COL', 'int_col', 'FloatCol', 'boolCol', 'null_col'],
                 np.random.choice(range(1, 5)),
                 replace=False
             ).tolist()
@@ -1150,6 +1140,7 @@ class TestGetDataframe(TestCase):
             self.assertTrue(dataframes_are_identical(result, expected))
         finally:
             os.remove(fp.name)
+
 
 class TestGetJson(TestCase):
 
