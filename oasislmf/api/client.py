@@ -7,14 +7,15 @@ import os
 import sys
 import time
 
-from requests.exceptions import *
+from requests.exceptions import (
+    HTTPError,
+)
 from requests_toolbelt import MultipartEncoder
 from .session import APISession
 
-from ..utils.exceptions import OasisException
 
 __all__ = [
-    'APIClient'
+    'APIClient',
     'ApiEndpoint',
     'API_analyses',
     'API_models',
@@ -23,6 +24,7 @@ __all__ = [
 ]
 
 # --- API Endpoint mapping to functions ------------------------------------- #
+
 
 class ApiEndpoint(object):
     """
@@ -44,6 +46,7 @@ class ApiEndpoint(object):
 
     def delete(self, ID):
         return self.session.delete('{}{}/'.format(self.url_endpoint, ID))
+
 
 class FileEndpoint(object):
     """
@@ -96,29 +99,31 @@ class FileEndpoint(object):
                 r = self.session.get(self._build_url(ID), stream=True)
                 for chunk in r.iter_content(chunk_size=chuck_size):
                     f.write(chunk)
-        except:
+        except (HTTPError, IOError):
             self.logger.error('Download failed')
-           # exception_message = 'GET {} failed: {}'.format(response.request.url, response.status_code)
-           # self._logger.error(exception_message)
-           # raise OasisException(exception_message)
+            # exception_message = 'GET {} failed: {}'.format(response.request.url, response.status_code)
+            # self._logger.error(exception_message)
+            # raise OasisException(exception_message)
         return r
 
     def get(self, ID):
-        ## fetch file into memory
+        # fetch file into memory
         return self.session.get(self._build_url(ID))
 
     def post(self, ID, data_object, content_type='application/json'):
-        ## Update data as object -
+        # Update data as object -
         # https://toolbelt.readthedocs.io/en/latest/uploading-data.html
         m = MultipartEncoder(fields={'file': ('data', data_object, content_type)})
-        r = self.session.post(self._build_url(ID),
-                                 data=m,
-                                 headers={'Content-Type': m.content_type})
+        r = self.session.post(
+            self._build_url(ID),
+            data=m,
+            headers={'Content-Type': m.content_type}
+        )
         if not r.ok:
             err_msg = 'Data_Object upload Failed'
             self.logger.error(err_msg)
-            #self._logger.error(error_message)
-            #raise OasisException(error_message)
+            # self._logger.error(error_message)
+            # raise OasisException(error_message)
         return r
 
     def delete(self, ID):
@@ -209,13 +214,13 @@ class API_analyses(ApiEndpoint):
     def create(self, name, portfolio_id, model_id):
         data = {"name": name,
                 "portfolio": portfolio_id,
-                "model": model_id }
+                "model": model_id}
         return self.session.post(self.url_endpoint, json=data)
 
     def update(self, ID, name, portfolio_id, model_id):
         data = {"name": name,
                 "portfolio": portfolio_id,
-                "model": model_id }
+                "model": model_id}
         return self.session.put('{}{}/'.format(self.url_endpoint, ID), json=data)
 
     def status(self, ID):
@@ -233,22 +238,17 @@ class API_analyses(ApiEndpoint):
     def run_cancel(self, ID):
         return self.session.post('{}{}/cancel/'.format(self.url_endpoint, ID), json={})
 
-
-
-
-
-
 # --- API Main Client ------------------------------------------------------- #
+
 
 class APIClient(object):
     def __init__(self, api_url, api_ver, username, password, timeout=25, logger=None):
         self.logger = logger or logging.getLogger()
 
-        self.api        = APISession(api_url, username, password, timeout)
-        self.models     = API_models(self.api, '{}{}/models/'.format(self.api.url_base, api_ver))
+        self.api = APISession(api_url, username, password, timeout)
+        self.models = API_models(self.api, '{}{}/models/'.format(self.api.url_base, api_ver))
         self.portfolios = API_portfolios(self.api, '{}{}/portfolios/'.format(self.api.url_base, api_ver))
-        self.analyses   = API_analyses(self.api,'{}{}/analyses/'.format(self.api.url_base, api_ver))
-
+        self.analyses = API_analyses(self.api, '{}{}/analyses/'.format(self.api.url_base, api_ver))
 
     def upload_inputs(self, portfolio_name=None, portfolio_id=None,
                       location_fp=None, accounts_fp=None, ri_info_fp=None, ri_scope_fp=None):
@@ -265,14 +265,13 @@ class APIClient(object):
                 portfolio = self.portfolios.create(portfolio_name)
                 portfolio_id = portfolio.json()['id']
 
-
-            ## Check or create portfolio
+            # Check or create portfolio
             if not portfolio.ok:
                 err_msg = "Failed to find matching `portfolio_id = {}`".format(portfolio_id)
                 self.logger.error(err_msg)
                 # raise OasisException()
 
-            ## Upload exposure
+            # Upload exposure
             if location_fp:
                 self.portfolios.location_file.upload(portfolio_id, location_fp)
                 self.logger.info("File uploaded: {}".format(location_fp))
@@ -287,11 +286,9 @@ class APIClient(object):
                 self.logger.info("File uploaded: {}".format(ri_scope_fp))
             return portfolio.json()
         except HTTPError as e:
-            err_msg = 'API Error: {}, url: {}, msg: {}'.format(r.status_code, r.url, r.text)
-            self.logger.error(err_msg)
+            self.logger.error(e)
             self.logger.error('upload_inputs: failed')
             sys.exit(1)
-
 
     def create_analysis(self, portfolio_id, model_id, analysis_name=None, analysis_settings_fp=None):
         try:
@@ -304,7 +301,7 @@ class APIClient(object):
             r = self.portfolios.get(portfolio_id)
             r.raise_for_status()
 
-            r = self.analyses.create(analysis_name ,portfolio_id, model_id)
+            r = self.analyses.create(analysis_name, portfolio_id, model_id)
             r.raise_for_status()
             analyses = r.json()
 
@@ -318,7 +315,6 @@ class APIClient(object):
             self.logger.error(err_msg)
             self.logger.error('create_analysis: failed ')
             sys.exit(1)
-
 
     # BLOCKING CALL
     def run_generate(self, analysis_id, poll_interval=5):
@@ -343,14 +339,14 @@ class APIClient(object):
                     self.logger.info('Input Generation: Cancelled (id={})'.format(analysis_id))
                     return False
 
-                elif analysis['status'] in  ['INPUTS_GENERATION_ERROR']:
+                elif analysis['status'] in ['INPUTS_GENERATION_ERROR']:
                     self.logger.info('Input Generation: failed (id={})'.format(analysis_id))
                     error_trace = self.analyses.input_generation_traceback_file.get(analysis_id).text
                     self.logger.error(error_trace)
                     return False
 
                 elif analysis['status'] in ['INPUTS_GENERATION_STARTED']:
-                    #self.logger.debug('Polling - status: {}'.format(analysis['status']))
+                    # self.logger.debug('Polling - status: {}'.format(analysis['status']))
                     time.sleep(poll_interval)
                     r = self.analyses.get(analysis_id)
                     r.raise_for_status()
@@ -359,8 +355,8 @@ class APIClient(object):
 
                 else:
                     err_msg = "Inputs Generation: Unknown State'{}'".format(analysis['status'])
-                    #Raise oasis Execption
-                    ## Error -- Raise execption Unknown Analysis  State
+                    # Raise oasis Execption
+                    # Error -- Raise execption Unknown Analysis  State
         except HTTPError as e:
             err_msg = 'API Error: {}, url: {}, msg: {}'.format(r.status_code, r.url, r.text)
             self.logger.error(err_msg)
@@ -394,14 +390,14 @@ class APIClient(object):
                     self.logger.info('Analysis Run: Cancelled (id={})'.format(analysis_id))
                     return False
 
-                elif analysis['status'] in  ['RUN_ERROR']:
+                elif analysis['status'] in ['RUN_ERROR']:
                     self.logger.error('Analysis Run: failed (id={})'.format(analysis_id))
                     error_trace = self.analyses.run_traceback_file.get(analysis_id).text
                     self.logger.error(error_trace)
                     return False
 
                 elif analysis['status'] in ['RUN_STARTED']:
-                    #self.logger.debug('Polling - status: {}'.format(analysis['status']))
+                    # self.logger.debug('Polling - status: {}'.format(analysis['status']))
                     time.sleep(poll_interval)
                     r = self.analyses.get(analysis_id)
                     r.raise_for_status()
@@ -410,8 +406,8 @@ class APIClient(object):
 
                 else:
                     err_msg = "Execution status in Unknown State: '{}'".format(analysis['status'])
-                    #Raise oasis Execption
-                    ## Error -- Raise execption Unknown Analysis  State
+                    # Raise oasis Execption
+                    # Error -- Raise execption Unknown Analysis  State
         except HTTPError as e:
             err_msg = 'API Error: {}, url: {}, msg: {}'.format(r.status_code, r.url, r.text)
             self.logger.error(err_msg)
@@ -419,9 +415,8 @@ class APIClient(object):
             sys.exit(1)
 
     def download_output(self, analysis_id, download_path, filename=None, clean_up=False, overwrite=True):
-        analysis = self.analyses.get(analysis_id).json()    
         if not filename:
-            filename='analysis_{}_output'.format(analysis_id)
+            filename = 'analysis_{}_output'.format(analysis_id)
         try:
             output_file = os.path.join(download_path, filename + '.tar')
             r = self.analyses.output_file.download(ID=analysis_id, file_path=output_file, overwrite=overwrite)
@@ -437,7 +432,6 @@ class APIClient(object):
             self.logger.error('Analysis Download output: Failed (id={})'.format(analysis_id))
             sys.exit(1)
 
-
     def cancel_generate(self, analysis_id):
         """
         Cancels a currently inputs generation. The analysis status must be `GENERATING_INPUTS`
@@ -452,7 +446,6 @@ class APIClient(object):
             self.logger.debug(err_msg)
             self.logger.info('cancel_generate: Failed')
             return False
-
 
     def cancel_analysis(self, analysis_id):
         """
