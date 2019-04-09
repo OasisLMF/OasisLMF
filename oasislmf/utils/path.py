@@ -35,7 +35,7 @@ def as_path(path, label, is_dir=False, preexists=True):
 
     :return: The absolute path of the input path
     """
-    
+
     if not isinstance(path, str):
         return
     _path = ''.join(path)

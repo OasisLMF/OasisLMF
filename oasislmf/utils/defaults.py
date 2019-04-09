@@ -28,6 +28,8 @@ STATIC_DATA_FP = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__fil
 # Default profiles that describe the financial terms in the OED acc. and loc.
 # (exposure) files, as well as how aggregation of FM input items is performed
 # in the different OED FM levels
+
+
 def get_default_accounts_profile(path=False):
     src_fp = os.path.join(STATIC_DATA_FP, 'oed-acc-profile.json')
     return get_json(src_fp=src_fp) if not path else src_fp
@@ -45,7 +47,7 @@ def get_default_fm_aggregation_profile(path=False):
 
 # Ktools calc. rules
 def get_calc_rules(path=False):
-    src_fp=os.path.join(STATIC_DATA_FP, 'calc-rules.csv')
+    src_fp = os.path.join(STATIC_DATA_FP, 'calc-rules.csv')
     return get_dataframe(src_fp=src_fp) if not path else src_fp
 
 

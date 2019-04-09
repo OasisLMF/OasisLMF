@@ -101,12 +101,12 @@ def factorize_ndarray(ndarr, row_idxs=[], col_idxs=[]):
 
 
 def factorize_dataframe(
-        df,
-        by_row_labels=None,
-        by_row_indices=None,
-        by_col_labels=None,
-        by_col_indices=None
-    ):
+    df,
+    by_row_labels=None,
+    by_row_indices=None,
+    by_col_labels=None,
+    by_col_indices=None
+):
     """
     Groups a selection of rows or columns of a Pandas DataFrame array by value,
     and optionally enumerates the groups, starting from 1.
@@ -199,22 +199,17 @@ def get_dataframe(
 
     df = None
 
-
     if src_fp and src_type == 'csv':
-        df = pd.read_csv(src_fp,  float_precision=float_precision, usecols=subset_cols, memory_map=memory_map)
-        col_dtypes_set = True
+        df = pd.read_csv(src_fp, float_precision=float_precision, usecols=subset_cols, memory_map=memory_map)
     elif src_buf and src_type == 'csv':
-        df = pd.read_csv(io.StringIO(src_buf),  float_precision=float_precision, usecols=subset_cols, memory_map=memory_map)
-        col_dtypes_set = True
+        df = pd.read_csv(io.StringIO(src_buf), float_precision=float_precision, usecols=subset_cols, memory_map=memory_map)
     elif src_fp and src_type == 'json':
-        df = pd.read_json(src_fp,  precise_float=(True if float_precision == 'high' else False))
-        col_dtypes_set = True
+        df = pd.read_json(src_fp, precise_float=(True if float_precision == 'high' else False))
     elif src_buf and src_type == 'json':
-        df = pd.read_json(io.StringIO(src_buf),  precise_float=(True if float_precision == 'high' else False))
-        col_dtypes_set = True
+        df = pd.read_json(io.StringIO(src_buf), precise_float=(True if float_precision == 'high' else False))
     elif src_data and isinstance(src_data, list):
         df = pd.DataFrame(data=src_data)
-    elif src_data and  isinstance(src_data, pd.DataFrame):
+    elif src_data and isinstance(src_data, pd.DataFrame):
         df = pd.DataFrame(src_data)
 
     if len(df) == 0:
