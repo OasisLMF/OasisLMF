@@ -33,9 +33,9 @@ from oasislmf.model_execution.bin import (
     check_inputs_directory,
     cleanup_bin_directory,
     create_binary_tar_file,
-    csv_to_bin, 
+    csv_to_bin,
     prepare_run_directory,
-    prepare_run_inputs, 
+    prepare_run_inputs,
 )
 from oasislmf.utils.exceptions import OasisException
 
@@ -202,14 +202,14 @@ class CreateBinaryTarFile(TestCase):
         with TemporaryDirectory() as d:
             os.mkdir(os.path.join(d, 'RI_1'))
             os.mkdir(os.path.join(d, 'RI_2'))
-            
+
             for target in targets:
                 with io.open(os.path.join(d, target), 'w', encoding='utf-8') as f:
                     f.write(target)
                 with io.open(os.path.join(d, 'RI_1', target), 'w', encoding='utf-8') as f:
                     f.write(target)
                 with io.open(os.path.join(d, 'RI_2', target), 'w', encoding='utf-8') as f:
-                    f.write(target)                
+                    f.write(target)
 
             create_binary_tar_file(d)
 
@@ -422,7 +422,7 @@ class CheckInputsDirectory(TestCase):
                 check_inputs_directory(d, il=True, ri=True, check_binaries=True)
             except Exception as e:
                 self.fail('Exception was raised {}: {}'.format(type(e), e))
-                
+
     def test_check_gul_and_il_and_single_ri_directory_structure_binaries_fail(self):
         with TemporaryDirectory() as d:
             for p in viewvalues(INPUT_FILES):
@@ -456,11 +456,11 @@ class CheckInputsDirectory(TestCase):
         with TemporaryDirectory() as d:
             for p in viewvalues(INPUT_FILES):
                 Path(os.path.join(d, p['name'] + '.csv')).touch()
-            
+
             os.mkdir(os.path.join(d, "RI_1"))
             for p in viewvalues(INPUT_FILES):
                 Path(os.path.join(d, "RI_1", p['name'] + '.csv')).touch()
-            
+
             os.mkdir(os.path.join(d, "RI_2"))
             for p in viewvalues(INPUT_FILES):
                 Path(os.path.join(d, "RI_2", p['name'] + '.csv')).touch()
