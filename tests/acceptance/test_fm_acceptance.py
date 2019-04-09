@@ -118,7 +118,7 @@ class FmAcceptanceTests(TestCase):
             gul_inputs_df, exposure_df = get_gul_input_items(ef.name, kf.name)
             gul_input_files = write_gul_input_files(gul_inputs_df, oasis_dir.name)
 
-            for p in gul_input_files.values(): 
+            for p in gul_input_files.values():
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
@@ -152,7 +152,7 @@ class FmAcceptanceTests(TestCase):
             )
             il_input_files = write_il_input_files(il_inputs, oasis_dir.name)
 
-            for p in il_input_files.values(): 
+            for p in il_input_files.values():
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
@@ -305,7 +305,7 @@ class FmAcceptanceTests(TestCase):
             gul_inputs_df, exposure_df = get_gul_input_items(ef.name, kf.name)
             gul_input_files = write_gul_input_files(gul_inputs_df, oasis_dir.name)
 
-            for p in gul_input_files.values(): 
+            for p in gul_input_files.values():
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
@@ -339,7 +339,7 @@ class FmAcceptanceTests(TestCase):
             )
             il_input_files = write_il_input_files(il_inputs, oasis_dir.name)
 
-            for p in il_input_files.values(): 
+            for p in il_input_files.values():
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
@@ -500,7 +500,7 @@ class FmAcceptanceTests(TestCase):
             gul_inputs_df, exposure_df = get_gul_input_items(ef.name, kf.name)
             gul_input_files = write_gul_input_files(gul_inputs_df, oasis_dir.name)
 
-            for p in gul_input_files.values(): 
+            for p in gul_input_files.values():
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
@@ -534,7 +534,7 @@ class FmAcceptanceTests(TestCase):
             )
             il_input_files = write_il_input_files(il_inputs, oasis_dir.name)
 
-            for p in il_input_files.values(): 
+            for p in il_input_files.values():
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
@@ -707,7 +707,7 @@ class FmAcceptanceTests(TestCase):
             gul_inputs_df, exposure_df = get_gul_input_items(ef.name, kf.name)
             gul_input_files = write_gul_input_files(gul_inputs_df, oasis_dir.name)
 
-            for p in gul_input_files.values(): 
+            for p in gul_input_files.values():
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
@@ -754,7 +754,7 @@ class FmAcceptanceTests(TestCase):
             )
             il_input_files = write_il_input_files(il_inputs, oasis_dir.name)
 
-            for p in il_input_files.values(): 
+            for p in il_input_files.values():
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
@@ -931,7 +931,7 @@ class FmAcceptanceTests(TestCase):
             gul_inputs_df, exposure_df = get_gul_input_items(ef.name, kf.name)
             gul_input_files = write_gul_input_files(gul_inputs_df, oasis_dir.name)
 
-            for p in gul_input_files.values(): 
+            for p in gul_input_files.values():
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
@@ -978,7 +978,7 @@ class FmAcceptanceTests(TestCase):
             )
             il_input_files = write_il_input_files(il_inputs, oasis_dir.name)
 
-            for p in il_input_files.values(): 
+            for p in il_input_files.values():
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
@@ -1158,7 +1158,7 @@ class FmAcceptanceTests(TestCase):
             gul_inputs_df, exposure_df = get_gul_input_items(ef.name, kf.name)
             gul_input_files = write_gul_input_files(gul_inputs_df, oasis_dir.name)
 
-            for p in gul_input_files.values(): 
+            for p in gul_input_files.values():
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
@@ -1185,7 +1185,7 @@ class FmAcceptanceTests(TestCase):
             )
             il_input_files = write_il_input_files(il_inputs, oasis_dir.name)
 
-            for p in il_input_files.values(): 
+            for p in il_input_files.values():
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
