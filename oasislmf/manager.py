@@ -1,4 +1,4 @@
-__all__ = [
+generate_model_losses__all__ = [
     'OasisManager'
 ]
 
@@ -71,6 +71,7 @@ from .utils.defaults import (
     KTOOLS_MEM_LIMIT,
     KTOOLS_FIFO_RELATIVE,
     KTOOLS_ALLOC_RULE,
+    KTOOLS_DEBUG,
     OASIS_FILES_PREFIXES,
 )
 from .utils.peril import PerilAreasIndex
@@ -95,6 +96,7 @@ class OasisManager(object):
         ktools_mem_limit=None,
         ktools_fifo_relative=None,
         ktools_alloc_rule=None,
+        ktools_debug=None,
         oasis_files_prefixes=None
     ):
         # Set defaults for static data or runtime parameters
@@ -107,6 +109,7 @@ class OasisManager(object):
         self._ktools_mem_limit = ktools_mem_limit or KTOOLS_MEM_LIMIT
         self._ktools_fifo_relative = ktools_fifo_relative or KTOOLS_FIFO_RELATIVE
         self._ktools_alloc_rule = ktools_alloc_rule or KTOOLS_ALLOC_RULE
+        self._ktools_debug = ktools_debug or KTOOLS_DEBUG
         self._oasis_files_prefixes = oasis_files_prefixes or OASIS_FILES_PREFIXES
 
     @property
@@ -148,6 +151,10 @@ class OasisManager(object):
     @property
     def ktools_alloc_rule(self):
         return self._ktools_alloc_rule
+
+    @property
+    def ktools_debug(self):
+        return self._ktools_debug
 
     @oasis_log
     def generate_peril_areas_rtree_file_index(
@@ -461,7 +468,8 @@ class OasisManager(object):
         ktools_num_processes=None,
         ktools_mem_limit=None,
         ktools_fifo_relative=None,
-        ktools_alloc_rule=None
+        ktools_alloc_rule=None,
+        ktools_debug=None
     ):
 
         il = all(p in os.listdir(oasis_fp) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
@@ -543,6 +551,7 @@ class OasisManager(object):
                 num_reinsurance_iterations=ri_layers,
                 ktools_mem_limit=(ktools_mem_limit or self.ktools_mem_limit),
                 set_alloc_rule=(ktools_alloc_rule or self.ktools_alloc_rule),
+                run_debug=(ktools_debug or self.ktools_debug),
                 fifo_tmp_dir=(not (ktools_fifo_relative or self.ktools_fifo_relative))
             )
 
