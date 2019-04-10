@@ -98,8 +98,10 @@ def get_gul_input_items(
 
     tiv_and_cov_il_terms = [v for v in tiv_terms.values()] + [_v for v in cov_il_terms.values() for _v in v.values() if _v]
 
-    col_defaults = {t: 0.0 for t in tiv_and_cov_il_terms}
-    col_dtypes = {t: ('float32' if t in tiv_and_cov_il_terms else 'str') for t in tiv_and_cov_il_terms + [loc_id, acc_id, portfolio_num]}
+    col_defaults = {t: (0.0 if t in tiv_and_cov_il_terms else 0) for t in tiv_and_cov_il_terms + [cond_num]}
+    col_dtypes = {
+        t: ('float32' if t in tiv_and_cov_il_terms else ('int' if t == cond_num else 'str')) for t in tiv_and_cov_il_terms + [loc_id, acc_id, portfolio_num, cond_num]
+    }
 
     # Load the exposure and keys dataframes - set 32-bit numeric data types
     # for all numeric columns - and in the keys frame rename some columns

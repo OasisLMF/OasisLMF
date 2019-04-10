@@ -245,7 +245,7 @@ def get_il_input_items(
         src_fp=accounts_fp,
         col_dtypes=col_dtypes,
         col_defaults=col_defaults,
-        required_cols=(acc_id, policy_num, portfolio_num,),
+        required_cols=(acc_id, policy_num, portfolio_num, cond_num,),
         empty_data_error_msg='No accounts found in the source accounts (loc.) file',
         memory_map=True,
     )
@@ -256,11 +256,12 @@ def get_il_input_items(
     # The layer ID function = use this to set a layer ID column in the accounts
     # frame for enumerating (acc. num., policy num.) for different accounts
     def get_layer_ids(df):
+        portfolio_nums = df[portfolio_num].values
         acc_ids = df[acc_id].values
         policy_nums = df[policy_num].values
         return np.hstack((
-            factorize_ndarray(np.asarray(list(accnum_group)), col_idxs=range(2))[0]
-            for _, accnum_group in groupby(fast_zip_arrays(acc_ids, policy_nums), key=lambda t: t[0])
+            factorize_ndarray(np.asarray(list(accnum_group)), col_idxs=range(3))[0]
+            for _, accnum_group in groupby(fast_zip_arrays(portfolio_nums, acc_ids, policy_nums), key=lambda t: t[0])
         ))
 
     if 'layer_id' not in accounts_df or 'layerid' not in accounts_df:
@@ -293,7 +294,7 @@ def get_il_input_items(
             accounts_df,
             left_on=[portfolio_num, acc_id, cond_num],
             right_on=[portfolio_num, acc_id, cond_num],
-            how='inner'
+            how='left'
         )
 
         # At this point the IL inputs frame will contain essentially only

@@ -252,6 +252,7 @@ class OasisManager(object):
         keys_data_fp=None,
         model_version_fp=None,
         lookup_package_fp=None,
+        complex_lookup_config_fp=None,
         keys_fp=None,
         keys_errors_fp=None,
         keys_id_col='locnumber',
@@ -261,7 +262,8 @@ class OasisManager(object):
             lookup_config_fp=lookup_config_fp,
             model_keys_data_path=keys_data_fp,
             model_version_file_path=model_version_fp,
-            lookup_package_path=lookup_package_fp
+            lookup_package_path=lookup_package_fp,
+            complex_lookup_config_fp=complex_lookup_config_fp
         )
 
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
