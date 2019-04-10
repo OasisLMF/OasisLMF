@@ -194,7 +194,8 @@ class OasisBaseKeysLookup(object):  # pragma: no cover
         supplier=None,
         model_name=None,
         model_version=None,
-        complex_lookup_config_fp=None
+        complex_lookup_config_fp=None,
+        output_directory=None
     ):
         """
         Class constructor
@@ -208,6 +209,7 @@ class OasisBaseKeysLookup(object):  # pragma: no cover
         self.model_name = model_name
         self.model_version = model_version
         self.complex_lookup_config_fp = complex_lookup_config_fp
+        self.output_directory = output_directory
 
     @oasis_log()
     def process_locations(self, loc_df):
