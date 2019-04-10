@@ -277,8 +277,6 @@ def get_il_input_items(
     layer_level = max(fm_levels)
     fm_terms = unified_fm_terms_by_level_and_term_group(unified_profile_by_level_and_term_group=ufp)
 
-    #import ipdb; ipdb.set_trace()
-
     try:
         # Merge the combined exposure and GUL inputs frame with the accounts
         # frame on acc. ID - this will be the main IL inputs frame that the
@@ -292,8 +290,8 @@ def get_il_input_items(
                 how='inner'
             ),
             accounts_df,
-            left_on=[portfolio_num, acc_id, cond_num],
-            right_on=[portfolio_num, acc_id, cond_num],
+            left_on=[portfolio_num, acc_id, cond_num, 'layer_id'],
+            right_on=[portfolio_num, acc_id, cond_num, 'layer_id'],
             how='left'
         )
 
