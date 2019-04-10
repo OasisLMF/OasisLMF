@@ -385,7 +385,8 @@ class OasisManager(object):
                     model_keys_data_path=keys_data_fp,
                     model_version_file_path=model_version_fp,
                     lookup_package_path=lookup_package_fp,
-                    complex_lookup_config_fp=complex_lookup_config_fp
+                    complex_lookup_config_fp=complex_lookup_config_fp,
+                    output_directory=target_dir
                 )
                 f1, n1, f2, n2 = olf.save_results(
                     lookup,

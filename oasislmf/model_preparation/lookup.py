@@ -319,7 +319,7 @@ class OasisLookupFactory(object):
 
     @classmethod
     def get_lookup_class_instance(cls, lookup_package, keys_data_path, model_info,
-                                  complex_lookup_config_fp):
+                                  complex_lookup_config_fp, output_directory):
         """
         Get the keys lookup class instance.
         """
@@ -330,7 +330,8 @@ class OasisLookupFactory(object):
             supplier=model_info['supplier_id'],
             model_name=model_info['model_id'],
             model_version=model_info['model_version'],
-            complex_lookup_config_fp=complex_lookup_config_fp
+            complex_lookup_config_fp=complex_lookup_config_fp,
+            output_directory=output_directory
         )
 
     @classmethod
@@ -428,6 +429,7 @@ class OasisLookupFactory(object):
         lookup_config_json=None,
         lookup_config_fp=None,
         complex_lookup_config_fp=None,
+        output_directory=None,
         lookup_type='combined',
         loc_id_col='locnumber'
     ):
@@ -465,6 +467,7 @@ class OasisLookupFactory(object):
             _model_version_file_path = as_path(model_version_file_path, 'model_version_file_path', preexists=True)
             _lookup_package_path = as_path(lookup_package_path, 'lookup_package_path', preexists=True)
             _complex_lookup_config_fp = as_path(complex_lookup_config_fp, 'complex_lookup_config_fp', preexists=True)
+            _output_directory = as_path(output_directory, 'output_directory', preexists=True)
 
             model_info = cls.get_model_info(_model_version_file_path)
             lookup_package = cls.get_lookup_package(_lookup_package_path)
@@ -473,7 +476,8 @@ class OasisLookupFactory(object):
                 lookup_package=lookup_package,
                 keys_data_path=_model_keys_data_path,
                 model_info=model_info,
-                complex_lookup_config_fp=_complex_lookup_config_fp
+                complex_lookup_config_fp=_complex_lookup_config_fp,
+                output_directory=_output_directory
             )
         
             return model_info, lookup
