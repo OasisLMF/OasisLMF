@@ -1,8 +1,4 @@
-# -*- coding: utf-8 -*-
-
 import os
-import subprocess32 as subprocess
-import time
 import unittest
 
 from oasislmf.model_preparation import (
@@ -12,6 +8,7 @@ from oasislmf.model_preparation import (
 cwd = os.path.dirname(os.path.realpath(__file__))
 input_dir = os.path.join(cwd, 'examples')
 
+
 class TestReinsurance(unittest.TestCase):
 
     def test_validate_oed_direct_inly(self):
@@ -20,7 +17,7 @@ class TestReinsurance(unittest.TestCase):
 
         (
             ri_info_df,
-            ri_scope_df, 
+            ri_scope_df,
             do_reinsurance
         ) = oed.load_oed_dfs(case_dir)
 
@@ -32,10 +29,8 @@ class TestReinsurance(unittest.TestCase):
 
         (
             ri_info_df,
-            ri_scope_df, 
+            ri_scope_df,
             do_reinsurance
         ) = oed.load_oed_dfs(case_dir)
 
         self.assertTrue(do_reinsurance)
-
-

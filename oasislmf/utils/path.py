@@ -1,16 +1,3 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-from builtins import open as io_open
-from builtins import str
-
-from future import standard_library
-standard_library.install_aliases()
-
 __all__ = [
     'as_path',
     'empty_dir',
@@ -22,7 +9,6 @@ import os
 import shutil
 
 from contextlib import contextmanager
-from future.utils import string_types
 
 from .exceptions import OasisException
 
@@ -49,8 +35,8 @@ def as_path(path, label, is_dir=False, preexists=True):
 
     :return: The absolute path of the input path
     """
-    
-    if not isinstance(path, string_types):
+
+    if not isinstance(path, str):
         return
     _path = ''.join(path)
     if not os.path.isabs(path):

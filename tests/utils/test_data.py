@@ -1,46 +1,22 @@
-# -*- coding: utf-8 -*-
-
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-from builtins import open as io_open
-from builtins import str
-
-from future import standard_library
-standard_library.install_aliases()
-
 import copy
 import io
-import itertools
 import json
 import os
-import shutil
 import string
-import sys
 
 from collections import OrderedDict
 from datetime import datetime
-from future.utils import viewitems, viewvalues
 from unittest import TestCase
 
 import numpy as np
 import pandas as pd
-import pytest
 import pytz
 
-from backports.tempfile import TemporaryDirectory
 from hypothesis import (
     given,
-    HealthCheck,
-    reproduce_failure,
     settings,
 )
 from hypothesis.strategies import (
-    characters,
-    data,
     datetimes,
     integers,
     fixed_dictionaries,
@@ -49,7 +25,6 @@ from hypothesis.strategies import (
     lists,
     sampled_from,
     text,
-    tuples,
 )
 from pandas.util.testing import assert_frame_equal
 from tempfile import NamedTemporaryFile
@@ -89,7 +64,7 @@ class TestFactorizeArrays(TestCase):
         expected_groups = list(OrderedDict({s: s for s in strings}))
         expected_enum = np.array([expected_groups.index(s) + 1 for s in strings])
 
-        result_enum, result_groups  = factorize_array(strings)
+        result_enum, result_groups = factorize_array(strings)
 
         self.assertTrue(arrays_are_identical(expected_groups, result_groups))
         self.assertTrue(arrays_are_identical(expected_enum, result_enum))
@@ -132,7 +107,7 @@ class TestFactorizeArrays(TestCase):
         expected_groups[:] = groups
         expected_enum = np.array([groups.index(x) + 1 for x in zipped])
 
-        result_enum, result_groups  = factorize_ndarray(ndarr, row_idxs=row_idxs)
+        result_enum, result_groups = factorize_ndarray(ndarr, row_idxs=row_idxs)
 
         self.assertTrue(arrays_are_identical(expected_groups, result_groups))
         self.assertTrue(arrays_are_identical(expected_enum, result_enum))
@@ -187,7 +162,7 @@ class TestFastZipArrays(TestCase):
 def dataframes_are_identical(df1, df2):
     try:
         assert_frame_equal(df1, df2)
-    except:
+    except AssertionError:
         return False
 
     return True
@@ -288,7 +263,7 @@ class TestGetDataframe(TestCase):
         fp = NamedTemporaryFile('w', delete=False)
         try:
             df = pd.DataFrame(data)
-            for col, dtype in viewitems(dtypes):
+            for col, dtype in dtypes.items():
                 df[col] = df[col].astype(dtype)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
             fp.close()
@@ -323,7 +298,7 @@ class TestGetDataframe(TestCase):
         fp = NamedTemporaryFile('w', delete=False)
         try:
             df = pd.DataFrame(data)
-            for col, dtype in viewitems(dtypes):
+            for col, dtype in dtypes.items():
                 df[col] = df[col].astype(dtype)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
             fp.close()
@@ -352,7 +327,7 @@ class TestGetDataframe(TestCase):
         ),
         subset_cols=just(
             np.random.choice(
-                ['str_col','int_col','float_col','bool_col','null_col'],
+                ['str_col', 'int_col', 'float_col', 'bool_col', 'null_col'],
                 np.random.choice(range(1, 6)),
                 replace=False
             ).tolist()
@@ -391,7 +366,7 @@ class TestGetDataframe(TestCase):
         ),
         subset_cols=just(
             np.random.choice(
-                ['STR_COL','int_col','FloatCol','boolCol','null_col'],
+                ['STR_COL', 'int_col', 'FloatCol', 'boolCol', 'null_col'],
                 np.random.choice(range(1, 6)),
                 replace=False
             ).tolist()
@@ -449,7 +424,7 @@ class TestGetDataframe(TestCase):
         ),
         required_cols=just(
             np.random.choice(
-                ['str_col','int_col','float_col','bool_col','null_col'],
+                ['str_col', 'int_col', 'float_col', 'bool_col', 'null_col'],
                 np.random.choice(range(1, 6)),
                 replace=False
             ).tolist()
@@ -488,7 +463,7 @@ class TestGetDataframe(TestCase):
         ),
         required_cols=just(
             np.random.choice(
-                ['STR_COL','int_col','FloatCol','boolCol','null_col'],
+                ['STR_COL', 'int_col', 'FloatCol', 'boolCol', 'null_col'],
                 np.random.choice(range(1, 6)),
                 replace=False
             ).tolist()
@@ -528,7 +503,7 @@ class TestGetDataframe(TestCase):
         ),
         missing_cols=just(
             np.random.choice(
-                ['str_col','int_col','float_col','bool_col','null_col'],
+                ['str_col', 'int_col', 'float_col', 'bool_col', 'null_col'],
                 np.random.choice(range(1, 5)),
                 replace=False
             ).tolist()
@@ -564,7 +539,7 @@ class TestGetDataframe(TestCase):
         ),
         missing_cols=just(
             np.random.choice(
-                ['STR_COL','int_col','FloatCol','boolCol','null_col'],
+                ['STR_COL', 'int_col', 'FloatCol', 'boolCol', 'null_col'],
                 np.random.choice(range(1, 5)),
                 replace=False
             ).tolist()
@@ -612,7 +587,7 @@ class TestGetDataframe(TestCase):
             fp.close()
 
             expected = df.copy(deep=True)
-            for col, default in viewitems(defaults):
+            for col, default in defaults.items():
                 expected.loc[:, col].fillna(defaults[col], inplace=True)
 
             result = get_dataframe(src_fp=fp.name, col_defaults=defaults)
@@ -649,7 +624,7 @@ class TestGetDataframe(TestCase):
 
             expected = df.copy(deep=True)
             expected.columns = expected.columns.str.lower()
-            for col, default in viewitems(defaults):
+            for col, default in defaults.items():
                 expected.loc[:, col.lower()].fillna(defaults[col], inplace=True)
 
             result = get_dataframe(src_fp=fp.name, col_defaults=defaults)
@@ -738,7 +713,7 @@ class TestGetDataframe(TestCase):
     def test_get_dataframe__from_csv_file__set_sort_cols_option_on_single_col_and_use_defaults_for_all_other_options(self, data):
         fp = NamedTemporaryFile("w", delete=False)
         try:
-            data = [{k: (v if k != 'int_col' else np.random.choice(range(10))) for k, v in viewitems(it)} for it in data]
+            data = [{k: (v if k != 'int_col' else np.random.choice(range(10))) for k, v in it.items()} for it in data]
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
             fp.close()
@@ -769,7 +744,7 @@ class TestGetDataframe(TestCase):
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_sort_cols_option_on_single_col_and_use_defaults_for_all_other_options(self, data):
         fp = NamedTemporaryFile("w", delete=False)
         try:
-            data = [{k: (v if k != 'IntCol' else np.random.choice(range(10))) for k, v in viewitems(it)} for it in data]
+            data = [{k: (v if k != 'IntCol' else np.random.choice(range(10))) for k, v in it.items()} for it in data]
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
             fp.close()
@@ -802,7 +777,7 @@ class TestGetDataframe(TestCase):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             data = [
-                {k: (v if k not in ('int_col', 'str_col') else (np.random.choice(range(10)) if k == 'int_col' else np.random.choice(list(string.ascii_lowercase)))) for k, v in viewitems(it)}
+                {k: (v if k not in ('int_col', 'str_col') else (np.random.choice(range(10)) if k == 'int_col' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
                 for it in data
             ]
             df = pd.DataFrame(data)
@@ -836,7 +811,7 @@ class TestGetDataframe(TestCase):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             data = [
-                {k: (v if k not in ('IntCol', 'STR_COL') else (np.random.choice(range(10)) if k == 'IntCol' else np.random.choice(list(string.ascii_lowercase)))) for k, v in viewitems(it)}
+                {k: (v if k not in ('IntCol', 'STR_COL') else (np.random.choice(range(10)) if k == 'IntCol' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
                 for it in data
             ]
             df = pd.DataFrame(data)
@@ -904,7 +879,7 @@ class TestGetDataframe(TestCase):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             df = pd.DataFrame(data)
-            for col, dtype in viewitems(dtypes):
+            for col, dtype in dtypes.items():
                 df[col] = df[col].astype(dtype)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
             fp.close()
@@ -932,7 +907,7 @@ class TestGetDataframe(TestCase):
         ),
         subset_cols=just(
             np.random.choice(
-                ['STR_COL','int_col','FloatCol','boolCol','null_col'],
+                ['STR_COL', 'int_col', 'FloatCol', 'boolCol', 'null_col'],
                 np.random.choice(range(1, 6)),
                 replace=False
             ).tolist()
@@ -972,7 +947,7 @@ class TestGetDataframe(TestCase):
         ),
         required_cols=just(
             np.random.choice(
-                ['STR_COL','int_col','FloatCol','boolCol','null_col'],
+                ['STR_COL', 'int_col', 'FloatCol', 'boolCol', 'null_col'],
                 np.random.choice(range(1, 6)),
                 replace=False
             ).tolist()
@@ -1012,7 +987,7 @@ class TestGetDataframe(TestCase):
         ),
         missing_cols=just(
             np.random.choice(
-                ['STR_COL','int_col','FloatCol','boolCol','null_col'],
+                ['STR_COL', 'int_col', 'FloatCol', 'boolCol', 'null_col'],
                 np.random.choice(range(1, 5)),
                 replace=False
             ).tolist()
@@ -1061,7 +1036,7 @@ class TestGetDataframe(TestCase):
             fp.close()
 
             expected = df.copy(deep=True)
-            for col, default in viewitems(defaults):
+            for col, default in defaults.items():
                 expected.loc[:, col].fillna(defaults[col], inplace=True)
 
             result = get_dataframe(src_fp=fp.name, col_defaults=defaults, lowercase_cols=False)
@@ -1118,7 +1093,7 @@ class TestGetDataframe(TestCase):
     def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false_and_sort_cols_option_on_single_col_and_use_defaults_for_all_other_options(self, data):
         fp = NamedTemporaryFile("w", delete=False)
         try:
-            data = [{k: (v if k != 'IntCol' else np.random.choice(range(10))) for k, v in viewitems(it)} for it in data]
+            data = [{k: (v if k != 'IntCol' else np.random.choice(range(10))) for k, v in it.items()} for it in data]
             df = pd.DataFrame(data)
             df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
             fp.close()
@@ -1150,7 +1125,7 @@ class TestGetDataframe(TestCase):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             data = [
-                {k: (v if k not in ('IntCol', 'STR_COL') else (np.random.choice(range(10)) if k == 'IntCol' else np.random.choice(list(string.ascii_lowercase)))) for k, v in viewitems(it)}
+                {k: (v if k not in ('IntCol', 'STR_COL') else (np.random.choice(range(10)) if k == 'IntCol' else np.random.choice(list(string.ascii_lowercase)))) for k, v in it.items()}
                 for it in data
             ]
             df = pd.DataFrame(data)
@@ -1165,6 +1140,7 @@ class TestGetDataframe(TestCase):
             self.assertTrue(dataframes_are_identical(result, expected))
         finally:
             os.remove(fp.name)
+
 
 class TestGetJson(TestCase):
 
@@ -1194,7 +1170,7 @@ class TestGetJson(TestCase):
             f1.write(json.dumps(expected, indent=4, sort_keys=True))
             f1.close()
 
-            with io_open(f1.name, 'r', encoding='utf-8') as f2:
+            with io.open(f1.name, 'r', encoding='utf-8') as f2:
                 result = json.load(f2)
                 self.assertEqual(result, expected)
         finally:

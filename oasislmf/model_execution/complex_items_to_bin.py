@@ -10,6 +10,7 @@ Implementation of ktool items conversion tool including
 complex item data serialized with msgpack.
 """
 
+
 def items_to_bin(source, output):
     for row in csv.DictReader(iter(source.readline, '')):
         # item_id,coverage_id,model_data,group_id

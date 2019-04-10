@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import os
 import socket
 from unittest import TestCase
@@ -76,7 +74,8 @@ class LoadInIFile(TestCase):
 
             conf = load_ini_file(f.name)
 
-            ipf = lambda s: socket.inet_ntoa(socket.inet_aton(s))
+            def ipf(s):
+                return socket.inet_ntoa(socket.inet_aton(s))
 
             self.assertEqual(ipf('127.0.0.1'), conf['a'])
             self.assertEqual(ipf('127.127.127.127'), conf['b'])

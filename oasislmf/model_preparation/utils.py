@@ -1,16 +1,3 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-from builtins import open
-from builtins import str
-
-from future import standard_library
-standard_library.install_aliases()
-
 __all__ = [
     'prepare_input_files_directory'
 ]
@@ -46,7 +33,8 @@ def prepare_input_files_directory(
         if not os.path.exists(target_dir):
             Path(target_dir).mkdir(parents=True, exist_ok=True)
 
-        paths = [p for p in (
+        paths = [
+            p for p in (
                 exposure_fp, exposure_profile_fp, accounts_fp, accounts_profile_fp,
                 fm_aggregation_profile_fp, lookup_config_fp, model_version_fp,
                 complex_lookup_config_fp, keys_fp, ri_info_fp, ri_scope_fp

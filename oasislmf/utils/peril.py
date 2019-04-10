@@ -1,16 +1,3 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-from builtins import open as io_open
-from builtins import str
-
-from future import standard_library
-standard_library.install_aliases()
-
 __all__ = [
     'DEFAULT_RTREE_INDEX_PROPS',
     'generate_index_entries',
@@ -32,15 +19,6 @@ import types
 import uuid
 
 from collections import OrderedDict
-from future.utils import (
-    PY2,
-    PY3,
-    viewitems,
-    viewkeys,
-    viewvalues,
-)
-
-import six
 
 from rtree.core import RTreeError
 from rtree.index import (
@@ -59,7 +37,7 @@ from shapely import speedups as shapely_speedups
 if shapely_speedups.available:
     shapely_speedups.enable()
 
-from six.moves import cPickle as cpickle
+import pickle
 
 from .exceptions import OasisException
 from .data import get_dataframe
@@ -196,7 +174,7 @@ class PerilAreasIndex(RTreeIndex):
 
     def __init__(self, *args, **kwargs):
 
-            self._protocol = (2 if PY2 else cpickle.HIGHEST_PROTOCOL)
+            self._protocol = pickle.HIGHEST_PROTOCOL
 
             idx_fp = kwargs.get('fp')
 
@@ -227,17 +205,17 @@ class PerilAreasIndex(RTreeIndex):
                     pa.id: pa for pa in (peril_areas if peril_areas else self._get_peril_areas(areas))
                 })
                 self._stream = self._generate_index_entries(
-                    ((paid, pa.bounds) for paid, pa in viewitems(self._peril_areas)),
-                    objects=((paid, pa.bounds, pa.coordinates) for paid, pa in viewitems(self._peril_areas))
+                    ((paid, pa.bounds) for paid, pa in self._peril_areas.items()),
+                    objects=((paid, pa.bounds, pa.coordinates) for paid, pa in self._peril_areas.items())
                 )
                 kwargs['properties'] = RTreeIndexProperty(**props)
                 super(self.__class__, self).__init__(self._stream, *args, **kwargs)
 
     def dumps(self, obj):
-        return cpickle.dumps(obj, protocol=self.protocol)
+        return pickle.dumps(obj, protocol=self.protocol)
 
     def loads(self, data):
-        return cpickle.loads(data)
+        return pickle.loads(data)
 
     def _get_peril_areas(self, areas):
         for peril_id, coverage_type, peril_area_id, coordinates, other_props in areas:
@@ -302,7 +280,7 @@ class PerilAreasIndex(RTreeIndex):
         if not set(_non_na_cols).intersection([_peril_id_col, _coverage_type_col, _peril_area_id_col]):
             _non_na_cols = _non_na_cols.union({_peril_id_col, _coverage_type_col, _peril_area_id_col})
 
-        for col in viewvalues(area_poly_coords_cols):
+        for col in area_poly_coords_cols.values():
             if col not in _non_na_cols:
                 _non_na_cols = _non_na_cols.union({col.lower()})
 
@@ -322,7 +300,7 @@ class PerilAreasIndex(RTreeIndex):
 
         seq_start = area_poly_coords_seq_start_idx
 
-        len_seq = sum(1 if re.match(r'x(\d+)?', k) else 0 for k in viewkeys(coords_cols))
+        len_seq = sum(1 if re.match(r'x(\d+)?', k) else 0 for k in coords_cols.keys())
 
         peril_areas = cls()._get_peril_areas(
             (
@@ -369,14 +347,14 @@ class PerilAreasIndex(RTreeIndex):
 
         class myindex(RTreeIndex):
             def __init__(self, *args, **kwargs):
-                self.protocol = (2 if PY2 else cpickle.HIGHEST_PROTOCOL)
+                self.protocol = pickle.HIGHEST_PROTOCOL
                 super(self.__class__, self).__init__(*args, **kwargs)
 
             def dumps(self, obj):
-                return cpickle.dumps(obj, protocol=self.protocol)
+                return pickle.dumps(obj, protocol=self.protocol)
 
             def loads(self, obj):
-                return cpickle.loads(obj)
+                return pickle.loads(obj)
 
         try:
             index = myindex(_index_fp, properties=RTreeIndexProperty(**index_props))
@@ -396,7 +374,7 @@ class PerilAreasIndex(RTreeIndex):
             elif isinstance(peril_areas, types.GeneratorType):
                 peril_areas_seq = peril_areas
             elif (isinstance(peril_areas, dict)):
-                peril_areas_seq = viewvalues(peril_areas)
+                peril_areas_seq = peril_areas.values()
 
             for pa in peril_areas_seq:
                 index.insert(pa.id, pa.bounds, obj=(pa.peril_id, pa.coverage_type, pa.id, pa.bounds, pa.coordinates))

@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import unicode_literals
 
 import hashlib
 import io
@@ -49,9 +46,9 @@ class Genbash(TestCase):
             output_filename = os.path.join(KPARSE_OUTPUT_FOLDER, "{}_{}_partition.sh".format(name, num_partitions))
         else:
             output_filename = os.path.join(
-                KPARSE_OUTPUT_FOLDER, 
+                KPARSE_OUTPUT_FOLDER,
                 "{}_{}_reins_layer_{}_partition.sh".format(name, num_reinsurance_iterations, num_partitions))
-            
+
         with io.open(input_filename, encoding='utf-8') as file:
             analysis_settings = json.load(file)['analysis_settings']
 
@@ -83,7 +80,7 @@ class Genbash(TestCase):
                 if '/tmp/' in line:
                     tmp_fifo_dir = line.split('/')[-2]
                     break
-        
+
         # Replace placeholder '%FIFO_DIR%' with '<RandomDirName>'
         with io.open(ref_template, 'r') as f:
             ktools_script = f.read()

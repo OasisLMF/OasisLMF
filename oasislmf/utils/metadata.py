@@ -1,29 +1,3 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-from builtins import open as io_open
-from builtins import str
-
-from future import standard_library
-standard_library.install_aliases()
-
-__all__ = [
-    'COVERAGE_TYPES',
-    'DEDUCTIBLE_CODES',
-    'DEDUCTIBLE_AND_LIMIT_TYPES',
-    'FM_LEVELS',
-    'FM_TERMS',
-    'LIMIT_CODES',
-    'OASIS_KEYS_STATUS',
-    'OASIS_TASK_STATUS',
-    'PERILS',
-    'PERIL_GROUPS',
-]
-
 """
 Metadata definitions for Oasis and OED exposure data + insurance data + peril
 & cat. modelling data + Oasis keys status and Celery task status flags
@@ -39,6 +13,7 @@ https://github.com/Simplitium/OED/blob/master/Open%20Exposure%20Data.pdf
 import sys
 
 from collections import OrderedDict
+
 
 class _metadata(object):
 
@@ -145,7 +120,7 @@ class _metadata(object):
     OASIS_KEYS_NM = 'nomatch'
 
     OASIS_KEYS_STATUS = {
-        'success': {'id': OASIS_KEYS_SC,'desc': 'Success'},
+        'success': {'id': OASIS_KEYS_SC, 'desc': 'Success'},
         'fail': {'id': OASIS_KEYS_FL, 'desc': 'Failure'},
         'nomatch': {'id': OASIS_KEYS_NM, 'desc': 'No match'}
     }
@@ -238,7 +213,6 @@ class _metadata(object):
         'ZST': {'id': PRL_ZST, 'desc': 'Winterstorm Wind', 'group_peril': PRL_GRP_ZZ1}
     })
 
-
     class AttributeModificationError(BaseException):
         pass
 
@@ -256,6 +230,7 @@ class _metadata(object):
         except KeyError:
             raise AttributeError('Module {} has no attribute "{}"'.format(__name__, attrib_name))
 
-        raise self.AttributeModificationError('Cannot delete module attribute "{}.{}" - it is meant to be a constant'.format(__name_, attrib_name))
+        raise self.AttributeModificationError('Cannot delete module attribute "{}.{}" - it is meant to be a constant'.format(__name__, attrib_name))
+
 
 sys.modules[__name__] = _metadata()

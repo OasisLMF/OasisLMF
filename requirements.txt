@@ -70,11 +70,10 @@ responses==0.8.1
 rtree==0.8.3
 shapely==1.6.4.post1
 shutilwhich==1.1.0
-six==1.11.0
+six==1.11.0               # via anytree, freezegun, mock, pathlib2, pip-tools, prompt-toolkit, pytest, python-dateutil, python-interface, responses, sphinx, tox, traitlets
 snowballstemmer==1.2.1    # via sphinx
 sphinx==1.6.7
 sphinxcontrib-websupport==1.0.1  # via sphinx
-subprocess32==3.5.3
 tabulate==0.8.2
 tox==2.9.1
 tqdm==4.31.1

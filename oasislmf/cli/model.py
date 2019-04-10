@@ -1,16 +1,3 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
-
-from builtins import open as io_open
-from builtins import str
-
-from future import standard_library
-standard_library.install_aliases()
-
 __all__ = [
     'GenerateKeysCmd',
     'GenerateLossesCmd',
@@ -364,7 +351,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
 
 class GenerateLossesCmd(OasisBaseCommand):
     """
-    Generates losses using the installed ktools framework given Oasis files, 
+    Generates losses using the installed ktools framework given Oasis files,
     model analysis settings JSON file, model data and model package data.
 
     The command line arguments can be supplied in the configuration file
@@ -415,7 +402,7 @@ class GenerateLossesCmd(OasisBaseCommand):
 
     def action(self, args):
         """
-        Generates losses using the installed ktools framework given Oasis files, 
+        Generates losses using the installed ktools framework given Oasis files,
         model analysis settings JSON file, model data and model package data.
 
         :param args: The arguments from the command line
@@ -508,7 +495,7 @@ class RunCmd(OasisBaseCommand):
             '-b', '--source-accounts-profile-path', default=None,
             help='Source OED accounts profile path'
         )
-        
+
         parser.add_argument('-x', '--source-exposure-file-path', default=None, help='Source exposure file path')
         parser.add_argument('-y', '--source-accounts-file-path', default=None, help='Source accounts file path')
 
