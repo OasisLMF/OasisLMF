@@ -4,6 +4,7 @@ __all__ = [
     'get_default_deterministic_analysis_settings',
     'get_default_exposure_profile',
     'get_default_fm_aggregation_profile',
+    'get_default_unified_profile',
     'KTOOLS_NUM_PROCESSES',
     'KTOOLS_MEM_LIMIT',
     'KTOOLS_FIFO_RELATIVE',
@@ -32,23 +33,28 @@ STATIC_DATA_FP = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__fil
 
 
 def get_default_accounts_profile(path=False):
-    src_fp = os.path.join(STATIC_DATA_FP, 'oed-acc-profile.json')
+    src_fp = os.path.join(STATIC_DATA_FP, 'default_acc_profile.json')
     return get_json(src_fp=src_fp) if not path else src_fp
 
 
 def get_default_exposure_profile(path=False):
-    src_fp = os.path.join(STATIC_DATA_FP, 'oed-loc-profile.json')
+    src_fp = os.path.join(STATIC_DATA_FP, 'default_loc_profile.json')
+    return get_json(src_fp=src_fp) if not path else src_fp
+
+
+def get_default_unified_profile(path=False):
+    src_fp = os.path.join(STATIC_DATA_FP, 'default_unified_profile.json')
     return get_json(src_fp=src_fp) if not path else src_fp
 
 
 def get_default_fm_aggregation_profile(path=False):
-    src_fp = os.path.join(STATIC_DATA_FP, 'fm-oed-agg-profile.json')
+    src_fp = os.path.join(STATIC_DATA_FP, 'default_fm_agg_profile.json')
     return {int(k): v for k, v in get_json(src_fp=src_fp).items()} if not path else src_fp
 
 
 # Ktools calc. rules
 def get_calc_rules(path=False):
-    src_fp = os.path.join(STATIC_DATA_FP, 'calc-rules.csv')
+    src_fp = os.path.join(STATIC_DATA_FP, 'calc_rules.csv')
     return get_dataframe(src_fp=src_fp) if not path else src_fp
 
 

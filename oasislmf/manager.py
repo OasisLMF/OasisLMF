@@ -48,7 +48,7 @@ from .model_preparation.gul_inputs import (
 )
 from .model_preparation.il_inputs import (
     get_il_input_items,
-    unified_id_terms,
+    unified_hierarchy_terms,
     write_il_input_files,
 )
 from .model_preparation.lookup import OasisLookupFactory as olf
@@ -259,6 +259,7 @@ class OasisManager(object):
         keys_data_fp=None,
         model_version_fp=None,
         lookup_package_fp=None,
+        complex_lookup_config_fp=None,
         keys_fp=None,
         keys_errors_fp=None,
         keys_id_col='locnumber',
@@ -268,7 +269,8 @@ class OasisManager(object):
             lookup_config_fp=lookup_config_fp,
             model_keys_data_path=keys_data_fp,
             model_version_file_path=model_version_fp,
-            lookup_package_path=lookup_package_fp
+            lookup_package_path=lookup_package_fp,
+            complex_lookup_config_fp=complex_lookup_config_fp
         )
 
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
@@ -336,10 +338,10 @@ class OasisManager(object):
         # terms in these files, and FM aggregation hierarchy
         exposure_profile = exposure_profile or (get_json(src_fp=exposure_profile_fp) if exposure_profile_fp else self.exposure_profile)
         accounts_profile = accounts_profile or (get_json(src_fp=accounts_profile_fp) if accounts_profile_fp else self.accounts_profile)
-        id_terms = unified_id_terms(profiles=(exposure_profile, accounts_profile,))
-        loc_id = id_terms['locid']
-        acc_id = id_terms['accid']
-        portfolio_num = id_terms['portid']
+        hierarchy_terms = unified_hierarchy_terms(profiles=(exposure_profile, accounts_profile,))
+        loc_num = hierarchy_terms['locid']
+        acc_num = hierarchy_terms['accid']
+        portfolio_num = hierarchy_terms['portid']
         fm_aggregation_profile = (
             fm_aggregation_profile or
             ({int(k): v for k, v in get_json(src_fp=fm_aggregation_profile_fp).items()} if fm_aggregation_profile_fp else {}) or
@@ -359,14 +361,14 @@ class OasisManager(object):
             cov_types = supported_oed_coverage_types or self.supported_oed_coverage_types
 
             if deterministic:
-                loc_numbers = (loc_num[loc_id] for _, loc_num in get_dataframe(
+                loc_numbers = (loc_it[loc_num] for _, loc_it in get_dataframe(
                     src_fp=exposure_fp,
-                    col_dtypes={loc_id: 'str', acc_id: 'str', portfolio_num: 'str'},
+                    col_dtypes={loc_num: 'str', acc_num: 'str', portfolio_num: 'str'},
                     empty_data_error_msg='No exposure found in the source exposure (loc.) file'
-                )[[loc_id]].iterrows())
+                )[[loc_num]].iterrows())
                 keys = [
-                    {loc_id: loc_num, 'peril_id': 1, 'coverage_type': cov_type, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
-                    for i, (loc_num, cov_type) in enumerate(product(loc_numbers, cov_types))
+                    {loc_num: _loc_num, 'peril_id': 1, 'coverage_type': cov_type, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
+                    for i, (_loc_num, cov_type) in enumerate(product(loc_numbers, cov_types))
                 ]
                 _, _ = olf.write_oasis_keys_file(keys, _keys_fp)
             else:
@@ -383,7 +385,7 @@ class OasisManager(object):
                 )
                 f1, n1, f2, n2 = olf.save_results(
                     lookup,
-                    loc_id_col=loc_id,
+                    loc_id_col=loc_num,
                     successes_fp=_keys_fp,
                     errors_fp=_keys_errors_fp,
                     source_exposure_fp=exposure_fp
