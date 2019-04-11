@@ -356,7 +356,7 @@ class OasisManager(object):
             if deterministic:
                 loc_numbers = (loc_it[loc_num] for _, loc_it in get_dataframe(
                     src_fp=exposure_fp,
-                    col_dtypes={loc_id: 'str', acc_id: 'str', portfolio_num: 'str'},
+                    col_dtypes={loc_num: 'str', acc_num: 'str', portfolio_num: 'str'},
                     empty_data_error_msg='No exposure found in the source exposure (loc.) file'
                 )[[loc_num]].iterrows())
                 keys = [

@@ -4,6 +4,7 @@ __all__ = [
     'get_default_deterministic_analysis_settings',
     'get_default_exposure_profile',
     'get_default_fm_aggregation_profile',
+    'get_default_unified_profile',
     'KTOOLS_NUM_PROCESSES',
     'KTOOLS_MEM_LIMIT',
     'KTOOLS_FIFO_RELATIVE',
@@ -37,6 +38,11 @@ def get_default_accounts_profile(path=False):
 
 def get_default_exposure_profile(path=False):
     src_fp = os.path.join(STATIC_DATA_FP, 'default_loc_profile.json')
+    return get_json(src_fp=src_fp) if not path else src_fp
+
+
+def get_default_unified_profile(path=False):
+    src_fp = os.path.join(STATIC_DATA_FP, 'default_unified_profile.json')
     return get_json(src_fp=src_fp) if not path else src_fp
 
 
