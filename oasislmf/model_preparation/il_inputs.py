@@ -53,6 +53,7 @@ from ..utils.log import oasis_log
 from ..utils.path import as_path
 from ..utils.metadata import (
     COVERAGE_TYPES,
+    FM_LEVELS,
 )
 
 
@@ -234,7 +235,7 @@ def get_il_input_items(
     accounts_il_terms = unified_fm_terms_by_level_and_term_group(profiles=(accpf,))
     accounts_il_cols = [__v for v in accounts_il_terms.values() for _v in v.values() for __v in _v.values() if __v]
 
-    col_defaults = {t: 0.0 for t in accounts_il_cols}
+    col_defaults = {t: (0.0 if t in accounts_il_cols else 0) for t in accounts_il_cols + [cond_num]}
     col_dtypes = {
         **{t: 'str' for t in [loc_num, acc_num, portfolio_num, policy_num]},
         **{t: 'float32' for t in accounts_il_cols},
@@ -279,22 +280,55 @@ def get_il_input_items(
     fm_terms = unified_fm_terms_by_level_and_term_group(unified_profile_by_level_and_term_group=ufp)
 
     try:
-        # Merge the combined exposure and GUL inputs frame with the accounts
-        # frame on acc. ID - this will be the main IL inputs frame that the
-        # method will continue to work on and eventually return to the caller.
+        # Start a series of merges to construct the initial IL inputs frame.
+        #
+        # First, merge the exposure and GUL inputs frame to augment the GUL inputs
+        # frame with financial terms related to site PD + site all FM levels (the
+        # GUL inputs frame effectively only contains financial terms related to
+        # FM level 1, which is the site coverage)
+        expgul_df = merge_dataframes(
+            exposure_df,
+            gul_inputs_df,
+            left_on=loc_num,
+            right_on=loc_num,
+            how='inner'
+        )
+
+        # Construct a basic IL inputs frame by merging the combined exposure +
+        # GUL inputs frame above, with the accounts frame, on portfolio no.,
+        # account no. and layer ID (by default items in the GUL inputs frame
+        # are set with a layer ID of 1)
+        keys = [portfolio_num, acc_num, 'layer_id']
         il_inputs_df = merge_dataframes(
-            merge_dataframes(
-                exposure_df,
-                gul_inputs_df,
-                left_on=loc_num,
-                right_on=loc_num,
-                how='inner'
-            ),
+            expgul_df,
             accounts_df,
-            left_on=[portfolio_num, acc_num, cond_num, 'layer_id'],
-            right_on=[portfolio_num, acc_num, cond_num, 'layer_id'],
+            left_on=keys,
+            right_on=keys,
             how='left'
         )
+
+        # We need to pull in the cond. numbers for the locations, so we merge
+        # a reduced version of the combined exposure + GUL inputs frame with
+        # a reduced version of the accounts frame, on portfolio no., account no.,
+        # layer ID and cond. num., and just extract the cond. num column, and
+        # also replacing any nulls with 0.
+        keys += [cond_num]
+        cond_numbers = merge_dataframes(
+            expgul_df[[loc_num] + keys],
+            accounts_df,
+            left_on=keys,
+            right_on=keys,
+            how='left'
+        )[cond_num].fillna(0)
+
+        # Mark the GUL inputs and exposure file dataframes for deletion
+        del [exposure_df, expgul_df]
+
+        # Set the cond. number column in the IL inputs frame
+        il_inputs_df[cond_num] = cond_numbers
+
+        # Mark the external cond. numbers series for deletion
+        del cond_numbers
 
         # At this point the IL inputs frame will contain essentially only
         # coverage level items, but will include multiple items relating to
@@ -326,8 +360,8 @@ def get_il_input_items(
             inplace=True
         )
 
-        # Mark the GUL inputs and exposure file dataframes for deletion
-        del [gul_inputs_df, exposure_df]
+        # Mark the GUL inputs frame for deletion
+        del gul_inputs_df
 
         # Set the GUL input item IDs by enumerating loc. number + coverage type
         # ID combinations
@@ -391,11 +425,20 @@ def get_il_input_items(
             term_cols = [(term_col or term) for term, term_col in fm_terms[level][1].items() if term != 'share']
             level_df = il_inputs_df[il_inputs_df['level_id'] == cov_level]
             level_df['level_id'] = level
+
             agg_key = [v['field'].lower() for v in fmap[level]['FMAggKey'].values()]
             level_df['agg_id'] = factorize_ndarray(level_df[agg_key].values, col_idxs=range(len(agg_key)))[0]
-            level_df.loc[:, term_cols] = level_df.loc[:, term_cols].where(level_df.loc[:, term_cols].notnull(), 0.0).values
+
+            level_df.loc[:, term_cols] = level_df.loc[:, term_cols].where(
+                level_df.loc[:, term_cols].notnull(),
+                0.0
+            ).values
+            if level == FM_LEVELS['cond all']['id']:
+                level_df.loc[:, term_cols] = level_df.loc[:, term_cols].where(level_df[cond_num] != 0, 0.0)
+            
             level_df.loc[:, terms] = 0.0
             level_df.loc[:, terms] = level_df.loc[:, term_cols].values
+
             level_df['deductible'] = np.where(
                 level_df['coverage_type_id'].isin((ufp[level][1].get('deductible') or {}).get('CoverageTypeID') or all_cov_types),
                 level_df['deductible'],
@@ -406,6 +449,7 @@ def get_il_input_items(
                 level_df['deductible'],
                 level_df['tiv'] * level_df['deductible'],
             )
+
             level_df['limit'] = np.where(
                 level_df['coverage_type_id'].isin((ufp[level][1].get('limit') or {}).get('CoverageTypeID') or all_cov_types),
                 level_df['limit'],
