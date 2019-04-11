@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -e
+set -o pipefail
 
 rm -R -f output/*
 rm -R -f work/*
@@ -154,6 +155,5 @@ rm /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P1
 rm -rf work/kat
 rm -rf work/il_S1_summaryaalcalc/*
 rmdir work/il_S1_summaryaalcalc
-rm /tmp/%FIFO_DIR%/fifo/*
 rmdir /tmp/%FIFO_DIR%/fifo
 rmdir /tmp/%FIFO_DIR%/

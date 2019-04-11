@@ -437,6 +437,8 @@ class GenerateLossesCmd(OasisBaseCommand):
         ktools_fifo_relative = inputs.get('ktools_fifo_relative', default=False, required=False)
 
         ktools_alloc_rule = inputs.get('ktools_alloc_rule', default=2, required=False)
+        
+        verbose_output = inputs.get('verbose', default=False, required=False)
 
         il = all(p in os.listdir(oasis_fp) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
         ri = False
@@ -446,6 +448,7 @@ class GenerateLossesCmd(OasisBaseCommand):
             ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(oasis_fp)))
 
         self.logger.info('\nGenerating losses (GUL=True, IL={}, RIL={})'.format(il, ri))
+
         om().generate_model_losses(
             model_run_fp,
             oasis_fp,
@@ -455,7 +458,8 @@ class GenerateLossesCmd(OasisBaseCommand):
             ktools_num_processes=ktools_num_processes,
             ktools_mem_limit=ktools_mem_limit,
             ktools_fifo_relative=ktools_fifo_relative,
-            ktools_alloc_rule=ktools_alloc_rule
+            ktools_alloc_rule=ktools_alloc_rule,
+            ktools_debug=verbose_output
         )
 
         self.logger.info('\nLosses generated in {}'.format(model_run_fp))

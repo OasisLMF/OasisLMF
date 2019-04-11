@@ -1,3 +1,4 @@
+import logging
 import multiprocessing
 import os
 import shutil
@@ -18,6 +19,7 @@ def run(
     ktools_mem_limit=False,
     set_alloc_rule=ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID,
     fifo_tmp_dir=True,
+    run_debug=False,
     filename='run_ktools.sh'
 ):
     if number_of_processes == -1:
@@ -61,6 +63,7 @@ def run(
             fifo_tmp_dir=fifo_tmp_dir,
             mem_limit=ktools_mem_limit,
             alloc_rule=set_alloc_rule,
+            bash_trace=run_debug,
             filename=filename,
             _get_getmodel_cmd=custom_get_getmodel_cmd,
         )
@@ -72,10 +75,12 @@ def run(
             fifo_tmp_dir=fifo_tmp_dir,
             mem_limit=ktools_mem_limit,
             alloc_rule=set_alloc_rule,
+            bash_trace=run_debug,
             filename=filename
         )
 
     try:
-        subprocess.check_call(['bash', filename])
+        bash_trace = subprocess.check_output(['bash', filename], stderr=subprocess.STDOUT)
+        logging.info(bash_trace.decode('utf-8'))
     except subprocess.CalledProcessError as e:
-        raise OasisException('Error running ktools: {}'.format(str(e)))
+        raise OasisException('Error running ktools: {}'.format(e.output.decode('utf-8').strip()))
