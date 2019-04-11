@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -e
+set -o pipefail
 
 rm -R -f output/*
 rm -R -f fifo/*
