@@ -42,7 +42,7 @@ from ..utils.path import as_path
 from .il_inputs import (
     unified_fm_profile_by_level_and_term_group,
     unified_fm_terms_by_level_and_term_group,
-    unified_id_terms,
+    unified_hierarchy_terms,
 )
 
 
@@ -83,11 +83,11 @@ def get_gul_input_items(
 
     # Get another profile describing certain key ID columns in the exposure
     # file, namely loc. number, acc. number and portfolio number.
-    id_terms = unified_id_terms(unified_profile_by_level_and_term_group=ufp)
-    loc_id = id_terms['locid']
-    acc_id = id_terms['accid']
-    portfolio_num = id_terms['portid']
-    cond_num = id_terms['condid']
+    hierarchy_terms = unified_hierarchy_terms(unified_profile_by_level_and_term_group=ufp)
+    loc_num = hierarchy_terms['locid']
+    acc_num = hierarchy_terms['accid']
+    portfolio_num = hierarchy_terms['portid']
+    cond_num = hierarchy_terms['condid']
 
     # Get the TIV column names and corresponding coverage types
     tiv_terms = OrderedDict({v['tiv']['CoverageTypeID']: v['tiv']['ProfileElementName'].lower() for k, v in ufp[1].items()})
@@ -100,7 +100,7 @@ def get_gul_input_items(
 
     col_defaults = {t: (0.0 if t in tiv_and_cov_il_terms else 0) for t in tiv_and_cov_il_terms + [cond_num]}
     col_dtypes = {
-        t: ('float32' if t in tiv_and_cov_il_terms else ('int' if t == cond_num else 'str')) for t in tiv_and_cov_il_terms + [loc_id, acc_id, portfolio_num, cond_num]
+        t: ('float32' if t in tiv_and_cov_il_terms else ('int' if t == cond_num else 'str')) for t in tiv_and_cov_il_terms + [loc_num, acc_num, portfolio_num, cond_num]
     }
 
     # Load the exposure and keys dataframes - set 32-bit numeric data types
@@ -108,7 +108,7 @@ def get_gul_input_items(
     # to align with underscored-naming convention
     exposure_df = get_dataframe(
         src_fp=exposure_fp,
-        required_cols=(loc_id, acc_id, portfolio_num, cond_num,),
+        required_cols=(loc_num, acc_num, portfolio_num, cond_num,),
         col_dtypes=col_dtypes,
         col_defaults=col_defaults,
         empty_data_error_msg='No data found in the source exposure (loc.) file',
@@ -152,7 +152,7 @@ def get_gul_input_items(
         # keys dataframes on loc. number/loc. ID; filter out any rows with
         # zeros for TIVs for all coverage types, and replace any nulls in the
         # TIV columns with zeros
-        gul_inputs_df = merge_dataframes(exposure_df, keys_df, left_on=loc_id, right_on=loc_id, how='inner')
+        gul_inputs_df = merge_dataframes(exposure_df, keys_df, left_on=loc_num, right_on=loc_num, how='inner')
 
         if gul_inputs_df.empty:
             raise OasisException(
@@ -212,7 +212,7 @@ def get_gul_input_items(
         gul_inputs_df = gul_inputs_df[(gul_inputs_df[['tiv']] != 0).any(axis=1)].reset_index()
 
         # Set the group ID - group by loc. number
-        gul_inputs_df['group_id'] = factorize_array(gul_inputs_df[loc_id].values)[0]
+        gul_inputs_df['group_id'] = factorize_array(gul_inputs_df[loc_num].values)[0]
 
         # Set the item IDs and coverage IDs, and defaults for layer ID, agg. ID and summary and
         # summary set IDs
@@ -228,7 +228,7 @@ def get_gul_input_items(
 
         # Drop all unnecessary columns
         usecols = (
-            [loc_id, acc_id, portfolio_num, cond_num] +
+            [loc_num, acc_num, portfolio_num, cond_num] +
             ['tiv'] + terms +
             ['peril_id', 'coverage_type_id', 'areaperil_id', 'vulnerability_id'] +
             (['model_data'] if 'model_data' in gul_inputs_df else []) +

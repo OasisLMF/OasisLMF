@@ -2,7 +2,7 @@
     "AccNumber": {
         "ProfileElementName": "AccNumber",
         "FieldName": "AccNumber",
-        "FMLevelName": "ID",
+        "FMLevelName": "Hierarchy",
         "FMLevel": 0,
         "FMTermType": "AccID",
         "FMTermGroupID": 1,
@@ -11,7 +11,7 @@
     "PolNumber": {
         "ProfileElementName": "PolNumber",
         "FieldName": "PolNumber",
-        "FMLevelName": "ID",
+        "FMLevelName": "Hierarchy",
         "FMLevel": 0,
         "FMTermType": "PolID",
         "FMTermGroupID": 1,
@@ -20,7 +20,7 @@
     "PortNumber": {
         "ProfileElementName": "PortNumber",
         "FieldName": "PortNumber",
-        "FMLevelName": "ID",
+        "FMLevelName": "Hierarchy",
         "FMLevel": 0,
         "FMTermType": "PortID",
         "FMTermGroupID": 1,
@@ -29,7 +29,7 @@
     "CondNumber": {
         "ProfileElementName": "CondNumber",
         "FieldName": "CondNumber",
-        "FMLevelName": "ID",
+        "FMLevelName": "Hierarchy",
         "FMLevel": 0,
         "FMTermType": "CondID",
         "FMTermGroupID": 1,

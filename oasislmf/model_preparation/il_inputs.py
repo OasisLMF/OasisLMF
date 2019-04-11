@@ -3,7 +3,7 @@ __all__ = [
     'unified_fm_profile_by_level',
     'unified_fm_profile_by_level_and_term_group',
     'unified_fm_terms_by_level_and_term_group',
-    'unified_id_terms',
+    'unified_hierarchy_terms',
     'write_il_input_files',
     'write_fmsummaryxref_file',
     'write_fm_policytc_file',
@@ -129,7 +129,7 @@ def unified_fm_terms_by_level_and_term_group(
     })
 
 
-def unified_id_terms(profiles=[], profile_paths=[], unified_profile_by_level=None, unified_profile_by_level_and_term_group=None, lowercase=True):
+def unified_hierarchy_terms(profiles=[], profile_paths=[], unified_profile_by_level=None, unified_profile_by_level_and_term_group=None, lowercase=True):
 
     ufpl = copy.deepcopy(unified_profile_by_level or {})
     ufp = copy.deepcopy(unified_profile_by_level_and_term_group or {})
@@ -144,16 +144,17 @@ def unified_id_terms(profiles=[], profile_paths=[], unified_profile_by_level=Non
     ufpl = ufpl or (unified_fm_profile_by_level(profiles=profiles, profile_paths=profile_paths) if profiles or profile_paths else {})
     ufp = ufp or unified_fm_profile_by_level_and_term_group(unified_profile_by_level=ufpl)
 
-    id_terms = OrderedDict({
+    hierarchy_terms = OrderedDict({
         k.lower(): (v['ProfileElementName'].lower() if lowercase else v['ProfileElementName'])
         for k, v in sorted(ufp[0][1].items())
     })
-    id_terms.setdefault('locid', ('locnumber' if lowercase else 'LocNumber'))
-    id_terms.setdefault('accid', 'accnumber' if lowercase else 'AccNumber')
-    id_terms.setdefault('polid', 'polnumber' if lowercase else 'PolNumber')
-    id_terms.setdefault('portid', 'portnumber' if lowercase else 'PortNumber')
+    hierarchy_terms.setdefault('locid', ('locnumber' if lowercase else 'LocNumber'))
+    hierarchy_terms.setdefault('accid', 'accnumber' if lowercase else 'AccNumber')
+    hierarchy_terms.setdefault('polid', 'polnumber' if lowercase else 'PolNumber')
+    hierarchy_terms.setdefault('portid', 'portnumber' if lowercase else 'PortNumber')
+    hierarchy_terms.setdefault('condid', 'condnumber' if lowercase else 'CondNumber')
 
-    return id_terms
+    return hierarchy_terms
 
 
 @oasis_log
@@ -223,19 +224,19 @@ def get_il_input_items(
     # coded references to the corresponding columns in the source files, as
     # that would mean that changes to these column names in the source files
     # may break the method
-    id_terms = unified_id_terms(unified_profile_by_level_and_term_group=ufp)
-    loc_id = id_terms['locid']
-    acc_id = id_terms['accid']
-    policy_num = id_terms['polid']
-    portfolio_num = id_terms['portid']
-    cond_num = id_terms['condid']
+    hierarchy_terms = unified_hierarchy_terms(unified_profile_by_level_and_term_group=ufp)
+    loc_num = hierarchy_terms['locid']
+    acc_num = hierarchy_terms['accid']
+    policy_num = hierarchy_terms['polid']
+    portfolio_num = hierarchy_terms['portid']
+    cond_num = hierarchy_terms['condid']
 
     accounts_il_terms = unified_fm_terms_by_level_and_term_group(profiles=(accpf,))
     accounts_il_cols = [__v for v in accounts_il_terms.values() for _v in v.values() for __v in _v.values() if __v]
 
     col_defaults = {t: 0.0 for t in accounts_il_cols}
     col_dtypes = {
-        **{t: 'str' for t in [loc_id, acc_id, portfolio_num, policy_num]},
+        **{t: 'str' for t in [loc_num, acc_num, portfolio_num, policy_num]},
         **{t: 'float32' for t in accounts_il_cols},
         **{t: 'int32' for t in [cond_num, 'layer_id', 'layerid']}
     }
@@ -245,7 +246,7 @@ def get_il_input_items(
         src_fp=accounts_fp,
         col_dtypes=col_dtypes,
         col_defaults=col_defaults,
-        required_cols=(acc_id, policy_num, portfolio_num, cond_num,),
+        required_cols=(acc_num, policy_num, portfolio_num, cond_num,),
         empty_data_error_msg='No accounts found in the source accounts (loc.) file',
         memory_map=True,
     )
@@ -257,11 +258,11 @@ def get_il_input_items(
     # frame for enumerating (acc. num., policy num.) for different accounts
     def get_layer_ids(df):
         portfolio_nums = df[portfolio_num].values
-        acc_ids = df[acc_id].values
+        acc_nums = df[acc_num].values
         policy_nums = df[policy_num].values
         return np.hstack((
             factorize_ndarray(np.asarray(list(accnum_group)), col_idxs=range(3))[0]
-            for _, accnum_group in groupby(fast_zip_arrays(portfolio_nums, acc_ids, policy_nums), key=lambda t: t[0])
+            for _, accnum_group in groupby(fast_zip_arrays(portfolio_nums, acc_nums, policy_nums), key=lambda t: t[0])
         ))
 
     if 'layer_id' not in accounts_df or 'layerid' not in accounts_df:
@@ -285,13 +286,13 @@ def get_il_input_items(
             merge_dataframes(
                 exposure_df,
                 gul_inputs_df,
-                left_on=loc_id,
-                right_on=loc_id,
+                left_on=loc_num,
+                right_on=loc_num,
                 how='inner'
             ),
             accounts_df,
-            left_on=[portfolio_num, acc_id, cond_num, 'layer_id'],
-            right_on=[portfolio_num, acc_id, cond_num, 'layer_id'],
+            left_on=[portfolio_num, acc_num, cond_num, 'layer_id'],
+            right_on=[portfolio_num, acc_num, cond_num, 'layer_id'],
             how='left'
         )
 
@@ -315,7 +316,7 @@ def get_il_input_items(
         # Drop all unnecessary columns.
         usecols = (
             gul_inputs_df.columns.to_list() +
-            [loc_id, acc_id, portfolio_num, policy_num, cond_num] +
+            [loc_num, acc_num, portfolio_num, policy_num, cond_num] +
             ['is_bi_coverage', 'group_id', 'item_id', 'coverage_id', 'layer_id', 'agg_id', 'summary_id', 'summaryset_id'] +
             [__v for v in fm_terms.values() for _v in v.values() for __v in _v.values() if __v]
         )
@@ -330,7 +331,7 @@ def get_il_input_items(
 
         # Set the GUL input item IDs by enumerating loc. number + coverage type
         # ID combinations
-        gul_input_ids = factorize_ndarray(il_inputs_df[[loc_id, 'coverage_type_id']].values, col_idxs=range(2))[0]
+        gul_input_ids = factorize_ndarray(il_inputs_df[[loc_num, 'coverage_type_id']].values, col_idxs=range(2))[0]
         il_inputs_df['gul_input_id'] = gul_input_ids
 
         # Now set the IL input item IDs, and some other required columns such
@@ -428,8 +429,8 @@ def get_il_input_items(
         layer_df = merge_dataframes(
             cov_level_layer1_df,
             accounts_df,
-            left_on=acc_id,
-            right_on=acc_id,
+            left_on=acc_num,
+            right_on=acc_num,
             how='inner'
         )
 
