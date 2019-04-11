@@ -435,7 +435,7 @@ def get_il_input_items(
             ).values
             if level == FM_LEVELS['cond all']['id']:
                 level_df.loc[:, term_cols] = level_df.loc[:, term_cols].where(level_df[cond_num] != 0, 0.0)
-            
+
             level_df.loc[:, terms] = 0.0
             level_df.loc[:, terms] = level_df.loc[:, term_cols].values
 

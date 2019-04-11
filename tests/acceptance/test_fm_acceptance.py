@@ -1418,13 +1418,12 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(level2_group['to_agg_id'].values.tolist(), [1, 1, 1, 2, 2, 2])
             level3_group = level_groups[2]
             self.assertEqual(len(level3_group), 2)
-            self.assertEqual(level3_group['from_agg_id'].values.tolist(), [1,2])
-            self.assertEqual(level3_group['to_agg_id'].values.tolist(), [1,1])
+            self.assertEqual(level3_group['from_agg_id'].values.tolist(), [1, 2])
+            self.assertEqual(level3_group['to_agg_id'].values.tolist(), [1, 1])
             level4_group = level_groups[3]
             self.assertEqual(len(level4_group), 1)
             self.assertEqual(level4_group['from_agg_id'].values.tolist(), [1])
             self.assertEqual(level4_group['to_agg_id'].values.tolist(), [1])
-
 
             fm_profile_df = pd.read_csv(il_input_files['fm_profile'])
             self.assertEqual(len(fm_profile_df), 8)
@@ -1462,7 +1461,6 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(level4_group['layer_id'].values.tolist(), [1])
             self.assertEqual(level4_group['agg_id'].values.tolist(), [1])
             self.assertEqual(level4_group['policytc_id'].values.tolist(), [8])
-
 
             fm_xref_df = pd.read_csv(il_input_files['fm_xref']).sort_values(['layer_id'])
             self.assertEqual(len(fm_xref_df), 6)
