@@ -247,7 +247,7 @@ def get_il_input_items(
         src_fp=accounts_fp,
         col_dtypes=col_dtypes,
         col_defaults=col_defaults,
-        required_cols=(acc_num, policy_num, portfolio_num, cond_num,),
+        required_cols=(acc_num, policy_num, portfolio_num,),
         empty_data_error_msg='No accounts found in the source accounts (loc.) file',
         memory_map=True,
     )

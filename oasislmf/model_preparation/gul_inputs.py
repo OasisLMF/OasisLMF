@@ -108,7 +108,7 @@ def get_gul_input_items(
     # to align with underscored-naming convention
     exposure_df = get_dataframe(
         src_fp=exposure_fp,
-        required_cols=(loc_num, acc_num, portfolio_num, cond_num,),
+        required_cols=(loc_num, acc_num, portfolio_num,),
         col_dtypes=col_dtypes,
         col_defaults=col_defaults,
         empty_data_error_msg='No data found in the source exposure (loc.) file',
