@@ -287,12 +287,13 @@ def get_il_input_items(
         # GUL inputs frame effectively only contains financial terms related to
         # FM level 1, which is the site coverage)
         expgul_df = merge_dataframes(
-            exposure_df,
             gul_inputs_df,
+            exposure_df,
             left_on=loc_num,
             right_on=loc_num,
-            how='inner'
+            how='left'
         )
+        expgul_df.rename(columns={'item_id': 'gul_input_id'}, inplace=True)
 
         # Construct a basic IL inputs frame by merging the combined exposure +
         # GUL inputs frame above, with the accounts frame, on portfolio no.,
@@ -306,29 +307,18 @@ def get_il_input_items(
             right_on=keys,
             how='left'
         )
-
-        # We need to pull in the cond. numbers for the locations, so we merge
-        # a reduced version of the combined exposure + GUL inputs frame with
-        # a reduced version of the accounts frame, on portfolio no., account no.,
-        # layer ID and cond. num., and just extract the cond. num column, and
-        # also replacing any nulls with 0.
-        keys += [cond_num]
+        il_inputs_df['item_id'] = il_inputs_df.index + 1
         cond_numbers = merge_dataframes(
-            expgul_df[[loc_num] + keys],
-            accounts_df,
-            left_on=keys,
-            right_on=keys,
+            il_inputs_df[['item_id', 'gul_input_id', cond_num]],
+            expgul_df[['gul_input_id', cond_num]],
+            on='gul_input_id',
             how='left'
-        )[cond_num].fillna(0)
+        )[cond_num]
 
-        # Mark the GUL inputs and exposure file dataframes for deletion
-        del [exposure_df, expgul_df]
-
-        # Set the cond. number column in the IL inputs frame
         il_inputs_df[cond_num] = cond_numbers
 
-        # Mark the external cond. numbers series for deletion
-        del cond_numbers
+        # Mark the GUL inputs and exposure file dataframes for deletion
+        del [exposure_df, expgul_df, cond_numbers]
 
         # At this point the IL inputs frame will contain essentially only
         # coverage level items, but will include multiple items relating to
@@ -351,7 +341,7 @@ def get_il_input_items(
         usecols = (
             gul_inputs_df.columns.to_list() +
             [loc_num, acc_num, portfolio_num, policy_num, cond_num] +
-            ['is_bi_coverage', 'group_id', 'item_id', 'coverage_id', 'layer_id', 'agg_id', 'summary_id', 'summaryset_id'] +
+            ['is_bi_coverage', 'group_id', 'gul_input_id', 'item_id', 'coverage_id', 'layer_id', 'agg_id', 'summary_id', 'summaryset_id'] +
             [__v for v in fm_terms.values() for _v in v.values() for __v in _v.values() if __v]
         )
         il_inputs_df.drop(
@@ -372,7 +362,6 @@ def get_il_input_items(
         # as the level ID, and initial values for some financial terms,
         # including the calcrule ID and policy TC ID
         il_inputs_df = il_inputs_df.assign(
-            item_id=il_inputs_df.index + 1,
             level_id=cov_level,
             attachment=0,
             share=0,
