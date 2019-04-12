@@ -265,12 +265,18 @@ class OasisManager(object):
         keys_id_col='locnumber',
         keys_format=None
     ):
+        if keys_fp:
+            lookup_extra_outputs_dir = os.path.basename(keys_fp)
+        else:
+            lookup_extra_outputs_dir = os.getcwd()
+
         model_info, lookup = olf.create(
             lookup_config_fp=lookup_config_fp,
             model_keys_data_path=keys_data_fp,
             model_version_file_path=model_version_fp,
             lookup_package_path=lookup_package_fp,
             complex_lookup_config_fp=complex_lookup_config_fp
+            output_directory=lookup_extra_outputs_dir
         )
 
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
