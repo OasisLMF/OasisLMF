@@ -507,6 +507,7 @@ def genbash(
     fifo_tmp_dir=True,
     mem_limit=False,
     alloc_rule=None,
+    bash_trace=False,
     filename='run_kools.sh',
     _get_getmodel_cmd=get_getmodel_cmd,
     custom_args={}
@@ -577,7 +578,8 @@ def genbash(
 
     # Use 'set -e' so that any errors in script commands are passed back
     print_command(filename, '')
-    print_command(filename, 'set -e')
+    print_command(filename, 'set -eux') if bash_trace else print_command(filename, 'set -e')
+    print_command(filename, 'set -o pipefail')
     print_command(filename, '')
 
     print_command(filename, 'rm -R -f output/*')
@@ -783,6 +785,5 @@ def genbash(
 
     # If fifo dir is in /tmp/*/ then clean up
     if re.search(r"((/tmp/)[A-Za-z0-9_-]+(/))", fifo_queue_dir) and fifo_tmp_dir:
-        print_command(filename, 'rm {}fifo/*'.format(fifo_queue_dir))
         print_command(filename, 'rmdir {}fifo'.format(fifo_queue_dir))
         print_command(filename, 'rmdir {}'.format(fifo_queue_dir))

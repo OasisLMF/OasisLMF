@@ -5,7 +5,6 @@ import logging
 import os
 
 from collections import defaultdict
-from future.utils import viewkeys
 
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
@@ -29,7 +28,7 @@ def _get_summaries(summary_file):
                 summaries_dict[id][row[1]] = row[2].lower() == 'true'
 
     summaries = list()
-    for id in sorted(viewkeys(summaries_dict)):
+    for id in sorted(summaries_dict):
         summaries_dict[id]['id'] = id
         summaries.append(summaries_dict[id])
 

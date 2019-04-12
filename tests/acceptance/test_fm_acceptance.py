@@ -1290,3 +1290,212 @@ class FmAcceptanceTests(TestCase):
             os.remove(af.name)
             os.remove(kf.name)
             oasis_dir.cleanup()
+
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=1)
+    @given(
+        exposure=source_exposure(
+            from_account_nums=just('1'),
+            from_portfolio_nums=just('1'),
+            from_location_perils=just('QQ1;WW1'),
+            from_location_perils_covered=just('QQ1;WW1'),
+            from_country_codes=just('US'),
+            from_area_codes=just('CA'),
+            from_building_tivs=just(1000000),
+            from_building_deductibles=just(10000),
+            from_building_limits=just(0),
+            from_other_tivs=just(0),
+            from_other_deductibles=just(0),
+            from_other_limits=just(0),
+            from_contents_tivs=just(0),
+            from_contents_deductibles=just(0),
+            from_contents_limits=just(0),
+            from_bi_tivs=just(0),
+            from_bi_deductibles=just(0),
+            from_bi_limits=just(0),
+            from_sitepd_deductibles=just(0),
+            from_sitepd_limits=just(0),
+            from_siteall_deductibles=just(0),
+            from_siteall_limits=just(0),
+            from_cond_numbers=just(1),
+            size=6
+        ),
+        accounts=source_accounts(
+            from_account_nums=just('1'),
+            from_policy_nums=just('1'),
+            from_portfolio_nums=just('1'),
+            from_policy_perils=just('QQ1;WW1'),
+            from_condall_deductibles=just(0),
+            from_condall_min_deductibles=just(50000),
+            from_condall_max_deductibles=just(0),
+            from_condall_limits=just(250000),
+            from_cond_numbers=just(1),
+            from_policyall_deductibles=just(0),
+            from_policyall_min_deductibles=just(0),
+            from_policyall_max_deductibles=just(0),
+            from_policyall_limits=just(1500000),
+            from_policylayer_deductibles=just(0),
+            from_policylayer_limits=just(0),
+            from_policylayer_shares=just(1.0),
+            size=1
+        ),
+        keys=keys(
+            from_peril_ids=just('QQ1;WW1'),
+            from_coverage_type_ids=just(COVERAGE_TYPES['buildings']['id']),
+            from_area_peril_ids=just(1),
+            from_vulnerability_ids=just(1),
+            from_statuses=just('success'),
+            from_messages=just('success'),
+            size=6
+        )
+    )
+    def test_fm41(self, exposure, accounts, keys):
+        exposure[1]['buildingtiv'] = exposure[2]['buildingtiv'] = 1000000
+        exposure[3]['buildingtiv'] = exposure[4]['buildingtiv'] = exposure[5]['buildingtiv'] = 2000000
+        exposure[3]['condnumber'] = exposure[4]['condnumber'] = exposure[5]['condnumber'] = 0
+
+        exposure[1]['locded1building'] = 0.01
+        exposure[2]['locded1building'] = 0.05
+        exposure[3]['locded1building'] = 15000
+        exposure[4]['locded1building'] = 10000
+        exposure[5]['locded1building'] = 0.1
+
+        ef = NamedTemporaryFile('w', delete=False)
+        af = NamedTemporaryFile('w', delete=False)
+        kf = NamedTemporaryFile('w', delete=False)
+        oasis_dir = TemporaryDirectory()
+        try:
+            write_source_files(exposure, ef, accounts, af)
+            write_keys_files(keys, kf)
+
+            ef.close()
+            af.close()
+            kf.close()
+
+            gul_inputs_df, exposure_df = get_gul_input_items(ef.name, kf.name)
+            gul_input_files = write_gul_input_files(gul_inputs_df, oasis_dir.name)
+
+            for p in gul_input_files.values():
+                if not p.endswith("complex_items.csv"):
+                    self.assertTrue(os.path.exists(p))
+
+            gul_inputs = pd.merge(
+                pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
+                pd.read_csv(gul_input_files['gulsummaryxref']),
+                left_on='coverage_id',
+                right_on='coverage_id'
+            )
+
+            self.assertEqual(len(gul_inputs), 6)
+
+            self.assertEqual(gul_inputs['item_id'].values.tolist(), [1, 2, 3, 4, 5, 6])
+            self.assertEqual(gul_inputs['coverage_id'].values.tolist(), [1, 2, 3, 4, 5, 6])
+            self.assertEqual(gul_inputs['areaperil_id'].values.tolist(), [1, 1, 1, 1, 1, 1])
+            self.assertEqual(gul_inputs['vulnerability_id'].values.tolist(), [1, 1, 1, 1, 1, 1])
+            self.assertEqual(gul_inputs['group_id'].values.tolist(), [1, 2, 3, 4, 5, 6])
+            self.assertEqual([round(v, 5) for v in gul_inputs['tiv'].values.tolist()], [1000000, 1000000, 1000000, 2000000, 2000000, 2000000])
+
+            il_inputs, _ = get_il_input_items(
+                exposure_df,
+                gul_inputs_df,
+                accounts_fp=af.name
+            )
+            il_input_files = write_il_input_files(il_inputs, oasis_dir.name)
+
+            for p in il_input_files.values():
+                if not p.endswith("complex_items.csv"):
+                    self.assertTrue(os.path.exists(p))
+
+            fm_programme_df = pd.read_csv(il_input_files['fm_programme'])
+            level_groups = [group for _, group in fm_programme_df.groupby(['level_id'])]
+            self.assertEqual(len(level_groups), 4)
+            level1_group = level_groups[0]
+            self.assertEqual(len(level1_group), 6)
+            self.assertEqual(level1_group['from_agg_id'].values.tolist(), [1, 2, 3, 4, 5, 6])
+            self.assertEqual(level1_group['to_agg_id'].values.tolist(), [1, 2, 3, 4, 5, 6])
+            level2_group = level_groups[1]
+            self.assertEqual(len(level2_group), 6)
+            self.assertEqual(level2_group['from_agg_id'].values.tolist(), [1, 2, 3, 4, 5, 6])
+            self.assertEqual(level2_group['to_agg_id'].values.tolist(), [1, 1, 1, 2, 2, 2])
+            level3_group = level_groups[2]
+            self.assertEqual(len(level3_group), 2)
+            self.assertEqual(level3_group['from_agg_id'].values.tolist(), [1, 2])
+            self.assertEqual(level3_group['to_agg_id'].values.tolist(), [1, 1])
+            level4_group = level_groups[3]
+            self.assertEqual(len(level4_group), 1)
+            self.assertEqual(level4_group['from_agg_id'].values.tolist(), [1])
+            self.assertEqual(level4_group['to_agg_id'].values.tolist(), [1])
+
+            fm_profile_df = pd.read_csv(il_input_files['fm_profile'])
+            self.assertEqual(len(fm_profile_df), 8)
+            self.assertEqual(fm_profile_df['policytc_id'].values.tolist(), [1, 2, 3, 4, 5, 6, 7, 8])
+            self.assertEqual(fm_profile_df['calcrule_id'].values.tolist(), [12, 12, 12, 12, 8, 12, 14, 2])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['deductible1'].values.tolist()], [10000, 50000, 15000, 200000, 0, 0, 0, 0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['deductible2'].values.tolist()], [0, 0, 0, 0, 50000, 0, 0, 0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['deductible3'].values.tolist()], [0, 0, 0, 0, 0, 0, 0, 0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['attachment1'].values.tolist()], [0, 0, 0, 0, 0, 0, 0, 0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['limit1'].values.tolist()], [0, 0, 0, 0, 250000, 0, 1500000, 9999999999.0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['share1'].values.tolist()], [0, 0, 0, 0, 0, 0, 0, 1])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['share2'].values.tolist()], [0, 0, 0, 0, 0, 0, 0, 0])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['share3'].values.tolist()], [0, 0, 0, 0, 0, 0, 0, 0])
+
+            fm_policytc_df = pd.read_csv(il_input_files['fm_policytc'])
+            level_groups = [group for _, group in fm_policytc_df.groupby(['level_id'])]
+            self.assertEqual(len(level_groups), 4)
+            level1_group = level_groups[0]
+            self.assertEqual(len(level1_group), 6)
+            self.assertEqual(level1_group['layer_id'].values.tolist(), [1, 1, 1, 1, 1, 1])
+            self.assertEqual(level1_group['agg_id'].values.tolist(), [1, 2, 3, 4, 5, 6])
+            self.assertEqual(level1_group['policytc_id'].values.tolist(), [1, 1, 2, 3, 1, 4])
+            level2_group = level_groups[1]
+            self.assertEqual(len(level2_group), 2)
+            self.assertEqual(level2_group['layer_id'].values.tolist(), [1, 1])
+            self.assertEqual(level2_group['agg_id'].values.tolist(), [1, 2])
+            self.assertEqual(level2_group['policytc_id'].values.tolist(), [5, 6])
+            level3_group = level_groups[2]
+            self.assertEqual(len(level3_group), 1)
+            self.assertEqual(level3_group['layer_id'].values.tolist(), [1])
+            self.assertEqual(level3_group['agg_id'].values.tolist(), [1])
+            self.assertEqual(level3_group['policytc_id'].values.tolist(), [7])
+            level4_group = level_groups[3]
+            self.assertEqual(len(level4_group), 1)
+            self.assertEqual(level4_group['layer_id'].values.tolist(), [1])
+            self.assertEqual(level4_group['agg_id'].values.tolist(), [1])
+            self.assertEqual(level4_group['policytc_id'].values.tolist(), [8])
+
+            fm_xref_df = pd.read_csv(il_input_files['fm_xref']).sort_values(['layer_id'])
+            self.assertEqual(len(fm_xref_df), 6)
+            self.assertEqual(fm_xref_df['output'].values.tolist(), [1, 2, 3, 4, 5, 6])
+            self.assertEqual(fm_xref_df['agg_id'].values.tolist(), [1, 2, 3, 4, 5, 6])
+
+            fmsummaryxref_df = pd.read_csv(il_input_files['fmsummaryxref'])
+            self.assertEqual(len(fmsummaryxref_df), 6)
+            self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1, 2, 3, 4, 5, 6])
+            self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1] * 6)
+            self.assertEqual(fmsummaryxref_df['summaryset_id'].values.tolist(), [1] * 6)
+
+            expected_direct_losses = pd.DataFrame(
+                columns=['event_id', 'output_id', 'loss'],
+                data=[
+                    (1, 1, 21030.12),
+                    (1, 2, 21030.12),
+                    (1, 3, 20180.42),
+                    (1, 4, 494190.88),
+                    (1, 5, 495435.75),
+                    (1, 6, 448132.75)
+                ]
+            )
+
+            bins_dir = os.path.join(oasis_dir.name, 'bin')
+            os.mkdir(bins_dir)
+            actual_direct_losses = self.manager.generate_deterministic_losses(oasis_dir.name, output_dir=bins_dir)['il']
+            pd.testing.assert_frame_equal(actual_direct_losses, expected_direct_losses, check_dtype=False)
+            actual_direct_losses['event_id'] = actual_direct_losses['event_id'].astype(object)
+            actual_direct_losses['output_id'] = actual_direct_losses['output_id'].astype(object)
+            print_dataframe(
+                actual_direct_losses, table_header='Insured losses', objectify_cols=actual_direct_losses.columns, end='\n\n'
+            )
+        finally:
+            os.remove(ef.name)
+            os.remove(af.name)
+            os.remove(kf.name)
+            oasis_dir.cleanup()

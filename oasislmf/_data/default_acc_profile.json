@@ -2,7 +2,7 @@
     "AccNumber": {
         "ProfileElementName": "AccNumber",
         "FieldName": "AccNumber",
-        "FMLevelName": "ID",
+        "FMLevelName": "Hierarchy",
         "FMLevel": 0,
         "FMTermType": "AccID",
         "FMTermGroupID": 1,
@@ -11,7 +11,7 @@
     "PolNumber": {
         "ProfileElementName": "PolNumber",
         "FieldName": "PolNumber",
-        "FMLevelName": "ID",
+        "FMLevelName": "Hierarchy",
         "FMLevel": 0,
         "FMTermType": "PolID",
         "FMTermGroupID": 1,
@@ -20,9 +20,18 @@
     "PortNumber": {
         "ProfileElementName": "PortNumber",
         "FieldName": "PortNumber",
-        "FMLevelName": "ID",
+        "FMLevelName": "Hierarchy",
         "FMLevel": 0,
         "FMTermType": "PortID",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "CondNumber": {
+        "ProfileElementName": "CondNumber",
+        "FieldName": "CondNumber",
+        "FMLevelName": "Hierarchy",
+        "FMLevel": 0,
+        "FMTermType": "CondID",
         "FMTermGroupID": 1,
         "ProfileType": "Acc"
     },
@@ -33,6 +42,26 @@
         "FMLevelName": "CondAll",
         "FMLevel": 6,
         "FMTermType": "Deductible",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "CondMinDed6All": {
+        "ProfileElementName": "CondMinDed6All",
+        "FieldName": "CondAllMinDeductible",
+        "DeductibleType": "MI",
+        "FMLevelName": "CondAll",
+        "FMLevel": 6,
+        "FMTermType": "DeductibleMin",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "CondMaxDed6All": {
+        "ProfileElementName": "CondMaxDed6All",
+        "FieldName": "CondAllMaxDeductible",
+        "DeductibleType": "MA",
+        "FMLevelName": "CondAll",
+        "FMLevel": 6,
+        "FMTermType": "DeductibleMax",
         "FMTermGroupID": 1,
         "ProfileType": "Acc"
     },
@@ -48,7 +77,7 @@
     "PolDed6All": {
         "ProfileElementName": "PolDed6All",
         "DeductibleType": "B",
-        "FieldName": "BlanketDeductible",
+        "FieldName": "PolAllDeductible",
         "FMLevelName": "PolAll",
         "FMLevel": 9,
         "FMTermType": "Deductible",
@@ -58,7 +87,7 @@
     "PolMinDed6All": {
         "ProfileElementName": "PolMinDed6All",
         "DeductibleType": "MI",
-        "FieldName": "BlanketMinDeductible",
+        "FieldName": "PolAllMinDeductible",
         "FMLevelName": "PolAll",
         "FMLevel": 9,
         "FMTermType": "DeductibleMin",
@@ -68,10 +97,19 @@
     "PolMaxDed6All": {
         "ProfileElementName": "PolMaxDed6All",
         "DeductibleType": "MA",
-        "FieldName": "BlanketMaxDeductible",
+        "FieldName": "PolAllMaxDeductible",
         "FMLevelName": "PolAll",
         "FMLevel": 9,
         "FMTermType": "DeductibleMax",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "PolLimit6All": {
+        "ProfileElementName": "PolLimit6All",
+        "FieldName": "PolAllLimit",
+        "FMLevelName": "PolAll",
+        "FMLevel": 9,
+        "FMTermType": "Limit",
         "FMTermGroupID": 1,
         "ProfileType": "Acc"
     },

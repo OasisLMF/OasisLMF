@@ -45,6 +45,11 @@
                 "src": "FM",
                 "field": "accnumber",
                 "name": "Account no."
+            },
+            "CondNum":  {
+                "src": "FM",
+                "field": "condnumber",
+                "name": "Cond no."
             }
         }
     },

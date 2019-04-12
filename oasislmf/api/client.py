@@ -87,24 +87,18 @@ class FileEndpoint(object):
             os.makedirs(os.path.dirname(file_path))
 
         # Check if file exists
-        if os.path.exists(abs_fp):
+        if os.path.exists(abs_fp) and not overwrite:
             if overwrite:
                 os.remove(abs_fp)
             else:
                 error_message = 'Local file alreday exists: {}'.format(abs_fp)
                 raise IOError(error_message)
 
-        try:
-            with io.open(abs_fp, 'wb') as f:
-                r = self.session.get(self._build_url(ID), stream=True)
-                for chunk in r.iter_content(chunk_size=chuck_size):
-                    f.write(chunk)
-        except (HTTPError, IOError):
-            self.logger.error('Download failed')
-            # exception_message = 'GET {} failed: {}'.format(response.request.url, response.status_code)
-            # self._logger.error(exception_message)
-            # raise OasisException(exception_message)
-        return r
+        with io.open(abs_fp, 'wb') as f:
+            r = self.session.get(self._build_url(ID), stream=True)
+            for chunk in r.iter_content(chunk_size=chuck_size):
+                f.write(chunk)
+            return r
 
     def get(self, ID):
         # fetch file into memory
