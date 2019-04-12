@@ -437,7 +437,7 @@ class GenerateLossesCmd(OasisBaseCommand):
         ktools_fifo_relative = inputs.get('ktools_fifo_relative', default=False, required=False)
 
         ktools_alloc_rule = inputs.get('ktools_alloc_rule', default=2, required=False)
-        
+
         verbose_output = inputs.get('verbose', default=False, required=False)
 
         il = all(p in os.listdir(oasis_fp) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])

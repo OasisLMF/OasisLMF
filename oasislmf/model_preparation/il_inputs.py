@@ -765,18 +765,28 @@ def write_il_input_files(
     # Clean the target directory path
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
 
+    # Set chunk size for writing the CSV files - default is 100K
     chunksize = min(2 * 10**5, len(il_inputs_df))
 
+    # A debugging option
     if write_inputs_table_to_file:
         il_inputs_df.to_csv(path_or_buf=os.path.join(target_dir, 'il_inputs.csv'), index=False, encoding='utf-8', chunksize=chunksize)
 
+    # A dict of GUL input file names and file paths
     il_input_files = {
         fn: os.path.join(target_dir, '{}.csv'.format(oasis_files_prefixes[fn])) for fn in oasis_files_prefixes
     }
 
+    # GUL input file writers have the same filename prefixes as the input files
+    # and we use this property to dynamically retrieve the methods from this
+    # module
     this_module = sys.modules[__name__]
     cpu_count = get_num_cpus()
 
+    # If the IL inputs size doesn't exceed the chunk size, or there are
+    # sufficient physical CPUs to cover the number of input files to be written,
+    # then use multiple threads to write the files, otherwise write them
+    # serially
     if len(il_inputs_df) <= chunksize or cpu_count >= len(il_input_files):
         tasks = (
             Task(getattr(this_module, 'write_{}_file'.format(fn)), args=(il_inputs_df.copy(deep=True), il_input_files[fn], chunksize,), key=fn)

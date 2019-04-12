@@ -100,7 +100,7 @@ def get_gul_input_items(
 
     col_defaults = {t: (0.0 if t in tiv_and_cov_il_terms else 0) for t in tiv_and_cov_il_terms + [cond_num]}
     col_dtypes = {
-        t: ('float32' if t in tiv_and_cov_il_terms else ('int' if t == cond_num else 'str')) for t in tiv_and_cov_il_terms + [loc_num, acc_num, portfolio_num, cond_num]
+        t: ('float32' if t in tiv_and_cov_il_terms else ('int32' if t == cond_num else 'str')) for t in tiv_and_cov_il_terms + [loc_num, acc_num, portfolio_num, cond_num]
     }
 
     # Load the exposure and keys dataframes - set 32-bit numeric data types
@@ -151,7 +151,7 @@ def get_gul_input_items(
         # Create the basic GUL inputs dataframe from merging the exposure and
         # keys dataframes on loc. number/loc. ID; filter out any rows with
         # zeros for TIVs for all coverage types, and replace any nulls in the
-        # TIV columns with zeros
+        # cond.num. and TIV columns with zeros
         gul_inputs_df = merge_dataframes(exposure_df, keys_df, left_on=loc_num, right_on=loc_num, how='inner')
 
         if gul_inputs_df.empty:
@@ -240,6 +240,7 @@ def get_gul_input_items(
             inplace=True
         )
 
+        # Set data types for some of the recently updated columns
         col_dtypes = {
             **{t: 'float32' for t in ['tiv'] + terms},
             **{t: 'int32' for t in ['group_id', 'item_id', 'coverage_id', 'layer_id', 'agg_id', 'summary_id', 'summaryset_id']},
@@ -398,23 +399,40 @@ def write_gul_input_files(
     # Clean the target directory path
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
 
+    # Set chunk size for writing the CSV files - default is 100K
     chunksize = min(2 * 10**5, len(gul_inputs_df))
 
+    # A debugging option
     if write_inputs_table_to_file:
         gul_inputs_df.to_csv(path_or_buf=os.path.join(target_dir, 'gul_inputs.csv'), index=False, encoding='utf-8', chunksize=chunksize)
 
+    # If no complex model data present then remove the corresponding file
+    # name from the files prefixes dict, which is used for writing the
+    # GUl input files
     if 'model_data' not in gul_inputs_df:
         if oasis_files_prefixes.get('complex_items'):
             oasis_files_prefixes.pop('complex_items')
 
+    # A dict of GUL input file names and file paths
     gul_input_files = {
         fn: os.path.join(target_dir, '{}.csv'.format(oasis_files_prefixes[fn]))
         for fn in oasis_files_prefixes
     }
 
+    # GUL input file writers have the same filename prefixes as the input files
+    # and we use this property to dynamically retrieve the methods from this
+    # module
     this_module = sys.modules[__name__]
+
+    # Get the physical CPU count on the instance - this is used as one of the
+    # conditions to test for when deciding whether to write the input files
+    # using multiple threads
     cpu_count = get_num_cpus()
 
+    # If the GUL inputs size doesn't exceed the chunk size, or there are
+    # sufficient physical CPUs to cover the number of input files to be written,
+    # then use multiple threads to write the files, otherwise write them
+    # serially
     if len(gul_inputs_df) <= chunksize or cpu_count >= len(gul_input_files):
         tasks = (
             Task(getattr(this_module, 'write_{}_file'.format(fn)), args=(gul_inputs_df.copy(deep=True), gul_input_files[fn], chunksize,), key=fn)
