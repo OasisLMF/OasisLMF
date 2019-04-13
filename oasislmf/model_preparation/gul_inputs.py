@@ -90,17 +90,19 @@ def get_gul_input_items(
     cond_num = hierarchy_terms['condid']
 
     # Get the TIV column names and corresponding coverage types
-    tiv_terms = OrderedDict({v['tiv']['CoverageTypeID']: v['tiv']['ProfileElementName'].lower() for k, v in ufp[1].items()})
+    tiv_cols = OrderedDict({v['tiv']['CoverageTypeID']: v['tiv']['ProfileElementName'].lower() for k, v in ufp[1].items()})
 
     # Define the cov. level and get the cov. level IL/FM terms
     cov_level = COVERAGE_TYPES['buildings']['id']
-    cov_il_terms = unified_fm_terms_by_level_and_term_group(unified_profile_by_level_and_term_group=ufp)[cov_level]
+    cov_il_cols = unified_fm_terms_by_level_and_term_group(unified_profile_by_level_and_term_group=ufp)[cov_level]
 
-    tiv_and_cov_il_terms = [v for v in tiv_terms.values()] + [_v for v in cov_il_terms.values() for _v in v.values() if _v]
+    tiv_and_cov_il_cols = [v for v in tiv_cols.values()] + [_v for v in cov_il_cols.values() for _v in v.values() if _v]
 
-    col_defaults = {t: (0.0 if t in tiv_and_cov_il_terms else 0) for t in tiv_and_cov_il_terms + [cond_num]}
+    # Set defaults and data types for the TIV and cov. level IL columns as
+    # as well as the portfolio num. and cond. num. columns
+    col_defaults = {t: (0.0 if t in tiv_and_cov_il_cols else 0) for t in tiv_and_cov_il_cols + [portfolio_num, cond_num]}
     col_dtypes = {
-        t: ('float32' if t in tiv_and_cov_il_terms else ('int32' if t == cond_num else 'str')) for t in tiv_and_cov_il_terms + [loc_num, acc_num, portfolio_num, cond_num]
+        t: ('float32' if t in tiv_and_cov_il_cols else ('int32' if t == cond_num else 'str')) for t in tiv_and_cov_il_cols + [loc_num, acc_num, portfolio_num, cond_num]
     }
 
     # Load the exposure and keys dataframes - set 32-bit numeric data types
@@ -152,7 +154,7 @@ def get_gul_input_items(
         # keys dataframes on loc. number/loc. ID; filter out any rows with
         # zeros for TIVs for all coverage types, and replace any nulls in the
         # cond.num. and TIV columns with zeros
-        gul_inputs_df = merge_dataframes(exposure_df, keys_df, left_on=loc_num, right_on=loc_num, how='inner')
+        gul_inputs_df = merge_dataframes(exposure_df, keys_df, on=loc_num, how='left')
 
         if gul_inputs_df.empty:
             raise OasisException(
@@ -169,13 +171,18 @@ def get_gul_input_items(
         gul_inputs_df[cond_num].fillna(0, inplace=True)
         gul_inputs_df[cond_num] = gul_inputs_df[cond_num].astype('int32')
 
-        _tiv_cols = list(tiv_terms.values())
+        _tiv_cols = list(tiv_cols.values())
         gul_inputs_df = gul_inputs_df[(gul_inputs_df[_tiv_cols] != 0).any(axis=1)]
         gul_inputs_df.loc[:, _tiv_cols] = gul_inputs_df[_tiv_cols].where(gul_inputs_df.notnull(), 0.0)
 
         # Set defaults for BI coverage boolean, TIV, deductibles and limit
         gul_inputs_df = gul_inputs_df.assign(
-            is_bi_coverage=False, tiv=0.0, deductible=0.0, deductible_min=0.0, deductible_max=0.0, limit=0.0
+            is_bi_coverage=False,
+            tiv=0.0,
+            deductible=0.0,
+            deductible_min=0.0,
+            deductible_max=0.0,
+            limit=0.0
         )
 
         # Group the rows in the GUL inputs table by coverage type, and set the
@@ -185,7 +192,7 @@ def get_gul_input_items(
 
         for cov_type, cov_type_group in gul_inputs_df.groupby(by=['coverage_type_id'], sort=True):
             cov_type_group['is_bi_coverage'] = np.where(cov_type == COVERAGE_TYPES['bi']['id'], True, False)
-            term_cols = [tiv_terms[cov_type]] + [(term_col or term) for term, term_col in cov_il_terms[cov_type].items() if term != 'share']
+            term_cols = [tiv_cols[cov_type]] + [(term_col or term) for term, term_col in cov_il_cols[cov_type].items() if term != 'share']
             cov_type_group.loc[:, term_cols] = cov_type_group.loc[:, term_cols].where(cov_type_group.notnull(), 0.0)
             cov_type_group.loc[:, terms] = cov_type_group.loc[:, term_cols].values
             cov_type_group = cov_type_group[(cov_type_group[['tiv']] != 0).any(axis=1)]
@@ -202,8 +209,8 @@ def get_gul_input_items(
                     cov_type_group['limit'],
                     cov_type_group['tiv'] * cov_type_group['limit'],
                 )
-            other_cov_type_term_cols = [v for k, v in tiv_terms.items() if k != cov_type] + [
-                _v for k, v in cov_il_terms.items() for _v in v.values() if _v if k != 1
+            other_cov_type_term_cols = [v for k, v in tiv_cols.items() if k != cov_type] + [
+                _v for k, v in cov_il_cols.items() for _v in v.values() if _v if k != 1
             ]
             cov_type_group.loc[:, other_cov_type_term_cols] = 0
             gul_inputs_df.loc[cov_type_group.index, ['is_bi_coverage'] + terms] = cov_type_group[['is_bi_coverage'] + terms]
@@ -216,7 +223,7 @@ def get_gul_input_items(
 
         # Set the item IDs and coverage IDs, and defaults for layer ID, agg. ID and summary and
         # summary set IDs
-        item_ids = range(1, len(gul_inputs_df) + 1)
+        item_ids = gul_inputs_df.index + 1
         gul_inputs_df = gul_inputs_df.assign(
             item_id=item_ids,
             coverage_id=item_ids,
@@ -229,7 +236,7 @@ def get_gul_input_items(
         # Drop all unnecessary columns
         usecols = (
             [loc_num, acc_num, portfolio_num, cond_num] +
-            ['tiv'] + terms +
+            ['tiv'] + tiv_and_cov_il_cols + terms +
             ['peril_id', 'coverage_type_id', 'areaperil_id', 'vulnerability_id'] +
             (['model_data'] if 'model_data' in gul_inputs_df else []) +
             ['is_bi_coverage', 'group_id', 'item_id', 'coverage_id', 'layer_id', 'agg_id', 'summary_id', 'summaryset_id']
@@ -242,7 +249,7 @@ def get_gul_input_items(
 
         # Set data types for some of the recently updated columns
         col_dtypes = {
-            **{t: 'float32' for t in ['tiv'] + terms},
+            **{t: 'float32' for t in terms},
             **{t: 'int32' for t in ['group_id', 'item_id', 'coverage_id', 'layer_id', 'agg_id', 'summary_id', 'summaryset_id']},
             **{'is_bi_coverage': 'bool'}
         }
