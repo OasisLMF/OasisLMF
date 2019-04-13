@@ -375,7 +375,7 @@ def get_il_input_items(
 
         # Set data types for the newer columns just added
         col_dtypes = {
-            **{t: 'int32' for t in ['gul_input_id', 'item_id', 'level_id', 'calcrule_id', 'policytc_id']},
+            **{t: 'int32' for t in ['level_id', 'calcrule_id', 'policytc_id']},
             **{t: 'float32' for t in ['attachment', 'share']}
         }
         set_dataframe_column_dtypes(il_inputs_df, col_dtypes)

@@ -41,6 +41,11 @@
         "FMLevel": 6,
         "FMLevelName": "CondAll",
         "FMAggKey": {
+            "PortfolioNum": {
+                "src": "FM",
+                "field": "portnumber",
+                "name": "Account portfolio no."
+            },
             "AccntNum":  {
                 "src": "FM",
                 "field": "accnumber",
@@ -57,6 +62,11 @@
         "FMLevel": 9,
         "FMLevelName": "PolAll",
         "FMAggKey": {
+            "PortfolioNum": {
+                "src": "FM",
+                "field": "portnumber",
+                "name": "Account portfolio no."
+            },
             "AccntNum": {
                 "src": "FM",
                 "field": "accnumber",
@@ -68,15 +78,15 @@
         "FMLevel": 10,
         "FMLevelName": "PolLayer",
         "FMAggKey": {
-            "AccntNum": {
-                "src": "FM",
-                "field": "accnumber",
-                "name": "Account no."
-            },
             "PortfolioNum": {
                 "src": "FM",
                 "field": "portnumber",
                 "name": "Account portfolio no."
+            },
+            "AccntNum": {
+                "src": "FM",
+                "field": "accnumber",
+                "name": "Account no."
             }
         }
     }
