@@ -71,11 +71,12 @@ class RunCmd(OasisBaseCommand):
         inputs = InputValues(args)
 
         call_dir = os.getcwd()
-        output_dir = as_path(inputs.get('output_dir', default=os.path.join(call_dir, 'output'), is_path=True), 'Output directory', is_dir=True, preexists=False)
-        if not os.path.exists(output_dir):
-            Path(output_dir).mkdir(parents=True, exist_ok=True)
 
         input_dir = as_path(inputs.get('input_dir', default=call_dir, is_path=True), 'Input directory', is_dir=True, preexists=True)
+
+        output_dir = as_path(inputs.get('output_dir', default=os.path.join(input_dir, 'output'), is_path=True), 'Output directory', is_dir=True, preexists=False)
+        if not os.path.exists(output_dir):
+            Path(output_dir).mkdir(parents=True, exist_ok=True)
 
         loss_factor = inputs.get('loss_factor', default=1.0, required=False)
 
