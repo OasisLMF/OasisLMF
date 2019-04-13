@@ -281,10 +281,19 @@ def get_il_input_items(
     fm_terms = unified_fm_terms_by_level_and_term_group(unified_profile_by_level_and_term_group=ufp)
 
     try:
+        # Create a list of all the IL columns for the site pd and site all
+        # levels
         site_pd_and_site_all_terms = [
             t for level in [FM_LEVELS['site pd']['id'], FM_LEVELS['site all']['id']]
             for t in fm_terms[level][1].values() if t
         ]
+
+        # Check if any of these columns are missing in the exposure frame, and if so
+        # set the missing columns with a default value of 0.0 in the exposure frame
+        missing = set(site_pd_and_site_all_terms).difference(exposure_df.columns)
+        if missing:
+            exposure_df = get_dataframe(src_data=exposure_df, col_defaults={t: 0.0 for t in missing})
+
         # First, merge the exposure and GUL inputs frame to augment the GUL inputs
         # frame with financial terms for level 2 (site PD) and level 3 (site all) -
         # the GUL inputs frame effectively only contains financial terms related to
@@ -508,6 +517,7 @@ def get_il_input_items(
         il_inputs_calc_rules_df['id_key'] = [t for t in fast_zip_arrays(*il_inputs_calc_rules_df[terms_indicators + types_and_codes].transpose().values)]
         il_inputs_calc_rules_df = merge_dataframes(il_inputs_calc_rules_df, calc_rules, how='left', on='id_key')
         il_inputs_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id']
+        il_inputs_df['calcrule_id'] = il_inputs_df['calcrule_id'].astype('int32')
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
         raise OasisException from e
 

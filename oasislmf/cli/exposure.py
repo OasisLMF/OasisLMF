@@ -45,7 +45,7 @@ class RunCmd(OasisBaseCommand):
         super(self.__class__, self).add_args(parser)
 
         parser.add_argument(
-            '-o', '--output-dir', type=str, default=None, required=True, help='Output directory'
+            '-o', '--output-dir', type=str, default=None, required=False, help='Output directory'
         )
         parser.add_argument(
             '-i', '--input-dir', type=str, default=None, required=True,
@@ -56,7 +56,7 @@ class RunCmd(OasisBaseCommand):
             help='Loss factor to apply to TIVs.'
         )
         parser.add_argument(
-            '-n', '--net-losses', default=False, help='Net losses', action='store_true'
+            '-n', '--net-ri-losses', default=False, help='Net RI losses', action='store_true'
         )
 
     def action(self, args):
@@ -79,7 +79,7 @@ class RunCmd(OasisBaseCommand):
 
         loss_factor = inputs.get('loss_factor', default=1.0, required=False)
 
-        net_losses = inputs.get('net_losses', default=False, required=False)
+        net_ri = inputs.get('net_ri_losses', default=False, required=False)
 
         il = ri = False
         try:
@@ -105,13 +105,13 @@ class RunCmd(OasisBaseCommand):
             input_dir,
             output_dir,
             loss_percentage_of_tiv=loss_factor,
-            net=net_losses
+            net_ri=net_ri
         )
-        print_dataframe(guls, table_header='Ground-up losses (loss_factor={}; net={})'.format(loss_factor, net_losses), objectify_cols=guls.columns)
+        print_dataframe(guls, table_header='Ground-up losses (loss_factor={})'.format(loss_factor), objectify_cols=guls.columns)
         if il:
-            print_dataframe(ils, table_header='Direct insured losses (loss_factor={}; net={})'.format(loss_factor, net_losses), objectify_cols=ils.columns)
+            print_dataframe(ils, table_header='Direct insured losses (loss_factor={})'.format(loss_factor), objectify_cols=ils.columns)
         if ri:
-            print_dataframe(rils, table_header='Reinsurance losses  (loss_factor={}; net={})'.format(loss_factor, net_losses), objectify_cols=rils.columns)
+            print_dataframe(rils, table_header='Reinsurance losses  (loss_factor={}; net={})'.format(loss_factor, net_ri), objectify_cols=rils.columns)
 
 
 class ValidateCmd(OasisBaseCommand):

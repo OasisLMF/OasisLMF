@@ -192,11 +192,6 @@ def get_dataframe(
             'appropriate data structure or Pandas DataFrame must be provided'
         )
 
-    _col_dtypes = {
-        k: getattr(builtins, v) if v in ('int', 'float', 'str', 'bool',) else PANDAS_BASIC_DTYPES[v]
-        for k, v in col_dtypes.items()
-    }
-
     df = None
 
     if src_fp and src_type == 'csv':
@@ -207,10 +202,10 @@ def get_dataframe(
         df = pd.read_json(src_fp, precise_float=(True if float_precision == 'high' else False))
     elif src_buf and src_type == 'json':
         df = pd.read_json(io.StringIO(src_buf), precise_float=(True if float_precision == 'high' else False))
-    elif src_data and isinstance(src_data, list):
+    elif isinstance(src_data, list) and src_data:
         df = pd.DataFrame(data=src_data)
-    elif src_data and isinstance(src_data, pd.DataFrame):
-        df = pd.DataFrame(src_data)
+    elif isinstance(src_data, pd.DataFrame):
+        df = src_data.copy(deep=True)
 
     if len(df) == 0:
         raise OasisException(empty_data_error_msg)

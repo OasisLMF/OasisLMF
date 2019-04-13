@@ -102,7 +102,9 @@ def get_gul_input_items(
     # as well as the portfolio num. and cond. num. columns
     col_defaults = {t: (0.0 if t in tiv_and_cov_il_cols else 0) for t in tiv_and_cov_il_cols + [portfolio_num, cond_num]}
     col_dtypes = {
-        t: ('float32' if t in tiv_and_cov_il_cols else ('int32' if t == cond_num else 'str')) for t in tiv_and_cov_il_cols + [loc_num, acc_num, portfolio_num, cond_num]
+        **{t: 'float32' for t in tiv_and_cov_il_cols},
+        **{t: 'int32' for t in [cond_num]},
+        **{t: 'str' for t in [loc_num, portfolio_num, acc_num]}
     }
 
     # Load the exposure and keys dataframes - set 32-bit numeric data types
