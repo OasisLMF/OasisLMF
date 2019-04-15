@@ -35,13 +35,14 @@ ipdb==0.11
 ipython-genutils==0.2.0   # via traitlets
 ipython==7.3.0            # via ipdb
 jedi==0.13.3              # via ipython
-jinja2==2.10              # via sphinx
+jinja2==2.10.1            # via sphinx
 jsonpickle==0.9.5
 lxml==4.1.1
 markupsafe==1.0           # via jinja2
 mccabe==0.6.1             # via flake8
 mock==2.0.0
 numpy==1.14.0             # via pandas
+packaging==19.0           # via sphinx
 pandas==0.24.1
 parameterized==0.6.1
 parso==0.3.4              # via jedi
@@ -58,6 +59,7 @@ py==1.5.2                 # via pytest, tox
 pycodestyle==2.3.1        # via flake8
 pyflakes==1.6.0           # via flake8
 pygments==2.2.0           # via ipython, sphinx
+pyparsing==2.4.0          # via packaging
 pytest-cov==2.5.1
 pytest-ignore-flaky==0.1.1
 pytest==3.3.2
@@ -70,10 +72,15 @@ responses==0.8.1
 rtree==0.8.3
 shapely==1.6.4.post1
 shutilwhich==1.1.0
-six==1.11.0               # via anytree, freezegun, mock, pathlib2, pip-tools, prompt-toolkit, pytest, python-dateutil, python-interface, responses, sphinx, tox, traitlets
+six==1.11.0               # via anytree, freezegun, mock, packaging, pathlib2, pip-tools, prompt-toolkit, pytest, python-dateutil, python-interface, responses, tox, traitlets
 snowballstemmer==1.2.1    # via sphinx
-sphinx==1.6.7
-sphinxcontrib-websupport==1.0.1  # via sphinx
+sphinx==2.0.1
+sphinxcontrib-applehelp==1.0.1  # via sphinx
+sphinxcontrib-devhelp==1.0.1  # via sphinx
+sphinxcontrib-htmlhelp==1.0.2  # via sphinx
+sphinxcontrib-jsmath==1.0.1  # via sphinx
+sphinxcontrib-qthelp==1.0.2  # via sphinx
+sphinxcontrib-serializinghtml==1.1.3  # via sphinx
 tabulate==0.8.2
 tox==2.9.1
 tqdm==4.31.1
