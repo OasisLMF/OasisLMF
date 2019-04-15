@@ -62,12 +62,13 @@ def unified_fm_profile_by_level(profiles=[], profile_paths=[]):
     if not (profiles or profile_paths):
         raise OasisException('A list of source profiles (loc. or acc.) or a list of source profile paths must be provided')
 
-    if not profiles:
+    _profiles = copy.deepcopy(profiles)
+    if not _profiles:
         for pp in profile_paths:
             with io.open(pp, 'r', encoding='utf-8') as f:
-                profiles.append(json.load(f))
+                _profiles.append(json.load(f))
 
-    comb_prof = {k: v for p in profiles for k, v in ((k, v) for k, v in p.items() if 'FMLevel' in v)}
+    comb_prof = {k: v for p in _profiles for k, v in ((k, v) for k, v in p.items() if 'FMLevel' in v)}
 
     return OrderedDict({
         int(k): {v['ProfileElementName']: v for v in g} for k, g in groupby(sorted(comb_prof.values(), key=lambda v: v['FMLevel']), key=lambda v: v['FMLevel'])
@@ -235,7 +236,7 @@ def get_il_input_items(
     accounts_il_terms = unified_fm_terms_by_level_and_term_group(profiles=(accpf,))
     accounts_il_cols = [__v for v in accounts_il_terms.values() for _v in v.values() for __v in _v.values() if __v]
 
-    col_defaults = {t: (0.0 if t in accounts_il_cols else 0) for t in accounts_il_cols + [cond_num]}
+    col_defaults = {t: (0.0 if t in accounts_il_cols else 0) for t in accounts_il_cols + [portfolio_num, cond_num]}
     col_dtypes = {
         **{t: 'str' for t in [loc_num, acc_num, portfolio_num, policy_num]},
         **{t: 'float32' for t in accounts_il_cols},
@@ -280,55 +281,54 @@ def get_il_input_items(
     fm_terms = unified_fm_terms_by_level_and_term_group(unified_profile_by_level_and_term_group=ufp)
 
     try:
-        # Start a series of merges to construct the initial IL inputs frame.
-        #
+        # Create a list of all the IL columns for the site pd and site all
+        # levels
+        site_pd_and_site_all_terms = [
+            t for level in [FM_LEVELS['site pd']['id'], FM_LEVELS['site all']['id']]
+            for t in fm_terms[level][1].values() if t
+        ]
+
+        # Check if any of these columns are missing in the exposure frame, and if so
+        # set the missing columns with a default value of 0.0 in the exposure frame
+        missing = set(site_pd_and_site_all_terms).difference(exposure_df.columns)
+        if missing:
+            exposure_df = get_dataframe(src_data=exposure_df, col_defaults={t: 0.0 for t in missing})
+
         # First, merge the exposure and GUL inputs frame to augment the GUL inputs
-        # frame with financial terms related to site PD + site all FM levels (the
-        # GUL inputs frame effectively only contains financial terms related to
-        # FM level 1, which is the site coverage)
-        expgul_df = merge_dataframes(
-            exposure_df,
+        # frame with financial terms for level 2 (site PD) and level 3 (site all) -
+        # the GUL inputs frame effectively only contains financial terms related to
+        # FM level 1 (site coverage)
+        gul_inputs_df = merge_dataframes(
+            exposure_df[site_pd_and_site_all_terms + [loc_num]],
             gul_inputs_df,
-            left_on=loc_num,
-            right_on=loc_num,
+            on=loc_num,
             how='inner'
         )
+        gul_inputs_df.rename(columns={'item_id': 'gul_input_id'}, inplace=True)
 
         # Construct a basic IL inputs frame by merging the combined exposure +
         # GUL inputs frame above, with the accounts frame, on portfolio no.,
         # account no. and layer ID (by default items in the GUL inputs frame
         # are set with a layer ID of 1)
-        keys = [portfolio_num, acc_num, 'layer_id']
         il_inputs_df = merge_dataframes(
-            expgul_df,
+            gul_inputs_df,
             accounts_df,
-            left_on=keys,
-            right_on=keys,
+            on=[portfolio_num, acc_num, 'layer_id'],
             how='left'
         )
 
-        # We need to pull in the cond. numbers for the locations, so we merge
-        # a reduced version of the combined exposure + GUL inputs frame with
-        # a reduced version of the accounts frame, on portfolio no., account no.,
-        # layer ID and cond. num., and just extract the cond. num column, and
-        # also replacing any nulls with 0.
-        keys += [cond_num]
+        il_inputs_df['item_id'] = il_inputs_df.index + 1
         cond_numbers = merge_dataframes(
-            expgul_df[[loc_num] + keys],
-            accounts_df,
-            left_on=keys,
-            right_on=keys,
+            il_inputs_df[['item_id', 'gul_input_id', cond_num]],
+            gul_inputs_df[['gul_input_id', cond_num]],
+            on='gul_input_id',
             how='left'
-        )[cond_num].fillna(0)
+        )[cond_num]
 
-        # Mark the GUL inputs and exposure file dataframes for deletion
-        del [exposure_df, expgul_df]
-
-        # Set the cond. number column in the IL inputs frame
         il_inputs_df[cond_num] = cond_numbers
 
-        # Mark the external cond. numbers series for deletion
-        del cond_numbers
+        # Mark the GUL inputs and exposure file dataframes for deletion
+        del [exposure_df, cond_numbers]
 
         # At this point the IL inputs frame will contain essentially only
         # coverage level items, but will include multiple items relating to
@@ -350,8 +350,7 @@ def get_il_input_items(
         # Drop all unnecessary columns.
         usecols = (
             gul_inputs_df.columns.to_list() +
-            [loc_num, acc_num, portfolio_num, policy_num, cond_num] +
-            ['is_bi_coverage', 'group_id', 'item_id', 'coverage_id', 'layer_id', 'agg_id', 'summary_id', 'summaryset_id'] +
+            [policy_num, 'gul_input_id'] +
             [__v for v in fm_terms.values() for _v in v.values() for __v in _v.values() if __v]
         )
         il_inputs_df.drop(
@@ -363,16 +362,10 @@ def get_il_input_items(
         # Mark the GUL inputs frame for deletion
         del gul_inputs_df
 
-        # Set the GUL input item IDs by enumerating loc. number + coverage type
-        # ID combinations
-        gul_input_ids = factorize_ndarray(il_inputs_df[[loc_num, 'coverage_type_id']].values, col_idxs=range(2))[0]
-        il_inputs_df['gul_input_id'] = gul_input_ids
-
         # Now set the IL input item IDs, and some other required columns such
         # as the level ID, and initial values for some financial terms,
         # including the calcrule ID and policy TC ID
         il_inputs_df = il_inputs_df.assign(
-            item_id=il_inputs_df.index + 1,
             level_id=cov_level,
             attachment=0,
             share=0,
@@ -382,7 +375,7 @@ def get_il_input_items(
 
         # Set data types for the newer columns just added
         col_dtypes = {
-            **{t: 'int32' for t in ['gul_input_id', 'item_id', 'level_id', 'calcrule_id', 'policytc_id']},
+            **{t: 'int32' for t in ['level_id', 'calcrule_id', 'policytc_id']},
             **{t: 'float32' for t in ['attachment', 'share']}
         }
         set_dataframe_column_dtypes(il_inputs_df, col_dtypes)
@@ -413,14 +406,16 @@ def get_il_input_items(
             v['id'] for k, v in COVERAGE_TYPES.items() if k in ['buildings', 'other', 'contents', 'bi']
         ]
 
-        # The basic list of financial term types for sub-layer levels - the
-        # layer level has the same list of terms but has an additional
-        # ``share`` term
+        # The basic list of financial terms for the sub-layer levels - the
+        # layer level terms are deductible (attachment), share and limit
         terms = ['deductible', 'deductible_min', 'deductible_max', 'limit']
 
-        # The main loop for processing the financial terms for each sub-layer
-        # non-coverage level (currently, 2, 3, 6, 9), including setting the
-        # calc. rule IDs, and append each level to the current IL inputs frame
+        # The main loop for processing the financial terms for the sub-layer
+        # non-coverage levels - currently these are site pd (2), site all (3),
+        # cond. all (6), policy all (9). Each level is represented by a frame 
+        # copy of the main IL inputs frame, which is then processed for the
+        # level's financial terms and the calc. rule ID, and then appended
+        # to the main IL inputs frame
         for level in intermediate_fm_levels:
             term_cols = [(term_col or term) for term, term_col in fm_terms[level][1].items() if term != 'share']
             level_df = il_inputs_df[il_inputs_df['level_id'] == cov_level]
@@ -483,7 +478,7 @@ def get_il_input_items(
         agg_key = [v['field'].lower() for v in fmap[layer_level]['FMAggKey'].values()]
         layer_df['agg_id'] = factorize_ndarray(layer_df[agg_key].values, col_idxs=range(len(agg_key)))[0]
 
-        # The layer level FM terms
+        # The layer level financial terms
         terms = ['deductible', 'limit', 'share']
 
         # Process the financial terms for the layer level
@@ -522,6 +517,7 @@ def get_il_input_items(
         il_inputs_calc_rules_df['id_key'] = [t for t in fast_zip_arrays(*il_inputs_calc_rules_df[terms_indicators + types_and_codes].transpose().values)]
         il_inputs_calc_rules_df = merge_dataframes(il_inputs_calc_rules_df, calc_rules, how='left', on='id_key')
         il_inputs_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id']
+        il_inputs_df['calcrule_id'] = il_inputs_df['calcrule_id'].astype('int32')
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
         raise OasisException from e
 
@@ -765,18 +761,28 @@ def write_il_input_files(
     # Clean the target directory path
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
 
+    # Set chunk size for writing the CSV files - default is 100K
     chunksize = min(2 * 10**5, len(il_inputs_df))
 
+    # A debugging option
     if write_inputs_table_to_file:
         il_inputs_df.to_csv(path_or_buf=os.path.join(target_dir, 'il_inputs.csv'), index=False, encoding='utf-8', chunksize=chunksize)
 
+    # A dict of GUL input file names and file paths
     il_input_files = {
         fn: os.path.join(target_dir, '{}.csv'.format(oasis_files_prefixes[fn])) for fn in oasis_files_prefixes
     }
 
+    # GUL input file writers have the same filename prefixes as the input files
+    # and we use this property to dynamically retrieve the methods from this
+    # module
     this_module = sys.modules[__name__]
     cpu_count = get_num_cpus()
 
+    # If the IL inputs size doesn't exceed the chunk size, or there are
+    # sufficient physical CPUs to cover the number of input files to be written,
+    # then use multiple threads to write the files, otherwise write them
+    # serially
     if len(il_inputs_df) <= chunksize or cpu_count >= len(il_input_files):
         tasks = (
             Task(getattr(this_module, 'write_{}_file'.format(fn)), args=(il_inputs_df.copy(deep=True), il_input_files[fn], chunksize,), key=fn)

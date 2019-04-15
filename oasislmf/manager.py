@@ -572,7 +572,7 @@ class OasisManager(object):
         input_dir,
         output_dir=None,
         loss_percentage_of_tiv=1.0,
-        net=False
+        net_ri=False
     ):
         losses = OrderedDict({
             'gul': None, 'il': None, 'ri': None
@@ -610,10 +610,9 @@ class OasisManager(object):
         guls_fp = os.path.join(output_dir, "guls.csv")
         guls.to_csv(guls_fp, index=False)
 
-        net_flag = "-n" if net else ""
         ils_fp = os.path.join(output_dir, 'ils.csv')
-        cmd = 'gultobin -S 1 < {} | fmcalc -p {} {} -a {} | tee ils.bin | fmtocsv > {}'.format(
-            guls_fp, output_dir, net_flag, oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID, ils_fp
+        cmd = 'gultobin -S 1 < {} | fmcalc -p {} -a {} | tee ils.bin | fmtocsv > {}'.format(
+            guls_fp, output_dir, oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID, ils_fp
         )
         print("\nGenerating deterministic ground-up and direct insured losses with command: {}\n".format(cmd))
         try:
@@ -656,9 +655,11 @@ class OasisManager(object):
                         _input = 'gultobin -S 1 < {} | fmcalc -p {} -a {} | tee ils.bin |'.format(guls_fp, input_dir, oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID) if layer == 1 else ''
                         pipe_in_previous_layer = '< ri{}.bin'.format(layer - 1) if layer > 1 else ''
                         ri_layer_fp = os.path.join(output_dir, 'ri{}.csv'.format(layer))
-                        cmd = '{} fmcalc -p {} -n -a {} {}| tee ri{}.bin | fmtocsv > {}'.format(
+                        net_flag = "-n" if net_ri else ""
+                        cmd = '{} fmcalc -p {} {} -a {} {}| tee ri{}.bin | fmtocsv > {}'.format(
                             _input,
                             layer_inputs_fp,
+                            net_flag,
                             oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID,
                             pipe_in_previous_layer,
                             layer,
@@ -691,7 +692,7 @@ class OasisManager(object):
         input_dir,
         output_dir=None,
         loss_percentage_of_tiv=1.0,
-        net=False
+        net_ri=False
     ):
         """
         Generates insured losses from preexisting Oasis files with a specified
@@ -727,7 +728,7 @@ class OasisManager(object):
             input_dir,
             output_dir=output_dir,
             loss_percentage_of_tiv=loss_percentage_of_tiv,
-            net=net
+            net_ri=net_ri
         )
 
         return losses['gul'], losses['il'], losses['ri']
