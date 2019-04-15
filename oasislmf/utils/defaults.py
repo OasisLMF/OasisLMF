@@ -19,8 +19,6 @@ import os
 
 from collections import OrderedDict
 
-import numpy as np
-
 from .data import (
     fast_zip_arrays,
     get_dataframe,

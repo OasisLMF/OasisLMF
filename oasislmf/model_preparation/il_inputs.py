@@ -412,7 +412,7 @@ def get_il_input_items(
 
         # The main loop for processing the financial terms for the sub-layer
         # non-coverage levels - currently these are site pd (2), site all (3),
-        # cond. all (6), policy all (9). Each level is represented by a frame 
+        # cond. all (6), policy all (9). Each level is represented by a frame
         # copy of the main IL inputs frame, which is then processed for the
         # level's financial terms and the calc. rule ID, and then appended
         # to the main IL inputs frame
