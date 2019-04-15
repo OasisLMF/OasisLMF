@@ -131,11 +131,15 @@ class OasisLookupFactoryCreate(TestCase):
             complex_lookup_config_path = os.path.join(d, 'lookup_config.json'.format(model))
             self.write_complex_config_file(complex_lookup_data, complex_lookup_config_path)
 
+            output_directory = os.path.join(d, 'output')
+            os.mkdir(output_directory)
+
             _, instance = olf.create(
                 model_keys_data_path=keys_path,
                 model_version_file_path=version_path,
                 lookup_package_path=module_path,
-                complex_lookup_config_fp=complex_lookup_config_path
+                complex_lookup_config_fp=complex_lookup_config_path,
+                output_directory=output_directory
             )
 
             self.assertEqual(type(instance).__name__, '{}KeysLookup'.format(model))
@@ -144,6 +148,7 @@ class OasisLookupFactoryCreate(TestCase):
             self.assertEqual(instance.model_version, version)
             self.assertEqual(instance.keys_data_directory, keys_path)
             self.assertEqual(instance.complex_lookup_config_fp, complex_lookup_config_path)
+            self.assertEqual(instance.output_directory, output_directory)
 
     @given(
         model=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
