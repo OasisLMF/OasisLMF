@@ -766,14 +766,19 @@ def write_il_input_files(
 
     # A debugging option
     if write_inputs_table_to_file:
-        il_inputs_df.to_csv(path_or_buf=os.path.join(target_dir, 'il_inputs.csv'), index=False, encoding='utf-8', chunksize=chunksize)
+        il_inputs_df.to_csv(
+            path_or_buf=os.path.join(target_dir, 'il_inputs.csv'),
+            index=False,
+            encoding='utf-8',
+            chunksize=chunksize
+        )
 
-    # A dict of GUL input file names and file paths
+    # A dict of IL input file names and file paths
     il_input_files = {
         fn: os.path.join(target_dir, '{}.csv'.format(oasis_files_prefixes[fn])) for fn in oasis_files_prefixes
     }
 
-    # GUL input file writers have the same filename prefixes as the input files
+    # IL input file writers have the same filename prefixes as the input files
     # and we use this property to dynamically retrieve the methods from this
     # module
     this_module = sys.modules[__name__]
@@ -785,7 +790,11 @@ def write_il_input_files(
     # serially
     if len(il_inputs_df) <= chunksize or cpu_count >= len(il_input_files):
         tasks = (
-            Task(getattr(this_module, 'write_{}_file'.format(fn)), args=(il_inputs_df.copy(deep=True), il_input_files[fn], chunksize,), key=fn)
+            Task(
+                getattr(this_module, 'write_{}_file'.format(fn)),
+                args=(il_inputs_df.copy(deep=True), il_input_files[fn], chunksize,),
+                key=fn
+            )
             for fn in il_input_files
         )
         num_ps = min(len(il_input_files), cpu_count)
