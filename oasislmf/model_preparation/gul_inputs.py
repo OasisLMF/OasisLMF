@@ -413,7 +413,12 @@ def write_gul_input_files(
 
     # A debugging option
     if write_inputs_table_to_file:
-        gul_inputs_df.to_csv(path_or_buf=os.path.join(target_dir, 'gul_inputs.csv'), index=False, encoding='utf-8', chunksize=chunksize)
+        gul_inputs_df.to_csv(
+            path_or_buf=os.path.join(target_dir, 'gul_inputs.csv'),
+            index=False,
+            encoding='utf-8',
+            chunksize=chunksize
+        )
 
     # If no complex model data present then remove the corresponding file
     # name from the files prefixes dict, which is used for writing the
@@ -444,7 +449,11 @@ def write_gul_input_files(
     # serially
     if len(gul_inputs_df) <= chunksize or cpu_count >= len(gul_input_files):
         tasks = (
-            Task(getattr(this_module, 'write_{}_file'.format(fn)), args=(gul_inputs_df.copy(deep=True), gul_input_files[fn], chunksize,), key=fn)
+            Task(
+                getattr(this_module, 'write_{}_file'.format(fn)),
+                args=(gul_inputs_df.copy(deep=True), gul_input_files[fn], chunksize,),
+                key=fn
+            )
             for fn in gul_input_files
         )
         num_ps = min(len(gul_input_files), cpu_count)
