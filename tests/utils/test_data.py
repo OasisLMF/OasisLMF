@@ -168,14 +168,6 @@ def dataframes_are_identical(df1, df2):
     return True
 
 
-def set_method_name(name):
-    def wrapper(f):
-        f.__name__ = name
-        f.__qualname__ = ''.join(f.__qualname__.split('.')[:-1] + ['.', name])
-        return f
-    return wrapper
-
-
 class TestGetDataframe(TestCase):
 
     def test_get_dataframe__no_src_fp_or_buf_or_data_provided__oasis_exception_is_raised(self):
@@ -313,85 +305,6 @@ class TestGetDataframe(TestCase):
             os.remove(fp.name)
 
     @settings(max_examples=10)
-    @given(
-        data=lists(
-            fixed_dictionaries({
-                'str_col': text(min_size=1, max_size=10, alphabet=string.ascii_lowercase),
-                'int_col': integers(min_value=1, max_value=10),
-                'float_col': floats(min_value=0.0, max_value=10.0),
-                'bool_col': sampled_from([True, False]),
-                'null_col': just(np.nan)
-            }),
-            min_size=10,
-            max_size=10
-        ),
-        subset_cols=just(
-            np.random.choice(
-                ['str_col', 'int_col', 'float_col', 'bool_col', 'null_col'],
-                np.random.choice(range(1, 6)),
-                replace=False
-            ).tolist()
-        )
-    )
-    def test_get_dataframe__from_csv_file__set_subset_cols_option_and_use_defaults_for_all_other_options(self, data, subset_cols):
-        fp = NamedTemporaryFile('w', delete=False)
-        try:
-            df = pd.DataFrame(data)
-            df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
-            fp.close()
-
-            expected = df.drop([col for col in df.columns if col not in subset_cols], axis=1)
-
-            result = get_dataframe(
-                src_fp=fp.name,
-                subset_cols=subset_cols
-            )
-
-            self.assertTrue(dataframes_are_identical(result, expected))
-        finally:
-            os.remove(fp.name)
-
-    @settings(max_examples=10)
-    @given(
-        data=lists(
-            fixed_dictionaries({
-                'STR_COL': text(min_size=1, max_size=10, alphabet=string.ascii_lowercase),
-                'int_col': integers(min_value=1, max_value=10),
-                'FloatCol': floats(min_value=0.0, max_value=10.0),
-                'boolCol': sampled_from([True, False]),
-                'null_col': just(np.nan)
-            }),
-            min_size=10,
-            max_size=10
-        ),
-        subset_cols=just(
-            np.random.choice(
-                ['STR_COL', 'int_col', 'FloatCol', 'boolCol', 'null_col'],
-                np.random.choice(range(1, 6)),
-                replace=False
-            ).tolist()
-        )
-    )
-    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_subset_cols_option_and_use_defaults_for_all_other_options(self, data, subset_cols):
-        fp = NamedTemporaryFile('w', delete=False)
-        try:
-            df = pd.DataFrame(data)
-            df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
-            fp.close()
-
-            expected = df.drop([col for col in df.columns if col not in subset_cols], axis=1)
-            expected.columns = expected.columns.str.lower()
-
-            result = get_dataframe(
-                src_fp=fp.name,
-                subset_cols=subset_cols
-            )
-
-            self.assertTrue(dataframes_are_identical(result, expected))
-        finally:
-            os.remove(fp.name)
-
-    @settings(max_examples=10)
     @given(empty_data_err_msg=text(min_size=1, max_size=10, alphabet=string.ascii_lowercase))
     def test_get_dataframe__from_empty_csv_file__set_empty_data_err_msg_and_defaults_for_all_other_options__oasis_exception_is_raised_with_empty_data_err_msg(self, empty_data_err_msg):
         fp = NamedTemporaryFile('w', delete=False)
@@ -422,7 +335,7 @@ class TestGetDataframe(TestCase):
             min_size=10,
             max_size=10
         ),
-        required_cols=just(
+        required=just(
             np.random.choice(
                 ['str_col', 'int_col', 'float_col', 'bool_col', 'null_col'],
                 np.random.choice(range(1, 6)),
@@ -430,7 +343,7 @@ class TestGetDataframe(TestCase):
             ).tolist()
         )
     )
-    def test_get_dataframe__from_csv_file__set_required_cols_option_and_use_defaults_for_all_other_options(self, data, required_cols):
+    def test_get_dataframe__from_csv_file__set_required_cols_option_and_use_defaults_for_all_other_options(self, data, required):
         fp = NamedTemporaryFile('w', delete=False)
         try:
             df = pd.DataFrame(data)
@@ -441,7 +354,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(
                 src_fp=fp.name,
-                required_cols=required_cols
+                required_cols=required
             )
 
             self.assertTrue(dataframes_are_identical(result, expected))
@@ -461,7 +374,7 @@ class TestGetDataframe(TestCase):
             min_size=10,
             max_size=10
         ),
-        required_cols=just(
+        required=just(
             np.random.choice(
                 ['STR_COL', 'int_col', 'FloatCol', 'boolCol', 'null_col'],
                 np.random.choice(range(1, 6)),
@@ -469,7 +382,7 @@ class TestGetDataframe(TestCase):
             ).tolist()
         )
     )
-    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_required_cols_option_and_use_defaults_for_all_other_options(self, data, required_cols):
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_required_cols_option_and_use_defaults_for_all_other_options(self, data, required):
         fp = NamedTemporaryFile('w', delete=False)
         try:
             df = pd.DataFrame(data)
@@ -481,7 +394,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(
                 src_fp=fp.name,
-                required_cols=required_cols
+                required_cols=required
             )
 
             self.assertTrue(dataframes_are_identical(result, expected))
@@ -537,7 +450,7 @@ class TestGetDataframe(TestCase):
             min_size=10,
             max_size=10
         ),
-        missing_cols=just(
+        missing=just(
             np.random.choice(
                 ['STR_COL', 'int_col', 'FloatCol', 'boolCol', 'null_col'],
                 np.random.choice(range(1, 5)),
@@ -545,11 +458,11 @@ class TestGetDataframe(TestCase):
             ).tolist()
         )
     )
-    def test_get_dataframe__from_csv_file_with_mixed_case_cols_and_missing_some_required_cols__set_required_cols_option_and_use_defaults_for_all_other_options__oasis_exception_is_raised(self, data, missing_cols):
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols_and_missing_some_required_cols__set_required_cols_option_and_use_defaults_for_all_other_options__oasis_exception_is_raised(self, data, missing):
         fp = NamedTemporaryFile('w', delete=False)
         try:
             df = pd.DataFrame(data)
-            df.drop(missing_cols, axis=1).to_csv(path_or_buf=fp, encoding='utf-8', index=False)
+            df.drop(missing, axis=1).to_csv(path_or_buf=fp, encoding='utf-8', index=False)
             fp.close()
 
             with self.assertRaises(OasisException):
@@ -832,6 +745,175 @@ class TestGetDataframe(TestCase):
     @given(
         data=lists(
             fixed_dictionaries({
+                'str_col': text(min_size=1, max_size=10, alphabet=string.ascii_lowercase),
+                'int_col': integers(min_value=0, max_value=10),
+                'float_col': floats(min_value=0.0, max_value=10.0),
+                'bool_col': sampled_from([True, False]),
+                'null_col': just(np.nan)
+            }),
+            min_size=10,
+            max_size=10
+        ),
+        required=just(
+            np.random.choice(
+                ['str_col', 'int_col', 'float_col', 'bool_col'],
+                np.random.choice(range(1, 5)),
+                replace=False
+            ).tolist()
+        ),
+        defaults=fixed_dictionaries({
+            'str_col': just('s'),
+            'int_col': just(1),
+            'float_col': just(1.0),
+            'bool_col': just(False)
+        })
+    )
+    def test_get_dataframe__from_csv_file__set_required_cols_and_col_defaults_options_and_use_defaults_for_all_other_options(self, data, required, defaults):
+        fp = NamedTemporaryFile("w", delete=False)
+        try:
+            df = pd.DataFrame(data)
+            df.to_csv(path_or_buf=fp, encoding='utf-8', index=False)
+            fp.close()
+
+            expected = df.copy(deep=True)
+            for col, default in defaults.items():
+                expected.loc[:, col].fillna(defaults[col], inplace=True)
+
+            result = get_dataframe(src_fp=fp.name, required_cols=required, col_defaults=defaults)
+
+            self.assertTrue(dataframes_are_identical(result, expected))
+        finally:
+            os.remove(fp.name)
+
+    @settings(max_examples=10)
+    @given(
+        data=lists(
+            fixed_dictionaries({
+                'STR_COL': text(min_size=1, max_size=10, alphabet=string.ascii_lowercase),
+                'IntCol': integers(min_value=0, max_value=10),
+                'float_col': floats(min_value=0.0, max_value=10.0),
+                'boolCol': sampled_from([True, False]),
+                'null_col': just(np.nan)
+            }),
+            min_size=10,
+            max_size=10
+        ),
+        required=just(
+            np.random.choice(
+                ['STR_COL', 'IntCol', 'float_col', 'boolCol'],
+                np.random.choice(range(1, 5)),
+                replace=False
+            ).tolist()
+        ),
+        defaults=fixed_dictionaries({
+            'STR_COL': just('s'),
+            'IntCol': just(1),
+            'float_col': just(1.0),
+            'boolCol': just(False)
+        })
+    )
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_required_cols_and_col_defaults_options_and_use_defaults_for_all_other_options(self, data, required, defaults):
+        fp = NamedTemporaryFile("w", delete=False)
+        try:
+            df = pd.DataFrame(data)
+            df.to_csv(path_or_buf=fp, encoding='utf-8', index=False)
+            fp.close()
+
+            expected = df.copy(deep=True)
+            for col, default in defaults.items():
+                expected.loc[:, col].fillna(defaults[col], inplace=True)
+            expected.columns = expected.columns.str.lower()
+
+            result = get_dataframe(src_fp=fp.name, required_cols=required, col_defaults=defaults)
+
+            self.assertTrue(dataframes_are_identical(result, expected))
+        finally:
+            os.remove(fp.name)
+
+    @settings(max_examples=10)
+    @given(
+        data=lists(
+            fixed_dictionaries({
+                'str_col': text(min_size=1, max_size=10, alphabet=string.ascii_lowercase),
+                'int_col': integers(min_value=0, max_value=10),
+                'float_col': floats(min_value=0.0, max_value=10.0),
+                'bool_col': sampled_from([True, False]),
+                'null_col': just(np.nan)
+            }),
+            min_size=10,
+            max_size=10
+        ),
+        missing=just(
+            np.random.choice(
+                ['str_col', 'int_col', 'float_col', 'bool_col', 'null_col'],
+                np.random.choice(range(1, 5)),
+                replace=False
+            ).tolist()
+        ),
+        defaults=fixed_dictionaries({
+            'str_col': just('s'),
+            'int_col': just(1),
+            'float_col': just(1.0),
+            'bool_col': just(False)
+        })
+    )
+    def test_get_dataframe__from_csv_file_missing_some_required_cols__set_required_cols_and_col_defaults_options_and_use_defaults_for_all_other_options__oasis_exception_is_raised(self, data, missing, defaults):
+        fp = NamedTemporaryFile("w", delete=False)
+        try:
+            df = pd.DataFrame(data)
+            df.drop(missing, axis=1).to_csv(path_or_buf=fp, encoding='utf-8', index=False)
+            fp.close()
+
+            with self.assertRaises(OasisException):
+                get_dataframe(src_fp=fp.name, required_cols=list(df.columns), col_defaults=defaults)
+
+        finally:
+            os.remove(fp.name)
+
+    @settings(max_examples=10)
+    @given(
+        data=lists(
+            fixed_dictionaries({
+                'STR_COL': text(min_size=1, max_size=10, alphabet=string.ascii_lowercase),
+                'int_col': integers(min_value=0, max_value=10),
+                'FloatCol': floats(min_value=0.0, max_value=10.0),
+                'boolCol': sampled_from([True, False]),
+                'null_col': just(np.nan)
+            }),
+            min_size=10,
+            max_size=10
+        ),
+        missing=just(
+            np.random.choice(
+                ['STR_COL', 'int_col', 'FloatCol', 'boolCol', 'null_col'],
+                np.random.choice(range(1, 5)),
+                replace=False
+            ).tolist()
+        ),
+        defaults=fixed_dictionaries({
+            'STR_COL': just('s'),
+            'int_col': just(1),
+            'FloatCol': just(1.0),
+            'boolCol': just(False)
+        })
+    )
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols_and_missing_some_required_cols__set_required_cols_and_col_defaults_options_and_use_defaults_for_all_other_options__oasis_exception_is_raised(self, data, missing, defaults):
+        fp = NamedTemporaryFile("w", delete=False)
+        try:
+            df = pd.DataFrame(data)
+            df.drop(missing, axis=1).to_csv(path_or_buf=fp, encoding='utf-8', index=False)
+            fp.close()
+
+            with self.assertRaises(OasisException):
+                get_dataframe(src_fp=fp.name, required_cols=list(df.columns), col_defaults=defaults)
+
+        finally:
+            os.remove(fp.name)
+
+    @settings(max_examples=10)
+    @given(
+        data=lists(
+            fixed_dictionaries({
                 'STR_COL': text(min_size=1, max_size=10, alphabet=string.ascii_lowercase),
                 'int_col': integers(min_value=1, max_value=10),
                 'Float_Col': floats(min_value=0.0, max_value=10.0),
@@ -905,7 +987,7 @@ class TestGetDataframe(TestCase):
             min_size=10,
             max_size=10
         ),
-        subset_cols=just(
+        required=just(
             np.random.choice(
                 ['STR_COL', 'int_col', 'FloatCol', 'boolCol', 'null_col'],
                 np.random.choice(range(1, 6)),
@@ -913,47 +995,7 @@ class TestGetDataframe(TestCase):
             ).tolist()
         )
     )
-    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false_and_subset_cols_option_and_use_defaults_for_all_other_options(self, data, subset_cols):
-        fp = NamedTemporaryFile("w", delete=False)
-        try:
-            df = pd.DataFrame(data)
-            df.to_csv(path_or_buf=fp, columns=df.columns, encoding='utf-8', index=False)
-            fp.close()
-
-            expected = df.drop([col for col in df.columns if col not in subset_cols], axis=1)
-
-            result = get_dataframe(
-                src_fp=fp.name,
-                subset_cols=subset_cols,
-                lowercase_cols=False
-            )
-
-            self.assertTrue(dataframes_are_identical(result, expected))
-        finally:
-            os.remove(fp.name)
-
-    @settings(max_examples=10)
-    @given(
-        data=lists(
-            fixed_dictionaries({
-                'STR_COL': text(min_size=1, max_size=10, alphabet=string.ascii_lowercase),
-                'int_col': integers(min_value=1, max_value=10),
-                'FloatCol': floats(min_value=0.0, max_value=10.0),
-                'boolCol': sampled_from([True, False]),
-                'null_col': just(np.nan)
-            }),
-            min_size=10,
-            max_size=10
-        ),
-        required_cols=just(
-            np.random.choice(
-                ['STR_COL', 'int_col', 'FloatCol', 'boolCol', 'null_col'],
-                np.random.choice(range(1, 6)),
-                replace=False
-            ).tolist()
-        )
-    )
-    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false_and_required_cols_option_and_use_defaults_for_all_other_options(self, data, required_cols):
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false_and_required_cols_option_and_use_defaults_for_all_other_options(self, data, required):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             df = pd.DataFrame(data)
@@ -964,7 +1006,7 @@ class TestGetDataframe(TestCase):
 
             result = get_dataframe(
                 src_fp=fp.name,
-                required_cols=required_cols,
+                required_cols=required,
                 lowercase_cols=False
             )
 
@@ -985,7 +1027,7 @@ class TestGetDataframe(TestCase):
             min_size=10,
             max_size=10
         ),
-        missing_cols=just(
+        missing=just(
             np.random.choice(
                 ['STR_COL', 'int_col', 'FloatCol', 'boolCol', 'null_col'],
                 np.random.choice(range(1, 5)),
@@ -993,11 +1035,11 @@ class TestGetDataframe(TestCase):
             ).tolist()
         )
     )
-    def test_get_dataframe__from_csv_file_with_mixed_case_cols_and_missing_some_required_cols__set_lowercase_cols_option_to_false_and_required_cols_option_and_use_defaults_for_all_other_options__oasis_exception_is_raised(self, data, missing_cols):
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols_and_missing_some_required_cols__set_lowercase_cols_option_to_false_and_required_cols_option_and_use_defaults_for_all_other_options__oasis_exception_is_raised(self, data, missing):
         fp = NamedTemporaryFile("w", delete=False)
         try:
             df = pd.DataFrame(data)
-            df.drop(missing_cols, axis=1).to_csv(path_or_buf=fp, encoding='utf-8', index=False)
+            df.drop(missing, axis=1).to_csv(path_or_buf=fp, encoding='utf-8', index=False)
             fp.close()
 
             with self.assertRaises(OasisException):
@@ -1138,6 +1180,90 @@ class TestGetDataframe(TestCase):
             result = get_dataframe(src_fp=fp.name, sort_cols=sort_cols, lowercase_cols=False)
 
             self.assertTrue(dataframes_are_identical(result, expected))
+        finally:
+            os.remove(fp.name)
+
+    @settings(max_examples=10)
+    @given(
+        data=lists(
+            fixed_dictionaries({
+                'STR_COL': text(min_size=1, max_size=10, alphabet=string.ascii_lowercase),
+                'IntCol': integers(min_value=0, max_value=10),
+                'float_col': floats(min_value=0.0, max_value=10.0),
+                'boolCol': sampled_from([True, False]),
+                'null_col': just(np.nan)
+            }),
+            min_size=10,
+            max_size=10
+        ),
+        required=just(
+            np.random.choice(
+                ['STR_COL', 'IntCol', 'float_col', 'boolCol'],
+                np.random.choice(range(1, 5)),
+                replace=False
+            ).tolist()
+        ),
+        defaults=fixed_dictionaries({
+            'STR_COL': just('s'),
+            'IntCol': just(1),
+            'float_col': just(1.0),
+            'boolCol': just(False)
+        })
+    )
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols__set_lowercase_cols_option_to_false__set_required_cols_and_col_defaults_options_and_use_defaults_for_all_other_options(self, data, required, defaults):
+        fp = NamedTemporaryFile("w", delete=False)
+        try:
+            df = pd.DataFrame(data)
+            df.to_csv(path_or_buf=fp, encoding='utf-8', index=False)
+            fp.close()
+
+            expected = df.copy(deep=True)
+            for col, default in defaults.items():
+                expected.loc[:, col].fillna(defaults[col], inplace=True)
+
+            result = get_dataframe(src_fp=fp.name, lowercase_cols=False, required_cols=required, col_defaults=defaults)
+
+            self.assertTrue(dataframes_are_identical(result, expected))
+        finally:
+            os.remove(fp.name)
+
+    @settings(max_examples=10)
+    @given(
+        data=lists(
+            fixed_dictionaries({
+                'STR_COL': text(min_size=1, max_size=10, alphabet=string.ascii_lowercase),
+                'IntCol': integers(min_value=0, max_value=10),
+                'float_col': floats(min_value=0.0, max_value=10.0),
+                'boolCol': sampled_from([True, False]),
+                'null_col': just(np.nan)
+            }),
+            min_size=10,
+            max_size=10
+        ),
+        missing=just(
+            np.random.choice(
+                ['STR_COL', 'IntCol', 'float_col', 'boolCol', 'null_col'],
+                np.random.choice(range(1, 5)),
+                replace=False
+            ).tolist()
+        ),
+        defaults=fixed_dictionaries({
+            'STR_COL': just('s'),
+            'IntCol': just(1),
+            'float_col': just(1.0),
+            'boolCol': just(False)
+        })
+    )
+    def test_get_dataframe__from_csv_file_with_mixed_case_cols_and_missing_some_required_cols__set_lowercase_cols_option_to_false__set_required_cols_and_col_defaults_options_and_use_defaults_for_all_other_options__oasis_exception_is_raised(self, data, missing, defaults):
+        fp = NamedTemporaryFile("w", delete=False)
+        try:
+            df = pd.DataFrame(data)
+            df.drop(missing, axis=1).to_csv(path_or_buf=fp, encoding='utf-8', index=False)
+            fp.close()
+
+            with self.assertRaises(OasisException):
+                get_dataframe(src_fp=fp.name, required_cols=list(df.columns), col_defaults=defaults)
+
         finally:
             os.remove(fp.name)
 

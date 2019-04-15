@@ -174,14 +174,13 @@ def get_dataframe(
     src_type='csv',
     src_buf=None,
     src_data=None,
-    col_dtypes={},
-    subset_cols=None,
     float_precision='high',
     empty_data_error_msg=None,
     lowercase_cols=True,
     required_cols=(),
     col_defaults={},
     non_na_cols=(),
+    col_dtypes={},
     sort_cols=None,
     sort_ascending=None,
     memory_map=False
@@ -195,9 +194,9 @@ def get_dataframe(
     df = None
 
     if src_fp and src_type == 'csv':
-        df = pd.read_csv(src_fp, float_precision=float_precision, usecols=subset_cols, memory_map=memory_map)
+        df = pd.read_csv(src_fp, float_precision=float_precision, memory_map=memory_map)
     elif src_buf and src_type == 'csv':
-        df = pd.read_csv(io.StringIO(src_buf), float_precision=float_precision, usecols=subset_cols, memory_map=memory_map)
+        df = pd.read_csv(io.StringIO(src_buf), float_precision=float_precision, memory_map=memory_map)
     elif src_fp and src_type == 'json':
         df = pd.read_json(src_fp, precise_float=(True if float_precision == 'high' else False))
     elif src_buf and src_type == 'json':
