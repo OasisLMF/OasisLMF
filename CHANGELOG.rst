@@ -1,6 +1,10 @@
 OasisLMF Changelog
 ==================
 
+`1.3.7`_
+-------
+* Hotfix - ktools-num-processes not read as int from CLI 
+
 `1.3.6`_
 -------
 * Hotfix - Custom lookup issue in manager 
@@ -231,6 +235,7 @@ in the exposure manager
 
 * Add console logging
 
+.. _`1.3.7`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.6...1.3.7
 .. _`1.3.6`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.5...1.3.6
 .. _`1.3.5`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.4...1.3.5
 .. _`1.3.4`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.3...1.3.4
