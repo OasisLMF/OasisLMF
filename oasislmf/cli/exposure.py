@@ -108,11 +108,11 @@ class RunCmd(OasisBaseCommand):
             loss_percentage_of_tiv=loss_factor,
             net_ri=net_ri
         )
-        print_dataframe(guls, table_header='Ground-up losses (loss_factor={})'.format(loss_factor), objectify_cols=guls.columns)
+        print_dataframe(guls, frame_header='Ground-up losses (loss_factor={})'.format(loss_factor), string_cols=guls.columns)
         if il:
-            print_dataframe(ils, table_header='Direct insured losses (loss_factor={})'.format(loss_factor), objectify_cols=ils.columns)
+            print_dataframe(ils, frame_header='Direct insured losses (loss_factor={})'.format(loss_factor), string_cols=ils.columns)
         if ri:
-            print_dataframe(rils, table_header='Reinsurance losses  (loss_factor={}; net={})'.format(loss_factor, net_ri), objectify_cols=rils.columns)
+            print_dataframe(rils, frame_header='Reinsurance losses  (loss_factor={}; net={})'.format(loss_factor, net_ri), string_cols=rils.columns)
 
 
 class ValidateCmd(OasisBaseCommand):
