@@ -160,6 +160,42 @@ def unified_hierarchy_terms(profiles=[], profile_paths=[], unified_profile_by_le
 
 
 @oasis_log
+def get_layer_ids(accounts_df, accounts_profile=get_default_accounts_profile()):
+    """
+    Generates a Pandas series of layer IDs given an accounts dataframe - a
+    layer ID is an integer index on unique
+
+        (portfolio num., account num., policy num.)
+    
+    combinations in an account file (or dataframe). The ``PortNumber``,
+    ``AccNumber``, ``PolNumber`` columns (or the lowercase equivalents)
+    must be present in the accounts dataframe
+
+    :param accounts_df: Accounts dataframe
+    :type accounts_df: pandas.DataFrame
+
+    :return: Layer IDs as a Pandas series
+    :rtype: pandas.Series
+    """
+    hierarchy_terms = unified_hierarchy_terms(profiles=(accounts_profile,))
+    portfolio_num = hierarchy_terms['portid']
+    acc_num = hierarchy_terms['accid']
+    policy_num = hierarchy_terms['polid']
+
+    _accounts_df = accounts_df[[portfolio_num, acc_num, policy_num]]
+    _accounts_df.columns = _accounts_df.columns.str.lower()
+
+    portfolio_nums = _accounts_df[portfolio_num].values
+    acc_nums = _accounts_df[acc_num].values
+    policy_nums = _accounts_df[policy_num].values
+
+    return np.hstack((
+        factorize_ndarray(np.asarray(list(accnum_group)), col_idxs=range(3))[0]
+        for _, accnum_group in groupby(fast_zip_arrays(portfolio_nums, acc_nums, policy_nums), key=lambda t: t[0])
+    ))
+
+
+@oasis_log
 def get_il_input_items(
     exposure_df,
     gul_inputs_df,
@@ -256,19 +292,8 @@ def get_il_input_items(
     if not (accounts_df is not None or accounts_fp):
         raise OasisException('No accounts frame or file path provided')
 
-    # The layer ID function = use this to set a layer ID column in the accounts
-    # frame for enumerating (acc. num., policy num.) for different accounts
-    def get_layer_ids(df):
-        portfolio_nums = df[portfolio_num].values
-        acc_nums = df[acc_num].values
-        policy_nums = df[policy_num].values
-        return np.hstack((
-            factorize_ndarray(np.asarray(list(accnum_group)), col_idxs=range(3))[0]
-            for _, accnum_group in groupby(fast_zip_arrays(portfolio_nums, acc_nums, policy_nums), key=lambda t: t[0])
-        ))
-
     if 'layer_id' not in accounts_df or 'layerid' not in accounts_df:
-        accounts_df['layer_id'] = get_layer_ids(accounts_df)
+        accounts_df['layer_id'] = get_layer_ids(accounts_df, accounts_profile=accpf)
 
     # Define the FM levels from the unified profile, including the coverage
     # level (the first level) and the layer level (the last level) - the FM

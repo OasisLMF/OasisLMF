@@ -230,12 +230,17 @@ def get_dataframe(
     # convenient to have this feature at the code level.
 
     if col_defaults:
+        # Lowercase the keys in the defaults dict depending on whether the `lowercase_cols`
+        # option was passed
         _col_defaults = {k.lower(): v for k, v in col_defaults.items()} if lowercase_cols else col_defaults
-        for col, val in _col_defaults.items():
-            if col in df:
-                df.loc[:, col] = df.loc[:, col].fillna(val)
-            else:
-                df[col] = val
+
+        # Use the defaults dict to set defaults for existing columns
+        df.fillna(value=_col_defaults, inplace=True)
+
+        # A separate step to set as yet non-existent columns with default values
+        # in the frame
+        new = {k: _col_defaults[k] for k in set(_col_defaults).difference(df.columns)}
+        df = df.join(pd.DataFrame(data=new, index=df.index))
 
     if non_na_cols:
         _non_na_cols = tuple(col.lower() for col in non_na_cols) if lowercase_cols else non_na_cols
