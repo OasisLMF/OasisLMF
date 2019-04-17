@@ -148,7 +148,7 @@ def fast_zip_arrays(*arrays):
     :param arrays: An iterable or iterator or generator of Numpy arrays
     :type arrays: list, tuple, collections.Iterator, types.GeneratorType
 
-    :return: A Numpy 1D array of ``n``-tuples of the zipped ``n`` sequences
+    :return: A Numpy 1D array of n-tuples of the zipped sequences
     :rtype: np.array
     """
     return pd._libs.lib.fast_zip([arr for arr in arrays])
@@ -163,8 +163,11 @@ def fast_zip_dataframe_columns(df, cols):
     :param df: Pandas DataFrame
     :type df: pandas.DataFrame
 
-    :cols: An iterable or iterator or generator of Pandas DataFrame columns
+    :param cols: An iterable or iterator or generator of Pandas DataFrame columns
     :type cols: list, tuple, collections.Iterator, types.GeneratorType
+
+    :return: A Numpy 1D array of n-tuples of the dataframe columns to be zipped
+    :rtype: np.array
     """
     return fast_zip_arrays(*(df[col].values for col in cols))
 
@@ -185,6 +188,69 @@ def get_dataframe(
     sort_ascending=None,
     memory_map=False
 ):
+    """
+    Loads a Pandas dataframe from a source CSV or JSON file, or a text buffer
+    of such a file (``io.StringIO``), or another Pandas dataframe.
+
+    :param src_fp: Source CSV or JSON file path (optional)
+    :type src_fp: str
+
+    :param src_type: Type of source file -CSV or JSON (optional; default is csv)
+    :param src_type: str
+
+    :param src_buf: Text buffer of a source CSV or JSON file (optional)
+    :type src_buf: io.StringIO
+
+    :param float_precision: Indicates whether to support high-precision numbers
+                            present in the data (optional; default is high)
+    :type float_precision: str
+
+    :param empty_data_error_msg: The message of the exception that is thrown
+                                there is no data content, i.e no rows
+                                (optional)
+    :type empty_data_error_msg: str
+
+    :param lowercase_cols: Whether to convert the dataframe columns to lowercase
+                           (optional; default is True)
+    :type lowercase_cols: bool
+
+    :param required_cols: An iterable of columns required to be present in the
+                          source data (optional)
+    :type required_cols: list, tuple, collections.Iterable
+
+    :param col_defaults: A dict of column names and their default values. This
+                         can include both existing columns and new columns -
+                         defaults for existing columns are set row-wise using
+                         pd.DataFrame.fillna, while defaults for non-existent
+                         columns are set column-wise using assignment (optional)
+    :type col_defaults: dict
+
+    :param non_na_cols: An iterable of names of columns which must be dropped
+                        if they contain any null values (optional)
+    :type non_na_cols: list, tuple, collections.Iterable
+
+    :param col_dtypes: A dict of column names and corresponding data types -
+                       Python built-in datatypes are accepted but are mapped
+                       to the corresponding Numpy datatypes (optional)
+    :type col_dtypes: dict
+
+    :param sort_cols: An iterable of column names by which to sort the frame
+                      rows (optional)
+    :type sort_cols: list, tuple, collections.Iterable
+
+    :param sort_ascending: Whether to perform an ascending or descending sort -
+                           is used only in conjunction with the sort_cols
+                           option (optional)
+    :type sort_ascending: bool
+
+    :param memory_map: Memory-efficient option used when loading a frame from
+                       a file or text buffer - is a direct optional argument
+                       for the pd.read_csv method
+    :type memory_map: bool
+
+    :return: A Pandas dataframe
+    :rtype: pd.DataFrame
+    """
     if not (src_fp or src_buf or src_data is not None):
         raise OasisException(
             'A CSV or JSON file path or a string buffer of such a file or an '
@@ -230,12 +296,17 @@ def get_dataframe(
     # convenient to have this feature at the code level.
 
     if col_defaults:
+        # Lowercase the keys in the defaults dict depending on whether the `lowercase_cols`
+        # option was passed
         _col_defaults = {k.lower(): v for k, v in col_defaults.items()} if lowercase_cols else col_defaults
-        for col, val in _col_defaults.items():
-            if col in df:
-                df.loc[:, col] = df.loc[:, col].fillna(val)
-            else:
-                df[col] = val
+
+        # Use the defaults dict to set defaults for existing columns
+        df.fillna(value=_col_defaults, inplace=True)
+
+        # A separate step to set as yet non-existent columns with default values
+        # in the frame
+        new = {k: _col_defaults[k] for k in set(_col_defaults).difference(df.columns)}
+        df = df.join(pd.DataFrame(data=new, index=df.index))
 
     if non_na_cols:
         _non_na_cols = tuple(col.lower() for col in non_na_cols) if lowercase_cols else non_na_cols
@@ -308,6 +379,21 @@ def get_utctimestamp(thedate=datetime.utcnow(), fmt='%Y-%b-%d %H:%M:%S'):
 def merge_dataframes(left, right, **kwargs):
     """
     Merges two dataframes by ensuring there is no duplication of columns.
+
+    :param left: The first of two dataframes to be merged
+    :type left: pd.DataFrame
+
+    :param right: The second of two dataframes to be merged
+    :type left: pd.DataFrame
+
+    :param kwargs: Optional keyword arguments passed directly to the underlying
+                   pd.merge method that is called, including options for the
+                   join keys, join type, etc. - please see the pd.merge
+                   documentation for details of these optional arguments
+    :type kwargs: dict
+
+    :return: A merged dataframe
+    :rtype: pd.DataFrame
     """
     _left = left.copy(deep=True)
     _right = right.copy(deep=True)
@@ -334,25 +420,62 @@ def merge_dataframes(left, right, **kwargs):
 
 def print_dataframe(
     df,
-    objectify_cols=[],
+    string_cols=[],
     show_index=False,
-    table_header=None,
+    frame_header=None,
     column_headers='keys',
     tablefmt='psql',
     floatfmt=".2f",
-    sep=' ',
     end='\n',
-    file=sys.stdout,
-    flush=False,
     **tabulate_kwargs
 ):
+    """
+    A method to pretty-print a Pandas dataframe - calls on the ``tabulate``
+    package
+
+    :param df: The dataframe to pretty-print
+    :type df: pd.DataFrame
+
+    :param string_cols: An iterable of names of columns whose values should
+                           be treated as strings (optional)
+    :type string_cols: list, tuple, collections.Iterable
+
+    :param show_index: Whether to display the index column in the printout
+                       (optional; default is False)
+    :type show_index: bool
+
+    :param frame_header: Header string to display on top of the printed
+                         dataframe (optional)
+    :type frame_header: str
+
+    :param column_headers: Column header format - see the tabulate.tabulate
+                        method documentation (optional, default is 'keys')
+    :type column_headers: list, str
+
+    :param tablefmt: Table format - see the tabulate.tabulate method
+                     documentation (optional; default is 'psql')
+    :type tablefmt: str, list, tuple
+
+    :param floatfmt: Floating point format - see the tabulate.tabulate
+                    method documnetation (optional; default is ".2f")
+    :type floatfmt: str
+
+    :param end: String to append after printing the dataframe
+                (optional; default is newline)
+    :type end: str
+
+    :param tabulate_kwargs: Additional optional arguments passed directly to
+                            the underlying tabulate.tabulate method - see the
+                            method documentation for more details
+    :param tabulate_kwargs: dict
+    """
     _df = df.copy(deep=True)
 
-    for col in objectify_cols:
+    for col in string_cols:
         _df[col] = _df[col].astype(object)
 
-    if table_header:
-        print('\n{}'.format(table_header))
+    if frame_header:
+        print('\n{}'.format(frame_header))
 
     if tabulate_kwargs:
         tabulate_kwargs.pop('headers') if 'headers' in tabulate_kwargs else None
@@ -360,11 +483,25 @@ def print_dataframe(
         tabulate_kwargs.pop('floatfmt') if 'floatfmt' in tabulate_kwargs else None
         tabulate_kwargs.pop('showindex') if 'showindex' in tabulate_kwargs else None
 
-    print(tabulate(_df, headers=column_headers, tablefmt=tablefmt, showindex=show_index, floatfmt=floatfmt, **tabulate_kwargs), sep=sep, end=end, file=file, flush=flush)
+    print(tabulate(_df, headers=column_headers, tablefmt=tablefmt, showindex=show_index, floatfmt=floatfmt, **tabulate_kwargs), end=end)
 
 
-def set_dataframe_column_dtypes(df, col_dtypes):
-    for col, dtype in col_dtypes.items():
+def set_dataframe_column_dtypes(df, dtypes):
+    """
+    A method to set column datatypes for a Pandas dataframe
+
+    :param df: The dataframe to process
+    :type df: pd.DataFrame
+
+    :param dtypes: A dict of column names and corresponding Numpy datatypes -
+                   Python built-in datatypes can be passed in but they will be
+                   mapped to the corresponding Numpy datatypes
+    :type dtypes: dict
+
+    :return: The processed dataframe
+    :rtype: pd.DataFrame
+    """
+    for col, dtype in dtypes.items():
         if dtype in ('int', 'bool', 'float', 'object', 'str',):
             dtype = getattr(builtins, dtype)
         if col in df:

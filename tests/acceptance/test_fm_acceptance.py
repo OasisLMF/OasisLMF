@@ -225,7 +225,7 @@ class FmAcceptanceTests(TestCase):
             actual_direct_losses['event_id'] = actual_direct_losses['event_id'].astype(object)
             actual_direct_losses['output_id'] = actual_direct_losses['output_id'].astype(object)
             print_dataframe(
-                actual_direct_losses, table_header='Insured losses', objectify_cols=actual_direct_losses.columns, end='\n\n'
+                actual_direct_losses, frame_header='Insured losses', string_cols=actual_direct_losses.columns, end='\n\n'
             )
         finally:
             os.remove(ef.name)
@@ -419,7 +419,7 @@ class FmAcceptanceTests(TestCase):
             actual_direct_losses['event_id'] = actual_direct_losses['event_id'].astype(object)
             actual_direct_losses['output_id'] = actual_direct_losses['output_id'].astype(object)
             print_dataframe(
-                actual_direct_losses, table_header='Insured losses', objectify_cols=actual_direct_losses.columns, end='\n\n'
+                actual_direct_losses, frame_header='Insured losses', string_cols=actual_direct_losses.columns, end='\n\n'
             )
         finally:
             os.remove(ef.name)
@@ -614,7 +614,7 @@ class FmAcceptanceTests(TestCase):
             actual_direct_losses['event_id'] = actual_direct_losses['event_id'].astype(object)
             actual_direct_losses['output_id'] = actual_direct_losses['output_id'].astype(object)
             print_dataframe(
-                actual_direct_losses, table_header='Insured losses', objectify_cols=actual_direct_losses.columns, end='\n\n'
+                actual_direct_losses, frame_header='Insured losses', string_cols=actual_direct_losses.columns, end='\n\n'
             )
         finally:
             os.remove(ef.name)
@@ -838,7 +838,7 @@ class FmAcceptanceTests(TestCase):
             actual_direct_losses['event_id'] = actual_direct_losses['event_id'].astype(object)
             actual_direct_losses['output_id'] = actual_direct_losses['output_id'].astype(object)
             print_dataframe(
-                actual_direct_losses, table_header='Insured losses', objectify_cols=actual_direct_losses.columns, end='\n\n'
+                actual_direct_losses, frame_header='Insured losses', string_cols=actual_direct_losses.columns, end='\n\n'
             )
         finally:
             os.remove(ef.name)
@@ -1062,7 +1062,7 @@ class FmAcceptanceTests(TestCase):
             actual_direct_losses['event_id'] = actual_direct_losses['event_id'].astype(object)
             actual_direct_losses['output_id'] = actual_direct_losses['output_id'].astype(object)
             print_dataframe(
-                actual_direct_losses, table_header='Insured losses', objectify_cols=actual_direct_losses.columns, end='\n\n'
+                actual_direct_losses, frame_header='Insured losses', string_cols=actual_direct_losses.columns, end='\n\n'
             )
         finally:
             os.remove(ef.name)
@@ -1283,7 +1283,7 @@ class FmAcceptanceTests(TestCase):
             actual_direct_losses['event_id'] = actual_direct_losses['event_id'].astype(object)
             actual_direct_losses['output_id'] = actual_direct_losses['output_id'].astype(object)
             print_dataframe(
-                actual_direct_losses, table_header='Insured losses', objectify_cols=actual_direct_losses.columns, end='\n\n'
+                actual_direct_losses, frame_header='Insured losses', string_cols=actual_direct_losses.columns, end='\n\n'
             )
         finally:
             os.remove(ef.name)
@@ -1492,7 +1492,7 @@ class FmAcceptanceTests(TestCase):
             actual_direct_losses['event_id'] = actual_direct_losses['event_id'].astype(object)
             actual_direct_losses['output_id'] = actual_direct_losses['output_id'].astype(object)
             print_dataframe(
-                actual_direct_losses, table_header='Insured losses', objectify_cols=actual_direct_losses.columns, end='\n\n'
+                actual_direct_losses, frame_header='Insured losses', string_cols=actual_direct_losses.columns, end='\n\n'
             )
         finally:
             os.remove(ef.name)
