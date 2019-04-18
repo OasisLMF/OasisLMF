@@ -344,6 +344,8 @@ def get_il_input_items(
             drop_duplicates=True
         )
 
+        all_fm_terms_cols = [__v for v in fm_terms.values() for _v in v.values() for __v in _v.values() if __v]
+
         # Mark the exposure dataframes for deletion
         del exposure_df
 
@@ -365,7 +367,6 @@ def get_il_input_items(
             )
 
         # Drop all unnecessary columns.
-        all_fm_terms_cols = [__v for v in fm_terms.values() for _v in v.values() for __v in _v.values() if __v]
         usecols = (
             gul_inputs_df.columns.to_list() +
             [policy_num, 'gul_input_id'] +
@@ -446,6 +447,7 @@ def get_il_input_items(
                 level_df.loc[:, term_cols] = level_df.loc[:, term_cols].fillna(0)
             else:
                 level_df.loc[:, term_cols] = level_df.loc[:, term_cols].fillna(method='ffill')
+                level_df.loc[:, term_cols] = level_df.loc[:, term_cols].fillna(0)
 
             level_df.loc[:, terms] = level_df.loc[:, term_cols].values
 
@@ -777,7 +779,7 @@ def write_il_input_files(
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
 
     # Set chunk size for writing the CSV files - default is 100K
-    chunksize = min(2 * 10**5, len(il_inputs_df))
+    chunksize = min(2 * 10**4, len(il_inputs_df))
 
     # A debugging option
     if write_inputs_table_to_file:
@@ -792,6 +794,7 @@ def write_il_input_files(
     il_input_files = {
         fn: os.path.join(target_dir, '{}.csv'.format(oasis_files_prefixes[fn])) for fn in oasis_files_prefixes
     }
+    #import ipdb; ipdb.set_trace()
 
     # IL input file writers have the same filename prefixes as the input files
     # and we use this property to dynamically retrieve the methods from this
