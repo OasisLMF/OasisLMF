@@ -339,22 +339,13 @@ def get_il_input_items(
         il_inputs_df = merge_dataframes(
             gul_inputs_df,
             accounts_df,
-            on=[portfolio_num, acc_num, 'layer_id'],
-            how='left'
+            on=[portfolio_num, acc_num, 'layer_id', cond_num],
+            how='left',
+            drop_duplicates=True
         )
 
-        il_inputs_df['item_id'] = il_inputs_df.index + 1
-        cond_numbers = merge_dataframes(
-            il_inputs_df[['item_id', 'gul_input_id', cond_num]],
-            gul_inputs_df[['gul_input_id', cond_num]],
-            on='gul_input_id',
-            how='left'
-        )[cond_num]
-
-        il_inputs_df[cond_num] = cond_numbers
-
-        # Mark the GUL inputs and exposure file dataframes for deletion
-        del [exposure_df, cond_numbers]
+        # Mark the exposure dataframes for deletion
+        del exposure_df
 
         # At this point the IL inputs frame will contain essentially only
         # coverage level items, but will include multiple items relating to
@@ -374,10 +365,11 @@ def get_il_input_items(
             )
 
         # Drop all unnecessary columns.
+        all_fm_terms_cols = [__v for v in fm_terms.values() for _v in v.values() for __v in _v.values() if __v]
         usecols = (
             gul_inputs_df.columns.to_list() +
             [policy_num, 'gul_input_id'] +
-            [__v for v in fm_terms.values() for _v in v.values() for __v in _v.values() if __v]
+            all_fm_terms_cols
         )
         il_inputs_df.drop(
             [c for c in il_inputs_df.columns if c not in usecols],
@@ -444,20 +436,17 @@ def get_il_input_items(
         # to the main IL inputs frame
         for level in intermediate_fm_levels:
             term_cols = [(term_col or term) for term, term_col in fm_terms[level][1].items() if term != 'share']
-            level_df = il_inputs_df[il_inputs_df['level_id'] == cov_level]
+            level_df = il_inputs_df[il_inputs_df['level_id'] == cov_level].drop_duplicates()
             level_df['level_id'] = level
 
             agg_key = [v['field'].lower() for v in fmap[level]['FMAggKey'].values()]
             level_df['agg_id'] = factorize_ndarray(level_df[agg_key].values, col_idxs=range(len(agg_key)))[0]
 
-            level_df.loc[:, term_cols] = level_df.loc[:, term_cols].where(
-                level_df.loc[:, term_cols].notnull(),
-                0.0
-            ).values
             if level == FM_LEVELS['cond all']['id']:
-                level_df.loc[:, term_cols] = level_df.loc[:, term_cols].where(level_df[cond_num] != 0, 0.0)
+                level_df.loc[:, term_cols] = level_df.loc[:, term_cols].fillna(0)
+            else:
+                level_df.loc[:, term_cols] = level_df.loc[:, term_cols].fillna(method='ffill')
 
-            level_df.loc[:, terms] = 0.0
             level_df.loc[:, terms] = level_df.loc[:, term_cols].values
 
             level_df['deductible'] = np.where(
