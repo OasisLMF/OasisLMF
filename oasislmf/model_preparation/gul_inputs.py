@@ -39,10 +39,10 @@ from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.metadata import COVERAGE_TYPES
 from ..utils.path import as_path
-from .il_inputs import (
-    unified_fm_profile_by_level_and_term_group,
-    unified_fm_terms_by_level_and_term_group,
-    unified_hierarchy_terms,
+from ..utils.profiles import (
+    get_grouped_fm_profile_by_level_and_term_group,
+    get_grouped_fm_terms_by_level_and_term_group,
+    get_oed_hierarchy_terms,
 )
 
 
@@ -72,10 +72,9 @@ def get_gul_input_items(
     """
     # Get the exposure profile and a higher-level profile from that with terms
     # grouped by level and term group (and also term type)
-    exppf = exposure_profile
-    ufp = unified_fm_profile_by_level_and_term_group(profiles=(exppf,))
+    profile = get_grouped_fm_profile_by_level_and_term_group(exposure_profile=exposure_profile)
 
-    if not ufp:
+    if not profile:
         raise OasisException(
             'Source exposure profile is possibly missing FM term information: '
             'FM term definitions for TIV, limit, deductible, attachment and/or share.'
@@ -83,18 +82,18 @@ def get_gul_input_items(
 
     # Get another profile describing certain key ID columns in the exposure
     # file, namely loc. number, acc. number and portfolio number.
-    hierarchy_terms = unified_hierarchy_terms(unified_profile_by_level_and_term_group=ufp)
+    hierarchy_terms = get_oed_hierarchy_terms(grouped_profile_by_level_and_term_group=profile)
     loc_num = hierarchy_terms['locid']
     acc_num = hierarchy_terms['accid']
     portfolio_num = hierarchy_terms['portid']
     cond_num = hierarchy_terms['condid']
 
     # Get the TIV column names and corresponding coverage types
-    tiv_cols = OrderedDict({v['tiv']['CoverageTypeID']: v['tiv']['ProfileElementName'].lower() for k, v in ufp[1].items()})
+    tiv_cols = OrderedDict({v['tiv']['CoverageTypeID']: v['tiv']['ProfileElementName'].lower() for k, v in profile[1].items()})
 
     # Define the cov. level and get the cov. level IL/FM terms
     cov_level = COVERAGE_TYPES['buildings']['id']
-    cov_il_cols = unified_fm_terms_by_level_and_term_group(unified_profile_by_level_and_term_group=ufp)[cov_level]
+    cov_il_cols = get_grouped_fm_terms_by_level_and_term_group(grouped_profile_by_level_and_term_group=profile)[cov_level]
 
     tiv_and_cov_il_cols = [v for v in tiv_cols.values()] + [_v for v in cov_il_cols.values() for _v in v.values() if _v]
 
@@ -265,7 +264,7 @@ def get_gul_input_items(
 @oasis_log
 def write_complex_items_file(gul_inputs_df, complex_items_fp, chunksize=100000):
     """
-    Writes an items file.
+    Writes a complex model items file.
 
     :param gul_inputs_df: GUL inputs dataframe
     :type gul_inputs_df: pandas.DataFrame
@@ -435,7 +434,7 @@ def write_gul_input_files(
 
     # GUL input file writers have the same filename prefixes as the input files
     # and we use this property to dynamically retrieve the methods from this
-    # module
+    # module by name - this is it is necessary here to have the module object
     this_module = sys.modules[__name__]
 
     # Get the physical CPU count on the instance - this is used as one of the

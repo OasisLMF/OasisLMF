@@ -20,12 +20,14 @@ from oasislmf.model_preparation.gul_inputs import (
 )
 from oasislmf.model_preparation.il_inputs import (
     get_il_input_items,
-    unified_fm_profile_by_level_and_term_group,
     write_il_input_files,
 )
 from oasislmf.utils.data import print_dataframe
-from oasislmf.utils.metadata import (
+from oasislmf.utils.defaults import (
     COVERAGE_TYPES,
+)
+from oasislmf.utils.profiles import (
+    get_grouped_fm_profile_by_level_and_term_group,
 )
 from ..data import (
     source_accounts,
@@ -42,7 +44,7 @@ class FmAcceptanceTests(TestCase):
         self.manager = om()
         self.exposure_profile = self.manager.exposure_profile
         self.accounts_profile = self.manager.accounts_profile
-        self.unified_profile = unified_fm_profile_by_level_and_term_group(profiles=[self.exposure_profile, self.accounts_profile])
+        self.profile = get_grouped_fm_profile_by_level_and_term_group(self.exposure_profile, self.accounts_profile)
         self.fm_aggregation_profile = self.manager.fm_aggregation_profile
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=1)

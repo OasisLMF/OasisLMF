@@ -26,7 +26,6 @@ from subprocess import (
 )
 
 from itertools import (
-    chain,
     product,
 )
 
@@ -48,7 +47,7 @@ from .model_preparation.gul_inputs import (
 )
 from .model_preparation.il_inputs import (
     get_il_input_items,
-    unified_hierarchy_terms,
+    get_oed_hierarchy_terms,
     write_il_input_files,
 )
 from .model_preparation.lookup import OasisLookupFactory as olf
@@ -61,8 +60,8 @@ from .utils.data import (
 )
 from .utils.exceptions import OasisException
 from .utils.log import oasis_log
-from .utils.metadata import COVERAGE_TYPES
 from .utils.defaults import (
+    COVERAGE_TYPES,
     get_default_accounts_profile,
     get_default_deterministic_analysis_settings,
     get_default_exposure_profile,
@@ -344,7 +343,7 @@ class OasisManager(object):
         # terms in these files, and FM aggregation hierarchy
         exposure_profile = exposure_profile or (get_json(src_fp=exposure_profile_fp) if exposure_profile_fp else self.exposure_profile)
         accounts_profile = accounts_profile or (get_json(src_fp=accounts_profile_fp) if accounts_profile_fp else self.accounts_profile)
-        hierarchy_terms = unified_hierarchy_terms(profiles=(exposure_profile, accounts_profile,))
+        hierarchy_terms = get_oed_hierarchy_terms(exposure_profile, accounts_profile)
         loc_num = hierarchy_terms['locid']
         acc_num = hierarchy_terms['accid']
         portfolio_num = hierarchy_terms['portid']
@@ -436,7 +435,7 @@ class OasisManager(object):
         )
 
         # Combine the GUL and IL input file paths into a single dict (for convenience)
-        oasis_files = {k: v for k, v in chain(gul_input_files.items(), il_input_files.items())}
+        oasis_files = {**gul_input_files, **il_input_files}
 
         # If no RI input file paths (info. and scope) have been provided then
         # no RI input files are needed, just return the GUL and IL Oasis files

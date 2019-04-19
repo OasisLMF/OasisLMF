@@ -39,7 +39,7 @@ from hypothesis.strategies import (
     floats,
 )
 
-from oasislmf.utils.metadata import (
+from oasislmf.utils.defaults import (
     COVERAGE_TYPES,
     DEDUCTIBLE_CODES,
     DEDUCTIBLE_AND_LIMIT_TYPES,
