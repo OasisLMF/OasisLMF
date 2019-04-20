@@ -606,10 +606,10 @@ class OasisManager(object):
             ]
 
         guls = pd.DataFrame(guls_items)
-        guls_fp = os.path.join(output_dir, "guls.csv")
+        guls_fp = os.path.join(output_dir, "raw_guls.csv")
         guls.to_csv(guls_fp, index=False)
 
-        ils_fp = os.path.join(output_dir, 'ils.csv')
+        ils_fp = os.path.join(output_dir, 'raw_ils.csv')
         cmd = 'gultobin -S 1 < {} | fmcalc -p {} -a {} | tee ils.bin | fmtocsv > {}'.format(
             guls_fp, output_dir, oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID, ils_fp
         )
@@ -688,8 +688,8 @@ class OasisManager(object):
     @oasis_log
     def run_deterministic(
         self,
-        input_dir,
-        output_dir=None,
+        src_dir,
+        run_dir=None,
         loss_percentage_of_tiv=1.0,
         net_ri=False
     ):
@@ -697,26 +697,28 @@ class OasisManager(object):
         Generates insured losses from preexisting Oasis files with a specified
         damage ratio (loss % of TIV).
         """
-        if not os.path.exists(output_dir):
-            Path(output_dir).mkdir(parents=True, exist_ok=True)
-        contents = [p.lower() for p in os.listdir(input_dir)]
-        exposure_fp = [os.path.join(input_dir, p) for p in contents if 'location' in p][0]
-        accounts_fp = [os.path.join(input_dir, p) for p in contents if 'account' in p][0]
+        if not run_dir:
+            run_dir = os.path.join(src_dir, 'run')
+        elif not os.path.exists(run_dir):
+            Path(run_dir).mkdir(parents=True, exist_ok=True)
+        contents = [fn.lower() for fn in os.listdir(src_dir)]
+        exposure_fp = [os.path.join(src_dir, fn) for fn in contents if 'location' in fn][0]
+        accounts_fp = [os.path.join(src_dir, fn) for fn in contents if 'account' in fn][0]
 
         ri_info_fp = ri_scope_fp = None
         try:
-            ri_info_fp = [os.path.join(input_dir, p) for p in contents if p.startswith('ri_info') or 'reinsinfo' in p][0]
+            ri_info_fp = [os.path.join(src_dir, fn) for fn in contents if fn.startswith('ri_info') or 'reinsinfo' in fn][0]
         except IndexError:
             pass
         else:
             try:
-                ri_scope_fp = [os.path.join(input_dir, p) for p in contents if p.startswith('ri_scope') or 'reinsscope' in p][0]
+                ri_scope_fp = [os.path.join(src_dir, fn) for fn in contents if fn.startswith('ri_scope') or 'reinsscope' in fn][0]
             except IndexError:
                 ri_info_fp = None
 
         # Start Oasis files generation
         self.generate_oasis_files(
-            input_dir,
+            run_dir,
             exposure_fp,
             accounts_fp=accounts_fp,
             ri_info_fp=ri_info_fp,
@@ -724,8 +726,8 @@ class OasisManager(object):
         )
 
         losses = self.generate_deterministic_losses(
-            input_dir,
-            output_dir=output_dir,
+            run_dir,
+            output_dir=os.path.join(run_dir, 'output'),
             loss_percentage_of_tiv=loss_percentage_of_tiv,
             net_ri=net_ri
         )
