@@ -97,26 +97,34 @@ class RunCmd(OasisBaseCommand):
 
         validate = inputs.get('validate', default=False, required=False)
 
+        src_contents = [fn.lower() for fn in os.listdir(src_dir)]
+
+        if 'location.csv' not in src_contents:
+            raise OasisException(
+                'No location/exposure file found in source directory - '
+                'a file named `location.csv` is expected'
+            )
+
         il = ril = False
         try:
-            [fn for fn in os.listdir(src_dir) if fn.lower().startswith('account')][0]
-        except IndexError:
+            assert('account.csv' in src_contents)
+        except AssertionError:
             pass
         else:
             il = True
             try:
-                [fn for fn in os.listdir(src_dir) if 'reinsinfo' in fn.lower()][0]
-            except IndexError:
+                assert([fn for fn in src_contents if 'reinsinfo' in fn])
+            except AssertionError:
                 pass
             else:
                 try:
-                    [fn for fn in os.listdir(src_dir) if 'reinsscope' in fn.lower()][0]
-                except IndexError:
+                    assert([fn for fn in src_contents if 'reinsscope' in fn])
+                except AssertionError:
                     pass
                 else:
                     ril = True
 
-        self.logger.info('\nRunning deterministic losses (GUL=True, IL={}, RI={})\n'.format(il, ril))
+        self.logger.info('\nRunning deterministic losses (GUL=True, IL={}, RIL={})\n'.format(il, ril))
         guls, ils, rils = om().run_deterministic(
             src_dir,
             run_dir=run_dir,
@@ -133,6 +141,12 @@ class RunCmd(OasisBaseCommand):
         if ril:
             rils.to_csv(path_or_buf=os.path.join(run_dir, 'rils.csv'), index=False, encoding='utf-8')
             print_dataframe(rils, frame_header='Reinsurance losses  (loss_factor={}; net={})'.format(loss_factor, net_ri), string_cols=rils.columns)
+
+        # Do not validate if the loss factor < 1 - this is because the
+        # expected data files for validation are based on a loss factor
+        # of 1.0
+        if loss_factor < 1:
+            validate = False
 
         if validate:
             expected_data_dir = os.path.join(src_dir, 'expected')

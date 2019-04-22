@@ -54,6 +54,7 @@ from .model_preparation.lookup import OasisLookupFactory as olf
 from .model_preparation.utils import prepare_input_files_directory
 from .model_preparation.reinsurance_layer import write_ri_input_files
 from .utils.data import (
+    fast_zip_dataframe_columns,
     get_dataframe,
     get_json,
     get_utctimestamp,
@@ -307,6 +308,7 @@ class OasisManager(object):
         lookup_package_fp=None,
         complex_lookup_config_fp=None,
         supported_oed_coverage_types=None,
+        deterministic_loss_factor=None,
         accounts_fp=None,
         accounts_profile=None,
         accounts_profile_fp=None,
@@ -316,11 +318,10 @@ class OasisManager(object):
         ri_scope_fp=None,
         oasis_files_prefixes=None
     ):
-        # Check whether the invocation indicates a deterministic or model
-        # analysis/run - the CLI supports deterministic analyses via a command
-        # `oasislmf exposure run` which requires a preexisting input files
-        # directory, which is usually the same as the analysis/output directory
-        deterministic = not(keys_fp or (lookup_config or lookup_config_fp) or (keys_data_fp and model_version_fp and lookup_package_fp))
+        # Check whether the deterministic loss factor is non-null - if so then
+        # the Oasis files are for a deterministic loss generation scenario, and
+        # therefore the loss factor must be applied to the GUL input item TIVs
+        deterministic = deterministic_loss_factor is not None
 
         # Prepare the target directory and copy the source files, profiles and
         # model version file into it
@@ -403,6 +404,12 @@ class OasisManager(object):
         gul_inputs_df, exposure_df = get_gul_input_items(
             exposure_fp, _keys_fp, exposure_profile=exposure_profile
         )
+
+        # If in a deterministic loss generation scenario then apply the loss
+        # factor to the TIV column in the GUL inputs table - this will affect
+        # the 'tiv' column in the coverages file
+        if deterministic and deterministic_loss_factor > 0 and deterministic_loss_factor < 1:
+            gul_inputs_df['tiv'] *= deterministic_loss_factor
 
         # Write the GUL input files
         files_prefixes = oasis_files_prefixes or self.oasis_files_prefixes
@@ -586,25 +593,25 @@ class OasisManager(object):
         csv_to_bin(input_dir, output_dir, il=il, ri=ri)
 
         # Generate an items and coverages dataframe and set column types (important!!)
-        items_df = pd.merge(
+        items = pd.merge(
             pd.read_csv(os.path.join(input_dir, 'items.csv')),
             pd.read_csv(os.path.join(input_dir, 'coverages.csv'))
         )
-        for col in items_df:
+        for col in items:
             if col != 'tiv':
-                items_df[col] = items_df[col].astype(int)
+                items[col] = items[col].astype(int)
             else:
-                items_df[col] = items_df[col].astype(float)
+                items[col] = items[col].astype(float)
 
-        guls_items = []
-        for item_id, tiv in zip(items_df['item_id'], items_df['tiv']):
-            event_loss = loss_percentage_of_tiv * tiv
-            guls_items += [
-                oed.GulRecord(event_id=1, item_id=item_id, sidx=-1, loss=event_loss),
-                oed.GulRecord(event_id=1, item_id=item_id, sidx=-2, loss=0),
-                oed.GulRecord(event_id=1, item_id=item_id, sidx=1, loss=event_loss)
-            ]
-
+        # Gulcalc sidx (sample index) list - -1 represents the numerical integration mean,
+        # -2 the numerical integration standard deviation, and 1 the unsampled/raw loss
+        gulcalc_sidxs = [-1, -2, 1]
+        guls_items = [
+            OrderedDict({'event_id': 1, 'item_id': item_id, 'sidx': sidx, 'loss': (tiv if sidx != -2 else 0)})
+            for (item_id, tiv), sidx in product(
+                fast_zip_dataframe_columns(items, ['item_id', 'tiv']), gulcalc_sidxs
+            )
+        ]
         guls = pd.DataFrame(guls_items)
         guls_fp = os.path.join(output_dir, "raw_guls.csv")
         guls.to_csv(guls_fp, index=False)
@@ -720,6 +727,7 @@ class OasisManager(object):
         self.generate_oasis_files(
             run_dir,
             exposure_fp,
+            deterministic_loss_factor=loss_percentage_of_tiv,
             accounts_fp=accounts_fp,
             ri_info_fp=ri_info_fp,
             ri_scope_fp=ri_scope_fp

@@ -208,11 +208,11 @@ def get_il_input_items(
     try:
         # Create a list of all the IL columns for the site pd and site all
         # levels
-        site_pd_and_site_all_terms = get_fm_level_term_oed_columns(level_keys=['site pd', 'site all'])
+        site_pd_and_site_all_term_cols = get_fm_level_term_oed_columns(level_keys=['site pd', 'site all'])
 
         # Check if any of these columns are missing in the exposure frame, and if so
         # set the missing columns with a default value of 0.0 in the exposure frame
-        missing = set(site_pd_and_site_all_terms).difference(exposure_df.columns)
+        missing = set(site_pd_and_site_all_term_cols).difference(exposure_df.columns)
         if missing:
             exposure_df = get_dataframe(src_data=exposure_df, col_defaults={t: 0.0 for t in missing})
 
@@ -221,7 +221,7 @@ def get_il_input_items(
         # the GUL inputs frame effectively only contains financial terms related to
         # FM level 1 (site coverage)
         gul_inputs_df = merge_dataframes(
-            exposure_df[site_pd_and_site_all_terms + [loc_num]],
+            exposure_df[site_pd_and_site_all_term_cols + [loc_num]],
             gul_inputs_df,
             on=loc_num,
             how='inner'
