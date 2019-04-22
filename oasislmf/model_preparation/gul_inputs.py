@@ -37,7 +37,7 @@ from ..utils.defaults import (
 )
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
-from ..utils.metadata import COVERAGE_TYPES
+from ..utils.defaults import COVERAGE_TYPES
 from ..utils.path import as_path
 from ..utils.profiles import (
     get_grouped_fm_profile_by_level_and_term_group,
