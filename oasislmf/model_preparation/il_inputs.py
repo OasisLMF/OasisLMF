@@ -315,9 +315,9 @@ def get_il_input_items(
                 return False
 
         intermediate_fm_levels = tuple(l for l in fm_levels[1:-1] if level_has_fm_terms(l))
-        null_term_fm_levels = [l for l in fm_levels if l not in intermediate_fm_levels + (fm_levels[0], fm_levels[-1])]
-        null_term_fm_level_cols = get_fm_level_term_oed_columns(level_ids=null_term_fm_levels)
-        il_inputs_df.drop(null_term_fm_level_cols, axis=1, inplace=True)
+        fm_levels_with_zero_terms = [l for l in fm_levels if l not in intermediate_fm_levels + (fm_levels[0], fm_levels[-1])]
+        zero_term_cols = get_fm_level_term_oed_columns(level_ids=fm_levels_with_zero_terms)
+        il_inputs_df.drop(zero_term_cols, axis=1, inplace=True)
 
         # Define a list of all supported OED coverage types in the exposure
         all_cov_types = [
@@ -416,6 +416,14 @@ def get_il_input_items(
         il_inputs_df['orig_level_id'] = il_inputs_df['level_id']
         il_inputs_df['level_id'] = factorize_ndarray(il_inputs_df[['level_id']].values, col_idxs=[0])[0]
         il_inputs_df['item_id'] = il_inputs_df.index + 1
+
+        # Drop all OED columns for all financial terms for all FM levels - at
+        # this point these columns are unnecessary, as the FM terms (deductible,
+        # min. deductible, max. deductible, limit, attachment, share) have been
+        # extracted for all levels and set in the columns named 'deductible',
+        # 'deductible_min', 'deductible_max', 'limit', 'attachment', 'share'
+        fm_term_cols = list(set(all_fm_terms_cols).intersection(il_inputs_df.columns))
+        il_inputs_df.drop(fm_term_cols, axis=1, inplace=True)
 
         # Set the calc. rule IDs
         calc_rules = get_calc_rules().drop(['desc'], axis=1)
