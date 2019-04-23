@@ -174,9 +174,9 @@ def get_il_input_items(
 
     col_defaults = {t: (0.0 if t in accounts_il_cols else 0) for t in accounts_il_cols + [portfolio_num, cond_num]}
     col_dtypes = {
-        **{t: 'str' for t in [loc_num, acc_num, portfolio_num, policy_num]},
+        **{t: 'str' for t in [acc_num, portfolio_num, policy_num]},
         **{t: 'float32' for t in accounts_il_cols},
-        **{t: 'int32' for t in [cond_num, 'layer_id', 'layerid']}
+        **{t: 'uint32' for t in [cond_num, 'layer_id']}
     }
 
     # Get the accounts frame either directly or from a file path if provided
@@ -192,8 +192,11 @@ def get_il_input_items(
     if not (accounts_df is not None or accounts_fp):
         raise OasisException('No accounts frame or file path provided')
 
-    if 'layer_id' not in accounts_df or 'layerid' not in accounts_df:
+    if 'layer_id' not in accounts_df:
         accounts_df['layer_id'] = get_layer_ids(accounts_df, accounts_profile=accounts_profile)
+
+    usecols = [acc_num, portfolio_num, policy_num, cond_num, 'layer_id'] + accounts_il_cols
+    accounts_df.drop([c for c in accounts_df.columns if c not in usecols], axis=1, inplace=True)
 
     # Define the FM levels from the unified profile, including the coverage
     # level (the first level) and the layer level (the last level) - the FM
@@ -227,6 +230,7 @@ def get_il_input_items(
             how='inner'
         )
         gul_inputs_df.rename(columns={'item_id': 'gul_input_id'}, inplace=True)
+        set_dataframe_column_dtypes(gul_inputs_df, {t: 'float32' for t in site_pd_and_site_all_term_cols})
 
         # Construct a basic IL inputs frame by merging the combined exposure +
         # GUL inputs frame above, with the accounts frame, on portfolio no.,
@@ -289,7 +293,7 @@ def get_il_input_items(
 
         # Set data types for the newer columns just added
         col_dtypes = {
-            **{t: 'int32' for t in ['level_id', 'calcrule_id', 'policytc_id']},
+            **{t: 'uint32' for t in ['level_id', 'calcrule_id', 'policytc_id']},
             **{t: 'float32' for t in ['attachment', 'share']}
         }
         set_dataframe_column_dtypes(il_inputs_df, col_dtypes)
@@ -400,7 +404,9 @@ def get_il_input_items(
         # Process the financial terms for the layer level
         term_cols = [(v[t] or t) for v in fm_terms[layer_level].values() for t in terms]
         layer_df.loc[:, term_cols] = layer_df.loc[:, term_cols].where(layer_df.notnull(), 0.0).values
+        set_dataframe_column_dtypes(layer_df, {t: 'float32' for t in term_cols})
         layer_df.loc[:, terms] = layer_df.loc[:, term_cols].values
+        set_dataframe_column_dtypes(layer_df, {t: 'float32' for t in terms})
         layer_df['limit'] = layer_df['limit'].where(layer_df['limit'] != 0, 9999999999)
         layer_df['attachment'] = layer_df['deductible']
         layer_df['share'] = layer_df['share'].where(layer_df['share'] != 0, 1.0)
@@ -442,6 +448,14 @@ def get_il_input_items(
         il_inputs_calc_rules_df = merge_dataframes(il_inputs_calc_rules_df, calc_rules, how='left', on='id_key')
         il_inputs_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id']
         il_inputs_df['calcrule_id'] = il_inputs_df['calcrule_id'].astype('int32')
+
+        set_dataframe_column_dtypes(
+            il_inputs_df,
+            {
+                **{t: 'uint32' for t in [cond_num, 'agg_id', 'item_id', 'layer_id', 'level_id', 'orig_level_id', 'calcrule_id']},
+                **{t: 'float32' for t in terms + ['attachment', 'deductible_min', 'deductible_max']}
+            }
+        )
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
         raise OasisException from e
 
@@ -500,7 +514,6 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
     """
     try:
         cols = ['policytc_id', 'calcrule_id', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'limit', 'share']
-
         fm_profile_df = il_inputs_df[cols].drop_duplicates()
 
         fm_profile_df['policytc_id'] = factorize_ndarray(fm_profile_df[cols].values, col_idxs=range(len(cols)))[0]

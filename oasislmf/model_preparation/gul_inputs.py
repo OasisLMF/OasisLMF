@@ -37,7 +37,10 @@ from ..utils.defaults import (
 )
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
-from ..utils.defaults import COVERAGE_TYPES
+from ..utils.defaults import (
+    COVERAGE_TYPES,
+    FM_LEVELS,
+)
 from ..utils.path import as_path
 from ..utils.profiles import (
     get_grouped_fm_profile_by_level_and_term_group,
@@ -89,20 +92,20 @@ def get_gul_input_items(
     cond_num = hierarchy_terms['condid']
 
     # Get the TIV column names and corresponding coverage types
-    tiv_cols = OrderedDict({v['tiv']['CoverageTypeID']: v['tiv']['ProfileElementName'].lower() for k, v in profile[1].items()})
+    tiv_terms = OrderedDict({v['tiv']['CoverageTypeID']: v['tiv']['ProfileElementName'].lower() for k, v in profile[1].items()})
 
     # Define the cov. level and get the cov. level IL/FM terms
-    cov_level = COVERAGE_TYPES['buildings']['id']
-    cov_il_cols = get_grouped_fm_terms_by_level_and_term_group(grouped_profile_by_level_and_term_group=profile)[cov_level]
+    cov_level = FM_LEVELS['site coverage']['id']
+    cov_il_terms = get_grouped_fm_terms_by_level_and_term_group(grouped_profile_by_level_and_term_group=profile)[cov_level]
 
-    tiv_and_cov_il_cols = [v for v in tiv_cols.values()] + [_v for v in cov_il_cols.values() for _v in v.values() if _v]
+    tiv_and_cov_il_cols = [v for v in tiv_terms.values()] + [_v for v in cov_il_terms.values() for _v in v.values() if _v]
 
     # Set defaults and data types for the TIV and cov. level IL columns as
     # as well as the portfolio num. and cond. num. columns
     col_defaults = {t: (0.0 if t in tiv_and_cov_il_cols else 0) for t in tiv_and_cov_il_cols + [portfolio_num, cond_num]}
     col_dtypes = {
         **{t: 'float32' for t in tiv_and_cov_il_cols},
-        **{t: 'int32' for t in [cond_num]},
+        **{t: 'uint32' for t in [cond_num]},
         **{t: 'str' for t in [loc_num, portfolio_num, acc_num]}
     }
 
@@ -121,9 +124,9 @@ def get_gul_input_items(
     col_dtypes = {
         'locid': 'str',
         'perilid': 'str',
-        'coveragetypeid': 'int32',
-        'areaperilid': 'int32',
-        'vulnerabilityid': 'int32',
+        'coveragetypeid': 'uint32',
+        'areaperilid': 'uint32',
+        'vulnerabilityid': 'uint32',
         'modeldata': 'str'
     }
     keys_df = get_dataframe(
@@ -170,13 +173,13 @@ def get_gul_input_items(
         del keys_df
 
         gul_inputs_df[cond_num].fillna(0, inplace=True)
-        gul_inputs_df[cond_num] = gul_inputs_df[cond_num].astype('int32')
+        gul_inputs_df[cond_num] = gul_inputs_df[cond_num].astype('uint32')
 
-        _tiv_cols = list(tiv_cols.values())
+        _tiv_cols = list(tiv_terms.values())
         gul_inputs_df = gul_inputs_df[(gul_inputs_df[_tiv_cols] != 0).any(axis=1)]
         gul_inputs_df.loc[:, _tiv_cols] = gul_inputs_df[_tiv_cols].where(gul_inputs_df.notnull(), 0.0)
 
-        # Set defaults for BI coverage boolean, TIV, deductibles and limit
+        # Set default values and data types for BI coverage boolean, TIV, deductibles and limit
         gul_inputs_df = gul_inputs_df.assign(
             is_bi_coverage=False,
             tiv=0.0,
@@ -185,15 +188,18 @@ def get_gul_input_items(
             deductible_max=0.0,
             limit=0.0
         )
+        terms = ['tiv', 'deductible', 'deductible_min', 'deductible_max', 'limit']
+        set_dataframe_column_dtypes(
+            gul_inputs_df,
+            {t: ('float32' if t in terms else 'bool') for t in ['is_bi_coverage'] + terms}
+         )
 
         # Group the rows in the GUL inputs table by coverage type, and set the
         # IL terms (and BI coverage boolean) in each group and update the
         # corresponding frame section in the GUL inputs table
-        terms = ['tiv', 'deductible', 'deductible_min', 'deductible_max', 'limit']
-
         for cov_type, cov_type_group in gul_inputs_df.groupby(by=['coverage_type_id'], sort=True):
             cov_type_group['is_bi_coverage'] = np.where(cov_type == COVERAGE_TYPES['bi']['id'], True, False)
-            term_cols = [tiv_cols[cov_type]] + [(term_col or term) for term, term_col in cov_il_cols[cov_type].items() if term != 'share']
+            term_cols = [tiv_terms[cov_type]] + [(term_col or term) for term, term_col in cov_il_terms[cov_type].items() if term != 'share']
             cov_type_group.loc[:, term_cols] = cov_type_group.loc[:, term_cols].where(cov_type_group.notnull(), 0.0)
             cov_type_group.loc[:, terms] = cov_type_group.loc[:, term_cols].values
             cov_type_group = cov_type_group[(cov_type_group[['tiv']] != 0).any(axis=1)]
@@ -210,8 +216,8 @@ def get_gul_input_items(
                     cov_type_group['limit'],
                     cov_type_group['tiv'] * cov_type_group['limit'],
                 )
-            other_cov_type_term_cols = [v for k, v in tiv_cols.items() if k != cov_type] + [
-                _v for k, v in cov_il_cols.items() for _v in v.values() if _v if k != 1
+            other_cov_type_term_cols = [v for k, v in tiv_terms.items() if k != cov_type] + [
+                _v for k, v in cov_il_terms.items() for _v in v.values() if _v if k != 1
             ]
             cov_type_group.loc[:, other_cov_type_term_cols] = 0
             gul_inputs_df.loc[cov_type_group.index, ['is_bi_coverage'] + terms] = cov_type_group[['is_bi_coverage'] + terms]
@@ -221,6 +227,7 @@ def get_gul_input_items(
 
         # Set the group ID - group by loc. number
         gul_inputs_df['group_id'] = factorize_array(gul_inputs_df[loc_num].values)[0]
+        gul_inputs_df['group_id'] = gul_inputs_df['group_id'].astype('uint32')
 
         # Set the item IDs and coverage IDs, and defaults for layer ID, agg. ID and summary and
         # summary set IDs
@@ -232,6 +239,10 @@ def get_gul_input_items(
             agg_id=item_ids,
             summary_id=1,
             summaryset_id=1
+        )
+        set_dataframe_column_dtypes(
+            gul_inputs_df,
+            {t: 'uint32' for t in ['item_id', 'coverage_id', 'layer_id', 'agg_id', 'summary_id', 'summaryset_id']}
         )
 
         # Drop all unnecessary columns
@@ -247,14 +258,6 @@ def get_gul_input_items(
             axis=1,
             inplace=True
         )
-
-        # Set data types for some of the recently updated columns
-        col_dtypes = {
-            **{t: 'float32' for t in terms},
-            **{t: 'int32' for t in ['group_id', 'item_id', 'coverage_id', 'layer_id', 'agg_id', 'summary_id', 'summaryset_id']},
-            **{'is_bi_coverage': 'bool'}
-        }
-        set_dataframe_column_dtypes(gul_inputs_df, col_dtypes)
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
         raise OasisException from e
 
