@@ -2,9 +2,9 @@ __all__ = [
     'get_il_input_items',
     'get_layer_ids',
     'unified_fm_profile_by_level',
-    'unified_fm_profile_by_level_and_term_group',
-    'unified_fm_terms_by_level_and_term_group',
-    'unified_hierarchy_terms',
+    'get_grouped_fm_profile_by_level_and_term_group',
+    'get_grouped_fm_terms_by_level_and_term_group',
+    'get_oed_hierarchy_terms',
     'write_il_input_files',
     'write_fmsummaryxref_file',
     'write_fm_policytc_file',
@@ -43,6 +43,8 @@ from ..utils.data import (
     set_dataframe_column_dtypes,
 )
 from ..utils.defaults import (
+    COVERAGE_TYPES,
+    FM_LEVELS,
     get_calc_rules,
     get_default_accounts_profile,
     get_default_exposure_profile,
@@ -52,112 +54,12 @@ from ..utils.defaults import (
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.path import as_path
-from ..utils.metadata import (
-    COVERAGE_TYPES,
-    FM_LEVELS,
+from ..utils.profiles import (
+    get_fm_level_term_oed_columns,
+    get_grouped_fm_profile_by_level_and_term_group,
+    get_grouped_fm_terms_by_level_and_term_group,
+    get_oed_hierarchy_terms,
 )
-
-
-def unified_fm_profile_by_level(profiles=[], profile_paths=[]):
-
-    if not (profiles or profile_paths):
-        raise OasisException('A list of source profiles (loc. or acc.) or a list of source profile paths must be provided')
-
-    _profiles = copy.deepcopy(profiles)
-    if not _profiles:
-        for pp in profile_paths:
-            with io.open(pp, 'r', encoding='utf-8') as f:
-                _profiles.append(json.load(f))
-
-    comb_prof = {k: v for p in _profiles for k, v in ((k, v) for k, v in p.items() if 'FMLevel' in v)}
-
-    return OrderedDict({
-        int(k): {v['ProfileElementName']: v for v in g} for k, g in groupby(sorted(comb_prof.values(), key=lambda v: v['FMLevel']), key=lambda v: v['FMLevel'])
-    })
-
-
-def unified_fm_profile_by_level_and_term_group(profiles=[], profile_paths=[], unified_profile_by_level=None):
-
-    ufp = copy.deepcopy(unified_profile_by_level or {})
-
-    if not (profiles or profile_paths or ufp):
-        raise OasisException(
-            'A list of source profiles (loc. or acc.), or source profile paths '
-            ', or a unified FM profile grouped by level, must be provided'
-        )
-
-    ufp = ufp or unified_fm_profile_by_level(profiles=profiles, profile_paths=profile_paths)
-
-    from_profile_fm_term_types = {'deductible': 'deductible', 'deductiblemin': 'deductible_min', 'deductiblemax': 'deductible_max', 'limit': 'limit', 'share': 'share'}
-
-    return OrderedDict({
-        k: {
-            _k: {(from_profile_fm_term_types.get(v['FMTermType'].lower()) or v['FMTermType'].lower()): v for v in g} for _k, g in groupby(sorted(ufp[k].values(), key=lambda v: v['FMTermGroupID']), key=lambda v: v['FMTermGroupID'])
-        } for k in sorted(ufp)
-    })
-
-
-def unified_fm_terms_by_level_and_term_group(
-    profiles=[],
-    profile_paths=[],
-    unified_profile_by_level=None,
-    unified_profile_by_level_and_term_group=None,
-    lowercase=True
-):
-
-    ufpl = copy.deepcopy(unified_profile_by_level or {})
-    ufp = copy.deepcopy(unified_profile_by_level_and_term_group or {})
-
-    if not (profiles or profile_paths or ufpl or ufp):
-        raise OasisException(
-            'A list of source profiles (loc. or acc.), or source profile paths '
-            ', or a unified FM profile grouped by level or by level and term '
-            'group, must be provided'
-        )
-
-    ufpl = ufpl or (unified_fm_profile_by_level(profiles=profiles, profile_paths=profile_paths) if profiles or profile_paths else {})
-    ufp = ufp or unified_fm_profile_by_level_and_term_group(unified_profile_by_level=ufpl)
-
-    return OrderedDict({
-        level: {
-            tiv_tgid: {
-                term_type: (
-                    (
-                        ufp[level][tiv_tgid][term_type]['ProfileElementName'].lower() if lowercase
-                        else ufp[level][tiv_tgid][term_type]['ProfileElementName']
-                    ) if ufp[level][tiv_tgid].get(term_type) else None
-                ) for term_type in ('deductible', 'deductible_min', 'deductible_max', 'limit', 'share',)
-            } for tiv_tgid in ufp[level]
-        } for level in sorted(ufp)[1:]
-    })
-
-
-def unified_hierarchy_terms(profiles=[], profile_paths=[], unified_profile_by_level=None, unified_profile_by_level_and_term_group=None, lowercase=True):
-
-    ufpl = copy.deepcopy(unified_profile_by_level or {})
-    ufp = copy.deepcopy(unified_profile_by_level_and_term_group or {})
-
-    if not (profiles or profile_paths or ufpl or ufp):
-        raise OasisException(
-            'A list of source profiles (loc. or acc.), or source profile paths '
-            ', or a unified FM profile grouped by level or by level and term '
-            'group, must be provided'
-        )
-
-    ufpl = ufpl or (unified_fm_profile_by_level(profiles=profiles, profile_paths=profile_paths) if profiles or profile_paths else {})
-    ufp = ufp or unified_fm_profile_by_level_and_term_group(unified_profile_by_level=ufpl)
-
-    hierarchy_terms = OrderedDict({
-        k.lower(): (v['ProfileElementName'].lower() if lowercase else v['ProfileElementName'])
-        for k, v in sorted(ufp[0][1].items())
-    })
-    hierarchy_terms.setdefault('locid', ('locnumber' if lowercase else 'LocNumber'))
-    hierarchy_terms.setdefault('accid', 'accnumber' if lowercase else 'AccNumber')
-    hierarchy_terms.setdefault('polid', 'polnumber' if lowercase else 'PolNumber')
-    hierarchy_terms.setdefault('portid', 'portnumber' if lowercase else 'PortNumber')
-    hierarchy_terms.setdefault('condid', 'condnumber' if lowercase else 'CondNumber')
-
-    return hierarchy_terms
 
 
 @oasis_log
@@ -178,7 +80,7 @@ def get_layer_ids(accounts_df, accounts_profile=get_default_accounts_profile()):
     :return: Layer IDs as a Pandas series
     :rtype: pandas.Series
     """
-    hierarchy_terms = unified_hierarchy_terms(profiles=(accounts_profile,))
+    hierarchy_terms = get_oed_hierarchy_terms(accounts_profile=accounts_profile)
     portfolio_num = hierarchy_terms['portid']
     acc_num = hierarchy_terms['accid']
     policy_num = hierarchy_terms['polid']
@@ -238,12 +140,9 @@ def get_il_input_items(
     """
     # Get the OED profiles describing exposure, accounts, and using these also
     # unified exposure + accounts profile and the aggregation profile
-    exppf = exposure_profile
-    accpf = accounts_profile
+    profile = get_grouped_fm_profile_by_level_and_term_group(exposure_profile, accounts_profile)
 
-    ufp = unified_fm_profile_by_level_and_term_group(profiles=(exppf, accpf,))
-
-    if not ufp:
+    if not profile:
         raise OasisException(
             'Unable to get a unified FM profile by level and term group. '
             'Canonical loc. and/or acc. profiles are possibly missing FM term information: '
@@ -263,21 +162,21 @@ def get_il_input_items(
     # coded references to the corresponding columns in the source files, as
     # that would mean that changes to these column names in the source files
     # may break the method
-    hierarchy_terms = unified_hierarchy_terms(unified_profile_by_level_and_term_group=ufp)
+    hierarchy_terms = get_oed_hierarchy_terms(grouped_profile_by_level_and_term_group=profile)
     loc_num = hierarchy_terms['locid']
     acc_num = hierarchy_terms['accid']
     policy_num = hierarchy_terms['polid']
     portfolio_num = hierarchy_terms['portid']
     cond_num = hierarchy_terms['condid']
 
-    accounts_il_terms = unified_fm_terms_by_level_and_term_group(profiles=(accpf,))
-    accounts_il_cols = [__v for v in accounts_il_terms.values() for _v in v.values() for __v in _v.values() if __v]
+    cond_pol_acc_levels = ['cond all', 'policy all', 'policy layer']
+    accounts_il_cols = get_fm_level_term_oed_columns(level_keys=cond_pol_acc_levels)
 
     col_defaults = {t: (0.0 if t in accounts_il_cols else 0) for t in accounts_il_cols + [portfolio_num, cond_num]}
     col_dtypes = {
-        **{t: 'str' for t in [loc_num, acc_num, portfolio_num, policy_num]},
+        **{t: 'str' for t in [acc_num, portfolio_num, policy_num]},
         **{t: 'float32' for t in accounts_il_cols},
-        **{t: 'int32' for t in [cond_num, 'layer_id', 'layerid']}
+        **{t: 'uint32' for t in [cond_num, 'layer_id']}
     }
 
     # Get the accounts frame either directly or from a file path if provided
@@ -293,30 +192,30 @@ def get_il_input_items(
     if not (accounts_df is not None or accounts_fp):
         raise OasisException('No accounts frame or file path provided')
 
-    if 'layer_id' not in accounts_df or 'layerid' not in accounts_df:
-        accounts_df['layer_id'] = get_layer_ids(accounts_df, accounts_profile=accpf)
+    if 'layer_id' not in accounts_df:
+        accounts_df['layer_id'] = get_layer_ids(accounts_df, accounts_profile=accounts_profile)
+
+    usecols = [acc_num, portfolio_num, policy_num, cond_num, 'layer_id'] + accounts_il_cols
+    accounts_df.drop([c for c in accounts_df.columns if c not in usecols], axis=1, inplace=True)
 
     # Define the FM levels from the unified profile, including the coverage
     # level (the first level) and the layer level (the last level) - the FM
     # levels thus obtained should correspond to the FM levels in the OED
     # spec., as the profiles are based on the same spec. Also get the FM
     # terms profile
-    fm_levels = tuple(ufp)[1:]
+    fm_levels = tuple(profile)[1:]
     cov_level = min(fm_levels)
     layer_level = max(fm_levels)
-    fm_terms = unified_fm_terms_by_level_and_term_group(unified_profile_by_level_and_term_group=ufp)
+    fm_terms = get_grouped_fm_terms_by_level_and_term_group(grouped_profile_by_level_and_term_group=profile)
 
     try:
         # Create a list of all the IL columns for the site pd and site all
         # levels
-        site_pd_and_site_all_terms = [
-            t for level in [FM_LEVELS['site pd']['id'], FM_LEVELS['site all']['id']]
-            for t in fm_terms[level][1].values() if t
-        ]
+        site_pd_and_site_all_term_cols = get_fm_level_term_oed_columns(level_keys=['site pd', 'site all'])
 
         # Check if any of these columns are missing in the exposure frame, and if so
         # set the missing columns with a default value of 0.0 in the exposure frame
-        missing = set(site_pd_and_site_all_terms).difference(exposure_df.columns)
+        missing = set(site_pd_and_site_all_term_cols).difference(exposure_df.columns)
         if missing:
             exposure_df = get_dataframe(src_data=exposure_df, col_defaults={t: 0.0 for t in missing})
 
@@ -325,12 +224,13 @@ def get_il_input_items(
         # the GUL inputs frame effectively only contains financial terms related to
         # FM level 1 (site coverage)
         gul_inputs_df = merge_dataframes(
-            exposure_df[site_pd_and_site_all_terms + [loc_num]],
+            exposure_df[site_pd_and_site_all_term_cols + [loc_num]],
             gul_inputs_df,
             on=loc_num,
             how='inner'
         )
         gul_inputs_df.rename(columns={'item_id': 'gul_input_id'}, inplace=True)
+        set_dataframe_column_dtypes(gul_inputs_df, {t: 'float32' for t in site_pd_and_site_all_term_cols})
 
         # Construct a basic IL inputs frame by merging the combined exposure +
         # GUL inputs frame above, with the accounts frame, on portfolio no.,
@@ -339,22 +239,13 @@ def get_il_input_items(
         il_inputs_df = merge_dataframes(
             gul_inputs_df,
             accounts_df,
-            on=[portfolio_num, acc_num, 'layer_id'],
-            how='left'
+            on=[portfolio_num, acc_num, 'layer_id', cond_num],
+            how='left',
+            drop_duplicates=True
         )
 
-        il_inputs_df['item_id'] = il_inputs_df.index + 1
-        cond_numbers = merge_dataframes(
-            il_inputs_df[['item_id', 'gul_input_id', cond_num]],
-            gul_inputs_df[['gul_input_id', cond_num]],
-            on='gul_input_id',
-            how='left'
-        )[cond_num]
-
-        il_inputs_df[cond_num] = cond_numbers
-
-        # Mark the GUL inputs and exposure file dataframes for deletion
-        del [exposure_df, cond_numbers]
+        # Mark the exposure dataframes for deletion
+        del exposure_df
 
         # At this point the IL inputs frame will contain essentially only
         # coverage level items, but will include multiple items relating to
@@ -374,10 +265,11 @@ def get_il_input_items(
             )
 
         # Drop all unnecessary columns.
+        all_fm_terms_cols = get_fm_level_term_oed_columns(level_keys=['site coverage', 'site pd', 'site all', 'cond all', 'policy all', 'policy layer'])
         usecols = (
             gul_inputs_df.columns.to_list() +
             [policy_num, 'gul_input_id'] +
-            [__v for v in fm_terms.values() for _v in v.values() for __v in _v.values() if __v]
+            all_fm_terms_cols
         )
         il_inputs_df.drop(
             [c for c in il_inputs_df.columns if c not in usecols],
@@ -401,7 +293,7 @@ def get_il_input_items(
 
         # Set data types for the newer columns just added
         col_dtypes = {
-            **{t: 'int32' for t in ['level_id', 'calcrule_id', 'policytc_id']},
+            **{t: 'uint32' for t in ['level_id', 'calcrule_id', 'policytc_id']},
             **{t: 'float32' for t in ['attachment', 'share']}
         }
         set_dataframe_column_dtypes(il_inputs_df, col_dtypes)
@@ -418,7 +310,8 @@ def get_il_input_items(
         # frame should already contain the coverage level terms
 
         # Filter out any intermediate FM levels from the original list of FM
-        # levels which have no financial terms
+        # levels which have no financial terms, and also drop all the columns
+        # for terms defined for these levels
         def level_has_fm_terms(level):
             try:
                 return il_inputs_df[[v for v in fm_terms[level][1].values() if v]].any().any()
@@ -426,6 +319,9 @@ def get_il_input_items(
                 return False
 
         intermediate_fm_levels = tuple(l for l in fm_levels[1:-1] if level_has_fm_terms(l))
+        fm_levels_with_zero_terms = [l for l in fm_levels if l not in intermediate_fm_levels + (fm_levels[0], fm_levels[-1])]
+        zero_term_cols = get_fm_level_term_oed_columns(level_ids=fm_levels_with_zero_terms)
+        il_inputs_df.drop(zero_term_cols, axis=1, inplace=True)
 
         # Define a list of all supported OED coverage types in the exposure
         all_cov_types = [
@@ -444,24 +340,22 @@ def get_il_input_items(
         # to the main IL inputs frame
         for level in intermediate_fm_levels:
             term_cols = [(term_col or term) for term, term_col in fm_terms[level][1].items() if term != 'share']
-            level_df = il_inputs_df[il_inputs_df['level_id'] == cov_level]
+            level_df = il_inputs_df[il_inputs_df['level_id'] == cov_level].drop_duplicates()
             level_df['level_id'] = level
 
             agg_key = [v['field'].lower() for v in fmap[level]['FMAggKey'].values()]
             level_df['agg_id'] = factorize_ndarray(level_df[agg_key].values, col_idxs=range(len(agg_key)))[0]
 
-            level_df.loc[:, term_cols] = level_df.loc[:, term_cols].where(
-                level_df.loc[:, term_cols].notnull(),
-                0.0
-            ).values
             if level == FM_LEVELS['cond all']['id']:
-                level_df.loc[:, term_cols] = level_df.loc[:, term_cols].where(level_df[cond_num] != 0, 0.0)
+                level_df.loc[:, term_cols] = level_df.loc[:, term_cols].fillna(0)
+            else:
+                level_df.loc[:, term_cols] = level_df.loc[:, term_cols].fillna(method='ffill')
+                level_df.loc[:, term_cols] = level_df.loc[:, term_cols].fillna(0)
 
-            level_df.loc[:, terms] = 0.0
             level_df.loc[:, terms] = level_df.loc[:, term_cols].values
 
             level_df['deductible'] = np.where(
-                level_df['coverage_type_id'].isin((ufp[level][1].get('deductible') or {}).get('CoverageTypeID') or all_cov_types),
+                level_df['coverage_type_id'].isin((profile[level][1].get('deductible') or {}).get('CoverageTypeID') or all_cov_types),
                 level_df['deductible'],
                 0
             )
@@ -472,7 +366,7 @@ def get_il_input_items(
             )
 
             level_df['limit'] = np.where(
-                level_df['coverage_type_id'].isin((ufp[level][1].get('limit') or {}).get('CoverageTypeID') or all_cov_types),
+                level_df['coverage_type_id'].isin((profile[level][1].get('limit') or {}).get('CoverageTypeID') or all_cov_types),
                 level_df['limit'],
                 0
             )
@@ -485,7 +379,7 @@ def get_il_input_items(
 
         # Resequence the item IDs, as the earlier repeated concatenation of
         # the intermediate level frames may have produced a non-sequential index
-        il_inputs_df['item_id'] = range(1, len(il_inputs_df) + 1)
+        il_inputs_df['item_id'] = il_inputs_df.index + 1
 
         # Process the layer level inputs separately - we start with merging
         # the coverage level layer 1 items with the accounts frame to create
@@ -510,7 +404,9 @@ def get_il_input_items(
         # Process the financial terms for the layer level
         term_cols = [(v[t] or t) for v in fm_terms[layer_level].values() for t in terms]
         layer_df.loc[:, term_cols] = layer_df.loc[:, term_cols].where(layer_df.notnull(), 0.0).values
+        set_dataframe_column_dtypes(layer_df, {t: 'float32' for t in term_cols})
         layer_df.loc[:, terms] = layer_df.loc[:, term_cols].values
+        set_dataframe_column_dtypes(layer_df, {t: 'float32' for t in terms})
         layer_df['limit'] = layer_df['limit'].where(layer_df['limit'] != 0, 9999999999)
         layer_df['attachment'] = layer_df['deductible']
         layer_df['share'] = layer_df['share'].where(layer_df['share'] != 0, 1.0)
@@ -526,6 +422,14 @@ def get_il_input_items(
         il_inputs_df['orig_level_id'] = il_inputs_df['level_id']
         il_inputs_df['level_id'] = factorize_ndarray(il_inputs_df[['level_id']].values, col_idxs=[0])[0]
         il_inputs_df['item_id'] = il_inputs_df.index + 1
+
+        # Drop all OED columns for all financial terms for all FM levels - at
+        # this point these columns are unnecessary, as the FM terms (deductible,
+        # min. deductible, max. deductible, limit, attachment, share) have been
+        # extracted for all levels and set in the columns named 'deductible',
+        # 'deductible_min', 'deductible_max', 'limit', 'attachment', 'share'
+        fm_term_cols = list(set(all_fm_terms_cols).intersection(il_inputs_df.columns))
+        il_inputs_df.drop(fm_term_cols, axis=1, inplace=True)
 
         # Set the calc. rule IDs
         calc_rules = get_calc_rules().drop(['desc'], axis=1)
@@ -544,6 +448,14 @@ def get_il_input_items(
         il_inputs_calc_rules_df = merge_dataframes(il_inputs_calc_rules_df, calc_rules, how='left', on='id_key')
         il_inputs_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id']
         il_inputs_df['calcrule_id'] = il_inputs_df['calcrule_id'].astype('int32')
+
+        set_dataframe_column_dtypes(
+            il_inputs_df,
+            {
+                **{t: 'uint32' for t in [cond_num, 'agg_id', 'item_id', 'layer_id', 'level_id', 'orig_level_id', 'calcrule_id']},
+                **{t: 'float32' for t in terms + ['attachment', 'deductible_min', 'deductible_max']}
+            }
+        )
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
         raise OasisException from e
 
@@ -602,7 +514,6 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
     """
     try:
         cols = ['policytc_id', 'calcrule_id', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'limit', 'share']
-
         fm_profile_df = il_inputs_df[cols].drop_duplicates()
 
         fm_profile_df['policytc_id'] = factorize_ndarray(fm_profile_df[cols].values, col_idxs=range(len(cols)))[0]

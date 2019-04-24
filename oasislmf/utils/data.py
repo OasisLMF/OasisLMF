@@ -38,8 +38,14 @@ from .exceptions import OasisException
 
 
 PANDAS_BASIC_DTYPES = {
+    'int8': np.int8,
+    'uint8': np.uint8,
+    'int16': np.int16,
+    'uint16': np.uint16,
     'int32': np.int32,
+    'uint32': np.uint32,
     'int64': np.int64,
+    'uint64': np.uint64,
     builtins.int: np.int64,
     'float32': np.float32,
     'float64': np.float64,

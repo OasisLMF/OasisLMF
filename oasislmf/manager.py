@@ -26,7 +26,6 @@ from subprocess import (
 )
 
 from itertools import (
-    chain,
     product,
 )
 
@@ -48,21 +47,22 @@ from .model_preparation.gul_inputs import (
 )
 from .model_preparation.il_inputs import (
     get_il_input_items,
-    unified_hierarchy_terms,
+    get_oed_hierarchy_terms,
     write_il_input_files,
 )
 from .model_preparation.lookup import OasisLookupFactory as olf
 from .model_preparation.utils import prepare_input_files_directory
 from .model_preparation.reinsurance_layer import write_ri_input_files
 from .utils.data import (
+    fast_zip_dataframe_columns,
     get_dataframe,
     get_json,
     get_utctimestamp,
 )
 from .utils.exceptions import OasisException
 from .utils.log import oasis_log
-from .utils.metadata import COVERAGE_TYPES
 from .utils.defaults import (
+    COVERAGE_TYPES,
     get_default_accounts_profile,
     get_default_deterministic_analysis_settings,
     get_default_exposure_profile,
@@ -308,6 +308,7 @@ class OasisManager(object):
         lookup_package_fp=None,
         complex_lookup_config_fp=None,
         supported_oed_coverage_types=None,
+        deterministic_loss_factor=None,
         accounts_fp=None,
         accounts_profile=None,
         accounts_profile_fp=None,
@@ -317,11 +318,10 @@ class OasisManager(object):
         ri_scope_fp=None,
         oasis_files_prefixes=None
     ):
-        # Check whether the invocation indicates a deterministic or model
-        # analysis/run - the CLI supports deterministic analyses via a command
-        # `oasislmf exposure run` which requires a preexisting input files
-        # directory, which is usually the same as the analysis/output directory
-        deterministic = not(keys_fp or (lookup_config or lookup_config_fp) or (keys_data_fp and model_version_fp and lookup_package_fp))
+        # Check whether the deterministic loss factor is non-null - if so then
+        # the Oasis files are for a deterministic loss generation scenario, and
+        # therefore the loss factor must be applied to the GUL input item TIVs
+        deterministic = deterministic_loss_factor is not None
 
         # Prepare the target directory and copy the source files, profiles and
         # model version file into it
@@ -344,7 +344,7 @@ class OasisManager(object):
         # terms in these files, and FM aggregation hierarchy
         exposure_profile = exposure_profile or (get_json(src_fp=exposure_profile_fp) if exposure_profile_fp else self.exposure_profile)
         accounts_profile = accounts_profile or (get_json(src_fp=accounts_profile_fp) if accounts_profile_fp else self.accounts_profile)
-        hierarchy_terms = unified_hierarchy_terms(profiles=(exposure_profile, accounts_profile,))
+        hierarchy_terms = get_oed_hierarchy_terms(exposure_profile, accounts_profile)
         loc_num = hierarchy_terms['locid']
         acc_num = hierarchy_terms['accid']
         portfolio_num = hierarchy_terms['portid']
@@ -405,6 +405,12 @@ class OasisManager(object):
             exposure_fp, _keys_fp, exposure_profile=exposure_profile
         )
 
+        # If in a deterministic loss generation scenario then apply the loss
+        # factor to the TIV column in the GUL inputs table - this will affect
+        # the 'tiv' column in the coverages file
+        if deterministic and deterministic_loss_factor > 0 and deterministic_loss_factor < 1:
+            gul_inputs_df['tiv'] *= deterministic_loss_factor
+
         # Write the GUL input files
         files_prefixes = oasis_files_prefixes or self.oasis_files_prefixes
         gul_input_files = write_gul_input_files(
@@ -436,7 +442,7 @@ class OasisManager(object):
         )
 
         # Combine the GUL and IL input file paths into a single dict (for convenience)
-        oasis_files = {k: v for k, v in chain(gul_input_files.items(), il_input_files.items())}
+        oasis_files = {**gul_input_files, **il_input_files}
 
         # If no RI input file paths (info. and scope) have been provided then
         # no RI input files are needed, just return the GUL and IL Oasis files
@@ -587,30 +593,30 @@ class OasisManager(object):
         csv_to_bin(input_dir, output_dir, il=il, ri=ri)
 
         # Generate an items and coverages dataframe and set column types (important!!)
-        items_df = pd.merge(
+        items = pd.merge(
             pd.read_csv(os.path.join(input_dir, 'items.csv')),
             pd.read_csv(os.path.join(input_dir, 'coverages.csv'))
         )
-        for col in items_df:
+        for col in items:
             if col != 'tiv':
-                items_df[col] = items_df[col].astype(int)
+                items[col] = items[col].astype(int)
             else:
-                items_df[col] = items_df[col].astype(float)
+                items[col] = items[col].astype(float)
 
-        guls_items = []
-        for item_id, tiv in zip(items_df['item_id'], items_df['tiv']):
-            event_loss = loss_percentage_of_tiv * tiv
-            guls_items += [
-                oed.GulRecord(event_id=1, item_id=item_id, sidx=-1, loss=event_loss),
-                oed.GulRecord(event_id=1, item_id=item_id, sidx=-2, loss=0),
-                oed.GulRecord(event_id=1, item_id=item_id, sidx=1, loss=event_loss)
-            ]
-
+        # Gulcalc sidx (sample index) list - -1 represents the numerical integration mean,
+        # -2 the numerical integration standard deviation, and 1 the unsampled/raw loss
+        gulcalc_sidxs = [-1, -2, 1]
+        guls_items = [
+            OrderedDict({'event_id': 1, 'item_id': item_id, 'sidx': sidx, 'loss': (tiv if sidx != -2 else 0)})
+            for (item_id, tiv), sidx in product(
+                fast_zip_dataframe_columns(items, ['item_id', 'tiv']), gulcalc_sidxs
+            )
+        ]
         guls = pd.DataFrame(guls_items)
-        guls_fp = os.path.join(output_dir, "guls.csv")
+        guls_fp = os.path.join(output_dir, "raw_guls.csv")
         guls.to_csv(guls_fp, index=False)
 
-        ils_fp = os.path.join(output_dir, 'ils.csv')
+        ils_fp = os.path.join(output_dir, 'raw_ils.csv')
         cmd = 'gultobin -S 1 < {} | fmcalc -p {} -a {} | tee ils.bin | fmtocsv > {}'.format(
             guls_fp, output_dir, oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID, ils_fp
         )
@@ -689,8 +695,8 @@ class OasisManager(object):
     @oasis_log
     def run_deterministic(
         self,
-        input_dir,
-        output_dir=None,
+        src_dir,
+        run_dir=None,
         loss_percentage_of_tiv=1.0,
         net_ri=False
     ):
@@ -698,35 +704,38 @@ class OasisManager(object):
         Generates insured losses from preexisting Oasis files with a specified
         damage ratio (loss % of TIV).
         """
-        if not os.path.exists(output_dir):
-            Path(output_dir).mkdir(parents=True, exist_ok=True)
-        contents = [p.lower() for p in os.listdir(input_dir)]
-        exposure_fp = [os.path.join(input_dir, p) for p in contents if 'location' in p][0]
-        accounts_fp = [os.path.join(input_dir, p) for p in contents if 'account' in p][0]
+        if not run_dir:
+            run_dir = os.path.join(src_dir, 'run')
+        elif not os.path.exists(run_dir):
+            Path(run_dir).mkdir(parents=True, exist_ok=True)
+        contents = [fn.lower() for fn in os.listdir(src_dir)]
+        exposure_fp = [os.path.join(src_dir, fn) for fn in contents if 'location' in fn][0]
+        accounts_fp = [os.path.join(src_dir, fn) for fn in contents if 'account' in fn][0]
 
         ri_info_fp = ri_scope_fp = None
         try:
-            ri_info_fp = [os.path.join(input_dir, p) for p in contents if p.startswith('ri_info') or 'reinsinfo' in p][0]
+            ri_info_fp = [os.path.join(src_dir, fn) for fn in contents if fn.startswith('ri_info') or 'reinsinfo' in fn][0]
         except IndexError:
             pass
         else:
             try:
-                ri_scope_fp = [os.path.join(input_dir, p) for p in contents if p.startswith('ri_scope') or 'reinsscope' in p][0]
+                ri_scope_fp = [os.path.join(src_dir, fn) for fn in contents if fn.startswith('ri_scope') or 'reinsscope' in fn][0]
             except IndexError:
                 ri_info_fp = None
 
         # Start Oasis files generation
         self.generate_oasis_files(
-            input_dir,
+            run_dir,
             exposure_fp,
+            deterministic_loss_factor=loss_percentage_of_tiv,
             accounts_fp=accounts_fp,
             ri_info_fp=ri_info_fp,
             ri_scope_fp=ri_scope_fp
         )
 
         losses = self.generate_deterministic_losses(
-            input_dir,
-            output_dir=output_dir,
+            run_dir,
+            output_dir=os.path.join(run_dir, 'output'),
             loss_percentage_of_tiv=loss_percentage_of_tiv,
             net_ri=net_ri
         )

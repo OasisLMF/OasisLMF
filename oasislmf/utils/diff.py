@@ -1,22 +1,39 @@
 __all__ = [
+    'column_diff',
     'unified_diff'
 ]
 
 import difflib
+import subprocess
+
+from subprocess import (
+    CalledProcessError,
+    run,
+)
 
 import io
 
 from .exceptions import OasisException
 
 
-def unified_diff(file1, file2, as_string=False):
+def column_diff(a, b, width=130):
+    cmd_str = 'diff -y {} {} -W {}'.format(a, b, width)
+    try:
+        res = run(cmd_str.split(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    except CalledProcessError as e:
+        return 'Error in generating file diff: {}'.format(e)
+
+    return res.stdout.decode('utf-8')
+
+
+def unified_diff(a, b, as_string=False):
     """
-    Generates a unified diff of two files: ``file1`` and ``file2``. The files must
+    Generates a unified diff of two files: ``a`` and ``b``. The files must
     be passed in as absolute paths.
     """
     try:
-        with io.open(file1, 'r') as f1:
-            with io.open(file2, 'r') as f2:
+        with io.open(a, 'r') as f1:
+            with io.open(b, 'r') as f2:
                 diff = difflib.unified_diff(
                     f1.readlines(),
                     f2.readlines(),
@@ -29,3 +46,4 @@ def unified_diff(file1, file2, as_string=False):
     if as_string:
         return ''.join(diff)
     return diff
+
