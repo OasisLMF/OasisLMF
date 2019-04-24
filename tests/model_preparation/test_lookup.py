@@ -213,29 +213,6 @@ class OasisLookupFactoryCreate(TestCase):
         model=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
         version=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
     )
-    def test_complex_config_file_missing___correct_exception_raised(self, supplier, model, version):
-        with TemporaryDirectory() as d:
-            version_path = os.path.join(d, 'version.csv')
-            self.write_version_file(supplier, model, version, version_path)
-
-            module_path = os.path.join(d, '{}_lookup.py'.format(model))
-            self.write_py_module(model, module_path)
-
-            complex_lookup_config_path = os.path.join(d, 'lookup_config.json'.format(model))
-
-            with self.assertRaisesRegexp(OasisException,
-                                         r"complex_lookup_config_fp does not exist.*"):
-                _, instance = olf.create(
-                    model_version_file_path=version_path,
-                    lookup_package_path=module_path,
-                    complex_lookup_config_fp=complex_lookup_config_path
-                )
-
-    @given(
-        supplier=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
-        model=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
-        version=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
-    )
     def test_lookup_package_path_not_supplied___correct_exception_raised(self, supplier, model, version):
         with TemporaryDirectory() as d:
             version_path = os.path.join(d, 'version.csv')
