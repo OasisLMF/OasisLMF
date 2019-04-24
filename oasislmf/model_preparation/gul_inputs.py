@@ -158,6 +158,7 @@ def get_gul_input_items(
         # keys dataframes on loc. number/loc. ID; filter out any rows with
         # zeros for TIVs for all coverage types, and replace any nulls in the
         # cond.num. and TIV columns with zeros
+        exposure_df['exposure_idx'] = exposure_df.index.values
         gul_inputs_df = merge_dataframes(exposure_df, keys_df, on=loc_num, how='left')
 
         if gul_inputs_df.empty:
@@ -251,6 +252,7 @@ def get_gul_input_items(
             ['tiv'] + tiv_and_cov_il_cols + terms +
             ['peril_id', 'coverage_type_id', 'areaperil_id', 'vulnerability_id'] +
             (['model_data'] if 'model_data' in gul_inputs_df else []) +
+            (['exposure_idx'] if 'exposure_idx' in gul_inputs_df else []) +
             ['is_bi_coverage', 'group_id', 'item_id', 'coverage_id', 'layer_id', 'agg_id', 'summary_id', 'summaryset_id']
         )
         gul_inputs_df.drop(

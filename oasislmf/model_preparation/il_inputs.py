@@ -269,6 +269,7 @@ def get_il_input_items(
         usecols = (
             gul_inputs_df.columns.to_list() +
             [policy_num, 'gul_input_id'] +
+            (['exposure_idx'] if 'exposure_idx' in il_inputs_df else []) + 
             all_fm_terms_cols
         )
         il_inputs_df.drop(

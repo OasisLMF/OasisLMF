@@ -50,6 +50,9 @@ from .model_preparation.il_inputs import (
     get_oed_hierarchy_terms,
     write_il_input_files,
 )
+from .model_preparation.sum_inputs import (
+    get_summary_mapping,
+)
 from .model_preparation.lookup import OasisLookupFactory as olf
 from .model_preparation.utils import prepare_input_files_directory
 from .model_preparation.reinsurance_layer import write_ri_input_files
@@ -404,6 +407,9 @@ class OasisManager(object):
         gul_inputs_df, exposure_df = get_gul_input_items(
             exposure_fp, _keys_fp, exposure_profile=exposure_profile
         )
+        ## TODO: Write `gul_summary_map.csv`
+        gul_summary_mapping = get_summary_mapping(gul_inputs_df, hierarchy_terms)
+        
 
         # If in a deterministic loss generation scenario then apply the loss
         # factor to the TIV column in the GUL inputs table - this will affect
@@ -433,6 +439,8 @@ class OasisManager(object):
             accounts_profile=accounts_profile,
             fm_aggregation_profile=fm_aggregation_profile
         )
+        ## TODO: Write `fm_summary_map.csv`
+        fm_summary_mapping = get_summary_mapping(il_inputs_df, hierarchy_terms)
 
         # Write the IL/FM input files
         il_input_files = write_il_input_files(
@@ -444,6 +452,7 @@ class OasisManager(object):
         # Combine the GUL and IL input file paths into a single dict (for convenience)
         oasis_files = {**gul_input_files, **il_input_files}
 
+
         # If no RI input file paths (info. and scope) have been provided then
         # no RI input files are needed, just return the GUL and IL Oasis files
         if not (ri_info_fp or ri_scope_fp):
@@ -452,6 +461,9 @@ class OasisManager(object):
         # Write the RI input files, and write the returned RI layer info. as a
         # file, which can be reused by the model runner (in the model execution
         # stage) to set the number of RI iterations
+
+
+        ## TODO: pass 'fm_summary_mapping` inplace of `xref_descriptions`
         ri_layers = write_ri_input_files(
             exposure_fp,
             accounts_fp,
