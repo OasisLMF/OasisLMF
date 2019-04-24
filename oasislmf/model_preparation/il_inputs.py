@@ -171,11 +171,13 @@ def get_il_input_items(
 
     cond_pol_acc_levels = ['cond all', 'policy all', 'policy layer']
     accounts_il_cols = get_fm_level_term_oed_columns(level_keys=cond_pol_acc_levels)
+    fm_terms = get_grouped_fm_terms_by_level_and_term_group(grouped_profile_by_level_and_term_group=profile)
+    layer_limit_col = fm_terms[FM_LEVELS['policy layer']['id']][1]['limit']
 
     col_defaults = {t: (0.0 if t in accounts_il_cols else 0) for t in accounts_il_cols + [portfolio_num, cond_num]}
     col_dtypes = {
         **{t: 'str' for t in [acc_num, portfolio_num, policy_num]},
-        **{t: 'float32' for t in accounts_il_cols},
+        **{t: ('float32' if t != layer_limit_col else 'float64') for t in accounts_il_cols},
         **{t: 'uint32' for t in [cond_num, 'layer_id']}
     }
 
@@ -206,7 +208,6 @@ def get_il_input_items(
     fm_levels = tuple(profile)[1:]
     cov_level = min(fm_levels)
     layer_level = max(fm_levels)
-    fm_terms = get_grouped_fm_terms_by_level_and_term_group(grouped_profile_by_level_and_term_group=profile)
 
     try:
         # Create a list of all the IL columns for the site pd and site all
@@ -404,9 +405,7 @@ def get_il_input_items(
         # Process the financial terms for the layer level
         term_cols = [(v[t] or t) for v in fm_terms[layer_level].values() for t in terms]
         layer_df.loc[:, term_cols] = layer_df.loc[:, term_cols].where(layer_df.notnull(), 0.0).values
-        set_dataframe_column_dtypes(layer_df, {t: 'float32' for t in term_cols})
         layer_df.loc[:, terms] = layer_df.loc[:, term_cols].values
-        set_dataframe_column_dtypes(layer_df, {t: 'float32' for t in terms})
         layer_df['limit'] = layer_df['limit'].where(layer_df['limit'] != 0, 9999999999)
         layer_df['attachment'] = layer_df['deductible']
         layer_df['share'] = layer_df['share'].where(layer_df['share'] != 0, 1.0)
@@ -453,7 +452,8 @@ def get_il_input_items(
             il_inputs_df,
             {
                 **{t: 'uint32' for t in [cond_num, 'agg_id', 'item_id', 'layer_id', 'level_id', 'orig_level_id', 'calcrule_id']},
-                **{t: 'float32' for t in terms + ['attachment', 'deductible_min', 'deductible_max']}
+                **{t: 'float32' for t in [_t for _t in terms if _t != 'limit'] + ['attachment', 'deductible_min', 'deductible_max']},
+                **{'limit': 'float64'}
             }
         )
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
