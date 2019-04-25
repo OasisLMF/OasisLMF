@@ -192,7 +192,7 @@ def get_gul_input_items(
         set_dataframe_column_dtypes(
             gul_inputs_df,
             {t: ('float32' if t in terms else 'bool') for t in ['is_bi_coverage'] + terms}
-         )
+        )
 
         # Group the rows in the GUL inputs table by coverage type, and set the
         # IL terms (and BI coverage boolean) in each group and update the

@@ -16,7 +16,6 @@ __all__ = [
 import builtins
 import io
 import json
-import sys
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
