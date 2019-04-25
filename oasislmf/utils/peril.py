@@ -5,11 +5,7 @@ __all__ = [
     'get_peril_areas_index',
     'get_rtree_index',
     'PerilArea',
-    'PerilAreasIndex',
-    'PERIL_ID_FLOOD',
-    'PERIL_ID_QUAKE',
-    'PERIL_ID_SURGE',
-    'PERIL_ID_WIND'
+    'PerilAreasIndex'
 ]
 
 import copy
@@ -42,11 +38,6 @@ import pickle
 from .exceptions import OasisException
 from .data import get_dataframe
 
-
-PERIL_ID_WIND = 1
-PERIL_ID_SURGE = 2
-PERIL_ID_QUAKE = 3
-PERIL_ID_FLOOD = 4
 
 DEFAULT_RTREE_INDEX_PROPS = {
     'buffering_capacity': 10,
