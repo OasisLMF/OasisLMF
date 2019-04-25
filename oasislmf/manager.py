@@ -52,6 +52,7 @@ from .model_preparation.il_inputs import (
 )
 from .model_preparation.sum_inputs import (
     get_summary_mapping,
+    merge_oed_to_mapping,
 )
 from .model_preparation.lookup import OasisLookupFactory as olf
 from .model_preparation.utils import prepare_input_files_directory
@@ -464,7 +465,14 @@ class OasisManager(object):
 
 
         ## TODO: pass 'fm_summary_mapping` inplace of `xref_descriptions`
+        # Example Merge in col from exposure 
+
+
+        xref_des = merge_oed_to_mapping(fm_summary_mapping, exposure_df, ['locgroup'])
+        import ipdb; ipdb.set_trace()
+
         ri_layers = write_ri_input_files(
+            xref_des,
             exposure_fp,
             accounts_fp,
             oasis_files['items'],

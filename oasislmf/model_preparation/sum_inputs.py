@@ -1,6 +1,7 @@
 __all__ = [
     'get_summary_mapping',
     'get_summary_xref',
+    'merge_oed_to_mapping',
     'write_mapping_file',
     'write_gulsummaryxref_file',
     'write_fmsummaryxref_file',
@@ -91,6 +92,9 @@ def get_summary_mapping(
     else:
         summary_mapping = inputs_df.copy(deep=True)
 
+    
+
+    #import ipdb; ipdb.set_trace()
     summary_mapping.drop(
         [c for c in summary_mapping.columns if c not in usecols],
         axis=1,
@@ -98,6 +102,27 @@ def get_summary_mapping(
     )
     return summary_mapping
 
+
+
+@oasis_log
+def merge_oed_to_mapping(summary_map_df, exposure_df, column_set):
+    """
+    Adds list of OED fields from `column_set` to summary map file
+
+    :param :summary_map_df dataframe return from get_summary_mapping
+    :type summary_map_df: pandas.DataFrame
+
+    :param exposure_df: Summary map file path
+    :type exposure_df: pandas.DataFrame
+
+    :return: subset of columns from exposure_df to merge
+    :rtype: list
+    """
+
+    # Guard check that set(column_set) < set(exposure_col_df.columns.to_list())
+    # --> OasisExecption if not
+    exposure_col_df = exposure_df[['index'] + column_set]
+    return summary_map_df.merge(exposure_col_df, left_on='exposure_idx', right_on='index').drop('index', axis=1)
 
 
 @oasis_log
@@ -115,13 +140,13 @@ def write_mapping_file(summary_map_df, sum_mapping_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        #gul_inputs_df[['coverage_id', 'summary_id', 'summaryset_id']].drop_duplicates().to_csv(
-        #    path_or_buf=gulsummaryxref_fp,
-        #    encoding='utf-8',
-        #    mode=('w' if os.path.exists(gulsummaryxref_fp) else 'a'),
-        #    chunksize=chunksize,
-        #    index=False
-        #)
+        summary_map_df.to_csv(
+            path_or_buf=sum_mapping_fp,
+            encoding='utf-8',
+            mode=('w' if os.path.exists(sum_mapping_fp) else 'a'),
+            chunksize=chunksize,
+            index=False
+        )
     except (IOError, OSError) as e:
         raise OasisException from e
 

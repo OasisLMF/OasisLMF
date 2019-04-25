@@ -37,6 +37,7 @@ def _get_location_tiv(location, coverage_type_id):
     return switcher.get(coverage_type_id, 0)
 
 
+# Remove and replace with mapping from sum_inputs.py
 def generate_xref_descriptions(accounts_fp, locations_fp):
 
     accounts = pd.read_csv(accounts_fp)
@@ -190,6 +191,7 @@ def _generate_files_for_reinsurance_risk_level(
     return output_dir
 
 
+'''
 @oasis_log
 def write_ri_input_files(
     exposure_fp,
@@ -204,6 +206,47 @@ def write_ri_input_files(
     target_dir
 ):
     xref_descriptions = pd.DataFrame(generate_xref_descriptions(accounts_fp, exposure_fp))
+    return generate_files_for_reinsurance(
+        pd.read_csv(items_fp),
+        pd.read_csv(coverages_fp),
+        pd.read_csv(fm_xref_fp),
+        xref_descriptions,
+        pd.read_csv(ri_info_fp),
+        pd.read_csv(ri_scope_fp),
+        target_dir,
+        gulsummaryxref=pd.read_csv(gulsummaryxref_fp),
+        fmsummaryxref=pd.read_csv(fmsummaryxref_fp)
+    )
+'''
+
+@oasis_log
+def write_ri_input_files(
+    direct_mapping,
+    exposure_fp,
+    accounts_fp,
+    items_fp,
+    coverages_fp,
+    gulsummaryxref_fp,
+    fm_xref_fp,
+    fmsummaryxref_fp,
+    ri_info_fp,
+    ri_scope_fp,
+    target_dir
+):
+    old_xref_descriptions = pd.DataFrame(generate_xref_descriptions(accounts_fp, exposure_fp))
+    xref_descriptions = direct_mapping
+   
+    ## need to update col names in code --> tmp rename here
+    xref_descriptions['xref_id'] = xref_descriptions['output_id']
+    xref_descriptions['portfolio_number'] = xref_descriptions['portnumber']
+    xref_descriptions['policy_number'] = xref_descriptions['polnumber']
+    xref_descriptions['account_number'] = xref_descriptions['accnumber']
+    xref_descriptions['location_number'] = xref_descriptions['locnumber']
+    xref_descriptions['location_group'] = xref_descriptions['locgroup']
+
+
+    import ipdb; ipdb.set_trace()
+
     return generate_files_for_reinsurance(
         pd.read_csv(items_fp),
         pd.read_csv(coverages_fp),
