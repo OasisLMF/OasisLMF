@@ -26,11 +26,7 @@ from mock import Mock, patch
 from tempfile import NamedTemporaryFile
 
 from oasislmf.model_preparation.lookup import OasisLookupFactory as olf
-from oasislmf.utils.status import (
-    KEYS_STATUS_FAIL,
-    KEYS_STATUS_NOMATCH,
-    KEYS_STATUS_SUCCESS,
-)
+from oasislmf.utils.defaults import OASIS_KEYS_STATUS
 from oasislmf.utils.exceptions import OasisException
 
 from tests.data import keys
@@ -278,8 +274,8 @@ class OasisLookupFactoryWriteOasisKeysFiles(TestCase):
 
     @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
-        successes=keys(from_statuses=just(KEYS_STATUS_SUCCESS), size=5),
-        nonsuccesses=keys(from_statuses=sampled_from([KEYS_STATUS_FAIL, KEYS_STATUS_NOMATCH]), size=5)
+        successes=keys(from_statuses=just(OASIS_KEYS_STATUS['success']['id']), size=5),
+        nonsuccesses=keys(from_statuses=sampled_from([OASIS_KEYS_STATUS['fail']['id'], OASIS_KEYS_STATUS['nomatch']['id']]), size=5)
     )
     def test_records_are_given___records_are_written_to_oasis_keys_files_correctly(self, successes, nonsuccesses):
 
@@ -322,8 +318,8 @@ class OasisLookupFactoryWriteJsonFiles(TestCase):
 
     @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
-        successes=keys(from_statuses=just(KEYS_STATUS_SUCCESS), size=5),
-        nonsuccesses=keys(from_statuses=sampled_from([KEYS_STATUS_FAIL, KEYS_STATUS_NOMATCH]), size=5)
+        successes=keys(from_statuses=just(OASIS_KEYS_STATUS['success']['id']), size=5),
+        nonsuccesses=keys(from_statuses=sampled_from([OASIS_KEYS_STATUS['fail']['id'], OASIS_KEYS_STATUS['nomatch']['id']]), size=5)
     )
     def test_records_are_given___records_are_written_to_json_keys_files_correctly(self, successes, nonsuccesses):
 
@@ -409,7 +405,7 @@ class OasisLookupFactoryWriteKeys(TestCase):
 
     @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
-        data=keys(from_statuses=just(KEYS_STATUS_SUCCESS), size=10)
+        data=keys(from_statuses=just(OASIS_KEYS_STATUS['success']['id']), size=10)
     )
     def test_produced_keys_are_passed_to_write_oasis_keys_file(self, data):
         get_keys_path = 'oasislmf.model_preparation.lookup.OasisLookupFactory.get_keys'

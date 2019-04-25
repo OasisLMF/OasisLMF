@@ -46,4 +46,3 @@ def unified_diff(a, b, as_string=False):
     if as_string:
         return ''.join(diff)
     return diff
-

@@ -1,7 +1,6 @@
 __all__ = [
     'get_il_input_items',
     'get_layer_ids',
-    'unified_fm_profile_by_level',
     'get_grouped_fm_profile_by_level_and_term_group',
     'get_grouped_fm_terms_by_level_and_term_group',
     'get_oed_hierarchy_terms',
@@ -14,14 +13,11 @@ __all__ = [
 ]
 
 import copy
-import io
-import json
 import os
 import sys
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-from collections import OrderedDict
 from itertools import (
     groupby,
 )
@@ -69,7 +65,7 @@ def get_layer_ids(accounts_df, accounts_profile=get_default_accounts_profile()):
     layer ID is an integer index on unique
 
         (portfolio num., account num., policy num.)
-    
+
     combinations in an account file (or dataframe). The ``PortNumber``,
     ``AccNumber``, ``PolNumber`` columns (or the lowercase equivalents)
     must be present in the accounts dataframe
@@ -376,6 +372,7 @@ def get_il_input_items(
                 level_df['limit'],
                 level_df['tiv'] * level_df['limit'],
             )
+
             il_inputs_df = pd.concat([il_inputs_df, level_df], sort=True, ignore_index=True)
 
         # Resequence the item IDs, as the earlier repeated concatenation of

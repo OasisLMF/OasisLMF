@@ -6,7 +6,6 @@ __all__ = [
     'get_oed_hierarchy_terms'
 ]
 
-import copy
 
 from collections import OrderedDict
 from itertools import groupby
@@ -56,7 +55,7 @@ def get_grouped_fm_profile_by_level_and_term_group(
     grouped_profile_by_level=None
 ):
     grouped = grouped_profile_by_level or get_grouped_fm_profile_by_level(exposure_profile, accounts_profile)
-    
+
     grouped_fm_term_types = {
         'deductible': 'deductible',
         'deductiblemin': 'deductible_min',

@@ -1,4 +1,4 @@
-generate_model_losses__all__ = [
+__all__ = [
     'OasisManager'
 ]
 
