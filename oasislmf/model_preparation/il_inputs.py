@@ -372,6 +372,7 @@ def get_il_input_items(
                 level_df['limit'],
                 level_df['tiv'] * level_df['limit'],
             )
+
             il_inputs_df = pd.concat([il_inputs_df, level_df], sort=True, ignore_index=True)
 
         # Resequence the item IDs, as the earlier repeated concatenation of
