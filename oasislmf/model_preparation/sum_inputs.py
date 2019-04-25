@@ -1,12 +1,9 @@
 __all__ = [
     'get_summary_mapping',
+    'get_summary_xref',
     'write_mapping_file',
     'write_gulsummaryxref_file',
     'write_fmsummaryxref_file',
-    'write_fm_xref_file'
-#    'write_gul_input_files',
-#    'write_items_file',
-#    'write_complex_items_file'
 ]
 
 import pandas as pd
@@ -23,13 +20,6 @@ from ..utils.data import (
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 
-from ..utils.profiles import (
-    get_grouped_fm_profile_by_level_and_term_group,
-    get_grouped_fm_terms_by_level_and_term_group,
-    get_oed_hierarchy_terms,
-)
-
-## Col names should be updated based on vars from ..utils.profiles --> get_oed_hierarchy_terms
 
 """
 Module to generate the summarycalc input files 
@@ -53,8 +43,6 @@ Stage 2:  During model execution, generate summarycalc xref files
     import ipdb; ipbd.set_trace()
     pd.set_option('display.max_rows', 500)
 """
-
-
 
 
 @oasis_log
@@ -110,3 +98,120 @@ def get_summary_mapping(
     )
     return summary_mapping
 
+
+
+@oasis_log
+def write_mapping_file(summary_map_df, sum_mapping_fp, chunksize=100000):
+    """
+    Writes a summary map file, used to build summarycalc xref files.
+
+    :param summary_mapping: dataframe return from get_summary_mapping
+    :type summary_mapping: pandas.DataFrame
+
+    :param sum_mapping_fp: Summary map file path
+    :type sum_mapping_fp: str
+
+    :return: Summary xref file path
+    :rtype: str
+    """
+    try:
+        #gul_inputs_df[['coverage_id', 'summary_id', 'summaryset_id']].drop_duplicates().to_csv(
+        #    path_or_buf=gulsummaryxref_fp,
+        #    encoding='utf-8',
+        #    mode=('w' if os.path.exists(gulsummaryxref_fp) else 'a'),
+        #    chunksize=chunksize,
+        #    index=False
+        #)
+    except (IOError, OSError) as e:
+        raise OasisException from e
+
+    return sum_mapping_fp
+
+
+@oasis_log
+def get_summary_xref(summary_map_df, exposure_df, analysis_settings):
+    """
+    Creates the summary_xref dataframes based on selection in analysis_settings file
+
+    :param summary_map_df: 
+    :type :  ... pandas.DataFrame
+
+    :param exposure_df: 
+    :type : ... pandas.DataFrame
+
+    :param analysis_settings: 
+    :type : ... 
+
+    """
+
+    #return summary_xref_df 
+
+
+
+'''
+@oasis_log
+def write_gulsummaryxref_file(gul_inputs_df, gulsummaryxref_fp, chunksize=100000):
+    """
+    Writes a summary xref file.
+
+    :param gul_inputs_df: GUL inputs dataframe
+    :type gul_inputs_df: pandas.DataFrame
+
+    :param gulsummaryxref_fp: Summary xref file path
+    :type gulsummaryxref_fp: str
+
+    :return: Summary xref file path
+    :rtype: str
+    """
+    try:
+        gul_inputs_df[['coverage_id', 'summary_id', 'summaryset_id']].drop_duplicates().to_csv(
+            path_or_buf=gulsummaryxref_fp,
+            encoding='utf-8',
+            mode=('w' if os.path.exists(gulsummaryxref_fp) else 'a'),
+            chunksize=chunksize,
+            index=False
+        )
+    except (IOError, OSError) as e:
+        raise OasisException from e
+
+    return gulsummaryxref_fp
+
+
+
+@oasis_log
+def write_fmsummaryxref_file(il_inputs_df, fmsummaryxref_fp, chunksize=100000):
+    """
+    Writes a summary xref file.
+
+    :param il_inputs_df: IL inputs dataframe
+    :type il_inputs_df: pandas.DataFrame
+
+    :param fmsummaryxref_fp: Summary xref file path
+    :type fmsummaryxref_fp: str
+
+    :return: Summary xref file path
+    :rtype: str
+    """
+    try:
+        cov_level_layers_df = il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].max()]
+        pd.DataFrame(
+            {
+                'output': factorize_ndarray(cov_level_layers_df[['gul_input_id', 'layer_id']].values, col_idxs=range(2))[0],
+                'summary_id': 1,
+                'summaryset_id': 1
+            }
+        ).drop_duplicates().to_csv(
+            path_or_buf=fmsummaryxref_fp,
+            encoding='utf-8',
+            mode=('w' if os.path.exists(fmsummaryxref_fp) else 'a'),
+            chunksize=chunksize,
+            index=False
+        )
+    except (IOError, OSError) as e:
+        raise OasisException from e
+
+    return fmsummaryxref_fp
+
+
+
+'''
