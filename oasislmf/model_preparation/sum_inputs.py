@@ -7,6 +7,8 @@ __all__ = [
     'write_fmsummaryxref_file',
 ]
 
+import os
+
 import pandas as pd
 import numpy as np
 
@@ -20,6 +22,7 @@ from ..utils.data import (
 
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
+from ..utils.path import as_path
 
 
 """
@@ -125,8 +128,10 @@ def merge_oed_to_mapping(summary_map_df, exposure_df, column_set):
     return summary_map_df.merge(exposure_col_df, left_on='exposure_idx', right_on='index').drop('index', axis=1)
 
 
+
+
 @oasis_log
-def write_mapping_file(summary_map_df, sum_mapping_fp, chunksize=100000):
+def write_mapping_file(sum_inputs_df, target_dir):
     """
     Writes a summary map file, used to build summarycalc xref files.
 
@@ -139,8 +144,24 @@ def write_mapping_file(summary_map_df, sum_mapping_fp, chunksize=100000):
     :return: Summary xref file path
     :rtype: str
     """
+    # Clean the target directory path
+    target_dir = as_path(
+        target_dir, 
+        'Target IL input files directory', 
+        is_dir=True, 
+        preexists=False
+    )
+
+    # Set chunk size for writing the CSV files - default is 100K
+    chunksize = min(2 * 10**5, len(sum_inputs_df))
+
+    # Append gul_ or fm_ ??
+
+    sum_mapping_filename = 'summary_map'
+    sum_mapping_fp = os.path.join(target_dir, '{}.csv'.format(sum_mapping_filename))
+
     try:
-        summary_map_df.to_csv(
+        sum_inputs_df.to_csv(
             path_or_buf=sum_mapping_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(sum_mapping_fp) else 'a'),
@@ -149,7 +170,6 @@ def write_mapping_file(summary_map_df, sum_mapping_fp, chunksize=100000):
         )
     except (IOError, OSError) as e:
         raise OasisException from e
-
     return sum_mapping_fp
 
 
@@ -170,6 +190,23 @@ def get_summary_xref(summary_map_df, exposure_df, analysis_settings):
     """
 
     #return summary_xref_df 
+
+
+def parse_analysis_settings(settings_fp):
+    pass
+    """
+        Sections (Summary files) "gul_summaries"
+                                 "il_summaries"
+                                 "ri_summaries"
+                 
+
+        Subsections (Summary sets)
+            "id" -> set id
+            "oed_fields" -> Merge into mapping and group_by (or factorize)
+
+    """
+
+    
 
 
 

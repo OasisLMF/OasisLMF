@@ -53,6 +53,7 @@ from .model_preparation.il_inputs import (
 from .model_preparation.sum_inputs import (
     get_summary_mapping,
     merge_oed_to_mapping,
+    write_mapping_file,
 )
 from .model_preparation.lookup import OasisLookupFactory as olf
 from .model_preparation.utils import prepare_input_files_directory
@@ -408,8 +409,6 @@ class OasisManager(object):
         gul_inputs_df, exposure_df = get_gul_input_items(
             exposure_fp, _keys_fp, exposure_profile=exposure_profile
         )
-        ## TODO: Write `gul_summary_map.csv`
-        gul_summary_mapping = get_summary_mapping(gul_inputs_df, hierarchy_terms)
         
 
         # If in a deterministic loss generation scenario then apply the loss
@@ -429,6 +428,9 @@ class OasisManager(object):
         # If no source accounts file path has been provided assume that IL
         # input files, and therefore also RI input files, are not needed
         if not accounts_fp:
+            # Write `summary_map.csv` for GUL only
+            gul_summary_mapping = get_summary_mapping(gul_inputs_df, hierarchy_terms)
+            write_mapping_file(gul_summary_mapping, target_dir)
             return gul_input_files
 
         # Get the IL input items
@@ -440,8 +442,6 @@ class OasisManager(object):
             accounts_profile=accounts_profile,
             fm_aggregation_profile=fm_aggregation_profile
         )
-        ## TODO: Write `fm_summary_map.csv`
-        fm_summary_mapping = get_summary_mapping(il_inputs_df, hierarchy_terms)
 
         # Write the IL/FM input files
         il_input_files = write_il_input_files(
@@ -449,6 +449,8 @@ class OasisManager(object):
             target_dir,
             oasis_files_prefixes=files_prefixes['il']
         )
+        fm_summary_mapping = get_summary_mapping(il_inputs_df, hierarchy_terms)
+        write_mapping_file(fm_summary_mapping, target_dir)
 
         # Combine the GUL and IL input file paths into a single dict (for convenience)
         oasis_files = {**gul_input_files, **il_input_files}
@@ -457,6 +459,8 @@ class OasisManager(object):
         # If no RI input file paths (info. and scope) have been provided then
         # no RI input files are needed, just return the GUL and IL Oasis files
         if not (ri_info_fp or ri_scope_fp):
+            ## TODO: Write `fm_summary_map.csv`
+            # Write `summary_map.csv` for GUL+FM
             return oasis_files
 
         # Write the RI input files, and write the returned RI layer info. as a

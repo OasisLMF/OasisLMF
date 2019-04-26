@@ -569,8 +569,10 @@ class ReinsuranceLayer(object):
             xref_descriptions = self.xref_descriptions.sort_values(
                 by=["location_group", "portfolio_number", "account_number", "policy_number", "location_number"])
         else:
-            xref_descriptions = self.xref_descriptions.sort_values(
-                by=["portfolio_number", "account_number", "policy_number", "location_number"])
+            xref_descriptions = self.xref_descriptions
+        #else:
+        #    xref_descriptions = self.xref_descriptions.sort_values(
+        #        by=["portfolio_number", "account_number", "policy_number", "location_number"])
 
         agg_id = 0
         loc_agg_id = 0
