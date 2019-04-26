@@ -308,7 +308,6 @@ class OasisManager(object):
         lookup_package_fp=None,
         complex_lookup_config_fp=None,
         supported_oed_coverage_types=None,
-        deterministic_loss_factor=None,
         accounts_fp=None,
         accounts_profile=None,
         accounts_profile_fp=None,
@@ -318,11 +317,6 @@ class OasisManager(object):
         ri_scope_fp=None,
         oasis_files_prefixes=None
     ):
-        # Check whether the deterministic loss factor is non-null - if so then
-        # the Oasis files are for a deterministic loss generation scenario, and
-        # therefore the loss factor must be applied to the GUL input item TIVs
-        deterministic = deterministic_loss_factor is not None
-
         # Prepare the target directory and copy the source files, profiles and
         # model version file into it
         target_dir = prepare_input_files_directory(
@@ -366,6 +360,18 @@ class OasisManager(object):
 
             cov_types = supported_oed_coverage_types or self.supported_oed_coverage_types
 
+            # Check whether the invocation indicates a deterministic or model
+            # Check whether the deterministic loss factor is non-null - if so then
+            # analysis/run - the CLI supports deterministic analyses via a command
+            # the Oasis files are for a deterministic loss generation scenario, and
+            # `oasislmf exposure run` which requires a preexisting input files
+            # therefore the loss factor must be applied to the GUL input item TIVs
+            # directory, which is usually the same as the analysis/output directory
+            deterministic = not(
+                (lookup_config or lookup_config_fp) or
+                (keys_data_fp and model_version_fp and lookup_package_fp)
+            )
+
             if deterministic:
                 loc_numbers = (loc_it[loc_num] for _, loc_it in get_dataframe(
                     src_fp=exposure_fp,
@@ -404,12 +410,6 @@ class OasisManager(object):
         gul_inputs_df, exposure_df = get_gul_input_items(
             exposure_fp, _keys_fp, exposure_profile=exposure_profile
         )
-
-        # If in a deterministic loss generation scenario then apply the loss
-        # factor to the TIV column in the GUL inputs table - this will affect
-        # the 'tiv' column in the coverages file
-        if deterministic and deterministic_loss_factor > 0 and deterministic_loss_factor < 1:
-            gul_inputs_df['tiv'] *= deterministic_loss_factor
 
         # Write the GUL input files
         files_prefixes = oasis_files_prefixes or self.oasis_files_prefixes
@@ -580,6 +580,7 @@ class OasisManager(object):
         loss_percentage_of_tiv=1.0,
         net_ri=False
     ):
+        lf = loss_percentage_of_tiv
         losses = OrderedDict({
             'gul': None, 'il': None, 'ri': None
         })
@@ -607,7 +608,7 @@ class OasisManager(object):
         # -2 the numerical integration standard deviation, and 1 the unsampled/raw loss
         gulcalc_sidxs = [-1, -2, 1]
         guls_items = [
-            OrderedDict({'event_id': 1, 'item_id': item_id, 'sidx': sidx, 'loss': (tiv if sidx != -2 else 0)})
+            OrderedDict({'event_id': 1, 'item_id': item_id, 'sidx': sidx, 'loss': (tiv * lf if sidx != -2 else 0)})
             for (item_id, tiv), sidx in product(
                 fast_zip_dataframe_columns(items, ['item_id', 'tiv']), gulcalc_sidxs
             )
@@ -634,7 +635,7 @@ class OasisManager(object):
         losses['gul'] = guls
 
         ils = pd.read_csv(ils_fp)
-        ils.drop(ils[ils['sidx'] != -3].index, inplace=True)
+        ils.drop(ils[ils['sidx'] != (-1 if lf < 1.0 else -3)].index, inplace=True)
         ils.reset_index(drop=True, inplace=True)
         ils.drop('sidx', axis=1, inplace=True)
         ils = ils[(ils[['loss']] != 0).any(axis=1)]
@@ -677,7 +678,7 @@ class OasisManager(object):
                         except CalledProcessError as e:
                             raise OasisException from e
                         rils = pd.read_csv(ri_layer_fp)
-                        rils.drop(rils[rils['sidx'] != -3].index, inplace=True)
+                        rils.drop(rils[rils['sidx'] != (-1 if lf < 1 else -3)].index, inplace=True)
                         rils.drop('sidx', axis=1, inplace=True)
                         rils.reset_index(drop=True, inplace=True)
                         rils = rils[(rils[['loss']] != 0).any(axis=1)]
@@ -727,7 +728,6 @@ class OasisManager(object):
         self.generate_oasis_files(
             run_dir,
             exposure_fp,
-            deterministic_loss_factor=loss_percentage_of_tiv,
             accounts_fp=accounts_fp,
             ri_info_fp=ri_info_fp,
             ri_scope_fp=ri_scope_fp
