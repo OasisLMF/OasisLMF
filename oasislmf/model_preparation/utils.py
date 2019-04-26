@@ -10,7 +10,7 @@ from pathlib2 import Path
 
 from ..utils.exceptions import OasisException
 from ..utils.path import as_path
-
+from ..utils.defaults import SOURCE_FILENAMES as SRC_NAME
 
 def prepare_input_files_directory(
     target_dir,
@@ -33,13 +33,6 @@ def prepare_input_files_directory(
         if not os.path.exists(target_dir):
             Path(target_dir).mkdir(parents=True, exist_ok=True)
 
-        ''' Tuple 
-            [ (source_fp, target_filename), 
-                ...
-            ]    
-        '''
-
-        import ipdb; ipdb.set_trace()        
         paths = [
             (p, os.path.join(target_dir, os.path.basename(p))) for p in (
                 exposure_profile_fp, accounts_profile_fp,
@@ -48,15 +41,13 @@ def prepare_input_files_directory(
             ) if p
         ]
         if exposure_fp:
-            paths.append((exposure_fp, os.path.join(target_dir, 'source_location.csv')))
+            paths.append((exposure_fp, os.path.join(target_dir, SRC_NAME['loc'])))
         if accounts_fp:
-            paths.append((accounts_fp, os.path.join(target_dir, 'source_account.csv')))
-        if ri_info_fp:        
-            paths.append((ri_info_fp,  os.path.join(target_dir, 'source_info.csv')))
+            paths.append((accounts_fp, os.path.join(target_dir, SRC_NAME['acc'])))
+        if ri_info_fp:
+            paths.append((ri_info_fp,  os.path.join(target_dir, SRC_NAME['info'])))
         if ri_scope_fp:
-            paths.append((ri_scope_fp, os.path.join(target_dir, 'source_scope.csv')))
-
-
+            paths.append((ri_scope_fp, os.path.join(target_dir, SRC_NAME['scope'])))
 
         for src, dst in paths:
             if src and os.path.exists(src):

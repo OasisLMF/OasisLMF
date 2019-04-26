@@ -1,4 +1,5 @@
 __all__ = [
+    'SOURCE_FILENAMES',
     'COVERAGE_TYPES',
     'DEDUCTIBLE_AND_LIMIT_TYPES',
     'DEDUCTIBLE_CODES',
@@ -51,6 +52,13 @@ COVERAGE_TYPES = OrderedDict({
     'pd': {'id': 5, 'desc': 'property damage (buildings + other + contents)'},
     'all': {'id': 6, 'desc': 'all (property damage + business interruption)'}
 })
+
+SOURCE_FILENAMES = OrderedDict({
+    'loc': 'source_location.csv',
+    'acc': 'source_account.csv',
+    'info': 'source_info.csv',
+    'scope': 'source_scope.csv'
+})            
 
 DED_CODE_REG = 0
 DED_CODE_ANAGG = 1
