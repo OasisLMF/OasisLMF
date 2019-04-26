@@ -33,17 +33,34 @@ def prepare_input_files_directory(
         if not os.path.exists(target_dir):
             Path(target_dir).mkdir(parents=True, exist_ok=True)
 
+        ''' Tuple 
+            [ (source_fp, target_filename), 
+                ...
+            ]    
+        '''
+
+        import ipdb; ipdb.set_trace()        
         paths = [
-            p for p in (
-                exposure_fp, exposure_profile_fp, accounts_fp, accounts_profile_fp,
+            (p, os.path.join(target_dir, os.path.basename(p))) for p in (
+                exposure_profile_fp, accounts_profile_fp,
                 fm_aggregation_profile_fp, lookup_config_fp, model_version_fp,
-                complex_lookup_config_fp, keys_fp, ri_info_fp, ri_scope_fp
+                complex_lookup_config_fp, keys_fp
             ) if p
         ]
-        for src in paths:
+        if exposure_fp:
+            paths.append((exposure_fp, os.path.join(target_dir, 'source_location.csv')))
+        if accounts_fp:
+            paths.append((accounts_fp, os.path.join(target_dir, 'source_account.csv')))
+        if ri_info_fp:        
+            paths.append((ri_info_fp,  os.path.join(target_dir, 'source_info.csv')))
+        if ri_scope_fp:
+            paths.append((ri_scope_fp, os.path.join(target_dir, 'source_scope.csv')))
+
+
+
+        for src, dst in paths:
             if src and os.path.exists(src):
-                dst = os.path.join(target_dir, os.path.basename(src))
-                shutil.copy2(src, target_dir) if not (os.path.exists(dst) and filecmp.cmp(src, dst, shallow=False)) else None
+                shutil.copy2(src, dst) if not (os.path.exists(dst) and filecmp.cmp(src, dst, shallow=False)) else None
     except (FileNotFoundError, IOError, OSError, shutil.Error, TypeError, ValueError) as e:
         raise OasisException from e
 
