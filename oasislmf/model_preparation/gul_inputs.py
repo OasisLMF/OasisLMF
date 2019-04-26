@@ -93,12 +93,13 @@ def get_gul_input_items(
 
     # Get the TIV column names and corresponding coverage types
     tiv_terms = OrderedDict({v['tiv']['CoverageTypeID']: v['tiv']['ProfileElementName'].lower() for k, v in profile[1].items()})
+    tiv_cols = list(tiv_terms.values())
 
     # Define the cov. level and get the cov. level IL/FM terms
     cov_level = FM_LEVELS['site coverage']['id']
     cov_il_terms = get_grouped_fm_terms_by_level_and_term_group(grouped_profile_by_level_and_term_group=profile)[cov_level]
 
-    tiv_and_cov_il_cols = [v for v in tiv_terms.values()] + [_v for v in cov_il_terms.values() for _v in v.values() if _v]
+    tiv_and_cov_il_cols = tiv_cols + [_v for v in cov_il_terms.values() for _v in v.values() if _v]
 
     # Set defaults and data types for the TIV and cov. level IL columns as
     # as well as the portfolio num. and cond. num. columns
@@ -175,9 +176,8 @@ def get_gul_input_items(
         gul_inputs_df[cond_num].fillna(0, inplace=True)
         gul_inputs_df[cond_num] = gul_inputs_df[cond_num].astype('uint32')
 
-        _tiv_cols = list(tiv_terms.values())
-        gul_inputs_df = gul_inputs_df[(gul_inputs_df[_tiv_cols] != 0).any(axis=1)]
-        gul_inputs_df.loc[:, _tiv_cols] = gul_inputs_df[_tiv_cols].where(gul_inputs_df.notnull(), 0.0)
+        gul_inputs_df = gul_inputs_df[(gul_inputs_df[tiv_cols] != 0).any(axis=1)]
+        gul_inputs_df.loc[:, tiv_cols] = gul_inputs_df[tiv_cols].where(gul_inputs_df.notnull(), 0.0)
 
         # Set default values and data types for BI coverage boolean, TIV, deductibles and limit
         gul_inputs_df = gul_inputs_df.assign(
