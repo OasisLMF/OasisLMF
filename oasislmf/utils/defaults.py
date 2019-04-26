@@ -44,12 +44,12 @@ COVT_PDM = 5
 COVT_ALL = 6
 
 COVERAGE_TYPES = OrderedDict({
-    'buildings': {'id': 1, 'desc': 'buildings'},
-    'other': {'id': 2, 'desc': 'other (typically appurtenant structures)'},
-    'contents': {'id': 3, 'desc': 'contents'},
-    'bi': {'id': 4, 'desc': 'business interruption'},
-    'pd': {'id': 5, 'desc': 'property damage (buildings + other + contents)'},
-    'all': {'id': 6, 'desc': 'all (property damage + business interruption)'}
+    'buildings': {'id': COVT_BLD, 'desc': 'buildings'},
+    'other': {'id': COVT_OTH, 'desc': 'other (typically appurtenant structures)'},
+    'contents': {'id': COVT_CON, 'desc': 'contents'},
+    'bi': {'id': COVT_BIT, 'desc': 'business interruption'},
+    'pd': {'id': COVT_PDM, 'desc': 'property damage (buildings + other + contents)'},
+    'all': {'id': COVT_ALL, 'desc': 'all (property damage + business interruption)'}
 })
 
 DED_CODE_REG = 0
