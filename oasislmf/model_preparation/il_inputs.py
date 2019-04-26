@@ -244,7 +244,7 @@ def get_il_input_items(
         gul_inputs_df = merge_dataframes(
             exposure_df[site_pd_and_site_all_term_cols + [loc_num]],
             gul_inputs_df,
-            on=loc_num,
+            join_on=loc_num,
             how='inner'
         )
         gul_inputs_df.rename(columns={'item_id': 'gul_input_id'}, inplace=True)
@@ -257,7 +257,7 @@ def get_il_input_items(
         il_inputs_df = merge_dataframes(
             gul_inputs_df,
             accounts_df,
-            on=[portfolio_num, acc_num, 'layer_id', cond_num],
+            join_on=[portfolio_num, acc_num, 'layer_id', cond_num],
             how='left',
             drop_duplicates=True
         )
@@ -409,8 +409,7 @@ def get_il_input_items(
         layer_df = merge_dataframes(
             cov_level_layer1_df,
             accounts_df,
-            left_on=acc_num,
-            right_on=acc_num,
+            on=[portfolio_num, acc_num],
             how='inner'
         )
 

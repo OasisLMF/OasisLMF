@@ -159,7 +159,10 @@ def get_gul_input_items(
         # keys dataframes on loc. number/loc. ID; filter out any rows with
         # zeros for TIVs for all coverage types, and replace any nulls in the
         # cond.num. and TIV columns with zeros
-        gul_inputs_df = merge_dataframes(exposure_df, keys_df, on=loc_num, how='inner')
+        #gul_inputs_df = merge_dataframes(exposure_df, keys_df, on=loc_num, how='inner')
+
+        #import ipdb; ipdb.set_trace()
+        gul_inputs_df = merge_dataframes(exposure_df, keys_df, join_on=loc_num, how='inner')
 
         if gul_inputs_df.empty:
             raise OasisException(
