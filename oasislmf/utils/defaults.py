@@ -44,12 +44,12 @@ COVT_PDM = 5
 COVT_ALL = 6
 
 COVERAGE_TYPES = OrderedDict({
-    'buildings': {'id': 1, 'desc': 'buildings'},
-    'other': {'id': 2, 'desc': 'other (typically appurtenant structures)'},
-    'contents': {'id': 3, 'desc': 'contents'},
-    'bi': {'id': 4, 'desc': 'business interruption'},
-    'pd': {'id': 5, 'desc': 'property damage (buildings + other + contents)'},
-    'all': {'id': 6, 'desc': 'all (property damage + business interruption)'}
+    'buildings': {'id': COVT_BLD, 'desc': 'buildings'},
+    'other': {'id': COVT_OTH, 'desc': 'other (typically appurtenant structures)'},
+    'contents': {'id': COVT_CON, 'desc': 'contents'},
+    'bi': {'id': COVT_BIT, 'desc': 'business interruption'},
+    'pd': {'id': COVT_PDM, 'desc': 'property damage (buildings + other + contents)'},
+    'all': {'id': COVT_ALL, 'desc': 'all (property damage + business interruption)'}
 })
 
 DED_CODE_REG = 0
@@ -193,43 +193,43 @@ PRL_GRP_XZ1 = 'XZ1'
 PRL_GRP_ZZ1 = 'ZZ1'
 
 PERIL_GROUPS = OrderedDict({
-    'AA1': {'id': PRL_GRP_AA1, 'desc': 'All perils'},
-    'BB1': {'id': PRL_GRP_BB1, 'desc': 'Wildfire with smoke'},
-    'MM1': {'id': PRL_GRP_MM1, 'desc': 'Terrorism'},
-    'OO1': {'id': PRL_GRP_OO1, 'desc': 'Flood w/o storm surge'},
-    'QQ1': {'id': PRL_GRP_QQ1, 'desc': 'All EQ perils'},
-    'WW1': {'id': PRL_GRP_WW1, 'desc': 'Windstorm with storm surge'},
-    'WW2': {'id': PRL_GRP_WW2, 'desc': 'Windstorm w/o storm surge'},
-    'XX1': {'id': PRL_GRP_XX1, 'desc': 'Convective Storm'},
-    'XZ1': {'id': PRL_GRP_XZ1, 'desc': 'Convective storm (incl winter storm) - for RMS users'},
-    'ZZ1': {'id': PRL_GRP_ZZ1, 'desc': 'Winter storm'}
+    'all': {'id': PRL_GRP_AA1, 'desc': 'All perils'},
+    'wildfire w/ smoke': {'id': PRL_GRP_BB1, 'desc': 'Wildfire with smoke'},
+    'terrorism': {'id': PRL_GRP_MM1, 'desc': 'Terrorism'},
+    'flood w/o storm surge': {'id': PRL_GRP_OO1, 'desc': 'Flood w/o storm surge'},
+    'earthquake': {'id': PRL_GRP_QQ1, 'desc': 'All EQ perils'},
+    'windstorm w/ storm surge': {'id': PRL_GRP_WW1, 'desc': 'Windstorm with storm surge'},
+    'windstorm w/o storm surge': {'id': PRL_GRP_WW2, 'desc': 'Windstorm w/o storm surge'},
+    'convective storm': {'id': PRL_GRP_XX1, 'desc': 'Convective Storm'},
+    'convective storm rms': {'id': PRL_GRP_XZ1, 'desc': 'Convective storm (incl winter storm) - for RMS users'},
+    'winter storm': {'id': PRL_GRP_ZZ1, 'desc': 'Winter storm'}
 })
 
 PERILS = OrderedDict({
-    'BBF': {'id': PRL_BBF, 'desc': 'Wildfire / Bushfire', 'group_peril': PRL_GRP_BB1},
-    'BFR': {'id': PRL_BFR, 'desc': 'NonCat', 'group_peril': PRL_GRP_BB1},
-    'BSK': {'id': PRL_BSK, 'desc': 'Smoke', 'group_peril': PRL_GRP_BB1},
-    'MNT': {'id': PRL_MNT, 'desc': 'NBCR Terrorism', 'group_peril': PRL_GRP_MM1},
-    'MTR': {'id': PRL_MTR, 'desc': 'Conventional Terrorism', 'group_peril': PRL_GRP_MM1},
-    'ORF': {'id': PRL_ORF, 'desc': 'River / Fluvial Flood', 'group_peril': PRL_GRP_OO1},
-    'OSF': {'id': PRL_OSF, 'desc': 'Flash / Surface / Pluvial Flood', 'group_peril': PRL_GRP_OO1},
-    'QEQ': {'id': PRL_QEQ, 'desc': 'Earthquake - Shake only', 'group_peril': PRL_GRP_QQ1},
-    'QFF': {'id': PRL_QFF, 'desc': 'Fire Following', 'group_peril': PRL_GRP_QQ1},
-    'QLF': {'id': PRL_QLF, 'desc': 'Liquefaction', 'group_peril': PRL_GRP_QQ1},
-    'QLS': {'id': PRL_QLS, 'desc': 'Landslide', 'group_peril': PRL_GRP_QQ1},
-    'QSL': {'id': PRL_QSL, 'desc': 'Sprinkler Leakage', 'group_peril': PRL_GRP_QQ1},
-    'QTS': {'id': PRL_QTS, 'desc': 'Tsunami', 'group_peril': PRL_GRP_QQ1},
-    'WEC': {'id': PRL_WEC, 'desc': 'Extra Tropical Cyclone', 'group_peril': PRL_GRP_WW2},
-    'WSS': {'id': PRL_WSS, 'desc': 'Storm Surge', 'group_peril': PRL_GRP_WW1},
-    'WTC': {'id': PRL_WTC, 'desc': 'Tropical Cyclone', 'group_peril': PRL_GRP_WW2},
-    'XHL': {'id': PRL_XHL, 'desc': 'Hail', 'group_peril': PRL_GRP_XZ1},
-    'XLT': {'id': PRL_XLT, 'desc': 'Lightning', 'group_peril': PRL_GRP_XX1},
-    'XSL': {'id': PRL_XSL, 'desc': 'Straight-line / other convective wind', 'group_peril': PRL_GRP_XX1},
-    'XTD': {'id': PRL_XTD, 'desc': 'Tornado', 'group_peril': PRL_GRP_XX1},
-    'ZFZ': {'id': PRL_ZFZ, 'desc': 'Freeze', 'group_peril': PRL_GRP_ZZ1},
-    'ZIC': {'id': PRL_ZIC, 'desc': 'Ice', 'group_peril': PRL_GRP_ZZ1},
-    'ZSN': {'id': PRL_ZSN, 'desc': 'Snow', 'eqv_oasis_peril': None, 'group_peril': PRL_GRP_ZZ1},
-    'ZST': {'id': PRL_ZST, 'desc': 'Winterstorm Wind', 'group_peril': PRL_GRP_ZZ1}
+    'wildfire': {'id': PRL_BBF, 'desc': 'Wildfire / Bushfire', 'group_peril': PRL_GRP_BB1},
+    'noncat': {'id': PRL_BFR, 'desc': 'NonCat', 'group_peril': PRL_GRP_BB1},
+    'smoke': {'id': PRL_BSK, 'desc': 'Smoke', 'group_peril': PRL_GRP_BB1},
+    'nbcr terrorism': {'id': PRL_MNT, 'desc': 'NBCR Terrorism', 'group_peril': PRL_GRP_MM1},
+    'terrorism': {'id': PRL_MTR, 'desc': 'Conventional Terrorism', 'group_peril': PRL_GRP_MM1},
+    'river flood': {'id': PRL_ORF, 'desc': 'River / Fluvial Flood', 'group_peril': PRL_GRP_OO1},
+    'flash flood': {'id': PRL_OSF, 'desc': 'Flash / Surface / Pluvial Flood', 'group_peril': PRL_GRP_OO1},
+    'earthquake': {'id': PRL_QEQ, 'desc': 'Earthquake - Shake only', 'group_peril': PRL_GRP_QQ1},
+    'fire following': {'id': PRL_QFF, 'desc': 'Fire Following', 'group_peril': PRL_GRP_QQ1},
+    'liquefaction': {'id': PRL_QLF, 'desc': 'Liquefaction', 'group_peril': PRL_GRP_QQ1},
+    'landslide': {'id': PRL_QLS, 'desc': 'Landslide', 'group_peril': PRL_GRP_QQ1},
+    'sprinkler leakage': {'id': PRL_QSL, 'desc': 'Sprinkler Leakage', 'group_peril': PRL_GRP_QQ1},
+    'tsunami': {'id': PRL_QTS, 'desc': 'Tsunami', 'group_peril': PRL_GRP_QQ1},
+    'extra tropical cyclone': {'id': PRL_WEC, 'desc': 'Extra Tropical Cyclone', 'group_peril': PRL_GRP_WW2},
+    'storm surge': {'id': PRL_WSS, 'desc': 'Storm Surge', 'group_peril': PRL_GRP_WW1},
+    'tropical cyclone': {'id': PRL_WTC, 'desc': 'Tropical Cyclone', 'group_peril': PRL_GRP_WW2},
+    'hail': {'id': PRL_XHL, 'desc': 'Hail', 'group_peril': PRL_GRP_XZ1},
+    'lightning': {'id': PRL_XLT, 'desc': 'Lightning', 'group_peril': PRL_GRP_XX1},
+    'convective wind': {'id': PRL_XSL, 'desc': 'Straight-line / other convective wind', 'group_peril': PRL_GRP_XX1},
+    'tornado': {'id': PRL_XTD, 'desc': 'Tornado', 'group_peril': PRL_GRP_XX1},
+    'freeze': {'id': PRL_ZFZ, 'desc': 'Freeze', 'group_peril': PRL_GRP_ZZ1},
+    'ice': {'id': PRL_ZIC, 'desc': 'Ice', 'group_peril': PRL_GRP_ZZ1},
+    'snow': {'id': PRL_ZSN, 'desc': 'Snow', 'eqv_oasis_peril': None, 'group_peril': PRL_GRP_ZZ1},
+    'winterstorm wind': {'id': PRL_ZST, 'desc': 'Winterstorm Wind', 'group_peril': PRL_GRP_ZZ1}
 })
 
 # Path for storing static data/metadata files used in the package
