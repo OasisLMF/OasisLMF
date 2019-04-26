@@ -225,6 +225,9 @@ def get_gul_input_items(
         # Remove any rows with zeros in the ``tiv`` column and reset the index
         gul_inputs_df = gul_inputs_df[(gul_inputs_df[['tiv']] != 0).any(axis=1)].reset_index()
 
+        # Remove the source columns for the TIVs and coverage level financial terms
+        gul_inputs_df.drop(tiv_and_cov_il_cols, axis=1, inplace=True)
+
         # Set the group ID - group by loc. number
         gul_inputs_df['group_id'] = factorize_array(gul_inputs_df[loc_num].values)[0]
         gul_inputs_df['group_id'] = gul_inputs_df['group_id'].astype('uint32')
@@ -248,7 +251,7 @@ def get_gul_input_items(
         # Drop all unnecessary columns
         usecols = (
             [loc_num, acc_num, portfolio_num, cond_num] +
-            ['tiv'] + tiv_and_cov_il_cols + terms +
+            ['tiv'] + terms +
             ['peril_id', 'coverage_type_id', 'areaperil_id', 'vulnerability_id'] +
             (['model_data'] if 'model_data' in gul_inputs_df else []) +
             ['is_bi_coverage', 'group_id', 'item_id', 'coverage_id', 'layer_id', 'agg_id', 'summary_id', 'summaryset_id']

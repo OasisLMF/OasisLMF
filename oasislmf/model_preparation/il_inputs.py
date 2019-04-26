@@ -225,7 +225,6 @@ def get_il_input_items(
     # terms profile
     fm_levels = tuple(profile)[1:]
     cov_level, layer_level = min(fm_levels), max(fm_levels)
-
     try:
         # Create a list of all the IL columns for the site pd and site all
         # levels - these columns are in the exposure file, not the accounts
@@ -284,10 +283,9 @@ def get_il_input_items(
             )
 
         # Drop all unnecessary columns.
-        tiv_cols = [v['tiv']['ProfileElementName'].lower() for v in profile[1].values()]
         all_noncov_level_fm_terms_cols = get_fm_level_term_oed_columns(level_keys=['site pd', 'site all', 'cond all', 'policy all', 'policy layer'])
         usecols = (
-            list(set(gul_inputs_df.columns.to_list()).difference(tiv_cols)) +
+            gul_inputs_df.columns.to_list() +
             [policy_num, 'gul_input_id'] +
             all_noncov_level_fm_terms_cols
         )
@@ -297,7 +295,7 @@ def get_il_input_items(
             inplace=True
         )
 
-        # Mark the GUL inputs frame for deletion
+        # Mark the GUL inputs frame for deletion - no longer needed
         del gul_inputs_df
 
         # Now set the IL input item IDs, and some other required columns such
@@ -403,9 +401,10 @@ def get_il_input_items(
         # the intermediate level frames may have produced a non-sequential index
         il_inputs_df['item_id'] = il_inputs_df.index + 1
 
-        # Process the layer level inputs separately - we start with merging
-        # the coverage level layer 1 items with the accounts frame to create
-        # a separate layer level frame, on which further processing is
+        # Process the layer FM level (policy layer, # 10) inputs separately - we
+        # start with merging the coverage level layer 1 items with the accounts
+        # dataframe to create a separate layer level frame, on which further
+        # processing is done
         cov_level_layer1_df = il_inputs_df[il_inputs_df['level_id'] == cov_level]
         layer_df = merge_dataframes(
             cov_level_layer1_df,
@@ -413,6 +412,14 @@ def get_il_input_items(
             left_on=acc_num,
             right_on=acc_num,
             how='inner'
+        )
+
+        # Remove the source columns for all non-layer FM levels - this includes the
+        # site pd (# 2), site all (# 3), cond. all (# 6), policy all (# 9) FM levels
+        cond_all_and_pol_all_term_cols = get_fm_level_term_oed_columns(level_keys=['cond all', 'policy all'])
+        layer_df.drop(
+            list(set(layer_df.columns).intersection(site_pd_and_site_all_term_cols + cond_all_and_pol_all_term_cols)),
+            axis=1, inplace=True
         )
 
         # Set the layer level, layer IDs and agg. IDs
@@ -443,14 +450,6 @@ def get_il_input_items(
         il_inputs_df['orig_level_id'] = il_inputs_df['level_id']
         il_inputs_df['level_id'] = factorize_ndarray(il_inputs_df[['level_id']].values, col_idxs=[0])[0]
         il_inputs_df['item_id'] = il_inputs_df.index + 1
-
-        # Drop all OED columns for all financial terms for all FM levels - at
-        # this point these columns are unnecessary, as the FM terms (deductible,
-        # min. deductible, max. deductible, limit, attachment, share) have been
-        # extracted for all levels and set in the columns named 'deductible',
-        # 'deductible_min', 'deductible_max', 'limit', 'attachment', 'share'
-        fm_term_cols = list(set(all_noncov_level_fm_terms_cols).intersection(il_inputs_df.columns))
-        il_inputs_df.drop(fm_term_cols, axis=1, inplace=True)
 
         # Set the calc. rule IDs
         calc_rules = get_calc_rules().drop(['desc'], axis=1)
