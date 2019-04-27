@@ -56,20 +56,20 @@ def get_grouped_fm_profile_by_level_and_term_group(
 ):
     grouped = grouped_profile_by_level or get_grouped_fm_profile_by_level(exposure_profile, accounts_profile)
 
-    grouped_fm_term_types = {
+    grouped_fm_term_types = OrderedDict({
         'deductible': 'deductible',
         'deductiblemin': 'deductible_min',
         'deductiblemax': 'deductible_max',
         'limit': 'limit',
         'share': 'share'
-    }
+    })
 
     return OrderedDict({
-        k: {
-            _k: {
+        k: OrderedDict({
+            _k: OrderedDict({
                 (grouped_fm_term_types.get(v['FMTermType'].lower()) or v['FMTermType'].lower()): v for v in g
-            } for _k, g in groupby(sorted(grouped[k].values(), key=lambda v: v['FMTermGroupID']), key=lambda v: v['FMTermGroupID'])
-        } for k in sorted(grouped)
+            }) for _k, g in groupby(sorted(grouped[k].values(), key=lambda v: v['FMTermGroupID']), key=lambda v: v['FMTermGroupID'])
+        }) for k in sorted(grouped)
     })
 
 
@@ -87,16 +87,16 @@ def get_grouped_fm_terms_by_level_and_term_group(
     )
 
     return OrderedDict({
-        level_id: {
-            tgid: {
+        level_id: OrderedDict({
+            tgid: OrderedDict({
                 term_type: (
                     (
                         grouped[level_id][tgid][term_type]['ProfileElementName'].lower() if lowercase
                         else grouped[level_id][tgid][term_type]['ProfileElementName']
                     ) if grouped[level_id][tgid].get(term_type) else None
                 ) for term_type in ('deductible', 'deductible_min', 'deductible_max', 'limit', 'share',)
-            } for tgid in grouped[level_id]
-        } for level_id in sorted(grouped)[1:]
+            }) for tgid in grouped[level_id]
+        }) for level_id in sorted(grouped)[1:]
     })
 
 

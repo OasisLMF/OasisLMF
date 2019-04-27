@@ -184,8 +184,8 @@ def get_il_input_items(
 
     # Set defaults and data types for all the financial terms columns in the
     # accounts dataframe
-    col_defaults = {t: (0.0 if t in accounts_il_cols else 0) for t in accounts_il_cols + [portfolio_num, cond_num]}
-    col_dtypes = {
+    defaults = {t: (0.0 if t in accounts_il_cols else 0) for t in accounts_il_cols + [portfolio_num, cond_num]}
+    dtypes = {
         **{t: 'str' for t in [acc_num, portfolio_num, policy_num]},
         **{t: ('float32' if t != layer_limit_col else 'float64') for t in accounts_il_cols},
         **{t: 'uint32' for t in [cond_num, 'layer_id']}
@@ -194,8 +194,8 @@ def get_il_input_items(
     # Get the accounts frame either directly or from a file path if provided
     accounts_df = accounts_df if accounts_df is not None else get_dataframe(
         src_fp=accounts_fp,
-        col_dtypes=col_dtypes,
-        col_defaults=col_defaults,
+        col_dtypes=dtypes,
+        col_defaults=defaults,
         required_cols=(acc_num, policy_num, portfolio_num,),
         empty_data_error_msg='No accounts found in the source accounts (loc.) file',
         memory_map=True,
@@ -257,7 +257,7 @@ def get_il_input_items(
         il_inputs_df = merge_dataframes(
             gul_inputs_df,
             accounts_df,
-            join_on=[portfolio_num, acc_num, 'layer_id', cond_num],
+            on=[portfolio_num, acc_num, 'layer_id', cond_num],
             how='left',
             drop_duplicates=True
         )
@@ -310,11 +310,11 @@ def get_il_input_items(
         )
 
         # Set data types for the newer columns just added
-        col_dtypes = {
+        dtypes = {
             **{t: 'uint32' for t in ['level_id', 'calcrule_id', 'policytc_id']},
             **{t: 'float32' for t in ['attachment', 'share']}
         }
-        set_dataframe_column_dtypes(il_inputs_df, col_dtypes)
+        set_dataframe_column_dtypes(il_inputs_df, dtypes)
 
         # Drop any items with layer IDs > 1, reset index ad order items by
         # GUL input ID.
@@ -332,12 +332,12 @@ def get_il_input_items(
         # for terms defined for these levels
         def level_has_fm_terms(level):
             try:
-                return il_inputs_df[[v for v in fm_terms[level][1].values() if v]].any().any()
+                return il_inputs_df[get_fm_level_term_oed_columns(level_ids=[level])].any().any()
             except KeyError:
                 return False
 
         intermediate_fm_levels = tuple(l for l in fm_levels[1:-1] if level_has_fm_terms(l))
-        fm_levels_with_zero_terms = [l for l in fm_levels if l not in intermediate_fm_levels + (fm_levels[0], fm_levels[-1])]
+        fm_levels_with_zero_terms = list(set(fm_levels[1:-1]).difference(intermediate_fm_levels))
         zero_term_cols = get_fm_level_term_oed_columns(level_ids=fm_levels_with_zero_terms)
         il_inputs_df.drop(zero_term_cols, axis=1, inplace=True)
 
@@ -356,8 +356,9 @@ def get_il_input_items(
         # copy of the main IL inputs frame, which is then processed for the
         # level's financial terms and the calc. rule ID, and then appended
         # to the main IL inputs frame
+        #import ipdb; ipdb.set_trace()
         for level in intermediate_fm_levels:
-            term_cols = [(term_col or term) for term, term_col in fm_terms[level][1].items() if term != 'share']
+            term_cols = get_fm_level_term_oed_columns(level_ids=[level])
             level_df = il_inputs_df[il_inputs_df['level_id'] == cov_level].drop_duplicates()
             level_df['level_id'] = level
 
@@ -378,11 +379,11 @@ def get_il_input_items(
                 0
             )
             level_df['deductible'] = np.where(
-                (level_df['deductible'] == 0) | (level_df['deductible'] >= 1),
-                level_df['deductible'],
-                level_df['tiv'] * level_df['deductible'],
+                    (level_df['deductible'] == 0) | (level_df['deductible'] >= 1),
+                    level_df['deductible'],
+                    level_df['tiv'] * level_df['deductible']
             )
-
+            
             level_df['limit'] = np.where(
                 level_df['coverage_type_id'].isin((profile[level][1].get('limit') or {}).get('CoverageTypeID') or all_cov_types),
                 level_df['limit'],
@@ -391,7 +392,7 @@ def get_il_input_items(
             level_df['limit'] = np.where(
                 (level_df['limit'] == 0) | (level_df['limit'] >= 1),
                 level_df['limit'],
-                level_df['tiv'] * level_df['limit'],
+                level_df['tiv'] * level_df['limit']
             )
 
             il_inputs_df = pd.concat([il_inputs_df, level_df], sort=True, ignore_index=True)
@@ -417,7 +418,7 @@ def get_il_input_items(
         # site pd (# 2), site all (# 3), cond. all (# 6), policy all (# 9) FM levels
         cond_all_and_pol_all_term_cols = get_fm_level_term_oed_columns(level_keys=['cond all', 'policy all'])
         layer_df.drop(
-            list(set(layer_df.columns).intersection(site_pd_and_site_all_term_cols + cond_all_and_pol_all_term_cols)),
+            [c for c in layer_df.columns if c in site_pd_and_site_all_term_cols + cond_all_and_pol_all_term_cols],
             axis=1, inplace=True
         )
 
@@ -430,7 +431,7 @@ def get_il_input_items(
         terms = ['deductible', 'limit', 'share']
 
         # Process the financial terms for the layer level
-        term_cols = [(v[t] or t) for v in fm_terms[layer_level].values() for t in terms]
+        term_cols = get_fm_level_term_oed_columns(level_ids=[layer_level])
         layer_df.loc[:, term_cols] = layer_df.loc[:, term_cols].where(layer_df.notnull(), 0.0).values
         layer_df.loc[:, terms] = layer_df.loc[:, term_cols].values
         layer_df['limit'] = layer_df['limit'].where(layer_df['limit'] != 0, 9999999999)
@@ -459,23 +460,20 @@ def get_il_input_items(
         types_and_codes = ['deductible_type', 'deductible_code', 'limit_type', 'limit_code']
 
         il_inputs_calc_rules_df = il_inputs_df.loc[:, ['item_id'] + terms + terms_indicators + types_and_codes + ['calcrule_id']]
-        for t, ti in zip(terms, terms_indicators):
-            il_inputs_calc_rules_df[ti] = np.where(il_inputs_calc_rules_df[t] > 0, 1, 0)
-        for t in types_and_codes:
-            il_inputs_calc_rules_df[t] = 0
+        il_inputs_calc_rules_df.loc[:, terms_indicators] = np.where(il_inputs_calc_rules_df[terms] > 0, 1, 0)
+        il_inputs_calc_rules_df.loc[:, types_and_codes] = 0
         il_inputs_calc_rules_df['id_key'] = [t for t in fast_zip_arrays(*il_inputs_calc_rules_df[terms_indicators + types_and_codes].transpose().values)]
         il_inputs_calc_rules_df = merge_dataframes(il_inputs_calc_rules_df, calc_rules, how='left', on='id_key')
         il_inputs_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id']
-        il_inputs_df['calcrule_id'] = il_inputs_df['calcrule_id'].astype('int32')
 
-        set_dataframe_column_dtypes(
-            il_inputs_df,
-            {
-                **{t: 'uint32' for t in [cond_num, 'agg_id', 'item_id', 'layer_id', 'level_id', 'orig_level_id', 'calcrule_id']},
-                **{t: 'float32' for t in [_t for _t in terms if _t != 'limit'] + ['attachment', 'deductible_min', 'deductible_max']},
-                **{'limit': 'float64'}
-            }
-        )
+        del il_inputs_calc_rules_df
+
+        dtypes = {
+            **{t: 'uint32' for t in [cond_num, 'agg_id', 'item_id', 'layer_id', 'level_id', 'orig_level_id', 'calcrule_id']},
+            **{t: 'float32' for t in [_t for _t in terms if _t != 'limit'] + ['attachment', 'deductible_min', 'deductible_max']},
+            **{'limit': 'float64'}
+        }
+        set_dataframe_column_dtypes(il_inputs_df, dtypes)
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
         raise OasisException from e
 

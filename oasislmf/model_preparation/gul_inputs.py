@@ -103,8 +103,8 @@ def get_gul_input_items(
 
     # Set defaults and data types for the TIV and cov. level IL columns as
     # as well as the portfolio num. and cond. num. columns
-    col_defaults = {t: (0.0 if t in tiv_and_cov_il_cols else 0) for t in tiv_and_cov_il_cols + [portfolio_num, cond_num]}
-    col_dtypes = {
+    defaults = {t: (0.0 if t in tiv_and_cov_il_cols else 0) for t in tiv_and_cov_il_cols + [portfolio_num, cond_num]}
+    dtypes = {
         **{t: 'float32' for t in tiv_and_cov_il_cols},
         **{t: 'uint32' for t in [cond_num]},
         **{t: 'str' for t in [loc_num, portfolio_num, acc_num]}
@@ -116,13 +116,13 @@ def get_gul_input_items(
     exposure_df = get_dataframe(
         src_fp=exposure_fp,
         required_cols=(loc_num, acc_num, portfolio_num,),
-        col_dtypes=col_dtypes,
-        col_defaults=col_defaults,
+        col_dtypes=dtypes,
+        col_defaults=defaults,
         empty_data_error_msg='No data found in the source exposure (loc.) file',
         memory_map=True
     )
 
-    col_dtypes = {
+    dtypes = {
         'locid': 'str',
         'perilid': 'str',
         'coveragetypeid': 'uint32',
@@ -132,7 +132,7 @@ def get_gul_input_items(
     }
     keys_df = get_dataframe(
         src_fp=keys_fp,
-        col_dtypes=col_dtypes,
+        col_dtypes=dtypes,
         empty_data_error_msg='No keys found in the keys file',
         memory_map=True
     )
@@ -246,10 +246,8 @@ def get_gul_input_items(
             summary_id=1,
             summaryset_id=1
         )
-        set_dataframe_column_dtypes(
-            gul_inputs_df,
-            {t: 'uint32' for t in ['item_id', 'coverage_id', 'layer_id', 'agg_id', 'summary_id', 'summaryset_id']}
-        )
+        dtypes = {t: 'uint32' for t in ['item_id', 'coverage_id', 'layer_id', 'agg_id', 'summary_id', 'summaryset_id']}
+        set_dataframe_column_dtypes(gul_inputs_df, dtypes)
 
         # Drop all unnecessary columns
         usecols = (
