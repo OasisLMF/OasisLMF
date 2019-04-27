@@ -319,7 +319,7 @@ def get_dataframe(
 
     if col_dtypes:
         _col_dtypes = {k.lower(): v for k, v in col_dtypes.items()} if lowercase_cols else col_dtypes
-        set_dataframe_column_dtypes(df, _col_dtypes)
+        df = set_dataframe_column_dtypes(df, _col_dtypes)
 
     if sort_cols:
         _sort_cols = (
@@ -519,11 +519,14 @@ def set_dataframe_column_dtypes(df, dtypes):
                    mapped to the corresponding Numpy datatypes
     :type dtypes: dict
 
-    :return: The processed dataframe
-    :rtype: pd.DataFrame
+    :return: The processed dataframe with column datatypes set
+    :rtype: pandas.DataFrame
     """
-    for col, dtype in dtypes.items():
-        if dtype in ('int', 'bool', 'float', 'object', 'str',):
-            dtype = getattr(builtins, dtype)
-        if col in df:
-            df[col] = df[col].astype(PANDAS_BASIC_DTYPES[dtype])
+    existing_cols = list(set(dtypes).intersection(df.columns))
+    _dtypes = {
+        col: PANDAS_BASIC_DTYPES[getattr(builtins, dtype) if dtype in ('int', 'bool', 'float', 'object', 'str',) else dtype]
+        for col, dtype in [(_col, dtypes[_col]) for _col in existing_cols]
+    }
+    df = df.astype(_dtypes)
+
+    return df

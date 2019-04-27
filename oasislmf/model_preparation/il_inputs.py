@@ -200,7 +200,6 @@ def get_il_input_items(
         empty_data_error_msg='No accounts found in the source accounts (loc.) file',
         memory_map=True,
     )
-
     if not (accounts_df is not None or accounts_fp):
         raise OasisException('No accounts frame or file path provided')
 
@@ -248,7 +247,7 @@ def get_il_input_items(
             how='inner'
         )
         gul_inputs_df.rename(columns={'item_id': 'gul_input_id'}, inplace=True)
-        set_dataframe_column_dtypes(gul_inputs_df, {t: 'float32' for t in site_pd_and_site_all_term_cols})
+        gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, {t: 'float32' for t in site_pd_and_site_all_term_cols})
 
         # Construct a basic IL inputs frame by merging the combined exposure +
         # GUL inputs frame above, with the accounts frame, on portfolio no.,
@@ -314,7 +313,7 @@ def get_il_input_items(
             **{t: 'uint32' for t in ['level_id', 'calcrule_id', 'policytc_id']},
             **{t: 'float32' for t in ['attachment', 'share']}
         }
-        set_dataframe_column_dtypes(il_inputs_df, dtypes)
+        il_inputs_df = set_dataframe_column_dtypes(il_inputs_df, dtypes)
 
         # Drop any items with layer IDs > 1, reset index ad order items by
         # GUL input ID.
@@ -473,7 +472,8 @@ def get_il_input_items(
             **{t: 'float32' for t in [_t for _t in terms if _t != 'limit'] + ['attachment', 'deductible_min', 'deductible_max']},
             **{'limit': 'float64'}
         }
-        set_dataframe_column_dtypes(il_inputs_df, dtypes)
+        il_inputs_df = set_dataframe_column_dtypes(il_inputs_df, dtypes)
+
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
         raise OasisException from e
 
@@ -595,7 +595,7 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
             },
         ).dropna(axis=0).drop_duplicates()
 
-        set_dataframe_column_dtypes(fm_programme_df, {t: 'int32' for t in fm_programme_df.columns})
+        fm_programme_df = set_dataframe_column_dtypes(fm_programme_df, {t: 'int32' for t in fm_programme_df.columns})
 
         fm_programme_df.to_csv(
             path_or_buf=fm_programme_fp,

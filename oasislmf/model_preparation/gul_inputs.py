@@ -109,7 +109,6 @@ def get_gul_input_items(
         **{t: 'uint32' for t in [cond_num]},
         **{t: 'str' for t in [loc_num, portfolio_num, acc_num]}
     }
-
     # Load the exposure and keys dataframes - set 32-bit numeric data types
     # for all numeric columns - and in the keys frame rename some columns
     # to align with underscored-naming convention
@@ -192,7 +191,7 @@ def get_gul_input_items(
             limit=0.0
         )
         terms = ['tiv', 'deductible', 'deductible_min', 'deductible_max', 'limit']
-        set_dataframe_column_dtypes(
+        gul_inputs_df = set_dataframe_column_dtypes(
             gul_inputs_df,
             {t: ('float32' if t in terms else 'bool') for t in ['is_bi_coverage'] + terms}
         )
@@ -247,7 +246,7 @@ def get_gul_input_items(
             summaryset_id=1
         )
         dtypes = {t: 'uint32' for t in ['item_id', 'coverage_id', 'layer_id', 'agg_id', 'summary_id', 'summaryset_id']}
-        set_dataframe_column_dtypes(gul_inputs_df, dtypes)
+        gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, dtypes)
 
         # Drop all unnecessary columns
         usecols = (

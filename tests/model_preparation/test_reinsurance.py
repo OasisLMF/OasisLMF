@@ -307,8 +307,8 @@ class TestReinsurance(unittest.TestCase):
             expected_df = expected_df.replace(np.nan, '', regex=True)
             found_df = found_df.replace(np.nan, '', regex=True)
 
-            set_dataframe_column_dtypes(expected_df, dtypes)
-            set_dataframe_column_dtypes(found_df, dtypes)
+            expected_df = set_dataframe_column_dtypes(expected_df, dtypes)
+            found_df = set_dataframe_column_dtypes(found_df, dtypes)
 
             expected_df.to_csv("/tmp/expected.csv")
 
