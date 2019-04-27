@@ -213,19 +213,22 @@ def get_il_input_items(
     if 'layer_id' not in accounts_df:
         accounts_df['layer_id'] = get_layer_ids(accounts_df, accounts_profile=accounts_profile)
 
-    # Drop some unnecessary columns from the accounts dataframe
+    # Drop all columns from the accounts dataframe which are not either one of
+    # portfolio num., acc. num., policy num., cond. numb., layer ID, or one of
+    # the source columns for the financial terms present in the accounts file (the
+    # file should contain all financial terms relating to the cond. all (# 6),
+    # policy all (# 9) and policy layer (# 10) FM levels)
     usecols = [acc_num, portfolio_num, policy_num, cond_num, 'layer_id'] + accounts_il_cols
     accounts_df.drop([c for c in accounts_df.columns if c not in usecols], axis=1, inplace=True)
 
     # Define the FM levels from the unified profile, including the coverage
     # level (the first level) and the layer level (the last level) - the FM
     # levels thus obtained should correspond to the FM levels in the OED
-    # spec., as the profiles are based on the same spec. Also get the FM
-    # terms profile
+    # spec., as the profiles are based on the same spec.
     fm_levels = tuple(profile)[1:]
     cov_level, layer_level = min(fm_levels), max(fm_levels)
     try:
-        # Create a list of all the IL columns for the site pd and site all
+        # Create a list of all the IL columns for the site pd (# 2) and site all (# 3)
         # levels - these columns are in the exposure file, not the accounts
         # file, and so must be sourced from the exposure dataframe
         site_pd_and_site_all_term_cols = get_fm_level_term_oed_columns(level_keys=['site pd', 'site all'])
@@ -234,7 +237,8 @@ def get_il_input_items(
         # set the missing columns with a default value of 0.0 in the exposure frame
         missing = set(site_pd_and_site_all_term_cols).difference(exposure_df.columns)
         if missing:
-            exposure_df = get_dataframe(src_data=exposure_df, col_defaults={t: 0.0 for t in missing})
+            defaults = {t: 0.0 for t in missing}
+            exposure_df = get_dataframe(src_data=exposure_df, col_defaults=defaults)
 
         # First, merge the exposure and GUL inputs frame to augment the GUL inputs
         # frame with financial terms for level 2 (site PD) and level 3 (site all) -
@@ -247,7 +251,8 @@ def get_il_input_items(
             how='inner'
         )
         gul_inputs_df.rename(columns={'item_id': 'gul_input_id'}, inplace=True)
-        gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, {t: 'float32' for t in site_pd_and_site_all_term_cols})
+        dtypes = {t: 'float32' for t in site_pd_and_site_all_term_cols}
+        gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, dtypes)
 
         # Construct a basic IL inputs frame by merging the combined exposure +
         # GUL inputs frame above, with the accounts frame, on portfolio no.,
@@ -281,7 +286,11 @@ def get_il_input_items(
                 'intersection'.format(accounts_fp)
             )
 
-        # Drop all unnecessary columns.
+        # Drop all columns from the IL inputs dataframe which aren't one of
+        # necessary columns in the GUL inputs dataframe, or one of policy num.,
+        # GUL input item ID, or one of the source columns for the
+        # non-coverage FM levels (site PD (# 2), site all (# 3), cond. all (# 6),
+        # policy all (# 9), policy layer (# 10))
         all_noncov_level_fm_terms_cols = get_fm_level_term_oed_columns(level_keys=['site pd', 'site all', 'cond all', 'policy all', 'policy layer'])
         usecols = (
             gul_inputs_df.columns.to_list() +
@@ -355,7 +364,6 @@ def get_il_input_items(
         # copy of the main IL inputs frame, which is then processed for the
         # level's financial terms and the calc. rule ID, and then appended
         # to the main IL inputs frame
-        #import ipdb; ipdb.set_trace()
         for level in intermediate_fm_levels:
             term_cols = get_fm_level_term_oed_columns(level_ids=[level])
             level_df = il_inputs_df[il_inputs_df['level_id'] == cov_level].drop_duplicates()
@@ -444,8 +452,8 @@ def get_il_input_items(
 
         del layer_df
 
-        # Resequence the level IDs and item IDs, but also store the "old" level
-        # IDs (before the resequencing)
+        # Resequence the level IDs and item IDs, but also store the "original"
+        # FM level IDs (before the resequencing)
         il_inputs_df['orig_level_id'] = il_inputs_df['level_id']
         il_inputs_df['level_id'] = factorize_ndarray(il_inputs_df[['level_id']].values, col_idxs=[0])[0]
         il_inputs_df['item_id'] = il_inputs_df.index + 1
@@ -595,7 +603,8 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
             },
         ).dropna(axis=0).drop_duplicates()
 
-        fm_programme_df = set_dataframe_column_dtypes(fm_programme_df, {t: 'int32' for t in fm_programme_df.columns})
+        dtypes = {t: 'uint32' for t in fm_programme_df.columns}
+        fm_programme_df = set_dataframe_column_dtypes(fm_programme_df, dtypes)
 
         fm_programme_df.to_csv(
             path_or_buf=fm_programme_fp,

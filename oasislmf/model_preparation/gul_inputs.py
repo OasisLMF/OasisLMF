@@ -191,10 +191,8 @@ def get_gul_input_items(
             limit=0.0
         )
         terms = ['tiv', 'deductible', 'deductible_min', 'deductible_max', 'limit']
-        gul_inputs_df = set_dataframe_column_dtypes(
-            gul_inputs_df,
-            {t: ('float32' if t in terms else 'bool') for t in ['is_bi_coverage'] + terms}
-        )
+        dtypes = {t: ('float32' if t in terms else 'bool') for t in ['is_bi_coverage'] + terms}
+        gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, dtypes)
 
         # Group the rows in the GUL inputs table by coverage type, and set the
         # IL terms (and BI coverage boolean) in each group and update the
