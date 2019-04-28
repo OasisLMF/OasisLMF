@@ -110,7 +110,6 @@ FM_LEVELS = OrderedDict({
     'account all': {'id': FML_ACCALL, 'desc': 'account all (coverage + property damage)'}
 })
 
-FMT_TIV = 'tiv'
 FMT_DED = 'ded'
 FMT_DED_MIN = 'ded_min',
 FMT_DED_MAX = 'ded_max',
@@ -118,10 +117,9 @@ FMT_LIM = 'lim'
 FMT_SHR = 'shr'
 
 FM_TERMS = OrderedDict({
-    'tiv': {'id': FMT_TIV, 'desc': 'TIV'},
-    'deductible': {'id': FMT_DED, 'desc': 'Deductible'},
-    'deductible_min': {'id': FMT_DED_MIN, 'desc': 'DeductibleMin'},
-    'deductible_max': {'id': FMT_DED_MAX, 'desc': 'DeductibleMax'},
+    'deductible': {'id': FMT_DED, 'desc': 'Blanket deductible'},
+    'deductible_min': {'id': FMT_DED_MIN, 'desc': 'Minimum deductible'},
+    'deductible_max': {'id': FMT_DED_MAX, 'desc': 'Maximum deductible'},
     'limit': {'id': FMT_LIM, 'desc': 'Limit'},
     'share': {'id': FMT_SHR, 'desc': 'Share'}
 })
