@@ -22,6 +22,7 @@ from ..utils.data import (
 )
 from ..utils.defaults import (
     SOURCE_FILENAMES,
+    SOURCE_IDX,
     SUMMARY_MAPPING,
     SUMMARY_GROUPING,
 )
@@ -92,7 +93,7 @@ def get_summary_mapping(
         oed_col['locid'],
         oed_col['polid'],
         oed_col['portid'],
-        'exposure_idx',
+        SOURCE_IDX['loc'],
         'item_id',
         'layer_id',
         'coverage_id',
@@ -144,9 +145,13 @@ def merge_oed_to_mapping(summary_map_df, exposure_df, column_set):
 
     # Guard check that set(column_set) < set(exposure_col_df.columns.to_list())
     # --> OasisExecption if not
+    
+    # Add or split `merge_oed_on_accounts`
+    
+
     exposure_col_df = exposure_df[column_set]
     exposure_col_df['index'] = exposure_df.index.values
-    return summary_map_df.merge(exposure_col_df, left_on='exposure_idx', right_on='index').drop('index', axis=1)
+    return summary_map_df.merge(exposure_col_df, left_on=SOURCE_IDX['loc'], right_on='index').drop('index', axis=1)
 
 
 @oasis_log
@@ -175,13 +180,13 @@ def group_by_oed(summary_map_df, exposure_df, oed_col_group):
     import ipdb; ipdb.set_trace()
     # Note tidy this up later
     exposure_cols = [c for c in oed_col_group if c not in summary_map_df.columns.to_list()]
-    mapping_cols = ['exposure_idx'] + [c for c in oed_col_group if c in summary_map_df.columns.to_list()]
+    mapping_cols = [SOURCE_IDX['loc']] + [c for c in oed_col_group if c in summary_map_df.columns.to_list()]
 
     summary_group_df = summary_map_df[mapping_cols]
     if not exposure_cols == []:
         exposure_col_df = exposure_df[exposure_cols]
         exposure_col_df['index'] = exposure_df.index.values
-        summary_group_df = summary_group_df.merge(exposure_col_df, left_on='exposure_idx', right_on='index').drop('index', axis=1)
+        summary_group_df = summary_group_df.merge(exposure_col_df, left_on=SOURCE_IDX['loc'], right_on='index').drop('index', axis=1)
 
     summary_ids = factorize_dataframe(summary_group_df, by_col_labels=oed_col_group)[0]
     return summary_ids
@@ -330,7 +335,7 @@ def create_summary_xref(model_run_fp, analysis_settings):
             gul_summaryset_df['summary_id'] =  pd.Series(1, index=range(gul_map_size))
 
         # Appends summary set to 'gulsummaryxref.csv'    
-        gul_summaryxref_df.append(gul_summaryset_df)
+        gul_summaryxref_df = gul_summaryxref_df.append(gul_summaryset_df)
 
 
 

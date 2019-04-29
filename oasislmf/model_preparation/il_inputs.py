@@ -50,6 +50,7 @@ from ..utils.defaults import (
     get_default_exposure_profile,
     get_default_fm_aggregation_profile,
     OASIS_FILES_PREFIXES,
+    SOURCE_IDX,
 )
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
@@ -188,6 +189,7 @@ def get_il_input_items(
         empty_data_error_msg='No accounts found in the source accounts (loc.) file',
         memory_map=True,
     )
+    accounts_df[SOURCE_IDX['acc']] = accounts_df.index.values
 
     if not (accounts_df is not None or accounts_fp):
         raise OasisException('No accounts frame or file path provided')
@@ -195,7 +197,7 @@ def get_il_input_items(
     if 'layer_id' not in accounts_df:
         accounts_df['layer_id'] = get_layer_ids(accounts_df, accounts_profile=accounts_profile)
 
-    usecols = [acc_num, portfolio_num, policy_num, cond_num, 'layer_id'] + accounts_il_cols
+    usecols = [acc_num, portfolio_num, policy_num, cond_num, 'layer_id', SOURCE_IDX['acc']] + accounts_il_cols
     accounts_df.drop([c for c in accounts_df.columns if c not in usecols], axis=1, inplace=True)
 
     # Define the FM levels from the unified profile, including the coverage
@@ -269,7 +271,8 @@ def get_il_input_items(
         usecols = (
             gul_inputs_df.columns.to_list() +
             [policy_num, 'gul_input_id'] +
-            (['exposure_idx'] if 'exposure_idx' in il_inputs_df else []) + 
+            ([SOURCE_IDX['loc']] if SOURCE_IDX['loc'] in il_inputs_df else []) + 
+            ([SOURCE_IDX['acc']] if SOURCE_IDX['acc'] in il_inputs_df else []) + 
             all_fm_terms_cols
         )
         il_inputs_df.drop(

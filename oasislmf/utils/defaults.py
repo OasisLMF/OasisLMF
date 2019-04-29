@@ -60,6 +60,15 @@ SOURCE_FILENAMES = OrderedDict({
     'scope': 'source_scope.csv'
 })
 
+# Store index from merged source files (for later slice & dice)
+SOURCE_IDX = OrderedDict({
+    'loc': 'loc_idx',
+    'acc': 'acc_idx',
+    'info': 'info_idx',
+    'scope': 'scope_idx'
+})
+
+
 SUMMARY_MAPPING = OrderedDict({
     'gul_map_fn': 'gul_summary_map.csv',
     'fm_map_fn': 'fm_summary_map.csv',
@@ -70,9 +79,9 @@ SUMMARY_MAPPING = OrderedDict({
 SUMMARY_GROUPING = OrderedDict({
     'prog': None,
     'state': ['countrycode'],
-    'county': ['GeogName1'],
+    'county': ['geogname1'],
     'location': ['locnumber'],
-    'lob': ['OccupancyCode'],    # <-- "Work around, this value should come from 'LOB' in the accounts file"
+    'lob': ['occupancycode'],    # <-- "Work around, this value should come from 'LOB' in the accounts file"
     'policy': ['polnumber'],
 })
 
