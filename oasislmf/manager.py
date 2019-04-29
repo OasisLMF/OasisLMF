@@ -62,7 +62,7 @@ from .utils.data import (
 from .utils.exceptions import OasisException
 from .utils.log import oasis_log
 from .utils.defaults import (
-    COVERAGE_TYPES,
+    SUPPORTED_COVERAGE_TYPES,
     get_default_accounts_profile,
     get_default_deterministic_analysis_settings,
     get_default_exposure_profile,
@@ -101,7 +101,7 @@ class OasisManager(object):
     ):
         # Set defaults for static data or runtime parameters
         self._exposure_profile = exposure_profile or get_default_exposure_profile()
-        self._supported_oed_coverage_types = supported_oed_coverage_types or tuple(COVERAGE_TYPES[k]['id'] for k in COVERAGE_TYPES if k not in ['pd', 'all'])
+        self._supported_oed_coverage_types = supported_oed_coverage_types or tuple(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values())
         self._accounts_profile = accounts_profile or get_default_accounts_profile()
         self._fm_aggregation_profile = fm_aggregation_profile or get_default_fm_aggregation_profile()
         self._deterministic_analysis_settings = deterministic_analysis_settings or get_default_deterministic_analysis_settings()

@@ -1,5 +1,5 @@
 __all__ = [
-    'get_fm_level_term_oed_columns',
+    'get_fm_terms_oed_columns',
     'get_grouped_fm_profile_by_level',
     'get_grouped_fm_profile_by_level_and_term_group',
     'get_grouped_fm_terms_by_level_and_term_group',
@@ -11,27 +11,12 @@ from collections import OrderedDict
 from itertools import groupby
 
 from .defaults import (
-    FM_LEVELS,
+    SUPPORTED_FM_LEVELS,
+    FM_TERMS,
     get_default_exposure_profile,
     get_default_accounts_profile,
 )
 from .exceptions import OasisException
-
-
-def get_fm_level_term_oed_columns(level_keys=[], level_ids=[]):
-    if not (level_keys or level_ids):
-        raise OasisException('An iterable of either FM level keys or IDs is required')
-
-    _level_ids = level_ids.copy() or [FM_LEVELS[k]['id'] for k in level_keys]
-    fm_terms = get_grouped_fm_terms_by_level_and_term_group()
-    _level_ids = [l for l in _level_ids if l in fm_terms.keys()]
-
-    if not _level_ids:
-        raise OasisException('Level keys/IDs provided are not contained in the default FM profiles')
-
-    return [
-        t for l in _level_ids for t in fm_terms[l][1].values() if t
-    ]
 
 
 def get_grouped_fm_profile_by_level(
@@ -80,7 +65,6 @@ def get_grouped_fm_terms_by_level_and_term_group(
     grouped_profile_by_level_and_term_group=None,
     lowercase=True
 ):
-
     grouped = (
         grouped_profile_by_level_and_term_group or
         get_grouped_fm_profile_by_level_and_term_group(exposure_profile, accounts_profile, grouped_profile_by_level)
@@ -94,10 +78,35 @@ def get_grouped_fm_terms_by_level_and_term_group(
                         grouped[level_id][tgid][term_type]['ProfileElementName'].lower() if lowercase
                         else grouped[level_id][tgid][term_type]['ProfileElementName']
                     ) if grouped[level_id][tgid].get(term_type) else None
-                ) for term_type in ('deductible', 'deductible_min', 'deductible_max', 'limit', 'share',)
+                ) for term_type in list(FM_TERMS.keys())
             }) for tgid in grouped[level_id]
         }) for level_id in sorted(grouped)[1:]
     })
+
+
+def get_fm_terms_oed_columns(
+    fm_terms=get_grouped_fm_terms_by_level_and_term_group(),
+    levels=list(SUPPORTED_FM_LEVELS.keys()),
+    level_ids=None,
+    term_group_ids=[1],
+    terms=list(FM_TERMS.keys()),
+    remove_nulls=True
+):
+    level_ids = level_ids or [SUPPORTED_FM_LEVELS[k]['id'] for k in levels]
+    _fm_terms = OrderedDict({
+        level_id: level_terms_dict
+        for level_id, level_terms_dict in fm_terms.items()
+        if level_id in level_ids
+    })
+
+    cols = [
+        _fm_terms[level_id][tgid].get(term)
+        for level_id in level_ids
+        for tgid in term_group_ids
+        for term in terms
+    ]
+
+    return cols if not remove_nulls else [col for col in cols if col]
 
 
 def get_oed_hierarchy_terms(

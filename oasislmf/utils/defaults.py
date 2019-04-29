@@ -22,6 +22,8 @@ __all__ = [
     'PERILS',
     'PERIL_GROUPS',
     'STATIC_DATA_FP',
+    'SUPPORTED_COVERAGE_TYPES',
+    'SUPPORTED_FM_LEVELS',
     'update_calc_rules'
 ]
 
@@ -50,6 +52,11 @@ COVERAGE_TYPES = OrderedDict({
     'bi': {'id': COVT_BIT, 'desc': 'business interruption'},
     'pd': {'id': COVT_PDM, 'desc': 'property damage (buildings + other + contents)'},
     'all': {'id': COVT_ALL, 'desc': 'all (property damage + business interruption)'}
+})
+
+SUPPORTED_COVERAGE_TYPES = OrderedDict({
+    cov_type: cov_type_dict for cov_type, cov_type_dict in COVERAGE_TYPES.items()
+    if cov_type in ['buildings', 'other','contents', 'bi']
 })
 
 DED_CODE_REG = 0
@@ -108,6 +115,11 @@ FM_LEVELS = OrderedDict({
     'account coverage': {'id': FML_ACCCOV, 'desc': 'account coverage'},
     'account pd': {'id': FML_ACCPDM, 'desc': 'account property damage'},
     'account all': {'id': FML_ACCALL, 'desc': 'account all (coverage + property damage)'}
+})
+
+SUPPORTED_FM_LEVELS = OrderedDict({
+    level: level_dict for level, level_dict in FM_LEVELS.items()
+    if level in ['site coverage', 'site pd', 'site all', 'cond all', 'policy all', 'policy layer']
 })
 
 FMT_DED = 'ded'
