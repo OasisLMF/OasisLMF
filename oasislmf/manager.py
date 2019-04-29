@@ -52,6 +52,7 @@ from .model_preparation.il_inputs import (
 )
 from .model_preparation.sum_inputs import (
     get_summary_mapping,
+    create_summary_xref,
     merge_oed_to_mapping,
     write_mapping_file,
 )
@@ -409,7 +410,7 @@ class OasisManager(object):
         gul_inputs_df, exposure_df = get_gul_input_items(
             exposure_fp, _keys_fp, exposure_profile=exposure_profile
         )
-        
+
 
         # If in a deterministic loss generation scenario then apply the loss
         # factor to the TIV column in the GUL inputs table - this will affect
@@ -424,13 +425,13 @@ class OasisManager(object):
             target_dir,
             oasis_files_prefixes=files_prefixes['gul']
         )
+        gul_summary_mapping = get_summary_mapping(gul_inputs_df, hierarchy_terms)
+        write_mapping_file(gul_summary_mapping, target_dir)
 
         # If no source accounts file path has been provided assume that IL
         # input files, and therefore also RI input files, are not needed
         if not accounts_fp:
             # Write `summary_map.csv` for GUL only
-            gul_summary_mapping = get_summary_mapping(gul_inputs_df, hierarchy_terms)
-            write_mapping_file(gul_summary_mapping, target_dir)
             return gul_input_files
 
         # Get the IL input items
@@ -469,11 +470,11 @@ class OasisManager(object):
 
 
         ## TODO: pass 'fm_summary_mapping` inplace of `xref_descriptions`
-        # Example Merge in col from exposure 
+        # Example Merge in col from exposure
 
 
         xref_des = merge_oed_to_mapping(fm_summary_mapping, exposure_df, ['locgroup'])
-        import ipdb; ipdb.set_trace()
+        #import ipdb; ipdb.set_trace()
 
         ri_layers = write_ri_input_files(
             xref_des,
@@ -510,10 +511,9 @@ class OasisManager(object):
         ktools_alloc_rule=None,
         ktools_debug=None
     ):
-
         il = all(p in os.listdir(oasis_fp) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
-
         ri = False
+
         if os.path.basename(oasis_fp) == 'csv':
             ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(oasis_fp)))
         else:
@@ -530,6 +530,20 @@ class OasisManager(object):
             ri=ri
         )
 
+        # Load analysis_settings file 
+        try:
+            analysis_settings_fn = 'analysis_settings.json'
+            _analysis_settings_fp = os.path.join(model_run_fp, analysis_settings_fn)
+            with io.open(_analysis_settings_fp, 'r', encoding='utf-8') as f:
+                analysis_settings = json.load(f)
+            if analysis_settings.get('analysis_settings'):
+                analysis_settings = analysis_settings['analysis_settings']
+        except (IOError, TypeError, ValueError):
+            raise OasisException('Invalid analysis settings file or file path: {}.'.format(_analysis_settings_fp))
+
+        # prepare Summery_sets
+        create_summary_xref(model_run_fp, analysis_settings)
+
         if not ri:
             csv_to_bin(oasis_fp, os.path.join(model_run_fp, 'input'), il=il)
         else:
@@ -537,28 +551,17 @@ class OasisManager(object):
             for fp in [os.path.join(model_run_fp, fn) for fn in contents if re.match(r'RI_\d+$', fn) or re.match(r'input$', fn)]:
                 csv_to_bin(fp, fp, il=True, ri=True)
 
-        analysis_settings_fn = 'analysis_settings.json'
-        _analysis_settings_fp = os.path.join(model_run_fp, analysis_settings_fn)
-        try:
-            with io.open(_analysis_settings_fp, 'r', encoding='utf-8') as f:
-                analysis_settings = json.load(f)
+        if il:
+            analysis_settings['il_output'] = True
+        else:
+            analysis_settings['il_output'] = False
+            analysis_settings['il_summaries'] = []
 
-            if analysis_settings.get('analysis_settings'):
-                analysis_settings = analysis_settings['analysis_settings']
-
-            if il:
-                analysis_settings['il_output'] = True
-            else:
-                analysis_settings['il_output'] = False
-                analysis_settings['il_summaries'] = []
-
-            if ri:
-                analysis_settings['ri_output'] = True
-            else:
-                analysis_settings['ri_output'] = False
-                analysis_settings['ri_summaries'] = []
-        except (IOError, TypeError, ValueError):
-            raise OasisException('Invalid analysis settings file or file path: {}.'.format(_analysis_settings_fp))
+        if ri:
+            analysis_settings['ri_output'] = True
+        else:
+            analysis_settings['ri_output'] = False
+            analysis_settings['ri_summaries'] = []
 
         prepare_run_inputs(analysis_settings, model_run_fp, ri=ri)
 

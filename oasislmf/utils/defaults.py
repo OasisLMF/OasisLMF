@@ -58,7 +58,26 @@ SOURCE_FILENAMES = OrderedDict({
     'acc': 'source_account.csv',
     'info': 'source_info.csv',
     'scope': 'source_scope.csv'
-})            
+})
+
+SUMMARY_MAPPING = OrderedDict({
+    'gul_map_fn': 'gul_summary_map.csv',
+    'fm_map_fn': 'fm_summary_map.csv',
+    #'ri_map_fn': 'summary_map.csv',
+})
+
+## Update with load OED column names 
+SUMMARY_GROUPING = OrderedDict({
+    'prog': None,
+    'state': ['countrycode'],
+    'county': ['GeogName1'],
+    'location': ['locnumber'],
+    'lob': ['OccupancyCode'],    # <-- "Work around, this value should come from 'LOB' in the accounts file"
+    'policy': ['polnumber'],
+})
+
+
+
 
 DED_CODE_REG = 0
 DED_CODE_ANAGG = 1
