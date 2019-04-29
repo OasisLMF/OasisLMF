@@ -319,7 +319,7 @@ def get_dataframe(
 
     if col_dtypes:
         _col_dtypes = {k.lower(): v for k, v in col_dtypes.items()} if lowercase_cols else col_dtypes
-        set_dataframe_column_dtypes(df, _col_dtypes)
+        df = set_dataframe_column_dtypes(df, _col_dtypes)
 
     if sort_cols:
         _sort_cols = (
@@ -381,7 +381,7 @@ def get_utctimestamp(thedate=datetime.utcnow(), fmt='%Y-%b-%d %H:%M:%S'):
     return thedate.astimezone(pytz.utc).strftime(fmt)
 
 
-def merge_dataframes(left, right, **kwargs):
+def merge_dataframes(left, right, join_on=None, **kwargs):
     """
     Merges two dataframes by ensuring there is no duplication of columns.
 
@@ -403,24 +403,40 @@ def merge_dataframes(left, right, **kwargs):
     _left = left.copy(deep=True)
     _right = right.copy(deep=True)
 
-    left_keys = kwargs.get('left_on') or kwargs.get('on') or []
-    left_keys = [left_keys] if isinstance(left_keys, str) else left_keys
+    merge = None
 
-    drop_cols = [
-        k for k in set(_left.columns).intersection(_right.columns)
-        if k and k not in left_keys
-    ]
+    if not join_on:
+        left_keys = kwargs.get('left_on') or kwargs.get('on') or []
+        left_keys = [left_keys] if isinstance(left_keys, str) else left_keys
 
-    drop_duplicates = kwargs.get('drop_duplicates', True)
-    kwargs.pop('drop_duplicates') if 'drop_duplicates' in kwargs else None
+        drop_cols = [
+            k for k in set(_left.columns).intersection(_right.columns)
+            if k and k not in left_keys
+        ]
 
-    merge = pd.merge(
-        _left.drop(drop_cols, axis=1),
-        _right,
-        **kwargs
-    )
+        drop_duplicates = kwargs.get('drop_duplicates', True)
+        kwargs.pop('drop_duplicates') if 'drop_duplicates' in kwargs else None
 
-    return merge if not drop_duplicates else merge.drop_duplicates()
+        merge = pd.merge(
+            _left.drop(drop_cols, axis=1),
+            _right,
+            **kwargs
+        )
+        del [_left, _right]
+
+        return merge if not drop_duplicates else merge.drop_duplicates()
+    else:
+        _join_on = [join_on] if isinstance(join_on, str) else join_on.copy()
+        _left.set_index(_join_on, inplace=True)
+        _right.set_index(_join_on, inplace=True)
+
+        drop_cols = list(set(_left.columns).intersection(_right.columns).difference(_join_on))
+        _right.drop(drop_cols, axis=1, inplace=True)
+
+        join = _left.join(_right, how=(kwargs.get('how') or 'left')).reset_index()
+        del [_left, _right]
+
+        return join
 
 
 def print_dataframe(
@@ -503,11 +519,14 @@ def set_dataframe_column_dtypes(df, dtypes):
                    mapped to the corresponding Numpy datatypes
     :type dtypes: dict
 
-    :return: The processed dataframe
-    :rtype: pd.DataFrame
+    :return: The processed dataframe with column datatypes set
+    :rtype: pandas.DataFrame
     """
-    for col, dtype in dtypes.items():
-        if dtype in ('int', 'bool', 'float', 'object', 'str',):
-            dtype = getattr(builtins, dtype)
-        if col in df:
-            df[col] = df[col].astype(PANDAS_BASIC_DTYPES[dtype])
+    existing_cols = list(set(dtypes).intersection(df.columns))
+    _dtypes = {
+        col: PANDAS_BASIC_DTYPES[getattr(builtins, dtype) if dtype in ('int', 'bool', 'float', 'object', 'str',) else dtype]
+        for col, dtype in [(_col, dtypes[_col]) for _col in existing_cols]
+    }
+    df = df.astype(_dtypes)
+
+    return df
