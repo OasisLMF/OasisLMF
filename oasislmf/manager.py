@@ -546,15 +546,11 @@ class OasisManager(object):
             for fp in [os.path.join(model_run_fp, fn) for fn in contents if re.match(r'RI_\d+$', fn) or re.match(r'input$', fn)]:
                 csv_to_bin(fp, fp, il=True, ri=True)
 
-        if il:
-            analysis_settings['il_output'] = True
-        else:
+        if not il:
             analysis_settings['il_output'] = False
             analysis_settings['il_summaries'] = []
 
-        if ri:
-            analysis_settings['ri_output'] = True
-        else:
+        if not ri:
             analysis_settings['ri_output'] = False
             analysis_settings['ri_summaries'] = []
 
