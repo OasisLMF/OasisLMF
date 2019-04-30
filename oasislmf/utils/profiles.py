@@ -16,7 +16,6 @@ from .defaults import (
     get_default_exposure_profile,
     get_default_accounts_profile,
 )
-from .exceptions import OasisException
 
 
 def get_grouped_fm_profile_by_level(

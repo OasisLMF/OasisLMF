@@ -56,7 +56,7 @@ COVERAGE_TYPES = OrderedDict({
 
 SUPPORTED_COVERAGE_TYPES = OrderedDict({
     cov_type: cov_type_dict for cov_type, cov_type_dict in COVERAGE_TYPES.items()
-    if cov_type in ['buildings', 'other','contents', 'bi']
+    if cov_type in ['buildings', 'other', 'contents', 'bi']
 })
 
 DED_CODE_REG = 0

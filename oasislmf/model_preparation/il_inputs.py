@@ -399,11 +399,11 @@ def get_il_input_items(
                 0
             )
             level_df['deductible'] = np.where(
-                    (level_df['deductible'] == 0) | (level_df['deductible'] >= 1),
-                    level_df['deductible'],
-                    level_df['tiv'] * level_df['deductible']
+                (level_df['deductible'] == 0) | (level_df['deductible'] >= 1),
+                level_df['deductible'],
+                level_df['tiv'] * level_df['deductible']
             )
-            
+
             level_df['limit'] = np.where(
                 level_df['coverage_type_id'].isin((profile[level_id][1].get('limit') or {}).get('CoverageTypeID') or supp_cov_types),
                 level_df['limit'],
