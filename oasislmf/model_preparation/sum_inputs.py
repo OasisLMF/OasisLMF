@@ -1,6 +1,6 @@
 __all__ = [
     'get_summary_mapping',
-    'create_summary_xref',
+#    'create_summary_xref',
     'merge_oed_to_mapping',
     'write_mapping_file',
     'write_gulsummaryxref_file',
@@ -25,6 +25,7 @@ from ..utils.defaults import (
     SOURCE_IDX,
     SUMMARY_MAPPING,
     SUMMARY_GROUPING,
+    OASIS_FILES_PREFIXES,
 )
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
@@ -177,7 +178,7 @@ def group_by_oed(summary_map_df, exposure_df, oed_col_group):
 
 
     # N -> import missing from OED
-    import ipdb; ipdb.set_trace()
+    #import ipdb; ipdb.set_trace()
     # Note tidy this up later
     exposure_cols = [c for c in oed_col_group if c not in summary_map_df.columns.to_list()]
     mapping_cols = [SOURCE_IDX['loc']] + [c for c in oed_col_group if c in summary_map_df.columns.to_list()]
@@ -185,6 +186,8 @@ def group_by_oed(summary_map_df, exposure_df, oed_col_group):
     summary_group_df = summary_map_df[mapping_cols]
     if not exposure_cols == []:
         exposure_col_df = exposure_df[exposure_cols]
+        exposure_col_df.fillna(0, inplace=True) # factorize with all values NaN, leads to summary_id == 0
+
         exposure_col_df['index'] = exposure_df.index.values
         summary_group_df = summary_group_df.merge(exposure_col_df, left_on=SOURCE_IDX['loc'], right_on='index').drop('index', axis=1)
 
@@ -206,7 +209,6 @@ def write_mapping_file(sum_inputs_df, target_dir):
     :return: Summary xref file path
     :rtype: str
     """
-    # Clean the target directory path
     target_dir = as_path(
         target_dir,
         'Target IL input files directory',
@@ -234,6 +236,8 @@ def write_mapping_file(sum_inputs_df, target_dir):
     return sum_mapping_fp
 
 
+
+@oasis_log
 def get_column_selection(summary_set):
     # Summary Set Not defined in settings file
     if "oed_fields" not in summary_set.keys():
@@ -259,47 +263,37 @@ def get_column_selection(summary_set):
         ## Raise OasisExecption (Unable to process Settings file)
 
 
+@oasis_log
+def write_xref_file(summary_xref_df, target_dir):
+    target_dir = as_path(
+        target_dir,
+        'Target IL input files directory',
+        is_dir=True,
+        preexists=False
+    )
+
+    # Set chunk size for writing the CSV files - default is 100K
+    chunksize = min(2 * 10**5, len(summary_xref_df))
+
+    if 'output' in summary_xref_df.columns.to_list():
+        summary_xref_fp = os.path.join(target_dir, '{}.csv'.format(OASIS_FILES_PREFIXES['il']['fmsummaryxref']))
+    else:
+        summary_xref_fp = os.path.join(target_dir, '{}.csv'.format(OASIS_FILES_PREFIXES['gul']['gulsummaryxref']))
+    try:
+        summary_xref_df.to_csv(
+            path_or_buf=summary_xref_fp,
+            encoding='utf-8',
+            mode=('w'),
+            chunksize=chunksize,
+            index=False
+        )
+    except (IOError, OSError) as e:
+        raise OasisException from e
+    return summary_xref_fp
+
 
 @oasis_log
 def create_summary_xref(model_run_fp, analysis_settings):
-    """
-    Creates the summary_xref dataframes based on selection in analysis_settings file
-
-    :param summary_map_df:
-    :type :  ... pandas.DataFrame
-
-    :param exposure_df:
-    :type : ... pandas.DataFrame
-
-    :param analysis_settings:
-    :type : ...
-
-
-    -> summary_map_df copy and drop all but needed cols
-
-
-    for each set in analysis file
-        -> Merge in OED rows for that set
-        -> factorize_dataframe(sum, by_col_labels=['polnumber'])[0]
-        -> appened to summary_xref dataframe
-
-
-    ->
-
-
-    Settings file:
-
-        Sections (Summary files) "gul_summaries"
-                                 "il_summaries"
-                                 "ri_summaries"
-
-
-        Subsections (Summary sets)
-            "id" -> set id
-            "oed_fields" -> Merge into mapping and group_by (or factorize)
-
-    """
-
 
     # Load Exposure file for extra OED fields
     #
@@ -311,120 +305,66 @@ def create_summary_xref(model_run_fp, analysis_settings):
         empty_data_error_msg='No source exposure file found.'
     )
 
-    # Load GUL summary map
-    gul_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['gul_map_fn'])
-    gul_map_df = get_dataframe(
-        src_fp=gul_map_fp,
-        empty_data_error_msg='No summary map file found.'
-    )
-    gul_map_size = len(gul_map_df)
-    gul_summaryxref_df = pd.DataFrame()
-
-    # For each granularity in GUL  
-    import ipdb; ipdb.set_trace()
-    for summary_set in analysis_settings['gul_summaries']:
-        cols_group_by = get_column_selection(summary_set)
-        gul_summaryset_df = gul_map_df[['coverage_id']]
-        gul_summaryset_df['summaryset_id'] =  pd.Series(summary_set['id'], index=range(gul_map_size))
-        #gul_summaryset_df[''] = pd.DataFrame(summary_set['id'], index=gul_map_size, columns=['summaryset_id'])
-
-        if isinstance(cols_group_by, list):
-            gul_summaryset_df['summary_id'] = group_by_oed(gul_map_df, exposure_df, cols_group_by)
-        else:
-            # Fall back to setting all in single group 
-            gul_summaryset_df['summary_id'] =  pd.Series(1, index=range(gul_map_size))
-
-        # Appends summary set to 'gulsummaryxref.csv'    
-        gul_summaryxref_df = gul_summaryxref_df.append(gul_summaryset_df)
-
-
-
-    # If FM append 'output_id' as 'output'
-    #
-    # if GUL append 'coverage_id'
-
-    # for
-
-
-
-    # For first iteration RI -> Create single fm_summaryxref.csv file and copy into all `RI_n` dirs
-    # for later UI / analysis_setting iterations aim to create each based on each `RI_n`
-
-
-
-    #factorize_dataframe(sum, by_col_labels=['polnumber'])[0]
-    #return summary_xref_df
-
-
-
-
-
-
-
-'''
-@oasis_log
-def write_gulsummaryxref_file(gul_inputs_df, gulsummaryxref_fp, chunksize=100000):
-    """
-    Writes a summary xref file.
-
-    :param gul_inputs_df: GUL inputs dataframe
-    :type gul_inputs_df: pandas.DataFrame
-
-    :param gulsummaryxref_fp: Summary xref file path
-    :type gulsummaryxref_fp: str
-
-    :return: Summary xref file path
-    :rtype: str
-    """
-    try:
-        gul_inputs_df[['coverage_id', 'summary_id', 'summaryset_id']].drop_duplicates().to_csv(
-            path_or_buf=gulsummaryxref_fp,
-            encoding='utf-8',
-            mode=('w' if os.path.exists(gulsummaryxref_fp) else 'a'),
-            chunksize=chunksize,
-            index=False
+    if 'gul_summaries' in analysis_settings.keys():
+        # Load GUL summary map
+        gul_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['gul_map_fn'])
+        gul_map_df = get_dataframe(
+            src_fp=gul_map_fp,
+            empty_data_error_msg='No summary map file found.'
         )
-    except (IOError, OSError) as e:
-        raise OasisException from e
+        gul_map_size = len(gul_map_df)
+        gul_summaryxref_df = pd.DataFrame()
+        xref_coverage_df = gul_map_df[['coverage_id']]
 
-    return gulsummaryxref_fp
+        # For each granularity in GUL  
+        for summary_set in analysis_settings['gul_summaries']:
+            gul_summaryset_df = xref_coverage_df
+            cols_group_by = get_column_selection(summary_set)
 
+            if isinstance(cols_group_by, list):
+                gul_summaryset_df['summary_id'] = group_by_oed(gul_map_df, exposure_df, cols_group_by)
+            else:
+                # Fall back to setting all in single group 
+                gul_summaryset_df['summary_id'] =  pd.Series(1, index=range(gul_map_size))
 
+            # Appends summary set to 'gulsummaryxref.csv'    
+            gul_summaryset_df['summaryset_id'] =  pd.Series(summary_set['id'], index=range(gul_map_size))
+            gul_summaryxref_df = gul_summaryxref_df.append(gul_summaryset_df)
+        
+        # Write GUL xref
+        write_xref_file(gul_summaryxref_df, os.path.join(model_run_fp, 'input'))
 
-@oasis_log
-def write_fmsummaryxref_file(il_inputs_df, fmsummaryxref_fp, chunksize=100000):
-    """
-    Writes a summary xref file.
-
-    :param il_inputs_df: IL inputs dataframe
-    :type il_inputs_df: pandas.DataFrame
-
-    :param fmsummaryxref_fp: Summary xref file path
-    :type fmsummaryxref_fp: str
-
-    :return: Summary xref file path
-    :rtype: str
-    """
-    try:
-        cov_level_layers_df = il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].max()]
-        pd.DataFrame(
-            {
-                'output': factorize_ndarray(cov_level_layers_df[['gul_input_id', 'layer_id']].values, col_idxs=range(2))[0],
-                'summary_id': 1,
-                'summaryset_id': 1
-            }
-        ).drop_duplicates().to_csv(
-            path_or_buf=fmsummaryxref_fp,
-            encoding='utf-8',
-            mode=('w' if os.path.exists(fmsummaryxref_fp) else 'a'),
-            chunksize=chunksize,
-            index=False
+  
+    if 'il_summaries' in analysis_settings.keys():
+        # Load GUL summary map
+        il_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['fm_map_fn'])
+        il_map_df = get_dataframe(
+            src_fp=il_map_fp,
+            empty_data_error_msg='No summary map file found.'
         )
-    except (IOError, OSError) as e:
-        raise OasisException from e
+        il_map_size = len(il_map_df)
+        il_summaryxref_df = pd.DataFrame()
+        xref_coverage_df = gul_map_df[['output_id']].rename(
+            index = {"output_id": "output"},
+            inplace = True
+        )    
+        for summary_set in analysis_settings['il_summaries']:
+            il_summaryset_df = xref_outputs_df
+            cols_group_by = get_column_selection(summary_set)
+        
+            if isinstance(cols_group_by, list):
+                il_summaryset_df['summary_id'] = group_by_oed(il_map_df, exposure_df, cols_group_by)
+            else:
+                # Fall back to setting all in single group 
+                il_summaryset_df['summary_id'] =  pd.Series(1, index=range(il_map_size))
 
-    return fmsummaryxref_fp
+            # Appends summary set to 'gulsummaryxref.csv'    
+            il_summaryset_df['summaryset_id'] =  pd.Series(summary_set['id'], index=range(il_map_size))
+            il_summaryxref_df = il_summaryxref_df.append(il_summaryset_df)
+        
+        # Write GUL xref
+        write_xref_file(il_summaryxref_df, os.path.join(model_run_fp, 'input'))
 
+    if 'ri_summaries' in analysis_settings.keys():
+        pass
 
-
-'''
