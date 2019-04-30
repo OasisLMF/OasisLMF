@@ -42,11 +42,11 @@ def get_grouped_fm_profile_by_level_and_term_group(
     grouped = grouped_profile_by_level or get_grouped_fm_profile_by_level(exposure_profile, accounts_profile)
 
     grouped_fm_term_types = OrderedDict({
-        'deductible': 'deductible',
-        'deductiblemin': 'deductible_min',
-        'deductiblemax': 'deductible_max',
-        'limit': 'limit',
-        'share': 'share'
+        'deductible': FM_TERMS['deductible']['id'],
+        'deductiblemin': FM_TERMS['min deductible']['id'],
+        'deductiblemax': FM_TERMS['max deductible']['id'],
+        'limit': FM_TERMS['limit']['id'],
+        'share': FM_TERMS['share']['id']
     })
 
     return OrderedDict({
@@ -78,7 +78,7 @@ def get_grouped_fm_terms_by_level_and_term_group(
                         grouped[level_id][tgid][term_type]['ProfileElementName'].lower() if lowercase
                         else grouped[level_id][tgid][term_type]['ProfileElementName']
                     ) if grouped[level_id][tgid].get(term_type) else None
-                ) for term_type in list(FM_TERMS.keys())
+                ) for term_type in [v['id'] for v in FM_TERMS.values()]
             }) for tgid in grouped[level_id]
         }) for level_id in sorted(grouped)[1:]
     })
@@ -89,7 +89,7 @@ def get_fm_terms_oed_columns(
     levels=list(SUPPORTED_FM_LEVELS.keys()),
     level_ids=None,
     term_group_ids=[1],
-    terms=list(FM_TERMS.keys()),
+    terms=[v['id'] for v in FM_TERMS.values()],
     remove_nulls=True
 ):
     level_ids = level_ids or [SUPPORTED_FM_LEVELS[k]['id'] for k in levels]
