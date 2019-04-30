@@ -482,9 +482,7 @@ class OasisManager(object):
             accounts_fp,
             oasis_files['items'],
             oasis_files['coverages'],
-            oasis_files['gulsummaryxref'],
             oasis_files['fm_xref'],
-            oasis_files['fmsummaryxref'],
             ri_info_fp,
             ri_scope_fp,
             target_dir

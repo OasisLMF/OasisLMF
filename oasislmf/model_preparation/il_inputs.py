@@ -6,7 +6,6 @@ __all__ = [
     'get_grouped_fm_terms_by_level_and_term_group',
     'get_oed_hierarchy_terms',
     'write_il_input_files',
-    'write_fmsummaryxref_file',
     'write_fm_policytc_file',
     'write_fm_profile_file',
     'write_fm_programme_file',
@@ -632,41 +631,6 @@ def write_fm_xref_file(il_inputs_df, fm_xref_fp, chunksize=100000):
 
 
 @oasis_log
-def write_fmsummaryxref_file(il_inputs_df, fmsummaryxref_fp, chunksize=100000):
-    """
-    Writes a summary xref file.
-
-    :param il_inputs_df: IL inputs dataframe
-    :type il_inputs_df: pandas.DataFrame
-
-    :param fmsummaryxref_fp: Summary xref file path
-    :type fmsummaryxref_fp: str
-
-    :return: Summary xref file path
-    :rtype: str
-    """
-    try:
-        cov_level_layers_df = il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].max()]
-        pd.DataFrame(
-            {
-                'output': factorize_ndarray(cov_level_layers_df[['gul_input_id', 'layer_id']].values, col_idxs=range(2))[0],
-                'summary_id': 1,
-                'summaryset_id': 1
-            }
-        ).drop_duplicates().to_csv(
-            path_or_buf=fmsummaryxref_fp,
-            encoding='utf-8',
-            mode=('w' if os.path.exists(fmsummaryxref_fp) else 'a'),
-            chunksize=chunksize,
-            index=False
-        )
-    except (IOError, OSError) as e:
-        raise OasisException from e
-
-    return fmsummaryxref_fp
-
-
-@oasis_log
 def write_il_input_files(
     il_inputs_df,
     target_dir,
@@ -682,7 +646,6 @@ def write_il_input_files(
         fm_profile.csv
         fm_programme.csv
         fm_xref.csv
-        fmsummaryxref.csv
 
     :param il_inputs_df: IL inputs dataframe
     :type exposure_df: pandas.DataFrame

@@ -1,7 +1,6 @@
 __all__ = [
     'get_gul_input_items',
     'write_coverages_file',
-    'write_gulsummaryxref_file',
     'write_gul_input_files',
     'write_items_file',
     'write_complex_items_file'
@@ -350,34 +349,6 @@ def write_coverages_file(gul_inputs_df, coverages_fp, chunksize=100000):
 
 
 @oasis_log
-def write_gulsummaryxref_file(gul_inputs_df, gulsummaryxref_fp, chunksize=100000):
-    """
-    Writes a summary xref file.
-
-    :param gul_inputs_df: GUL inputs dataframe
-    :type gul_inputs_df: pandas.DataFrame
-
-    :param gulsummaryxref_fp: Summary xref file path
-    :type gulsummaryxref_fp: str
-
-    :return: Summary xref file path
-    :rtype: str
-    """
-    try:
-        gul_inputs_df[['coverage_id', 'summary_id', 'summaryset_id']].drop_duplicates().to_csv(
-            path_or_buf=gulsummaryxref_fp,
-            encoding='utf-8',
-            mode=('w' if os.path.exists(gulsummaryxref_fp) else 'a'),
-            chunksize=chunksize,
-            index=False
-        )
-    except (IOError, OSError) as e:
-        raise OasisException from e
-
-    return gulsummaryxref_fp
-
-
-@oasis_log
 def write_gul_input_files(
     gul_inputs_df,
     target_dir,
@@ -391,7 +362,6 @@ def write_gul_input_files(
 
         items.csv
         coverages.csv
-        gulsummaryxref.csv
 
     and optionally a complex items file in case of a complex/custom model.
 
