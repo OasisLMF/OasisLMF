@@ -442,10 +442,7 @@ class GenerateLossesCmd(OasisBaseCommand):
 
         il = all(p in os.listdir(oasis_fp) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
         ri = False
-        if os.path.basename(oasis_fp) == 'input':
-            ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(oasis_fp))
-        elif os.path.basename(oasis_fp) == 'csv':
-            ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(oasis_fp)))
+        ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(oasis_fp))
 
         self.logger.info('\nGenerating losses (GUL=True, IL={}, RIL={})'.format(il, ri))
 
@@ -579,7 +576,7 @@ class RunCmd(OasisBaseCommand):
                 '    reinsurance scope file path.'
             )
 
-        args.oasis_files_path = os.path.join(model_run_fp, 'input', 'csv') if not ri else os.path.join(model_run_fp, 'input')
+        args.oasis_files_path = os.path.join(model_run_fp, 'input')
 
         cmds = [GenerateOasisFilesCmd(args), GenerateLossesCmd(args)]
         with tqdm(total=len(cmds)) as pbar:

@@ -329,6 +329,7 @@ class OasisManager(object):
         # therefore the loss factor must be applied to the GUL input item TIVs
         deterministic = deterministic_loss_factor is not None
 
+
         # Prepare the target directory and copy the source files, profiles and
         # model version file into it
         target_dir = prepare_input_files_directory(
@@ -474,7 +475,6 @@ class OasisManager(object):
 
 
         xref_des = merge_oed_to_mapping(fm_summary_mapping, exposure_df, ['locgroup'])
-        #import ipdb; ipdb.set_trace()
 
         ri_layers = write_ri_input_files(
             xref_des,
@@ -512,10 +512,7 @@ class OasisManager(object):
         il = all(p in os.listdir(oasis_fp) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
         ri = False
 
-        if os.path.basename(oasis_fp) == 'csv':
-            ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(oasis_fp)))
-        else:
-            ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(oasis_fp))
+        ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(oasis_fp))
 
         if not os.path.exists(model_run_fp):
             Path(model_run_fp).mkdir(parents=True, exist_ok=True)
@@ -807,7 +804,7 @@ class OasisManager(object):
         else:
             empty_dir(model_run_fp)
 
-        oasis_fp = os.path.join(model_run_fp, 'input') if ri else os.path.join(model_run_fp, 'input', 'csv')
+        oasis_fp = os.path.join(model_run_fp, 'input')
         Path(oasis_fp).mkdir(parents=True, exist_ok=True)
 
         oasis_files = self.generate_oasis_files(

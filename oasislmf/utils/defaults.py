@@ -1,5 +1,4 @@
 __all__ = [
-    'SOURCE_FILENAMES',
     'COVERAGE_TYPES',
     'DEDUCTIBLE_AND_LIMIT_TYPES',
     'DEDUCTIBLE_CODES',
@@ -22,6 +21,11 @@ __all__ = [
     'OASIS_TASK_STATUS',
     'PERILS',
     'PERIL_GROUPS',
+    'SUMMARY_MAPPING',
+    'SUMMARY_GROUPING',
+    'SUMMARY_OUTPUT',
+    'SOURCE_IDX',
+    'SOURCE_FILENAMES',
     'STATIC_DATA_FP',
     'update_calc_rules'
 ]
@@ -74,6 +78,12 @@ SUMMARY_MAPPING = OrderedDict({
     'fm_map_fn': 'fm_summary_map.csv',
     #'ri_map_fn': 'summary_map.csv',
 })
+
+SUMMARY_OUTPUT = OrderedDict({
+        'gul': 'gulsummaryxref.csv',
+        'il': 'fmsummaryxref.csv',
+})
+
 
 ## Update with load OED column names 
 SUMMARY_GROUPING = OrderedDict({
@@ -335,14 +345,12 @@ OASIS_FILES_PREFIXES = OrderedDict({
         'complex_items': 'complex_items',
         'items': 'items',
         'coverages': 'coverages',
-        'gulsummaryxref': 'gulsummaryxref'
     },
     'il': {
         'fm_policytc': 'fm_policytc',
         'fm_profile': 'fm_profile',
         'fm_programme': 'fm_programme',
         'fm_xref': 'fm_xref',
-        'fmsummaryxref': 'fmsummaryxref'
     }
 })
 
