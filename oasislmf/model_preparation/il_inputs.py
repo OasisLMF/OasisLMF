@@ -1,7 +1,6 @@
 __all__ = [
     'get_il_input_items',
     'get_layer_ids',
-    'unified_fm_profile_by_level',
     'get_grouped_fm_profile_by_level_and_term_group',
     'get_grouped_fm_terms_by_level_and_term_group',
     'get_oed_hierarchy_terms',
@@ -13,14 +12,11 @@ __all__ = [
 ]
 
 import copy
-import io
-import json
 import os
 import sys
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-from collections import OrderedDict
 from itertools import (
     groupby,
 )
@@ -42,20 +38,20 @@ from ..utils.data import (
     set_dataframe_column_dtypes,
 )
 from ..utils.defaults import (
-    COVERAGE_TYPES,
-    FM_LEVELS,
     get_calc_rules,
     get_default_accounts_profile,
     get_default_exposure_profile,
     get_default_fm_aggregation_profile,
     OASIS_FILES_PREFIXES,
     SOURCE_IDX,
+    SUPPORTED_COVERAGE_TYPES,
+    SUPPORTED_FM_LEVELS,
 )
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.path import as_path
 from ..utils.profiles import (
-    get_fm_level_term_oed_columns,
+    get_fm_terms_oed_columns,
     get_grouped_fm_profile_by_level_and_term_group,
     get_grouped_fm_terms_by_level_and_term_group,
     get_oed_hierarchy_terms,
@@ -69,7 +65,7 @@ def get_layer_ids(accounts_df, accounts_profile=get_default_accounts_profile()):
     layer ID is an integer index on unique
 
         (portfolio num., account num., policy num.)
-    
+
     combinations in an account file (or dataframe). The ``PortNumber``,
     ``AccNumber``, ``PolNumber`` columns (or the lowercase equivalents)
     must be present in the accounts dataframe
@@ -138,8 +134,13 @@ def get_il_input_items(
     :return Accounts dataframe
     :rtype: pandas.DataFrame
     """
-    # Get the OED profiles describing exposure, accounts, and using these also
-    # unified exposure + accounts profile and the aggregation profile
+    # Get the grouped exposure + accounts profile - this describes the
+    # financial terms found in the source exposure and accounts files,
+    # which are for the following FM levels: site coverage (# 1),
+    # site pd (# 2), site all (# 3), cond. all (# 6), policy all (# 9),
+    # policy layer (# 10).  It also describes the OED hierarchy terms
+    # present in the exposure and accounts files, namely portfolio num.,
+    # acc. num., loc. num., and cond. num.
     profile = get_grouped_fm_profile_by_level_and_term_group(exposure_profile, accounts_profile)
 
     if not profile:
@@ -149,6 +150,8 @@ def get_il_input_items(
             'FM term definitions for TIV, deductibles, limit, and/or share.'
         )
 
+    # Get the FM aggregation profile - this describes how the IL input
+    # items are to be aggregated in the various FM levels
     fmap = fm_aggregation_profile
 
     if not fmap:
@@ -156,7 +159,7 @@ def get_il_input_items(
             'FM aggregation profile is empty - this is required to perform aggregation'
         )
 
-    # Get the ID terms profile and use that to define the column names for loc.
+    # Get the OED hierarchy terms profile - this defines the column names for loc.
     # ID, acc. ID, policy no. and portfolio no., as used in the source exposure
     # and accounts files. This is to ensure that the method never makes hard
     # coded references to the corresponding columns in the source files, as
@@ -169,21 +172,40 @@ def get_il_input_items(
     portfolio_num = hierarchy_terms['portid']
     cond_num = hierarchy_terms['condid']
 
-    cond_pol_acc_levels = ['cond all', 'policy all', 'policy layer']
-    accounts_il_cols = get_fm_level_term_oed_columns(level_keys=cond_pol_acc_levels)
+    # Get the FM terms profile (this is a simplfied view of the main grouped
+    # profile, containing only information about the financial terms)
+    fm_terms = get_grouped_fm_terms_by_level_and_term_group(grouped_profile_by_level_and_term_group=profile)
 
-    col_defaults = {t: (0.0 if t in accounts_il_cols else 0) for t in accounts_il_cols + [portfolio_num, cond_num]}
-    col_dtypes = {
+    # Get the list of financial terms columns for the cond. all (# 6),
+    # policy all (# 9) and policy layer (# 10) FM levels - all of these columns
+    # are in the accounts file, not the exposure file, so will have to be
+    # sourced from the accounts dataframe
+    cond_pol_acc_levels = ['cond all', 'policy all', 'policy layer']
+    accounts_il_cols = get_fm_terms_oed_columns(fm_terms, levels=cond_pol_acc_levels)
+
+    # Get the layer level (policy layer, # 10) limit column - this column's
+    # data type contains large values which can only be represented in 64-bit
+    # floating point format, unlike all the other financial terms columns
+    layer_limit_col = fm_terms[SUPPORTED_FM_LEVELS['policy layer']['id']][1]['limit']
+
+    # Set defaults and data types for all the financial terms columns in the
+    # accounts dataframe
+    defaults = {
+        **{t: 0.0 for t in accounts_il_cols},
+        **{cond_num: 0},
+        **{portfolio_num: '1'}
+    }
+    dtypes = {
         **{t: 'str' for t in [acc_num, portfolio_num, policy_num]},
-        **{t: 'float32' for t in accounts_il_cols},
+        **{t: ('float32' if t != layer_limit_col else 'float64') for t in accounts_il_cols},
         **{t: 'uint32' for t in [cond_num, 'layer_id']}
     }
 
     # Get the accounts frame either directly or from a file path if provided
     accounts_df = accounts_df if accounts_df is not None else get_dataframe(
         src_fp=accounts_fp,
-        col_dtypes=col_dtypes,
-        col_defaults=col_defaults,
+        col_dtypes=dtypes,
+        col_defaults=defaults,
         required_cols=(acc_num, policy_num, portfolio_num,),
         empty_data_error_msg='No accounts found in the source accounts (loc.) file',
         memory_map=True,
@@ -193,32 +215,36 @@ def get_il_input_items(
     if not (accounts_df is not None or accounts_fp):
         raise OasisException('No accounts frame or file path provided')
 
+    # Look for a `layer_id` column in the accounts dataframe - this column
+    # will exist if the accounts file has the column - the user has the option
+    # of doing this before calling the MDK. The `layer_id` column is simply
+    # an enumeration of the unique (portfolio num., acc. num., policy num.)
+    # combinations in the accounts file. If the column doesn't exist then
+    # a custom method is called that will generate this column and set it
+    # in the accounts dataframe
     if 'layer_id' not in accounts_df:
         accounts_df['layer_id'] = get_layer_ids(accounts_df, accounts_profile=accounts_profile)
 
+    # Drop all columns from the accounts dataframe which are not either one of
+    # portfolio num., acc. num., policy num., cond. numb., layer ID, or one of
+    # the source columns for the financial terms present in the accounts file (the
+    # file should contain all financial terms relating to the cond. all (# 6),
+    # policy all (# 9) and policy layer (# 10) FM levels)
     usecols = [acc_num, portfolio_num, policy_num, cond_num, 'layer_id', SOURCE_IDX['acc']] + accounts_il_cols
     accounts_df.drop([c for c in accounts_df.columns if c not in usecols], axis=1, inplace=True)
 
-    # Define the FM levels from the unified profile, including the coverage
-    # level (the first level) and the layer level (the last level) - the FM
-    # levels thus obtained should correspond to the FM levels in the OED
-    # spec., as the profiles are based on the same spec. Also get the FM
-    # terms profile
-    fm_levels = tuple(profile)[1:]
-    cov_level = min(fm_levels)
-    layer_level = max(fm_levels)
-    fm_terms = get_grouped_fm_terms_by_level_and_term_group(grouped_profile_by_level_and_term_group=profile)
-
     try:
-        # Create a list of all the IL columns for the site pd and site all
-        # levels
-        site_pd_and_site_all_term_cols = get_fm_level_term_oed_columns(level_keys=['site pd', 'site all'])
+        # Create a list of all the IL columns for the site pd (# 2) and site all (# 3)
+        # levels - these columns are in the exposure file, not the accounts
+        # file, and so must be sourced from the exposure dataframe
+        site_pd_and_site_all_term_cols = get_fm_terms_oed_columns(fm_terms, levels=['site pd', 'site all'])
 
         # Check if any of these columns are missing in the exposure frame, and if so
         # set the missing columns with a default value of 0.0 in the exposure frame
         missing = set(site_pd_and_site_all_term_cols).difference(exposure_df.columns)
         if missing:
-            exposure_df = get_dataframe(src_data=exposure_df, col_defaults={t: 0.0 for t in missing})
+            defaults = {t: 0.0 for t in missing}
+            exposure_df = get_dataframe(src_data=exposure_df, col_defaults=defaults)
 
         # First, merge the exposure and GUL inputs frame to augment the GUL inputs
         # frame with financial terms for level 2 (site PD) and level 3 (site all) -
@@ -227,11 +253,12 @@ def get_il_input_items(
         gul_inputs_df = merge_dataframes(
             exposure_df[site_pd_and_site_all_term_cols + [loc_num]],
             gul_inputs_df,
-            on=loc_num,
+            join_on=loc_num,
             how='inner'
         )
         gul_inputs_df.rename(columns={'item_id': 'gul_input_id'}, inplace=True)
-        set_dataframe_column_dtypes(gul_inputs_df, {t: 'float32' for t in site_pd_and_site_all_term_cols})
+        dtypes = {t: 'float32' for t in site_pd_and_site_all_term_cols}
+        gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, dtypes)
 
         # Construct a basic IL inputs frame by merging the combined exposure +
         # GUL inputs frame above, with the accounts frame, on portfolio no.,
@@ -249,8 +276,8 @@ def get_il_input_items(
         del exposure_df
 
         # At this point the IL inputs frame will contain essentially only
-        # coverage level items, but will include multiple items relating to
-        # single GUL input items (the higher layer items).
+        # items for the coverage FM level, but will include multiple items
+        # relating to single GUL input items (the higher layer items).
 
         # If the merge is empty raise an exception - this will happen usually
         # if there are no common acc. numbers between the GUL input items and
@@ -265,14 +292,20 @@ def get_il_input_items(
                 'intersection'.format(accounts_fp)
             )
 
-        # Drop all unnecessary columns.
-        all_fm_terms_cols = get_fm_level_term_oed_columns(level_keys=['site coverage', 'site pd', 'site all', 'cond all', 'policy all', 'policy layer'])
+        # Drop all columns from the IL inputs dataframe which aren't one of
+        # necessary columns in the GUL inputs dataframe, or one of policy num.,
+        # GUL input item ID, or one of the source columns for the
+        # non-coverage FM levels (site PD (# 2), site all (# 3), cond. all (# 6),
+        # policy all (# 9), policy layer (# 10))
+        all_noncov_level_fm_terms_cols = get_fm_terms_oed_columns(
+            fm_terms, levels=list(SUPPORTED_FM_LEVELS)[1:]
+        )
         usecols = (
             gul_inputs_df.columns.to_list() +
             [policy_num, 'gul_input_id'] +
             ([SOURCE_IDX['loc']] if SOURCE_IDX['loc'] in il_inputs_df else []) + 
             ([SOURCE_IDX['acc']] if SOURCE_IDX['acc'] in il_inputs_df else []) + 
-            all_fm_terms_cols
+            all_noncov_level_fm_terms_cols
         )
         il_inputs_df.drop(
             [c for c in il_inputs_df.columns if c not in usecols],
@@ -280,14 +313,17 @@ def get_il_input_items(
             inplace=True
         )
 
-        # Mark the GUL inputs frame for deletion
+        # Mark the GUL inputs frame for deletion - no longer needed
         del gul_inputs_df
+
+        # The coverage FM level (site coverage, # 1) ID
+        cov_level_id = SUPPORTED_FM_LEVELS['site coverage']['id']
 
         # Now set the IL input item IDs, and some other required columns such
         # as the level ID, and initial values for some financial terms,
         # including the calcrule ID and policy TC ID
         il_inputs_df = il_inputs_df.assign(
-            level_id=cov_level,
+            level_id=cov_level_id,
             attachment=0,
             share=0,
             calcrule_id=-1,
@@ -295,11 +331,11 @@ def get_il_input_items(
         )
 
         # Set data types for the newer columns just added
-        col_dtypes = {
+        dtypes = {
             **{t: 'uint32' for t in ['level_id', 'calcrule_id', 'policytc_id']},
             **{t: 'float32' for t in ['attachment', 'share']}
         }
-        set_dataframe_column_dtypes(il_inputs_df, col_dtypes)
+        il_inputs_df = set_dataframe_column_dtypes(il_inputs_df, dtypes)
 
         # Drop any items with layer IDs > 1, reset index ad order items by
         # GUL input ID.
@@ -312,44 +348,48 @@ def get_il_input_items(
         # earlier merge with the exposure and GUL inputs frame - the GUL inputs
         # frame should already contain the coverage level terms
 
-        # Filter out any intermediate FM levels from the original list of FM
-        # levels which have no financial terms, and also drop all the columns
-        # for terms defined for these levels
-        def level_has_fm_terms(level):
+        # The list of financial terms for the sub-layer levels - the layer
+        # level terms are deductible (attachment), share and limit
+        terms = ['deductible', 'deductible_min', 'deductible_max', 'limit']
+
+        # Steps to filter out any intermediate FM levels which have no
+        # financial terms, and also drop all the OED columns for the terms
+        # defined for these levels
+        def level_has_fm_terms(level, terms):
             try:
-                return il_inputs_df[[v for v in fm_terms[level][1].values() if v]].any().any()
+                level_terms_cols = get_fm_terms_oed_columns(fm_terms, levels=[level], terms=terms)
+                return il_inputs_df[level_terms_cols].any().any()
             except KeyError:
                 return False
 
-        intermediate_fm_levels = tuple(l for l in fm_levels[1:-1] if level_has_fm_terms(l))
-        fm_levels_with_zero_terms = [l for l in fm_levels if l not in intermediate_fm_levels + (fm_levels[0], fm_levels[-1])]
-        zero_term_cols = get_fm_level_term_oed_columns(level_ids=fm_levels_with_zero_terms)
+        intermediate_fm_levels = [
+            level for level in list(SUPPORTED_FM_LEVELS)[1:-1]
+            if level_has_fm_terms(level, terms)
+        ]
+        fm_levels_with_zero_terms = list(set(list(SUPPORTED_FM_LEVELS)[1:-1]).difference(intermediate_fm_levels))
+        zero_term_cols = get_fm_terms_oed_columns(fm_terms, levels=fm_levels_with_zero_terms, terms=terms)
         il_inputs_df.drop(zero_term_cols, axis=1, inplace=True)
 
         # Define a list of all supported OED coverage types in the exposure
-        all_cov_types = [
-            v['id'] for k, v in COVERAGE_TYPES.items() if k in ['buildings', 'other', 'contents', 'bi']
-        ]
-
-        # The basic list of financial terms for the sub-layer levels - the
-        # layer level terms are deductible (attachment), share and limit
-        terms = ['deductible', 'deductible_min', 'deductible_max', 'limit']
+        supp_cov_types = [v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()]
 
         # The main loop for processing the financial terms for the sub-layer
-        # non-coverage levels - currently these are site pd (2), site all (3),
-        # cond. all (6), policy all (9). Each level is represented by a frame
+        # non-coverage levels - currently these are site pd (# 2), site all (# 3),
+        # cond. all (# 6), policy all (# 9). Each level is represented by a frame
         # copy of the main IL inputs frame, which is then processed for the
         # level's financial terms and the calc. rule ID, and then appended
         # to the main IL inputs frame
         for level in intermediate_fm_levels:
-            term_cols = [(term_col or term) for term, term_col in fm_terms[level][1].items() if term != 'share']
-            level_df = il_inputs_df[il_inputs_df['level_id'] == cov_level].drop_duplicates()
-            level_df['level_id'] = level
+            level_id = SUPPORTED_FM_LEVELS[level]['id']
+            terms = [t for t in terms if fm_terms[level_id][1].get(t)]
+            term_cols = get_fm_terms_oed_columns(fm_terms, level_ids=[level_id], terms=terms)
+            level_df = il_inputs_df[il_inputs_df['level_id'] == cov_level_id].drop_duplicates()
+            level_df['level_id'] = level_id
 
-            agg_key = [v['field'].lower() for v in fmap[level]['FMAggKey'].values()]
+            agg_key = [v['field'].lower() for v in fmap[level_id]['FMAggKey'].values()]
             level_df['agg_id'] = factorize_ndarray(level_df[agg_key].values, col_idxs=range(len(agg_key)))[0]
 
-            if level == FM_LEVELS['cond all']['id']:
+            if level == 'cond all':
                 level_df.loc[:, term_cols] = level_df.loc[:, term_cols].fillna(0)
             else:
                 level_df.loc[:, term_cols] = level_df.loc[:, term_cols].fillna(method='ffill')
@@ -358,58 +398,69 @@ def get_il_input_items(
             level_df.loc[:, terms] = level_df.loc[:, term_cols].values
 
             level_df['deductible'] = np.where(
-                level_df['coverage_type_id'].isin((profile[level][1].get('deductible') or {}).get('CoverageTypeID') or all_cov_types),
+                level_df['coverage_type_id'].isin((profile[level_id][1].get('deductible') or {}).get('CoverageTypeID') or supp_cov_types),
                 level_df['deductible'],
                 0
             )
             level_df['deductible'] = np.where(
                 (level_df['deductible'] == 0) | (level_df['deductible'] >= 1),
                 level_df['deductible'],
-                level_df['tiv'] * level_df['deductible'],
+                level_df['tiv'] * level_df['deductible']
             )
 
             level_df['limit'] = np.where(
-                level_df['coverage_type_id'].isin((profile[level][1].get('limit') or {}).get('CoverageTypeID') or all_cov_types),
+                level_df['coverage_type_id'].isin((profile[level_id][1].get('limit') or {}).get('CoverageTypeID') or supp_cov_types),
                 level_df['limit'],
                 0
             )
             level_df['limit'] = np.where(
                 (level_df['limit'] == 0) | (level_df['limit'] >= 1),
                 level_df['limit'],
-                level_df['tiv'] * level_df['limit'],
+                level_df['tiv'] * level_df['limit']
             )
+
             il_inputs_df = pd.concat([il_inputs_df, level_df], sort=True, ignore_index=True)
+            il_inputs_df.drop(term_cols, axis=1, inplace=True)
 
         # Resequence the item IDs, as the earlier repeated concatenation of
         # the intermediate level frames may have produced a non-sequential index
         il_inputs_df['item_id'] = il_inputs_df.index + 1
 
-        # Process the layer level inputs separately - we start with merging
-        # the coverage level layer 1 items with the accounts frame to create
-        # a separate layer level frame, on which further processing is
-        cov_level_layer1_df = il_inputs_df[il_inputs_df['level_id'] == cov_level]
+        # Process the layer FM level (policy layer, # 10) inputs separately - we
+        # start with merging the coverage level layer 1 items with the accounts
+        # dataframe to create a separate layer level frame, on which further
+        # processing is done
+        cov_level_layer1_df = il_inputs_df[il_inputs_df['level_id'] == cov_level_id]
         layer_df = merge_dataframes(
             cov_level_layer1_df,
             accounts_df,
-            left_on=acc_num,
-            right_on=acc_num,
+            on=[portfolio_num, acc_num],
             how='inner'
         )
 
+        # Remove the source columns for all non-layer FM levels - this includes the
+        # site pd (# 2), site all (# 3), cond. all (# 6), policy all (# 9) FM levels
+        cond_all_and_pol_all_term_cols = get_fm_terms_oed_columns(fm_terms, levels=['cond all', 'policy all'])
+        layer_df.drop(
+            [c for c in layer_df.columns if c in site_pd_and_site_all_term_cols + cond_all_and_pol_all_term_cols],
+            axis=1, inplace=True
+        )
+
+        # The layer FM level (policy layer, # 10) ID
+        layer_level_id = SUPPORTED_FM_LEVELS['policy layer']['id']
+
         # Set the layer level, layer IDs and agg. IDs
-        layer_df['level_id'] = layer_level
-        agg_key = [v['field'].lower() for v in fmap[layer_level]['FMAggKey'].values()]
+        layer_df['level_id'] = layer_level_id
+        agg_key = [v['field'].lower() for v in fmap[layer_level_id]['FMAggKey'].values()]
         layer_df['agg_id'] = factorize_ndarray(layer_df[agg_key].values, col_idxs=range(len(agg_key)))[0]
 
         # The layer level financial terms
         terms = ['deductible', 'limit', 'share']
 
         # Process the financial terms for the layer level
-        term_cols = [(v[t] or t) for v in fm_terms[layer_level].values() for t in terms]
+        term_cols = get_fm_terms_oed_columns(fm_terms, levels=['policy layer'], terms=terms)
         layer_df.loc[:, term_cols] = layer_df.loc[:, term_cols].where(layer_df.notnull(), 0.0).values
-        set_dataframe_column_dtypes(layer_df, {t: 'float32' for t in term_cols})
         layer_df.loc[:, terms] = layer_df.loc[:, term_cols].values
-        set_dataframe_column_dtypes(layer_df, {t: 'float32' for t in terms})
         layer_df['limit'] = layer_df['limit'].where(layer_df['limit'] != 0, 9999999999)
         layer_df['attachment'] = layer_df['deductible']
         layer_df['share'] = layer_df['share'].where(layer_df['share'] != 0, 1.0)
@@ -417,22 +468,15 @@ def get_il_input_items(
         # Join the IL inputs and layer level frames, and set layer ID, level ID
         # and IL item IDs
         il_inputs_df = pd.concat([il_inputs_df, layer_df], sort=True, ignore_index=True)
+        il_inputs_df.drop(term_cols, axis=1, inplace=True)
 
         del layer_df
 
-        # Resequence the level IDs and item IDs, but also store the "old" level
-        # IDs (before the resequencing)
+        # Resequence the level IDs and item IDs, but also store the "original"
+        # FM level IDs (before the resequencing)
         il_inputs_df['orig_level_id'] = il_inputs_df['level_id']
         il_inputs_df['level_id'] = factorize_ndarray(il_inputs_df[['level_id']].values, col_idxs=[0])[0]
         il_inputs_df['item_id'] = il_inputs_df.index + 1
-
-        # Drop all OED columns for all financial terms for all FM levels - at
-        # this point these columns are unnecessary, as the FM terms (deductible,
-        # min. deductible, max. deductible, limit, attachment, share) have been
-        # extracted for all levels and set in the columns named 'deductible',
-        # 'deductible_min', 'deductible_max', 'limit', 'attachment', 'share'
-        fm_term_cols = list(set(all_fm_terms_cols).intersection(il_inputs_df.columns))
-        il_inputs_df.drop(fm_term_cols, axis=1, inplace=True)
 
         # Set the calc. rule IDs
         calc_rules = get_calc_rules().drop(['desc'], axis=1)
@@ -443,22 +487,21 @@ def get_il_input_items(
         types_and_codes = ['deductible_type', 'deductible_code', 'limit_type', 'limit_code']
 
         il_inputs_calc_rules_df = il_inputs_df.loc[:, ['item_id'] + terms + terms_indicators + types_and_codes + ['calcrule_id']]
-        for t, ti in zip(terms, terms_indicators):
-            il_inputs_calc_rules_df[ti] = np.where(il_inputs_calc_rules_df[t] > 0, 1, 0)
-        for t in types_and_codes:
-            il_inputs_calc_rules_df[t] = 0
+        il_inputs_calc_rules_df.loc[:, terms_indicators] = np.where(il_inputs_calc_rules_df[terms] > 0, 1, 0)
+        il_inputs_calc_rules_df.loc[:, types_and_codes] = 0
         il_inputs_calc_rules_df['id_key'] = [t for t in fast_zip_arrays(*il_inputs_calc_rules_df[terms_indicators + types_and_codes].transpose().values)]
         il_inputs_calc_rules_df = merge_dataframes(il_inputs_calc_rules_df, calc_rules, how='left', on='id_key')
         il_inputs_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id']
-        il_inputs_df['calcrule_id'] = il_inputs_df['calcrule_id'].astype('int32')
 
-        set_dataframe_column_dtypes(
-            il_inputs_df,
-            {
-                **{t: 'uint32' for t in [cond_num, 'agg_id', 'item_id', 'layer_id', 'level_id', 'orig_level_id', 'calcrule_id']},
-                **{t: 'float32' for t in terms + ['attachment', 'deductible_min', 'deductible_max']}
-            }
-        )
+        del il_inputs_calc_rules_df
+
+        dtypes = {
+            **{t: 'uint32' for t in [cond_num, 'agg_id', 'item_id', 'layer_id', 'level_id', 'orig_level_id', 'calcrule_id']},
+            **{t: 'float32' for t in [_t for _t in terms if _t != 'limit'] + ['attachment', 'deductible_min', 'deductible_max']},
+            **{'limit': 'float64'}
+        }
+        il_inputs_df = set_dataframe_column_dtypes(il_inputs_df, dtypes)
+
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
         raise OasisException from e
 
@@ -580,7 +623,8 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
             },
         ).dropna(axis=0).drop_duplicates()
 
-        set_dataframe_column_dtypes(fm_programme_df, {t: 'int32' for t in fm_programme_df.columns})
+        dtypes = {t: 'uint32' for t in fm_programme_df.columns}
+        fm_programme_df = set_dataframe_column_dtypes(fm_programme_df, dtypes)
 
         fm_programme_df.to_csv(
             path_or_buf=fm_programme_fp,
@@ -634,8 +678,7 @@ def write_fm_xref_file(il_inputs_df, fm_xref_fp, chunksize=100000):
 def write_il_input_files(
     il_inputs_df,
     target_dir,
-    oasis_files_prefixes=copy.deepcopy(OASIS_FILES_PREFIXES['il']),
-    write_inputs_table_to_file=False
+    oasis_files_prefixes=copy.deepcopy(OASIS_FILES_PREFIXES['il'])
 ):
     """
     Writes standard Oasis IL input files to a target directory using a
@@ -656,26 +699,15 @@ def write_il_input_files(
     :param oasis_files_prefixes: Oasis IL input file name prefixes
     :param oasis_files_prefixes: dict
 
-    :param write_inputs_table_to_file: Whether to write the IL inputs table to file
-    :param write_inputs_table_to_file: bool
-
     :return: IL input files dict
     :rtype: dict
     """
     # Clean the target directory path
     target_dir = as_path(target_dir, 'Target IL input files directory', is_dir=True, preexists=False)
 
-    # Set chunk size for writing the CSV files - default is 100K
+    # Set chunk size for writing the CSV files - default is the minimum of 100K
+    # or the IL inputs frame size
     chunksize = min(2 * 10**5, len(il_inputs_df))
-
-    # A debugging option
-    if write_inputs_table_to_file:
-        il_inputs_df.to_csv(
-            path_or_buf=os.path.join(target_dir, 'il_inputs.csv'),
-            index=False,
-            encoding='utf-8',
-            chunksize=chunksize
-        )
 
     # A dict of IL input file names and file paths
     il_input_files = {

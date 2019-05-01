@@ -1,5 +1,5 @@
 __all__ = [
-    'OasisBaseLookup',
+    'OasisBuiltinBaseLookup',
     'OasisBaseKeysLookup',
     'OasisLookup',
     'OasisPerilLookup',
@@ -77,7 +77,7 @@ def as_path(value, name, preexists=True):
     return value
 
 
-class OasisBaseLookup(object):
+class OasisBuiltinBaseLookup(object):
 
     @oasis_log()
     def __init__(self, config=None, config_json=None, config_fp=None, config_dir=None):
@@ -250,7 +250,7 @@ class OasisBaseKeysLookup(object):  # pragma: no cover
         """
         pass
 
-    def _get_lookup_success(self, ap_id, vul_id):
+    def _get_custom_lookup_success(self, ap_id, vul_id):
         """
         Determine the status of the keys lookup.
         """
@@ -278,7 +278,7 @@ class OasisLookupFactory(object):
             ))
 
     @classmethod
-    def get_lookup_package(cls, lookup_package_path):
+    def get_custom_lookup_package(cls, lookup_package_path):
         """
         Returns the lookup service parent package (called `keys_server` and
         located in `src` in the model keys server Git repository or in
@@ -302,12 +302,26 @@ class OasisLookupFactory(object):
         return lookup_package
 
     @classmethod
-    def get_lookup_class_instance(cls, lookup_package, keys_data_path, model_info,
-                                  complex_lookup_config_fp, output_directory):
+    def get_custom_lookup(
+        cls,
+        lookup_package,
+        keys_data_path,
+        model_info,
+        complex_lookup_config_fp=None,
+        output_directory=None
+    ):
         """
         Get the keys lookup class instance.
         """
         klc = getattr(lookup_package, '{}KeysLookup'.format(model_info['model_id']))
+
+        if not (complex_lookup_config_fp and output_directory):
+            return klc(
+                keys_data_directory=keys_data_path,
+                supplier=model_info['supplier_id'],
+                model_name=model_info['model_id'],
+                model_version=model_info['model_version']
+            )
 
         return klc(
             keys_data_directory=keys_data_path,
@@ -414,7 +428,7 @@ class OasisLookupFactory(object):
         lookup_config_fp=None,
         complex_lookup_config_fp=None,
         output_directory=None,
-        lookup_type='combined',
+        builtin_lookup_type='combined',
         loc_id_col='locnumber'
     ):
         """
@@ -425,7 +439,10 @@ class OasisLookupFactory(object):
         model information from the model version file and `klc` is the lookup
         service class instance for the model.
         """
-        if lookup_config or lookup_config_json or lookup_config_fp:
+        is_builtin = lookup_config or lookup_config_json or lookup_config_fp
+        is_complex = complex_lookup_config_fp and output_directory
+
+        if is_builtin:
             lookup = OasisLookup(
                 config=lookup_config,
                 config_json=lookup_config_json,
@@ -433,30 +450,38 @@ class OasisLookupFactory(object):
                 loc_id_col=loc_id_col
             )
             model_info = lookup.config.get('model')
-            if lookup_type == 'base':
-                lookup = OasisBaseLookup(
+            if builtin_lookup_type == 'base':
+                lookup = OasisBuiltinBaseLookup(
                     config=lookup_config,
                     config_json=lookup_config_json,
                     config_fp=lookup_config_fp
                 )
                 return lookup.config.get('model'), lookup
-            elif lookup_type == 'combined':
+            elif builtin_lookup_type == 'combined':
                 return model_info, lookup
-            elif lookup_type == 'peril':
+            elif builtin_lookup_type == 'peril':
                 return model_info, lookup.peril_lookup
-            elif lookup_type == 'vulnerability':
+            elif builtin_lookup_type == 'vulnerability':
                 return model_info, lookup.vulnerability_lookup
         else:
             _model_keys_data_path = as_path(model_keys_data_path, 'model_keys_data_path', preexists=True)
             _model_version_file_path = as_path(model_version_file_path, 'model_version_file_path', preexists=True)
             _lookup_package_path = as_path(lookup_package_path, 'lookup_package_path', preexists=True)
+            model_info = cls.get_model_info(_model_version_file_path)
+            lookup_package = cls.get_custom_lookup_package(_lookup_package_path)
+
+            if not is_complex:
+                lookup = cls.get_custom_lookup(
+                    lookup_package=lookup_package,
+                    keys_data_path=_model_keys_data_path,
+                    model_info=model_info
+                )
+                return model_info, lookup
+
             _complex_lookup_config_fp = as_path(complex_lookup_config_fp, 'complex_lookup_config_fp', preexists=True)
             _output_directory = as_path(output_directory, 'output_directory', preexists=True)
 
-            model_info = cls.get_model_info(_model_version_file_path)
-            lookup_package = cls.get_lookup_package(_lookup_package_path)
-
-            lookup = cls.get_lookup_class_instance(
+            lookup = cls.get_custom_lookup(
                 lookup_package=lookup_package,
                 keys_data_path=_model_keys_data_path,
                 model_info=model_info,
@@ -705,7 +730,7 @@ class OasisLookupFactory(object):
             raise OasisException("Unrecognised lookup file output format - valid formats are 'oasis' or 'json'")
 
 
-class OasisLookup(OasisBaseLookup):
+class OasisLookup(OasisBuiltinBaseLookup):
     """
     Combined peril and vulnerability lookup
     """
@@ -802,7 +827,7 @@ class OasisLookup(OasisBaseLookup):
         }
 
 
-class OasisPerilLookup(OasisBaseLookup):
+class OasisPerilLookup(OasisBuiltinBaseLookup):
     """
     Single peril, single coverage type, lon/lat point-area poly lookup using
     an Rtree index to store peril areas - index entries are
@@ -997,7 +1022,7 @@ class OasisPerilLookup(OasisBaseLookup):
         return _lookup(loc_id, x, y, st, peril_id, coverage_type, paid, pabnds, pacoords, msg)
 
 
-class OasisVulnerabilityLookup(OasisBaseLookup):
+class OasisVulnerabilityLookup(OasisBuiltinBaseLookup):
     """
     Simple key-value based vulnerability lookup
     """
