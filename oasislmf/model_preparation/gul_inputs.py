@@ -37,7 +37,6 @@ from ..utils.defaults import (
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.defaults import (
-    COVERAGE_TYPES,
     FM_LEVELS,
     SOURCE_IDX,
     SUPPORTED_COVERAGE_TYPES,
