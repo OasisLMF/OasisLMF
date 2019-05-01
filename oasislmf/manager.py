@@ -52,7 +52,7 @@ from .model_preparation.il_inputs import (
 )
 from .model_preparation.sum_inputs import (
     get_summary_mapping,
-    create_summary_xref,
+    generate_summaryxref_files,
     merge_oed_to_mapping,
     write_mapping_file,
 )
@@ -533,8 +533,8 @@ class OasisManager(object):
         except (IOError, TypeError, ValueError):
             raise OasisException('Invalid analysis settings file or file path: {}.'.format(_analysis_settings_fp))
 
-        # prepare Summery_sets
-        create_summary_xref(model_run_fp, analysis_settings)
+        # prepare summery_sets
+        generate_summaryxref_files(model_run_fp, analysis_settings)
 
         if not ri:
             csv_to_bin(oasis_fp, os.path.join(model_run_fp, 'input'), il=il)
