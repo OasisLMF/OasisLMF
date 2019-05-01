@@ -194,12 +194,12 @@ def get_column_selection(summary_set):
     :return: List of selected OED columns to create summary groups from
     :rtype: list 
     """
-    if "oed_fields" not in summary_set.keys():
+    if "oed_fields" not in summary_set:
         return None
 
     # Select Default Grouping for either
     elif isinstance(summary_set['oed_fields'], str):
-        if summary_set['oed_fields'] in SUMMARY_GROUPING.keys():
+        if summary_set['oed_fields'] in SUMMARY_GROUPING:
             return SUMMARY_GROUPING[summary_set['oed_fields']]
         else:
             raise OasisException('oed_fields value Invalid: {}'.format(summary_set['oed_fields']))
@@ -366,7 +366,7 @@ def generate_summaryxref_files(model_run_fp, analysis_settings):
         src_fp=exposure_fp,
         empty_data_error_msg='No source exposure file found.')
 
-    if 'gul_summaries' in analysis_settings.keys():
+    if 'gul_summaries' in analysis_settings:
         # Load GUL summary map
         gul_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['gul_map_fn'])
         gul_map_df = get_dataframe(
@@ -380,7 +380,7 @@ def generate_summaryxref_files(model_run_fp, analysis_settings):
         write_xref_file(gul_summaryxref_df, os.path.join(model_run_fp, 'input'))
 
 
-    if 'il_summaries' in analysis_settings.keys():
+    if 'il_summaries' in analysis_settings:
         # Load FM summary map
         il_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['fm_map_fn'])
         il_map_df = get_dataframe(
@@ -394,14 +394,14 @@ def generate_summaryxref_files(model_run_fp, analysis_settings):
         write_xref_file(il_summaryxref_df, os.path.join(model_run_fp, 'input'))
 
 
-    if 'ri_summaries' in analysis_settings.keys():
+    if 'ri_summaries' in analysis_settings:
         ri_layers = get_ri_settings(model_run_fp)
-        last_layer = max([k for k in ri_layers.keys()])
+        last_layer = max([k for k in ri_layers])
         summary_ri_fp = os.path.join(
             model_run_fp, os.path.basename(ri_layers[last_layer]['directory']))
 
         ri_summaryxref_df = pd.DataFrame()
-        if not 'il_summaries' in analysis_settings.keys():
+        if not 'il_summaries' in analysis_settings:
             il_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['fm_map_fn'])
             il_map_df = get_dataframe(
                 src_fp=il_map_fp,
