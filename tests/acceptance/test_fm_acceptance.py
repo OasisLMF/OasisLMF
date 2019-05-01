@@ -124,12 +124,15 @@ class FmAcceptanceTests(TestCase):
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
-            gul_inputs = pd.merge(
-                pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
-                pd.read_csv(gul_input_files['gulsummaryxref']),
-                left_on='coverage_id',
-                right_on='coverage_id'
-            )
+            # gul_inputs = pd.merge(
+            #     pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
+            #     pd.read_csv(gul_input_files['gulsummaryxref']),
+            #     left_on='coverage_id',
+            #     right_on='coverage_id'
+            # )
+            gul_inputs = pd.merge(pd.read_csv(gul_input_files['items']), 
+                                  pd.read_csv(gul_input_files['coverages']), 
+                                  left_on='coverage_id', right_on='coverage_id')
 
             self.assertEqual(len(gul_inputs), 4)
 
@@ -203,11 +206,11 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(fm_xref_df['agg_id'].values.tolist(), [1, 2, 3, 4])
             self.assertEqual(fm_xref_df['layer_id'].values.tolist(), [1, 1, 1, 1])
 
-            fmsummaryxref_df = pd.read_csv(il_input_files['fmsummaryxref'])
-            self.assertEqual(len(fmsummaryxref_df), 4)
-            self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1, 2, 3, 4])
-            self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1, 1, 1, 1])
-            self.assertEqual(fmsummaryxref_df['summaryset_id'].values.tolist(), [1, 1, 1, 1])
+            # fmsummaryxref_df = pd.read_csv(il_input_files['fmsummaryxref'])
+            # self.assertEqual(len(fmsummaryxref_df), 4)
+            # self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1, 2, 3, 4])
+            # self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1, 1, 1, 1])
+            # self.assertEqual(fmsummaryxref_df['summaryset_id'].values.tolist(), [1, 1, 1, 1])
 
             expected_direct_losses = pd.DataFrame(
                 columns=['event_id', 'output_id', 'loss'],
@@ -311,12 +314,15 @@ class FmAcceptanceTests(TestCase):
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
-            gul_inputs = pd.merge(
-                pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
-                pd.read_csv(gul_input_files['gulsummaryxref']),
-                left_on='coverage_id',
-                right_on='coverage_id'
-            )
+            # gul_inputs = pd.merge(
+            #     pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
+            #     pd.read_csv(gul_input_files['gulsummaryxref']),
+            #     left_on='coverage_id',
+            #     right_on='coverage_id'
+            # )
+            gul_inputs = pd.merge(pd.read_csv(gul_input_files['items']), 
+                                  pd.read_csv(gul_input_files['coverages']), 
+                                  left_on='coverage_id', right_on='coverage_id')
 
             self.assertEqual(len(gul_inputs), 4)
 
@@ -399,11 +405,11 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(fm_xref_df['agg_id'].values.tolist(), [1, 2, 3, 4])
             self.assertEqual(fm_xref_df['layer_id'].values.tolist(), [1, 1, 1, 1])
 
-            fmsummaryxref_df = pd.read_csv(il_input_files['fmsummaryxref'])
-            self.assertEqual(len(fmsummaryxref_df), 4)
-            self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1, 2, 3, 4])
-            self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1, 1, 1, 1])
-            self.assertEqual(fmsummaryxref_df['summaryset_id'].values.tolist(), [1, 1, 1, 1])
+            # fmsummaryxref_df = pd.read_csv(il_input_files['fmsummaryxref'])
+            # self.assertEqual(len(fmsummaryxref_df), 4)
+            # self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1, 2, 3, 4])
+            # self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1, 1, 1, 1])
+            # self.assertEqual(fmsummaryxref_df['summaryset_id'].values.tolist(), [1, 1, 1, 1])
 
             expected_direct_losses = pd.DataFrame(
                 columns=['event_id', 'output_id', 'loss'],
@@ -506,12 +512,15 @@ class FmAcceptanceTests(TestCase):
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
-            gul_inputs = pd.merge(
-                pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
-                pd.read_csv(gul_input_files['gulsummaryxref']),
-                left_on='coverage_id',
-                right_on='coverage_id'
-            )
+            # gul_inputs = pd.merge(
+            #     pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
+            #     pd.read_csv(gul_input_files['gulsummaryxref']),
+            #     left_on='coverage_id',
+            #     right_on='coverage_id'
+            # )
+            gul_inputs = pd.merge(pd.read_csv(gul_input_files['items']), 
+                                  pd.read_csv(gul_input_files['coverages']), 
+                                  left_on='coverage_id', right_on='coverage_id')
 
             self.assertEqual(len(gul_inputs), 4)
 
@@ -594,11 +603,11 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(fm_xref_df['agg_id'].values.tolist(), [1, 2, 3, 4])
             self.assertEqual(fm_xref_df['layer_id'].values.tolist(), [1, 1, 1, 1])
 
-            fmsummaryxref_df = pd.read_csv(il_input_files['fmsummaryxref'])
-            self.assertEqual(len(fmsummaryxref_df), 4)
-            self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1, 2, 3, 4])
-            self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1, 1, 1, 1])
-            self.assertEqual(fmsummaryxref_df['summaryset_id'].values.tolist(), [1, 1, 1, 1])
+            # fmsummaryxref_df = pd.read_csv(il_input_files['fmsummaryxref'])
+            # self.assertEqual(len(fmsummaryxref_df), 4)
+            # self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1, 2, 3, 4])
+            # self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1, 1, 1, 1])
+            # self.assertEqual(fmsummaryxref_df['summaryset_id'].values.tolist(), [1, 1, 1, 1])
 
             expected_direct_losses = pd.DataFrame(
                 columns=['event_id', 'output_id', 'loss'],
@@ -713,12 +722,15 @@ class FmAcceptanceTests(TestCase):
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
-            gul_inputs = pd.merge(
-                pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
-                pd.read_csv(gul_input_files['gulsummaryxref']),
-                left_on='coverage_id',
-                right_on='coverage_id'
-            )
+            # gul_inputs = pd.merge(
+            #     pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
+            #     pd.read_csv(gul_input_files['gulsummaryxref']),
+            #     left_on='coverage_id',
+            #     right_on='coverage_id'
+            # )
+            gul_inputs = pd.merge(pd.read_csv(gul_input_files['items']), 
+                                  pd.read_csv(gul_input_files['coverages']), 
+                                  left_on='coverage_id', right_on='coverage_id')
 
             self.assertEqual(len(gul_inputs), 8)
 
@@ -814,11 +826,11 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(fm_xref_df['agg_id'].values.tolist(), [1, 2, 3, 4, 5, 6, 7, 8])
             self.assertEqual(fm_xref_df['layer_id'].values.tolist(), [1, 1, 1, 1, 1, 1, 1, 1])
 
-            fmsummaryxref_df = pd.read_csv(il_input_files['fmsummaryxref'])
-            self.assertEqual(len(fmsummaryxref_df), 8)
-            self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1, 2, 3, 4, 5, 6, 7, 8])
-            self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1, 1, 1, 1, 1, 1, 1, 1])
-            self.assertEqual(fmsummaryxref_df['summaryset_id'].values.tolist(), [1, 1, 1, 1, 1, 1, 1, 1])
+            # fmsummaryxref_df = pd.read_csv(il_input_files['fmsummaryxref'])
+            # self.assertEqual(len(fmsummaryxref_df), 8)
+            # self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1, 2, 3, 4, 5, 6, 7, 8])
+            # self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1, 1, 1, 1, 1, 1, 1, 1])
+            # self.assertEqual(fmsummaryxref_df['summaryset_id'].values.tolist(), [1, 1, 1, 1, 1, 1, 1, 1])
 
             expected_direct_losses = pd.DataFrame(
                 columns=['event_id', 'output_id', 'loss'],
@@ -937,12 +949,15 @@ class FmAcceptanceTests(TestCase):
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
-            gul_inputs = pd.merge(
-                pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
-                pd.read_csv(gul_input_files['gulsummaryxref']),
-                left_on='coverage_id',
-                right_on='coverage_id'
-            )
+            # gul_inputs = pd.merge(
+            #     pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
+            #     pd.read_csv(gul_input_files['gulsummaryxref']),
+            #     left_on='coverage_id',
+            #     right_on='coverage_id'
+            # )
+            gul_inputs = pd.merge(pd.read_csv(gul_input_files['items']), 
+                                  pd.read_csv(gul_input_files['coverages']), 
+                                  left_on='coverage_id', right_on='coverage_id')
 
             self.assertEqual(len(gul_inputs), 8)
 
@@ -1038,11 +1053,11 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(fm_xref_df['agg_id'].values.tolist(), [1, 2, 3, 4, 5, 6, 7, 8])
             self.assertEqual(fm_xref_df['layer_id'].values.tolist(), [1, 1, 1, 1, 1, 1, 1, 1])
 
-            fmsummaryxref_df = pd.read_csv(il_input_files['fmsummaryxref'])
-            self.assertEqual(len(fmsummaryxref_df), 8)
-            self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1, 2, 3, 4, 5, 6, 7, 8])
-            self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1, 1, 1, 1, 1, 1, 1, 1])
-            self.assertEqual(fmsummaryxref_df['summaryset_id'].values.tolist(), [1, 1, 1, 1, 1, 1, 1, 1])
+            # fmsummaryxref_df = pd.read_csv(il_input_files['fmsummaryxref'])
+            # self.assertEqual(len(fmsummaryxref_df), 8)
+            # self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1, 2, 3, 4, 5, 6, 7, 8])
+            # self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1, 1, 1, 1, 1, 1, 1, 1])
+            # self.assertEqual(fmsummaryxref_df['summaryset_id'].values.tolist(), [1, 1, 1, 1, 1, 1, 1, 1])
 
             expected_direct_losses = pd.DataFrame(
                 columns=['event_id', 'output_id', 'loss'],
@@ -1164,12 +1179,15 @@ class FmAcceptanceTests(TestCase):
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
-            gul_inputs = pd.merge(
-                pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
-                pd.read_csv(gul_input_files['gulsummaryxref']),
-                left_on='coverage_id',
-                right_on='coverage_id'
-            )
+            # gul_inputs = pd.merge(
+            #     pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
+            #     pd.read_csv(gul_input_files['gulsummaryxref']),
+            #     left_on='coverage_id',
+            #     right_on='coverage_id'
+            # )
+            gul_inputs = pd.merge(pd.read_csv(gul_input_files['items']), 
+                                  pd.read_csv(gul_input_files['coverages']), 
+                                  left_on='coverage_id', right_on='coverage_id')
 
             self.assertEqual(len(gul_inputs), 6)
 
@@ -1254,11 +1272,11 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(layer2_group['output'].values.tolist(), [2, 4, 6, 8, 10, 12])
             self.assertEqual(layer2_group['agg_id'].values.tolist(), [1, 2, 3, 4, 5, 6])
 
-            fmsummaryxref_df = pd.read_csv(il_input_files['fmsummaryxref'])
-            self.assertEqual(len(fmsummaryxref_df), 12)
-            self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
-            self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1] * 12)
-            self.assertEqual(fmsummaryxref_df['summaryset_id'].values.tolist(), [1] * 12)
+            # fmsummaryxref_df = pd.read_csv(il_input_files['fmsummaryxref'])
+            # self.assertEqual(len(fmsummaryxref_df), 12)
+            # self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+            # self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1] * 12)
+            # self.assertEqual(fmsummaryxref_df['summaryset_id'].values.tolist(), [1] * 12)
 
             expected_direct_losses = pd.DataFrame(
                 columns=['event_id', 'output_id', 'loss'],
@@ -1380,12 +1398,15 @@ class FmAcceptanceTests(TestCase):
                 if not p.endswith("complex_items.csv"):
                     self.assertTrue(os.path.exists(p))
 
-            gul_inputs = pd.merge(
-                pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
-                pd.read_csv(gul_input_files['gulsummaryxref']),
-                left_on='coverage_id',
-                right_on='coverage_id'
-            )
+            # gul_inputs = pd.merge(
+            #     pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
+            #     pd.read_csv(gul_input_files['gulsummaryxref']),
+            #     left_on='coverage_id',
+            #     right_on='coverage_id'
+            # )
+            gul_inputs = pd.merge(pd.read_csv(gul_input_files['items']), 
+                                  pd.read_csv(gul_input_files['coverages']), 
+                                  left_on='coverage_id', right_on='coverage_id')
 
             self.assertEqual(len(gul_inputs), 6)
 
@@ -1469,11 +1490,11 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(fm_xref_df['output'].values.tolist(), [1, 2, 3, 4, 5, 6])
             self.assertEqual(fm_xref_df['agg_id'].values.tolist(), [1, 2, 3, 4, 5, 6])
 
-            fmsummaryxref_df = pd.read_csv(il_input_files['fmsummaryxref'])
-            self.assertEqual(len(fmsummaryxref_df), 6)
-            self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1, 2, 3, 4, 5, 6])
-            self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1] * 6)
-            self.assertEqual(fmsummaryxref_df['summaryset_id'].values.tolist(), [1] * 6)
+            # fmsummaryxref_df = pd.read_csv(il_input_files['fmsummaryxref'])
+            # self.assertEqual(len(fmsummaryxref_df), 6)
+            # self.assertEqual(fmsummaryxref_df['output'].values.tolist(), [1, 2, 3, 4, 5, 6])
+            # self.assertEqual(fmsummaryxref_df['summary_id'].values.tolist(), [1] * 6)
+            # self.assertEqual(fmsummaryxref_df['summaryset_id'].values.tolist(), [1] * 6)
 
             expected_direct_losses = pd.DataFrame(
                 columns=['event_id', 'output_id', 'loss'],
