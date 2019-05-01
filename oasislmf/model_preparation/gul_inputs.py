@@ -37,6 +37,7 @@ from ..utils.defaults import (
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.defaults import (
+    COVERAGE_TYPES,
     FM_LEVELS,
     SOURCE_IDX,
     SUPPORTED_COVERAGE_TYPES,
@@ -187,7 +188,6 @@ def get_gul_input_items(
         # keys dataframes on loc. number/loc. ID; filter out any rows with
         # zeros for TIVs for all coverage types, and replace any nulls in the
         # cond.num. and TIV columns with zeros
-        import ipdb; ipdb.set_trace()
         exposure_df[SOURCE_IDX['loc']] = exposure_df.index
         gul_inputs_df = merge_dataframes(exposure_df, keys_df, join_on=loc_num, how='inner')
 

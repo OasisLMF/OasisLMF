@@ -12,7 +12,6 @@ import io
 import json
 
 import pandas as pd
-import numpy as np
 
 from ..utils.data import (
     factorize_dataframe,
@@ -38,11 +37,9 @@ def is_fm_summary(inputs_df):
 
     """
     col_headers_df = inputs_df.columns.to_list()
-    #if oed_col['polid'] or 'output_id' in col_headers_df:
     if ('polnumber' in col_headers_df) or  ('output_id' in col_headers_df):
         return True
-    else:
-        return False
+    return False
 
 
 @oasis_log
@@ -50,9 +47,15 @@ def get_summary_mapping(
     inputs_df,
     oed_col):
     """
+    Create a DataFrame with linking information between Ktools `OasisFiles`
+    And the Exposure data 
 
+    :param inputs_df: datafame from gul_inputs.get_gul_input_items(..)  / il_inputs.get_il_input_items(..) 
+    :type inputs_df: pandas.DataFrame
+
+    :return: Subset of columns from gul_inputs_df / il_inputs_df
+    :rtype: pandas.DataFrame
     """
-    # 'exposure_idx' maps -> idx in exposure_df (Join on this column when creating `__summaryxref.csv`)
     usecols = ([
         oed_col['accid'],
         oed_col['locid'],
@@ -104,8 +107,8 @@ def merge_oed_to_mapping(summary_map_df, exposure_df, oed_column_set):
     """
 
     column_set = [c.lower() for c in oed_column_set]
-    exposure_col_df = exposure_df[column_set]
-    exposure_col_df['index'] = exposure_df.index.values
+    exposure_col_df = exposure_df.loc[:, column_set]
+    exposure_col_df['index'] = exposure_df.index
     return summary_map_df.merge(exposure_col_df, left_on=SOURCE_IDX['loc'], right_on='index').drop('index', axis=1)
 
 
@@ -126,9 +129,9 @@ def group_by_oed(summary_map_df, exposure_df, oed_col_group):
     exposure_cols = [c.lower() for c in oed_col_group if c not in summary_map_df.columns.to_list()]
     mapping_cols = [SOURCE_IDX['loc']] + [c.lower() for c in oed_col_group if c in summary_map_df.columns.to_list()]
 
-    summary_group_df = summary_map_df[mapping_cols]
+    summary_group_df = summary_map_df.loc[:, mapping_cols]
     if not exposure_cols == []:
-        exposure_col_df = exposure_df[exposure_cols]
+        exposure_col_df = exposure_df.loc[:, exposure_cols]
         exposure_col_df['index'] = exposure_df.index.values
         summary_group_df = summary_group_df.merge(exposure_col_df, left_on=SOURCE_IDX['loc'], right_on='index').drop('index', axis=1)
 
@@ -178,12 +181,23 @@ def write_mapping_file(sum_inputs_df, target_dir):
 
 
 def get_column_selection(summary_set):
-    # Summary Set Not defined in settings file
+    """
+    Given a analysis_settings summary definition, return either
+        1. the set of OED columns requested to group by
+        2. A set columns for one of the following default groupings
+            ['lob', 'county', 'policy', 'state', 'location', 'prog']
+        3. If no information key 'oed_fields', then group all outputs into a single summary_set      
+
+    :param summary_set: summary group dictionary from the `analysis_settings.json`
+    :type summary_set: dict
+
+    :return: List of selected OED columns to create summary groups from
+    :rtype: list 
+    """
     if "oed_fields" not in summary_set.keys():
         return None
 
     # Select Default Grouping for either
-    # ['lob', 'county', 'policy', 'state', 'location', 'prog']
     elif isinstance(summary_set['oed_fields'], str):
         if summary_set['oed_fields'] in SUMMARY_GROUPING.keys():
             return SUMMARY_GROUPING[summary_set['oed_fields']]
@@ -196,7 +210,26 @@ def get_column_selection(summary_set):
     else:
         raise OasisException('Unable to process settings file')
 
+
 def get_ri_settings(run_dir):
+    """
+    Return the contents of ri_layers.json
+
+    Example: 
+    {
+        "1": {
+            "inuring_priority": 1,
+            "risk_level": "LOC",
+            "directory": "  ... /runs/ProgOasis-20190501145127/RI_1"
+        }
+    }
+
+    :param run_dir: The file path of the model run directory  
+    :type run_dir: str
+
+    :return: metadata for the Reinsurance layers 
+    :rtype: dict
+    """
     try:
         ri_layer_fn = 'ri_layers.json'
         ri_layer_fp = os.path.join(run_dir, ri_layer_fn)
@@ -207,6 +240,16 @@ def get_ri_settings(run_dir):
 
 
 def write_xref_file(summary_xref_df, target_dir):
+    """
+    Write a generated summary xref dataframe to disk
+
+    :param summary_xref_df: The dataframe output of get_summary_xref_df( .. )
+    :type summary_xref_df:  pandas.DataFrame
+
+    :param target_dir: Abs directory to write a summary_xref file to
+    :type target_dir:  str
+
+    """
     target_dir = as_path(
         target_dir,
         'Target IL input files directory',
@@ -235,6 +278,46 @@ def write_xref_file(summary_xref_df, target_dir):
 
 
 def get_summary_xref_df(map_df, exposure_df, summaries_info_dict):
+    """
+    Create a Dataframe for either gul / il / ri  based on a section 
+    from the analysis settings 
+
+    
+    :param map_df: Summary Map dataframe (GUL / IL)
+    :type map_df:  pandas.DataFrame
+
+    :param exposure_df: Location exposure data
+    :type exposure_df:  pandas.DataFrame
+
+    :param summaries_info_dict: list of dictionary definitionfor a summary group from the analysis_settings file
+    :type summaries_info_dict:  list
+
+    [{
+        "summarycalc": true,
+        "eltcalc": true,
+        "aalcalc": true,
+        "pltcalc": true,
+        "id": 1,
+        "oed_fields": "prog",
+        "lec_output": true,
+        "leccalc": {
+          "return_period_file": true,
+          "outputs": {
+            "full_uncertainty_aep": true,
+            "full_uncertainty_oep": true,
+            "wheatsheaf_aep": true,
+            "wheatsheaf_oep": true
+          }
+        }
+      },
+
+      ...
+     ]   
+
+
+    :return: Dataframe holding summaryxref information 
+    :rtype: pandas.DataFrame
+    """
     set_size = len(map_df)
     summaryxref_df = pd.DataFrame()
 
@@ -267,6 +350,15 @@ def get_summary_xref_df(map_df, exposure_df, summaries_info_dict):
 
 @oasis_log
 def generate_summaryxref_files(model_run_fp, analysis_settings):
+    """
+    Top level function for creating the summaryxref files from the manager.py 
+
+    :param model_run_fp: Model run directory file path
+    :type model_run_fp:  str 
+
+    :param analysis_settings: model run settings file  
+    :type analysis_settings:  dict 
+    """
 
     # Load Exposure file for extra OED fields
     exposure_fp = os.path.join(model_run_fp, 'input', SOURCE_FILENAMES['loc'])
