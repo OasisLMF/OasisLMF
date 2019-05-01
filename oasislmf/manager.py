@@ -323,15 +323,6 @@ class OasisManager(object):
         ri_scope_fp=None,
         oasis_files_prefixes=None
     ):
-<<<<<<< HEAD
-        # Check whether the deterministic loss factor is non-null - if so then
-        # the Oasis files are for a deterministic loss generation scenario, and
-        # therefore the loss factor must be applied to the GUL input item TIVs
-        deterministic = deterministic_loss_factor is not None
-
-
-=======
->>>>>>> develop
         # Prepare the target directory and copy the source files, profiles and
         # model version file into it
         target_dir = prepare_input_files_directory(
@@ -426,16 +417,6 @@ class OasisManager(object):
             exposure_fp, _keys_fp, exposure_profile=exposure_profile
         )
 
-<<<<<<< HEAD
-
-        # If in a deterministic loss generation scenario then apply the loss
-        # factor to the TIV column in the GUL inputs table - this will affect
-        # the 'tiv' column in the coverages file
-        if deterministic and deterministic_loss_factor > 0 and deterministic_loss_factor < 1:
-            gul_inputs_df['tiv'] *= deterministic_loss_factor
-
-=======
->>>>>>> develop
         # Write the GUL input files
         files_prefixes = oasis_files_prefixes or self.oasis_files_prefixes
         gul_input_files = write_gul_input_files(
