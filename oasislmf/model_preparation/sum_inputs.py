@@ -108,7 +108,6 @@ def get_summary_mapping(
     ])
 
 
-    #import ipdb; ipdb.set_trace()
     ## Case GUL+FM (based on il_inputs_df)
     if is_fm_summary(inputs_df):
         summary_mapping = inputs_df[inputs_df['level_id'] == inputs_df['level_id'].max()]
@@ -120,8 +119,6 @@ def get_summary_mapping(
     else:
         summary_mapping = inputs_df.copy(deep=True)
 
-
-    #import ipdb; ipdb.set_trace()
     summary_mapping.drop(
         [c for c in summary_mapping.columns if c not in usecols],
         axis=1,
@@ -180,8 +177,6 @@ def group_by_oed(summary_map_df, exposure_df, oed_col_group):
 
 
     # N -> import missing from OED
-    #import ipdb; ipdb.set_trace()
-    # Note tidy this up later
     exposure_cols = [c for c in oed_col_group if c not in summary_map_df.columns.to_list()]
     mapping_cols = [SOURCE_IDX['loc']] + [c for c in oed_col_group if c in summary_map_df.columns.to_list()]
 
@@ -287,7 +282,6 @@ def write_xref_file(summary_xref_df, target_dir):
     # Set chunk size for writing the CSV files - default is 100K
     chunksize = min(2 * 10**5, len(summary_xref_df))
 
-    #import ipdb; ipdb.set_trace()
     if 'output' in summary_xref_df.columns.to_list():
         summary_xref_fp = os.path.join(target_dir, SUMMARY_OUTPUT['il'])
     else:
