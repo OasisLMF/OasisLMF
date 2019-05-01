@@ -8,6 +8,8 @@ __all__ = [
 ]
 
 import os
+import io
+import json
 
 import pandas as pd
 import numpy as np
@@ -263,6 +265,16 @@ def get_column_selection(summary_set):
         ## Raise OasisExecption (Unable to process Settings file)
 
 
+def get_ri_settings(run_dir):
+    try:
+        ri_layer_fn = 'ri_layers.json'
+        ri_layer_fp = os.path.join(run_dir, ri_layer_fn)
+        with io.open(ri_layer_fp, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (IOError, TypeError, ValueError):
+        raise OasisException('Invalid ri_layers file or file path: {}.'.format(_analysis_settings_fp))
+
+
 @oasis_log
 def write_xref_file(summary_xref_df, target_dir):
     target_dir = as_path(
@@ -275,6 +287,7 @@ def write_xref_file(summary_xref_df, target_dir):
     # Set chunk size for writing the CSV files - default is 100K
     chunksize = min(2 * 10**5, len(summary_xref_df))
 
+    #import ipdb; ipdb.set_trace()
     if 'output' in summary_xref_df.columns.to_list():
         summary_xref_fp = os.path.join(target_dir, SUMMARY_OUTPUT['il'])
     else:
@@ -363,6 +376,39 @@ def create_summary_xref(model_run_fp, analysis_settings):
         # Write GUL xref
         write_xref_file(il_summaryxref_df, os.path.join(model_run_fp, 'input'))
 
+
     if 'ri_summaries' in analysis_settings.keys():
-        pass
+        ri_layers = get_ri_settings(model_run_fp)
+
+        last_layer = max([k for k in ri_layers.keys()])
+        summary_ri_fp = os.path.join(
+            model_run_fp, os.path.basename(ri_layers[last_layer]['directory']))
+        
+        ri_summaryxref_df = pd.DataFrame()
+        if not 'il_summaries' in analysis_settings.keys(): 
+            il_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['fm_map_fn'])
+            il_map_df = get_dataframe(
+                src_fp=il_map_fp,
+                empty_data_error_msg='No summary map file found.'
+            )
+            il_map_size = len(il_map_df)
+            xref_outputs_df = il_map_df[['output_id']].rename(columns={"output_id": "output"})
+        
+
+        for summary_set in analysis_settings['ri_summaries']:
+            ri_summaryset_df = xref_outputs_df
+            cols_group_by = get_column_selection(summary_set)
+
+            if isinstance(cols_group_by, list):
+                ri_summaryset_df['summary_id'] = group_by_oed(il_map_df, exposure_df, cols_group_by)
+            else:
+                # Fall back to setting all in single group
+                ri_summaryset_df['summary_id'] =  pd.Series(1, index=range(il_map_size))
+
+            # Appends summary set to 'gulsummaryxref.csv'
+            ri_summaryset_df['summaryset_id'] =  pd.Series(summary_set['id'], index=range(il_map_size))
+            ri_summaryxref_df = ri_summaryxref_df.append(ri_summaryset_df)
+
+        # Write GUL xref
+        write_xref_file(ri_summaryxref_df, summary_ri_fp)
 
