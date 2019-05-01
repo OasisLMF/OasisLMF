@@ -65,10 +65,10 @@ SUPPORTED_COVERAGE_TYPES = OrderedDict({
 })
 
 SOURCE_FILENAMES = OrderedDict({
-    'loc': 'source_location.csv',
-    'acc': 'source_account.csv',
-    'info': 'source_info.csv',
-    'scope': 'source_scope.csv'
+    'loc': 'location.csv',
+    'acc': 'account.csv',
+    'info': 'reinsinfo.csv',
+    'scope': 'reinsscope.csv'
 })
 
 # Store index from merged source files (for later slice & dice)
@@ -92,7 +92,8 @@ SUMMARY_OUTPUT = OrderedDict({
 })
 
 
-## Update with load OED column names 
+# Update with load OED column names 
+# NOTE:  this should be removed once UI column picker feature has been added
 SUMMARY_GROUPING = OrderedDict({
     'prog': None,
     'state': ['countrycode'],
@@ -101,8 +102,6 @@ SUMMARY_GROUPING = OrderedDict({
     'lob': ['occupancycode'],    # <-- "Work around, this value should come from 'LOB' in the accounts file"
     'policy': ['polnumber'],
 })
-
-
 
 
 DED_CODE_REG = 0
