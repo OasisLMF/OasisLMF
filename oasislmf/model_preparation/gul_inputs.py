@@ -1,7 +1,6 @@
 __all__ = [
     'get_gul_input_items',
     'write_coverages_file',
-    'write_gulsummaryxref_file',
     'write_gul_input_files',
     'write_items_file',
     'write_complex_items_file'
@@ -38,6 +37,8 @@ from ..utils.defaults import (
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.defaults import (
+    FM_LEVELS,
+    SOURCE_IDX,
     SUPPORTED_COVERAGE_TYPES,
     SUPPORTED_FM_LEVELS,
 )
@@ -186,6 +187,7 @@ def get_gul_input_items(
         # keys dataframes on loc. number/loc. ID; filter out any rows with
         # zeros for TIVs for all coverage types, and replace any nulls in the
         # cond.num. and TIV columns with zeros
+        exposure_df[SOURCE_IDX['loc']] = exposure_df.index
         gul_inputs_df = merge_dataframes(exposure_df, keys_df, join_on=loc_num, how='inner')
 
         if gul_inputs_df.empty:
@@ -283,6 +285,7 @@ def get_gul_input_items(
             ['tiv'] + cov_level_terms +
             ['peril_id', 'coverage_type_id', 'areaperil_id', 'vulnerability_id'] +
             (['model_data'] if 'model_data' in gul_inputs_df else []) +
+            ([SOURCE_IDX['loc']] if SOURCE_IDX['loc'] in gul_inputs_df else []) +
             ['is_bi_coverage', 'group_id', 'item_id', 'coverage_id', 'layer_id', 'agg_id', 'summary_id', 'summaryset_id']
         )
         gul_inputs_df.drop(
@@ -379,34 +382,6 @@ def write_coverages_file(gul_inputs_df, coverages_fp, chunksize=100000):
 
 
 @oasis_log
-def write_gulsummaryxref_file(gul_inputs_df, gulsummaryxref_fp, chunksize=100000):
-    """
-    Writes a summary xref file.
-
-    :param gul_inputs_df: GUL inputs dataframe
-    :type gul_inputs_df: pandas.DataFrame
-
-    :param gulsummaryxref_fp: Summary xref file path
-    :type gulsummaryxref_fp: str
-
-    :return: Summary xref file path
-    :rtype: str
-    """
-    try:
-        gul_inputs_df[['coverage_id', 'summary_id', 'summaryset_id']].drop_duplicates().to_csv(
-            path_or_buf=gulsummaryxref_fp,
-            encoding='utf-8',
-            mode=('w' if os.path.exists(gulsummaryxref_fp) else 'a'),
-            chunksize=chunksize,
-            index=False
-        )
-    except (IOError, OSError) as e:
-        raise OasisException from e
-
-    return gulsummaryxref_fp
-
-
-@oasis_log
 def write_gul_input_files(
     gul_inputs_df,
     target_dir,
@@ -419,7 +394,6 @@ def write_gul_input_files(
 
         items.csv
         coverages.csv
-        gulsummaryxref.csv
 
     and optionally a complex items file in case of a complex/custom model.
 

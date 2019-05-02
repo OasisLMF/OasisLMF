@@ -10,7 +10,7 @@ from pathlib2 import Path
 
 from ..utils.exceptions import OasisException
 from ..utils.path import as_path
-
+from ..utils.defaults import SOURCE_FILENAMES as SRC_NAME
 
 def prepare_input_files_directory(
     target_dir,
@@ -34,16 +34,24 @@ def prepare_input_files_directory(
             Path(target_dir).mkdir(parents=True, exist_ok=True)
 
         paths = [
-            p for p in (
-                exposure_fp, exposure_profile_fp, accounts_fp, accounts_profile_fp,
+            (p, os.path.join(target_dir, os.path.basename(p))) for p in (
+                exposure_profile_fp, accounts_profile_fp,
                 fm_aggregation_profile_fp, lookup_config_fp, model_version_fp,
-                complex_lookup_config_fp, keys_fp, ri_info_fp, ri_scope_fp
+                complex_lookup_config_fp, keys_fp
             ) if p
         ]
-        for src in paths:
+        if exposure_fp:
+            paths.append((exposure_fp, os.path.join(target_dir, SRC_NAME['loc'])))
+        if accounts_fp:
+            paths.append((accounts_fp, os.path.join(target_dir, SRC_NAME['acc'])))
+        if ri_info_fp:
+            paths.append((ri_info_fp,  os.path.join(target_dir, SRC_NAME['info'])))
+        if ri_scope_fp:
+            paths.append((ri_scope_fp, os.path.join(target_dir, SRC_NAME['scope'])))
+
+        for src, dst in paths:
             if src and os.path.exists(src):
-                dst = os.path.join(target_dir, os.path.basename(src))
-                shutil.copy2(src, target_dir) if not (os.path.exists(dst) and filecmp.cmp(src, dst, shallow=False)) else None
+                shutil.copy2(src, dst) if not (os.path.exists(dst) and filecmp.cmp(src, dst, shallow=False)) else None
     except (FileNotFoundError, IOError, OSError, shutil.Error, TypeError, ValueError) as e:
         raise OasisException from e
 

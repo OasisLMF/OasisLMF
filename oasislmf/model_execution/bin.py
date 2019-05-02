@@ -119,13 +119,13 @@ def prepare_run_directory(
             Path(run_dir, subdir).mkdir(parents=True, exist_ok=True)
 
         if not inputs_archive:
-            Path(run_dir, 'input', 'csv').mkdir(parents=True, exist_ok=True) if not ri else Path(run_dir, 'input').mkdir(parents=True, exist_ok=True)
+            Path(run_dir, 'input').mkdir(parents=True, exist_ok=True)
         else:
             with tarfile.open(inputs_archive) as input_tarfile:
                 p = os.path.join(run_dir, 'input') if not ri else os.path.join(run_dir)
                 input_tarfile.extractall(path=p)
 
-        oasis_dst_fp = os.path.join(run_dir, 'input', 'csv') if not ri else os.path.join(run_dir, 'input')
+        oasis_dst_fp = os.path.join(run_dir, 'input')
 
         for p in os.listdir(oasis_src_fp):
             src = os.path.join(oasis_src_fp, p)
