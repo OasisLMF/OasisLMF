@@ -21,6 +21,11 @@ __all__ = [
     'OASIS_TASK_STATUS',
     'PERILS',
     'PERIL_GROUPS',
+    'SUMMARY_MAPPING',
+    'SUMMARY_GROUPING',
+    'SUMMARY_OUTPUT',
+    'SOURCE_IDX',
+    'SOURCE_FILENAMES',
     'STATIC_DATA_FP',
     'SUPPORTED_COVERAGE_TYPES',
     'SUPPORTED_FM_LEVELS',
@@ -58,6 +63,46 @@ SUPPORTED_COVERAGE_TYPES = OrderedDict({
     cov_type: cov_type_dict for cov_type, cov_type_dict in COVERAGE_TYPES.items()
     if cov_type in ['buildings', 'other', 'contents', 'bi']
 })
+
+SOURCE_FILENAMES = OrderedDict({
+    'loc': 'location.csv',
+    'acc': 'account.csv',
+    'info': 'reinsinfo.csv',
+    'scope': 'reinsscope.csv'
+})
+
+# Store index from merged source files (for later slice & dice)
+SOURCE_IDX = OrderedDict({
+    'loc': 'loc_idx',
+    'acc': 'acc_idx',
+    'info': 'info_idx',
+    'scope': 'scope_idx'
+})
+
+
+SUMMARY_MAPPING = OrderedDict({
+    'gul_map_fn': 'gul_summary_map.csv',
+    'fm_map_fn': 'fm_summary_map.csv',
+    #'ri_map_fn': 'summary_map.csv',
+})
+
+SUMMARY_OUTPUT = OrderedDict({
+        'gul': 'gulsummaryxref.csv',
+        'il': 'fmsummaryxref.csv',
+})
+
+
+# Update with load OED column names 
+# NOTE:  this should be removed once UI column picker feature has been added
+SUMMARY_GROUPING = OrderedDict({
+    'prog': None,
+    'state': ['countrycode'],
+    'county': ['geogname1'],
+    'location': ['locnumber'],
+    'lob': ['occupancycode'],    # <-- "Work around, this value should come from 'LOB' in the accounts file"
+    'policy': ['polnumber'],
+})
+
 
 DED_CODE_REG = 0
 DED_CODE_ANAGG = 1
@@ -309,14 +354,12 @@ OASIS_FILES_PREFIXES = OrderedDict({
         'complex_items': 'complex_items',
         'items': 'items',
         'coverages': 'coverages',
-        'gulsummaryxref': 'gulsummaryxref'
     },
     'il': {
         'fm_policytc': 'fm_policytc',
         'fm_profile': 'fm_profile',
         'fm_programme': 'fm_programme',
         'fm_xref': 'fm_xref',
-        'fmsummaryxref': 'fmsummaryxref'
     }
 })
 

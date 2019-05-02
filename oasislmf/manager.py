@@ -50,6 +50,12 @@ from .model_preparation.il_inputs import (
     get_oed_hierarchy_terms,
     write_il_input_files,
 )
+from .model_preparation.sum_inputs import (
+    get_summary_mapping,
+    generate_summaryxref_files,
+    merge_oed_to_mapping,
+    write_mapping_file,
+)
 from .model_preparation.lookup import OasisLookupFactory as olf
 from .model_preparation.utils import prepare_input_files_directory
 from .model_preparation.reinsurance_layer import write_ri_input_files
@@ -418,10 +424,13 @@ class OasisManager(object):
             target_dir,
             oasis_files_prefixes=files_prefixes['gul']
         )
+        gul_summary_mapping = get_summary_mapping(gul_inputs_df, hierarchy_terms)
+        write_mapping_file(gul_summary_mapping, target_dir)
 
         # If no source accounts file path has been provided assume that IL
         # input files, and therefore also RI input files, are not needed
         if not accounts_fp:
+            # Write `summary_map.csv` for GUL only
             return gul_input_files
 
         # Get the IL input items
@@ -440,26 +449,41 @@ class OasisManager(object):
             target_dir,
             oasis_files_prefixes=files_prefixes['il']
         )
+        fm_summary_mapping = get_summary_mapping(il_inputs_df, hierarchy_terms)
+        write_mapping_file(fm_summary_mapping, target_dir)
 
         # Combine the GUL and IL input file paths into a single dict (for convenience)
         oasis_files = {**gul_input_files, **il_input_files}
 
+
         # If no RI input file paths (info. and scope) have been provided then
         # no RI input files are needed, just return the GUL and IL Oasis files
         if not (ri_info_fp or ri_scope_fp):
+            ## TODO: Write `fm_summary_map.csv`
+            # Write `summary_map.csv` for GUL+FM
             return oasis_files
 
         # Write the RI input files, and write the returned RI layer info. as a
         # file, which can be reused by the model runner (in the model execution
         # stage) to set the number of RI iterations
+
+
+        ## TODO: pass 'fm_summary_mapping` inplace of `xref_descriptions`
+        # Example Merge in col from exposure
+
+
+        xref_des = merge_oed_to_mapping(fm_summary_mapping,
+                                        exposure_df,
+                                        oed_column_set=['locgroup'],
+                                        defaults={'locgroup':1})
+
         ri_layers = write_ri_input_files(
+            xref_des,
             exposure_fp,
             accounts_fp,
             oasis_files['items'],
             oasis_files['coverages'],
-            oasis_files['gulsummaryxref'],
             oasis_files['fm_xref'],
-            oasis_files['fmsummaryxref'],
             ri_info_fp,
             ri_scope_fp,
             target_dir
@@ -486,14 +510,9 @@ class OasisManager(object):
         ktools_alloc_rule=None,
         ktools_debug=None
     ):
-
         il = all(p in os.listdir(oasis_fp) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
-
         ri = False
-        if os.path.basename(oasis_fp) == 'csv':
-            ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(oasis_fp)))
-        else:
-            ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(oasis_fp))
+        ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(oasis_fp)))
 
         if not os.path.exists(model_run_fp):
             Path(model_run_fp).mkdir(parents=True, exist_ok=True)
@@ -506,6 +525,20 @@ class OasisManager(object):
             ri=ri
         )
 
+        # Load analysis_settings file
+        try:
+            analysis_settings_fn = 'analysis_settings.json'
+            _analysis_settings_fp = os.path.join(model_run_fp, analysis_settings_fn)
+            with io.open(_analysis_settings_fp, 'r', encoding='utf-8') as f:
+                analysis_settings = json.load(f)
+            if analysis_settings.get('analysis_settings'):
+                analysis_settings = analysis_settings['analysis_settings']
+        except (IOError, TypeError, ValueError):
+            raise OasisException('Invalid analysis settings file or file path: {}.'.format(_analysis_settings_fp))
+
+        # prepare summery_sets
+        generate_summaryxref_files(model_run_fp, analysis_settings)
+
         if not ri:
             csv_to_bin(oasis_fp, os.path.join(model_run_fp, 'input'), il=il)
         else:
@@ -513,28 +546,13 @@ class OasisManager(object):
             for fp in [os.path.join(model_run_fp, fn) for fn in contents if re.match(r'RI_\d+$', fn) or re.match(r'input$', fn)]:
                 csv_to_bin(fp, fp, il=True, ri=True)
 
-        analysis_settings_fn = 'analysis_settings.json'
-        _analysis_settings_fp = os.path.join(model_run_fp, analysis_settings_fn)
-        try:
-            with io.open(_analysis_settings_fp, 'r', encoding='utf-8') as f:
-                analysis_settings = json.load(f)
+        if not il:
+            analysis_settings['il_output'] = False
+            analysis_settings['il_summaries'] = []
 
-            if analysis_settings.get('analysis_settings'):
-                analysis_settings = analysis_settings['analysis_settings']
-
-            if il:
-                analysis_settings['il_output'] = True
-            else:
-                analysis_settings['il_output'] = False
-                analysis_settings['il_summaries'] = []
-
-            if ri:
-                analysis_settings['ri_output'] = True
-            else:
-                analysis_settings['ri_output'] = False
-                analysis_settings['ri_summaries'] = []
-        except (IOError, TypeError, ValueError):
-            raise OasisException('Invalid analysis settings file or file path: {}.'.format(_analysis_settings_fp))
+        if not ri:
+            analysis_settings['ri_output'] = False
+            analysis_settings['ri_summaries'] = []
 
         prepare_run_inputs(analysis_settings, model_run_fp, ri=ri)
 
@@ -782,7 +800,7 @@ class OasisManager(object):
         else:
             empty_dir(model_run_fp)
 
-        oasis_fp = os.path.join(model_run_fp, 'input') if ri else os.path.join(model_run_fp, 'input', 'csv')
+        oasis_fp = os.path.join(model_run_fp, 'input')
         Path(oasis_fp).mkdir(parents=True, exist_ok=True)
 
         oasis_files = self.generate_oasis_files(

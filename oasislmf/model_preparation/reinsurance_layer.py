@@ -37,6 +37,7 @@ def _get_location_tiv(location, coverage_type_id):
     return switcher.get(coverage_type_id, 0)
 
 
+# Remove and replace with mapping from sum_inputs.py
 def generate_xref_descriptions(accounts_fp, locations_fp):
 
     accounts = pd.read_csv(accounts_fp)
@@ -91,9 +92,7 @@ def generate_files_for_reinsurance(
         xref_descriptions,
         ri_info_df,
         ri_scope_df,
-        direct_oasis_files_dir,
-        gulsummaryxref=pd.DataFrame(),
-        fmsummaryxref=pd.DataFrame()):
+        direct_oasis_files_dir):
 
     """
     Generate files for reinsurance.
@@ -117,8 +116,6 @@ def generate_files_for_reinsurance(
                 coverages,
                 fm_xrefs,
                 xref_descriptions,
-                gulsummaryxref,
-                fmsummaryxref,
                 ri_info_df,
                 ri_scope_df,
                 previous_inuring_priority,
@@ -145,8 +142,6 @@ def _generate_files_for_reinsurance_risk_level(
         coverages,
         fm_xrefs,
         xref_descriptions,
-        gulsummaryxref,
-        fmsummaryxref,
         ri_info_df,
         ri_scope_df,
         previous_inuring_priority,
@@ -179,26 +174,23 @@ def _generate_files_for_reinsurance_risk_level(
         coverages=coverages,
         fm_xrefs=fm_xrefs,
         xref_descriptions=xref_descriptions,
-        gulsummaryxref=gulsummaryxref,
-        fmsummaryxref=fmsummaryxref,
         risk_level=risk_level
     )
 
     reinsurance_layer.generate_oasis_structures()
-    output_dir = os.path.join(direct_oasis_files_dir, "RI_{}".format(reinsurance_index))
+    output_dir = os.path.join(os.path.dirname(direct_oasis_files_dir), "RI_{}".format(reinsurance_index))
     reinsurance_layer.write_oasis_files(output_dir)
     return output_dir
 
 
+'''
 @oasis_log
 def write_ri_input_files(
     exposure_fp,
     accounts_fp,
     items_fp,
     coverages_fp,
-    gulsummaryxref_fp,
     fm_xref_fp,
-    fmsummaryxref_fp,
     ri_info_fp,
     ri_scope_fp,
     target_dir
@@ -212,8 +204,42 @@ def write_ri_input_files(
         pd.read_csv(ri_info_fp),
         pd.read_csv(ri_scope_fp),
         target_dir,
-        gulsummaryxref=pd.read_csv(gulsummaryxref_fp),
-        fmsummaryxref=pd.read_csv(fmsummaryxref_fp)
+    )
+'''
+
+@oasis_log
+def write_ri_input_files(
+    direct_mapping,
+    exposure_fp,
+    accounts_fp,
+    items_fp,
+    coverages_fp,
+    fm_xref_fp,
+    ri_info_fp,
+    ri_scope_fp,
+    target_dir
+):
+    old_xref_descriptions = pd.DataFrame(generate_xref_descriptions(accounts_fp, exposure_fp))
+    xref_descriptions = direct_mapping
+   
+    ## need to update col names in code --> tmp rename here
+    xref_descriptions['xref_id'] = xref_descriptions['output_id']
+    xref_descriptions['portfolio_number'] = xref_descriptions['portnumber']
+    xref_descriptions['policy_number'] = xref_descriptions['polnumber']
+    xref_descriptions['account_number'] = xref_descriptions['accnumber']
+    xref_descriptions['location_number'] = xref_descriptions['locnumber']
+    xref_descriptions['location_group'] = xref_descriptions['locgroup']
+
+
+
+    return generate_files_for_reinsurance(
+        pd.read_csv(items_fp),
+        pd.read_csv(coverages_fp),
+        pd.read_csv(fm_xref_fp),
+        xref_descriptions,
+        pd.read_csv(ri_info_fp),
+        pd.read_csv(ri_scope_fp),
+        target_dir,
     )
 
 
@@ -225,8 +251,7 @@ class ReinsuranceLayer(object):
     def __init__(
         self,
         name, ri_info, ri_scope, items, coverages, fm_xrefs,
-        xref_descriptions, risk_level, fmsummaryxref=pd.DataFrame(),
-        gulsummaryxref=pd.DataFrame(), logger=None
+        xref_descriptions, risk_level, logger=None
     ):
         self.logger = logger or logging.getLogger()
         self.name = name
@@ -235,8 +260,6 @@ class ReinsuranceLayer(object):
         self.items = items
         self.fm_xrefs = fm_xrefs
         self.xref_descriptions = xref_descriptions
-        self.fmsummaryxref = fmsummaryxref
-        self.gulsummaryxref = gulsummaryxref
 
         self.item_ids = list()
         self.item_tivs = list()
@@ -526,8 +549,10 @@ class ReinsuranceLayer(object):
             xref_descriptions = self.xref_descriptions.sort_values(
                 by=["location_group", "portfolio_number", "account_number", "policy_number", "location_number"])
         else:
-            xref_descriptions = self.xref_descriptions.sort_values(
-                by=["portfolio_number", "account_number", "policy_number", "location_number"])
+            xref_descriptions = self.xref_descriptions
+        #else:
+        #    xref_descriptions = self.xref_descriptions.sort_values(
+        #        by=["portfolio_number", "account_number", "policy_number", "location_number"])
 
         agg_id = 0
         loc_agg_id = 0
@@ -967,7 +992,3 @@ class ReinsuranceLayer(object):
             os.path.join(directory, "fm_policytc.csv"), index=False)
         self.fm_xrefs.to_csv(
             os.path.join(directory, "fm_xref.csv"), index=False)
-        self.fmsummaryxref.to_csv(
-            os.path.join(directory, "fmsummaryxref.csv"), index=False)
-        self.gulsummaryxref.to_csv(
-            os.path.join(directory, "gulsummaryxref.csv"), index=False)

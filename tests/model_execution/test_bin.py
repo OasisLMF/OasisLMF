@@ -476,7 +476,6 @@ class PrepareRunDirectory(TestCase):
             prepare_run_directory(run_dir, oasis_src_fp, model_data_fp, analysis_settings_fp)
 
             self.assertTrue(os.path.exists(os.path.join(run_dir, 'input')))
-            self.assertTrue(os.path.exists(os.path.join(run_dir, 'input', 'csv')))
             self.assertTrue(os.path.exists(os.path.join(run_dir, 'output')))
             self.assertTrue(os.path.exists(os.path.join(run_dir, 'static')))
             self.assertTrue(os.path.exists(os.path.join(run_dir, 'work')))
@@ -491,7 +490,6 @@ class PrepareRunDirectory(TestCase):
             prepare_run_directory(run_dir, oasis_src_fp, model_data_fp, analysis_settings_fp)
 
             self.assertTrue(os.path.exists(os.path.join(run_dir, 'input')))
-            self.assertTrue(os.path.exists(os.path.join(run_dir, 'input', 'csv')))
             self.assertTrue(os.path.exists(os.path.join(run_dir, 'output')))
             self.assertTrue(os.path.exists(os.path.join(run_dir, 'static')))
             self.assertTrue(os.path.exists(os.path.join(run_dir, 'work')))
@@ -504,7 +502,7 @@ class PrepareRunDirectory(TestCase):
 
             prepare_run_directory(run_dir, oasis_src_fp, model_data_fp, analysis_settings_fp)
 
-            self.assertTrue(os.path.exists(os.path.join(run_dir, 'input', 'csv', 'a_file.csv')))
+            self.assertTrue(os.path.exists(os.path.join(run_dir, 'input', 'a_file.csv')))
 
     def test_analysis_settings_file_is_supplied___file_is_copied_into_run_dir(self):
         analysis_settings_fp = NamedTemporaryFile('w', delete=False)
