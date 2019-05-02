@@ -12,7 +12,7 @@ from itertools import chain
 from pathlib2 import Path
 
 from ..manager import OasisManager as om
-
+from ..model_preparation import oed
 from ..utils.data import (
     print_dataframe,
 )
@@ -66,6 +66,9 @@ class RunCmd(OasisBaseCommand):
             '-n', '--net-ri-losses', default=False, help='Net RI losses', action='store_true'
         )
         parser.add_argument(
+            '-a', '--alloc-rule', type=int, default=oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID, help='Alloc rule ID', action='store_true'
+        )
+        parser.add_argument(
             '-v', '--validate', default=False, help='Validate', action='store_true'
         )
 
@@ -94,6 +97,8 @@ class RunCmd(OasisBaseCommand):
         loss_factor = inputs.get('loss_factor', default=1.0, required=False)
 
         net_ri = inputs.get('net_ri_losses', default=False, required=False)
+
+        alloc_rule = inputs.get('alloc_rule', default=oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID, required=False)
 
         validate = inputs.get('validate', default=False, required=False)
 
@@ -129,7 +134,8 @@ class RunCmd(OasisBaseCommand):
             src_dir,
             run_dir=run_dir,
             loss_percentage_of_tiv=loss_factor,
-            net_ri=net_ri
+            net_ri=net_ri,
+            alloc_rule=alloc_rule
         )
         guls.to_csv(path_or_buf=os.path.join(run_dir, 'guls.csv'), index=False, encoding='utf-8')
         print_dataframe(guls, frame_header='Ground-up losses (loss_factor={})'.format(loss_factor), string_cols=guls.columns)
