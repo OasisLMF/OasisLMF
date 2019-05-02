@@ -37,7 +37,7 @@ def _get_location_tiv(location, coverage_type_id):
     return switcher.get(coverage_type_id, 0)
 
 
-# Remove and replace with mapping from sum_inputs.py
+# Remove and replace with mapping from summaries.py
 def generate_xref_descriptions(accounts_fp, locations_fp):
 
     accounts = pd.read_csv(accounts_fp)
