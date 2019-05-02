@@ -79,20 +79,17 @@ SOURCE_IDX = OrderedDict({
     'scope': 'scope_idx'
 })
 
-
 SUMMARY_MAPPING = OrderedDict({
     'gul_map_fn': 'gul_summary_map.csv',
-    'fm_map_fn': 'fm_summary_map.csv',
-    #'ri_map_fn': 'summary_map.csv',
+    'fm_map_fn': 'fm_summary_map.csv'
 })
 
 SUMMARY_OUTPUT = OrderedDict({
-        'gul': 'gulsummaryxref.csv',
-        'il': 'fmsummaryxref.csv',
+    'gul': 'gulsummaryxref.csv',
+    'il': 'fmsummaryxref.csv'
 })
 
-
-# Update with load OED column names 
+# Update with load OED column names
 # NOTE:  this should be removed once UI column picker feature has been added
 SUMMARY_GROUPING = OrderedDict({
     'prog': None,
@@ -102,7 +99,6 @@ SUMMARY_GROUPING = OrderedDict({
     'lob': ['occupancycode'],    # <-- "Work around, this value should come from 'LOB' in the accounts file"
     'policy': ['polnumber'],
 })
-
 
 DED_CODE_REG = 0
 DED_CODE_ANAGG = 1

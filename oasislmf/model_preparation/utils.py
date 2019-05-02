@@ -12,6 +12,7 @@ from ..utils.exceptions import OasisException
 from ..utils.path import as_path
 from ..utils.defaults import SOURCE_FILENAMES as SRC_NAME
 
+
 def prepare_input_files_directory(
     target_dir,
     exposure_fp,
@@ -45,7 +46,7 @@ def prepare_input_files_directory(
         if accounts_fp:
             paths.append((accounts_fp, os.path.join(target_dir, SRC_NAME['acc'])))
         if ri_info_fp:
-            paths.append((ri_info_fp,  os.path.join(target_dir, SRC_NAME['info'])))
+            paths.append((ri_info_fp, os.path.join(target_dir, SRC_NAME['info'])))
         if ri_scope_fp:
             paths.append((ri_scope_fp, os.path.join(target_dir, SRC_NAME['scope'])))
 
