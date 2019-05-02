@@ -284,7 +284,7 @@ def get_il_input_items(
         # the GUL inputs frame effectively only contains financial terms related to
         # FM level 1 (site coverage)
         gul_inputs_df = merge_dataframes(
-            exposure_df[site_pd_and_site_all_term_cols + [loc_num]],
+            exposure_df.loc[:, site_pd_and_site_all_term_cols + [loc_num]],
             gul_inputs_df,
             join_on=loc_num,
             how='inner'
@@ -408,10 +408,22 @@ def get_il_input_items(
 
         # The main loop for processing the financial terms for the sub-layer
         # non-coverage levels - currently these are site pd (# 2), site all (# 3),
-        # cond. all (# 6), policy all (# 9). Each level is represented by a frame
-        # copy of the main IL inputs frame, which is then processed for the
-        # level's financial terms and the calc. rule ID, and then appended
-        # to the main IL inputs frame
+        # cond. all (# 6), policy all (# 9).
+        #
+        # Each level is initially a dataframe copy of the main IL inputs
+        # dataframe, which at the start only represents coverage level input
+        # items. Using the level terms profile the following steps take place
+        # in the loop: 
+        #
+        # (1) financial terms defined for the level are set
+        # (2) coverage type filters for the blanket deductibles and limits, if
+        # they are defined in the profiles, are applied
+        # (3) any blanket deductibles or limits which are expressed as TIV
+        # ratios are converted to TIV shares
+        #
+        # Finally, the processed level dataframe is concatenated with the
+        # main IL inputs dataframe, with the financial terms OED columns for
+        # level removed
         for level in intermediate_fm_levels:
             level_id = SUPPORTED_FM_LEVELS[level]['id']
             terms = [t for t in terms if fm_terms[level_id][1].get(t)]
