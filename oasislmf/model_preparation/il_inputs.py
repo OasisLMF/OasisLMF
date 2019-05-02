@@ -1,9 +1,11 @@
 __all__ = [
-    'get_il_input_items',
-    'get_layer_ids',
+    'get_calc_rule_ids',
     'get_grouped_fm_profile_by_level_and_term_group',
     'get_grouped_fm_terms_by_level_and_term_group',
+    'get_il_input_items',
+    'get_layer_ids',
     'get_oed_hierarchy_terms',
+    'get_policytc_ids',
     'write_il_input_files',
     'write_fm_policytc_file',
     'write_fm_profile_file',
@@ -58,7 +60,6 @@ from ..utils.profiles import (
 )
 
 
-@oasis_log
 def get_layer_ids(accounts_df, accounts_profile=get_default_accounts_profile()):
     """
     Generates a Pandas series of layer IDs given an accounts dataframe - a
@@ -81,7 +82,7 @@ def get_layer_ids(accounts_df, accounts_profile=get_default_accounts_profile()):
     acc_num = hierarchy_terms['accid']
     policy_num = hierarchy_terms['polid']
 
-    _accounts_df = accounts_df[[portfolio_num, acc_num, policy_num]]
+    _accounts_df = accounts_df.loc[:, [portfolio_num, acc_num, policy_num]]
     _accounts_df.columns = _accounts_df.columns.str.lower()
 
     portfolio_nums = _accounts_df[portfolio_num].values
@@ -92,6 +93,38 @@ def get_layer_ids(accounts_df, accounts_profile=get_default_accounts_profile()):
         factorize_ndarray(np.asarray(list(accnum_group)), col_idxs=range(3))[0]
         for _, accnum_group in groupby(fast_zip_arrays(portfolio_nums, acc_nums, policy_nums), key=lambda t: t[0])
     ))
+
+
+def get_calc_rule_ids(il_inputs_df):
+    calc_rules = get_calc_rules().drop(['desc'], axis=1)
+    calc_rules['id_key'] = calc_rules['id_key'].apply(eval)
+
+    terms = ['deductible', 'deductible_min', 'deductible_max', 'limit', 'share', 'attachment']
+    terms_indicators = ['{}_gt_0'.format(t) for t in terms]
+    types_and_codes = ['deductible_type', 'deductible_code', 'limit_type', 'limit_code']
+
+    il_inputs_calc_rules_df = il_inputs_df.loc[:, ['item_id'] + terms + terms_indicators + types_and_codes + ['calcrule_id']]
+    il_inputs_calc_rules_df.loc[:, terms_indicators] = np.where(il_inputs_calc_rules_df[terms] > 0, 1, 0)
+    il_inputs_calc_rules_df.loc[:, types_and_codes] = 0
+    il_inputs_calc_rules_df['id_key'] = [t for t in fast_zip_arrays(*il_inputs_calc_rules_df.loc[:, terms_indicators + types_and_codes].transpose().values)]
+    il_inputs_calc_rules_df = merge_dataframes(il_inputs_calc_rules_df, calc_rules, how='left', on='id_key')
+    il_inputs_calc_rules_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id'].astype('uint32')
+
+    return il_inputs_calc_rules_df['calcrule_id'].values
+
+
+def get_policytc_ids(il_inputs_df):
+    policytc_cols = [
+        'layer_id', 'level_id', 'agg_id', 'calcrule_id', 'limit',
+        'deductible', 'deductible_min', 'deductible_max', 'attachment',
+        'share'
+    ]
+    fm_policytc_df = il_inputs_df.loc[:, ['item_id'] + policytc_cols].drop_duplicates()
+    fm_policytc_df = fm_policytc_df[
+        (fm_policytc_df['layer_id'] == 1) |
+        (fm_policytc_df['level_id'] == fm_policytc_df['level_id'].max())
+    ]
+    return factorize_ndarray(fm_policytc_df.loc[:, policytc_cols[3:]].values, col_idxs=range(len(policytc_cols[3:])))[0]
 
 
 @oasis_log
@@ -387,7 +420,7 @@ def get_il_input_items(
             level_df['level_id'] = level_id
 
             agg_key = [v['field'].lower() for v in fmap[level_id]['FMAggKey'].values()]
-            level_df['agg_id'] = factorize_ndarray(level_df[agg_key].values, col_idxs=range(len(agg_key)))[0]
+            level_df['agg_id'] = factorize_ndarray(level_df.loc[:, agg_key].values, col_idxs=range(len(agg_key)))[0]
 
             if level == 'cond all':
                 level_df.loc[:, term_cols] = level_df.loc[:, term_cols].fillna(0)
@@ -452,7 +485,7 @@ def get_il_input_items(
         # Set the layer level, layer IDs and agg. IDs
         layer_df['level_id'] = layer_level_id
         agg_key = [v['field'].lower() for v in fmap[layer_level_id]['FMAggKey'].values()]
-        layer_df['agg_id'] = factorize_ndarray(layer_df[agg_key].values, col_idxs=range(len(agg_key)))[0]
+        layer_df['agg_id'] = factorize_ndarray(layer_df.loc[:, agg_key].values, col_idxs=range(len(agg_key)))[0]
 
         # The layer level financial terms
         terms = ['deductible', 'limit', 'share']
@@ -463,6 +496,7 @@ def get_il_input_items(
         layer_df.loc[:, terms] = layer_df.loc[:, term_cols].values
         layer_df['limit'] = layer_df['limit'].where(layer_df['limit'] != 0, 9999999999)
         layer_df['attachment'] = layer_df['deductible']
+        layer_df['deductible'] = 0
         layer_df['share'] = layer_df['share'].where(layer_df['share'] != 0, 1.0)
 
         # Join the IL inputs and layer level frames, and set layer ID, level ID
@@ -475,28 +509,16 @@ def get_il_input_items(
         # Resequence the level IDs and item IDs, but also store the "original"
         # FM level IDs (before the resequencing)
         il_inputs_df['orig_level_id'] = il_inputs_df['level_id']
-        il_inputs_df['level_id'] = factorize_ndarray(il_inputs_df[['level_id']].values, col_idxs=[0])[0]
+        il_inputs_df['level_id'] = factorize_ndarray(il_inputs_df.loc[:, ['level_id']].values, col_idxs=[0])[0]
         il_inputs_df['item_id'] = il_inputs_df.index + 1
 
-        # Set the calc. rule IDs
-        calc_rules = get_calc_rules().drop(['desc'], axis=1)
-        calc_rules['id_key'] = calc_rules['id_key'].apply(eval)
+        il_inputs_df['calcrule_id'] = get_calc_rule_ids(il_inputs_df)
 
-        terms = ['deductible', 'deductible_min', 'deductible_max', 'limit', 'share', 'attachment']
-        terms_indicators = ['{}_gt_0'.format(t) for t in terms]
-        types_and_codes = ['deductible_type', 'deductible_code', 'limit_type', 'limit_code']
+        il_inputs_df['policytc_id'] = get_policytc_ids(il_inputs_df)
 
-        il_inputs_calc_rules_df = il_inputs_df.loc[:, ['item_id'] + terms + terms_indicators + types_and_codes + ['calcrule_id']]
-        il_inputs_calc_rules_df.loc[:, terms_indicators] = np.where(il_inputs_calc_rules_df[terms] > 0, 1, 0)
-        il_inputs_calc_rules_df.loc[:, types_and_codes] = 0
-        il_inputs_calc_rules_df['id_key'] = [t for t in fast_zip_arrays(*il_inputs_calc_rules_df[terms_indicators + types_and_codes].transpose().values)]
-        il_inputs_calc_rules_df = merge_dataframes(il_inputs_calc_rules_df, calc_rules, how='left', on='id_key')
-        il_inputs_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id']
-
-        del il_inputs_calc_rules_df
-
+        # Final setting of data types before returning the IL input items
         dtypes = {
-            **{t: 'uint32' for t in [cond_num, 'agg_id', 'item_id', 'layer_id', 'level_id', 'orig_level_id', 'calcrule_id']},
+            **{t: 'uint32' for t in [cond_num, 'agg_id', 'item_id', 'layer_id', 'level_id', 'orig_level_id', 'calcrule_id', 'policytc_id']},
             **{t: 'float32' for t in [_t for _t in terms if _t != 'limit'] + ['attachment', 'deductible_min', 'deductible_max']},
             **{'limit': 'float64'}
         }
@@ -523,15 +545,8 @@ def write_fm_policytc_file(il_inputs_df, fm_policytc_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        cols = ['layer_id', 'level_id', 'agg_id', 'calcrule_id', 'limit', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'share']
-        fm_policytc_df = il_inputs_df[cols].drop_duplicates()
-        fm_policytc_df = fm_policytc_df[
-            (fm_policytc_df['layer_id'] == 1) |
-            (fm_policytc_df['level_id'] == fm_policytc_df['level_id'].max())
-        ]
-        fm_policytc_df['policytc_id'] = factorize_ndarray(fm_policytc_df[cols[3:]].values, col_idxs=range(len(cols[3:])))[0]
-
-        fm_policytc_df[cols[:3] + ['policytc_id']].to_csv(
+        fm_policytc_df = il_inputs_df.loc[:, ['layer_id', 'level_id', 'agg_id', 'policytc_id']]
+        fm_policytc_df.drop_duplicates().to_csv(
             path_or_buf=fm_policytc_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(fm_policytc_fp) else 'a'),
@@ -560,9 +575,7 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
     """
     try:
         cols = ['policytc_id', 'calcrule_id', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'limit', 'share']
-        fm_profile_df = il_inputs_df[cols].drop_duplicates()
-
-        fm_profile_df['policytc_id'] = factorize_ndarray(fm_profile_df[cols].values, col_idxs=range(len(cols)))[0]
+        fm_profile_df = il_inputs_df.loc[:, cols]
 
         fm_profile_df.rename(
             columns={
@@ -575,10 +588,12 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
             },
             inplace=True
         )
+        fm_profile_df = fm_profile_df.drop_duplicates()
 
         fm_profile_df = fm_profile_df.assign(share2=0.0, share3=0.0)
 
-        fm_profile_df[fm_profile_df.columns].to_csv(
+        cols = ['policytc_id', 'calcrule_id', 'deductible1', 'deductible2', 'deductible3', 'attachment1', 'limit1', 'share1', 'share2', 'share3']
+        fm_profile_df.loc[:, cols].to_csv(
             path_or_buf=fm_profile_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(fm_profile_fp) else 'a'),
@@ -608,8 +623,8 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
     try:
         fm_programme_df = pd.concat(
             [
-                il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].min()][['agg_id']].assign(level_id=0),
-                il_inputs_df[['level_id', 'agg_id']]
+                il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].min()].loc[:, ['agg_id']].assign(level_id=0),
+                il_inputs_df.loc[:, ['level_id', 'agg_id']]
             ]
         ).reset_index(drop=True)
 
@@ -620,7 +635,7 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
                 'from_agg_id': fm_programme_df[fm_programme_df['level_id'] < max_level]['agg_id'],
                 'level_id': fm_programme_df[fm_programme_df['level_id'] > min_level]['level_id'].reset_index(drop=True),
                 'to_agg_id': fm_programme_df[fm_programme_df['level_id'] > min_level]['agg_id'].reset_index(drop=True)
-            },
+            }
         ).dropna(axis=0).drop_duplicates()
 
         dtypes = {t: 'uint32' for t in fm_programme_df.columns}
@@ -657,7 +672,7 @@ def write_fm_xref_file(il_inputs_df, fm_xref_fp, chunksize=100000):
         cov_level_layers_df = il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].max()]
         pd.DataFrame(
             {
-                'output': factorize_ndarray(cov_level_layers_df[['gul_input_id', 'layer_id']].values, col_idxs=range(2))[0],
+                'output': factorize_ndarray(cov_level_layers_df.loc[:, ['gul_input_id', 'layer_id']].values, col_idxs=range(2))[0],
                 'agg_id': cov_level_layers_df['gul_input_id'],
                 'layer_id': cov_level_layers_df['layer_id']
             }
@@ -674,7 +689,6 @@ def write_fm_xref_file(il_inputs_df, fm_xref_fp, chunksize=100000):
     return fm_xref_fp
 
 
-@oasis_log
 def write_il_input_files(
     il_inputs_df,
     target_dir,
