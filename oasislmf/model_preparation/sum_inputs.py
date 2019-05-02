@@ -113,6 +113,7 @@ def merge_oed_to_mapping(summary_map_df, exposure_df, oed_column_set, defaults=N
         new_summary_map_df.fillna(value=defaults, inplace=True)
     return new_summary_map_df
 
+
 def group_by_oed(summary_map_df, exposure_df, oed_col_group):
     """
     Adds list of OED fields from `column_set` to summary map file

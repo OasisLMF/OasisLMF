@@ -207,6 +207,7 @@ def write_ri_input_files(
     )
 '''
 
+
 @oasis_log
 def write_ri_input_files(
     direct_mapping,
@@ -219,18 +220,15 @@ def write_ri_input_files(
     ri_scope_fp,
     target_dir
 ):
-    old_xref_descriptions = pd.DataFrame(generate_xref_descriptions(accounts_fp, exposure_fp))
     xref_descriptions = direct_mapping
-   
-    ## need to update col names in code --> tmp rename here
+
+    # need to update col names in code --> tmp rename here
     xref_descriptions['xref_id'] = xref_descriptions['output_id']
     xref_descriptions['portfolio_number'] = xref_descriptions['portnumber']
     xref_descriptions['policy_number'] = xref_descriptions['polnumber']
     xref_descriptions['account_number'] = xref_descriptions['accnumber']
     xref_descriptions['location_number'] = xref_descriptions['locnumber']
     xref_descriptions['location_group'] = xref_descriptions['locgroup']
-
-
 
     return generate_files_for_reinsurance(
         pd.read_csv(items_fp),
@@ -550,7 +548,7 @@ class ReinsuranceLayer(object):
                 by=["location_group", "portfolio_number", "account_number", "policy_number", "location_number"])
         else:
             xref_descriptions = self.xref_descriptions
-        #else:
+        # else:
         #    xref_descriptions = self.xref_descriptions.sort_values(
         #        by=["portfolio_number", "account_number", "policy_number", "location_number"])
 
