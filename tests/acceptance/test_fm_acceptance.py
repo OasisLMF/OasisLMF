@@ -1229,7 +1229,7 @@ class FmAcceptanceTests(TestCase):
             self.assertEqual(len(fm_profile_df), 6)
             self.assertEqual(fm_profile_df['policytc_id'].values.tolist(), [1, 2, 3, 4, 5, 6])
             self.assertEqual(fm_profile_df['calcrule_id'].values.tolist(), [12, 12, 12, 12, 2, 2])
-            self.assertEqual([round(v, 5) for v in fm_profile_df['deductible1'].values.tolist()], [10000, 50000, 15000, 200000, 0, 1500000])
+            self.assertEqual([round(v, 5) for v in fm_profile_df['deductible1'].values.tolist()], [10000, 50000, 15000, 200000, 0, 0])
             self.assertEqual([round(v, 5) for v in fm_profile_df['deductible2'].values.tolist()], [0, 0, 0, 0, 0, 0])
             self.assertEqual([round(v, 5) for v in fm_profile_df['deductible3'].values.tolist()], [0, 0, 0, 0, 0, 0])
             self.assertEqual([round(v, 5) for v in fm_profile_df['attachment1'].values.tolist()], [0, 0, 0, 0, 0, 1500000])
