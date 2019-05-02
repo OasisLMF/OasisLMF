@@ -203,8 +203,8 @@ def get_gul_input_items(
         gul_inputs_df[cond_num].fillna(0, inplace=True)
         gul_inputs_df[cond_num] = gul_inputs_df[cond_num].astype('uint32')
 
-        gul_inputs_df = gul_inputs_df[(gul_inputs_df[tiv_cols] != 0).any(axis=1)]
-        gul_inputs_df.loc[:, tiv_cols] = gul_inputs_df[tiv_cols].where(gul_inputs_df.notnull(), 0.0)
+        gul_inputs_df = gul_inputs_df[(gul_inputs_df.loc[:, tiv_cols] != 0).any(axis=1)]
+        gul_inputs_df.loc[:, tiv_cols] = gul_inputs_df.loc[:, tiv_cols].where(gul_inputs_df.notnull(), 0.0)
 
         # Set default values and data types for BI coverage boolean, TIV, deductibles and limit
         gul_inputs_df = gul_inputs_df.assign(
@@ -251,10 +251,10 @@ def get_gul_input_items(
                 get_fm_terms_oed_columns(fm_terms=fm_terms, levels=['site coverage'], term_group_ids=other_cov_types, terms=terms)
             )
             cov_type_group.loc[:, other_cov_type_term_cols] = 0
-            gul_inputs_df.loc[cov_type_group.index, ['tiv', 'is_bi_coverage'] + terms] = cov_type_group[['tiv', 'is_bi_coverage'] + terms]
+            gul_inputs_df.loc[cov_type_group.index, ['tiv', 'is_bi_coverage'] + terms] = cov_type_group.loc[:, ['tiv', 'is_bi_coverage'] + terms]
 
         # Remove any rows with zeros in the ``tiv`` column and reset the index
-        gul_inputs_df = gul_inputs_df[(gul_inputs_df[['tiv']] != 0).any(axis=1)].reset_index()
+        gul_inputs_df = gul_inputs_df[(gul_inputs_df.loc[:, ['tiv']] != 0).any(axis=1)].reset_index()
 
         # Remove the source columns for the TIVs and coverage level financial terms
         gul_inputs_df.drop(tiv_cols + cov_il_cols, axis=1, inplace=True)
@@ -311,7 +311,7 @@ def write_complex_items_file(gul_inputs_df, complex_items_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        gul_inputs_df[['item_id', 'coverage_id', 'model_data', 'group_id']].drop_duplicates().to_csv(
+        gul_inputs_df.loc[:, ['item_id', 'coverage_id', 'model_data', 'group_id']].drop_duplicates().to_csv(
             path_or_buf=complex_items_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(complex_items_fp) else 'a'),
@@ -337,7 +337,7 @@ def write_items_file(gul_inputs_df, items_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        gul_inputs_df[['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id']].drop_duplicates().to_csv(
+        gul_inputs_df.loc[:, ['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id']].drop_duplicates().to_csv(
             path_or_buf=items_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(items_fp) else 'a'),
@@ -365,7 +365,7 @@ def write_coverages_file(gul_inputs_df, coverages_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        gul_inputs_df[['coverage_id', 'tiv']].drop_duplicates().to_csv(
+        gul_inputs_df.loc[:, ['coverage_id', 'tiv']].drop_duplicates().to_csv(
             path_or_buf=coverages_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(coverages_fp) else 'a'),
@@ -393,7 +393,7 @@ def write_gulsummaryxref_file(gul_inputs_df, gulsummaryxref_fp, chunksize=100000
     :rtype: str
     """
     try:
-        gul_inputs_df[['coverage_id', 'summary_id', 'summaryset_id']].drop_duplicates().to_csv(
+        gul_inputs_df.loc[:, ['coverage_id', 'summary_id', 'summaryset_id']].drop_duplicates().to_csv(
             path_or_buf=gulsummaryxref_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(gulsummaryxref_fp) else 'a'),
