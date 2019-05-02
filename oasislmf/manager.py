@@ -50,7 +50,7 @@ from .model_preparation.il_inputs import (
     get_oed_hierarchy_terms,
     write_il_input_files,
 )
-from .model_preparation.sum_inputs import (
+from .model_preparation.summaries import (
     get_summary_mapping,
     generate_summaryxref_files,
     merge_oed_to_mapping,
@@ -599,7 +599,8 @@ class OasisManager(object):
         generate_summaryxref_files(model_run_fp, analysis_settings)
 
         if not ri:
-            csv_to_bin(oasis_fp, os.path.join(model_run_fp, 'input'), il=il)
+            fp = os.path.join(model_run_fp, 'input')
+            csv_to_bin(fp, fp, il=il)
         else:
             contents = os.listdir(model_run_fp)
             for fp in [os.path.join(model_run_fp, fn) for fn in contents if re.match(r'RI_\d+$', fn) or re.match(r'input$', fn)]:
@@ -655,7 +656,8 @@ class OasisManager(object):
         input_dir,
         output_dir=None,
         loss_percentage_of_tiv=1.0,
-        net_ri=False
+        net_ri=False,
+        alloc_rule=oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID
     ):
         lf = loss_percentage_of_tiv
         losses = OrderedDict({
@@ -696,7 +698,7 @@ class OasisManager(object):
 
         ils_fp = os.path.join(output_dir, 'raw_ils.csv')
         cmd = 'gultobin -S 1 < {} | fmcalc -p {} -a {} | tee ils.bin | fmtocsv > {}'.format(
-            guls_fp, output_dir, oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID, ils_fp
+            guls_fp, output_dir, alloc_rule, ils_fp
         )
         print("\nGenerating deterministic ground-up and direct insured losses with command: {}\n".format(cmd))
         try:
@@ -736,7 +738,9 @@ class OasisManager(object):
                 else:
                     def run_ri_layer(layer):
                         layer_inputs_fp = os.path.join(input_dir, 'RI_{}'.format(layer))
-                        _input = 'gultobin -S 1 < {} | fmcalc -p {} -a {} | tee ils.bin |'.format(guls_fp, input_dir, oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID) if layer == 1 else ''
+                        _input = 'gultobin -S 1 < {} | fmcalc -p {} -a {} | tee ils.bin |'.format(
+                            guls_fp, input_dir, alloc_rule
+                        ) if layer == 1 else ''
                         pipe_in_previous_layer = '< ri{}.bin'.format(layer - 1) if layer > 1 else ''
                         ri_layer_fp = os.path.join(output_dir, 'ri{}.csv'.format(layer))
                         net_flag = "-n" if net_ri else ""
@@ -744,7 +748,7 @@ class OasisManager(object):
                             _input,
                             layer_inputs_fp,
                             net_flag,
-                            oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID,
+                            alloc_rule,
                             pipe_in_previous_layer,
                             layer,
                             ri_layer_fp
@@ -776,6 +780,7 @@ class OasisManager(object):
         src_dir,
         run_dir=None,
         loss_percentage_of_tiv=1.0,
+        alloc_rule=oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID,
         net_ri=False
     ):
         """
@@ -814,7 +819,8 @@ class OasisManager(object):
             run_dir,
             output_dir=os.path.join(run_dir, 'output'),
             loss_percentage_of_tiv=loss_percentage_of_tiv,
-            net_ri=net_ri
+            net_ri=net_ri,
+            alloc_rule=alloc_rule
         )
 
         return losses['gul'], losses['il'], losses['ri']

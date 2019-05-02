@@ -242,6 +242,7 @@ def get_ri_settings(run_dir):
         raise OasisException('Invalid ri_layers file or file path: {}.'.format(ri_layer_fp))
 
 
+@oasis_log
 def write_xref_file(summary_xref_df, target_dir):
     """
     Write a generated summary xref dataframe to disk
@@ -280,6 +281,7 @@ def write_xref_file(summary_xref_df, target_dir):
     return summary_xref_fp
 
 
+@oasis_log
 def get_summary_xref_df(map_df, exposure_df, summaries_info_dict):
     """
     Create a Dataframe for either gul / il / ri  based on a section

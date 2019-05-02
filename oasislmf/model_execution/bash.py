@@ -48,6 +48,8 @@ def leccalc_enabled(lec_options):
 
     :return: True is leccalc is enables, False otherwise.
     """
+    if "outputs" not in lec_options:
+        return False
     for option in lec_options["outputs"]:
         if lec_options["outputs"][option]:
             return True
