@@ -66,7 +66,7 @@ class RunCmd(OasisBaseCommand):
             '-n', '--net-ri-losses', default=False, help='Net RI losses', action='store_true'
         )
         parser.add_argument(
-            '-a', '--alloc-rule', type=int, default=oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID, help='Alloc rule ID', action='store_true'
+            '-a', '--alloc-rule', type=int, default=oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID, help='Alloc rule ID'
         )
         parser.add_argument(
             '-v', '--validate', default=False, help='Validate', action='store_true'
