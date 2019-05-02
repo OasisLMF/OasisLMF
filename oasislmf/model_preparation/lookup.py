@@ -392,6 +392,7 @@ class OasisLookupFactory(object):
             (id_col, 'LocID'),
             ('peril_id', 'PerilID'),
             ('coverage_type', 'CoverageTypeID'),
+            ('status', 'Status'),
             ('message', 'Message'),
         ])
 
