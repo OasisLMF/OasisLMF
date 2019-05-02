@@ -178,7 +178,7 @@ def _generate_files_for_reinsurance_risk_level(
     )
 
     reinsurance_layer.generate_oasis_structures()
-    output_dir = os.path.join(os.path.dirname(direct_oasis_files_dir), "RI_{}".format(reinsurance_index))
+    output_dir = os.path.join(direct_oasis_files_dir, "RI_{}".format(reinsurance_index))
     reinsurance_layer.write_oasis_files(output_dir)
     return output_dir
 
