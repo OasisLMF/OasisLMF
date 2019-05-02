@@ -391,7 +391,7 @@ def get_il_input_items(
         def level_has_fm_terms(level, terms):
             try:
                 level_terms_cols = get_fm_terms_oed_columns(fm_terms, levels=[level], terms=terms)
-                return il_inputs_df[level_terms_cols].any().any()
+                return il_inputs_df.loc[:, level_terms_cols].any().any()
             except KeyError:
                 return False
 
