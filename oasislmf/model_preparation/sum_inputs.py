@@ -86,7 +86,7 @@ def get_summary_mapping(inputs_df, oed_col):
     return summary_mapping
 
 
-def merge_oed_to_mapping(summary_map_df, exposure_df, oed_column_set):
+def merge_oed_to_mapping(summary_map_df, exposure_df, oed_column_set, defaults=None):
     """
     Adds list of OED fields from `column_set` to summary map file
 
@@ -96,15 +96,22 @@ def merge_oed_to_mapping(summary_map_df, exposure_df, oed_column_set):
     :param exposure_df: Summary map file path
     :type exposure_df: pandas.DataFrame
 
-    :return: subset of columns from exposure_df to merge
-    :rtype: list
+    :param defaults: Dictionary of vaules to fill NaN columns with
+    :type defaults: dict
+
+    {'Col_A': 0, 'Col_B': 1, 'Col_C': 2}
+
+    :return: New DataFrame of summary_map_df + exposure_df merged on exposure index
+    :rtype: pandas.DataFrame
     """
 
     column_set = [c.lower() for c in oed_column_set]
     exposure_col_df = exposure_df.loc[:, column_set]
-    exposure_col_df['index'] = exposure_df.index
-    return summary_map_df.merge(exposure_col_df, left_on=SOURCE_IDX['loc'], right_on='index').drop('index', axis=1)
-
+    exposure_col_df[SOURCE_IDX['loc']] = exposure_df.index
+    new_summary_map_df = summary_map_df.join(exposure_col_df.set_index(SOURCE_IDX['loc']), on=SOURCE_IDX['loc'])
+    if defaults:
+        new_summary_map_df.fillna(value=defaults, inplace=True)
+    return new_summary_map_df
 
 def group_by_oed(summary_map_df, exposure_df, oed_col_group):
     """
@@ -126,8 +133,8 @@ def group_by_oed(summary_map_df, exposure_df, oed_col_group):
     summary_group_df = summary_map_df.loc[:, mapping_cols]
     if not exposure_cols == []:
         exposure_col_df = exposure_df.loc[:, exposure_cols]
-        exposure_col_df['index'] = exposure_df.index.values
-        summary_group_df = summary_group_df.merge(exposure_col_df, left_on=SOURCE_IDX['loc'], right_on='index').drop('index', axis=1)
+        exposure_col_df[SOURCE_IDX['loc']] = exposure_df.index
+        summary_group_df = summary_group_df.join(exposure_col_df.set_index(SOURCE_IDX['loc']), on=SOURCE_IDX['loc'])
 
     summary_group_df.fillna(0, inplace=True)  # factorize with all values NaN, leads to summary_id == 0
     summary_ids = factorize_dataframe(summary_group_df, by_col_labels=oed_col_group)[0]

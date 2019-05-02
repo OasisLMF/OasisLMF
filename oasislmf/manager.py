@@ -472,7 +472,10 @@ class OasisManager(object):
         # Example Merge in col from exposure
 
 
-        xref_des = merge_oed_to_mapping(fm_summary_mapping, exposure_df, ['locgroup'])
+        xref_des = merge_oed_to_mapping(fm_summary_mapping,
+                                        exposure_df,
+                                        oed_column_set=['locgroup'],
+                                        defaults={'locgroup':1})
 
         ri_layers = write_ri_input_files(
             xref_des,
@@ -522,7 +525,7 @@ class OasisManager(object):
             ri=ri
         )
 
-        # Load analysis_settings file 
+        # Load analysis_settings file
         try:
             analysis_settings_fn = 'analysis_settings.json'
             _analysis_settings_fp = os.path.join(model_run_fp, analysis_settings_fn)
