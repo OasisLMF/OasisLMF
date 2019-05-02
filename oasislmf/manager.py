@@ -537,7 +537,8 @@ class OasisManager(object):
         generate_summaryxref_files(model_run_fp, analysis_settings)
 
         if not ri:
-            csv_to_bin(oasis_fp, os.path.join(model_run_fp, 'input'), il=il)
+            fp = os.path.join(model_run_fp, 'input')
+            csv_to_bin(fp, fp, il=il)
         else:
             contents = os.listdir(model_run_fp)
             for fp in [os.path.join(model_run_fp, fn) for fn in contents if re.match(r'RI_\d+$', fn) or re.match(r'input$', fn)]:
