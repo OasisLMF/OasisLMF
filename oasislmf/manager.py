@@ -79,6 +79,7 @@ from .utils.defaults import (
     KTOOLS_ALLOC_RULE,
     KTOOLS_DEBUG,
     OASIS_FILES_PREFIXES,
+    OASIS_KEYS_STATUS,
 )
 from .utils.peril import PerilAreasIndex
 from .utils.path import (
@@ -416,6 +417,67 @@ class OasisManager(object):
         gul_inputs_df, exposure_df = get_gul_input_items(
             exposure_fp, _keys_fp, exposure_profile=exposure_profile
         )
+
+        # Fill summary of exposure data dictionary
+        def fill_exposure_summary(
+            exposure_summary_df,
+            exposure_summary,
+            peril,
+            status,
+        ):
+
+            for coverage_type in SUPPORTED_COVERAGE_TYPES:
+                tiv_sum = exposure_summary_df.loc[
+                    (exposure_summary_df['peril_id']==peril) &\
+                    (exposure_summary_df['coverage_type_id']==SUPPORTED_COVERAGE_TYPES[coverage_type]['id']), 'tiv'].sum()
+                tiv_sum = float(tiv_sum)
+                exposure_summary[peril][status]['tiv_by_coverage'][coverage_type] = tiv_sum
+                if coverage_type in exposure_summary[peril]['all']['tiv_by_coverage']:
+                    exposure_summary[peril]['all']['tiv_by_coverage'][coverage_type] += tiv_sum
+                else:
+                    exposure_summary[peril]['all']['tiv_by_coverage'][coverage_type] = tiv_sum
+                exposure_summary[peril][status]['tiv'] += tiv_sum
+                exposure_summary[peril]['all']['tiv'] += tiv_sum
+            exposure_summary[peril][status]['location_ids'] =\
+                exposure_summary_df.loc[
+                    exposure_summary_df['peril_id']==peril,
+                    'locnumber'].drop_duplicates().tolist()
+
+        # Get key errors in GUL input items dataframe format and merge with
+        # key errors to obtain status information
+        try:
+            gul_inputs_errors_df, _ = get_gul_input_items(
+                exposure_fp, _keys_errors_fp, exposure_profile=exposure_profile
+            )
+        except OasisException:
+            gul_inputs_errors_df = pd.DataFrame(columns=gul_inputs_df.columns)
+        keys_errors_df = pd.read_csv(_keys_errors_fp)
+        gul_inputs_errors_df = gul_inputs_errors_df.merge(
+            keys_errors_df,
+            left_on=['locnumber', 'peril_id', 'coverage_type_id'],
+            right_on=['LocID', 'PerilID', 'CoverageTypeID'],
+            how='left'
+        )
+        gul_inputs_errors_df = gul_inputs_errors_df.drop(
+            columns=['LocID', 'PerilID', 'CoverageTypeID', 'Message']
+        )
+
+        # Compile summary of exposure data
+        exposure_summary = {}
+        for peril in gul_inputs_df['peril_id'].drop_duplicates():
+            exposure_summary[peril] = {}
+            for status in ['all'] + list(OASIS_KEYS_STATUS.keys()):
+                exposure_summary[peril][status] = {}
+                exposure_summary[peril][status]['tiv'] = 0.0
+                exposure_summary[peril][status]['tiv_by_coverage'] = {}
+                if status == 'success':
+                    fill_exposure_summary(gul_inputs_df, exposure_summary, peril, status)
+                elif status != 'all':
+                    fill_exposure_summary(gul_inputs_errors_df[gul_inputs_errors_df['Status']==status], exposure_summary, peril, status)
+
+        # Write exposure summary report file
+        with io.open(os.path.join(target_dir, 'exposure_summary_report.json'), 'w', encoding='utf-8') as f:
+            f.write(json.dumps(exposure_summary, ensure_ascii=False, indent=4))
 
         # Write the GUL input files
         files_prefixes = oasis_files_prefixes or self.oasis_files_prefixes
