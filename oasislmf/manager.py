@@ -455,11 +455,10 @@ class OasisManager(object):
         # Combine the GUL and IL input file paths into a single dict (for convenience)
         oasis_files = {**gul_input_files, **il_input_files}
 
-
         # If no RI input file paths (info. and scope) have been provided then
         # no RI input files are needed, just return the GUL and IL Oasis files
         if not (ri_info_fp or ri_scope_fp):
-            ## TODO: Write `fm_summary_map.csv`
+            # TODO: Write `fm_summary_map.csv`
             # Write `summary_map.csv` for GUL+FM
             return oasis_files
 
@@ -467,15 +466,13 @@ class OasisManager(object):
         # file, which can be reused by the model runner (in the model execution
         # stage) to set the number of RI iterations
 
-
-        ## TODO: pass 'fm_summary_mapping` inplace of `xref_descriptions`
+        # TODO: pass 'fm_summary_mapping` inplace of `xref_descriptions`
         # Example Merge in col from exposure
-
 
         xref_des = merge_oed_to_mapping(fm_summary_mapping,
                                         exposure_df,
                                         oed_column_set=['locgroup'],
-                                        defaults={'locgroup':1})
+                                        defaults={'locgroup': 1})
 
         ri_layers = write_ri_input_files(
             xref_des,
@@ -789,12 +786,6 @@ class OasisManager(object):
         ktools_fifo_relative=None,
         ktools_alloc_rule=None
     ):
-        il = True if accounts_fp else False
-
-        required_ri_paths = [ri_info_fp, ri_scope_fp]
-
-        ri = all(required_ri_paths) and il
-
         if not os.path.exists(model_run_fp):
             Path(model_run_fp).mkdir(parents=True, exist_ok=True)
         else:

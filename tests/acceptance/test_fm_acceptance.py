@@ -125,14 +125,16 @@ class FmAcceptanceTests(TestCase):
                     self.assertTrue(os.path.exists(p))
 
             # gul_inputs = pd.merge(
-            #     pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
+            #     pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), on='coverage_id'),
             #     pd.read_csv(gul_input_files['gulsummaryxref']),
             #     left_on='coverage_id',
             #     right_on='coverage_id'
             # )
-            gul_inputs = pd.merge(pd.read_csv(gul_input_files['items']), 
-                                  pd.read_csv(gul_input_files['coverages']), 
-                                  left_on='coverage_id', right_on='coverage_id')
+            gul_inputs = pd.merge(
+                pd.read_csv(gul_input_files['items']),
+                pd.read_csv(gul_input_files['coverages']),
+                on='coverage_id'
+            )
 
             self.assertEqual(len(gul_inputs), 4)
 
@@ -315,14 +317,16 @@ class FmAcceptanceTests(TestCase):
                     self.assertTrue(os.path.exists(p))
 
             # gul_inputs = pd.merge(
-            #     pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
+            #     pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), on='coverage_id'),
             #     pd.read_csv(gul_input_files['gulsummaryxref']),
             #     left_on='coverage_id',
             #     right_on='coverage_id'
             # )
-            gul_inputs = pd.merge(pd.read_csv(gul_input_files['items']), 
-                                  pd.read_csv(gul_input_files['coverages']), 
-                                  left_on='coverage_id', right_on='coverage_id')
+            gul_inputs = pd.merge(
+                pd.read_csv(gul_input_files['items']),
+                pd.read_csv(gul_input_files['coverages']),
+                on='coverage_id'
+            )
 
             self.assertEqual(len(gul_inputs), 4)
 
@@ -513,14 +517,16 @@ class FmAcceptanceTests(TestCase):
                     self.assertTrue(os.path.exists(p))
 
             # gul_inputs = pd.merge(
-            #     pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
+            #     pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), on='coverage_id'),
             #     pd.read_csv(gul_input_files['gulsummaryxref']),
             #     left_on='coverage_id',
             #     right_on='coverage_id'
             # )
-            gul_inputs = pd.merge(pd.read_csv(gul_input_files['items']), 
-                                  pd.read_csv(gul_input_files['coverages']), 
-                                  left_on='coverage_id', right_on='coverage_id')
+            gul_inputs = pd.merge(
+                pd.read_csv(gul_input_files['items']),
+                pd.read_csv(gul_input_files['coverages']),
+                on='coverage_id'
+            )
 
             self.assertEqual(len(gul_inputs), 4)
 
@@ -723,14 +729,16 @@ class FmAcceptanceTests(TestCase):
                     self.assertTrue(os.path.exists(p))
 
             # gul_inputs = pd.merge(
-            #     pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
+            #     pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), on='coverage_id'),
             #     pd.read_csv(gul_input_files['gulsummaryxref']),
             #     left_on='coverage_id',
             #     right_on='coverage_id'
             # )
-            gul_inputs = pd.merge(pd.read_csv(gul_input_files['items']), 
-                                  pd.read_csv(gul_input_files['coverages']), 
-                                  left_on='coverage_id', right_on='coverage_id')
+            gul_inputs = pd.merge(
+                pd.read_csv(gul_input_files['items']),
+                pd.read_csv(gul_input_files['coverages']),
+                on='coverage_id'
+            )
 
             self.assertEqual(len(gul_inputs), 8)
 
@@ -950,14 +958,16 @@ class FmAcceptanceTests(TestCase):
                     self.assertTrue(os.path.exists(p))
 
             # gul_inputs = pd.merge(
-            #     pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
+            #     pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), on='coverage_id'),
             #     pd.read_csv(gul_input_files['gulsummaryxref']),
             #     left_on='coverage_id',
             #     right_on='coverage_id'
             # )
-            gul_inputs = pd.merge(pd.read_csv(gul_input_files['items']), 
-                                  pd.read_csv(gul_input_files['coverages']), 
-                                  left_on='coverage_id', right_on='coverage_id')
+            gul_inputs = pd.merge(
+                pd.read_csv(gul_input_files['items']),
+                pd.read_csv(gul_input_files['coverages']),
+                on='coverage_id'
+            )
 
             self.assertEqual(len(gul_inputs), 8)
 
@@ -1180,14 +1190,16 @@ class FmAcceptanceTests(TestCase):
                     self.assertTrue(os.path.exists(p))
 
             # gul_inputs = pd.merge(
-            #     pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
+            #     pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), on='coverage_id'),
             #     pd.read_csv(gul_input_files['gulsummaryxref']),
             #     left_on='coverage_id',
             #     right_on='coverage_id'
             # )
-            gul_inputs = pd.merge(pd.read_csv(gul_input_files['items']), 
-                                  pd.read_csv(gul_input_files['coverages']), 
-                                  left_on='coverage_id', right_on='coverage_id')
+            gul_inputs = pd.merge(
+                pd.read_csv(gul_input_files['items']),
+                pd.read_csv(gul_input_files['coverages']),
+                on='coverage_id'
+            )
 
             self.assertEqual(len(gul_inputs), 6)
 
@@ -1399,14 +1411,16 @@ class FmAcceptanceTests(TestCase):
                     self.assertTrue(os.path.exists(p))
 
             # gul_inputs = pd.merge(
-            #     pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), left_on='coverage_id', right_on='coverage_id'),
+            #     pd.merge(pd.read_csv(gul_input_files['items']), pd.read_csv(gul_input_files['coverages']), on='coverage_id'),
             #     pd.read_csv(gul_input_files['gulsummaryxref']),
             #     left_on='coverage_id',
             #     right_on='coverage_id'
             # )
-            gul_inputs = pd.merge(pd.read_csv(gul_input_files['items']), 
-                                  pd.read_csv(gul_input_files['coverages']), 
-                                  left_on='coverage_id', right_on='coverage_id')
+            gul_inputs = pd.merge(
+                pd.read_csv(gul_input_files['items']),
+                pd.read_csv(gul_input_files['coverages']),
+                on='coverage_id'
+            )
 
             self.assertEqual(len(gul_inputs), 6)
 

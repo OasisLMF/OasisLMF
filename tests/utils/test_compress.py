@@ -7,7 +7,7 @@ from hypothesis import (
     HealthCheck,
     settings,
 )
-from hypothesis.strategies import binary, text
+from hypothesis.strategies import text
 from mock import patch, Mock
 
 from oasislmf.utils.compress import compress_string
