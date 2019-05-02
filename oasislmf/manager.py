@@ -50,7 +50,7 @@ from .model_preparation.il_inputs import (
     get_oed_hierarchy_terms,
     write_il_input_files,
 )
-from .model_preparation.sum_inputs import (
+from .model_preparation.summaries import (
     get_summary_mapping,
     generate_summaryxref_files,
     merge_oed_to_mapping,
