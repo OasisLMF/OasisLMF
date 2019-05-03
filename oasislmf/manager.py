@@ -55,6 +55,7 @@ from .model_preparation.summaries import (
     generate_summaryxref_files,
     merge_oed_to_mapping,
     write_mapping_file,
+    write_exposure_summary,
 )
 from .model_preparation.lookup import OasisLookupFactory as olf
 from .model_preparation.utils import prepare_input_files_directory
@@ -415,6 +416,16 @@ class OasisManager(object):
         # Get the GUL input items and exposure dataframes
         gul_inputs_df, exposure_df = get_gul_input_items(
             exposure_fp, _keys_fp, exposure_profile=exposure_profile
+        )
+
+        # Write exposure summary file
+        write_exposure_summary(
+            target_dir,
+            gul_inputs_df,
+            exposure_fp,
+            keys_errors_fp=_keys_errors_fp,
+            exposure_profile=exposure_profile,
+            loc_num=loc_num
         )
 
         # Write the GUL input files
