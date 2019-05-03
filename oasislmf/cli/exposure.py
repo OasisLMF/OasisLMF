@@ -171,9 +171,9 @@ class RunCmd(OasisBaseCommand):
                 '{}.csv'.format(fn)
                 for ft, fn in chain(OASIS_FILES_PREFIXES['gul'].items(), OASIS_FILES_PREFIXES['il'].items())
             ]
-            files += ['guls.csv']
+            files += ['gul_summary_map.csv', 'guls.csv']
             if il:
-                files += ['ils.csv']
+                files += ['fm_summary_map.csv', 'ils.csv']
             if ril:
                 files += ['rils.csv']
 
