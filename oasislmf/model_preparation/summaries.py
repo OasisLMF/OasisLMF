@@ -30,7 +30,7 @@ from ..utils.profiles import get_oed_hierarchy_terms
 
 
 @oasis_log
-def get_summary_mapping(inputs_df, oed_col, is_fm_summary=False):
+def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
     """
     Create a DataFrame with linking information between Ktools `OasisFiles`
     And the Exposure data
@@ -45,10 +45,10 @@ def get_summary_mapping(inputs_df, oed_col, is_fm_summary=False):
     :rtype: pandas.DataFrame
     """
     usecols = ([
-        oed_col['accid'],
-        oed_col['locid'],
-        oed_col['polid'],
-        oed_col['portid'],
+        oed_hierarchy['accid'],
+        oed_hierarchy['locid'],
+        oed_hierarchy['polid'],
+        oed_hierarchy['portid'],
         SOURCE_IDX['loc'],
         'item_id',
         'layer_id',
@@ -62,9 +62,13 @@ def get_summary_mapping(inputs_df, oed_col, is_fm_summary=False):
 
     # Case GUL+FM (based on il_inputs_df)
     if is_fm_summary:
-        summary_mapping = inputs_df[inputs_df['level_id'] == inputs_df['level_id'].max()]
+        #import ipdb; ipdb.set_trace()
+        summary_mapping = inputs_df[inputs_df['level_id'] == inputs_df['level_id'].max()].drop_duplicates(subset=['gul_input_id', 'layer_id'], keep='first')
         summary_mapping['agg_id'] = summary_mapping['gul_input_id']
-        summary_mapping['output_id'] = factorize_ndarray(summary_mapping.loc[:, ['gul_input_id', 'layer_id']].values, col_idxs=range(2))[0]
+        summary_mapping['output_id'] = factorize_ndarray(
+            summary_mapping.loc[:, ['gul_input_id', 'layer_id']].values,
+            col_idxs=range(2)
+        )[0]
         summary_mapping.drop('item_id', axis=1, inplace=True)
     # GUL Only
     else:
