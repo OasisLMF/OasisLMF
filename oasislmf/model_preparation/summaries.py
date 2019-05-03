@@ -14,6 +14,7 @@ from ..utils.data import (
     factorize_ndarray,
     get_dataframe,
     get_json,
+    merge_dataframes,
 )
 from ..utils.defaults import (
     SOURCE_FILENAMES,
@@ -28,28 +29,17 @@ from ..utils.path import as_path
 from ..utils.profiles import get_oed_hierarchy_terms
 
 
-def is_fm_summary(inputs_df):
-    """
-    Return type of summary_xref based on columns of data columns
-
-    :param inputs_df: Input items datafarme
-    :type inputs_df: pandas.DataFrame
-
-    :return: Whether required summary xref is an FM xref
-    :rtype: bool
-    """
-    policy_num = get_oed_hierarchy_terms()['polid']
-    return set(inputs_df.columns).issuperset([policy_num, 'output_id'])
-
-
 @oasis_log
-def get_summary_mapping(inputs_df, oed_col):
+def get_summary_mapping(inputs_df, oed_col, is_fm_summary=False):
     """
     Create a DataFrame with linking information between Ktools `OasisFiles`
     And the Exposure data
 
     :param inputs_df: datafame from gul_inputs.get_gul_input_items(..)  / il_inputs.get_il_input_items(..)
     :type inputs_df: pandas.DataFrame
+
+    :param is_fm_summary: Indicates whether an FM summary mapping is required
+    :type is_fm_summary: bool
 
     :return: Subset of columns from gul_inputs_df / il_inputs_df
     :rtype: pandas.DataFrame
@@ -71,7 +61,7 @@ def get_summary_mapping(inputs_df, oed_col):
     ])
 
     # Case GUL+FM (based on il_inputs_df)
-    if is_fm_summary(inputs_df):
+    if is_fm_summary:
         summary_mapping = inputs_df[inputs_df['level_id'] == inputs_df['level_id'].max()]
         summary_mapping['agg_id'] = summary_mapping['gul_input_id']
         summary_mapping['output_id'] = factorize_ndarray(summary_mapping.loc[:, ['gul_input_id', 'layer_id']].values, col_idxs=range(2))[0]
@@ -111,7 +101,7 @@ def merge_oed_to_mapping(summary_map_df, exposure_df, oed_column_set, defaults=N
     column_set = [c.lower() for c in oed_column_set]
     exposure_col_df = exposure_df.loc[:, column_set]
     exposure_col_df[SOURCE_IDX['loc']] = exposure_df.index
-    new_summary_map_df = summary_map_df.join(exposure_col_df.set_index(SOURCE_IDX['loc']), on=SOURCE_IDX['loc'])
+    new_summary_map_df = merge_dataframes(summary_map_df, exposure_col_df, join_on=SOURCE_IDX['loc'], how='inner')
     if defaults:
         new_summary_map_df.fillna(value=defaults, inplace=True)
     return new_summary_map_df
@@ -138,7 +128,7 @@ def group_by_oed(summary_map_df, exposure_df, oed_col_group):
     if exposure_cols is not []:
         exposure_col_df = exposure_df.loc[:, exposure_cols]
         exposure_col_df[SOURCE_IDX['loc']] = exposure_df.index
-        summary_group_df = summary_group_df.join(exposure_col_df.set_index(SOURCE_IDX['loc']), on=SOURCE_IDX['loc'])
+        summary_group_df = merge_dataframes(summary_group_df, exposure_df, join_on=SOURCE_IDX['loc'], how='inner')
 
     summary_group_df.fillna(0, inplace=True)  # factorize with all values NaN, leads to summary_id == 0
     summary_ids = factorize_dataframe(summary_group_df, by_col_labels=oed_col_group)[0]
@@ -147,7 +137,7 @@ def group_by_oed(summary_map_df, exposure_df, oed_col_group):
 
 
 @oasis_log
-def write_mapping_file(sum_inputs_df, target_dir):
+def write_mapping_file(sum_inputs_df, target_dir, is_fm_summary=False):
     """
     Writes a summary map file, used to build summarycalc xref files.
 
@@ -156,6 +146,9 @@ def write_mapping_file(sum_inputs_df, target_dir):
 
     :param sum_mapping_fp: Summary map file path
     :type sum_mapping_fp: str
+
+    :param is_fm_summary: Indicates whether an FM summary mapping is required
+    :type is_fm_summary: bool
 
     :return: Summary xref file path
     :rtype: str
@@ -170,7 +163,7 @@ def write_mapping_file(sum_inputs_df, target_dir):
     # Set chunk size for writing the CSV files - default is 100K
     chunksize = min(2 * 10**5, len(sum_inputs_df))
 
-    if is_fm_summary(sum_inputs_df):
+    if is_fm_summary:
         sum_mapping_fp = os.path.join(target_dir, SUMMARY_MAPPING['fm_map_fn'])
     else:
         sum_mapping_fp = os.path.join(target_dir, SUMMARY_MAPPING['gul_map_fn'])
@@ -327,7 +320,7 @@ def get_summary_xref_df(map_df, exposure_df, summaries_info_dict):
 
     # Infer il / gul xref type based on 'map_df'
     if 'output_id' in map_df:
-        ids_set_df = map_df.loc[:, ['output_id']].rename(columns={"output_id": "output"}, axis=1)
+        ids_set_df = map_df.loc[:, ['output_id']].rename(columns={"output_id": "output"})
     else:
         ids_set_df = map_df.loc[:, ['coverage_id']]
 

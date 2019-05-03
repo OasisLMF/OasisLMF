@@ -64,6 +64,8 @@ from .utils.data import (
     get_dataframe,
     get_json,
     get_utctimestamp,
+    merge_dataframes,
+    set_dataframe_column_dtypes,
 )
 from .utils.exceptions import OasisException
 from .utils.log import oasis_log
@@ -450,8 +452,8 @@ class OasisManager(object):
             target_dir,
             oasis_files_prefixes=files_prefixes['il']
         )
-        fm_summary_mapping = get_summary_mapping(il_inputs_df, hierarchy_terms)
-        write_mapping_file(fm_summary_mapping, target_dir)
+        fm_summary_mapping = get_summary_mapping(il_inputs_df, hierarchy_terms, is_fm_summary=True)
+        write_mapping_file(fm_summary_mapping, target_dir, is_fm_summary=True)
 
         # Combine the GUL and IL input file paths into a single dict (for convenience)
         oasis_files = {**gul_input_files, **il_input_files}
@@ -614,7 +616,8 @@ class OasisManager(object):
         # Generate an items and coverages dataframe and set column types (important!!)
         items = merge_dataframes(
             pd.read_csv(os.path.join(input_dir, 'items.csv')),
-            pd.read_csv(os.path.join(input_dir, 'coverages.csv'))
+            pd.read_csv(os.path.join(input_dir, 'coverages.csv')),
+            left_index=True, right_index=True
         )
 
         dtypes = {t: ('uint32' if t != 'tiv' else 'float32') for t in items.columns}
@@ -648,7 +651,7 @@ class OasisManager(object):
         guls.reset_index(drop=True, inplace=True)
         guls.drop('sidx', axis=1, inplace=True)
         guls = guls[(guls[['loss']] != 0).any(axis=1)]
-        guls['item_id'] = range(1, len(guls) + 1)
+        guls['item_id'] = guls.index + 1
         losses['gul'] = guls
 
         ils = get_dataframe(src_fp=ils_fp)
@@ -656,7 +659,6 @@ class OasisManager(object):
         ils.reset_index(drop=True, inplace=True)
         ils.drop('sidx', axis=1, inplace=True)
         ils = ils[(ils[['loss']] != 0).any(axis=1)]
-        ils['output_id'] = range(1, len(ils) + 1)
         losses['il'] = ils
 
         if ri:
@@ -707,7 +709,6 @@ class OasisManager(object):
                     for i in range(1, ri_layers + 1):
                         rils = run_ri_layer(i)
                         if i in [1, ri_layers]:
-                            rils['output_id'] = range(1, len(rils) + 1)
                             losses['ri'] = rils
 
         return losses
