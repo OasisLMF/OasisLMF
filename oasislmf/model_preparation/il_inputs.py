@@ -96,6 +96,15 @@ def get_layer_ids(accounts_df, accounts_profile=get_default_accounts_profile()):
 
 
 def get_calc_rule_ids(il_inputs_df):
+    """
+    Returns a Numpy array of calc. rule IDs from a table of IL input items
+
+    :param il_inputs_df: IL input items dataframe
+    :type il_inputs_df: pandas.DataFrame
+
+    :return: Numpy array of calc. rule IDs
+    :rtype: numpy.ndarray
+    """
     calc_rules = get_calc_rules().drop(['desc'], axis=1)
     calc_rules['id_key'] = calc_rules['id_key'].apply(eval)
 
@@ -114,6 +123,15 @@ def get_calc_rule_ids(il_inputs_df):
 
 
 def get_policytc_ids(il_inputs_df):
+    """
+    Returns a Numpy array of policy TC IDs from a table of IL input items
+
+    :param il_inputs_df: IL input items dataframe
+    :type il_inputs_df: pandas.DataFrame
+
+    :return: Numpy array of policy TC IDs
+    :rtype: numpy.ndarray
+    """
     policytc_cols = [
         'layer_id', 'level_id', 'agg_id', 'calcrule_id', 'limit',
         'deductible', 'deductible_min', 'deductible_max', 'attachment',
@@ -413,7 +431,7 @@ def get_il_input_items(
         # Each level is initially a dataframe copy of the main IL inputs
         # dataframe, which at the start only represents coverage level input
         # items. Using the level terms profile the following steps take place
-        # in the loop: 
+        # in the loop:
         #
         # (1) financial terms defined for the level are set
         # (2) coverage type filters for the blanket deductibles and limits, if
