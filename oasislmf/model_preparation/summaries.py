@@ -39,7 +39,7 @@ def is_fm_summary(inputs_df):
     :rtype: bool
     """
     policy_num = get_oed_hierarchy_terms()['polid']
-    return set(inputs_df.columns).issuperset([policy_num, 'output_id']) is not None
+    return set(inputs_df.columns).issuperset([policy_num, 'output_id'])
 
 
 @oasis_log
@@ -74,9 +74,8 @@ def get_summary_mapping(inputs_df, oed_col):
     if is_fm_summary(inputs_df):
         summary_mapping = inputs_df[inputs_df['level_id'] == inputs_df['level_id'].max()]
         summary_mapping['agg_id'] = summary_mapping['gul_input_id']
-        summary_mapping['output_id'] = factorize_ndarray(summary_mapping[['gul_input_id', 'layer_id']].values, col_idxs=range(2))[0]
+        summary_mapping['output_id'] = factorize_ndarray(summary_mapping.loc[:, ['gul_input_id', 'layer_id']].values, col_idxs=range(2))[0]
         summary_mapping.drop('item_id', axis=1, inplace=True)
-
     # GUL Only
     else:
         summary_mapping = inputs_df.copy(deep=True)

@@ -346,6 +346,7 @@ class OasisManager(object):
         accounts_profile = accounts_profile or (get_json(src_fp=accounts_profile_fp) if accounts_profile_fp else self.accounts_profile)
         hierarchy_terms = get_oed_hierarchy_terms(exposure_profile, accounts_profile)
         loc_num = hierarchy_terms['locid']
+        loc_grp = hierarchy_terms['locgrp']
         acc_num = hierarchy_terms['accid']
         portfolio_num = hierarchy_terms['portid']
         fm_aggregation_profile = (
@@ -471,8 +472,8 @@ class OasisManager(object):
 
         xref_des = merge_oed_to_mapping(fm_summary_mapping,
                                         exposure_df,
-                                        oed_column_set=['locgroup'],
-                                        defaults={'locgroup': 1})
+                                        oed_column_set=[loc_grp],
+                                        defaults={loc_grp: 1})
 
         ri_layers = write_ri_input_files(
             xref_des,

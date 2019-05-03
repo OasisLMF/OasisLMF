@@ -125,6 +125,7 @@ def get_oed_hierarchy_terms(
         for k, v in sorted(grouped[0][1].items())
     })
     hierarchy_terms.setdefault('locid', ('locnumber' if lowercase else 'LocNumber'))
+    hierarchy_terms.setdefault('locgrp', 'locgroup' if lowercase else 'LocGroup')
     hierarchy_terms.setdefault('accid', 'accnumber' if lowercase else 'AccNumber')
     hierarchy_terms.setdefault('polid', 'polnumber' if lowercase else 'PolNumber')
     hierarchy_terms.setdefault('portid', 'portnumber' if lowercase else 'PortNumber')
