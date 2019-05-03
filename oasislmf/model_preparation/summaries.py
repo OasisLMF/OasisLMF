@@ -328,7 +328,7 @@ def get_summary_xref_df(map_df, exposure_df, summaries_info_dict):
 
     # Infer il / gul xref type based on 'map_df'
     if 'output_id' in map_df:
-        ids_set_df = map_df.loc[:, ['output_id']].rename(columns={"output_id": "output"})
+        ids_set_df = map_df.loc[:, ['output_id']].rename(columns={"output_id": "output"}, axis=1)
     else:
         ids_set_df = map_df.loc[:, ['coverage_id']]
 

@@ -595,7 +595,7 @@ class OasisManager(object):
         output_dir=None,
         loss_percentage_of_tiv=1.0,
         net_ri=False,
-        alloc_rule=oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID
+        alloc_rule=KTOOLS_ALLOC_RULE
     ):
         lf = loss_percentage_of_tiv
         losses = OrderedDict({
@@ -611,15 +611,14 @@ class OasisManager(object):
         csv_to_bin(input_dir, output_dir, il=il, ri=ri)
 
         # Generate an items and coverages dataframe and set column types (important!!)
-        items = pd.merge(
+        items = merge_dataframes(
             pd.read_csv(os.path.join(input_dir, 'items.csv')),
             pd.read_csv(os.path.join(input_dir, 'coverages.csv'))
         )
-        for col in items:
-            if col != 'tiv':
-                items[col] = items[col].astype(int)
-            else:
-                items[col] = items[col].astype(float)
+
+        dtypes = {t: ('uint32' if t != 'tiv' else 'float32') for t in items.columns}
+
+        items = set_dataframe_column_dtypes(items, dtypes)
 
         # Gulcalc sidx (sample index) list - -1 represents the numerical integration mean,
         # -2 the numerical integration standard deviation, and 1 the unsampled/raw loss
@@ -630,7 +629,7 @@ class OasisManager(object):
                 fast_zip_dataframe_columns(items, ['item_id', 'tiv']), gulcalc_sidxs
             )
         ]
-        guls = pd.DataFrame(guls_items)
+        guls = get_dataframe(src_data=guls_items)
         guls_fp = os.path.join(output_dir, "raw_guls.csv")
         guls.to_csv(guls_fp, index=False)
 
@@ -651,7 +650,7 @@ class OasisManager(object):
         guls['item_id'] = range(1, len(guls) + 1)
         losses['gul'] = guls
 
-        ils = pd.read_csv(ils_fp)
+        ils = get_dataframe(src_fp=ils_fp)
         ils.drop(ils[ils['sidx'] != (-1 if lf < 1.0 else -3)].index, inplace=True)
         ils.reset_index(drop=True, inplace=True)
         ils.drop('sidx', axis=1, inplace=True)
@@ -696,7 +695,7 @@ class OasisManager(object):
                             check_call(cmd, shell=True)
                         except CalledProcessError as e:
                             raise OasisException from e
-                        rils = pd.read_csv(ri_layer_fp)
+                        rils = get_dataframe(src_fp=ri_layer_fp)
                         rils.drop(rils[rils['sidx'] != (-1 if lf < 1 else -3)].index, inplace=True)
                         rils.drop('sidx', axis=1, inplace=True)
                         rils.reset_index(drop=True, inplace=True)
@@ -718,7 +717,7 @@ class OasisManager(object):
         src_dir,
         run_dir=None,
         loss_percentage_of_tiv=1.0,
-        alloc_rule=oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID,
+        alloc_rule=KTOOLS_ALLOC_RULE,
         net_ri=False
     ):
         """
