@@ -55,6 +55,7 @@ from .model_preparation.summaries import (
     generate_summaryxref_files,
     merge_oed_to_mapping,
     write_mapping_file,
+    write_exposure_summary,
 )
 from .model_preparation.lookup import OasisLookupFactory as olf
 from .model_preparation.utils import prepare_input_files_directory
