@@ -451,9 +451,10 @@ def get_exposure_summary(df, exposure_summary, peril, peril_code, status, loc_nu
     # Separate TIVs by coverage type and acquire sum
     for coverage_type in SUPPORTED_COVERAGE_TYPES:
         tiv_sum = df.loc[
-            (df['peril_id']==peril_code) &\
-            (df['coverage_type_id']==SUPPORTED_COVERAGE_TYPES[coverage_type]['id']),
-            'tiv'].sum()
+            (df['peril_id'] == peril_code) &
+            (df['coverage_type_id'] == SUPPORTED_COVERAGE_TYPES[coverage_type]['id']),
+            'tiv'
+        ].sum()
         tiv_sum = float(tiv_sum)
         exposure_summary[peril][status]['tiv_by_coverage'][coverage_type] = tiv_sum
         if coverage_type in exposure_summary[peril]['all']['tiv_by_coverage']:
@@ -464,7 +465,7 @@ def get_exposure_summary(df, exposure_summary, peril, peril_code, status, loc_nu
         exposure_summary[peril]['all']['tiv'] += tiv_sum
 
     # Find number of locations
-    loc_count = df.loc[df['peril_id']==peril_code, loc_num].drop_duplicates().count()
+    loc_count = df.loc[df['peril_id'] == peril_code, loc_num].drop_duplicates().count()
     loc_count = int(loc_count)
     exposure_summary[peril][status]['number_of_locations'] = loc_count
     exposure_summary[peril]['all']['number_of_locations'] += loc_count
@@ -515,7 +516,8 @@ def write_exposure_summary(
         gul_inputs_errors_df = pd.DataFrame(columns=gul_inputs_df.columns)
     keys_errors_df = pd.read_csv(keys_errors_fp)
     keys_errors_df.columns = keys_errors_df.columns.str.lower()
-    gul_inputs_errors_df = gul_inputs_errors_df.merge(
+    gul_inputs_errors_df = merge_dataframes(
+        gul_inputs_errors_df,
         keys_errors_df,
         left_on=[loc_num, 'peril_id', 'coverage_type_id'],
         right_on=['locid', 'perilid', 'coveragetypeid'],
@@ -529,7 +531,7 @@ def write_exposure_summary(
 
     # Compile summary of exposure data
     exposure_summary = {}
-    for peril_code in gul_inputs_df['peril_id'].drop_duplicates():
+    for peril_code in gul_inputs_df['peril_id'].unique():
         # Use descriptive names of perils as keys
         for k, vals in PERILS.items():
             if vals['id'] == peril_code:
@@ -554,7 +556,7 @@ def write_exposure_summary(
                 )
             elif status != 'all':
                 exposure_summary = get_exposure_summary(
-                    gul_inputs_errors_df[gul_inputs_errors_df['status']==status],
+                    gul_inputs_errors_df[gul_inputs_errors_df['status'] == status],
                     exposure_summary,
                     peril,
                     peril_code,
