@@ -20,7 +20,6 @@ import pandas as pd
 pd.options.mode.chained_assignment = None
 
 from ..utils.concurrency import (
-    get_num_cpus,
     multithread,
     Task,
 )
@@ -380,6 +379,7 @@ def write_coverages_file(gul_inputs_df, coverages_fp, chunksize=100000):
     return coverages_fp
 
 
+@oasis_log
 def write_gul_input_files(
     gul_inputs_df,
     target_dir,
@@ -432,29 +432,18 @@ def write_gul_input_files(
     # module by name - this is it is necessary here to have the module object
     this_module = sys.modules[__name__]
 
-    # Get the physical CPU count on the instance - this is used as one of the
-    # conditions to test for when deciding whether to write the input files
-    # using multiple threads
-    cpu_count = get_num_cpus()
-
-    # If the GUL inputs size doesn't exceed the chunk size, or there are
-    # sufficient physical CPUs to cover the number of input files to be written,
-    # then use multiple threads to write the files, otherwise write them
-    # serially
-    if len(gul_inputs_df) <= chunksize or cpu_count >= len(gul_input_files):
-        tasks = (
-            Task(
-                getattr(this_module, 'write_{}_file'.format(fn)),
-                args=(gul_inputs_df.copy(deep=True), gul_input_files[fn], chunksize,),
-                key=fn
-            )
-            for fn in gul_input_files
+    # Create a generator of ``oasislmf.utils.concurrency.Task`` objects to
+    # represent the writing of the individual input files, one per file
+    tasks = (
+        Task(
+            getattr(this_module, 'write_{}_file'.format(fn)),
+            args=(gul_inputs_df.copy(deep=True), gul_input_files[fn], chunksize,),
+            key=fn
         )
-        num_ps = min(len(gul_input_files), cpu_count)
-        for _, _ in multithread(tasks, pool_size=num_ps):
-            pass
-    else:
-        for fn, fp in gul_input_files.items():
-            getattr(this_module, 'write_{}_file'.format(fn))(gul_inputs_df, fp, chunksize)
+        for fn in gul_input_files
+    )
+
+    for _, _ in multithread(tasks, pool_size=len(gul_input_files)):
+        pass
 
     return gul_input_files
