@@ -12,7 +12,6 @@ from itertools import chain
 from pathlib2 import Path
 
 from ..manager import OasisManager as om
-from ..model_preparation import oed
 from ..utils.data import (
     print_dataframe,
 )

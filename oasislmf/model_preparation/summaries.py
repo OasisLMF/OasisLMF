@@ -68,7 +68,6 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
 
     # Case GUL+FM (based on il_inputs_df)
     if is_fm_summary:
-        #import ipdb; ipdb.set_trace()
         summary_mapping = inputs_df[inputs_df['level_id'] == inputs_df['level_id'].max()].drop_duplicates(subset=['gul_input_id', 'layer_id'], keep='first')
         summary_mapping['agg_id'] = summary_mapping['gul_input_id']
         summary_mapping['output_id'] = factorize_ndarray(

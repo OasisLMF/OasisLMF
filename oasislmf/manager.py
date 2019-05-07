@@ -40,7 +40,6 @@ from .model_execution.bin import (
     prepare_run_directory,
     prepare_run_inputs,
 )
-from .model_preparation import oed
 from .model_preparation.gul_inputs import (
     get_gul_input_items,
     write_gul_input_files,
