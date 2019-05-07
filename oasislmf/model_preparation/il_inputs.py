@@ -28,7 +28,6 @@ pd.options.mode.chained_assignment = None
 import numpy as np
 
 from ..utils.concurrency import (
-    get_num_cpus,
     multithread,
     Task,
 )
@@ -719,6 +718,7 @@ def write_fm_xref_file(il_inputs_df, fm_xref_fp, chunksize=100000):
     return fm_xref_fp
 
 
+@oasis_log
 def write_il_input_files(
     il_inputs_df,
     target_dir,
@@ -762,26 +762,19 @@ def write_il_input_files(
     # and we use this property to dynamically retrieve the methods from this
     # module
     this_module = sys.modules[__name__]
-    cpu_count = get_num_cpus()
 
-    # If the IL inputs size doesn't exceed the chunk size, or there are
-    # sufficient physical CPUs to cover the number of input files to be written,
-    # then use multiple threads to write the files, otherwise write them
-    # serially
-    if len(il_inputs_df) <= chunksize or cpu_count >= len(il_input_files):
-        tasks = (
-            Task(
-                getattr(this_module, 'write_{}_file'.format(fn)),
-                args=(il_inputs_df.copy(deep=True), il_input_files[fn], chunksize,),
-                key=fn
-            )
-            for fn in il_input_files
+    # Create a generator of ``oasislmf.utils.concurrency.Task`` objects to
+    # represent the writing of the individual input files, one per file
+    tasks = (
+        Task(
+            getattr(this_module, 'write_{}_file'.format(fn)),
+            args=(il_inputs_df.copy(deep=True), il_input_files[fn], chunksize,),
+            key=fn
         )
-        num_ps = min(len(il_input_files), cpu_count)
-        for _, _ in multithread(tasks, pool_size=num_ps):
-            pass
-    else:
-        for fn, fp in il_input_files.items():
-            getattr(this_module, 'write_{}_file'.format(fn))(il_inputs_df, fp, chunksize)
+        for fn in il_input_files
+    )
+
+    for _, _ in multithread(tasks, pool_size=len(il_input_files)):
+        pass
 
     return il_input_files
