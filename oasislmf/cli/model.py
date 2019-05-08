@@ -227,6 +227,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
         parser.add_argument('-l', '--lookup-package-path', default=None, help='Lookup package path')
         parser.add_argument('-L', '--complex-lookup-config-file-path', default=None, help='Complex lookup config JSON file path')
+        parser.add_argument('-D', '--user-data-path', default=None, help='Directory containing additional user-supplied model data files')
         parser.add_argument('-e', '--source-exposure-profile-path', default=None, help='Source (OED) exposure profile path')
         parser.add_argument('-b', '--source-accounts-profile-path', default=None, help='Source (OED) accounts profile path')
         parser.add_argument('-x', '--source-exposure-file-path', default=None, help='Source exposure file path')
@@ -279,6 +280,10 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         complex_lookup_config_fp = as_path(
             inputs.get('complex_lookup_config_file_path', required=False, is_path=True),
             'Complex lookup config JSON file path', preexists=False
+        )
+        user_data_dir = as_path(
+            inputs.get('user_data_path', required=False, is_path=True),
+            'Directory containing additional user-supplied model data files', preexists=False
         )
 
         if not (keys_fp or lookup_config_fp or (keys_data_fp and model_version_fp and lookup_package_fp)):
@@ -343,7 +348,8 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             accounts_profile_fp=accounts_profile_fp,
             fm_aggregation_profile_fp=aggregation_profile_fp,
             ri_info_fp=ri_info_fp,
-            ri_scope_fp=ri_scope_fp
+            ri_scope_fp=ri_scope_fp,
+            user_data_dir=user_data_dir
         )
 
         self.logger.info('\nOasis files generated: {}'.format(oasis_files))
@@ -392,6 +398,7 @@ class GenerateLossesCmd(OasisBaseCommand):
 
         parser.add_argument('-o', '--oasis-files-path', default=None, help='Path to pre-existing direct Oasis files (GUL + FM input files)')
         parser.add_argument('-a', '--analysis-settings-file-path', default=None, help='Analysis settings file path')
+        parser.add_argument('-D', '--user-data-path', default=None, help='Directory containing additional user-supplied model data files')
         parser.add_argument('-d', '--model-data-path', default=None, help='Model data path')
         parser.add_argument('-r', '--model-run-dir', default=None, help='Model run directory path')
         parser.add_argument('-p', '--model-package-path', default=None, help='Path containing model specific package')
@@ -438,6 +445,11 @@ class GenerateLossesCmd(OasisBaseCommand):
 
         ktools_alloc_rule = inputs.get('ktools_alloc_rule', default=2, required=False)
 
+        user_data_dir = as_path(
+            inputs.get('user_data_path', required=False, is_path=True),
+            'Directory containing additional user-supplied model data files', preexists=False
+        )
+
         verbose_output = inputs.get('verbose', default=False, required=False)
 
         il = all(p in os.listdir(oasis_fp) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
@@ -456,7 +468,8 @@ class GenerateLossesCmd(OasisBaseCommand):
             ktools_mem_limit=ktools_mem_limit,
             ktools_fifo_relative=ktools_fifo_relative,
             ktools_alloc_rule=ktools_alloc_rule,
-            ktools_debug=verbose_output
+            ktools_debug=verbose_output,
+            user_data_dir=user_data_dir
         )
 
         self.logger.info('\nLosses generated in {}'.format(model_run_fp))

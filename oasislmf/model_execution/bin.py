@@ -40,6 +40,7 @@ def prepare_run_directory(
     model_data_fp,
     analysis_settings_fp,
     inputs_archive=None,
+    user_data_dir=None,
     ri=False,
 ):
     """
@@ -96,11 +97,11 @@ def prepare_run_directory(
     Darwin or Linux, otherwise the source folder tree is recursively
     copied into the ``static`` subfolder.
 
-    :param run_directory: the model run directory
-    :type run_directory: str
+    :param run_dir: the model run directory
+    :type run_dir: str
 
-    :param oasis_fp: path to a set of Oasis files
-    :type oasis_fp: str
+    :param oasis_src_fp: path to a set of Oasis files
+    :type oasis_src_fp: str
 
     :param ri: Boolean flag for RI mode
     :type ri: bool
@@ -113,6 +114,9 @@ def prepare_run_directory(
 
     :param inputs_archive: path to a tar file containing input files
     :type inputs_archive: str
+
+    :param: user_data_dir: path to a directory containing additional user-supplied model data
+    :type user_data_dir: str
     """
     try:
         for subdir in ['fifo', 'output', 'static', 'work']:
@@ -151,6 +155,18 @@ def prepare_run_directory(
                     os.symlink(path, os.path.join(model_data_dst_fp, fn))
             except Exception:
                 shutil.copytree(model_data_fp, os.path.join(model_data_dst_fp, fn))
+
+        if user_data_dir and os.path.exists(user_data_dir):
+            for path in glob.glob(os.path.join(user_data_dir, '*')):
+                fn = os.path.basename(path)
+                try:
+                    if os.name == 'nt':
+                        shutil.copy(path, os.path.join(oasis_dst_fp, fn))
+                    else:
+                        os.symlink(path, os.path.join(oasis_dst_fp, fn))
+                except Exception:
+                    shutil.copytree(user_data_dir, os.path.join(oasis_dst_fp, fn))
+
     except OSError as e:
         raise OasisException from e
 
