@@ -508,14 +508,22 @@ def write_exposure_summary(
 
     # Get keys in GUL input items dataframe and merge with key errors to obtain
     # status information
+    dtypes = {
+        'locid': 'str',
+        'perilid': 'str',
+        'coveragetypeid': 'uint32',
+        'status': 'str',
+        'message': 'str'
+    }
     try:
         gul_inputs_errors_df, _ = get_gul_input_items(
             exposure_fp, keys_errors_fp, exposure_profile=exposure_profile
         )
+        keys_errors_df = get_dataframe(src_fp=keys_errors_fp, col_dtypes=dtypes)
+        keys_errors_df.columns = keys_errors_df.columns.str.lower()
     except OasisException:   # Empty dataframe
         gul_inputs_errors_df = pd.DataFrame(columns=gul_inputs_df.columns)
-    keys_errors_df = pd.read_csv(keys_errors_fp)
-    keys_errors_df.columns = keys_errors_df.columns.str.lower()
+        keys_errors_df = pd.DataFrame(columns=dtypes.keys())
     gul_inputs_errors_df = merge_dataframes(
         gul_inputs_errors_df,
         keys_errors_df,
@@ -533,10 +541,10 @@ def write_exposure_summary(
     exposure_summary = {}
     for peril_code in gul_inputs_df['peril_id'].unique():
         # Use descriptive names of perils as keys
-        for k, vals in PERILS.items():
-            if vals['id'] == peril_code:
-                peril = vals['desc']
-                break
+        try:
+            peril = [v['desc'] for v in PERILS.values() if v['id'] == peril_code][0]
+        except IndexError:
+            raise OasisException("Invalid Peril ID. Please check source exposure file.")
         exposure_summary[peril] = {}
         # Create dictionary structure for all and each validity status
         for status in ['all'] + list(OASIS_KEYS_STATUS.keys()):
