@@ -422,14 +422,15 @@ class OasisManager(object):
         )
 
         # Write exposure summary file
-        write_exposure_summary(
-            target_dir,
-            gul_inputs_df,
-            exposure_fp,
-            keys_errors_fp=_keys_errors_fp,
-            exposure_profile=exposure_profile,
-            loc_num=loc_num
-        )
+        if not deterministic:
+            write_exposure_summary(
+                target_dir,
+                gul_inputs_df,
+                exposure_fp,
+                keys_errors_fp=_keys_errors_fp,
+                exposure_profile=exposure_profile,
+                loc_num=loc_num
+            )
 
         # Write the GUL input files
         files_prefixes = oasis_files_prefixes or self.oasis_files_prefixes
