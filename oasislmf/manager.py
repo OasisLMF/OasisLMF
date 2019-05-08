@@ -421,7 +421,7 @@ class OasisManager(object):
             exposure_fp, _keys_fp, exposure_profile=exposure_profile
         )
 
-        # Write exposure summary file
+        # If not in det. loss gen. scenario, write exposure summary file
         if not deterministic:
             write_exposure_summary(
                 target_dir,
