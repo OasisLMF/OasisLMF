@@ -547,7 +547,6 @@ class OasisManager(object):
         except (IOError, TypeError, ValueError):
             raise OasisException('Invalid analysis settings file or file path: {}.'.format(_analysis_settings_fp))
 
-        # prepare summery_sets
         generate_summaryxref_files(model_run_fp, analysis_settings)
 
         if not ri:
