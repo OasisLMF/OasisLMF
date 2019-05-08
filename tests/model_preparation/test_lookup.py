@@ -290,6 +290,7 @@ class OasisLookupFactoryWriteOasisKeysFiles(TestCase):
             'LocID': 'id',
             'PerilID': 'peril_id',
             'CoverageTypeID': 'coverage_type',
+            'Status': 'status',
             'Message': 'message'
         }
 
