@@ -423,7 +423,7 @@ def generate_summaryxref_files(model_run_fp, analysis_settings):
 
 
 @oasis_log
-def get_exposure_summary(df, exposure_summary, peril, peril_code, status, loc_num):
+def get_exposure_summary(df, exposure_summary, peril_desc, peril_id, status, loc_num):
     """
     Populate dictionary with TIVs and number of locations, grouped by peril and
     validity respectively
@@ -453,24 +453,24 @@ def get_exposure_summary(df, exposure_summary, peril, peril_code, status, loc_nu
     # Separate TIVs by coverage type and acquire sum
     for coverage_type in SUPPORTED_COVERAGE_TYPES:
         tiv_sum = df.loc[
-            (df['peril_id'] == peril_code) &
+            (df['peril_id'] == peril_id) &
             (df['coverage_type_id'] == SUPPORTED_COVERAGE_TYPES[coverage_type]['id']),
             'tiv'
         ].sum()
         tiv_sum = float(tiv_sum)
-        exposure_summary[peril][status]['tiv_by_coverage'][coverage_type] = tiv_sum
-        if coverage_type in exposure_summary[peril]['all']['tiv_by_coverage']:
-            exposure_summary[peril]['all']['tiv_by_coverage'][coverage_type] += tiv_sum
+        exposure_summary[peril_desc][status]['tiv_by_coverage'][coverage_type] = tiv_sum
+        if coverage_type in exposure_summary[peril_desc]['all']['tiv_by_coverage']:
+            exposure_summary[peril_desc]['all']['tiv_by_coverage'][coverage_type] += tiv_sum
         else:
-            exposure_summary[peril]['all']['tiv_by_coverage'][coverage_type] = tiv_sum
-        exposure_summary[peril][status]['tiv'] += tiv_sum
-        exposure_summary[peril]['all']['tiv'] += tiv_sum
+            exposure_summary[peril_desc]['all']['tiv_by_coverage'][coverage_type] = tiv_sum
+        exposure_summary[peril_desc][status]['tiv'] += tiv_sum
+        exposure_summary[peril_desc]['all']['tiv'] += tiv_sum
 
     # Find number of locations
-    loc_count = df.loc[df['peril_id'] == peril_code, loc_num].drop_duplicates().count()
+    loc_count = df.loc[df['peril_id'] == peril_id, loc_num].drop_duplicates().count()
     loc_count = int(loc_count)
-    exposure_summary[peril][status]['number_of_locations'] = loc_count
-    exposure_summary[peril]['all']['number_of_locations'] += loc_count
+    exposure_summary[peril_desc][status]['number_of_locations'] = loc_count
+    exposure_summary[peril_desc]['all']['number_of_locations'] += loc_count
 
     return exposure_summary
 
@@ -518,26 +518,26 @@ def write_exposure_summary(
 
     # Compile summary of exposure data
     exposure_summary = {}
-    for peril_code in gul_inputs_df['peril_id'].unique():
+    for peril_id in gul_inputs_df['peril_id'].unique():
         # Use descriptive names of perils as keys
         try:
-            peril = [v['desc'] for v in PERILS.values() if v['id'] == peril_code][0]
+            peril_desc = [v['desc'] for v in PERILS.values() if v['id'] == peril_id][0]
         except IndexError:
-            raise OasisException("Invalid Peril ID. Please check source exposure file.")
-        exposure_summary[peril] = {}
+            print("Invalid Peril ID {}. Please check source exposure file.".format(peril_id))
+        exposure_summary[peril_desc] = {}
         # Create dictionary structure for all and each validity status
         for status in ['all'] + list(OASIS_KEYS_STATUS.keys()):
-            exposure_summary[peril][status] = {}
-            exposure_summary[peril][status]['tiv'] = 0.0
-            exposure_summary[peril][status]['tiv_by_coverage'] = {}
-            exposure_summary[peril][status]['number_of_locations'] = 0
+            exposure_summary[peril_desc][status] = {}
+            exposure_summary[peril_desc][status]['tiv'] = 0.0
+            exposure_summary[peril_desc][status]['tiv_by_coverage'] = {}
+            exposure_summary[peril_desc][status]['number_of_locations'] = 0
             # Fill exposure summary dictionary
             if status == 'success':
                 exposure_summary = get_exposure_summary(
                     gul_inputs_df,
                     exposure_summary,
-                    peril,
-                    peril_code,
+                    peril_desc,
+                    peril_id,
                     status,
                     loc_num
                 )
@@ -545,8 +545,8 @@ def write_exposure_summary(
                 exposure_summary = get_exposure_summary(
                     gul_inputs_errors_df[gul_inputs_errors_df['status'] == status],
                     exposure_summary,
-                    peril,
-                    peril_code,
+                    peril_desc,
+                    peril_id,
                     status,
                     loc_num
                 )
