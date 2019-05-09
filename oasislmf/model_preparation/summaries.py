@@ -2,6 +2,7 @@ __all__ = [
     'get_summary_mapping',
     'generate_summaryxref_files',
     'merge_oed_to_mapping',
+    'write_exposure_summary',
     'write_mapping_file',
 ]
 
@@ -421,6 +422,7 @@ def generate_summaryxref_files(model_run_fp, analysis_settings):
         write_xref_file(ri_summaryxref_df, summary_ri_fp)
 
 
+@oasis_log
 def get_exposure_summary(df, exposure_summary, peril, peril_code, status, loc_num):
     """
     Populate dictionary with TIVs and number of locations, grouped by peril and
@@ -506,36 +508,13 @@ def write_exposure_summary(
     :type loc_num: str
     """
 
-    # Get keys in GUL input items dataframe and merge with key errors to obtain
-    # status information
-    dtypes = {
-        'locid': 'str',
-        'perilid': 'str',
-        'coveragetypeid': 'uint32',
-        'status': 'str',
-        'message': 'str'
-    }
+    # Get GUL input items dataframe for unsuccessful keys
     try:
         gul_inputs_errors_df, _ = get_gul_input_items(
             exposure_fp, keys_errors_fp, exposure_profile=exposure_profile
         )
-        keys_errors_df = get_dataframe(src_fp=keys_errors_fp, col_dtypes=dtypes)
-        keys_errors_df.columns = keys_errors_df.columns.str.lower()
     except OasisException:   # Empty dataframe
         gul_inputs_errors_df = pd.DataFrame(columns=gul_inputs_df.columns)
-        keys_errors_df = pd.DataFrame(columns=dtypes.keys())
-    gul_inputs_errors_df = merge_dataframes(
-        gul_inputs_errors_df,
-        keys_errors_df,
-        left_on=[loc_num, 'peril_id', 'coverage_type_id'],
-        right_on=['locid', 'perilid', 'coveragetypeid'],
-        how='left'
-    )
-    gul_inputs_errors_df.drop(
-        columns=['locid', 'perilid', 'coveragetypeid', 'message'],
-        axis=1,
-        inplace=True
-    )
 
     # Compile summary of exposure data
     exposure_summary = {}
@@ -562,7 +541,7 @@ def write_exposure_summary(
                     status,
                     loc_num
                 )
-            elif status != 'all':
+            elif status != 'all' and len(gul_inputs_errors_df) != 0:
                 exposure_summary = get_exposure_summary(
                     gul_inputs_errors_df[gul_inputs_errors_df['status'] == status],
                     exposure_summary,
