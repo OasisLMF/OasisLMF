@@ -9,6 +9,7 @@ __all__ = [
 import io
 import json
 import os
+import warnings
 
 import pandas as pd
 
@@ -423,7 +424,7 @@ def generate_summaryxref_files(model_run_fp, analysis_settings):
 
 
 @oasis_log
-def get_exposure_summary(df, exposure_summary, peril_desc, peril_id, status, loc_num):
+def get_exposure_summary(df, exposure_summary, peril_key, peril_id, status, loc_num):
     """
     Populate dictionary with TIVs and number of locations, grouped by peril and
     validity respectively
@@ -437,7 +438,7 @@ def get_exposure_summary(df, exposure_summary, peril_desc, peril_id, status, loc
     :param peril: descriptive name of peril
     :type peril: str
 
-    :param peril_code: OED peril code
+    :param peril_key: Descriptive OED peril key, e.g. "river flood", "tropical cyclone"
     :type peril_code: str
 
     :param status: status returned by lookup ('success', 'fail' or 'nomatch')
@@ -458,19 +459,19 @@ def get_exposure_summary(df, exposure_summary, peril_desc, peril_id, status, loc
             'tiv'
         ].sum()
         tiv_sum = float(tiv_sum)
-        exposure_summary[peril_desc][status]['tiv_by_coverage'][coverage_type] = tiv_sum
-        if coverage_type in exposure_summary[peril_desc]['all']['tiv_by_coverage']:
-            exposure_summary[peril_desc]['all']['tiv_by_coverage'][coverage_type] += tiv_sum
+        exposure_summary[peril_key][status]['tiv_by_coverage'][coverage_type] = tiv_sum
+        if coverage_type in exposure_summary[peril_key]['all']['tiv_by_coverage']:
+            exposure_summary[peril_key]['all']['tiv_by_coverage'][coverage_type] += tiv_sum
         else:
-            exposure_summary[peril_desc]['all']['tiv_by_coverage'][coverage_type] = tiv_sum
-        exposure_summary[peril_desc][status]['tiv'] += tiv_sum
-        exposure_summary[peril_desc]['all']['tiv'] += tiv_sum
+            exposure_summary[peril_key]['all']['tiv_by_coverage'][coverage_type] = tiv_sum
+        exposure_summary[peril_key][status]['tiv'] += tiv_sum
+        exposure_summary[peril_key]['all']['tiv'] += tiv_sum
 
     # Find number of locations
     loc_count = df.loc[df['peril_id'] == peril_id, loc_num].drop_duplicates().count()
     loc_count = int(loc_count)
-    exposure_summary[peril_desc][status]['number_of_locations'] = loc_count
-    exposure_summary[peril_desc]['all']['number_of_locations'] += loc_count
+    exposure_summary[peril_key][status]['number_of_locations'] = loc_count
+    exposure_summary[peril_key]['all']['number_of_locations'] += loc_count
 
     return exposure_summary
 
@@ -482,7 +483,7 @@ def write_exposure_summary(
     exposure_fp,
     keys_errors_fp,
     exposure_profile,
-    loc_num
+    loc_num='locnumber'
 ):
     """
     Create exposure summary as dictionary of TIVs and number of locations
@@ -504,16 +505,19 @@ def write_exposure_summary(
     :param exposure_profile: profile defining exposure file
     :type exposure_profile: dict
 
-    :param loc_num: location number column heading from exposure file
+    :param loc_num: OED location number column name (optional; default is "locnumber")
     :type loc_num: str
+
+    :return: Exposure summary file path
+    :rtype: str
     """
 
-    # Get GUL input items dataframe for unsuccessful keys
+    # Get GUL input items dataframe to process keys errors
     try:
         gul_inputs_errors_df, _ = get_gul_input_items(
             exposure_fp, keys_errors_fp, exposure_profile=exposure_profile
         )
-    except OasisException:   # Empty dataframe
+    except OasisException:   # Empty dataframe (due to empty keys errors file)
         gul_inputs_errors_df = pd.DataFrame(columns=gul_inputs_df.columns)
 
     # Compile summary of exposure data
@@ -521,22 +525,22 @@ def write_exposure_summary(
     for peril_id in gul_inputs_df['peril_id'].unique():
         # Use descriptive names of perils as keys
         try:
-            peril_desc = [v['desc'] for v in PERILS.values() if v['id'] == peril_id][0]
+            peril_key = [k for k, v in PERILS.items() if v['id'] == peril_id][0]
         except IndexError:
-            print("Invalid Peril ID {}. Please check source exposure file.".format(peril_id))
-        exposure_summary[peril_desc] = {}
+            warnings.warn('"{}" is not a valid OED peril ID/code. Please check the source exposure file.'.format(peril_id))
+        exposure_summary[peril_key] = {}
         # Create dictionary structure for all and each validity status
         for status in ['all'] + list(OASIS_KEYS_STATUS.keys()):
-            exposure_summary[peril_desc][status] = {}
-            exposure_summary[peril_desc][status]['tiv'] = 0.0
-            exposure_summary[peril_desc][status]['tiv_by_coverage'] = {}
-            exposure_summary[peril_desc][status]['number_of_locations'] = 0
+            exposure_summary[peril_key][status] = {}
+            exposure_summary[peril_key][status]['tiv'] = 0.0
+            exposure_summary[peril_key][status]['tiv_by_coverage'] = {}
+            exposure_summary[peril_key][status]['number_of_locations'] = 0
             # Fill exposure summary dictionary
             if status == 'success':
                 exposure_summary = get_exposure_summary(
                     gul_inputs_df,
                     exposure_summary,
-                    peril_desc,
+                    peril_key,
                     peril_id,
                     status,
                     loc_num
@@ -545,16 +549,15 @@ def write_exposure_summary(
                 exposure_summary = get_exposure_summary(
                     gul_inputs_errors_df[gul_inputs_errors_df['status'] == status],
                     exposure_summary,
-                    peril_desc,
+                    peril_key,
                     peril_id,
                     status,
                     loc_num
                 )
 
     # Write exposure summary as json file
-    with io.open(
-        os.path.join(target_dir, 'exposure_summary_report.json'),
-        'w',
-        encoding='utf-8'
-    ) as f:
+    fp = os.path.join(target_dir, 'exposure_summary_report.json')
+    with io.open(fp, 'w', encoding='utf-8') as f:
         f.write(json.dumps(exposure_summary, ensure_ascii=False, indent=4))
+
+    return fp
