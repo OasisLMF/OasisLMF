@@ -231,7 +231,20 @@ def get_il_input_items(
     # are in the accounts file, not the exposure file, so will have to be
     # sourced from the accounts dataframe
     cond_pol_acc_levels = ['cond all', 'policy all', 'policy layer']
-    accounts_il_cols = get_fm_terms_oed_columns(fm_terms, levels=cond_pol_acc_levels)
+    terms_floats = ['deductible', 'deductible_min', 'deductible_max', 'limit', 'share']
+    terms_ints = ['ded_code', 'ded_type', 'lim_code', 'lim_type']
+    terms = terms_floats + terms_ints
+    term_cols_floats = get_fm_terms_oed_columns(
+        fm_terms,
+        levels=cond_pol_acc_levels,
+        terms=terms_floats
+    )
+    term_cols_ints = get_fm_terms_oed_columns(
+        fm_terms,
+        levels=cond_pol_acc_levels,
+        terms=terms_ints
+    )
+    term_cols = term_cols_floats + term_cols_ints
 
     # Get the layer level (policy layer, # 10) limit column - this column's
     # data type contains large values which can only be represented in 64-bit
@@ -241,13 +254,15 @@ def get_il_input_items(
     # Set defaults and data types for all the financial terms columns in the
     # accounts dataframe
     defaults = {
-        **{t: 0.0 for t in accounts_il_cols},
+        **{t: 0.0 for t in term_cols_floats},
+        **{t: 0 for t in term_cols_ints},
         **{cond_num: 0},
         **{portfolio_num: '1'}
     }
     dtypes = {
         **{t: 'str' for t in [acc_num, portfolio_num, policy_num]},
-        **{t: ('float32' if t != layer_limit_col else 'float64') for t in accounts_il_cols},
+        **{t: ('float32' if t != layer_limit_col else 'float64') for t in term_cols_floats},
+        **{t: 'uint8' for t in term_cols_ints},
         **{t: 'uint32' for t in [cond_num, 'layer_id']}
     }
 
@@ -280,20 +295,26 @@ def get_il_input_items(
     # the source columns for the financial terms present in the accounts file (the
     # file should contain all financial terms relating to the cond. all (# 6),
     # policy all (# 9) and policy layer (# 10) FM levels)
-    usecols = [acc_num, portfolio_num, policy_num, cond_num, 'layer_id', SOURCE_IDX['acc']] + accounts_il_cols
+    usecols = [acc_num, portfolio_num, policy_num, cond_num, 'layer_id', SOURCE_IDX['acc']] + term_cols
     accounts_df.drop([c for c in accounts_df.columns if c not in usecols], axis=1, inplace=True)
 
     try:
         # Create a list of all the IL columns for the site pd (# 2) and site all (# 3)
         # levels - these columns are in the exposure file, not the accounts
         # file, and so must be sourced from the exposure dataframe
-        site_pd_and_site_all_term_cols = get_fm_terms_oed_columns(fm_terms, levels=['site pd', 'site all'])
+        site_pd_and_site_all_term_cols_floats = get_fm_terms_oed_columns(fm_terms, levels=['site pd', 'site all'], terms=terms_floats)
+        site_pd_and_site_all_term_cols_ints = get_fm_terms_oed_columns(fm_terms, levels=['site pd', 'site all'], terms=terms_ints)
+        site_pd_and_site_all_term_cols = site_pd_and_site_all_term_cols_floats + site_pd_and_site_all_term_cols_ints
 
         # Check if any of these columns are missing in the exposure frame, and if so
         # set the missing columns with a default value of 0.0 in the exposure frame
-        missing = set(site_pd_and_site_all_term_cols).difference(exposure_df.columns)
-        if missing:
-            defaults = {t: 0.0 for t in missing}
+        missing_floats = set(site_pd_and_site_all_term_cols_floats).difference(exposure_df.columns)
+        missing_ints = set(site_pd_and_site_all_term_cols_ints).difference(exposure_df.columns)
+        defaults = {
+            **{t: 0.0 for t in missing_floats},
+            **{t: 0 for t in missing_ints}
+        }
+        if defaults:
             exposure_df = get_dataframe(src_data=exposure_df, col_defaults=defaults)
 
         # First, merge the exposure and GUL inputs frame to augment the GUL inputs
@@ -398,9 +419,13 @@ def get_il_input_items(
         # earlier merge with the exposure and GUL inputs frame - the GUL inputs
         # frame should already contain the coverage level terms
 
-        # The list of financial terms for the sub-layer levels - the layer
-        # level terms are deductible (attachment), share and limit
-        terms = ['deductible', 'deductible_min', 'deductible_max', 'limit']
+        # The list of financial terms for the sub-layer levels, which are
+        # site pd (# 2), site all (# 3), cond. all (# 6), policy all (# 9) - 
+        # the terms for these levels do not include "share", which is unique to
+        # the (policy) layer level (# 10), and also the layer level terms do
+        # not include ded. or limit codes or types
+        terms_floats.remove('share')
+        terms = terms_floats + terms_ints
 
         # Steps to filter out any intermediate FM levels which have no
         # financial terms, and also drop all the OED columns for the terms
@@ -443,8 +468,8 @@ def get_il_input_items(
         # level removed
         for level in intermediate_fm_levels:
             level_id = SUPPORTED_FM_LEVELS[level]['id']
-            terms = [t for t in terms if fm_terms[level_id][1].get(t)]
-            term_cols = get_fm_terms_oed_columns(fm_terms, level_ids=[level_id], terms=terms)
+            level_terms = [t for t in terms if fm_terms[level_id][1].get(t)]
+            level_term_cols = get_fm_terms_oed_columns(fm_terms, level_ids=[level_id], terms=terms)
             level_df = il_inputs_df[il_inputs_df['level_id'] == cov_level_id].drop_duplicates()
             level_df['level_id'] = level_id
 
@@ -452,12 +477,12 @@ def get_il_input_items(
             level_df['agg_id'] = factorize_ndarray(level_df.loc[:, agg_key].values, col_idxs=range(len(agg_key)))[0]
 
             if level == 'cond all':
-                level_df.loc[:, term_cols] = level_df.loc[:, term_cols].fillna(0)
+                level_df.loc[:, level_term_cols] = level_df.loc[:, level_term_cols].fillna(0)
             else:
-                level_df.loc[:, term_cols] = level_df.loc[:, term_cols].fillna(method='ffill')
-                level_df.loc[:, term_cols] = level_df.loc[:, term_cols].fillna(0)
+                level_df.loc[:, level_term_cols] = level_df.loc[:, level_term_cols].fillna(method='ffill')
+                level_df.loc[:, level_term_cols] = level_df.loc[:, level_term_cols].fillna(0)
 
-            level_df.loc[:, terms] = level_df.loc[:, term_cols].values
+            level_df.loc[:, level_terms] = level_df.loc[:, level_term_cols].values
 
             level_df['deductible'] = np.where(
                 level_df['coverage_type_id'].isin((profile[level_id][1].get('deductible') or {}).get('CoverageTypeID') or supp_cov_types),
@@ -482,7 +507,7 @@ def get_il_input_items(
             )
 
             il_inputs_df = pd.concat([il_inputs_df, level_df], sort=True, ignore_index=True)
-            il_inputs_df.drop(term_cols, axis=1, inplace=True)
+            il_inputs_df.drop(level_term_cols, axis=1, inplace=True)
 
         # Resequence the item IDs, as the earlier repeated concatenation of
         # the intermediate level frames may have produced a non-sequential index
@@ -548,8 +573,9 @@ def get_il_input_items(
         # Final setting of data types before returning the IL input items
         dtypes = {
             **{t: 'uint32' for t in [cond_num, 'agg_id', 'item_id', 'layer_id', 'level_id', 'orig_level_id', 'calcrule_id', 'policytc_id']},
-            **{t: 'float32' for t in [_t for _t in terms if _t != 'limit'] + ['attachment', 'deductible_min', 'deductible_max']},
-            **{'limit': 'float64'}
+            **{t: 'float32' for t in ['deductible', 'attachment', 'deductible_min', 'deductible_max']},
+            **{'limit': 'float64'},
+            **{t: 'uint8' for t in ['ded_code', 'ded_type', 'lim_code', 'lim_type']}
         }
         il_inputs_df = set_dataframe_column_dtypes(il_inputs_df, dtypes)
 

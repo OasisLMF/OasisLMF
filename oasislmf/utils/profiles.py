@@ -42,9 +42,13 @@ def get_grouped_fm_profile_by_level_and_term_group(
 
     grouped_fm_term_types = OrderedDict({
         'deductible': FM_TERMS['deductible']['id'],
+        'deductiblecode': FM_TERMS['deductible code']['id'],
+        'deductibletype': FM_TERMS['deductible type']['id'],
         'deductiblemin': FM_TERMS['min deductible']['id'],
         'deductiblemax': FM_TERMS['max deductible']['id'],
         'limit': FM_TERMS['limit']['id'],
+        'limitcode': FM_TERMS['limit code']['id'],
+        'limittype': FM_TERMS['limit type']['id'],
         'share': FM_TERMS['share']['id']
     })
 

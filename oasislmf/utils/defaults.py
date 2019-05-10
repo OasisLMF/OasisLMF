@@ -164,16 +164,24 @@ SUPPORTED_FM_LEVELS = OrderedDict({
 })
 
 FMT_DED = 'deductible'
+FMT_DED_CODE = 'ded_code'
+FMT_DED_TYPE = 'ded_type'
 FMT_DED_MIN = 'deductible_min'
 FMT_DED_MAX = 'deductible_max'
 FMT_LIM = 'limit'
+FMT_LIM_CODE = 'lim_code'
+FMT_LIM_TYPE = 'lim_type'
 FMT_SHR = 'share'
 
 FM_TERMS = OrderedDict({
     'deductible': {'id': FMT_DED, 'desc': 'Blanket deductible'},
+    'deductible code': {'id': FMT_DED_CODE, 'desc': 'Blanket deductible code'},
+    'deductible type': {'id': FMT_DED_TYPE, 'desc': 'Blanket deductible type'},
     'min deductible': {'id': FMT_DED_MIN, 'desc': 'Minimum deductible'},
     'max deductible': {'id': FMT_DED_MAX, 'desc': 'Maximum deductible'},
     'limit': {'id': FMT_LIM, 'desc': 'Limit'},
+    'limit code': {'id': FMT_LIM_CODE, 'desc': 'Limit code'},
+    'limit type': {'id': FMT_LIM_TYPE, 'desc': 'Limit type'},
     'share': {'id': FMT_SHR, 'desc': 'Share'}
 })
 
