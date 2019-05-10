@@ -254,18 +254,6 @@ def get_gul_input_items(
             cov_type_group = cov_type_group[(cov_type_group[['tiv']] != 0).any(axis=1)]
             if cov_type_group.empty:
                 cov_type_group[terms] = 0.0
-            """else:
-                cov_type_group['deductible'] = np.where(
-                    (cov_type_group['deductible'] == 0) | (cov_type_group['deductible'] >= 1),
-                    cov_type_group['deductible'],
-                    cov_type_group['tiv'] * cov_type_group['deductible'],
-                )
-                cov_type_group['limit'] = np.where(
-                    (cov_type_group['limit'] == 0) | (cov_type_group['limit'] >= 1),
-                    cov_type_group['limit'],
-                    cov_type_group['tiv'] * cov_type_group['limit'],
-                )
-            """
             other_cov_types = [v['id'] for v in SUPPORTED_COVERAGE_TYPES.values() if v['id'] != cov_type]
             other_cov_type_term_cols = (
                 [v for k, v in tiv_terms.items() if k != cov_type] +

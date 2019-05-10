@@ -109,11 +109,10 @@ def get_calc_rule_ids(il_inputs_df):
 
     terms = ['deductible', 'deductible_min', 'deductible_max', 'limit', 'share', 'attachment']
     terms_indicators = ['{}_gt_0'.format(t) for t in terms]
-    types_and_codes = ['deductible_type', 'deductible_code', 'limit_type', 'limit_code']
+    types_and_codes = ['ded_type', 'ded_code', 'lim_type', 'lim_code']
 
     il_inputs_calc_rules_df = il_inputs_df.loc[:, ['item_id'] + terms + terms_indicators + types_and_codes + ['calcrule_id']]
     il_inputs_calc_rules_df.loc[:, terms_indicators] = np.where(il_inputs_calc_rules_df[terms] > 0, 1, 0)
-    il_inputs_calc_rules_df.loc[:, types_and_codes] = 0
     il_inputs_calc_rules_df['id_key'] = [t for t in fast_zip_arrays(*il_inputs_calc_rules_df.loc[:, terms_indicators + types_and_codes].transpose().values)]
     il_inputs_calc_rules_df = merge_dataframes(il_inputs_calc_rules_df, calc_rules, how='left', on='id_key')
     il_inputs_calc_rules_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id'].astype('uint32')
@@ -489,21 +488,10 @@ def get_il_input_items(
                 level_df['deductible'],
                 0
             )
-            level_df['deductible'] = np.where(
-                (level_df['deductible'] == 0) | (level_df['deductible'] >= 1),
-                level_df['deductible'],
-                level_df['tiv'] * level_df['deductible']
-            )
-
             level_df['limit'] = np.where(
                 level_df['coverage_type_id'].isin((profile[level_id][1].get('limit') or {}).get('CoverageTypeID') or supp_cov_types),
                 level_df['limit'],
                 0
-            )
-            level_df['limit'] = np.where(
-                (level_df['limit'] == 0) | (level_df['limit'] >= 1),
-                level_df['limit'],
-                level_df['tiv'] * level_df['limit']
             )
 
             il_inputs_df = pd.concat([il_inputs_df, level_df], sort=True, ignore_index=True)
@@ -552,6 +540,7 @@ def get_il_input_items(
         layer_df['attachment'] = layer_df['deductible']
         layer_df['deductible'] = 0
         layer_df['share'] = layer_df['share'].where(layer_df['share'] != 0, 1.0)
+        layer_df.loc[:, ['ded_code', 'ded_type', 'lim_code', 'lim_type']] = 0
 
         # Join the IL inputs and layer level frames, and set layer ID, level ID
         # and IL item IDs
@@ -566,6 +555,8 @@ def get_il_input_items(
         il_inputs_df['level_id'] = factorize_ndarray(il_inputs_df.loc[:, ['level_id']].values, col_idxs=[0])[0]
         il_inputs_df['item_id'] = il_inputs_df.index + 1
 
+        dtypes = {t: 'uint8' for t in ['ded_code', 'ded_type', 'lim_code', 'lim_type']}
+        il_inputs_df = set_dataframe_column_dtypes(il_inputs_df, dtypes)
         il_inputs_df['calcrule_id'] = get_calc_rule_ids(il_inputs_df)
 
         il_inputs_df['policytc_id'] = get_policytc_ids(il_inputs_df)
