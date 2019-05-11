@@ -357,6 +357,12 @@ class OasisManager(object):
             self.fm_aggregation_profile
         )
 
+        # Check whether the files generation is for deterministic or model losses
+        deterministic = not(
+            (lookup_config or lookup_config_fp) or
+            (keys_data_fp and model_version_fp and lookup_package_fp)
+        )
+
         # If a pre-generated keys file path has not been provided,
         # then it is asssumed some model lookup assets have been provided, so
         # as to allow the lookup to be instantiated and called to generated
@@ -368,18 +374,6 @@ class OasisManager(object):
             _keys_errors_fp = os.path.join(target_dir, 'keys-errors.csv')
 
             cov_types = supported_oed_coverage_types or self.supported_oed_coverage_types
-
-            # Check whether the invocation indicates a deterministic or model
-            # Check whether the deterministic loss factor is non-null - if so then
-            # analysis/run - the CLI supports deterministic analyses via a command
-            # the Oasis files are for a deterministic loss generation scenario, and
-            # `oasislmf exposure run` which requires a preexisting input files
-            # therefore the loss factor must be applied to the GUL input item TIVs
-            # directory, which is usually the same as the analysis/output directory
-            deterministic = not(
-                (lookup_config or lookup_config_fp) or
-                (keys_data_fp and model_version_fp and lookup_package_fp)
-            )
 
             if deterministic:
                 loc_numbers = (loc_it[loc_num] for _, loc_it in get_dataframe(
