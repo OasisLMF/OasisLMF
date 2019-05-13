@@ -9,6 +9,11 @@
         "OEDHierarchy": "LocationGroup",
         "Key": "LocGrp"
     },
+    "LocPerilsCovered": {
+        "ProfileElementName": "LocPerilsCovered",
+        "OEDHierarchy": "Location",
+        "Key": "LocPerilID"
+    },
     "AccNumber": {
         "ProfileElementName": "AccNumber",
         "OEDHierarchy": "Account",

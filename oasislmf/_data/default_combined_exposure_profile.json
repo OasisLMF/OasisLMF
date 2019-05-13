@@ -1,49 +1,4 @@
 {
-    "0": {
-        "1": {
-            "accid": {
-                "FMLevel": 0,
-                "FMLevelName": "Hierarchy",
-                "FMTermGroupID": 1,
-                "FMTermType": "AccID",
-                "ProfileElementName": "AccNumber",
-                "ProfileType": "Acc"
-            },
-            "condid": {
-                "FMLevel": 0,
-                "FMLevelName": "Hierarchy",
-                "FMTermGroupID": 1,
-                "FMTermType": "CondID",
-                "ProfileElementName": "CondNumber",
-                "ProfileType": "Acc"
-            },
-            "locid": {
-                "FMLevel": 0,
-                "FMLevelName": "Hierarchy",
-                "FMTermGroupID": 1,
-                "FMTermType": "LocID",
-                "FieldName": "LocNumber",
-                "ProfileElementName": "LocNumber",
-                "ProfileType": "Loc"
-            },
-            "polid": {
-                "FMLevel": 0,
-                "FMLevelName": "Hierarchy",
-                "FMTermGroupID": 1,
-                "FMTermType": "PolID",
-                "ProfileElementName": "PolNumber",
-                "ProfileType": "Acc"
-            },
-            "portid": {
-                "FMLevel": 0,
-                "FMLevelName": "Hierarchy",
-                "FMTermGroupID": 1,
-                "FMTermType": "PortID",
-                "ProfileElementName": "PortNumber",
-                "ProfileType": "Acc"
-            }
-        }
-    },
     "1": {
         "1": {
             "ded_code": {
