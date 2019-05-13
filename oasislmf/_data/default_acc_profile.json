@@ -1,35 +1,23 @@
 {
     "AccNumber": {
         "ProfileElementName": "AccNumber",
-        "FMLevelName": "Hierarchy",
-        "FMLevel": 0,
-        "FMTermType": "AccID",
-        "FMTermGroupID": 1,
-        "ProfileType": "Acc"
-    },
-    "PolNumber": {
-        "ProfileElementName": "PolNumber",
-        "FMLevelName": "Hierarchy",
-        "FMLevel": 0,
-        "FMTermType": "PolID",
-        "FMTermGroupID": 1,
-        "ProfileType": "Acc"
+        "OEDHierarchy": "Account",
+        "Key": "AccID"
     },
     "PortNumber": {
         "ProfileElementName": "PortNumber",
-        "FMLevelName": "Hierarchy",
-        "FMLevel": 0,
-        "FMTermType": "PortID",
-        "FMTermGroupID": 1,
-        "ProfileType": "Acc"
+        "OEDHierarchy": "Portfolio",
+        "Key": "PortID"
+    },
+    "PolNumber": {
+        "ProfileElementName": "PolNumber",
+        "OEDHierarchy": "Policy",
+        "Key": "PolID"
     },
     "CondNumber": {
         "ProfileElementName": "CondNumber",
-        "FMLevelName": "Hierarchy",
-        "FMLevel": 0,
-        "FMTermType": "CondID",
-        "FMTermGroupID": 1,
-        "ProfileType": "Acc"
+        "OEDHierarchy": "SpecialCondition",
+        "Key": "CondID"
     },
     "CondDed6All": {
         "ProfileElementName": "CondDed6All",

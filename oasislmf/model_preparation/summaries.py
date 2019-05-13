@@ -31,7 +31,7 @@ from ..utils.defaults import (
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.path import as_path
-from ..utils.profiles import get_oed_hierarchy_terms
+from ..utils.profiles import get_oed_hierarchy
 from .gul_inputs import get_gul_input_items
 
 
@@ -50,21 +50,10 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
     :return: Subset of columns from gul_inputs_df / il_inputs_df
     :rtype: pandas.DataFrame
     """
-    usecols = ([
-        oed_hierarchy['accid'],
-        oed_hierarchy['locid'],
-        oed_hierarchy['polid'],
-        oed_hierarchy['portid'],
-        SOURCE_IDX['loc'],
-        'item_id',
-        'layer_id',
-        'coverage_id',
-        'peril_id',
-        'agg_id',
-        'output_id',
-        'coverage_type_id',
-        'tiv',
-    ])
+    acc_id = oed_hierarchy['accid']['ProfileElementName'].lower()
+    loc_id = oed_hierarchy['locid']['ProfileElementName'].lower()
+    policy_id = oed_hierarchy['polid']['ProfileElementName'].lower()
+    portfolio_id = oed_hierarchy['portid']['ProfileElementName'].lower()
 
     # Case GUL+FM (based on il_inputs_df)
     if is_fm_summary:
@@ -78,6 +67,22 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
     # GUL Only
     else:
         summary_mapping = inputs_df.copy(deep=True)
+
+    usecols = [
+        acc_id,
+        loc_id,
+        policy_id,
+        portfolio_id,
+        SOURCE_IDX['loc'],
+        'item_id',
+        'layer_id',
+        'coverage_id',
+        'peril_id',
+        'agg_id',
+        'output_id',
+        'coverage_type_id',
+        'tiv',
+    ]
 
     summary_mapping.drop(
         [c for c in summary_mapping.columns if c not in usecols],
@@ -420,7 +425,7 @@ def generate_summaryxref_files(model_run_fp, analysis_settings):
         write_xref_file(ri_summaryxref_df, summary_ri_fp)
 
 
-def get_exposure_summary(df, exposure_summary, peril, peril_code, status, loc_num):
+def get_exposure_summary(df, exposure_summary, peril, peril_code, status, loc_id):
     """
     Populate dictionary with TIVs and number of locations, grouped by peril and
     validity respectively
@@ -440,8 +445,8 @@ def get_exposure_summary(df, exposure_summary, peril, peril_code, status, loc_nu
     :param status: status returned by lookup ('success', 'fail' or 'nomatch')
     :type status: str
 
-    :param loc_num: location number column heading from exposure file
-    :type loc_num: str
+    :param loc_id: location number column heading from exposure file
+    :type loc_id: str
 
     :return: populated exposure_summary dictionary
     :rtype: dict
@@ -464,7 +469,7 @@ def get_exposure_summary(df, exposure_summary, peril, peril_code, status, loc_nu
         exposure_summary[peril]['all']['tiv'] += tiv_sum
 
     # Find number of locations
-    loc_count = df.loc[df['peril_id'] == peril_code, loc_num].drop_duplicates().count()
+    loc_count = df.loc[df['peril_id'] == peril_code, loc_id].drop_duplicates().count()
     loc_count = int(loc_count)
     exposure_summary[peril][status]['number_of_locations'] = loc_count
     exposure_summary[peril]['all']['number_of_locations'] += loc_count
@@ -478,8 +483,7 @@ def write_exposure_summary(
     gul_inputs_df,
     exposure_fp,
     keys_errors_fp,
-    exposure_profile,
-    loc_num
+    exposure_profile
 ):
     """
     Create exposure summary as dictionary of TIVs and number of locations
@@ -500,13 +504,13 @@ def write_exposure_summary(
 
     :param exposure_profile: profile defining exposure file
     :type exposure_profile: dict
-
-    :param loc_num: location number column heading from exposure file
-    :type loc_num: str
     """
 
     # Get keys in GUL input items dataframe and merge with key errors to obtain
     # status information
+    oed_hierarchy = get_oed_hierarchy(exposure_profile=exposure_profile)
+    loc_id = oed_hierarchy['locid']['ProfileElementName'].lower()
+
     dtypes = {
         'locid': 'str',
         'perilid': 'str',
@@ -526,7 +530,7 @@ def write_exposure_summary(
     gul_inputs_errors_df = merge_dataframes(
         gul_inputs_errors_df,
         keys_errors_df,
-        left_on=[loc_num, 'peril_id', 'coverage_type_id'],
+        left_on=[loc_id, 'peril_id', 'coverage_type_id'],
         right_on=['locid', 'perilid', 'coveragetypeid'],
         how='left'
     )
@@ -559,7 +563,7 @@ def write_exposure_summary(
                     peril,
                     peril_code,
                     status,
-                    loc_num
+                    loc_id
                 )
             elif status != 'all':
                 exposure_summary = get_exposure_summary(
@@ -568,7 +572,7 @@ def write_exposure_summary(
                     peril,
                     peril_code,
                     status,
-                    loc_num
+                    loc_id
                 )
 
     # Write exposure summary as json file

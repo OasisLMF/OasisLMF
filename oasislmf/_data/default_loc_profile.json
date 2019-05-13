@@ -1,38 +1,28 @@
 {
     "LocNumber": {
         "ProfileElementName": "LocNumber",
-        "FieldName": "LocNumber",
-        "FMLevelName": "Hierarchy",
-        "FMLevel": 0,
-        "FMTermType": "LocID",
-        "FMTermGroupID": 1,
-        "ProfileType": "Loc"
+        "OEDHierarchy": "Location",
+        "Key": "LocID"
+    },
+    "LocGroup": {
+        "ProfileElementName": "LocGroup",
+        "OEDHierarchy": "LocationGroup",
+        "Key": "LocGrp"
     },
     "AccNumber": {
         "ProfileElementName": "AccNumber",
-        "FieldName": "AccNumber",
-        "FMLevelName": "Hierarchy",
-        "FMLevel": 0,
-        "FMTermType": "AccID",
-        "FMTermGroupID": 1,
-        "ProfileType": "Loc"
+        "OEDHierarchy": "Account",
+        "Key": "AccID"
     },
     "PortNumber": {
         "ProfileElementName": "PortNumber",
-        "FieldName": "PortNumber",
-        "FMLevelName": "Hierarchy",
-        "FMLevel": 0,
-        "FMTermType": "PortID",
-        "FMTermGroupID": 1,
-        "ProfileType": "Loc"
+        "OEDHierarchy": "Portfolio",
+        "Key": "PortID"
     },
     "CondNumber": {
         "ProfileElementName": "CondNumber",
-        "FMLevelName": "Hierarchy",
-        "FMLevel": 0,
-        "FMTermType": "CondID",
-        "FMTermGroupID": 1,
-        "ProfileType": "Loc"
+        "OEDHierarchy": "SpecialCondition",
+        "Key": "CondID"
     },
     "BuildingTIV": {
         "ProfileElementName": "BuildingTIV",
