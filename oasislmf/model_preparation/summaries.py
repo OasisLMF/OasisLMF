@@ -456,8 +456,8 @@ def get_exposure_summary(df, exposure_summary, peril_key, peril_id, status, loc_
     :param status: status returned by lookup ('success', 'fail' or 'nomatch')
     :type status: str
 
-    :param loc_id: location number column heading from exposure file
-    :type loc_id: str
+    :param loc_num: location number column heading from exposure file
+    :type loc_num: str
 
     :return: populated exposure_summary dictionary
     :rtype: dict
@@ -595,7 +595,7 @@ def write_exposure_summary(
                     peril_key,
                     peril_id,
                     status,
-                    loc_id
+                    loc_num
                 )
             elif status != 'all':
                 exposure_summary = get_exposure_summary(
@@ -604,7 +604,7 @@ def write_exposure_summary(
                     peril_key,
                     peril_id,
                     status,
-                    loc_id
+                    loc_num
                 )
 
     # Write exposure summary as json file
