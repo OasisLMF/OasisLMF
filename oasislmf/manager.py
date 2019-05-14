@@ -40,14 +40,13 @@ from .model_execution.bin import (
     prepare_run_directory,
     prepare_run_inputs,
 )
-from .model_preparation import oed
 from .model_preparation.gul_inputs import (
     get_gul_input_items,
     write_gul_input_files,
 )
 from .model_preparation.il_inputs import (
     get_il_input_items,
-    get_oed_hierarchy_terms,
+    get_oed_hierarchy,
     write_il_input_files,
 )
 from .model_preparation.summaries import (
@@ -347,15 +346,21 @@ class OasisManager(object):
         # terms in these files, and FM aggregation hierarchy
         exposure_profile = exposure_profile or (get_json(src_fp=exposure_profile_fp) if exposure_profile_fp else self.exposure_profile)
         accounts_profile = accounts_profile or (get_json(src_fp=accounts_profile_fp) if accounts_profile_fp else self.accounts_profile)
-        hierarchy_terms = get_oed_hierarchy_terms(exposure_profile, accounts_profile)
-        loc_num = hierarchy_terms['locid']
-        loc_grp = hierarchy_terms['locgrp']
-        acc_num = hierarchy_terms['accid']
-        portfolio_num = hierarchy_terms['portid']
+        oed_hierarchy = get_oed_hierarchy(exposure_profile, accounts_profile)
+        loc_id = oed_hierarchy['locid']['ProfileElementName'].lower()
+        loc_grp = oed_hierarchy['locgrp']['ProfileElementName'].lower()
+        acc_id = oed_hierarchy['accid']['ProfileElementName'].lower()
+        portfolio_id = oed_hierarchy['portid']['ProfileElementName'].lower()
         fm_aggregation_profile = (
             fm_aggregation_profile or
             ({int(k): v for k, v in get_json(src_fp=fm_aggregation_profile_fp).items()} if fm_aggregation_profile_fp else {}) or
             self.fm_aggregation_profile
+        )
+
+        # Check whether the files generation is for deterministic or model losses
+        deterministic = not(
+            (lookup_config or lookup_config_fp) or
+            (keys_data_fp and model_version_fp and lookup_package_fp)
         )
 
         # If a pre-generated keys file path has not been provided,
@@ -370,27 +375,15 @@ class OasisManager(object):
 
             cov_types = supported_oed_coverage_types or self.supported_oed_coverage_types
 
-            # Check whether the invocation indicates a deterministic or model
-            # Check whether the deterministic loss factor is non-null - if so then
-            # analysis/run - the CLI supports deterministic analyses via a command
-            # the Oasis files are for a deterministic loss generation scenario, and
-            # `oasislmf exposure run` which requires a preexisting input files
-            # therefore the loss factor must be applied to the GUL input item TIVs
-            # directory, which is usually the same as the analysis/output directory
-            deterministic = not(
-                (lookup_config or lookup_config_fp) or
-                (keys_data_fp and model_version_fp and lookup_package_fp)
-            )
-
             if deterministic:
-                loc_numbers = (loc_it[loc_num] for _, loc_it in get_dataframe(
+                loc_ids = (loc_it[loc_id] for _, loc_it in get_dataframe(
                     src_fp=exposure_fp,
-                    col_dtypes={loc_num: 'str', acc_num: 'str', portfolio_num: 'str'},
+                    col_dtypes={loc_id: 'str', acc_id: 'str', portfolio_id: 'str'},
                     empty_data_error_msg='No exposure found in the source exposure (loc.) file'
-                )[[loc_num]].iterrows())
+                )[[loc_id]].iterrows())
                 keys = [
-                    {loc_num: _loc_num, 'peril_id': 1, 'coverage_type': cov_type, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
-                    for i, (_loc_num, cov_type) in enumerate(product(loc_numbers, cov_types))
+                    {loc_id: _loc_id, 'peril_id': 1, 'coverage_type': cov_type, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
+                    for i, (_loc_id, cov_type) in enumerate(product(loc_ids, cov_types))
                 ]
                 _, _ = olf.write_oasis_keys_file(keys, _keys_fp)
             else:
@@ -406,9 +399,9 @@ class OasisManager(object):
                     complex_lookup_config_fp=complex_lookup_config_fp,
                     output_directory=target_dir
                 )
-                f1, n1, f2, n2 = olf.save_results(
+                f1, _, f2, _ = olf.save_results(
                     lookup,
-                    loc_id_col=loc_num,
+                    loc_id_col=loc_id,
                     successes_fp=_keys_fp,
                     errors_fp=_keys_errors_fp,
                     source_exposure_fp=exposure_fp
@@ -430,7 +423,7 @@ class OasisManager(object):
                 exposure_fp,
                 keys_errors_fp=_keys_errors_fp,
                 exposure_profile=exposure_profile,
-                hierarchy_terms=hierarchy_terms
+                hierarchy_terms=oed_hierarchy
             )
 
         # Write the GUL input files
@@ -440,7 +433,7 @@ class OasisManager(object):
             target_dir,
             oasis_files_prefixes=files_prefixes['gul']
         )
-        gul_summary_mapping = get_summary_mapping(gul_inputs_df, hierarchy_terms)
+        gul_summary_mapping = get_summary_mapping(gul_inputs_df, oed_hierarchy)
         write_mapping_file(gul_summary_mapping, target_dir)
 
         # If no source accounts file path has been provided assume that IL
@@ -465,7 +458,7 @@ class OasisManager(object):
             target_dir,
             oasis_files_prefixes=files_prefixes['il']
         )
-        fm_summary_mapping = get_summary_mapping(il_inputs_df, hierarchy_terms, is_fm_summary=True)
+        fm_summary_mapping = get_summary_mapping(il_inputs_df, oed_hierarchy, is_fm_summary=True)
         write_mapping_file(fm_summary_mapping, target_dir, is_fm_summary=True)
 
         # Combine the GUL and IL input file paths into a single dict (for convenience)
@@ -549,8 +542,7 @@ class OasisManager(object):
         except (IOError, TypeError, ValueError):
             raise OasisException('Invalid analysis settings file or file path: {}.'.format(_analysis_settings_fp))
 
-        # prepare summery_sets
-        generate_summaryxref_files(model_run_fp, analysis_settings)
+        generate_summaryxref_files(model_run_fp, analysis_settings, il=il, ri=ri)
 
         if not ri:
             fp = os.path.join(model_run_fp, 'input')

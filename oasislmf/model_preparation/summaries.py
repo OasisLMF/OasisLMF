@@ -33,7 +33,7 @@ from ..utils.defaults import (
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.path import as_path
-from ..utils.profiles import get_oed_hierarchy_terms
+from ..utils.profiles import get_oed_hierarchy
 from .gul_inputs import get_gul_input_items
 
 
@@ -52,25 +52,13 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
     :return: Subset of columns from gul_inputs_df / il_inputs_df
     :rtype: pandas.DataFrame
     """
-    usecols = ([
-        oed_hierarchy['accid'],
-        oed_hierarchy['locid'],
-        oed_hierarchy['polid'],
-        oed_hierarchy['portid'],
-        SOURCE_IDX['loc'],
-        'item_id',
-        'layer_id',
-        'coverage_id',
-        'peril_id',
-        'agg_id',
-        'output_id',
-        'coverage_type_id',
-        'tiv',
-    ])
+    acc_id = oed_hierarchy['accid']['ProfileElementName'].lower()
+    loc_id = oed_hierarchy['locid']['ProfileElementName'].lower()
+    policy_id = oed_hierarchy['polid']['ProfileElementName'].lower()
+    portfolio_id = oed_hierarchy['portid']['ProfileElementName'].lower()
 
     # Case GUL+FM (based on il_inputs_df)
     if is_fm_summary:
-        #import ipdb; ipdb.set_trace()
         summary_mapping = inputs_df[inputs_df['level_id'] == inputs_df['level_id'].max()].drop_duplicates(subset=['gul_input_id', 'layer_id'], keep='first')
         summary_mapping['agg_id'] = summary_mapping['gul_input_id']
         summary_mapping['output_id'] = factorize_ndarray(
@@ -81,6 +69,22 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
     # GUL Only
     else:
         summary_mapping = inputs_df.copy(deep=True)
+
+    usecols = [
+        acc_id,
+        loc_id,
+        policy_id,
+        portfolio_id,
+        SOURCE_IDX['loc'],
+        'item_id',
+        'layer_id',
+        'coverage_id',
+        'peril_id',
+        'agg_id',
+        'output_id',
+        'coverage_type_id',
+        'tiv',
+    ]
 
     summary_mapping.drop(
         [c for c in summary_mapping.columns if c not in usecols],
@@ -355,15 +359,23 @@ def get_summary_xref_df(map_df, exposure_df, summaries_info_dict):
 
 
 @oasis_log
-def generate_summaryxref_files(model_run_fp, analysis_settings):
+def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=False):
     """
     Top level function for creating the summaryxref files from the manager.py
 
     :param model_run_fp: Model run directory file path
     :type model_run_fp:  str
 
-    :param analysis_settings: model run settings file
+    :param analysis_settings: Model analysis settings file
     :type analysis_settings:  dict
+
+    :param il: Boolean to indicate the insured loss level mode - false if the
+               source accounts file path not provided to Oasis files gen.
+    :type il: bool
+
+    :param ri: Boolean to indicate the RI loss level mode - false if the
+               source accounts file path not provided to Oasis files gen.
+    :type il: bool
     """
 
     # Load Exposure file for extra OED fields
@@ -372,7 +384,7 @@ def generate_summaryxref_files(model_run_fp, analysis_settings):
         src_fp=exposure_fp,
         empty_data_error_msg='No source exposure file found.')
 
-    if 'gul_summaries' in analysis_settings:
+    if analysis_settings['gul_output']:
         # Load GUL summary map
         gul_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['gul_map_fn'])
         gul_map_df = get_dataframe(
@@ -386,7 +398,7 @@ def generate_summaryxref_files(model_run_fp, analysis_settings):
         )
         write_xref_file(gul_summaryxref_df, os.path.join(model_run_fp, 'input'))
 
-    if 'il_summaries' in analysis_settings:
+    if il and analysis_settings['il_output']:
         # Load FM summary map
         il_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['fm_map_fn'])
         il_map_df = get_dataframe(
@@ -401,7 +413,7 @@ def generate_summaryxref_files(model_run_fp, analysis_settings):
         )
         write_xref_file(il_summaryxref_df, os.path.join(model_run_fp, 'input'))
 
-    if 'ri_summaries' in analysis_settings:
+    if ri and analysis_settings['ri_output']:
         ri_layers = get_ri_settings(model_run_fp)
         max_layer = max(ri_layers)
         summary_ri_fp = os.path.join(
@@ -444,8 +456,8 @@ def get_exposure_summary(df, exposure_summary, peril_key, peril_id, status, loc_
     :param status: status returned by lookup ('success', 'fail' or 'nomatch')
     :type status: str
 
-    :param loc_num: location number column heading from exposure file
-    :type loc_num: str
+    :param loc_id: location number column heading from exposure file
+    :type loc_id: str
 
     :return: populated exposure_summary dictionary
     :rtype: dict
@@ -541,8 +553,8 @@ def write_exposure_summary(
 
     # Merge GUL input items and source exposure dataframes to leave covered
     # perils
-    loc_num = hierarchy_terms['locid']
-    loc_per_cov = hierarchy_terms['locperilscovered']
+    loc_num = hierarchy_terms['locid']['ProfileElementName'].lower()
+    loc_per_cov = hierarchy_terms['locperilid']['ProfileElementName'].lower()
     exposure_df = split_dataframe_list(exposure_df, 'locperilscovered', ';')
     gul_inputs_df = merge_dataframes(
         gul_inputs_df,
@@ -582,7 +594,7 @@ def write_exposure_summary(
                     peril_key,
                     peril_id,
                     status,
-                    loc_num
+                    loc_id
                 )
             elif status != 'all' and len(gul_inputs_errors_df) != 0:
                 exposure_summary = get_exposure_summary(
@@ -591,7 +603,7 @@ def write_exposure_summary(
                     peril_key,
                     peril_id,
                     status,
-                    loc_num
+                    loc_id
                 )
 
     # Write exposure summary as json file

@@ -45,7 +45,7 @@ from ..utils.profiles import (
     get_fm_terms_oed_columns,
     get_grouped_fm_profile_by_level_and_term_group,
     get_grouped_fm_terms_by_level_and_term_group,
-    get_oed_hierarchy_terms,
+    get_oed_hierarchy,
 )
 
 
@@ -92,11 +92,11 @@ def get_gul_input_items(
     # coded references to the corresponding columns in the source files, as
     # that would mean that changes to these column names in the source files
     # may break the method
-    hierarchy_terms = get_oed_hierarchy_terms(grouped_profile_by_level_and_term_group=profile)
-    loc_num = hierarchy_terms['locid']
-    acc_num = hierarchy_terms['accid']
-    portfolio_num = hierarchy_terms['portid']
-    cond_num = hierarchy_terms['condid']
+    oed_hierarchy = get_oed_hierarchy(exposure_profile=exposure_profile)
+    loc_id = oed_hierarchy['locid']['ProfileElementName'].lower()
+    acc_id = oed_hierarchy['accid']['ProfileElementName'].lower()
+    portfolio_id = oed_hierarchy['portid']['ProfileElementName'].lower()
+    cond_id = oed_hierarchy['condid']['ProfileElementName'].lower()
 
     # The (site) coverage FM level ID (# 1 in the OED FM levels hierarchy)
     cov_level_id = SUPPORTED_FM_LEVELS['site coverage']['id']
@@ -116,27 +116,43 @@ def get_gul_input_items(
     # the list of OED colum names for the financial terms for the site coverage
     # (# 1 ) FM level
     fm_terms = get_grouped_fm_terms_by_level_and_term_group(grouped_profile_by_level_and_term_group=profile)
-    cov_level_terms = ['deductible', 'deductible_min', 'deductible_max', 'limit']
-    cov_il_cols = get_fm_terms_oed_columns(fm_terms, levels=['site coverage'], term_group_ids=cov_types, terms=cov_level_terms)
+    terms_floats = ['deductible', 'deductible_min', 'deductible_max', 'limit']
+    terms_ints = ['ded_code', 'ded_type', 'lim_code', 'lim_type']
+    terms = terms_floats + terms_ints
+    term_cols_floats = get_fm_terms_oed_columns(
+        fm_terms,
+        levels=['site coverage'],
+        term_group_ids=cov_types,
+        terms=terms_floats
+    )
+    term_cols_ints = get_fm_terms_oed_columns(
+        fm_terms,
+        levels=['site coverage'],
+        term_group_ids=cov_types,
+        terms=terms_ints
+    )
+    term_cols = term_cols_floats + term_cols_ints
 
     # Set defaults and data types for the TIV and cov. level IL columns as
     # as well as the portfolio num. and cond. num. columns
     defaults = {
-        **{t: 0.0 for t in tiv_cols + cov_il_cols},
-        **{cond_num: 0},
-        **{portfolio_num: '1'}
+        **{t: 0.0 for t in tiv_cols + term_cols_floats},
+        **{t: 0 for t in term_cols_ints},
+        **{cond_id: 0},
+        **{portfolio_id: '1'}
     }
     dtypes = {
-        **{t: 'float32' for t in tiv_cols + cov_il_cols},
-        **{cond_num: 'uint32'},
-        **{t: 'str' for t in [loc_num, portfolio_num, acc_num]}
+        **{t: 'float64' for t in tiv_cols + term_cols_floats},
+        **{t: 'uint8' for t in term_cols_ints},
+        **{t: 'uint16' for t in [cond_id]},
+        **{t: 'str' for t in [loc_id, portfolio_id, acc_id]}
     }
     # Load the exposure and keys dataframes - set 32-bit numeric data types
     # for all numeric columns - and in the keys frame rename some columns
     # to align with underscored-naming convention
     exposure_df = get_dataframe(
         src_fp=exposure_fp,
-        required_cols=(loc_num, acc_num, portfolio_num,),
+        required_cols=(loc_id, acc_id, portfolio_id,),
         col_dtypes=dtypes,
         col_defaults=defaults,
         empty_data_error_msg='No data found in the source exposure (loc.) file',
@@ -147,7 +163,7 @@ def get_gul_input_items(
     dtypes = {
         'locid': 'str',
         'perilid': 'str',
-        'coveragetypeid': 'uint32',
+        'coveragetypeid': 'uint8',
         'areaperilid': 'uint32',
         'vulnerabilityid': 'uint32',
         'modeldata': 'str'
@@ -164,7 +180,7 @@ def get_gul_input_items(
     # is the convention used for the GUL and IL inputs dataframes in the MDK
     keys_df.rename(
         columns={
-            'locid': 'locnumber',
+            'locid': loc_id,
             'perilid': 'peril_id',
             'coveragetypeid': 'coverage_type_id',
             'areaperilid': 'areaperil_id',
@@ -186,7 +202,7 @@ def get_gul_input_items(
         # zeros for TIVs for all coverage types, and replace any nulls in the
         # cond.num. and TIV columns with zeros
         exposure_df[SOURCE_IDX['loc']] = exposure_df.index
-        gul_inputs_df = merge_dataframes(exposure_df, keys_df, join_on=loc_num, how='inner')
+        gul_inputs_df = merge_dataframes(exposure_df, keys_df, join_on=loc_id, how='inner')
 
         if gul_inputs_df.empty:
             raise OasisException(
@@ -200,8 +216,8 @@ def get_gul_input_items(
 
         del keys_df
 
-        gul_inputs_df[cond_num].fillna(0, inplace=True)
-        gul_inputs_df[cond_num] = gul_inputs_df[cond_num].astype('uint32')
+        gul_inputs_df[cond_id].fillna(0, inplace=True)
+        gul_inputs_df[cond_id] = gul_inputs_df[cond_id].astype('uint32')
 
         gul_inputs_df = gul_inputs_df[(gul_inputs_df.loc[:, tiv_cols] != 0).any(axis=1)]
         gul_inputs_df.loc[:, tiv_cols] = gul_inputs_df.loc[:, tiv_cols].where(gul_inputs_df.notnull(), 0.0)
@@ -211,12 +227,17 @@ def get_gul_input_items(
             is_bi_coverage=False,
             tiv=0.0,
             deductible=0.0,
+            ded_code=0,
+            ded_type=0,
             deductible_min=0.0,
             deductible_max=0.0,
-            limit=0.0
+            limit=0.0,
+            lim_code=0,
+            lim_type=0
         )
         dtypes = {
-            **{t: 'float32' for t in ['tiv'] + cov_level_terms},
+            **{t: 'float32' for t in ['tiv'] + term_cols_floats + terms_floats},
+            **{t: 'uint8' for t in term_cols_ints + terms_ints},
             **{'is_bi_coverage': 'bool'}
         }
         gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, dtypes)
@@ -227,64 +248,54 @@ def get_gul_input_items(
         for cov_type, cov_type_group in gul_inputs_df.groupby(by=['coverage_type_id'], sort=True):
             cov_type_group['is_bi_coverage'] = np.where(cov_type == SUPPORTED_COVERAGE_TYPES['bi']['id'], True, False)
             tiv_col = tiv_terms[cov_type]
-            terms = [t for t in cov_level_terms if fm_terms[cov_level_id][cov_type].get(t)]
-            term_cols = get_fm_terms_oed_columns(fm_terms, levels=['site coverage'], term_group_ids=[cov_type], terms=terms)
-            cov_type_group.loc[:, [tiv_col] + term_cols] = cov_type_group.loc[:, [tiv_col] + term_cols].where(cov_type_group.notnull(), 0.0)
-            cov_type_group.loc[:, ['tiv'] + terms] = cov_type_group.loc[:, [tiv_col] + term_cols].values
+            cov_type_terms = [t for t in terms if fm_terms[cov_level_id][cov_type].get(t)]
+            cov_type_term_cols = get_fm_terms_oed_columns(fm_terms, levels=['site coverage'], term_group_ids=[cov_type], terms=cov_type_terms)
+            cov_type_group.loc[:, [tiv_col] + cov_type_term_cols] = cov_type_group.loc[:, [tiv_col] + cov_type_term_cols].where(cov_type_group.notnull(), 0.0)
+            cov_type_group.loc[:, ['tiv'] + cov_type_terms] = cov_type_group.loc[:, [tiv_col] + cov_type_term_cols].values
             cov_type_group = cov_type_group[(cov_type_group[['tiv']] != 0).any(axis=1)]
             if cov_type_group.empty:
                 cov_type_group[terms] = 0.0
-            else:
-                cov_type_group['deductible'] = np.where(
-                    (cov_type_group['deductible'] == 0) | (cov_type_group['deductible'] >= 1),
-                    cov_type_group['deductible'],
-                    cov_type_group['tiv'] * cov_type_group['deductible'],
-                )
-                cov_type_group['limit'] = np.where(
-                    (cov_type_group['limit'] == 0) | (cov_type_group['limit'] >= 1),
-                    cov_type_group['limit'],
-                    cov_type_group['tiv'] * cov_type_group['limit'],
-                )
             other_cov_types = [v['id'] for v in SUPPORTED_COVERAGE_TYPES.values() if v['id'] != cov_type]
             other_cov_type_term_cols = (
                 [v for k, v in tiv_terms.items() if k != cov_type] +
                 get_fm_terms_oed_columns(fm_terms=fm_terms, levels=['site coverage'], term_group_ids=other_cov_types, terms=terms)
             )
             cov_type_group.loc[:, other_cov_type_term_cols] = 0
-            gul_inputs_df.loc[cov_type_group.index, ['tiv', 'is_bi_coverage'] + terms] = cov_type_group.loc[:, ['tiv', 'is_bi_coverage'] + terms]
+            gul_inputs_df.loc[cov_type_group.index, ['tiv', 'is_bi_coverage'] + cov_type_terms] = cov_type_group.loc[:, ['tiv', 'is_bi_coverage'] + cov_type_terms].values
 
         # Remove any rows with zeros in the ``tiv`` column and reset the index
         gul_inputs_df = gul_inputs_df[(gul_inputs_df.loc[:, ['tiv']] != 0).any(axis=1)].reset_index()
 
         # Remove the source columns for the TIVs and coverage level financial terms
-        gul_inputs_df.drop(tiv_cols + cov_il_cols, axis=1, inplace=True)
+        gul_inputs_df.drop(tiv_cols + term_cols, axis=1, inplace=True)
 
         # Set the group ID - group by loc. number
-        gul_inputs_df['group_id'] = factorize_array(gul_inputs_df[loc_num].values)[0]
+        gul_inputs_df['group_id'] = factorize_array(gul_inputs_df[loc_id].values)[0]
         gul_inputs_df['group_id'] = gul_inputs_df['group_id'].astype('uint32')
 
-        # Set the item IDs and coverage IDs, and defaults for layer ID, agg. ID and summary and
-        # summary set IDs
+        # Set the item IDs and coverage IDs, and defaults and data types for
+        # layer IDs and agg. IDs
         item_ids = gul_inputs_df.index + 1
         gul_inputs_df = gul_inputs_df.assign(
             item_id=item_ids,
             coverage_id=item_ids,
             layer_id=1,
-            agg_id=item_ids,
-            summary_id=1,
-            summaryset_id=1
+            agg_id=item_ids
         )
-        dtypes = {t: 'uint32' for t in ['item_id', 'coverage_id', 'layer_id', 'agg_id', 'summary_id', 'summaryset_id']}
+        dtypes = {
+            **{t: 'uint32' for t in ['item_id', 'coverage_id', 'layer_id', 'agg_id']},
+            **{t: 'uint8' for t in terms_ints}
+        }
         gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, dtypes)
 
         # Drop all unnecessary columns
         usecols = (
-            [loc_num, acc_num, portfolio_num, cond_num] +
-            ['tiv'] + cov_level_terms +
+            [loc_id, acc_id, portfolio_id, cond_id] +
+            ['tiv'] + terms +
             ['peril_id', 'coverage_type_id', 'areaperil_id', 'vulnerability_id'] +
             (['model_data'] if 'model_data' in gul_inputs_df else []) +
             ([SOURCE_IDX['loc']] if SOURCE_IDX['loc'] in gul_inputs_df else []) +
-            ['is_bi_coverage', 'group_id', 'item_id', 'coverage_id', 'layer_id', 'agg_id', 'summary_id', 'summaryset_id', 'status']
+            ['is_bi_coverage', 'group_id', 'item_id', 'coverage_id', 'layer_id', 'agg_id', 'status']
         )
         gul_inputs_df.drop(
             [c for c in gul_inputs_df.columns if c not in usecols],

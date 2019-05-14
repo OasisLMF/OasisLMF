@@ -12,7 +12,6 @@ from itertools import chain
 from pathlib2 import Path
 
 from ..manager import OasisManager as om
-from ..model_preparation import oed
 from ..utils.data import (
     print_dataframe,
 )
@@ -59,20 +58,20 @@ class RunCmd(OasisBaseCommand):
             help='Source files directory - should contain the OED exposure file + optionally the accounts, and RI info. and scope files'
         )
         parser.add_argument(
-            '-r', '--run-dir', type=str, default=None, required=False, help='Run directory'
+            '-r', '--run-dir', type=str, default=None, required=False, help='Run directory - where files should be generated'
         )
         parser.add_argument(
             '-l', '--loss-factor', type=float, default=None,
-            help='Loss factor to apply to TIVs.'
+            help='Loss factor to apply to TIVs - default is 1.0.'
         )
         parser.add_argument(
-            '-n', '--net-ri-losses', default=False, help='Net RI losses', action='store_true'
+            '-n', '--net-ri-losses', default=False, help='Apply net RI losses - default is False', action='store_true'
         )
         parser.add_argument(
-            '-a', '--alloc-rule', type=int, default=KTOOLS_ALLOC_RULE, help='Alloc rule ID'
+            '-a', '--alloc-rule', type=int, default=KTOOLS_ALLOC_RULE, help='Ktools back allocation rule to apply - default is 2, i.e. prior level loss basis'
         )
         parser.add_argument(
-            '-v', '--validate', default=False, help='Validate', action='store_true'
+            '-v', '--validate', default=False, help='Validate input files and loss tables - default is False', action='store_true'
         )
 
     def action(self, args):

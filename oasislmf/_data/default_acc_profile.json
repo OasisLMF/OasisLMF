@@ -1,43 +1,26 @@
 {
     "AccNumber": {
         "ProfileElementName": "AccNumber",
-        "FieldName": "AccNumber",
-        "FMLevelName": "Hierarchy",
-        "FMLevel": 0,
-        "FMTermType": "AccID",
-        "FMTermGroupID": 1,
-        "ProfileType": "Acc"
-    },
-    "PolNumber": {
-        "ProfileElementName": "PolNumber",
-        "FieldName": "PolNumber",
-        "FMLevelName": "Hierarchy",
-        "FMLevel": 0,
-        "FMTermType": "PolID",
-        "FMTermGroupID": 1,
-        "ProfileType": "Acc"
+        "OEDHierarchy": "Account",
+        "Key": "AccID"
     },
     "PortNumber": {
         "ProfileElementName": "PortNumber",
-        "FieldName": "PortNumber",
-        "FMLevelName": "Hierarchy",
-        "FMLevel": 0,
-        "FMTermType": "PortID",
-        "FMTermGroupID": 1,
-        "ProfileType": "Acc"
+        "OEDHierarchy": "Portfolio",
+        "Key": "PortID"
+    },
+    "PolNumber": {
+        "ProfileElementName": "PolNumber",
+        "OEDHierarchy": "Policy",
+        "Key": "PolID"
     },
     "CondNumber": {
         "ProfileElementName": "CondNumber",
-        "FieldName": "CondNumber",
-        "FMLevelName": "Hierarchy",
-        "FMLevel": 0,
-        "FMTermType": "CondID",
-        "FMTermGroupID": 1,
-        "ProfileType": "Acc"
+        "OEDHierarchy": "SpecialCondition",
+        "Key": "CondID"
     },
     "CondDed6All": {
         "ProfileElementName": "CondDed6All",
-        "FieldName": "CondAllDeductible",
         "DeductibleType": "B",
         "FMLevelName": "CondAll",
         "FMLevel": 6,
@@ -45,9 +28,24 @@
         "FMTermGroupID": 1,
         "ProfileType": "Acc"
     },
+    "CondDedCode6All": {
+        "ProfileElementName": "CondDedCode6All",
+        "FMLevelName": "CondAll",
+        "FMLevel": 6,
+        "FMTermType": "DeductibleCode",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "CondDedType6All": {
+        "ProfileElementName": "CondDedType6All",
+        "FMLevelName": "CondAll",
+        "FMLevel": 6,
+        "FMTermType": "DeductibleType",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
     "CondMinDed6All": {
         "ProfileElementName": "CondMinDed6All",
-        "FieldName": "CondAllMinDeductible",
         "DeductibleType": "MI",
         "FMLevelName": "CondAll",
         "FMLevel": 6,
@@ -57,7 +55,6 @@
     },
     "CondMaxDed6All": {
         "ProfileElementName": "CondMaxDed6All",
-        "FieldName": "CondAllMaxDeductible",
         "DeductibleType": "MA",
         "FMLevelName": "CondAll",
         "FMLevel": 6,
@@ -67,27 +64,57 @@
     },
     "CondLimit6All": {
         "ProfileElementName": "CondLimit6All",
-        "FieldName": "CondAllLimit",
         "FMLevelName": "CondAll",
         "FMLevel": 6,
         "FMTermType": "Limit",
         "FMTermGroupID": 1,
         "ProfileType": "Acc"
     },
+    "CondLimitCode6All": {
+        "ProfileElementName": "CondLimitCode6All",
+        "FMLevelName": "CondAll",
+        "FMLevel": 6,
+        "FMTermType": "LimitCode",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "CondLimitType6All": {
+        "ProfileElementName": "CondLimitType6All",
+        "FMLevelName": "CondAll",
+        "FMLevel": 6,
+        "FMTermType": "LimitType",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
     "PolDed6All": {
         "ProfileElementName": "PolDed6All",
         "DeductibleType": "B",
-        "FieldName": "PolAllDeductible",
         "FMLevelName": "PolAll",
         "FMLevel": 9,
         "FMTermType": "Deductible",
         "FMTermGroupID": 1,
         "ProfileType": "Acc"
     },
+    "PolDedCode6All": {
+        "ProfileElementName": "PolDedCode6All",
+        "FMLevelName": "PolAll",
+        "FMLevel": 9,
+        "FMTermType": "DeductibleCode",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "PolDedType6All": {
+        "ProfileElementName": "PolDedType6All",
+        "DeductibleType": "B",
+        "FMLevelName": "PolAll",
+        "FMLevel": 9,
+        "FMTermType": "DeductibleType",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
     "PolMinDed6All": {
         "ProfileElementName": "PolMinDed6All",
         "DeductibleType": "MI",
-        "FieldName": "PolAllMinDeductible",
         "FMLevelName": "PolAll",
         "FMLevel": 9,
         "FMTermType": "DeductibleMin",
@@ -97,7 +124,6 @@
     "PolMaxDed6All": {
         "ProfileElementName": "PolMaxDed6All",
         "DeductibleType": "MA",
-        "FieldName": "PolAllMaxDeductible",
         "FMLevelName": "PolAll",
         "FMLevel": 9,
         "FMTermType": "DeductibleMax",
@@ -106,17 +132,31 @@
     },
     "PolLimit6All": {
         "ProfileElementName": "PolLimit6All",
-        "FieldName": "PolAllLimit",
         "FMLevelName": "PolAll",
         "FMLevel": 9,
         "FMTermType": "Limit",
         "FMTermGroupID": 1,
         "ProfileType": "Acc"
     },
+    "PolLimitCode6All": {
+        "ProfileElementName": "PolLimitCode6All",
+        "FMLevelName": "PolAll",
+        "FMLevel": 9,
+        "FMTermType": "LimitCode",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
+    "PolLimitType6All": {
+        "ProfileElementName": "PolLimitType6All",
+        "FMLevelName": "PolAll",
+        "FMLevel": 9,
+        "FMTermType": "LimitType",
+        "FMTermGroupID": 1,
+        "ProfileType": "Acc"
+    },
     "LayerAttachment": {
         "ProfileElementName": "LayerAttachment",
         "DeductibleType": "B",
-        "FieldName": "AttachmentPoint",
         "FMLevelName": "PolLayer",
         "FMLevel": 10,
         "FMTermType": "Deductible",
@@ -125,7 +165,6 @@
     },
     "LayerLimit": {
         "ProfileElementName": "LayerLimit",
-        "FieldName": "LayerLimit",
         "FMLevelName": "PolLayer",
         "FMLevel": 10,
         "FMTermType": "Limit",
@@ -134,7 +173,6 @@
     },
     "LayerParticipation": {
         "ProfileElementName": "LayerParticipation",
-        "FieldName": "LayerParticipation",
         "FMLevelName": "PolLayer",
         "FMLevel": 10,
         "FMTermType": "Share",
