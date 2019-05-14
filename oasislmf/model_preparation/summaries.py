@@ -480,10 +480,11 @@ def get_exposure_summary(df, exposure_summary, peril_key, peril_id, status, loc_
 def write_exposure_summary(
     target_dir,
     gul_inputs_df,
+    exposure_df,
     exposure_fp,
     keys_errors_fp,
     exposure_profile,
-    loc_num='locnumber'
+    hierarchy_terms
 ):
     """
     Create exposure summary as dictionary of TIVs and number of locations
@@ -495,6 +496,9 @@ def write_exposure_summary(
 
     :param gul_inputs_df: dataframe from gul_inputs.get_gul_input_items(..)
     :type gul_inputs_df: pandas.DataFrame
+
+    :param exposure_df: source exposure dataframe
+    :type exposure df: pandas.DataFrame
 
     :param exposure_fp: file path to input exposure file
     :type exposure_fp: str
@@ -519,6 +523,41 @@ def write_exposure_summary(
         )
     except OasisException:   # Empty dataframe (due to empty keys errors file)
         gul_inputs_errors_df = pd.DataFrame(columns=gul_inputs_df.columns)
+
+    def split_dataframe_list(df, target_column, separator):
+        """
+        Split dataframe with multiple perils into separate rows.
+        """
+        row_accumulator = []
+        def split_list_to_rows(row, separator):
+            split_row = row[target_column].split(separator)
+            for s in split_row:
+                new_row = row.to_dict()
+                new_row[target_column] = s
+                row_accumulator.append(new_row)
+        df.apply(split_list_to_rows, axis=1, args=(separator, ))
+        new_df = pd.DataFrame(row_accumulator)
+        return new_df
+
+    # Merge GUL input items and source exposure dataframes to leave covered
+    # perils
+    loc_num = hierarchy_terms['locid']
+    loc_per_cov = hierarchy_terms['locperilscovered']
+    exposure_df = split_dataframe_list(exposure_df, 'locperilscovered', ';')
+    gul_inputs_df = merge_dataframe(
+        gul_inputs_df,
+        exposure_df,
+        left_on=[loc_num, 'peril_id'],
+        right_on=[loc_num, loc_per_cov],
+        how='inner'
+    )
+    gul_inputs_errors_df = merge_dataframes(
+        gul_inputs_errors_df,
+        exposure_df,
+        left_on=[loc_num, 'peril_id'],
+        right_on=[loc_num, loc_per_cov],
+        how='inner'
+    )
 
     # Compile summary of exposure data
     exposure_summary = {}
