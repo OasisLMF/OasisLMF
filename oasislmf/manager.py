@@ -426,10 +426,11 @@ class OasisManager(object):
             write_exposure_summary(
                 target_dir,
                 gul_inputs_df,
+                exposure_df,
                 exposure_fp,
                 keys_errors_fp=_keys_errors_fp,
                 exposure_profile=exposure_profile,
-                loc_num=loc_num
+                hierarchy_terms=hierarchy_terms
             )
 
         # Write the GUL input files
