@@ -534,7 +534,7 @@ def write_exposure_summary(
             exposure_fp, keys_errors_fp, exposure_profile=exposure_profile
         )
     except OasisException:   # Empty dataframe (due to empty keys errors file)
-        gul_inputs_errors_df = pd.DataFrame(columns=gul_inputs_df.columns)
+        gul_inputs_errors_df = pd.DataFrame(columns=gul_inputs_df.columns.append(pd.Index(['status'])))
 
     def split_dataframe_list(df, target_column, separator):
         """
@@ -555,6 +555,7 @@ def write_exposure_summary(
     # perils
     loc_num = hierarchy_terms['locid']['ProfileElementName'].lower()
     loc_per_cov = hierarchy_terms['locperilid']['ProfileElementName'].lower()
+    model_perils_ids = gul_inputs_df['peril_id'].unique()
     exposure_df = split_dataframe_list(exposure_df, 'locperilscovered', ';')
     gul_inputs_df = merge_dataframes(
         gul_inputs_df,
@@ -573,7 +574,7 @@ def write_exposure_summary(
 
     # Compile summary of exposure data
     exposure_summary = {}
-    for peril_id in gul_inputs_df['peril_id'].unique():
+    for peril_id in model_perils_ids:
         # Use descriptive names of perils as keys
         try:
             peril_key = [k for k, v in PERILS.items() if v['id'] == peril_id][0]
@@ -596,7 +597,7 @@ def write_exposure_summary(
                     status,
                     loc_id
                 )
-            elif status != 'all' and len(gul_inputs_errors_df) != 0:
+            elif status != 'all':
                 exposure_summary = get_exposure_summary(
                     gul_inputs_errors_df[gul_inputs_errors_df['status'] == status],
                     exposure_summary,
