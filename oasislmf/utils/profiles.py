@@ -3,7 +3,7 @@ __all__ = [
     'get_grouped_fm_profile_by_level',
     'get_grouped_fm_profile_by_level_and_term_group',
     'get_grouped_fm_terms_by_level_and_term_group',
-    'get_oed_hierarchy_terms'
+    'get_oed_hierarchy'
 ]
 
 
@@ -42,9 +42,13 @@ def get_grouped_fm_profile_by_level_and_term_group(
 
     grouped_fm_term_types = OrderedDict({
         'deductible': FM_TERMS['deductible']['id'],
+        'deductiblecode': FM_TERMS['deductible code']['id'],
+        'deductibletype': FM_TERMS['deductible type']['id'],
         'deductiblemin': FM_TERMS['min deductible']['id'],
         'deductiblemax': FM_TERMS['max deductible']['id'],
         'limit': FM_TERMS['limit']['id'],
+        'limitcode': FM_TERMS['limit code']['id'],
+        'limittype': FM_TERMS['limit type']['id'],
         'share': FM_TERMS['share']['id']
     })
 
@@ -79,7 +83,7 @@ def get_grouped_fm_terms_by_level_and_term_group(
                     ) if grouped[level_id][tgid].get(term_type) else None
                 ) for term_type in [v['id'] for v in FM_TERMS.values()]
             }) for tgid in grouped[level_id]
-        }) for level_id in sorted(grouped)[1:]
+        }) for level_id in sorted(grouped)
     })
 
 
@@ -108,27 +112,8 @@ def get_fm_terms_oed_columns(
     return cols if not remove_nulls else [col for col in cols if col]
 
 
-def get_oed_hierarchy_terms(
+def get_oed_hierarchy(
     exposure_profile=get_default_exposure_profile(),
-    accounts_profile=get_default_accounts_profile(),
-    grouped_profile_by_level=None,
-    grouped_profile_by_level_and_term_group=None,
-    lowercase=True
+    accounts_profile=get_default_accounts_profile()
 ):
-    grouped = (
-        grouped_profile_by_level_and_term_group or
-        get_grouped_fm_profile_by_level_and_term_group(exposure_profile, accounts_profile, grouped_profile_by_level)
-    )
-
-    hierarchy_terms = OrderedDict({
-        k.lower(): (v['ProfileElementName'].lower() if lowercase else v['ProfileElementName'])
-        for k, v in sorted(grouped[0][1].items())
-    })
-    hierarchy_terms.setdefault('locid', ('locnumber' if lowercase else 'LocNumber'))
-    hierarchy_terms.setdefault('locgrp', 'locgroup' if lowercase else 'LocGroup')
-    hierarchy_terms.setdefault('accid', 'accnumber' if lowercase else 'AccNumber')
-    hierarchy_terms.setdefault('polid', 'polnumber' if lowercase else 'PolNumber')
-    hierarchy_terms.setdefault('portid', 'portnumber' if lowercase else 'PortNumber')
-    hierarchy_terms.setdefault('condid', 'condnumber' if lowercase else 'CondNumber')
-
-    return hierarchy_terms
+    return {v['Key'].lower(): v for k, v in {**exposure_profile, **accounts_profile}.items() if v.get('OEDHierarchy')}
