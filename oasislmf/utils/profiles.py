@@ -130,5 +130,6 @@ def get_oed_hierarchy_terms(
     hierarchy_terms.setdefault('polid', 'polnumber' if lowercase else 'PolNumber')
     hierarchy_terms.setdefault('portid', 'portnumber' if lowercase else 'PortNumber')
     hierarchy_terms.setdefault('condid', 'condnumber' if lowercase else 'CondNumber')
+    hierarchy_terms.setdefault('locperilscovered', 'locperilscovered' if lowercase else 'LocPerilsCovered')
 
     return hierarchy_terms
