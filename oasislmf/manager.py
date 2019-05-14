@@ -540,7 +540,7 @@ class OasisManager(object):
         except (IOError, TypeError, ValueError):
             raise OasisException('Invalid analysis settings file or file path: {}.'.format(_analysis_settings_fp))
 
-        generate_summaryxref_files(model_run_fp, analysis_settings)
+        generate_summaryxref_files(model_run_fp, analysis_settings, il=il, ri=ri)
 
         if not ri:
             fp = os.path.join(model_run_fp, 'input')

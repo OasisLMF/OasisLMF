@@ -357,15 +357,23 @@ def get_summary_xref_df(map_df, exposure_df, summaries_info_dict):
 
 
 @oasis_log
-def generate_summaryxref_files(model_run_fp, analysis_settings):
+def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=False):
     """
     Top level function for creating the summaryxref files from the manager.py
 
     :param model_run_fp: Model run directory file path
     :type model_run_fp:  str
 
-    :param analysis_settings: model run settings file
+    :param analysis_settings: Model analysis settings file
     :type analysis_settings:  dict
+
+    :param il: Boolean to indicate the insured loss level mode - false if the
+               source accounts file path not provided to Oasis files gen.
+    :type il: bool
+
+    :param ri: Boolean to indicate the RI loss level mode - false if the
+               source accounts file path not provided to Oasis files gen.
+    :type il: bool
     """
 
     # Load Exposure file for extra OED fields
@@ -374,7 +382,7 @@ def generate_summaryxref_files(model_run_fp, analysis_settings):
         src_fp=exposure_fp,
         empty_data_error_msg='No source exposure file found.')
 
-    if 'gul_summaries' in analysis_settings:
+    if analysis_settings['gul_output']:
         # Load GUL summary map
         gul_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['gul_map_fn'])
         gul_map_df = get_dataframe(
@@ -388,7 +396,7 @@ def generate_summaryxref_files(model_run_fp, analysis_settings):
         )
         write_xref_file(gul_summaryxref_df, os.path.join(model_run_fp, 'input'))
 
-    if 'il_summaries' in analysis_settings:
+    if il and analysis_settings['il_output']:
         # Load FM summary map
         il_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['fm_map_fn'])
         il_map_df = get_dataframe(
@@ -403,7 +411,7 @@ def generate_summaryxref_files(model_run_fp, analysis_settings):
         )
         write_xref_file(il_summaryxref_df, os.path.join(model_run_fp, 'input'))
 
-    if 'ri_summaries' in analysis_settings:
+    if ri and analysis_settings['ri_output']:
         ri_layers = get_ri_settings(model_run_fp)
         max_layer = max(ri_layers)
         summary_ri_fp = os.path.join(
