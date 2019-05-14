@@ -62,13 +62,13 @@ class RunCmd(OasisBaseCommand):
         )
         parser.add_argument(
             '-l', '--loss-factor', type=float, default=None,
-            help='Loss factor to apply to TIVs - default is 1.0 (100%).'
+            help='Loss factor to apply to TIVs - default is 1.0.'
         )
         parser.add_argument(
             '-n', '--net-ri-losses', default=False, help='Apply net RI losses - default is False', action='store_true'
         )
         parser.add_argument(
-            '-a', '--alloc-rule', type=int, default=KTOOLS_ALLOC_RULE, help='Ktools back allocation rule to apply - default is 2 (prior level loss basis)'
+            '-a', '--alloc-rule', type=int, default=KTOOLS_ALLOC_RULE, help='Ktools back allocation rule to apply - default is 2, i.e. prior level loss basis'
         )
         parser.add_argument(
             '-v', '--validate', default=False, help='Validate input files and loss tables - default is False', action='store_true'

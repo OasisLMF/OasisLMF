@@ -259,7 +259,6 @@ def get_il_input_items(
     }
     dtypes = {
         **{t: 'str' for t in [acc_id, portfolio_id, policy_id]},
-        **{t: ('float32' if t != layer_limit_col else 'float64') for t in term_cols_floats},
         **{t: 'uint8' for t in term_cols_ints + [cond_id]},
         **{t: 'uint32' for t in [cond_id, 'layer_id']}
     }
@@ -326,7 +325,6 @@ def get_il_input_items(
             how='inner'
         )
         gul_inputs_df.rename(columns={'item_id': 'gul_input_id'}, inplace=True)
-        dtypes = {t: 'float32' for t in site_pd_and_site_all_term_cols}
         gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, dtypes)
 
         # Construct a basic IL inputs frame by merging the combined exposure +
@@ -393,16 +391,15 @@ def get_il_input_items(
         # including the calcrule ID and policy TC ID
         il_inputs_df = il_inputs_df.assign(
             level_id=cov_level_id,
-            attachment=0,
-            share=0,
+            attachment=0.0,
+            share=0.0,
             calcrule_id=-1,
             policytc_id=-1
         )
 
         # Set data types for the newer columns just added
         dtypes = {
-            **{t: 'uint32' for t in ['level_id', 'calcrule_id', 'policytc_id']},
-            **{t: 'float32' for t in ['attachment', 'share']}
+            **{t: 'uint32' for t in ['level_id', 'calcrule_id', 'policytc_id']}
         }
         il_inputs_df = set_dataframe_column_dtypes(il_inputs_df, dtypes)
 
@@ -563,8 +560,6 @@ def get_il_input_items(
         # Final setting of data types before returning the IL input items
         dtypes = {
             **{t: 'uint32' for t in [cond_id, 'agg_id', 'item_id', 'layer_id', 'level_id', 'orig_level_id', 'calcrule_id', 'policytc_id']},
-            **{t: 'float32' for t in ['deductible', 'attachment', 'deductible_min', 'deductible_max']},
-            **{'limit': 'float64'},
             **{t: 'uint8' for t in ['ded_code', 'ded_type', 'lim_code', 'lim_type']}
         }
         il_inputs_df = set_dataframe_column_dtypes(il_inputs_df, dtypes)
