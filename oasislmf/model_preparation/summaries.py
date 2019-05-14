@@ -544,7 +544,7 @@ def write_exposure_summary(
     loc_num = hierarchy_terms['locid']
     loc_per_cov = hierarchy_terms['locperilscovered']
     exposure_df = split_dataframe_list(exposure_df, 'locperilscovered', ';')
-    gul_inputs_df = merge_dataframe(
+    gul_inputs_df = merge_dataframes(
         gul_inputs_df,
         exposure_df,
         left_on=[loc_num, 'peril_id'],
