@@ -259,7 +259,9 @@ def get_il_input_items(
     }
     dtypes = {
         **{t: 'str' for t in [acc_id, portfolio_id, policy_id]},
-        **{t: 'uint8' for t in term_cols_ints + [cond_id]},
+        **{t: 'float64' for t in term_cols_floats},
+        **{t: 'uint8' for t in term_cols_ints},
+        **{t: 'uint16' for t in [cond_id]},
         **{t: 'uint32' for t in [cond_id, 'layer_id']}
     }
 
@@ -325,6 +327,7 @@ def get_il_input_items(
             how='inner'
         )
         gul_inputs_df.rename(columns={'item_id': 'gul_input_id'}, inplace=True)
+        dtypes = {t: 'float64' for t in site_pd_and_site_all_term_cols}
         gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, dtypes)
 
         # Construct a basic IL inputs frame by merging the combined exposure +
@@ -399,6 +402,7 @@ def get_il_input_items(
 
         # Set data types for the newer columns just added
         dtypes = {
+            **{t: 'float64' for t in ['attachment', 'share']},
             **{t: 'uint32' for t in ['level_id', 'calcrule_id', 'policytc_id']}
         }
         il_inputs_df = set_dataframe_column_dtypes(il_inputs_df, dtypes)
@@ -436,9 +440,10 @@ def get_il_input_items(
             level for level in list(SUPPORTED_FM_LEVELS)[1:-1]
             if level_has_fm_terms(level, terms)
         ]
-        fm_levels_with_zero_terms = list(set(list(SUPPORTED_FM_LEVELS)[1:-1]).difference(intermediate_fm_levels))
-        zero_term_cols = get_fm_terms_oed_columns(fm_terms, levels=fm_levels_with_zero_terms, terms=terms)
-        il_inputs_df.drop(zero_term_cols, axis=1, inplace=True)
+        fm_levels_with_no_terms = list(set(list(SUPPORTED_FM_LEVELS)[1:-1]).difference(intermediate_fm_levels))
+        no_terms_cols = get_fm_terms_oed_columns(fm_terms, levels=fm_levels_with_no_terms, terms=terms)
+
+        il_inputs_df.drop(no_terms_cols, axis=1, inplace=True)
 
         # Define a list of all supported OED coverage types in the exposure
         supp_cov_types = [v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()]
@@ -559,6 +564,7 @@ def get_il_input_items(
 
         # Final setting of data types before returning the IL input items
         dtypes = {
+            **{t: 'float64' for t in ['deductible', 'deductible_min', 'deductible_max', 'limit', 'attachment', 'share']},
             **{t: 'uint32' for t in [cond_id, 'agg_id', 'item_id', 'layer_id', 'level_id', 'orig_level_id', 'calcrule_id', 'policytc_id']},
             **{t: 'uint8' for t in ['ded_code', 'ded_type', 'lim_code', 'lim_type']}
         }
@@ -616,6 +622,10 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
     try:
         cols = ['policytc_id', 'calcrule_id', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'limit', 'share']
         fm_profile_df = il_inputs_df.loc[:, cols]
+
+        fm_profile_df.loc[:, ['deductible', 'deductible_min', 'deductible_max', 'attachment', 'limit', 'share']] = (
+            fm_profile_df.loc[:, ['deductible', 'deductible_min', 'deductible_max', 'attachment', 'limit', 'share']].round(7).values
+        )
 
         fm_profile_df.rename(
             columns={

@@ -142,7 +142,9 @@ def get_gul_input_items(
         **{portfolio_id: '1'}
     }
     dtypes = {
-        **{t: 'uint8' for t in term_cols_ints + [cond_id]},
+        **{t: 'float64' for t in tiv_cols + term_cols_floats},
+        **{t: 'uint8' for t in term_cols_ints},
+        **{t: 'uint16' for t in [cond_id]},
         **{t: 'str' for t in [loc_id, portfolio_id, acc_id]}
     }
     # Load the exposure and keys dataframes - set 32-bit numeric data types
@@ -234,6 +236,7 @@ def get_gul_input_items(
             lim_type=0
         )
         dtypes = {
+            **{t: 'float32' for t in ['tiv'] + term_cols_floats + terms_floats},
             **{t: 'uint8' for t in term_cols_ints + terms_ints},
             **{'is_bi_coverage': 'bool'}
         }
