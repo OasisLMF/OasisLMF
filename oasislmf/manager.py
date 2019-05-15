@@ -423,7 +423,7 @@ class OasisManager(object):
                 exposure_fp,
                 keys_errors_fp=_keys_errors_fp,
                 exposure_profile=exposure_profile,
-                hierarchy_terms=oed_hierarchy
+                oed_hierarchy=oed_hierarchy
             )
 
         # Write the GUL input files
