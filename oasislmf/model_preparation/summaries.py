@@ -436,7 +436,7 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
 
 
 @oasis_log
-def get_exposure_summary(df, exposure_summary, peril_key, peril_id, status, loc_num):
+def get_exposure_summary(df, exposure_summary, peril_key, peril_id, status, loc_id):
     """
     Populate dictionary with TIVs and number of locations, grouped by peril and
     validity respectively
@@ -451,13 +451,13 @@ def get_exposure_summary(df, exposure_summary, peril_key, peril_id, status, loc_
     :type peril: str
 
     :param peril_key: Descriptive OED peril key, e.g. "river flood", "tropical cyclone"
-    :type peril_code: str
+    :type peril_key: str
 
     :param status: status returned by lookup ('success', 'fail' or 'nomatch')
     :type status: str
 
-    :param loc_num: location number column heading from exposure file
-    :type loc_num: str
+    :param loc_id: location number column name from exposure file
+    :type loc_id: str
 
     :return: populated exposure_summary dictionary
     :rtype: dict
@@ -480,7 +480,7 @@ def get_exposure_summary(df, exposure_summary, peril_key, peril_id, status, loc_
         exposure_summary[peril_key]['all']['tiv'] += tiv_sum
 
     # Find number of locations
-    loc_count = df.loc[df['peril_id'] == peril_id, loc_num].drop_duplicates().count()
+    loc_count = df.loc[df['peril_id'] == peril_id, loc_id].drop_duplicates().count()
     loc_count = int(loc_count)
     exposure_summary[peril_key][status]['number_of_locations'] = loc_count
     exposure_summary[peril_key]['all']['number_of_locations'] += loc_count
@@ -496,7 +496,7 @@ def write_exposure_summary(
     exposure_fp,
     keys_errors_fp,
     exposure_profile,
-    hierarchy_terms
+    oed_hierarchy
 ):
     """
     Create exposure summary as dictionary of TIVs and number of locations
@@ -521,8 +521,8 @@ def write_exposure_summary(
     :param exposure_profile: profile defining exposure file
     :type exposure_profile: dict
 
-    :param loc_num: OED location number column name (optional; default is "locnumber")
-    :type loc_num: str
+    :param oed_hierarchy: exposure dataframe column names
+    :type oed_hierarchy: dict
 
     :return: Exposure summary file path
     :rtype: str
@@ -553,28 +553,28 @@ def write_exposure_summary(
 
     # Merge GUL input items and source exposure dataframes to leave covered
     # perils
-    loc_num = hierarchy_terms['locid']['ProfileElementName'].lower()
-    loc_per_cov = hierarchy_terms['locperilid']['ProfileElementName'].lower()
-    model_perils_ids = gul_inputs_df['peril_id'].unique()
+    loc_id = oed_hierarchy['locid']['ProfileElementName'].lower()
+    loc_per_cov = oed_hierarchy['locperilid']['ProfileElementName'].lower()
+    model_peril_ids = gul_inputs_df['peril_id'].unique()
     exposure_df = split_dataframe_list(exposure_df, 'locperilscovered', ';')
     gul_inputs_df = merge_dataframes(
         gul_inputs_df,
         exposure_df,
-        left_on=[loc_num, 'peril_id'],
-        right_on=[loc_num, loc_per_cov],
+        left_on=[loc_id, 'peril_id'],
+        right_on=[loc_id, loc_per_cov],
         how='inner'
     )
     gul_inputs_errors_df = merge_dataframes(
         gul_inputs_errors_df,
         exposure_df,
-        left_on=[loc_num, 'peril_id'],
-        right_on=[loc_num, loc_per_cov],
+        left_on=[loc_id, 'peril_id'],
+        right_on=[loc_id, loc_per_cov],
         how='inner'
     )
 
     # Compile summary of exposure data
     exposure_summary = {}
-    for peril_id in model_perils_ids:
+    for peril_id in model_peril_ids:
         # Use descriptive names of perils as keys
         try:
             peril_key = [k for k, v in PERILS.items() if v['id'] == peril_id][0]
@@ -595,7 +595,7 @@ def write_exposure_summary(
                     peril_key,
                     peril_id,
                     status,
-                    loc_num
+                    loc_id
                 )
             elif status != 'all':
                 exposure_summary = get_exposure_summary(
@@ -604,7 +604,7 @@ def write_exposure_summary(
                     peril_key,
                     peril_id,
                     status,
-                    loc_num
+                    loc_id
                 )
 
     # Write exposure summary as json file
