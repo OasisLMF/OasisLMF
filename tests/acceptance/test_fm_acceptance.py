@@ -4,7 +4,6 @@ from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
 import pandas as pd
-import pytest
 
 from backports.tempfile import TemporaryDirectory
 from hypothesis import (
