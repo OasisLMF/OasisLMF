@@ -315,6 +315,7 @@ class OasisManager(object):
         model_version_fp=None,
         lookup_package_fp=None,
         complex_lookup_config_fp=None,
+        user_data_dir=None,
         supported_oed_coverage_types=None,
         accounts_fp=None,
         accounts_profile=None,
@@ -397,6 +398,7 @@ class OasisManager(object):
                     model_version_file_path=model_version_fp,
                     lookup_package_path=lookup_package_fp,
                     complex_lookup_config_fp=complex_lookup_config_fp,
+                    user_data_dir=user_data_dir,
                     output_directory=target_dir
                 )
                 f1, _, f2, _ = olf.save_results(
@@ -514,7 +516,8 @@ class OasisManager(object):
         ktools_mem_limit=None,
         ktools_fifo_relative=None,
         ktools_alloc_rule=None,
-        ktools_debug=None
+        ktools_debug=None,
+        user_data_dir=None
     ):
         il = all(p in os.listdir(oasis_fp) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
         ri = False
@@ -528,6 +531,7 @@ class OasisManager(object):
             oasis_fp,
             model_data_fp,
             analysis_settings_fp,
+            user_data_dir=user_data_dir,
             ri=ri
         )
 
