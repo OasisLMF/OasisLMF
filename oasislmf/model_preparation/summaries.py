@@ -33,7 +33,6 @@ from ..utils.defaults import (
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.path import as_path
-from ..utils.profiles import get_oed_hierarchy
 from .gul_inputs import get_gul_input_items
 
 
@@ -541,6 +540,7 @@ def write_exposure_summary(
         Split dataframe with multiple perils into separate rows.
         """
         row_accumulator = []
+
         def split_list_to_rows(row, separator):
             split_row = row[target_column].split(separator)
             for s in split_row:

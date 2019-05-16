@@ -244,11 +244,6 @@ def get_il_input_items(
     )
     term_cols = term_cols_floats + term_cols_ints
 
-    # Get the layer level (policy layer, # 10) limit column - this column's
-    # data type contains large values which can only be represented in 64-bit
-    # floating point format, unlike all the other financial terms columns
-    layer_limit_col = fm_terms[SUPPORTED_FM_LEVELS['policy layer']['id']][1]['limit']
-
     # Set defaults and data types for all the financial terms columns in the
     # accounts dataframe
     defaults = {
@@ -419,7 +414,7 @@ def get_il_input_items(
         # frame should already contain the coverage level terms
 
         # The list of financial terms for the sub-layer levels, which are
-        # site pd (# 2), site all (# 3), cond. all (# 6), policy all (# 9) - 
+        # site pd (# 2), site all (# 3), cond. all (# 6), policy all (# 9) -
         # the terms for these levels do not include "share", which is unique to
         # the (policy) layer level (# 10), and also the layer level terms do
         # not include ded. or limit codes or types
