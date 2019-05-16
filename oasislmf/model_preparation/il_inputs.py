@@ -262,7 +262,7 @@ def get_il_input_items(
         **{t: 'float64' for t in term_cols_floats},
         **{t: 'uint8' for t in term_cols_ints},
         **{t: 'uint16' for t in [cond_id]},
-        **{t: 'uint32' for t in [cond_id, 'layer_id']}
+        **{t: 'uint32' for t in ['layer_id']}
     }
 
     # Get the accounts frame either directly or from a file path if provided
@@ -543,11 +543,11 @@ def get_il_input_items(
         layer_df['share'] = layer_df['share'].where(layer_df['share'] != 0, 1.0)
         layer_df.loc[:, ['ded_code', 'ded_type', 'lim_code', 'lim_type']] = 0
 
-        # Join the IL inputs and layer level frames, and set layer ID, level ID
-        # and IL item IDs
+        # Join the IL inputs and layer level frames, drop the FM terms
+        # source columns for the layer level, and mark the layer level dataframe
+        # for deletion
         il_inputs_df = pd.concat([il_inputs_df, layer_df], sort=True, ignore_index=True)
         il_inputs_df.drop(term_cols, axis=1, inplace=True)
-
         del layer_df
 
         # Resequence the level IDs and item IDs, but also store the "original"
@@ -556,16 +556,23 @@ def get_il_input_items(
         il_inputs_df['level_id'] = factorize_ndarray(il_inputs_df.loc[:, ['level_id']].values, col_idxs=[0])[0]
         il_inputs_df['item_id'] = il_inputs_df.index + 1
 
+        # Set datatypes again for the deductible code and type columns, as
+        # they may have changed since the processing of the intermediate level
+        # terms
         dtypes = {t: 'uint8' for t in ['ded_code', 'ded_type', 'lim_code', 'lim_type']}
         il_inputs_df = set_dataframe_column_dtypes(il_inputs_df, dtypes)
+
+        # Set the calc. rule IDs
         il_inputs_df['calcrule_id'] = get_calc_rule_ids(il_inputs_df)
 
+        # Set the policy TC IDs
         il_inputs_df['policytc_id'] = get_policytc_ids(il_inputs_df)
 
         # Final setting of data types before returning the IL input items
         dtypes = {
             **{t: 'float64' for t in ['deductible', 'deductible_min', 'deductible_max', 'limit', 'attachment', 'share']},
-            **{t: 'uint32' for t in [cond_id, 'agg_id', 'item_id', 'layer_id', 'level_id', 'orig_level_id', 'calcrule_id', 'policytc_id']},
+            **{t: 'uint32' for t in ['agg_id', 'item_id', 'layer_id', 'level_id', 'orig_level_id', 'calcrule_id', 'policytc_id']},
+            **{t: 'uint16' for t in [cond_id]},
             **{t: 'uint8' for t in ['ded_code', 'ded_type', 'lim_code', 'lim_type']}
         }
         il_inputs_df = set_dataframe_column_dtypes(il_inputs_df, dtypes)
@@ -623,9 +630,7 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
         cols = ['policytc_id', 'calcrule_id', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'limit', 'share']
         fm_profile_df = il_inputs_df.loc[:, cols]
 
-        fm_profile_df.loc[:, ['deductible', 'deductible_min', 'deductible_max', 'attachment', 'limit', 'share']] = (
-            fm_profile_df.loc[:, ['deductible', 'deductible_min', 'deductible_max', 'attachment', 'limit', 'share']].round(7).values
-        )
+        fm_profile_df.loc[:, cols[2:]] = fm_profile_df.loc[:, cols[2:]].round(7).values
 
         fm_profile_df.rename(
             columns={
