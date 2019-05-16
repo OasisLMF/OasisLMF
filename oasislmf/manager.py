@@ -736,17 +736,17 @@ class OasisManager(object):
         elif not os.path.exists(run_dir):
             Path(run_dir).mkdir(parents=True, exist_ok=True)
         contents = [fn.lower() for fn in os.listdir(src_dir)]
-        exposure_fp = [os.path.join(src_dir, fn) for fn in contents if 'location' in fn][0]
-        accounts_fp = [os.path.join(src_dir, fn) for fn in contents if 'account' in fn][0]
+        exposure_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'location.csv'][0]
+        accounts_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'account.csv'][0]
 
         ri_info_fp = ri_scope_fp = None
         try:
-            ri_info_fp = [os.path.join(src_dir, fn) for fn in contents if fn.startswith('ri_info') or 'reinsinfo' in fn][0]
+            ri_info_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'ri_info.csv'][0]
         except IndexError:
             pass
         else:
             try:
-                ri_scope_fp = [os.path.join(src_dir, fn) for fn in contents if fn.startswith('ri_scope') or 'reinsscope' in fn][0]
+                ri_scope_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'ri_scope.csv'][0]
             except IndexError:
                 ri_info_fp = None
 

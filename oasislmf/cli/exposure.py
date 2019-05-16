@@ -120,12 +120,12 @@ class RunCmd(OasisBaseCommand):
         else:
             il = True
             try:
-                assert([fn for fn in src_contents if 'reinsinfo' in fn])
+                assert([fn for fn in src_contents if fn == 'ri_info.csv'])
             except AssertionError:
                 pass
             else:
                 try:
-                    assert([fn for fn in src_contents if 'reinsscope' in fn])
+                    assert([fn for fn in src_contents if fn == 'ri_scope.csv'])
                 except AssertionError:
                     pass
                 else:
