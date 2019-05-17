@@ -269,7 +269,7 @@ def get_il_input_items(
         empty_data_error_msg='No accounts found in the source accounts (loc.) file',
         memory_map=True,
     )
-    accounts_df[SOURCE_IDX['acc']] = accounts_df.index.values
+    accounts_df[SOURCE_IDX['acc']] = accounts_df.index
 
     if not (accounts_df is not None or accounts_fp):
         raise OasisException('No accounts frame or file path provided')
