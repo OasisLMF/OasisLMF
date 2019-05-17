@@ -228,18 +228,18 @@ def get_il_input_items(
     # policy all (# 9) and policy layer (# 10) FM levels - all of these columns
     # are in the accounts file, not the exposure file, so will have to be
     # sourced from the accounts dataframe
-    cond_pol_acc_levels = ['cond all', 'policy all', 'policy layer']
+    cond_pol_layer_levels = ['cond all', 'policy all', 'policy layer']
     terms_floats = ['deductible', 'deductible_min', 'deductible_max', 'limit', 'share']
     terms_ints = ['ded_code', 'ded_type', 'lim_code', 'lim_type']
     terms = terms_floats + terms_ints
     term_cols_floats = get_fm_terms_oed_columns(
         fm_terms,
-        levels=cond_pol_acc_levels,
+        levels=cond_pol_layer_levels,
         terms=terms_floats
     )
     term_cols_ints = get_fm_terms_oed_columns(
         fm_terms,
-        levels=cond_pol_acc_levels,
+        levels=cond_pol_layer_levels,
         terms=terms_ints
     )
     term_cols = term_cols_floats + term_cols_ints
@@ -362,15 +362,13 @@ def get_il_input_items(
         # GUL input item ID, or one of the source columns for the
         # non-coverage FM levels (site PD (# 2), site all (# 3), cond. all (# 6),
         # policy all (# 9), policy layer (# 10))
-        all_noncov_level_fm_terms_cols = get_fm_terms_oed_columns(
-            fm_terms, levels=list(SUPPORTED_FM_LEVELS)[1:]
-        )
         usecols = (
             gul_inputs_df.columns.to_list() +
             [policy_id, 'gul_input_id'] +
             ([SOURCE_IDX['loc']] if SOURCE_IDX['loc'] in il_inputs_df else []) +
             ([SOURCE_IDX['acc']] if SOURCE_IDX['acc'] in il_inputs_df else []) +
-            all_noncov_level_fm_terms_cols
+            site_pd_and_site_all_term_cols +
+            term_cols
         )
         il_inputs_df.drop(
             [c for c in il_inputs_df.columns if c not in usecols],
@@ -565,7 +563,6 @@ def get_il_input_items(
 
         # Final setting of data types before returning the IL input items
         dtypes = {
-            **{t: 'float64' for t in ['deductible', 'deductible_min', 'deductible_max', 'limit', 'attachment', 'share']},
             **{t: 'uint32' for t in ['agg_id', 'item_id', 'layer_id', 'level_id', 'orig_level_id', 'calcrule_id', 'policytc_id']},
             **{t: 'uint16' for t in [cond_id]},
             **{t: 'uint8' for t in ['ded_code', 'ded_type', 'lim_code', 'lim_type']}
