@@ -308,6 +308,7 @@ class OasisLookupFactory(object):
         keys_data_path,
         model_info,
         complex_lookup_config_fp=None,
+        user_data_dir=None,
         output_directory=None
     ):
         """
@@ -322,15 +323,25 @@ class OasisLookupFactory(object):
                 model_name=model_info['model_id'],
                 model_version=model_info['model_version']
             )
-
-        return klc(
-            keys_data_directory=keys_data_path,
-            supplier=model_info['supplier_id'],
-            model_name=model_info['model_id'],
-            model_version=model_info['model_version'],
-            complex_lookup_config_fp=complex_lookup_config_fp,
-            output_directory=output_directory
-        )
+        elif not user_data_dir:
+            return klc(
+                keys_data_directory=keys_data_path,
+                supplier=model_info['supplier_id'],
+                model_name=model_info['model_id'],
+                model_version=model_info['model_version'],
+                complex_lookup_config_fp=complex_lookup_config_fp,
+                output_directory=output_directory
+            )
+        else:
+            return klc(
+                keys_data_directory=keys_data_path,
+                supplier=model_info['supplier_id'],
+                model_name=model_info['model_id'],
+                model_version=model_info['model_version'],
+                complex_lookup_config_fp=complex_lookup_config_fp,
+                user_data_dir=user_data_dir,
+                output_directory=output_directory
+            )
 
     @classmethod
     def get_exposure(cls, source_exposure=None, source_exposure_fp=None):
@@ -428,6 +439,7 @@ class OasisLookupFactory(object):
         lookup_config_json=None,
         lookup_config_fp=None,
         complex_lookup_config_fp=None,
+        user_data_dir=None,
         output_directory=None,
         builtin_lookup_type='combined',
         loc_id_col='locnumber'
@@ -487,6 +499,7 @@ class OasisLookupFactory(object):
                 keys_data_path=_model_keys_data_path,
                 model_info=model_info,
                 complex_lookup_config_fp=_complex_lookup_config_fp,
+                user_data_dir=user_data_dir,
                 output_directory=_output_directory
             )
 
