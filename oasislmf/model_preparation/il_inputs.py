@@ -229,7 +229,7 @@ def get_il_input_items(
     # are in the accounts file, not the exposure file, so will have to be
     # sourced from the accounts dataframe
     cond_pol_layer_levels = ['cond all', 'policy all', 'policy layer']
-    terms_floats = ['deductible', 'deductible_min', 'deductible_max', 'limit', 'share']
+    terms_floats = ['deductible', 'deductible_min', 'deductible_max', 'limit', 'attachment', 'share']
     terms_ints = ['ded_code', 'ded_type', 'lim_code', 'lim_type']
     terms = terms_floats + terms_ints
     term_cols_floats = get_fm_terms_oed_columns(
@@ -413,9 +413,10 @@ def get_il_input_items(
 
         # The list of financial terms for the sub-layer levels, which are
         # site pd (# 2), site all (# 3), cond. all (# 6), policy all (# 9) -
-        # the terms for these levels do not include "share", which is unique to
-        # the (policy) layer level (# 10), and also the layer level terms do
-        # not include ded. or limit codes or types
+        # the terms for these levels do not include "attachment" or share",
+        # which do exist for the (policy) layer level (# 10); also the
+        # layer level terms do not include ded. or limit codes or types
+        terms_floats.remove('attachment')
         terms_floats.remove('share')
         terms = terms_floats + terms_ints
 
@@ -524,16 +525,15 @@ def get_il_input_items(
         layer_df['agg_id'] = factorize_ndarray(layer_df.loc[:, agg_key].values, col_idxs=range(len(agg_key)))[0]
 
         # The layer level financial terms
-        terms = ['deductible', 'limit', 'share']
+        terms = ['limit', 'attachment', 'share']
 
         # Process the financial terms for the layer level
         term_cols = get_fm_terms_oed_columns(fm_terms, levels=['policy layer'], terms=terms)
         layer_df.loc[:, term_cols] = layer_df.loc[:, term_cols].where(layer_df.notnull(), 0.0).values
         layer_df.loc[:, terms] = layer_df.loc[:, term_cols].values
         layer_df['limit'] = layer_df['limit'].where(layer_df['limit'] != 0, 9999999999)
-        layer_df['attachment'] = layer_df['deductible']
-        layer_df['deductible'] = 0
         layer_df['share'] = layer_df['share'].where(layer_df['share'] != 0, 1.0)
+        layer_df['deductible'] = 0
         layer_df.loc[:, ['ded_code', 'ded_type', 'lim_code', 'lim_type']] = 0
 
         # Join the IL inputs and layer level frames, drop the FM terms

@@ -171,6 +171,7 @@ FMT_DED_MAX = 'deductible_max'
 FMT_LIM = 'limit'
 FMT_LIM_CODE = 'lim_code'
 FMT_LIM_TYPE = 'lim_type'
+FMT_ATT = 'attachment'
 FMT_SHR = 'share'
 
 FM_TERMS = OrderedDict({
@@ -182,6 +183,7 @@ FM_TERMS = OrderedDict({
     'limit': {'id': FMT_LIM, 'desc': 'Limit'},
     'limit code': {'id': FMT_LIM_CODE, 'desc': 'Limit code'},
     'limit type': {'id': FMT_LIM_TYPE, 'desc': 'Limit type'},
+    'attachment': {'id': FMT_ATT, 'desc': 'Attachment'},
     'share': {'id': FMT_SHR, 'desc': 'Share'}
 })
 

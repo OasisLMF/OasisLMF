@@ -156,10 +156,9 @@
     },
     "LayerAttachment": {
         "ProfileElementName": "LayerAttachment",
-        "DeductibleType": "B",
         "FMLevelName": "PolLayer",
         "FMLevel": 10,
-        "FMTermType": "Deductible",
+        "FMTermType": "Attachment",
         "FMTermGroupID": 1,
         "ProfileType": "Acc"
     },
