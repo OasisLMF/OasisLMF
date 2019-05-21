@@ -104,7 +104,7 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
 
 def merge_oed_to_mapping(summary_map_df, exposure_df, oed_column_set, defaults=None):
     """
-    Adds list of OED fields from `column_set` to summary map file
+    Create a factorized col (summary ids) based on a list of oed column names
 
     :param :summary_map_df dataframe return from get_summary_mapping
     :type summary_map_df: pandas.DataFrame
@@ -390,13 +390,29 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
     :type il: bool
     """
 
+    # Boolean checks for summary generation types (gul / il / ri)
+    gul_summaries = all([
+        analysis_settings['gul_output'] if 'gul_output' in analysis_settings else False,
+        analysis_settings['gul_summaries'] if 'gul_summaries' in analysis_settings else False,
+    ])
+    il_summaries = all([
+        analysis_settings['il_output'] if 'il_output' in analysis_settings else False,
+        analysis_settings['il_summaries'] if 'il_summaries' in analysis_settings else False,
+        il,
+    ])
+    ri_summaries = all([
+        analysis_settings['ri_output'] if 'ri_output' in analysis_settings else False,
+        analysis_settings['ri_summaries'] if 'ri_summaries' in analysis_settings else False,
+        ri,
+    ])
+
     # Load Exposure file for extra OED fields
     exposure_fp = os.path.join(model_run_fp, 'input', SOURCE_FILENAMES['loc'])
     exposure_df = get_dataframe(
         src_fp=exposure_fp,
         empty_data_error_msg='No source exposure file found.')
 
-    if analysis_settings['gul_output']:
+    if gul_summaries:
         # Load GUL summary map
         gul_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['gul_map_fn'])
         gul_map_df = get_dataframe(
@@ -410,7 +426,7 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
         )
         write_xref_file(gul_summaryxref_df, os.path.join(model_run_fp, 'input'))
 
-    if il and analysis_settings['il_output']:
+    if il_summaries:
         # Load FM summary map
         il_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['fm_map_fn'])
         il_map_df = get_dataframe(
@@ -425,7 +441,7 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
         )
         write_xref_file(il_summaryxref_df, os.path.join(model_run_fp, 'input'))
 
-    if ri and analysis_settings['ri_output']:
+    if ri_summaries:
         ri_layers = get_ri_settings(model_run_fp)
         max_layer = max(ri_layers)
         summary_ri_fp = os.path.join(
