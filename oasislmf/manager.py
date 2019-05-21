@@ -361,7 +361,8 @@ class OasisManager(object):
         # Check whether the files generation is for deterministic or model losses
         deterministic = not(
             (lookup_config or lookup_config_fp) or
-            (keys_data_fp and model_version_fp and lookup_package_fp)
+            (keys_data_fp and model_version_fp and lookup_package_fp) or
+            keys_fp
         )
 
         # If a pre-generated keys file path has not been provided,

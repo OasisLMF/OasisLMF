@@ -19,6 +19,7 @@ from ..utils.data import (
     get_dataframe,
     get_json,
     merge_dataframes,
+    set_dataframe_column_dtypes,
 )
 from ..utils.defaults import (
     SOURCE_FILENAMES,
@@ -82,7 +83,7 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
         'agg_id',
         'output_id',
         'coverage_type_id',
-        'tiv',
+        'tiv'
     ]
 
     summary_mapping.drop(
@@ -90,6 +91,13 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
         axis=1,
         inplace=True
     )
+    dtypes = {
+        **{t: 'str' for t in [portfolio_id, policy_id, acc_id, loc_id, 'peril_id']},
+        **{t: 'uint8' for t in ['coverage_type_id']},
+        **{t: 'uint32' for t in [SOURCE_IDX['loc'], 'item_id', 'layer_id', 'coverage_id', 'agg_id', 'output_id']},
+        **{t: 'float64' for t in ['tiv']}
+    }
+    summary_mapping = set_dataframe_column_dtypes(summary_mapping, dtypes)
 
     return summary_mapping
 
@@ -353,6 +361,11 @@ def get_summary_xref_df(map_df, exposure_df, summaries_info_dict):
         # Appends summary set to '__summaryxref.csv'
         summary_set_df['summaryset_id'] = summary_set['id']
         summaryxref_df = pd.concat([summaryxref_df, summary_set_df], sort=True, ignore_index=True)
+
+    dtypes = {
+        t: 'uint32' for t in ['coverage_id', 'summary_id', 'summaryset_id']
+    }
+    summaryxref_df = set_dataframe_column_dtypes(summaryxref_df, dtypes)
 
     return summaryxref_df
 
