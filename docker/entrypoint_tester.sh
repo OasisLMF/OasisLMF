@@ -18,7 +18,7 @@ BUILD_OUTPUT_DIR='/tmp/output/'
 # Test install
     VER_PKG=$(cat ./oasislmf/__init__.py | awk -F"'" ' {print $2} ')
     TAR_PKG=$(find ./dist/ -name "oasislmf-${VER_PKG}.tar.gz")
-    pip install --verbose $TAR_PKG | tee $LOG_BUILD
+    pip install --verbose $TAR_PKG > >(tee -a $LOG_BUILD) 2> >(tee -a ${LOG_BUILD} >&2)
 
     set +exu
     KTOOLS_BUILD_FAILED=$(cat $LOG_BUILD | grep -ci 'Ktools build failed')
@@ -47,11 +47,9 @@ BUILD_OUTPUT_DIR='/tmp/output/'
 
  
 # Code Standards report
-    flake8 oasislmf/ --ignore=E501,E402 && flake8 tests/ --ignore=E501,E402 | tee $LOG_FLAKE
+    flake8 oasislmf/ --ignore=E501,E402 | tee -a $LOG_FLAKE 
+    flake8 tests/ --ignore=E501,E402 | tee -a $LOG_FLAKE
 
 # Coverate report 
     coverage combine
     coverage report -i oasislmf/*/*.py oasislmf/*.py > $LOG_COV
-
-# Copy build tar
-#    mv $TAR_PKG $BUILD_OUTPUT_DIR
