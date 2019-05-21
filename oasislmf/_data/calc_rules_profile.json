@@ -63,7 +63,7 @@
         "desc": "deductible and limit % loss",
         "calcrule_id": 5,
         "deductible_code": 0,
-        "deductible_type": 0,
+        "deductible_type": 1,
         "deductible_gt_0": 1,
         "deductible_min_gt_0": 0,
         "deductible_max_gt_0": 0,
@@ -72,7 +72,7 @@
         "limit_gt_0": 1,
         "share_gt_0": 0,
         "attachment_gt_0": 0,
-        "id_key": [1,0,0,1,0,0,0,0,1,0]
+        "id_key": [1,0,0,1,0,0,1,0,1,0]
     },
     "6": {
         "desc": "deductible % TIV",
