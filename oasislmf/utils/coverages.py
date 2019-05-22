@@ -3,6 +3,8 @@ __all__ = [
 	'SUPPORTED_COVERAGE_TYPES'
 ]
 
+from collections import OrderedDict
+
 
 COVT_BLD = 1
 COVT_OTH = 2

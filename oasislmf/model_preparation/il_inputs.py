@@ -45,9 +45,9 @@ from ..utils.defaults import (
     get_default_fm_aggregation_profile,
     OASIS_FILES_PREFIXES,
     SOURCE_IDX,
-    SUPPORTED_FM_LEVELS,
 )
 from ..utils.exceptions import OasisException
+from ..utils.fm import SUPPORTED_FM_LEVELS
 from ..utils.log import oasis_log
 from ..utils.path import as_path
 from ..utils.profiles import (

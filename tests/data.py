@@ -40,17 +40,19 @@ from hypothesis.strategies import (
     floats,
 )
 
-from oasislmf.utils.defaults import (
-    COVERAGE_TYPES,
+from oasislmf.utils.coverages import COVERAGE_TYPES
+from oasislmf.utils.fm import (
     DEDUCTIBLE_CODES,
     DEDUCTIBLE_AND_LIMIT_TYPES,
     FM_LEVELS,
     FM_TERMS,
     LIMIT_CODES,
-    OASIS_KEYS_STATUS,
+)
+from oasislmf.utils.peril import (
     PERILS,
     PERIL_GROUPS,
 )
+from oasislmf.utils.status import OASIS_KEYS_STATUS
 
 from oasislmf.model_execution.files import (
     GUL_INPUT_FILES,

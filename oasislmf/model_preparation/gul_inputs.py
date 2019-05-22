@@ -35,10 +35,10 @@ from ..utils.defaults import (
     OASIS_FILES_PREFIXES,
 )
 from ..utils.exceptions import OasisException
+from ..utils.fm import SUPPORTED_FM_LEVELS
 from ..utils.log import oasis_log
 from ..utils.defaults import (
     SOURCE_IDX,
-    SUPPORTED_FM_LEVELS,
 )
 from ..utils.path import as_path
 from ..utils.profiles import (
