@@ -30,6 +30,7 @@ from ..utils.concurrency import (
     multithread,
     Task,
 )
+from ..utils.calc_rules import get_calc_rules
 from ..utils.data import (
     factorize_ndarray,
     fast_zip_arrays,
@@ -38,7 +39,6 @@ from ..utils.data import (
     set_dataframe_column_dtypes,
 )
 from ..utils.defaults import (
-    get_calc_rules,
     get_default_accounts_profile,
     get_default_exposure_profile,
     get_default_fm_aggregation_profile,

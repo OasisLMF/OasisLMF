@@ -1,4 +1,4 @@
-desc,calcrule_id,deductible_code,deductible_type,deductible_gt_0,deductible_min_gt_0,deductible_max_gt_0,limit_code,limit_type,limit_gt_0,share_gt_0,attachment_gt_0,id_key
+desc,calcrule_id,ded_code,ded_type,deductible_gt_0,deductible_min_gt_0,deductible_max_gt_0,lim_code,lim_type,limit_gt_0,share_gt_0,attachment_gt_0,id_key
 deductible and limit,1,0,0,1,0,0,0,0,1,0,0,"(1, 0, 0, 1, 0, 0, 0, 0, 0, 0)"
 "deductible with attachment, limit and share",2,0,0,1,0,0,0,0,1,1,1,"(1, 0, 0, 1, 1, 1, 0, 0, 0, 0)"
 franchise deductible and limit,3,2,0,1,0,0,0,0,1,0,0,"(1, 0, 0, 1, 0, 0, 0, 2, 0, 0)"
