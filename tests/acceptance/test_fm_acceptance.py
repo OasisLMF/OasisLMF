@@ -25,10 +25,8 @@ from oasislmf.model_preparation.il_inputs import (
     get_il_input_items,
     write_il_input_files,
 )
+from oasislmf.utils.coverages import COVERAGE_TYPES
 from oasislmf.utils.data import print_dataframe
-from oasislmf.utils.defaults import (
-    COVERAGE_TYPES,
-)
 from oasislmf.utils.profiles import (
     get_grouped_fm_profile_by_level_and_term_group,
 )
