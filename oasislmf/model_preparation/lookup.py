@@ -42,7 +42,7 @@ from ..utils.peril import (
     DEFAULT_RTREE_INDEX_PROPS,
     PerilAreasIndex,
 )
-from ..utils.defaults import OASIS_KEYS_STATUS
+from ..utils.status import OASIS_KEYS_STATUS
 
 
 UNKNOWN_ID = -1
