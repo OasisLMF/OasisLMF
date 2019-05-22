@@ -76,20 +76,20 @@ def get_layer_ids(accounts_df, accounts_profile=get_default_accounts_profile()):
     :rtype: pandas.Series
     """
     oed_hierarchy = get_oed_hierarchy(accounts_profile=accounts_profile)
-    portfolio_id = oed_hierarchy['portid']['ProfileElementName'].lower()
-    acc_id = oed_hierarchy['accid']['ProfileElementName'].lower()
-    policy_id = oed_hierarchy['polid']['ProfileElementName'].lower()
+    portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
+    acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
+    policy_num = oed_hierarchy['polnum']['ProfileElementName'].lower()
 
-    _accounts_df = accounts_df.loc[:, [portfolio_id, acc_id, policy_id]]
+    _accounts_df = accounts_df.loc[:, [portfolio_num, acc_num, policy_num]]
     _accounts_df.columns = _accounts_df.columns.str.lower()
 
-    portfolio_ids = _accounts_df[portfolio_id].values
-    acc_ids = _accounts_df[acc_id].values
-    policy_ids = _accounts_df[policy_id].values
+    portfolio_nums = _accounts_df[portfolio_num].values
+    acc_nums = _accounts_df[acc_num].values
+    policy_nums = _accounts_df[policy_num].values
 
     return np.hstack((
         factorize_ndarray(np.asarray(list(accnum_group)), col_idxs=range(3))[0]
-        for _, accnum_group in groupby(fast_zip_arrays(portfolio_ids, acc_ids, policy_ids), key=lambda t: t[0])
+        for _, accnum_group in groupby(fast_zip_arrays(portfolio_nums, acc_nums, policy_nums), key=lambda t: t[0])
     ))
 
 
@@ -214,11 +214,11 @@ def get_il_input_items(
     # that would mean that changes to these column names in the source files
     # may break the method
     oed_hierarchy = get_oed_hierarchy(exposure_profile, accounts_profile)
-    loc_id = oed_hierarchy['locid']['ProfileElementName'].lower()
-    acc_id = oed_hierarchy['accid']['ProfileElementName'].lower()
-    policy_id = oed_hierarchy['polid']['ProfileElementName'].lower()
-    portfolio_id = oed_hierarchy['portid']['ProfileElementName'].lower()
-    cond_id = oed_hierarchy['condid']['ProfileElementName'].lower()
+    loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
+    acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
+    policy_num = oed_hierarchy['polnum']['ProfileElementName'].lower()
+    portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
+    cond_num = oed_hierarchy['condnum']['ProfileElementName'].lower()
 
     # Get the FM terms profile (this is a simplfied view of the main grouped
     # profile, containing only information about the financial terms)
@@ -249,14 +249,14 @@ def get_il_input_items(
     defaults = {
         **{t: 0.0 for t in term_cols_floats},
         **{t: 0 for t in term_cols_ints},
-        **{cond_id: 0},
-        **{portfolio_id: '1'}
+        **{cond_num: 0},
+        **{portfolio_num: '1'}
     }
     dtypes = {
-        **{t: 'str' for t in [acc_id, portfolio_id, policy_id]},
+        **{t: 'str' for t in [acc_num, portfolio_num, policy_num]},
         **{t: 'float64' for t in term_cols_floats},
         **{t: 'uint8' for t in term_cols_ints},
-        **{t: 'uint16' for t in [cond_id]},
+        **{t: 'uint16' for t in [cond_num]},
         **{t: 'uint32' for t in ['layer_id']}
     }
 
@@ -265,7 +265,7 @@ def get_il_input_items(
         src_fp=accounts_fp,
         col_dtypes=dtypes,
         col_defaults=defaults,
-        required_cols=(acc_id, policy_id, portfolio_id,),
+        required_cols=(acc_num, policy_num, portfolio_num,),
         empty_data_error_msg='No accounts found in the source accounts (loc.) file',
         memory_map=True,
     )
@@ -289,7 +289,7 @@ def get_il_input_items(
     # the source columns for the financial terms present in the accounts file (the
     # file should contain all financial terms relating to the cond. all (# 6),
     # policy all (# 9) and policy layer (# 10) FM levels)
-    usecols = [acc_id, portfolio_id, policy_id, cond_id, 'layer_id', SOURCE_IDX['acc']] + term_cols
+    usecols = [acc_num, portfolio_num, policy_num, cond_num, 'layer_id', SOURCE_IDX['acc']] + term_cols
     accounts_df.drop([c for c in accounts_df.columns if c not in usecols], axis=1, inplace=True)
 
     try:
@@ -316,9 +316,9 @@ def get_il_input_items(
         # the GUL inputs frame effectively only contains financial terms related to
         # FM level 1 (site coverage)
         gul_inputs_df = merge_dataframes(
-            exposure_df.loc[:, site_pd_and_site_all_term_cols + [loc_id]],
+            exposure_df.loc[:, site_pd_and_site_all_term_cols + [loc_num]],
             gul_inputs_df,
-            join_on=loc_id,
+            join_on=loc_num,
             how='inner'
         )
         gul_inputs_df.rename(columns={'item_id': 'gul_input_id'}, inplace=True)
@@ -332,7 +332,7 @@ def get_il_input_items(
         il_inputs_df = merge_dataframes(
             gul_inputs_df,
             accounts_df,
-            on=[portfolio_id, acc_id, 'layer_id', cond_id],
+            on=[portfolio_num, acc_num, 'layer_id', cond_num],
             how='left',
             drop_duplicates=True
         )
@@ -364,7 +364,7 @@ def get_il_input_items(
         # policy all (# 9), policy layer (# 10))
         usecols = (
             gul_inputs_df.columns.to_list() +
-            [policy_id, 'gul_input_id'] +
+            [policy_num, 'gul_input_id'] +
             ([SOURCE_IDX['loc']] if SOURCE_IDX['loc'] in il_inputs_df else []) +
             ([SOURCE_IDX['acc']] if SOURCE_IDX['acc'] in il_inputs_df else []) +
             site_pd_and_site_all_term_cols +
@@ -504,7 +504,7 @@ def get_il_input_items(
         layer_df = merge_dataframes(
             cov_level_layer1_df,
             accounts_df,
-            on=[portfolio_id, acc_id],
+            on=[portfolio_num, acc_num],
             how='inner'
         )
 
@@ -564,7 +564,7 @@ def get_il_input_items(
         # Final setting of data types before returning the IL input items
         dtypes = {
             **{t: 'uint32' for t in ['agg_id', 'item_id', 'layer_id', 'level_id', 'orig_level_id', 'calcrule_id', 'policytc_id']},
-            **{t: 'uint16' for t in [cond_id]},
+            **{t: 'uint16' for t in [cond_num]},
             **{t: 'uint8' for t in ['ded_code', 'ded_type', 'lim_code', 'lim_type']}
         }
         il_inputs_df = set_dataframe_column_dtypes(il_inputs_df, dtypes)

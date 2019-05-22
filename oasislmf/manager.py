@@ -294,7 +294,7 @@ class OasisManager(object):
 
         return olf.save_results(
             lookup,
-            loc_id_col=keys_id_col,
+            loc_num_col=keys_id_col,
             successes_fp=keys_fp,
             errors_fp=keys_errors_fp,
             source_exposure_fp=exposure_fp,
@@ -348,10 +348,10 @@ class OasisManager(object):
         exposure_profile = exposure_profile or (get_json(src_fp=exposure_profile_fp) if exposure_profile_fp else self.exposure_profile)
         accounts_profile = accounts_profile or (get_json(src_fp=accounts_profile_fp) if accounts_profile_fp else self.accounts_profile)
         oed_hierarchy = get_oed_hierarchy(exposure_profile, accounts_profile)
-        loc_id = oed_hierarchy['locid']['ProfileElementName'].lower()
+        loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
         loc_grp = oed_hierarchy['locgrp']['ProfileElementName'].lower()
-        acc_id = oed_hierarchy['accid']['ProfileElementName'].lower()
-        portfolio_id = oed_hierarchy['portid']['ProfileElementName'].lower()
+        acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
+        portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
         fm_aggregation_profile = (
             fm_aggregation_profile or
             ({int(k): v for k, v in get_json(src_fp=fm_aggregation_profile_fp).items()} if fm_aggregation_profile_fp else {}) or
@@ -378,14 +378,14 @@ class OasisManager(object):
             cov_types = supported_oed_coverage_types or self.supported_oed_coverage_types
 
             if deterministic:
-                loc_ids = (loc_it[loc_id] for _, loc_it in get_dataframe(
+                loc_nums = (loc_it[loc_num] for _, loc_it in get_dataframe(
                     src_fp=exposure_fp,
-                    col_dtypes={loc_id: 'str', acc_id: 'str', portfolio_id: 'str'},
+                    col_dtypes={loc_num: 'str', acc_num: 'str', portfolio_num: 'str'},
                     empty_data_error_msg='No exposure found in the source exposure (loc.) file'
-                )[[loc_id]].iterrows())
+                )[[loc_num]].iterrows())
                 keys = [
-                    {loc_id: _loc_id, 'peril_id': 1, 'coverage_type': cov_type, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
-                    for i, (_loc_id, cov_type) in enumerate(product(loc_ids, cov_types))
+                    {loc_num: _loc_num, 'peril_id': 1, 'coverage_type': cov_type, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
+                    for i, (_loc_num, cov_type) in enumerate(product(loc_nums, cov_types))
                 ]
                 _, _ = olf.write_oasis_keys_file(keys, _keys_fp)
             else:
@@ -404,7 +404,7 @@ class OasisManager(object):
                 )
                 f1, _, f2, _ = olf.save_results(
                     lookup,
-                    loc_id_col=loc_id,
+                    loc_id_col=loc_num,
                     successes_fp=_keys_fp,
                     errors_fp=_keys_errors_fp,
                     source_exposure_fp=exposure_fp

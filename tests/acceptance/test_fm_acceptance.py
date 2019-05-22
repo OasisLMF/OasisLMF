@@ -148,7 +148,7 @@ class FmAcceptanceTests(TestCase):
 
             self.assertEqual(len(gul_inputs), 4)
 
-            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in gul_inputs.groupby('group_id')]
+            loc_groups = [(loc_num, loc_group) for loc_num, loc_group in gul_inputs.groupby('group_id')]
             self.assertEqual(len(loc_groups), 1)
 
             loc1_id, loc1_items = loc_groups[0]
@@ -343,7 +343,7 @@ class FmAcceptanceTests(TestCase):
 
             self.assertEqual(len(gul_inputs), 4)
 
-            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in gul_inputs.groupby('group_id')]
+            loc_groups = [(loc_num, loc_group) for loc_num, loc_group in gul_inputs.groupby('group_id')]
             self.assertEqual(len(loc_groups), 1)
 
             loc1_id, loc1_items = loc_groups[0]
@@ -546,7 +546,7 @@ class FmAcceptanceTests(TestCase):
 
             self.assertEqual(len(gul_inputs), 4)
 
-            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in gul_inputs.groupby('group_id')]
+            loc_groups = [(loc_num, loc_group) for loc_num, loc_group in gul_inputs.groupby('group_id')]
             self.assertEqual(len(loc_groups), 1)
 
             loc1_id, loc1_items = loc_groups[0]
@@ -761,7 +761,7 @@ class FmAcceptanceTests(TestCase):
 
             self.assertEqual(len(gul_inputs), 8)
 
-            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in gul_inputs.groupby('group_id')]
+            loc_groups = [(loc_num, loc_group) for loc_num, loc_group in gul_inputs.groupby('group_id')]
             self.assertEqual(len(loc_groups), 2)
 
             loc1_id, loc1_items = loc_groups[0]
@@ -993,7 +993,7 @@ class FmAcceptanceTests(TestCase):
 
             self.assertEqual(len(gul_inputs), 8)
 
-            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in gul_inputs.groupby('group_id')]
+            loc_groups = [(loc_num, loc_group) for loc_num, loc_group in gul_inputs.groupby('group_id')]
             self.assertEqual(len(loc_groups), 2)
 
             loc1_id, loc1_items = loc_groups[0]

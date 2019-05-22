@@ -2,22 +2,22 @@
     "AccNumber": {
         "ProfileElementName": "AccNumber",
         "OEDHierarchy": "Account",
-        "Key": "AccID"
+        "Key": "AccNum"
     },
     "PortNumber": {
         "ProfileElementName": "PortNumber",
         "OEDHierarchy": "Portfolio",
-        "Key": "PortID"
+        "Key": "PortNum"
     },
     "PolNumber": {
         "ProfileElementName": "PolNumber",
         "OEDHierarchy": "Policy",
-        "Key": "PolID"
+        "Key": "PolNum"
     },
     "CondNumber": {
         "ProfileElementName": "CondNumber",
         "OEDHierarchy": "SpecialCondition",
-        "Key": "CondID"
+        "Key": "CondNum"
     },
     "CondDed6All": {
         "ProfileElementName": "CondDed6All",

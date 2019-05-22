@@ -2,7 +2,7 @@
     "LocNumber": {
         "ProfileElementName": "LocNumber",
         "OEDHierarchy": "Location",
-        "Key": "LocID"
+        "Key": "LocNum"
     },
     "LocGroup": {
         "ProfileElementName": "LocGroup",
@@ -17,17 +17,17 @@
     "AccNumber": {
         "ProfileElementName": "AccNumber",
         "OEDHierarchy": "Account",
-        "Key": "AccID"
+        "Key": "AccNum"
     },
     "PortNumber": {
         "ProfileElementName": "PortNumber",
         "OEDHierarchy": "Portfolio",
-        "Key": "PortID"
+        "Key": "PortNum"
     },
     "CondNumber": {
         "ProfileElementName": "CondNumber",
         "OEDHierarchy": "SpecialCondition",
-        "Key": "CondID"
+        "Key": "CondNum"
     },
     "BuildingTIV": {
         "ProfileElementName": "BuildingTIV",
