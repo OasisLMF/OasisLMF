@@ -11,12 +11,13 @@ from collections import OrderedDict
 from itertools import groupby
 
 from .defaults import (
-    SUPPORTED_FM_LEVELS,
-    FM_TERMS,
     get_default_exposure_profile,
     get_default_accounts_profile,
 )
-
+from .fm import (
+    SUPPORTED_FM_LEVELS,
+    FM_TERMS,
+)
 
 def get_grouped_fm_profile_by_level(
     exposure_profile=get_default_exposure_profile(),

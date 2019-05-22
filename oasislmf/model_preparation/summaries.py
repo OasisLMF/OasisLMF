@@ -13,6 +13,7 @@ import warnings
 
 import pandas as pd
 
+from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
 from ..utils.data import (
     factorize_dataframe,
     factorize_ndarray,
@@ -27,13 +28,12 @@ from ..utils.defaults import (
     SUMMARY_MAPPING,
     SUMMARY_GROUPING,
     SUMMARY_OUTPUT,
-    SUPPORTED_COVERAGE_TYPES,
-    OASIS_KEYS_STATUS,
-    PERILS,
 )
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.path import as_path
+from ..utils.peril import PERILS
+from ..utils.status import OASIS_KEYS_STATUS
 from .gul_inputs import get_gul_input_items
 
 
@@ -52,10 +52,10 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
     :return: Subset of columns from gul_inputs_df / il_inputs_df
     :rtype: pandas.DataFrame
     """
-    acc_id = oed_hierarchy['accid']['ProfileElementName'].lower()
-    loc_id = oed_hierarchy['locid']['ProfileElementName'].lower()
-    policy_id = oed_hierarchy['polid']['ProfileElementName'].lower()
-    portfolio_id = oed_hierarchy['portid']['ProfileElementName'].lower()
+    acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
+    loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
+    policy_num = oed_hierarchy['polnum']['ProfileElementName'].lower()
+    portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
 
     # Case GUL+FM (based on il_inputs_df)
     if is_fm_summary:
@@ -71,10 +71,10 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
         summary_mapping = inputs_df.copy(deep=True)
 
     usecols = [
-        acc_id,
-        loc_id,
-        policy_id,
-        portfolio_id,
+        acc_num,
+        loc_num,
+        policy_num,
+        portfolio_num,
         SOURCE_IDX['loc'],
         'item_id',
         'layer_id',
@@ -92,7 +92,7 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
         inplace=True
     )
     dtypes = {
-        **{t: 'str' for t in [portfolio_id, policy_id, acc_id, loc_id, 'peril_id']},
+        **{t: 'str' for t in [portfolio_num, policy_num, acc_num, loc_num, 'peril_id']},
         **{t: 'uint8' for t in ['coverage_type_id']},
         **{t: 'uint32' for t in [SOURCE_IDX['loc'], 'item_id', 'layer_id', 'coverage_id', 'agg_id', 'output_id']},
         **{t: 'float64' for t in ['tiv']}
@@ -464,7 +464,7 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
 
 
 @oasis_log
-def get_exposure_summary(df, exposure_summary, peril_key, peril_id, status, loc_id):
+def get_exposure_summary(df, exposure_summary, peril_key, peril_id, status, loc_num):
     """
     Populate dictionary with TIVs and number of locations, grouped by peril and
     validity respectively
@@ -484,8 +484,8 @@ def get_exposure_summary(df, exposure_summary, peril_key, peril_id, status, loc_
     :param status: status returned by lookup ('success', 'fail' or 'nomatch')
     :type status: str
 
-    :param loc_id: location number column name from exposure file
-    :type loc_id: str
+    :param loc_num: location number column name from exposure file
+    :type loc_num: str
 
     :return: populated exposure_summary dictionary
     :rtype: dict
@@ -508,7 +508,7 @@ def get_exposure_summary(df, exposure_summary, peril_key, peril_id, status, loc_
         exposure_summary[peril_key]['all']['tiv'] += tiv_sum
 
     # Find number of locations
-    loc_count = df.loc[df['peril_id'] == peril_id, loc_id].drop_duplicates().count()
+    loc_count = df.loc[df['peril_id'] == peril_id, loc_num].drop_duplicates().count()
     loc_count = int(loc_count)
     exposure_summary[peril_key][status]['number_of_locations'] = loc_count
     exposure_summary[peril_key]['all']['number_of_locations'] += loc_count
@@ -582,22 +582,22 @@ def write_exposure_summary(
 
     # Merge GUL input items and source exposure dataframes to leave covered
     # perils
-    loc_id = oed_hierarchy['locid']['ProfileElementName'].lower()
+    loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
     loc_per_cov = oed_hierarchy['locperilid']['ProfileElementName'].lower()
     model_peril_ids = gul_inputs_df['peril_id'].unique()
     exposure_df = split_dataframe_list(exposure_df, 'locperilscovered', ';')
     gul_inputs_df = merge_dataframes(
         gul_inputs_df,
         exposure_df,
-        left_on=[loc_id, 'peril_id'],
-        right_on=[loc_id, loc_per_cov],
+        left_on=[loc_num, 'peril_id'],
+        right_on=[loc_num, loc_per_cov],
         how='inner'
     )
     gul_inputs_errors_df = merge_dataframes(
         gul_inputs_errors_df,
         exposure_df,
-        left_on=[loc_id, 'peril_id'],
-        right_on=[loc_id, loc_per_cov],
+        left_on=[loc_num, 'peril_id'],
+        right_on=[loc_num, loc_per_cov],
         how='inner'
     )
 
@@ -624,7 +624,7 @@ def write_exposure_summary(
                     peril_key,
                     peril_id,
                     status,
-                    loc_id
+                    loc_num
                 )
             elif status != 'all':
                 exposure_summary = get_exposure_summary(
@@ -633,7 +633,7 @@ def write_exposure_summary(
                     peril_key,
                     peril_id,
                     status,
-                    loc_id
+                    loc_num
                 )
 
     # Write exposure summary as json file

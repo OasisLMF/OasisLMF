@@ -25,10 +25,8 @@ from oasislmf.model_preparation.il_inputs import (
     get_il_input_items,
     write_il_input_files,
 )
+from oasislmf.utils.coverages import COVERAGE_TYPES
 from oasislmf.utils.data import print_dataframe
-from oasislmf.utils.defaults import (
-    COVERAGE_TYPES,
-)
 from oasislmf.utils.profiles import (
     get_grouped_fm_profile_by_level_and_term_group,
 )
@@ -150,7 +148,7 @@ class FmAcceptanceTests(TestCase):
 
             self.assertEqual(len(gul_inputs), 4)
 
-            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in gul_inputs.groupby('group_id')]
+            loc_groups = [(loc_num, loc_group) for loc_num, loc_group in gul_inputs.groupby('group_id')]
             self.assertEqual(len(loc_groups), 1)
 
             loc1_id, loc1_items = loc_groups[0]
@@ -345,7 +343,7 @@ class FmAcceptanceTests(TestCase):
 
             self.assertEqual(len(gul_inputs), 4)
 
-            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in gul_inputs.groupby('group_id')]
+            loc_groups = [(loc_num, loc_group) for loc_num, loc_group in gul_inputs.groupby('group_id')]
             self.assertEqual(len(loc_groups), 1)
 
             loc1_id, loc1_items = loc_groups[0]
@@ -548,7 +546,7 @@ class FmAcceptanceTests(TestCase):
 
             self.assertEqual(len(gul_inputs), 4)
 
-            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in gul_inputs.groupby('group_id')]
+            loc_groups = [(loc_num, loc_group) for loc_num, loc_group in gul_inputs.groupby('group_id')]
             self.assertEqual(len(loc_groups), 1)
 
             loc1_id, loc1_items = loc_groups[0]
@@ -763,7 +761,7 @@ class FmAcceptanceTests(TestCase):
 
             self.assertEqual(len(gul_inputs), 8)
 
-            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in gul_inputs.groupby('group_id')]
+            loc_groups = [(loc_num, loc_group) for loc_num, loc_group in gul_inputs.groupby('group_id')]
             self.assertEqual(len(loc_groups), 2)
 
             loc1_id, loc1_items = loc_groups[0]
@@ -995,7 +993,7 @@ class FmAcceptanceTests(TestCase):
 
             self.assertEqual(len(gul_inputs), 8)
 
-            loc_groups = [(loc_id, loc_group) for loc_id, loc_group in gul_inputs.groupby('group_id')]
+            loc_groups = [(loc_num, loc_group) for loc_num, loc_group in gul_inputs.groupby('group_id')]
             self.assertEqual(len(loc_groups), 2)
 
             loc1_id, loc1_items = loc_groups[0]

@@ -14,10 +14,10 @@
         "FMLevel": 2,
         "FMLevelName": "SitePD",
         "FMAggKey": {
-            "LocID": {
+            "LocNum": {
                 "src": "FM",
                 "field": "locnumber",
-                "name": "Location ID"
+                "name": "Location number"
             },
             "IsBICoverage": {
                 "src": "FM",
@@ -30,10 +30,10 @@
         "FMLevel": 3,
         "FMLevel": "SiteAll",
         "FMAggKey": {
-            "LocID":  {
+            "LocNum":  {
                 "src": "FM",
                 "field": "locnumber",
-                "name": "Location ID"
+                "name": "Location num."
             }
         }
     },
@@ -41,20 +41,20 @@
         "FMLevel": 6,
         "FMLevelName": "CondAll",
         "FMAggKey": {
-            "PortID": {
+            "PortNum": {
                 "src": "FM",
                 "field": "portnumber",
-                "name": "Account portfolio no."
+                "name": "Account portfolio num."
             },
-            "AccID": {
+            "AccNum": {
                 "src": "FM",
                 "field": "accnumber",
-                "name": "Account no."
+                "name": "Account num."
             },
-            "CondID":  {
+            "CondNum":  {
                 "src": "FM",
                 "field": "condnumber",
-                "name": "Cond no."
+                "name": "Cond num."
             }
         }
     },
@@ -62,15 +62,15 @@
         "FMLevel": 9,
         "FMLevelName": "PolAll",
         "FMAggKey": {
-            "PortID": {
+            "PortNum": {
                 "src": "FM",
                 "field": "portnumber",
-                "name": "Account portfolio no."
+                "name": "Account portfolio num."
             },
-            "AccID": {
+            "AccNum": {
                 "src": "FM",
                 "field": "accnumber",
-                "name": "Account no."
+                "name": "Account num."
             }
         }
     },
@@ -78,15 +78,15 @@
         "FMLevel": 10,
         "FMLevelName": "PolLayer",
         "FMAggKey": {
-            "PortID": {
+            "PortNum": {
                 "src": "FM",
                 "field": "portnumber",
-                "name": "Account portfolio no."
+                "name": "Account portfolio num."
             },
-            "AccID": {
+            "AccNum": {
                 "src": "FM",
                 "field": "accnumber",
-                "name": "Account no."
+                "name": "Account num."
             }
         }
     }
