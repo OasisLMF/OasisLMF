@@ -59,7 +59,7 @@ from .model_preparation.summaries import (
 from .model_preparation.lookup import OasisLookupFactory as olf
 from .model_preparation.utils import prepare_input_files_directory
 from .model_preparation.reinsurance_layer import write_ri_input_files
-from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
+from .utils.coverages import SUPPORTED_COVERAGE_TYPES
 from .utils.data import (
     fast_zip_dataframe_columns,
     get_dataframe,
