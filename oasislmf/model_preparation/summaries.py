@@ -122,7 +122,18 @@ def merge_oed_to_mapping(summary_map_df, exposure_df, oed_column_set, defaults=N
     """
 
     column_set = [c.lower() for c in oed_column_set]
-    exposure_col_df = exposure_df.loc[:, column_set]
+    columns_found = [c for c in column_set if c in exposure_df.columns.to_list()]
+    columns_missing = list(set(column_set) - set(columns_found))
+
+    # Select DF with matching cols 
+    exposure_col_df = exposure_df.loc[:, columns_found]
+    # Add default value if optional column is missing 
+    for col in columns_missing:
+        if col in defaults:
+            exposure_col_df[col] = defaults[col]       
+        else:
+            raise OasisException('Column to merge "{}" not in locations dataframe or defined with a default value'.format(col))
+
     exposure_col_df[SOURCE_IDX['loc']] = exposure_df.index
     new_summary_map_df = merge_dataframes(summary_map_df, exposure_col_df, join_on=SOURCE_IDX['loc'], how='inner')
     if defaults:
