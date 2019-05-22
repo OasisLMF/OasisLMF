@@ -26,8 +26,8 @@ from mock import Mock, patch
 from tempfile import NamedTemporaryFile
 
 from oasislmf.model_preparation.lookup import OasisLookupFactory as olf
-from oasislmf.utils.defaults import OASIS_KEYS_STATUS
 from oasislmf.utils.exceptions import OasisException
+from oasislmf.utils.status import OASIS_KEYS_STATUS
 
 from tests.data import keys
 
