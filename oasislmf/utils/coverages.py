@@ -1,10 +1,4 @@
 __all__ = [
-	'COVT_ALL',
-	'COVT_BIT',
-	'COVT_BLD',
-	'COVT_CON',
-	'COVT_OTH',
-	'COVT_PDM',
 	'COVERAGE_TYPES',
 	'SUPPORTED_COVERAGE_TYPES'
 ]
