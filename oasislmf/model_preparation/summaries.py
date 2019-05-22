@@ -32,7 +32,7 @@ from ..utils.defaults import (
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.path import as_path
-from ..utils.perils import PERILS
+from ..utils.peril import PERILS
 from ..utils.status import OASIS_KEYS_STATUS
 from .gul_inputs import get_gul_input_items
 

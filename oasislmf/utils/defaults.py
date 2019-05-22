@@ -115,7 +115,7 @@ def get_default_deterministic_analysis_settings(path=False):
     return get_json(src_fp=fp) if not path else fp
 
 
-# Ktools runtime parameters - defaults used during model execution
+# Defaults for Ktools runtime parameters
 KTOOLS_NUM_PROCESSES = 2
 KTOOLS_MEM_LIMIT = False
 KTOOLS_FIFO_RELATIVE = False
