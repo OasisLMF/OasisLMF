@@ -31,6 +31,7 @@ from ..utils.concurrency import (
     Task,
 )
 from ..utils.calc_rules import get_calc_rules
+from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
 from ..utils.data import (
     factorize_ndarray,
     fast_zip_arrays,
@@ -44,7 +45,6 @@ from ..utils.defaults import (
     get_default_fm_aggregation_profile,
     OASIS_FILES_PREFIXES,
     SOURCE_IDX,
-    SUPPORTED_COVERAGE_TYPES,
     SUPPORTED_FM_LEVELS,
 )
 from ..utils.exceptions import OasisException

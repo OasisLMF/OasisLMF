@@ -1,5 +1,4 @@
 __all__ = [
-    'COVERAGE_TYPES',
     'DEDUCTIBLE_AND_LIMIT_TYPES',
     'DEDUCTIBLE_CODES',
     'FM_LEVELS',
@@ -27,7 +26,6 @@ __all__ = [
     'SOURCE_IDX',
     'SOURCE_FILENAMES',
     'STATIC_DATA_FP',
-    'SUPPORTED_COVERAGE_TYPES',
     'SUPPORTED_FM_LEVELS',
     'update_calc_rules'
 ]
@@ -42,27 +40,6 @@ from .data import (
     get_json,
 )
 
-
-COVT_BLD = 1
-COVT_OTH = 2
-COVT_CON = 3
-COVT_BIT = 4
-COVT_PDM = 5
-COVT_ALL = 6
-
-COVERAGE_TYPES = OrderedDict({
-    'buildings': {'id': COVT_BLD, 'desc': 'buildings'},
-    'other': {'id': COVT_OTH, 'desc': 'other (typically appurtenant structures)'},
-    'contents': {'id': COVT_CON, 'desc': 'contents'},
-    'bi': {'id': COVT_BIT, 'desc': 'business interruption or other time-based coverage'},
-    'pd': {'id': COVT_PDM, 'desc': 'property damage (buildings + other + contents)'},
-    'all': {'id': COVT_ALL, 'desc': 'all (property damage + business interruption)'}
-})
-
-SUPPORTED_COVERAGE_TYPES = OrderedDict({
-    cov_type: cov_type_dict for cov_type, cov_type_dict in COVERAGE_TYPES.items()
-    if cov_type in ['buildings', 'other', 'contents', 'bi']
-})
 
 SOURCE_FILENAMES = OrderedDict({
     'loc': 'location.csv',
@@ -319,39 +296,6 @@ def get_default_unified_profile(path=False):
 def get_default_fm_aggregation_profile(path=False):
     fp = os.path.join(STATIC_DATA_FP, 'default_fm_agg_profile.json')
     return {int(k): v for k, v in get_json(src_fp=fp).items()} if not path else fp
-
-
-def update_calc_rules():
-    fp = os.path.join(STATIC_DATA_FP, 'calc_rules.csv')
-
-    terms = ['deductible', 'deductible_min', 'deductible_max', 'limit', 'share', 'attachment']
-    terms_indicators = ['{}_gt_0'.format(t) for t in terms]
-    types_and_codes = ['deductible_type', 'deductible_code', 'limit_type', 'limit_code']
-
-    dtypes = {
-        'id_key': 'str',
-        **{t: 'int32' for t in ['calcrule_id'] + terms_indicators + types_and_codes}
-    }
-    calc_rules = get_dataframe(
-        src_fp=fp,
-        col_dtypes=dtypes
-    )
-
-    calc_rules['id_key'] = [t for t in fast_zip_arrays(*calc_rules[terms_indicators + types_and_codes].transpose().values)]
-
-    calc_rules.to_csv(path_or_buf=fp, index=False, encoding='utf-8')
-
-
-# Ktools calc. rules
-def get_calc_rules(path=False, update=False):
-    fp = os.path.join(STATIC_DATA_FP, 'calc_rules.csv')
-    if path:
-        return fp
-
-    if update:
-        update_calc_rules()
-
-    return get_dataframe(src_fp=fp)
 
 
 # Default name prefixes of the Oasis input files (GUL + IL)

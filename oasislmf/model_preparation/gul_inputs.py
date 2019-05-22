@@ -23,6 +23,7 @@ from ..utils.concurrency import (
     multithread,
     Task,
 )
+from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
 from ..utils.data import (
     factorize_array,
     get_dataframe,
@@ -37,7 +38,6 @@ from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.defaults import (
     SOURCE_IDX,
-    SUPPORTED_COVERAGE_TYPES,
     SUPPORTED_FM_LEVELS,
 )
 from ..utils.path import as_path

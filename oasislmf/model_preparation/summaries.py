@@ -13,6 +13,7 @@ import warnings
 
 import pandas as pd
 
+from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
 from ..utils.data import (
     factorize_dataframe,
     factorize_ndarray,
@@ -27,7 +28,6 @@ from ..utils.defaults import (
     SUMMARY_MAPPING,
     SUMMARY_GROUPING,
     SUMMARY_OUTPUT,
-    SUPPORTED_COVERAGE_TYPES,
     OASIS_KEYS_STATUS,
     PERILS,
 )

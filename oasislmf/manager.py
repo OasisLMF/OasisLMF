@@ -59,6 +59,7 @@ from .model_preparation.summaries import (
 from .model_preparation.lookup import OasisLookupFactory as olf
 from .model_preparation.utils import prepare_input_files_directory
 from .model_preparation.reinsurance_layer import write_ri_input_files
+from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
 from .utils.data import (
     fast_zip_dataframe_columns,
     get_dataframe,
@@ -70,7 +71,6 @@ from .utils.data import (
 from .utils.exceptions import OasisException
 from .utils.log import oasis_log
 from .utils.defaults import (
-    SUPPORTED_COVERAGE_TYPES,
     get_default_accounts_profile,
     get_default_deterministic_analysis_settings,
     get_default_exposure_profile,
