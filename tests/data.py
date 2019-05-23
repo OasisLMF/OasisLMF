@@ -539,6 +539,7 @@ def write_keys_files(
             ('peril_id', 'PerilID'),
             ('coverage_type', 'CoverageTypeID'),
             ('message', 'Message'),
+            ('status', 'Status'),
         ])
 
         pd.DataFrame(
