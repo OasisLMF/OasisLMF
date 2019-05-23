@@ -1,0 +1,2 @@
+ReinsNumber,ReinsPeril,ReinsCurrency,CededPercent,RiskLimit,RiskAttachment,OccLimit,OccAttachment,PlacedPercent,InuringPriority,ReinsType,ReinsName
+98,OO1,CAD,0.2,1000000,0,0,0,1,1,CXL,T30 CX Pol

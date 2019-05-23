@@ -1,0 +1,3 @@
+ReinsNumber,CededPercent,RiskLimit,RiskAttachment,OccLimit,OccAttachment,InuringPriority,ReinsType,AttachmentBasis,PlacedPercent,TreatyShare
+1,1,0,0,50,50,1,CXL,LO,0.5,1
+2,1,0,0,50,100,2,CXL,LO,0.5,1
