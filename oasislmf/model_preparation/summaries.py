@@ -584,7 +584,7 @@ def write_exposure_summary(
         exposure_df[loc_per_cov].str.split(';').to_list(),
         index=exposure_df[loc_num]
     ).stack()
-    exp_perils_df = exp_perils_df.reset_index([0, loc_num])
+    exp_perils_df.reset_index([0, loc_num], inplace=True)
     exp_perils_df.columns = [loc_num, 'peril_id']
     exposure_df = merge_dataframes(
         exposure_df,
