@@ -587,16 +587,18 @@ def write_exposure_summary(
     loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
     loc_per_cov = oed_hierarchy['locperilid']['ProfileElementName'].lower()
     model_peril_ids = gul_inputs_df['peril_id'].unique()
-    # Split rows with multiple peril codes
+
     exp_perils_df = pd.DataFrame(
         exposure_df[loc_per_cov].str.split(';').to_list(),
         index=exposure_df[loc_num]
     ).stack()
+
     # Split rows with peril codes corresponding to peril groups
     exp_perils_df = pd.DataFrame(
         exp_perils_df.map(peril_groups).to_list(),
         index=exp_perils_df.index
     ).stack()
+
     exp_perils_df = exp_perils_df.reset_index([0, loc_num])
     exp_perils_df.columns = [loc_num, 'peril_id']
     exposure_df = merge_dataframes(
@@ -608,13 +610,13 @@ def write_exposure_summary(
     gul_inputs_df = merge_dataframes(
         gul_inputs_df,
         exposure_df,
-        on=[loc_num],
+        on=[loc_num, 'peril_id'],
         how='inner'
     )
     gul_inputs_errors_df = merge_dataframes(
         gul_inputs_errors_df,
         exposure_df,
-        on=[loc_num],
+        on=[loc_num, 'peril_id'],
         how='inner'
     )
 
