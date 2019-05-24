@@ -600,6 +600,7 @@ def write_exposure_summary(
     ).stack()
 
     exp_perils_df = exp_perils_df.reset_index([0, loc_num])
+
     exp_perils_df.columns = [loc_num, 'peril_id']
     exposure_df = merge_dataframes(
         exposure_df,
