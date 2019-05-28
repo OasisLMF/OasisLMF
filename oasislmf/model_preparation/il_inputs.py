@@ -113,16 +113,7 @@ def get_calc_rule_ids(il_inputs_df):
     il_inputs_calc_rules_df = il_inputs_df.loc[:, ['item_id'] + terms + terms_indicators + types_and_codes + ['calcrule_id']]
     il_inputs_calc_rules_df.loc[:, terms_indicators] = np.where(il_inputs_calc_rules_df[terms] > 0, 1, 0)
     il_inputs_calc_rules_df['id_key'] = [t for t in fast_zip_arrays(*il_inputs_calc_rules_df.loc[:, terms_indicators + types_and_codes].transpose().values)]
-    calc_rules_check_df = il_inputs_calc_rules_df[['item_id', 'id_key']]
-    il_inputs_calc_rules_df = merge_dataframes(il_inputs_calc_rules_df, calc_rules, how='left', on='id_key')
-
-    # Check for rule mismatch 
-    if il_inputs_calc_rules_df.isnull().values.any():
-        invalid_rules = calc_rules_check_df[~calc_rules_check_df['id_key'].isin(calc_rules['id_key'].to_list())]
-        warnings.warn('Calc Rule matching error detected in item_ids {}. '.format(
-            invalid_rules['item_id'].to_list()))
-        il_inputs_calc_rules_df.fillna(0)
-
+    il_inputs_calc_rules_df = merge_dataframes(il_inputs_calc_rules_df, calc_rules, how='left', on='id_key').fillna(0)
     il_inputs_calc_rules_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id'].astype('uint32')
     return il_inputs_calc_rules_df['calcrule_id'].values
 
