@@ -1,0 +1,5 @@
+PortNumber,AccNumber,LocNumber,LocGroup,CountryCode,Latitude,Longitude,BuildingTIV,OtherTIV,ContentsTIV,BITIV
+1,1,A1,,US,0,0,1000,0,500,500
+1,1,A2,,US,0,0,1000,0,500,500
+1,2,A1,,US,0,0,1000,0,500,500
+1,2,A2,,US,0,0,1000,0,500,500

@@ -1,0 +1,2 @@
+ReinsNumber,ReinsPeril,ReinsCurrency,CededPercent,RiskLimit,RiskAttachment,OccLimit,OccAttachment,PlacedPercent,InuringPriority,ReinsType,ReinsName
+33,OO1,CAD,1.0000,1000000.00,.00,.00,.00,.2000,1,QS,T10 QS Acc
