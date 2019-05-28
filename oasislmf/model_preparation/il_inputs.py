@@ -113,9 +113,8 @@ def get_calc_rule_ids(il_inputs_df):
     il_inputs_calc_rules_df = il_inputs_df.loc[:, ['item_id'] + terms + terms_indicators + types_and_codes + ['calcrule_id']]
     il_inputs_calc_rules_df.loc[:, terms_indicators] = np.where(il_inputs_calc_rules_df[terms] > 0, 1, 0)
     il_inputs_calc_rules_df['id_key'] = [t for t in fast_zip_arrays(*il_inputs_calc_rules_df.loc[:, terms_indicators + types_and_codes].transpose().values)]
-    il_inputs_calc_rules_df = merge_dataframes(il_inputs_calc_rules_df, calc_rules, how='left', on='id_key')
+    il_inputs_calc_rules_df = merge_dataframes(il_inputs_calc_rules_df, calc_rules, how='left', on='id_key').fillna(0)
     il_inputs_calc_rules_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id'].astype('uint32')
-
     return il_inputs_calc_rules_df['calcrule_id'].values
 
 
@@ -389,8 +388,8 @@ def get_il_input_items(
             level_id=cov_level_id,
             attachment=0.0,
             share=0.0,
-            calcrule_id=-1,
-            policytc_id=-1
+            calcrule_id=0,
+            policytc_id=0
         )
 
         # Set data types for the newer columns just added

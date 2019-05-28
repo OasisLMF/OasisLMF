@@ -32,7 +32,7 @@ from ..utils.defaults import (
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.path import as_path
-from ..utils.peril import PERILS
+from ..utils.peril import PERILS, PERIL_GROUPS
 from ..utils.status import OASIS_KEYS_STATUS
 from .gul_inputs import get_gul_input_items
 
@@ -595,13 +595,13 @@ def write_exposure_summary(
     gul_inputs_df = merge_dataframes(
         gul_inputs_df,
         exposure_df,
-        on=[loc_num, 'peril_id'],
+        on=[loc_num],
         how='inner'
     )
     gul_inputs_errors_df = merge_dataframes(
         gul_inputs_errors_df,
         exposure_df,
-        on=[loc_num, 'peril_id'],
+        on=[loc_num],
         how='inner'
     )
 
@@ -610,9 +610,11 @@ def write_exposure_summary(
     for peril_id in model_peril_ids:
         # Use descriptive names of perils as keys
         try:
+            PERILS.update(PERIL_GROUPS)
             peril_key = [k for k, v in PERILS.items() if v['id'] == peril_id][0]
         except IndexError:
             warnings.warn('"{}" is not a valid OED peril ID/code. Please check the source exposure file.'.format(peril_id))
+            return None
         exposure_summary[peril_key] = {}
         # Create dictionary structure for all and each validity status
         for status in ['all'] + list(OASIS_KEYS_STATUS.keys()):
