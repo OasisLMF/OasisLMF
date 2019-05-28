@@ -1,6 +1,15 @@
 OasisLMF Changelog
 ==================
 
+`1.3.8`_
+-------
+* Improvements for complex model support and logging 
+* Update to summary sets for grouping results 
+* Exposure reporting added 
+* Fixes for Oasis files generation 
+* Updates to RI and Acceptance testing 
+* new sub-command `oasislmf exposure ..` for running and validating deterministic models 
+
 `1.3.7`_
 -------
 * Hotfix - ktools-num-processes not read as int from CLI 
@@ -235,6 +244,7 @@ in the exposure manager
 
 * Add console logging
 
+.. _`1.3.8`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.7...1.4.0
 .. _`1.3.7`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.6...1.3.7
 .. _`1.3.6`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.5...1.3.6
 .. _`1.3.5`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.4...1.3.5
