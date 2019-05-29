@@ -1,0 +1,3 @@
+PortNumber,AccNumber,AccPeril,PolNumber,LayerNumber,LayerParticipation,LayerLimit,LayerAttachment
+1,1,WW1,1,0,1,10000,0 
+1,2,WW1,2,0,1,10000,0

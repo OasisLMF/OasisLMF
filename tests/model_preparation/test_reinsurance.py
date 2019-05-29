@@ -2,6 +2,7 @@ import os
 import subprocess
 import time
 import unittest
+import hypothesis
 
 from backports.tempfile import TemporaryDirectory
 from collections import OrderedDict
@@ -17,297 +18,3128 @@ from oasislmf.model_preparation import (
     oed,
     reinsurance_layer,
 )
+
 from oasislmf.model_execution import bin
 from oasislmf.utils.data import get_dataframe, set_dataframe_column_dtypes
-from .direct_layer import DirectLayer
 
-cwd = os.path.dirname(os.path.realpath(__file__))
-expected_output_dir = os.path.join(cwd, 'expected', 'calc')
-
-input_dir = os.path.join(cwd, 'examples')
-test_examples = [
-    'single_loc_level_fac',
-    'single_pol_level_fac',
-    'single_acc_level_fac',
-    'single_lgr_level_fac',
-    'multiple_facs_same_inuring_level',
-    'single_loc_level_PR_all_risks',
-    'single_lgr_level_PR_all_risks',
-    'single_pol_level_PR_all_risks',
-    'single_acc_level_PR_all_risks',
-    'single_loc_level_SS_all_risks_loc',
-    'single_loc_level_SS_all_risks_loc_pol',
-    'single_pol_level_SS_all_risks',
-    'single_acc_level_SS_all_risks',
-    'single_QS_one_risk_with_%_ceded_and_%_placed_and_risk_limit_and_occ_limit',
-    'single_QS_all_acc_with_%_ceded_and_%_placed_and_risk_limit_and_occ_limit',
-    'single_loc_level_SS_with_%_ceded_and_%_placed',
-    'single_pol_level_SS_with_%_ceded_and_%_placed',
-    'single_QS_all_risks_with_%_ceded_and_%_placed',
-    'single_QS_with_account_level_risk_limits',
-    'single_cxl',
-    'single_cxl_0_occ_limit_treat_as_unlimited',
-    'single_cxl_empty_occ_limit_treat_as_unlimited',
-    'single_QS_with_policy_level_risk_limits',
-    'single_QS_with_location_level_risk_limits',
-    'single_cxl_one_account',
-    'single_QS_one_account_with_%_ceded_and_%_placed',
-    'multiple_SS_same_inuring_level',
-    'single_loc_level_SS_with_%_ceded_and_%_placed_and_occ_limit',
-    'multiple_cxl_at_different_inuring_levels',
-    'multiple_qs_all_risks_multiple_portfolios',
-    'multiple_qs_single_portfolio',
-    'multiple_QS_at_different_inuring_levels',
-    'multiple_QS_at_same_inuring_level',
-    'single_QS',
-    'single_QS_no_ReinsLayerNumber_no_TreatyShare',
-    'single_loc_level_PR_loc_filter',
-    'single_loc_level_PR_pol_and_loc_filter',
-    'single_loc_level_PR_pol_filter',
-    'single_loc_level_PR_acc_filter',
-    'simple_CXL_port_acc_pol_filter',
-    'simple_CXL_port_acc_pol_loc_filter',
-    'simple_CXL_port_acc_loc_filter',
-    'simple_CXL_port_filter',
-    'simple_CXL_port_acc_filter'
-]
-
-fm_examples = [
-    'fm24',
-    'fm27']
-
-# error_examples = [
-#     'single_loc_level_fac_with_pol_scope_error',
-#     'single_loc_level_fac_with_acc_scope_error',
-#     'single_loc_level_fac_with_lgr_scope_error',
-#     'single_pol_level_fac_with_acc_scope_error',
-#     'single_pol_level_fac_with_loc_scope_error',
-#     'single_pol_level_fac_with_lgr_scope_error',
-#     'single_acc_level_fac_with_pol_scope_error',
-#     'single_acc_level_fac_with_loc_scope_error',
-#     'single_acc_level_fac_with_lgr_scope_error',
-#     'single_lgr_level_fac_with_acc_scope_error',
-#     'single_lgr_level_fac_with_loc_scope_error',
-#     'single_lgr_level_fac_with_pol_scope_error',
-#     'single_loc_level_pr_with_pol_scope_error',
-#     'single_loc_level_pr_with_acc_scope_error',
-#     'single_loc_level_pr_with_lgr_scope_error',
-#     'single_pol_level_pr_with_acc_scope_error',
-#     'single_pol_level_pr_with_loc_scope_error',
-#     'single_pol_level_pr_with_lgr_scope_error',
-#     'single_acc_level_pr_with_pol_scope_error',
-#     'single_acc_level_pr_with_loc_scope_error',
-#     'single_acc_level_pr_with_lgr_scope_error',
-#     'single_lgr_level_pr_with_acc_scope_error',
-#     'single_lgr_level_pr_with_loc_scope_error',
-#     'single_lgr_level_pr_with_pol_scope_error',
-# ]
-
-test_cases = []
-for case in test_examples + fm_examples:
-    test_cases.append((
-        case,
-        os.path.join(input_dir, case),
-        os.path.join(expected_output_dir, case)
-    ))
-
+import shutil
 
 class TestReinsurance(unittest.TestCase):
-    def _run_fm(
-            self,
-            input_name,
-            output_name,
-            xref_descriptions,
-            allocation=oed.ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID):
 
-        command = "fmcalc -p {0} -n -a {2} < {1}.bin | tee {0}.bin | fmtocsv > {0}.csv".format(
-            output_name, input_name, allocation)
-        print(command)
-        proc = subprocess.Popen(command, shell=True)
-        proc.wait()
-        if proc.returncode != 0:
-            raise Exception("Failed to run fm")
-        losses_df = pd.read_csv("{}.csv".format(output_name))
-        inputs_df = pd.read_csv("{}.csv".format(input_name))
+    def setUp(self):
+        self.exposure_1_items_df = pd.DataFrame.from_dict({
+            'item_id':          [   1,      2,      3,      4,      5,      6,      7,      8,      9,      10,     11,     12  ],
+            'coverage_id':      [   1,      2,      3,      4,      5,      6,      7,      8,      9,      10,     11,     12  ],
+            'area_peril_id':    [   -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1  ],
+            'vulnerability_id': [   -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1  ],
+            'group_id':         [   1,      1,      1,      2,      2,      2,      3,      3,      3,      4,      4,      4   ]
+            })
+        self.exposure_1_coverages_df = pd.DataFrame.from_dict({
+            'coverage_id':  [   1,      2,      3,      4,      5,      6,      7,      8,      9,      10,     11,     12  ],
+            'tiv':          [   1000,   500,    500,    1000,   500,    500,    1000,   500,    500,    1000,   500,    500 ]
+            })
+        self.exposure_1_xref_descriptions_df = pd.DataFrame.from_dict({
+            'loc_idx':          [   1,      1,      1,      2,      2,      2,      3,      3,      3,      4,      4,      4       ],
+            'agg_id':           [   1,      2,      3,      4,      5,      6,      7,      8,      9,      10,     11,     12      ],
+            'portnumber':       [   '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1'     ],
+            'polnumber':        [   '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1'     ],
+            'accnumber':        [   '1',    '1',    '1',    '1',    '1',    '1',    '2',    '2',    '2',    '2',    '2',    '2'     ],
+            'locnumber':        [   '1',    '1',    '1',    '2',    '2',    '2',    '1',    '1',    '1',    '2',    '2',    '2'     ],
+            'locgroup':         [   'ABC',  'ABC',  'ABC',  '',     '',     '',     'ABC',  'ABC',  'ABC',  '',     '',     ''      ],
+            'cedantname':       [   '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     ''      ],
+            'producername':     [   '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     ''      ],
+            'lob':              [   '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     ''      ],
+            'countrycode':      [   'US',   'US',   'US',   'US',   'US',   'US',   'US',   'US',   'US',   'US',   'US',   'US'    ],
+            'reinstag':         [   '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     ''      ],
+            'coverage_type_id': [   1,      3,      4,      1,      3,      4,      1,      3,      4,      1,      3,      4       ],
+            'peril_id':         [   1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1       ],
+            'tiv':              [   1000.0, 500.0,  500.0,  1000.0, 500.0,  500.0,  1000.0, 500.0,  500.0,  1000.0, 500.0,  500.0   ]
+        })
+        self.exposure_2_xref_descriptions_df = pd.DataFrame.from_dict({
+            'loc_idx':          [   1,      1,      1,      2,      2,      2,      3,      3,      3       ],
+            'agg_id':           [   1,      2,      3,      4,      5,      6,      7,      8,      9       ],
+            'portnumber':       [   '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1'     ],
+            'polnumber':        [   'P1',   'P1',   'P1',   'P1',   'P1',   'P1',   'P1',   'P1',   'P1'    ],
+            'accnumber':        [   'A1',   'A1',   'A1',   'A2',   'A2',   'A2',   'A2',   'A2',   'A2'    ],
+            'locnumber':        [   'L1',   'L1',   'L1',   'L2',   'L2',   'L2',   'L3',   'L3',   'L3'    ],
+            'locgroup':         [   'ABC',  'ABC',  'ABC',  '',     '',     '',     '',     '',     ''      ],
+            'cedantname':       [   '',     '',     '',     '',     '',     '',     '',     '',     ''      ],
+            'producername':     [   '',     '',     '',     '',     '',     '',     '',     '',     ''      ],
+            'lob':              [   '',     '',     '',     '',     '',     '',     '',     '',     ''      ],
+            'countrycode':      [   'US',   'US',   'US',   'US',   'US',   'US',   'US',   'US',   'US'    ],
+            'reinstag':         [   '',     '',     '',     '',     '',     '',     '',     '',     ''      ],
+            'coverage_type_id': [   1,      3,      4,      1,      3,      4,      1,      2,      3       ],
+            'peril_id':         [   1,      1,      1,      1,      1,      1,      1,      1,      1       ],
+            'tiv':              [   1000.0, 500.0,  500.0,  1000.0, 500.0,  500.0,  1000.0, 500.0,  500.0   ]
+        })
+        self.exposure_3_xref_descriptions_df = pd.DataFrame.from_dict({
+            'loc_idx':          [   1,      1,      1,      2,      2,      2,      3,      3,      3,      4,      4,      4,      5,      5,      5       ],
+            'agg_id':          [   1,      2,      3,      4,      5,      6,      7,      8,      9,      10,     11,     12,     13,     14,     15      ],           
+            'portnumber':       [   '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '2',    '2',    '2'     ],
+            'polnumber':        [   'P1',   'P1',   'P1',   'P2',   'P2',   'P2',   'P2',   'P2',   'P2',   'P1',   'P1',   'P1',   'P1',   'P1',   'P1'    ],
+            'accnumber':        [   'A1',   'A1',   'A1',   'A1',   'A1',   'A1',   'A2',   'A2',   'A2',   'A2',   'A2',   'A2',   'A1',   'A1',   'A1'    ],
+            'locnumber':        [   'L1',   'L1',   'L1',   'L1',   'L1',   'L1',   'L2',   'L2',   'L2',   'L2',   'L2',   'L2',   'L1',   'L1',   'L1'    ],
+            'locgroup':         [   'ABC',  'ABC',  'ABC',  '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     ''      ],
+            'cedantname':       [   '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     ''      ],
+            'producername':     [   '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     ''      ],
+            'lob':              [   '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     ''      ],
+            'countrycode':      [   'US',   'US',   'US',   'US',   'US',   'US',   'US',   'US',   'US',   'US',   'US',   'US',   'US',   'US',   'US'    ],
+            'reinstag':         [   '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     ''      ],
+            'coverage_type_id': [   1,      3,      4,      1,      3,      4,      1,      3,      4,      1,      3,      4,      1,      2,      3       ],
+            'peril_id':         [   1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1       ],
+            'tiv':              [   1000.0, 500.0,  500.0,  1000.0, 500.0,  500.0,  1000.0, 500.0,  500.0,  1000.0, 500.0,  500.0,  1000.0, 500.0,  500.0   ]
+        })
 
-        losses_df.drop(losses_df[losses_df.sidx != 1].index, inplace=True)
-        inputs_df.drop(inputs_df[inputs_df.sidx != 1].index, inplace=True)
-        losses_df = pd.merge(
-            inputs_df,
-            losses_df, left_on='output_id', right_on='output_id',
-            suffixes=('_pre', '_net'))
 
-        losses_df = pd.merge(
-            xref_descriptions,
-            losses_df, left_on='xref_id', right_on='output_id')
+    def test_single_loc_level_fac(self):
 
-        del losses_df['event_id_pre']
-        del losses_df['sidx_pre']
-        del losses_df['event_id_net']
-        del losses_df['sidx_net']
-        del losses_df['output_id']
-        del losses_df['xref_id']
-        return losses_df
-
-    def _run_test(
-            self,
-            account_df, location_df, ri_info_df, ri_scope_df,
-            loss_factor,
-            do_reinsurance):
-        """
-        Run the direct and reinsurance layers through the Oasis FM.
-        Returns an array of net loss data frames, the first for the direct layers
-        and then one per inuring layer.
-        """
-        t_start = time.time()
-
-        net_losses = OrderedDict()
-
-        initial_dir = os.getcwd()
-        try:
-
-            with TemporaryDirectory() as run_dir:
-
-                os.chdir(run_dir)
-
-                direct_layer = DirectLayer(account_df, location_df)
-                direct_layer.generate_oasis_structures()
-                direct_layer.write_oasis_files()
-                losses_df = direct_layer.apply_fm(
-                    loss_percentage_of_tiv=loss_factor, net=False)
-                net_losses['Direct'] = losses_df
-
-                oed_validator = oed.OedValidator()
-                if do_reinsurance:
-                    (is_valid, error_msgs) = oed_validator.validate(ri_info_df, ri_scope_df)
-                    if not is_valid:
-                        print(error_msgs)
-                        exit(1)
-
-                ri_layers = reinsurance_layer.generate_files_for_reinsurance(
-                    items=direct_layer.items,
-                    coverages=direct_layer.coverages,
-                    fm_xrefs=direct_layer.fm_xrefs,
-                    xref_descriptions=direct_layer.xref_descriptions,
-                    ri_info_df=ri_info_df,
-                    ri_scope_df=ri_scope_df,
-                    direct_oasis_files_dir='',
-                )
-
-                for idx in ri_layers:
-                    '''
-                    {'inuring_priority': 1, 'risk_level': 'LOC', 'directory': 'run/RI_1'}
-                    {'inuring_priority': 1, 'risk_level': 'ACC', 'directory': 'run/RI_2'}
-                    {'inuring_priority': 2, 'risk_level': 'LOC', 'directory': 'run/RI_3'}
-                    {'inuring_priority': 3, 'risk_level': 'LOC', 'directory': 'run/RI_4'}
-
-                    '''
-                    if idx < 2:
-                        input_name = "ils"
-                    else:
-                        input_name = ri_layers[idx - 1]['directory']
-                    bin.csv_to_bin(
-                        ri_layers[idx]['directory'],
-                        ri_layers[idx]['directory'],
-                        il=True
-                    )
-
-                    reinsurance_layer_losses_df = self._run_fm(
-                        input_name,
-                        ri_layers[idx]['directory'],
-                        direct_layer.xref_descriptions)
-                    output_name = "Inuring_priority_{} - Risk_level_{}".format(ri_layers[idx]['inuring_priority'],
-                                                                               ri_layers[idx]['risk_level'])
-                    net_losses[output_name] = reinsurance_layer_losses_df
-
-                    # Chdir out of temporary directory before it's deleted
-                    os.chdir(initial_dir)
-
-                    return net_losses
-
-        finally:
-            os.chdir(initial_dir)
-            t_end = time.time()
-            print("Exec time: {}".format(t_end - t_start))
-
-    def _load_acc_and_loc_dfs(self, oed_dir):
-
-        # Account file
-        oed_account_file = os.path.join(oed_dir, "account.csv")
-        if not os.path.exists(oed_account_file):
-            print("Path does not exist: {}".format(oed_account_file))
-            exit(1)
-        account_df = pd.read_csv(oed_account_file)
-
-        # Location file
-        oed_location_file = os.path.join(oed_dir, "location.csv")
-        if not os.path.exists(oed_location_file):
-            print("Path does not exist: {}".format(oed_location_file))
-            exit(1)
-        location_df = pd.read_csv(oed_location_file)
-
-        return account_df, location_df
-
-    @parameterized.expand(test_cases)
-    def test_fmcalc(self, case, case_dir, expected_dir):
-
-        print("Test case: {}".format(case))
-
-        loss_factor = 1.0
-
-        (
-            account_df,
-            location_df
-        ) = self._load_acc_and_loc_dfs(case_dir)
-
-        (
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber': ['1'],
+            'CededPercent': [1.0],
+            'RiskLimit': [10.0],
+            'RiskAttachment': [0.0],
+            'OccLimit': [0.0],
+            'OccAttachment': [0.0],
+            'InuringPriority': [1],
+            'ReinsType': ['FAC'],
+            'PlacedPercent': [1.0],
+            'TreatyShare': [1.0]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber': ['1'],
+            'PortNumber': ['1'],
+            'AccNumber': ['1'],
+            'PolNumber': ['1'],
+            'LocGroup': [''],
+            'LocNumber': ['1'],
+            'CedantName': [''],
+            'ProducerName': [''],
+            'LOB': [''],
+            'CountryCode': [''],
+            'ReinsTag': [''],
+            'RiskLevel': ['LOC'],
+            'CededPercent': [1.0]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
             ri_info_df,
-            ri_scope_df,
-            do_reinsurance
-        ) = oed.load_oed_dfs(case_dir)
+            ri_scope_df)
 
-        net_losses = self._run_test(
-            account_df, location_df, ri_info_df, ri_scope_df,
-            loss_factor,
-            do_reinsurance,
-        )
-
-        for key in net_losses.keys():
-            expected_file = os.path.join(
-                expected_dir,
-                "{}.csv".format(key.replace(' ', '_'))
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='LOC',
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  3,  4,  1,  2,  3,  4   ],
+                    'profile_id':   [   2,  3,  1,  1,  1,  2,  2,  2,  2   ] 
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3       ],
+                    'calcrule_id':  [   14,     12,     24      ],
+                    'deductible1':  [   0.0,    0.0,    0.0     ],
+                    'deductible2':  [   0.0,    0.0,    0.0     ],
+                    'deductible3':  [   0.0,    0.0,    0.0     ],
+                    'attachment':   [   0.0,    0.0,    0.0     ],
+                    'limit':        [   0.0,    0.0,    10.0    ],
+                    'share1':       [   0.0,    0.0,    1.0     ],
+                    'share2':       [   0.0,    0.0,    1.0     ],
+                    'share3':       [   0.0,    0.0,    1.0     ]
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  3,  4,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                    'level_id':     [   3,  3,  3,  3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  1,  2,  3,  4,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]
+                })
             )
+        )]
 
-            dtypes = {
-                "portfolio_number": "str",
-                "policy_number": "str",
-                "account_number": "str",
-                "location_number": "str",
-                "location_group": "str",
-                "cedant_name": "str",
-                "producer_name": "str",
-                "lob": "str",
-                "country_code": "str",
-                "reins_tag": "str",
-                "coverage_type_id": "str",
-                "peril_id": "str",
-                "tiv": "float",
-                "loss_gul": "float",
-                "loss_il": "float",
-                "loss_net": "float"
-            }
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
 
-            expected_df = get_dataframe(expected_file)
+    def test_single_pol_level_fac(self):
 
-            found_df = net_losses[key]
-            found_df.to_csv("{}.csv".format(key.replace(' ', '_')))
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber': ['1'],
+            'CededPercent': [1.0],
+            'RiskLimit': [10.0],
+            'RiskAttachment': [0.0],
+            'OccLimit': [0.0],
+            'OccAttachment': [0.0],
+            'InuringPriority': [1],
+            'ReinsType': ['FAC'],
+            'PlacedPercent': [1.0],
+            'TreatyShare': [1.0]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber': ['1'],
+            'PortNumber': ['1'],
+            'AccNumber': ['1'],
+            'PolNumber': ['1'],
+            'LocGroup': [''],
+            'LocNumber': [''],
+            'CedantName': [''],
+            'ProducerName': [''],
+            'LOB': [''],
+            'CountryCode': [''],
+            'ReinsTag': [''],
+            'RiskLevel': ['POL'],
+            'CededPercent': [1.0]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
 
-            expected_df = expected_df.replace(np.nan, '', regex=True)
-            found_df = found_df.replace(np.nan, '', regex=True)
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='POL',
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1, 1,  1,  1,  1,  1,  1    ],
+                    'level_id':     [   3, 2,  2,  1,  1,  1,  1    ],
+                    'agg_id':       [   1, 1,  2,  1,  2,  3,  4    ],
+                    'profile_id':   [   2, 3,  1,  2,  2,  2,  2    ] 
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,     2,      3    ],
+                    'calcrule_id':  [   14,    12,     24   ],
+                    'deductible1':  [   0.0,   0.0,    0.0  ],
+                    'deductible2':  [   0.0,   0.0,    0.0  ],
+                    'deductible3':  [   0.0,   0.0,    0.0  ],
+                    'attachment':   [   0.0,   0.0,    0.0  ],
+                    'limit':        [   0.0,   0.0,    10.0 ],
+                    'share1':       [   0.0,   0.0,    1.0  ],
+                    'share2':       [   0.0,   0.0,    1.0  ],
+                    'share3':       [   0.0,   0.0,    1.0  ]
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1, 2,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                    'level_id':     [   3, 3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1, 1,  1,  1,  2,  2,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]
+                })
+            )
+        )]
 
-            expected_df = set_dataframe_column_dtypes(expected_df, dtypes)
-            found_df = set_dataframe_column_dtypes(found_df, dtypes)
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)        
 
-            expected_df.to_csv("/tmp/expected.csv")
+    def test_single_acc_level_fac(self):
 
-            assert_frame_equal(found_df, expected_df)
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber': ['1'],
+            'CededPercent': [1.0],
+            'RiskLimit': [10.0],
+            'RiskAttachment': [0.0],
+            'OccLimit': [0.0],
+            'OccAttachment': [0.0],
+            'InuringPriority': [1],
+            'ReinsType': ['FAC'],
+            'PlacedPercent': [1.0],
+            'TreatyShare': [1.0]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber': ['1'],
+            'PortNumber': ['1'],
+            'AccNumber': ['1'],
+            'PolNumber': [''],
+            'LocGroup': [''],
+            'LocNumber': [''],
+            'CedantName': [''],
+            'ProducerName': [''],
+            'LOB': [''],
+            'CountryCode': [''],
+            'ReinsTag': [''],
+            'RiskLevel': ['ACC'],
+            'CededPercent': [1.0]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='ACC',
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  1,  2,  3,  4   ],
+                    'profile_id':   [   2,  3,  1,  2,  2,  2,  2   ] 
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,     2,      3       ],
+                    'calcrule_id':  [   14,    12,     24      ],
+                    'deductible1':  [   0.0,   0.0,    0.0     ],
+                    'deductible2':  [   0.0,   0.0,    0.0     ],
+                    'deductible3':  [   0.0,   0.0,    0.0     ],
+                    'attachment':   [   0.0,   0.0,    0.0     ],
+                    'limit':        [   0.0,   0.0,    10.0    ],
+                    'share1':       [   0.0,   0.0,    1.0     ],
+                    'share2':       [   0.0,   0.0,    1.0     ],
+                    'share3':       [   0.0,   0.0,    1.0     ]
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                    'level_id':     [   3,  3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  2,  2,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)        
+
+
+    def test_single_lgr_level_fac(self):
+
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber': ['1'],
+            'CededPercent': [1.0],
+            'RiskLimit': [10.0],
+            'RiskAttachment': [0.0],
+            'OccLimit': [0.0],
+            'OccAttachment': [0.0],
+            'InuringPriority': [1],
+            'ReinsType': ['FAC'],
+            'PlacedPercent': [1.0],
+            'TreatyShare': [1.0]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber': ['1'],
+            'PortNumber': ['1'],
+            'AccNumber': [''],
+            'PolNumber': [''],
+            'LocGroup': ['ABC'],
+            'LocNumber': [''],
+            'CedantName': [''],
+            'ProducerName': [''],
+            'LOB': [''],
+            'CountryCode': [''],
+            'ReinsTag': [''],
+            'RiskLevel': ['LGR'],
+            'CededPercent': [1.0]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='LGR',
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1, 1,  1,  1,  1,  1,  1    ],
+                    'level_id':     [   3, 2,  2,  1,  1,  1,  1    ],
+                    'agg_id':       [   1, 1,  2,  1,  2,  3,  4    ],
+                    'profile_id':   [   2, 1,  3,  2,  2,  2,  2    ] 
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':  [    1,      2,      3       ],
+                    'calcrule_id': [    14,     12,     24      ],
+                    'deductible1': [    0.0,    0.0,    0.0     ],
+                    'deductible2': [    0.0,    0.0,    0.0     ],
+                    'deductible3': [    0.0,    0.0,    0.0     ],
+                    'attachment':  [    0.0,    0.0,    0.0     ],
+                    'limit':       [    0.0,    0.0,    10.0    ],
+                    'share1':      [    0.0,    0.0,    1.0     ],
+                    'share2':      [    0.0,    0.0,    1.0     ],
+                    'share3':      [    0.0,    0.0,    1.0     ]
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id': [    1,  2,  1,  2,  3,  4,  4,  5,  6,  10, 11, 12, 1,  2,  3,  7,  8,  9   ],
+                    'level_id':    [    3,  3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':   [    1,  1,  1,  1,  2,  2,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)        
+
+    def test_multiple_facs_same_inuring_level(self):
+
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   '1',    '2',    '3',    '4'     ],
+            'CededPercent':     [   1.0,    1.0,    1.0,    1.0     ],
+            'RiskLimit':        [   10.0,   10.0,   10.0,   10.0    ],
+            'RiskAttachment':   [   0.0,    0.0,    0.0,    0.0     ],
+            'OccLimit':         [   0.0,    0.0,    0.0,    0.0     ],
+            'OccAttachment':    [   0.0,    0.0,    0.0,    0.0     ],
+            'InuringPriority':  [   1,      1,      1,      1       ],
+            'ReinsType':        [   'FAC',  'FAC',  'FAC',  'FAC'   ],
+            'PlacedPercent':    [   1.0,    1.0,    1.0,    1.0     ],
+            'TreatyShare':      [   1.0,    1.0,    1.0,    1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   '1',    '2',    '3',    '4'     ],
+            'PortNumber':   [   '1',    '1',    '1',    '1'     ],
+            'AccNumber':    [   '1',    '1',    '1',    '1'     ],
+            'PolNumber':    [   '1',    '1',    '1',    ''      ],
+            'LocGroup':     [   '',     '',     '',     ''      ],
+            'LocNumber':    [   '1',    '2',    '',     ''      ],
+            'CedantName':   [   '',     '',     '',     ''      ],
+            'ProducerName': [   '',     '',     '',     ''      ],
+            'LOB':          [   '',     '',     '',     ''      ],
+            'CountryCode':  [   '',     '',     '',     ''      ],
+            'ReinsTag':     [   '',     '',     '',     ''      ],
+            'RiskLevel':    [   'LOC',  'LOC',  'POL',  'ACC'   ],
+            'CededPercent': [   1.0,    1.0,    1.0,    1.0     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [
+            reinsurance_layer.RiInputs(
+                risk_level='LOC',
+                inuring_priority=1,
+                ri_inputs=reinsurance_layer.RiLayerInputs(
+                    fm_policytc=pd.DataFrame.from_dict({
+                        'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1,  1,  2,  2,  2,  2,  2,  2,  2,  2,  2   ],
+                        'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1,  3,  2,  2,  2,  2,  1,  1,  1,  1   ],
+                        'agg_id':       [   1,  1,  2,  3,  4,  1,  2,  3,  4,  1,  1,  2,  3,  4,  1,  2,  3,  4   ],
+                        'profile_id':   [   2,  3,  1,  1,  1,  2,  2,  2,  2,  2,  1,  4,  1,  1,  2,  2,  2,  2   ]
+                    }),
+                    fm_profile=pd.DataFrame.from_dict({
+                        'profile_id':  [    1,      2,      3,      4       ],
+                        'calcrule_id': [    14,     12,     24,     24      ],
+                        'deductible1': [    0.0,    0.0,    0.0,    0.0     ],
+                        'deductible2': [    0.0,    0.0,    0.0,    0.0     ],
+                        'deductible3': [    0.0,    0.0,    0.0,    0.0     ],
+                        'attachment':  [    0.0,    0.0,    0.0,    0.0     ],
+                        'limit':       [    0.0,    0.0,    10.0,   10.0    ],
+                        'share1':      [    0.0,    0.0,    1.0,    1.0     ],
+                        'share2':      [    0.0,    0.0,    1.0,    1.0     ],
+                        'share3':      [    0.0,    0.0,    1.0,    1.0     ]
+                    }),
+                    fm_programme=pd.DataFrame.from_dict({
+                        'from_agg_id': [    1,  2,  3,  4,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                        'level_id':    [    3,  3,  3,  3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                        'to_agg_id':   [    1,  1,  1,  1,  1,  2,  3,  4,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]
+                    })
+                )
+            ),
+            reinsurance_layer.RiInputs(
+                risk_level='POL',
+                inuring_priority=1,
+                ri_inputs=reinsurance_layer.RiLayerInputs(
+                    fm_policytc=pd.DataFrame.from_dict({
+                        'layer_id':     [   1,  1,   1,  1,  1,  1,  1   ],
+                        'level_id':     [   3,  2,   2,  1,  1,  1,  1   ],
+                        'agg_id':       [   1,  1,   2,  1,  2,  3,  4   ],
+                        'profile_id':   [   2,  3,   1,  2,  2,  2,  2   ] 
+                    }),
+                    fm_profile=pd.DataFrame.from_dict({
+                        'profile_id':  [    1,      2,      3       ],
+                        'calcrule_id': [    14,     12,     24      ],
+                        'deductible1': [    0.0,    0.0,    0.0     ],
+                        'deductible2': [    0.0,    0.0,    0.0     ],
+                        'deductible3': [    0.0,    0.0,    0.0     ],
+                        'attachment':  [    0.0,    0.0,    0.0     ],
+                        'limit':       [    0.0,    0.0,    10.0    ],
+                        'share1':      [    0.0,    0.0,    1.0     ],
+                        'share2':      [    0.0,    0.0,    1.0     ],
+                        'share3':      [    0.0,    0.0,    1.0     ]
+                    }),
+                    fm_programme=pd.DataFrame.from_dict({
+                        'from_agg_id': [    1,  2,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                        'level_id':    [    3,  3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                        'to_agg_id':   [    1,  1,  1,  1,  2,  2,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]
+                    })
+                )
+            ),
+            reinsurance_layer.RiInputs(
+                risk_level='ACC',
+                inuring_priority=1,
+                ri_inputs=reinsurance_layer.RiLayerInputs(
+                    fm_policytc=pd.DataFrame.from_dict({
+                        'layer_id':     [   1, 1,  1,  1,  1,  1,  1    ],
+                        'level_id':     [   3, 2,  2,  1,  1,  1,  1    ],
+                        'agg_id':       [   1, 1,  2,  1,  2,  3,  4    ],
+                        'profile_id':   [   2, 3,  1,  2,  2,  2,  2    ] 
+                    }),
+                    fm_profile=pd.DataFrame.from_dict({
+                        'profile_id':  [    1,      2,      3       ],
+                        'calcrule_id': [    14,     12,     24      ],
+                        'deductible1': [    0.0,    0.0,    0.0     ],
+                        'deductible2': [    0.0,    0.0,    0.0     ],
+                        'deductible3': [    0.0,    0.0,    0.0     ],
+                        'attachment':  [    0.0,    0.0,    0.0     ],
+                        'limit':       [    0.0,    0.0,    10.0    ],
+                        'share1':      [    0.0,    0.0,    1.0     ],
+                        'share2':      [    0.0,    0.0,    1.0     ],
+                        'share3':      [    0.0,    0.0,    1.0     ]
+                    }),
+                    fm_programme=pd.DataFrame.from_dict({
+                        'from_agg_id': [    1,  2,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                        'level_id':    [    3,  3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                        'to_agg_id':   [    1,  1,  1,  1,  2,  2,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]
+                    })
+                )
+            )        
+        ]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)        
+
+    def test_single_loc_level_PR_all_risks(self):
+
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber': [1],
+            'CededPercent': [1.0],
+            'RiskLimit': [10.0],
+            'RiskAttachment': [5.0],
+            'OccLimit': [37.5],
+            'OccAttachment': [0.0],
+            'InuringPriority': [1],
+            'ReinsType': ['PR'],
+            'PlacedPercent': [1.0],
+            'TreatyShare': [1.0]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber': [1],
+            'PortNumber': ['1'],
+            'AccNumber': [''],
+            'PolNumber': [''],
+            'LocGroup': [''],
+            'LocNumber': [''],
+            'CedantName': [''],
+            'ProducerName': [''],
+            'LOB': [''],
+            'CountryCode': [''],
+            'ReinsTag': [''],
+            'RiskLevel': ['LOC'],
+            'CededPercent': [1.0]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='LOC',
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  3,  4,  1,  2,  3,  4   ],
+                    'profile_id':   [   4,  3,  3,  3,  3,  2,  2,  2,  2   ] 
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3,      4       ],
+                    'calcrule_id':  [   14,     12,     24,     23      ],
+                    'deductible1':  [   0.0,    0.0,    0.0,    0.0     ],
+                    'deductible2':  [   0.0,    0.0,    0.0,    0.0     ],
+                    'deductible3':  [   0.0,    0.0,    0.0,    0.0     ],
+                    'attachment':   [   0.0,    0.0,    5.0,    0.0     ],
+                    'limit':        [   0.0,    0.0,    10.0,   37.5    ],
+                    'share1':       [   0.0,    0.0,    1.0,    0.0     ],
+                    'share2':       [   0.0,    0.0,    1.0,    1.0     ],
+                    'share3':       [   0.0,    0.0,    1.0,    1.0     ]
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  3,  4,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                    'level_id':     [   3,  3,  3,  3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  1,  2,  3,  4,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+    def test_single_lgr_level_PR_all_risks(self):
+
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1       ],
+            'CededPercent':     [   1.0     ],
+            'RiskLimit':        [   10.0    ],
+            'RiskAttachment':   [   5.0     ],
+            'OccLimit':         [   37.5    ],
+            'OccAttachment':    [   0.0     ],
+            'InuringPriority':  [   1       ],
+            'ReinsType':        [   'PR'    ],
+            'PlacedPercent':    [   1.0     ],
+            'TreatyShare':      [   1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1       ],
+            'PortNumber':   [   '1'     ],
+            'AccNumber':    [   ''     ],
+            'PolNumber':    [   ''     ],
+            'LocGroup':     [   'ABC'      ],
+            'LocNumber':    [   ''      ],
+            'CedantName':   [   ''      ],
+            'ProducerName': [   ''      ],
+            'LOB':          [   ''      ],
+            'CountryCode':  [   ''      ],
+            'ReinsTag':     [   ''      ],
+            'RiskLevel':    [   'LGR'   ],
+            'CededPercent': [   1.0     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='LGR',
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  1,  2,  3,  4   ],
+                    'profile_id':   [   4,  1,  3,  1,  1,  2,  2   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3,      4       ],
+                    'calcrule_id':  [   14,     12,     24,     23      ],
+                    'deductible1':  [   0.0,    0.0,    0.0,    0.0     ],
+                    'deductible2':  [   0.0,    0.0,    0.0,    0.0     ],
+                    'deductible3':  [   0.0,    0.0,    0.0,    0.0     ],
+                    'attachment':   [   0.0,    0.0,    5.0,    0.0     ],
+                    'limit':        [   0.0,    0.0,    10.0,   37.5    ],
+                    'share1':       [   0.0,    0.0,    1.0,    0.0     ],
+                    'share2':       [   0.0,    0.0,    1.0,    1.0     ],
+                    'share3':       [   0.0,    0.0,    1.0,    1.0     ]
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  1,  2,  3,  4,  4,  5,  6,  10, 11, 12, 1,  2,  3,  7,  8,  9   ],
+                    'level_id':     [   3,  3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  2,  2,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+    def test_single_pol_level_PR_all_risks(self):
+
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber': [1],
+            'CededPercent': [1.0],
+            'RiskLimit': [10.0],
+            'RiskAttachment': [5.0],
+            'OccLimit': [37.5],
+            'OccAttachment': [0.0],
+            'InuringPriority': [1],
+            'ReinsType': ['PR'],
+            'PlacedPercent': [1.0],
+            'TreatyShare': [1.0]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber': [1],
+            'PortNumber': ['1'],
+            'AccNumber': ['1'],
+            'PolNumber': ['1'],
+            'LocGroup': [''],
+            'LocNumber': [''],
+            'CedantName': [''],
+            'ProducerName': [''],
+            'LOB': [''],
+            'CountryCode': [''],
+            'ReinsTag': [''],
+            'RiskLevel': ['POL'],
+            'CededPercent': [1.0]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='POL',
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  1,  2,  3,  4   ],
+                    'profile_id':   [   4,  3,  1,  2,  2,  1,  1   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3,      4       ],
+                    'calcrule_id':  [   14,     12,     24,     23      ],
+                    'deductible1':  [   0.0,    0.0,    0.0,    0.0     ],
+                    'deductible2':  [   0.0,    0.0,    0.0,    0.0     ],
+                    'deductible3':  [   0.0,    0.0,    0.0,    0.0     ],
+                    'attachment':   [   0.0,    0.0,    5.0,    0.0     ],
+                    'limit':        [   0.0,    0.0,    10.0,   37.5    ],
+                    'share1':       [   0.0,    0.0,    1.0,    0.0     ],
+                    'share2':       [   0.0,    0.0,    1.0,    1.0     ],
+                    'share3':       [   0.0,    0.0,    1.0,    1.0     ]
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12   ],
+                    'level_id':     [   3,  3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  2,  2,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+    def test_single_acc_level_PR_all_risks(self):
+
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber': [1],
+            'CededPercent': [1.0],
+            'RiskLimit': [10.0],
+            'RiskAttachment': [5.0],
+            'OccLimit': [37.5],
+            'OccAttachment': [0.0],
+            'InuringPriority': [1],
+            'ReinsType': ['PR'],
+            'PlacedPercent': [1.0],
+            'TreatyShare': [1.0]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber': [1],
+            'PortNumber': ['1'],
+            'AccNumber': ['1'],
+            'PolNumber': [''],
+            'LocGroup': [''],
+            'LocNumber': [''],
+            'CedantName': [''],
+            'ProducerName': [''],
+            'LOB': [''],
+            'CountryCode': [''],
+            'ReinsTag': [''],
+            'RiskLevel': ['ACC'],
+            'CededPercent': [1.0]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='ACC',
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  1,  2,  3,  4   ],
+                    'profile_id':   [   4,  3,  1,  2,  2,  1,  1   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3,      4       ],
+                    'calcrule_id':  [   14,     12,     24,     23      ],
+                    'deductible1':  [   0.0,    0.0,    0.0,    0.0     ],
+                    'deductible2':  [   0.0,    0.0,    0.0,    0.0     ],
+                    'deductible3':  [   0.0,    0.0,    0.0,    0.0     ],
+                    'attachment':   [   0.0,    0.0,    5.0,    0.0     ],
+                    'limit':        [   0.0,    0.0,    10.0,   37.5    ],
+                    'share1':       [   0.0,    0.0,    1.0,    0.0     ],
+                    'share2':       [   0.0,    0.0,    1.0,    1.0     ],
+                    'share3':       [   0.0,    0.0,    1.0,    1.0     ]
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12   ],
+                    'level_id':     [   3,  3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  2,  2,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+    def test_single_loc_level_SS_all_risks_loc(self):
+
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1       ],
+            'CededPercent':     [   1.0     ],
+            'RiskLimit':        [   0.0     ],
+            'RiskAttachment':   [   0.0     ],
+            'OccLimit':         [   0.0     ],
+            'OccAttachment':    [   0.0     ],
+            'InuringPriority':  [   1       ],
+            'ReinsType':        [   'SS'    ],
+            'PlacedPercent':    [   1.0     ],
+            'TreatyShare':      [   1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1,      1,      1,      1       ],
+            'PortNumber':   [   '1',    '1',    '1',    '1'     ],
+            'AccNumber':    [   '1',    '1',     '1',   '1'     ],
+            'PolNumber':    [   '',     '',     '',     ''      ],
+            'LocGroup':     [   '',     '',     '',     ''      ],
+            'LocNumber':    [   '1',    '2',    '3',    '4'      ],
+            'CedantName':   [   '',     '',     '',     ''      ],
+            'ProducerName': [   '',     '',     '',     ''      ],
+            'LOB':          [   '',     '',     '',     ''      ],
+            'CountryCode':  [   '',     '',     '',     ''      ],
+            'ReinsTag':     [   '',     '',     '',     ''      ],
+            'RiskLevel':    [   'LOC',  'LOC',  'LOC',  'LOC'   ],
+            'CededPercent': [   0.1,    0.1,    0.1,    0.1     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='LOC',   
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  3,  4,  1,  2,  3,  4   ],
+                    'profile_id':   [   7,  3,  4,  1,  1,  2,  2,  2,  2   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3,                  4,                  5,                  6,                  7               ],
+                    'calcrule_id':  [   14,     12,     24,                 24,                 24,                 24,                 23              ],
+                    'deductible1':  [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0             ],
+                    'deductible2':  [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0             ],
+                    'deductible3':  [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0             ],
+                    'attachment':   [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0             ],
+                    'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0,    9999999999999.0,    9999999999999.0,    9999999999999.0 ],  
+                    'share1':       [   0.0,    0.0,    0.1,                0.1,                0.1,                0.1,                0.0             ],  
+                    'share2':       [   0.0,    0.0,    1.0,                1.0,                1.0,                1.0,                1.0             ],  
+                    'share3':       [   0.0,    0.0,    1.0,                1.0,                1.0,                1.0,                1.0             ]   
+                }), 
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  3,  4,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                    'level_id':     [   3,  3,  3,  3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  1,  2,  3,  4,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+
+    def test_single_loc_level_SS_all_risks_loc_pol(self):
+
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1       ],
+            'CededPercent':     [   1.0     ],
+            'RiskLimit':        [   0.0     ],
+            'RiskAttachment':   [   0.0     ],
+            'OccLimit':         [   0.0     ],
+            'OccAttachment':    [   0.0     ],
+            'InuringPriority':  [   1       ],
+            'ReinsType':        [   'SS'    ],
+            'PlacedPercent':    [   1.0     ],
+            'TreatyShare':      [   1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1,      1,      1,      1       ],
+            'PortNumber':   [   '1',    '1',    '1',    '1'     ],
+            'AccNumber':    [   '1',    '1',    '1',    '1'     ],
+            'PolNumber':    [   '1',    '1',    '1',    '1'      ],
+            'LocGroup':     [   '',     '',     '',     ''      ],
+            'LocNumber':    [   '1',    '2',    '3',    '4'      ],
+            'CedantName':   [   '',     '',     '',     ''      ],
+            'ProducerName': [   '',     '',     '',     ''      ],
+            'LOB':          [   '',     '',     '',     ''      ],
+            'CountryCode':  [   '',     '',     '',     ''      ],
+            'ReinsTag':     [   '',     '',     '',     ''      ],
+            'RiskLevel':    [   'LOC',  'LOC',  'LOC',  'LOC'   ],
+            'CededPercent': [   0.1,    0.1,    0.1,    0.1     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='LOC',   
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  3,  4,  1,  2,  3,  4   ],
+                    'profile_id':   [   7,  3,  4,  1,  1,  2,  2,  2,  2   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3,                  4,                  5,                  6,                  7               ],
+                    'calcrule_id':  [   14,     12,     24,                 24,                 24,                 24,                 23              ],
+                    'deductible1':  [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0             ],
+                    'deductible2':  [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0             ],
+                    'deductible3':  [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0             ],
+                    'attachment':   [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0             ],
+                    'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0,    9999999999999.0,    9999999999999.0,    9999999999999.0 ],  
+                    'share1':       [   0.0,    0.0,    0.1,                0.1,                0.1,                0.1,                0.0             ],  
+                    'share2':       [   0.0,    0.0,    1.0,                1.0,                1.0,                1.0,                1.0             ],  
+                    'share3':       [   0.0,    0.0,    1.0,                1.0,                1.0,                1.0,                1.0             ]   
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  3,  4,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                    'level_id':     [   3,  3,  3,  3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  1,  2,  3,  4,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+
+    def test_single_loc_level_SS_all_risks(self):
+
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1       ],
+            'CededPercent':     [   1.0     ],
+            'RiskLimit':        [   0.0     ],
+            'RiskAttachment':   [   0.0     ],
+            'OccLimit':         [   0.0     ],
+            'OccAttachment':    [   0.0     ],
+            'InuringPriority':  [   1       ],
+            'ReinsType':        [   'SS'    ],
+            'PlacedPercent':    [   1.0     ],
+            'TreatyShare':      [   1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1,      1       ],
+            'PortNumber':   [   '1',    '1'     ],
+            'AccNumber':    [   '1',    '2'     ],
+            'PolNumber':    [   '1',    '2'     ],
+            'LocGroup':     [   '',     ''      ],
+            'LocNumber':    [   '',    ''     ],
+            'CedantName':   [   '',     ''      ],
+            'ProducerName': [   '',     ''      ],
+            'LOB':          [   '',     ''      ],
+            'CountryCode':  [   '',     ''      ],
+            'ReinsTag':     [   '',     ''      ],
+            'RiskLevel':    [   'POL',  'POL'   ],
+            'CededPercent': [   0.1,    0.1     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='POL',   
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  1,  2,  3,  4   ],
+                    'profile_id':   [   5,  3,  1,  2,  2,  2,  2   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3,                  4,                  5                   ],
+                    'calcrule_id':  [   14,     12,     24,                 24,                 23                  ],
+                    'deductible1':  [   0.0,    0.0,    0.0,                0.0,                0.0                 ],
+                    'deductible2':  [   0.0,    0.0,    0.0,                0.0,                0.0                 ],
+                    'deductible3':  [   0.0,    0.0,    0.0,                0.0,                0.0                 ],
+                    'attachment':   [   0.0,    0.0,    0.0,                0.0,                0.0                 ],
+                    'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0,    9999999999999.0     ],  
+                    'share1':       [   0.0,    0.0,    0.1,                0.1,                0.0                 ],  
+                    'share2':       [   0.0,    0.0,    1.0,                1.0,                1.0                 ],  
+                    'share3':       [   0.0,    0.0,    1.0,                1.0,                1.0                 ]   
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                    'level_id':     [   3,  3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  2,  2,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+
+    def test_single_acc_level_SS_all_risks(self):
+
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1       ],
+            'CededPercent':     [   1.0     ],
+            'RiskLimit':        [   0.0     ],
+            'RiskAttachment':   [   0.0     ],
+            'OccLimit':         [   0.0     ],
+            'OccAttachment':    [   0.0     ],
+            'InuringPriority':  [   1       ],
+            'ReinsType':        [   'SS'    ],
+            'PlacedPercent':    [   1.0     ],
+            'TreatyShare':      [   1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1,      1       ],
+            'PortNumber':   [   '1',    '1'     ],
+            'AccNumber':    [   '1',    '2'     ],
+            'PolNumber':    [   '',     ''      ],
+            'LocGroup':     [   '',     ''      ],
+            'LocNumber':    [   '',     ''      ],
+            'CedantName':   [   '',     ''      ],
+            'ProducerName': [   '',     ''      ],
+            'LOB':          [   '',     ''      ],
+            'CountryCode':  [   '',     ''      ],
+            'ReinsTag':     [   '',     ''      ],
+            'RiskLevel':    [   'ACC',  'ACC'   ],
+            'CededPercent': [   0.1,    0.1     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='ACC',   
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  1,  2,  3,  4   ],
+                    'profile_id':   [   5,  3,  4,  2,  2,  2,  2   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3,                  4,                  5                   ],
+                    'calcrule_id':  [   14,     12,     24,                 24,                 23                  ],
+                    'deductible1':  [   0.0,    0.0,    0.0,                0.0,                0.0                 ],
+                    'deductible2':  [   0.0,    0.0,    0.0,                0.0,                0.0                 ],
+                    'deductible3':  [   0.0,    0.0,    0.0,                0.0,                0.0                 ],
+                    'attachment':   [   0.0,    0.0,    0.0,                0.0,                0.0                 ],
+                    'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0,    9999999999999.0     ],  
+                    'share1':       [   0.0,    0.0,    0.1,                0.1,                0.0                 ],  
+                    'share2':       [   0.0,    0.0,    1.0,                1.0,                1.0                 ],  
+                    'share3':       [   0.0,    0.0,    1.0,                1.0,                1.0                 ]   
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                    'level_id':     [   3,  3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  2,  2,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+
+    def test_single_QS_one_risk_with_pct_ceded_and_pct_placed_and_risk_limit_and_occ_limit(self):
+
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1       ],
+            'CededPercent':     [   0.5     ],
+            'RiskLimit':        [   50.0    ],
+            'RiskAttachment':   [   0.0     ],
+            'OccLimit':         [   40.0    ],
+            'OccAttachment':    [   0.0     ],
+            'InuringPriority':  [   1       ],
+            'ReinsType':        [   'QS'    ],
+            'PlacedPercent':    [   0.8     ],
+            'TreatyShare':      [   1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1       ],
+            'PortNumber':   [   '1'     ],
+            'AccNumber':    [   ''      ],
+            'PolNumber':    [   ''      ],
+            'LocGroup':     [   ''      ],
+            'LocNumber':    [   ''      ],
+            'CedantName':   [   ''      ],
+            'ProducerName': [   ''      ],
+            'LOB':          [   ''      ],
+            'CountryCode':  [   ''      ],
+            'ReinsTag':     [   ''      ],
+            'RiskLevel':    [   'ACC'   ],
+            'CededPercent': [   1.0     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='ACC',   
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  1,  2,  3,  4   ],
+                    'profile_id':   [   4,  3,  3,  2,  2,  2,  2   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3,       4      ],
+                    'calcrule_id':  [   14,     12,     24,      23     ],
+                    'deductible1':  [   0.0,    0.0,    0.0,     0.0    ],
+                    'deductible2':  [   0.0,    0.0,    0.0,     0.0    ],
+                    'deductible3':  [   0.0,    0.0,    0.0,     0.0    ],
+                    'attachment':   [   0.0,    0.0,    0.0,     0.0    ],
+                    'limit':        [   0.0,    0.0,    50.0,    40.0   ],  
+                    'share1':       [   0.0,    0.0,    0.5,     0.0    ],  
+                    'share2':       [   0.0,    0.0,    1.0,     0.8    ],  
+                    'share3':       [   0.0,    0.0,    1.0,     1.0    ]   
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                    'level_id':     [   3,  3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  2,  2,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+
+    def test_single_QS_all_acc_with_pct_ceded_and_pct_placed_and_risk_limit_and_occ_limit(self):
+
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1       ],
+            'CededPercent':     [   0.5     ],
+            'RiskLimit':        [   50.0    ],
+            'RiskAttachment':   [   0.0     ],
+            'OccLimit':         [   40.0    ],
+            'OccAttachment':    [   0.0     ],
+            'InuringPriority':  [   1       ],
+            'ReinsType':        [   'QS'    ],
+            'PlacedPercent':    [   0.8     ],
+            'TreatyShare':      [   1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1       ],
+            'PortNumber':   [   '1'     ],
+            'AccNumber':    [   '1'     ],
+            'PolNumber':    [   ''      ],
+            'LocGroup':     [   ''      ],
+            'LocNumber':    [   ''      ],
+            'CedantName':   [   ''      ],
+            'ProducerName': [   ''      ],
+            'LOB':          [   ''      ],
+            'CountryCode':  [   ''      ],
+            'ReinsTag':     [   ''      ],
+            'RiskLevel':    [   'ACC'   ],
+            'CededPercent': [   1.0     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='ACC',   
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  1,  2,  3,  4   ],
+                    'profile_id':   [   4,  3,  1,  2,  2,  1,  1   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3,       4      ],
+                    'calcrule_id':  [   14,     12,     24,      23     ],
+                    'deductible1':  [   0.0,    0.0,    0.0,     0.0    ],
+                    'deductible2':  [   0.0,    0.0,    0.0,     0.0    ],
+                    'deductible3':  [   0.0,    0.0,    0.0,     0.0    ],
+                    'attachment':   [   0.0,    0.0,    0.0,     0.0    ],
+                    'limit':        [   0.0,    0.0,    50.0,    40.0   ],  
+                    'share1':       [   0.0,    0.0,    0.5,     0.0    ],
+                    'share2':       [   0.0,    0.0,    1.0,     0.8    ],  
+                    'share3':       [   0.0,    0.0,    1.0,     1.0    ]   
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                    'level_id':     [   3,  3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  2,  2,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+
+    def test_single_loc_level_SS_with_pct_ceded_and_pct_placed(self):
+
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1       ],
+            'CededPercent':     [   1.0     ],
+            'RiskLimit':        [   0.0     ],
+            'RiskAttachment':   [   0.0     ],
+            'OccLimit':         [   0.0     ],
+            'OccAttachment':    [   0.0     ],
+            'InuringPriority':  [   1       ],
+            'ReinsType':        [   'SS'    ],
+            'PlacedPercent':    [   0.8     ],
+            'TreatyShare':      [   1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1,      1,      1,      1       ],
+            'PortNumber':   [   '1',    '1',    '1',    '1'     ],
+            'AccNumber':    [   '1',    '1',    '2',    '2'     ],
+            'PolNumber':    [   '1',    '1',    '1',    '1'     ],
+            'LocGroup':     [   '',     '',     '',     ''      ],
+            'LocNumber':    [   '1',    '2',    '1',    '2'     ],
+            'CedantName':   [   '',     '',     '',     ''      ],
+            'ProducerName': [   '',     '',     '',     ''      ],
+            'LOB':          [   '',     '',     '',     ''      ],
+            'CountryCode':  [   '',     '',     '',     ''      ],
+            'ReinsTag':     [   '',     '',     '',     ''      ],
+            'RiskLevel':    [   'LOC',  'LOC',  'LOC',  'LOC'   ],
+            'CededPercent': [   0.1,    0.1,    0.1,    0.1     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='LOC',   
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  3,  4,  1,  2,  3,  4   ],
+                    'profile_id':   [   7,  3,  4,  5,  6,  2,  2,  2,  2   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3,                  4,                  5,                  6,                  7                   ],
+                    'calcrule_id':  [   14,     12,     24,                 24,                 24,                 24,                 23                  ],
+                    'deductible1':  [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0                 ],
+                    'deductible2':  [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0                 ],
+                    'deductible3':  [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0                 ],
+                    'attachment':   [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0                 ],
+                    'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0,    9999999999999.0,    9999999999999.0,    9999999999999.0     ],  
+                    'share1':       [   0.0,    0.0,    0.1,                0.1,                0.1,                0.1,                0.0                 ],  
+                    'share2':       [   0.0,    0.0,    1.0,                1.0,                1.0,                1.0,                0.8                 ],  
+                    'share3':       [   0.0,    0.0,    1.0,                1.0,                1.0,                1.0,                1.0                 ]   
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  3,  4,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                    'level_id':     [   3,  3,  3,  3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  1,  2,  3,  4,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+
+    def test_single_pol_level_SS_with_pct_ceded_and_pct_placed(self):
+
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1       ],
+            'CededPercent':     [   1.0     ],
+            'RiskLimit':        [   0.0     ],
+            'RiskAttachment':   [   0.0     ],
+            'OccLimit':         [   0.0     ],
+            'OccAttachment':    [   0.0     ],
+            'InuringPriority':  [   1       ],
+            'ReinsType':        [   'SS'    ],
+            'PlacedPercent':    [   0.8     ],
+            'TreatyShare':      [   1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1,      1       ],
+            'PortNumber':   [   '1',    '1'     ],
+            'AccNumber':    [   '1',    '1'     ],
+            'PolNumber':    [   '1',    '2'     ],
+            'LocGroup':     [   '',     ''      ],
+            'LocNumber':    [   '',     ''      ],
+            'CedantName':   [   '',     ''      ],
+            'ProducerName': [   '',     ''      ],
+            'LOB':          [   '',     ''      ],
+            'CountryCode':  [   '',     ''      ],
+            'ReinsTag':     [   '',     ''      ],
+            'RiskLevel':    [   'POL',  'POL'   ],
+            'CededPercent': [   0.1,    0.1     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='POL',   
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  1,  2,  3,  4   ],
+                    'profile_id':   [   5,  3,  1,  2,  2,  2,  2   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3,                  4,                  5                   ],
+                    'calcrule_id':  [   14,     12,     24,                 24,                 23                  ],
+                    'deductible1':  [   0.0,    0.0,    0.0,                0.0,                0.0                 ],
+                    'deductible2':  [   0.0,    0.0,    0.0,                0.0,                0.0                 ],
+                    'deductible3':  [   0.0,    0.0,    0.0,                0.0,                0.0                 ],
+                    'attachment':   [   0.0,    0.0,    0.0,                0.0,                0.0                 ],
+                    'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0,    9999999999999.0     ],  
+                    'share1':       [   0.0,    0.0,    0.1,                0.1,                0.0                 ],  
+                    'share2':       [   0.0,    0.0,    1.0,                1.0,                0.8                 ],  
+                    'share3':       [   0.0,    0.0,    1.0,                1.0,                1.0                 ]   
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                    'level_id':     [   3,  3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  2,  2,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+
+    def test_single_QS_all_risks_with_pct_ceded_and_pct_placed(self):
+
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1       ],
+            'CededPercent':     [   0.5     ],
+            'RiskLimit':        [   0.0     ],
+            'RiskAttachment':   [   0.0     ],
+            'OccLimit':         [   0.0     ],
+            'OccAttachment':    [   0.0     ],
+            'InuringPriority':  [   1       ],
+            'ReinsType':        [   'QS'    ],
+            'PlacedPercent':    [   0.8     ],
+            'TreatyShare':      [   1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1,      1       ],
+            'PortNumber':   [   '1',    '1'     ],
+            'AccNumber':    [   '1',    '1'     ],
+            'PolNumber':    [   '1',    '2'     ],
+            'LocGroup':     [   '',     ''      ],
+            'LocNumber':    [   '',     ''      ],
+            'CedantName':   [   '',     ''      ],
+            'ProducerName': [   '',     ''      ],
+            'LOB':          [   '',     ''      ],
+            'CountryCode':  [   '',     ''      ],
+            'ReinsTag':     [   '',     ''      ],
+            'RiskLevel':    [   'POL',  'POL'   ],
+            'CededPercent': [   0.1,    0.1     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='POL',   
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  1,  2,  3,  4   ],
+                    'profile_id':   [   4,  3,  1,  2,  2,  1,  1   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3,                  4                  ],
+                    'calcrule_id':  [   14,     12,     24,                 23                 ],
+                    'deductible1':  [   0.0,    0.0,    0.0,                0.0                ],
+                    'deductible2':  [   0.0,    0.0,    0.0,                0.0                ],
+                    'deductible3':  [   0.0,    0.0,    0.0,                0.0                ],
+                    'attachment':   [   0.0,    0.0,    0.0,                0.0                ],
+                    'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0    ],  
+                    'share1':       [   0.0,    0.0,    0.5,                0.0                ],  
+                    'share2':       [   0.0,    0.0,    1.0,                0.8                ],  
+                    'share3':       [   0.0,    0.0,    1.0,                1.0                ]   
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                    'level_id':     [   3,  3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  2,  2,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+
+    def test_single_QS_with_account_level_risk_limits(self):
+
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1       ],
+            'CededPercent':     [   0.5     ],
+            'RiskLimit':        [   10.0    ],
+            'RiskAttachment':   [   0.0     ],
+            'OccLimit':         [   0.0     ],
+            'OccAttachment':    [   0.0     ],
+            'InuringPriority':  [   1       ],
+            'ReinsType':        [   'QS'    ],
+            'PlacedPercent':    [   0.8     ],
+            'TreatyShare':      [   1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1       ],
+            'PortNumber':   [   '1'     ],
+            'AccNumber':    [   ''      ],
+            'PolNumber':    [   ''      ],
+            'LocGroup':     [   ''      ],
+            'LocNumber':    [   ''      ],
+            'CedantName':   [   ''      ],
+            'ProducerName': [   ''      ],
+            'LOB':          [   ''      ],
+            'CountryCode':  [   ''      ],
+            'ReinsTag':     [   ''      ],
+            'RiskLevel':    [   'ACC'   ],
+            'CededPercent': [   1.0     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='ACC',   
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  1,  2,  3,  4   ],
+                    'profile_id':   [   4,  3,  3,  2,  2,  2,  2   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3,                  4                   ],
+                    'calcrule_id':  [   14,     12,     24,                 23                  ],
+                    'deductible1':  [   0.0,    0.0,    0.0,                0.0                 ],
+                    'deductible2':  [   0.0,    0.0,    0.0,                0.0                 ],
+                    'deductible3':  [   0.0,    0.0,    0.0,                0.0                 ],
+                    'attachment':   [   0.0,    0.0,    0.0,                0.0                 ],
+                    'limit':        [   0.0,    0.0,    10.0,               9999999999999.0     ],  
+                    'share1':       [   0.0,    0.0,    0.5,                0.0                 ],  
+                    'share2':       [   0.0,    0.0,    1.0,                0.8                 ],  
+                    'share3':       [   0.0,    0.0,    1.0,                1.0                 ]   
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                    'level_id':     [   3,  3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  2,  2,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+
+    def test_single_cxl(self):
+
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1       ],
+            'CededPercent':     [   1.0     ],
+            'RiskLimit':        [   0.0     ],
+            'RiskAttachment':   [   0.0     ],
+            'OccLimit':         [   10.0    ],
+            'OccAttachment':    [   50.0    ],
+            'InuringPriority':  [   1       ],
+            'ReinsType':        [   'CXL'   ],
+            'PlacedPercent':    [   0.8     ],
+            'TreatyShare':      [   1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1       ],
+            'PortNumber':   [   '1'     ],
+            'AccNumber':    [   ''      ],
+            'PolNumber':    [   ''      ],
+            'LocGroup':     [   ''      ],
+            'LocNumber':    [   ''      ],
+            'CedantName':   [   ''      ],
+            'ProducerName': [   ''      ],
+            'LOB':          [   ''      ],
+            'CountryCode':  [   ''      ],
+            'ReinsTag':     [   ''      ],
+            'RiskLevel':    [   'SEL'   ],
+            'CededPercent': [   1.0     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='SEL',   
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  1,  2,  3,  4   ],
+                    'profile_id':   [   3,  2,  2,  2,  2,  2   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3                  ],
+                    'calcrule_id':  [   14,     12,     24                 ],
+                    'deductible1':  [   0.0,    0.0,    0.0                ],
+                    'deductible2':  [   0.0,    0.0,    0.0                ],
+                    'deductible3':  [   0.0,    0.0,    0.0                ],
+                    'attachment':   [   0.0,    0.0,    50.0               ],
+                    'limit':        [   0.0,    0.0,    10.0               ],  
+                    'share1':       [   0.0,    0.0,    1.0                ],  
+                    'share2':       [   0.0,    0.0,    0.8                ],  
+                    'share3':       [   0.0,    0.0,    1.0                ]   
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                    'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  1,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+
+    def test_single_cxl_0_occ_limit_treat_as_unlimited(self):
+
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1       ],
+            'CededPercent':     [   1.0     ],
+            'RiskLimit':        [   0.0     ],
+            'RiskAttachment':   [   0.0    ],
+            'OccLimit':         [   0.0     ],
+            'OccAttachment':    [   50.0     ],
+            'InuringPriority':  [   1       ],
+            'ReinsType':        [   'CXL'   ],
+            'PlacedPercent':    [   0.8     ],
+            'TreatyShare':      [   1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1       ],
+            'PortNumber':   [   '1'     ],
+            'AccNumber':    [   ''      ],
+            'PolNumber':    [   ''      ],
+            'LocGroup':     [   ''      ],
+            'LocNumber':    [   ''      ],
+            'CedantName':   [   ''      ],
+            'ProducerName': [   ''      ],
+            'LOB':          [   ''      ],
+            'CountryCode':  [   ''      ],
+            'ReinsTag':     [   ''      ],
+            'RiskLevel':    [   'SEL'   ],
+            'CededPercent': [   1.0     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='SEL',   
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  1,  2,  3,  4   ],
+                    'profile_id':   [   3,  2,  2,  2,  2,  2   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3                  ],
+                    'calcrule_id':  [   14,     12,     24                 ],
+                    'deductible1':  [   0.0,    0.0,    0.0                ],
+                    'deductible2':  [   0.0,    0.0,    0.0                ],
+                    'deductible3':  [   0.0,    0.0,    0.0                ],
+                    'attachment':   [   0.0,    0.0,    50.0               ],
+                    'limit':        [   0.0,    0.0,    9999999999999.0    ],  
+                    'share1':       [   0.0,    0.0,    1.0                ],  
+                    'share2':       [   0.0,    0.0,    0.8                ],  
+                    'share3':       [   0.0,    0.0,    1.0                ]   
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                    'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  1,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+
+    def test_single_QS_with_policy_level_risk_limits(self):
+
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1       ],
+            'CededPercent':     [   0.5     ],
+            'RiskLimit':        [   10.0    ],
+            'RiskAttachment':   [   0.0     ],
+            'OccLimit':         [   0.0     ],
+            'OccAttachment':    [   0.0     ],
+            'InuringPriority':  [   1       ],
+            'ReinsType':        [   'QS'    ],
+            'PlacedPercent':    [   1.0     ],
+            'TreatyShare':      [   1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1       ],
+            'PortNumber':   [   '1'     ],
+            'AccNumber':    [   ''      ],
+            'PolNumber':    [   ''      ],
+            'LocGroup':     [   ''      ],
+            'LocNumber':    [   ''      ],
+            'CedantName':   [   ''      ],
+            'ProducerName': [   ''      ],
+            'LOB':          [   ''      ],
+            'CountryCode':  [   ''      ],
+            'ReinsTag':     [   ''      ],
+            'RiskLevel':    [   'POL'   ],
+            'CededPercent': [   1.0     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='POL',   
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  1,  2,  3,  4   ],
+                    'profile_id':   [   4,  3,  3,  2,  2,  2,  2   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3,      4                   ],
+                    'calcrule_id':  [   14,     12,     24,     23                  ],
+                    'deductible1':  [   0.0,    0.0,    0.0,    0.0                 ],
+                    'deductible2':  [   0.0,    0.0,    0.0,    0.0                 ],
+                    'deductible3':  [   0.0,    0.0,    0.0,    0.0                 ],
+                    'attachment':   [   0.0,    0.0,    0.0,    0.0                 ],
+                    'limit':        [   0.0,    0.0,    10,     9999999999999.0     ],  
+                    'share1':       [   0.0,    0.0,    0.5,    0.0                 ],  
+                    'share2':       [   0.0,    0.0,    1.0,    1.0                 ],  
+                    'share3':       [   0.0,    0.0,    1.0,    1.0                 ]   
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                    'level_id':     [   3,  3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  2,  2,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+
+    def test_single_QS_with_location_level_risk_limits(self):
+
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1       ],
+            'CededPercent':     [   0.5     ],
+            'RiskLimit':        [   10.0    ],
+            'RiskAttachment':   [   0.0     ],
+            'OccLimit':         [   0.0     ],
+            'OccAttachment':    [   0.0     ],
+            'InuringPriority':  [   1       ],
+            'ReinsType':        [   'QS'    ],
+            'PlacedPercent':    [   1.0     ],
+            'TreatyShare':      [   1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1       ],
+            'PortNumber':   [   '1'     ],
+            'AccNumber':    [   ''      ],
+            'PolNumber':    [   ''      ],
+            'LocGroup':     [   ''      ],
+            'LocNumber':    [   ''      ],
+            'CedantName':   [   ''      ],
+            'ProducerName': [   ''      ],
+            'LOB':          [   ''      ],
+            'CountryCode':  [   ''      ],
+            'ReinsTag':     [   ''      ],
+            'RiskLevel':    [   'LOC'   ],
+            'CededPercent': [   1.0     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='LOC',   
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  3,  4,  1,  2,  3,  4   ],
+                    'profile_id':   [   4,  3,  3,  3,  3,  2,  2,  2,  2   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3,      4                   ],
+                    'calcrule_id':  [   14,     12,     24,     23                  ],
+                    'deductible1':  [   0.0,    0.0,    0.0,    0.0                 ],
+                    'deductible2':  [   0.0,    0.0,    0.0,    0.0                 ],
+                    'deductible3':  [   0.0,    0.0,    0.0,    0.0                 ],
+                    'attachment':   [   0.0,    0.0,    0.0,    0.0                 ],
+                    'limit':        [   0.0,    0.0,    10,     9999999999999.0     ],  
+                    'share1':       [   0.0,    0.0,    0.5,    0.0                 ],  
+                    'share2':       [   0.0,    0.0,    1.0,    1.0                 ],  
+                    'share3':       [   0.0,    0.0,    1.0,    1.0                 ]   
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  3,  4,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                    'level_id':     [   3,  3,  3,  3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  1,  2,  3,  4,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+
+    def test_single_QS(self):
+
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1       ],
+            'CededPercent':     [   0.5     ],
+            'RiskLimit':        [   0.0     ],
+            'RiskAttachment':   [   0.0     ],
+            'OccLimit':         [   0.0     ],
+            'OccAttachment':    [   0.0     ],
+            'InuringPriority':  [   1       ],
+            'ReinsType':        [   'QS'    ],
+            'PlacedPercent':    [   1.0     ],
+            'TreatyShare':      [   1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1       ],
+            'PortNumber':   [   '1'     ],
+            'AccNumber':    [   ''      ],
+            'PolNumber':    [   ''      ],
+            'LocGroup':     [   ''      ],
+            'LocNumber':    [   ''      ],
+            'CedantName':   [   ''      ],
+            'ProducerName': [   ''      ],
+            'LOB':          [   ''      ],
+            'CountryCode':  [   ''      ],
+            'ReinsTag':     [   ''      ],
+            'RiskLevel':    [   'ACC'   ],
+            'CededPercent': [   1.0     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='ACC',   
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  1,  2,  3,  4   ],
+                    'profile_id':   [   4,  3,  3,  2,  2,  2,  2   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3,                  4                   ],
+                    'calcrule_id':  [   14,     12,     24,                 23                  ],
+                    'deductible1':  [   0.0,    0.0,    0.0,                0.0                 ],
+                    'deductible2':  [   0.0,    0.0,    0.0,                0.0                 ],
+                    'deductible3':  [   0.0,    0.0,    0.0,                0.0                 ],
+                    'attachment':   [   0.0,    0.0,    0.0,                0.0                 ],
+                    'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0     ],  
+                    'share1':       [   0.0,    0.0,    0.5,                0.0                 ],  
+                    'share2':       [   0.0,    0.0,    1.0,                1.0                 ],  
+                    'share3':       [   0.0,    0.0,    1.0,                1.0                 ]   
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                    'level_id':     [   3,  3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  2,  2,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+
+    def test_single_loc_level_PR_loc_filter_1(self):
+
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1       ],
+            'CededPercent':     [   0.5     ],
+            'RiskLimit':        [   10.0    ],
+            'RiskAttachment':   [   5.0     ],
+            'OccLimit':         [   50.0    ],
+            'OccAttachment':    [   0.0     ],
+            'InuringPriority':  [   1       ],
+            'ReinsType':        [   'PR'    ],
+            'PlacedPercent':    [   0.8     ],
+            'TreatyShare':      [   1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1,      1       ],
+            'PortNumber':   [   '1',    '1'     ],
+            'AccNumber':    [   'A1',    'A2'   ],
+            'PolNumber':    [   '',     ''      ],
+            'LocGroup':     [   '',     ''      ],
+            'LocNumber':    [   'L1',   'L2'    ],
+            'CedantName':   [   '',     ''      ],
+            'ProducerName': [   '',     ''      ],
+            'LOB':          [   '',     ''      ],
+            'CountryCode':  [   '',     ''      ],
+            'ReinsTag':     [   '',     ''      ],
+            'RiskLevel':    [   'LOC',  'LOC'   ],
+            'CededPercent': [   1.0,    1.0     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_2_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='LOC',   
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  2,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  3,  1,  2,  3   ],
+                    'profile_id':   [   4,  3,  3,  1,  2,  2,  1   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3,      4       ],
+                    'calcrule_id':  [   14,     12,     24,     23      ],
+                    'deductible1':  [   0.0,    0.0,    0.0,    0.0     ],
+                    'deductible2':  [   0.0,    0.0,    0.0,    0.0     ],
+                    'deductible3':  [   0.0,    0.0,    0.0,    0.0     ],
+                    'attachment':   [   0.0,    0.0,    5.0,    0.0     ],
+                    'limit':        [   0.0,    0.0,    10.0,   50.0    ],  
+                    'share1':       [   0.0,    0.0,    0.5,    0.0     ],  
+                    'share2':       [   0.0,    0.0,    1.0,    0.8     ],  
+                    'share3':       [   0.0,    0.0,    1.0,    1.0     ]   
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  3,  1,  2,  3,  1,  2,  3,  4,  5,  6,  7,  8,  9   ],
+                    'level_id':     [   3,  3,  3,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  2,  3,  1,  1,  1,  2,  2,  2,  3,  3,  3   ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+
+    def test_single_loc_level_PR_loc_filter_2(self):
+
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1       ],
+            'CededPercent':     [   0.5     ],
+            'RiskLimit':        [   10.0    ],
+            'RiskAttachment':   [   5.0     ],
+            'OccLimit':         [   50.0    ],
+            'OccAttachment':    [   0.0     ],
+            'InuringPriority':  [   1       ],
+            'ReinsType':        [   'PR'    ],
+            'PlacedPercent':    [   0.8     ],
+            'TreatyShare':      [   1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1,      1       ],
+            'PortNumber':   [   '1',    '1'     ],
+            'AccNumber':    [   'A1',    'A2'     ],
+            'PolNumber':    [   '',     ''      ],
+            'LocGroup':     [   '',     ''      ],
+            'LocNumber':    [   'L1',   'XX'    ],
+            'CedantName':   [   '',     ''      ],
+            'ProducerName': [   '',     ''      ],
+            'LOB':          [   '',     ''      ],
+            'CountryCode':  [   '',     ''      ],
+            'ReinsTag':     [   '',     ''      ],
+            'RiskLevel':    [   'LOC',  'LOC'   ],
+            'CededPercent': [   1.0,    1.0     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_2_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='LOC',   
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  2,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  3,  1,  2,  3   ],
+                    'profile_id':   [   4,  3,  1,  1,  2,  1,  1   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3,      4       ],
+                    'calcrule_id':  [   14,     12,     24,     23      ],
+                    'deductible1':  [   0.0,    0.0,    0.0,    0.0     ],
+                    'deductible2':  [   0.0,    0.0,    0.0,    0.0     ],
+                    'deductible3':  [   0.0,    0.0,    0.0,    0.0     ],
+                    'attachment':   [   0.0,    0.0,    5.0,    0.0     ],
+                    'limit':        [   0.0,    0.0,    10.0,   50.0    ],  
+                    'share1':       [   0.0,    0.0,    0.5,    0.0     ],  
+                    'share2':       [   0.0,    0.0,    1.0,    0.8     ],  
+                    'share3':       [   0.0,    0.0,    1.0,    1.0     ]   
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  3,  1,  2,  3,  1,  2,  3,  4,  5,  6,  7,  8,  9  ],
+                    'level_id':     [   3,  3,  3,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1  ],
+                    'to_agg_id':    [   1,  1,  1,  1,  2,  3,  1,  1,  1,  2,  2,  2,  3,  3,  3  ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)        
+
+
+    def test_single_loc_level_PR_pol_and_loc_filter_2(self):
+
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1       ],
+            'CededPercent':     [   0.5     ],
+            'RiskLimit':        [   10.0    ],
+            'RiskAttachment':   [   5.0     ],
+            'OccLimit':         [   50.0    ],
+            'OccAttachment':    [   0.0     ],
+            'InuringPriority':  [   1       ],
+            'ReinsType':        [   'PR'    ],
+            'PlacedPercent':    [   0.8     ],
+            'TreatyShare':      [   1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1,      1       ],
+            'PortNumber':   [   '1',    '1'     ],
+            'AccNumber':    [   'A1',    'A2'   ],
+            'PolNumber':    [   'P1',     'P1'  ],
+            'LocGroup':     [   '',     ''      ],
+            'LocNumber':    [   'L1',   'XX'    ],
+            'CedantName':   [   '',     ''      ],
+            'ProducerName': [   '',     ''      ],
+            'LOB':          [   '',     ''      ],
+            'CountryCode':  [   '',     ''      ],
+            'ReinsTag':     [   '',     ''      ],
+            'RiskLevel':    [   'LOC',  'LOC'   ],
+            'CededPercent': [   1.0,    1.0     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_2_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='LOC',   
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  2,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  3,  1,  2,  3   ],
+                    'profile_id':   [   4,  3,  1,  1,  2,  1,  1   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3,      4       ],
+                    'calcrule_id':  [   14,     12,     24,     23      ],
+                    'deductible1':  [   0.0,    0.0,    0.0,    0.0     ],
+                    'deductible2':  [   0.0,    0.0,    0.0,    0.0     ],
+                    'deductible3':  [   0.0,    0.0,    0.0,    0.0     ],
+                    'attachment':   [   0.0,    0.0,    5.0,    0.0     ],
+                    'limit':        [   0.0,    0.0,    10.0,   50.0    ],  
+                    'share1':       [   0.0,    0.0,    0.5,    0.0     ],  
+                    'share2':       [   0.0,    0.0,    1.0,    0.8     ],  
+                    'share3':       [   0.0,    0.0,    1.0,    1.0     ]   
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  3,  1,  2,  3,  1,  2,  3,  4,  5,  6,  7,  8,  9  ],
+                    'level_id':     [   3,  3,  3,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1  ],
+                    'to_agg_id':    [   1,  1,  1,  1,  2,  3,  1,  1,  1,  2,  2,  2,  3,  3,  3  ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)        
+
+
+    def test_single_CXL_no_filter(self):
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1       ],
+            'CededPercent':     [   1.0     ],
+            'RiskLimit':        [   0.0     ],
+            'RiskAttachment':   [   0.0     ],
+            'OccLimit':         [   10.0    ],
+            'OccAttachment':    [   50.0    ],
+            'InuringPriority':  [   1       ],
+            'ReinsType':        [   'CXL'   ],
+            'PlacedPercent':    [   0.8     ],
+            'TreatyShare':      [   1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1       ],
+            'PortNumber':   [   ''     ],
+            'AccNumber':    [   ''      ],
+            'PolNumber':    [   ''      ],
+            'LocGroup':     [   ''      ],
+            'LocNumber':    [   ''      ],
+            'CedantName':   [   ''      ],
+            'ProducerName': [   ''      ],
+            'LOB':          [   ''      ],
+            'CountryCode':  [   ''      ],
+            'ReinsTag':     [   ''      ],
+            'RiskLevel':    [   'SEL'   ],
+            'CededPercent': [   1.0     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_3_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='SEL',   
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  1,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  1,  2,  3,  4,  5   ],
+                    'profile_id':   [   3,  2,  2,  2,  2,  2,  2,  2   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3       ],
+                    'calcrule_id':  [   14,     12,     24      ],
+                    'deductible1':  [   0.0,    0.0,    0.0     ],
+                    'deductible2':  [   0.0,    0.0,    0.0     ],
+                    'deductible3':  [   0.0,    0.0,    0.0     ],
+                    'attachment':   [   0.0,    0.0,    50.0    ],
+                    'limit':        [   0.0,    0.0,    10.0    ],  
+                    'share1':       [   0.0,    0.0,    1.0     ],  
+                    'share2':       [   0.0,    0.0,    0.8     ],  
+                    'share3':       [   0.0,    0.0,    1.0     ]
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  1,  2,  3,  4,  5,  1,  2,  3,  4,  5,  6,  10, 11, 12, 7,  8,  9,  13, 14, 15  ],
+                    'level_id':     [   3,  3,  2,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  1,  1,  2,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4,  5,  5,  5   ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+
+    def test_single_CXL_port_filter(self):
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1       ],
+            'CededPercent':     [   1.0     ],
+            'RiskLimit':        [   0.0     ],
+            'RiskAttachment':   [   0.0     ],
+            'OccLimit':         [   10.0    ],
+            'OccAttachment':    [   50.0    ],
+            'InuringPriority':  [   1       ],
+            'ReinsType':        [   'CXL'   ],
+            'PlacedPercent':    [   0.8     ],
+            'TreatyShare':      [   1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1       ],
+            'PortNumber':   [   '1'     ],
+            'AccNumber':    [   ''      ],
+            'PolNumber':    [   ''      ],
+            'LocGroup':     [   ''      ],
+            'LocNumber':    [   ''      ],
+            'CedantName':   [   ''      ],
+            'ProducerName': [   ''      ],
+            'LOB':          [   ''      ],
+            'CountryCode':  [   ''      ],
+            'ReinsTag':     [   ''      ],
+            'RiskLevel':    [   'SEL'   ],
+            'CededPercent': [   1.0     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_3_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='SEL',   
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  1,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  1,  2,  3,  4,  5   ],
+                    'profile_id':   [   3,  2,  1,  2,  2,  2,  2,  1   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3       ],
+                    'calcrule_id':  [   14,     12,     24      ],
+                    'deductible1':  [   0.0,    0.0,    0.0     ],
+                    'deductible2':  [   0.0,    0.0,    0.0     ],
+                    'deductible3':  [   0.0,    0.0,    0.0     ],
+                    'attachment':   [   0.0,    0.0,    50.0    ],
+                    'limit':        [   0.0,    0.0,    10.0    ],  
+                    'share1':       [   0.0,    0.0,    1.0     ],  
+                    'share2':       [   0.0,    0.0,    0.8     ],  
+                    'share3':       [   0.0,    0.0,    1.0     ]
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  1,  2,  3,  4,  5,  1,  2,  3,  4,  5,  6,  10, 11, 12, 7,  8,  9,  13, 14, 15  ],
+                    'level_id':     [   3,  3,  2,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  1,  1,  2,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4,  5,  5,  5   ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+
+    def test_single_CXL_port_acc_filter(self):
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1       ],
+            'CededPercent':     [   1.0     ],
+            'RiskLimit':        [   0.0     ],
+            'RiskAttachment':   [   0.0     ],
+            'OccLimit':         [   10.0    ],
+            'OccAttachment':    [   50.0    ],
+            'InuringPriority':  [   1       ],
+            'ReinsType':        [   'CXL'   ],
+            'PlacedPercent':    [   0.8     ],
+            'TreatyShare':      [   1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1       ],
+            'PortNumber':   [   '1'     ],
+            'AccNumber':    [   'A1'    ],
+            'PolNumber':    [   ''      ],
+            'LocGroup':     [   ''      ],
+            'LocNumber':    [   ''      ],
+            'CedantName':   [   ''      ],
+            'ProducerName': [   ''      ],
+            'LOB':          [   ''      ],
+            'CountryCode':  [   ''      ],
+            'ReinsTag':     [   ''      ],
+            'RiskLevel':    [   'SEL'   ],
+            'CededPercent': [   1.0     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_3_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='SEL',   
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  1,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  1,  2,  3,  4,  5   ],
+                    'profile_id':   [   3,  2,  1,  2,  2,  1,  1,  1   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3       ],
+                    'calcrule_id':  [   14,     12,     24      ],
+                    'deductible1':  [   0.0,    0.0,    0.0     ],
+                    'deductible2':  [   0.0,    0.0,    0.0     ],
+                    'deductible3':  [   0.0,    0.0,    0.0     ],
+                    'attachment':   [   0.0,    0.0,    50.0    ],
+                    'limit':        [   0.0,    0.0,    10.0    ],  
+                    'share1':       [   0.0,    0.0,    1.0     ],  
+                    'share2':       [   0.0,    0.0,    0.8     ],  
+                    'share3':       [   0.0,    0.0,    1.0     ]   
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  1,  2,  3,  4,  5,  1,  2,  3,  4,  5,  6,  10, 11, 12, 7,  8,  9,  13, 14, 15  ],
+                    'level_id':     [   3,  3,  2,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  1,  1,  2,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4,  5,  5,  5   ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)        
+
+
+    def test_single_CXL_port_acc_pol_filter(self):
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1       ],
+            'CededPercent':     [   1.0     ],
+            'RiskLimit':        [   0.0     ],
+            'RiskAttachment':   [   0.0     ],
+            'OccLimit':         [   10.0    ],
+            'OccAttachment':    [   50.0    ],
+            'InuringPriority':  [   1       ],
+            'ReinsType':        [   'CXL'   ],
+            'PlacedPercent':    [   0.8     ],
+            'TreatyShare':      [   1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1       ],
+            'PortNumber':   [   '1'     ],
+            'AccNumber':    [   'A2'    ],
+            'PolNumber':    [   'P1'    ],
+            'LocGroup':     [   ''      ],
+            'LocNumber':    [   ''      ],
+            'CedantName':   [   ''      ],
+            'ProducerName': [   ''      ],
+            'LOB':          [   ''      ],
+            'CountryCode':  [   ''      ],
+            'ReinsTag':     [   ''      ],
+            'RiskLevel':    [   'SEL'   ],
+            'CededPercent': [   1.0     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_3_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='SEL',   
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  1,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  1,  2,  3,  4,  5   ],
+                    'profile_id':   [   3,  2,  1,  1,  1,  2,  1,  1   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3       ],
+                    'calcrule_id':  [   14,     12,     24      ],
+                    'deductible1':  [   0.0,    0.0,    0.0     ],
+                    'deductible2':  [   0.0,    0.0,    0.0     ],
+                    'deductible3':  [   0.0,    0.0,    0.0     ],
+                    'attachment':   [   0.0,    0.0,    50.0    ],
+                    'limit':        [   0.0,    0.0,    10.0    ],  
+                    'share1':       [   0.0,    0.0,    1.0     ],  
+                    'share2':       [   0.0,    0.0,    0.8     ],  
+                    'share3':       [   0.0,    0.0,    1.0     ]   
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  1,  2,  3,  4,  5,  1,  2,  3,  4,  5,  6,  10, 11, 12, 7,  8,  9,  13, 14, 15  ],
+                    'level_id':     [   3,  3,  2,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  1,  1,  2,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4,  5,  5,  5   ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+
+    def test_single_CXL_port_pol_loc_filter(self):
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1       ],
+            'CededPercent':     [   1.0     ],
+            'RiskLimit':        [   0.0     ],
+            'RiskAttachment':   [   0.0     ],
+            'OccLimit':         [   10.0    ],
+            'OccAttachment':    [   50.0    ],
+            'InuringPriority':  [   1       ],
+            'ReinsType':        [   'CXL'   ],
+            'PlacedPercent':    [   0.8     ],
+            'TreatyShare':      [   1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1       ],
+            'PortNumber':   [   '1'     ],
+            'AccNumber':    [   ''      ],
+            'PolNumber':    [   'P1'    ],
+            'LocGroup':     [   ''      ],
+            'LocNumber':    [   'L2'    ],
+            'CedantName':   [   ''      ],
+            'ProducerName': [   ''      ],
+            'LOB':          [   ''      ],
+            'CountryCode':  [   ''      ],
+            'ReinsTag':     [   ''      ],
+            'RiskLevel':    [   'SEL'   ],
+            'CededPercent': [   1.0     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_3_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='SEL',   
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  1,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  1,  2,  3,  4,  5   ],
+                    'profile_id':   [   3,  2,  1,  1,  1,  2,  1,  1   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3       ],
+                    'calcrule_id':  [   14,     12,     24      ],
+                    'deductible1':  [   0.0,    0.0,    0.0     ],
+                    'deductible2':  [   0.0,    0.0,    0.0     ],
+                    'deductible3':  [   0.0,    0.0,    0.0     ],
+                    'attachment':   [   0.0,    0.0,    50.0    ],
+                    'limit':        [   0.0,    0.0,    10.0    ],  
+                    'share1':       [   0.0,    0.0,    1.0     ],  
+                    'share2':       [   0.0,    0.0,    0.8     ],  
+                    'share3':       [   0.0,    0.0,    1.0     ]   
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  1,  2,  3,  4,  5,  1,  2,  3,  4,  5,  6,  10, 11, 12, 7,  8,  9,  13, 14, 15  ],
+                    'level_id':     [   3,  3,  2,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  1,  1,  2,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4,  5,  5,  5   ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+
+    def test_single_CXL_port_acc_loc_filter(self):
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1       ],
+            'CededPercent':     [   1.0     ],
+            'RiskLimit':        [   0.0     ],
+            'RiskAttachment':   [   0.0     ],
+            'OccLimit':         [   10.0    ],
+            'OccAttachment':    [   50.0    ],
+            'InuringPriority':  [   1       ],
+            'ReinsType':        [   'CXL'   ],
+            'PlacedPercent':    [   0.8     ],
+            'TreatyShare':      [   1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1       ],
+            'PortNumber':   [   '1'     ],
+            'AccNumber':    [   'A1'      ],
+            'PolNumber':    [   ''    ],
+            'LocGroup':     [   ''      ],
+            'LocNumber':    [   'L1'    ],
+            'CedantName':   [   ''      ],
+            'ProducerName': [   ''      ],
+            'LOB':          [   ''      ],
+            'CountryCode':  [   ''      ],
+            'ReinsTag':     [   ''      ],
+            'RiskLevel':    [   'SEL'   ],
+            'CededPercent': [   1.0     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_3_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='SEL',   
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  1,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  1,  2,  3,  4,  5   ],
+                    'profile_id':   [   3,  2,  1,  2,  2,  1,  1,  1   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3       ],
+                    'calcrule_id':  [   14,     12,     24      ],
+                    'deductible1':  [   0.0,    0.0,    0.0     ],
+                    'deductible2':  [   0.0,    0.0,    0.0     ],
+                    'deductible3':  [   0.0,    0.0,    0.0     ],
+                    'attachment':   [   0.0,    0.0,    50.0    ],
+                    'limit':        [   0.0,    0.0,    10.0    ],  
+                    'share1':       [   0.0,    0.0,    1.0     ],  
+                    'share2':       [   0.0,    0.0,    0.8     ],  
+                    'share3':       [   0.0,    0.0,    1.0     ]   
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  1,  2,  3,  4,  5,  1,  2,  3,  4,  5,  6,  10, 11, 12, 7,  8,  9,  13, 14, 15  ],
+                    'level_id':     [   3,  3,  2,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  1,  1,  2,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4,  5,  5,  5   ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+
+    def test_single_CXL_port_acc_pol_loc_filter(self):
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1       ],
+            'CededPercent':     [   1.0     ],
+            'RiskLimit':        [   0.0     ],
+            'RiskAttachment':   [   0.0     ],
+            'OccLimit':         [   10.0    ],
+            'OccAttachment':    [   50.0    ],
+            'InuringPriority':  [   1       ],
+            'ReinsType':        [   'CXL'   ],
+            'PlacedPercent':    [   0.8     ],
+            'TreatyShare':      [   1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1       ],
+            'PortNumber':   [   '1'     ],
+            'AccNumber':    [   'A1'    ],
+            'PolNumber':    [   'P1'    ],
+            'LocGroup':     [   ''      ],
+            'LocNumber':    [   'L1'    ],
+            'CedantName':   [   ''      ],
+            'ProducerName': [   ''      ],
+            'LOB':          [   ''      ],
+            'CountryCode':  [   ''      ],
+            'ReinsTag':     [   ''      ],
+            'RiskLevel':    [   'SEL'   ],
+            'CededPercent': [   1.0     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_3_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='SEL',   
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'level_id':     [   3,  2,  2,  1,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  1,  2,  3,  4,  5   ],
+                    'profile_id':   [   3,  2,  1,  2,  1,  1,  1,  1   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3       ],
+                    'calcrule_id':  [   14,     12,     24      ],
+                    'deductible1':  [   0.0,    0.0,    0.0     ],
+                    'deductible2':  [   0.0,    0.0,    0.0     ],
+                    'deductible3':  [   0.0,    0.0,    0.0     ],
+                    'attachment':   [   0.0,    0.0,    50.0    ],
+                    'limit':        [   0.0,    0.0,    10.0    ],  
+                    'share1':       [   0.0,    0.0,    1.0     ],  
+                    'share2':       [   0.0,    0.0,    0.8     ],  
+                    'share3':       [   0.0,    0.0,    1.0     ]   
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  1,  2,  3,  4,  5,  1,  2,  3,  4,  5,  6,  10, 11, 12, 7,  8,  9,  13, 14, 15  ],
+                    'level_id':     [   3,  3,  2,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  1,  1,  2,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4,  5,  5,  5   ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+
+    def test_multiple_SS_same_inuring_level(self):
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1,      2       ],
+            'CededPercent':     [   1.0,    1.0     ],
+            'RiskLimit':        [   0.0,    0.0     ],
+            'RiskAttachment':   [   0.0,    0.0     ],
+            'OccLimit':         [   0.0,    0.0     ],
+            'OccAttachment':    [   0.0,    0.0     ],
+            'InuringPriority':  [   1,      1       ],
+            'ReinsType':        [   'SS',   'SS'    ],
+            'PlacedPercent':    [   1.0,    1.0     ],
+            'TreatyShare':      [   1.0,    1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1,      1,      2,      2       ],
+            'PortNumber':   [   '1',    '1',    '1',    '1'     ],
+            'AccNumber':    [   '1',    '1',    '2',    '2'     ],
+            'PolNumber':    [   '1',    '1',    '1',    '1'     ],
+            'LocGroup':     [   '',     '',     '',     ''      ],
+            'LocNumber':    [   '1',    '2',    '1',    '2'     ],
+            'CedantName':   [   '',     '',     '',     ''      ],
+            'ProducerName': [   '',     '',     '',     ''      ],
+            'LOB':          [   '',     '',     '',     ''      ],
+            'CountryCode':  [   '',     '',     '',     ''      ],
+            'ReinsTag':     [   '',     '',     '',     ''      ],
+            'RiskLevel':    [   'LOC',  'LOC',  'LOC',  'LOC'   ],
+            'CededPercent': [   0.1,    0.1,    0.1,    0.1     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='LOC',   
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                    'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1,  1,  2,  2,  2,  2,  2,  2,  2,  2,  2   ],
+                    'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1,  3,  2,  2,  2,  2,  1,  1,  1,  1   ],
+                    'agg_id':       [   1,  1,  2,  3,  4,  1,  2,  3,  4,  1,  1,  2,  3,  4,  1,  2,  3,  4   ],
+                    'profile_id':   [   5,  3,  4,  1,  1,  2,  2,  2,  2,  8,  1,  1,  6,  7,  2,  2,  2,  2   ]
+                }),
+                fm_profile=pd.DataFrame.from_dict({
+                    'profile_id':   [   1,      2,      3,                  4,                  5,                  6,                  7,                  8                   ],
+                    'calcrule_id':  [   14,     12,     24,                 24,                 23,                 24,                 24,                 23                  ],
+                    'deductible1':  [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0,                0.0                 ],
+                    'deductible2':  [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0,                0.0                 ],
+                    'deductible3':  [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0,                0.0                 ],
+                    'attachment':   [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0,                0.0                 ],
+                    'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0,    9999999999999.0,    9999999999999.0,    9999999999999.0,    9999999999999.0     ],  
+                    'share1':       [   0.0,    0.0,    0.1,                0.1,                0.0,                0.1,                0.1,                0.0                 ],  
+                    'share2':       [   0.0,    0.0,    1.0,                1.0,                1.0,                1.0,                1.0,                1.0                 ],  
+                    'share3':       [   0.0,    0.0,    1.0,                1.0,                1.0,                1.0,                1.0,                1.0                 ]   
+                }),
+                fm_programme=pd.DataFrame.from_dict({
+                    'from_agg_id':  [   1,  2,  3,  4,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                    'level_id':     [   3,  3,  3,  3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                    'to_agg_id':    [   1,  1,  1,  1,  1,  2,  3,  4,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]  
+                })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)                        
+
+
+    def test_multiple_SS_different_inuring_levels(self):
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1,      2       ],
+            'CededPercent':     [   1.0,    1.0     ],
+            'RiskLimit':        [   0.0,    0.0     ],
+            'RiskAttachment':   [   0.0,    0.0     ],
+            'OccLimit':         [   0.0,    0.0     ],
+            'OccAttachment':    [   0.0,    0.0     ],
+            'InuringPriority':  [   1,      2       ],
+            'ReinsType':        [   'SS',   'SS'    ],
+            'PlacedPercent':    [   1.0,    1.0     ],
+            'TreatyShare':      [   1.0,    1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1,      1,      2,      2       ],
+            'PortNumber':   [   '1',    '1',    '1',    '1'     ],
+            'AccNumber':    [   '1',    '1',    '1',    '2'     ],
+            'PolNumber':    [   '1',    '1',    '1',    '1'     ],
+            'LocGroup':     [   '',     '',     '',     ''      ],
+            'LocNumber':    [   '1',    '2',    '1',    '2'     ],
+            'CedantName':   [   '',     '',     '',     ''      ],
+            'ProducerName': [   '',     '',     '',     ''      ],
+            'LOB':          [   '',     '',     '',     ''      ],
+            'CountryCode':  [   '',     '',     '',     ''      ],
+            'ReinsTag':     [   '',     '',     '',     ''      ],
+            'RiskLevel':    [   'LOC',  'LOC',  'LOC',  'LOC'   ],
+            'CededPercent': [   0.1,    0.1,    0.1,    0.1     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [
+            reinsurance_layer.RiInputs(
+                risk_level='LOC',   
+                inuring_priority=1,
+                ri_inputs=reinsurance_layer.RiLayerInputs(
+                    fm_policytc=pd.DataFrame.from_dict({
+                        'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                        'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1   ],
+                        'agg_id':       [   1,  1,  2,  3,  4,  1,  2,  3,  4   ],
+                        'profile_id':   [   5,  3,  4,  1,  1,  2,  2,  2,  2   ]
+                    }),
+                    fm_profile=pd.DataFrame.from_dict({
+                        'profile_id':   [   1,      2,      3,                  4,                  5                  ],
+                        'calcrule_id':  [   14,     12,     24,                 24,                 23                 ],
+                        'deductible1':  [   0.0,    0.0,    0.0,                0.0,                0.0                ],
+                        'deductible2':  [   0.0,    0.0,    0.0,                0.0,                0.0                ],
+                        'deductible3':  [   0.0,    0.0,    0.0,                0.0,                0.0                ],
+                        'attachment':   [   0.0,    0.0,    0.0,                0.0,                0.0                ],
+                        'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0,    9999999999999.0    ],  
+                        'share1':       [   0.0,    0.0,    0.1,                0.1,                0.0                ],  
+                        'share2':       [   0.0,    0.0,    1.0,                1.0,                1.0                ],  
+                        'share3':       [   0.0,    0.0,    1.0,                1.0,                1.0                ]   
+                    }),
+                    fm_programme=pd.DataFrame.from_dict({
+                        'from_agg_id':  [   1,  2,  3,  4,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                        'level_id':     [   3,  3,  3,  3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                        'to_agg_id':    [   1,  1,  1,  1,  1,  2,  3,  4,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]  
+                    })
+                )),
+            reinsurance_layer.RiInputs(
+                risk_level='LOC',   
+                inuring_priority=2,
+                ri_inputs=reinsurance_layer.RiLayerInputs(
+                    fm_policytc=pd.DataFrame.from_dict({
+                        'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                        'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1   ],
+                        'agg_id':       [   1,  1,  2,  3,  4,  1,  2,  3,  4   ],
+                        'profile_id':   [   5,  3,  1,  1,  4,  2,  2,  2,  2   ]
+                    }),
+                    fm_profile=pd.DataFrame.from_dict({
+                        'profile_id':   [   1,      2,      3,                  4,                  5                  ],
+                        'calcrule_id':  [   14,     12,     24,                 24,                 23                 ],
+                        'deductible1':  [   0.0,    0.0,    0.0,                0.0,                0.0                ],
+                        'deductible2':  [   0.0,    0.0,    0.0,                0.0,                0.0                ],
+                        'deductible3':  [   0.0,    0.0,    0.0,                0.0,                0.0                ],
+                        'attachment':   [   0.0,    0.0,    0.0,                0.0,                0.0                ],
+                        'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0,    9999999999999.0    ],  
+                        'share1':       [   0.0,    0.0,    0.1,                0.1,                0.0                ],  
+                        'share2':       [   0.0,    0.0,    1.0,                1.0,                1.0                ],  
+                        'share3':       [   0.0,    0.0,    1.0,                1.0,                1.0                ]   
+                    }),
+                    fm_programme=pd.DataFrame.from_dict({
+                        'from_agg_id':  [   1,  2,  3,  4,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                        'level_id':     [   3,  3,  3,  3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                        'to_agg_id':    [   1,  1,  1,  1,  1,  2,  3,  4,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]  
+                    })
+                ))
+                ]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)                        
+
+
+    def test_multiple_QS_same_inuring_level(self):
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1,      2       ],
+            'CededPercent':     [   0.2,    0.3     ],
+            'RiskLimit':        [   0.0,    0.0     ],
+            'RiskAttachment':   [   0.0,    0.0     ],
+            'OccLimit':         [   0.0,    0.0     ],
+            'OccAttachment':    [   0.0,    0.0     ],
+            'InuringPriority':  [   1,      1       ],
+            'ReinsType':        [   'QS',   'QS'    ],
+            'PlacedPercent':    [   1.0,    1.0     ],
+            'TreatyShare':      [   1.0,    1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1,      2       ],
+            'PortNumber':   [   '1',    '1'     ],
+            'AccNumber':    [   '',     ''     ],
+            'PolNumber':    [   '',     ''     ],
+            'LocGroup':     [   '',     ''      ],
+            'LocNumber':    [   '',     ''     ],
+            'CedantName':   [   '',     ''      ],
+            'ProducerName': [   '',     ''      ],
+            'LOB':          [   '',     ''      ],
+            'CountryCode':  [   '',     ''      ],
+            'ReinsTag':     [   '',     ''      ],
+            'RiskLevel':    [   'SEL',  'SEL'   ],
+            'CededPercent': [   1.0,    1.0     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='SEL',   
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                        'layer_id':     [   1,  1,  1,  1,  1,  1,  2,  2,  2,  2,  2,  2   ],
+                        'level_id':     [   3,  2,  1,  1,  1 , 1,  3,  2,  1,  1,  1 , 1   ],
+                        'agg_id':       [   1,  1,  1,  2,  3,  4,  1,  1,  1,  2,  3,  4   ],
+                        'profile_id':   [   4,  3,  2,  2,  2,  2,  6,  5,  2,  2,  2,  2   ]
+                    }),
+                    fm_profile=pd.DataFrame.from_dict({
+                        'profile_id':   [   1,      2,      3,                  4,                  5,                  6                   ],
+                        'calcrule_id':  [   14,     12,     24,                 23,                 24,                 23                  ],
+                        'deductible1':  [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0                 ],
+                        'deductible2':  [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0                 ],
+                        'deductible3':  [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0                 ],
+                        'attachment':   [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0                 ],
+                        'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0,    9999999999999.0,    9999999999999.0     ],  
+                        'share1':       [   0.0,    0.0,    0.2,                0.0,                0.3,                0.0                 ],  
+                        'share2':       [   0.0,    0.0,    1.0,                1.0,                1.0,                1.0                 ],  
+                        'share3':       [   0.0,    0.0,    1.0,                1.0,                1.0,                1.0                 ]   
+                    }),
+                    fm_programme=pd.DataFrame.from_dict({
+                        'from_agg_id':  [   1,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                        'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                        'to_agg_id':    [   1,  1,  1,  1,  1,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]  
+                    })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+
+    def test_multiple_QS_different_inuring_level(self):
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1,      2       ],
+            'CededPercent':     [   0.2,    0.3     ],
+            'RiskLimit':        [   0.0,    0.0     ],
+            'RiskAttachment':   [   0.0,    0.0     ],
+            'OccLimit':         [   0.0,    0.0     ],
+            'OccAttachment':    [   0.0,    0.0     ],
+            'InuringPriority':  [   1,      2       ],
+            'ReinsType':        [   'QS',   'QS'    ],
+            'PlacedPercent':    [   1.0,    1.0     ],
+            'TreatyShare':      [   1.0,    1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1,      2       ],
+            'PortNumber':   [   '1',    '1'     ],
+            'AccNumber':    [   '',     ''     ],
+            'PolNumber':    [   '',     ''     ],
+            'LocGroup':     [   '',     ''      ],
+            'LocNumber':    [   '',     ''     ],
+            'CedantName':   [   '',     ''      ],
+            'ProducerName': [   '',     ''      ],
+            'LOB':          [   '',     ''      ],
+            'CountryCode':  [   '',     ''      ],
+            'ReinsTag':     [   '',     ''      ],
+            'RiskLevel':    [   'SEL',  'SEL'   ],
+            'CededPercent': [   1.0,    1.0     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [
+            reinsurance_layer.RiInputs(
+                risk_level='SEL',   
+                inuring_priority=1,
+                ri_inputs=reinsurance_layer.RiLayerInputs(
+                    fm_policytc=pd.DataFrame.from_dict({
+                            'layer_id':     [   1,  1,  1,  1,  1,  1   ],
+                            'level_id':     [   3,  2,  1,  1,  1 , 1   ],
+                            'agg_id':       [   1,  1,  1,  2,  3,  4   ],
+                            'profile_id':   [   4,  3,  2,  2,  2,  2   ]
+                        }),
+                        fm_profile=pd.DataFrame.from_dict({
+                            'profile_id':   [   1,      2,      3,                  4                  ],
+                            'calcrule_id':  [   14,     12,     24,                 23                 ],
+                            'deductible1':  [   0.0,    0.0,    0.0,                0.0                ],
+                            'deductible2':  [   0.0,    0.0,    0.0,                0.0                ],
+                            'deductible3':  [   0.0,    0.0,    0.0,                0.0                ],
+                            'attachment':   [   0.0,    0.0,    0.0,                0.0                ],
+                            'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0    ],  
+                            'share1':       [   0.0,    0.0,    0.2,                0.0                ],  
+                            'share2':       [   0.0,    0.0,    1.0,                1.0                ],  
+                            'share3':       [   0.0,    0.0,    1.0,                1.0                ]   
+                        }),
+                        fm_programme=pd.DataFrame.from_dict({
+                            'from_agg_id':  [   1,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                            'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                            'to_agg_id':    [   1,  1,  1,  1,  1,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]  
+                        })
+                )),
+            reinsurance_layer.RiInputs(
+                risk_level='SEL',   
+                inuring_priority=2,
+                ri_inputs=reinsurance_layer.RiLayerInputs(
+                    fm_policytc=pd.DataFrame.from_dict({
+                            'layer_id':     [   1,  1,  1,  1,  1,  1   ],
+                            'level_id':     [   3,  2,  1,  1,  1 , 1   ],
+                            'agg_id':       [   1,  1,  1,  2,  3,  4   ],
+                            'profile_id':   [   4,  3,  2,  2,  2,  2   ]
+                        }),
+                        fm_profile=pd.DataFrame.from_dict({
+                            'profile_id':   [   1,      2,      3,                  4                  ],
+                            'calcrule_id':  [   14,     12,     24,                 23                 ],
+                            'deductible1':  [   0.0,    0.0,    0.0,                0.0                ],
+                            'deductible2':  [   0.0,    0.0,    0.0,                0.0                ],
+                            'deductible3':  [   0.0,    0.0,    0.0,                0.0                ],
+                            'attachment':   [   0.0,    0.0,    0.0,                0.0                ],
+                            'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0    ],  
+                            'share1':       [   0.0,    0.0,    0.3,                0.0                ],  
+                            'share2':       [   0.0,    0.0,    1.0,                1.0                ],  
+                            'share3':       [   0.0,    0.0,    1.0,                1.0                ]   
+                        }),
+                        fm_programme=pd.DataFrame.from_dict({
+                            'from_agg_id':  [   1,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                            'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                            'to_agg_id':    [   1,  1,  1,  1,  1,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]  
+                        })
+                ))
+                ]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)        
+
+
+    def test_multiple_CXL_same_inuring_level(self):
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1,      2       ],
+            'CededPercent':     [   0.2,    0.3     ],
+            'RiskLimit':        [   0.0,    0.0     ],
+            'RiskAttachment':   [   0.0,    0.0     ],
+            'OccLimit':         [   10.0,   30.0    ],
+            'OccAttachment':    [   20.0,   40.0    ],
+            'InuringPriority':  [   1,      1       ],
+            'ReinsType':        [   'CXL',  'CXL'   ],
+            'PlacedPercent':    [   1.0,    1.0     ],
+            'TreatyShare':      [   1.0,    1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1,      2       ],
+            'PortNumber':   [   '1',    '1'     ],
+            'AccNumber':    [   '',     ''     ],
+            'PolNumber':    [   '',     ''     ],
+            'LocGroup':     [   '',     ''      ],
+            'LocNumber':    [   '',     ''     ],
+            'CedantName':   [   '',     ''      ],
+            'ProducerName': [   '',     ''      ],
+            'LOB':          [   '',     ''      ],
+            'CountryCode':  [   '',     ''      ],
+            'ReinsTag':     [   '',     ''      ],
+            'RiskLevel':    [   'SEL',  'SEL'   ],
+            'CededPercent': [   1.0,    1.0     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [reinsurance_layer.RiInputs(
+            risk_level='SEL',   
+            inuring_priority=1,
+            ri_inputs=reinsurance_layer.RiLayerInputs(
+                fm_policytc=pd.DataFrame.from_dict({
+                        'layer_id':     [   1,  1,  1,  1,  1,  1,  2,  2,  2,  2,  2,  2   ],
+                        'level_id':     [   3,  2,  1,  1,  1 , 1,  3,  2,  1,  1,  1 , 1   ],
+                        'agg_id':       [   1,  1,  1,  2,  3,  4,  1,  1,  1,  2,  3,  4   ],
+                        'profile_id':   [   3,  2,  2,  2,  2,  2,  4,  2,  2,  2,  2,  2   ]
+                    }),
+                    fm_profile=pd.DataFrame.from_dict({
+                        'profile_id':   [   1,      2,      3,      4       ],
+                        'calcrule_id':  [   14,     12,     24,     24      ],
+                        'deductible1':  [   0.0,    0.0,    0.0,    0.0     ],
+                        'deductible2':  [   0.0,    0.0,    0.0,    0.0     ],
+                        'deductible3':  [   0.0,    0.0,    0.0,    0.0     ],
+                        'attachment':   [   0.0,    0.0,    20.0,   40.0    ],
+                        'limit':        [   0.0,    0.0,    10.0,   30.0    ],  
+                        'share1':       [   0.0,    0.0,    0.2,    0.3     ],  
+                        'share2':       [   0.0,    0.0,    1.0,    1.0     ],  
+                        'share3':       [   0.0,    0.0,    1.0,    1.0     ]   
+                    }),
+                    fm_programme=pd.DataFrame.from_dict({
+                        'from_agg_id':  [   1,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                        'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                        'to_agg_id':    [   1,  1,  1,  1,  1,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]  
+                    })
+            )
+        )]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+
+    def test_multiple_CXL_different_inuring_level(self):
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1,      2       ],
+            'CededPercent':     [   0.2,    0.3     ],
+            'RiskLimit':        [   0.0,    0.0     ],
+            'RiskAttachment':   [   0.0,    0.0     ],
+            'OccLimit':         [   10.0,   30.0    ],
+            'OccAttachment':    [   20.0,   40.0    ],
+            'InuringPriority':  [   1,      2       ],
+            'ReinsType':        [   'CXL',  'CXL'   ],
+            'PlacedPercent':    [   1.0,    1.0     ],
+            'TreatyShare':      [   1.0,    1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1,      2       ],
+            'PortNumber':   [   '1',    '1'     ],
+            'AccNumber':    [   '',     ''      ],
+            'PolNumber':    [   '',     ''      ],
+            'LocGroup':     [   '',     ''      ],
+            'LocNumber':    [   '',     ''      ],
+            'CedantName':   [   '',     ''      ],
+            'ProducerName': [   '',     ''      ],
+            'LOB':          [   '',     ''      ],
+            'CountryCode':  [   '',     ''      ],
+            'ReinsTag':     [   '',     ''      ],
+            'RiskLevel':    [   'SEL',  'SEL'   ],
+            'CededPercent': [   1.0,    1.0     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            self.exposure_1_items_df,
+            self.exposure_1_coverages_df,
+            self.exposure_1_xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        expected_ri_inputs = [
+            reinsurance_layer.RiInputs(
+                risk_level='SEL',   
+                inuring_priority=1,
+                ri_inputs=reinsurance_layer.RiLayerInputs(
+                    fm_policytc=pd.DataFrame.from_dict({
+                            'layer_id':     [   1,  1,  1,  1,  1,  1   ],
+                            'level_id':     [   3,  2,  1,  1,  1 , 1   ],
+                            'agg_id':       [   1,  1,  1,  2,  3,  4   ],
+                            'profile_id':   [   3,  2,  2,  2,  2,  2   ]
+                        }),
+                        fm_profile=pd.DataFrame.from_dict({
+                            'profile_id':   [   1,      2,      3      ],
+                            'calcrule_id':  [   14,     12,     24     ],
+                            'deductible1':  [   0.0,    0.0,    0.0    ],
+                            'deductible2':  [   0.0,    0.0,    0.0    ],
+                            'deductible3':  [   0.0,    0.0,    0.0    ],
+                            'attachment':   [   0.0,    0.0,    20.0   ],
+                            'limit':        [   0.0,    0.0,    10.0   ],  
+                            'share1':       [   0.0,    0.0,    0.2    ],  
+                            'share2':       [   0.0,    0.0,    1.0    ],  
+                            'share3':       [   0.0,    0.0,    1.0    ]   
+                        }),
+                        fm_programme=pd.DataFrame.from_dict({
+                            'from_agg_id':  [   1,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                            'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                            'to_agg_id':    [   1,  1,  1,  1,  1,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]  
+                        })
+                )
+            ),
+            reinsurance_layer.RiInputs(
+                risk_level='SEL',   
+                inuring_priority=2,
+                ri_inputs=reinsurance_layer.RiLayerInputs(
+                    fm_policytc=pd.DataFrame.from_dict({
+                            'layer_id':     [   1,  1,  1,  1,  1,  1   ],
+                            'level_id':     [   3,  2,  1,  1,  1 , 1   ],
+                            'agg_id':       [   1,  1,  1,  2,  3,  4   ],
+                            'profile_id':   [   3,  2,  2,  2,  2,  2   ]
+                        }),
+                        fm_profile=pd.DataFrame.from_dict({
+                            'profile_id':   [   1,      2,      3      ],
+                            'calcrule_id':  [   14,     12,     24     ],
+                            'deductible1':  [   0.0,    0.0,    0.0    ],
+                            'deductible2':  [   0.0,    0.0,    0.0    ],
+                            'deductible3':  [   0.0,    0.0,    0.0    ],
+                            'attachment':   [   0.0,    0.0,    40.0   ],
+                            'limit':        [   0.0,    0.0,    30.0   ],  
+                            'share1':       [   0.0,    0.0,    0.3    ],  
+                            'share2':       [   0.0,    0.0,    1.0    ],  
+                            'share3':       [   0.0,    0.0,    1.0    ]   
+                        }),
+                        fm_programme=pd.DataFrame.from_dict({
+                            'from_agg_id':  [   1,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
+                            'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                            'to_agg_id':    [   1,  1,  1,  1,  1,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4   ]  
+                        })
+                )
+            )
+        ]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+
+    def test_single_pol_level_fac_with_direct_layers(self):
+        
+        items_df = pd.DataFrame.from_dict({
+            'item_id':          [   1,      2,      3,      4,      5,      6,      7,      8,      9,      10,     11,     12  ],
+            'coverage_id':      [   4,      10,     5,      11,     6,      12,     7,      1,      8,      2,      9,      3   ],
+            'area_peril_id':    [   -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1  ],
+            'vulnerability_id': [   -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1,     -1  ],
+            'group_id':         [   1,      1,      1,      2,      2,      2,      3,      3,      3,      4,      4,      4   ]
+            })
+        
+        coverages_df = pd.DataFrame.from_dict({
+            'coverage_id':   [   1,     2,      3,      4,      5,      6,      7,      8,      9,      10,     11,     12  ],
+            'tiv':          [   1000,   500,    500,    1000,   500,    500,    1000,   500,    500,    1000,   500,    500 ]
+            })
+        
+        xref_descriptions_df = pd.DataFrame.from_dict({
+            'loc_idx':          [   1,      1,      2,      1,      1,      2,      1,      1,      2,      3,     11,      12,     3,      14,     15,     3,      17,     18      ],
+            'agg_id':           [   1,      2,      3,      4,      5,      6,      7,      8,      9,      10,     11,     12,     13,     14,     15,     16,     17,     18      ],
+            'portnumber':       [   '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1'     ],
+            'polnumber':        [   '1',    '2',    '1',    '1',    '2',    '1',    '1',    '2',    '1',    '1',    '1',    '2',    '1',    '1',    '2',    '1',    '1',    '2'     ],
+            'accnumber':        [   '1',    '1',    '2',    '1',    '1',    '2',    '1',    '1',    '2',    '2',    '1',    '1',    '2',    '1',    '1',    '2',    '1',    '1'     ],
+            'locnumber':        [   '2',    '2',    '2',    '2',    '2',    '2',    '2',    '2',    '2',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1'     ],
+            'locgroup':         [   '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     ''      ],
+            'cedantname':       [   '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     ''      ],
+            'producername':     [   '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     ''      ],
+            'lob':              [   '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     ''      ],
+            'countrycode':      [   'US',   'US',   'US',   'US',   'US',   'US',   'US',   'US',   'US',   'US',   'US',   'US',   'US',   'US',   'US',   'US',   'US',   'US'    ],
+            'reinstag':         [   '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     '',     ''      ],
+            'coverage_type_id': [   1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1       ],
+            'peril_id':         [   1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1       ],
+            'tiv':              [   1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1,      1       ]
+        })
+        
+        ri_info_df = pd.DataFrame.from_dict({
+            'ReinsNumber':      [   1       ],
+            'CededPercent':     [   1.0     ],
+            'RiskLimit':        [   10.0    ],
+            'RiskAttachment':   [   0.0     ],
+            'OccLimit':         [   0.0     ],
+            'OccAttachment':    [   0.0     ],
+            'InuringPriority':  [   1       ],
+            'ReinsType':        [   'FAC'    ],
+            'PlacedPercent':    [   1.0     ],
+            'TreatyShare':      [   1.0     ]
+        })        
+        ri_scope_df = pd.DataFrame.from_dict({
+            'ReinsNumber':  [   1,      ],
+            'PortNumber':   [   '1'     ],
+            'AccNumber':    [   '1'     ],
+            'PolNumber':    [   ''      ],
+            'LocGroup':     [   ''      ],
+            'LocNumber':    [   '1'     ],
+            'CedantName':   [   ''      ],
+            'ProducerName': [   ''      ],
+            'LOB':          [   ''      ],
+            'CountryCode':  [   ''      ],
+            'ReinsTag':     [   ''      ],
+            'RiskLevel':    [   'LOC'   ],
+            'CededPercent': [   0.1     ]
+        })
+        
+        ri_inputs = reinsurance_layer._get_ri_inputs(
+            items_df,
+            coverages_df,
+            xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df)
+
+        ri_inputs[0].ri_inputs.fm_policytc.to_csv('/tmp/fm_policytc.csv', index=False)
+        ri_inputs[0].ri_inputs.fm_programme.to_csv('/tmp/fm_programme.csv', index=False)
+        ri_inputs[0].ri_inputs.fm_profile.to_csv('/tmp/fm_profile.csv', index=False)
+
+        expected_ri_inputs = [
+            reinsurance_layer.RiInputs(
+                risk_level='LOC',   
+                inuring_priority=1,
+                ri_inputs=reinsurance_layer.RiLayerInputs(
+                    fm_policytc=pd.DataFrame.from_dict({
+                            'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                            'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1 , 1,  1,  1   ],
+                            'agg_id':       [   1,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6   ],
+                            'profile_id':   [   2,  3,  1,  1,  1,  2,  2,  2,  2,  2,  2   ]
+                        }),
+                        fm_profile=pd.DataFrame.from_dict({
+                            'profile_id':   [   1,      2,      3       ],
+                            'calcrule_id':  [   14,     12,     24      ],
+                            'deductible1':  [   0.0,    0.0,    0.0     ],
+                            'deductible2':  [   0.0,    0.0,    0.0     ],
+                            'deductible3':  [   0.0,    0.0,    0.0     ],
+                            'attachment':   [   0.0,    0.0,    0.0     ],
+                            'limit':        [   0.0,    0.0,    10.0    ],  
+                            'share1':       [   0.0,    0.0,    1.0     ],  
+                            'share2':       [   0.0,    0.0,    1.0     ],  
+                            'share3':       [   0.0,    0.0,    1.0     ]
+                        }),
+                        fm_programme=pd.DataFrame.from_dict({
+                            'from_agg_id':  [   1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  11, 14, 17, 12, 15, 18, 1,  4,  7,  2,  5,  8,  10, 13, 16, 3,  6,  9   ],
+                            'level_id':     [   3,  3,  3,  3,  2,  2,  2,  2,  2,  2,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                            'to_agg_id':    [   1,  1,  1,  1,  1,  1,  2,  2,  3,  4,  1,  1,  1,  2,  2,  2,  3,  3,  3,  4,  4,  4,  5,  5,  5,  6,  6,  6   ]  
+                        })
+                )
+            )
+        ]
+
+        self.assert_ri_inputs_equal(expected_ri_inputs, ri_inputs)
+
+
+    def assert_ri_inputs_equal(self, ri_inputs_1, ri_inputs_2):
+        self.assertEqual(len(ri_inputs_1), len(ri_inputs_2))
+        for i in range(len(ri_inputs_1)):
+            self.assertEqual(ri_inputs_1[i].risk_level, ri_inputs_2[i].risk_level)
+            self.assertEqual(ri_inputs_1[i].inuring_priority, ri_inputs_2[i].inuring_priority)
+            assert_frame_equal(
+                ri_inputs_1[i].ri_inputs.fm_policytc,
+                ri_inputs_2[i].ri_inputs.fm_policytc,
+                check_index_type=False)
+            assert_frame_equal(
+                ri_inputs_1[i].ri_inputs.fm_profile, 
+                ri_inputs_2[i].ri_inputs.fm_profile,
+                check_index_type=False)
+            assert_frame_equal(
+                ri_inputs_1[i].ri_inputs.fm_programme, 
+                ri_inputs_2[i].ri_inputs.fm_programme,
+                check_index_type=False)

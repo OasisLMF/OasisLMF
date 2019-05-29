@@ -1,0 +1,3 @@
+ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsTag,CededPercent,RiskLevel
+12,OEDTest,SS04_05,,,,,,,,,.1000,ACC
+12,OEDTest,SS04_06,,,,,,,,,.2000,ACC

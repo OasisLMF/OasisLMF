@@ -32,7 +32,7 @@ from ..utils.defaults import (
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.path import as_path
-from ..utils.peril import PERILS
+from ..utils.peril import PERILS, PERIL_GROUPS
 from ..utils.status import OASIS_KEYS_STATUS
 from .gul_inputs import get_gul_input_items
 
@@ -575,40 +575,33 @@ def write_exposure_summary(
     except OasisException:   # Empty dataframe (due to empty keys errors file)
         gul_inputs_errors_df = pd.DataFrame(columns=gul_inputs_df.columns.append(pd.Index(['status'])))
 
-    def split_dataframe_list(df, target_column, separator):
-        """
-        Split dataframe with multiple perils into separate rows.
-        """
-        row_accumulator = []
-
-        def split_list_to_rows(row, separator):
-            split_row = row[target_column].split(separator)
-            for s in split_row:
-                new_row = row.to_dict()
-                new_row[target_column] = s
-                row_accumulator.append(new_row)
-        df.apply(split_list_to_rows, axis=1, args=(separator, ))
-        new_df = pd.DataFrame(row_accumulator)
-        return new_df
-
     # Merge GUL input items and source exposure dataframes to leave covered
     # perils
     loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
     loc_per_cov = oed_hierarchy['locperilid']['ProfileElementName'].lower()
     model_peril_ids = gul_inputs_df['peril_id'].unique()
-    exposure_df = split_dataframe_list(exposure_df, 'locperilscovered', ';')
+    exp_perils_df = pd.DataFrame(
+        exposure_df[loc_per_cov].str.split(';').to_list(),
+        index=exposure_df[loc_num]
+    ).stack()
+    exp_perils_df = exp_perils_df.reset_index([0, loc_num])
+    exp_perils_df.columns = [loc_num, 'peril_id']
+    exposure_df = merge_dataframes(
+        exposure_df,
+        exp_perils_df,
+        on=loc_num,
+        how='right'
+    )
     gul_inputs_df = merge_dataframes(
         gul_inputs_df,
         exposure_df,
-        left_on=[loc_num, 'peril_id'],
-        right_on=[loc_num, loc_per_cov],
+        on=[loc_num],
         how='inner'
     )
     gul_inputs_errors_df = merge_dataframes(
         gul_inputs_errors_df,
         exposure_df,
-        left_on=[loc_num, 'peril_id'],
-        right_on=[loc_num, loc_per_cov],
+        on=[loc_num],
         how='inner'
     )
 
@@ -617,9 +610,11 @@ def write_exposure_summary(
     for peril_id in model_peril_ids:
         # Use descriptive names of perils as keys
         try:
+            PERILS.update(PERIL_GROUPS)
             peril_key = [k for k, v in PERILS.items() if v['id'] == peril_id][0]
         except IndexError:
             warnings.warn('"{}" is not a valid OED peril ID/code. Please check the source exposure file.'.format(peril_id))
+            return None
         exposure_summary[peril_key] = {}
         # Create dictionary structure for all and each validity status
         for status in ['all'] + list(OASIS_KEYS_STATUS.keys()):

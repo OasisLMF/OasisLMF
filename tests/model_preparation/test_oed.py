@@ -19,7 +19,9 @@ class TestReinsurance(unittest.TestCase):
             ri_info_df,
             ri_scope_df,
             do_reinsurance
-        ) = oed.load_oed_dfs(case_dir)
+        ) = oed.load_oed_dfs(
+            os.path.join(case_dir, 'ri_info.csv'),
+            os.path.join(case_dir, 'ri_scope.csv'))
 
         self.assertFalse(do_reinsurance)
 
@@ -31,6 +33,8 @@ class TestReinsurance(unittest.TestCase):
             ri_info_df,
             ri_scope_df,
             do_reinsurance
-        ) = oed.load_oed_dfs(case_dir)
+        ) = oed.load_oed_dfs(
+            os.path.join(case_dir, 'ri_info.csv'),
+            os.path.join(case_dir, 'ri_scope.csv'))
 
         self.assertTrue(do_reinsurance)
