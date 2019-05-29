@@ -576,14 +576,23 @@ def write_exposure_summary(
     except OasisException:   # Empty dataframe (due to empty keys errors file)
         gul_inputs_errors_df = pd.DataFrame(columns=gul_inputs_df.columns.append(pd.Index(['status'])))
 
+    # Dictionary to map perils with peril groups
+    peril_groups = {v['id']: v['peril_ids'] for k, v in PERIL_GROUPS.items()}
+
     # Merge GUL input items and source exposure dataframes to leave covered
     # perils
     loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
     loc_per_cov = oed_hierarchy['locperilid']['ProfileElementName'].lower()
     model_peril_ids = gul_inputs_df['peril_id'].unique()
+    # Split rows with multiple peril codes
     exp_perils_df = pd.DataFrame(
         exposure_df[loc_per_cov].str.split(';').to_list(),
         index=exposure_df[loc_num]
+    ).stack()
+    # Split rows with peril codes corresponding to peril groups
+    exp_perils_df = pd.DataFrame(
+        exp_perils_df.map(peril_groups).to_list(),
+        index=exp_perils_df.index
     ).stack()
     exp_perils_df = exp_perils_df.reset_index([0, loc_num])
     exp_perils_df.columns = [loc_num, 'peril_id']
