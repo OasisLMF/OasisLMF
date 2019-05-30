@@ -622,7 +622,6 @@ def write_exposure_summary(
     for peril_id in model_peril_ids:
         # Use descriptive names of perils as keys
         try:
-            PERILS.update(PERIL_GROUPS)
             peril_key = [k for k, v in PERILS.items() if v['id'] == peril_id][0]
         except IndexError:
             warnings.warn('"{}" is not a valid OED peril ID/code. Please check the source exposure file.'.format(peril_id))
