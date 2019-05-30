@@ -334,33 +334,6 @@ def write_complex_items_file(gul_inputs_df, complex_items_fp, chunksize=100000):
         raise OasisException from e
 
 
-def get_items_df(gul_inputs_df):
-    """
-    Gets the items dataframe from the GUL inputs dataframe.
-
-    :param gul_inputs_df: GUL inputs dataframe
-    :type gul_inputs_df: pandas.DataFrame
-
-    :return: Items data frame
-    :rtype: pandas.DataFrame
-    """
-    return gul_inputs_df.loc[
-        :, ['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id']].drop_duplicates()
-
-
-def get_coverages_df(gul_inputs_df):
-    """
-    Gets the coverages dataframe from the GUL inputs dataframe.
-
-    :param gul_inputs_df: GUL inputs dataframe
-    :type gul_inputs_df: pandas.DataFrame
-
-    :return: Coverages data frame
-    :rtype: pandas.DataFrame
-    """
-    return gul_inputs_df.loc[:, ['coverage_id', 'tiv']].drop_duplicates()
-
-
 @oasis_log
 def write_items_file(gul_inputs_df, items_fp, chunksize=100000):
     """
@@ -376,7 +349,7 @@ def write_items_file(gul_inputs_df, items_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        get_items_df(gul_inputs_df).to_csv(
+        gul_inputs_df.loc[:, ['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id']].drop_duplicates().to_csv(
             path_or_buf=items_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(items_fp) else 'a'),
@@ -404,7 +377,7 @@ def write_coverages_file(gul_inputs_df, coverages_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        get_coverages_df(gul_inputs_df).to_csv(
+        gul_inputs_df.loc[:, ['coverage_id', 'tiv']].drop_duplicates().to_csv(
             path_or_buf=coverages_fp,
             encoding='utf-8',
             mode=('w' if os.path.exists(coverages_fp) else 'a'),

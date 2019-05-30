@@ -88,8 +88,8 @@ def get_layer_ids(accounts_df, accounts_profile=get_default_accounts_profile()):
     policy_nums = _accounts_df[policy_num].values
 
     return np.hstack((
-        factorize_ndarray(np.asarray(list(accnum_group)), col_idxs=range(3))[0]
-        for _, accnum_group in groupby(fast_zip_arrays(portfolio_nums, acc_nums, policy_nums), key=lambda t: t[0])
+        factorize_ndarray(np.asarray(list(accnum_group)), col_idxs=range(1, 3))[0]
+        for _, accnum_group in groupby(fast_zip_arrays(portfolio_nums, acc_nums, policy_nums), key=lambda t: (t[0], t[1]))
     ))
 
 

@@ -78,8 +78,7 @@ def _get_ri_inputs(
 
 @oasis_log
 def write_files_for_reinsurance(
-        items_df,
-        coverages_df,
+        gul_inputs_df,
         xref_descriptions_df,
         ri_info_df,
         ri_scope_df,
@@ -90,6 +89,8 @@ def write_files_for_reinsurance(
     """
     inuring_metadata = {}
 
+    items_df = gul_inputs_df.loc[:, ['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id']].drop_duplicates()
+    coverages_df = gul_inputs_df.loc[:, ['coverage_id', 'tiv']].drop_duplicates()
     ri_inputs = _get_ri_inputs(
         items_df,
         coverages_df,
