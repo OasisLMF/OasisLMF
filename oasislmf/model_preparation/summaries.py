@@ -577,6 +577,8 @@ def write_exposure_summary(
 
     # Dictionary to map perils with peril groups
     peril_groups = {v['id']: v['peril_ids'] for k, v in PERIL_GROUPS.items()}
+    peril_ids = {v['id']: [v['id']] for k, v in PERILS.items()}
+    peril_groups.update(peril_ids)
 
     # Merge GUL input items and source exposure dataframes to leave covered
     # perils
