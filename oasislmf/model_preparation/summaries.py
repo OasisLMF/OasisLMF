@@ -154,9 +154,10 @@ def group_by_oed(summary_map_df, exposure_df, oed_col_group):
     :return: subset of columns from exposure_df to merge
     :rtype: list
     """
-
-    exposure_cols = [c.lower() for c in oed_col_group if c not in summary_map_df.columns]
-    mapping_cols = [SOURCE_IDX['loc']] + [c.lower() for c in oed_col_group if c in summary_map_df.columns]
+    
+    oed_cols = [c.lower() for c in oed_col_group] 
+    exposure_cols = [c for c in oed_cols if c not in summary_map_df.columns]
+    mapping_cols = [SOURCE_IDX['loc']] + [c for c in oed_cols if c in summary_map_df.columns]
 
     summary_group_df = summary_map_df.loc[:, mapping_cols]
     if exposure_cols is not []:
@@ -165,7 +166,7 @@ def group_by_oed(summary_map_df, exposure_df, oed_col_group):
         summary_group_df = merge_dataframes(summary_group_df, exposure_df, join_on=SOURCE_IDX['loc'], how='inner')
 
     summary_group_df.fillna(0, inplace=True)  # factorize with all values NaN, leads to summary_id == 0
-    summary_ids = factorize_dataframe(summary_group_df, by_col_labels=oed_col_group)[0]
+    summary_ids = factorize_dataframe(summary_group_df, by_col_labels=oed_cols)[0]
 
     return summary_ids
 
