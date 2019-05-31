@@ -1,2 +1,2 @@
 ReinsNumber,ReinsPeril,ReinsCurrency,CededPercent,RiskLimit,RiskAttachment,OccLimit,OccAttachment,PlacedPercent,InuringPriority,ReinsType,ReinsName
-148,OO1,CAD,1.0000,1000000.00,1000000.00,.00,.00,.2000,1,FAC,T44 FA Acc
+149,OO1,CAD,1,1000000,1000000,0,0,0.2,1,FAC,T45 FA Acc
