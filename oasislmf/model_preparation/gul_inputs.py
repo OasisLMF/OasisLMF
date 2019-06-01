@@ -25,7 +25,7 @@ from ..utils.concurrency import (
 )
 from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
 from ..utils.data import (
-    factorize_array,
+    factorize_ndarray,
     get_dataframe,
     merge_dataframes,
     set_dataframe_column_dtypes,
@@ -254,7 +254,7 @@ def get_gul_input_items(
             cov_type_group.loc[:, ['tiv'] + cov_type_terms] = cov_type_group.loc[:, [tiv_col] + cov_type_term_cols].values
             cov_type_group = cov_type_group[(cov_type_group[['tiv']] != 0).any(axis=1)]
             if cov_type_group.empty:
-                cov_type_group[terms] = 0.0
+                cov_type_group.loc[:, terms] = 0.0
             other_cov_types = [v['id'] for v in SUPPORTED_COVERAGE_TYPES.values() if v['id'] != cov_type]
             other_cov_type_term_cols = (
                 [v for k, v in tiv_terms.items() if k != cov_type] +
@@ -270,7 +270,7 @@ def get_gul_input_items(
         gul_inputs_df.drop(tiv_cols + term_cols, axis=1, inplace=True)
 
         # Set the group ID - group by loc. number
-        gul_inputs_df['group_id'] = factorize_array(gul_inputs_df[loc_num].values)[0]
+        gul_inputs_df['group_id'] = factorize_ndarray(gul_inputs_df.loc[:, [portfolio_num, acc_num, loc_num]].values, col_idxs=range(3))[0]
         gul_inputs_df['group_id'] = gul_inputs_df['group_id'].astype('uint32')
 
         # Set the item IDs and coverage IDs, and defaults and data types for
