@@ -241,7 +241,7 @@ def get_column_selection(summary_set):
 
     # Use OED column list set in analysis_settings file
     elif isinstance(summary_set['oed_fields'], list) and len(summary_set['oed_fields']) > 0:
-        return summary_set['oed_fields']
+        return [c.lower() for c in summary_set['oed_fields']]
     else:
         raise OasisException('Unable to process settings file')
 
@@ -422,6 +422,7 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
     exposure_df = get_dataframe(
         src_fp=exposure_fp,
         empty_data_error_msg='No source exposure file found.')
+    exposure_df[SOURCE_IDX['loc']] = exposure_df.index
 
     if gul_summaries:
         # Load GUL summary map
