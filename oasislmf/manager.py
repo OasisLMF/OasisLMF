@@ -57,9 +57,9 @@ from .model_preparation.summaries import (
     write_exposure_summary,
 )
 from .model_preparation.lookup import OasisLookupFactory as olf
+from .model_preparation.oed import load_oed_dfs
 from .model_preparation.utils import prepare_input_files_directory
-from .model_preparation.reinsurance_layer import write_ri_input_files
-from .utils.coverages import SUPPORTED_COVERAGE_TYPES
+from .model_preparation.reinsurance_layer import write_files_for_reinsurance
 from .utils.data import (
     fast_zip_dataframe_columns,
     get_dataframe,
@@ -88,7 +88,7 @@ from .utils.path import (
     empty_dir,
     setcwd,
 )
-
+from .utils.coverages import SUPPORTED_COVERAGE_TYPES
 
 class OasisManager(object):
 
@@ -478,25 +478,22 @@ class OasisManager(object):
         # file, which can be reused by the model runner (in the model execution
         # stage) to set the number of RI iterations
 
-        # TODO: pass 'fm_summary_mapping` inplace of `xref_descriptions`
-        # Example Merge in col from exposure
-
-        xref_des = merge_oed_to_mapping(fm_summary_mapping,
+        xref_descriptions_df = merge_oed_to_mapping(fm_summary_mapping,
                                         exposure_df,
                                         oed_column_set=[loc_grp],
                                         defaults={loc_grp: 1})
 
-        ri_layers = write_ri_input_files(
-            xref_des,
-            exposure_fp,
-            accounts_fp,
-            oasis_files['items'],
-            oasis_files['coverages'],
+        
+        ri_info_df, ri_scope_df, _ = load_oed_dfs(ri_info_fp, ri_scope_fp)
+        ri_layers = write_files_for_reinsurance(
+            gul_inputs_df,
+            xref_descriptions_df,
+            ri_info_df,
+            ri_scope_df,
             oasis_files['fm_xref'],
-            ri_info_fp,
-            ri_scope_fp,
-            target_dir
-        )
+            target_dir)
+
+
         with io.open(os.path.join(target_dir, 'ri_layers.json'), 'w', encoding='utf-8') as f:
             f.write(json.dumps(ri_layers, ensure_ascii=False, indent=4))
             oasis_files['ri_layers'] = os.path.abspath(f.name)
@@ -686,9 +683,9 @@ class OasisManager(object):
                     raise OasisException('Error trying to read the RI layers file: {}'.format(e))
                 else:
                     def run_ri_layer(layer):
-                        layer_inputs_fp = os.path.join(input_dir, 'RI_{}'.format(layer))
+                        layer_inputs_fp = os.path.join(output_dir, 'RI_{}'.format(layer))
                         _input = 'gultobin -S 1 < {} | fmcalc -p {} -a {} | tee ils.bin |'.format(
-                            guls_fp, input_dir, alloc_rule
+                            guls_fp, output_dir, alloc_rule
                         ) if layer == 1 else ''
                         pipe_in_previous_layer = '< ri{}.bin'.format(layer - 1) if layer > 1 else ''
                         ri_layer_fp = os.path.join(output_dir, 'ri{}.csv'.format(layer))

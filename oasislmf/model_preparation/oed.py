@@ -163,54 +163,48 @@ class OedValidator(object):
         return (not error_list, error_list)
 
 
-def load_oed_dfs(oed_dir, show_all=False):
+def load_oed_dfs(oed_ri_info_file, oed_ri_scope_file, show_all=False):
     """
     Load OED data files.
     """
     do_reinsurance = True
-    if oed_dir is not None:
-        if not os.path.exists(oed_dir):
-            raise OasisException("OED directory does not exist: {}".format(oed_dir))
 
-        # RI files
-        oed_ri_info_file = os.path.join(oed_dir, "ri_info.csv")
-        oed_ri_scope_file = os.path.join(oed_dir, "ri_scope.csv")
-        oed_ri_info_file_exists = os.path.exists(oed_ri_info_file)
-        oed_ri_scope_file_exists = os.path.exists(oed_ri_scope_file)
+    oed_ri_info_file_exists = os.path.exists(oed_ri_info_file)
+    oed_ri_scope_file_exists = os.path.exists(oed_ri_scope_file)
 
-        if not oed_ri_info_file_exists and not oed_ri_scope_file_exists:
-            ri_info_df = None
-            ri_scope_df = None
-            do_reinsurance = False
-        elif oed_ri_info_file_exists and oed_ri_scope_file_exists:
-            ri_info_df = get_dataframe(
-                oed_ri_info_file, lowercase_cols=False,
-                required_cols=RI_INFO_REQUIRED_COLS,
-                col_defaults=RI_INFO_DEFAULTS,
-                col_dtypes=RI_INFO_DTYPES)
-            ri_scope_df = get_dataframe(
-                oed_ri_scope_file, lowercase_cols=False,
-                required_cols=RI_SCOPE_REQUIRED_COLS,
-                col_defaults=RI_SCOPE_DEFAULTS,
-                col_dtypes=RI_SCOPE_DTYPES)
+    if not oed_ri_info_file_exists and not oed_ri_scope_file_exists:
+        ri_info_df = None
+        ri_scope_df = None
+        do_reinsurance = False
+    elif oed_ri_info_file_exists and oed_ri_scope_file_exists:
+        ri_info_df = get_dataframe(
+            oed_ri_info_file, lowercase_cols=False, 
+            required_cols=RI_INFO_REQUIRED_COLS,
+            col_defaults=RI_INFO_DEFAULTS,
+            col_dtypes=RI_INFO_DTYPES)
+        ri_scope_df = get_dataframe(
+            oed_ri_scope_file, lowercase_cols=False,
+            required_cols=RI_SCOPE_REQUIRED_COLS,
+            col_defaults=RI_SCOPE_DEFAULTS,
+            col_dtypes=RI_SCOPE_DTYPES)
 
-            # Treat empty Risk Level as portfolio level scope.
-            # Also need nan, as this is produced when
-            # a single row with empty Risk Level is loaded.
-            ri_scope_df.RiskLevel.fillna(REINS_RISK_LEVEL_PORTFOLIO, inplace=True)
-        else:
-            print("Both reinsurance files must exist: {} {}".format(
-                oed_ri_info_file, oed_ri_scope_file))
+        # Treat empty Risk Level as portfolio level scope.
+        # Also need nan, as this is produced when 
+        # a single row with empty Risk Level is loaded.
+        ri_scope_df.RiskLevel.fillna(REINS_RISK_LEVEL_PORTFOLIO, inplace = True)
+    else:
+        print("Both reinsurance files must exist: {} {}".format(
+            oed_ri_info_file, oed_ri_scope_file))
 
-        if do_reinsurance:
-            ri_info_df = ri_info_df[OED_REINS_INFO_FIELDS].copy()
-            ri_scope_df = ri_scope_df[OED_REINS_SCOPE_FIELDS].copy()
+    if do_reinsurance:
+        ri_info_df = ri_info_df[OED_REINS_INFO_FIELDS].copy()
+        ri_scope_df = ri_scope_df[OED_REINS_SCOPE_FIELDS].copy()
 
-            # Ensure Percent feilds are float
-            info_float_cols = ['CededPercent', 'PlacedPercent', 'TreatyShare']
-            scope_float_cols = ['CededPercent']
-            ri_info_df[info_float_cols] = ri_info_df[info_float_cols].astype(float)
-            ri_scope_df[scope_float_cols] = ri_scope_df[scope_float_cols].astype(float)
+        # Ensure Percent feilds are float
+        info_float_cols = ['CededPercent', 'PlacedPercent', 'TreatyShare']
+        scope_float_cols = ['CededPercent']
+        ri_info_df[info_float_cols] = ri_info_df[info_float_cols].astype(float)
+        ri_scope_df[scope_float_cols] = ri_scope_df[scope_float_cols].astype(float)
 
     return (ri_info_df, ri_scope_df, do_reinsurance)
 
@@ -501,14 +495,14 @@ def get_no_loss_profile(profile_id):
     return FmProfile(
         profile_id=profile_id,
         calcrule_id=CALCRULE_ID_LIMIT_ONLY,
-        deductible1=0,  # Not used
-        deductible2=0,  # Not used
-        deductible3=0,  # Not used
-        attachment=0,   # Not used
-        limit=0,
-        share1=0,       # Not used
-        share2=0,       # Not used
-        share3=0        # Not used
+        deductible1=0.0,  # Not used
+        deductible2=0.0,  # Not used
+        deductible3=0.0,  # Not used
+        attachment=0.0,   # Not used
+        limit=0.0,
+        share1=0.0,       # Not used
+        share2=0.0,       # Not used
+        share3=0.0        # Not used
     )
 
 
@@ -516,14 +510,14 @@ def get_pass_through_profile(profile_id):
     return FmProfile(
         profile_id=profile_id,
         calcrule_id=CALCRULE_ID_DEDUCTIBLE_ONLY,
-        deductible1=0,
-        deductible2=0,  # Not used
-        deductible3=0,  # Not used
-        attachment=0,   # Not used
-        limit=0,        # Not used
-        share1=0,       # Not used
-        share2=0,       # Not used
-        share3=0        # Not used
+        deductible1=0.0,
+        deductible2=0.0,  # Not used
+        deductible3=0.0,  # Not used
+        attachment=0.0,   # Not used
+        limit=0.0,        # Not used
+        share1=0.0,       # Not used
+        share2=0.0,       # Not used
+        share3=0.0        # Not used
     )
 
 
@@ -542,13 +536,13 @@ def get_profile(
         profile_id=profile_id,
         calcrule_id=CALCRULE_ID_DEDUCTIBLE_ATTACHMENT_LIMIT_AND_SHARE,
         deductible1=deductible,
-        deductible2=0,  # Not used
-        deductible3=0,  # Not used
+        deductible2=0.0,  # Not used
+        deductible3=0.0,  # Not used
         attachment=attachment,
         limit=limit,
         share1=share,
-        share2=0,       # Not used
-        share3=0        # Not used
+        share2=0.0,       # Not used
+        share3=0.0        # Not used
     )
 
 
@@ -562,14 +556,14 @@ def _value_is_empty(value):
 
 def get_reinsurance_profile(
     profile_id,
-    attachment=0,
-    limit=0,
+    attachment=0.0,
+    limit=0.0,
     ceded=1.0,
     placement=1.0
 ):
 
     if _value_is_empty(attachment):
-        attachment = 0
+        attachment = 0.0
     if _value_is_empty(limit) or limit == 0:
         limit = LARGE_VALUE
     if _value_is_empty(ceded):
@@ -580,9 +574,9 @@ def get_reinsurance_profile(
     return FmProfile(
         profile_id=profile_id,
         calcrule_id=CALCRULE_ID_OCCURRENCE_CATASTROPHE_EXCESS_OF_LOSS,
-        deductible1=0,          # Not used
-        deductible2=0,          # Not used
-        deductible3=0,          # Not used
+        deductible1=0.0,          # Not used
+        deductible2=0.0,          # Not used
+        deductible3=0.0,          # Not used
         attachment=attachment,
         limit=limit,
         share1=ceded,
@@ -593,8 +587,8 @@ def get_reinsurance_profile(
 
 def get_occlim_profile(
     profile_id,
-    attachment=0,
-    limit=0,
+    attachment=0.0,
+    limit=0.0,
     ceded=1.0,
     placement=1.0
 ):

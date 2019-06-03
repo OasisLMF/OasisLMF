@@ -4,15 +4,16 @@ __all__ = [
 ]
 
 import os
+import pandas as pd
 
 from argparse import RawDescriptionHelpFormatter
 from filecmp import cmp as compare_files
 from itertools import chain
-
 from pathlib2 import Path
 
 from ..manager import OasisManager as om
 from ..utils.data import (
+    get_dataframe,
     print_dataframe,
 )
 from ..utils.defaults import (
@@ -21,9 +22,8 @@ from ..utils.defaults import (
 )
 from ..utils.diff import column_diff
 from ..utils.exceptions import OasisException
-from ..utils.path import (
-    as_path,
-)
+from ..utils.path import as_path
+from ..utils.profiles import get_oed_hierarchy
 from .base import (
     InputValues,
     OasisBaseCommand,
@@ -65,14 +65,15 @@ class RunCmd(OasisBaseCommand):
             help='Loss factor to apply to TIVs - default is 1.0.'
         )
         parser.add_argument(
-            '-n', '--net-ri-losses', default=False, help='Apply net RI losses - default is False', action='store_true'
-        )
-        parser.add_argument(
             '-a', '--alloc-rule', type=int, default=KTOOLS_ALLOC_RULE, help='Ktools back allocation rule to apply - default is 2, i.e. prior level loss basis'
         )
         parser.add_argument(
             '-v', '--validate', default=False, help='Validate input files and loss tables - default is False', action='store_true'
         )
+        parser.add_argument(
+            '-o', '--output-level', default='item', help='Level to output losses', type=str
+        )
+
 
     def action(self, args):
         """
@@ -98,11 +99,18 @@ class RunCmd(OasisBaseCommand):
 
         loss_factor = inputs.get('loss_factor', default=1.0, required=False)
 
-        net_ri = inputs.get('net_ri_losses', default=False, required=False)
+        net_ri = True
 
         alloc_rule = inputs.get('alloc_rule', default=KTOOLS_ALLOC_RULE, required=False)
 
         validate = inputs.get('validate', default=False, required=False)
+
+        # item, loc, pol, acc, port
+        output_level = inputs.get('output_level', default="item", required=False)
+        if output_level not in ['port', 'acc', 'loc', 'pol', 'item']:
+            raise OasisException(
+                'Invalid output level. Must be one of port, acc, loc, pol or item.'
+            )
 
         src_contents = [fn.lower() for fn in os.listdir(src_dir)]
 
@@ -113,42 +121,91 @@ class RunCmd(OasisBaseCommand):
             )
 
         il = ril = False
-        try:
-            assert('account.csv' in src_contents)
-        except AssertionError:
-            pass
-        else:
-            il = True
-            try:
-                assert([fn for fn in src_contents if fn == 'ri_info.csv'])
-            except AssertionError:
-                pass
-            else:
-                try:
-                    assert([fn for fn in src_contents if fn == 'ri_scope.csv'])
-                except AssertionError:
-                    pass
-                else:
-                    ril = True
-
+        il = ('account.csv' in src_contents)
+        ril = il and ('ri_info.csv' in src_contents) and ('ri_scope.csv' in src_contents)
+        
         self.logger.info('\nRunning deterministic losses (GUL=True, IL={}, RIL={})\n'.format(il, ril))
-        guls, ils, rils = om().run_deterministic(
+        guls_df, ils_df, rils_df = om().run_deterministic(
             src_dir,
             run_dir=run_dir,
             loss_percentage_of_tiv=loss_factor,
             net_ri=net_ri,
             alloc_rule=alloc_rule
         )
-        guls.to_csv(path_or_buf=os.path.join(run_dir, 'guls.csv'), index=False, encoding='utf-8')
-        print_dataframe(guls, frame_header='Ground-up losses (loss_factor={})'.format(loss_factor), string_cols=guls.columns)
+
+        # Read in the summary map
+        summaries_df = get_dataframe(src_fp=os.path.join(run_dir, 'fm_summary_map.csv'))
+
+        guls_df.to_csv(path_or_buf=os.path.join(run_dir, 'guls.csv'), index=False, encoding='utf-8')
+        guls_df.rename(columns={'loss': 'loss_gul'}, inplace=True) 
+        all_losses_df = guls_df
 
         if il:
-            ils.to_csv(path_or_buf=os.path.join(run_dir, 'ils.csv'), index=False, encoding='utf-8')
-            print_dataframe(ils, frame_header='Direct insured losses (loss_factor={})'.format(loss_factor), string_cols=ils.columns)
-
+            ils_df.to_csv(path_or_buf=os.path.join(run_dir, 'ils.csv'), index=False, encoding='utf-8')
+            ils_df.rename(columns={'loss': 'loss_il'}, inplace=True) 
+            all_losses_df = all_losses_df.merge(
+                right=ils_df,
+                left_on=["event_id", "item_id"],
+                right_on=["event_id", "output_id"],
+                suffixes=["_gul", "_il"]
+            )
         if ril:
-            rils.to_csv(path_or_buf=os.path.join(run_dir, 'rils.csv'), index=False, encoding='utf-8')
-            print_dataframe(rils, frame_header='Reinsurance losses  (loss_factor={}; net={})'.format(loss_factor, net_ri), string_cols=rils.columns)
+            rils_df.to_csv(path_or_buf=os.path.join(run_dir, 'rils.csv'), index=False, encoding='utf-8')
+            rils_df.rename(columns={'loss': 'loss_ri'}, inplace=True) 
+            all_losses_df = all_losses_df.merge(
+                right=rils_df,
+                on=["event_id", "output_id"]
+            )
+
+        all_losses_df = all_losses_df.merge(
+                right=summaries_df,
+                left_on=["output_id"],
+                right_on=["output_id"]
+            )
+
+        total_gul = guls_df.loss_gul.sum()
+
+        oed_hierarchy = get_oed_hierarchy()
+        portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
+        acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
+        loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
+        policy_num = oed_hierarchy['polnum']['ProfileElementName'].lower()
+
+        if output_level == 'port':
+            summary_cols = [portfolio_num]
+        elif output_level == 'acc':
+            summary_cols = [portfolio_num, acc_num]
+        elif output_level == 'pol':
+            summary_cols = [portfolio_num, acc_num, policy_num]
+        elif output_level == 'loc':
+            summary_cols = [portfolio_num, acc_num, loc_num]
+        elif output_level == 'item':
+            summary_cols = ['output_id', portfolio_num, acc_num, loc_num, policy_num, 'coverage_type_id']
+
+        if not il and not ril:
+            all_losses_df = all_losses_df[summary_cols + ['loss_gul']]
+            header='Losses (loss factor={}; total gul={:,.00f})'.format(loss_factor, total_gul)
+        elif not ril:
+            total_il = ils_df.loss_il.sum()
+            all_losses_df = all_losses_df[summary_cols + ['loss_gul', 'loss_il']]
+            summary_gul_df = pd.DataFrame({'loss_gul' : all_losses_df.groupby(summary_cols)['loss_gul'].sum()}).reset_index()
+            summary_il_df = pd.DataFrame({'loss_il' : all_losses_df.groupby(summary_cols)['loss_il'].sum()}).reset_index()
+            all_losses_df = summary_gul_df.merge(right=summary_il_df, on=summary_cols)
+            header='Losses (loss factor={}; total gul={:,.00f}; total il={:,.00f})'.format(
+                    loss_factor, total_gul, total_il) 
+        else:
+            total_il = ils_df.loss_il.sum()
+            total_ri_net = rils_df.loss_ri.sum()
+            total_ri_ceded = total_il - total_ri_net 
+            all_losses_df = all_losses_df[summary_cols + ['loss_gul', 'loss_il', 'loss_ri']]
+            summary_gul_df = pd.DataFrame({'loss_gul' : all_losses_df.groupby(summary_cols)['loss_gul'].sum()}).reset_index()
+            summary_il_df = pd.DataFrame({'loss_il' : all_losses_df.groupby(summary_cols)['loss_il'].sum()}).reset_index()
+            summary_ri_df = pd.DataFrame({'loss_ri' : all_losses_df.groupby(summary_cols)['loss_ri'].sum()}).reset_index()
+            all_losses_df = summary_gul_df.merge(right=summary_il_df, on=summary_cols).merge(right=summary_ri_df, on=summary_cols)
+            header = 'Losses (loss factor={}; total gul={:,.00f}; total il={:,.00f}; total ri ceded={:,.00f})'.format(
+                loss_factor, total_gul, total_il, total_ri_ceded)
+
+        print_dataframe(all_losses_df, frame_header=header, string_cols=all_losses_df.columns)
 
         # Do not validate if the loss factor < 1 - this is because the
         # expected data files for validation are based on a loss factor

@@ -26,6 +26,13 @@ InuringLayer = namedtuple(
     "InuringLayer",
     "inuring_priority reins_numbers is_valid validation_messages")
 
+RiInputs = namedtuple(
+    'RiInputs', 
+    'inuring_priority risk_level ri_inputs')
+
+RiLayerInputs = namedtuple(
+    'RiLayerInputs', 
+    'fm_programme fm_profile fm_policytc')
 
 def _get_location_tiv(location, coverage_type_id):
     switcher = {
@@ -37,70 +44,14 @@ def _get_location_tiv(location, coverage_type_id):
     return switcher.get(coverage_type_id, 0)
 
 
-# Remove and replace with mapping from summaries.py
-def generate_xref_descriptions(accounts_fp, locations_fp):
-
-    accounts = pd.read_csv(accounts_fp)
-    locations = pd.read_csv(locations_fp)
-    coverage_id = 0
-    item_id = 0
-    group_id = 0
-    policy_agg_id = 0
-    profile_id = 0
-
-    site_agg_id = 0
-
-    accounts_and_locations = pd.merge(accounts, locations, left_on='AccNumber', right_on='AccNumber')
-
-    for acc_and_loc, coverage_type, peril in product((acc for _, acc in accounts_and_locations.iterrows()), oed.COVERAGE_TYPES, oed.PERILS):
-
-        tiv = _get_location_tiv(acc_and_loc, coverage_type)
-
-        if tiv > 0:
-            policy_agg_id += 1
-            profile_id += 1
-            group_id += 1
-            site_agg_id += 1
-            profile_id += 1
-
-            coverage_id += 1
-            item_id += 1
-
-            yield oed.XrefDescription(
-                xref_id=item_id,
-                account_number=acc_and_loc.get('AccNumber'),
-                location_number=acc_and_loc.get('LocNumber'),
-                location_group=acc_and_loc.get('LocGroup'),
-                cedant_name=acc_and_loc.get('CedantName'),
-                producer_name=acc_and_loc.get('ProducerName'),
-                lob=acc_and_loc.get('LOB'),
-                country_code=acc_and_loc.get('CountryCode'),
-                reins_tag=acc_and_loc.get('ReinsTag'),
-                coverage_type_id=coverage_type,
-                peril_id=peril,
-                policy_number=acc_and_loc.get('PolNumber'),
-                portfolio_number=acc_and_loc.get('PortNumber'),
-                tiv=tiv
-            )
-
-
-@oasis_log
-def generate_files_for_reinsurance(
-        items,
-        coverages,
-        fm_xrefs,
-        xref_descriptions,
+def _get_ri_inputs(
+        items_df,
+        coverages_df,
+        xref_descriptions_df,
         ri_info_df,
-        ri_scope_df,
-        direct_oasis_files_dir):
+        ri_scope_df):
 
-    """
-    Generate files for reinsurance.
-    """
-    inuring_metadata = {}
-    previous_inuring_priority = None
-    previous_risk_level = None
-    reinsurance_index = 1
+    ri_inputs = []
     for inuring_priority in range(1, ri_info_df['InuringPriority'].max() + 1):
         # Filter the reinsNumbers by inuring_priority
         reins_numbers = ri_info_df[ri_info_df['InuringPriority'] == inuring_priority].ReinsNumber.tolist()
@@ -110,45 +61,80 @@ def generate_files_for_reinsurance(
             if risk_level not in risk_level_set:
                 continue
 
-            written_to_dir = _generate_files_for_reinsurance_risk_level(
-                inuring_priority,
-                items,
-                coverages,
-                fm_xrefs,
-                xref_descriptions,
-                ri_info_df,
-                ri_scope_df,
-                previous_inuring_priority,
-                previous_risk_level,
-                risk_level,
-                reinsurance_index,
-                direct_oasis_files_dir)
+            ri_inputs.append(
+                RiInputs(
+                    inuring_priority=inuring_priority,
+                    risk_level=risk_level, 
+                    ri_inputs=_generate_inputs_for_reinsurance_risk_level(
+                        inuring_priority,
+                        items_df,
+                        coverages_df,
+                        xref_descriptions_df,
+                        ri_info_df,
+                        ri_scope_df,
+                        risk_level)))
+    return ri_inputs
 
-            inuring_metadata[reinsurance_index] = {
-                'inuring_priority': inuring_priority,
-                'risk_level': risk_level,
-                'directory': written_to_dir,
-            }
-            previous_inuring_priority = inuring_priority
-            previous_risk_level = risk_level
-            reinsurance_index = reinsurance_index + 1
+
+@oasis_log
+def write_files_for_reinsurance(
+        gul_inputs_df,
+        xref_descriptions_df,
+        ri_info_df,
+        ri_scope_df,
+        fm_xref_fp,
+        output_dir):
+    """
+    Generate files for reinsurance.
+    """
+    inuring_metadata = {}
+
+    items_df = gul_inputs_df.loc[:, ['item_id', 'coverage_id', 'areaperil_id', 'vulnerability_id', 'group_id']].drop_duplicates()
+    coverages_df = gul_inputs_df.loc[:, ['coverage_id', 'tiv']].drop_duplicates()
+    ri_inputs = _get_ri_inputs(
+        items_df,
+        coverages_df,
+        xref_descriptions_df,
+        ri_info_df,
+        ri_scope_df)
+
+    reinsurance_index = 1
+
+    for ri_input in ri_inputs:
+
+        ri_output_dir = os.path.join(output_dir, "RI_{}".format(reinsurance_index))
+        if os.path.exists(ri_output_dir):
+            shutil.rmtree(ri_output_dir)
+        os.makedirs(ri_output_dir)
+
+        ri_input.ri_inputs.fm_programme.to_csv(
+            os.path.join(ri_output_dir, "fm_programme.csv"), index=False)
+        ri_input.ri_inputs.fm_profile.to_csv(
+            os.path.join(ri_output_dir, "fm_profile.csv"), index=False)
+        ri_input.ri_inputs.fm_policytc.to_csv(
+            os.path.join(ri_output_dir, "fm_policytc.csv"), index=False)
+        shutil.copyfile(
+            fm_xref_fp, 
+            os.path.join(ri_output_dir, "fm_xref.csv"))
+
+        inuring_metadata[reinsurance_index] = {
+            'inuring_priority': ri_input.inuring_priority,
+            'risk_level': ri_input.risk_level,
+            'directory': ri_output_dir
+        }
+
+        reinsurance_index = reinsurance_index + 1
 
     return inuring_metadata
 
-
-def _generate_files_for_reinsurance_risk_level(
+def _generate_inputs_for_reinsurance_risk_level(
         inuring_priority,
-        items,
-        coverages,
-        fm_xrefs,
-        xref_descriptions,
+        items_df,
+        coverages_df,
+        xref_descriptions_df,
         ri_info_df,
         ri_scope_df,
-        previous_inuring_priority,
-        previous_risk_level,
-        risk_level,
-        reinsurance_index,
-        direct_oasis_files_dir):
+        risk_level):
     """
     Generate files for a reinsurance risk level.
     """
@@ -168,78 +154,20 @@ def _generate_files_for_reinsurance_risk_level(
     output_name = "ri_{}_{}".format(inuring_priority, risk_level)
     reinsurance_layer = ReinsuranceLayer(
         name=output_name,
-        ri_info=ri_info_inuring_priority_df,
-        ri_scope=ri_scope_df,
-        items=items,
-        coverages=coverages,
-        fm_xrefs=fm_xrefs,
-        xref_descriptions=xref_descriptions,
+        ri_info_df=ri_info_inuring_priority_df,
+        ri_scope_df=ri_scope_df,
+        items_df=items_df,
+        coverages_df=coverages_df,
+        xref_descriptions_df=xref_descriptions_df,
         risk_level=risk_level
     )
 
     reinsurance_layer.generate_oasis_structures()
-    output_dir = os.path.join(direct_oasis_files_dir, "RI_{}".format(reinsurance_index))
-    reinsurance_layer.write_oasis_files(output_dir)
-    return output_dir
-
-
-'''
-@oasis_log
-def write_ri_input_files(
-    exposure_fp,
-    accounts_fp,
-    items_fp,
-    coverages_fp,
-    fm_xref_fp,
-    ri_info_fp,
-    ri_scope_fp,
-    target_dir
-):
-    xref_descriptions = pd.DataFrame(generate_xref_descriptions(accounts_fp, exposure_fp))
-    return generate_files_for_reinsurance(
-        pd.read_csv(items_fp),
-        pd.read_csv(coverages_fp),
-        pd.read_csv(fm_xref_fp),
-        xref_descriptions,
-        pd.read_csv(ri_info_fp),
-        pd.read_csv(ri_scope_fp),
-        target_dir,
+    return RiLayerInputs(
+        fm_programme=reinsurance_layer.fmprogrammes_df,
+        fm_profile=reinsurance_layer.fmprofiles_df,
+        fm_policytc=reinsurance_layer.fm_policytcs_df
     )
-'''
-
-
-@oasis_log
-def write_ri_input_files(
-    direct_mapping,
-    exposure_fp,
-    accounts_fp,
-    items_fp,
-    coverages_fp,
-    fm_xref_fp,
-    ri_info_fp,
-    ri_scope_fp,
-    target_dir
-):
-    xref_descriptions = direct_mapping
-
-    # need to update col names in code --> tmp rename here
-    xref_descriptions['xref_id'] = xref_descriptions['output_id']
-    xref_descriptions['portfolio_number'] = xref_descriptions['portnumber']
-    xref_descriptions['policy_number'] = xref_descriptions['polnumber']
-    xref_descriptions['account_number'] = xref_descriptions['accnumber']
-    xref_descriptions['location_number'] = xref_descriptions['locnumber']
-    xref_descriptions['location_group'] = xref_descriptions['locgroup']
-
-    return generate_files_for_reinsurance(
-        pd.read_csv(items_fp),
-        pd.read_csv(coverages_fp),
-        pd.read_csv(fm_xref_fp),
-        xref_descriptions,
-        pd.read_csv(ri_info_fp),
-        pd.read_csv(ri_scope_fp),
-        target_dir,
-    )
-
 
 class ReinsuranceLayer(object):
     """
@@ -248,27 +176,29 @@ class ReinsuranceLayer(object):
 
     def __init__(
         self,
-        name, ri_info, ri_scope, items, coverages, fm_xrefs,
-        xref_descriptions, risk_level, logger=None
+        name, ri_info_df, ri_scope_df, items_df, coverages_df, 
+        xref_descriptions_df, risk_level, fmsummaryxref_df=pd.DataFrame(),
+        gulsummaryxref_df=pd.DataFrame(), logger=None
     ):
         self.logger = logger or logging.getLogger()
         self.name = name
 
-        self.coverages = coverages
-        self.items = items
-        self.fm_xrefs = fm_xrefs
-        self.xref_descriptions = xref_descriptions
+        self.coverages_df = coverages_df
+        self.items_df = items_df
+        self.xref_descriptions_df = xref_descriptions_df
+        self.fmsummaryxref_df = fmsummaryxref_df
+        self.gulsummaryxref_df = gulsummaryxref_df
 
         self.item_ids = list()
         self.item_tivs = list()
-        self.fmprogrammes = pd.DataFrame()
-        self.fmprofiles = pd.DataFrame()
-        self.fm_policytcs = pd.DataFrame()
+        self.fmprogrammes_df = pd.DataFrame()
+        self.fmprofiles_df = pd.DataFrame()
+        self.fm_policytcs_df = pd.DataFrame()
 
         self.risk_level = risk_level
 
-        self.ri_info = ri_info
-        self.ri_scope = ri_scope
+        self.ri_info_df = ri_info_df
+        self.ri_scope_df = ri_scope_df
 
         self.add_profiles_args = namedtuple(
             "AddProfilesArgs",
@@ -302,70 +232,87 @@ class ReinsuranceLayer(object):
             level_id=level_id,
             agg_id=1)
 
-    def _add_item_node(self, xref_id, parent):
+    def _add_item_node(self, item_id, parent):
         return self._add_node(
-            "Item_id:{}".format(xref_id),
+            "Item_id:{}".format(item_id),
             parent=parent,
             level_id=1,
-            agg_id=xref_id)
+            agg_id=item_id)
+
+    def _add_filter_level_node(
+            self, level_id, agg_id, xref_description, parent):
+        return self._add_node(
+            "Portfolio_number:{} Account_number:{} Policy_number:{} Location_number:{}".format(
+                xref_description.portnumber,
+                xref_description.accnumber,
+                xref_description.polnumber,
+                xref_description.locnumber),
+            parent=parent,
+            level_id=level_id,
+            agg_id=agg_id,
+            portfolio_number=xref_description.portnumber,
+            account_number=xref_description.accnumber,
+            policy_number=xref_description.polnumber,
+            location_group=xref_description.locgroup,
+            location_number=xref_description.locnumber)
+
 
     def _add_location_node(
             self, level_id, agg_id, xref_description, parent):
         return self._add_node(
-            "Portfolio_number:{} Account_number:{} Policy_number:{} Location_number:{}".format(
-                xref_description.portfolio_number,
-                xref_description.account_number,
-                xref_description.policy_number,
-                xref_description.location_number),
+            "Portfolio_number:{} Account_number:{} Location_number:{}".format(
+                xref_description.portnumber,
+                xref_description.accnumber,
+                xref_description.locnumber),
             parent=parent,
             level_id=level_id,
             agg_id=agg_id,
-            portfolio_number=xref_description.portfolio_number,
-            account_number=xref_description.account_number,
-            policy_number=xref_description.policy_number,
-            location_group=xref_description.location_group,
-            location_number=xref_description.location_number)
+            portfolio_number=xref_description.portnumber,
+            account_number=xref_description.accnumber,
+            location_group=xref_description.locgroup,
+            location_number=xref_description.locnumber)
+
 
     def _add_location_group_node(
             self, level_id, agg_id, xref_description, parent):
         return self._add_node(
-            "Location_group:{}".format(xref_description.location_group),
+            "Location_group:{}".format(xref_description.locgroup),
             parent=parent,
             level_id=level_id,
             agg_id=agg_id,
-            location_group=xref_description.location_group)
+            location_group=xref_description.locgroup)
 
     def _add_policy_node(
             self, level_id, agg_id, xref_description, parent):
         return self._add_node(
             "Portfolio number:{} Account_number:{} Policy_number:{}".format(
-                xref_description.portfolio_number, xref_description.account_number, xref_description.policy_number),
+                xref_description.portnumber, xref_description.accnumber, xref_description.polnumber),
             parent=parent,
             level_id=level_id,
             agg_id=agg_id,
-            portfolio_number=xref_description.portfolio_number,
-            account_number=xref_description.account_number,
-            policy_number=xref_description.policy_number)
+            portfolio_number=xref_description.portnumber,
+            account_number=xref_description.accnumber,
+            policy_number=xref_description.polnumber)
 
     def _add_account_node(
             self, agg_id, level_id, xref_description, parent):
         return self._add_node(
             "Portfolio number:{} Account_number:{}".format(
-                xref_description.portfolio_number, xref_description.account_number),
+                xref_description.portnumber, xref_description.accnumber),
             parent=parent,
             level_id=level_id,
             agg_id=agg_id,
-            portfolio_number=xref_description.portfolio_number,
-            account_number=xref_description.account_number)
+            portfolio_number=xref_description.portnumber,
+            account_number=xref_description.accnumber)
 
     def _add_portfolio_node(
             self, agg_id, level_id, xref_description, parent):
         return self._add_node(
-            "Portfolio number:{}".format(xref_description.portfolio_number),
+            "Portfolio number:{}".format(xref_description.portnumber),
             parent=parent,
             level_id=level_id,
             agg_id=agg_id,
-            portfolio_number=xref_description.portfolio_number)
+            portfolio_number=xref_description.portnumber)
 
     def _is_valid_id(self, id_to_check):
         is_valid = (
@@ -407,22 +354,14 @@ class ReinsuranceLayer(object):
 
     def _match_location(self, node, scope_row, exact=False):
         match = False
-        if self._is_valid_id(scope_row.PolNumber):
-            if exact:
-                match = self._match_policy(node, scope_row) and node.location_number == scope_row.LocNumber
-            else:
-                if self._is_valid_id(scope_row.LocNumber) and self._is_valid_id(scope_row.AccNumber) and self._is_valid_id(scope_row.PortNumber):
-                    match = self._match_policy(node, scope_row) and node.location_number == scope_row.LocNumber
-                else:
-                    match = self._match_policy(node, scope_row)
+        
+        if exact:
+            match = self._match_account(node, scope_row) and node.location_number == scope_row.LocNumber
         else:
-            if exact:
+            if self._is_valid_id(scope_row.LocNumber) and self._is_valid_id(scope_row.AccNumber) and self._is_valid_id(scope_row.PortNumber):
                 match = self._match_account(node, scope_row) and node.location_number == scope_row.LocNumber
             else:
-                if self._is_valid_id(scope_row.LocNumber) and self._is_valid_id(scope_row.AccNumber) and self._is_valid_id(scope_row.PortNumber):
-                    match = self._match_account(node, scope_row) and node.location_number == scope_row.LocNumber
-                else:
-                    match = self._match_account(node, scope_row)
+                match = self._match_account(node, scope_row)
         return match
 
     def _match_location_group(self, node, scope_row, exact=False):
@@ -532,25 +471,23 @@ class ReinsuranceLayer(object):
         current_portfolio_number = 0
         current_location_group = 0
 
-        current_location_node = None
+        current_filter_level_node = None
         current_node = None
 
-        if self.risk_level == oed.REINS_RISK_LEVEL_LOCATION:
-            risk_level_id = self.LOCATION_RISK_LEVEL
-        else:
-            risk_level_id = self.LOCATION_RISK_LEVEL + 1
+        risk_level_id = self.LOCATION_RISK_LEVEL + 1
         program_node_level_id = risk_level_id + 1
 
         program_node = self._add_program_node(program_node_level_id)
 
         if self.risk_level == oed.REINS_RISK_LEVEL_LOCATION_GROUP:
-            xref_descriptions = self.xref_descriptions.sort_values(
-                by=["location_group", "portfolio_number", "account_number", "policy_number", "location_number"])
+            xref_descriptions = self.xref_descriptions_df.sort_values(
+                by=["locgroup", "portnumber", "accnumber", "polnumber", "locnumber"])
+        elif self.risk_level == oed.REINS_RISK_LEVEL_LOCATION:
+            xref_descriptions = self.xref_descriptions_df.sort_values(
+                by=["portnumber", "accnumber", "locnumber", "polnumber"])
         else:
-            xref_descriptions = self.xref_descriptions
-        # else:
-        #    xref_descriptions = self.xref_descriptions.sort_values(
-        #        by=["portfolio_number", "account_number", "policy_number", "location_number"])
+            xref_descriptions = self.xref_descriptions_df.sort_values(
+                by=["portnumber", "accnumber", "polnumber", "locnumber"])
 
         agg_id = 0
         loc_agg_id = 0
@@ -558,62 +495,63 @@ class ReinsuranceLayer(object):
         for row in xref_descriptions.itertuples():
 
             if self.risk_level == oed.REINS_RISK_LEVEL_PORTFOLIO:
-                if current_portfolio_number != row.portfolio_number:
+                if current_portfolio_number != row.portnumber:
                     agg_id = agg_id + 1
                     current_node = self._add_portfolio_node(
                         agg_id, risk_level_id, row, program_node)
             elif self.risk_level == oed.REINS_RISK_LEVEL_ACCOUNT:
                 if (
-                    current_portfolio_number != row.portfolio_number or
-                    current_account_number != row.account_number
+                    current_portfolio_number != row.portnumber or
+                    current_account_number != row.accnumber
                 ):
                     agg_id = agg_id + 1
                     current_node = self._add_account_node(
                         agg_id, risk_level_id, row, program_node)
             elif self.risk_level == oed.REINS_RISK_LEVEL_POLICY:
                 if (
-                    current_portfolio_number != row.portfolio_number or
-                    current_account_number != row.account_number or
-                    current_policy_number != row.policy_number
+                    current_portfolio_number != row.portnumber or
+                    current_account_number != row.accnumber or
+                    current_policy_number != row.polnumber
                 ):
                     agg_id = agg_id + 1
                     current_node = self._add_policy_node(
                         risk_level_id, agg_id, row, program_node)
             elif self.risk_level == oed.REINS_RISK_LEVEL_LOCATION_GROUP:
-                if current_location_group != row.location_group:
+                if current_location_group != row.locgroup:
                     agg_id = agg_id + 1
                     current_node = self._add_location_group_node(
-                        risk_level_id, agg_id, row, program_node)
-
+                        risk_level_id, agg_id, row, program_node)       
+            elif self.risk_level == oed.REINS_RISK_LEVEL_LOCATION:
+                if (
+                    current_portfolio_number != row.portnumber or
+                    current_account_number != row.accnumber or
+                    current_location_number != row.locnumber
+                ):
+                    agg_id = agg_id + 1
+                    current_node = self._add_location_node(
+                        risk_level_id, agg_id, row, program_node)            
             if (
-                current_portfolio_number != row.portfolio_number or
-                current_account_number != row.account_number or
-                current_policy_number != row.policy_number or
-                current_location_number != row.location_number
+                current_portfolio_number != row.portnumber or
+                current_account_number != row.accnumber or
+                current_policy_number != row.polnumber or
+                current_location_number != row.locnumber
             ):
                 loc_agg_id = loc_agg_id + 1
                 level_id = 2
-                if self.risk_level == oed.REINS_RISK_LEVEL_LOCATION:
-                    current_location_node = self._add_location_node(
-                        level_id, loc_agg_id, row, program_node)
-                else:
-                    current_location_node = self._add_location_node(
-                        level_id, loc_agg_id, row, current_node)
-                current_portfolio_number = row.portfolio_number
-                current_account_number = row.account_number
-                current_policy_number = row.policy_number
-                current_location_number = row.location_number
-                current_location_group = row.location_group
+                current_filter_level_node = self._add_filter_level_node(
+                    level_id, loc_agg_id, row, current_node)
+                current_portfolio_number = row.portnumber
+                current_account_number = row.accnumber
+                current_policy_number = row.polnumber
+                current_location_number = row.locnumber
+                current_location_group = row.locgroup
 
-            self._add_item_node(row.xref_id, current_location_node)
+            self._add_item_node(row.agg_id, current_filter_level_node)
 
         return program_node
 
     def _get_risk_level_id(self):
-        if self.risk_level == oed.REINS_RISK_LEVEL_LOCATION:
-            risk_level_id = 2
-        else:
-            risk_level_id = 3
+        risk_level_id = 3
         return risk_level_id
 
     def _get_filter_level_id(self):
@@ -640,12 +578,11 @@ class ReinsuranceLayer(object):
         nodes_risk_level_all = anytree.search.findall(
             add_profiles_args.program_node, filter_=lambda node: node.level_id == self._get_risk_level_id())
 
-        if self.risk_level != oed.REINS_RISK_LEVEL_LOCATION:
-            nodes_filter_level_all = anytree.search.findall(
-                add_profiles_args.program_node, filter_=lambda node: node.level_id == self._get_filter_level_id())
-            for node in nodes_filter_level_all:
-                add_profiles_args.node_layer_profile_map[(
-                    node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = add_profiles_args.passthroughprofile_id
+        nodes_filter_level_all = anytree.search.findall(
+            add_profiles_args.program_node, filter_=lambda node: node.level_id == self._get_filter_level_id())
+        for node in nodes_filter_level_all:
+            add_profiles_args.node_layer_profile_map[(
+                node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = add_profiles_args.passthroughprofile_id
 
         for _, ri_scope_row in add_profiles_args.scope_rows.iterrows():
             # Note that FAC profiles scope much match the filter exactly.
@@ -661,9 +598,8 @@ class ReinsuranceLayer(object):
         profile_id = self._get_next_profile_id(add_profiles_args)
         nodes_risk_level_all = anytree.search.findall(
             add_profiles_args.program_node, filter_=lambda node: node.level_id == self._get_risk_level_id())
-        if self.risk_level != oed.REINS_RISK_LEVEL_LOCATION:
-            nodes_filter_level_all = anytree.search.findall(
-                add_profiles_args.program_node, filter_=lambda node: node.level_id == self._get_filter_level_id())
+        nodes_filter_level_all = anytree.search.findall(
+            add_profiles_args.program_node, filter_=lambda node: node.level_id == self._get_filter_level_id())
 
         add_profiles_args.fmprofiles_list.append(oed.get_reinsurance_profile(
             profile_id,
@@ -673,11 +609,10 @@ class ReinsuranceLayer(object):
         ))
 
         for _, ri_scope_row in add_profiles_args.scope_rows.iterrows():
-            if self.risk_level != oed.REINS_RISK_LEVEL_LOCATION:
-                selected_nodes = self._scope_filter(nodes_filter_level_all, ri_scope_row, exact=False)
-                for node in selected_nodes:
-                    add_profiles_args.node_layer_profile_map[(
-                        node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = add_profiles_args.passthroughprofile_id
+            selected_nodes = self._scope_filter(nodes_filter_level_all, ri_scope_row, exact=False)
+            for node in selected_nodes:
+                add_profiles_args.node_layer_profile_map[(
+                    node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = add_profiles_args.passthroughprofile_id
             selected_nodes = self._risk_level_filter(nodes_risk_level_all, ri_scope_row, exact=False)
             for node in selected_nodes:
                 add_profiles_args.node_layer_profile_map[(
@@ -699,12 +634,11 @@ class ReinsuranceLayer(object):
         profile_id = self._get_next_profile_id(add_profiles_args)
         nodes_risk_level_all = anytree.search.findall(
             add_profiles_args.program_node, filter_=lambda node: node.level_id == self._get_risk_level_id())
-        if self.risk_level != oed.REINS_RISK_LEVEL_LOCATION:
-            nodes_filter_level_all = anytree.search.findall(
-                add_profiles_args.program_node, filter_=lambda node: node.level_id == self._get_filter_level_id())
-            for node in nodes_filter_level_all:
-                add_profiles_args.node_layer_profile_map[(
-                    node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = add_profiles_args.passthroughprofile_id
+        nodes_filter_level_all = anytree.search.findall(
+            add_profiles_args.program_node, filter_=lambda node: node.level_id == self._get_filter_level_id())
+        for node in nodes_filter_level_all:
+            add_profiles_args.node_layer_profile_map[(
+                node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = add_profiles_args.passthroughprofile_id
 
         for _, ri_scope_row in add_profiles_args.scope_rows.iterrows():
             # Note that surplus share profiles scope much match the filter exactly.
@@ -739,9 +673,8 @@ class ReinsuranceLayer(object):
         profile_id = self._get_next_profile_id(add_profiles_args)
         nodes_risk_level_all = anytree.search.findall(
             add_profiles_args.program_node, filter_=lambda node: node.level_id == self._get_risk_level_id())
-        if self.risk_level != oed.REINS_RISK_LEVEL_LOCATION:
-            nodes_filter_level_all = anytree.search.findall(
-                add_profiles_args.program_node, filter_=lambda node: node.level_id == self._get_filter_level_id())
+        nodes_filter_level_all = anytree.search.findall(
+            add_profiles_args.program_node, filter_=lambda node: node.level_id == self._get_filter_level_id())
 
         add_profiles_args.fmprofiles_list.append(
             oed.get_reinsurance_profile(
@@ -752,11 +685,10 @@ class ReinsuranceLayer(object):
 
         for _, ri_scope_row in add_profiles_args.scope_rows.iterrows():
             # Filter
-            if self.risk_level != oed.REINS_RISK_LEVEL_LOCATION:
-                selected_nodes = self._scope_filter(nodes_filter_level_all, ri_scope_row, exact=False)
-                for node in selected_nodes:
-                    add_profiles_args.node_layer_profile_map[(
-                        node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = add_profiles_args.passthroughprofile_id
+            selected_nodes = self._scope_filter(nodes_filter_level_all, ri_scope_row, exact=False)
+            for node in selected_nodes:
+                add_profiles_args.node_layer_profile_map[(
+                    node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = add_profiles_args.passthroughprofile_id
             selected_nodes = self._risk_level_filter(nodes_risk_level_all, ri_scope_row, exact=False)
             for node in selected_nodes:
                 add_profiles_args.node_layer_profile_map[(
@@ -779,17 +711,15 @@ class ReinsuranceLayer(object):
         profile_id = self._get_next_profile_id(add_profiles_args)
         nodes_risk_level_all = anytree.search.findall(
             add_profiles_args.program_node, filter_=lambda node: node.level_id == self._get_risk_level_id())
-        if self.risk_level != oed.REINS_RISK_LEVEL_LOCATION:
-            nodes_filter_level_all = anytree.search.findall(
-                add_profiles_args.program_node, filter_=lambda node: node.level_id == self._get_filter_level_id())
+        nodes_filter_level_all = anytree.search.findall(
+        add_profiles_args.program_node, filter_=lambda node: node.level_id == self._get_filter_level_id())
 
         for _, ri_scope_row in add_profiles_args.scope_rows.iterrows():
             # Filter
-            if self.risk_level != oed.REINS_RISK_LEVEL_LOCATION:
-                selected_nodes = self._scope_filter(nodes_filter_level_all, ri_scope_row, exact=False)
-                for node in selected_nodes:
-                    add_profiles_args.node_layer_profile_map[(
-                        node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = add_profiles_args.passthroughprofile_id
+            selected_nodes = self._scope_filter(nodes_filter_level_all, ri_scope_row, exact=False)
+            for node in selected_nodes:
+                add_profiles_args.node_layer_profile_map[(
+                    node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = add_profiles_args.passthroughprofile_id
             selected_nodes = self._risk_level_filter(nodes_risk_level_all, ri_scope_row, exact=False)
             for node in selected_nodes:
                 add_profiles_args.node_layer_profile_map[(
@@ -816,11 +746,11 @@ class ReinsuranceLayer(object):
                 policytc_map["(Name=%s, layer_id=%s, overlay_loop=%s)" % k] = profile_id
             self.logger.debug(json.dumps(policytc_map, indent=4))
             self.logger.debug('fm_policytcs: "{}"'.format(self.name))
-            self.logger.debug(self.fm_policytcs)
+            self.logger.debug(self.fm_policytcs_df)
             self.logger.debug('fm_profile: "{}"'.format(self.name))
-            self.logger.debug(self.fmprofiles)
+            self.logger.debug(self.fmprofiles_df)
             self.logger.debug('fm_programme: "{}"'.format(self.name))
-            self.logger.debug(self.fmprogrammes)
+            self.logger.debug(self.fmprogrammes_df)
 
     def _log_tree(self, program_node):
         if self.logger:
@@ -866,18 +796,20 @@ class ReinsuranceLayer(object):
         #
         layer_id = 1        # Current layer ID
         overlay_loop = 0    # Overlays multiple rules in same layer
-        prev_reins_number = 1
-        for _, ri_info_row in self.ri_info.iterrows():
+        prev_reins_number = -1
+        for _, ri_info_row in self.ri_info_df.iterrows():
             overlay_loop += 1
-            scope_rows = self.ri_scope[
-                (self.ri_scope.ReinsNumber == ri_info_row.ReinsNumber) &
-                (self.ri_scope.RiskLevel == self.risk_level)
+            scope_rows = self.ri_scope_df[
+                (self.ri_scope_df.ReinsNumber == ri_info_row.ReinsNumber) &
+                (self.ri_scope_df.RiskLevel == self.risk_level)
             ]
 
             # If FAC, don't increment the layer number
             # Else, only increment inline with the reins_number
             if ri_info_row.ReinsType in ['FAC']:
                 pass
+            if prev_reins_number == -1: 
+                prev_reins_number = ri_info_row.ReinsNumber
             elif prev_reins_number < ri_info_row.ReinsNumber:
                 layer_id += 1
                 prev_reins_number = ri_info_row.ReinsNumber
@@ -897,19 +829,15 @@ class ReinsuranceLayer(object):
 
             # Add pass through nodes at all levels so that the risks not explicitly covered are unaffected
             for node in anytree.iterators.LevelOrderIter(add_profiles_args.program_node):
-                if self.risk_level == oed.REINS_RISK_LEVEL_LOCATION:
+                if node.level_id == self._get_risk_level_id():
+                    add_profiles_args.node_layer_profile_map[(
+                        node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = add_profiles_args.nolossprofile_id
+                elif node.level_id == self._get_filter_level_id():
                     add_profiles_args.node_layer_profile_map[(
                         node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = add_profiles_args.nolossprofile_id
                 else:
-                    if node.level_id == self._get_risk_level_id():
-                        add_profiles_args.node_layer_profile_map[(
-                            node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = add_profiles_args.nolossprofile_id
-                    elif node.level_id == self._get_filter_level_id():
-                        add_profiles_args.node_layer_profile_map[(
-                            node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = add_profiles_args.nolossprofile_id
-                    else:
-                        add_profiles_args.node_layer_profile_map[(
-                            node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = add_profiles_args.passthroughprofile_id
+                    add_profiles_args.node_layer_profile_map[(
+                        node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = add_profiles_args.passthroughprofile_id
             add_profiles_args.node_layer_profile_map[(
                 add_profiles_args.program_node.name, add_profiles_args.layer_id, add_profiles_args.overlay_loop)] = add_profiles_args.passthroughprofile_id
 
@@ -960,10 +888,9 @@ class ReinsuranceLayer(object):
                         agg_id=node.agg_id,
                         profile_id=max(profiles_ids)
                     ))
-        self.fmprogrammes = pd.DataFrame(fmprogrammes_list)
-        self.fmprofiles = pd.DataFrame(fmprofiles_list)
-        self.fm_policytcs = pd.DataFrame(fm_policytcs_list)
-        self.fm_xrefs['layer_id'] = pd.Series(layer_id, range(len(self.fm_xrefs.index)))
+        self.fmprogrammes_df = pd.DataFrame(fmprogrammes_list)
+        self.fmprofiles_df = pd.DataFrame(fmprofiles_list)
+        self.fm_policytcs_df = pd.DataFrame(fm_policytcs_list)
 
         self._log_reinsurance_structure(add_profiles_args)
 
@@ -978,15 +905,17 @@ class ReinsuranceLayer(object):
             shutil.rmtree(directory)
         os.makedirs(directory)
 
-        self.coverages.to_csv(
+        self.coverages_df.to_csv(
             os.path.join(directory, "coverages.csv"), index=False)
-        self.items.to_csv(
+        self.items_df.to_csv(
             os.path.join(directory, "items.csv"), index=False)
-        self.fmprogrammes.to_csv(
+        self.fmprogrammes_df.to_csv(
             os.path.join(directory, "fm_programme.csv"), index=False)
-        self.fmprofiles.to_csv(
+        self.fmprofiles_df.to_csv(
             os.path.join(directory, "fm_profile.csv"), index=False)
-        self.fm_policytcs.to_csv(
+        self.fm_policytcs_df.to_csv(
             os.path.join(directory, "fm_policytc.csv"), index=False)
-        self.fm_xrefs.to_csv(
-            os.path.join(directory, "fm_xref.csv"), index=False)
+        self.fmsummaryxref_df.to_csv(
+            os.path.join(directory, "fmsummaryxref.csv"), index=False)
+        self.gulsummaryxref_df.to_csv(
+            os.path.join(directory, "gulsummaryxref.csv"), index=False)

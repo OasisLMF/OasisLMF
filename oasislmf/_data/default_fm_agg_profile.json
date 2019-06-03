@@ -14,6 +14,16 @@
         "FMLevel": 2,
         "FMLevelName": "SitePD",
         "FMAggKey": {
+            "PortNum": {
+                "src": "FM",
+                "field": "portnumber",
+                "name": "Account portfolio num."
+            },
+            "AccNum": {
+                "src": "FM",
+                "field": "accnumber",
+                "name": "Account num."
+            },
             "LocNum": {
                 "src": "FM",
                 "field": "locnumber",
@@ -30,6 +40,16 @@
         "FMLevel": 3,
         "FMLevel": "SiteAll",
         "FMAggKey": {
+            "PortNum": {
+                "src": "FM",
+                "field": "portnumber",
+                "name": "Account portfolio num."
+            },
+            "AccNum": {
+                "src": "FM",
+                "field": "accnumber",
+                "name": "Account num."
+            },
             "LocNum":  {
                 "src": "FM",
                 "field": "locnumber",
