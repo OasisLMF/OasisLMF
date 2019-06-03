@@ -13,6 +13,7 @@ from pathlib2 import Path
 
 from ..manager import OasisManager as om
 from ..utils.data import (
+    get_dataframe,
     print_dataframe,
 )
 from ..utils.defaults import (
@@ -21,9 +22,8 @@ from ..utils.defaults import (
 )
 from ..utils.diff import column_diff
 from ..utils.exceptions import OasisException
-from ..utils.path import (
-    as_path,
-)
+from ..utils.path import as_path
+from ..utils.profiles import get_oed_hierarchy
 from .base import (
     InputValues,
     OasisBaseCommand,
@@ -71,7 +71,7 @@ class RunCmd(OasisBaseCommand):
             '-v', '--validate', default=False, help='Validate input files and loss tables - default is False', action='store_true'
         )
         parser.add_argument(
-            '-o', '--output-level', default='item', help='Leve to output losses ', type=str
+            '-o', '--output-level', default='item', help='Level to output losses', type=str
         )
 
 
@@ -134,11 +134,7 @@ class RunCmd(OasisBaseCommand):
         )
 
         # Read in the summary map
-        summaries_df = pd.read_csv(
-            os.path.join(
-                run_dir, "fm_summary_map.csv"                
-            )
-        )
+        summaries_df = get_dataframe(src_fp=os.path.join(run_dir, 'fm_summary_map.csv'))
 
         guls_df.to_csv(path_or_buf=os.path.join(run_dir, 'guls.csv'), index=False, encoding='utf-8')
         guls_df.rename(columns={'loss': 'loss_gul'}, inplace=True) 
@@ -169,16 +165,22 @@ class RunCmd(OasisBaseCommand):
 
         total_gul = guls_df.loss_gul.sum()
 
+        oed_hierarchy = get_oed_hierarchy()
+        portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
+        acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
+        loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
+        policy_num = oed_hierarchy['polnum']['ProfileElementName'].lower()
+
         if output_level == 'port':
-            summary_cols = ['portnumber']
+            summary_cols = [portfolio_num]
         elif output_level == 'acc':
-            summary_cols = ['portnumber', 'accnumber']
+            summary_cols = [portfolio_num, acc_num]
         elif output_level == 'pol':
-            summary_cols = ['portnumber', 'accnumber', 'polnumber']
+            summary_cols = [portfolio_num, acc_num, policy_num]
         elif output_level == 'loc':
-            summary_cols = ['portnumber', 'accnumber', 'locnumber']
+            summary_cols = [portfolio_num, acc_num, loc_num]
         elif output_level == 'item':
-            summary_cols = ['output_id', 'portnumber', 'accnumber', 'locnumber', 'polnumber', 'coverage_type_id']
+            summary_cols = ['output_id', portfolio_num, acc_num, loc_num, policy_num, 'coverage_type_id']
 
         if not il and not ril:
             all_losses_df = all_losses_df[summary_cols + ['loss_gul']]
@@ -203,10 +205,7 @@ class RunCmd(OasisBaseCommand):
             header = 'Losses (loss factor={}; total gul={:,.00f}; total il={:,.00f}; total ri ceded={:,.00f})'.format(
                 loss_factor, total_gul, total_il, total_ri_ceded)
 
-        print_dataframe(
-            all_losses_df, 
-            frame_header=header, 
-            string_cols=all_losses_df.columns)
+        print_dataframe(all_losses_df, frame_header=header, string_cols=all_losses_df.columns)
 
         # Do not validate if the loss factor < 1 - this is because the
         # expected data files for validation are based on a loss factor
