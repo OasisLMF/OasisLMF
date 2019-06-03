@@ -43,8 +43,6 @@ from .model_execution.bin import (
 from .model_preparation.gul_inputs import (
     get_gul_input_items,
     write_gul_input_files,
-    get_items_df,
-    get_coverages_df,
 )
 from .model_preparation.il_inputs import (
     get_il_input_items,
@@ -488,8 +486,7 @@ class OasisManager(object):
         
         ri_info_df, ri_scope_df, _ = load_oed_dfs(ri_info_fp, ri_scope_fp)
         ri_layers = write_files_for_reinsurance(
-            get_items_df(gul_inputs_df),
-            get_coverages_df(gul_inputs_df),
+            gul_inputs_df,
             xref_descriptions_df,
             ri_info_df,
             ri_scope_df,

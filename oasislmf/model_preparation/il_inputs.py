@@ -63,7 +63,7 @@ def get_layer_ids(accounts_df, accounts_profile=get_default_accounts_profile()):
     Generates a Pandas series of layer IDs given an accounts dataframe - a
     layer ID is an integer index on unique
 
-        (portfolio num., account num., policy num.)
+        ((portfolio num., account num.), policy num.)
 
     combinations in an account file (or dataframe). The ``PortNumber``,
     ``AccNumber``, ``PolNumber`` columns (or the lowercase equivalents)
@@ -88,8 +88,8 @@ def get_layer_ids(accounts_df, accounts_profile=get_default_accounts_profile()):
     policy_nums = _accounts_df[policy_num].values
 
     return np.hstack((
-        factorize_ndarray(np.asarray(list(accnum_group)), col_idxs=range(3))[0]
-        for _, accnum_group in groupby(fast_zip_arrays(portfolio_nums, acc_nums, policy_nums), key=lambda t: t[0])
+        factorize_ndarray(np.asarray(list(accnum_group)), col_idxs=range(1, 3))[0]
+        for _, accnum_group in groupby(fast_zip_arrays(portfolio_nums, acc_nums, policy_nums), key=lambda t: (t[0], t[1]))
     ))
 
 
@@ -115,6 +115,7 @@ def get_calc_rule_ids(il_inputs_df):
     il_inputs_calc_rules_df['id_key'] = [t for t in fast_zip_arrays(*il_inputs_calc_rules_df.loc[:, terms_indicators + types_and_codes].transpose().values)]
     il_inputs_calc_rules_df = merge_dataframes(il_inputs_calc_rules_df, calc_rules, how='left', on='id_key').fillna(0)
     il_inputs_calc_rules_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id'].astype('uint32')
+
     return il_inputs_calc_rules_df['calcrule_id'].values
 
 
@@ -138,6 +139,7 @@ def get_policytc_ids(il_inputs_df):
         (fm_policytc_df['layer_id'] == 1) |
         (fm_policytc_df['level_id'] == fm_policytc_df['level_id'].max())
     ]
+
     return factorize_ndarray(fm_policytc_df.loc[:, policytc_cols[3:]].values, col_idxs=range(len(policytc_cols[3:])))[0]
 
 
