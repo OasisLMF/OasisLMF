@@ -1,6 +1,12 @@
 OasisLMF Changelog
 ==================
 
+`1.3.9`_
+-------
+* Updated validation and fixes for FM file generation  
+* Fixes for exposure-summary reporting 
+* Fixes for FM calc rule selection 
+
 `1.3.8`_
 -------
 * Improvements for complex model support and logging 
@@ -244,7 +250,8 @@ in the exposure manager
 
 * Add console logging
 
-.. _`1.3.8`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.7...1.4.0
+.. _`1.3.9`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.8...1.3.9
+.. _`1.3.8`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.7...1.3.8
 .. _`1.3.7`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.6...1.3.7
 .. _`1.3.6`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.5...1.3.6
 .. _`1.3.5`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.4...1.3.5
