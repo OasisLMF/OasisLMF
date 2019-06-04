@@ -294,7 +294,7 @@ class OasisManager(object):
 
         return olf.save_results(
             lookup,
-            loc_num_col=keys_id_col,
+            loc_id_col=keys_id_col,
             successes_fp=keys_fp,
             errors_fp=keys_errors_fp,
             source_exposure_fp=exposure_fp,
@@ -390,8 +390,11 @@ class OasisManager(object):
                 _, _ = olf.write_oasis_keys_file(keys, _keys_fp)
             else:
                 lookup_config = get_json(src_fp=lookup_config_fp) if lookup_config_fp else lookup_config
-                if lookup_config:
-                    lookup_config['keys_data_path'] = os.path.abspath(os.path.dirname(lookup_config_fp))
+                keys_data_fp = lookup_config['keys_data_path']
+                if lookup_config and keys_data_fp in ['.', './']:
+                    lookup_config['keys_data_path'] = os.path.join(os.path.dirname(lookup_config_fp))
+                elif lookup_config and not os.path.isabs(keys_data_fp):
+                    lookup_config['keys_data_path'] = os.path.join(os.path.dirname(lookup_config_fp), keys_data_fp)
 
                 _, lookup = olf.create(
                     lookup_config=lookup_config,
