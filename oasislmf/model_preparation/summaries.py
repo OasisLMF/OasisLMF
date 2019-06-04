@@ -154,9 +154,10 @@ def group_by_oed(summary_map_df, exposure_df, oed_col_group):
     :return: subset of columns from exposure_df to merge
     :rtype: list
     """
-
-    exposure_cols = [c.lower() for c in oed_col_group if c not in summary_map_df.columns]
-    mapping_cols = [SOURCE_IDX['loc']] + [c.lower() for c in oed_col_group if c in summary_map_df.columns]
+    
+    oed_cols = [c.lower() for c in oed_col_group] 
+    exposure_cols = [c for c in oed_cols if c not in summary_map_df.columns]
+    mapping_cols = [SOURCE_IDX['loc']] + [c for c in oed_cols if c in summary_map_df.columns]
 
     summary_group_df = summary_map_df.loc[:, mapping_cols]
     if exposure_cols is not []:
@@ -165,7 +166,7 @@ def group_by_oed(summary_map_df, exposure_df, oed_col_group):
         summary_group_df = merge_dataframes(summary_group_df, exposure_df, join_on=SOURCE_IDX['loc'], how='inner')
 
     summary_group_df.fillna(0, inplace=True)  # factorize with all values NaN, leads to summary_id == 0
-    summary_ids = factorize_dataframe(summary_group_df, by_col_labels=oed_col_group)[0]
+    summary_ids = factorize_dataframe(summary_group_df, by_col_labels=oed_cols)[0]
 
     return summary_ids
 
@@ -576,14 +577,25 @@ def write_exposure_summary(
     except OasisException:   # Empty dataframe (due to empty keys errors file)
         gul_inputs_errors_df = pd.DataFrame(columns=gul_inputs_df.columns.append(pd.Index(['status'])))
 
+    # Dictionary to map perils with peril groups
+    peril_groups = {v['id']: v['peril_ids'] for k, v in PERIL_GROUPS.items()}
+    peril_ids = {v['id']: [v['id']] for k, v in PERILS.items()}
+    peril_groups.update(peril_ids)
+
     # Merge GUL input items and source exposure dataframes to leave covered
     # perils
     loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
     loc_per_cov = oed_hierarchy['locperilid']['ProfileElementName'].lower()
     model_peril_ids = gul_inputs_df['peril_id'].unique()
+    # Split rows with multiple peril codes
     exp_perils_df = pd.DataFrame(
         exposure_df[loc_per_cov].str.split(';').to_list(),
         index=exposure_df[loc_num]
+    ).stack()
+    # Split rows with peril codes corresponding to peril groups
+    exp_perils_df = pd.DataFrame(
+        exp_perils_df.map(peril_groups).to_list(),
+        index=exp_perils_df.index
     ).stack()
     exp_perils_df = exp_perils_df.reset_index([0, loc_num])
     exp_perils_df.columns = [loc_num, 'peril_id']
@@ -611,7 +623,6 @@ def write_exposure_summary(
     for peril_id in model_peril_ids:
         # Use descriptive names of perils as keys
         try:
-            PERILS.update(PERIL_GROUPS)
             peril_key = [k for k, v in PERILS.items() if v['id'] == peril_id][0]
         except IndexError:
             warnings.warn('"{}" is not a valid OED peril ID/code. Please check the source exposure file.'.format(peril_id))
