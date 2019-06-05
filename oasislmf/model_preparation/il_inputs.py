@@ -36,6 +36,7 @@ from ..utils.data import (
     factorize_ndarray,
     fast_zip_arrays,
     get_dataframe,
+    get_ids,
     merge_dataframes,
     set_dataframe_column_dtypes,
 )
@@ -282,8 +283,9 @@ def get_il_input_items(
     # combinations in the accounts file. If the column doesn't exist then
     # a custom method is called that will generate this column and set it
     # in the accounts dataframe
+    #import ipdb; ipdb.set_trace()
     if 'layer_id' not in accounts_df:
-        accounts_df['layer_id'] = get_layer_ids(accounts_df, accounts_profile=accounts_profile)
+        accounts_df['layer_id'] = get_ids(accounts_df, [portfolio_num, acc_num, policy_num], group_by=[portfolio_num, acc_num])
 
     # Drop all columns from the accounts dataframe which are not either one of
     # portfolio num., acc. num., policy num., cond. numb., layer ID, or one of

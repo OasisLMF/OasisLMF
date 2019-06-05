@@ -406,7 +406,7 @@ class OasisManager(object):
                 )
                 f1, _, f2, _ = olf.save_results(
                     lookup,
-                    loc_id_col=loc_num,
+                    loc_id_col='loc_id',
                     successes_fp=_keys_fp,
                     errors_fp=_keys_errors_fp,
                     source_exposure_fp=exposure_fp

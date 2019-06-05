@@ -349,9 +349,9 @@ class OasisLookupFactory(object):
         Get the source OED exposure/location data as a Pandas dataframe.
         """
         if source_exposure_fp:
-            loc_df = pd.read_csv(os.path.abspath(source_exposure_fp), float_precision='high')
+            loc_df = get_dataframe(src_fp=os.path.abspath(source_exposure_fp))
         elif source_exposure:
-            loc_df = pd.read_csv(io.StringIO(source_exposure), float_precision='high')
+            loc_df = get_dataframe(src_buf=os.path.abspath(source_exposure))
         else:
             raise OasisException('Either the source exposure or exposure file path must be specified')
 

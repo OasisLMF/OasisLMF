@@ -27,6 +27,7 @@ from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
 from ..utils.data import (
     factorize_ndarray,
     get_dataframe,
+    get_ids,
     merge_dataframes,
     set_dataframe_column_dtypes,
 )
@@ -158,6 +159,7 @@ def get_gul_input_items(
         empty_data_error_msg='No data found in the source exposure (loc.) file',
         memory_map=True
     )
+    exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
 
     # Set data types for the keys dataframe
     dtypes = {
