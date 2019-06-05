@@ -9,6 +9,7 @@ OasisLMF Changelog
 
 `1.3.8`_
 -------
+* Add FM support for processing types and codes for deductibles and limits
 * Improvements for complex model support and logging 
 * Update to summary sets for grouping results 
 * Exposure reporting added 
