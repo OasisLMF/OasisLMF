@@ -390,10 +390,9 @@ class OasisManager(object):
                 _, _ = olf.write_oasis_keys_file(keys, _keys_fp)
             else:
                 lookup_config = get_json(src_fp=lookup_config_fp) if lookup_config_fp else lookup_config
-                keys_data_fp = lookup_config['keys_data_path']
-                if lookup_config and keys_data_fp in ['.', './']:
+                if lookup_config and lookup_config['keys_data_path'] in ['.', './']:
                     lookup_config['keys_data_path'] = os.path.join(os.path.dirname(lookup_config_fp))
-                elif lookup_config and not os.path.isabs(keys_data_fp):
+                elif lookup_config and not os.path.isabs(lookup_config['keys_data_path']):
                     lookup_config['keys_data_path'] = os.path.join(os.path.dirname(lookup_config_fp), keys_data_fp)
 
                 _, lookup = olf.create(
