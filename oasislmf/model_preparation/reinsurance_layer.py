@@ -18,6 +18,8 @@ from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from . import oed
 
+from ..utils.data import print_dataframe
+
 # Metadata about an inuring layer
 InuringLayer = namedtuple(
     "InuringLayer",
@@ -183,6 +185,7 @@ class ReinsuranceLayer(object):
         xref_descriptions_df, risk_level, fmsummaryxref_df=pd.DataFrame(),
         gulsummaryxref_df=pd.DataFrame(), logger=None
     ):
+
         self.logger = logger or logging.getLogger()
         self.name = name
 
@@ -547,7 +550,7 @@ class ReinsuranceLayer(object):
                 current_location_number = row.locnumber
                 current_location_group = row.locgroup
 
-            self._add_item_node(row.agg_id, current_filter_level_node)
+            self._add_item_node(row.output_id, current_filter_level_node)
 
         return program_node
 
