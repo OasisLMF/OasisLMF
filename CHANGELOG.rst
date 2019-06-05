@@ -1,6 +1,10 @@
 OasisLMF Changelog
 ==================
 
+`1.3.10`_
+-------
+* Hotfix release - fix for models using custom lookups
+
 `1.3.9`_
 -------
 * Updated validation and fixes for FM file generation  
@@ -251,6 +255,7 @@ in the exposure manager
 
 * Add console logging
 
+.. _`1.3.10`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.9...1.3.10
 .. _`1.3.9`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.8...1.3.9
 .. _`1.3.8`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.7...1.3.8
 .. _`1.3.7`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.6...1.3.7
