@@ -78,16 +78,16 @@ PRL_GRP_XZ1 = 'XZ1'
 PRL_GRP_ZZ1 = 'ZZ1'
 
 PERIL_GROUPS = OrderedDict({
-    'all': {'id': PRL_GRP_AA1, 'desc': 'All perils'},
-    'wildfire w/ smoke': {'id': PRL_GRP_BB1, 'desc': 'Wildfire with smoke'},
-    'terrorism': {'id': PRL_GRP_MM1, 'desc': 'Terrorism'},
-    'flood w/o storm surge': {'id': PRL_GRP_OO1, 'desc': 'Flood w/o storm surge'},
-    'earthquake': {'id': PRL_GRP_QQ1, 'desc': 'All EQ perils'},
-    'windstorm w/ storm surge': {'id': PRL_GRP_WW1, 'desc': 'Windstorm with storm surge'},
-    'windstorm w/o storm surge': {'id': PRL_GRP_WW2, 'desc': 'Windstorm w/o storm surge'},
-    'convective storm': {'id': PRL_GRP_XX1, 'desc': 'Convective Storm'},
-    'convective storm rms': {'id': PRL_GRP_XZ1, 'desc': 'Convective storm (incl winter storm) - for RMS users'},
-    'winter storm': {'id': PRL_GRP_ZZ1, 'desc': 'Winter storm'}
+    'all': {'id': PRL_GRP_AA1, 'desc': 'All perils', 'peril_ids': [PRL_QEQ, PRL_QFF, PRL_QTS, PRL_QSL, PRL_QLS, PRL_QLF, PRL_WTC, PRL_WEC, PRL_WSS, PRL_ORF, PRL_OSF, PRL_XSL, PRL_XTD, PRL_XHL, PRL_ZSN, PRL_ZIC, PRL_ZFZ, PRL_BFR, PRL_BBF, PRL_MNT, PRL_MTR, PRL_XLT, PRL_ZST, PRL_BSK]},
+    'wildfire w/ smoke': {'id': PRL_GRP_BB1, 'desc': 'Wildfire with smoke', 'peril_ids': [PRL_BBF, PRL_BSK]},
+    'terrorism': {'id': PRL_GRP_MM1, 'desc': 'Terrorism', 'peril_ids': [PRL_MNT, PRL_MTR]},
+    'flood w/o storm surge': {'id': PRL_GRP_OO1, 'desc': 'Flood w/o storm surge', 'peril_ids': [PRL_ORF, PRL_OSF]},
+    'earthquake': {'id': PRL_GRP_QQ1, 'desc': 'All EQ perils', 'peril_ids': [PRL_QEQ, PRL_QFF, PRL_QTS, PRL_QSL, PRL_QLS, PRL_QLF]},
+    'windstorm w/ storm surge': {'id': PRL_GRP_WW1, 'desc': 'Windstorm with storm surge', 'peril_ids': [PRL_WTC, PRL_WEC, PRL_WSS]},
+    'windstorm w/o storm surge': {'id': PRL_GRP_WW2, 'desc': 'Windstorm w/o storm surge', 'peril_ids': [PRL_WTC, PRL_WEC]},
+    'convective storm': {'id': PRL_GRP_XX1, 'desc': 'Convective Storm', 'peril_ids': [PRL_XSL, PRL_XTD, PRL_XHL, PRL_XLT]},
+    'convective storm rms': {'id': PRL_GRP_XZ1, 'desc': 'Convective storm (incl winter storm) - for RMS users', 'peril_ids': [PRL_XSL, PRL_XTD, PRL_XHL, PRL_ZSN, PRL_ZIC, PRL_ZFZ, PRL_XLT, PRL_ZST]},
+    'winter storm': {'id': PRL_GRP_ZZ1, 'desc': 'Winter storm', 'peril_ids': [PRL_ZSN, PRL_ZIC, PRL_ZFZ, PRL_ZST]}
 })
 
 PERILS = OrderedDict({

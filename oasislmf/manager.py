@@ -43,8 +43,6 @@ from .model_execution.bin import (
 from .model_preparation.gul_inputs import (
     get_gul_input_items,
     write_gul_input_files,
-    get_items_df,
-    get_coverages_df,
 )
 from .model_preparation.il_inputs import (
     get_il_input_items,
@@ -296,7 +294,7 @@ class OasisManager(object):
 
         return olf.save_results(
             lookup,
-            loc_num_col=keys_id_col,
+            loc_id_col=keys_id_col,
             successes_fp=keys_fp,
             errors_fp=keys_errors_fp,
             source_exposure_fp=exposure_fp,
@@ -392,8 +390,11 @@ class OasisManager(object):
                 _, _ = olf.write_oasis_keys_file(keys, _keys_fp)
             else:
                 lookup_config = get_json(src_fp=lookup_config_fp) if lookup_config_fp else lookup_config
-                if lookup_config:
-                    lookup_config['keys_data_path'] = os.path.abspath(os.path.dirname(lookup_config_fp))
+                keys_data_fp = lookup_config['keys_data_path']
+                if lookup_config and keys_data_fp in ['.', './']:
+                    lookup_config['keys_data_path'] = os.path.join(os.path.dirname(lookup_config_fp))
+                elif lookup_config and not os.path.isabs(keys_data_fp):
+                    lookup_config['keys_data_path'] = os.path.join(os.path.dirname(lookup_config_fp), keys_data_fp)
 
                 _, lookup = olf.create(
                     lookup_config=lookup_config,
@@ -488,8 +489,7 @@ class OasisManager(object):
         
         ri_info_df, ri_scope_df, _ = load_oed_dfs(ri_info_fp, ri_scope_fp)
         ri_layers = write_files_for_reinsurance(
-            get_items_df(gul_inputs_df),
-            get_coverages_df(gul_inputs_df),
+            gul_inputs_df,
             xref_descriptions_df,
             ri_info_df,
             ri_scope_df,
