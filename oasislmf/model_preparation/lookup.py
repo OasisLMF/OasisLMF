@@ -443,7 +443,7 @@ class OasisLookupFactory(object):
         user_data_dir=None,
         output_directory=None,
         builtin_lookup_type='combined',
-        loc_id_col='locnumber'
+        loc_id_col='loc_id'
     ):
         """
         Creates a keys lookup class instance for the given model and supplier -
@@ -535,8 +535,9 @@ class OasisLookupFactory(object):
         loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
         acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
         portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
-        loc_df['loc_id'] = get_ids(loc_df, [portfolio_num, acc_num, loc_num])
-        loc_df['loc_id'] = loc_df['loc_id'].astype('uint32')
+        if 'loc_id' not in loc_df:
+            loc_df['loc_id'] = get_ids(loc_df, [portfolio_num, acc_num, loc_num])
+            loc_df['loc_id'] = loc_df['loc_id'].astype('uint32')
 
         for record in lookup.process_locations(loc_df):
             if success_only:
@@ -588,13 +589,14 @@ class OasisLookupFactory(object):
 
         exposure_df = get_dataframe(**kwargs)
 
-        oed_hierarchy = get_oed_hierarchy(exposure_profile=exposure_profile)
+        oed_hierarchy = get_oed_hierarchy()
         loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
         acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
         portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
 
-        exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
-        exposure_df['loc_id'] = exposure_df['loc_id'].astype('uint32')
+        if 'loc_id' not in exposure_df:
+            exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
+            exposure_df['loc_id'] = exposure_df['loc_id'].astype('uint32')
 
         locations = (loc for _, loc in exposure_df.iterrows())
 
@@ -609,7 +611,7 @@ class OasisLookupFactory(object):
     def save_keys(
         cls,
         lookup=None,
-        loc_id_col='locnumber',
+        loc_id_col='loc_id',
         keys_file_path=None,
         keys_errors_file_path=None,
         keys_format='oasis',
@@ -680,7 +682,7 @@ class OasisLookupFactory(object):
     def save_results(
         cls,
         lookup,
-        loc_id_col='locnumber',
+        loc_id_col='loc_id',
         successes_fp=None,
         errors_fp=None,
         source_exposure=None,
@@ -776,7 +778,7 @@ class OasisLookup(OasisBuiltinBaseLookup):
         peril_areas_index_props=None,
         loc_to_global_areas_boundary_min_distance=0,
         vulnerabilities=None,
-        loc_id_col='locnumber'
+        loc_id_col='loc_id'
     ):
         super(self.__class__, self).__init__(
             config=config,
@@ -890,7 +892,7 @@ class OasisPerilLookup(OasisBuiltinBaseLookup):
         peril_areas_index=None,
         peril_areas_index_fp=None,
         peril_areas_index_props=None,
-        loc_id_col='locnumber'
+        loc_id_col='loc_id'
     ):
         super(self.__class__, self).__init__(config=config, config_json=config_json, config_fp=config_fp, config_dir=config_dir)
 

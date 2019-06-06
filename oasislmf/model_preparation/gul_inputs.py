@@ -151,7 +151,9 @@ def get_gul_input_items(
     }
     # Load the exposure and keys dataframes - set 32-bit numeric data types
     # for all numeric columns - and in the keys frame rename some columns
-    # to align with underscored-naming convention
+    # to align with underscored-naming convention; set the `loc_id` column
+    # in the exposure dataframe to identify locations uniquely with respect
+    # to portfolios and portfolio accounts
     exposure_df = get_dataframe(
         src_fp=exposure_fp,
         required_cols=(loc_num, acc_num, portfolio_num,),
@@ -160,7 +162,8 @@ def get_gul_input_items(
         empty_data_error_msg='No data found in the source exposure (loc.) file',
         memory_map=True
     )
-    exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
+    if 'loc_id' not in exposure_df:
+        exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
 
     # Set data types for the keys dataframe
     dtypes = {

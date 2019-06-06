@@ -350,6 +350,7 @@ class OasisManager(object):
         accounts_profile = accounts_profile or (get_json(src_fp=accounts_profile_fp) if accounts_profile_fp else self.accounts_profile)
         oed_hierarchy = get_oed_hierarchy(exposure_profile, accounts_profile)
         loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
+        loc_grp = oed_hierarchy['locgrp']['ProfileElementName'].lower()
         acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
         portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
         fm_aggregation_profile = (
