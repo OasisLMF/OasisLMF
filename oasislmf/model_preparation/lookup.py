@@ -35,13 +35,17 @@ if shapely_speedups.available:
 
 from rtree.core import RTreeError
 
-from ..utils.data import get_dataframe
+from ..utils.data import (
+    get_dataframe,
+    get_ids,
+)
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.peril import (
     DEFAULT_RTREE_INDEX_PROPS,
     PerilAreasIndex,
 )
+from ..utils.profiles import get_oed_hierarchy
 from ..utils.status import OASIS_KEYS_STATUS
 
 
@@ -351,12 +355,9 @@ class OasisLookupFactory(object):
         if source_exposure_fp:
             loc_df = get_dataframe(src_fp=os.path.abspath(source_exposure_fp))
         elif source_exposure:
-            loc_df = get_dataframe(src_buf=os.path.abspath(source_exposure))
+            loc_df = get_dataframe(src_buf=source_exposure)
         else:
             raise OasisException('Either the source exposure or exposure file path must be specified')
-
-        loc_df = loc_df.where(loc_df.notnull(), None)
-        loc_df.columns = loc_df.columns.str.lower()
 
         return loc_df
 
@@ -525,11 +526,17 @@ class OasisLookupFactory(object):
         """
         if not (source_exposure or source_exposure_fp):
             raise OasisException('No source exposures provided')
-
         loc_df = cls.get_exposure(
             source_exposure_fp=source_exposure_fp,
             source_exposure=source_exposure
         )
+
+        oed_hierarchy = get_oed_hierarchy()
+        loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
+        acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
+        portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
+        loc_df['loc_id'] = get_ids(loc_df, [portfolio_num, acc_num, loc_num])
+        loc_df['loc_id'] = loc_df['loc_id'].astype('uint32')
 
         for record in lookup.process_locations(loc_df):
             if success_only:
@@ -580,6 +587,14 @@ class OasisLookupFactory(object):
         }
 
         exposure_df = get_dataframe(**kwargs)
+
+        oed_hierarchy = get_oed_hierarchy(exposure_profile=exposure_profile)
+        loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
+        acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
+        portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
+
+        exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
+        exposure_df['loc_id'] = exposure_df['loc_id'].astype('uint32')
 
         locations = (loc for _, loc in exposure_df.iterrows())
 
