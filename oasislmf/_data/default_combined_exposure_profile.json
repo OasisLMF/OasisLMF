@@ -643,7 +643,6 @@
     "10": {
         "1": {
             "attachment": {
-                "DeductibleType": "B",
                 "FMLevel": 10,
                 "FMLevelName": "PolLayer",
                 "FMTermGroupID": 1,
