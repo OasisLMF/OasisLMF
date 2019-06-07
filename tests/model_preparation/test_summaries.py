@@ -1,4 +1,3 @@
-import io
 import os
 import json
 import pandas as pd
@@ -12,7 +11,6 @@ from hypothesis import (
 )
 from hypothesis.strategies import (
     just,
-    sampled_from,
     integers,
 )
 
@@ -25,7 +23,6 @@ from oasislmf.utils.profiles import get_oed_hierarchy
 from oasislmf.utils.peril import PERILS
 
 from tests.data import (
-    keys,
     source_exposure,
     write_source_files,
     write_keys_files,
@@ -33,12 +30,6 @@ from tests.data import (
 
 
 class TestSummaries(TestCase):
-
-    # To remove
-    @staticmethod
-    def write_csv_file(keys_dict, path):
-        pd.DataFrame(keys_dict).to_csv(path, index=False, encoding='utf-8')
-
 
     @staticmethod
     def get_keys_dict(peril_ls, nlocations, successful=True, start_loc=1):
@@ -108,7 +99,7 @@ class TestSummaries(TestCase):
         )
 
 
-    @settings(deadline=None, max_examples=10)
+    @settings(deadline=None)
     @given(
         exposure = source_exposure(
             from_account_ids=just('1'),
