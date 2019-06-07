@@ -48,7 +48,7 @@ BUILD_OUTPUT_DIR='/tmp/output/'
  
 # Code Standards report
     flake8 oasislmf/ --ignore=E501,E402 | tee -a $LOG_FLAKE 
-    flake8 tests/ --ignore=E501,E402 | tee -a $LOG_FLAKE
+    flake8 tests/ --ignore=E501,E402 --exclude=tests/model_preparation/test_reinsurance.py | tee -a $LOG_FLAKE
 
 # Coverate report 
     coverage combine
