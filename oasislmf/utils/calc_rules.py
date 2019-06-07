@@ -14,7 +14,6 @@ from .defaults import (
 )
 
 
-
 def update_calc_rules():
     fp = os.path.join(STATIC_DATA_FP, 'calc_rules.csv')
 
