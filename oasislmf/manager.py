@@ -91,6 +91,7 @@ from .utils.path import (
 )
 from .utils.coverages import SUPPORTED_COVERAGE_TYPES
 
+
 class OasisManager(object):
 
     @oasis_log
@@ -484,12 +485,13 @@ class OasisManager(object):
         # file, which can be reused by the model runner (in the model execution
         # stage) to set the number of RI iterations
 
-        xref_descriptions_df = merge_oed_to_mapping(fm_summary_mapping,
-                                        exposure_df,
-                                        oed_column_set=[loc_grp],
-                                        defaults={loc_grp: 1})
+        xref_descriptions_df = merge_oed_to_mapping(
+            fm_summary_mapping,
+            exposure_df,
+            oed_column_set=[loc_grp],
+            defaults={loc_grp: 1}
+        )
 
-        
         ri_info_df, ri_scope_df, _ = load_oed_dfs(ri_info_fp, ri_scope_fp)
         ri_layers = write_files_for_reinsurance(
             gul_inputs_df,
@@ -497,8 +499,8 @@ class OasisManager(object):
             ri_info_df,
             ri_scope_df,
             oasis_files['fm_xref'],
-            target_dir)
-
+            target_dir
+        )
 
         with io.open(os.path.join(target_dir, 'ri_layers.json'), 'w', encoding='utf-8') as f:
             f.write(json.dumps(ri_layers, ensure_ascii=False, indent=4))
