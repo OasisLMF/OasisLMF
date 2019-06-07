@@ -601,6 +601,7 @@ def write_exposure_summary(
     exp_perils_df = exp_perils_df.reset_index([0, 'loc_id'])
 
     exp_perils_df.columns = ['loc_id', 'peril_id']
+
     exposure_df = merge_dataframes(
         exposure_df,
         exp_perils_df,
