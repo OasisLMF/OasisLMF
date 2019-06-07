@@ -19,6 +19,7 @@ from .fm import (
     FM_TERMS,
 )
 
+
 def get_grouped_fm_profile_by_level(
     exposure_profile=get_default_exposure_profile(),
     accounts_profile=get_default_accounts_profile()

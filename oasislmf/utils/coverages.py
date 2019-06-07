@@ -1,6 +1,6 @@
 __all__ = [
-	'COVERAGE_TYPES',
-	'SUPPORTED_COVERAGE_TYPES'
+    'COVERAGE_TYPES',
+    'SUPPORTED_COVERAGE_TYPES'
 ]
 
 from collections import OrderedDict

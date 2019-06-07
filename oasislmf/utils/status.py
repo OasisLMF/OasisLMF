@@ -1,6 +1,6 @@
 __all__ = [
-	'OASIS_KEYS_STATUS',
-	'OASIS_TASK_STATUS'
+    'OASIS_KEYS_STATUS',
+    'OASIS_TASK_STATUS'
 ]
 
 

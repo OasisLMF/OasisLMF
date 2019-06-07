@@ -5,6 +5,7 @@ __all__ = [
     'fast_zip_arrays',
     'fast_zip_dataframe_columns',
     'get_dataframe',
+    'get_ids',
     'get_json',
     'get_timestamp',
     'get_utctimestamp',
@@ -20,6 +21,7 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from datetime import datetime
+from itertools import groupby
 
 try:
     from json import JSONDecodeError
@@ -330,6 +332,35 @@ def get_dataframe(
         df.sort_values(_sort_cols, axis=0, ascending=sort_ascending, inplace=True)
 
     return df
+
+
+def get_ids(df, usecols, group_by=[]):
+    """
+    Enumerates (counts) the rows of a given dataframe in a given subset
+    of dataframe columns, and optionally does the enumeration with
+    respect to subgroups of the column subset.
+
+    :param df: Input dataframe
+    :type df: pandas.DataFrame
+
+    :param usecols: The column subset
+    :param usecols: list
+
+    :param group_by: A subset of the column subset to use a subgroup key
+    :param group_by: list
+
+    :return: The enumeration
+    :rtype: numpy.ndarray
+    """
+    _usecols = group_by + list(set(usecols).difference(group_by))
+
+    if not group_by:
+        return factorize_ndarray(df.loc[:, usecols].values, col_idxs=range(len(_usecols)))[0]
+
+    return np.hstack((
+        factorize_ndarray(np.asarray(list(group)), col_idxs=range(len(group_by) - 1, len(_usecols)))[0]
+        for _, group in groupby(fast_zip_arrays(*df.loc[:, usecols].transpose().values), key=lambda t: tuple(_usecols.index(k) for k in group_by))
+    ))
 
 
 def get_json(src_fp):

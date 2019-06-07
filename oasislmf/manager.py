@@ -63,6 +63,7 @@ from .model_preparation.reinsurance_layer import write_files_for_reinsurance
 from .utils.data import (
     fast_zip_dataframe_columns,
     get_dataframe,
+    get_ids,
     get_json,
     get_utctimestamp,
     merge_dataframes,
@@ -89,6 +90,7 @@ from .utils.path import (
     setcwd,
 )
 from .utils.coverages import SUPPORTED_COVERAGE_TYPES
+
 
 class OasisManager(object):
 
@@ -378,16 +380,17 @@ class OasisManager(object):
             cov_types = supported_oed_coverage_types or self.supported_oed_coverage_types
 
             if deterministic:
-                loc_nums = (loc_it[loc_num] for _, loc_it in get_dataframe(
+                exposure_df = get_dataframe(
                     src_fp=exposure_fp,
-                    col_dtypes={loc_num: 'str', acc_num: 'str', portfolio_num: 'str'},
                     empty_data_error_msg='No exposure found in the source exposure (loc.) file'
-                )[[loc_num]].iterrows())
+                )
+                exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
+                loc_ids = (loc_it['loc_id'] for _, loc_it in exposure_df.loc[:, ['loc_id']].iterrows())
                 keys = [
-                    {loc_num: _loc_num, 'peril_id': 1, 'coverage_type': cov_type, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
-                    for i, (_loc_num, cov_type) in enumerate(product(loc_nums, cov_types))
+                    {'loc_id': _loc_id, 'peril_id': 1, 'coverage_type': cov_type, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
+                    for i, (_loc_id, cov_type) in enumerate(product(loc_ids, cov_types))
                 ]
-                _, _ = olf.write_oasis_keys_file(keys, _keys_fp)
+                _, _ = olf.write_oasis_keys_file(keys, _keys_fp, id_col='loc_id')
             else:
                 lookup_config = get_json(src_fp=lookup_config_fp) if lookup_config_fp else lookup_config
                 if lookup_config and lookup_config['keys_data_path'] in ['.', './']:
@@ -406,7 +409,7 @@ class OasisManager(object):
                 )
                 f1, _, f2, _ = olf.save_results(
                     lookup,
-                    loc_id_col=loc_num,
+                    loc_id_col='loc_id',
                     successes_fp=_keys_fp,
                     errors_fp=_keys_errors_fp,
                     source_exposure_fp=exposure_fp
@@ -416,7 +419,9 @@ class OasisManager(object):
 
         # Get the GUL input items and exposure dataframes
         gul_inputs_df, exposure_df = get_gul_input_items(
-            exposure_fp, _keys_fp, exposure_profile=exposure_profile
+            exposure_fp,
+            _keys_fp,
+            exposure_profile=exposure_profile
         )
 
         # If not in det. loss gen. scenario, write exposure summary file
@@ -480,12 +485,13 @@ class OasisManager(object):
         # file, which can be reused by the model runner (in the model execution
         # stage) to set the number of RI iterations
 
-        xref_descriptions_df = merge_oed_to_mapping(fm_summary_mapping,
-                                        exposure_df,
-                                        oed_column_set=[loc_grp],
-                                        defaults={loc_grp: 1})
+        xref_descriptions_df = merge_oed_to_mapping(
+            fm_summary_mapping,
+            exposure_df,
+            oed_column_set=[loc_grp],
+            defaults={loc_grp: 1}
+        )
 
-        
         ri_info_df, ri_scope_df, _ = load_oed_dfs(ri_info_fp, ri_scope_fp)
         ri_layers = write_files_for_reinsurance(
             gul_inputs_df,
@@ -493,8 +499,8 @@ class OasisManager(object):
             ri_info_df,
             ri_scope_df,
             oasis_files['fm_xref'],
-            target_dir)
-
+            target_dir
+        )
 
         with io.open(os.path.join(target_dir, 'ri_layers.json'), 'w', encoding='utf-8') as f:
             f.write(json.dumps(ri_layers, ensure_ascii=False, indent=4))

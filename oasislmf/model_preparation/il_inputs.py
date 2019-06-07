@@ -3,7 +3,6 @@ __all__ = [
     'get_grouped_fm_profile_by_level_and_term_group',
     'get_grouped_fm_terms_by_level_and_term_group',
     'get_il_input_items',
-    'get_layer_ids',
     'get_policytc_ids',
     'write_il_input_files',
     'write_fm_policytc_file',
@@ -17,10 +16,6 @@ import os
 import sys
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
-
-from itertools import (
-    groupby,
-)
 
 import pandas as pd
 pd.options.mode.chained_assignment = None
@@ -36,6 +31,7 @@ from ..utils.data import (
     factorize_ndarray,
     fast_zip_arrays,
     get_dataframe,
+    get_ids,
     merge_dataframes,
     set_dataframe_column_dtypes,
 )
@@ -56,41 +52,6 @@ from ..utils.profiles import (
     get_grouped_fm_terms_by_level_and_term_group,
     get_oed_hierarchy,
 )
-
-
-def get_layer_ids(accounts_df, accounts_profile=get_default_accounts_profile()):
-    """
-    Generates a Pandas series of layer IDs given an accounts dataframe - a
-    layer ID is an integer index on unique
-
-        ((portfolio num., account num.), policy num.)
-
-    combinations in an account file (or dataframe). The ``PortNumber``,
-    ``AccNumber``, ``PolNumber`` columns (or the lowercase equivalents)
-    must be present in the accounts dataframe
-
-    :param accounts_df: Accounts dataframe
-    :type accounts_df: pandas.DataFrame
-
-    :return: Layer IDs as a Pandas series
-    :rtype: pandas.Series
-    """
-    oed_hierarchy = get_oed_hierarchy(accounts_profile=accounts_profile)
-    portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
-    acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
-    policy_num = oed_hierarchy['polnum']['ProfileElementName'].lower()
-
-    _accounts_df = accounts_df.loc[:, [portfolio_num, acc_num, policy_num]]
-    _accounts_df.columns = _accounts_df.columns.str.lower()
-
-    portfolio_nums = _accounts_df[portfolio_num].values
-    acc_nums = _accounts_df[acc_num].values
-    policy_nums = _accounts_df[policy_num].values
-
-    return np.hstack((
-        factorize_ndarray(np.asarray(list(accnum_group)), col_idxs=range(1, 3))[0]
-        for _, accnum_group in groupby(fast_zip_arrays(portfolio_nums, acc_nums, policy_nums), key=lambda t: (t[0], t[1]))
-    ))
 
 
 def get_calc_rule_ids(il_inputs_df):
@@ -215,7 +176,6 @@ def get_il_input_items(
     # that would mean that changes to these column names in the source files
     # may break the method
     oed_hierarchy = get_oed_hierarchy(exposure_profile, accounts_profile)
-    loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
     acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
     policy_num = oed_hierarchy['polnum']['ProfileElementName'].lower()
     portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
@@ -283,7 +243,7 @@ def get_il_input_items(
     # a custom method is called that will generate this column and set it
     # in the accounts dataframe
     if 'layer_id' not in accounts_df:
-        accounts_df['layer_id'] = get_layer_ids(accounts_df, accounts_profile=accounts_profile)
+        accounts_df['layer_id'] = get_ids(accounts_df, [portfolio_num, acc_num, policy_num], group_by=[portfolio_num, acc_num])
 
     # Drop all columns from the accounts dataframe which are not either one of
     # portfolio num., acc. num., policy num., cond. numb., layer ID, or one of
@@ -317,9 +277,9 @@ def get_il_input_items(
         # the GUL inputs frame effectively only contains financial terms related to
         # FM level 1 (site coverage)
         gul_inputs_df = merge_dataframes(
-            exposure_df.loc[:, site_pd_and_site_all_term_cols + [loc_num]],
+            exposure_df.loc[:, site_pd_and_site_all_term_cols + ['loc_id']],
             gul_inputs_df,
-            join_on=loc_num,
+            join_on='loc_id',
             how='inner'
         )
         gul_inputs_df.rename(columns={'item_id': 'gul_input_id'}, inplace=True)

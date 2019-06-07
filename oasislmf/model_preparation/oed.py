@@ -9,7 +9,6 @@ import os
 from collections import namedtuple
 
 from ..utils.data import get_dataframe
-from ..utils.exceptions import OasisException
 
 
 # TODO - add validator
@@ -178,7 +177,7 @@ def load_oed_dfs(oed_ri_info_file, oed_ri_scope_file, show_all=False):
         do_reinsurance = False
     elif oed_ri_info_file_exists and oed_ri_scope_file_exists:
         ri_info_df = get_dataframe(
-            oed_ri_info_file, lowercase_cols=False, 
+            oed_ri_info_file, lowercase_cols=False,
             required_cols=RI_INFO_REQUIRED_COLS,
             col_defaults=RI_INFO_DEFAULTS,
             col_dtypes=RI_INFO_DTYPES)
@@ -189,9 +188,9 @@ def load_oed_dfs(oed_ri_info_file, oed_ri_scope_file, show_all=False):
             col_dtypes=RI_SCOPE_DTYPES)
 
         # Treat empty Risk Level as portfolio level scope.
-        # Also need nan, as this is produced when 
+        # Also need nan, as this is produced when
         # a single row with empty Risk Level is loaded.
-        ri_scope_df.RiskLevel.fillna(REINS_RISK_LEVEL_PORTFOLIO, inplace = True)
+        ri_scope_df.RiskLevel.fillna(REINS_RISK_LEVEL_PORTFOLIO, inplace=True)
     else:
         print("Both reinsurance files must exist: {} {}".format(
             oed_ri_info_file, oed_ri_scope_file))

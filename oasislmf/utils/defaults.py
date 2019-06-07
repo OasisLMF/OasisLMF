@@ -23,8 +23,6 @@ import os
 from collections import OrderedDict
 
 from .data import (
-    fast_zip_arrays,
-    get_dataframe,
     get_json,
 )
 
