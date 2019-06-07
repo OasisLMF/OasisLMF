@@ -126,12 +126,12 @@ def merge_oed_to_mapping(summary_map_df, exposure_df, oed_column_set, defaults=N
     columns_found = [c for c in column_set if c in exposure_df.columns.to_list()]
     columns_missing = list(set(column_set) - set(columns_found))
 
-    # Select DF with matching cols 
+    # Select DF with matching cols
     exposure_col_df = exposure_df.loc[:, columns_found]
-    # Add default value if optional column is missing 
+    # Add default value if optional column is missing
     for col in columns_missing:
         if col in defaults:
-            exposure_col_df[col] = defaults[col]       
+            exposure_col_df[col] = defaults[col]
         else:
             raise OasisException('Column to merge "{}" not in locations dataframe or defined with a default value'.format(col))
 
@@ -155,8 +155,8 @@ def group_by_oed(summary_map_df, exposure_df, oed_col_group):
     :return: subset of columns from exposure_df to merge
     :rtype: list
     """
-    
-    oed_cols = [c.lower() for c in oed_col_group] 
+
+    oed_cols = [c.lower() for c in oed_col_group]
     exposure_cols = [c for c in oed_cols if c not in summary_map_df.columns]
     mapping_cols = [SOURCE_IDX['loc']] + [c for c in oed_cols if c in summary_map_df.columns]
 
@@ -582,7 +582,6 @@ def write_exposure_summary(
 
     # Merge GUL input items and source exposure dataframes to leave covered
     # perils
-    loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
     loc_per_cov = oed_hierarchy['locperilid']['ProfileElementName'].lower()
     model_peril_ids = gul_inputs_df['peril_id'].unique()
 
