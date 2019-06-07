@@ -661,7 +661,8 @@ def genbash(
 
             for i in range(1, num_reinsurance_iterations + 1):
                 main_cmd = "{0} | fmcalc -a {3} -n -p RI_{2}".format(
-                    main_cmd, os.sep, i, alloc_rule)                    
+                    main_cmd, os.sep, i, alloc_rule
+                )
 
             main_cmd = "{0} > {1}fifo/ri_P{2} &".format(main_cmd, fifo_queue_dir, process_id)
 
