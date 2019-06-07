@@ -74,7 +74,6 @@ class RunCmd(OasisBaseCommand):
             '-o', '--output-level', default='item', help='Level to output losses', type=str
         )
 
-
     def action(self, args):
         """
         Generates deterministic losses using the installed ktools framework given
@@ -123,7 +122,7 @@ class RunCmd(OasisBaseCommand):
         il = ril = False
         il = ('account.csv' in src_contents)
         ril = il and ('ri_info.csv' in src_contents) and ('ri_scope.csv' in src_contents)
-        
+
         self.logger.info('\nRunning deterministic losses (GUL=True, IL={}, RIL={})\n'.format(il, ril))
         guls_df, ils_df, rils_df = om().run_deterministic(
             src_dir,
@@ -137,12 +136,12 @@ class RunCmd(OasisBaseCommand):
         summaries_df = get_dataframe(src_fp=os.path.join(run_dir, 'fm_summary_map.csv'))
 
         guls_df.to_csv(path_or_buf=os.path.join(run_dir, 'guls.csv'), index=False, encoding='utf-8')
-        guls_df.rename(columns={'loss': 'loss_gul'}, inplace=True) 
+        guls_df.rename(columns={'loss': 'loss_gul'}, inplace=True)
         all_losses_df = guls_df
 
         if il:
             ils_df.to_csv(path_or_buf=os.path.join(run_dir, 'ils.csv'), index=False, encoding='utf-8')
-            ils_df.rename(columns={'loss': 'loss_il'}, inplace=True) 
+            ils_df.rename(columns={'loss': 'loss_il'}, inplace=True)
             all_losses_df = all_losses_df.merge(
                 right=ils_df,
                 left_on=["event_id", "item_id"],
@@ -151,17 +150,17 @@ class RunCmd(OasisBaseCommand):
             )
         if ril:
             rils_df.to_csv(path_or_buf=os.path.join(run_dir, 'rils.csv'), index=False, encoding='utf-8')
-            rils_df.rename(columns={'loss': 'loss_ri'}, inplace=True) 
+            rils_df.rename(columns={'loss': 'loss_ri'}, inplace=True)
             all_losses_df = all_losses_df.merge(
                 right=rils_df,
                 on=["event_id", "output_id"]
             )
 
         all_losses_df = all_losses_df.merge(
-                right=summaries_df,
-                left_on=["output_id"],
-                right_on=["output_id"]
-            )
+            right=summaries_df,
+            left_on=["output_id"],
+            right_on=["output_id"]
+        )
 
         total_gul = guls_df.loss_gul.sum()
 
@@ -183,24 +182,27 @@ class RunCmd(OasisBaseCommand):
             summary_cols = ['output_id', portfolio_num, acc_num, loc_num, policy_num, 'coverage_type_id']
 
         if not il and not ril:
-            all_losses_df = all_losses_df[summary_cols + ['loss_gul']]
-            header='Losses (loss factor={}; total gul={:,.00f})'.format(loss_factor, total_gul)
+            all_losses_df = all_losses_df.loc[:, summary_cols + ['loss_gul']]
+            header = 'Losses (loss factor={}; total gul={:,.00f})'.format(loss_factor, total_gul)
         elif not ril:
             total_il = ils_df.loss_il.sum()
-            all_losses_df = all_losses_df[summary_cols + ['loss_gul', 'loss_il']]
-            summary_gul_df = pd.DataFrame({'loss_gul' : all_losses_df.groupby(summary_cols)['loss_gul'].sum()}).reset_index()
-            summary_il_df = pd.DataFrame({'loss_il' : all_losses_df.groupby(summary_cols)['loss_il'].sum()}).reset_index()
+            all_losses_df = all_losses_df.loc[:, summary_cols + ['loss_gul', 'loss_il']]
+            summary_gul_df = pd.DataFrame({'loss_gul': all_losses_df.groupby(summary_cols)['loss_gul'].sum()}).reset_index()
+            summary_il_df = pd.DataFrame({'loss_il': all_losses_df.groupby(summary_cols)['loss_il'].sum()}).reset_index()
             all_losses_df = summary_gul_df.merge(right=summary_il_df, on=summary_cols)
-            header='Losses (loss factor={}; total gul={:,.00f}; total il={:,.00f})'.format(
-                    loss_factor, total_gul, total_il) 
+            header = 'Losses (loss factor={}; total gul={:,.00f}; total il={:,.00f})'.format(
+                loss_factor,
+                total_gul,
+                total_il
+            )
         else:
             total_il = ils_df.loss_il.sum()
             total_ri_net = rils_df.loss_ri.sum()
-            total_ri_ceded = total_il - total_ri_net 
-            all_losses_df = all_losses_df[summary_cols + ['loss_gul', 'loss_il', 'loss_ri']]
-            summary_gul_df = pd.DataFrame({'loss_gul' : all_losses_df.groupby(summary_cols)['loss_gul'].sum()}).reset_index()
-            summary_il_df = pd.DataFrame({'loss_il' : all_losses_df.groupby(summary_cols)['loss_il'].sum()}).reset_index()
-            summary_ri_df = pd.DataFrame({'loss_ri' : all_losses_df.groupby(summary_cols)['loss_ri'].sum()}).reset_index()
+            total_ri_ceded = total_il - total_ri_net
+            all_losses_df = all_losses_df.loc[:, summary_cols + ['loss_gul', 'loss_il', 'loss_ri']]
+            summary_gul_df = pd.DataFrame({'loss_gul': all_losses_df.groupby(summary_cols)['loss_gul'].sum()}).reset_index()
+            summary_il_df = pd.DataFrame({'loss_il': all_losses_df.groupby(summary_cols)['loss_il'].sum()}).reset_index()
+            summary_ri_df = pd.DataFrame({'loss_ri': all_losses_df.groupby(summary_cols)['loss_ri'].sum()}).reset_index()
             all_losses_df = summary_gul_df.merge(right=summary_il_df, on=summary_cols).merge(right=summary_ri_df, on=summary_cols)
             header = 'Losses (loss factor={}; total gul={:,.00f}; total il={:,.00f}; total ri ceded={:,.00f})'.format(
                 loss_factor, total_gul, total_il, total_ri_ceded)

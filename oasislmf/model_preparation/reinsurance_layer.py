@@ -1,8 +1,6 @@
 __all__ = [
-    'generate_xref_descriptions',
-    'generate_files_for_reinsurance',
     'ReinsuranceLayer',
-    'write_ri_input_files'
+    'write_files_for_reinsurance'
 ]
 
 import json
@@ -11,7 +9,6 @@ import os
 import shutil
 
 from collections import namedtuple
-from itertools import product
 
 import anytree
 import numbers
@@ -24,15 +21,19 @@ from . import oed
 # Metadata about an inuring layer
 InuringLayer = namedtuple(
     "InuringLayer",
-    "inuring_priority reins_numbers is_valid validation_messages")
+    "inuring_priority reins_numbers is_valid validation_messages"
+)
 
 RiInputs = namedtuple(
-    'RiInputs', 
-    'inuring_priority risk_level ri_inputs')
+    'RiInputs',
+    'inuring_priority risk_level ri_inputs'
+)
 
 RiLayerInputs = namedtuple(
-    'RiLayerInputs', 
-    'fm_programme fm_profile fm_policytc')
+    'RiLayerInputs',
+    'fm_programme fm_profile fm_policytc'
+)
+
 
 def _get_location_tiv(location, coverage_type_id):
     switcher = {
@@ -64,7 +65,7 @@ def _get_ri_inputs(
             ri_inputs.append(
                 RiInputs(
                     inuring_priority=inuring_priority,
-                    risk_level=risk_level, 
+                    risk_level=risk_level,
                     ri_inputs=_generate_inputs_for_reinsurance_risk_level(
                         inuring_priority,
                         items_df,
@@ -114,7 +115,7 @@ def write_files_for_reinsurance(
         ri_input.ri_inputs.fm_policytc.to_csv(
             os.path.join(ri_output_dir, "fm_policytc.csv"), index=False)
         shutil.copyfile(
-            fm_xref_fp, 
+            fm_xref_fp,
             os.path.join(ri_output_dir, "fm_xref.csv"))
 
         inuring_metadata[reinsurance_index] = {
@@ -126,6 +127,7 @@ def write_files_for_reinsurance(
         reinsurance_index = reinsurance_index + 1
 
     return inuring_metadata
+
 
 def _generate_inputs_for_reinsurance_risk_level(
         inuring_priority,
@@ -169,6 +171,7 @@ def _generate_inputs_for_reinsurance_risk_level(
         fm_policytc=reinsurance_layer.fm_policytcs_df
     )
 
+
 class ReinsuranceLayer(object):
     """
     Generates ktools inputs and runs financial module for a reinsurance structure.
@@ -176,7 +179,7 @@ class ReinsuranceLayer(object):
 
     def __init__(
         self,
-        name, ri_info_df, ri_scope_df, items_df, coverages_df, 
+        name, ri_info_df, ri_scope_df, items_df, coverages_df,
         xref_descriptions_df, risk_level, fmsummaryxref_df=pd.DataFrame(),
         gulsummaryxref_df=pd.DataFrame(), logger=None
     ):
@@ -256,7 +259,6 @@ class ReinsuranceLayer(object):
             location_group=xref_description.locgroup,
             location_number=xref_description.locnumber)
 
-
     def _add_location_node(
             self, level_id, agg_id, xref_description, parent):
         return self._add_node(
@@ -271,7 +273,6 @@ class ReinsuranceLayer(object):
             account_number=xref_description.accnumber,
             location_group=xref_description.locgroup,
             location_number=xref_description.locnumber)
-
 
     def _add_location_group_node(
             self, level_id, agg_id, xref_description, parent):
@@ -354,7 +355,7 @@ class ReinsuranceLayer(object):
 
     def _match_location(self, node, scope_row, exact=False):
         match = False
-        
+
         if exact:
             match = self._match_account(node, scope_row) and node.location_number == scope_row.LocNumber
         else:
@@ -520,7 +521,7 @@ class ReinsuranceLayer(object):
                 if current_location_group != row.locgroup:
                     agg_id = agg_id + 1
                     current_node = self._add_location_group_node(
-                        risk_level_id, agg_id, row, program_node)       
+                        risk_level_id, agg_id, row, program_node)
             elif self.risk_level == oed.REINS_RISK_LEVEL_LOCATION:
                 if (
                     current_portfolio_number != row.portnumber or
@@ -529,7 +530,7 @@ class ReinsuranceLayer(object):
                 ):
                     agg_id = agg_id + 1
                     current_node = self._add_location_node(
-                        risk_level_id, agg_id, row, program_node)            
+                        risk_level_id, agg_id, row, program_node)
             if (
                 current_portfolio_number != row.portnumber or
                 current_account_number != row.accnumber or
@@ -710,9 +711,11 @@ class ReinsuranceLayer(object):
 
         profile_id = self._get_next_profile_id(add_profiles_args)
         nodes_risk_level_all = anytree.search.findall(
-            add_profiles_args.program_node, filter_=lambda node: node.level_id == self._get_risk_level_id())
+            add_profiles_args.program_node, filter_=lambda node: node.level_id == self._get_risk_level_id()
+        )
         nodes_filter_level_all = anytree.search.findall(
-        add_profiles_args.program_node, filter_=lambda node: node.level_id == self._get_filter_level_id())
+            add_profiles_args.program_node, filter_=lambda node: node.level_id == self._get_filter_level_id()
+        )
 
         for _, ri_scope_row in add_profiles_args.scope_rows.iterrows():
             # Filter
@@ -808,7 +811,7 @@ class ReinsuranceLayer(object):
             # Else, only increment inline with the reins_number
             if ri_info_row.ReinsType in ['FAC']:
                 pass
-            if prev_reins_number == -1: 
+            if prev_reins_number == -1:
                 prev_reins_number = ri_info_row.ReinsNumber
             elif prev_reins_number < ri_info_row.ReinsNumber:
                 layer_id += 1

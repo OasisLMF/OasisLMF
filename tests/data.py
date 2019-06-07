@@ -364,6 +364,7 @@ def keys(
 ):
     def _sequence(li):
         for i, data in enumerate(li):
+            data['loc_id'] = i
             data['locnumber'] = '{}'.format(i + 1)
 
         return li

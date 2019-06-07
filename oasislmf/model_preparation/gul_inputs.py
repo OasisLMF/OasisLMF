@@ -25,8 +25,9 @@ from ..utils.concurrency import (
 )
 from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
 from ..utils.data import (
-    factorize_ndarray,
+    factorize_array,
     get_dataframe,
+    get_ids,
     merge_dataframes,
     set_dataframe_column_dtypes,
 )
@@ -145,11 +146,14 @@ def get_gul_input_items(
         **{t: 'float64' for t in tiv_cols + term_cols_floats},
         **{t: 'uint8' for t in term_cols_ints},
         **{t: 'uint16' for t in [cond_num]},
-        **{t: 'str' for t in [loc_num, portfolio_num, acc_num]}
+        **{t: 'str' for t in [loc_num, portfolio_num, acc_num]},
+        **{t: 'uint32' for t in ['loc_id']}
     }
     # Load the exposure and keys dataframes - set 32-bit numeric data types
     # for all numeric columns - and in the keys frame rename some columns
-    # to align with underscored-naming convention
+    # to align with underscored-naming convention; set the `loc_id` column
+    # in the exposure dataframe to identify locations uniquely with respect
+    # to portfolios and portfolio accounts
     exposure_df = get_dataframe(
         src_fp=exposure_fp,
         required_cols=(loc_num, acc_num, portfolio_num,),
@@ -158,6 +162,8 @@ def get_gul_input_items(
         empty_data_error_msg='No data found in the source exposure (loc.) file',
         memory_map=True
     )
+    if 'loc_id' not in exposure_df:
+        exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
 
     # Set data types for the keys dataframe
     dtypes = {
@@ -180,7 +186,7 @@ def get_gul_input_items(
     # is the convention used for the GUL and IL inputs dataframes in the MDK
     keys_df.rename(
         columns={
-            'locid': loc_num,
+            'locid': 'loc_id',
             'perilid': 'peril_id',
             'coveragetypeid': 'coverage_type_id',
             'areaperilid': 'areaperil_id',
@@ -202,7 +208,7 @@ def get_gul_input_items(
         # zeros for TIVs for all coverage types, and replace any nulls in the
         # cond.num. and TIV columns with zeros
         exposure_df[SOURCE_IDX['loc']] = exposure_df.index
-        gul_inputs_df = merge_dataframes(exposure_df, keys_df, join_on=loc_num, how='inner')
+        gul_inputs_df = merge_dataframes(exposure_df, keys_df, join_on='loc_id', how='inner')
 
         if gul_inputs_df.empty:
             raise OasisException(
@@ -270,7 +276,7 @@ def get_gul_input_items(
         gul_inputs_df.drop(tiv_cols + term_cols, axis=1, inplace=True)
 
         # Set the group ID - group by loc. number
-        gul_inputs_df['group_id'] = factorize_ndarray(gul_inputs_df.loc[:, [portfolio_num, acc_num, loc_num]].values, col_idxs=range(3))[0]
+        gul_inputs_df['group_id'] = factorize_array(gul_inputs_df['loc_id'].values)[0]
         gul_inputs_df['group_id'] = gul_inputs_df['group_id'].astype('uint32')
 
         # Set the item IDs and coverage IDs, and defaults and data types for
@@ -290,7 +296,7 @@ def get_gul_input_items(
 
         # Drop all unnecessary columns
         usecols = (
-            [loc_num, acc_num, portfolio_num, cond_num] +
+            ['loc_id', loc_num, acc_num, portfolio_num, cond_num] +
             ['tiv'] + terms +
             ['peril_id', 'coverage_type_id', 'areaperil_id', 'vulnerability_id'] +
             (['model_data'] if 'model_data' in gul_inputs_df else []) +

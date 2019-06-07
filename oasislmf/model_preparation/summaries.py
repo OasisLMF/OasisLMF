@@ -73,6 +73,7 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
     usecols = [
         acc_num,
         loc_num,
+        'loc_id',
         policy_num,
         portfolio_num,
         SOURCE_IDX['loc'],
@@ -94,7 +95,7 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
     dtypes = {
         **{t: 'str' for t in [portfolio_num, policy_num, acc_num, loc_num, 'peril_id']},
         **{t: 'uint8' for t in ['coverage_type_id']},
-        **{t: 'uint32' for t in [SOURCE_IDX['loc'], 'item_id', 'layer_id', 'coverage_id', 'agg_id', 'output_id']},
+        **{t: 'uint32' for t in [SOURCE_IDX['loc'], 'loc_id', 'item_id', 'layer_id', 'coverage_id', 'agg_id', 'output_id']},
         **{t: 'float64' for t in ['tiv']}
     }
     summary_mapping = set_dataframe_column_dtypes(summary_mapping, dtypes)
@@ -125,12 +126,12 @@ def merge_oed_to_mapping(summary_map_df, exposure_df, oed_column_set, defaults=N
     columns_found = [c for c in column_set if c in exposure_df.columns.to_list()]
     columns_missing = list(set(column_set) - set(columns_found))
 
-    # Select DF with matching cols 
+    # Select DF with matching cols
     exposure_col_df = exposure_df.loc[:, columns_found]
-    # Add default value if optional column is missing 
+    # Add default value if optional column is missing
     for col in columns_missing:
         if col in defaults:
-            exposure_col_df[col] = defaults[col]       
+            exposure_col_df[col] = defaults[col]
         else:
             raise OasisException('Column to merge "{}" not in locations dataframe or defined with a default value'.format(col))
 
@@ -154,8 +155,8 @@ def group_by_oed(summary_map_df, exposure_df, oed_col_group):
     :return: subset of columns from exposure_df to merge
     :rtype: list
     """
-    
-    oed_cols = [c.lower() for c in oed_col_group] 
+
+    oed_cols = [c.lower() for c in oed_col_group]
     exposure_cols = [c for c in oed_cols if c not in summary_map_df.columns]
     mapping_cols = [SOURCE_IDX['loc']] + [c for c in oed_cols if c in summary_map_df.columns]
 
@@ -477,7 +478,7 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
 
 
 @oasis_log
-def get_exposure_summary(df, exposure_summary, peril_key, peril_id, status, loc_num):
+def get_exposure_summary(df, exposure_summary, peril_key, peril_id, status):
     """
     Populate dictionary with TIVs and number of locations, grouped by peril and
     validity respectively
@@ -496,9 +497,6 @@ def get_exposure_summary(df, exposure_summary, peril_key, peril_id, status, loc_
 
     :param status: status returned by lookup ('success', 'fail' or 'nomatch')
     :type status: str
-
-    :param loc_num: location number column name from exposure file
-    :type loc_num: str
 
     :return: populated exposure_summary dictionary
     :rtype: dict
@@ -521,7 +519,7 @@ def get_exposure_summary(df, exposure_summary, peril_key, peril_id, status, loc_
         exposure_summary[peril_key]['all']['tiv'] += tiv_sum
 
     # Find number of locations
-    loc_count = df.loc[df['peril_id'] == peril_id, loc_num].drop_duplicates().count()
+    loc_count = df.loc[df['peril_id'] == peril_id, 'loc_id'].drop_duplicates().count()
     loc_count = int(loc_count)
     exposure_summary[peril_key][status]['number_of_locations'] = loc_count
     exposure_summary[peril_key]['all']['number_of_locations'] += loc_count
@@ -584,37 +582,41 @@ def write_exposure_summary(
 
     # Merge GUL input items and source exposure dataframes to leave covered
     # perils
-    loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
     loc_per_cov = oed_hierarchy['locperilid']['ProfileElementName'].lower()
     model_peril_ids = gul_inputs_df['peril_id'].unique()
+
     # Split rows with multiple peril codes
     exp_perils_df = pd.DataFrame(
         exposure_df[loc_per_cov].str.split(';').to_list(),
-        index=exposure_df[loc_num]
+        index=exposure_df['loc_id']
     ).stack()
+
     # Split rows with peril codes corresponding to peril groups
     exp_perils_df = pd.DataFrame(
         exp_perils_df.map(peril_groups).to_list(),
         index=exp_perils_df.index
     ).stack()
-    exp_perils_df = exp_perils_df.reset_index([0, loc_num])
-    exp_perils_df.columns = [loc_num, 'peril_id']
+
+    exp_perils_df = exp_perils_df.reset_index([0, 'loc_id'])
+
+    exp_perils_df.columns = ['loc_id', 'peril_id']
+
     exposure_df = merge_dataframes(
         exposure_df,
         exp_perils_df,
-        on=loc_num,
+        on='loc_id',
         how='right'
     )
     gul_inputs_df = merge_dataframes(
         gul_inputs_df,
         exposure_df,
-        on=[loc_num],
+        on=['loc_id', 'peril_id'],
         how='inner'
     )
     gul_inputs_errors_df = merge_dataframes(
         gul_inputs_errors_df,
         exposure_df,
-        on=[loc_num],
+        on=['loc_id', 'peril_id'],
         how='inner'
     )
 
@@ -641,8 +643,7 @@ def write_exposure_summary(
                     exposure_summary,
                     peril_key,
                     peril_id,
-                    status,
-                    loc_num
+                    status
                 )
             elif status != 'all':
                 exposure_summary = get_exposure_summary(
@@ -650,8 +651,7 @@ def write_exposure_summary(
                     exposure_summary,
                     peril_key,
                     peril_id,
-                    status,
-                    loc_num
+                    status
                 )
 
     # Write exposure summary as json file
