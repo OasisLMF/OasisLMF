@@ -17,10 +17,6 @@ import sys
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-from itertools import (
-    groupby,
-)
-
 import pandas as pd
 pd.options.mode.chained_assignment = None
 import numpy as np
@@ -180,7 +176,6 @@ def get_il_input_items(
     # that would mean that changes to these column names in the source files
     # may break the method
     oed_hierarchy = get_oed_hierarchy(exposure_profile, accounts_profile)
-    loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
     acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
     policy_num = oed_hierarchy['polnum']['ProfileElementName'].lower()
     portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
@@ -247,7 +242,6 @@ def get_il_input_items(
     # combinations in the accounts file. If the column doesn't exist then
     # a custom method is called that will generate this column and set it
     # in the accounts dataframe
-    #import ipdb; ipdb.set_trace()
     if 'layer_id' not in accounts_df:
         accounts_df['layer_id'] = get_ids(accounts_df, [portfolio_num, acc_num, policy_num], group_by=[portfolio_num, acc_num])
 
