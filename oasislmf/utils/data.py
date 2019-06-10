@@ -11,6 +11,7 @@ __all__ = [
     'get_utctimestamp',
     'merge_dataframes',
     'PANDAS_BASIC_DTYPES',
+    'PANDAS_DEFAULT_NULL_VALUES',
     'set_dataframe_column_dtypes'
 ]
 
@@ -55,6 +56,26 @@ PANDAS_BASIC_DTYPES = {
     builtins.bool: np.bool,
     'str': np.object,
     builtins.str: np.object
+}
+
+PANDAS_DEFAULT_NULL_VALUES = {
+    '-1.#IND',
+    '1.#QNAN',
+    '1.#IND',
+    '-1.#QNAN',
+    '#N/A N/A',
+    '#N/A',
+    'N/A',
+    'n/a',
+    'NA',
+    '#NA',
+    'NULL',
+    'null',
+    'NaN',
+    '-NaN',
+    'nan',
+    '-nan',
+    ''
 }
 
 
@@ -266,10 +287,15 @@ def get_dataframe(
 
     df = None
 
+    # Use a custom list of null values without the string "`NA`" when using
+    # pandas.read_csv because the default list contains the string "`NA`",
+    # which can appear in the `CountryCode` column in the loc. file
+    na_values = list(PANDAS_DEFAULT_NULL_VALUES.difference('NA'))
+
     if src_fp and src_type == 'csv':
-        df = pd.read_csv(src_fp, float_precision=float_precision, memory_map=memory_map)
+        df = pd.read_csv(src_fp, float_precision=float_precision, memory_map=memory_map, keep_default_na=False, na_values=na_values)
     elif src_buf and src_type == 'csv':
-        df = pd.read_csv(io.StringIO(src_buf), float_precision=float_precision, memory_map=memory_map)
+        df = pd.read_csv(io.StringIO(src_buf), float_precision=float_precision, memory_map=memory_map, keep_default_na=False, na_values=na_values)
     elif src_fp and src_type == 'json':
         df = pd.read_json(src_fp, precise_float=(True if float_precision == 'high' else False))
     elif src_buf and src_type == 'json':
