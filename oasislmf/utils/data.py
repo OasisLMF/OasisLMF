@@ -290,7 +290,7 @@ def get_dataframe(
     # Use a custom list of null values without the string "`NA`" when using
     # pandas.read_csv because the default list contains the string "`NA`",
     # which can appear in the `CountryCode` column in the loc. file
-    na_values = list(PANDAS_DEFAULT_NULL_VALUES.difference('NA'))
+    na_values = list(PANDAS_DEFAULT_NULL_VALUES.difference(['NA']))
 
     if src_fp and src_type == 'csv':
         df = pd.read_csv(src_fp, float_precision=float_precision, memory_map=memory_map, keep_default_na=False, na_values=na_values)
