@@ -1,4 +1,5 @@
 import os.path
+import sys
 
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
@@ -16,6 +17,7 @@ from hypothesis.strategies import (
 )
 
 
+from oasislmf.cli.exposure import RunCmd
 from oasislmf.manager import OasisManager as om
 from oasislmf.model_preparation.gul_inputs import (
     get_gul_input_items,
@@ -47,6 +49,11 @@ class FmAcceptanceTests(TestCase):
         self.accounts_profile = self.manager.accounts_profile
         self.profile = get_grouped_fm_profile_by_level_and_term_group(self.exposure_profile, self.accounts_profile)
         self.fm_aggregation_profile = self.manager.fm_aggregation_profile
+        self.test_cases_fp = os.path.join(sys.path[0], 'validation', 'examples')
+
+    def run(self, test_case):
+        pass
+
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=1)
     @given(
