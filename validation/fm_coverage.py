@@ -6,7 +6,7 @@
 import os
 
 if __name__ == '__main__':
-    validation_fp = os.path.join(os.getcwd(), 'examples')
+    validation_fp = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'examples')
     for c in sorted(
         [
             fn for fn in os.listdir(validation_fp)
