@@ -4,11 +4,14 @@ __all__ = [
 ]
 
 import os
-import pandas as pd
+import sys
 
 from argparse import RawDescriptionHelpFormatter
 from filecmp import cmp as compare_files
 from itertools import chain
+
+import pandas as pd
+
 from pathlib2 import Path
 
 from ..manager import OasisManager as om
@@ -255,6 +258,7 @@ class RunCmd(OasisBaseCommand):
                 else 'Validation complete: {}'.format(status)
             )
 
+            sys.exit(0 if status == 'PASS' else -1)
 
 class ExposureCmd(OasisBaseCommand):
     """
