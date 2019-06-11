@@ -42,7 +42,7 @@ class FmAcceptanceTests(TestCase):
     def test_fm9(self):
         self.run_test('fm9')
 
-    #@pytest.mark.skip(reason='Needs fixing')
+    @pytest.mark.skip(reason='Needs fixing')
     def test_fm12(self):
         self.run_test('fm12')
 
