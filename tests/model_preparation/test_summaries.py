@@ -23,81 +23,23 @@ from oasislmf.utils.profiles import get_oed_hierarchy
 from oasislmf.utils.peril import PERILS
 
 from tests.data import (
+    keys,
     source_exposure,
     write_source_files,
     write_keys_files,
 )
 
+PERIL_LS = [
+    'extra tropical cyclone',
+    'earthquake',
+    'flash flood'
+]
+COVERAGE_TYPE_IDS = [v['id'] for k, v in SUPPORTED_COVERAGE_TYPES.items()]
+MAX_NLOCATIONS = 6
+MAX_NKEYS = len(PERIL_LS) * len(COVERAGE_TYPE_IDS) * MAX_NLOCATIONS
+
 
 class TestSummaries(TestCase):
-
-    @staticmethod
-    def get_keys_dict(peril_ls, nlocations, successful=True, start_loc=1):
-        """
-        Compile and return dictionaries used to create keys and keys errors file.
-
-        peril_ls type: list
-        peril_ls desc: list of perils keys from PERILS dict
-
-        nlocations type: int
-        nlocations desc: number of unique locations to include
-
-        successful type: bool
-        successful desc: True to create keys dict, False to create keys errors dit
-
-        start_loc type: int
-        start_loc desc: first location id
-        """
-
-        def get_random_string(string_length):
-            """
-            Create and return random string of upper and lower case letters.
-
-            string_length type: int
-            string_length desc: length of string to be created.
-            """
-            letters = string.ascii_letters
-            return ''.join(random.choice(letters) for _ in range(string_length))
-
-
-        peril_ids = [PERILS[peril]['id'] for peril in peril_ls]
-        coverage_type_ids = [SUPPORTED_COVERAGE_TYPES['buildings']['id'],
-                             SUPPORTED_COVERAGE_TYPES['contents']['id']]
-        entries = nlocations * len(peril_ids) * len(coverage_type_ids)
-
-        keys_dict = {
-            'locnumber': [(i // 6) + start_loc for i in range(entries)],
-            'peril_id': [y for _ in range(nlocations) for x in peril_ids for y in [x, x]],
-            'coverage_type': [coverage for _ in range(nlocations) for _ in range(len(peril_ids)) for coverage in coverage_type_ids],
-            'area_peril_id': [random.randint(1, 10) for _ in range(entries)],
-            'vulnerability_id': [random.randint(1, 10) for _ in range(entries)],
-            'status': [OASIS_KEYS_STATUS['success']['id'] if successful else (OASIS_KEYS_STATUS['fail']['id'] if i < entries / 2 else OASIS_KEYS_STATUS['nomatch']['id']) for i in range(entries)],
-            'message': [get_random_string(string_length=random.randint(1,10)) for _ in range(entries)]
-        }
-
-        return pd.DataFrame(keys_dict).to_dict('records')
-
-
-    def setUp(self):
-
-        self.peril_ls = [
-            'extra tropical cyclone',
-            'earthquake',
-            'flash flood'
-        ]
-        self.successes_nloc = 2
-        self.nonsuccesses_nloc = 2
-        self.keys_successes = self.get_keys_dict(
-            peril_ls=self.peril_ls,
-            nlocations=self.successes_nloc
-        )
-        self.keys_nonsuccesses = self.get_keys_dict(
-            peril_ls=self.peril_ls,
-            nlocations=self.nonsuccesses_nloc,
-            successful=False,
-            start_loc=self.successes_nloc+1
-        )
-
 
     @settings(deadline=None)
     @given(
@@ -136,13 +78,62 @@ class TestSummaries(TestCase):
             from_siteall_min_deductibles=just(0),
             from_siteall_max_deductibles=just(0),
             from_siteall_limits=just(0),
-            size=4
+            size=MAX_NLOCATIONS
+        ),
+        keys = keys(
+            from_statuses=just(OASIS_KEYS_STATUS['success']['id']),
+            size=MAX_NKEYS
         )
     )
-    def test_write_exposure_summary(self, exposure):
+    def test_write_exposure_summary(self, exposure, keys):
         """
-        Test write_exposure_summary method.
+        Test write_exposure_summary method. Create keys and keys errors files
+        with random perils and coverage types. At least one key given success
+        status. Remaining keys given either fail or nomatch statuses.
+
+        Arithmentic within output file tested.
         """
+
+        # Use current system time to set random seed
+        random.seed(None)
+
+        # Create keys and keys errors files with random perils and coverage
+        # types. At least one key given success status.
+        model_perils = random.sample(
+            PERIL_LS,
+            random.randint(1, len(PERIL_LS))
+        )
+        model_peril_ids = [PERILS[peril]['id'] for peril in model_perils]
+        model_coverage_types = random.sample(
+            COVERAGE_TYPE_IDS,
+            random.randint(1, len(COVERAGE_TYPE_IDS))
+        )
+        success_nlocations = random.randint(1, MAX_NLOCATIONS)
+        # Remaining keys given either fail or nomatch statuses
+        if success_nlocations != MAX_NLOCATIONS:
+            fail_nlocations = random.randint(0, MAX_NLOCATIONS-success_nlocations)
+            nomatch_nlocations = MAX_NLOCATIONS - success_nlocations - fail_nlocations
+        else:
+            fail_nlocations = nomatch_nlocations = 0
+
+        keys_per_loc = len(model_peril_ids) * len(model_coverage_types)
+        successes = keys[:success_nlocations*keys_per_loc]
+        nonsuccesses = keys[success_nlocations*keys_per_loc:MAX_NLOCATIONS*keys_per_loc]
+        for row, key in enumerate(successes):
+            key['locnumber'] = row // keys_per_loc + 1
+            key['peril_id'] = model_peril_ids[(row//len(model_coverage_types))%len(model_peril_ids)]
+            key['coverage_type'] = model_coverage_types[row%len(model_coverage_types)]
+        if len(nonsuccesses) != 0:
+            for row, key in enumerate(nonsuccesses):
+                key['locnumber'] = row // keys_per_loc + 1 + success_nlocations
+                key['peril_id'] = model_peril_ids[(row//len(model_coverage_types))%len(model_peril_ids)]
+                key['coverage_type'] = model_coverage_types[row%len(model_coverage_types)]
+                if key['locnumber'] <= (success_nlocations + fail_nlocations):
+                    key['status'] = OASIS_KEYS_STATUS['fail']['id']
+                else:
+                    key['status'] = OASIS_KEYS_STATUS['nomatch']['id']
+        else:   # If all keys have success status
+            nonsuccesses = [{}]
 
         with TemporaryDirectory() as d:
 
@@ -153,11 +144,21 @@ class TestSummaries(TestCase):
             keys_fp = os.path.join(d, 'keys.csv')
             keys_errors_fp = os.path.join(d, 'keys_errors.csv')
             write_keys_files(
-                keys=self.keys_successes,
+                keys=successes,
                 keys_file_path=keys_fp,
-                keys_errors=self.keys_nonsuccesses,
+                keys_errors=nonsuccesses,
                 keys_errors_file_path=keys_errors_fp
             )
+
+            # If keys errors file empty then drop empty rows and preserve
+            # headings
+            if not any(nonsuccesses):
+                nonsuccesses_df = pd.read_csv(keys_errors_fp)
+                nonsuccesses_df.drop([0], axis=0).to_csv(
+                    keys_errors_fp,
+                    index=False,
+                    encoding='utf-8'
+                )
 
             exposure_fp = os.path.join(d, 'exposure.csv')
             write_source_files(exposure=exposure, exposure_fp=exposure_fp)
@@ -189,7 +190,7 @@ class TestSummaries(TestCase):
 
             # Test integrity of output file
             # Loop over all modelled perils
-            for peril in self.peril_ls:
+            for peril in model_perils:
                 
                 # Test modelled peril is in output file
                 self.assertIn(peril, data.keys())
