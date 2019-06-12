@@ -7,6 +7,7 @@ from unittest import TestCase
 from tempfile import TemporaryDirectory
 from hypothesis import (
     given,
+    HealthCheck,
     settings,
 )
 from hypothesis.strategies import (
@@ -41,7 +42,7 @@ MAX_NKEYS = len(PERIL_LS) * len(COVERAGE_TYPE_IDS) * MAX_NLOCATIONS
 
 class TestSummaries(TestCase):
 
-    @settings(deadline=None)
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposure = source_exposure(
             from_account_ids=just('1'),
