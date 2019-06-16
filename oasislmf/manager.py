@@ -651,7 +651,6 @@ class OasisManager(object):
         cmd = 'gultobin -S 1 < {} | fmcalc -p {} -a {} | tee ils.bin | fmtocsv > {}'.format(
             guls_fp, output_dir, alloc_rule, ils_fp
         )
-        print("\nGenerating deterministic ground-up and direct insured losses with command: {}\n".format(cmd))
         try:
             check_call(cmd, shell=True)
         except CalledProcessError as e:
