@@ -578,8 +578,6 @@ class OasisManager(object):
         else:
             model_runner_module = runner
 
-        print(runner)
-
         with setcwd(model_run_fp):
             ri_layers = 0
             if ri:
@@ -705,7 +703,6 @@ class OasisManager(object):
                             layer,
                             ri_layer_fp
                         )
-                        print("\nGenerating deterministic RI layer {} losses with command: {}\n".format(layer, cmd))
                         try:
                             check_call(cmd, shell=True)
                         except CalledProcessError as e:
