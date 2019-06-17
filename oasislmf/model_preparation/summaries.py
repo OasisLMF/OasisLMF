@@ -620,6 +620,11 @@ def write_exposure_summary(
         how='inner'
     )
 
+    # Convert loc_id to uint32 in case column has been converted to type float
+    exposure_df['loc_id'] = exposure_df['loc_id'].astype('uint32')
+    gul_inputs_df['loc_id'] = gul_inputs_df['loc_id'].astype('uint32')
+    gul_inputs_errors_df['loc_id'] = gul_inputs_errors_df['loc_id'].astype('uint32')
+
     # Compile summary of exposure data
     exposure_summary = {}
     for peril_id in model_peril_ids:
