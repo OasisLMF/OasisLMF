@@ -362,11 +362,10 @@ class OasisLookupFactory(object):
         return loc_df
 
     @classmethod
-    def write_oasis_keys_file(cls, records, output_file_path, id_col='locnumber'):
+    def write_oasis_keys_file(cls, records, output_file_path, id_col='loc_id'):
         """
         Writes an Oasis keys file from an iterable of keys records.
         """
-
         if len(records) > 0 and 'model_data' in records[0]:
             heading_row = OrderedDict([
                 (id_col, 'LocID'),
@@ -396,7 +395,7 @@ class OasisLookupFactory(object):
         return output_file_path, len(records)
 
     @classmethod
-    def write_oasis_keys_errors_file(cls, records, output_file_path, id_col='locnumber'):
+    def write_oasis_keys_errors_file(cls, records, output_file_path, id_col='loc_id'):
         """
         Writes an Oasis keys errors file from an iterable of keys records.
         """
@@ -1066,7 +1065,7 @@ class OasisVulnerabilityLookup(OasisBuiltinBaseLookup):
         config_fp=None,
         config_dir=None,
         vulnerabilities=None,
-        loc_id_col='locnumber'
+        loc_id_col='loc_id'
     ):
         super(self.__class__, self).__init__(config=config, config_json=config_json, config_fp=config_fp, config_dir=config_dir)
 
