@@ -272,7 +272,7 @@ class OasisManager(object):
         complex_lookup_config_fp=None,
         keys_fp=None,
         keys_errors_fp=None,
-        keys_id_col='locnumber',
+        keys_id_col='loc_id',
         keys_format=None
     ):
         if keys_fp:
