@@ -272,7 +272,6 @@ class OasisManager(object):
         complex_lookup_config_fp=None,
         keys_fp=None,
         keys_errors_fp=None,
-        keys_id_col='locnumber',
         keys_format=None
     ):
         if keys_fp:
@@ -296,7 +295,6 @@ class OasisManager(object):
 
         return olf.save_results(
             lookup,
-            loc_id_col=keys_id_col,
             successes_fp=keys_fp,
             errors_fp=keys_errors_fp,
             source_exposure_fp=exposure_fp,
@@ -390,7 +388,7 @@ class OasisManager(object):
                     {'loc_id': _loc_id, 'peril_id': 1, 'coverage_type': cov_type, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
                     for i, (_loc_id, cov_type) in enumerate(product(loc_ids, cov_types))
                 ]
-                _, _ = olf.write_oasis_keys_file(keys, _keys_fp, id_col='loc_id')
+                _, _ = olf.write_oasis_keys_file(keys, _keys_fp)
             else:
                 lookup_config = get_json(src_fp=lookup_config_fp) if lookup_config_fp else lookup_config
                 if lookup_config and lookup_config['keys_data_path'] in ['.', './']:
@@ -409,7 +407,6 @@ class OasisManager(object):
                 )
                 f1, _, f2, _ = olf.save_results(
                     lookup,
-                    loc_id_col='loc_id',
                     successes_fp=_keys_fp,
                     errors_fp=_keys_errors_fp,
                     source_exposure_fp=exposure_fp
