@@ -260,6 +260,7 @@ class RunCmd(OasisBaseCommand):
 
             sys.exit(0 if status == 'PASS' else -1)
 
+
 class ExposureCmd(OasisBaseCommand):
     """
     Exposure subcommands::
