@@ -430,4 +430,4 @@ class OasisLookupFactoryWriteKeys(TestCase):
                 source_exposure_fp=None,
                 success_only=True
             )
-            write_oasis_keys_file_mock.assert_called_once_with(data, keys_file_path, id_col='loc_id')
+            write_oasis_keys_file_mock.assert_called_once_with(data, keys_file_path)
