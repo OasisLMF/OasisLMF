@@ -781,8 +781,6 @@ class OasisLookup(OasisBuiltinBaseLookup):
             config_dir=config_dir,
         )
 
-        loc_config = self.config.get('exposure') or self.config.get('locations')
-
         self.peril_lookup = OasisPerilLookup(
             config=self.config,
             config_dir=self.config_dir,

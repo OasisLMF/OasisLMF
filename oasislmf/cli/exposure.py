@@ -4,11 +4,14 @@ __all__ = [
 ]
 
 import os
-import pandas as pd
+import sys
 
 from argparse import RawDescriptionHelpFormatter
 from filecmp import cmp as compare_files
 from itertools import chain
+
+import pandas as pd
+
 from pathlib2 import Path
 
 from ..manager import OasisManager as om
@@ -225,7 +228,8 @@ class RunCmd(OasisBaseCommand):
                     'set of GUL, IL and optionally the RI loss files'
                 )
 
-            files = [
+            files = ['keys.csv']
+            files += [
                 '{}.csv'.format(fn)
                 for ft, fn in chain(OASIS_FILES_PREFIXES['gul'].items(), OASIS_FILES_PREFIXES['il'].items())
             ]
@@ -253,6 +257,8 @@ class RunCmd(OasisBaseCommand):
                 '\n{} validation complete: {}'.format(test_case_name, status) if test_case_name
                 else 'Validation complete: {}'.format(status)
             )
+
+            sys.exit(0 if status == 'PASS' else -1)
 
 
 class ExposureCmd(OasisBaseCommand):

@@ -1,7 +1,7 @@
-accnumber,agg_id,coverage_id,coverage_type_id,layer_id,loc_idx,locnumber,peril_id,polnumber,portnumber,tiv,output_id
-CX30_05,1,1,1,1,0,CX30_05_1,1,CX30_05_1,OEDTest,75000000.0,1
-CX30_05,2,2,3,1,0,CX30_05_1,1,CX30_05_1,OEDTest,12000000.0,2
-CX30_05,3,3,4,1,0,CX30_05_1,1,CX30_05_1,OEDTest,13000000.0,3
-CX30_05,4,4,1,1,1,CX30_05_2,1,CX30_05_1,OEDTest,75000000.0,4
-CX30_05,5,5,3,1,1,CX30_05_2,1,CX30_05_1,OEDTest,12000000.0,5
-CX30_05,6,6,4,1,1,CX30_05_2,1,CX30_05_1,OEDTest,13000000.0,6
+accnumber,agg_id,coverage_id,coverage_type_id,layer_id,loc_id,loc_idx,locnumber,peril_id,polnumber,portnumber,tiv,output_id
+CX30_05,1,1,1,1,1,0,CX30_05_1,1,CX30_05_1,OEDTest,75000000.0,1
+CX30_05,2,2,3,1,1,0,CX30_05_1,1,CX30_05_1,OEDTest,12000000.0,2
+CX30_05,3,3,4,1,1,0,CX30_05_1,1,CX30_05_1,OEDTest,13000000.0,3
+CX30_05,4,4,1,1,2,1,CX30_05_2,1,CX30_05_1,OEDTest,75000000.0,4
+CX30_05,5,5,3,1,2,1,CX30_05_2,1,CX30_05_1,OEDTest,12000000.0,5
+CX30_05,6,6,4,1,2,1,CX30_05_2,1,CX30_05_1,OEDTest,13000000.0,6
