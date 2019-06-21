@@ -1,24 +1,22 @@
 #!/usr/bin/env python
+"""Implementation of ktool items conversion tool including complex item data serialized with msgpack."""
 
-import csv
 import sys
 import msgpack
 import struct
 
-"""
-Implementation of ktool items conversion tool including
-complex item data serialized with msgpack.
-"""
+import pandas as pd
 
 
 def items_to_bin(source, output):
-    for row in csv.DictReader(iter(source.readline, '')):
+    items_df = pd.read_csv(source)
+    for row in items_df.itertuples():
         # item_id,coverage_id,model_data,group_id
-        packed_model_data = msgpack.packb(row['model_data'])
+        packed_model_data = msgpack.packb(row.model_data)
         values = (
-            int(row['item_id']),
-            int(row['coverage_id']),
-            int(float(row['group_id'])),
+            int(row.item_id),
+            int(row.coverage_id),
+            int(float(row.group_id)),
             len(packed_model_data)
         )
         s = struct.Struct('IIII')
