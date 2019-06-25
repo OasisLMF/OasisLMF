@@ -153,7 +153,7 @@ class TestSummaries(TestCase):
             for row, key in enumerate(nonsuccesses):
                 key['locnumber'] = row // keys_per_loc + 1 + nlocations[OASIS_KEYS_STATUS['success']['id']]
                 key['peril_id'] = model_peril_ids[(row // len(model_coverage_types)) % len(model_peril_ids)]
-                key['coverage_type'] = model_coverage_types[row%len(model_coverage_types)]
+                key['coverage_type'] = model_coverage_types[row % len(model_coverage_types)]
                 if key['locnumber'] <= (nlocations[OASIS_KEYS_STATUS['success']['id']] + nlocations[OASIS_KEYS_STATUS['fail']['id']]):
                     key['status'] = OASIS_KEYS_STATUS['fail']['id']
                 else:
@@ -250,7 +250,7 @@ class TestSummaries(TestCase):
                             self.assertEqual(
                                 coverage_tiv,
                                 exposure_df.loc[
-                                    (exposure_df['locnumber']>location_ids_range[status_id][0]) & (exposure_df['locnumber']<=location_ids_range[status_id][1]),
+                                    (exposure_df['locnumber'] > location_ids_range[status_id][0]) & (exposure_df['locnumber'] <= location_ids_range[status_id][1]),
                                     model_coverage_tivs[coverage_type]
                                 ].sum()
                             )
@@ -280,7 +280,7 @@ class TestSummaries(TestCase):
                             0,
                             data[peril][status_id]['number_of_locations']
                         )
-                        
+
                 # Test sum of TIV by status per peril
                 self.assertEqual(tiv_per_peril, data[peril]['all']['tiv'])
 
