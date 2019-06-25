@@ -52,7 +52,7 @@ MAX_NKEYS = len(MODEL_PERIL_LS) * len(COVERAGE_TYPE_IDS) * MAX_NLOCATIONS
 
 class TestSummaries(TestCase):
 
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=1)
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(
         exposure=source_exposure(
             from_account_ids=just('1'),
