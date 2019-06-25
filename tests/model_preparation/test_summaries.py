@@ -21,7 +21,7 @@ from oasislmf.model_preparation.gul_inputs import get_gul_input_items
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
 from oasislmf.utils.status import OASIS_KEYS_STATUS
 from oasislmf.utils.profiles import get_oed_hierarchy
-from oasislmf.utils.peril import PERILS
+from oasislmf.utils.peril import PERILS, PERIL_GROUPS
 
 from tests.data import (
     keys,
@@ -30,25 +30,33 @@ from tests.data import (
     write_keys_files,
 )
 
-PERIL_LS = [
+MODEL_PERIL_LS = [
     'extra tropical cyclone',
     'earthquake',
     'flash flood'
 ]
-COVERAGE_TYPE_IDS = [v['id'] for k, v in SUPPORTED_COVERAGE_TYPES.items()]
+COVERAGE_TYPE_IDS = {v['id']: k for k, v in SUPPORTED_COVERAGE_TYPES.items()}
+LOC_PERIL_LS = [
+    'tropical cyclone',
+    'extra tropical cyclone',
+    'noncat'
+]
+LOC_PERIL_IDS = [PERILS[peril]['id'] for peril in LOC_PERIL_LS]
+LOC_PERIL_LS = LOC_PERIL_LS + ['river flood', 'flash flood']
+LOC_PERIL_IDS.append(PERIL_GROUPS['flood w/o storm surge']['id'])
 MAX_NLOCATIONS = 6
-MAX_NKEYS = len(PERIL_LS) * len(COVERAGE_TYPE_IDS) * MAX_NLOCATIONS
+MAX_NKEYS = len(MODEL_PERIL_LS) * len(COVERAGE_TYPE_IDS) * MAX_NLOCATIONS
 
 
 class TestSummaries(TestCase):
 
-    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=1)
     @given(
         exposure = source_exposure(
             from_account_ids=just('1'),
             from_portfolio_ids=just('1'),
-            from_location_perils=just('WTC;WEC;BFR;OO1'),
-            from_location_perils_covered=just('WTC;WEC;BFR;OO1'),
+            from_location_perils=just(';'.join(LOC_PERIL_IDS)),
+            from_location_perils_covered=just(';'.join(LOC_PERIL_IDS)),
             from_country_codes=just('US'),
             from_area_codes=just('CA'),
             from_building_tivs=integers(1000,1000000),
@@ -101,35 +109,49 @@ class TestSummaries(TestCase):
         # Create keys and keys errors files with random perils and coverage
         # types. At least one key given success status.
         model_perils = random.sample(
-            PERIL_LS,
-            random.randint(1, len(PERIL_LS))
+            MODEL_PERIL_LS,
+            random.randint(1, len(MODEL_PERIL_LS))
         )
         model_peril_ids = [PERILS[peril]['id'] for peril in model_perils]
         model_coverage_types = random.sample(
-            COVERAGE_TYPE_IDS,
+            COVERAGE_TYPE_IDS.keys(),
             random.randint(1, len(COVERAGE_TYPE_IDS))
         )
-        success_nlocations = random.randint(1, MAX_NLOCATIONS)
+        nlocations = {}
+        nlocations[OASIS_KEYS_STATUS['success']['id']] = random.randint(1, MAX_NLOCATIONS)
         # Remaining keys given either fail or nomatch statuses
-        if success_nlocations != MAX_NLOCATIONS:
-            fail_nlocations = random.randint(0, MAX_NLOCATIONS-success_nlocations)
-            nomatch_nlocations = MAX_NLOCATIONS - success_nlocations - fail_nlocations
+        if nlocations[OASIS_KEYS_STATUS['success']['id']] != MAX_NLOCATIONS:
+            nlocations[OASIS_KEYS_STATUS['fail']['id']] = random.randint(0, MAX_NLOCATIONS-nlocations[OASIS_KEYS_STATUS['success']['id']])
+            nlocations[OASIS_KEYS_STATUS['nomatch']['id']] = MAX_NLOCATIONS - nlocations[OASIS_KEYS_STATUS['success']['id']] - nlocations[OASIS_KEYS_STATUS['fail']['id']]
         else:
-            fail_nlocations = nomatch_nlocations = 0
+            nlocations[OASIS_KEYS_STATUS['fail']['id']] = nlocations[OASIS_KEYS_STATUS['nomatch']['id']] = 0
+        location_ids_range = {}
+        location_ids_range[OASIS_KEYS_STATUS['success']['id']] = [
+            0,
+            nlocations[OASIS_KEYS_STATUS['success']['id']]
+        ]
+        location_ids_range[OASIS_KEYS_STATUS['fail']['id']] = [
+            nlocations[OASIS_KEYS_STATUS['success']['id']],
+            nlocations[OASIS_KEYS_STATUS['success']['id']] + nlocations[OASIS_KEYS_STATUS['fail']['id']]
+        ]
+        location_ids_range[OASIS_KEYS_STATUS['nomatch']['id']] = [
+            nlocations[OASIS_KEYS_STATUS['success']['id']] + nlocations[OASIS_KEYS_STATUS['fail']['id']],
+            MAX_NLOCATIONS
+        ]
 
         keys_per_loc = len(model_peril_ids) * len(model_coverage_types)
-        successes = keys[:success_nlocations*keys_per_loc]
-        nonsuccesses = keys[success_nlocations*keys_per_loc:MAX_NLOCATIONS*keys_per_loc]
+        successes = keys[:nlocations[OASIS_KEYS_STATUS['success']['id']]*keys_per_loc]
+        nonsuccesses = keys[nlocations[OASIS_KEYS_STATUS['success']['id']]*keys_per_loc:MAX_NLOCATIONS*keys_per_loc]
         for row, key in enumerate(successes):
             key['locnumber'] = row // keys_per_loc + 1
             key['peril_id'] = model_peril_ids[(row//len(model_coverage_types))%len(model_peril_ids)]
             key['coverage_type'] = model_coverage_types[row%len(model_coverage_types)]
         if len(nonsuccesses) != 0:
             for row, key in enumerate(nonsuccesses):
-                key['locnumber'] = row // keys_per_loc + 1 + success_nlocations
+                key['locnumber'] = row // keys_per_loc + 1 + nlocations[OASIS_KEYS_STATUS['success']['id']]
                 key['peril_id'] = model_peril_ids[(row//len(model_coverage_types))%len(model_peril_ids)]
                 key['coverage_type'] = model_coverage_types[row%len(model_coverage_types)]
-                if key['locnumber'] <= (success_nlocations + fail_nlocations):
+                if key['locnumber'] <= (nlocations[OASIS_KEYS_STATUS['success']['id']] + nlocations[OASIS_KEYS_STATUS['fail']['id']]):
                     key['status'] = OASIS_KEYS_STATUS['fail']['id']
                 else:
                     key['status'] = OASIS_KEYS_STATUS['nomatch']['id']
@@ -184,6 +206,13 @@ class TestSummaries(TestCase):
                 oed_hierarchy
             )
 
+            model_coverage_tivs = {
+                v['CoverageTypeID']: k.lower() for k, v in exposure_profile.items() if v.get('FMTermType') == 'TIV' and v.get('CoverageTypeID') in model_coverage_types
+            }
+            model_coverage_tivs = {
+                COVERAGE_TYPE_IDS[k]: model_coverage_tivs[k] for k in set(COVERAGE_TYPE_IDS.keys()) & set(model_coverage_tivs.keys())
+            }
+
             # Get output file for testing
             output_filename = target_dir + "/exposure_summary_report.json"
             with open(output_filename) as f:
@@ -214,6 +243,21 @@ class TestSummaries(TestCase):
                         else:
                             tiv_per_coverage[coverage_type] = coverage_tiv
 
+                        # Test TIV by coverage values correctly summed
+                        if peril in LOC_PERIL_LS and coverage_type in model_coverage_tivs.keys():
+                            self.assertEqual(
+                                coverage_tiv,
+                                exposure_df.loc[
+                                    (exposure_df['locnumber']>location_ids_range[status_id][0]) & (exposure_df['locnumber']<=location_ids_range[status_id][1]),
+                                    model_coverage_tivs[coverage_type]
+                                ].sum()
+                            )
+                        else:   # Modelled perils not in exposure dataframe
+                            self.assertEqual(
+                                coverage_tiv,
+                                0
+                            )
+
                     # Test sum of TIV by coverage per status
                     self.assertEqual(
                         tiv_per_status,
@@ -223,6 +267,18 @@ class TestSummaries(TestCase):
                     tiv_per_peril += tiv_per_status
                     total_nlocations += data[peril][status_id]['number_of_locations']
 
+                    # Test number of locations by peril per status
+                    if peril in LOC_PERIL_LS:
+                        self.assertEqual(
+                            nlocations[status_id],
+                            data[peril][status_id]['number_of_locations']
+                        )
+                    else:   # Modelled perils not in exposure dataframe
+                        self.assertEqual(
+                            0,
+                            data[peril][status_id]['number_of_locations']
+                        )
+                        
                 # Test sum of TIV by status per peril
                 self.assertEqual(tiv_per_peril, data[peril]['all']['tiv'])
 
