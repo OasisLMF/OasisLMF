@@ -158,7 +158,7 @@ class API_portfolios(ApiEndpoint):
         self.accounts_file = FileEndpoint(self.session, self.url_endpoint, 'accounts_file/')
         self.location_file = FileEndpoint(self.session, self.url_endpoint, 'location_file/')
         self.reinsurance_info_file = FileEndpoint(self.session, self.url_endpoint, 'reinsurance_info_file/')
-        self.reinsurance_source_file = FileEndpoint(self.session, self.url_endpoint, 'reinsurance_source_file/')
+        self.reinsurance_scope_file = FileEndpoint(self.session, self.url_endpoint, 'reinsurance_scope_file/')
 
     def search(self, metadata):
         search_string = None
@@ -276,7 +276,7 @@ class APIClient(object):
                 self.portfolios.reinsurance_info_file.upload(portfolio_id, ri_info_fp)
                 self.logger.info("File uploaded: {}".format(ri_info_fp))
             if ri_scope_fp:
-                self.portfolios.reinsurance_source_file.upload(portfolio_id, ri_scope_fp)
+                self.portfolios.reinsurance_scope_file.upload(portfolio_id, ri_scope_fp)
                 self.logger.info("File uploaded: {}".format(ri_scope_fp))
             return portfolio.json()
         except HTTPError as e:

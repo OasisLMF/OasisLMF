@@ -1,10 +1,12 @@
-import os
 import json
-import pandas as pd
+import os
 import random
-import string
-from unittest import TestCase
+
 from tempfile import TemporaryDirectory
+from unittest import TestCase
+
+import pandas as pd
+
 from hypothesis import (
     given,
     HealthCheck,
@@ -19,9 +21,9 @@ from oasislmf.manager import OasisManager as om
 from oasislmf.model_preparation.summaries import write_exposure_summary
 from oasislmf.model_preparation.gul_inputs import get_gul_input_items
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
-from oasislmf.utils.status import OASIS_KEYS_STATUS
-from oasislmf.utils.profiles import get_oed_hierarchy
 from oasislmf.utils.peril import PERILS, PERIL_GROUPS
+from oasislmf.utils.profiles import get_oed_hierarchy
+from oasislmf.utils.status import OASIS_KEYS_STATUS
 
 from tests.data import (
     keys,
@@ -52,29 +54,29 @@ class TestSummaries(TestCase):
 
     @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow], max_examples=1)
     @given(
-        exposure = source_exposure(
+        exposure=source_exposure(
             from_account_ids=just('1'),
             from_portfolio_ids=just('1'),
             from_location_perils=just(';'.join(LOC_PERIL_IDS)),
             from_location_perils_covered=just(';'.join(LOC_PERIL_IDS)),
             from_country_codes=just('US'),
             from_area_codes=just('CA'),
-            from_building_tivs=integers(1000,1000000),
+            from_building_tivs=integers(1000, 1000000),
             from_building_deductibles=just(0),
             from_building_min_deductibles=just(0),
             from_building_max_deductibles=just(0),
             from_building_limits=just(0),
-            from_other_tivs=integers(100,100000),
+            from_other_tivs=integers(100, 100000),
             from_other_deductibles=just(0),
             from_other_min_deductibles=just(0),
             from_other_max_deductibles=just(0),
             from_other_limits=just(0),
-            from_contents_tivs=integers(50,50000),
+            from_contents_tivs=integers(50, 50000),
             from_contents_deductibles=just(0),
             from_contents_min_deductibles=just(0),
             from_contents_max_deductibles=just(0),
             from_contents_limits=just(0),
-            from_bi_tivs=integers(20,20000),
+            from_bi_tivs=integers(20, 20000),
             from_bi_deductibles=just(0),
             from_bi_min_deductibles=just(0),
             from_bi_max_deductibles=just(0),
@@ -89,7 +91,7 @@ class TestSummaries(TestCase):
             from_siteall_limits=just(0),
             size=MAX_NLOCATIONS
         ),
-        keys = keys(
+        keys=keys(
             from_statuses=just(OASIS_KEYS_STATUS['success']['id']),
             size=MAX_NKEYS
         )
@@ -121,7 +123,7 @@ class TestSummaries(TestCase):
         nlocations[OASIS_KEYS_STATUS['success']['id']] = random.randint(1, MAX_NLOCATIONS)
         # Remaining keys given either fail or nomatch statuses
         if nlocations[OASIS_KEYS_STATUS['success']['id']] != MAX_NLOCATIONS:
-            nlocations[OASIS_KEYS_STATUS['fail']['id']] = random.randint(0, MAX_NLOCATIONS-nlocations[OASIS_KEYS_STATUS['success']['id']])
+            nlocations[OASIS_KEYS_STATUS['fail']['id']] = random.randint(0, MAX_NLOCATIONS - nlocations[OASIS_KEYS_STATUS['success']['id']])
             nlocations[OASIS_KEYS_STATUS['nomatch']['id']] = MAX_NLOCATIONS - nlocations[OASIS_KEYS_STATUS['success']['id']] - nlocations[OASIS_KEYS_STATUS['fail']['id']]
         else:
             nlocations[OASIS_KEYS_STATUS['fail']['id']] = nlocations[OASIS_KEYS_STATUS['nomatch']['id']] = 0
@@ -140,16 +142,17 @@ class TestSummaries(TestCase):
         ]
 
         keys_per_loc = len(model_peril_ids) * len(model_coverage_types)
-        successes = keys[:nlocations[OASIS_KEYS_STATUS['success']['id']]*keys_per_loc]
-        nonsuccesses = keys[nlocations[OASIS_KEYS_STATUS['success']['id']]*keys_per_loc:MAX_NLOCATIONS*keys_per_loc]
+        successes = keys[:nlocations[OASIS_KEYS_STATUS['success']['id']] * keys_per_loc]
+        nonsuccesses = keys[nlocations[OASIS_KEYS_STATUS['success']['id']] * keys_per_loc:MAX_NLOCATIONS * keys_per_loc]
+
         for row, key in enumerate(successes):
             key['locnumber'] = row // keys_per_loc + 1
-            key['peril_id'] = model_peril_ids[(row//len(model_coverage_types))%len(model_peril_ids)]
-            key['coverage_type'] = model_coverage_types[row%len(model_coverage_types)]
+            key['peril_id'] = model_peril_ids[(row // len(model_coverage_types)) % len(model_peril_ids)]
+            key['coverage_type'] = model_coverage_types[row % len(model_coverage_types)]
         if len(nonsuccesses) != 0:
             for row, key in enumerate(nonsuccesses):
                 key['locnumber'] = row // keys_per_loc + 1 + nlocations[OASIS_KEYS_STATUS['success']['id']]
-                key['peril_id'] = model_peril_ids[(row//len(model_coverage_types))%len(model_peril_ids)]
+                key['peril_id'] = model_peril_ids[(row // len(model_coverage_types)) % len(model_peril_ids)]
                 key['coverage_type'] = model_coverage_types[row%len(model_coverage_types)]
                 if key['locnumber'] <= (nlocations[OASIS_KEYS_STATUS['success']['id']] + nlocations[OASIS_KEYS_STATUS['fail']['id']]):
                     key['status'] = OASIS_KEYS_STATUS['fail']['id']
@@ -221,7 +224,6 @@ class TestSummaries(TestCase):
             # Test integrity of output file
             # Loop over all modelled perils
             for peril in model_perils:
-                
                 # Test modelled peril is in output file
                 self.assertIn(peril, data.keys())
 
