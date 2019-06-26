@@ -351,7 +351,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             fm_aggregation_profile_fp=aggregation_profile_fp,
             ri_info_fp=ri_info_fp,
             ri_scope_fp=ri_scope_fp,
-            user_data_dir=user_data_dir
+            user_data_dir=user_data_dir,
             exposure_summary_report=exposure_summary_report
         )
 
