@@ -308,6 +308,7 @@ class OasisManager(object):
         exposure_fp,
         exposure_profile=None,
         exposure_profile_fp=None,
+        exposure_summary_report=None,
         keys_fp=None,
         lookup_config=None,
         lookup_config_fp=None,
@@ -422,7 +423,7 @@ class OasisManager(object):
         )
 
         # If not in det. loss gen. scenario, write exposure summary file
-        if not deterministic:
+        if not deterministic and exposure_summary_report:
             write_exposure_summary(
                 target_dir,
                 gul_inputs_df,

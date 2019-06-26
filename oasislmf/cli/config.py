@@ -16,6 +16,7 @@ class ConfigCmd(OasisBaseCommand):
     with appropriate values, but can be overridden by providing a runtime flag.
 
     :analysis_settings_file_path: Analysis settings (JSON) file path
+    :exposure_summary_report: Whether to generate exposure summary report
     :keys_data_path: Model lookup/keys data path (optional)
     :lookup_config_file_path: Model built-in lookup config. (JSON) file path (optional)
     :lookup_package_path: Model custom lookup package path (optional)
