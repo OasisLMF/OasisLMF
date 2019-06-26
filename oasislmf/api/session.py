@@ -113,7 +113,6 @@ class APISession(Session):
         while True:
             counter += 1
             try:
-                import ipdb;ipdb.set_trace()
                 abs_fp = os.path.realpath(os.path.expanduser(filepath))
                 m = MultipartEncoder(fields={'file': (os.path.basename(filepath), open(abs_fp, 'rb'), content_type)})
                 r = super(APISession, self).post(url, data=m, headers={'Content-Type': m.content_type}, timeout=self.timeout, **kwargs)
