@@ -1,5 +1,7 @@
 from requests import codes as status
 from requests import Session
+from requests.adapters import HTTPAdapter
+from requests_toolbelt import MultipartEncoder
 from requests.exceptions import (
     ConnectionError,
     HTTPError,
@@ -8,13 +10,14 @@ from requests.exceptions import (
 
 from posixpath import join as urljoin
 import time
+import os
 import logging
 
 from ..utils.exceptions import OasisException
 
 
 class APISession(Session):
-    def __init__(self, api_url, username, password, timeout=25, retries=5, retry_delay=1, logger=None, **kwargs):
+    def __init__(self, api_url, username, password, timeout=25, retries=5, retry_delay=1, request_interval=0.02, logger=None, **kwargs):
         super(APISession, self).__init__(**kwargs)
         self.logger = logger or logging.getLogger()
 
@@ -25,17 +28,19 @@ class APISession(Session):
         self.timeout = timeout
         self.retry_max = retries
         self.retry_delay = retry_delay
-
-        # Base Session class vars
+        self.request_interval = request_interval
         self.headers = {
             'authorization': '',
             'accept': 'application/json',
             'content-type': 'application/json',
         }
+        self.adapters.clear()
+        self.mount(self.url_base, HTTPAdapter(max_retries=self.retry_max))
 
         # Check connectivity & authentication
         self.health_check()
         self.__get_access_token(username, password)
+
 
     def __get_access_token(self, username, password):
         url = urljoin(self.url_base, 'access_token/')
@@ -64,22 +69,31 @@ class APISession(Session):
 
     # Connection Error Handler
     def __recoverable(self, error, url, request, counter=1):
+        self.logger.debug(f"Connection exception handler: {error}")
         if not (counter < self.retry_max):
             self.logger.info("Max retries of '{}' reached".format(self.retry_max))
-            return False
+            raise OasisException(f'Unrecoverable error: {error}')
 
-        if hasattr(error, 'status_code'):
-            self.logger.debug("Connection Error Handler: {}".format(error.status_code))
+        if isinstance(error, (ConnectionError, ReadTimeout)):
+            self.logger.debug(f"Recoverable error [{error}] from {request} {url}")
+            self.logger.debug(f"Backoff timer: {self.retry_delay * counter}")
+
+            ## Reset HTTPAdapter & clear connection pool
+            self.adapters.clear()
+            self.mount(self.url_base, HTTPAdapter(max_retries=self.retry_max))
+            time.sleep(self.retry_delay * counter)
+            return True
+
+        elif isinstance(error, HTTPError):
+            self.logger.debug(f"Recoverable error [{error}] from {request} {url} -- {error.status_code}")
             if error.status_code in [502, 503, 504]:
                 error = "HTTP {}".format(error.status_code)
+                return True
             elif error.status_code in [401]:
                 self._refresh_token()
                 error = "HTTP {}".format(error.status_code)
-            else:
-                return False
-        self.logger.debug("Recoverable error [{}] from {} {}, retry #{} in {}s".format(error, request, url, counter, self.retry_delay))
-        time.sleep(self.retry_delay * counter)
-        return True
+                return True
+        return False
 
     # @oasis_log
     def health_check(self):
@@ -89,11 +103,25 @@ class APISession(Session):
         """
         try:
             url = urljoin(self.url_base, 'healthcheck/')
-            # return super(APISession, self).get(url, timeout=self.timeout)
             return self.get(url)
         except (TypeError, AttributeError, BytesWarning, HTTPError, ConnectionError, ReadTimeout) as e:
             err_msg = 'Health check failed: Unable to connect to {}'.format(self.url_base)
             raise OasisException(err_msg)
+
+    def upload(self, url, filepath, content_type, **kwargs):
+        counter = 0
+        while True:
+            counter += 1
+            try:
+                import ipdb;ipdb.set_trace()
+                abs_fp = os.path.realpath(os.path.expanduser(filepath))
+                m = MultipartEncoder(fields={'file': (os.path.basename(filepath), open(abs_fp, 'rb'), content_type)})
+                r = super(APISession, self).post(url, data=m, headers={'Content-Type': m.content_type}, timeout=self.timeout, **kwargs)
+                time.sleep(self.request_interval)
+            except (HTTPError, ConnectionError, ReadTimeout) as e:
+                if self.__recoverable(e, url, 'GET', counter):
+                    continue
+            return r
 
     def get(self, url, **kwargs):
         counter = 0
@@ -101,6 +129,7 @@ class APISession(Session):
             counter += 1
             try:
                 r = super(APISession, self).get(url, timeout=self.timeout, **kwargs)
+                time.sleep(self.request_interval)
             except (HTTPError, ConnectionError, ReadTimeout) as e:
                 if self.__recoverable(e, url, 'GET', counter):
                     continue
@@ -112,6 +141,7 @@ class APISession(Session):
             counter += 1
             try:
                 r = super(APISession, self).post(url, timeout=self.timeout, **kwargs)
+                time.sleep(self.request_interval)
             except (HTTPError, ConnectionError, ReadTimeout) as e:
                 if self.__recoverable(e, url, 'POST', counter):
                     continue
@@ -123,6 +153,7 @@ class APISession(Session):
             counter += 1
             try:
                 r = super(APISession, self).delete(url, timeout=self.timeout, **kwargs)
+                time.sleep(self.request_interval)
             except (HTTPError, ConnectionError, ReadTimeout) as e:
                 if self.__recoverable(e, url, 'DELETE', counter):
                     continue
@@ -134,6 +165,7 @@ class APISession(Session):
             counter += 1
             try:
                 r = super(APISession, self).put(url, timeout=self.timeout, **kwargs)
+                time.sleep(self.request_interval)
             except (HTTPError, ConnectionError, ReadTimeout) as e:
                 if self.__recoverable(e, url, 'OPTIONS', counter):
                     continue
