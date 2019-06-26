@@ -7,10 +7,10 @@ import os
 import sys
 import time
 
+from requests_toolbelt import MultipartEncoder
 from requests.exceptions import (
     HTTPError,
 )
-from requests_toolbelt import MultipartEncoder
 from .session import APISession
 
 
@@ -68,12 +68,9 @@ class FileEndpoint(object):
 
     def upload(self, ID, file_path, content_type='text/csv'):
         try:
-            abs_fp = os.path.realpath(os.path.expanduser(file_path))
-            with io.open(abs_fp, 'rb') as f:
-                m = MultipartEncoder(fields={'file': (os.path.basename(file_path), f, content_type)})
-                r = self.session.post(self._build_url(ID), data=m, headers={'Content-Type': m.content_type})
-                r.raise_for_status()
-                return r
+            r = self.session.upload(self._build_url(ID), file_path, content_type)
+            r.raise_for_status()
+            return r
         except HTTPError as e:
             err_msg = 'File upload Failed: {}, file: {},  url: {}:'.format(r.status_code, file_path, r.url)
             self.logger.error(r.text)
@@ -189,7 +186,9 @@ class API_analyses(ApiEndpoint):
 
     def __init__(self, session, url_endpoint):
         super(API_analyses, self).__init__(session, url_endpoint)
-        self.input_errors_file = FileEndpoint(self.session, self.url_endpoint, 'input_errors_file/')
+        self.lookup_errors_file = FileEndpoint(self.session, self.url_endpoint, 'lookup_errors_file/')
+        self.lookup_success_file = FileEndpoint(self.session, self.url_endpoint, 'lookup_success_file/')
+        self.lookup_validation_file = FileEndpoint(self.session, self.url_endpoint, 'lookup_validation_file/')
         self.input_file = FileEndpoint(self.session, self.url_endpoint, 'input_file/')
         self.input_generation_traceback_file = FileEndpoint(self.session, self.url_endpoint, 'input_generation_traceback_file/')
         self.output_file = FileEndpoint(self.session, self.url_endpoint, 'output_file/')
