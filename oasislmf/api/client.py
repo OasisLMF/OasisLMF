@@ -186,7 +186,9 @@ class API_analyses(ApiEndpoint):
 
     def __init__(self, session, url_endpoint):
         super(API_analyses, self).__init__(session, url_endpoint)
-        self.input_errors_file = FileEndpoint(self.session, self.url_endpoint, 'input_errors_file/')
+        self.lookup_errors_file = FileEndpoint(self.session, self.url_endpoint, 'lookup_errors_file/')
+        self.lookup_success_file = FileEndpoint(self.session, self.url_endpoint, 'lookup_success_file/')
+        self.lookup_validation_file = FileEndpoint(self.session, self.url_endpoint, 'lookup_validation_file/')
         self.input_file = FileEndpoint(self.session, self.url_endpoint, 'input_file/')
         self.input_generation_traceback_file = FileEndpoint(self.session, self.url_endpoint, 'input_generation_traceback_file/')
         self.output_file = FileEndpoint(self.session, self.url_endpoint, 'output_file/')
