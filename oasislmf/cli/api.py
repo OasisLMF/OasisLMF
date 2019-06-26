@@ -318,6 +318,7 @@ class RunApiCmd(OasisBaseCommand):
         analysis = api.create_analysis(
             portfolio_id=portfolio['id'],
             model_id=inputs.get('model_id'),
+            analysis_settings_fp=path_settings,
         )
         self.logger.info('Loaded analysis settings:')
         self.logger.info(json.dumps(analysis, indent=4))
