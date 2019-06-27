@@ -235,7 +235,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         parser.add_argument('-g', '--fm-aggregation-profile-path', default=None, help='FM (OED) aggregation profile path')
         parser.add_argument('-i', '--ri-info-file-path', default=None, help='Reinsurance info. file path')
         parser.add_argument('-s', '--ri-scope-file-path', default=None, help='Reinsurance scope file path')
-        parser.add_argument('-S', '--exposure-summary-report', default=False, help='Create exposure summary report', action='store_true')
+        parser.add_argument('-S', '--summarise-exposure', default=False, help='Create exposure summary report', action='store_true')
 
     def action(self, args):
         """
@@ -286,7 +286,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             inputs.get('user_data_path', required=False, is_path=True),
             'Directory containing additional user-supplied model data files', preexists=False
         )
-        exposure_summary_report = inputs.get('exposure_summary_report', default=False, required=False)
+        summarise_exposure = inputs.get('summarise_exposure', default=False, required=False)
 
         if not (keys_fp or lookup_config_fp or (keys_data_fp and model_version_fp and lookup_package_fp)):
             raise OasisException(
@@ -352,7 +352,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             ri_info_fp=ri_info_fp,
             ri_scope_fp=ri_scope_fp,
             user_data_dir=user_data_dir,
-            exposure_summary_report=exposure_summary_report
+            summarise_exposure=summarise_exposure
         )
 
         self.logger.info('\nOasis files generated: {}'.format(oasis_files))
@@ -539,7 +539,7 @@ class RunCmd(OasisBaseCommand):
         parser.add_argument('-m', '--ktools-mem-limit', default=False, help='Force exec failure if Ktools hits memory the system  memory limit', action='store_true')
         parser.add_argument('-f', '--ktools-fifo-relative', default=False, help='Create ktools fifo queues under the ./fifo dir', action='store_true')
         parser.add_argument('-u', '--ktools-alloc-rule', default=2, help='Override the allocation used in fmcalc', type=int)
-        parser.add_argument('-S', '--exposure-summary-report', default=False, help='Create exposure summary report', action='store_true')
+        parser.add_argument('-S', '--summarise-exposure', default=False, help='Create exposure summary report', action='store_true')
 
     def action(self, args):
         """

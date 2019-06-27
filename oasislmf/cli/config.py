@@ -16,7 +16,6 @@ class ConfigCmd(OasisBaseCommand):
     with appropriate values, but can be overridden by providing a runtime flag.
 
     :analysis_settings_file_path: Analysis settings (JSON) file path
-    :exposure_summary_report: Whether to generate exposure summary report
     :keys_data_path: Model lookup/keys data path (optional)
     :lookup_config_file_path: Model built-in lookup config. (JSON) file path (optional)
     :lookup_package_path: Model custom lookup package path (optional)
@@ -30,6 +29,7 @@ class ConfigCmd(OasisBaseCommand):
     :source_accounts_profile_path: Source OED accouns (JSON) profile describing the financial terms contained in the source accounts file (optional)
     :source_exposure_file_path: Source OED exposure (CSV) file path
     :source_exposure_profile_path: Source OED exposure (JSON) profile describing the financial terms contained in the source exposure file (optional)
+    :summarise_exposure: Whether to generate exposure summary report
     :ktools_num_processes: The number of concurrent processes used by ktools during model execution - default is ``2``
     :ktools_mem_limit: Whether to force exec. failure if ktools hits the system memory limit - default is ``False``
     :ktools_fifo_relative: Whether to create ktools FIFO queues under the ``./fifo`` subfolder (in the model run directory)
