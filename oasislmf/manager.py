@@ -423,7 +423,7 @@ class OasisManager(object):
         )
 
         # If not in det. loss gen. scenario, write exposure summary file
-        if not deterministic and summarise_exposure:
+        if summarise_exposure and not deterministic:
             write_exposure_summary(
                 target_dir,
                 gul_inputs_df,
