@@ -235,7 +235,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         parser.add_argument('-g', '--fm-aggregation-profile-path', default=None, help='FM (OED) aggregation profile path')
         parser.add_argument('-i', '--ri-info-file-path', default=None, help='Reinsurance info. file path')
         parser.add_argument('-s', '--ri-scope-file-path', default=None, help='Reinsurance scope file path')
-        parser.add_argument('-S', '--summarise-exposure', default=False, help='Create exposure summary report', action='store_true')
+        parser.add_argument('-S', '--summarise-exposure', default=None, help='Create exposure summary report', action='store_true')
 
     def action(self, args):
         """
@@ -539,7 +539,7 @@ class RunCmd(OasisBaseCommand):
         parser.add_argument('-m', '--ktools-mem-limit', default=False, help='Force exec failure if Ktools hits memory the system  memory limit', action='store_true')
         parser.add_argument('-f', '--ktools-fifo-relative', default=False, help='Create ktools fifo queues under the ./fifo dir', action='store_true')
         parser.add_argument('-u', '--ktools-alloc-rule', default=2, help='Override the allocation used in fmcalc', type=int)
-        parser.add_argument('-S', '--summarise-exposure', default=False, help='Create exposure summary report', action='store_true')
+        parser.add_argument('-S', '--summarise-exposure', default=None, help='Create exposure summary report', action='store_true')
 
     def action(self, args):
         """
