@@ -40,7 +40,7 @@ class TestReinsurance(unittest.TestCase):
             })
         self.exposure_1_xref_descriptions_df = pd.DataFrame.from_dict({
             'loc_idx':          [   1,      1,      1,      2,      2,      2,      3,      3,      3,      4,      4,      4       ],
-            'agg_id':           [   1,      2,      3,      4,      5,      6,      7,      8,      9,      10,     11,     12      ],
+            'output_id':           [   1,      2,      3,      4,      5,      6,      7,      8,      9,      10,     11,     12      ],
             'portnumber':       [   '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1'     ],
             'polnumber':        [   '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1'     ],
             'accnumber':        [   '1',    '1',    '1',    '1',    '1',    '1',    '2',    '2',    '2',    '2',    '2',    '2'     ],
@@ -57,7 +57,7 @@ class TestReinsurance(unittest.TestCase):
         })
         self.exposure_2_xref_descriptions_df = pd.DataFrame.from_dict({
             'loc_idx':          [   1,      1,      1,      2,      2,      2,      3,      3,      3       ],
-            'agg_id':           [   1,      2,      3,      4,      5,      6,      7,      8,      9       ],
+            'output_id':           [   1,      2,      3,      4,      5,      6,      7,      8,      9       ],
             'portnumber':       [   '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1'     ],
             'polnumber':        [   'P1',   'P1',   'P1',   'P1',   'P1',   'P1',   'P1',   'P1',   'P1'    ],
             'accnumber':        [   'A1',   'A1',   'A1',   'A2',   'A2',   'A2',   'A2',   'A2',   'A2'    ],
@@ -74,7 +74,7 @@ class TestReinsurance(unittest.TestCase):
         })
         self.exposure_3_xref_descriptions_df = pd.DataFrame.from_dict({
             'loc_idx':          [   1,      1,      1,      2,      2,      2,      3,      3,      3,      4,      4,      4,      5,      5,      5       ],
-            'agg_id':          [   1,      2,      3,      4,      5,      6,      7,      8,      9,      10,     11,     12,     13,     14,     15      ],           
+            'output_id':          [   1,      2,      3,      4,      5,      6,      7,      8,      9,      10,     11,     12,     13,     14,     15      ],           
             'portnumber':       [   '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '2',    '2',    '2'     ],
             'polnumber':        [   'P1',   'P1',   'P1',   'P2',   'P2',   'P2',   'P2',   'P2',   'P2',   'P1',   'P1',   'P1',   'P1',   'P1',   'P1'    ],
             'accnumber':        [   'A1',   'A1',   'A1',   'A1',   'A1',   'A1',   'A2',   'A2',   'A2',   'A2',   'A2',   'A2',   'A1',   'A1',   'A1'    ],
@@ -3036,7 +3036,7 @@ class TestReinsurance(unittest.TestCase):
         
         xref_descriptions_df = pd.DataFrame.from_dict({
             'loc_idx':          [   1,      1,      2,      1,      1,      2,      1,      1,      2,      3,     11,      12,     3,      14,     15,     3,      17,     18      ],
-            'agg_id':           [   1,      2,      3,      4,      5,      6,      7,      8,      9,      10,     11,     12,     13,     14,     15,     16,     17,     18      ],
+            'output_id':           [   1,      2,      3,      4,      5,      6,      7,      8,      9,      10,     11,     12,     13,     14,     15,     16,     17,     18      ],
             'portnumber':       [   '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1',    '1'     ],
             'polnumber':        [   '1',    '2',    '1',    '1',    '2',    '1',    '1',    '2',    '1',    '1',    '1',    '2',    '1',    '1',    '2',    '1',    '1',    '2'     ],
             'accnumber':        [   '1',    '1',    '2',    '1',    '1',    '2',    '1',    '1',    '2',    '2',    '1',    '1',    '2',    '1',    '1',    '2',    '1',    '1'     ],
