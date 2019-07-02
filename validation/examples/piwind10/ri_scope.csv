@@ -1,0 +1,3 @@
+ReinsNumber,PortNumber,AccNumber,PolNumber,LocationGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsuranceTag,CededPercent,RiskLevel
+1,1,11111,Layer1,,100030534294,,,,,,0.1,LOC
+1,1,11111,Layer2,,100030534295,,,,,,0.2,LOC
