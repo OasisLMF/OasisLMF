@@ -190,7 +190,7 @@ class RunCmd(OasisBaseCommand):
 
         if not il and not ril:
             all_losses_df = guls_df.loc[:, summary_cols + ['loss_gul']]
-            all_losses_df.drop_duplicates(keep=False,inplace=True)
+            all_losses_df.drop_duplicates(keep=False, inplace=True)
             header = 'Losses (loss factor={}; total gul={:,.00f})'.format(loss_factor, total_gul)
         elif not ril:
             total_il = ils_df.loss_il.sum()
