@@ -4,6 +4,7 @@ backports.tempfile
 backports.weakref
 billiard>=3.5.0.4
 chainmap
+cookiecutter>=1.6.0
 future
 jsonpickle
 lxml>=4.1.1
