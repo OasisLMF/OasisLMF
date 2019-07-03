@@ -1,5 +1,6 @@
 from ..utils.exceptions import OasisException
 
+from .admin import AdminCmd
 from .config import ConfigCmd
 from .exposure import ExposureCmd
 from .model import ModelCmd
@@ -14,6 +15,7 @@ class RootCmd(OasisBaseCommand):
     Tool for manageing oasislmf models
     """
     sub_commands = {
+        'admin': AdminCmd,
         'test': TestCmd,
         'version': VersionCmd,
         'model': ModelCmd,
