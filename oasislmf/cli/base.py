@@ -69,14 +69,12 @@ class InputValues(object):
         cmd_value = getattr(self.args, name, None)
         config_value = self.config.get(name)
 
-        if cmd_value is not None:
-            value = cmd_value
-            if is_path and not os.path.isabs(value):
-                value = os.path.abspath(value)
-        elif config_value is not None:
-            value = self.config[name]
-            if is_path and not os.path.isabs(value):
-                value = os.path.join(self.config_dir, value)
+        value = cmd_value or config_value or default
+
+        if (cmd_value or default) and is_path and not os.path.isabs(value):
+            value = os.path.abspath(value)
+        elif config_value and is_path and not os.path.isabs(value):
+            value = os.path.join(self.config_dir, value)
 
         if required and value is None:
             raise OasisException(
