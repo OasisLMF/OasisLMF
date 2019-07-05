@@ -33,7 +33,7 @@ class InputValues(object):
             except FileNotFoundError:
                 raise OasisException('MDK config. file path {} provided does not exist'.format(self.config_fp))
 
-    def get(self, name, default=None, required=False, is_path=False):
+    def get(self, name, default=None, type=None, required=False, is_path=False):
         """
         Gets the names parameter from the command line arguments.
 
@@ -69,7 +69,7 @@ class InputValues(object):
         cmd_value = getattr(self.args, name, None)
         config_value = self.config.get(name)
 
-        value = cmd_value or config_value or default
+        value = (cmd_value or config_value or default) if type != bool else max(map(bool, [cmd_value, config_value, default]))
 
         if (cmd_value or default) and is_path and not os.path.isabs(value):
             value = os.path.abspath(value)
