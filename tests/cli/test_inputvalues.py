@@ -61,6 +61,34 @@ class InputValuesGet(TestCase):
         finally:
             os.remove(conf_file.name)
 
+    def test_boolean_variable_is_not_on_the_command_line_but_is_in_config_as_true___config_value_is_picked_up_as_true(self):
+        conf_file = NamedTemporaryFile('w', delete=False)
+        try:
+            json.dump({'foo': True}, conf_file)
+            conf_file.close()
+
+            args = Namespace(config=conf_file.name)
+
+            inputs = InputValues(args)
+
+            self.assertEqual(True, inputs.get('foo'))
+        finally:
+            os.remove(conf_file.name)
+
+    def test_boolean_variable_is_not_on_the_command_line_but_is_in_config_as_false___config_value_is_picked_up_as_false(self):
+        conf_file = NamedTemporaryFile('w', delete=False)
+        try:
+            json.dump({'foo': False}, conf_file)
+            conf_file.close()
+
+            args = Namespace(config=conf_file.name)
+
+            inputs = InputValues(args)
+
+            self.assertEqual(False, inputs.get('foo'))
+        finally:
+            os.remove(conf_file.name)
+
     def test_variable_is_not_on_the_command_line_or_config_var_is_not_required___none_is_returned(self):
         conf_file = NamedTemporaryFile('w', delete=False)
         try:
