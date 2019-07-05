@@ -18,6 +18,8 @@ from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from . import oed
 
+from ..utils.data import (print_dataframe, get_dataframe)
+
 # Metadata about an inuring layer
 InuringLayer = namedtuple(
     "InuringLayer",
@@ -114,9 +116,12 @@ def write_files_for_reinsurance(
             os.path.join(ri_output_dir, "fm_profile.csv"), index=False)
         ri_input.ri_inputs.fm_policytc.to_csv(
             os.path.join(ri_output_dir, "fm_policytc.csv"), index=False)
-        shutil.copyfile(
-            fm_xref_fp,
-            os.path.join(ri_output_dir, "fm_xref.csv"))
+        
+        fm_xref_df = get_dataframe(fm_xref_fp)
+        fm_xref_df['agg_id'] = range(1, 1+len(fm_xref_df))
+        fm_xref_df['layer_id'] = 1
+        fm_xref_df.to_csv(
+            os.path.join(ri_output_dir, "fm_xref.csv"), index=False)
 
         inuring_metadata[reinsurance_index] = {
             'inuring_priority': ri_input.inuring_priority,
@@ -183,6 +188,7 @@ class ReinsuranceLayer(object):
         xref_descriptions_df, risk_level, fmsummaryxref_df=pd.DataFrame(),
         gulsummaryxref_df=pd.DataFrame(), logger=None
     ):
+
         self.logger = logger or logging.getLogger()
         self.name = name
 
@@ -547,7 +553,7 @@ class ReinsuranceLayer(object):
                 current_location_number = row.locnumber
                 current_location_group = row.locgroup
 
-            self._add_item_node(row.agg_id, current_filter_level_node)
+            self._add_item_node(row.output_id, current_filter_level_node)
 
         return program_node
 

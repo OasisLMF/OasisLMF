@@ -578,8 +578,6 @@ class OasisManager(object):
         else:
             model_runner_module = runner
 
-        print(runner)
-
         with setcwd(model_run_fp):
             ri_layers = 0
             if ri:
@@ -653,7 +651,6 @@ class OasisManager(object):
         cmd = 'gultobin -S 1 < {} | fmcalc -p {} -a {} | tee ils.bin | fmtocsv > {}'.format(
             guls_fp, output_dir, alloc_rule, ils_fp
         )
-        print("\nGenerating deterministic ground-up and direct insured losses with command: {}\n".format(cmd))
         try:
             check_call(cmd, shell=True)
         except CalledProcessError as e:
@@ -705,7 +702,6 @@ class OasisManager(object):
                             layer,
                             ri_layer_fp
                         )
-                        print("\nGenerating deterministic RI layer {} losses with command: {}\n".format(layer, cmd))
                         try:
                             check_call(cmd, shell=True)
                         except CalledProcessError as e:
