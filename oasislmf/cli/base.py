@@ -69,7 +69,14 @@ class InputValues(object):
         cmd_value = getattr(self.args, name, None)
         config_value = self.config.get(name)
 
-        value = (cmd_value or config_value or default) if type != bool else max(map(bool, [cmd_value, config_value, default]))
+        if type != bool:
+            value = cmd_value or config_value or default
+        elif type == bool and cmd_value is None and config_value is None:
+            value = default
+        elif type == bool and cmd_value is not None:
+            value = cmd_value
+        elif type == bool and config_value is not None:
+            value = config_value
 
         if (cmd_value or default) and is_path and not os.path.isabs(value):
             value = os.path.abspath(value)
