@@ -71,7 +71,7 @@ class InputValuesGet(TestCase):
 
             inputs = InputValues(args)
 
-            self.assertEqual(True, inputs.get('foo'))
+            self.assertEqual(True, inputs.get('foo', type=bool))
         finally:
             os.remove(conf_file.name)
 
@@ -85,7 +85,7 @@ class InputValuesGet(TestCase):
 
             inputs = InputValues(args)
 
-            self.assertEqual(False, inputs.get('foo'))
+            self.assertEqual(False, inputs.get('foo', type=bool))
         finally:
             os.remove(conf_file.name)
 
