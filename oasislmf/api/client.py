@@ -5,7 +5,10 @@ import io
 import logging
 import os
 import sys
+import tarfile
 import time
+
+import pandas as pd
 
 from requests_toolbelt import MultipartEncoder
 from requests.exceptions import (
@@ -98,12 +101,30 @@ class FileEndpoint(object):
             return r
 
     def get(self, ID):
-        # fetch file into memory
         return self.session.get(self._build_url(ID))
 
+    def get_dataframe(self, ID):
+        '''
+        Return file endpoint as dict of pandas Dataframes:
+
+        either 'application/gzip': search and extract all csv
+        or 'text/csv': return as dataframe
+        '''
+        r = self.get(ID)
+        file_type = r.headers['Content-Type']
+
+        dataframes_list = {}
+        if file_type == 'text/csv':
+            dataframes_list[self.url_resource.strip('/')] = pd.read_csv(io.StringIO(r.content.decode('utf-8')))
+        if file_type == 'application/gzip':
+            tar = tarfile.open(fileobj=io.BytesIO(r.content))
+            csv_files = [f for f in tar.getmembers() if '.csv' in f.name]
+            for member in csv_files:
+                csv=tar.extractfile(member)
+                dataframes_list[os.path.basename(member.name)] = pd.read_csv(csv)
+        return dataframes_list
+
     def post(self, ID, data_object, content_type='application/json'):
-        # Update data as object -
-        # https://toolbelt.readthedocs.io/en/latest/uploading-data.html
         m = MultipartEncoder(fields={'file': ('data', data_object, content_type)})
         r = self.session.post(
             self._build_url(ID),
@@ -113,9 +134,12 @@ class FileEndpoint(object):
         if not r.ok:
             err_msg = 'Data_Object upload Failed'
             self.logger.error(err_msg)
-            # self._logger.error(error_message)
-            # raise OasisException(error_message)
         return r
+
+    def post_dataframe(self, ID, data_frame):
+        csv_buffer = io.StringIO()
+        data_frame.to_csv(csv_buffer)
+        return self.post(ID, data_object=csv_buffer, content_type='text/csv')
 
     def delete(self, ID):
         return self.session.delete(self._build_url(ID))
@@ -126,6 +150,9 @@ class API_models(ApiEndpoint):
         super(API_models, self).__init__(session, url_endpoint)
         self.resource_file = FileEndpoint(self.session, self.url_endpoint, 'resource_file/')
 
+    def data_files(self, ID):
+        return self.session.get('{}{}/data_files'.format(self.url_endpoint, ID))
+
     def search(self, metadata):
         search_string = None
         for key in metadata:
@@ -135,16 +162,32 @@ class API_models(ApiEndpoint):
                 search_string += '&{}={}'.format(key, metadata[key])
         return self.session.get('{}{}'.format(self.url_endpoint, search_string))
 
-    def create(self, supplier_id, model_id, version_id):
+    def create(self, supplier_id, model_id, version_id, data_files=[]):
+        if isinstance(data_files, list):
+            df_ids = data_files
+        elif isinstance(data_files, (int, str)):
+            df_ids = [data_files]
+        else:
+            self.logger.warn('data_files, must be of type list(), int() or str()')
+
         data = {"supplier_id": supplier_id,
                 "model_id": model_id,
-                "version_id": version_id}
+                "version_id": version_id,
+                "data_files": df_ids}
         return self.session.post(self.url_endpoint, json=data)
 
-    def update(self, ID, supplier_id, model_id, version_id):
+    def update(self, ID, supplier_id, model_id, version_id, data_files=[]):
+        if isinstance(data_files, list):
+            df_ids = data_files
+        elif isinstance(data_files, (int, str)):
+            df_ids = [data_files]
+        else:
+            self.logger.warn('data_files, must be of type list(), int() or str()')
+
         data = {"supplier_id": supplier_id,
                 "model_id": model_id,
-                "version_id": version_id}
+                "version_id": version_id,
+                "data_files": df_ids}
         return self.session.put('{}{}/'.format(self.url_endpoint, ID), json=data)
 
 
@@ -182,6 +225,30 @@ class API_portfolios(ApiEndpoint):
         return self.session.post('{}{}/create_analysis/'.format(self.url_endpoint, ID), json=data)
 
 
+class API_datafiles(ApiEndpoint):
+
+    def __init__(self, session, url_endpoint):
+        super(API_datafiles, self).__init__(session, url_endpoint)
+        self.content = FileEndpoint(self.session, self.url_endpoint, 'content/')
+
+    def search(self, metadata):
+        search_string = None
+        for key in metadata:
+            if not search_string:
+                search_string = '?{}={}'.format(key, metadata[key])
+            else:
+                search_string += '&{}={}'.format(key, metadata[key])
+        return self.session.get('{}{}'.format(self.url_endpoint, search_string))
+
+    def create(self, file_description, linked_models=[]):
+        data = { "file_description": file_description}
+        return self.session.post(self.url_endpoint, json=data)
+
+    def update(self, ID, file_description, linked_models=[]):
+        data = {"file_description": file_description}
+        return self.session.put('{}{}/'.format(self.url_endpoint, ID), json=data)
+
+
 class API_analyses(ApiEndpoint):
 
     def __init__(self, session, url_endpoint):
@@ -204,16 +271,32 @@ class API_analyses(ApiEndpoint):
                 search_string += '&{}={}'.format(key, metadata[key])
         return self.session.get('{}{}'.format(self.url_endpoint, search_string))
 
-    def create(self, name, portfolio_id, model_id):
+    def create(self, name, portfolio_id, model_id, data_files=[]):
+        if isinstance(data_files, list):
+            df_ids = data_files
+        elif isinstance(data_files, (int, str)):
+            df_ids = [data_files]
+        else:
+            self.logger.warn('data_files, must be of type list(), int() or str()')
+
         data = {"name": name,
                 "portfolio": portfolio_id,
-                "model": model_id}
+                "model": model_id,
+                "complex_model_data_files": df_ids}
         return self.session.post(self.url_endpoint, json=data)
 
-    def update(self, ID, name, portfolio_id, model_id):
+    def update(self, ID, name, portfolio_id, model_id, data_files=[]):
+        if isinstance(data_files, list):
+            df_ids = data_files
+        elif isinstance(data_files, (int, str)):
+            df_ids = [data_files]
+        else:
+            self.logger.warn('data_files, must be of type list(), int() or str()')
+
         data = {"name": name,
                 "portfolio": portfolio_id,
-                "model": model_id}
+                "model": model_id,
+                "complex_model_data_files": df_ids}
         return self.session.put('{}{}/'.format(self.url_endpoint, ID), json=data)
 
     def status(self, ID):
@@ -231,6 +314,9 @@ class API_analyses(ApiEndpoint):
     def run_cancel(self, ID):
         return self.session.post('{}{}/cancel/'.format(self.url_endpoint, ID), json={})
 
+    def data_files(self, ID):
+        return self.session.get('{}{}/data_files'.format(self.url_endpoint, ID))
+
 # --- API Main Client ------------------------------------------------------- #
 
 
@@ -242,6 +328,11 @@ class APIClient(object):
         self.models = API_models(self.api, '{}{}/models/'.format(self.api.url_base, api_ver))
         self.portfolios = API_portfolios(self.api, '{}{}/portfolios/'.format(self.api.url_base, api_ver))
         self.analyses = API_analyses(self.api, '{}{}/analyses/'.format(self.api.url_base, api_ver))
+        #self.peril_codes = ApiEndpoint(self.api, '{}/oed_peril_codes/'.format(self.api.url_base))   ## Note only GET will work
+        self.data_files = API_datafiles(self.api, '{}{}/data_files/'.format(self.api.url_base, api_ver))
+
+    def oed_peril_codes(self):
+        return self.api.get('{}oed_peril_codes/'.format(self.api.url_base))
 
     def upload_inputs(self, portfolio_name=None, portfolio_id=None,
                       location_fp=None, accounts_fp=None, ri_info_fp=None, ri_scope_fp=None):
