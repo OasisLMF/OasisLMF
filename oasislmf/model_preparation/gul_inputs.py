@@ -186,7 +186,7 @@ def get_gul_input_items(
     # is the convention used for the GUL and IL inputs dataframes in the MDK
     keys_df.rename(
         columns={
-            'locid': 'loc_id',
+            'locid': 'loc_id' if 'loc_id' not in keys_df else 'locid',
             'perilid': 'peril_id',
             'coveragetypeid': 'coverage_type_id',
             'areaperilid': 'areaperil_id',
