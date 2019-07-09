@@ -13,6 +13,8 @@ For running models locally the CLI provides a `model` subcommand with the follow
 * `model generate-losses`: generates losses (GUL, or GUL + IL, or GUL + IL + RIL) from a set of pre-existing Oasis files
 * `model run`: runs the model from start to finish by generating losses (GUL, or GUL + IL, or GUL + IL + RIL) from the source exposure, and optionally source accounts and reinsurance info. and scope files (in OED or RMS format), as well as assets related to lookup instantiation and keys file generation
 
+The optional `--summarise-exposure` flag can be issued with `model generate-oasis-files` and `model run` to generate a summary of Total Insured Values (TIVs) grouped by coverage type and peril. This produces the `exposure_summary_report.json` file.
+
 For remote model execution the `api` subcommand provides the following main subcommand:
 
 * `api run`: runs the model remotely (same as `model run`) but via the Oasis API
