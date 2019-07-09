@@ -6,12 +6,16 @@
 
 The `oasislmf` Python package, loosely called the *model development kit (MDK)* or the *MDK package*, provides a command line toolkit for developing, testing and running Oasis models end-to-end locally, or remotely via the Oasis API. It can generate ground-up losses (GUL), direct/insured losses (IL) and reinsurance losses (RIL). It can also generate deterministic losses at all these levels.
 
+## Features
+
 For running models locally the CLI provides a `model` subcommand with the following options:
 
 * `model generate-keys`: generates Oasis keys files from model lookups; these are essentially line items of (location ID, peril ID, coverage type ID, area peril ID, vulnerability ID) where peril ID and coverage type ID span the full set of perils and coverage types that the model supports; if the lookup is for a complex/custom model the keys file will have the same format except that area peril ID and vulnerability ID are replaced by a model data JSON string
 * `model generate-oasis-files`: generates the Oasis input CSV files for losses (GUL, GUL + IL, or GUL + IL + RIL); it requires the provision of source exposure and optionally source accounts and reinsurance info. and scope files (in OED format), as well as assets for instantiating model lookups and generating keys files
 * `model generate-losses`: generates losses (GUL, or GUL + IL, or GUL + IL + RIL) from a set of pre-existing Oasis files
 * `model run`: runs the model from start to finish by generating losses (GUL, or GUL + IL, or GUL + IL + RIL) from the source exposure, and optionally source accounts and reinsurance info. and scope files (in OED or RMS format), as well as assets related to lookup instantiation and keys file generation
+
+The optional `--summarise-exposure` flag can be issued with `model generate-oasis-files` and `model run` to generate a summary of Total Insured Values (TIVs) grouped by coverage type and peril. This produces the `exposure_summary_report.json` file.
 
 For remote model execution the `api` subcommand provides the following main subcommand:
 
@@ -37,9 +41,9 @@ Also for this release (and all future releases) a **minimum of Python 3.6 is req
 
 ## Installation
 
-The latest released version of the package can be installed using `pip`:
+The latest released version of the package, or a specific package version, can be installed using `pip`:
 
-    pip install oasislmf
+    pip install oasislmf[==<version string>]
 
 Alternatively you can install the latest development version using:
 
@@ -57,6 +61,14 @@ The package provides a built-in lookup framework (`oasislmf.model_preparation.lo
 
 https://libspatialindex.github.io/index.html
 
+Linux users can install the development version of `libspatialindex` from the command line using `apt`.
+
+    [sudo] apt install -y libspatialindex-dev
+
+and OS X users can do the same via `brew`.
+
+    brew install spatialindex
+
 The PiWind demonstration model uses the built-in lookup framework, therefore running PiWind or any model which uses the built-in lookup, requires that you install `libspatialindex`.
 
 #### GNU/Linux
@@ -64,9 +76,9 @@ The PiWind demonstration model uses the built-in lookup framework, therefore run
 For GNU/Linux the following is a specific list of required system libraries
 
  * **Debian**: g++ compiler build-essential, libtool, zlib1g-dev autoconf on debian distros
- ```
- sudo apt install g++ build-essential libtool zlib1g-dev autoconf
- ```
+
+     sudo apt install g++ build-essential libtool zlib1g-dev autoconf
+
 
  * **Red Hat**: 'Development Tools' and zlib-devel
 
