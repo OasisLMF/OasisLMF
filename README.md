@@ -37,9 +37,9 @@ Also for this release (and all future releases) a **minimum of Python 3.6 is req
 
 ## Installation
 
-The latest released version of the package can be installed using `pip`:
+The latest released version of the package, or a specific package version, can be installed using `pip`:
 
-    pip install oasislmf
+    pip install oasislmf[==<version string>]
 
 Alternatively you can install the latest development version using:
 
@@ -57,6 +57,14 @@ The package provides a built-in lookup framework (`oasislmf.model_preparation.lo
 
 https://libspatialindex.github.io/index.html
 
+Linux users can install the development version of `libspatialindex` from the command line using `apt`.
+
+    [sudo] apt install -y libspatialindex-dev
+
+and OS X users can do the same via `brew`.
+
+    brew install spatialindex
+
 The PiWind demonstration model uses the built-in lookup framework, therefore running PiWind or any model which uses the built-in lookup, requires that you install `libspatialindex`.
 
 #### GNU/Linux
@@ -64,9 +72,9 @@ The PiWind demonstration model uses the built-in lookup framework, therefore run
 For GNU/Linux the following is a specific list of required system libraries
 
  * **Debian**: g++ compiler build-essential, libtool, zlib1g-dev autoconf on debian distros
- ```
- sudo apt install g++ build-essential libtool zlib1g-dev autoconf
- ```
+
+     sudo apt install g++ build-essential libtool zlib1g-dev autoconf
+
 
  * **Red Hat**: 'Development Tools' and zlib-devel
 
