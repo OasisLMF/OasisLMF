@@ -516,6 +516,18 @@ def get_il_input_items(
         dtypes = {t: 'uint8' for t in ['ded_code', 'ded_type', 'lim_code', 'lim_type']}
         il_inputs_df = set_dataframe_column_dtypes(il_inputs_df, dtypes)
 
+        # Apply rule to convert type 2 deductibles and limits to TIV shares
+        il_inputs_df['deductible'] = np.where(
+            il_inputs_df['ded_type'] == 2,
+            il_inputs_df['deductible'] * il_inputs_df['tiv'],
+            il_inputs_df['deductible']
+        )
+        il_inputs_df['limit'] = np.where(
+            il_inputs_df['lim_type'] == 2,
+            il_inputs_df['limit'] * il_inputs_df['tiv'],
+            il_inputs_df['limit']
+        )
+
         # Set the calc. rule IDs
         il_inputs_df['calcrule_id'] = get_calc_rule_ids(il_inputs_df)
 
