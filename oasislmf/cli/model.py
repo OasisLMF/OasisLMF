@@ -286,7 +286,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             inputs.get('user_data_path', required=False, is_path=True),
             'Directory containing additional user-supplied model data files', preexists=False
         )
-        summarise_exposure = inputs.get('summarise_exposure', default=False, required=False)
+        summarise_exposure = inputs.get('summarise_exposure', type=bool, default=False, required=False)
 
         if not (keys_fp or lookup_config_fp or (keys_data_fp and model_version_fp and lookup_package_fp)):
             raise OasisException(
@@ -442,9 +442,9 @@ class GenerateLossesCmd(OasisBaseCommand):
 
         ktools_num_processes = inputs.get('ktools_num_processes', default=2, required=False)
 
-        ktools_mem_limit = inputs.get('ktools_mem_limit', default=False, required=False)
+        ktools_mem_limit = inputs.get('ktools_mem_limit', type=bool, default=False, required=False)
 
-        ktools_fifo_relative = inputs.get('ktools_fifo_relative', default=False, required=False)
+        ktools_fifo_relative = inputs.get('ktools_fifo_relative', type=bool, default=False, required=False)
 
         ktools_alloc_rule = inputs.get('ktools_alloc_rule', default=2, required=False)
 
