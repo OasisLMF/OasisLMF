@@ -584,7 +584,8 @@ def genbash(
     print_command(filename, 'set -o pipefail')
     print_command(filename, '')
 
-    print_command(filename, 'rm -R -f output/*')
+    #print_command(filename, 'rm -R -f output/*')
+    print_command(filename, "find output/* ! -name '*summary-info*' -type f -exec rm -f {} +")
     if not fifo_tmp_dir:
         print_command(filename, 'rm -R -f fifo/*')
     print_command(filename, 'rm -R -f work/*')
