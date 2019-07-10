@@ -83,6 +83,7 @@ from .utils.defaults import (
     KTOOLS_ALLOC_RULE,
     KTOOLS_DEBUG,
     OASIS_FILES_PREFIXES,
+    WRITE_CHUNKSIZE,
 )
 from .utils.peril import PerilAreasIndex
 from .utils.path import (
@@ -108,7 +109,8 @@ class OasisManager(object):
         ktools_fifo_relative=None,
         ktools_alloc_rule=None,
         ktools_debug=None,
-        oasis_files_prefixes=None
+        oasis_files_prefixes=None,
+        write_chunksize=None
     ):
         # Set defaults for static data or runtime parameters
         self._exposure_profile = exposure_profile or get_default_exposure_profile()
@@ -122,6 +124,7 @@ class OasisManager(object):
         self._ktools_alloc_rule = ktools_alloc_rule or KTOOLS_ALLOC_RULE
         self._ktools_debug = ktools_debug or KTOOLS_DEBUG
         self._oasis_files_prefixes = oasis_files_prefixes or OASIS_FILES_PREFIXES
+        self._write_chunksize = write_chunksize or WRITE_CHUNKSIZE
 
     @property
     def exposure_profile(self):
@@ -319,6 +322,7 @@ class OasisManager(object):
         user_data_dir=None,
         supported_oed_coverage_types=None,
         summarise_exposure=None,
+        write_chunksize=None,
         accounts_fp=None,
         accounts_profile=None,
         accounts_profile_fp=None,
@@ -359,6 +363,10 @@ class OasisManager(object):
             ({int(k): v for k, v in get_json(src_fp=fm_aggregation_profile_fp).items()} if fm_aggregation_profile_fp else {}) or
             self.fm_aggregation_profile
         )
+
+        # The chunksize to use when writing the GUL and IL inputs dataframes
+        # to file
+        write_chunksize = write_chunksize or self.write_chunksize
 
         # Check whether the files generation is for deterministic or model losses
         deterministic = not(
@@ -448,7 +456,8 @@ class OasisManager(object):
         gul_input_files = write_gul_input_files(
             gul_inputs_df,
             target_dir,
-            oasis_files_prefixes=files_prefixes['gul']
+            oasis_files_prefixes=files_prefixes['gul'],
+            chunksize=write_chunksize
         )
         gul_summary_mapping = get_summary_mapping(gul_inputs_df, oed_hierarchy)
         write_mapping_file(gul_summary_mapping, target_dir)
@@ -473,7 +482,8 @@ class OasisManager(object):
         il_input_files = write_il_input_files(
             il_inputs_df,
             target_dir,
-            oasis_files_prefixes=files_prefixes['il']
+            oasis_files_prefixes=files_prefixes['il'],
+            chunksize=write_chunksize
         )
         fm_summary_mapping = get_summary_mapping(il_inputs_df, oed_hierarchy, is_fm_summary=True)
         write_mapping_file(fm_summary_mapping, target_dir, is_fm_summary=True)
@@ -780,75 +790,3 @@ class OasisManager(object):
         )
 
         return losses['gul'], losses['il'], losses['ri']
-
-    @oasis_log
-    def run_model(
-        self,
-        exposure_fp,
-        model_run_fp,
-        analysis_settings_fp,
-        model_data_fp,
-        exposure_profile=None,
-        exposure_profile_fp=None,
-        lookup_config=None,
-        lookup_config_fp=None,
-        keys_data_fp=None,
-        model_version_fp=None,
-        lookup_package_fp=None,
-        supported_oed_coverage_types=None,
-        accounts_fp=None,
-        accounts_profile=None,
-        accounts_profile_fp=None,
-        fm_aggregation_profile=None,
-        fm_aggregation_profile_fp=None,
-        ri_info_fp=None,
-        ri_scope_fp=None,
-        oasis_files_prefixes=None,
-        model_package_fp=None,
-        ktools_num_processes=None,
-        ktools_mem_limit=None,
-        ktools_fifo_relative=None,
-        ktools_alloc_rule=None
-    ):
-        if not os.path.exists(model_run_fp):
-            Path(model_run_fp).mkdir(parents=True, exist_ok=True)
-        else:
-            empty_dir(model_run_fp)
-
-        oasis_fp = os.path.join(model_run_fp, 'input')
-        Path(oasis_fp).mkdir(parents=True, exist_ok=True)
-
-        oasis_files = self.generate_oasis_files(
-            exposure_fp,
-            oasis_fp,
-            exposure_profile=(exposure_profile or self.exposure_profile),
-            exposure_profile_fp=exposure_profile_fp,
-            lookup_config=lookup_config,
-            lookup_config_fp=lookup_config_fp,
-            keys_data_fp=keys_data_fp,
-            model_version_fp=model_version_fp,
-            lookup_package_fp=lookup_package_fp,
-            supported_oed_coverage_types=supported_oed_coverage_types,
-            accounts_fp=accounts_fp,
-            accounts_profile=(accounts_profile or self.accounts_profile),
-            accounts_profile_fp=accounts_profile_fp,
-            fm_aggregation_profile=(fm_aggregation_profile or self.fm_aggregation_profile),
-            fm_aggregation_profile_fp=fm_aggregation_profile_fp,
-            ri_info_fp=ri_info_fp,
-            ri_scope_fp=ri_scope_fp,
-            oasis_files_prefixes=(oasis_files_prefixes or self.oasis_files_prefixes)
-        )
-
-        model_run_fp = self.generate_losses(
-            oasis_fp,
-            model_run_fp,
-            analysis_settings_fp,
-            model_data_fp,
-            model_package_fp=model_package_fp,
-            ktools_num_processes=(ktools_num_processes or self.ktools_num_processes),
-            ktools_mem_limit=(ktools_mem_limit or self.ktools_mem_limit),
-            ktools_fifo_relative=(ktools_fifo_relative or self.ktools_fifo_relative),
-            ktools_alloc_rule=(ktools_alloc_rule or self.ktools_alloc_rule)
-        )
-
-        return model_run_fp, oasis_files

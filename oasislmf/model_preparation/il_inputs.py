@@ -729,7 +729,8 @@ def write_fm_xref_file(il_inputs_df, fm_xref_fp, chunksize=100000):
 def write_il_input_files(
     il_inputs_df,
     target_dir,
-    oasis_files_prefixes=copy.deepcopy(OASIS_FILES_PREFIXES['il'])
+    oasis_files_prefixes=copy.deepcopy(OASIS_FILES_PREFIXES['il']),
+    chunksize=(2 * 10 ** 5)
 ):
     """
     Writes standard Oasis IL input files to a target directory using a
@@ -750,6 +751,9 @@ def write_il_input_files(
     :param oasis_files_prefixes: Oasis IL input file name prefixes
     :param oasis_files_prefixes: dict
 
+    :param chunksize: The chunk size to use when writing out the
+                      input files
+
     :return: IL input files dict
     :rtype: dict
     """
@@ -758,7 +762,7 @@ def write_il_input_files(
 
     # Set chunk size for writing the CSV files - default is the minimum of 100K
     # or the IL inputs frame size
-    chunksize = min(2 * 10**5, len(il_inputs_df))
+    chunksize = chunksize or min(2 * 10**5, len(il_inputs_df))
 
     # A dict of IL input file names and file paths
     il_input_files = {

@@ -15,7 +15,8 @@ __all__ = [
     'SUMMARY_OUTPUT',
     'SOURCE_IDX',
     'SOURCE_FILENAMES',
-    'STATIC_DATA_FP'
+    'STATIC_DATA_FP',
+    'WRITE_CHUNKSIZE'
 ]
 
 import os
@@ -90,6 +91,8 @@ def get_default_fm_aggregation_profile(path=False):
     fp = os.path.join(STATIC_DATA_FP, 'default_fm_agg_profile.json')
     return {int(k): v for k, v in get_json(src_fp=fp).items()} if not path else fp
 
+
+WRITE_CHUNKSIZE = 2 * (10 ** 5)
 
 # Default name prefixes of the Oasis input files (GUL + IL)
 OASIS_FILES_PREFIXES = OrderedDict({

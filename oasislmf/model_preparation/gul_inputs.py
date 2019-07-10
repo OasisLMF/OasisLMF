@@ -398,7 +398,8 @@ def write_coverages_file(gul_inputs_df, coverages_fp, chunksize=100000):
 def write_gul_input_files(
     gul_inputs_df,
     target_dir,
-    oasis_files_prefixes=copy.deepcopy(OASIS_FILES_PREFIXES['gul'])
+    oasis_files_prefixes=copy.deepcopy(OASIS_FILES_PREFIXES['gul']),
+    chunksize=(2 * 10 ** 5)
 ):
     """
     Writes the standard Oasis GUL input files to a target directory, using a
@@ -419,6 +420,10 @@ def write_gul_input_files(
     :param oasis_files_prefixes: Oasis GUL input file name prefixes
     :param oasis_files_prefixes: dict
 
+    :param chunksize: The chunk size to use when writing out the
+                      input files
+    :type chunksize: int
+
     :return: GUL input files dict
     :rtype: dict
     """
@@ -427,7 +432,7 @@ def write_gul_input_files(
 
     # Set chunk size for writing the CSV files - default is the minimum of 100K
     # or the GUL inputs frame size
-    chunksize = min(2 * 10**5, len(gul_inputs_df))
+    chunksize = chunksize or min(chunksize, len(gul_inputs_df))
 
     # If no complex model data present then remove the corresponding file
     # name from the files prefixes dict, which is used for writing the
