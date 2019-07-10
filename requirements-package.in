@@ -2,7 +2,6 @@ anytree>=2.4.3
 argparsetree>=0.0.5
 backports.tempfile
 backports.weakref
-billiard>=3.5.0.4
 chainmap
 cookiecutter>=1.6.0
 future
@@ -11,7 +10,6 @@ lxml>=4.1.1
 pandas>=0.24.0
 pathlib2
 psutil
-python-interface
 pytz
 requests>=2.20.0
 rtree>=0.8.3
