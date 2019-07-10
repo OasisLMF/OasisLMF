@@ -36,7 +36,6 @@ ipython==7.3.0            # via ipdb
 jedi==0.13.3              # via ipython
 jinja2==2.10.1            # via sphinx
 jsonpickle==0.9.5
-lxml==4.1.1
 markupsafe==1.0           # via jinja2
 mccabe==0.6.1             # via flake8
 mock==2.0.0
