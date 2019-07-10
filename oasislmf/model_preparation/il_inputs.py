@@ -427,12 +427,6 @@ def get_il_input_items(
             agg_key = [v['field'].lower() for v in fmap[level_id]['FMAggKey'].values()]
             level_df['agg_id'] = factorize_ndarray(level_df.loc[:, agg_key].values, col_idxs=range(len(agg_key)))[0]
 
-            #agg_tivs = level_df.loc[:, ['agg_id', 'tiv']].groupby(['agg_id'])['tiv'].sum()
-            #agg_tivs = pd.DataFrame(agg_tivs).rename(
-            #    columns={'tiv': 'agg_tiv'}
-            #).assign(agg_id=agg_tivs.index).reset_index(drop=True)
-            #level_df = merge_dataframes(level_df, agg_tivs, on='agg_id', how='left')
-
             if level == 'cond all':
                 level_df.loc[:, level_term_cols] = level_df.loc[:, level_term_cols].fillna(0)
             else:
@@ -518,6 +512,10 @@ def get_il_input_items(
         dtypes = {t: 'uint8' for t in ['ded_code', 'ded_type', 'lim_code', 'lim_type']}
         il_inputs_df = set_dataframe_column_dtypes(il_inputs_df, dtypes)
 
+        # Group and sum TIVS for items by loc. ID and agg. ID, within each
+        # level, and store in a new ``agg_tiv`` column - this step is
+        # preparation for the next step which is to convert % TIV deductibles
+        # to TIV fractional amounts
         agg_tivs = pd.DataFrame(
             il_inputs_df.loc[:, ['level_id','loc_id','agg_id','tiv']].groupby(['level_id','loc_id','agg_id'])['tiv'].sum()
         ).reset_index()
@@ -768,7 +766,7 @@ def write_il_input_files(
     }
 
     this_module = sys.modules[__name__]
-    # Write the files
+    # Write the files serially
     for fn in il_input_files:
         getattr(this_module, 'write_{}_file'.format(fn))(il_inputs_df.copy(deep=True), il_input_files[fn], chunksize)
 

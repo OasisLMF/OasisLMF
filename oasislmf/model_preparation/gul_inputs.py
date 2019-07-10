@@ -443,7 +443,7 @@ def write_gul_input_files(
     }
 
     this_module = sys.modules[__name__]
-    # Write the files
+    # Write the files serially
     for fn in gul_input_files:
         getattr(this_module, 'write_{}_file'.format(fn))(gul_inputs_df.copy(deep=True), gul_input_files[fn], chunksize)
 
