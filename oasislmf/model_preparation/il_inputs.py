@@ -21,10 +21,6 @@ import pandas as pd
 pd.options.mode.chained_assignment = None
 import numpy as np
 
-from ..utils.concurrency import (
-    multithread,
-    Task,
-)
 from ..utils.calc_rules import get_calc_rules
 from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
 from ..utils.data import (
@@ -765,23 +761,9 @@ def write_il_input_files(
         fn: os.path.join(target_dir, '{}.csv'.format(oasis_files_prefixes[fn])) for fn in oasis_files_prefixes
     }
 
-    # IL input file writers have the same filename prefixes as the input files
-    # and we use this property to dynamically retrieve the methods from this
-    # module
     this_module = sys.modules[__name__]
-
-    # Create a generator of ``oasislmf.utils.concurrency.Task`` objects to
-    # represent the writing of the individual input files, one per file
-    tasks = (
-        Task(
-            getattr(this_module, 'write_{}_file'.format(fn)),
-            args=(il_inputs_df.copy(deep=True), il_input_files[fn], chunksize,),
-            key=fn
-        )
-        for fn in il_input_files
-    )
-
-    for _, _ in multithread(tasks, pool_size=len(il_input_files)):
-        pass
+    # Write the files
+    for fn in il_input_files:
+        getattr(this_module, 'write_{}_file'.format(fn))(il_inputs_df.copy(deep=True), il_input_files[fn], chunksize)
 
     return il_input_files
