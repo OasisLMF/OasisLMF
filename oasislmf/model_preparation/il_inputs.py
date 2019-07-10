@@ -761,6 +761,7 @@ def write_il_input_files(
         fn: os.path.join(target_dir, '{}.csv'.format(oasis_files_prefixes[fn])) for fn in oasis_files_prefixes
     }
 
+    this_module = sys.modules[__name__]
     # Write the files
     for fn in il_input_files:
         getattr(this_module, 'write_{}_file'.format(fn))(il_inputs_df.copy(deep=True), il_input_files[fn], chunksize)
