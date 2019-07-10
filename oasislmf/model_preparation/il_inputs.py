@@ -39,7 +39,10 @@ from ..utils.defaults import (
     SOURCE_IDX,
 )
 from ..utils.exceptions import OasisException
-from ..utils.fm import SUPPORTED_FM_LEVELS
+from ..utils.fm import (
+    DEDUCTIBLE_AND_LIMIT_TYPES,
+    SUPPORTED_FM_LEVELS,
+)
 from ..utils.log import oasis_log
 from ..utils.path import as_path
 from ..utils.profiles import (
@@ -528,12 +531,12 @@ def get_il_input_items(
 
         # Apply rule to convert type 2 deductibles and limits to TIV shares
         il_inputs_df['deductible'] = np.where(
-            il_inputs_df['ded_type'] == 2,
+            il_inputs_df['ded_type'] ==  DEDUCTIBLE_AND_LIMIT_TYPES['pctiv']['id'],
             il_inputs_df['deductible'] * il_inputs_df['agg_tiv'],
             il_inputs_df['deductible']
         )
         il_inputs_df['limit'] = np.where(
-            il_inputs_df['lim_type'] == 2,
+            il_inputs_df['lim_type'] ==  DEDUCTIBLE_AND_LIMIT_TYPES['pctiv']['id'],
             il_inputs_df['limit'] * il_inputs_df['agg_tiv'],
             il_inputs_df['limit']
         )
@@ -753,6 +756,7 @@ def write_il_input_files(
 
     :param chunksize: The chunk size to use when writing out the
                       input files
+    :type chunksize: int
 
     :return: IL input files dict
     :rtype: dict
