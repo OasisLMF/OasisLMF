@@ -19,10 +19,6 @@ import pandas as pd
 
 pd.options.mode.chained_assignment = None
 
-from ..utils.concurrency import (
-    multithread,
-    Task,
-)
 from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
 from ..utils.data import (
     factorize_array,
@@ -444,23 +440,8 @@ def write_gul_input_files(
         for fn in oasis_files_prefixes
     }
 
-    # GUL input file writers have the same filename prefixes as the input files
-    # and we use this property to dynamically retrieve the methods from this
-    # module by name - this is it is necessary here to have the module object
-    this_module = sys.modules[__name__]
-
-    # Create a generator of ``oasislmf.utils.concurrency.Task`` objects to
-    # represent the writing of the individual input files, one per file
-    tasks = (
-        Task(
-            getattr(this_module, 'write_{}_file'.format(fn)),
-            args=(gul_inputs_df.copy(deep=True), gul_input_files[fn], chunksize,),
-            key=fn
-        )
-        for fn in gul_input_files
-    )
-
-    for _, _ in multithread(tasks, pool_size=len(gul_input_files)):
-        pass
+    # Write the files
+    for fn in gul_input_files:
+        getattr(this_module, 'write_{}_file'.format(fn))(gul_inputs_df.copy(deep=True), gul_input_files[fn], chunksize)
 
     return gul_input_files
