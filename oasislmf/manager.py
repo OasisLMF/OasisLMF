@@ -151,6 +151,10 @@ class OasisManager(object):
         return self._oasis_files_prefixes
 
     @property
+    def write_chunksize(self):
+        return self._write_chunksize
+
+    @property
     def ktools_num_processes(self):
         return self._ktools_num_processes
 
