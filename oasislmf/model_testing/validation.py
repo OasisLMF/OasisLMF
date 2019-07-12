@@ -3,9 +3,22 @@ import subprocess
 
 from ..utils.exceptions import OasisException
 
-INPUT_FILES = {'damage_bin_dict': {'name': 'damage_bin_dict', 'coversion_tool': 'damagebintobin'}}
+# Model files to test
+INPUT_FILES = {
+    'damage_bin_dict': {
+        'name': 'damage_bin_dict', 'conversion_tool': 'damagebintobin'
+    }
+}
 
-def csv_to_bin(model_data_fp):
+def csv_to_bin_validity_test(model_data_fp):
+    """
+    Create a set of binary files to assess validity of model data.
+
+    :param model_data_fp: directory containing csv files
+    :type model_data_fp: str
+
+    :raises OasisException: if one of the conversions fails
+    """
 
     model_data_dir = os.path.abspath(model_data_fp)
 
