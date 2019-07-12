@@ -3,7 +3,7 @@ import subprocess
 
 from ..utils.exceptions import OasisException
 
-INPUT_FILES = ['damage_bin_dict': {'name': 'damage_bin_dict', 'coversion_tool': 'damagebintobin'}]
+INPUT_FILES = {'damage_bin_dict': {'name': 'damage_bin_dict', 'coversion_tool': 'damagebintobin'}}
 
 def csv_to_bin(model_data_fp):
 
