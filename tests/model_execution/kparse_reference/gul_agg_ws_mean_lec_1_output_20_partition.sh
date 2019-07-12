@@ -3,7 +3,7 @@
 set -e
 set -o pipefail
 
-rm -R -f output/*
+find output/* ! -name '*summary-info*' -type f -exec rm -f {} +
 rm -R -f fifo/*
 rm -R -f work/*
 
