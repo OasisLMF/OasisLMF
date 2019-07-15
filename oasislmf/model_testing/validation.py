@@ -1,3 +1,7 @@
+__all__ = [
+    'csv_to_bin_validity_test',
+]
+
 import os
 import subprocess
 
