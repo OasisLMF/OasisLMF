@@ -97,7 +97,7 @@ class ModelValidationCmd(OasisBaseCommand):
 
         super(self.__class__, self).add_args(parser)
 
-        parser.add_argument('d', '--model-data-path', default=None, help='Directory containing additional user-supplied model data files')
+        parser.add_argument('-d', '--model-data-path', default=None, help='Directory containing additional user-supplied model data files')
 
     def action(self, args):
 
