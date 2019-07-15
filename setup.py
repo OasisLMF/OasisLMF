@@ -18,7 +18,7 @@ from setuptools.command.install import install
 from setuptools.command.develop import develop
 
 try:
-    from urllib.request import urlopen
+    from urllib import request as urlrequest
     from urllib.error import URLError
 except ImportError:
     from urllib2 import urlopen, URLError
@@ -62,12 +62,22 @@ readme = get_readme()
 class InstallKtoolsMixin(object):
     def fetch_ktools_tar(self, location, attempts=3, timeout=5, cooldown=1):
         self.announce('Retrieving ktools {}'.format(KTOOLS_VERSION), INFO)
-
         last_error = None
-        request = None
+        req = None
+
+        # Proxy config 
+        proxy_config = urlrequest.getproxies()
+        proxy_handler = urlrequest.ProxyHandler(proxy_config)
+        opener = urlrequest.build_opener(proxy_handler)
+        urlrequest.install_opener(opener)
+        if proxy_config:
+            self.announce(f'Using proxy configuration to fetch ktools: {proxy_config}')
+
         for i in range(attempts):
             try:
-                request = urlopen('https://github.com/OasisLMF/ktools/archive/v{}.tar.gz'.format(KTOOLS_VERSION), timeout=timeout * 1000)
+                url = f'https://github.com/OasisLMF/ktools/archive/v{KTOOLS_VERSION}.tar.gz'
+                req = urlrequest.Request(url)
+                resp = urlrequest.urlopen(req, timeout=timeout * 1000)
                 break
             except URLError as e:
                 self.announce('Failed to get ktools tar (attempt {})'.format(i + 1), WARN)
@@ -79,7 +89,7 @@ class InstallKtoolsMixin(object):
                 raise last_error
 
         with open(location, 'wb') as f:
-            f.write(request.read())
+            f.write(resp.read())
 
     def unpack_tar(self, tar_location, extract_location):
         self.announce('Unpacking ktools', INFO)
