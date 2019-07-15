@@ -145,8 +145,8 @@ def get_gul_input_items(
         **{t: 'str' for t in [loc_num, portfolio_num, acc_num]},
         **{t: 'uint32' for t in ['loc_id']}
     }
-    # Load the exposure and keys dataframes - set 32-bit numeric data types
-    # for all numeric columns - and in the keys frame rename some columns
+    # Load the exposure and keys dataframes - set 64-bit float data types
+    # for all real number columns - and in the keys frame rename some columns
     # to align with underscored-naming convention; set the `loc_id` column
     # in the exposure dataframe to identify locations uniquely with respect
     # to portfolios and portfolio accounts
@@ -204,6 +204,7 @@ def get_gul_input_items(
         # zeros for TIVs for all coverage types, and replace any nulls in the
         # cond.num. and TIV columns with zeros
         exposure_df[SOURCE_IDX['loc']] = exposure_df.index
+
         gul_inputs_df = merge_dataframes(exposure_df, keys_df, join_on='loc_id', how='inner')
 
         if gul_inputs_df.empty:
@@ -238,7 +239,6 @@ def get_gul_input_items(
             lim_type=0
         )
         dtypes = {
-            **{t: 'float32' for t in ['tiv'] + term_cols_floats + terms_floats},
             **{t: 'uint8' for t in term_cols_ints + terms_ints},
             **{'is_bi_coverage': 'bool'}
         }
@@ -262,7 +262,7 @@ def get_gul_input_items(
                 [v for k, v in tiv_terms.items() if k != cov_type] +
                 get_fm_terms_oed_columns(fm_terms=fm_terms, levels=['site coverage'], term_group_ids=other_cov_types, terms=terms)
             )
-            cov_type_group.loc[:, other_cov_type_term_cols] = 0
+            cov_type_group.loc[:, other_cov_type_term_cols] = 0.0
             gul_inputs_df.loc[cov_type_group.index, ['tiv', 'is_bi_coverage'] + cov_type_terms] = cov_type_group.loc[:, ['tiv', 'is_bi_coverage'] + cov_type_terms].values
 
         # Remove any rows with zeros in the ``tiv`` column and reset the index
