@@ -67,12 +67,19 @@ class APISession(Session):
             raise OasisException(err_msg)
         return r
 
-    # Connection Error Handler
+    def unrecoverable_error(self, error, msg=None):
+            err_r =  error.response
+            err_msg = 'api error: {}, url: {}, msg: {}'.format(err_r.status_code, err_r.url, err_r.text)
+            self.logger.error(err_msg)
+            if msg:
+                self.logger.error(msg)
+
+    # Connection Error Handlers
     def __recoverable(self, error, url, request, counter=1):
         self.logger.debug(f"Connection exception handler: {error}")
         if not (counter < self.retry_max):
             self.logger.info("Max retries of '{}' reached".format(self.retry_max))
-            raise OasisException(f'Unrecoverable error: {error}')
+            raise OasisException(f'Failed to recover from error: {error}')
 
         if isinstance(error, (ConnectionError, ReadTimeout)):
             self.logger.debug(f"Recoverable error [{error}] from {request} {url}")
@@ -85,13 +92,15 @@ class APISession(Session):
             return True
 
         elif isinstance(error, HTTPError):
-            self.logger.debug(f"Recoverable error [{error}] from {request} {url} -- {error.status_code}")
-            if error.status_code in [502, 503, 504]:
-                error = "HTTP {}".format(error.status_code)
+            http_err_code = error.response.status_code
+            self.logger.debug(f"Recoverable error [{error}] from {request} {url}")
+
+            if http_err_code in [502, 503, 504]:
+                error = "HTTP {}".format(http_err_code)
                 return True
-            elif error.status_code in [401]:
+            elif http_err_code in [401]:
+                self.logger.info(f"Session Expired - Refreshing access token")
                 self._refresh_token()
-                error = "HTTP {}".format(error.status_code)
                 return True
         return False
 
@@ -116,10 +125,14 @@ class APISession(Session):
                 abs_fp = os.path.realpath(os.path.expanduser(filepath))
                 m = MultipartEncoder(fields={'file': (os.path.basename(filepath), open(abs_fp, 'rb'), content_type)})
                 r = super(APISession, self).post(url, data=m, headers={'Content-Type': m.content_type}, timeout=self.timeout, **kwargs)
+                r.raise_for_status()
                 time.sleep(self.request_interval)
             except (HTTPError, ConnectionError, ReadTimeout) as e:
                 if self.__recoverable(e, url, 'GET', counter):
                     continue
+                else:
+                    self.logger.debug(f'Unrecoverable error: {e}')
+                    raise e
             return r
 
     def get(self, url, **kwargs):
@@ -128,10 +141,14 @@ class APISession(Session):
             counter += 1
             try:
                 r = super(APISession, self).get(url, timeout=self.timeout, **kwargs)
+                r.raise_for_status()
                 time.sleep(self.request_interval)
             except (HTTPError, ConnectionError, ReadTimeout) as e:
                 if self.__recoverable(e, url, 'GET', counter):
                     continue
+                else:
+                    self.logger.debug(f'Unrecoverable error: {e}')
+                    raise e
             return r
 
     def post(self, url, **kwargs):
@@ -140,10 +157,14 @@ class APISession(Session):
             counter += 1
             try:
                 r = super(APISession, self).post(url, timeout=self.timeout, **kwargs)
+                r.raise_for_status()
                 time.sleep(self.request_interval)
             except (HTTPError, ConnectionError, ReadTimeout) as e:
                 if self.__recoverable(e, url, 'POST', counter):
                     continue
+                else:
+                    self.logger.debug(f'Unrecoverable error: {e}')
+                    raise e
             return r
 
     def delete(self, url, **kwargs):
@@ -152,10 +173,14 @@ class APISession(Session):
             counter += 1
             try:
                 r = super(APISession, self).delete(url, timeout=self.timeout, **kwargs)
+                r.raise_for_status()
                 time.sleep(self.request_interval)
             except (HTTPError, ConnectionError, ReadTimeout) as e:
                 if self.__recoverable(e, url, 'DELETE', counter):
                     continue
+                else:
+                    self.logger.debug(f'Unrecoverable error: {e}')
+                    raise e
             return r
 
     def put(self, url, **kwargs):
@@ -164,8 +189,12 @@ class APISession(Session):
             counter += 1
             try:
                 r = super(APISession, self).put(url, timeout=self.timeout, **kwargs)
+                r.raise_for_status()
                 time.sleep(self.request_interval)
             except (HTTPError, ConnectionError, ReadTimeout) as e:
                 if self.__recoverable(e, url, 'OPTIONS', counter):
                     continue
+                else:
+                    self.logger.debug(f'Unrecoverable error: {e}')
+                    raise e
             return r
