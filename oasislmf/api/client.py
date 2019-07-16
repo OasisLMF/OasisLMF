@@ -72,12 +72,11 @@ class FileEndpoint(object):
     def upload(self, ID, file_path, content_type='text/csv'):
         try:
             r = self.session.upload(self._build_url(ID), file_path, content_type)
-            r.raise_for_status()
             return r
         except HTTPError as e:
             err_msg = 'File upload Failed: {}, file: {},  url: {}:'.format(r.status_code, file_path, r.url)
-            self.logger.error(r.text)
-            self.logger.error(err_msg)
+            self.session.unrecoverable_error(e, err_msg)
+            sys.exit(1)
 
     def download(self, ID, file_path, overwrite=True, chuck_size=1024):
         abs_fp = os.path.realpath(os.path.expanduser(file_path))
@@ -321,10 +320,10 @@ class API_analyses(ApiEndpoint):
 
 
 class APIClient(object):
-    def __init__(self, api_url, api_ver, username, password, timeout=25, logger=None):
+    def __init__(self, api_url, api_ver, username, password, timeout=25, logger=None, **kwargs):
         self.logger = logger or logging.getLogger()
 
-        self.api = APISession(api_url, username, password, timeout)
+        self.api = APISession(api_url, username, password, timeout, **kwargs)
         self.models = API_models(self.api, '{}{}/models/'.format(self.api.url_base, api_ver))
         self.portfolios = API_portfolios(self.api, '{}{}/portfolios/'.format(self.api.url_base, api_ver))
         self.analyses = API_analyses(self.api, '{}{}/analyses/'.format(self.api.url_base, api_ver))
@@ -353,7 +352,6 @@ class APIClient(object):
             if not portfolio.ok:
                 err_msg = "Failed to find matching `portfolio_id = {}`".format(portfolio_id)
                 self.logger.error(err_msg)
-                # raise OasisException()
 
             # Upload exposure
             if location_fp:
@@ -370,8 +368,7 @@ class APIClient(object):
                 self.logger.info("File uploaded: {}".format(ri_scope_fp))
             return portfolio.json()
         except HTTPError as e:
-            self.logger.error(e)
-            self.logger.error('upload_inputs: failed')
+            self.api.unrecoverable_error(e, 'upload_inputs: failed')
             sys.exit(1)
 
     def create_analysis(self, portfolio_id, model_id, analysis_name=None, analysis_settings_fp=None):
@@ -380,13 +377,8 @@ class APIClient(object):
                 analysis_name = time.strftime("Analysis_%d%m%Y-%H%M%S")
 
             r = self.models.get(model_id)
-            r.raise_for_status()
-
             r = self.portfolios.get(portfolio_id)
-            r.raise_for_status()
-
             r = self.analyses.create(analysis_name, portfolio_id, model_id)
-            r.raise_for_status()
             analyses = r.json()
 
             if analysis_settings_fp:
@@ -395,9 +387,7 @@ class APIClient(object):
 
             return analyses
         except HTTPError as e:
-            err_msg = 'API Error: {}, url: {}, msg: {}'.format(r.status_code, r.url, r.text)
-            self.logger.error(err_msg)
-            self.logger.error('create_analysis: failed ')
+            self.api.unrecoverable_error(e, 'create_analysis: failed')
             sys.exit(1)
 
     # BLOCKING CALL
@@ -411,7 +401,6 @@ class APIClient(object):
 
         try:
             r = self.analyses.generate(analysis_id)
-            r.raise_for_status()
             analysis = r.json()
             self.logger.info('Inputs Generation: Started (id={})'.format(analysis_id))
             while True:
@@ -433,7 +422,6 @@ class APIClient(object):
                     # self.logger.debug('Polling - status: {}'.format(analysis['status']))
                     time.sleep(poll_interval)
                     r = self.analyses.get(analysis_id)
-                    r.raise_for_status()
                     analysis = r.json()
                     continue
 
@@ -442,9 +430,7 @@ class APIClient(object):
                     # Raise oasis Execption
                     # Error -- Raise execption Unknown Analysis  State
         except HTTPError as e:
-            err_msg = 'API Error: {}, url: {}, msg: {}'.format(r.status_code, r.url, r.text)
-            self.logger.error(err_msg)
-            self.logger.error('run_generate: failed')
+            self.api.unrecoverable_error(e, 'run_generate: failed')
             sys.exit(1)
 
     # BLOCKING CALL
@@ -461,7 +447,6 @@ class APIClient(object):
                 self.logger.info("File uploaded: {}".format(analysis_settings_fp))
 
             r = self.analyses.run(analysis_id)
-            r.raise_for_status()
             analysis = r.json()
             self.logger.info('Analysis Run: Started (id={})'.format(analysis_id))
 
@@ -484,7 +469,6 @@ class APIClient(object):
                     # self.logger.debug('Polling - status: {}'.format(analysis['status']))
                     time.sleep(poll_interval)
                     r = self.analyses.get(analysis_id)
-                    r.raise_for_status()
                     analysis = r.json()
                     continue
 
@@ -493,9 +477,7 @@ class APIClient(object):
                     # Raise oasis Execption
                     # Error -- Raise execption Unknown Analysis  State
         except HTTPError as e:
-            err_msg = 'API Error: {}, url: {}, msg: {}'.format(r.status_code, r.url, r.text)
-            self.logger.error(err_msg)
-            self.logger.error('run_analysis: failed')
+            self.api.unrecoverable_error(e, 'run_analysis: failed')
             sys.exit(1)
 
     def download_output(self, analysis_id, download_path, filename=None, clean_up=False, overwrite=True):
@@ -504,16 +486,14 @@ class APIClient(object):
         try:
             output_file = os.path.join(download_path, filename + '.tar')
             r = self.analyses.output_file.download(ID=analysis_id, file_path=output_file, overwrite=overwrite)
-            r.raise_for_status()
             self.logger.info('Analysis Download output: filename={}, (id={}'.format(output_file, analysis_id))
             if clean_up:
                 r = self.analyses.delete(analysis_id)
                 r = self.analyses.output_file.delete(analysis_id)
                 r = self.analyses.input_file.delete(analysis_id)
         except HTTPError as e:
-            err_msg = 'API Error: {}, url: {}, msg: {}'.format(r.status_code, r.url, r.text)
-            self.logger.error(err_msg)
-            self.logger.error('Analysis Download output: Failed (id={})'.format(analysis_id))
+            err_msg = 'Analysis Download output: Failed (id={})'.format(analysis_id)
+            self.api.unrecoverable_error(e, err_msg)
             sys.exit(1)
 
     def cancel_generate(self, analysis_id):
@@ -525,10 +505,7 @@ class APIClient(object):
             self.logger.info('Cancelled Input generation: Id={}'.format(analysis_id))
             return True
         except HTTPError as e:
-            err_msg = 'API Error: {}, url: {}:'.format(r.status_code, r.url)
-            self.logger.debug(r.text)
-            self.logger.debug(err_msg)
-            self.logger.info('cancel_generate: Failed')
+            self.api.unrecoverable_error(e, 'cancel_generate: Failed')
             return False
 
     def cancel_analysis(self, analysis_id):
@@ -541,7 +518,5 @@ class APIClient(object):
             self.logger.info('Cancelled analysis run: Id={}'.format(analysis_id))
             return True
         except HTTPError as e:
-            err_msg = 'API Error: {}, url: {}, msg: {}'.format(r.status_code, r.url, r.text)
-            self.logger.error(err_msg)
-            self.logger.error('cancel_analysis: Failed')
+            self.api.unrecoverable_error(e, 'cancel_analysis: Failed')
             return False
