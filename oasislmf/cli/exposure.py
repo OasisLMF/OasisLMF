@@ -77,6 +77,10 @@ class RunCmd(OasisBaseCommand):
             '-o', '--output-level', default='item', 
             help='Level to output losses. Options are: item, loc, pol, acc or port.', type=str
         )
+        parser.add_argument(
+            '-f', '--output-file', default=None, 
+            help='Write the output to file.', type=str
+        )
 
     def action(self, args):
         """
@@ -114,6 +118,8 @@ class RunCmd(OasisBaseCommand):
             raise OasisException(
                 'Invalid output level. Must be one of port, acc, loc, pol or item.'
             )
+
+        output_file = inputs.get('output_file', default=None, required=False)
 
         src_contents = [fn.lower() for fn in os.listdir(src_dir)]
 
@@ -186,7 +192,6 @@ class RunCmd(OasisBaseCommand):
             summary_cols = ['output_id', portfolio_num, acc_num, loc_num, policy_num, 'coverage_type_id']
 
         guls_df = guls_df.loc[:, summary_cols + ['loss_gul']]
-        guls_df.drop_duplicates(inplace=True)
 
         if not il and not ril:
             all_losses_df = guls_df.loc[:, summary_cols + ['loss_gul']]
@@ -208,6 +213,7 @@ class RunCmd(OasisBaseCommand):
             total_ri_net = rils_df.loss_ri.sum()
             total_ri_ceded = total_il - total_ri_net
             all_losses_df = all_losses_df.loc[:, summary_cols + ['loss_gul', 'loss_il', 'loss_ri']]
+            
             summary_gul_df = pd.DataFrame({'loss_gul': guls_df.groupby(summary_cols)['loss_gul'].sum()}).reset_index()
             summary_il_df = pd.DataFrame({'loss_il': all_losses_df.groupby(summary_cols)['loss_il'].sum()}).reset_index()
             summary_ri_df = pd.DataFrame({'loss_ri': all_losses_df.groupby(summary_cols)['loss_ri'].sum()}).reset_index()
@@ -217,6 +223,8 @@ class RunCmd(OasisBaseCommand):
                 loss_factor, total_gul, total_il, total_ri_ceded)
 
         print_dataframe(all_losses_df, frame_header=header, string_cols=all_losses_df.columns)
+        if output_file:
+            all_losses_df.to_csv(output_file, index=False)
 
         # Do not validate if the loss factor < 1 - this is because the
         # expected data files for validation are based on a loss factor
