@@ -4,7 +4,7 @@ from argparsetree import BaseCommand
 
 from .. import __version__
 from ..model_preparation.lookup import OasisLookupFactory as olf
-from ..model_testing.validation import csv_to_bin_validity_test
+from ..model_testing.validation import csv_validity_test
 from ..utils.conf import replace_in_file
 
 from ..utils.path import (
