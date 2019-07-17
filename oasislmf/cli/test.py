@@ -93,7 +93,7 @@ class GenerateModelTesterDockerFileCmd(OasisBaseCommand):
 
 class ModelValidationCmd(OasisBaseCommand):
     """
-    Converts model data files from csv to bin while cheking for validity.
+    Checks model data for validity.
     """
 
     def add_args(self, parser):
@@ -110,8 +110,8 @@ class ModelValidationCmd(OasisBaseCommand):
 
     def action(self, args):
         """
-        Simulatanously converts to bin and performs validity checks on model
-        data csv files using ktools executables.
+        Performs validity checks on model data csv files using ktools
+        executables.
 
         :param args: The arguments from the command line
         :type args: Namespace
@@ -121,7 +121,7 @@ class ModelValidationCmd(OasisBaseCommand):
 
         model_data_fp = as_path(inputs.get('model_data_path', required=True, is_path=True), 'Model data path', is_dir=True)
 
-        csv_to_bin_validity_test(model_data_fp)
+        csv_validity_test(model_data_fp)
 
 
 class TestCmd(BaseCommand):
