@@ -9,6 +9,10 @@ import re
 import subprocess
 
 from argparse import RawDescriptionHelpFormatter
+from subprocess import (
+    CalledProcessError,
+    run
+)
 
 from ..utils.exceptions import OasisException
 from ..utils.path import (
@@ -40,9 +44,6 @@ class CreateSimpleModelRepoCmd(OasisBaseCommand):
         """
         super(self.__class__, self).add_args(parser)
 
-        # parser.add_argument(
-        #)
-
     def action(self, args):
         """
         Generates and writes an Rtree file index of peril area IDs (area peril IDs)
@@ -51,7 +52,12 @@ class CreateSimpleModelRepoCmd(OasisBaseCommand):
         :param args: The arguments from the command line
         :type args: Namespace
         """
-        inputs = InputValues(args)
+        cmd_str = 'cookiecutter git+{https,ssh}://git@github.com/OasisLMF/CookiecutterOasisSimpleModel'
+
+        try:
+            run(cmd_str.split(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=True).stdout 
+        except CalledProcessError as e:
+            self.logger.error(e)
 
 
 class CreateComplexModelRepoCmd(OasisBaseCommand):
