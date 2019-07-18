@@ -385,7 +385,10 @@ def get_ids(df, usecols, group_by=[]):
 
     return np.hstack((
         factorize_ndarray(np.asarray(list(group)), col_idxs=range(len(group_by) - 1, len(_usecols)))[0]
-        for _, group in groupby(fast_zip_arrays(*df.loc[:, usecols].transpose().values), key=lambda t: tuple(_usecols.index(k) for k in group_by))
+        for _, group in groupby(
+            fast_zip_arrays(*df.loc[:, _usecols].transpose().values),
+            key=lambda t: tuple(t[_usecols.index(k)] for k in group_by)
+        )
     ))
 
 
