@@ -119,7 +119,7 @@ class RunCmd(OasisBaseCommand):
                 'Invalid output level. Must be one of port, acc, loc, pol or item.'
             )
 
-        output_file = inputs.get('output_file', default=None, required=False)
+        output_file = as_path(inputs.get('output_file', required=False, is_path=True), 'Output file path', preexists=False)
 
         src_contents = [fn.lower() for fn in os.listdir(src_dir)]
 
@@ -224,7 +224,7 @@ class RunCmd(OasisBaseCommand):
 
         print_dataframe(all_losses_df, frame_header=header, string_cols=all_losses_df.columns)
         if output_file:
-            all_losses_df.to_csv(output_file, index=False)
+            all_losses_df.to_csv(output_file, index=False, encoding='utf-8')
 
         # Do not validate if the loss factor < 1 - this is because the
         # expected data files for validation are based on a loss factor
