@@ -8,16 +8,19 @@ alabaster==0.7.10         # via sphinx
 anytree==2.4.3
 appnope==0.1.0            # via ipython
 argparsetree==0.0.5
+arrow==0.14.2             # via jinja2-time
 attrs==17.4.0             # via hypothesis, pytest
 babel==2.5.3              # via sphinx
 backcall==0.1.0           # via ipython
 backports.tempfile==1.0
 backports.weakref==1.0.post1
+binaryornot==0.4.4        # via cookiecutter
 certifi==2017.11.5        # via requests
 chainmap==1.0.2
-chardet==3.0.4            # via requests
-click==6.7                # via pip-tools
+chardet==3.0.4            # via binaryornot, requests
+click==6.7                # via cookiecutter, pip-tools
 configparser==3.5.0
+cookiecutter==1.6.0
 cookies==2.2.1            # via responses
 coverage==4.4.2
 decorator==4.3.2          # via ipython, traitlets
@@ -34,7 +37,8 @@ ipdb==0.11
 ipython-genutils==0.2.0   # via traitlets
 ipython==7.3.0            # via ipdb
 jedi==0.13.3              # via ipython
-jinja2==2.10.1            # via sphinx
+jinja2-time==0.2.0        # via cookiecutter
+jinja2==2.10.1            # via cookiecutter, jinja2-time, sphinx
 jsonpickle==0.9.5
 markupsafe==1.0           # via jinja2
 mccabe==0.6.1             # via flake8
@@ -50,6 +54,7 @@ pexpect==4.6.0            # via ipython
 pickleshare==0.7.5        # via ipython
 pip-tools==2.0.2
 pluggy==0.6.0             # via pytest, tox
+poyo==0.4.2               # via cookiecutter
 prompt-toolkit==2.0.9     # via ipython
 psutil==5.6.1
 ptyprocess==0.6.0         # via pexpect
@@ -61,7 +66,7 @@ pyparsing==2.4.0          # via packaging
 pytest-cov==2.5.1
 pytest-ignore-flaky==0.1.1
 pytest==3.3.2
-python-dateutil==2.6.1    # via freezegun, pandas
+python-dateutil==2.6.1    # via arrow, freezegun, pandas
 pytz==2017.3
 requests-toolbelt==0.8.0
 requests==2.20.0
@@ -85,3 +90,4 @@ traitlets==4.3.2          # via ipython
 urllib3==1.24.2           # via requests
 virtualenv==15.1.0        # via tox
 wcwidth==0.1.7            # via prompt-toolkit
+whichcraft==0.5.2         # via cookiecutter
