@@ -20,7 +20,6 @@ from ..utils.path import (
     empty_dir,
 )
 from ..utils.data import get_utctimestamp
-from ..utils.defaults import STATIC_DATA_FP
 from ..utils.path import as_path
 
 from .base import (
@@ -105,7 +104,6 @@ class CreateSimpleModelCmd(OasisBaseCommand):
         cmd_str = 'cookiecutter'
 
         if not cookiecutter_version:
-            os.chdir(STATIC_DATA_FP) if not preset_cookiecutter_json else os.chdir(os.path.dirname(preset_cookiecutter_json))
             cmd_str += ''.join([ 
                 (' --no-input' if no_prompt or preset_cookiecutter_json else ''),
                 (' --replay' if replay else ''), 
@@ -201,7 +199,6 @@ class CreateComplexModelCmd(OasisBaseCommand):
         cmd_str = 'cookiecutter'
 
         if not cookiecutter_version:
-            os.chdir(STATIC_DATA_FP) if not preset_cookiecutter_json else os.chdir(os.path.dirname(preset_cookiecutter_json))
             cmd_str += ''.join([ 
                 (' --no-input' if no_prompt or preset_cookiecutter_json else ''), 
                 (' --replay' if replay else ''), 
