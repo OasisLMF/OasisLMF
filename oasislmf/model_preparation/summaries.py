@@ -77,6 +77,7 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
         policy_num,
         portfolio_num,
         SOURCE_IDX['loc'],
+        SOURCE_IDX['acc'],
         'item_id',
         'layer_id',
         'coverage_id',
@@ -142,15 +143,18 @@ def merge_oed_to_mapping(summary_map_df, exposure_df, oed_column_set, defaults=N
     return new_summary_map_df
 
 
-def group_by_oed(summary_map_df, exposure_df, oed_col_group):
+def group_by_oed(oed_col_group, summary_map_df, exposure_df, accounts_df=None):
     """
     Adds list of OED fields from `column_set` to summary map file
 
     :param :summary_map_df dataframe return from get_summary_mapping
     :type summary_map_df: pandas.DataFrame
 
-    :param exposure_df: Summary map file path
+    :param exposure_df: DataFrame loaded from location.csv
     :type exposure_df: pandas.DataFrame
+
+    :param accounts_df: DataFrame loaded from accounts.csv
+    :type accounts_df: pandas.DataFrame
 
     :return: subset of columns from exposure_df to merge
     :rtype: list
@@ -158,16 +162,28 @@ def group_by_oed(summary_map_df, exposure_df, oed_col_group):
         summary_ids[0] is an int list 1..n  array([1, 2, 1, 2, 1, 2, 1, 2, 1, 2, ... ])
         summary_ids[1] is an array of values used to factorize  `array(['Layer1', 'Layer2'], dtype=object)`
     """
+    oed_cols = [c.lower() for c in oed_col_group]                                               # All requred columns
+    unmapped_cols = [c for c in oed_cols if c not in summary_map_df.columns]                    # columns which in locations / Accounts file
+    mapped_cols = [c for c in oed_cols + [SOURCE_IDX['loc'], SOURCE_IDX['acc']] if c in summary_map_df.columns]    # Columns already in summary_map_df
 
-    oed_cols = [c.lower() for c in oed_col_group]
-    exposure_cols = [c for c in oed_cols if c not in summary_map_df.columns]
-    mapping_cols = [SOURCE_IDX['loc']] + [c for c in oed_cols if c in summary_map_df.columns]
+    # Extract mapped_cols from summary_map_df
+    summary_group_df = summary_map_df.loc[:, mapped_cols]
 
-    summary_group_df = summary_map_df.loc[:, mapping_cols]
-    if exposure_cols is not []:
+    # Search Loc / Acc files and merge in remaing
+    if unmapped_cols is not []:
+        # Location file columns
+        exposure_cols = [c for c in unmapped_cols if c in exposure_df.columns]
         exposure_col_df = exposure_df.loc[:, exposure_cols]
         exposure_col_df[SOURCE_IDX['loc']] = exposure_df.index
         summary_group_df = merge_dataframes(summary_group_df, exposure_df, join_on=SOURCE_IDX['loc'], how='inner')
+
+        # Account file columns
+        if isinstance(accounts_df, pd.DataFrame):
+            accounts_cols = [c for c in unmapped_cols if c in set(accounts_df.columns) -  set(exposure_df.columns)]
+            accounts_col_df = accounts_df.loc[:, accounts_cols]
+            accounts_col_df[SOURCE_IDX['acc']] = accounts_df.index
+            summary_group_df = merge_dataframes(summary_group_df, accounts_df, join_on=SOURCE_IDX['acc'], how='inner')
+
 
     summary_group_df.fillna(0, inplace=True)
     summary_ids = factorize_dataframe(summary_group_df, by_col_labels=oed_cols)
@@ -305,7 +321,7 @@ def write_df_to_file(df, target_dir, filename):
 
 
 @oasis_log
-def get_summary_xref_df(map_df, exposure_df, summaries_info_dict, summaries_type):
+def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, summaries_type):
     """
     Create a Dataframe for either gul / il / ri  based on a section
     from the analysis settings
@@ -314,8 +330,11 @@ def get_summary_xref_df(map_df, exposure_df, summaries_info_dict, summaries_type
     :param map_df: Summary Map dataframe (GUL / IL)
     :type map_df:  pandas.DataFrame
 
-    :param exposure_df: Location exposure data
+    :param exposure_df: Location OED data
     :type exposure_df:  pandas.DataFrame
+
+    :param accounts_df: Accounts OED data
+    :type accounts_df:  pandas.DataFrame
 
     :param summaries_info_dict: list of dictionary definitionfor a summary group from the analysis_settings file
     :type summaries_info_dict:  list
@@ -371,7 +390,7 @@ def get_summary_xref_df(map_df, exposure_df, summaries_info_dict, summaries_type
             (
                 summary_set_df['summary_id'],
                 set_values
-            ) = group_by_oed(map_df, exposure_df, cols_group_by)
+            ) = group_by_oed(cols_group_by, map_df, exposure_df, accounts_df)
 
             # Build description file
             summary_desc[desc_key] =  pd.DataFrame(data=list(set_values), columns=cols_group_by)
@@ -429,12 +448,20 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
         ri,
     ])
 
-    # Load Exposure file for extra OED fields
+    # Load locations file for GUL OED fields
     exposure_fp = os.path.join(model_run_fp, 'input', SOURCE_FILENAMES['loc'])
     exposure_df = get_dataframe(
         src_fp=exposure_fp,
         empty_data_error_msg='No source exposure file found.')
     exposure_df[SOURCE_IDX['loc']] = exposure_df.index
+
+    # Load accounts file for IL OED fields
+    if (il_summaries or ri_summaries):
+        accounts_fp = os.path.join(model_run_fp, 'input', SOURCE_FILENAMES['acc'])
+        accounts_df = get_dataframe(
+            src_fp=accounts_fp,
+            empty_data_error_msg='No source accounts file found.')
+        accounts_df[SOURCE_IDX['acc']] = accounts_df.index
 
     if gul_summaries:
         # Load GUL summary map
@@ -446,6 +473,7 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
         gul_summaryxref_df, gul_summary_desc = get_summary_xref_df(
             gul_map_df,
             exposure_df,
+            None,
             analysis_settings['gul_summaries'],
             'gul'
         )
@@ -467,6 +495,7 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
         il_summaryxref_df, il_summary_desc = get_summary_xref_df(
             il_map_df,
             exposure_df,
+            accounts_df,
             analysis_settings['il_summaries'],
             'il'
         )
@@ -494,6 +523,7 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
         ri_summaryxref_df, ri_summary_desc = get_summary_xref_df(
             il_map_df,
             exposure_df,
+            accounts_df,
             analysis_settings['ri_summaries'],
             'ri'
         )
