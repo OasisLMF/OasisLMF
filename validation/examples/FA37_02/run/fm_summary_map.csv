@@ -1,7 +1,0 @@
-accnumber,agg_id,coverage_id,coverage_type_id,layer_id,loc_id,loc_idx,locnumber,peril_id,polnumber,portnumber,tiv,output_id
-FA37_02,1,1,1,1,1,0,FA37_02_1,1,FA37_02_1,OEDTest,75000000.0,1
-FA37_02,2,2,3,1,1,0,FA37_02_1,1,FA37_02_1,OEDTest,12000000.0,2
-FA37_02,3,3,4,1,1,0,FA37_02_1,1,FA37_02_1,OEDTest,13000000.0,3
-FA37_02,4,4,1,1,2,1,FA37_02_2,1,FA37_02_1,OEDTest,75000000.0,4
-FA37_02,5,5,3,1,2,1,FA37_02_2,1,FA37_02_1,OEDTest,12000000.0,5
-FA37_02,6,6,4,1,2,1,FA37_02_2,1,FA37_02_1,OEDTest,13000000.0,6
