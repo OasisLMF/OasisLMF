@@ -9,7 +9,6 @@ echo "Updating expected for $d"
 rm -r -f "$d/expected/"
 mkdir "$d/expected"
 cp -r "$d/run/"* "$d/expected/"
-cp "../../.gitignore" "$d/.gitignore"
 n=$((n+1))
 done < $filename
 echo "$n test case expected results updated"
