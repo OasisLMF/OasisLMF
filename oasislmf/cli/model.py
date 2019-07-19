@@ -406,8 +406,8 @@ class GenerateLossesCmd(OasisBaseCommand):
         parser.add_argument('-r', '--model-run-dir', default=None, help='Model run directory path')
         parser.add_argument('-p', '--model-package-path', default=None, help='Path containing model specific package')
         parser.add_argument('-n', '--ktools-num-processes', default=None, help='Number of ktools calculation processes to use', type=int)
-        parser.add_argument('-m', '--ktools-mem-limit', default=False, help='Force exec failure if Ktools hits memory the system  memory limit', action='store_true')
-        parser.add_argument('-f', '--ktools-fifo-relative', default=False, help='Create ktools fifo queues under the ./fifo dir', action='store_true')
+        parser.add_argument('-m', '--ktools-mem-limit', default=None, help='Force exec failure if Ktools hits memory the system  memory limit', action='store_true')
+        parser.add_argument('-f', '--ktools-fifo-relative', default=None, help='Create ktools fifo queues under the ./fifo dir', action='store_true')
         parser.add_argument('-u', '--ktools-alloc-rule', default=None, help='Override the allocation used in fmcalc', type=int)
 
     def action(self, args):
@@ -536,8 +536,8 @@ class RunCmd(OasisBaseCommand):
         parser.add_argument('-r', '--model-run-dir', default=None, help='Model run directory path')
         parser.add_argument('-p', '--model-package-path', default=None, help='Path containing model specific package')
         parser.add_argument('-n', '--ktools-num-processes', default=None, help='Number of ktools calculation processes to use', type=int)
-        parser.add_argument('-m', '--ktools-mem-limit', default=False, help='Force exec failure if Ktools hits memory the system  memory limit', action='store_true')
-        parser.add_argument('-f', '--ktools-fifo-relative', default=False, help='Create ktools fifo queues under the ./fifo dir', action='store_true')
+        parser.add_argument('-m', '--ktools-mem-limit', default=None, help='Force exec failure if Ktools hits memory the system  memory limit', action='store_true')
+        parser.add_argument('-f', '--ktools-fifo-relative', default=None, help='Create ktools fifo queues under the ./fifo dir', action='store_true')
         parser.add_argument('-u', '--ktools-alloc-rule', default=2, help='Override the allocation used in fmcalc', type=int)
         parser.add_argument('-S', '--summarise-exposure', default=None, help='Create exposure summary report', action='store_true')
 

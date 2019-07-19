@@ -74,7 +74,7 @@ class FileEndpoint(object):
             r = self.session.upload(self._build_url(ID), file_path, content_type)
             return r
         except HTTPError as e:
-            err_msg = 'File upload Failed: {}, file: {},  url: {}:'.format(r.status_code, file_path, r.url)
+            err_msg = 'File upload Failed: file: {},  url: {}:'.format(file_path, self._build_url(ID))
             self.session.unrecoverable_error(e, err_msg)
             sys.exit(1)
 

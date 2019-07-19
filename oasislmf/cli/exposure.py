@@ -77,6 +77,10 @@ class RunCmd(OasisBaseCommand):
             '-o', '--output-level', default='item', 
             help='Level to output losses. Options are: item, loc, pol, acc or port.', type=str
         )
+        parser.add_argument(
+            '-f', '--output-file', default=None, 
+            help='Write the output to file.', type=str
+        )
 
     def action(self, args):
         """
@@ -114,6 +118,8 @@ class RunCmd(OasisBaseCommand):
             raise OasisException(
                 'Invalid output level. Must be one of port, acc, loc, pol or item.'
             )
+
+        output_file = as_path(inputs.get('output_file', required=False, is_path=True), 'Output file path', preexists=False)
 
         src_contents = [fn.lower() for fn in os.listdir(src_dir)]
 
@@ -186,7 +192,6 @@ class RunCmd(OasisBaseCommand):
             summary_cols = ['output_id', portfolio_num, acc_num, loc_num, policy_num, 'coverage_type_id']
 
         guls_df = guls_df.loc[:, summary_cols + ['loss_gul']]
-        guls_df.drop_duplicates(inplace=True)
 
         if not il and not ril:
             all_losses_df = guls_df.loc[:, summary_cols + ['loss_gul']]
@@ -217,6 +222,8 @@ class RunCmd(OasisBaseCommand):
                 loss_factor, total_gul, total_il, total_ri_ceded)
 
         print_dataframe(all_losses_df, frame_header=header, string_cols=all_losses_df.columns)
+        if output_file:
+            all_losses_df.to_csv(output_file, index=False, encoding='utf-8')
 
         # Do not validate if the loss factor < 1 - this is because the
         # expected data files for validation are based on a loss factor
