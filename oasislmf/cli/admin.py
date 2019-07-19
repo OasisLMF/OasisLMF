@@ -37,6 +37,8 @@ class CreateSimpleModelCmd(OasisBaseCommand):
     """
     formatter_class = RawDescriptionHelpFormatter
 
+    cookiecutter_template_uri = 'git+ssh://git@github.com/OasisLMF/CookiecutterOasisSimpleModel'
+
     def add_args(self, parser):
         """
         Adds arguments to the argument parser.
@@ -87,8 +89,10 @@ class CreateSimpleModelCmd(OasisBaseCommand):
 
         overwrite = inputs.get('overwrite_if_exists', default=True, required=False)
 
+        pkg_dir = os.path.join(os.path.dirname(__file__), os.pardir)
+
         target_dir = as_path(
-            inputs.get('output_dir', default=os.path.join(os.getcwd(), 'cookiecutter-run'), required=False, is_path=True), label='Target directory', is_dir=True, preexists=False
+            inputs.get('output_dir', default=os.path.join(pkg_dir, 'cookiecutter-run'), required=False, is_path=True), label='Target directory', is_dir=True, preexists=False
         )
 
         verbose = inputs.get('verbose_mode', default=False, required=False)
@@ -103,12 +107,12 @@ class CreateSimpleModelCmd(OasisBaseCommand):
         if not cookiecutter_version:
             os.chdir(STATIC_DATA_FP) if not preset_cookiecutter_json else os.chdir(os.path.dirname(preset_cookiecutter_json))
             cmd_str += ''.join([ 
-                (' --no-input' if no_prompt or preset_cookiecutter_json else ''), 
+                (' --no-input' if no_prompt or preset_cookiecutter_json else ''),
                 (' --replay' if replay else ''), 
                 (' --overwrite-if-exists' if overwrite else ''), 
-                (' --output-dir {}'.format(target_dir) if target_dir else ''), 
+                (' --output-dir {}'.format(target_dir) if target_dir else ''),
                 (' --verbose ' if verbose else ' '), 
-                'git+ssh://git@github.com/OasisLMF/CookiecutterOasisSimpleModel' 
+                self.cookiecutter_template_uri
             ])
         else:
             cmd_str += ' -V'
@@ -129,6 +133,8 @@ class CreateComplexModelCmd(OasisBaseCommand):
     """
     formatter_class = RawDescriptionHelpFormatter
 
+    cookiecutter_template_uri = 'git+ssh://git@github.com/OasisLMF/CookiecutterOasisComplexModel' 
+
     def add_args(self, parser):
         """
         Adds arguments to the argument parser.
@@ -179,8 +185,10 @@ class CreateComplexModelCmd(OasisBaseCommand):
 
         overwrite = inputs.get('overwrite_if_exists', default=True, required=False)
 
+        pkg_dir = os.path.join(os.path.dirname(__file__), os.pardir)
+
         target_dir = as_path(
-            inputs.get('output_dir', default=os.path.join(os.getcwd(), 'cookiecutter-run'), required=False, is_path=True), label='Target directory', is_dir=True, preexists=False
+            inputs.get('output_dir', default=os.path.join(pkg_dir, 'cookiecutter-run'), required=False, is_path=True), label='Target directory', is_dir=True, preexists=False
         )
 
         verbose = inputs.get('verbose_mode', default=False, required=False)
@@ -200,7 +208,7 @@ class CreateComplexModelCmd(OasisBaseCommand):
                 (' --overwrite-if-exists' if overwrite else ''), 
                 (' --output-dir {}'.format(target_dir) if target_dir else ''), 
                 (' --verbose ' if verbose else ' '), 
-                'git+ssh://git@github.com/OasisLMF/CookiecutterOasisComplexModel' 
+                self.cookiecutter_template_uri
             ])
         else:
             cmd_str += ' -V'
