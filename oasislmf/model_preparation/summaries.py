@@ -3,6 +3,7 @@ __all__ = [
     'generate_summaryxref_files',
     'merge_oed_to_mapping',
     'write_exposure_summary',
+    'write_summary_levels',
     'write_mapping_file',
 ]
 
@@ -29,6 +30,12 @@ from ..utils.defaults import (
     SUMMARY_GROUPING,
     SUMMARY_OUTPUT,
 )
+
+from ..utils.summary_levels import (
+    SUMMARY_LEVEL_LOC,
+    SUMMARY_LEVEL_ACC,
+)
+
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.path import as_path
@@ -96,7 +103,7 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
     dtypes = {
         **{t: 'str' for t in [portfolio_num, policy_num, acc_num, loc_num, 'peril_id']},
         **{t: 'uint8' for t in ['coverage_type_id']},
-        **{t: 'uint32' for t in [SOURCE_IDX['loc'], 'loc_id', 'item_id', 'layer_id', 'coverage_id', 'agg_id', 'output_id']},
+        **{t: 'uint32' for t in [SOURCE_IDX['loc'], SOURCE_IDX['acc'],'loc_id', 'item_id', 'layer_id', 'coverage_id', 'agg_id', 'output_id']},
         **{t: 'float64' for t in ['tiv']}
     }
     summary_mapping = set_dataframe_column_dtypes(summary_mapping, dtypes)
@@ -179,16 +186,84 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, accounts_df=None):
 
         # Account file columns
         if isinstance(accounts_df, pd.DataFrame):
-            accounts_cols = [c for c in unmapped_cols if c in set(accounts_df.columns) -  set(exposure_df.columns)]
+            accounts_cols = [c for c in unmapped_cols if c in set(accounts_df.columns) - set(exposure_df.columns)]
             accounts_col_df = accounts_df.loc[:, accounts_cols]
             accounts_col_df[SOURCE_IDX['acc']] = accounts_df.index
             summary_group_df = merge_dataframes(summary_group_df, accounts_df, join_on=SOURCE_IDX['acc'], how='inner')
-
 
     summary_group_df.fillna(0, inplace=True)
     summary_ids = factorize_dataframe(summary_group_df, by_col_labels=oed_cols)
 
     return summary_ids[0], summary_ids[1]
+
+
+def write_summary_levels(exposure_df, accounts_fp, target_dir):
+    '''
+    Json file with list Available / Recommended columns for use in the summary reporting
+
+    Available: Columns which exists in input files and has at least one non-zero / NaN value
+    Recommended: Columns which are available + also in the list of `useful` groupings SUMMARY_LEVEL_LOC
+
+    {
+        'GUL_perspective': {
+            'available': ['accnumber',
+                         'locnumber',
+                         'istenant',
+                         'buildingid',
+                         'countrycode',
+                         'latitude',
+                         'longitude',
+                         'streetaddress',
+                         'postalcode',
+                         'occupancycode',
+                         'constructioncode',
+                         'locperilscovered',
+                         'buildingtiv',
+                         'contentstiv',
+                         'bitiv',
+                         'portnumber'],
+
+            'recommended': ['postalcode',
+                            'occupancycode',
+                            'constructioncode',
+                            'accnumber',
+                            'countrycode',
+                            'portnumber',
+                            'locperilscovered',
+                            'locnumber']
+        },
+        'IL_perspective': {
+                ... etc ...
+        }
+    }
+    '''
+    # GUL perspective (loc columns only)
+    exclud_cols = ['loc_id', SOURCE_IDX['loc']]
+    l_col_list = exposure_df.loc[:, exposure_df.any()].columns.to_list()
+    gul_available = set([c.lower() for c in l_col_list]).difference(exclud_cols)
+    gul_recommended = gul_available.intersection(SUMMARY_LEVEL_LOC)
+    gul_summary_lvl = {'GUL_perspective': {
+        'available': sorted(list(gul_available)),
+        'recommended': sorted(list(gul_recommended))}
+    }
+
+    # IL perspective (join of acc + loc col with no dups)
+    il_summary_lvl = {}
+    if accounts_fp:
+        accounts_df = pd.read_csv(accounts_fp)
+        a_col_list = accounts_df.loc[:, accounts_df.any()].columns.to_list()
+        a_available = set([c.lower() for c in a_col_list])
+        a_recommended = set(a_available).intersection(SUMMARY_LEVEL_ACC)
+
+        il_available = a_available.union(gul_available)
+        il_recommended = a_recommended.union(gul_recommended)
+        il_summary_lvl = {'IL_perspective': {
+            'available': sorted(list(il_available)),
+            'recommended': sorted(list(il_recommended))}
+        }
+
+    with io.open(os.path.join(target_dir, 'exposure_summary_levels.json'), 'w', encoding='utf-8') as f:
+        f.write(json.dumps({**gul_summary_lvl, **il_summary_lvl}, ensure_ascii=False, indent=4))
 
 
 @oasis_log
@@ -393,12 +468,12 @@ def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, s
             ) = group_by_oed(cols_group_by, map_df, exposure_df, accounts_df)
 
             # Build description file
-            summary_desc[desc_key] =  pd.DataFrame(data=list(set_values), columns=cols_group_by)
-            summary_desc[desc_key].insert(loc=0, column='summary_id', value=range(1, len(set_values)+1))
+            summary_desc[desc_key] = pd.DataFrame(data=list(set_values), columns=cols_group_by)
+            summary_desc[desc_key].insert(loc=0, column='summary_id', value=range(1, len(set_values) + 1))
         else:
             # Fall back to setting all in single group
             summary_set_df['summary_id'] = 1
-            summary_desc[desc_key] = pd.DataFrame(data=['single_group'],columns=['n/a'])
+            summary_desc[desc_key] = pd.DataFrame(data=['single_group'], columns=['n/a'])
             summary_desc[desc_key].insert(loc=0, column='summary_id', value=1)
 
         # Appends summary set to '__summaryxref.csv'
