@@ -26,8 +26,6 @@ __all__ = [
     'FileEndpoint',
 ]
 
-# --- API Endpoint mapping to functions ------------------------------------- #
-
 
 class ApiEndpoint(object):
     """
@@ -255,6 +253,7 @@ class API_analyses(ApiEndpoint):
         self.lookup_errors_file = FileEndpoint(self.session, self.url_endpoint, 'lookup_errors_file/')
         self.lookup_success_file = FileEndpoint(self.session, self.url_endpoint, 'lookup_success_file/')
         self.lookup_validation_file = FileEndpoint(self.session, self.url_endpoint, 'lookup_validation_file/')
+        self.summary_levels_file = FileEndpoint(self.session, self.url_endpoint, 'summary_levels_file/')
         self.input_file = FileEndpoint(self.session, self.url_endpoint, 'input_file/')
         self.input_generation_traceback_file = FileEndpoint(self.session, self.url_endpoint, 'input_generation_traceback_file/')
         self.output_file = FileEndpoint(self.session, self.url_endpoint, 'output_file/')
@@ -327,7 +326,6 @@ class APIClient(object):
         self.models = API_models(self.api, '{}{}/models/'.format(self.api.url_base, api_ver))
         self.portfolios = API_portfolios(self.api, '{}{}/portfolios/'.format(self.api.url_base, api_ver))
         self.analyses = API_analyses(self.api, '{}{}/analyses/'.format(self.api.url_base, api_ver))
-        #self.peril_codes = ApiEndpoint(self.api, '{}/oed_peril_codes/'.format(self.api.url_base))   ## Note only GET will work
         self.data_files = API_datafiles(self.api, '{}{}/data_files/'.format(self.api.url_base, api_ver))
 
     def oed_peril_codes(self):
