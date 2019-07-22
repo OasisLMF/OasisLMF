@@ -55,6 +55,7 @@ from .model_preparation.summaries import (
     merge_oed_to_mapping,
     write_mapping_file,
     write_exposure_summary,
+    write_summary_levels,
 )
 from .model_preparation.lookup import OasisLookupFactory as olf
 from .model_preparation.oed import load_oed_dfs
@@ -433,6 +434,14 @@ class OasisManager(object):
                 exposure_profile=exposure_profile,
                 oed_hierarchy=oed_hierarchy
             )
+        
+        # If exposure summary set, write valid columns for summary levels to file  
+        if summarise_exposure:
+            write_summary_levels(exposure_df, accounts_fp, target_dir)
+
+        # If exposure summary set, write valid columns for summary levels to file
+        if summarise_exposure:
+            write_summary_levels(exposure_df, accounts_fp, target_dir)
 
         # Write the GUL input files
         files_prefixes = oasis_files_prefixes or self.oasis_files_prefixes
