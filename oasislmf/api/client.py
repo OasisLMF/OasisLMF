@@ -109,17 +109,19 @@ class FileEndpoint(object):
         '''
         r = self.get(ID)
         file_type = r.headers['Content-Type']
-
-        dataframes_list = {}
-        if file_type == 'text/csv':
-            dataframes_list[self.url_resource.strip('/')] = pd.read_csv(io.StringIO(r.content.decode('utf-8')))
-        if file_type == 'application/gzip':
-            tar = tarfile.open(fileobj=io.BytesIO(r.content))
-            csv_files = [f for f in tar.getmembers() if '.csv' in f.name]
-            for member in csv_files:
-                csv=tar.extractfile(member)
-                dataframes_list[os.path.basename(member.name)] = pd.read_csv(csv)
-        return dataframes_list
+        if file_type not in ['text/csv', 'application/gzip']:
+            self.logger.info(f'Unsupported filetype for Dataframe conversion: {file_type}')
+        else:
+            dataframes_list = {}
+            if file_type == 'text/csv':
+                dataframes_list[self.url_resource.strip('/')] = pd.read_csv(io.StringIO(r.content.decode('utf-8')))
+            if file_type == 'application/gzip':
+                tar = tarfile.open(fileobj=io.BytesIO(r.content))
+                csv_files = [f for f in tar.getmembers() if '.csv' in f.name]
+                for member in csv_files:
+                    csv=tar.extractfile(member)
+                    dataframes_list[os.path.basename(member.name)] = pd.read_csv(csv)
+            return dataframes_list
 
     def post(self, ID, data_object, content_type='application/json'):
         m = MultipartEncoder(fields={'file': ('data', data_object, content_type)})
