@@ -34,6 +34,8 @@ from ..utils.defaults import (
 from ..utils.summary_levels import (
     SUMMARY_LEVEL_LOC,
     SUMMARY_LEVEL_ACC,
+    OED_LOCATION_COLS,
+    OED_ACCOUNT_COLS,
 )
 
 from ..utils.exceptions import OasisException
@@ -205,7 +207,7 @@ def write_summary_levels(exposure_df, accounts_fp, target_dir):
     Recommended: Columns which are available + also in the list of `useful` groupings SUMMARY_LEVEL_LOC
 
     {
-        'GUL_perspective': {
+        'GUL': {
             'available': ['accnumber',
                          'locnumber',
                          'istenant',
@@ -232,19 +234,27 @@ def write_summary_levels(exposure_df, accounts_fp, target_dir):
                             'locperilscovered',
                             'locnumber']
         },
-        'IL_perspective': {
+        'IL': {
                 ... etc ...
         }
     }
     '''
+    # Manage internal columns, (Non-OED exposure input)
+    int_excluded_cols = ['loc_id', SOURCE_IDX['loc']]
+    int_oasis_cols = {
+        'coverage_type_id': 'Oasis coverage type', 
+        'peril_id': 'OED peril code', 
+        'coverage_id': 'Oasis coverage identifier',
+    }
+
     # GUL perspective (loc columns only)
-    exclud_cols = ['loc_id', SOURCE_IDX['loc']]
     l_col_list = exposure_df.loc[:, exposure_df.any()].columns.to_list()
-    gul_available = set([c.lower() for c in l_col_list]).difference(exclud_cols)
-    gul_recommended = gul_available.intersection(SUMMARY_LEVEL_LOC)
-    gul_summary_lvl = {'GUL_perspective': {
-        'available': sorted(list(gul_available)),
-        'recommended': sorted(list(gul_recommended))}
+    gul_avail = {k:OED_LOCATION_COLS[k]['desc'] for k in set([c.lower() for c in l_col_list]).difference(int_excluded_cols)}
+    gul_rec = {k:OED_LOCATION_COLS[k]['desc'] for k in set(gul_avail.keys()).intersection(SUMMARY_LEVEL_LOC)}
+
+    gul_summary_lvl = {'GUL': {
+        'available': {**gul_avail, **int_oasis_cols},
+        'recommended': {**gul_rec, **int_oasis_cols}}
     }
 
     # IL perspective (join of acc + loc col with no dups)
@@ -252,18 +262,18 @@ def write_summary_levels(exposure_df, accounts_fp, target_dir):
     if accounts_fp:
         accounts_df = pd.read_csv(accounts_fp)
         a_col_list = accounts_df.loc[:, accounts_df.any()].columns.to_list()
-        a_available = set([c.lower() for c in a_col_list])
-        a_recommended = set(a_available).intersection(SUMMARY_LEVEL_ACC)
+        a_avail = set([c.lower() for c in a_col_list])
+        a_rec = set(a_avail).intersection(SUMMARY_LEVEL_ACC)
 
-        il_available = a_available.union(gul_available)
-        il_recommended = a_recommended.union(gul_recommended)
-        il_summary_lvl = {'IL_perspective': {
-            'available': sorted(list(il_available)),
-            'recommended': sorted(list(il_recommended))}
+        il_avail = {k:OED_ACCOUNT_COLS[k]['desc'] for k in a_avail.difference(gul_avail.keys())}
+        il_rec = {k:OED_ACCOUNT_COLS[k]['desc'] for k in a_rec.difference(gul_rec.keys())}
+        il_summary_lvl = {'IL': {
+            'available': {**gul_avail, **il_avail, **int_oasis_cols},
+            'recommended': {**gul_rec, **il_rec, **int_oasis_cols}}
         }
 
     with io.open(os.path.join(target_dir, 'exposure_summary_levels.json'), 'w', encoding='utf-8') as f:
-        f.write(json.dumps({**gul_summary_lvl, **il_summary_lvl}, ensure_ascii=False, indent=4))
+        f.write(json.dumps({**gul_summary_lvl, **il_summary_lvl}, sort_keys=True, ensure_ascii=False, indent=4))
 
 
 @oasis_log
