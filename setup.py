@@ -10,7 +10,7 @@ import tarfile
 from contextlib import contextmanager
 from distutils.log import INFO, WARN, ERROR
 from distutils.spawn import find_executable
-from distutils.util import get_platform
+from platform import processor
 from tempfile import mkdtemp
 from time import sleep
 
@@ -39,7 +39,7 @@ def get_install_requirements():
     with io.open(os.path.join(SCRIPT_DIR, 'requirements-package.in'), encoding='utf-8') as reqs:
         return reqs.readlines()
 
-
+# https://www.python.org/dev/peps/pep-0440/#pre-releases
 def get_version():
     """
     Return package version as listed in `__version__` in `init.py`.
@@ -122,8 +122,8 @@ class InstallKtoolsMixin(object):
                 self.announce('Exisiting Ktools install not found.\n', WARN)
         return build_dir
 
-    def add_ktools_to_path(self, build_dir):
-        print('Installing ktools')
+    def add_ktools_build_to_path(self, build_dir):
+        print('Installing ktools from source')
 
         if not os.path.exists(self.get_bin_dir()):
             os.makedirs(self.get_bin_dir())
@@ -138,6 +138,18 @@ class InstallKtoolsMixin(object):
                 shutil.copy(p, component_path)
                 yield component_path
 
+    def add_ktools_bins_to_path(self, extract_path):
+        print('Installing ktools from pre-built binaries')
+
+        if not os.path.exists(self.get_bin_dir()):
+            os.makedirs(self.get_bin_dir())
+
+        for p in glob.glob(os.path.join(extract_path, '*')):
+            split = p.split(os.path.sep)
+            component_path = os.path.join(self.get_bin_dir(), split[-1])
+            shutil.copy(p, component_path)
+            yield component_path
+
     def install_ktools_source(self):
         with temp_dir() as d:
             local_tar_path = os.path.join(d, 'ktools.tar.gz')
@@ -147,18 +159,17 @@ class InstallKtoolsMixin(object):
             self.fetch_ktools_tar(local_tar_path, source_url)
             self.unpack_tar(local_tar_path, local_extract_path)
             build_dir = self.build_ktools(local_extract_path)
-            self.ktools_components = list(self.add_ktools_to_path(build_dir))
+            self.ktools_components = list(self.add_ktools_build_to_path(build_dir))
 
-    def install_ktools_bin(self):
+    def install_ktools_bin(self, system_architecture):
         with temp_dir() as d:
-            local_tar_path = os.path.join(d, 'ktools.tar.gz')
+            local_tar_path = os.path.join(d, f'ktools_{system_architecture}.tar.gz')
             local_extract_path = os.path.join(d, 'extracted')
-            bin_url = f'https://github.com/OasisLMF/ktools/releases/download/v{KTOOLS_VERSION}/ktools_x86.tar.gz'
+            bin_url = f'https://github.com/OasisLMF/ktools/releases/download/v{KTOOLS_VERSION}/ktools_{system_architecture}.tar.gz'
 
             self.fetch_ktools_tar(local_tar_path, bin_url)
             self.unpack_tar(local_tar_path, local_extract_path)
-            self.ktools_components = list(self.add_ktools_to_path(local_extract_path))
-            print(self.ktools_components)
+            self.ktools_components = list(self.add_ktools_bins_to_path(local_extract_path))
 
 class PostInstallKtools(InstallKtoolsMixin, install):
     command_name = 'install'
@@ -172,8 +183,12 @@ class PostInstallKtools(InstallKtoolsMixin, install):
         install.__init__(self, *args, **kwargs)
 
     def run(self):
-        #self.install_ktools_source()
-        self.install_ktools_bin()
+        ARCH = processor()
+        try:
+            self.install_ktools_bin(ARCH)
+        except:    
+            print(f'Fallback - building ktools from source')
+            self.install_ktools_source()
         install.run(self)
 
     def get_outputs(self):
