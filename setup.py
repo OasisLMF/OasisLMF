@@ -10,6 +10,7 @@ import tarfile
 from contextlib import contextmanager
 from distutils.log import INFO, WARN, ERROR
 from distutils.spawn import find_executable
+from distutils.util import get_platform
 from tempfile import mkdtemp
 from time import sleep
 
@@ -60,12 +61,12 @@ readme = get_readme()
 
 
 class InstallKtoolsMixin(object):
-    def fetch_ktools_tar(self, location, attempts=3, timeout=5, cooldown=1):
-        self.announce('Retrieving ktools {}'.format(KTOOLS_VERSION), INFO)
+    def fetch_ktools_tar(self, location, url, attempts=3, timeout=5, cooldown=1):
+        self.announce('Retrieving ktools from: {}'.format(url), INFO)
         last_error = None
         req = None
 
-        # Proxy config 
+        # Proxy config
         proxy_config = urlrequest.getproxies()
         proxy_handler = urlrequest.ProxyHandler(proxy_config)
         opener = urlrequest.build_opener(proxy_handler)
@@ -75,7 +76,6 @@ class InstallKtoolsMixin(object):
 
         for i in range(attempts):
             try:
-                url = f'https://github.com/OasisLMF/ktools/archive/v{KTOOLS_VERSION}.tar.gz'
                 req = urlrequest.Request(url)
                 resp = urlrequest.urlopen(req, timeout=timeout * 1000)
                 break
@@ -138,16 +138,27 @@ class InstallKtoolsMixin(object):
                 shutil.copy(p, component_path)
                 yield component_path
 
-    def install_ktools(self):
+    def install_ktools_source(self):
         with temp_dir() as d:
             local_tar_path = os.path.join(d, 'ktools.tar.gz')
             local_extract_path = os.path.join(d, 'extracted')
-
-            self.fetch_ktools_tar(local_tar_path)
+            source_url = f'https://github.com/OasisLMF/ktools/archive/v{KTOOLS_VERSION}.tar.gz'
+            
+            self.fetch_ktools_tar(local_tar_path, source_url)
             self.unpack_tar(local_tar_path, local_extract_path)
             build_dir = self.build_ktools(local_extract_path)
             self.ktools_components = list(self.add_ktools_to_path(build_dir))
 
+    def install_ktools_bin(self):
+        with temp_dir() as d:
+            local_tar_path = os.path.join(d, 'ktools.tar.gz')
+            local_extract_path = os.path.join(d, 'extracted')
+            bin_url = f'https://github.com/OasisLMF/ktools/releases/download/v{KTOOLS_VERSION}/ktools_x86.tar.gz'
+
+            self.fetch_ktools_tar(local_tar_path, bin_url)
+            self.unpack_tar(local_tar_path, local_extract_path)
+            self.ktools_components = list(self.add_ktools_to_path(local_extract_path))
+            print(self.ktools_components)
 
 class PostInstallKtools(InstallKtoolsMixin, install):
     command_name = 'install'
@@ -161,7 +172,8 @@ class PostInstallKtools(InstallKtoolsMixin, install):
         install.__init__(self, *args, **kwargs)
 
     def run(self):
-        self.install_ktools()
+        #self.install_ktools_source()
+        self.install_ktools_bin()
         install.run(self)
 
     def get_outputs(self):
@@ -181,7 +193,7 @@ class PostDevelopKtools(InstallKtoolsMixin, develop):
         develop.__init__(self, *args, **kwargs)
 
     def run(self):
-        self.install_ktools()
+        self.install_ktools_source()
         develop.run(self)
 
     def get_outputs(self):
