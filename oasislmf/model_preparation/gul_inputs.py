@@ -22,6 +22,7 @@ pd.options.mode.chained_assignment = None
 from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
 from ..utils.data import (
     factorize_array,
+    factorize_ndarray,
     get_dataframe,
     get_ids,
     merge_dataframes,
@@ -278,9 +279,10 @@ def get_gul_input_items(
         # Set the item IDs and coverage IDs, and defaults and data types for
         # layer IDs and agg. IDs
         item_ids = gul_inputs_df.index + 1
+        gul_inputs_df['coverage_id'] =  factorize_ndarray(
+            gul_inputs_df.loc[:, ['loc_id', 'coverage_type_id']].values, col_idxs=range(2))[0]
         gul_inputs_df = gul_inputs_df.assign(
             item_id=item_ids,
-            coverage_id=item_ids,
             layer_id=1,
             agg_id=item_ids
         )
