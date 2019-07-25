@@ -161,11 +161,11 @@ class InstallKtoolsMixin(object):
             build_dir = self.build_ktools(local_extract_path)
             self.ktools_components = list(self.add_ktools_build_to_path(build_dir))
 
-    def install_ktools_bin(self, system_architecture):
+    def install_ktools_bin(self, system_os, system_architecture):
         with temp_dir() as d:
             local_tar_path = os.path.join(d, 'ktools_{}.tar.gz'.format(system_architecture))
             local_extract_path = os.path.join(d, 'extracted')
-            bin_url = 'https://github.com/OasisLMF/ktools/releases/download/v{}/ktools_{}.tar.gz'.format(KTOOLS_VERSION, system_architecture)
+            bin_url = 'https://github.com/OasisLMF/ktools/releases/download/v{}/{}_{}.tar.gz'.format(KTOOLS_VERSION, system_os, system_architecture)
 
             self.fetch_ktools_tar(local_tar_path, bin_url)
             self.unpack_tar(local_tar_path, local_extract_path)
@@ -191,7 +191,7 @@ class PostInstallKtools(InstallKtoolsMixin, install):
         OS = system()
         if ARCH in ['x86_64'] and OS in ['Linux']:
             try:
-                self.install_ktools_bin(ARCH)
+                self.install_ktools_bin(OS, ARCH)
             except:    
                 print('Fallback - building ktools from source')
                 self.install_ktools_source()
