@@ -213,7 +213,6 @@ class RunCmd(OasisBaseCommand):
             total_ri_net = rils_df.loss_ri.sum()
             total_ri_ceded = total_il - total_ri_net
             all_losses_df = all_losses_df.loc[:, summary_cols + ['loss_gul', 'loss_il', 'loss_ri']]
-            
             summary_gul_df = pd.DataFrame({'loss_gul': guls_df.groupby(summary_cols)['loss_gul'].sum()}).reset_index()
             summary_il_df = pd.DataFrame({'loss_il': all_losses_df.groupby(summary_cols)['loss_il'].sum()}).reset_index()
             summary_ri_df = pd.DataFrame({'loss_ri': all_losses_df.groupby(summary_cols)['loss_ri'].sum()}).reset_index()

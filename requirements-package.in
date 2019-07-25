@@ -3,6 +3,7 @@ argparsetree>=0.0.5
 backports.tempfile
 backports.weakref
 chainmap
+cookiecutter>=1.6.0
 future
 jsonpickle
 pandas>=0.24.0

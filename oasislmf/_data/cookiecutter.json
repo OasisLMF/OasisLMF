@@ -1,0 +1,12 @@
+{
+  "project_name": "OM",
+  "project_slug": "{{cookiecutter.project_name.replace(' ', '')}}",
+  "project_short_description": "Oasis Model",
+  "project_maintainer": "<full name of primary project maintainer>",
+  "project_maintainer_email": "<primary GitHub account email of primary project maintainer>",
+  "primary_language": "Python",
+  "organization": "OasisLMF",
+  "model_identifier": "OM",
+  "model_version": "0.0.0.1",
+  "model_lookup_type": "custom"
+}
