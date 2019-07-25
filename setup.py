@@ -10,7 +10,7 @@ import tarfile
 from contextlib import contextmanager
 from distutils.log import INFO, WARN, ERROR
 from distutils.spawn import find_executable
-from platform import processor
+from platform import machine
 from tempfile import mkdtemp
 from time import sleep
 
@@ -72,7 +72,7 @@ class InstallKtoolsMixin(object):
         opener = urlrequest.build_opener(proxy_handler)
         urlrequest.install_opener(opener)
         if proxy_config:
-            self.announce(f'Using proxy configuration to fetch ktools: {proxy_config}')
+            self.announce('Using proxy configuration to fetch ktools: {}'.format(proxy_config))
 
         for i in range(attempts):
             try:
@@ -154,7 +154,7 @@ class InstallKtoolsMixin(object):
         with temp_dir() as d:
             local_tar_path = os.path.join(d, 'ktools.tar.gz')
             local_extract_path = os.path.join(d, 'extracted')
-            source_url = f'https://github.com/OasisLMF/ktools/archive/v{KTOOLS_VERSION}.tar.gz'
+            source_url = 'https://github.com/OasisLMF/ktools/archive/v{}.tar.gz'.format(KTOOLS_VERSION)
             
             self.fetch_ktools_tar(local_tar_path, source_url)
             self.unpack_tar(local_tar_path, local_extract_path)
@@ -163,9 +163,9 @@ class InstallKtoolsMixin(object):
 
     def install_ktools_bin(self, system_architecture):
         with temp_dir() as d:
-            local_tar_path = os.path.join(d, f'ktools_{system_architecture}.tar.gz')
+            local_tar_path = os.path.join(d, 'ktools_{}.tar.gz'.format(system_architecture))
             local_extract_path = os.path.join(d, 'extracted')
-            bin_url = f'https://github.com/OasisLMF/ktools/releases/download/v{KTOOLS_VERSION}/ktools_{system_architecture}.tar.gz'
+            bin_url = 'https://github.com/OasisLMF/ktools/releases/download/v{}/ktools_{}.tar.gz'.format(KTOOLS_VERSION, system_architecture)
 
             self.fetch_ktools_tar(local_tar_path, bin_url)
             self.unpack_tar(local_tar_path, local_extract_path)
@@ -187,12 +187,12 @@ class PostInstallKtools(InstallKtoolsMixin, install):
         If system arch matches Ktools static build try to install from pre-build 
         with a fallback of compile ktools from source 
         '''
-        ARCH = processor()
+        ARCH = machine()
         if ARCH in ['x86_64']:
             try:
                 self.install_ktools_bin(ARCH)
             except:    
-                print(f'Fallback - building ktools from source')
+                print('Fallback - building ktools from source')
                 self.install_ktools_source()
         else:
             self.install_ktools_source()
@@ -238,7 +238,7 @@ try:
 
         def get_tag(self):
             python, abi, plat = bdist_wheel.get_tag(self)
-            python, abi = 'py2.py3', 'none'
+            python, abi = 'py36', 'none'
             return python, abi, plat
 
 except ImportError:
