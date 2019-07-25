@@ -76,8 +76,9 @@ class InstallKtoolsMixin(object):
 
         for i in range(attempts):
             try:
+                import certifi
                 req = urlrequest.Request(url)
-                resp = urlrequest.urlopen(req, timeout=timeout * 1000)
+                resp = urlrequest.urlopen(req, timeout=timeout * 1000, cafile=certifi.where())
                 break
             except URLError as e:
                 self.announce('Failed to get ktools tar (attempt {})'.format(i + 1), WARN)
@@ -163,7 +164,7 @@ class InstallKtoolsMixin(object):
 
     def install_ktools_bin(self, system_os, system_architecture):
         with temp_dir() as d:
-            local_tar_path = os.path.join(d, 'ktools_{}.tar.gz'.format(system_architecture))
+            local_tar_path = os.path.join(d, '{}_{}.tar.gz'.format(system_os, system_architecture))
             local_extract_path = os.path.join(d, 'extracted')
             bin_url = 'https://github.com/OasisLMF/ktools/releases/download/v{}/{}_{}.tar.gz'.format(KTOOLS_VERSION, system_os, system_architecture)
 
