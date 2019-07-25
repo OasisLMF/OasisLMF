@@ -66,19 +66,9 @@ class InstallKtoolsMixin(object):
         last_error = None
         req = None
 
-        # Proxy config
-        proxy_config = urlrequest.getproxies()
-        proxy_handler = urlrequest.ProxyHandler(proxy_config)
-        opener = urlrequest.build_opener(proxy_handler)
-        urlrequest.install_opener(opener)
-        if proxy_config:
-            self.announce('Using proxy configuration to fetch ktools: {}'.format(proxy_config))
-
         for i in range(attempts):
             try:
-                import certifi
-                req = urlrequest.Request(url)
-                resp = urlrequest.urlopen(req, timeout=timeout * 1000, cafile=certifi.where())
+                req = urlrequest.urlopen(url, timeout=timeout * 1000)
                 break
             except URLError as e:
                 self.announce('Failed to get ktools tar (attempt {})'.format(i + 1), WARN)
@@ -90,7 +80,7 @@ class InstallKtoolsMixin(object):
                 raise last_error
 
         with open(location, 'wb') as f:
-            f.write(resp.read())
+            f.write(req.read())
 
     def unpack_tar(self, tar_location, extract_location):
         self.announce('Unpacking ktools', INFO)
