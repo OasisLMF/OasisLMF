@@ -11,6 +11,9 @@ from ..utils.exceptions import OasisException
 INPUT_FILES = {
     'damage_bin_dict': {
         'name': 'damage_bin_dict', 'validation_tool': 'validatedamagebin'
+    },
+    'footprint': {
+        'name': 'footprint', 'validation_tool': 'validatefootprint'
     }
 }
 
