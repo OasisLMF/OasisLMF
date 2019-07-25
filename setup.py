@@ -238,7 +238,7 @@ try:
 
         def get_tag(self):
             python, abi, plat = bdist_wheel.get_tag(self)
-            python, abi = 'py36', 'none'
+            python, abi = 'py3', 'none'
             return python, abi, plat
 
 except ImportError:
