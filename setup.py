@@ -10,7 +10,7 @@ import tarfile
 from contextlib import contextmanager
 from distutils.log import INFO, WARN, ERROR
 from distutils.spawn import find_executable
-from platform import machine
+from platform import machine, system
 from tempfile import mkdtemp
 from time import sleep
 
@@ -188,7 +188,8 @@ class PostInstallKtools(InstallKtoolsMixin, install):
         with a fallback of compile ktools from source 
         '''
         ARCH = machine()
-        if ARCH in ['x86_64']:
+        OS = system()
+        if ARCH in ['x86_64'] and OS in ['Linux']:
             try:
                 self.install_ktools_bin(ARCH)
             except:    
