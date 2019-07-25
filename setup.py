@@ -183,11 +183,18 @@ class PostInstallKtools(InstallKtoolsMixin, install):
         install.__init__(self, *args, **kwargs)
 
     def run(self):
+        ''' 
+        If system arch matches Ktools static build try to install from pre-build 
+        with a fallback of compile ktools from source 
+        '''
         ARCH = processor()
-        try:
-            self.install_ktools_bin(ARCH)
-        except:    
-            print(f'Fallback - building ktools from source')
+        if ARCH in ['x86_64']:
+            try:
+                self.install_ktools_bin(ARCH)
+            except:    
+                print(f'Fallback - building ktools from source')
+                self.install_ktools_source()
+        else:
             self.install_ktools_source()
         install.run(self)
 
