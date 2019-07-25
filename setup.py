@@ -239,6 +239,7 @@ try:
         def get_tag(self):
             python, abi, plat = bdist_wheel.get_tag(self)
             python, abi = 'py3', 'none'
+            plat = plat.lower().replace('linux', 'manylinux1')
             return python, abi, plat
 
 except ImportError:
