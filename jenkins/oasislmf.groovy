@@ -172,7 +172,7 @@ node {
                     json_request['draft'] = false
                     json_request['prerelease'] = false
                     writeJSON file: 'gh_request.json', json: json_request
-                    sh 'curl -XPOST -H "Authorization:token ' + gh_token + "\" --data @gh_request.json https://api.github.com/repos/$repo/releases > gh_res
+                    sh 'curl -XPOST -H "Authorization:token ' + gh_token + "\" --data @gh_request.json https://api.github.com/repos/$repo/releases > gh_response.json"
                 }
             }
         }
