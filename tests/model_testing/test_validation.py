@@ -1,10 +1,9 @@
-import os
-
 from tempfile import TemporaryDirectory
 from unittest import TestCase
 
 from oasislmf.model_testing.validation import csv_validity_test
 from oasislmf.utils.exceptions import OasisException
+
 
 class TestValidation(TestCase):
 
