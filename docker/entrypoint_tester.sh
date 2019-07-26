@@ -17,20 +17,9 @@ BUILD_OUTPUT_DIR='/tmp/output/'
 
 # Test install
     VER_PKG=$(cat ./oasislmf/__init__.py | awk -F"'" ' {print $2} ')
-    TAR_PKG=$(find ./dist/ -name "oasislmf-${VER_PKG}.tar.gz")
-    pip install --verbose $TAR_PKG > >(tee -a $LOG_BUILD) 2> >(tee -a ${LOG_BUILD} >&2)
-
-    set +exu
-    KTOOLS_BUILD_FAILED=$(cat $LOG_BUILD | grep -ci 'Ktools build failed')
-    ALL_KTESTS_PASS=$(cat $LOG_BUILD | grep -ci 'All tests passed.')
-    set -exu
-
-    if [ $KTOOLS_BUILD_FAILED -ne 0 ] || [ $ALL_KTESTS_PASS -ne 1 ]; then
-        echo "Error Detected in Ktools install"
-        exit 1
-    else
-        echo "Ktools installed successfully"
-    fi
+    python setup.py bdist_wheel --verbose > >(tee -a $LOG_BUILD) 2> >(tee -a ${LOG_BUILD} >&2)
+    WHL_PKG=$(find ./dist/ -name "oasislmf-${VER_PKG}*.whl")
+    pip install --verbose $WHL_PKG 
 
 # Unit testing
     find /home/ -name __pycache__ | xargs -r rm -rfv
@@ -44,7 +33,6 @@ BUILD_OUTPUT_DIR='/tmp/output/'
         echo "Unit testing failed - Exiting build"
         exit 1
     fi 
-
  
 # Code Standards report
     flake8 oasislmf/ --ignore=E501,E402 | tee -a $LOG_FLAKE 
