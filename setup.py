@@ -10,6 +10,7 @@ import tarfile
 from contextlib import contextmanager
 from distutils.log import INFO, WARN, ERROR
 from distutils.spawn import find_executable
+from platform import machine, system
 from tempfile import mkdtemp
 from time import sleep
 
@@ -38,7 +39,7 @@ def get_install_requirements():
     with io.open(os.path.join(SCRIPT_DIR, 'requirements-package.in'), encoding='utf-8') as reqs:
         return reqs.readlines()
 
-
+# https://www.python.org/dev/peps/pep-0440/#pre-releases
 def get_version():
     """
     Return package version as listed in `__version__` in `init.py`.
@@ -60,24 +61,14 @@ readme = get_readme()
 
 
 class InstallKtoolsMixin(object):
-    def fetch_ktools_tar(self, location, attempts=3, timeout=5, cooldown=1):
-        self.announce('Retrieving ktools {}'.format(KTOOLS_VERSION), INFO)
+    def fetch_ktools_tar(self, location, url, attempts=3, timeout=5, cooldown=1):
+        self.announce('Retrieving ktools from: {}'.format(url), INFO)
         last_error = None
         req = None
 
-        # Proxy config 
-        proxy_config = urlrequest.getproxies()
-        proxy_handler = urlrequest.ProxyHandler(proxy_config)
-        opener = urlrequest.build_opener(proxy_handler)
-        urlrequest.install_opener(opener)
-        if proxy_config:
-            self.announce(f'Using proxy configuration to fetch ktools: {proxy_config}')
-
         for i in range(attempts):
             try:
-                url = f'https://github.com/OasisLMF/ktools/archive/v{KTOOLS_VERSION}.tar.gz'
-                req = urlrequest.Request(url)
-                resp = urlrequest.urlopen(req, timeout=timeout * 1000)
+                req = urlrequest.urlopen(url, timeout=timeout * 1000)
                 break
             except URLError as e:
                 self.announce('Failed to get ktools tar (attempt {})'.format(i + 1), WARN)
@@ -89,7 +80,7 @@ class InstallKtoolsMixin(object):
                 raise last_error
 
         with open(location, 'wb') as f:
-            f.write(resp.read())
+            f.write(req.read())
 
     def unpack_tar(self, tar_location, extract_location):
         self.announce('Unpacking ktools', INFO)
@@ -122,8 +113,8 @@ class InstallKtoolsMixin(object):
                 self.announce('Exisiting Ktools install not found.\n', WARN)
         return build_dir
 
-    def add_ktools_to_path(self, build_dir):
-        print('Installing ktools')
+    def add_ktools_build_to_path(self, build_dir):
+        print('Installing ktools from source')
 
         if not os.path.exists(self.get_bin_dir()):
             os.makedirs(self.get_bin_dir())
@@ -138,16 +129,38 @@ class InstallKtoolsMixin(object):
                 shutil.copy(p, component_path)
                 yield component_path
 
-    def install_ktools(self):
+    def add_ktools_bins_to_path(self, extract_path):
+        print('Installing ktools from pre-built binaries')
+
+        if not os.path.exists(self.get_bin_dir()):
+            os.makedirs(self.get_bin_dir())
+
+        for p in glob.glob(os.path.join(extract_path, '*')):
+            split = p.split(os.path.sep)
+            component_path = os.path.join(self.get_bin_dir(), split[-1])
+            shutil.copy(p, component_path)
+            yield component_path
+
+    def install_ktools_source(self):
         with temp_dir() as d:
             local_tar_path = os.path.join(d, 'ktools.tar.gz')
             local_extract_path = os.path.join(d, 'extracted')
-
-            self.fetch_ktools_tar(local_tar_path)
+            source_url = 'https://github.com/OasisLMF/ktools/archive/v{}.tar.gz'.format(KTOOLS_VERSION)
+            
+            self.fetch_ktools_tar(local_tar_path, source_url)
             self.unpack_tar(local_tar_path, local_extract_path)
             build_dir = self.build_ktools(local_extract_path)
-            self.ktools_components = list(self.add_ktools_to_path(build_dir))
+            self.ktools_components = list(self.add_ktools_build_to_path(build_dir))
 
+    def install_ktools_bin(self, system_os, system_architecture):
+        with temp_dir() as d:
+            local_tar_path = os.path.join(d, '{}_{}.tar.gz'.format(system_os, system_architecture))
+            local_extract_path = os.path.join(d, 'extracted')
+            bin_url = 'https://github.com/OasisLMF/ktools/releases/download/v{}/{}_{}.tar.gz'.format(KTOOLS_VERSION, system_os, system_architecture)
+
+            self.fetch_ktools_tar(local_tar_path, bin_url)
+            self.unpack_tar(local_tar_path, local_extract_path)
+            self.ktools_components = list(self.add_ktools_bins_to_path(local_extract_path))
 
 class PostInstallKtools(InstallKtoolsMixin, install):
     command_name = 'install'
@@ -161,7 +174,20 @@ class PostInstallKtools(InstallKtoolsMixin, install):
         install.__init__(self, *args, **kwargs)
 
     def run(self):
-        self.install_ktools()
+        ''' 
+        If system arch matches Ktools static build try to install from pre-build 
+        with a fallback of compile ktools from source 
+        '''
+        ARCH = machine()
+        OS = system()
+        if ARCH in ['x86_64'] and OS in ['Linux']:
+            try:
+                self.install_ktools_bin(OS, ARCH)
+            except:    
+                print('Fallback - building ktools from source')
+                self.install_ktools_source()
+        else:
+            self.install_ktools_source()
         install.run(self)
 
     def get_outputs(self):
@@ -181,7 +207,7 @@ class PostDevelopKtools(InstallKtoolsMixin, develop):
         develop.__init__(self, *args, **kwargs)
 
     def run(self):
-        self.install_ktools()
+        self.install_ktools_source()
         develop.run(self)
 
     def get_outputs(self):
@@ -204,7 +230,8 @@ try:
 
         def get_tag(self):
             python, abi, plat = bdist_wheel.get_tag(self)
-            python, abi = 'py2.py3', 'none'
+            python, abi = 'py3', 'none'
+            plat = plat.lower().replace('linux', 'manylinux1')
             return python, abi, plat
 
 except ImportError:
