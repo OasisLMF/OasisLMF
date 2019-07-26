@@ -1,5 +1,5 @@
-acc_idx,accnumber,agg_id,coverage_id,coverage_type_id,layer_id,loc_id,loc_idx,locnumber,peril_id,polnumber,portnumber,tiv,output_id
-0,1,1,1,1,1,1,0,1,1,1,1,1000000.0,1
-0,1,2,2,2,1,1,0,1,1,1,1,100000.0,2
-0,1,3,3,3,1,1,0,1,1,1,1,50000.0,3
-0,1,4,4,4,1,1,0,1,1,1,1,20000.0,4
+accnumber,agg_id,coverage_id,coverage_type_id,layer_id,loc_id,loc_idx,locnumber,peril_id,polnumber,portnumber,tiv,output_id
+1,1,1,1,1,1,0,1,1,1,1,1000000.0,1
+1,2,2,2,1,1,0,1,1,1,1,100000.0,2
+1,3,3,3,1,1,0,1,1,1,1,50000.0,3
+1,4,4,4,1,1,0,1,1,1,1,20000.0,4
