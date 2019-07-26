@@ -151,6 +151,30 @@ node {
                     }
                 }
             }
+
+            // Create GitHub release 
+            stage("Create Release: GitHub") { 
+                // Tag repo
+                sshagent (credentials: [git_creds]) {
+                    dir(source_workspace) {
+                        sh "git tag ${vers_pypi}"
+                        sh "git push origin ${vers_pypi}"
+                    }
+                }
+                // Create GH release
+                withCredentials([string(credentialsId: 'github-api-token', variable: 'gh_token')]) {
+                    String repo = "OasisLMF/OasisLMF"
+                    def json_request = readJSON text: '{}'
+                    json_request['tag_name'] = vers_pypi
+                    json_request['target_commitish'] = 'master'
+                    json_request['name'] = vers_pypi
+                    json_request['body'] = ""
+                    json_request['draft'] = false
+                    json_request['prerelease'] = false
+                    writeJSON file: 'gh_request.json', json: json_request
+                    sh 'curl -XPOST -H "Authorization:token ' + gh_token + "\" --data @gh_request.json https://api.github.com/repos/$repo/releases > gh_res
+                }
+            }
         }
     } catch(hudson.AbortException | org.jenkinsci.plugins.workflow.steps.FlowInterruptedException buildException) {
         hasFailed = true
@@ -165,20 +189,10 @@ node {
             SLACK_CHAN = (params.PUBLISH ? "#builds-release":"#builds-dev")
             slackSend(channel: SLACK_CHAN, message: SLACK_MSG, color: slackColor)
         }
-        if(! hasFailed && params.PUBLISH){
-            sshagent (credentials: [git_creds]) {
-                dir(source_workspace) {
-                    sh "git tag ${vers_pypi}"
-                    sh "git push origin ${vers_pypi}"
-                }
-            }
-        }
 
         //Store reports
         dir(source_workspace) {
             archiveArtifacts artifacts: 'reports/**/*.*'
         }
-
-
     }
 }
