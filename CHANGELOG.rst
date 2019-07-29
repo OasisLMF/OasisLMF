@@ -1,6 +1,20 @@
 OasisLMF Changelog
 ==================
 
+`1.4.0`_
+-------
+* Cookiecutter CLI integration - commands for creating simple and complex Oasis model projects/repositories from project templates
+* Extend calc. rules and FM test coverage
+* Various fixes in FM and data utils
+* Various fixes and updates for the API client module 
+* Add ktools static binary bdist_wheel to published package
+* Fix for Layer_id in file generation 
+* Performance improvment and fixes for the exposure summary reporting
+* Added optional `--summarise-exposure` flag for exposure report output
+* Added `exposure_summary_levels.json` file to inputs directory, lists valid OED columns to build summary groups
+* Added summary info files to output directory `gul_S1_summary-info.csv` which lists data for grouping summary_ids 
+* Ktools updated to v3.1.0
+
 `1.3.10`_
 -------
 * Hotfix release - fix for models using custom lookups
@@ -255,6 +269,7 @@ in the exposure manager
 
 * Add console logging
 
+.. _`1.4.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.10...1.4.0
 .. _`1.3.10`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.9...1.3.10
 .. _`1.3.9`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.8...1.3.9
 .. _`1.3.8`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.7...1.3.8

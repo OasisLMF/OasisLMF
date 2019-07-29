@@ -1,0 +1,113 @@
+FM3
+===
+
+acc
+---
+AccNumber,PortNumber,PolNumber,PolPeril,CondDed6All,CondLimit6All,CondNumber,PolDed6All,PolMinDed6All,PolMaxDed6All,LayerAttachment,LayerLimit,LayerParticipation
+1,1,1,1,WTC;WEC;BFR;OO1,0,0,1,0,0,0,0,0,1
+
+loc
+---
+AccNumber,LocNumber,LocName,AreaCode,CountryCode,LocPeril,BuildingTIV,LocDed1Building,LocLimit1Building,OtherTIV,LocDed2Other,LocLimit2Other,ContentsTIV,LocDed3Contents,LocLimit3Contents,BITIV,LocDed4BI,LocLimit4BI,LocDed5PD,LocLimit5PD,LocDed6All,LocLimit6All,CondTag
+1,1,1,Location 1,CA,US,WTC;WEC;BFR;OO1,1000000,50000,900000,100000,5000,90000,50000,2500,45000,20000,0,18000,0,0,0,0,1
+
+keys
+----
+LocID,PerilID,CoverageTypeID,AreaPerilID,VulnerabilityID
+1,1,1,1,1
+1,1,2,1,1
+1,1,3,1,1
+1,1,4,1,1
+
+items.csv
+---------
+item_id,coverage_id,areaperil_id,vulnerability_id,group_id
+1,1,1,1,1
+2,2,1,1,1
+3,3,1,1,1
+4,4,1,1,1
+
+coverages.csv
+-------------
+coverage_id,tiv
+1,1000000.0
+2,100000.0
+3,50000.0
+4,20000.0
+
+gulsummaryxref.csv
+------------------
+coverage_id,summary_id,summaryset_id
+1,1,1
+2,1,1
+3,1,1
+4,1,1
+
+fm_programme.csv
+----------------
+from_agg_id,level_id,to_agg_id
+1,1,1
+2,1,2
+3,1,3
+4,1,4
+1,2,1
+2,2,1
+3,2,1
+4,2,1
+
+fm_profile.csv
+--------------
+policytc_id,calcrule_id,deductible1,deductible2,deductible3,attachment1,limit1,share1,share2,share3
+1,1,50000.0,0.0,0.0,0.0,900000.0,0.0,0,0
+2,1,5000.0,0.0,0.0,0.0,90000.0,0.0,0,0
+3,1,2500.0,0.0,0.0,0.0,45000.0,0.0,0,0
+4,14,0.0,0.0,0.0,0.0,18000.0,0.0,0,0
+5,2,0.0,0.0,0.0,0.0,9999999999.0,1.0,0,0
+
+fm_policytc.csv
+---------------
+layer_id,level_id,agg_id,policytc_id
+1,1,1,1
+1,1,2,2
+1,1,3,3
+1,1,4,4
+1,2,1,5
+
+fm_xref.csv
+-----------
+output,agg_id,layer_id
+1,1,1
+2,2,1
+3,3,1
+4,4,1
+
+fmsummaryxref.csv
+-----------------
+output,summary_id,summaryset_id
+1,1,1
+2,1,1
+3,1,1
+4,1,1
+
+losses
+------
+
+Ground-up losses
++----+------------+-----------+------------+
+|    |   event_id |   item_id |       loss |
+|----+------------+-----------+------------|
+|  0 |          1 |         1 | 1000000.00 |
+|  1 |          1 |         2 |  100000.00 |
+|  2 |          1 |         3 |   50000.00 |
+|  3 |          1 |         4 |   20000.00 |
++----+------------+-----------+------------+
+
+Insured losses
++----+------------+-------------+-----------+
+|    |   event_id |   output_id |      loss |
+|----+------------+-------------+-----------|
+|  0 |          1 |           1 | 900000.00 |
+|  1 |          1 |           2 |  90000.00 |
+|  2 |          1 |           3 |  45000.00 |
+|  3 |          1 |           4 |  18000.00 |
++----+------------+-------------+-----------+
