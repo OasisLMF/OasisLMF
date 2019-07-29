@@ -3,6 +3,7 @@ __all__ = [
 ]
 
 import os
+import logging
 import subprocess
 
 from ..utils.exceptions import OasisException
@@ -27,6 +28,9 @@ def csv_validity_test(model_data_fp):
     :raises OasisException: if one of the tests fail
     """
 
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+
     model_data_dir = os.path.abspath(model_data_fp)
 
     for input_file in INPUT_FILES.values():
@@ -36,6 +40,7 @@ def csv_validity_test(model_data_fp):
             '{}.csv'.format(input_file['name'])
         )
 
+        logger.info("Testing {}.csv".format(input_file['name']))
         cmd_str = "{} < {}".format(validation_tool, input_file_path)
 
         try:
