@@ -13,7 +13,9 @@ class FmAcceptanceTests(TestCase):
         self.test_cases_fp = os.path.join(sys.path[0], 'validation', 'examples')
 
     def run_test(self, test_case):
-        cmd_str = 'oasislmf exposure run -s {} --validate'.format(os.path.join(self.test_cases_fp, test_case))
+        test_case_fp = os.path.join(self.test_cases_fp, test_case)
+        loc_summary_fp = os.path.join(test_case_fp, 'run', 'loc_summary.csv')
+        cmd_str = 'oasislmf exposure run -s {} --output-level loc -f {} --validate'.format(test_case_fp, loc_summary_fp)
         failed = False
         try:
             subprocess.run(cmd_str.split(), check=True)

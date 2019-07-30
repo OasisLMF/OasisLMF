@@ -1,0 +1,3 @@
+portnumber,accnumber,locnumber,loss_gul,loss_il,loss_ri
+OEDTest,CX30_05,CX30_05_1,100000000.0,99000000.0,79200000.0
+OEDTest,CX30_05,CX30_05_2,100000000.0,99000000.0,79200000.0

@@ -241,7 +241,7 @@ class RunCmd(OasisBaseCommand):
                     'set of GUL, IL and optionally the RI loss files'
                 )
 
-            files = ['keys.csv']
+            files = ['keys.csv', 'loc_summary.csv']
             files += [
                 '{}.csv'.format(fn)
                 for ft, fn in chain(OASIS_FILES_PREFIXES['gul'].items(), OASIS_FILES_PREFIXES['il'].items())
