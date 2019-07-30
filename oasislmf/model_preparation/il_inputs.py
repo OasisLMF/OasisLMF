@@ -653,6 +653,7 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
     :return: FM programme file path
     :rtype: str
     """
+    #import ipdb; ipdb.set_trace()
     try:
         fm_programme_df = pd.concat(
             [
@@ -662,6 +663,9 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
         ).reset_index(drop=True)
 
         min_level, max_level = 0, fm_programme_df['level_id'].max()
+        max_level_agg_ids = il_inputs_df[il_inputs_df['level_id'] == max_level].loc[:, ['loc_id', 'agg_id']].drop_duplicates()['agg_id'].tolist()
+        if len(set(max_level_agg_ids)) == 1:
+            max_level_agg_ids = [max_level_agg_ids[0]]
 
         fm_programme_df = pd.DataFrame(
             {
@@ -670,6 +674,7 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
                 'to_agg_id': fm_programme_df[fm_programme_df['level_id'] > min_level]['agg_id'].reset_index(drop=True)
             }
         ).dropna(axis=0).drop_duplicates()
+        fm_programme_df.loc[fm_programme_df[fm_programme_df['level_id'] == max_level].index, ['to_agg_id']] = max_level_agg_ids
 
         dtypes = {t: 'uint32' for t in fm_programme_df.columns}
         fm_programme_df = set_dataframe_column_dtypes(fm_programme_df, dtypes)
