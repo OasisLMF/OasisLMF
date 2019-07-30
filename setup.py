@@ -108,9 +108,10 @@ class InstallKtoolsMixin(object):
 
         exit_code = os.system('cd {build_dir} && ./autogen.sh && ./configure && make && make check'.format(build_dir=build_dir))
         if(exit_code is not 0):
-            self.announce('Ktools build failed.\n', WARN)
+            print('Ktools build failed.\n')
             if (not self.ktools_inpath()):
-                self.announce('Exisiting Ktools install not found.\n', WARN)
+                print('Exisiting Ktools install not found.\n')
+                sys.exit(1)
         return build_dir
 
     def add_ktools_build_to_path(self, build_dir):
