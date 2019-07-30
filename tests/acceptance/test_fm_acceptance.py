@@ -130,6 +130,10 @@ class FmAcceptanceTests(TestCase):
     def test_FA44_147(self):
         self.run_test('FA44_147')
 
+    @pytest.mark.skip(reason='Needs fixing')
+    def test_FA45_149(self):
+        self.run_test('FA45_149')
+
     #@pytest.mark.skip(reason='Needs fixing')
     def test_PR13_42(self):
         self.run_test('PR13_42')
