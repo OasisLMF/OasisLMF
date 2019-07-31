@@ -13,7 +13,6 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from builtins import str
-from collections import OrderedDict
 
 from itertools import (
     product,
@@ -52,13 +51,10 @@ from .model_preparation.oed import load_oed_dfs
 from .model_preparation.utils import prepare_input_files_directory
 from .model_preparation.reinsurance_layer import write_files_for_reinsurance
 from .utils.data import (
-    fast_zip_dataframe_columns,
     get_dataframe,
     get_ids,
     get_json,
     get_utctimestamp,
-    merge_dataframes,
-    set_dataframe_column_dtypes,
 )
 from .utils.exceptions import OasisException
 from .utils.log import oasis_log
@@ -79,7 +75,6 @@ from .utils.deterministic_loss import generate_deterministic_losses
 from .utils.peril import PerilAreasIndex
 from .utils.path import (
     as_path,
-    empty_dir,
     setcwd,
 )
 from .utils.coverages import SUPPORTED_COVERAGE_TYPES
@@ -437,8 +432,8 @@ class OasisManager(object):
                 exposure_profile=exposure_profile,
                 oed_hierarchy=oed_hierarchy
             )
-        
-        # If exposure summary set, write valid columns for summary levels to file  
+
+        # If exposure summary set, write valid columns for summary levels to file
         if summarise_exposure:
             write_summary_levels(exposure_df, accounts_fp, target_dir)
 

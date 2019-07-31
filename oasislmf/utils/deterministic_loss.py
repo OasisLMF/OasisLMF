@@ -3,7 +3,13 @@ __all__ = [
     'generate_deterministic_losses'
 ]
 
+import io
+import json
+import os
+import re
+
 from collections import OrderedDict
+from itertools import product
 
 try:
     from json import JSONDecodeError
@@ -17,7 +23,10 @@ from subprocess import (
 
 import pandas as pd
 
+from ..model_execution.bin import csv_to_bin
+
 from .data import (
+    fast_zip_dataframe_columns,
     get_dataframe,
     merge_dataframes,
     set_dataframe_column_dtypes,
@@ -27,13 +36,12 @@ from .exceptions import OasisException
 
 
 def generate_deterministic_losses(
-    self,
     input_dir,
     output_dir=None,
     loss_percentage_of_tiv=1.0,
     net_ri=False,
     alloc_rule=KTOOLS_ALLOC_RULE
-    ):
+):
     lf = loss_percentage_of_tiv
     losses = OrderedDict({
         'gul': None, 'il': None, 'ri': None
