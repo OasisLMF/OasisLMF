@@ -15,16 +15,15 @@ node {
     String source_name      = 'oasislmf'
     String source_workspace = "${source_name}_workspace"
     String source_git_url   = "git@github.com:OasisLMF/${source_name}.git"
-    String source_branch    = params.SOURCE_BRANCH  
+    String source_branch    = params.SOURCE_BRANCH
     String git_creds = "1335b248-336a-47a9-b0f6-9f7314d6f1f4"
     String run_workspace = env.WORKSPACE
-
     String MDK_BRANCH = source_branch
+
     if (source_branch.matches("PR-[0-9]+")){
         MDK_BRANCH = "refs/pull/$CHANGE_ID/merge"
-    }    
+    }
     sh 'env'
-
 
     try {
         stage('Clone: ' + source_name) {
@@ -39,8 +38,8 @@ node {
                     } else {
                         // Checkout branch
                         sh "git checkout ${source_branch}"
-                    }   
-                }   
+                    }
+                }
             }
         }
         stage('Build: oasislmf runner') {
@@ -51,16 +50,13 @@ node {
         stage('Test: Oasis Files Gen') {
             dir(run_workspace) {
                 sh "docker run -t -v $run_workspace:/var/report -v $BENCHMARK_MNT:/var/oasis mdk-bench --time-threshold=$BENCHMARK_THRESHOLD --extra-oasislmf-args=$OASISLMF_ARGS"
+                archiveArtifacts artifacts: '**/*.log'
             }
         }
     } catch(hudson.AbortException | org.jenkinsci.plugins.workflow.steps.FlowInterruptedException buildException) {
         hasFailed = true
         error('Build Failed')
     } finally {
-
-        //Store reports
-        dir(run_workspace) {
-            archiveArtifacts artifacts: '**/*.log'
-        }
+        //pass
     }
 }
