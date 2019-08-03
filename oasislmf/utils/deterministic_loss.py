@@ -31,7 +31,7 @@ from .data import (
     merge_dataframes,
     set_dataframe_column_dtypes,
 )
-from .defaults import KTOOLS_ALLOC_RULE
+from .defaults import KTOOLS_ALLOC_RULE_IL
 from .exceptions import OasisException
 
 
@@ -40,7 +40,7 @@ def generate_deterministic_losses(
     output_dir=None,
     loss_percentage_of_tiv=1.0,
     net_ri=False,
-    alloc_rule=KTOOLS_ALLOC_RULE
+    alloc_rule=KTOOLS_ALLOC_RULE_IL
 ):
     lf = loss_percentage_of_tiv
     losses = OrderedDict({

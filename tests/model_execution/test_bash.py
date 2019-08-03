@@ -12,17 +12,26 @@ from oasislmf.utils import diff
 
 TEST_DIRECTORY = os.path.dirname(__file__)
 
-KPARSE_INPUT_FOLDER = os.path.join(TEST_DIRECTORY, "kparse_input")
-KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "kparse_output")
-KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "kparse_reference")
-
-
 class Genbash(TestCase):
     @classmethod
     def setUpClass(cls):
-        if os.path.exists(KPARSE_OUTPUT_FOLDER):
-            shutil.rmtree(KPARSE_OUTPUT_FOLDER)
-        os.makedirs(KPARSE_OUTPUT_FOLDER)
+        # test dirs 
+        cls.KPARSE_INPUT_FOLDER = os.path.join(TEST_DIRECTORY, "kparse_input")
+        cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "cov_kparse_output")
+        cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "cov_kparse_reference")
+
+        # defaults 
+        cls.ri_iterations  = 0
+        cls.gul_alloc_rule = 0
+        cls.il_alloc_rule  = 2
+        cls.fifo_tmp_dir   = False
+        cls.bash_trace     = False
+        cls.mem_limit      = False
+
+        if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
+            shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
+        os.makedirs(cls.KPARSE_OUTPUT_FOLDER)
+
 
     def setUp(self):
         self.temp_reference_file = None
@@ -40,13 +49,20 @@ class Genbash(TestCase):
                 hash_md5.update(chunk)
         return hash_md5.hexdigest()
 
-    def genbash(self, name, num_partitions, num_reinsurance_iterations=0, fifo_tmp_dir=False, mem_limit=False):
-        input_filename = os.path.join(KPARSE_INPUT_FOLDER, "{}.json".format(name))
-        if num_reinsurance_iterations <= 0:
-            output_filename = os.path.join(KPARSE_OUTPUT_FOLDER, "{}_{}_partition.sh".format(name, num_partitions))
+    def genbash(self, name, num_partitions, 
+                num_reinsurance_iterations=None,
+                fifo_tmp_dir=None,
+                mem_limit=None,
+                gul_alloc_rule=None,
+                il_alloc_rule=None,
+                bash_trace=None):
+
+        input_filename = os.path.join(self.KPARSE_INPUT_FOLDER, "{}.json".format(name))
+        if not num_reinsurance_iterations:
+            output_filename = os.path.join(self.KPARSE_OUTPUT_FOLDER, "{}_{}_partition.sh".format(name, num_partitions))
         else:
             output_filename = os.path.join(
-                KPARSE_OUTPUT_FOLDER,
+                self.KPARSE_OUTPUT_FOLDER,
                 "{}_{}_reins_layer_{}_partition.sh".format(name, num_reinsurance_iterations, num_partitions))
 
         with io.open(input_filename, encoding='utf-8') as file:
@@ -56,15 +72,18 @@ class Genbash(TestCase):
             num_partitions,
             analysis_settings,
             filename=output_filename,
-            num_reinsurance_iterations=num_reinsurance_iterations,
-            fifo_tmp_dir=fifo_tmp_dir,
-            mem_limit=mem_limit
+            num_reinsurance_iterations=(num_reinsurance_iterations or self.ri_iterations),
+            fifo_tmp_dir=(fifo_tmp_dir or self.fifo_tmp_dir),
+            mem_limit=(mem_limit or self.mem_limit),
+            gul_alloc_rule=(gul_alloc_rule or self.gul_alloc_rule),
+            il_alloc_rule=(il_alloc_rule or self.il_alloc_rule),
+            bash_trace=(bash_trace or self.bash_trace),
         )
 
     def check(self, name, reference_filename=None):
-        output_filename = os.path.join(KPARSE_OUTPUT_FOLDER, "{}.sh".format(name))
+        output_filename = os.path.join(self.KPARSE_OUTPUT_FOLDER, "{}.sh".format(name))
         if not reference_filename:
-            reference_filename = os.path.join(KPARSE_REFERENCE_FOLDER, "{}.sh".format(name))
+            reference_filename = os.path.join(self.KPARSE_REFERENCE_FOLDER, "{}.sh".format(name))
 
         d = diff.unified_diff(reference_filename, output_filename, as_string=True)
         if d:
@@ -73,8 +92,8 @@ class Genbash(TestCase):
     def update_fifo_tmpfile(self, name):
         self.temp_reference_file = NamedTemporaryFile("w+", delete=False)
         # Read random fifo dir name from generated file and replace in reference
-        output_filename = os.path.join(KPARSE_OUTPUT_FOLDER, "{}.sh".format(name))
-        ref_template = os.path.join(KPARSE_REFERENCE_FOLDER, "{}.template".format(name))
+        output_filename = os.path.join(self.KPARSE_OUTPUT_FOLDER, "{}.sh".format(name))
+        ref_template = os.path.join(self.KPARSE_REFERENCE_FOLDER, "{}.template".format(name))
         with io.open(output_filename, 'r') as f:
             for line in f:
                 if '/tmp/' in line:
@@ -408,8 +427,6 @@ class Genbash(TestCase):
         self.genbash("analysis_settings_4", 1, 1)
         self.check("analysis_settings_4_1_reins_layer_1_partition")
 
-# -------------------------------------------------------------- #
-
     def test_gul_il_lec_2_output_10_partitions_tmpfifo(self):
         self.genbash("gul_il_lec_2_tmpfifo_output", 10, 0, True)
         self.update_fifo_tmpfile("gul_il_lec_2_tmpfifo_output_10_partition")
@@ -433,3 +450,26 @@ class Genbash(TestCase):
         self.update_fifo_tmpfile("analysis_settings_tmpfifo_memlim_4_1_reins_layer_1_partition")
         self.check("analysis_settings_tmpfifo_memlim_4_1_reins_layer_1_partition",
                    self.temp_reference_file.name)
+
+
+class Genbash_GulItemStream(Genbash):
+    @classmethod
+    def setUpClass(cls):
+        # test dirs 
+        cls.KPARSE_INPUT_FOLDER = os.path.join(TEST_DIRECTORY, "kparse_input")
+        cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "itm_kparse_output")
+        cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "itm_kparse_reference")
+
+        # defaults 
+        cls.ri_iterations  = 0
+        cls.gul_alloc_rule = 1
+        cls.il_alloc_rule  = 2
+        cls.fifo_tmp_dir   = False
+        cls.bash_trace     = False
+        cls.mem_limit      = False
+
+        if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
+            shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
+        os.makedirs(cls.KPARSE_OUTPUT_FOLDER)
+
+

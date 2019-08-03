@@ -66,7 +66,8 @@ from .utils.defaults import (
     KTOOLS_NUM_PROCESSES,
     KTOOLS_MEM_LIMIT,
     KTOOLS_FIFO_RELATIVE,
-    KTOOLS_ALLOC_RULE,
+    KTOOLS_ALLOC_RULE_GUL,
+    KTOOLS_ALLOC_RULE_IL,
     KTOOLS_DEBUG,
     OASIS_FILES_PREFIXES,
     WRITE_CHUNKSIZE,
@@ -93,7 +94,8 @@ class OasisManager(object):
         ktools_num_processes=None,
         ktools_mem_limit=None,
         ktools_fifo_relative=None,
-        ktools_alloc_rule=None,
+        ktools_alloc_rule_gul=None,
+        ktools_alloc_rule_il=None,
         ktools_debug=None,
         oasis_files_prefixes=None,
         write_chunksize=None
@@ -107,7 +109,8 @@ class OasisManager(object):
         self._ktools_num_processes = ktools_num_processes or KTOOLS_NUM_PROCESSES
         self._ktools_mem_limit = ktools_mem_limit or KTOOLS_MEM_LIMIT
         self._ktools_fifo_relative = ktools_fifo_relative or KTOOLS_FIFO_RELATIVE
-        self._ktools_alloc_rule = ktools_alloc_rule or KTOOLS_ALLOC_RULE
+        self._ktools_alloc_rule_gul = ktools_alloc_rule_gul if ktools_alloc_rule_gul else KTOOLS_ALLOC_RULE_GUL
+        self._ktools_alloc_rule_il = ktools_alloc_rule_il if ktools_alloc_rule_il else KTOOLS_ALLOC_RULE_IL
         self._ktools_debug = ktools_debug or KTOOLS_DEBUG
         self._oasis_files_prefixes = oasis_files_prefixes or OASIS_FILES_PREFIXES
         self._write_chunksize = write_chunksize or WRITE_CHUNKSIZE
@@ -153,8 +156,12 @@ class OasisManager(object):
         return self._ktools_fifo_relative
 
     @property
-    def ktools_alloc_rule(self):
-        return self._ktools_alloc_rule
+    def ktools_alloc_rule_gul(self):
+        return self._ktools_alloc_rule_gul
+
+    @property
+    def ktools_alloc_rule_il(self):
+        return self._ktools_alloc_rule_il
 
     @property
     def ktools_debug(self):
@@ -484,8 +491,6 @@ class OasisManager(object):
         # If no RI input file paths (info. and scope) have been provided then
         # no RI input files are needed, just return the GUL and IL Oasis files
         if not (ri_info_fp or ri_scope_fp):
-            # TODO: Write `fm_summary_map.csv`
-            # Write `summary_map.csv` for GUL+FM
             return oasis_files
 
         # Write the RI input files, and write the returned RI layer info. as a
@@ -528,12 +533,14 @@ class OasisManager(object):
         ktools_num_processes=None,
         ktools_mem_limit=None,
         ktools_fifo_relative=None,
-        ktools_alloc_rule=None,
+        ktools_alloc_rule_gul=None,
+        ktools_alloc_rule_il=None,
         ktools_debug=None,
         user_data_dir=None
     ):
         il = all(p in os.listdir(oasis_fp) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
         ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(oasis_fp)) + os.listdir(oasis_fp))
+        gul_item_stream = True if (ktools_alloc_rule_gul or self.ktools_alloc_rule_gul) else False
 
         if not os.path.exists(model_run_fp):
             Path(model_run_fp).mkdir(parents=True, exist_ok=True)
@@ -558,7 +565,11 @@ class OasisManager(object):
         except (IOError, TypeError, ValueError):
             raise OasisException('Invalid analysis settings file or file path: {}.'.format(_analysis_settings_fp))
 
-        generate_summaryxref_files(model_run_fp, analysis_settings, il=il, ri=ri)
+        generate_summaryxref_files(model_run_fp, 
+                                   analysis_settings, 
+                                   gul_item_stream=gul_item_stream,
+                                   il=il, 
+                                   ri=ri)
 
         if not ri:
             fp = os.path.join(model_run_fp, 'input')
@@ -603,7 +614,8 @@ class OasisManager(object):
                 filename=script_fp,
                 num_reinsurance_iterations=ri_layers,
                 ktools_mem_limit=(ktools_mem_limit or self.ktools_mem_limit),
-                set_alloc_rule=(ktools_alloc_rule or self.ktools_alloc_rule),
+                set_alloc_rule_gul=(ktools_alloc_rule_gul or self.ktools_alloc_rule_gul),
+                set_alloc_rule_il=(ktools_alloc_rule_il or self.ktools_alloc_rule_il),
                 run_debug=(ktools_debug or self.ktools_debug),
                 fifo_tmp_dir=(not (ktools_fifo_relative or self.ktools_fifo_relative))
             )
@@ -616,7 +628,7 @@ class OasisManager(object):
         src_dir,
         run_dir=None,
         loss_percentage_of_tiv=1.0,
-        alloc_rule=KTOOLS_ALLOC_RULE,
+        alloc_rule=KTOOLS_ALLOC_RULE_IL,
         net_ri=False
     ):
         """
