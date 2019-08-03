@@ -416,7 +416,8 @@ class GenerateLossesCmd(OasisBaseCommand):
         parser.add_argument('-n', '--ktools-num-processes', default=None, help='Number of ktools calculation processes to use', type=int)
         parser.add_argument('-m', '--ktools-mem-limit', default=None, help='Force exec failure if Ktools hits memory the system  memory limit', action='store_true')
         parser.add_argument('-f', '--ktools-fifo-relative', default=None, help='Create ktools fifo queues under the ./fifo dir', action='store_true')
-        parser.add_argument('-u', '--ktools-alloc-rule', default=None, help='Override the allocation used in fmcalc', type=int)
+        parser.add_argument('-q', '--ktools-alloc-rule-gul', default=None, help='Override the allocation used in gulcalc', type=int)
+        parser.add_argument('-u', '--ktools-alloc-rule-il', default=None, help='Override the allocation used in fmcalc', type=int)
 
     def action(self, args):
         """
@@ -454,7 +455,8 @@ class GenerateLossesCmd(OasisBaseCommand):
 
         ktools_fifo_relative = inputs.get('ktools_fifo_relative', type=bool, default=False, required=False)
 
-        ktools_alloc_rule = inputs.get('ktools_alloc_rule', default=2, required=False)
+        ktools_alloc_rule_gul = inputs.get('ktools_alloc_rule_gul', default=None, required=False)
+        ktools_alloc_rule_il = inputs.get('ktools_alloc_rule_il', default=2, required=False)
 
         user_data_dir = as_path(
             inputs.get('user_data_path', required=False, is_path=True),
@@ -478,7 +480,8 @@ class GenerateLossesCmd(OasisBaseCommand):
             ktools_num_processes=ktools_num_processes,
             ktools_mem_limit=ktools_mem_limit,
             ktools_fifo_relative=ktools_fifo_relative,
-            ktools_alloc_rule=ktools_alloc_rule,
+            ktools_alloc_rule_gul=ktools_alloc_rule_gul,
+            ktools_alloc_rule_il=ktools_alloc_rule_il,
             ktools_debug=verbose_output,
             user_data_dir=user_data_dir
         )
@@ -546,7 +549,8 @@ class RunCmd(OasisBaseCommand):
         parser.add_argument('-n', '--ktools-num-processes', default=None, help='Number of ktools calculation processes to use', type=int)
         parser.add_argument('-m', '--ktools-mem-limit', default=None, help='Force exec failure if Ktools hits memory the system  memory limit', action='store_true')
         parser.add_argument('-f', '--ktools-fifo-relative', default=None, help='Create ktools fifo queues under the ./fifo dir', action='store_true')
-        parser.add_argument('-u', '--ktools-alloc-rule', default=2, help='Override the allocation used in fmcalc', type=int)
+        parser.add_argument('-q', '--ktools-alloc-rule-gul', default=None, help='Override the allocation used in gulcalc', type=int)
+        parser.add_argument('-u', '--ktools-alloc-rule-il', default=None, help='Override the allocation used in fmcalc', type=int)
         parser.add_argument('-S', '--summarise-exposure', default=None, help='Create exposure summary report', action='store_true')
         parser.add_argument(
             '-W', '--write-chunksize', type=int,

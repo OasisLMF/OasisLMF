@@ -4,7 +4,8 @@ __all__ = [
     'get_default_exposure_profile',
     'get_default_fm_aggregation_profile',
     'get_default_unified_profile',
-    'KTOOLS_ALLOC_RULE',
+    'KTOOLS_ALLOC_RULE_IL',
+    'KTOOLS_ALLOC_RULE_GUL',
     'KTOOLS_FIFO_RELATIVE',
     'KTOOLS_DEBUG',
     'KTOOLS_MEM_LIMIT',
@@ -120,5 +121,6 @@ def get_default_deterministic_analysis_settings(path=False):
 KTOOLS_NUM_PROCESSES = 2
 KTOOLS_MEM_LIMIT = False
 KTOOLS_FIFO_RELATIVE = False
-KTOOLS_ALLOC_RULE = 2
+KTOOLS_ALLOC_RULE_IL = 2
+KTOOLS_ALLOC_RULE_GUL = 1     # 1 = new item stream, 0 = use prev Coverage stream
 KTOOLS_DEBUG = False

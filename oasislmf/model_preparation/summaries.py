@@ -406,7 +406,7 @@ def write_df_to_file(df, target_dir, filename):
 
 
 @oasis_log
-def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, summaries_type):
+def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, summaries_type, gul_items=False):
     """
     Create a Dataframe for either gul / il / ri  based on a section
     from the analysis settings
@@ -463,7 +463,7 @@ def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, s
     if 'output_id' in map_df:
         ids_set_df = map_df.loc[:, ['output_id']].rename(columns={"output_id": "output"})
     else:
-        ids_set_df = map_df.loc[:, ['coverage_id']]
+        ids_set_df = map_df.loc[:, ['item_id']] if gul_items else map_df.loc[:, ['coverage_id']]
 
     # For each granularity build a set grouping
     for summary_set in summaries_info_dict:
@@ -498,7 +498,7 @@ def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, s
 
 
 @oasis_log
-def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=False):
+def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=False, gul_item_stream=False):
     """
     Top level function for creating the summaryxref files from the manager.py
 
@@ -515,6 +515,9 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
     :param ri: Boolean to indicate the RI loss level mode - false if the
                source accounts file path not provided to Oasis files gen.
     :type il: bool
+
+    :param gul_items: Boolean to gul to use item_id instead of coverage_id
+    :type gul_items: bool
     """
 
     # Boolean checks for summary generation types (gul / il / ri)
@@ -532,6 +535,8 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
         analysis_settings['ri_summaries'] if 'ri_summaries' in analysis_settings else False,
         ri,
     ])
+
+
 
     # Load locations file for GUL OED fields
     exposure_fp = os.path.join(model_run_fp, 'input', SOURCE_FILENAMES['loc'])
@@ -560,7 +565,8 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
             exposure_df,
             None,
             analysis_settings['gul_summaries'],
-            'gul'
+            'gul',
+            gul_item_stream
         )
         # Write Xref file
         write_df_to_file(gul_summaryxref_df, os.path.join(model_run_fp, 'input'), SUMMARY_OUTPUT['gul'])

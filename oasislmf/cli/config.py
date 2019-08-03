@@ -33,6 +33,7 @@ class ConfigCmd(OasisBaseCommand):
     :ktools_num_processes: The number of concurrent processes used by ktools during model execution - default is ``2``
     :ktools_mem_limit: Whether to force exec. failure if ktools hits the system memory limit - default is ``False``
     :ktools_fifo_relative: Whether to create ktools FIFO queues under the ``./fifo`` subfolder (in the model run directory)
-    :ktools_alloc_rule: Override the allocation used in ``fmcalc`` - default is ``2``
+    :ktools_alloc_rule_gul: Override the allocation used in ``fmcalc`` - default is ``1``
+    :ktools_alloc_rule_il: Override the allocation used in ``fmcalc`` - default is ``2``
    """
     formatter_class = RawDescriptionHelpFormatter
