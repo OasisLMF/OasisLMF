@@ -11,6 +11,7 @@ node {
         [$class: 'StringParameterDefinition',  name: 'OASISLMF_ARGS', defaultValue: ''],
       ])
     ])
+    params.each { k, v -> env[k] = v }
 
     String source_name      = 'oasislmf'
     String source_workspace = "${source_name}_workspace"
@@ -49,7 +50,7 @@ node {
         }
         stage('Test: Oasis Files Gen') {
             dir(run_workspace) {
-                sh "docker run -t -v $run_workspace:/var/report -v $BENCHMARK_MNT:/var/oasis mdk-bench --time-threshold=$BENCHMARK_THRESHOLD --extra-oasislmf-args=$OASISLMF_ARGS"
+                sh "docker run -t -v $run_workspace:/var/report -v $env.BENCHMARK_MNT:/var/oasis mdk-bench --time-threshold=$env.BENCHMARK_THRESHOLD --extra-oasislmf-args=$env.OASISLMF_ARGS"
                 archiveArtifacts artifacts: '**/*.log'
             }
         }
