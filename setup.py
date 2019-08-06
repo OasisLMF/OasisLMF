@@ -178,9 +178,15 @@ class PostInstallKtools(InstallKtoolsMixin, install):
         If system arch matches Ktools static build try to install from pre-build 
         with a fallback of compile ktools from source 
         '''
-        ARCH = machine()
-        OS = system()
-        if ARCH in ['x86_64'] and OS in ['Linux']:
+        if '--plat-name' in sys.argv:
+            PLATFORM = sys.argv[sys.argv.index('--plat-name') + 1]
+            OS, ARCH = PLATFORM.split('_', 1)
+        else:
+            ARCH = machine()
+            OS = system()
+
+
+        if ARCH in ['x86_64'] and OS in ['Linux', 'Darwin']:
             try:
                 self.install_ktools_bin(OS, ARCH)
             except:    
@@ -219,10 +225,14 @@ class PostDevelopKtools(InstallKtoolsMixin, develop):
 
 try:
     from wheel.bdist_wheel import bdist_wheel
-
+    
+    # https://github.com/pypa/wheel/blob/master/wheel/bdist_wheel.py#L43
     class BdistWheel(bdist_wheel):
         command_name = 'bdist_wheel'
         user_options = bdist_wheel.user_options
+
+        def initialize_options(self):
+            super(BdistWheel, self).initialize_options()
 
         def finalize_options(self):
             bdist_wheel.finalize_options(self)
@@ -232,6 +242,7 @@ try:
             python, abi, plat = bdist_wheel.get_tag(self)
             python, abi = 'py3', 'none'
             plat = plat.lower().replace('linux', 'manylinux1')
+            plat = plat.lower().replace('darwin_x86_64', 'macosx_10_6_intel')
             return python, abi, plat
 
 except ImportError:

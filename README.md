@@ -135,6 +135,17 @@ or to publish the platform specific wheel run:
 
     python setup.py publish --wheel
 
+### Creating a bdist for another platform 
+
+To create a distribution for a non-host platform use the `--plat-name` flag:
+
+     python setup.py bdist_wheel --plat-name Linux_x86_64
+
+     or
+
+     python setup.py bdist_wheel --plat-name Darwin_x86_64
+
+
 ### Manually publishing, with a GPG signature
 
 The first step is to create the distribution package with the desired format: for the source distribution run:
