@@ -13,17 +13,6 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from builtins import str
-from collections import OrderedDict
-
-try:
-    from json import JSONDecodeError
-except ImportError:
-    from builtins import ValueError as JSONDecodeError
-
-from subprocess import (
-    CalledProcessError,
-    check_call,
-)
 
 from itertools import (
     product,
@@ -62,13 +51,10 @@ from .model_preparation.oed import load_oed_dfs
 from .model_preparation.utils import prepare_input_files_directory
 from .model_preparation.reinsurance_layer import write_files_for_reinsurance
 from .utils.data import (
-    fast_zip_dataframe_columns,
     get_dataframe,
     get_ids,
     get_json,
     get_utctimestamp,
-    merge_dataframes,
-    set_dataframe_column_dtypes,
 )
 from .utils.exceptions import OasisException
 from .utils.log import oasis_log
@@ -83,11 +69,12 @@ from .utils.defaults import (
     KTOOLS_ALLOC_RULE,
     KTOOLS_DEBUG,
     OASIS_FILES_PREFIXES,
+    WRITE_CHUNKSIZE,
 )
+from .utils.deterministic_loss import generate_deterministic_losses
 from .utils.peril import PerilAreasIndex
 from .utils.path import (
     as_path,
-    empty_dir,
     setcwd,
 )
 from .utils.coverages import SUPPORTED_COVERAGE_TYPES
@@ -108,7 +95,8 @@ class OasisManager(object):
         ktools_fifo_relative=None,
         ktools_alloc_rule=None,
         ktools_debug=None,
-        oasis_files_prefixes=None
+        oasis_files_prefixes=None,
+        write_chunksize=None
     ):
         # Set defaults for static data or runtime parameters
         self._exposure_profile = exposure_profile or get_default_exposure_profile()
@@ -122,6 +110,7 @@ class OasisManager(object):
         self._ktools_alloc_rule = ktools_alloc_rule or KTOOLS_ALLOC_RULE
         self._ktools_debug = ktools_debug or KTOOLS_DEBUG
         self._oasis_files_prefixes = oasis_files_prefixes or OASIS_FILES_PREFIXES
+        self._write_chunksize = write_chunksize or WRITE_CHUNKSIZE
 
     @property
     def exposure_profile(self):
@@ -146,6 +135,10 @@ class OasisManager(object):
     @property
     def oasis_files_prefixes(self):
         return self._oasis_files_prefixes
+
+    @property
+    def write_chunksize(self):
+        return self._write_chunksize
 
     @property
     def ktools_num_processes(self):
@@ -319,6 +312,7 @@ class OasisManager(object):
         user_data_dir=None,
         supported_oed_coverage_types=None,
         summarise_exposure=None,
+        write_chunksize=None,
         accounts_fp=None,
         accounts_profile=None,
         accounts_profile_fp=None,
@@ -359,6 +353,10 @@ class OasisManager(object):
             ({int(k): v for k, v in get_json(src_fp=fm_aggregation_profile_fp).items()} if fm_aggregation_profile_fp else {}) or
             self.fm_aggregation_profile
         )
+
+        # The chunksize to use when writing the GUL and IL inputs dataframes
+        # to file
+        write_chunksize = write_chunksize or self.write_chunksize
 
         # Check whether the files generation is for deterministic or model losses
         deterministic = not(
@@ -434,8 +432,8 @@ class OasisManager(object):
                 exposure_profile=exposure_profile,
                 oed_hierarchy=oed_hierarchy
             )
-        
-        # If exposure summary set, write valid columns for summary levels to file  
+
+        # If exposure summary set, write valid columns for summary levels to file
         if summarise_exposure:
             write_summary_levels(exposure_df, accounts_fp, target_dir)
 
@@ -448,7 +446,8 @@ class OasisManager(object):
         gul_input_files = write_gul_input_files(
             gul_inputs_df,
             target_dir,
-            oasis_files_prefixes=files_prefixes['gul']
+            oasis_files_prefixes=files_prefixes['gul'],
+            chunksize=write_chunksize
         )
         gul_summary_mapping = get_summary_mapping(gul_inputs_df, oed_hierarchy)
         write_mapping_file(gul_summary_mapping, target_dir)
@@ -473,7 +472,8 @@ class OasisManager(object):
         il_input_files = write_il_input_files(
             il_inputs_df,
             target_dir,
-            oasis_files_prefixes=files_prefixes['il']
+            oasis_files_prefixes=files_prefixes['il'],
+            chunksize=write_chunksize
         )
         fm_summary_mapping = get_summary_mapping(il_inputs_df, oed_hierarchy, is_fm_summary=True)
         write_mapping_file(fm_summary_mapping, target_dir, is_fm_summary=True)
@@ -611,126 +611,6 @@ class OasisManager(object):
         return model_run_fp
 
     @oasis_log
-    def generate_deterministic_losses(
-        self,
-        input_dir,
-        output_dir=None,
-        loss_percentage_of_tiv=1.0,
-        net_ri=False,
-        alloc_rule=KTOOLS_ALLOC_RULE
-    ):
-        lf = loss_percentage_of_tiv
-        losses = OrderedDict({
-            'gul': None, 'il': None, 'ri': None
-        })
-
-        output_dir = output_dir or input_dir
-
-        il = all(p in os.listdir(input_dir) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
-
-        ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(input_dir))
-
-        csv_to_bin(input_dir, output_dir, il=il, ri=ri)
-
-        # Generate an items and coverages dataframe and set column types (important!!)
-        items = merge_dataframes(
-            pd.read_csv(os.path.join(input_dir, 'items.csv')),
-            pd.read_csv(os.path.join(input_dir, 'coverages.csv')),
-            left_index=True, right_index=True
-        )
-
-        dtypes = {t: ('uint32' if t != 'tiv' else 'float32') for t in items.columns}
-
-        items = set_dataframe_column_dtypes(items, dtypes)
-
-        # Gulcalc sidx (sample index) list - -1 represents the numerical integration mean,
-        # -2 the numerical integration standard deviation, and 1 the unsampled/raw loss
-        gulcalc_sidxs = [-1, -2, 1]
-        guls_items = [
-            OrderedDict({'event_id': 1, 'item_id': item_id, 'sidx': sidx, 'loss': (tiv * lf if sidx != -2 else 0)})
-            for (item_id, tiv), sidx in product(
-                fast_zip_dataframe_columns(items, ['item_id', 'tiv']), gulcalc_sidxs
-            )
-        ]
-        guls = get_dataframe(src_data=guls_items)
-        guls_fp = os.path.join(output_dir, "raw_guls.csv")
-        guls.to_csv(guls_fp, index=False)
-
-        ils_fp = os.path.join(output_dir, 'raw_ils.csv')
-        cmd = 'gultobin -S 1 < {} | fmcalc -p {} -a {} | tee ils.bin | fmtocsv > {}'.format(
-            guls_fp, output_dir, alloc_rule, ils_fp
-        )
-        try:
-            check_call(cmd, shell=True)
-        except CalledProcessError as e:
-            raise OasisException from e
-
-        guls.drop(guls[guls['sidx'] != 1].index, inplace=True)
-        guls.reset_index(drop=True, inplace=True)
-        guls.drop('sidx', axis=1, inplace=True)
-        guls = guls[(guls[['loss']] != 0).any(axis=1)]
-        guls['item_id'] = guls.index + 1
-        losses['gul'] = guls
-
-        ils = get_dataframe(src_fp=ils_fp)
-        ils.drop(ils[ils['sidx'] != (-1 if lf < 1.0 else -3)].index, inplace=True)
-        ils.reset_index(drop=True, inplace=True)
-        ils.drop('sidx', axis=1, inplace=True)
-        ils = ils[(ils[['loss']] != 0).any(axis=1)]
-        losses['il'] = ils
-
-        if ri:
-            try:
-                [fn for fn in os.listdir(input_dir) if fn == 'ri_layers.json'][0]
-            except IndexError:
-                raise OasisException(
-                    'No RI layers JSON file "ri_layers.json " found in the '
-                    'input directory despite presence of RI input files'
-                )
-            else:
-                try:
-                    with io.open(os.path.join(input_dir, 'ri_layers.json'), 'r', encoding='utf-8') as f:
-                        ri_layers = len(json.load(f))
-                except (IOError, JSONDecodeError, OSError, TypeError) as e:
-                    raise OasisException('Error trying to read the RI layers file: {}'.format(e))
-                else:
-                    def run_ri_layer(layer):
-                        layer_inputs_fp = os.path.join(output_dir, 'RI_{}'.format(layer))
-                        _input = 'gultobin -S 1 < {} | fmcalc -p {} -a {} | tee ils.bin |'.format(
-                            guls_fp, output_dir, alloc_rule
-                        ) if layer == 1 else ''
-                        pipe_in_previous_layer = '< ri{}.bin'.format(layer - 1) if layer > 1 else ''
-                        ri_layer_fp = os.path.join(output_dir, 'ri{}.csv'.format(layer))
-                        net_flag = "-n" if net_ri else ""
-                        cmd = '{} fmcalc -p {} {} -a {} {}| tee ri{}.bin | fmtocsv > {}'.format(
-                            _input,
-                            layer_inputs_fp,
-                            net_flag,
-                            alloc_rule,
-                            pipe_in_previous_layer,
-                            layer,
-                            ri_layer_fp
-                        )
-                        try:
-                            check_call(cmd, shell=True)
-                        except CalledProcessError as e:
-                            raise OasisException from e
-                        rils = get_dataframe(src_fp=ri_layer_fp)
-                        rils.drop(rils[rils['sidx'] != (-1 if lf < 1 else -3)].index, inplace=True)
-                        rils.drop('sidx', axis=1, inplace=True)
-                        rils.reset_index(drop=True, inplace=True)
-                        rils = rils[(rils[['loss']] != 0).any(axis=1)]
-
-                        return rils
-
-                    for i in range(1, ri_layers + 1):
-                        rils = run_ri_layer(i)
-                        if i in [1, ri_layers]:
-                            losses['ri'] = rils
-
-        return losses
-
-    @oasis_log
     def run_deterministic(
         self,
         src_dir,
@@ -771,7 +651,7 @@ class OasisManager(object):
             ri_scope_fp=ri_scope_fp
         )
 
-        losses = self.generate_deterministic_losses(
+        losses = generate_deterministic_losses(
             run_dir,
             output_dir=os.path.join(run_dir, 'output'),
             loss_percentage_of_tiv=loss_percentage_of_tiv,
@@ -780,75 +660,3 @@ class OasisManager(object):
         )
 
         return losses['gul'], losses['il'], losses['ri']
-
-    @oasis_log
-    def run_model(
-        self,
-        exposure_fp,
-        model_run_fp,
-        analysis_settings_fp,
-        model_data_fp,
-        exposure_profile=None,
-        exposure_profile_fp=None,
-        lookup_config=None,
-        lookup_config_fp=None,
-        keys_data_fp=None,
-        model_version_fp=None,
-        lookup_package_fp=None,
-        supported_oed_coverage_types=None,
-        accounts_fp=None,
-        accounts_profile=None,
-        accounts_profile_fp=None,
-        fm_aggregation_profile=None,
-        fm_aggregation_profile_fp=None,
-        ri_info_fp=None,
-        ri_scope_fp=None,
-        oasis_files_prefixes=None,
-        model_package_fp=None,
-        ktools_num_processes=None,
-        ktools_mem_limit=None,
-        ktools_fifo_relative=None,
-        ktools_alloc_rule=None
-    ):
-        if not os.path.exists(model_run_fp):
-            Path(model_run_fp).mkdir(parents=True, exist_ok=True)
-        else:
-            empty_dir(model_run_fp)
-
-        oasis_fp = os.path.join(model_run_fp, 'input')
-        Path(oasis_fp).mkdir(parents=True, exist_ok=True)
-
-        oasis_files = self.generate_oasis_files(
-            exposure_fp,
-            oasis_fp,
-            exposure_profile=(exposure_profile or self.exposure_profile),
-            exposure_profile_fp=exposure_profile_fp,
-            lookup_config=lookup_config,
-            lookup_config_fp=lookup_config_fp,
-            keys_data_fp=keys_data_fp,
-            model_version_fp=model_version_fp,
-            lookup_package_fp=lookup_package_fp,
-            supported_oed_coverage_types=supported_oed_coverage_types,
-            accounts_fp=accounts_fp,
-            accounts_profile=(accounts_profile or self.accounts_profile),
-            accounts_profile_fp=accounts_profile_fp,
-            fm_aggregation_profile=(fm_aggregation_profile or self.fm_aggregation_profile),
-            fm_aggregation_profile_fp=fm_aggregation_profile_fp,
-            ri_info_fp=ri_info_fp,
-            ri_scope_fp=ri_scope_fp,
-            oasis_files_prefixes=(oasis_files_prefixes or self.oasis_files_prefixes)
-        )
-
-        model_run_fp = self.generate_losses(
-            oasis_fp,
-            model_run_fp,
-            analysis_settings_fp,
-            model_data_fp,
-            model_package_fp=model_package_fp,
-            ktools_num_processes=(ktools_num_processes or self.ktools_num_processes),
-            ktools_mem_limit=(ktools_mem_limit or self.ktools_mem_limit),
-            ktools_fifo_relative=(ktools_fifo_relative or self.ktools_fifo_relative),
-            ktools_alloc_rule=(ktools_alloc_rule or self.ktools_alloc_rule)
-        )
-
-        return model_run_fp, oasis_files
