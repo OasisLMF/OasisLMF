@@ -11,7 +11,6 @@ node {
         [$class: 'StringParameterDefinition',  name: 'OASISLMF_ARGS', defaultValue: ''],
       ])
     ])
-    params.each { k, v -> env[k] = v }
 
     String source_name      = 'oasislmf'
     String source_workspace = "${source_name}_workspace"
@@ -19,10 +18,15 @@ node {
     String source_branch    = params.SOURCE_BRANCH
     String git_creds = "1335b248-336a-47a9-b0f6-9f7314d6f1f4"
     String run_workspace = env.WORKSPACE
-    String MDK_BRANCH = source_branch
+
+    String benchmark_branch = source_branch
+    String benchmark_mnt = params.BENCHMARK_MNT
+    String benchmark_threshold = params.BENCHMARK_THRESHOLD
+    String benchmark_args = params.OASISLMF_ARGS 
+
 
     if (source_branch.matches("PR-[0-9]+")){
-        MDK_BRANCH = "refs/pull/$CHANGE_ID/merge"
+        benchmark_branch = "refs/pull/$CHANGE_ID/merge"
     }
     sh 'env'
 
@@ -45,12 +49,12 @@ node {
         }
         stage('Build: oasislmf runner') {
             dir(source_workspace) {
-                sh "docker build --build-arg oasis_ver=$MDK_BRANCH -f docker/Dockerfile.oasislmf_benchmark -t mdk-bench ."
+                sh "docker build --build-arg oasis_ver=$benchmark_branch -f docker/Dockerfile.oasislmf_benchmark -t mdk-bench ."
             }
         }
         stage('Test: Oasis Files Gen') {
             dir(run_workspace) {
-                sh "docker run -t -v $run_workspace:/var/report -v $env.BENCHMARK_MNT:/var/oasis mdk-bench --time-threshold=$env.BENCHMARK_THRESHOLD --extra-oasislmf-args=$env.OASISLMF_ARGS"
+                sh "docker run -t -v $run_workspace:/var/report -v $benchmark_mnt:/var/oasis mdk-bench --time-threshold=$benchmark_threshold --extra-oasislmf-args=$benchmark_args"
                 archiveArtifacts artifacts: '**/*.log'
             }
         }
