@@ -1,0 +1,22 @@
+{
+    "1": {
+        "inuring_priority": 1,
+        "risk_level": "LOC",
+        "directory": "/home/joh/OasisLMF/validation/examples/fm24/run/RI_1"
+    },
+    "2": {
+        "inuring_priority": 1,
+        "risk_level": "ACC",
+        "directory": "/home/joh/OasisLMF/validation/examples/fm24/run/RI_2"
+    },
+    "3": {
+        "inuring_priority": 2,
+        "risk_level": "LOC",
+        "directory": "/home/joh/OasisLMF/validation/examples/fm24/run/RI_3"
+    },
+    "4": {
+        "inuring_priority": 3,
+        "risk_level": "LOC",
+        "directory": "/home/joh/OasisLMF/validation/examples/fm24/run/RI_4"
+    }
+}
