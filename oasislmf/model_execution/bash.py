@@ -540,7 +540,7 @@ def genbash(
     il_alloc_rule=None,
     bash_trace=False,
     filename='run_kools.sh',
-    _get_getmodel_cmd=get_getmodel_itm_cmd,
+    _get_getmodel_cmd=None,
     custom_args={}
 ):
     """
@@ -687,8 +687,9 @@ def genbash(
         # GUL coverage & item stream (Older)
         if gul_item_stream:
             getmodel_args['item_output'] = '- | tee {0}fifo/gul_P{1}'.format(fifo_queue_dir, process_id)
+            _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_itm_cmd)
         else:    
-            _get_getmodel_cmd=get_getmodel_cov_cmd
+            _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_cov_cmd)
 
         # ! Should be able to streamline the logic a little
         if num_reinsurance_iterations > 0 and ri_output:
