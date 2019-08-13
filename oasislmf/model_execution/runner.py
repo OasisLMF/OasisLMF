@@ -41,6 +41,7 @@ def run(
             item_output,
             process_id,
             max_process_id,
+            gul_alloc_rule,
             **kwargs
         ):
 
@@ -50,7 +51,7 @@ def run(
                 max_process_id,
                 os.path.abspath("analysis_settings.json"),
                 "input")
-            if coverage_output != '':
+            if coverage_output != '' and not gul_alloc_rule:
                 cmd = '{} -c {}'.format(cmd, coverage_output)
             if item_output != '':
                 cmd = '{} -i {}'.format(cmd, item_output)
