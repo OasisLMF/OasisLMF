@@ -244,15 +244,21 @@ def do_kats(runtype, analysis_settings, max_process_id, filename, process_counte
 
 
 def do_summarycalcs(runtype, analysis_settings, process_id, filename, fifo_dir='',
-                    num_reinsurance_iterations=0):
+                    num_reinsurance_iterations=0, gul_alloc_rule=None):
 
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
 
+    
     summarycalc_switch = '-f'
     if runtype == RUNTYPE_GROUNDUP_LOSS:
-        summarycalc_switch = '-g'
+        if gul_alloc_rule:
+            # Accept item stream only
+            summarycalc_switch = '-i'
+        else:
+            # gul coverage stream 
+            summarycalc_switch = '-g'
 
     summarycalc_directory_switch = ""
     if runtype == RUNTYPE_REINSURANCE_LOSS:
@@ -372,7 +378,7 @@ def il(analysis_settings, max_process_id, filename, process_counter, fifo_dir=''
         do_summarycalcs(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, fifo_dir)
 
 
-def do_gul(analysis_settings, max_process_id, filename, process_counter, fifo_dir=''):
+def do_gul(analysis_settings, max_process_id, filename, process_counter, fifo_dir='', gul_alloc_rule=None):
     for process_id in range(1, max_process_id + 1):
         do_any(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
@@ -380,7 +386,8 @@ def do_gul(analysis_settings, max_process_id, filename, process_counter, fifo_di
         do_tees(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
     for process_id in range(1, max_process_id + 1):
-        do_summarycalcs(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, fifo_dir)
+        do_summarycalcs(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, 
+                        gul_alloc_rule=gul_alloc_rule, fifo_dir=fifo_dir)
 
 
 def il_make_fifo(analysis_settings, max_process_id, filename, fifo_dir=''):
@@ -463,28 +470,50 @@ def do_kwaits(filename, process_counter):
     do_waits('kpid', process_counter['kpid_monitor_count'], filename)
 
 
-def get_getmodel_cmd(
+def get_getmodel_itm_cmd(
+        number_of_samples, gul_threshold, use_random_number_file,
+        gul_alloc_rule, item_output, 
+        process_id, max_process_id, **kwargs):
+    """
+    Gets the getmodel ktools command (3.1.0+) Gulcalc item stream
+    :param number_of_samples: The number of samples to run
+    :type number_of_samples: int
+    :param gul_threshold: The GUL threshold to use
+    :type gul_threshold: float
+    :param use_random_number_file: flag to use the random number file
+    :type use_random_number_file: bool
+    :param gul_alloc_rule: back allocation rule for gulcalc 
+    :type gul_alloc_rule: int
+    :param item_output: The item output
+    :type item_output: str
+    :return: The generated getmodel command
+    """
+    cmd = 'eve {0} {1} | getmodel | gulcalc -S{2} -L{3}'.format(
+        process_id, max_process_id,
+        number_of_samples, gul_threshold)
+
+    if use_random_number_file:
+        cmd = '{} -r'.format(cmd)
+    cmd = '{} -a{} -i {}'.format(cmd, gul_alloc_rule, item_output)
+    return cmd
+
+
+def get_getmodel_cov_cmd(
         number_of_samples, gul_threshold, use_random_number_file,
         coverage_output, item_output,
         process_id, max_process_id, **kwargs):
     """
-    Gets the getmodel ktools command
-
+    Gets the getmodel ktools command (version < 3.0.8) gulcalc coverage stream
     :param number_of_samples: The number of samples to run
     :type number_of_samples: int
-
     :param gul_threshold: The GUL threshold to use
     :type gul_threshold: float
-
     :param use_random_number_file: flag to use the random number file
     :type use_random_number_file: bool
-
     :param coverage_output: The coverage output
     :type coverage_output: str
-
     :param item_output: The item output
     :type item_output: str
-
     :return: The generated getmodel command
     """
 
@@ -498,7 +527,6 @@ def get_getmodel_cmd(
         cmd = '{} -c {}'.format(cmd, coverage_output)
     if item_output != '':
         cmd = '{} -i {}'.format(cmd, item_output)
-
     return cmd
 
 
@@ -508,10 +536,11 @@ def genbash(
     num_reinsurance_iterations=0,
     fifo_tmp_dir=True,
     mem_limit=False,
-    alloc_rule=None,
+    gul_alloc_rule=None,
+    il_alloc_rule=None,
     bash_trace=False,
     filename='run_kools.sh',
-    _get_getmodel_cmd=get_getmodel_cmd,
+    _get_getmodel_cmd=None,
     custom_args={}
 ):
     """
@@ -533,8 +562,11 @@ def genbash(
     :param fifo_tmp_dir: When set to True, Create and use FIFO quese in `/tmp/[A-Z,0-9]/fifo`, if False run in './fifo'
     :type fifo_tmp_dir: boolean
 
-    :param alloc_rule: override for the Ktools Allocation rule (1 or 2)
-    :type alloc_rule: Int
+    :param gul_alloc_rule: Allocation rule (None or 1) for gulcalc, if not set default to coverage stream
+    :type gul_alloc_rule: Int
+
+    :param il_alloc_rule: Allocation rule (0, 1 or 2) for fmcalc
+    :type il_alloc_rule: Int
 
     :param mem_limit: Flag to set a max memory limit for each ktools process
     :type mem_limit: boolean
@@ -546,16 +578,17 @@ def genbash(
     process_counter = Counter()
 
     use_random_number_file = False
+    gul_item_stream = (gul_alloc_rule and isinstance(gul_alloc_rule, int))
     gul_output = False
     il_output = False
     ri_output = False
     fifo_queue_dir = ""
 
     # Alloc Rule input guard - default to '2' if invalid value given
-    if alloc_rule not in [ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID,
+    if il_alloc_rule not in [ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID,
                           ALLOCATE_TO_ITEMS_BY_GUL_ALLOC_ID,
                           NO_ALLOCATION_ALLOC_ID]:
-        alloc_rule = ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID
+        il_alloc_rule = ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID
 
     # remove the file if it already exists
     if os.path.exists(filename):
@@ -635,100 +668,100 @@ def genbash(
         print_command(filename, '')
         print_command(filename, '# --- Do ground up loss computes ---')
         print_command(filename, '')
-        do_gul(analysis_settings, max_process_id, filename, process_counter, fifo_queue_dir)
+        do_gul(analysis_settings, max_process_id, filename, process_counter, fifo_queue_dir, gul_alloc_rule)
 
     print_command(filename, '')
 
     for process_id in range(1, max_process_id + 1):
+        getmodel_args = {
+            'number_of_samples': number_of_samples,
+            'gul_threshold': gul_threshold,
+            'use_random_number_file': use_random_number_file,
+            'coverage_output': '{0}fifo/gul_P{1}'.format(fifo_queue_dir, process_id),
+            'item_output': '-',
+            'gul_alloc_rule': gul_alloc_rule,
+            'process_id': process_id,
+            'max_process_id': max_process_id
+        }
+
+        # GUL coverage & item stream (Older)
+        if gul_item_stream:
+            getmodel_args['item_output'] = '- | tee {0}fifo/gul_P{1}'.format(fifo_queue_dir, process_id)
+            _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_itm_cmd)
+        else:    
+            _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_cov_cmd)
 
         # ! Should be able to streamline the logic a little
         if num_reinsurance_iterations > 0 and ri_output:
-
-            getmodel_args = {
-                'number_of_samples': number_of_samples,
-                'gul_threshold': gul_threshold,
-                'use_random_number_file': use_random_number_file,
-                'coverage_output': '{}fifo/gul_P{}'.format(fifo_queue_dir, process_id),
-                'item_output': '-',
-                'process_id': process_id,
-                'max_process_id': max_process_id
-            }
             getmodel_args.update(custom_args)
             getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
-            main_cmd = '{2} | fmcalc -a {3} | tee {4}fifo/il_P{0}'.format(
-                process_id, max_process_id, getmodel_cmd,
-                alloc_rule,
-                fifo_queue_dir)
+            fm_cmd = '{2} | fmcalc -a{3} | tee {4}fifo/il_P{0}'
+            main_cmd = fm_cmd.format(
+                process_id, 
+                max_process_id, 
+                getmodel_cmd,
+                il_alloc_rule,
+                fifo_queue_dir
+            )
 
             for i in range(1, num_reinsurance_iterations + 1):
-                main_cmd = "{0} | fmcalc -a {3} -n -p RI_{2}".format(
-                    main_cmd, os.sep, i, alloc_rule
+                main_cmd = "{0} | fmcalc -a{3} -n -p RI_{2}".format(
+                    main_cmd, os.sep, i, il_alloc_rule
                 )
 
             main_cmd = "{0} > {1}fifo/ri_P{2} &".format(main_cmd, fifo_queue_dir, process_id)
-
-            print_command(
-                filename,
-                main_cmd
-            )
+            print_command(filename, main_cmd)
 
         elif gul_output and il_output:
-            getmodel_args = {
-                'number_of_samples': number_of_samples,
-                'gul_threshold': gul_threshold,
-                'use_random_number_file': use_random_number_file,
-                'coverage_output': '{}fifo/gul_P{}'.format(fifo_queue_dir, process_id),
-                'item_output': '-',
-                'process_id': process_id,
-                'max_process_id': max_process_id
-            }
             getmodel_args.update(custom_args)
             getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
-            main_cmd = '{2} | fmcalc -a {3} > {4}fifo/il_P{0}  &'.format(
-                process_id, max_process_id, getmodel_cmd,
-                alloc_rule,
-                fifo_queue_dir)
+            fm_cmd = '{2} | fmcalc -a{3} > {4}fifo/il_P{0}  &'
 
-            print_command(
-                filename,
-                main_cmd
+            main_cmd = fm_cmd.format(
+                process_id, 
+                max_process_id, 
+                getmodel_cmd,
+                il_alloc_rule,
+                fifo_queue_dir
             )
+            print_command(filename, main_cmd)
+
         else:
             if gul_output and 'gul_summaries' in analysis_settings:
-                getmodel_args = {
-                    'number_of_samples': number_of_samples,
-                    'gul_threshold': gul_threshold,
-                    'use_random_number_file': use_random_number_file,
-                    'coverage_output': '-',
-                    'item_output': '',
-                    'process_id': process_id,
-                    'max_process_id': max_process_id
-                }
+                getmodel_args['coverage_output'] = '-'
+                getmodel_args['item_output'] = ''
+
+                if gul_item_stream:
+                    getmodel_args['item_output'] = '-'
+
+
                 getmodel_args.update(custom_args)
                 getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
-                print_command(
-                    filename,
-                    '{2} > {3}fifo/gul_P{0}  &'.format(process_id, max_process_id, getmodel_cmd, fifo_queue_dir)
+                gul_cmd = '{2} > {3}fifo/gul_P{0}  &'
+                main_cmd = gul_cmd.format(
+                    process_id,
+                    max_process_id, 
+                    getmodel_cmd, 
+                    fifo_queue_dir
                 )
+                print_command(filename, main_cmd)
+
+
             if il_output and 'il_summaries' in analysis_settings:
-                getmodel_args = {
-                    'number_of_samples': number_of_samples,
-                    'gul_threshold': gul_threshold,
-                    'use_random_number_file': use_random_number_file,
-                    'coverage_output': '',
-                    'item_output': '-',
-                    'process_id': process_id,
-                    'max_process_id': max_process_id
-                }
+                getmodel_args['coverage_output'] = ''
+                getmodel_args['item_output'] = '-'
+
                 getmodel_args.update(custom_args)
                 getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
-                print_command(
-                    filename,
-                    "{2} | fmcalc -a {3} > {4}fifo/il_P{0}  &".format(
-                        process_id, max_process_id, getmodel_cmd,
-                        alloc_rule,
-                        fifo_queue_dir)
+                fm_cmd = "{2} | fmcalc -a{3} > {4}fifo/il_P{0}  &"
+                main_cmd = fm_cmd.format(
+                    process_id, 
+                    max_process_id, 
+                    getmodel_cmd,
+                    il_alloc_rule,
+                    fifo_queue_dir
                 )
+                print_command(filename, main_cmd)
 
     print_command(filename, '')
 
