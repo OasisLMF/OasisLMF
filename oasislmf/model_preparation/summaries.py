@@ -241,6 +241,7 @@ def write_summary_levels(exposure_df, accounts_fp, target_dir):
     '''
     # Manage internal columns, (Non-OED exposure input)
     int_excluded_cols = ['loc_id', SOURCE_IDX['loc']]
+    desc_non_oed = 'Not an OED field'
     int_oasis_cols = {
         'coverage_type_id': 'Oasis coverage type', 
         'peril_id': 'OED peril code', 
@@ -249,8 +250,10 @@ def write_summary_levels(exposure_df, accounts_fp, target_dir):
 
     # GUL perspective (loc columns only)
     l_col_list = exposure_df.loc[:, exposure_df.any()].columns.to_list()
-    gul_avail = {k:OED_LOCATION_COLS[k]['desc'] for k in set([c.lower() for c in l_col_list]).difference(int_excluded_cols)}
-    gul_rec = {k:OED_LOCATION_COLS[k]['desc'] for k in set(gul_avail.keys()).intersection(SUMMARY_LEVEL_LOC)}
+    gul_avail = {k:OED_LOCATION_COLS[k]['desc'] if k in OED_LOCATION_COLS else desc_non_oed
+                 for k in set([c.lower() for c in l_col_list]).difference(int_excluded_cols)}
+    gul_rec = {k:OED_LOCATION_COLS[k]['desc'] if k in OED_LOCATION_COLS else desc_non_oed 
+               for k in set(gul_avail.keys()).intersection(SUMMARY_LEVEL_LOC)}
 
     gul_summary_lvl = {'GUL': {
         'available': {**gul_avail, **int_oasis_cols},
@@ -265,8 +268,10 @@ def write_summary_levels(exposure_df, accounts_fp, target_dir):
         a_avail = set([c.lower() for c in a_col_list])
         a_rec = set(a_avail).intersection(SUMMARY_LEVEL_ACC)
 
-        il_avail = {k:OED_ACCOUNT_COLS[k]['desc'] for k in a_avail.difference(gul_avail.keys())}
-        il_rec = {k:OED_ACCOUNT_COLS[k]['desc'] for k in a_rec.difference(gul_rec.keys())}
+        il_avail = {k:OED_ACCOUNT_COLS[k]['desc'] if k in OED_ACCOUNT_COLS else desc_non_oed
+                    for k in a_avail.difference(gul_avail.keys())}
+        il_rec = {k:OED_ACCOUNT_COLS[k]['desc'] if k in OED_ACCOUNT_COLS else desc_non_oed
+                  for k in a_rec.difference(gul_rec.keys())}
         il_summary_lvl = {'IL': {
             'available': {**gul_avail, **il_avail, **int_oasis_cols},
             'recommended': {**gul_rec, **il_rec, **int_oasis_cols}}
