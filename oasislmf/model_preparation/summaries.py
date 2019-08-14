@@ -305,8 +305,8 @@ def write_mapping_file(sum_inputs_df, target_dir, is_fm_summary=False):
         preexists=False
     )
 
-    # Set chunk size for writing the CSV files - default is 100K
-    chunksize = min(2 * 10**5, len(sum_inputs_df))
+    # Set chunk size for writing the CSV files - default is max 20K, min 1K
+    chunksize =  min(2 * 10**5, max(len(sum_inputs_df), 1000))
 
     if is_fm_summary:
         sum_mapping_fp = os.path.join(target_dir, SUMMARY_MAPPING['fm_map_fn'])
@@ -394,7 +394,7 @@ def write_df_to_file(df, target_dir, filename):
     :type filename:  str
     """
     target_dir = as_path(target_dir, 'Input files directory', is_dir=True, preexists=False)
-    chunksize = min(2 * 10**5, len(df))
+    chunksize =  min(2 * 10**5, max(len(df), 1000))
     csv_fp = os.path.join(target_dir, filename)
     try:
         df.to_csv(
