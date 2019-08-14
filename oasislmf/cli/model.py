@@ -1,4 +1,4 @@
-__all__ = [
+OasisManager__all__ = [
     'GenerateKeysCmd',
     'GenerateLossesCmd',
     'GenerateOasisFilesCmd',
@@ -454,9 +454,10 @@ class GenerateLossesCmd(OasisBaseCommand):
         ktools_mem_limit = inputs.get('ktools_mem_limit', type=bool, default=False, required=False)
 
         ktools_fifo_relative = inputs.get('ktools_fifo_relative', type=bool, default=False, required=False)
+        
+        ktools_alloc_rule_gul = inputs.get('ktools_alloc_rule_gul', type=int, default=None, required=False)
 
-        ktools_alloc_rule_gul = inputs.get('ktools_alloc_rule_gul', default=None, required=False)
-        ktools_alloc_rule_il = inputs.get('ktools_alloc_rule_il', default=2, required=False)
+        ktools_alloc_rule_il = inputs.get('ktools_alloc_rule_il', type=int, default=None, required=False)
 
         user_data_dir = as_path(
             inputs.get('user_data_path', required=False, is_path=True),
