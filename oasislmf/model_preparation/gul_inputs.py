@@ -207,7 +207,6 @@ def get_gul_input_items(
         exposure_df[SOURCE_IDX['loc']] = exposure_df.index
 
         gul_inputs_df = merge_dataframes(exposure_df, keys_df, join_on='loc_id', how='inner')
-
         if gul_inputs_df.empty:
             raise OasisException(
                 'Inner merge of the exposure file dataframe ({}) '
@@ -268,6 +267,11 @@ def get_gul_input_items(
 
         # Remove any rows with zeros in the ``tiv`` column and reset the index
         gul_inputs_df = gul_inputs_df[(gul_inputs_df.loc[:, ['tiv']] != 0).any(axis=1)].reset_index()
+        if gul_inputs_df.empty:
+            raise OasisException(
+                'Empry gul_inputs_df dataframe after dropping rows with zero for tiv, '
+                'please check the exposure input files'
+            )
 
         # Remove the source columns for the TIVs and coverage level financial terms
         gul_inputs_df.drop(tiv_cols + term_cols, axis=1, inplace=True)
