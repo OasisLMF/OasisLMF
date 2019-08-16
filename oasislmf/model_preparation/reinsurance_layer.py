@@ -119,7 +119,8 @@ def write_files_for_reinsurance(
         
         fm_xref_df = get_dataframe(fm_xref_fp)
         fm_xref_df['agg_id'] = range(1, 1+len(fm_xref_df))
-        fm_xref_df['layer_id'] = 1
+        # Net losses across all layers is associated to the max layer ID.
+        fm_xref_df['layer_id'] = ri_input.ri_inputs.fm_policytc['layer_id'].max()   
         fm_xref_df.to_csv(
             os.path.join(ri_output_dir, "fm_xref.csv"), index=False)
 

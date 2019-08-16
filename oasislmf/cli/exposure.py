@@ -256,6 +256,10 @@ class RunCmd(OasisBaseCommand):
             for f in files:
                 generated = os.path.join(run_dir, f)
                 expected = os.path.join(expected_data_dir, f)
+                
+                if not os.path.exists(expected):
+                    continue
+
                 self.logger.info('\nComparing generated {} vs expected {}'.format(generated, expected))
                 try:
                     assert(compare_files(generated, expected) is True)
