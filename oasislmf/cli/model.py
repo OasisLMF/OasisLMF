@@ -51,11 +51,11 @@ class GeneratePerilAreasRtreeFileIndexCmd(OasisBaseCommand):
 
         parser.add_argument(
             '-c', '--lookup-config-file-path', default=None,
-            help='Lookup config file path',
+            help='Lookup config JSON file path',
         )
         parser.add_argument(
             '-d', '--keys-data-path', default=None,
-            help='Keys data path'
+            help='Keys data directory path'
         )
         parser.add_argument(
             '-f', '--index-file-path', default=None,
@@ -131,13 +131,13 @@ class GenerateKeysCmd(OasisBaseCommand):
         """
         super(self.__class__, self).add_args(parser)
 
-        parser.add_argument('-x', '--source-exposure-file-path', default=None, help='Source exposure file path')
-        parser.add_argument('-k', '--keys-file-path', default=None, help='Keys file path')
-        parser.add_argument('-e', '--keys-errors-file-path', default=None, help='Keys errors file path')
+        parser.add_argument('-x', '--source-exposure-file-path', default=None, help='Source exposure CSV file path')
+        parser.add_argument('-k', '--keys-file-path', default=None, help='Keys CSV file path')
+        parser.add_argument('-e', '--keys-errors-file-path', default=None, help='Keys errors CSV file path')
         parser.add_argument('-g', '--lookup-config-file-path', default=None, help='Lookup config JSON file path')
-        parser.add_argument('-d', '--keys-data-path', default=None, help='Model lookup/keys data path')
-        parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
-        parser.add_argument('-l', '--lookup-package-path', default=None, help='Model lookup package path')
+        parser.add_argument('-d', '--keys-data-path', default=None, help='Model lookup/keys CSV data path')
+        parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version CSV file path')
+        parser.add_argument('-l', '--lookup-package-path', default=None, help='Model lookup package directory path')
         parser.add_argument('-L', '--complex-lookup-config-file-path', default=None, help='Complex lookup config JSON file path')
         parser.add_argument('-f', '--keys-format', choices=['oasis', 'json'], help='Keys files output format')
 
@@ -221,20 +221,20 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         super(self.__class__, self).add_args(parser)
 
         parser.add_argument('-o', '--oasis-files-path', default=None, help='Path to the directory in which to generate the Oasis files')
-        parser.add_argument('-z', '--keys-file-path', default=None, help='Pre-generated keys file path')
+        parser.add_argument('-z', '--keys-file-path', default=None, help='Pre-generated keys CSV file path')
         parser.add_argument('-c', '--lookup-config-file-path', default=None, help='Lookup config JSON file path')
-        parser.add_argument('-k', '--keys-data-path', default=None, help='Model lookup/keys data path')
-        parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
+        parser.add_argument('-k', '--keys-data-path', default=None, help='Model lookup/keys data directory path')
+        parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version CSV file path')
         parser.add_argument('-l', '--lookup-package-path', default=None, help='Lookup package path')
         parser.add_argument('-L', '--complex-lookup-config-file-path', default=None, help='Complex lookup config JSON file path')
         parser.add_argument('-D', '--user-data-path', default=None, help='Directory containing additional user-supplied model data files')
-        parser.add_argument('-e', '--source-exposure-profile-path', default=None, help='Source (OED) exposure profile path')
-        parser.add_argument('-b', '--source-accounts-profile-path', default=None, help='Source (OED) accounts profile path')
-        parser.add_argument('-x', '--source-exposure-file-path', default=None, help='Source exposure file path')
-        parser.add_argument('-y', '--source-accounts-file-path', default=None, help='Source accounts file path')
+        parser.add_argument('-e', '--source-exposure-profile-path', default=None, help='Source (OED) exposure profile JSON path')
+        parser.add_argument('-b', '--source-accounts-profile-path', default=None, help='Source (OED) accounts profile JSON path')
+        parser.add_argument('-x', '--source-exposure-file-path', default=None, help='Source exposure CSV file path')
+        parser.add_argument('-y', '--source-accounts-file-path', default=None, help='Source accounts CSV file path')
         parser.add_argument('-g', '--fm-aggregation-profile-path', default=None, help='FM (OED) aggregation profile path')
-        parser.add_argument('-i', '--ri-info-file-path', default=None, help='Reinsurance info. file path')
-        parser.add_argument('-s', '--ri-scope-file-path', default=None, help='Reinsurance scope file path')
+        parser.add_argument('-i', '--ri-info-file-path', default=None, help='Reinsurance info. CSV file path')
+        parser.add_argument('-s', '--ri-scope-file-path', default=None, help='Reinsurance scope CSV file path')
         parser.add_argument('-S', '--summarise-exposure', default=None, help='Create exposure summary report', action='store_true')
         parser.add_argument(
             '-W', '--write-chunksize', type=int,
@@ -408,9 +408,9 @@ class GenerateLossesCmd(OasisBaseCommand):
         super(self.__class__, self).add_args(parser)
 
         parser.add_argument('-o', '--oasis-files-path', default=None, help='Path to pre-existing direct Oasis files (GUL + FM input files)')
-        parser.add_argument('-a', '--analysis-settings-file-path', default=None, help='Analysis settings file path')
+        parser.add_argument('-a', '--analysis-settings-file-path', default=None, help='Analysis settings JSON file path')
         parser.add_argument('-D', '--user-data-path', default=None, help='Directory containing additional user-supplied model data files')
-        parser.add_argument('-d', '--model-data-path', default=None, help='Model data path')
+        parser.add_argument('-d', '--model-data-path', default=None, help='Model data directory path')
         parser.add_argument('-r', '--model-run-dir', default=None, help='Model run directory path')
         parser.add_argument('-p', '--model-package-path', default=None, help='Path containing model specific package')
         parser.add_argument('-n', '--ktools-num-processes', default=None, help='Number of ktools calculation processes to use', type=int)
@@ -508,9 +508,9 @@ class RunCmd(OasisBaseCommand):
         """
         super(self.__class__, self).add_args(parser)
 
-        parser.add_argument('-z', '--keys-file-path', default=None, help='Pre-generated keys file path')
-        parser.add_argument('-k', '--keys-data-path', default=None, help='Model lookup/keys data path')
-        parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version file path')
+        parser.add_argument('-z', '--keys-file-path', default=None, help='Pre-generated keys CSV file path')
+        parser.add_argument('-k', '--keys-data-path', default=None, help='Model lookup/keys data directory path')
+        parser.add_argument('-v', '--model-version-file-path', default=None, help='Model version CSV file path')
 
         parser.add_argument('-l', '--lookup-package-path', default=None, help='Model lookup package path')
         parser.add_argument('-L', '--complex-lookup-config-file-path', default=None, help='Complex lookup config JSON file path')
@@ -518,33 +518,33 @@ class RunCmd(OasisBaseCommand):
 
         parser.add_argument(
             '-e', '--source-exposure-profile-path', default=None,
-            help='Source OED exposure profile path'
+            help='Source OED exposure profile JSON path'
         )
         parser.add_argument(
             '-b', '--source-accounts-profile-path', default=None,
-            help='Source OED accounts profile path'
+            help='Source OED accounts profile JSON path'
         )
 
-        parser.add_argument('-x', '--source-exposure-file-path', default=None, help='Source exposure file path')
-        parser.add_argument('-y', '--source-accounts-file-path', default=None, help='Source accounts file path')
+        parser.add_argument('-x', '--source-exposure-file-path', default=None, help='Source exposure CSV file path')
+        parser.add_argument('-y', '--source-accounts-file-path', default=None, help='Source accounts CSV file path')
 
         parser.add_argument(
             '-g', '--fm-aggregation-profile-path', default=None,
-            help='FM OED aggregation profile path'
+            help='FM OED aggregation profile JSON path'
         )
         parser.add_argument(
             '-i', '--ri-info-file-path', default=None,
-            help='Reinsurance info. file path'
+            help='Reinsurance info. CSV file path'
         )
         parser.add_argument(
             '-s', '--ri-scope-file-path', default=None,
-            help='Reinsurance scope file path'
+            help='Reinsurance scope CSV file path'
         )
         parser.add_argument(
             '-a', '--analysis-settings-file-path', default=None,
-            help='Model analysis settings file path'
+            help='Model analysis settings JSON file path'
         )
-        parser.add_argument('-d', '--model-data-path', default=None, help='Model data path')
+        parser.add_argument('-d', '--model-data-path', default=None, help='Model data directory path')
         parser.add_argument('-r', '--model-run-dir', default=None, help='Model run directory path')
         parser.add_argument('-p', '--model-package-path', default=None, help='Path containing model specific package')
         parser.add_argument('-n', '--ktools-num-processes', default=None, help='Number of ktools calculation processes to use', type=int)

@@ -315,7 +315,7 @@ setup(
     exclude_package_data={
         '': ['__pycache__', '*.py[co]'],
     },
-    scripts=['bin/oasislmf'],
+    scripts=['bin/oasislmf', 'bin/completer_oasislmf'],
     license='BSD 3-Clause',
     description='Core loss modelling framework.',
     long_description=readme,

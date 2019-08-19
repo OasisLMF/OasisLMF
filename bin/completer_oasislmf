@@ -1,0 +1,173 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+import io
+import pickle
+
+from importlib.util import find_spec
+
+from anytree import (
+    find,
+    findall,
+    Node,
+    RenderTree,
+)
+
+# https://www.linuxjournal.com/content/more-using-bash-complete-command
+# https://echorand.me/posts/linux_shell_autocompletion/
+# https://www.gnu.org/software/bash/manual/html_node/Programmable-Completion.html
+
+"""
+BASH vars
+=========
+
+    COMP_LINE  = The current command line. This variable is available only in shell functions
+                 and external commands invoked by the programmable completion facilities.
+
+    COMP_POINT = The index of the current cursor position relative to the beginning of the current command.
+
+    COMP_TYPE  = Set to an integer value corresponding to the type of completion attempted that
+                 caused a completion function to be called: TAB, for normal completion, ‘?’, for listing
+                 completions after successive tabs, ‘!’, for listing alternatives on partial word completion,
+                 ‘@’, to list completions if the word is not unmodified, or ‘%’, for menu completion.
+                 This variable is available only in shell functions and external commands invoked by the
+                 programmable completion facilities
+"""
+
+class Completer(object):
+
+    def __init__(self, pickle_path=None):
+        if pickle_path:
+            if os.path.isfile(pickle_path):
+                self.action_tree = pickle.load(open(pickle_path, "rb"))
+            else:
+                self.action_tree = self.build_action_tree()
+                pickle.dump(self.action_tree, open(pickle_path, "wb"))
+        else:
+            self.action_tree = self.build_action_tree()
+
+    def __str__(self):
+        return str(RenderTree(self.action_tree))
+
+    def complete(self, comp_line, comp_point=None):
+        cmd_cursor = comp_point if comp_point else len(comp_line)  # cursor position on string
+        cmd_start = len('oasislmf')                                # exclude binary name
+        cmd = comp_line[cmd_start:cmd_cursor]
+
+        given_args = tuple(cmd.lstrip().split(' '))
+        self.return_options(given_args, self.action_tree)
+
+    def return_options(self, cmd_list, current_node):
+        current_word = cmd_list[0] if cmd_list else ''
+        next_node = find(current_node, lambda n: n.name == current_word, maxlevel=2)
+
+        if next_node and not next_node.arg_type:
+            return self.return_options(cmd_list[1:], next_node)
+        elif next_node:
+            return self._arg_complete(cmd_list, current_node, next_node)
+        
+        print(" \n".join(n.name for n in current_node.children
+            if n.name.startswith(current_word)
+        ))
+
+    # Complete Arg Value
+    def _arg_complete(self, cmd_list, current_node, next_node):
+
+        # Path complete or Append space to arg value
+        if len(cmd_list[1:]) < 2:
+            if next_node.arg_type.startswith('filepath') and len(cmd_list) > 1:
+                # Return filepath finder
+                file_ext = next_node.arg_type.split('_')[-1]
+                path_options = self._complete_path(cmd_list[1], file_ext)
+                print('\n'.join(path_options))
+            else:
+                # complete argument vaule with space
+                print("{} ".format(cmd_list[-1]))
+
+        # Skip and continue on next
+        else:
+            return self.return_options(cmd_list[2:], current_node)
+
+    def _complete_path(self, path=None, ftype=''):
+        "Perform completion of filesystem path."
+        if not path:
+            return self._listdir('.')
+        dirname, rest = os.path.split(path)
+        tmp = os.path.expanduser(dirname) if dirname else '.'
+        res = [os.path.join(dirname, p)
+                for p in self._listdir(tmp) if p.startswith(rest)]
+
+        # filter list by extention
+        res = [p for p in res if p.endswith((ftype, '/'))]
+
+        if len(res) == 1 and os.path.isdir(os.path.expanduser(res[-1])):
+            # resolved to a single directory, so return list of files below it
+            subdirs = self._complete_path(res[-1])
+            return subdirs + res
+        if len(res) > 1 or not os.path.exists(path):
+            # more than one match, or single match which does not exist (typo)
+            return res
+        if os.path.isfile(path):
+            # exact file match terminates this completion
+            return [path + ' ']
+        return [path]
+
+    def _listdir(self, root):
+        "List directory 'root' appending the path separator to subdirs."
+        res = []
+        for name in os.listdir(root):
+            path = os.path.join(root, name)
+            if os.path.isdir(path):
+                name += os.sep
+            res.append(name)
+        return res
+
+    def _add_arg_node(self, action, parent):
+        # Add leaf node with attributes
+        for opt in action.option_strings:
+            if '--' in opt:
+                Node(name=opt, arg_type=self._set_arg_type(action), parent=parent)
+
+    def _set_arg_type(self, action):
+        arg_type = None if action.nargs is 0 else 'value'
+        if any('json' in s for s in [action.help.lower(), action.option_strings[-1].lower()]):
+            arg_type = 'filepath_json'
+        if any('csv' in s for s in [action.help.lower(), action.option_strings[-1].lower()]):
+            arg_type = 'filepath_csv'
+        if any('dir' in s for s in [action.help.lower(), action.option_strings[-1].lower()]):
+            arg_type = 'filepath_dir'
+
+        return arg_type
+
+    def build_action_tree(self):
+        from oasislmf.cli import RootCmd
+        root = Node(name="oasislmf", arg_type=None, parent=None)
+
+        for cmd in RootCmd.sub_commands:
+            cmd_node = Node(name=cmd, arg_type=None, parent=root)
+            arg_parser = RootCmd.sub_commands[cmd]().arg_parser
+
+            for base_action in arg_parser._actions:
+                if isinstance(base_action, argparse._SubParsersAction):
+                    for sub_cmd in base_action.choices.keys():
+                        sub_cmd_node = Node(name=sub_cmd, arg_type=None, parent=cmd_node)
+                        for sub_action in base_action.choices[sub_cmd]._actions:
+                            self._add_arg_node(sub_action, sub_cmd_node)
+                else:
+                    self._add_arg_node(base_action, cmd_node)
+
+        return root
+
+if __name__ == '__main__':
+    pkg_oasislmf = find_spec('oasislmf')
+    pkg_path = os.path.dirname(pkg_oasislmf.origin)
+    action_tree = os.path.join(pkg_path, '_data', 'action_tree.p')
+
+    comp_line = os.environ.get('COMP_LINE') or ''
+    comp_point = int(os.environ.get('COMP_POINT') or len(cline))
+
+    try:
+        Completer(action_tree).complete(comp_line, comp_point)
+    except KeyboardInterrupt:
+        sys.exit(0)
