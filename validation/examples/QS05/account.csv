@@ -1,0 +1,9 @@
+PortNumber,AccNumber,PolNumber,PolPerilsCovered,AccCurrency,LayerNumber,LayerParticipation,LayerLimit,LayerAttachment,PolPeril,PolDed6All,PolMinDed6All,PolMaxDed6All,PolLimit6All,CondPeril,CondNumber,CondMinDed6All,CondLimit6All
+OEDTest,QS05_01,QS05_01_1,OO1,CAD,1,1,0,0,OO1,0,0,0,0,,,,
+OEDTest,QS05_02,QS05_02_1,OO1,CAD,1,0.5,0,0,OO1,0,0,0,0,,,,
+OEDTest,QS05_03,QS05_03_1,OO1,CAD,1,0.2,10000000,1000000,OO1,0,0,0,0,,,,
+OEDTest,QS05_07,QS05_07_1,OO1,CAD,1,1,0,0,OO1,0,0,0,0,,,,
+OEDTest,QS05_05,QS05_05_1,OO1,CAD,1,1,0,0,OO1,0,0,0,0,,,,
+OEDTest,QS05_06,QS05_06_1,OO1,CAD,1,0.2,0,0,OO1,0,0,0,0,,,,
+OEDTest,QS05_08,QS05_08_1,OO1,CAD,1,1,0,0,OO1,0,0,0,0,,,,
+OEDTest,QS05_09,QS05_09_1,OO1,CAD,1,0.5,0,0,OO1,0,0,0,0,,,,
