@@ -37,6 +37,7 @@ from rtree.core import RTreeError
 
 from ..utils.data import (
     get_dataframe,
+    get_dtypes_and_required_cols,
     get_ids,
 )
 from ..utils.defaults import get_loc_dtypes
@@ -353,17 +354,7 @@ class OasisLookupFactory(object):
         """
         Get the source OED exposure/location data as a Pandas dataframe.
         """
-        loc_dtypes = get_loc_dtypes()
-        col_dtypes = {
-            k: v['py_dtype']
-            for k, v in loc_dtypes.items()
-            if v['py_dtype'] == 'str'
-        }
-        required_cols = [
-            k for k, v in loc_dtypes.items()
-            if v['py_dtype'] == 'str'
-            if v['require_field'] == 'R'
-        ]
+        col_dtypes, required_cols = get_dtypes_and_required_cols(get_loc_dtypes)
 
         if source_exposure_fp:
             loc_df = get_dataframe(
