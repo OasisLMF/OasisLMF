@@ -342,6 +342,8 @@ def get_column_selection(summary_set):
     """
     if "oed_fields" not in summary_set:
         return None
+    if not summary_set["oed_fields"]:
+        return None
 
     # Select Default Grouping for either
     elif isinstance(summary_set['oed_fields'], str):
