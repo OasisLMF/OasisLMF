@@ -32,7 +32,7 @@ from oasislmf.utils.defaults import get_loc_dtypes
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.status import OASIS_KEYS_STATUS
 
-from data import keys
+from tests.data import keys
 
 
 # Determine number and names of required columns in loc file
