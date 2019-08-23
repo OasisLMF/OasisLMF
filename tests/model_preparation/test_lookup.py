@@ -27,10 +27,20 @@ from mock import Mock, patch
 from tempfile import NamedTemporaryFile
 
 from oasislmf.model_preparation.lookup import OasisLookupFactory as olf
+from oasislmf.utils.data import get_dtypes_and_required_cols
+from oasislmf.utils.defaults import get_loc_dtypes
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.status import OASIS_KEYS_STATUS
 
-from tests.data import keys
+from data import keys
+
+
+# Determine number and names of required columns in loc file
+_, loc_required_cols = get_dtypes_and_required_cols(get_loc_dtypes)
+loc_data_cols = [
+    integers(min_value=0, max_value=100)
+    for _ in range(len(loc_required_cols))
+]
 
 
 class OasisLookupFactoryCreate(TestCase):
@@ -242,9 +252,9 @@ class OasisLookupFactoryGetSourceExposure(TestCase):
         with self.assertRaises(OasisException):
             olf.get_exposure()
 
-    @given(lists(tuples(integers(min_value=0, max_value=100), integers(min_value=0, max_value=100)), min_size=1, max_size=10))
+    @given(lists(tuples(*loc_data_cols), min_size=1, max_size=10))
     def test_file_is_provided___file_content_is_loaded(self, data):
-        columns = ['first', 'second']
+        columns = loc_required_cols
 
         exposure_str = pd.DataFrame(columns=columns, data=data).to_csv(index=False)
 
@@ -260,9 +270,9 @@ class OasisLookupFactoryGetSourceExposure(TestCase):
         finally:
             os.remove(f.name)
 
-    @given(lists(tuples(integers(min_value=0, max_value=100), integers(min_value=0, max_value=100)), min_size=1, max_size=10))
+    @given(lists(tuples(*loc_data_cols), min_size=1, max_size=10))
     def test_exposure_string_is_provided___file_content_is_loaded(self, data):
-        columns = ['first', 'second']
+        columns = loc_required_cols
 
         exposure_str = pd.DataFrame(columns=columns, data=data).to_csv(index=False)
 
