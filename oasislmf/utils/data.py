@@ -5,6 +5,7 @@ __all__ = [
     'fast_zip_arrays',
     'fast_zip_dataframe_columns',
     'get_dataframe',
+    'get_dtypes_and_required_cols',
     'get_ids',
     'get_json',
     'get_timestamp',
@@ -358,6 +359,28 @@ def get_dataframe(
         df.sort_values(_sort_cols, axis=0, ascending=sort_ascending, inplace=True)
 
     return df
+
+
+def get_dtypes_and_required_cols(get_dtypes):
+    """
+    Get OED column data types and required column names from JSON.
+
+    :param get_dtypes: method to get dict from JSON
+    :type get_dtypes: function
+    """
+    dtypes = get_dtypes()
+    col_dtypes = {
+        k: v['py_dtype']
+        for k, v in dtypes.items()
+        if v['py_dtype'] == 'str'
+    }
+    required_cols = [
+        k for k, v in dtypes.items()
+        if v['py_dtype'] == 'str'
+        if v['require_field'] == 'R'
+    ]
+
+    return col_dtypes, required_cols
 
 
 def get_ids(df, usecols, group_by=[]):
