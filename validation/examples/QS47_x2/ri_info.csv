@@ -1,0 +1,3 @@
+ReinsNumber,ReinsPeril,ReinsCurrency,CededPercent,RiskLimit,RiskAttachment,OccLimit,OccAttachment,PlacedPercent,InuringPriority,ReinsType,ReinsName
+16,OO1,CAD,0.2,0,0,0,0,1,1,QS,T05 QS sel
+23,OO1,CAD,0.2,0,0,1000000,0,1,1,QS,T07 QS sel

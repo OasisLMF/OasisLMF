@@ -53,6 +53,21 @@ You can also install from a specific branch `<branch name>` using:
 
     pip install [-v] git+{https,ssh}://git@github.com/OasisLMF/OasisLMF.git@<branch name>#egg=oasislmf
 
+## Enable Bash completion
+
+Bash completion is a functionality which bash helps users type their commands by presenting possible options when users press the tab key while typing a command.
+
+Once oasislmf is installed you'll need to be activate the feature by sourcing a bash file. (only needs to be run once)
+
+### Local 
+
+    oasislmf admin enable-bash-complete
+
+### Global 
+
+    echo 'complete -C completer_oasislmf oasislmf' | sudo tee /usr/share/bash-completion/completions/oasislmf
+
+
 ## Dependencies
 
 ### System

@@ -265,26 +265,26 @@ class RunApiCmd(OasisBaseCommand):
         parser.add_argument(
             '-x', '--source-exposures-file-path',
             type=PathCleaner('Source exposures file'), default=None,
-            help='OED Source exposures file path'
+            help='OED Source exposures CSV file path'
         )
         # Optional
         parser.add_argument(
             '-y', '--source-accounts-file-path',
             type=PathCleaner('Source accounts file', preexists=False),
             default=None, required=False,
-            help='OED Source accounts file path'
+            help='OED Source accounts CSV file path'
         )
         parser.add_argument(
             '-i', '--ri-info-file-path',
             type=PathCleaner('Reinsurances Info file', preexists=False),
             default=None, required=False,
-            help='OED Reinsurances Info file path'
+            help='OED Reinsurances Info CSV file path'
         )
         parser.add_argument(
             '-r', '--ri-scope-file-path',
             type=PathCleaner('Reinsurance Scope file', preexists=False),
             default=None, required=False,
-            help='OED Reinsurance Scope file path'
+            help='OED Reinsurance Scope CSV file path'
         )
         parser.add_argument(
             '-o', '--output-directory',

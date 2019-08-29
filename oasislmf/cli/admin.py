@@ -2,13 +2,16 @@ __all__ = [
     'AdminCmd',
     'CreateComplexModelCmd',
     'CreateSimpleModelCmd',
+    'EnableBashCompleteCmd',
 ]
 
 import os
+import sys
 import re
 import subprocess
 
 from argparse import RawDescriptionHelpFormatter
+from platform import system
 from subprocess import (
     CalledProcessError,
     run
@@ -26,6 +29,96 @@ from .base import (
     InputValues,
     OasisBaseCommand,
 )
+
+
+class EnableBashCompleteCmd(OasisBaseCommand):
+    """
+    Adds required command to `.bashrc` Linux or .bash_profile for mac
+    so that Command autocomplete works for oasislmf CLI
+    """
+    formatter_class = RawDescriptionHelpFormatter
+
+    def add_args(self, parser):
+        """
+        Adds arguments to the argument parser.
+
+        :param parser: The argument parser object
+        :type parser: ArgumentParser
+        """
+        parser.add_argument(
+            '-p', '--bash-conf-filepath', default=None, required=False, 
+             help='Cookiecutter JSON file path with all options provided in the file'
+        )
+
+    def action(self, args):
+        # read in user set target install
+        inputs = InputValues(args)
+        bash_output_fp = as_path(
+            inputs.get('bash_conf_filepath'),
+            'Complex lookup config JSON file path', preexists=False
+        )
+
+        # select default bashrc if not set
+        if not bash_output_fp:
+            default_file = '.bash_profile' if system == 'Darwin' else '.bashrc'
+            bash_output_fp = os.path.join(
+                os.path.expanduser('~'), 
+                default_file
+            )
+
+        # Prompt user, and then install 
+        msg_user = 'Running this will append a command to the following file:\n'
+        if self.install_confirm(question_str="{} {}".format(msg_user, bash_output_fp)):
+            self.install_autocomplete(bash_output_fp)
+
+
+    def install_autocomplete(self, target_file=None):
+        msg_success = 'Auto-Complete installed.' 
+        msg_failed = 'install failed'
+        msg_installed = 'Auto-Complete feature is already enabled.' 
+        cmd_header = '# Added by OasisLMF\n'
+        cmd_autocomplete = 'complete -C completer_oasislmf oasislmf\n'
+        
+        try:
+            if os.path.isfile(target_file):
+                # Check command is in file
+                with open(target_file, "r") as rc:
+                    if cmd_autocomplete in rc.read():
+                        self.logger.info(msg_installed)
+                        sys.exit(0)
+            else:
+                # create new file at set location            
+                basedir = os.path.dirname(target_file)
+                if not os.path.isdir(basedir):
+                    os.makedirs(basedir)
+                
+            # Add complete command  
+            with open(target_file, "a") as rc:
+                    rc.write(cmd_header)
+                    rc.write(cmd_autocomplete)
+                    self.logger.info(msg_success)
+        except Exception as e: 
+            self.logger.error('{}: {}'.format(msg_failed, e))    
+        
+
+    def install_confirm(self, override=False, question_str='Add line to <somefile>'):
+        self.logger.debug('Prompt user for confirmation')
+        if override:
+            self.logger.debug('Defaulting to YES')
+            return True
+
+        try:
+            check = str(input("%s (Y/N): " % question_str)).lower().strip()
+            if check[0] == 'y':
+                return True
+            elif check[0] == 'n':
+                return False
+            else:
+                print('Invalid Input')
+                return self.confirm_action(question_str)
+        except KeyboardInterrupt as e:
+            self.logger.error('\nKeyboard Interrupt, exiting.')
+
 
 
 class CreateSimpleModelCmd(OasisBaseCommand):
@@ -230,5 +323,6 @@ class AdminCmd(OasisBaseCommand):
     """
     sub_commands = {
         'create-simple-model': CreateSimpleModelCmd,
-        'create-complex-model': CreateComplexModelCmd
+        'create-complex-model': CreateComplexModelCmd,
+        'enable-bash-complete': EnableBashCompleteCmd
     }
