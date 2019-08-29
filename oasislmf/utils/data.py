@@ -19,6 +19,7 @@ __all__ = [
 import builtins
 import io
 import json
+import re
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -294,7 +295,13 @@ def get_dataframe(
     na_values = list(PANDAS_DEFAULT_NULL_VALUES.difference(['NA']))
 
     if src_fp and src_type == 'csv':
-        df = pd.read_csv(src_fp, float_precision=float_precision, memory_map=memory_map, keep_default_na=False, na_values=na_values)
+        # Find flexible fields in loc file and set their data types to that of
+        # FlexiLocZZZ
+        if 'FlexiLocZZZ' in col_dtypes.keys():
+            headers = list(pd.read_csv(src_fp).head(0))
+            for flexiloc_col in filter(re.compile('^FlexiLoc').match, headers):
+                col_dtypes[flexiloc_col] = col_dtypes['FlexiLocZZZ']
+        df = pd.read_csv(src_fp, float_precision=float_precision, memory_map=memory_map, keep_default_na=False, na_values=na_values, dtype=col_dtypes)
     elif src_buf and src_type == 'csv':
         df = pd.read_csv(io.StringIO(src_buf), float_precision=float_precision, memory_map=memory_map, keep_default_na=False, na_values=na_values)
     elif src_fp and src_type == 'json':
