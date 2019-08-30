@@ -37,6 +37,7 @@ from tests.data import keys
 
 # Determine number and names of required columns in loc file
 _, loc_required_cols = get_dtypes_and_required_cols(get_loc_dtypes)
+loc_required_cols = [name.lower() for name in loc_required_cols]
 loc_data_cols = [
     integers(min_value=0, max_value=100)
     for _ in range(len(loc_required_cols))
