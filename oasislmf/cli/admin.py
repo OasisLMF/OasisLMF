@@ -76,6 +76,7 @@ class EnableBashCompleteCmd(OasisBaseCommand):
         msg_success = 'Auto-Complete installed.' 
         msg_failed = 'install failed'
         msg_installed = 'Auto-Complete feature is already enabled.' 
+        msg_reload_bash = '\n To activate reload bash by running: \n     source {}'.format(target_file)
         cmd_header = '# Added by OasisLMF\n'
         cmd_autocomplete = 'complete -C completer_oasislmf oasislmf\n'
         
@@ -85,6 +86,7 @@ class EnableBashCompleteCmd(OasisBaseCommand):
                 with open(target_file, "r") as rc:
                     if cmd_autocomplete in rc.read():
                         self.logger.info(msg_installed)
+                        self.logger.info(msg_reload_bash)    
                         sys.exit(0)
             else:
                 # create new file at set location            
@@ -97,6 +99,7 @@ class EnableBashCompleteCmd(OasisBaseCommand):
                     rc.write(cmd_header)
                     rc.write(cmd_autocomplete)
                     self.logger.info(msg_success)
+                    self.logger.info(msg_reload_bash)    
         except Exception as e: 
             self.logger.error('{}: {}'.format(msg_failed, e))    
         
