@@ -1,0 +1,1437 @@
+{
+    "PortNumber": {
+        "desc": "Portfolio number",
+        "require_field": "R",
+        "data_type": "varchar(20)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "AccNumber": {
+        "desc": "Account number",
+        "require_field": "R",
+        "data_type": "nvarchar(40)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "LocNumber": {
+        "desc": "Location number",
+        "require_field": "R",
+        "data_type": "nvarchar(20)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "LocName": {
+        "desc": "Location name",
+        "require_field": "O",
+        "data_type": "nvarchar(20)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "LocGroup": {
+        "desc": "Location group name",
+        "require_field": "O",
+        "data_type": "nvarchar(20)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "CorrelationGroup": {
+        "desc": "Correlation Group: indicates which locations should be correlated between each other.",
+        "require_field": "O",
+        "data_type": "int",
+        "default_value": "n/a",
+        "py_dtype": "int"
+    },
+    "IsPrimary": {
+        "desc": "Whether the location in LocGroup is the primary building in the group",
+        "require_field": "O",
+        "data_type": "0 or 1",
+        "default_value": "1",
+        "py_dtype": "int"
+    },
+    "IsTenant": {
+        "desc": "Whether property is occupied by a tenant or not",
+        "require_field": "O",
+        "data_type": "0 or 1",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "BuildingID": {
+        "desc": "Unique building identification number",
+        "require_field": "O",
+        "data_type": "int",
+        "default_value": "n/a",
+        "py_dtype": "int"
+    },
+    "LocInceptionDate": {
+        "desc": "Location inception date - DD/MM/YYYY format",
+        "require_field": "O",
+        "data_type": "smalldatetime",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "LocExpiryDate": {
+        "desc": "Location expiry date - DD/MM/YYYY format",
+        "require_field": "O",
+        "data_type": "smalldatetime",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "PercentComplete": {
+        "desc": "Completeness percentage of the construction project at this location.",
+        "require_field": "O",
+        "data_type": "decimal",
+        "default_value": "1",
+        "py_dtype": "float"
+    },
+    "CompletionDate": {
+        "desc": "Construction project completion date",
+        "require_field": "O",
+        "data_type": "date",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "CountryCode": {
+        "desc": "Country code (based on ISO3166 alpha-2 codes)",
+        "require_field": "R",
+        "data_type": "char(2)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "Latitude": {
+        "desc": "Latitude in degrees (-90.0 to +90.0)",
+        "require_field": "O",
+        "data_type": "decimal",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "Longitude": {
+        "desc": "Longitude in degrees (-180.0 to +180.0)",
+        "require_field": "O",
+        "data_type": "decimal",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "StreetAddress": {
+        "desc": "Street address including house number ",
+        "require_field": "O",
+        "data_type": "nvarchar(100)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "PostalCode": {
+        "desc": "Postcode: the highest resolution postcode most often used.",
+        "require_field": "O",
+        "data_type": "nvarchar(20)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "City": {
+        "desc": "City",
+        "require_field": "O",
+        "data_type": "nvarchar(50)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "AreaCode": {
+        "desc": "Code representing typically the largest sub-division in a country (e.g. State code).",
+        "require_field": "O",
+        "data_type": "nvarchar(20)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "AreaName": {
+        "desc": "Name relating to the AreaCode (e.g. State name).",
+        "require_field": "O",
+        "data_type": "nvarchar(50)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "GeogScheme1": {
+        "desc": "Geography scheme: Descriptor of the geography scheme used.",
+        "require_field": "O",
+        "data_type": "varchar(5)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "GeogName1": {
+        "desc": "Geography name: Descriptor of the geographical area.",
+        "require_field": "O",
+        "data_type": "nvarchar(50)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "GeogScheme2": {
+        "desc": "Geography scheme: Descriptor of the geography scheme used.",
+        "require_field": "O",
+        "data_type": "varchar(5)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "GeogName2": {
+        "desc": "Geography name: Descriptor of the geographical area.",
+        "require_field": "O",
+        "data_type": "nvarchar(50)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "GeogScheme3": {
+        "desc": "Geography scheme: Descriptor of the geography scheme used.",
+        "require_field": "O",
+        "data_type": "varchar(5)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "GeogName3": {
+        "desc": "Geography name: Descriptor of the geographical area.",
+        "require_field": "O",
+        "data_type": "nvarchar(50)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "GeogScheme4": {
+        "desc": "Geography scheme: Descriptor of the geography scheme used.",
+        "require_field": "O",
+        "data_type": "varchar(5)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "GeogName4": {
+        "desc": "Geography name: Descriptor of the geographical area.",
+        "require_field": "O",
+        "data_type": "nvarchar(50)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "GeogScheme5": {
+        "desc": "Geography scheme: Descriptor of the geography scheme used.",
+        "require_field": "O",
+        "data_type": "varchar(5)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "GeogName5": {
+        "desc": "Geography name: Descriptor of the geographical area.",
+        "require_field": "O",
+        "data_type": "nvarchar(50)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "AddressMatch": {
+        "desc": "Address match from geocoder: indicating the resolution that the latitude / longitude represents",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "GeocodeQuality": {
+        "desc": "Geocode quality (values between 0 and 1 e.g. 80% is entered as 0.8)",
+        "require_field": "O",
+        "data_type": "float",
+        "default_value": "n/a",
+        "py_dtype": "float"
+    },
+    "Geocoder": {
+        "desc": "Company name / version of geocoder. Free text field.",
+        "require_field": "O",
+        "data_type": "varchar(20)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "OrgOccupancyScheme": {
+        "desc": "Original occupancy scheme",
+        "require_field": "O",
+        "data_type": "varchar(10)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "OrgOccupancyCode": {
+        "desc": "Original occupancy code",
+        "require_field": "O",
+        "data_type": "varchar(100)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "OrgConstructionScheme": {
+        "desc": "Original construction scheme",
+        "require_field": "O",
+        "data_type": "varchar(10)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "OrgConstructionCode": {
+        "desc": "Original construction code",
+        "require_field": "O",
+        "data_type": "varchar(100)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "OccupancyCode": {
+        "desc": "OED occupancy code",
+        "require_field": "O",
+        "data_type": "int",
+        "default_value": "1000",
+        "py_dtype": "int"
+    },
+    "ConstructionCode": {
+        "desc": "OED construction code",
+        "require_field": "O",
+        "data_type": "int",
+        "default_value": "5000",
+        "py_dtype": "int"
+    },
+    "YearBuilt": {
+        "desc": "Year built (4 digit year)",
+        "require_field": "O",
+        "data_type": "smallint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "NumberOfStoreys": {
+        "desc": "Number of storeys",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "NumberOfBuildings": {
+        "desc": "Number of buildings",
+        "require_field": "O",
+        "data_type": "int",
+        "default_value": "1",
+        "py_dtype": "int"
+    },
+    "FloorArea": {
+        "desc": "Floor area: the total area across all floors",
+        "require_field": "O",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "FloorAreaUnit": {
+        "desc": "Units in which FloorArea is specified",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "11",
+        "py_dtype": "int"
+    },
+    "LocUserDef1": {
+        "desc": "Location user defined field 1",
+        "require_field": "O",
+        "data_type": "varchar(20)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "LocUserDef2": {
+        "desc": "Location user defined field 2",
+        "require_field": "O",
+        "data_type": "varchar(20)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "LocUserDef3": {
+        "desc": "Location user defined field 3",
+        "require_field": "O",
+        "data_type": "varchar(20)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "LocUserDef4": {
+        "desc": "Location user defined field 4",
+        "require_field": "O",
+        "data_type": "varchar(20)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "LocUserDef5": {
+        "desc": "Location user defined field 5",
+        "require_field": "O",
+        "data_type": "varchar(20)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "FlexiLocZZZ": {
+        "desc": "Flexible field that is stored in FlexiLoc table in ModifierName = ZZZ",
+        "require_field": "O",
+        "data_type": "varchar(40)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "LocPerilsCovered": {
+        "desc": "Location perils covered",
+        "require_field": "R",
+        "data_type": "varchar(250)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "BuildingTIV": {
+        "desc": "Building Total Insured Value",
+        "require_field": "R",
+        "data_type": "float",
+        "default_value": "n/a",
+        "py_dtype": "float"
+    },
+    "OtherTIV": {
+        "desc": "Other Building Insured Value (primarily aimed at specific US policies)",
+        "require_field": "R",
+        "data_type": "float",
+        "default_value": "n/a",
+        "py_dtype": "float"
+    },
+    "ContentsTIV": {
+        "desc": "Contents Total Insured Value",
+        "require_field": "R",
+        "data_type": "float",
+        "default_value": "n/a",
+        "py_dtype": "float"
+    },
+    "BITIV": {
+        "desc": "Business Interruption (BI) Total Insured Value",
+        "require_field": "R",
+        "data_type": "float",
+        "default_value": "n/a",
+        "py_dtype": "float"
+    },
+    "BIPOI": {
+        "desc": "BI period of indemnity (in days, in increments of 0.5 days).",
+        "require_field": "O",
+        "data_type": "float",
+        "default_value": "365",
+        "py_dtype": "float"
+    },
+    "LocCurrency": {
+        "desc": "Location currency",
+        "require_field": "R",
+        "data_type": "char(3)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "LocGrossPremium": {
+        "desc": "Gross premium amount at location level",
+        "require_field": "O",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "LocTax": {
+        "desc": "Insurance tax amount at location level",
+        "require_field": "O",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "LocBrokerage": {
+        "desc": "Brokerage amount at location level",
+        "require_field": "O",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "LocNetPremium": {
+        "desc": "Net premium at location level",
+        "require_field": "O",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "NonCatGroundUpLoss": {
+        "desc": "Ground-Up non-cat loss value prior to the application of non-cat policy terms",
+        "require_field": "O",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "LocParticipation": {
+        "desc": "Percentage of risk that the insurer covers for this location.",
+        "require_field": "O",
+        "data_type": "float",
+        "default_value": "1",
+        "py_dtype": "float"
+    },
+    "PayoutBasis": {
+        "desc": "Pay-out basis for the claim (whether depreciation is taken into account).",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "ReinsTag": {
+        "desc": "User defined reinsurance tag to provide a further option for specifying reinsurance scope",
+        "require_field": "O",
+        "data_type": "varchar(20)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "CondNumber": {
+        "desc": "Condition Number to be able to link to relevant special condition",
+        "require_field": "CR",
+        "data_type": "int",
+        "default_value": "n/a",
+        "py_dtype": "int"
+    },
+    "CondPriority": {
+        "desc": "Condition priority: specifies the order in which special conditions apply",
+        "require_field": "CR",
+        "data_type": "int",
+        "default_value": "n/a",
+        "py_dtype": "int"
+    },
+    "LocDedCode1Building": {
+        "desc": "Location building deductible code",
+        "require_field": "CR",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "LocDedType1Building": {
+        "desc": "Location building deductible type",
+        "require_field": "CR",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "LocDed1Building": {
+        "desc": "Location building deductible",
+        "require_field": "CR",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "LocMinDed1Building": {
+        "desc": "Location minimum building deductible",
+        "require_field": "CR",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "LocMaxDed1Building": {
+        "desc": "Location maximum building deductible",
+        "require_field": "CR",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "LocDedCode2Other": {
+        "desc": "Location other building deductible code",
+        "require_field": "CR",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "LocDedType2Other": {
+        "desc": "Location other building deductible type",
+        "require_field": "CR",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "LocDed2Other": {
+        "desc": "Location other building deductible",
+        "require_field": "CR",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "LocMinDed2Other": {
+        "desc": "Location minimum other building deductible",
+        "require_field": "CR",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "LocMaxDed2Other": {
+        "desc": "Location maximum other building deductible",
+        "require_field": "CR",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "LocDedCode3Contents": {
+        "desc": "Location contents deductible code",
+        "require_field": "CR",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "LocDedType3Contents": {
+        "desc": "Location contents deductible type",
+        "require_field": "CR",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "LocDed3Contents": {
+        "desc": "Location contents deductible",
+        "require_field": "CR",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "LocMinDed3Contents": {
+        "desc": "Location minimum contents deductible",
+        "require_field": "CR",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "LocMaxDed3Contents": {
+        "desc": "Location maximum contents deductible",
+        "require_field": "CR",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "LocDedCode4BI": {
+        "desc": "Location BI Deductible Code",
+        "require_field": "CR",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "LocDedType4BI": {
+        "desc": "Location BI Deductible Type",
+        "require_field": "CR",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "LocDed4BI": {
+        "desc": "Location BI deductible",
+        "require_field": "CR",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "LocMinDed4BI": {
+        "desc": "Location minimum bi deductible",
+        "require_field": "CR",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "LocMaxDed4BI": {
+        "desc": "Location maximum bi deductible",
+        "require_field": "CR",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "LocDedCode5PD": {
+        "desc": "Location PD deductible code",
+        "require_field": "CR",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "LocDedType5PD": {
+        "desc": "Location PD deductible type",
+        "require_field": "CR",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "LocDed5PD": {
+        "desc": "Location PD deductible",
+        "require_field": "CR",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "LocMinDed5PD": {
+        "desc": "Location minimum PD deductible",
+        "require_field": "CR",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "LocMaxDed5PD": {
+        "desc": "Location maximum PD deductible",
+        "require_field": "CR",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "LocDedCode6All": {
+        "desc": "Location blanket deductible code",
+        "require_field": "CR",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "LocDedType6All": {
+        "desc": "Location blanket deductible type",
+        "require_field": "CR",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "LocDed6All": {
+        "desc": "Location site deductible",
+        "require_field": "CR",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "LocMinDed6All": {
+        "desc": "Location minimum blanket deductible",
+        "require_field": "CR",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "LocMaxDed6All": {
+        "desc": "Location maximum blanket deductible",
+        "require_field": "CR",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "LocLimitCode1Building": {
+        "desc": "Location building limit code",
+        "require_field": "CR",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "LocLimitType1Building": {
+        "desc": "Location building limit type",
+        "require_field": "CR",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "LocLimit1Building": {
+        "desc": "Location building limit",
+        "require_field": "CR",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "LocLimitCode2Other": {
+        "desc": "Location other building limit code",
+        "require_field": "CR",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "LocLimitType2Other": {
+        "desc": "Location other building limit type",
+        "require_field": "CR",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "LocLimit2Other": {
+        "desc": "Location other building limit",
+        "require_field": "CR",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "LocLimitCode3Contents": {
+        "desc": "Location contents limit code",
+        "require_field": "CR",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "LocLimitType3Contents": {
+        "desc": "Location contents limit type",
+        "require_field": "CR",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "LocLimit3Contents": {
+        "desc": "Location contents limit",
+        "require_field": "CR",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "LocLimitCode4BI": {
+        "desc": "Location BI limit code",
+        "require_field": "CR",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "LocLimitType4BI": {
+        "desc": "Location BI limit type",
+        "require_field": "CR",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "LocLimit4BI": {
+        "desc": "Location BI limit",
+        "require_field": "CR",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "LocLimitCode5PD": {
+        "desc": "Location PD limit code",
+        "require_field": "CR",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "LocLimitType5PD": {
+        "desc": "Location PD limit type",
+        "require_field": "CR",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "LocLimit5PD": {
+        "desc": "Location PD limit",
+        "require_field": "CR",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "LocLimitCode6All": {
+        "desc": "Location site limit code",
+        "require_field": "CR",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "LocLimitType6All": {
+        "desc": "Location site limit type",
+        "require_field": "CR",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "LocLimit6All": {
+        "desc": "Location site limit",
+        "require_field": "CR",
+        "data_type": "float",
+        "default_value": "0",
+        "py_dtype": "float"
+    },
+    "BIWaitingPeriod": {
+        "desc": "BI waiting period (in days)",
+        "require_field": "O",
+        "data_type": "smallint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "LocPeril": {
+        "desc": "Perils for location financial terms",
+        "require_field": "CR",
+        "data_type": "varchar(250)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "YearUpgraded": {
+        "desc": "Year the building was upgraded (4 digit year)",
+        "require_field": "O",
+        "data_type": "smallint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "SurgeLeakage": {
+        "desc": "Storm leakage percentage (0% to 100%) for Wind only policies",
+        "require_field": "O",
+        "data_type": "float",
+        "default_value": "-999",
+        "py_dtype": "float"
+    },
+    "SprinklerType": {
+        "desc": "Sprinkler type",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "PercentSprinklered": {
+        "desc": "Percent sprinklered.",
+        "require_field": "O",
+        "data_type": "float",
+        "default_value": "-999",
+        "py_dtype": "float"
+    },
+    "RoofCover": {
+        "desc": "Code that represents the material used to cover the roof",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "RoofYearBuilt": {
+        "desc": "Year the roof was last replaced",
+        "require_field": "O",
+        "data_type": "smallint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "RoofGeometry": {
+        "desc": "Code that represents the shape of the roof",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "RoofEquipment": {
+        "desc": "captures if mechanical or electric equipment is braced on the roof",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "RoofFrame": {
+        "desc": "Roof framing material",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "RoofMaintenance": {
+        "desc": "Captures the impact roof maintenance has on the losses",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "BuildingCondition": {
+        "desc": "Building condition",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "RoofAttachedStructures": {
+        "desc": "Code that identifies items mounted on the roof",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "RoofDeck": {
+        "desc": "Code that represents the materials used to construct the roof deck",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "RoofPitch": {
+        "desc": "Code that represents the slope of the roof",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "RoofAnchorage": {
+        "desc": "Code that represents the connections used to secure the roof support system to the walls",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "RoofDeckAttachment": {
+        "desc": "Code that represents the connections used to secure the roof deck to the underlying roof support system",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "RoofCoverAttachment": {
+        "desc": "Code that represents the connections used to secure the roof covering to the roof deck",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "GlassType": {
+        "desc": "Code that represents the type of glass used in the building",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "LatticeType": {
+        "desc": "Code that represents the type of web used for H-shaped steel",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "FloodZone": {
+        "desc": "Flood zone. Free text field.",
+        "require_field": "O",
+        "data_type": "varchar(20)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "SoftStory": {
+        "desc": "Code that indicates if there is structural weakness at any floor.",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "Basement": {
+        "desc": "Code that defines if there is a basement and if so whether it is finished or unfinished",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "BasementLevelCount": {
+        "desc": "Indicates the number of basement levels in a structure (supports up to 5 levels; for more than 5, enter 5).",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "WindowProtection": {
+        "desc": "Code that represents the wind protection systems used on the windows",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "FoundationType": {
+        "desc": "Code that represents the construction type of the building's foundation",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "WallAttachedStructure": {
+        "desc": " \nCode that represents a structure that is physically attached to the building, such as garage or balcony",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "AppurtenantStructure": {
+        "desc": " \nCode for the appurtenant building, such as shed or detached garage",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "ConstructionQuality": {
+        "desc": "Construction quality",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "GroundEquipment": {
+        "desc": "Captures whether mechanical or electrical equipment are present on the ground level of a building and impact it has on losses",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "EquipmentBracing": {
+        "desc": "Identifies where mechanical or electrical equipment is held in place by bracing",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "Flashing": {
+        "desc": "Refers to the impact the quality of the flashing or coping on a roof has on losses",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "BuildingShape": {
+        "desc": "Code that represents the shape of the building",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "ShapeIrregularity": {
+        "desc": "Identifies vertical irregularities, overhangs and setbacks in the building design",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "Pounding": {
+        "desc": "Code that represents the distance to the closest structure",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "Ornamentation": {
+        "desc": "Code that represents the amount of decorative elements attached to the exterior of a building",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "SpecialEQConstruction": {
+        "desc": "Presence of a seismic base isolation system",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "Retrofit": {
+        "desc": "Presence of retro fit connectivity between walls and floor for retro fit buildings",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "CrippleWall": {
+        "desc": "Presence of cripple walls on the first floor or frame buildings",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "FoundationConnection": {
+        "desc": "Connection of frame to foundation with or without bolts",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "ShortColumn": {
+        "desc": "Code that indicates if there are short columns in the building",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "Fatigue": {
+        "desc": "Captures signs of damage from prior earthquakes",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "Cladding": {
+        "desc": "The presence and material of exterior building cladding",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "BIPreparedness": {
+        "desc": "BI preparedness",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "BIRedundancy": {
+        "desc": "BI redundancy",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "FirstFloorHeight": {
+        "desc": "Height of the lowest floor (above ground) of the building with respect to local ground elevation",
+        "require_field": "O",
+        "data_type": "float",
+        "default_value": "-999",
+        "py_dtype": "float"
+    },
+    "FirstFloorHeightUnit": {
+        "desc": "Code for the unit of measure used to express FirstFloorHeight",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "1",
+        "py_dtype": "int"
+    },
+    "Datum": {
+        "desc": "Datum reference for the elevation fields (e.g. NAVD88; WGS84)",
+        "require_field": "O",
+        "data_type": "varchar(20)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "GroundElevation": {
+        "desc": "Flood or Windstorm - Elevation of the local ground surface at the building at this location",
+        "require_field": "O",
+        "data_type": "float",
+        "default_value": "-999",
+        "py_dtype": "float"
+    },
+    "GroundElevationUnit": {
+        "desc": "Code for the unit of measure used to express the GroundElevation",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "1",
+        "py_dtype": "int"
+    },
+    "Tank": {
+        "desc": "Code that indicates if there are rooftop tanks on the adjoining higher buildings",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "Redundancy": {
+        "desc": "Indicates whether there are multiple lateral load resisting elements, such as frames or shear walls",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "InternalPartition": {
+        "desc": "Interior wall partitions or chimneys made from URM",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "ExternalDoors": {
+        "desc": "Wind resistant doors, doors with a certain rating of hurricane protection",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "Torsion": {
+        "desc": "Code that represents the layout of structural elements that can lead to torsional loads",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "MechanicalEquipmentSide": {
+        "desc": "Mechanical or electrical equipment at the side",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "ContentsWindVuln": {
+        "desc": "Contents relative vulnerability to windstorm or tornado",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "ContentsFloodVuln": {
+        "desc": "Contents relative vulnerability to flood",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "ContentsQuakeVuln": {
+        "desc": "Contents relative vulnerability to earthquake",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "SmallDebris": {
+        "desc": "Code that identifies whether small debris are present within 200 meters of the structure",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "FloorsOccupied": {
+        "desc": "Number of floors in the building that are occupied",
+        "require_field": "O",
+        "data_type": "varchar(255)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "FloodDefenseHeight": {
+        "desc": "Height of any site specific flood defenses protecting the property with respect to local ground elevation (NOT to datum).",
+        "require_field": "O",
+        "data_type": "float",
+        "default_value": "-999",
+        "py_dtype": "float"
+    },
+    "FloodDefenseHeightUnit": {
+        "desc": "Code for the unit of measure used to express the FloodDefenseHeight",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "1",
+        "py_dtype": "int"
+    },
+    "FloodDebrisResilience": {
+        "desc": "Shows if building is vulnerable to floating debris",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "BaseFloodElevation": {
+        "desc": "Water surface elevation",
+        "require_field": "O",
+        "data_type": "float",
+        "default_value": "-999",
+        "py_dtype": "float"
+    },
+    "BaseFloodElevationUnit": {
+        "desc": "Code for the unit of measure used to express the BaseFloodElevation",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "1",
+        "py_dtype": "int"
+    },
+    "BuildingHeight": {
+        "desc": "Total height of the structure",
+        "require_field": "O",
+        "data_type": "float",
+        "default_value": "-999",
+        "py_dtype": "float"
+    },
+    "BuildingHeightUnit": {
+        "desc": "Units of the BuildingHeight",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "1",
+        "py_dtype": "int"
+    },
+    "BuildingValuation": {
+        "desc": "Field for third party valuation data",
+        "require_field": "O",
+        "data_type": "varchar(20)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "TreeExposure": {
+        "desc": "Secondary modifier coding density of trees adjacent to structure",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "Chimney": {
+        "desc": "Code that indicates if the structure has a chimney and, if so, the height of the chimney",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "BuildingType": {
+        "desc": "Building type (e.g. detached, terraced, etc)",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "Packaging": {
+        "desc": "Describes the susceptibility of the packaging of a risk to the peril",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "Protection": {
+        "desc": "Describes the level of protection from the specific peril",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "SalvageProtection": {
+        "desc": "The salvage potential of a particular product",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "ValuablesStorage": {
+        "desc": "Where the specie element is stored",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "DaysHeld": {
+        "desc": "Number of days cargo is kept at port or the duration of an exhibition",
+        "require_field": "O",
+        "data_type": "smallint",
+        "default_value": "365",
+        "py_dtype": "int"
+    },
+    "BrickVeneer": {
+        "desc": "Code that represents the percentage of external walls that consist of brick veneer.",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "FEMACompliance": {
+        "desc": "Indicates whether the building is in compliance with the FEMA flood zone requirements in both design and construction",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "CustomFloodSOP": {
+        "desc": "Standard of flood protection return period; values from 0-10,000",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "CustomFloodZone": {
+        "desc": "User-defined flood zone",
+        "require_field": "O",
+        "data_type": "varchar(20)",
+        "default_value": "n/a",
+        "py_dtype": "str"
+    },
+    "MultiStoryHall": {
+        "desc": "Code that indicates if the building has a multi-story hall",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "BuildingExteriorOpening": {
+        "desc": "Code that represents the percentage of exterior walls that are open",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "ServiceEquipmentProtection": {
+        "desc": "Code that indicates whether the service equipment is protected from flood",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "TallOneStory": {
+        "desc": "The height of the taller than usual one-story building",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "TerrainRoughness": {
+        "desc": "Terrain conditions around the building.",
+        "require_field": "O",
+        "data_type": "tinyint",
+        "default_value": "0",
+        "py_dtype": "int"
+    },
+    "NumberOfEmployees": {
+        "desc": "Number of employees",
+        "require_field": "O",
+        "data_type": "int",
+        "default_value": "n/a",
+        "py_dtype": "int"
+    },
+    "Payroll": {
+        "desc": "Total payroll",
+        "require_field": "O",
+        "data_type": "int",
+        "default_value": "n/a",
+        "py_dtype": "int"
+    }
+}

@@ -5,6 +5,7 @@ __all__ = [
     'fast_zip_arrays',
     'fast_zip_dataframe_columns',
     'get_dataframe',
+    'get_dtypes_and_required_cols',
     'get_ids',
     'get_json',
     'get_timestamp',
@@ -18,6 +19,7 @@ __all__ = [
 import builtins
 import io
 import json
+import re
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -293,7 +295,13 @@ def get_dataframe(
     na_values = list(PANDAS_DEFAULT_NULL_VALUES.difference(['NA']))
 
     if src_fp and src_type == 'csv':
-        df = pd.read_csv(src_fp, float_precision=float_precision, memory_map=memory_map, keep_default_na=False, na_values=na_values)
+        # Find flexible fields in loc file and set their data types to that of
+        # FlexiLocZZZ
+        if 'FlexiLocZZZ' in col_dtypes.keys():
+            headers = list(pd.read_csv(src_fp).head(0))
+            for flexiloc_col in filter(re.compile('^FlexiLoc').match, headers):
+                col_dtypes[flexiloc_col] = col_dtypes['FlexiLocZZZ']
+        df = pd.read_csv(src_fp, float_precision=float_precision, memory_map=memory_map, keep_default_na=False, na_values=na_values, dtype=col_dtypes)
     elif src_buf and src_type == 'csv':
         df = pd.read_csv(io.StringIO(src_buf), float_precision=float_precision, memory_map=memory_map, keep_default_na=False, na_values=na_values)
     elif src_fp and src_type == 'json':
@@ -358,6 +366,28 @@ def get_dataframe(
         df.sort_values(_sort_cols, axis=0, ascending=sort_ascending, inplace=True)
 
     return df
+
+
+def get_dtypes_and_required_cols(get_dtypes):
+    """
+    Get OED column data types and required column names from JSON.
+
+    :param get_dtypes: method to get dict from JSON
+    :type get_dtypes: function
+    """
+    dtypes = get_dtypes()
+    col_dtypes = {
+        k: v['py_dtype']
+        for k, v in dtypes.items()
+        if v['py_dtype'] == 'str'
+    }
+    required_cols = [
+        k for k, v in dtypes.items()
+        if v['py_dtype'] == 'str'
+        if v['require_field'] == 'R'
+    ]
+
+    return col_dtypes, required_cols
 
 
 def get_ids(df, usecols, group_by=[]):
