@@ -444,10 +444,6 @@ class OasisManager(object):
         if summarise_exposure:
             write_summary_levels(exposure_df, accounts_fp, target_dir)
 
-        # If exposure summary set, write valid columns for summary levels to file
-        if summarise_exposure:
-            write_summary_levels(exposure_df, accounts_fp, target_dir)
-
         # Write the GUL input files
         files_prefixes = oasis_files_prefixes or self.oasis_files_prefixes
         gul_input_files = write_gul_input_files(
