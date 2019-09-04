@@ -1,6 +1,7 @@
 anytree>=2.4.3
 argparsetree>=0.0.5
 backports.tempfile
+billiard
 certifi
 chainmap
 cookiecutter>=1.6.0

@@ -22,8 +22,7 @@ try:
     from urllib import request as urlrequest
     from urllib.error import URLError
 except ImportError:
-    from urllib2 import request as urlrequest
-    from urllib2 import URLError
+    from urllib2 import urlopen, URLError
 
 
 KTOOLS_VERSION = '3.1.1'
@@ -40,11 +39,9 @@ def get_install_requirements():
     with io.open(os.path.join(SCRIPT_DIR, 'requirements-package.in'), encoding='utf-8') as reqs:
         return reqs.readlines()
 
-
 def get_version():
     """
     Return package version as listed in `__version__` in `init.py`.
-    https://www.python.org/dev/peps/pep-0440/#pre-releases
     """
     with io.open(os.path.join(SCRIPT_DIR, 'oasislmf', '__init__.py'), encoding='utf-8') as init_py:
         return re.search('__version__ = [\'"]([^\'"]+)[\'"]', init_py.read()).group(1)
@@ -110,7 +107,7 @@ class InstallKtoolsMixin(object):
         build_dir = os.path.join(extract_location, 'ktools-{}'.format(KTOOLS_VERSION))
 
         exit_code = os.system('cd {build_dir} && ./autogen.sh && ./configure && make && make check'.format(build_dir=build_dir))
-        if(exit_code == 0):
+        if(exit_code is not 0):
             print('Ktools build failed.\n')
             sys.exit(1)
         return build_dir
@@ -147,7 +144,7 @@ class InstallKtoolsMixin(object):
             local_tar_path = os.path.join(d, 'ktools.tar.gz')
             local_extract_path = os.path.join(d, 'extracted')
             source_url = 'https://github.com/OasisLMF/ktools/archive/v{}.tar.gz'.format(KTOOLS_VERSION)
-
+            
             self.fetch_ktools_tar(local_tar_path, source_url)
             self.unpack_tar(local_tar_path, local_extract_path)
             build_dir = self.build_ktools(local_extract_path)
@@ -163,7 +160,6 @@ class InstallKtoolsMixin(object):
             self.unpack_tar(local_tar_path, local_extract_path)
             self.ktools_components = list(self.add_ktools_bins_to_path(local_extract_path))
 
-
 class PostInstallKtools(InstallKtoolsMixin, install):
     command_name = 'install'
     user_options = install.user_options + [
@@ -176,9 +172,9 @@ class PostInstallKtools(InstallKtoolsMixin, install):
         install.__init__(self, *args, **kwargs)
 
     def run(self):
-        '''
-        If system arch matches Ktools static build try to install from pre-build
-        with a fallback of compile ktools from source
+        ''' 
+        If system arch matches Ktools static build try to install from pre-build 
+        with a fallback of compile ktools from source 
         '''
         if '--plat-name' in sys.argv:
             PLATFORM = sys.argv[sys.argv.index('--plat-name') + 1]
@@ -187,10 +183,11 @@ class PostInstallKtools(InstallKtoolsMixin, install):
             ARCH = machine()
             OS = system()
 
+
         if ARCH in ['x86_64'] and OS in ['Linux', 'Darwin']:
             try:
                 self.install_ktools_bin(OS, ARCH)
-            except Exception:
+            except:    
                 print('Fallback - building ktools from source')
                 self.install_ktools_source()
         else:
@@ -226,7 +223,7 @@ class PostDevelopKtools(InstallKtoolsMixin, develop):
 
 try:
     from wheel.bdist_wheel import bdist_wheel
-
+    
     # https://github.com/pypa/wheel/blob/master/wheel/bdist_wheel.py#L43
     class BdistWheel(bdist_wheel):
         command_name = 'bdist_wheel'
