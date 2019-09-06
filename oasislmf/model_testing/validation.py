@@ -11,10 +11,19 @@ from ..utils.exceptions import OasisException
 # Model files to test
 INPUT_FILES = {
     'damage_bin_dict': {
-        'name': 'damage_bin_dict', 'validation_tool': 'validatedamagebin'
+        'name': 'damage_bin_dict',
+        'validation_tool': 'validatedamagebin',
+        'flag': '-d'
     },
     'footprint': {
-        'name': 'footprint', 'validation_tool': 'validatefootprint'
+        'name': 'footprint',
+        'validation_tool': 'validatefootprint',
+        'flag': 'f'
+    },
+    'vulnerability': {
+        'name': 'vulnerability',
+        'validation_tool': 'validatevulnerability',
+        'flag': '-s'
     }
 }
 
@@ -33,6 +42,7 @@ def csv_validity_test(model_data_fp):
 
     model_data_dir = os.path.abspath(model_data_fp)
 
+    # Check individual files
     for input_file in INPUT_FILES.values():
         validation_tool = input_file['validation_tool']
         input_file_path = os.path.join(
@@ -47,3 +57,16 @@ def csv_validity_test(model_data_fp):
             subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
         except subprocess.CalledProcessError as e:
             raise OasisException from e
+
+    # Execute cross checks
+    logger.info("Executing cross checks")
+    cmd_str = "crossvalidation"
+    for input_file in INPUT_FILES.values():
+        flag = input_file['flag']
+        validation_tool = input_file['validation_tool']
+        cmd_str += " {} {}".format(flag, validation_tool)
+    
+    try:
+        subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
+    except subprocess.CalledProcessError as e:
+        raise OasisException from e
