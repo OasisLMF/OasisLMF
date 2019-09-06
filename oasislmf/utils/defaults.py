@@ -4,7 +4,9 @@ __all__ = [
     'get_default_exposure_profile',
     'get_default_fm_aggregation_profile',
     'get_default_unified_profile',
-    'KTOOLS_ALLOC_RULE',
+    'get_loc_dtypes',
+    'KTOOLS_ALLOC_RULE_IL',
+    'KTOOLS_ALLOC_RULE_GUL',
     'KTOOLS_FIFO_RELATIVE',
     'KTOOLS_DEBUG',
     'KTOOLS_MEM_LIMIT',
@@ -15,7 +17,8 @@ __all__ = [
     'SUMMARY_OUTPUT',
     'SOURCE_IDX',
     'SOURCE_FILENAMES',
-    'STATIC_DATA_FP'
+    'STATIC_DATA_FP',
+    'WRITE_CHUNKSIZE'
 ]
 
 import os
@@ -90,6 +93,13 @@ def get_default_fm_aggregation_profile(path=False):
     fp = os.path.join(STATIC_DATA_FP, 'default_fm_agg_profile.json')
     return {int(k): v for k, v in get_json(src_fp=fp).items()} if not path else fp
 
+# Data types for fields in OED loc. (exposure) file
+def get_loc_dtypes():
+    fp = os.path.join(STATIC_DATA_FP, 'loc_dtypes.json')
+    return get_json(src_fp=fp)
+
+
+WRITE_CHUNKSIZE = 2 * (10 ** 5)
 
 # Default name prefixes of the Oasis input files (GUL + IL)
 OASIS_FILES_PREFIXES = OrderedDict({
@@ -117,5 +127,6 @@ def get_default_deterministic_analysis_settings(path=False):
 KTOOLS_NUM_PROCESSES = 2
 KTOOLS_MEM_LIMIT = False
 KTOOLS_FIFO_RELATIVE = False
-KTOOLS_ALLOC_RULE = 2
+KTOOLS_ALLOC_RULE_IL = 2
+KTOOLS_ALLOC_RULE_GUL = 1     # 1 = new item stream, 0 = use prev Coverage stream
 KTOOLS_DEBUG = False

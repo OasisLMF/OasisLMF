@@ -25,7 +25,7 @@ except ImportError:
     from urllib2 import urlopen, URLError
 
 
-KTOOLS_VERSION = '3.1.0'
+KTOOLS_VERSION = '3.1.1'
 
 SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -104,17 +104,18 @@ class InstallKtoolsMixin(object):
 
     def build_ktools(self, extract_location):
         self.announce('Building ktools', INFO)
+        print('Installing ktools from source')
         build_dir = os.path.join(extract_location, 'ktools-{}'.format(KTOOLS_VERSION))
 
         exit_code = os.system('cd {build_dir} && ./autogen.sh && ./configure && make && make check'.format(build_dir=build_dir))
         if(exit_code is not 0):
-            self.announce('Ktools build failed.\n', WARN)
-            if (not self.ktools_inpath()):
-                self.announce('Exisiting Ktools install not found.\n', WARN)
+            print('Ktools build failed.\n')
+            sys.exit(1)
+            #if (not self.ktools_inpath()):
+            #    print('Exisiting Ktools install not found.\n')
         return build_dir
 
     def add_ktools_build_to_path(self, build_dir):
-        print('Installing ktools from source')
 
         if not os.path.exists(self.get_bin_dir()):
             os.makedirs(self.get_bin_dir())
@@ -178,9 +179,15 @@ class PostInstallKtools(InstallKtoolsMixin, install):
         If system arch matches Ktools static build try to install from pre-build 
         with a fallback of compile ktools from source 
         '''
-        ARCH = machine()
-        OS = system()
-        if ARCH in ['x86_64'] and OS in ['Linux']:
+        if '--plat-name' in sys.argv:
+            PLATFORM = sys.argv[sys.argv.index('--plat-name') + 1]
+            OS, ARCH = PLATFORM.split('_', 1)
+        else:
+            ARCH = machine()
+            OS = system()
+
+
+        if ARCH in ['x86_64'] and OS in ['Linux', 'Darwin']:
             try:
                 self.install_ktools_bin(OS, ARCH)
             except:    
@@ -219,10 +226,14 @@ class PostDevelopKtools(InstallKtoolsMixin, develop):
 
 try:
     from wheel.bdist_wheel import bdist_wheel
-
+    
+    # https://github.com/pypa/wheel/blob/master/wheel/bdist_wheel.py#L43
     class BdistWheel(bdist_wheel):
         command_name = 'bdist_wheel'
         user_options = bdist_wheel.user_options
+
+        def initialize_options(self):
+            super(BdistWheel, self).initialize_options()
 
         def finalize_options(self):
             bdist_wheel.finalize_options(self)
@@ -232,6 +243,7 @@ try:
             python, abi, plat = bdist_wheel.get_tag(self)
             python, abi = 'py3', 'none'
             plat = plat.lower().replace('linux', 'manylinux1')
+            plat = plat.lower().replace('darwin_x86_64', 'macosx_10_6_intel')
             return python, abi, plat
 
 except ImportError:
@@ -303,7 +315,7 @@ setup(
     exclude_package_data={
         '': ['__pycache__', '*.py[co]'],
     },
-    scripts=['bin/oasislmf'],
+    scripts=['bin/oasislmf', 'bin/completer_oasislmf'],
     license='BSD 3-Clause',
     description='Core loss modelling framework.',
     long_description=readme,

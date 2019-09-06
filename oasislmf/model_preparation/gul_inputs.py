@@ -207,7 +207,6 @@ def get_gul_input_items(
         exposure_df[SOURCE_IDX['loc']] = exposure_df.index
 
         gul_inputs_df = merge_dataframes(exposure_df, keys_df, join_on='loc_id', how='inner')
-
         if gul_inputs_df.empty:
             raise OasisException(
                 'Inner merge of the exposure file dataframe ({}) '
@@ -268,6 +267,11 @@ def get_gul_input_items(
 
         # Remove any rows with zeros in the ``tiv`` column and reset the index
         gul_inputs_df = gul_inputs_df[(gul_inputs_df.loc[:, ['tiv']] != 0).any(axis=1)].reset_index()
+        if gul_inputs_df.empty:
+            raise OasisException(
+                'Empry gul_inputs_df dataframe after dropping rows with zero for tiv, '
+                'please check the exposure input files'
+            )
 
         # Remove the source columns for the TIVs and coverage level financial terms
         gul_inputs_df.drop(tiv_cols + term_cols, axis=1, inplace=True)
@@ -398,7 +402,8 @@ def write_coverages_file(gul_inputs_df, coverages_fp, chunksize=100000):
 def write_gul_input_files(
     gul_inputs_df,
     target_dir,
-    oasis_files_prefixes=copy.deepcopy(OASIS_FILES_PREFIXES['gul'])
+    oasis_files_prefixes=copy.deepcopy(OASIS_FILES_PREFIXES['gul']),
+    chunksize=(2 * 10 ** 5)
 ):
     """
     Writes the standard Oasis GUL input files to a target directory, using a
@@ -419,6 +424,10 @@ def write_gul_input_files(
     :param oasis_files_prefixes: Oasis GUL input file name prefixes
     :param oasis_files_prefixes: dict
 
+    :param chunksize: The chunk size to use when writing out the
+                      input files
+    :type chunksize: int
+
     :return: GUL input files dict
     :rtype: dict
     """
@@ -427,7 +436,7 @@ def write_gul_input_files(
 
     # Set chunk size for writing the CSV files - default is the minimum of 100K
     # or the GUL inputs frame size
-    chunksize = min(2 * 10**5, len(gul_inputs_df))
+    chunksize = chunksize or min(chunksize, len(gul_inputs_df))
 
     # If no complex model data present then remove the corresponding file
     # name from the files prefixes dict, which is used for writing the
@@ -443,7 +452,7 @@ def write_gul_input_files(
     }
 
     this_module = sys.modules[__name__]
-    # Write the files
+    # Write the files serially
     for fn in gul_input_files:
         getattr(this_module, 'write_{}_file'.format(fn))(gul_inputs_df.copy(deep=True), gul_input_files[fn], chunksize)
 

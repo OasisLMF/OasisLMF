@@ -1,0 +1,16 @@
+ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsTag,CededPercent,RiskLevel
+13,OEDTest,QS05_01,,,QS05_01_1,,,,,,,LOC
+13,OEDTest,QS05_02,,,QS05_02_2,,,,,,,LOC
+14,OEDTest,QS05_03,QS05_03_1,,,,,,,,,POL
+14,OEDTest,QS05_07,QS05_07_1,,,,,,,,,POL
+15,OEDTest,QS05_05,,,,,,,,,,ACC
+15,OEDTest,QS05_06,,,,,,,,,,ACC
+16,OEDTest,QS05_08,,,QS05_08_1,,,,,,,
+16,OEDTest,QS05_08,,,QS05_08_2,,,,,,,
+16,OEDTest,QS05_09,,,,,,,,,,
+17,OEDTest,QS06_01,,,QS06_01_1,,,,,,,LOC
+17,OEDTest,QS06_02,,,QS06_02_2,,,,,,,LOC
+18,OEDTest,QS06_03,QS06_03_1,,,,,,,,,POL
+18,OEDTest,QS06_07,QS06_07_1,,,,,,,,,POL
+19,OEDTest,QS06_05,,,,,,,,,,ACC
+19,OEDTest,QS06_06,,,,,,,,,,ACC

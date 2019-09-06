@@ -39,7 +39,10 @@ from ..utils.defaults import (
     SOURCE_IDX,
 )
 from ..utils.exceptions import OasisException
-from ..utils.fm import SUPPORTED_FM_LEVELS
+from ..utils.fm import (
+    DEDUCTIBLE_AND_LIMIT_TYPES,
+    SUPPORTED_FM_LEVELS,
+)
 from ..utils.log import oasis_log
 from ..utils.path import as_path
 from ..utils.profiles import (
@@ -427,12 +430,6 @@ def get_il_input_items(
             agg_key = [v['field'].lower() for v in fmap[level_id]['FMAggKey'].values()]
             level_df['agg_id'] = factorize_ndarray(level_df.loc[:, agg_key].values, col_idxs=range(len(agg_key)))[0]
 
-            #agg_tivs = level_df.loc[:, ['agg_id', 'tiv']].groupby(['agg_id'])['tiv'].sum()
-            #agg_tivs = pd.DataFrame(agg_tivs).rename(
-            #    columns={'tiv': 'agg_tiv'}
-            #).assign(agg_id=agg_tivs.index).reset_index(drop=True)
-            #level_df = merge_dataframes(level_df, agg_tivs, on='agg_id', how='left')
-
             if level == 'cond all':
                 level_df.loc[:, level_term_cols] = level_df.loc[:, level_term_cols].fillna(0)
             else:
@@ -518,6 +515,10 @@ def get_il_input_items(
         dtypes = {t: 'uint8' for t in ['ded_code', 'ded_type', 'lim_code', 'lim_type']}
         il_inputs_df = set_dataframe_column_dtypes(il_inputs_df, dtypes)
 
+        # Group and sum TIVS for items by loc. ID and agg. ID, within each
+        # level, and store in a new ``agg_tiv`` column - this step is
+        # preparation for the next step which is to convert % TIV deductibles
+        # to TIV fractional amounts
         agg_tivs = pd.DataFrame(
             il_inputs_df.loc[:, ['level_id','loc_id','agg_id','tiv']].groupby(['level_id','loc_id','agg_id'])['tiv'].sum()
         ).reset_index()
@@ -530,12 +531,12 @@ def get_il_input_items(
 
         # Apply rule to convert type 2 deductibles and limits to TIV shares
         il_inputs_df['deductible'] = np.where(
-            il_inputs_df['ded_type'] == 2,
+            il_inputs_df['ded_type'] ==  DEDUCTIBLE_AND_LIMIT_TYPES['pctiv']['id'],
             il_inputs_df['deductible'] * il_inputs_df['agg_tiv'],
             il_inputs_df['deductible']
         )
         il_inputs_df['limit'] = np.where(
-            il_inputs_df['lim_type'] == 2,
+            il_inputs_df['lim_type'] ==  DEDUCTIBLE_AND_LIMIT_TYPES['pctiv']['id'],
             il_inputs_df['limit'] * il_inputs_df['agg_tiv'],
             il_inputs_df['limit']
         )
@@ -653,6 +654,7 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
     :return: FM programme file path
     :rtype: str
     """
+    #import ipdb; ipdb.set_trace()
     try:
         fm_programme_df = pd.concat(
             [
@@ -662,6 +664,9 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
         ).reset_index(drop=True)
 
         min_level, max_level = 0, fm_programme_df['level_id'].max()
+        max_level_agg_ids = il_inputs_df[il_inputs_df['level_id'] == max_level].loc[:, ['loc_id', 'agg_id']].drop_duplicates()['agg_id'].tolist()
+        if len(set(max_level_agg_ids)) == 1:
+            max_level_agg_ids = [max_level_agg_ids[0]]
 
         fm_programme_df = pd.DataFrame(
             {
@@ -670,6 +675,7 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
                 'to_agg_id': fm_programme_df[fm_programme_df['level_id'] > min_level]['agg_id'].reset_index(drop=True)
             }
         ).dropna(axis=0).drop_duplicates()
+        fm_programme_df.loc[fm_programme_df[fm_programme_df['level_id'] == max_level].index, ['to_agg_id']] = max_level_agg_ids
 
         dtypes = {t: 'uint32' for t in fm_programme_df.columns}
         fm_programme_df = set_dataframe_column_dtypes(fm_programme_df, dtypes)
@@ -726,7 +732,8 @@ def write_fm_xref_file(il_inputs_df, fm_xref_fp, chunksize=100000):
 def write_il_input_files(
     il_inputs_df,
     target_dir,
-    oasis_files_prefixes=copy.deepcopy(OASIS_FILES_PREFIXES['il'])
+    oasis_files_prefixes=copy.deepcopy(OASIS_FILES_PREFIXES['il']),
+    chunksize=(2 * 10 ** 5)
 ):
     """
     Writes standard Oasis IL input files to a target directory using a
@@ -747,6 +754,10 @@ def write_il_input_files(
     :param oasis_files_prefixes: Oasis IL input file name prefixes
     :param oasis_files_prefixes: dict
 
+    :param chunksize: The chunk size to use when writing out the
+                      input files
+    :type chunksize: int
+
     :return: IL input files dict
     :rtype: dict
     """
@@ -755,7 +766,7 @@ def write_il_input_files(
 
     # Set chunk size for writing the CSV files - default is the minimum of 100K
     # or the IL inputs frame size
-    chunksize = min(2 * 10**5, len(il_inputs_df))
+    chunksize = chunksize or min(2 * 10**5, len(il_inputs_df))
 
     # A dict of IL input file names and file paths
     il_input_files = {
@@ -763,7 +774,7 @@ def write_il_input_files(
     }
 
     this_module = sys.modules[__name__]
-    # Write the files
+    # Write the files serially
     for fn in il_input_files:
         getattr(this_module, 'write_{}_file'.format(fn))(il_inputs_df.copy(deep=True), il_input_files[fn], chunksize)
 

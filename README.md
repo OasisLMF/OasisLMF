@@ -1,6 +1,6 @@
 <img src="https://oasislmf.org/packages/oasis_theme_package/themes/oasis_theme/assets/src/oasis-lmf-colour.png" alt="Oasis LMF logo" width="250"/>
 
-[![PyPI version](https://badge.fury.io/py/oasislmf.svg)](https://badge.fury.io/py/oasislmf)  [![Build Status](https://ci.oasislmfdev.org/buildStatus/icon?job=oasis_oasislmf/master)](https://ci.oasislmfdev.org/job/oasis_oasislmf/job/master/)
+[![ktools version](https://img.shields.io/github/tag/Oasislmf/ktools?label=ktools)](https://github.com/OasisLMF/ktools/releases) [![PyPI version](https://badge.fury.io/py/oasislmf.svg)](https://badge.fury.io/py/oasislmf) [![Build Status](https://ci.oasislmfdev.org/buildStatus/icon?job=oasis_oasislmf/master)](https://ci.oasislmfdev.org/job/oasis_oasislmf/job/master/)
 
 # OasisLMF
 
@@ -52,6 +52,21 @@ Alternatively you can install the latest development version using:
 You can also install from a specific branch `<branch name>` using:
 
     pip install [-v] git+{https,ssh}://git@github.com/OasisLMF/OasisLMF.git@<branch name>#egg=oasislmf
+
+## Enable Bash completion
+
+Bash completion is a functionality which bash helps users type their commands by presenting possible options when users press the tab key while typing a command.
+
+Once oasislmf is installed you'll need to be activate the feature by sourcing a bash file. (only needs to be run once)
+
+### Local 
+
+    oasislmf admin enable-bash-complete
+
+### Global 
+
+    echo 'complete -C completer_oasislmf oasislmf' | sudo tee /usr/share/bash-completion/completions/oasislmf
+
 
 ## Dependencies
 
@@ -134,6 +149,17 @@ The distribution format can be either a source distribution or a platform-specif
 or to publish the platform specific wheel run:
 
     python setup.py publish --wheel
+
+### Creating a bdist for another platform 
+
+To create a distribution for a non-host platform use the `--plat-name` flag:
+
+     python setup.py bdist_wheel --plat-name Linux_x86_64
+
+     or
+
+     python setup.py bdist_wheel --plat-name Darwin_x86_64
+
 
 ### Manually publishing, with a GPG signature
 

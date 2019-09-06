@@ -241,6 +241,7 @@ def write_summary_levels(exposure_df, accounts_fp, target_dir):
     '''
     # Manage internal columns, (Non-OED exposure input)
     int_excluded_cols = ['loc_id', SOURCE_IDX['loc']]
+    desc_non_oed = 'Not an OED field'
     int_oasis_cols = {
         'coverage_type_id': 'Oasis coverage type', 
         'peril_id': 'OED peril code', 
@@ -249,8 +250,10 @@ def write_summary_levels(exposure_df, accounts_fp, target_dir):
 
     # GUL perspective (loc columns only)
     l_col_list = exposure_df.loc[:, exposure_df.any()].columns.to_list()
-    gul_avail = {k:OED_LOCATION_COLS[k]['desc'] for k in set([c.lower() for c in l_col_list]).difference(int_excluded_cols)}
-    gul_rec = {k:OED_LOCATION_COLS[k]['desc'] for k in set(gul_avail.keys()).intersection(SUMMARY_LEVEL_LOC)}
+    gul_avail = {k:OED_LOCATION_COLS[k]['desc'] if k in OED_LOCATION_COLS else desc_non_oed
+                 for k in set([c.lower() for c in l_col_list]).difference(int_excluded_cols)}
+    gul_rec = {k:OED_LOCATION_COLS[k]['desc'] if k in OED_LOCATION_COLS else desc_non_oed 
+               for k in set(gul_avail.keys()).intersection(SUMMARY_LEVEL_LOC)}
 
     gul_summary_lvl = {'GUL': {
         'available': {**gul_avail, **int_oasis_cols},
@@ -265,8 +268,10 @@ def write_summary_levels(exposure_df, accounts_fp, target_dir):
         a_avail = set([c.lower() for c in a_col_list])
         a_rec = set(a_avail).intersection(SUMMARY_LEVEL_ACC)
 
-        il_avail = {k:OED_ACCOUNT_COLS[k]['desc'] for k in a_avail.difference(gul_avail.keys())}
-        il_rec = {k:OED_ACCOUNT_COLS[k]['desc'] for k in a_rec.difference(gul_rec.keys())}
+        il_avail = {k:OED_ACCOUNT_COLS[k]['desc'] if k in OED_ACCOUNT_COLS else desc_non_oed
+                    for k in a_avail.difference(gul_avail.keys())}
+        il_rec = {k:OED_ACCOUNT_COLS[k]['desc'] if k in OED_ACCOUNT_COLS else desc_non_oed
+                  for k in a_rec.difference(gul_rec.keys())}
         il_summary_lvl = {'IL': {
             'available': {**gul_avail, **il_avail, **int_oasis_cols},
             'recommended': {**gul_rec, **il_rec, **int_oasis_cols}}
@@ -300,8 +305,8 @@ def write_mapping_file(sum_inputs_df, target_dir, is_fm_summary=False):
         preexists=False
     )
 
-    # Set chunk size for writing the CSV files - default is 100K
-    chunksize = min(2 * 10**5, len(sum_inputs_df))
+    # Set chunk size for writing the CSV files - default is max 20K, min 1K
+    chunksize =  min(2 * 10**5, max(len(sum_inputs_df), 1000))
 
     if is_fm_summary:
         sum_mapping_fp = os.path.join(target_dir, SUMMARY_MAPPING['fm_map_fn'])
@@ -336,6 +341,8 @@ def get_column_selection(summary_set):
     :rtype: list
     """
     if "oed_fields" not in summary_set:
+        return None
+    if not summary_set["oed_fields"]:
         return None
 
     # Select Default Grouping for either
@@ -389,7 +396,7 @@ def write_df_to_file(df, target_dir, filename):
     :type filename:  str
     """
     target_dir = as_path(target_dir, 'Input files directory', is_dir=True, preexists=False)
-    chunksize = min(2 * 10**5, len(df))
+    chunksize =  min(2 * 10**5, max(len(df), 1000))
     csv_fp = os.path.join(target_dir, filename)
     try:
         df.to_csv(
@@ -406,7 +413,7 @@ def write_df_to_file(df, target_dir, filename):
 
 
 @oasis_log
-def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, summaries_type):
+def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, summaries_type, gul_items=False):
     """
     Create a Dataframe for either gul / il / ri  based on a section
     from the analysis settings
@@ -463,7 +470,7 @@ def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, s
     if 'output_id' in map_df:
         ids_set_df = map_df.loc[:, ['output_id']].rename(columns={"output_id": "output"})
     else:
-        ids_set_df = map_df.loc[:, ['coverage_id']]
+        ids_set_df = map_df.loc[:, ['item_id']] if gul_items else map_df.loc[:, ['coverage_id']]
 
     # For each granularity build a set grouping
     for summary_set in summaries_info_dict:
@@ -498,7 +505,7 @@ def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, s
 
 
 @oasis_log
-def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=False):
+def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=False, gul_item_stream=False):
     """
     Top level function for creating the summaryxref files from the manager.py
 
@@ -515,6 +522,9 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
     :param ri: Boolean to indicate the RI loss level mode - false if the
                source accounts file path not provided to Oasis files gen.
     :type il: bool
+
+    :param gul_items: Boolean to gul to use item_id instead of coverage_id
+    :type gul_items: bool
     """
 
     # Boolean checks for summary generation types (gul / il / ri)
@@ -532,6 +542,8 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
         analysis_settings['ri_summaries'] if 'ri_summaries' in analysis_settings else False,
         ri,
     ])
+
+
 
     # Load locations file for GUL OED fields
     exposure_fp = os.path.join(model_run_fp, 'input', SOURCE_FILENAMES['loc'])
@@ -560,7 +572,8 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
             exposure_df,
             None,
             analysis_settings['gul_summaries'],
-            'gul'
+            'gul',
+            gul_item_stream
         )
         # Write Xref file
         write_df_to_file(gul_summaryxref_df, os.path.join(model_run_fp, 'input'), SUMMARY_OUTPUT['gul'])

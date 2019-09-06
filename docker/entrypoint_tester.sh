@@ -21,6 +21,9 @@ BUILD_OUTPUT_DIR='/tmp/output/'
     WHL_PKG=$(find ./dist/ -name "oasislmf-${VER_PKG}*.whl")
     pip install --verbose $WHL_PKG 
 
+    # Create OSX wheel 
+    python setup.py bdist_wheel --plat-name Darwin_x86_64 
+
 # Unit testing
     find /home/ -name __pycache__ | xargs -r rm -rfv
     find /home/ -name "*.pyc" | xargs -r rm -rfv

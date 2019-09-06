@@ -37,8 +37,10 @@ from rtree.core import RTreeError
 
 from ..utils.data import (
     get_dataframe,
+    get_dtypes_and_required_cols,
     get_ids,
 )
+from ..utils.defaults import get_loc_dtypes
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.peril import (
@@ -352,10 +354,20 @@ class OasisLookupFactory(object):
         """
         Get the source OED exposure/location data as a Pandas dataframe.
         """
+        col_dtypes, required_cols = get_dtypes_and_required_cols(get_loc_dtypes)
+
         if source_exposure_fp:
-            loc_df = get_dataframe(src_fp=os.path.abspath(source_exposure_fp))
+            loc_df = get_dataframe(
+                src_fp=os.path.abspath(source_exposure_fp),
+                col_dtypes=col_dtypes,
+                required_cols=required_cols
+            )
         elif source_exposure:
-            loc_df = get_dataframe(src_buf=source_exposure)
+            loc_df = get_dataframe(
+                src_buf=source_exposure,
+                col_dtypes=col_dtypes,
+                required_cols=required_cols
+            )
         else:
             raise OasisException('Either the source exposure or exposure file path must be specified')
 

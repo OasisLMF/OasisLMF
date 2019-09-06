@@ -20,7 +20,7 @@ from ..utils.data import (
     print_dataframe,
 )
 from ..utils.defaults import (
-    KTOOLS_ALLOC_RULE,
+    KTOOLS_ALLOC_RULE_IL,
     OASIS_FILES_PREFIXES,
 )
 from ..utils.diff import column_diff
@@ -68,7 +68,7 @@ class RunCmd(OasisBaseCommand):
             help='Loss factor to apply to TIVs - default is 1.0.'
         )
         parser.add_argument(
-            '-a', '--alloc-rule', type=int, default=KTOOLS_ALLOC_RULE, help='Ktools back allocation rule to apply - default is 2, i.e. prior level loss basis'
+            '-a', '--alloc-rule-il', type=int, default=KTOOLS_ALLOC_RULE_IL, help='Ktools IL back allocation rule to apply - default is 2, i.e. prior level loss basis'
         )
         parser.add_argument(
             '-v', '--validate', default=False, help='Validate input files and loss tables - default is False', action='store_true'
@@ -108,7 +108,7 @@ class RunCmd(OasisBaseCommand):
 
         net_ri = True
 
-        alloc_rule = inputs.get('alloc_rule', default=KTOOLS_ALLOC_RULE, required=False)
+        alloc_rule = inputs.get('alloc_rule_il', default=KTOOLS_ALLOC_RULE_IL, required=False)
 
         validate = inputs.get('validate', default=False, required=False)
 
@@ -241,7 +241,7 @@ class RunCmd(OasisBaseCommand):
                     'set of GUL, IL and optionally the RI loss files'
                 )
 
-            files = ['keys.csv']
+            files = ['keys.csv', 'loc_summary.csv']
             files += [
                 '{}.csv'.format(fn)
                 for ft, fn in chain(OASIS_FILES_PREFIXES['gul'].items(), OASIS_FILES_PREFIXES['il'].items())
@@ -256,6 +256,10 @@ class RunCmd(OasisBaseCommand):
             for f in files:
                 generated = os.path.join(run_dir, f)
                 expected = os.path.join(expected_data_dir, f)
+                
+                if not os.path.exists(expected):
+                    continue
+
                 self.logger.info('\nComparing generated {} vs expected {}'.format(generated, expected))
                 try:
                     assert(compare_files(generated, expected) is True)

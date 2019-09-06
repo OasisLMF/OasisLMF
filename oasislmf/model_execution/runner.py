@@ -5,7 +5,7 @@ import shutil
 
 import subprocess
 
-from ..model_preparation.oed import ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID
+from ..utils.defaults import KTOOLS_ALLOC_RULE_IL, KTOOLS_ALLOC_RULE_GUL
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from .bash import genbash
@@ -17,7 +17,8 @@ def run(
     number_of_processes=-1,
     num_reinsurance_iterations=0,
     ktools_mem_limit=False,
-    set_alloc_rule=ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID,
+    set_alloc_rule_gul=KTOOLS_ALLOC_RULE_GUL,
+    set_alloc_rule_il=KTOOLS_ALLOC_RULE_IL,
     fifo_tmp_dir=True,
     run_debug=False,
     filename='run_ktools.sh'
@@ -40,6 +41,7 @@ def run(
             item_output,
             process_id,
             max_process_id,
+            gul_alloc_rule,
             **kwargs
         ):
 
@@ -49,7 +51,7 @@ def run(
                 max_process_id,
                 os.path.abspath("analysis_settings.json"),
                 "input")
-            if coverage_output != '':
+            if coverage_output != '' and not gul_alloc_rule:
                 cmd = '{} -c {}'.format(cmd, coverage_output)
             if item_output != '':
                 cmd = '{} -i {}'.format(cmd, item_output)
@@ -62,7 +64,8 @@ def run(
             num_reinsurance_iterations=num_reinsurance_iterations,
             fifo_tmp_dir=fifo_tmp_dir,
             mem_limit=ktools_mem_limit,
-            alloc_rule=set_alloc_rule,
+            gul_alloc_rule=set_alloc_rule_gul,
+            il_alloc_rule=set_alloc_rule_il,
             bash_trace=run_debug,
             filename=filename,
             _get_getmodel_cmd=custom_get_getmodel_cmd,
@@ -74,7 +77,8 @@ def run(
             num_reinsurance_iterations=num_reinsurance_iterations,
             fifo_tmp_dir=fifo_tmp_dir,
             mem_limit=ktools_mem_limit,
-            alloc_rule=set_alloc_rule,
+            gul_alloc_rule=set_alloc_rule_gul,
+            il_alloc_rule=set_alloc_rule_il,
             bash_trace=run_debug,
             filename=filename
         )
