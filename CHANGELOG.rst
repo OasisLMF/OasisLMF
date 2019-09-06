@@ -1,6 +1,16 @@
 OasisLMF Changelog
 ==================
 
+`1.4.1`_
+-------
+* Added bash autocomplete #386
+* Fix for exposure data types on lookup #387
+* Fix for non-OED fields in summary levels #377
+* Fix in Reinsurance Layer Logic #381
+* Refactor deterministic loss generation #371
+* Added bdist package for OSX #372
+* Added Allocation rule for Ground up loss #376
+
 `1.4.0`_
 -------
 * Cookiecutter CLI integration - commands for creating simple and complex Oasis model projects/repositories from project templates
@@ -269,6 +279,7 @@ in the exposure manager
 
 * Add console logging
 
+.. _`1.4.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.0...1.4.1
 .. _`1.4.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.10...1.4.0
 .. _`1.3.10`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.9...1.3.10
 .. _`1.3.9`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.8...1.3.9
