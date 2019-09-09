@@ -63,8 +63,11 @@ def csv_validity_test(model_data_fp):
     cmd_str = "crossvalidation"
     for input_file in INPUT_FILES.values():
         flag = input_file['flag']
-        validation_tool = input_file['validation_tool']
-        cmd_str += " {} {}".format(flag, validation_tool)
+        input_file_path = os.path.join(
+            model_data_dir,
+            '{}.csv'.format(input_file['name'])
+        )
+        cmd_str += " {} {}".format(flag, input_file_path)
     
     try:
         subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
