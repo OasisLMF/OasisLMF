@@ -18,7 +18,7 @@ INPUT_FILES = {
     'footprint': {
         'name': 'footprint',
         'validation_tool': 'validatefootprint',
-        'flag': 'f'
+        'flag': '-f'
     },
     'vulnerability': {
         'name': 'vulnerability',
