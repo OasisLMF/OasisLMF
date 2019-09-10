@@ -546,11 +546,7 @@ def get_profile(
 
 
 def _value_is_empty(value):
-    return (
-        value == "" or
-        value is None or
-        math.isnan(value)
-    )
+    return (value == "" or value is None or math.isnan(value))
 
 
 def get_reinsurance_profile(

@@ -30,9 +30,6 @@ from shapely.geometry import (
 
 from shapely import speedups as shapely_speedups
 
-if shapely_speedups.available:
-    shapely_speedups.enable()
-
 from rtree.core import RTreeError
 
 from ..utils.data import (
@@ -50,7 +47,8 @@ from ..utils.peril import (
 from ..utils.profiles import get_oed_hierarchy
 from ..utils.status import OASIS_KEYS_STATUS
 
-
+if shapely_speedups.available:
+    shapely_speedups.enable()
 UNKNOWN_ID = -1
 
 

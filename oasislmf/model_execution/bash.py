@@ -250,14 +250,13 @@ def do_summarycalcs(runtype, analysis_settings, process_id, filename, fifo_dir='
     if not summaries:
         return
 
-    
     summarycalc_switch = '-f'
     if runtype == RUNTYPE_GROUNDUP_LOSS:
         if gul_alloc_rule:
             # Accept item stream only
             summarycalc_switch = '-i'
         else:
-            # gul coverage stream 
+            # gul coverage stream
             summarycalc_switch = '-g'
 
     summarycalc_directory_switch = ""
@@ -386,7 +385,7 @@ def do_gul(analysis_settings, max_process_id, filename, process_counter, fifo_di
         do_tees(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
     for process_id in range(1, max_process_id + 1):
-        do_summarycalcs(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, 
+        do_summarycalcs(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename,
                         gul_alloc_rule=gul_alloc_rule, fifo_dir=fifo_dir)
 
 
@@ -472,7 +471,7 @@ def do_kwaits(filename, process_counter):
 
 def get_getmodel_itm_cmd(
         number_of_samples, gul_threshold, use_random_number_file,
-        gul_alloc_rule, item_output, 
+        gul_alloc_rule, item_output,
         process_id, max_process_id, **kwargs):
     """
     Gets the getmodel ktools command (3.1.0+) Gulcalc item stream
@@ -482,7 +481,7 @@ def get_getmodel_itm_cmd(
     :type gul_threshold: float
     :param use_random_number_file: flag to use the random number file
     :type use_random_number_file: bool
-    :param gul_alloc_rule: back allocation rule for gulcalc 
+    :param gul_alloc_rule: back allocation rule for gulcalc
     :type gul_alloc_rule: int
     :param item_output: The item output
     :type item_output: str
@@ -586,8 +585,8 @@ def genbash(
 
     # Alloc Rule input guard - default to '2' if invalid value given
     if il_alloc_rule not in [ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID,
-                          ALLOCATE_TO_ITEMS_BY_GUL_ALLOC_ID,
-                          NO_ALLOCATION_ALLOC_ID]:
+                             ALLOCATE_TO_ITEMS_BY_GUL_ALLOC_ID,
+                             NO_ALLOCATION_ALLOC_ID]:
         il_alloc_rule = ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID
 
     # remove the file if it already exists
@@ -617,7 +616,7 @@ def genbash(
     print_command(filename, 'set -o pipefail')
     print_command(filename, '')
 
-    #print_command(filename, 'rm -R -f output/*')
+    # print_command(filename, 'rm -R -f output/*')
     print_command(filename, "find output/* ! -name '*summary-info*' -type f -exec rm -f {} +")
     if not fifo_tmp_dir:
         print_command(filename, 'rm -R -f fifo/*')
@@ -688,7 +687,7 @@ def genbash(
         if gul_item_stream:
             getmodel_args['item_output'] = '- | tee {0}fifo/gul_P{1}'.format(fifo_queue_dir, process_id)
             _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_itm_cmd)
-        else:    
+        else:
             _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_cov_cmd)
 
         # ! Should be able to streamline the logic a little
@@ -697,8 +696,8 @@ def genbash(
             getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
             fm_cmd = '{2} | fmcalc -a{3} | tee {4}fifo/il_P{0}'
             main_cmd = fm_cmd.format(
-                process_id, 
-                max_process_id, 
+                process_id,
+                max_process_id,
                 getmodel_cmd,
                 il_alloc_rule,
                 fifo_queue_dir
@@ -718,8 +717,8 @@ def genbash(
             fm_cmd = '{2} | fmcalc -a{3} > {4}fifo/il_P{0}  &'
 
             main_cmd = fm_cmd.format(
-                process_id, 
-                max_process_id, 
+                process_id,
+                max_process_id,
                 getmodel_cmd,
                 il_alloc_rule,
                 fifo_queue_dir
@@ -734,18 +733,16 @@ def genbash(
                 if gul_item_stream:
                     getmodel_args['item_output'] = '-'
 
-
                 getmodel_args.update(custom_args)
                 getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
                 gul_cmd = '{2} > {3}fifo/gul_P{0}  &'
                 main_cmd = gul_cmd.format(
                     process_id,
-                    max_process_id, 
-                    getmodel_cmd, 
+                    max_process_id,
+                    getmodel_cmd,
                     fifo_queue_dir
                 )
                 print_command(filename, main_cmd)
-
 
             if il_output and 'il_summaries' in analysis_settings:
                 getmodel_args['coverage_output'] = ''
@@ -755,8 +752,8 @@ def genbash(
                 getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
                 fm_cmd = "{2} | fmcalc -a{3} > {4}fifo/il_P{0}  &"
                 main_cmd = fm_cmd.format(
-                    process_id, 
-                    max_process_id, 
+                    process_id,
+                    max_process_id,
                     getmodel_cmd,
                     il_alloc_rule,
                     fifo_queue_dir

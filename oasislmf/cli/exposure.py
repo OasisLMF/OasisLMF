@@ -74,11 +74,11 @@ class RunCmd(OasisBaseCommand):
             '-v', '--validate', default=False, help='Validate input files and loss tables - default is False', action='store_true'
         )
         parser.add_argument(
-            '-o', '--output-level', default='item', 
+            '-o', '--output-level', default='item',
             help='Level to output losses. Options are: item, loc, pol, acc or port.', type=str
         )
         parser.add_argument(
-            '-f', '--output-file', default=None, 
+            '-f', '--output-file', default=None,
             help='Write the output to file.', type=str
         )
 
@@ -256,7 +256,7 @@ class RunCmd(OasisBaseCommand):
             for f in files:
                 generated = os.path.join(run_dir, f)
                 expected = os.path.join(expected_data_dir, f)
-                
+
                 if not os.path.exists(expected):
                     continue
 

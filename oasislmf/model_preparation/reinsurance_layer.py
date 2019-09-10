@@ -18,7 +18,7 @@ from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from . import oed
 
-from ..utils.data import (print_dataframe, get_dataframe)
+from ..utils.data import get_dataframe
 
 # Metadata about an inuring layer
 InuringLayer = namedtuple(
@@ -116,11 +116,11 @@ def write_files_for_reinsurance(
             os.path.join(ri_output_dir, "fm_profile.csv"), index=False)
         ri_input.ri_inputs.fm_policytc.to_csv(
             os.path.join(ri_output_dir, "fm_policytc.csv"), index=False)
-        
+
         fm_xref_df = get_dataframe(fm_xref_fp)
-        fm_xref_df['agg_id'] = range(1, 1+len(fm_xref_df))
+        fm_xref_df['agg_id'] = range(1, 1 + len(fm_xref_df))
         # Net losses across all layers is associated to the max layer ID.
-        fm_xref_df['layer_id'] = ri_input.ri_inputs.fm_policytc['layer_id'].max()   
+        fm_xref_df['layer_id'] = ri_input.ri_inputs.fm_policytc['layer_id'].max()
         fm_xref_df.to_csv(
             os.path.join(ri_output_dir, "fm_xref.csv"), index=False)
 
@@ -151,8 +151,8 @@ def _generate_inputs_for_reinsurance_risk_level(
     if reins_numbers_1.empty:
         return None
     reins_numbers_2 = ri_scope_df[
-        ri_scope_df.isin({"ReinsNumber": reins_numbers_1.tolist()}).ReinsNumber &
-        (ri_scope_df.RiskLevel == risk_level)
+        ri_scope_df.isin({"ReinsNumber": reins_numbers_1.tolist()}).ReinsNumber
+        & (ri_scope_df.RiskLevel == risk_level)
     ].ReinsNumber
     if reins_numbers_2.empty:
         return None

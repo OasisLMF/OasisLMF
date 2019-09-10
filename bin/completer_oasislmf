@@ -2,38 +2,17 @@
 
 import argparse
 import os
-import io
 import pickle
+import sys
 
 from importlib.util import find_spec
 
 from anytree import (
     find,
-    findall,
     Node,
     RenderTree,
 )
 
-# https://www.linuxjournal.com/content/more-using-bash-complete-command
-# https://echorand.me/posts/linux_shell_autocompletion/
-# https://www.gnu.org/software/bash/manual/html_node/Programmable-Completion.html
-
-"""
-BASH vars
-=========
-
-    COMP_LINE  = The current command line. This variable is available only in shell functions
-                 and external commands invoked by the programmable completion facilities.
-
-    COMP_POINT = The index of the current cursor position relative to the beginning of the current command.
-
-    COMP_TYPE  = Set to an integer value corresponding to the type of completion attempted that
-                 caused a completion function to be called: TAB, for normal completion, ‘?’, for listing
-                 completions after successive tabs, ‘!’, for listing alternatives on partial word completion,
-                 ‘@’, to list completions if the word is not unmodified, or ‘%’, for menu completion.
-                 This variable is available only in shell functions and external commands invoked by the
-                 programmable completion facilities
-"""
 
 class Completer(object):
 
@@ -66,10 +45,11 @@ class Completer(object):
             return self.return_options(cmd_list[1:], next_node)
         elif next_node:
             return self._arg_complete(cmd_list, current_node, next_node)
-        
-        print(" \n".join(n.name for n in current_node.children
-            if n.name.startswith(current_word)
-        ))
+        else:
+            print(" \n".join(
+                n.name for n in current_node.children
+                if n.name.startswith(current_word)
+            ))
 
     # Complete Arg Value
     def _arg_complete(self, cmd_list, current_node, next_node):
@@ -95,8 +75,10 @@ class Completer(object):
             return self._listdir('.')
         dirname, rest = os.path.split(path)
         tmp = os.path.expanduser(dirname) if dirname else '.'
-        res = [os.path.join(dirname, p)
-                for p in self._listdir(tmp) if p.startswith(rest)]
+        res = [
+            os.path.join(dirname, p)
+            for p in self._listdir(tmp) if p.startswith(rest)
+        ]
 
         # filter list by extention
         res = [p for p in res if p.endswith((ftype, '/'))]
@@ -130,7 +112,7 @@ class Completer(object):
                 Node(name=opt, arg_type=self._set_arg_type(action), parent=parent)
 
     def _set_arg_type(self, action):
-        arg_type = None if action.nargs is 0 else 'value'
+        arg_type = None if action.nargs == 0 else 'value'
         if any('json' in s for s in [action.help.lower(), action.option_strings[-1].lower()]):
             arg_type = 'filepath_json'
         if any('csv' in s for s in [action.help.lower(), action.option_strings[-1].lower()]):
@@ -159,13 +141,14 @@ class Completer(object):
 
         return root
 
+
 if __name__ == '__main__':
     pkg_oasislmf = find_spec('oasislmf')
     pkg_path = os.path.dirname(pkg_oasislmf.origin)
     action_tree = os.path.join(pkg_path, '_data', 'action_tree.p')
 
     comp_line = os.environ.get('COMP_LINE') or ''
-    comp_point = int(os.environ.get('COMP_POINT') or len(cline))
+    comp_point = int(os.environ.get('COMP_POINT') or len(comp_line))
 
     try:
         Completer(action_tree).complete(comp_line, comp_point)

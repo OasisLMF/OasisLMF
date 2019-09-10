@@ -93,6 +93,7 @@ def get_default_fm_aggregation_profile(path=False):
     fp = os.path.join(STATIC_DATA_FP, 'default_fm_agg_profile.json')
     return {int(k): v for k, v in get_json(src_fp=fp).items()} if not path else fp
 
+
 # Data types for fields in OED loc. (exposure) file
 def get_loc_dtypes():
     fp = os.path.join(STATIC_DATA_FP, 'loc_dtypes.json')
