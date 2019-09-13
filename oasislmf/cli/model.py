@@ -1,4 +1,4 @@
-OasisManager__all__ = [
+__all__ = [
     'GenerateKeysCmd',
     'GenerateLossesCmd',
     'GenerateOasisFilesCmd',
@@ -293,7 +293,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
 
         summarise_exposure = inputs.get('summarise_exposure', type=bool, default=False, required=False)
 
-        write_chunksize = inputs.get('write_chunksize', default=2*10**5, required=False)
+        write_chunksize = inputs.get('write_chunksize', default=2 * 10**5, required=False)
 
         if not (keys_fp or lookup_config_fp or (keys_data_fp and model_version_fp and lookup_package_fp)):
             raise OasisException(
@@ -454,7 +454,7 @@ class GenerateLossesCmd(OasisBaseCommand):
         ktools_mem_limit = inputs.get('ktools_mem_limit', type=bool, default=False, required=False)
 
         ktools_fifo_relative = inputs.get('ktools_fifo_relative', type=bool, default=False, required=False)
-        
+
         ktools_alloc_rule_gul = inputs.get('ktools_alloc_rule_gul', type=int, default=None, required=False)
 
         ktools_alloc_rule_il = inputs.get('ktools_alloc_rule_il', type=int, default=None, required=False)

@@ -15,10 +15,8 @@ import copy
 import os
 import sys
 import warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
 
 import pandas as pd
-pd.options.mode.chained_assignment = None
 import numpy as np
 
 from ..utils.calc_rules import get_calc_rules
@@ -51,6 +49,9 @@ from ..utils.profiles import (
     get_grouped_fm_terms_by_level_and_term_group,
     get_oed_hierarchy,
 )
+
+pd.options.mode.chained_assignment = None
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
 def get_calc_rule_ids(il_inputs_df):
@@ -520,7 +521,7 @@ def get_il_input_items(
         # preparation for the next step which is to convert % TIV deductibles
         # to TIV fractional amounts
         agg_tivs = pd.DataFrame(
-            il_inputs_df.loc[:, ['level_id','loc_id','agg_id','tiv']].groupby(['level_id','loc_id','agg_id'])['tiv'].sum()
+            il_inputs_df.loc[:, ['level_id', 'loc_id', 'agg_id', 'tiv']].groupby(['level_id', 'loc_id', 'agg_id'])['tiv'].sum()
         ).reset_index()
         agg_tivs.rename(columns={'tiv': 'agg_tiv'}, inplace=True)
         il_inputs_df['agg_tiv'] = il_inputs_df.loc[:, ['level_id', 'loc_id', 'agg_id']].merge(
@@ -531,12 +532,12 @@ def get_il_input_items(
 
         # Apply rule to convert type 2 deductibles and limits to TIV shares
         il_inputs_df['deductible'] = np.where(
-            il_inputs_df['ded_type'] ==  DEDUCTIBLE_AND_LIMIT_TYPES['pctiv']['id'],
+            il_inputs_df['ded_type'] == DEDUCTIBLE_AND_LIMIT_TYPES['pctiv']['id'],
             il_inputs_df['deductible'] * il_inputs_df['agg_tiv'],
             il_inputs_df['deductible']
         )
         il_inputs_df['limit'] = np.where(
-            il_inputs_df['lim_type'] ==  DEDUCTIBLE_AND_LIMIT_TYPES['pctiv']['id'],
+            il_inputs_df['lim_type'] == DEDUCTIBLE_AND_LIMIT_TYPES['pctiv']['id'],
             il_inputs_df['limit'] * il_inputs_df['agg_tiv'],
             il_inputs_df['limit']
         )
@@ -654,7 +655,6 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
     :return: FM programme file path
     :rtype: str
     """
-    #import ipdb; ipdb.set_trace()
     try:
         fm_programme_df = pd.concat(
             [

@@ -39,6 +39,7 @@ def load_credentials(login_arg, logger=None):
         return api_login
     except KeyboardInterrupt as e:
         logger.error('\nFailed to get API login details:')
+        logger.error(e)
         sys.exit(1)
 
 
@@ -173,6 +174,7 @@ class DelApiCmd(OasisBaseCommand):
                     self.logger.info('Record deleted')
 
         except Exception as e:
+            self.logger.error(e)
             self.logger.error("Error on delete ref({}):".format(id_ref))
             self.logger.error(r.text)
 
@@ -191,7 +193,7 @@ class DelApiCmd(OasisBaseCommand):
             else:
                 print('Invalid Input')
                 return self.confirm_action(question_str)
-        except KeyboardInterrupt as e:
+        except KeyboardInterrupt:
             self.logger.error('\nKeyboard Interrupt, exiting.')
 
 

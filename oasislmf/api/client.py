@@ -1,5 +1,11 @@
-#!/bin/env python
-
+__all__ = [
+    'APIClient',
+    'ApiEndpoint',
+    'API_analyses',
+    'API_models',
+    'API_portfolios',
+    'FileEndpoint',
+]
 
 import io
 import logging
@@ -15,16 +21,6 @@ from requests.exceptions import (
     HTTPError,
 )
 from .session import APISession
-
-
-__all__ = [
-    'APIClient',
-    'ApiEndpoint',
-    'API_analyses',
-    'API_models',
-    'API_portfolios',
-    'FileEndpoint',
-]
 
 
 class ApiEndpoint(object):
@@ -119,7 +115,7 @@ class FileEndpoint(object):
                 tar = tarfile.open(fileobj=io.BytesIO(r.content))
                 csv_files = [f for f in tar.getmembers() if '.csv' in f.name]
                 for member in csv_files:
-                    csv=tar.extractfile(member)
+                    csv = tar.extractfile(member)
                     dataframes_list[os.path.basename(member.name)] = pd.read_csv(csv)
             return dataframes_list
 
@@ -240,7 +236,7 @@ class API_datafiles(ApiEndpoint):
         return self.session.get('{}{}'.format(self.url_endpoint, search_string))
 
     def create(self, file_description, linked_models=[]):
-        data = { "file_description": file_description}
+        data = {"file_description": file_description}
         return self.session.post(self.url_endpoint, json=data)
 
     def update(self, ID, file_description, linked_models=[]):
@@ -427,8 +423,7 @@ class APIClient(object):
 
                 else:
                     err_msg = "Inputs Generation: Unknown State'{}'".format(analysis['status'])
-                    # Raise oasis Execption
-                    # Error -- Raise execption Unknown Analysis  State
+                    self.logger.error(err_msg)
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'run_generate: failed')
             sys.exit(1)
@@ -474,8 +469,7 @@ class APIClient(object):
 
                 else:
                     err_msg = "Execution status in Unknown State: '{}'".format(analysis['status'])
-                    # Raise oasis Execption
-                    # Error -- Raise execption Unknown Analysis  State
+                    self.logger.error(err_msg)
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'run_analysis: failed')
             sys.exit(1)
@@ -485,12 +479,12 @@ class APIClient(object):
             filename = 'analysis_{}_output'.format(analysis_id)
         try:
             output_file = os.path.join(download_path, filename + '.tar')
-            r = self.analyses.output_file.download(ID=analysis_id, file_path=output_file, overwrite=overwrite)
+            self.analyses.output_file.download(ID=analysis_id, file_path=output_file, overwrite=overwrite)
             self.logger.info('Analysis Download output: filename={}, (id={}'.format(output_file, analysis_id))
             if clean_up:
-                r = self.analyses.delete(analysis_id)
-                r = self.analyses.output_file.delete(analysis_id)
-                r = self.analyses.input_file.delete(analysis_id)
+                self.analyses.delete(analysis_id)
+                self.analyses.output_file.delete(analysis_id)
+                self.analyses.input_file.delete(analysis_id)
         except HTTPError as e:
             err_msg = 'Analysis Download output: Failed (id={})'.format(analysis_id)
             self.api.unrecoverable_error(e, err_msg)
@@ -501,7 +495,7 @@ class APIClient(object):
         Cancels a currently inputs generation. The analysis status must be `GENERATING_INPUTS`
         """
         try:
-            r = self.analyses.generate_cancel(analysis_id)
+            self.analyses.generate_cancel(analysis_id)
             self.logger.info('Cancelled Input generation: Id={}'.format(analysis_id))
             return True
         except HTTPError as e:
@@ -514,7 +508,7 @@ class APIClient(object):
         statuses, `PENDING` or `STARTED`
         """
         try:
-            r = self.analyses.run_cancel(analysis_id)
+            self.analyses.run_cancel(analysis_id)
             self.logger.info('Cancelled analysis run: Id={}'.format(analysis_id))
             return True
         except HTTPError as e:

@@ -10,8 +10,6 @@ import re
 import sys
 import warnings
 
-warnings.simplefilter(action='ignore', category=FutureWarning)
-
 from builtins import str
 
 from itertools import (
@@ -19,7 +17,6 @@ from itertools import (
 )
 
 import pandas as pd
-pd.options.mode.chained_assignment = None
 
 from pathlib2 import Path
 
@@ -79,6 +76,9 @@ from .utils.path import (
     setcwd,
 )
 from .utils.coverages import SUPPORTED_COVERAGE_TYPES
+
+pd.options.mode.chained_assignment = None
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
 class OasisManager(object):
@@ -536,7 +536,7 @@ class OasisManager(object):
     ):
         il = all(p in os.listdir(oasis_fp) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
         ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(oasis_fp)) + os.listdir(oasis_fp))
-        gul_item_stream = False if (ktools_alloc_rule_gul is 0) or (self.ktools_alloc_rule_gul is 0) else True
+        gul_item_stream = False if (ktools_alloc_rule_gul == 0) or (self.ktools_alloc_rule_gul == 0) else True
 
         if not os.path.exists(model_run_fp):
             Path(model_run_fp).mkdir(parents=True, exist_ok=True)
@@ -561,10 +561,10 @@ class OasisManager(object):
         except (IOError, TypeError, ValueError):
             raise OasisException('Invalid analysis settings file or file path: {}.'.format(_analysis_settings_fp))
 
-        generate_summaryxref_files(model_run_fp, 
-                                   analysis_settings, 
+        generate_summaryxref_files(model_run_fp,
+                                   analysis_settings,
                                    gul_item_stream=gul_item_stream,
-                                   il=il, 
+                                   il=il,
                                    ri=ri)
 
         if not ri:
@@ -610,7 +610,7 @@ class OasisManager(object):
                 filename=script_fp,
                 num_reinsurance_iterations=ri_layers,
                 ktools_mem_limit=(ktools_mem_limit or self.ktools_mem_limit),
-                set_alloc_rule_gul=(ktools_alloc_rule_gul if isinstance(ktools_alloc_rule_gul, int) else self.ktools_alloc_rule_gul), 
+                set_alloc_rule_gul=(ktools_alloc_rule_gul if isinstance(ktools_alloc_rule_gul, int) else self.ktools_alloc_rule_gul),
                 set_alloc_rule_il=(ktools_alloc_rule_il if isinstance(ktools_alloc_rule_il, int) else self.ktools_alloc_rule_il),
                 run_debug=(ktools_debug or self.ktools_debug),
                 fifo_tmp_dir=(not (ktools_fifo_relative or self.ktools_fifo_relative))

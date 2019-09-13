@@ -7,8 +7,6 @@ __all__ = [
 
 import os
 import sys
-import re
-import subprocess
 
 from argparse import RawDescriptionHelpFormatter
 from platform import system
@@ -17,12 +15,6 @@ from subprocess import (
     run
 )
 
-from ..utils.exceptions import OasisException
-from ..utils.path import (
-    as_path,
-    empty_dir,
-)
-from ..utils.data import get_utctimestamp
 from ..utils.path import as_path
 
 from .base import (
@@ -46,8 +38,8 @@ class EnableBashCompleteCmd(OasisBaseCommand):
         :type parser: ArgumentParser
         """
         parser.add_argument(
-            '-p', '--bash-conf-filepath', default=None, required=False, 
-             help='Cookiecutter JSON file path with all options provided in the file'
+            '-p', '--bash-conf-filepath', default=None, required=False,
+            help='Cookiecutter JSON file path with all options provided in the file'
         )
 
     def action(self, args):
@@ -62,47 +54,45 @@ class EnableBashCompleteCmd(OasisBaseCommand):
         if not bash_output_fp:
             default_file = '.bash_profile' if system == 'Darwin' else '.bashrc'
             bash_output_fp = os.path.join(
-                os.path.expanduser('~'), 
+                os.path.expanduser('~'),
                 default_file
             )
 
-        # Prompt user, and then install 
+        # Prompt user, and then install
         msg_user = 'Running this will append a command to the following file:\n'
         if self.install_confirm(question_str="{} {}".format(msg_user, bash_output_fp)):
             self.install_autocomplete(bash_output_fp)
 
-
     def install_autocomplete(self, target_file=None):
-        msg_success = 'Auto-Complete installed.' 
+        msg_success = 'Auto-Complete installed.'
         msg_failed = 'install failed'
-        msg_installed = 'Auto-Complete feature is already enabled.' 
+        msg_installed = 'Auto-Complete feature is already enabled.'
         msg_reload_bash = '\n To activate reload bash by running: \n     source {}'.format(target_file)
         cmd_header = '# Added by OasisLMF\n'
         cmd_autocomplete = 'complete -C completer_oasislmf oasislmf\n'
-        
+
         try:
             if os.path.isfile(target_file):
                 # Check command is in file
                 with open(target_file, "r") as rc:
                     if cmd_autocomplete in rc.read():
                         self.logger.info(msg_installed)
-                        self.logger.info(msg_reload_bash)    
+                        self.logger.info(msg_reload_bash)
                         sys.exit(0)
             else:
-                # create new file at set location            
+                # create new file at set location
                 basedir = os.path.dirname(target_file)
                 if not os.path.isdir(basedir):
                     os.makedirs(basedir)
-                
-            # Add complete command  
+
+            # Add complete command
             with open(target_file, "a") as rc:
-                    rc.write(cmd_header)
-                    rc.write(cmd_autocomplete)
-                    self.logger.info(msg_success)
-                    self.logger.info(msg_reload_bash)    
-        except Exception as e: 
-            self.logger.error('{}: {}'.format(msg_failed, e))    
-        
+                rc.write(cmd_header)
+                rc.write(cmd_autocomplete)
+                self.logger.info(msg_success)
+                self.logger.info(msg_reload_bash)
+        except Exception as e:
+            self.logger.error('{}: {}'.format(msg_failed, e))
 
     def install_confirm(self, override=False, question_str='Add line to <somefile>'):
         self.logger.debug('Prompt user for confirmation')
@@ -119,9 +109,8 @@ class EnableBashCompleteCmd(OasisBaseCommand):
             else:
                 print('Invalid Input')
                 return self.confirm_action(question_str)
-        except KeyboardInterrupt as e:
+        except KeyboardInterrupt:
             self.logger.error('\nKeyboard Interrupt, exiting.')
-
 
 
 class CreateSimpleModelCmd(OasisBaseCommand):
@@ -200,12 +189,12 @@ class CreateSimpleModelCmd(OasisBaseCommand):
         cmd_str = 'cookiecutter'
 
         if not cookiecutter_version:
-            cmd_str += ''.join([ 
+            cmd_str += ''.join([
                 (' --no-input' if no_prompt or preset_cookiecutter_json else ''),
-                (' --replay' if replay else ''), 
-                (' --overwrite-if-exists' if overwrite else ''), 
+                (' --replay' if replay else ''),
+                (' --overwrite-if-exists' if overwrite else ''),
                 (' --output-dir {}'.format(target_dir) if target_dir else ''),
-                (' --verbose ' if verbose else ' '), 
+                (' --verbose ' if verbose else ' '),
                 self.cookiecutter_template_uri
             ])
         else:
@@ -227,7 +216,7 @@ class CreateComplexModelCmd(OasisBaseCommand):
     """
     formatter_class = RawDescriptionHelpFormatter
 
-    cookiecutter_template_uri = 'git+ssh://git@github.com/OasisLMF/CookiecutterOasisComplexModel' 
+    cookiecutter_template_uri = 'git+ssh://git@github.com/OasisLMF/CookiecutterOasisComplexModel'
 
     def add_args(self, parser):
         """
@@ -295,12 +284,12 @@ class CreateComplexModelCmd(OasisBaseCommand):
         cmd_str = 'cookiecutter'
 
         if not cookiecutter_version:
-            cmd_str += ''.join([ 
-                (' --no-input' if no_prompt or preset_cookiecutter_json else ''), 
-                (' --replay' if replay else ''), 
-                (' --overwrite-if-exists' if overwrite else ''), 
-                (' --output-dir {}'.format(target_dir) if target_dir else ''), 
-                (' --verbose ' if verbose else ' '), 
+            cmd_str += ''.join([
+                (' --no-input' if no_prompt or preset_cookiecutter_json else ''),
+                (' --replay' if replay else ''),
+                (' --overwrite-if-exists' if overwrite else ''),
+                (' --output-dir {}'.format(target_dir) if target_dir else ''),
+                (' --verbose ' if verbose else ' '),
                 self.cookiecutter_template_uri
             ])
         else:
@@ -312,6 +301,7 @@ class CreateComplexModelCmd(OasisBaseCommand):
             run_cmd(cmd_str)
         except CalledProcessError as e:
             self.logger.error(e)
+
 
 class AdminCmd(OasisBaseCommand):
     """

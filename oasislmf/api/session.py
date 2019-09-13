@@ -41,7 +41,6 @@ class APISession(Session):
         self.health_check()
         self.__get_access_token(username, password)
 
-
     def __get_access_token(self, username, password):
         url = urljoin(self.url_base, 'access_token/')
         r = self.post(url, json={"username": username, "password": password})
@@ -68,11 +67,11 @@ class APISession(Session):
         return r
 
     def unrecoverable_error(self, error, msg=None):
-            err_r =  error.response
-            err_msg = 'api error: {}, url: {}, msg: {}'.format(err_r.status_code, err_r.url, err_r.text)
-            self.logger.error(err_msg)
-            if msg:
-                self.logger.error(msg)
+        err_r = error.response
+        err_msg = 'api error: {}, url: {}, msg: {}'.format(err_r.status_code, err_r.url, err_r.text)
+        self.logger.error(err_msg)
+        if msg:
+            self.logger.error(msg)
 
     # Connection Error Handlers
     def __recoverable(self, error, url, request, counter=1):
@@ -85,7 +84,7 @@ class APISession(Session):
             self.logger.debug(f"Recoverable error [{error}] from {request} {url}")
             self.logger.debug(f"Backoff timer: {self.retry_delay * counter}")
 
-            ## Reset HTTPAdapter & clear connection pool
+            # Reset HTTPAdapter & clear connection pool
             self.adapters.clear()
             self.mount(self.url_base, HTTPAdapter(max_retries=self.retry_max))
             time.sleep(self.retry_delay * counter)
@@ -113,7 +112,7 @@ class APISession(Session):
         try:
             url = urljoin(self.url_base, 'healthcheck/')
             return self.get(url)
-        except (TypeError, AttributeError, BytesWarning, HTTPError, ConnectionError, ReadTimeout) as e:
+        except (TypeError, AttributeError, BytesWarning, HTTPError, ConnectionError, ReadTimeout):
             err_msg = 'Health check failed: Unable to connect to {}'.format(self.url_base)
             raise OasisException(err_msg)
 

@@ -40,7 +40,7 @@ class InputValues(object):
             return val_default
         if val_config or isinstance(val_config, types):
             return val_config
-        return None    
+        return None
 
     def get(self, name, default=None, type=None, required=False, is_path=False):
         """

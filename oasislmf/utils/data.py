@@ -21,7 +21,6 @@ import io
 import json
 import re
 import warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from datetime import datetime
 from itertools import groupby
@@ -35,11 +34,12 @@ from tabulate import tabulate
 
 import numpy as np
 import pandas as pd
-pd.options.mode.chained_assignment = None
 import pytz
 
 from .exceptions import OasisException
 
+pd.options.mode.chained_assignment = None
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 PANDAS_BASIC_DTYPES = {
     'int8': np.int8,
@@ -435,7 +435,7 @@ def get_json(src_fp):
     try:
         with io.open(src_fp, 'r', encoding='utf-8') as f:
             return json.load(f)
-    except (IOError, JSONDecodeError, OSError, TypeError) as e:
+    except (IOError, JSONDecodeError, OSError, TypeError):
         raise OasisException('Error trying to load JSON from {}'.format(src_fp))
 
 
