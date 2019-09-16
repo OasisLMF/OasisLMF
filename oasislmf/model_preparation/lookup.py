@@ -13,13 +13,18 @@ import importlib
 import io
 import itertools
 import json
+import logging
 import os
 import re
 import sys
 import types
 import uuid
 
+
 from collections import OrderedDict
+
+from multiprocessing import cpu_count
+from billiard import Pool
 
 import pandas as pd
 
@@ -162,6 +167,20 @@ class OasisBuiltinBaseLookup(object):
         Pandas series object.
         """
         pass
+
+    def process_locations_multiproc(self, loc_df):
+        """
+        Process and return the lookup results a location row
+        Used in multiprocessing based query
+
+        location_row is of type <class 'pandas.core.series.Series'>
+
+        """
+        locs_seq = (loc for _, loc in loc_df.iterrows())
+        return [self.lookup(loc, peril_id, coverage_type) for
+                loc, peril_id, coverage_type in
+                itertools.product(locs_seq, self.peril_ids, self.coverage_types)]
+
 
     @oasis_log()
     def bulk_lookup(self, locs, **kwargs):
@@ -348,26 +367,69 @@ class OasisLookupFactory(object):
             )
 
     @classmethod
-    def get_exposure(cls, source_exposure=None, source_exposure_fp=None):
+    def get_exposure(cls, lookup=None, source_exposure=None, source_exposure_fp=None):
         """
         Get the source OED exposure/location data as a Pandas dataframe.
         """
-        col_dtypes, required_cols = get_dtypes_and_required_cols(get_loc_dtypes)
 
-        if source_exposure_fp:
-            loc_df = get_dataframe(
-                src_fp=os.path.abspath(source_exposure_fp),
-                col_dtypes=col_dtypes,
-                required_cols=required_cols
-            )
-        elif source_exposure:
-            loc_df = get_dataframe(
-                src_buf=source_exposure,
-                col_dtypes=col_dtypes,
-                required_cols=required_cols
-            )
+        if not (source_exposure or source_exposure_fp):
+            raise OasisException('No source exposures data or file path provided')
+
+        # Check which lookup class
+        try:
+            lookup_config = lookup.config
+        except AttributeError:
+            lookup_config = None
+
+
+        # load dtypes based on lookup config
+        if lookup_config:
+            peril_config = lookup.config.get('peril')
+            if not peril_config:
+                raise OasisException('No peril config defined in the lookup config')
+
+            _source_exposure_fp = as_path(source_exposure_fp, 'Source exposure file path', preexists=(True if not source_exposure else False))
+            loc_config = lookup.config.get('exposure') or lookup.config.get('locations') or {}
+            src_type = 'csv'
+
+            kwargs = {
+                'src_data': source_exposure,
+                'src_fp': _source_exposure_fp,
+                'src_type': src_type,
+                'non_na_cols': tuple(loc_config.get('non_na_cols') or ()),
+                'col_dtypes': loc_config.get('col_dtypes') or {},
+                'sort_cols': loc_config.get('sort_cols'),
+                'sort_ascending': loc_config.get('sort_ascending')
+            }
+            loc_df = get_dataframe(**kwargs)
+
+
+        # Load default dtypes from JSON definition
         else:
-            raise OasisException('Either the source exposure or exposure file path must be specified')
+            col_dtypes, required_cols = get_dtypes_and_required_cols(get_loc_dtypes)
+            if source_exposure_fp:
+                loc_df = get_dataframe(
+                    src_fp=os.path.abspath(source_exposure_fp),
+                    col_dtypes=col_dtypes,
+                    required_cols=required_cols
+                )
+            elif source_exposure:
+                loc_df = get_dataframe(
+                    src_buf=source_exposure,
+                    col_dtypes=col_dtypes,
+                    required_cols=required_cols
+                )
+            else:
+                raise OasisException('Either the source exposure or exposure file path must be specified')
+
+        # Set Loc_id
+        oed_hierarchy = get_oed_hierarchy()
+        loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
+        acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
+        portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
+        if 'loc_id' not in loc_df:
+            loc_df['loc_id'] = get_ids(loc_df, [portfolio_num, acc_num, loc_num])
+            loc_df['loc_id'] = loc_df['loc_id'].astype('uint32')
 
         return loc_df
 
@@ -514,14 +576,15 @@ class OasisLookupFactory(object):
             return model_info, lookup
 
     @classmethod
-    def get_keys(
+    def get_keys_base(
         cls,
-        lookup=None,
-        source_exposure=None,
-        source_exposure_fp=None,
-        success_only=True
+        lookup,
+        loc_df,
+        success_only=False
     ):
         """
+        Used when lookup is an instances of `OasisBaseKeysLookup(object)`
+
         Generates keys records (JSON) for the given model and supplier -
         requires an instance of the lookup service (which can be created using
         the `create` method in this factory class), and either the model
@@ -531,21 +594,6 @@ class OasisLookupFactory(object):
         records with successful lookups should be returned (default), or all
         records.
         """
-        if not (source_exposure or source_exposure_fp):
-            raise OasisException('No source exposures provided')
-        loc_df = cls.get_exposure(
-            source_exposure_fp=source_exposure_fp,
-            source_exposure=source_exposure
-        )
-
-        oed_hierarchy = get_oed_hierarchy()
-        loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
-        acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
-        portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
-        if 'loc_id' not in loc_df:
-            loc_df['loc_id'] = get_ids(loc_df, [portfolio_num, acc_num, loc_num])
-            loc_df['loc_id'] = loc_df['loc_id'].astype('uint32')
-
         for record in lookup.process_locations(loc_df):
             if success_only:
                 if record['status'].lower() == OASIS_KEYS_STATUS['success']['id']:
@@ -554,15 +602,15 @@ class OasisLookupFactory(object):
                 yield record
 
     @classmethod
-    def get_results(
+    def get_keys_builtin(
         cls,
         lookup,
-        source_exposure=None,
-        source_exposure_fp=None,
-        successes_only=False,
-        **kwargs
+        loc_df,
+        success_only=False
     ):
         """
+        Used when lookup is an instances of `OasisBuiltinBaseLookup(object)`
+
         Generates lookup results (dicts) for the given model and supplier -
         requires a lookup instance (which can be created using the `create2`
         method in this factory class), and the source exposures/locations
@@ -572,57 +620,50 @@ class OasisLookupFactory(object):
         results with successful lookup status should be returned (default),
         or all results.
         """
-        if not (source_exposure or source_exposure_fp):
-            raise OasisException('No source exposures data or file path provided')
-
-        peril_config = lookup.config.get('peril')
-        if not peril_config:
-            raise OasisException('No peril config defined in the lookup config')
-
-        _source_exposure_fp = as_path(source_exposure_fp, 'Source exposure file path', preexists=(True if not source_exposure else False))
-
-        loc_config = lookup.config.get('exposure') or lookup.config.get('locations') or {}
-        src_type = 'csv'
-
-        kwargs = {
-            'src_data': source_exposure,
-            'src_fp': _source_exposure_fp,
-            'src_type': src_type,
-            'non_na_cols': tuple(loc_config.get('non_na_cols') or ()),
-            'col_dtypes': loc_config.get('col_dtypes') or {},
-            'sort_cols': loc_config.get('sort_cols'),
-            'sort_ascending': loc_config.get('sort_ascending')
-        }
-
-        exposure_df = get_dataframe(**kwargs)
-
-        oed_hierarchy = get_oed_hierarchy()
-        loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
-        acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
-        portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
-
-        if 'loc_id' not in exposure_df:
-            exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
-            exposure_df['loc_id'] = exposure_df['loc_id'].astype('uint32')
-
-        locations = (loc for _, loc in exposure_df.iterrows())
-
+        locations = (loc for _, loc in loc_df.iterrows())
         for result in lookup.bulk_lookup(locations):
-            if successes_only:
+            if success_only:
                 if result['status'].lower() == OASIS_KEYS_STATUS['success']['id']:
                     yield result
             else:
                 yield result
 
+
+    @classmethod
+    def get_keys_multiproc(
+        cls,
+        lookup,
+        loc_df,
+        success_only=False,
+        num_cores=None,
+        num_partitions=None
+    ):
+        """
+        Used for CPU bound lookup operations, Depends on a method
+
+        `process_locations_multiproc(dataframe)`
+
+        where single_row is a pandas series from a location Pandas DataFrame
+        and returns a list of dicts holding the lookup results for that single row
+        """
+        pool_count = num_cores if num_cores else cpu_count()
+        part_count = num_partitions if num_partitions else min(pool_count * 2, len(loc_df))
+        locations = pd.np.array_split(loc_df, part_count)
+
+        pool = Pool(pool_count)
+        results = pool.map(lookup.process_locations_multiproc, locations)
+        pool.close()
+        pool.join()
+        return sum([r for r in results if r], [])
+
+
     @classmethod
     def save_keys(
         cls,
-        lookup=None,
+        keys_data,
         keys_file_path=None,
         keys_errors_file_path=None,
-        keys_format='oasis',
-        source_exposure=None,
-        source_exposure_fp=None,
+        keys_format='oasis'
     ):
         """
         Writes a keys file, and optionally a keys error file, for the keys
@@ -648,23 +689,14 @@ class OasisLookupFactory(object):
         the keys file, ``p2`` is the keys errors file path and ``n2`` is the
         number of "unsuccessful" keys records written to keys errors file.
         """
-        if not (source_exposure or source_exposure_fp):
-            raise OasisException('No source exposure or source exposure file path provided')
+
 
         _keys_file_path = as_path(keys_file_path, 'keys_file_path', preexists=False)
         _keys_errors_file_path = as_path(keys_errors_file_path, 'keys_errors_file_path', preexists=False)
-        _source_exposure_file_path = as_path(source_exposure_fp, 'source_exposure_fp', preexists=False)
-
-        keys = cls.get_keys(
-            lookup=lookup,
-            source_exposure=source_exposure,
-            source_exposure_fp=_source_exposure_file_path,
-            success_only=(True if not keys_errors_file_path else False)
-        )
 
         successes = []
         nonsuccesses = []
-        for k in keys:
+        for k in keys_data:
             successes.append(k) if k['status'] == OASIS_KEYS_STATUS['success']['id'] else nonsuccesses.append(k)
 
         if keys_format == 'json':
@@ -684,14 +716,15 @@ class OasisLookupFactory(object):
         else:
             raise OasisException("Unrecognised keys file output format - valid formats are 'oasis' or 'json'")
 
+
     @classmethod
     def save_results(
         cls,
         lookup,
+        location_df,
         successes_fp=None,
         errors_fp=None,
-        source_exposure=None,
-        source_exposure_fp=None,
+        multiprocessing=True,
         format='oasis'
     ):
         """
@@ -718,35 +751,27 @@ class OasisLookupFactory(object):
         the keys file, ``p2`` is the keys errors file path and ``n2`` is the
         number of "unsuccessful" keys records written to keys errors file.
         """
-        if not (source_exposure or source_exposure_fp):
-            raise OasisException('No source exposures data or file path provided')
-
-        mfp = as_path(source_exposure_fp, 'source_exposure_fp', preexists=(True if not source_exposure else False))
-
         sfp = as_path(successes_fp, 'successes_fp', preexists=False)
         efp = as_path(errors_fp, 'errors_fp', preexists=False)
 
-        results = None
-
-        try:
-            lookup.config
-        except AttributeError:
-            results = cls.get_keys(
-                lookup=lookup,
-                source_exposure=source_exposure,
-                source_exposure_fp=mfp,
-                success_only=(False if efp else True)
-            )
+        if (multiprocessing and hasattr(lookup, 'process_locations_multiproc')):
+            # Multi-Process
+            keys_generator = cls.get_keys_multiproc
         else:
-            results = cls.get_results(
-                lookup,
-                source_exposure=source_exposure,
-                source_exposure_fp=mfp,
-                successes_only=(False if efp else True)
-            )
+            # Fall back to Single process
+            keys_generator = cls.get_keys_builtin if hasattr(lookup, 'config') else (
+                             cls.get_keys_base)
+        kwargs = {
+            "lookup":lookup,
+            "loc_df":location_df,
+            "success_only": (False if efp else True)
+        }
 
+        results = keys_generator(**kwargs)
         successes = []
         nonsuccesses = []
+
+        # ToDO: Move the inside the keys_generators?  and return a tuple of (successes, nonsuccesses)
         for r in results:
             successes.append(r) if r['status'] == OASIS_KEYS_STATUS['success']['id'] else nonsuccesses.append(r)
 

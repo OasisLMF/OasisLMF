@@ -289,6 +289,11 @@ class OasisManager(object):
             output_directory=lookup_extra_outputs_dir
         )
 
+        location_df = olf.get_exposure(
+            lookup=lookup,
+            source_exposure_fp=exposure_fp,
+        ) 
+
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
 
         keys_fp = keys_fp or '{}-keys.csv'.format(utcnow)
@@ -296,9 +301,9 @@ class OasisManager(object):
 
         return olf.save_results(
             lookup,
+            location_df=location_df,
             successes_fp=keys_fp,
             errors_fp=keys_errors_fp,
-            source_exposure_fp=exposure_fp,
             format=keys_format
         )
 
@@ -412,11 +417,16 @@ class OasisManager(object):
                     user_data_dir=user_data_dir,
                     output_directory=target_dir
                 )
+                # TODO: exposure_df is loaded twice, Elimilate step in `get_gul_input_items` if done here
+                location_df = olf.get_exposure(
+                    lookup=lookup,
+                    source_exposure_fp=exposure_fp,
+                ) 
                 f1, _, f2, _ = olf.save_results(
                     lookup,
+                    location_df=location_df,
                     successes_fp=_keys_fp,
-                    errors_fp=_keys_errors_fp,
-                    source_exposure_fp=exposure_fp
+                    errors_fp=_keys_errors_fp
                 )
         else:
             _keys_fp = os.path.join(target_dir, os.path.basename(keys_fp))
