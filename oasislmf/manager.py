@@ -593,6 +593,14 @@ class OasisManager(object):
             analysis_settings['ri_output'] = False
             analysis_settings['ri_summaries'] = []
 
+        # guard - Check if at least one output type is selected 
+        if not any([analysis_settings['gul_output'],
+                   analysis_settings['il_output'],
+                   analysis_settings['ri_summaries'],
+        ]):
+            raise OasisException(
+                'No valid output settings in: {}'.format(analysis_settings_fp))
+
         prepare_run_inputs(analysis_settings, model_run_fp, ri=ri)
 
         script_fp = os.path.join(model_run_fp, 'run_ktools.sh')
