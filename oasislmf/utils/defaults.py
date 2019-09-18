@@ -125,7 +125,7 @@ def get_default_deterministic_analysis_settings(path=False):
 
 
 # Defaults for Ktools runtime parameters
-KTOOLS_NUM_PROCESSES = 2
+KTOOLS_NUM_PROCESSES = -1
 KTOOLS_MEM_LIMIT = False
 KTOOLS_FIFO_RELATIVE = False
 KTOOLS_ALLOC_RULE_IL = 2

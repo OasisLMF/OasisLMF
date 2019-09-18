@@ -129,7 +129,7 @@ class OasisBaseCommand(BaseCommand):
         parser.add_argument('-V', '--verbose', action='store_true', help='Use verbose logging.')
         parser.add_argument(
             '-C', '--config', required=False, type=PathCleaner('MDK config. JSON file', preexists=True),
-            help='MDK config. JSON file', default=None
+            help='MDK config. JSON file', default='./oasislmf.json' if os.path.isfile('./oasislmf.json') else None
         )
 
     def parse_args(self):
