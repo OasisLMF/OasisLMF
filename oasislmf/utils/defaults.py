@@ -1,4 +1,5 @@
 __all__ = [
+    'get_config_profile',
     'get_default_accounts_profile',
     'get_default_deterministic_analysis_settings',
     'get_default_exposure_profile',
@@ -83,6 +84,9 @@ def get_default_exposure_profile(path=False):
     fp = os.path.join(STATIC_DATA_FP, 'default_loc_profile.json')
     return get_json(src_fp=fp) if not path else fp
 
+def get_config_profile(path=False):
+    fp = os.path.join(STATIC_DATA_FP, 'config_compatibility_profile.json')
+    return get_json(src_fp=fp) if not path else fp
 
 def get_default_unified_profile(path=False):
     fp = os.path.join(STATIC_DATA_FP, 'default_unified_profile.json')

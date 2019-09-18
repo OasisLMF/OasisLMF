@@ -17,10 +17,8 @@ from subprocess import (
 
 from ..utils.path import as_path
 
-from .base import (
-    InputValues,
-    OasisBaseCommand,
-)
+from .base import OasisBaseCommand
+from .inputs import InputValues
 
 
 class EnableBashCompleteCmd(OasisBaseCommand):
@@ -38,15 +36,16 @@ class EnableBashCompleteCmd(OasisBaseCommand):
         :type parser: ArgumentParser
         """
         parser.add_argument(
-            '-p', '--bash-conf-filepath', default=None, required=False,
+            '-p', '--bash-conf-file', default=None, required=False,
             help='Cookiecutter JSON file path with all options provided in the file'
         )
 
     def action(self, args):
         # read in user set target install
         inputs = InputValues(args)
+
         bash_output_fp = as_path(
-            inputs.get('bash_conf_filepath'),
+            inputs.get('bash_conf_file'),
             'Complex lookup config JSON file path', preexists=False
         )
 
@@ -60,7 +59,7 @@ class EnableBashCompleteCmd(OasisBaseCommand):
 
         # Prompt user, and then install
         msg_user = 'Running this will append a command to the following file:\n'
-        if self.install_confirm(question_str="{} {}".format(msg_user, bash_output_fp)):
+        if inputs.confirm_action("{} {}".format(msg_user, bash_output_fp)):
             self.install_autocomplete(bash_output_fp)
 
     def install_autocomplete(self, target_file=None):
@@ -93,25 +92,6 @@ class EnableBashCompleteCmd(OasisBaseCommand):
                 self.logger.info(msg_reload_bash)
         except Exception as e:
             self.logger.error('{}: {}'.format(msg_failed, e))
-
-    def install_confirm(self, override=False, question_str='Add line to <somefile>'):
-        self.logger.debug('Prompt user for confirmation')
-        if override:
-            self.logger.debug('Defaulting to YES')
-            return True
-
-        try:
-            check = str(input("%s (Y/N): " % question_str)).lower().strip()
-            if check[0] == 'y':
-                return True
-            elif check[0] == 'n':
-                return False
-            else:
-                print('Invalid Input')
-                return self.confirm_action(question_str)
-        except KeyboardInterrupt:
-            self.logger.error('\nKeyboard Interrupt, exiting.')
-
 
 class CreateSimpleModelCmd(OasisBaseCommand):
     """
@@ -148,9 +128,6 @@ class CreateSimpleModelCmd(OasisBaseCommand):
             '-o', '--output-dir', default=None, required=False, help='Where to generate the project'
         )
         parser.add_argument(
-            '-b', '--verbose-mode', default=None, required=False, help='Run cookiecutter in verbose mode', action='store_true'
-        )
-        parser.add_argument(
             '-c', '--cookiecutter-version', default=None, required=False, help='Cookiecutter version', action='store_true'
         )
 
@@ -179,7 +156,7 @@ class CreateSimpleModelCmd(OasisBaseCommand):
             inputs.get('output_dir', default=os.path.join(pkg_dir, 'cookiecutter-run'), required=False, is_path=True), label='Target directory', is_dir=True, preexists=False
         )
 
-        verbose = inputs.get('verbose_mode', default=False, required=False)
+        verbose = inputs.get('verbose', default=False, required=False)
 
         cookiecutter_version = inputs.get('cookiecutter_version', default=False, required=False)
 
@@ -243,9 +220,6 @@ class CreateComplexModelCmd(OasisBaseCommand):
             '-o', '--output-dir', default=None, required=False, help='Where to generate the project'
         )
         parser.add_argument(
-            '-b', '--verbose-mode', default=None, required=False, help='Run cookiecutter in verbose mode', action='store_true'
-        )
-        parser.add_argument(
             '-c', '--cookiecutter-version', default=None, required=False, help='Cookiecutter version', action='store_true'
         )
 
@@ -274,7 +248,7 @@ class CreateComplexModelCmd(OasisBaseCommand):
             inputs.get('output_dir', default=os.path.join(pkg_dir, 'cookiecutter-run'), required=False, is_path=True), label='Target directory', is_dir=True, preexists=False
         )
 
-        verbose = inputs.get('verbose_mode', default=False, required=False)
+        verbose = inputs.get('verbose', default=False, required=False)
 
         cookiecutter_version = inputs.get('cookiecutter_version', default=False, required=False)
 
