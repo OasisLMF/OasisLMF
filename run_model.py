@@ -34,7 +34,7 @@ def get_default_pip_path():
     cmd_str = 'which pip'
     try:
         resp = run(cmd_str.split(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=True).stdout
-    except CalledProcessError as e:
+    except CalledProcessError:
         return
     else:
         if not resp:
@@ -80,6 +80,7 @@ def parse_args():
         args['model_run_mode'] = 'ri'
 
     return args
+
 
 def pkg_exists(pkg_name):
     cmd_str = 'pip freeze | grep {}'.format(pkg_name)
@@ -150,7 +151,7 @@ def apply_model_run_mode(model_run_mode, model_mdk_config_fp, as_dict=False):
 
     if as_dict:
         return _model_mdk_config
-    
+
     with io.open(model_mdk_config_fp, 'w', encoding='utf-8') as f:
         json.dump(_model_mdk_config, f, indent=4, sort_keys=True)
 
@@ -246,6 +247,7 @@ def model_run_ok(model_run_dir, model_run_mode):
 
     return True
 
+
 def cleanup(pip_path=get_default_pip_path(), mdk_pkg_name='oasislmf', model_run_dir=None):
     pip_uninstall(mdk_pkg_name, options_str='-v -y', pip_path=pip_path)
     if model_run_dir:
@@ -303,7 +305,7 @@ if __name__ == "__main__":
     print('\nModel run directory has the following structure\n')
     try:
         print_model_dir_tree(model_run_dir)
-    except CalledProcessError as e:
+    except CalledProcessError:
         print('\nError getting or printing model run directory tree - skipping step')
 
     print('\nChecking correctess of model run directory')

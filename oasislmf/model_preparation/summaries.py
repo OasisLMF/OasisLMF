@@ -105,7 +105,7 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
     dtypes = {
         **{t: 'str' for t in [portfolio_num, policy_num, acc_num, loc_num, 'peril_id']},
         **{t: 'uint8' for t in ['coverage_type_id']},
-        **{t: 'uint32' for t in [SOURCE_IDX['loc'], SOURCE_IDX['acc'],'loc_id', 'item_id', 'layer_id', 'coverage_id', 'agg_id', 'output_id']},
+        **{t: 'uint32' for t in [SOURCE_IDX['loc'], SOURCE_IDX['acc'], 'loc_id', 'item_id', 'layer_id', 'coverage_id', 'agg_id', 'output_id']},
         **{t: 'float64' for t in ['tiv']}
     }
     summary_mapping = set_dataframe_column_dtypes(summary_mapping, dtypes)
@@ -243,16 +243,16 @@ def write_summary_levels(exposure_df, accounts_fp, target_dir):
     int_excluded_cols = ['loc_id', SOURCE_IDX['loc']]
     desc_non_oed = 'Not an OED field'
     int_oasis_cols = {
-        'coverage_type_id': 'Oasis coverage type', 
-        'peril_id': 'OED peril code', 
+        'coverage_type_id': 'Oasis coverage type',
+        'peril_id': 'OED peril code',
         'coverage_id': 'Oasis coverage identifier',
     }
 
     # GUL perspective (loc columns only)
     l_col_list = exposure_df.loc[:, exposure_df.any()].columns.to_list()
-    gul_avail = {k:OED_LOCATION_COLS[k]['desc'] if k in OED_LOCATION_COLS else desc_non_oed
+    gul_avail = {k: OED_LOCATION_COLS[k]['desc'] if k in OED_LOCATION_COLS else desc_non_oed
                  for k in set([c.lower() for c in l_col_list]).difference(int_excluded_cols)}
-    gul_rec = {k:OED_LOCATION_COLS[k]['desc'] if k in OED_LOCATION_COLS else desc_non_oed 
+    gul_rec = {k: OED_LOCATION_COLS[k]['desc'] if k in OED_LOCATION_COLS else desc_non_oed
                for k in set(gul_avail.keys()).intersection(SUMMARY_LEVEL_LOC)}
 
     gul_summary_lvl = {'GUL': {
@@ -268,9 +268,9 @@ def write_summary_levels(exposure_df, accounts_fp, target_dir):
         a_avail = set([c.lower() for c in a_col_list])
         a_rec = set(a_avail).intersection(SUMMARY_LEVEL_ACC)
 
-        il_avail = {k:OED_ACCOUNT_COLS[k]['desc'] if k in OED_ACCOUNT_COLS else desc_non_oed
+        il_avail = {k: OED_ACCOUNT_COLS[k]['desc'] if k in OED_ACCOUNT_COLS else desc_non_oed
                     for k in a_avail.difference(gul_avail.keys())}
-        il_rec = {k:OED_ACCOUNT_COLS[k]['desc'] if k in OED_ACCOUNT_COLS else desc_non_oed
+        il_rec = {k: OED_ACCOUNT_COLS[k]['desc'] if k in OED_ACCOUNT_COLS else desc_non_oed
                   for k in a_rec.difference(gul_rec.keys())}
         il_summary_lvl = {'IL': {
             'available': {**gul_avail, **il_avail, **int_oasis_cols},
@@ -306,7 +306,7 @@ def write_mapping_file(sum_inputs_df, target_dir, is_fm_summary=False):
     )
 
     # Set chunk size for writing the CSV files - default is max 20K, min 1K
-    chunksize =  min(2 * 10**5, max(len(sum_inputs_df), 1000))
+    chunksize = min(2 * 10**5, max(len(sum_inputs_df), 1000))
 
     if is_fm_summary:
         sum_mapping_fp = os.path.join(target_dir, SUMMARY_MAPPING['fm_map_fn'])
@@ -396,7 +396,7 @@ def write_df_to_file(df, target_dir, filename):
     :type filename:  str
     """
     target_dir = as_path(target_dir, 'Input files directory', is_dir=True, preexists=False)
-    chunksize =  min(2 * 10**5, max(len(df), 1000))
+    chunksize = min(2 * 10**5, max(len(df), 1000))
     csv_fp = os.path.join(target_dir, filename)
     try:
         df.to_csv(
@@ -542,8 +542,6 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
         analysis_settings['ri_summaries'] if 'ri_summaries' in analysis_settings else False,
         ri,
     ])
-
-
 
     # Load locations file for GUL OED fields
     exposure_fp = os.path.join(model_run_fp, 'input', SOURCE_FILENAMES['loc'])

@@ -37,7 +37,8 @@ from tests.data import keys
 
 # Determine number and names of required columns in loc file
 _, loc_required_cols = get_dtypes_and_required_cols(get_loc_dtypes)
-loc_required_cols = [name.lower() for name in loc_required_cols]
+loc_required_cols = [name.lower() for name in loc_required_cols] 
+loc_required_cols.append('loc_id')
 loc_data_cols = [
     integers(min_value=0, max_value=100)
     for _ in range(len(loc_required_cols))
@@ -168,7 +169,7 @@ class OasisLookupFactoryCreate(TestCase):
             module_path = os.path.join(d, '{}_lookup.py'.format(model))
             self.write_py_module(model, module_path)
 
-            with self.assertRaisesRegexp(OasisException,
+            with self.assertRaisesRegex(OasisException,
                                          r"model_version_file_path does not exist.*"):
                 _, instance = olf.create(
                     model_version_file_path=version_path
@@ -186,7 +187,7 @@ class OasisLookupFactoryCreate(TestCase):
 
             module_path = os.path.join(d, '{}_lookup.py'.format(model))
 
-            with self.assertRaisesRegexp(OasisException,
+            with self.assertRaisesRegex(OasisException,
                                          r"lookup_package_path does not exist.*"):
                 _, instance = olf.create(
                     model_version_file_path=version_path,
@@ -208,7 +209,7 @@ class OasisLookupFactoryCreate(TestCase):
             module_path = os.path.join(d, '{}_lookup.py'.format(model))
             self.write_py_module(model, module_path)
 
-            with self.assertRaisesRegexp(OasisException,
+            with self.assertRaisesRegex(OasisException,
                                          r"model_keys_data_path does not exist.*"):
                 _, instance = olf.create(
                     model_version_file_path=version_path,
@@ -226,7 +227,7 @@ class OasisLookupFactoryCreate(TestCase):
             version_path = os.path.join(d, 'version.csv')
             self.write_version_file(supplier, model, version, version_path)
 
-            with self.assertRaisesRegexp(OasisException,
+            with self.assertRaisesRegex(OasisException,
                                          r"Unable to import lookup package without lookup_package_path"):
                 _, instance = olf.create(
                     model_version_file_path=version_path
@@ -240,7 +241,7 @@ class OasisLookupFactoryCreate(TestCase):
             module_path = os.path.join(d, '{}_lookup.py'.format(model))
             self.write_py_module(model, module_path)
 
-            with self.assertRaisesRegexp(OasisException,
+            with self.assertRaisesRegex(OasisException,
                                          r"Unable to get model version data without model_version_file_path"):
                 _, instance = olf.create(
                     lookup_package_path=module_path
@@ -361,29 +362,6 @@ class OasisLookupFactoryGetKeys(TestCase):
         self.lookup_instance.process_locations = Mock(return_value=return_value or [])
         return self.lookup_instance
 
-    def test_no_source_exposure_are_provided___oasis_exception_is_raised(self):
-        with self.assertRaises(OasisException):
-            list(olf.get_keys(self.create_fake_lookup()))
-
-    @pytest.mark.skip(reason="Needs refactoring")
-    @given(text(min_size=1, max_size=10, alphabet=string.ascii_letters), text(min_size=1, max_size=10, alphabet=string.ascii_letters))
-    def test_source_exposure_path_is_provided___path_is_passed_to_get_model_exposure_result_is_passed_to_lookup_process_locations(self, path, result):
-        with patch('oasislmf.model_preparation.lookup.OasisLookupFactory.get_exposure', Mock(return_value=result)):
-            list(olf.get_keys(self.create_fake_lookup(), source_exposure_fp=path))
-
-            olf.get_exposure.assert_called_once_with(source_exposure_fp=path, source_exposure=None)
-            self.lookup_instance.process_locations.assert_called_once_with(result)
-
-    @pytest.mark.skip(reason="Needs refactoring")
-    @given(text(min_size=1, max_size=10, alphabet=string.ascii_letters), text(min_size=1, max_size=10, alphabet=string.ascii_letters))
-    def test_source_exposure_are_provided___exposure_are_passed_to_get_model_exposure_result_is_passed_to_lookup_process_locations(self, exposure, result):
-        with patch('oasislmf.model_preparation.lookup.OasisLookupFactory.get_exposure', Mock(return_value=result)):
-            list(olf.get_keys(self.create_fake_lookup(), source_exposure=exposure))
-
-            olf.get_exposure.assert_called_once_with(source_exposure=exposure, source_exposure_fp=None)
-            self.lookup_instance.process_locations.assert_called_once_with(result)
-
-    @pytest.mark.skip(reason="Needs refactoring")
     @given(lists(fixed_dictionaries({
         'id': integers(),
         'status': sampled_from(['success', 'failure'])
@@ -391,12 +369,10 @@ class OasisLookupFactoryGetKeys(TestCase):
     def test_entries_are_dictionaries_success_only_is_true___only_successes_are_included(self, data):
         with patch('oasislmf.model_preparation.lookup.OasisLookupFactory.get_exposure'):
             self.create_fake_lookup(return_value=data)
-
-            res = list(olf.get_keys(lookup=self.lookup_instance, source_exposure_fp='path'))
-
+            mock_df = pd.DataFrame.from_dict(data)
+            res = list(olf.get_keys_base(lookup=self.lookup_instance, loc_df=mock_df, success_only=True))
             self.assertEqual(res, [d for d in data if d['status'] == 'success'])
 
-    @pytest.mark.skip(reason="Needs refactoring")
     @given(lists(fixed_dictionaries({
         'id': integers(),
         'status': sampled_from(['success', 'failure'])
@@ -404,10 +380,10 @@ class OasisLookupFactoryGetKeys(TestCase):
     def test_entries_are_dictionaries_success_only_is_false___all_entries_are_included(self, data):
         with patch('oasislmf.model_preparation.lookup.OasisLookupFactory.get_exposure'):
             self.create_fake_lookup(return_value=data)
-
-            res = list(olf.get_keys(lookup=self.lookup_instance, source_exposure_fp='path', success_only=False))
-
+            mock_df = pd.DataFrame.from_dict(data)
+            res = list(olf.get_keys_base(lookup=self.lookup_instance, loc_df=mock_df, success_only=False))
             self.assertEqual(res, data)
+    
 
 
 class OasisLookupFactoryWriteKeys(TestCase):
@@ -416,29 +392,18 @@ class OasisLookupFactoryWriteKeys(TestCase):
         self.lookup_instance = Mock()
         return self.lookup_instance
 
-    def test_no_model_exposure_are_provided___oasis_exception_is_raised(self):
-        with self.assertRaises(OasisException):
-            list(olf.get_keys(self.create_fake_lookup()))
-
     @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
         data=keys(from_statuses=just(OASIS_KEYS_STATUS['success']['id']), size=10)
     )
     def test_produced_keys_are_passed_to_write_oasis_keys_file(self, data):
-        get_keys_path = 'oasislmf.model_preparation.lookup.OasisLookupFactory.get_keys'
         write_oasis_keys_file_path = 'oasislmf.model_preparation.lookup.OasisLookupFactory.write_oasis_keys_file'
-        with TemporaryDirectory() as d, patch(get_keys_path, Mock(return_value=(r for r in data))) as get_keys_mock, patch(write_oasis_keys_file_path) as write_oasis_keys_file_mock:
+        with TemporaryDirectory() as d, patch(write_oasis_keys_file_path) as write_oasis_keys_file_mock:
             keys_file_path = os.path.join(d, 'piwind-keys.csv')
+
             olf.save_keys(
-                lookup=self.create_fake_lookup(),
+                keys_data=data,
                 keys_file_path=keys_file_path,
-                source_exposure=json.dumps(data)
             )
 
-            get_keys_mock.assert_called_once_with(
-                lookup=self.lookup_instance,
-                source_exposure=json.dumps(data),
-                source_exposure_fp=None,
-                success_only=True
-            )
             write_oasis_keys_file_mock.assert_called_once_with(data, keys_file_path)

@@ -12,15 +12,16 @@ from oasislmf.utils import diff
 
 TEST_DIRECTORY = os.path.dirname(__file__)
 
+
 class Genbash(TestCase):
     @classmethod
     def setUpClass(cls):
-        # test dirs 
+        # test dirs
         cls.KPARSE_INPUT_FOLDER = os.path.join(TEST_DIRECTORY, "kparse_input")
         cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "cov_kparse_output")
         cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "cov_kparse_reference")
 
-        # defaults 
+        # defaults
         cls.ri_iterations  = 0
         cls.gul_alloc_rule = 0
         cls.il_alloc_rule  = 2
@@ -49,7 +50,7 @@ class Genbash(TestCase):
                 hash_md5.update(chunk)
         return hash_md5.hexdigest()
 
-    def genbash(self, name, num_partitions, 
+    def genbash(self, name, num_partitions,
                 num_reinsurance_iterations=None,
                 fifo_tmp_dir=None,
                 mem_limit=None,
@@ -455,12 +456,12 @@ class Genbash(TestCase):
 class Genbash_GulItemStream(Genbash):
     @classmethod
     def setUpClass(cls):
-        # test dirs 
+        # test dirs
         cls.KPARSE_INPUT_FOLDER = os.path.join(TEST_DIRECTORY, "kparse_input")
         cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "itm_kparse_output")
         cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "itm_kparse_reference")
 
-        # defaults 
+        # defaults
         cls.ri_iterations  = 0
         cls.gul_alloc_rule = 1
         cls.il_alloc_rule  = 2

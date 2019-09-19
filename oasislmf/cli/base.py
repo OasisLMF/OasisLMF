@@ -40,7 +40,7 @@ class InputValues(object):
             return val_default
         if val_config or isinstance(val_config, types):
             return val_config
-        return None    
+        return None
 
     def get(self, name, default=None, type=None, required=False, is_path=False):
         """
@@ -129,7 +129,7 @@ class OasisBaseCommand(BaseCommand):
         parser.add_argument('-V', '--verbose', action='store_true', help='Use verbose logging.')
         parser.add_argument(
             '-C', '--config', required=False, type=PathCleaner('MDK config. JSON file', preexists=True),
-            help='MDK config. JSON file', default=None
+            help='MDK config. JSON file', default='./oasislmf.json' if os.path.isfile('./oasislmf.json') else None
         )
 
     def parse_args(self):

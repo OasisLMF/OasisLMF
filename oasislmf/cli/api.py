@@ -30,7 +30,7 @@ def load_credentials(login_arg, logger=None):
         if {'password', 'username'} <= {k for k in login_arg.keys()}:
             return login_arg
     else:
-        logger.info('No Login provided - Fallback to prompt')
+        logger.info('API Login:')
 
     try:
         api_login = {}
@@ -39,6 +39,7 @@ def load_credentials(login_arg, logger=None):
         return api_login
     except KeyboardInterrupt as e:
         logger.error('\nFailed to get API login details:')
+        logger.error(e)
         sys.exit(1)
 
 
@@ -173,6 +174,7 @@ class DelApiCmd(OasisBaseCommand):
                     self.logger.info('Record deleted')
 
         except Exception as e:
+            self.logger.error(e)
             self.logger.error("Error on delete ref({}):".format(id_ref))
             self.logger.error(r.text)
 
@@ -191,7 +193,7 @@ class DelApiCmd(OasisBaseCommand):
             else:
                 print('Invalid Input')
                 return self.confirm_action(question_str)
-        except KeyboardInterrupt as e:
+        except KeyboardInterrupt:
             self.logger.error('\nKeyboard Interrupt, exiting.')
 
 
@@ -254,16 +256,16 @@ class RunApiCmd(OasisBaseCommand):
         # Required
         parser.add_argument(
             '-m', '--model-id', type=int, default=None,
-            required=True,
+            required=False,
             help='API `id` of a model to run the analysis with'
         )
         parser.add_argument(
-            '-j', '--analysis-settings-json-file-path',
+            '-j', '--analysis-settings-file-path',
             type=PathCleaner('analysis settings file'), default=None,
             help='Analysis settings JSON file path'
         )
         parser.add_argument(
-            '-x', '--source-exposures-file-path',
+            '-x', '--source-exposure-file-path',
             type=PathCleaner('Source exposures file'), default=None,
             help='OED Source exposures CSV file path'
         )
@@ -292,12 +294,41 @@ class RunApiCmd(OasisBaseCommand):
             help="Output data directory (absolute or relative file path)"
         )
 
+
+    def _select_model(self, avalible_models):
+        # list options
+        for i in range(len(avalible_models)):
+            self.logger.info('{} \t {}-{}-{}'.format(
+                i,
+                avalible_models[i]['supplier_id'],
+                avalible_models[i]['model_id'],
+                avalible_models[i]['version_id'],
+            ))
+
+        # Fetch user choice     
+        while True:
+            try:
+                value = int(input('Select model: ')) 
+            except ValueError:
+                self.logger.info('Invalid Response: {}'.format(value))
+                continue
+            except KeyboardInterrupt:
+                exit(1)
+
+            if (value < 0) or (value >= len(avalible_models)):
+                self.logger.info('Invalid Response: {}'.format(value))
+                continue
+            else:
+                break
+        return avalible_models[value]
+
+
     def action(self, args):
         inputs = InputValues(args)
         api = open_api_connection(inputs, self.logger)
 
         # Upload files
-        path_location = inputs.get('source_exposures_file_path')
+        path_location = inputs.get('source_exposure_file_path')
         path_account = inputs.get('source_accounts_file_path')
         path_info = inputs.get('ri_info_file_path')
         path_scope = inputs.get('ri_scope_file_path')
@@ -310,14 +341,32 @@ class RunApiCmd(OasisBaseCommand):
             ri_scope_fp=path_scope,
         )
 
+        model_id = inputs.get('model_id')
+        if not model_id:
+            avalible_models = api.models.get().json()
+
+            if len(avalible_models) > 1:
+                selected_model = self._select_model(avalible_models)
+            elif len(avalible_models) == 1:
+                selected_model = avalible_models[0]
+            else:
+                raise OasisException(
+                    'No models found in API: {}'.format(inputs.get('api_server_url'))
+                )
+
+            model_id = selected_model['id']
+            self.logger.info('Running model:')
+            self.logger.info(json.dumps(selected_model, indent=4))
+
+
         # Create new analysis
-        path_settings = inputs.get('analysis_settings_json_file_path')
+        path_settings = inputs.get('analysis_settings_file_path')
         if not path_settings:
             self.logger.error('analysis settings: Not found')
             return False
         analysis = api.create_analysis(
             portfolio_id=portfolio['id'],
-            model_id=inputs.get('model_id'),
+            model_id=model_id,
             analysis_settings_fp=path_settings,
         )
         self.logger.info('Loaded analysis settings:')
@@ -332,7 +381,7 @@ class RunApiCmd(OasisBaseCommand):
             analysis_id=analysis['id'],
             download_path=inputs.get('output_directory'),
             overwrite=True,
-            clean_up=True
+            clean_up=False
         )
 
         # Clean up

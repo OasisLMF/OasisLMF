@@ -93,6 +93,7 @@ def get_default_fm_aggregation_profile(path=False):
     fp = os.path.join(STATIC_DATA_FP, 'default_fm_agg_profile.json')
     return {int(k): v for k, v in get_json(src_fp=fp).items()} if not path else fp
 
+
 # Data types for fields in OED loc. (exposure) file
 def get_loc_dtypes():
     fp = os.path.join(STATIC_DATA_FP, 'loc_dtypes.json')
@@ -124,7 +125,7 @@ def get_default_deterministic_analysis_settings(path=False):
 
 
 # Defaults for Ktools runtime parameters
-KTOOLS_NUM_PROCESSES = 2
+KTOOLS_NUM_PROCESSES = -1
 KTOOLS_MEM_LIMIT = False
 KTOOLS_FIFO_RELATIVE = False
 KTOOLS_ALLOC_RULE_IL = 2

@@ -32,13 +32,13 @@ from shapely.geometry import (
 
 from shapely import speedups as shapely_speedups
 
-if shapely_speedups.available:
-    shapely_speedups.enable()
-
 import pickle
 
 from .exceptions import OasisException
 from .data import get_dataframe
+
+if shapely_speedups.available:
+    shapely_speedups.enable()
 
 
 PRL_BBF = 'BBF'
@@ -244,42 +244,42 @@ class PerilAreasIndex(RTreeIndex):
 
     def __init__(self, *args, **kwargs):
 
-            self._protocol = pickle.HIGHEST_PROTOCOL
+        self._protocol = pickle.HIGHEST_PROTOCOL
 
-            idx_fp = kwargs.get('fp')
+        idx_fp = kwargs.get('fp')
 
-            areas = kwargs.get('areas')
-            peril_areas = kwargs.get('peril_areas')
+        areas = kwargs.get('areas')
+        peril_areas = kwargs.get('peril_areas')
 
-            props = kwargs.get('properties') or copy.deepcopy(DEFAULT_RTREE_INDEX_PROPS)
+        props = kwargs.get('properties') or copy.deepcopy(DEFAULT_RTREE_INDEX_PROPS)
 
-            if not (idx_fp or areas or peril_areas):
-                self._peril_areas = self._stream = None
+        if not (idx_fp or areas or peril_areas):
+            self._peril_areas = self._stream = None
+            kwargs['properties'] = RTreeIndexProperty(**props)
+            super(self.__class__, self).__init__(*args, **kwargs)
+        elif idx_fp:
+            self._peril_areas = self._stream = None
+            _idx_fp = idx_fp
+            if not os.path.isabs(_idx_fp):
+                _idx_fp = os.path.abspath(_idx_fp)
+
+            idx_ext = props.get('idx_extension') or 'idx'
+            dat_ext = props.get('dat_extension') or 'dat'
+
+            if not (os.path.exists('{}.{}'.format(_idx_fp, idx_ext)) or os.path.exists('{}.{}'.format(_idx_fp, dat_ext))):
                 kwargs['properties'] = RTreeIndexProperty(**props)
-                super(self.__class__, self).__init__(*args, **kwargs)
-            elif idx_fp:
-                self._peril_areas = self._stream = None
-                _idx_fp = idx_fp
-                if not os.path.isabs(_idx_fp):
-                    _idx_fp = os.path.abspath(_idx_fp)
 
-                idx_ext = props.get('idx_extension') or 'idx'
-                dat_ext = props.get('dat_extension') or 'dat'
-
-                if not (os.path.exists('{}.{}'.format(_idx_fp, idx_ext)) or os.path.exists('{}.{}'.format(_idx_fp, dat_ext))):
-                    kwargs['properties'] = RTreeIndexProperty(**props)
-
-                super(self.__class__, self).__init__(_idx_fp, *args, **kwargs)
-            else:
-                self._peril_areas = OrderedDict({
-                    pa.id: pa for pa in (peril_areas if peril_areas else self._get_peril_areas(areas))
-                })
-                self._stream = self._generate_index_entries(
-                    ((paid, pa.bounds) for paid, pa in self._peril_areas.items()),
-                    objects=((paid, pa.bounds, pa.coordinates) for paid, pa in self._peril_areas.items())
-                )
-                kwargs['properties'] = RTreeIndexProperty(**props)
-                super(self.__class__, self).__init__(self._stream, *args, **kwargs)
+            super(self.__class__, self).__init__(_idx_fp, *args, **kwargs)
+        else:
+            self._peril_areas = OrderedDict({
+                pa.id: pa for pa in (peril_areas if peril_areas else self._get_peril_areas(areas))
+            })
+            self._stream = self._generate_index_entries(
+                ((paid, pa.bounds) for paid, pa in self._peril_areas.items()),
+                objects=((paid, pa.bounds, pa.coordinates) for paid, pa in self._peril_areas.items())
+            )
+            kwargs['properties'] = RTreeIndexProperty(**props)
+            super(self.__class__, self).__init__(self._stream, *args, **kwargs)
 
     def dumps(self, obj):
         return pickle.dumps(obj, protocol=self.protocol)

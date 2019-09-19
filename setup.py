@@ -39,7 +39,6 @@ def get_install_requirements():
     with io.open(os.path.join(SCRIPT_DIR, 'requirements-package.in'), encoding='utf-8') as reqs:
         return reqs.readlines()
 
-# https://www.python.org/dev/peps/pep-0440/#pre-releases
 def get_version():
     """
     Return package version as listed in `__version__` in `init.py`.
@@ -111,8 +110,6 @@ class InstallKtoolsMixin(object):
         if(exit_code is not 0):
             print('Ktools build failed.\n')
             sys.exit(1)
-            #if (not self.ktools_inpath()):
-            #    print('Exisiting Ktools install not found.\n')
         return build_dir
 
     def add_ktools_build_to_path(self, build_dir):
