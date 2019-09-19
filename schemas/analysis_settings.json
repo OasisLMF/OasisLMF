@@ -446,9 +446,7 @@
             "gul_threshold",
             "model_settings",
             "gul_output",
-            "gul_summaries",
-            "il_output",
-            "il_summaries"
+            "gul_summaries"
         ]
     }
 }
