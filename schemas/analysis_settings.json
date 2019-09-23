@@ -3,6 +3,129 @@
     "type": "object",
     "title": "Analysis settings.",
     "description": "Specifies the model settings and outputs for an analysis.",
+ 
+    "definitions": {
+        "output_summaries": {
+            "type": "array",
+            "uniqueItems": false,
+            "title": "Insured loss summary outputs",
+            "description": "Specified which outputs should be generated for which summary sets, for insured losses.",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "multipleOf": 1,
+                        "title": "Summary ID",
+                        "description": "Identifier for the summary set."
+                    },
+                    "oed_fields": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "title": "OED fields",
+                        "description": "A list of OED fields used to group the generated losses.",
+                    },
+                    "summarycalc": {
+                        "type": "boolean",
+                        "title": "Summary calculation flag",
+                        "description": "If true, output summary calculations by level for the summary set.",
+                        "default": false
+                    },
+                    "eltcalc": {
+                        "type": "boolean",
+                        "title": "ELT calculation flag",
+                        "description": "If true, output the event loss table by level  for the summary set.",
+                        "default": false
+                    },
+                    "aalcalc": {
+                        "type": "boolean",
+                        "title": "AAL calculation flag",
+                        "description": "If true, output the average annual loss by level for the summary set.",
+                        "default": false
+                    },
+                    "pltcalc": {
+                        "type": "boolean",
+                        "title": "PLT calculation flag",
+                        "description": "If true, output the period loss table by level for the summary set.",
+                        "default": false
+                    },
+                    "lec_output": {
+                        "type": "boolean",
+                        "title": "LEC calculation flag",
+                        "description": "If true, output loss exceed curves by level for the summary set.",
+                        "default": false
+                    },
+                    "leccalc": {
+                        "type": "object",
+                        "title": "LEC calculation settings",
+                        "description": "Specifies which loss exceedence curve types will be outputed for the summary level",
+                        "properties": {
+                            "return_period_file": {
+                                "type": "boolean",
+                                "title": "Return period file flag",
+                                "description": "If true, a file listing the return periods will be provided as part of the analysis inputs. If false, a default set will be used.",
+                                "default": false
+                            },
+                            "full_uncertainty_aep": {
+                                "type": "boolean",
+                                "title": "Full uncertainty AEP flag",
+                                "description": "If true and LEC output is true, output the full uncertainty aggregate loss exceedence curve by level for the summary set.",
+                                "default": true
+                            },
+                            "full_uncertainty_oep": {
+                                "type": "boolean",
+                                "title": "Full uncertainty OEP flag",
+                                "description": "If true and LEC output is true, output the full uncertainty occurrence loss exceedence curve by level for the summary set.",
+                                "default": false
+                            },
+                            "wheatsheaf_aep": {
+                                "type": "boolean",
+                                "title": "Wheatsheaf AEP flag",
+                                "description": "If true and LEC output is true, output the wheatsheaf aggregate loss exceedence curve by level for the summary set.",
+                                "default": false
+                            },
+                            "wheatsheaf_oep": {
+                                "type": "boolean",
+                                "title": "Wheatsheaf OEP flag",
+                                "description": "If true and LEC output is true, output the wheatsheaf occurrence loss exceedence curve by level for the summary set.",
+                                "default": false
+                            },
+                            "wheatsheaf_mean_aep": {
+                                "type": "boolean",
+                                "title": "Wheatsheaf mean AEP flag",
+                                "description": "If true and LEC output is true, output the wheatsheaf mean aggregate loss exceedence curve by level for the summary set.",
+                                "default": false
+                            },
+                            "wheatsheaf_mean_oep": {
+                                "type": "boolean",
+                                "title": "Wheatsheaf mean OEP schema.",
+                                "description": "If true and LEC output is true, output the wheatsheaf occurrence loss exceedence curve by level for the summary set.",
+                                "default": false
+                            },
+                            "sample_mean_aep": {
+                                "type": "boolean",
+                                "title": "Sample mean AEP flag",
+                                "description": "If true and LEC output is true, output the sample mean aggregate loss exceedence curve by level for the summary set.",
+                                "default": false
+                            },
+                            "sample_mean_oep": {
+                                "type": "boolean",
+                                "title": "Sample mean OEP schema.",
+                                "description": "If true and LEC output is true, output the sample occurrence loss exceedence curve by level for the summary set.",
+                                "default": false
+                            }
+                        }
+                    }
+                },
+                "required": [
+                    "id"
+                ]
+            }
+        }
+    },
+
     "properties": {
         "source_tag": {
             "type": "string",
@@ -69,123 +192,9 @@
             "default": false
         },
         "gul_summaries": {
-            "type": "array",
-            "uniqueItems": false,
             "title": "Ground-up loss summary outputs",
             "description": "Specified which outputs should be generated for which summary sets, for ground-up losses.",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "id": {
-                        "type": "integer",
-                        "multipleOf": 1,
-                        "title": "Summary ID",
-                        "description": "Identifier for the summary set."
-                    },
-                    "oed_fields": {
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        },
-                        "title": "OED fields",
-                        "description": "A list of OED fields used to group the generated losses.",
-                    },
-                    "summarycalc": {
-                        "type": "boolean",
-                        "title": "Summary calculation flag",
-                        "description": "If true, output summary calculations by level for the summary set.",
-                        "default": false
-                    },
-                    "eltcalc": {
-                        "type": "boolean",
-                        "title": "ELT calculation flag",
-                        "description": "If true, output the event loss table by level  for the summary set.",
-                        "default": false
-                    },
-                    "aalcalc": {
-                        "type": "boolean",
-                        "title": "AAL calculation flag",
-                        "description": "If true, output the average annual loss by level for the summary set.",
-                        "default": false
-                    },
-                    "pltcalc": {
-                        "type": "boolean",
-                        "title": "PLT calculation flag",
-                        "description": "If true, output the period loss table by level for the summary set.",
-                        "default": false
-                    },
-                    "lec_output": {
-                        "type": "boolean",
-                        "title": "LEC calculation flag",
-                        "description": "If true, output loss exceed curves by level for the summary set.",
-                        "default": false
-                    },
-                    "leccalc": {
-                        "type": "object",
-                        "title": "LEC calculation settings",
-                        "description": "Specifies which loss exceedence curve types will be outputed for the summary level",
-                        "properties": {
-                            "return_period_file": {
-                                "type": "boolean",
-                                "title": "Return period file flag",
-                                "description": "If true, a file listing the return periods will be provided as part of the analysis inputs. If false, a default set will be used.",
-                                "default": false
-                            },
-                            "full_uncertainty_aep": {
-                                "type": "boolean",
-                                "title": "Full uncertainty AEP flag",
-                                "description": "If true and LEC output is true, output the full uncertainty aggregate loss exceedence curve by level for the summary set.",
-                                "default": true
-                            },
-                            "full_uncertainty_oep": {
-                                "type": "boolean",
-                                "title": "Full uncertainty OEP flag",
-                                "description": "If true and LEC output is true, output the full uncertainty occurrence loss exceedence curve by level for the summary set.",
-                                "default": false
-                            },
-                            "wheatsheaf_aep": {
-                                "type": "boolean",
-                                "title": "Wheatsheaf AEP flag",
-                                "description": "If true and LEC output is true, output the wheatsheaf aggregate loss exceedence curve by level for the summary set.",
-                                "default": false
-                            },
-                            "wheatsheaf_oep": {
-                                "type": "boolean",
-                                "title": "Wheatsheaf OEP flag",
-                                "description": "If true and LEC output is true, output the wheatsheaf occurrence loss exceedence curve by level for the summary set.",
-                                "default": false
-                            },
-                            "wheatsheaf_mean_aep": {
-                                "type": "boolean",
-                                "title": "Wheatsheaf mean AEP flag",
-                                "description": "If true and LEC output is true, output the wheatsheaf mean aggregate loss exceedence curve by level for the summary set.",
-                                "default": false
-                            },
-                            "wheatsheaf_mean_oep": {
-                                "type": "boolean",
-                                "title": "Wheatsheaf mean OEP schema.",
-                                "description": "If true and LEC output is true, output the wheatsheaf occurrence loss exceedence curve by level for the summary set.",
-                                "default": false
-                            },
-                            "sample_mean_aep": {
-                                "type": "boolean",
-                                "title": "Sample mean AEP flag",
-                                "description": "If true and LEC output is true, output the sample mean aggregate loss exceedence curve by level for the summary set.",
-                                "default": false
-                            },
-                            "sample_mean_oep": {
-                                "type": "boolean",
-                                "title": "Sample mean OEP schema.",
-                                "description": "If true and LEC output is true, output the sample occurrence loss exceedence curve by level for the summary set.",
-                                "default": false
-                            }
-                        }
-                    }
-                },
-                "required": [
-                    "id"
-                ]
-            }
+            "$ref": "#/definitions/output_summaries"
         },
         "il_output": {
             "type": "boolean",
@@ -194,123 +203,9 @@
             "default": false
         },
         "il_summaries": {
-            "type": "array",
-            "uniqueItems": false,
             "title": "Insured loss summary outputs",
             "description": "Specified which outputs should be generated for which summary sets, for insured losses.",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "id": {
-                        "type": "integer",
-                        "multipleOf": 1,
-                        "title": "Summary ID",
-                        "description": "Identifier for the summary set."
-                    },
-                    "oed_fields": {
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        },
-                        "title": "OED fields",
-                        "description": "A list of OED fields used to group the generated losses.",
-                    },
-                    "summarycalc": {
-                        "type": "boolean",
-                        "title": "Summary calculation flag",
-                        "description": "If true, output summary calculations by level for the summary set.",
-                        "default": false
-                    },
-                    "eltcalc": {
-                        "type": "boolean",
-                        "title": "ELT calculation flag",
-                        "description": "If true, output the event loss table by level  for the summary set.",
-                        "default": false
-                    },
-                    "aalcalc": {
-                        "type": "boolean",
-                        "title": "AAL calculation flag",
-                        "description": "If true, output the average annual loss by level for the summary set.",
-                        "default": false
-                    },
-                    "pltcalc": {
-                        "type": "boolean",
-                        "title": "PLT calculation flag",
-                        "description": "If true, output the period loss table by level for the summary set.",
-                        "default": false
-                    },
-                    "lec_output": {
-                        "type": "boolean",
-                        "title": "LEC calculation flag",
-                        "description": "If true, output loss exceed curves by level for the summary set.",
-                        "default": false
-                    },
-                    "leccalc": {
-                        "type": "object",
-                        "title": "LEC calculation settings",
-                        "description": "Specifies which loss exceedence curve types will be outputed for the summary level",
-                        "properties": {
-                            "return_period_file": {
-                                "type": "boolean",
-                                "title": "Return period file flag",
-                                "description": "If true, a file listing the return periods will be provided as part of the analysis inputs. If false, a default set will be used.",
-                                "default": false
-                            },
-                            "full_uncertainty_aep": {
-                                "type": "boolean",
-                                "title": "Full uncertainty AEP flag",
-                                "description": "If true and LEC output is true, output the full uncertainty aggregate loss exceedence curve by level for the summary set.",
-                                "default": true
-                            },
-                            "full_uncertainty_oep": {
-                                "type": "boolean",
-                                "title": "Full uncertainty OEP flag",
-                                "description": "If true and LEC output is true, output the full uncertainty occurrence loss exceedence curve by level for the summary set.",
-                                "default": false
-                            },
-                            "wheatsheaf_aep": {
-                                "type": "boolean",
-                                "title": "Wheatsheaf AEP flag",
-                                "description": "If true and LEC output is true, output the wheatsheaf aggregate loss exceedence curve by level for the summary set.",
-                                "default": false
-                            },
-                            "wheatsheaf_oep": {
-                                "type": "boolean",
-                                "title": "Wheatsheaf OEP flag",
-                                "description": "If true and LEC output is true, output the wheatsheaf occurrence loss exceedence curve by level for the summary set.",
-                                "default": false
-                            },
-                            "wheatsheaf_mean_aep": {
-                                "type": "boolean",
-                                "title": "Wheatsheaf mean AEP flag",
-                                "description": "If true and LEC output is true, output the wheatsheaf mean aggregate loss exceedence curve by level for the summary set.",
-                                "default": false
-                            },
-                            "wheatsheaf_mean_oep": {
-                                "type": "boolean",
-                                "title": "Wheatsheaf mean OEP schema.",
-                                "description": "If true and LEC output is true, output the wheatsheaf occurrence loss exceedence curve by level for the summary set.",
-                                "default": false
-                            },
-                            "sample_mean_aep": {
-                                "type": "boolean",
-                                "title": "Sample mean AEP flag",
-                                "description": "If true and LEC output is true, output the sample mean aggregate loss exceedence curve by level for the summary set.",
-                                "default": false
-                            },
-                            "sample_mean_oep": {
-                                "type": "boolean",
-                                "title": "Sample mean OEP schema.",
-                                "description": "If true and LEC output is true, output the sample occurrence loss exceedence curve by level for the summary set.",
-                                "default": false
-                            }
-                        }
-                    }
-                },
-                "required": [
-                    "id"
-                ]
-            }
+            "$ref": "#/definitions/output_summaries"
         },
         "ri_output": {
             "type": "boolean",
@@ -320,122 +215,9 @@
         },
         "ri_summaries": {
             "type": "array",
-            "uniqueItems": false,
             "title": "Reinsurance net loss summary outputs",
             "description": "Specified which outputs should be generated for which summary sets, for reinsurance net losses.",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "id": {
-                        "type": "integer",
-                        "multipleOf": 1,
-                        "title": "Summary ID",
-                        "description": "Identifier for the summary set."
-                    },
-                    "oed_fields": {
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        },
-                        "title": "OED fields",
-                        "description": "A list of OED fields used to group the generated losses.",
-                    },
-                    "summarycalc": {
-                        "type": "boolean",
-                        "title": "Summary calculation flag",
-                        "description": "If true, output summary calculations by level for the summary set.",
-                        "default": false
-                    },
-                    "eltcalc": {
-                        "type": "boolean",
-                        "title": "ELT calculation flag",
-                        "description": "If true, output the event loss table by level  for the summary set.",
-                        "default": false
-                    },
-                    "aalcalc": {
-                        "type": "boolean",
-                        "title": "AAL calculation flag",
-                        "description": "If true, output the average annual loss by level for the summary set.",
-                        "default": false
-                    },
-                    "pltcalc": {
-                        "type": "boolean",
-                        "title": "PLT calculation flag",
-                        "description": "If true, output the period loss table by level for the summary set.",
-                        "default": false
-                    },
-                    "lec_output": {
-                        "type": "boolean",
-                        "title": "LEC calculation flag",
-                        "description": "If true, output loss exceed curves by level for the summary set.",
-                        "default": false
-                    },
-                    "leccalc": {
-                        "type": "object",
-                        "title": "LEC calculation settings",
-                        "description": "Specifies which loss exceedence curve types will be outputed for the summary level",
-                        "properties": {
-                            "return_period_file": {
-                                "type": "boolean",
-                                "title": "Return period file flag",
-                                "description": "If true, a file listing the return periods will be provided as part of the analysis inputs. If false, a default set will be used.",
-                                "default": false
-                            },
-                            "full_uncertainty_aep": {
-                                "type": "boolean",
-                                "title": "Full uncertainty AEP flag",
-                                "description": "If true and LEC output is true, output the full uncertainty aggregate loss exceedence curve by level for the summary set.",
-                                "default": true
-                            },
-                            "full_uncertainty_oep": {
-                                "type": "boolean",
-                                "title": "Full uncertainty OEP flag",
-                                "description": "If true and LEC output is true, output the full uncertainty occurrence loss exceedence curve by level for the summary set.",
-                                "default": false
-                            },
-                            "wheatsheaf_aep": {
-                                "type": "boolean",
-                                "title": "Wheatsheaf AEP flag",
-                                "description": "If true and LEC output is true, output the wheatsheaf aggregate loss exceedence curve by level for the summary set.",
-                                "default": false
-                            },
-                            "wheatsheaf_oep": {
-                                "type": "boolean",
-                                "title": "Wheatsheaf OEP flag",
-                                "description": "If true and LEC output is true, output the wheatsheaf occurrence loss exceedence curve by level for the summary set.",
-                                "default": false
-                            },
-                            "wheatsheaf_mean_aep": {
-                                "type": "boolean",
-                                "title": "Wheatsheaf mean AEP flag",
-                                "description": "If true and LEC output is true, output the wheatsheaf mean aggregate loss exceedence curve by level for the summary set.",
-                                "default": false
-                            },
-                            "wheatsheaf_mean_oep": {
-                                "type": "boolean",
-                                "title": "Wheatsheaf mean OEP schema.",
-                                "description": "If true and LEC output is true, output the wheatsheaf occurrence loss exceedence curve by level for the summary set.",
-                                "default": false
-                            },
-                            "sample_mean_aep": {
-                                "type": "boolean",
-                                "title": "Sample mean AEP flag",
-                                "description": "If true and LEC output is true, output the sample mean aggregate loss exceedence curve by level for the summary set.",
-                                "default": false
-                            },
-                            "sample_mean_oep": {
-                                "type": "boolean",
-                                "title": "Sample mean OEP schema.",
-                                "description": "If true and LEC output is true, output the sample occurrence loss exceedence curve by level for the summary set.",
-                                "default": false
-                            }
-                        }
-                    }
-                },
-                "required": [
-                    "id"
-                ]
-            }
+            "$ref": "#/definitions/output_summaries"
         },        
         "required": [
             "source_tag",
