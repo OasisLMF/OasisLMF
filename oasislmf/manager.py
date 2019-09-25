@@ -594,9 +594,10 @@ class OasisManager(object):
             analysis_settings['ri_summaries'] = []
 
         # guard - Check if at least one output type is selected 
-        if not any([analysis_settings['gul_output'],
-                   analysis_settings['il_output'],
-                   analysis_settings['ri_summaries'],
+        if not any([
+            analysis_settings['gul_output'] if 'gul_output' in analysis_settings else False,
+            analysis_settings['il_output'] if 'il_output' in analysis_settings else False,
+            analysis_settings['ri_output'] if 'ri_output' in analysis_settings else False,
         ]):
             raise OasisException(
                 'No valid output settings in: {}'.format(analysis_settings_fp))
