@@ -490,7 +490,7 @@ def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, s
         else:
             # Fall back to setting all in single group
             summary_set_df['summary_id'] = 1
-            summary_desc[desc_key] = pd.DataFrame(data=['undefined'], columns=['n/a'])
+            summary_desc[desc_key] = pd.DataFrame(data=['All-Risks'], columns=['_not_set_'])
             summary_desc[desc_key].insert(loc=0, column='summary_id', value=1)
 
         # Appends summary set to '__summaryxref.csv'
