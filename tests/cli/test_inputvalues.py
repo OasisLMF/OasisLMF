@@ -8,7 +8,7 @@ import os
 from hypothesis import given
 from hypothesis.strategies import text
 
-from oasislmf.cli.base import InputValues
+from oasislmf.cli.inputs import InputValues
 from oasislmf.utils.exceptions import OasisException
 
 

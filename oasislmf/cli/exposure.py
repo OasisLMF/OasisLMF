@@ -27,10 +27,9 @@ from ..utils.diff import column_diff
 from ..utils.exceptions import OasisException
 from ..utils.path import as_path
 from ..utils.profiles import get_oed_hierarchy
-from .base import (
-    InputValues,
-    OasisBaseCommand,
-)
+
+from .base import OasisBaseCommand
+from .inputs import InputValues
 
 
 class RunCmd(OasisBaseCommand):
