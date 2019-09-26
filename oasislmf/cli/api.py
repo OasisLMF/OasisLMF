@@ -345,10 +345,6 @@ class RunApiCmd(OasisBaseCommand):
             clean_up=False
         )
 
-        # Clean up
-        api.portfolios.delete(portfolio['id'])
-
-
 class ApiCmd(OasisBaseCommand):
     sub_commands = {
         'list': GetApiCmd,
