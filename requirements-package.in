@@ -5,6 +5,7 @@ billiard
 certifi
 chainmap
 cookiecutter>=1.6.0
+fastcache
 future
 pandas>=0.24.0
 pathlib2
