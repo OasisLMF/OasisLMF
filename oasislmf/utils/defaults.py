@@ -6,6 +6,9 @@ __all__ = [
     'get_default_fm_aggregation_profile',
     'get_default_unified_profile',
     'get_loc_dtypes',
+    'get_acc_dtypes',
+    'get_scope_dtypes',
+    'get_info_dtypes',
     'KTOOLS_ALLOC_RULE_IL',
     'KTOOLS_ALLOC_RULE_GUL',
     'KTOOLS_FIFO_RELATIVE',
@@ -98,9 +101,21 @@ def get_default_fm_aggregation_profile(path=False):
     return {int(k): v for k, v in get_json(src_fp=fp).items()} if not path else fp
 
 
-# Data types for fields in OED loc. (exposure) file
+# Data types for fields in OED. (exposure) files
 def get_loc_dtypes():
     fp = os.path.join(STATIC_DATA_FP, 'loc_dtypes.json')
+    return get_json(src_fp=fp)
+
+def get_acc_dtypes():
+    fp = os.path.join(STATIC_DATA_FP, 'acc_dtypes.json')
+    return get_json(src_fp=fp)
+
+def get_scope_dtypes():
+    fp = os.path.join(STATIC_DATA_FP, 'scope_dtypes.json')
+    return get_json(src_fp=fp)
+
+def get_info_dtypes():
+    fp = os.path.join(STATIC_DATA_FP, 'info_dtypes.json')
     return get_json(src_fp=fp)
 
 

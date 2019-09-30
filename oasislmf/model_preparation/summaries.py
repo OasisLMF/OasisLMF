@@ -29,13 +29,8 @@ from ..utils.defaults import (
     SUMMARY_MAPPING,
     SUMMARY_GROUPING,
     SUMMARY_OUTPUT,
-)
-
-from ..utils.summary_levels import (
-    SUMMARY_LEVEL_LOC,
-    SUMMARY_LEVEL_ACC,
-    OED_LOCATION_COLS,
-    OED_ACCOUNT_COLS,
+    get_loc_dtypes,
+    get_acc_dtypes,
 )
 
 from ..utils.exceptions import OasisException
@@ -224,16 +219,7 @@ def write_summary_levels(exposure_df, accounts_fp, target_dir):
                          'contentstiv',
                          'bitiv',
                          'portnumber'],
-
-            'recommended': ['postalcode',
-                            'occupancycode',
-                            'constructioncode',
-                            'accnumber',
-                            'countrycode',
-                            'portnumber',
-                            'locperilscovered',
-                            'locnumber']
-        },
+        
         'IL': {
                 ... etc ...
         }
@@ -250,32 +236,26 @@ def write_summary_levels(exposure_df, accounts_fp, target_dir):
 
     # GUL perspective (loc columns only)
     l_col_list = exposure_df.loc[:, exposure_df.any()].columns.to_list()
-    gul_avail = {k: OED_LOCATION_COLS[k]['desc'] if k in OED_LOCATION_COLS else desc_non_oed
+    l_col_info = get_loc_dtypes()
+    for k in list(l_col_info.keys()):
+        l_col_info[k.lower()] = l_col_info[k]
+        del l_col_info[k]
+ 
+    gul_avail = {k: l_col_info[k]['desc'] if k in l_col_info else desc_non_oed
                  for k in set([c.lower() for c in l_col_list]).difference(int_excluded_cols)}
-    gul_rec = {k: OED_LOCATION_COLS[k]['desc'] if k in OED_LOCATION_COLS else desc_non_oed
-               for k in set(gul_avail.keys()).intersection(SUMMARY_LEVEL_LOC)}
-
-    gul_summary_lvl = {'GUL': {
-        'available': {**gul_avail, **int_oasis_cols},
-        'recommended': {**gul_rec, **int_oasis_cols}}
-    }
+    gul_summary_lvl = {'GUL': { 'available': {**gul_avail, **int_oasis_cols}}}
 
     # IL perspective (join of acc + loc col with no dups)
     il_summary_lvl = {}
     if accounts_fp:
         accounts_df = pd.read_csv(accounts_fp)
         a_col_list = accounts_df.loc[:, accounts_df.any()].columns.to_list()
+        a_col_info = get_acc_dtypes()
         a_avail = set([c.lower() for c in a_col_list])
-        a_rec = set(a_avail).intersection(SUMMARY_LEVEL_ACC)
 
-        il_avail = {k: OED_ACCOUNT_COLS[k]['desc'] if k in OED_ACCOUNT_COLS else desc_non_oed
+        il_avail = {k: a_col_info[k]['desc'] if k in a_col_info else desc_non_oed
                     for k in a_avail.difference(gul_avail.keys())}
-        il_rec = {k: OED_ACCOUNT_COLS[k]['desc'] if k in OED_ACCOUNT_COLS else desc_non_oed
-                  for k in a_rec.difference(gul_rec.keys())}
-        il_summary_lvl = {'IL': {
-            'available': {**gul_avail, **il_avail, **int_oasis_cols},
-            'recommended': {**gul_rec, **il_rec, **int_oasis_cols}}
-        }
+        il_summary_lvl = {'IL': { 'available': {**gul_avail, **il_avail, **int_oasis_cols}}}
 
     with io.open(os.path.join(target_dir, 'exposure_summary_levels.json'), 'w', encoding='utf-8') as f:
         f.write(json.dumps({**gul_summary_lvl, **il_summary_lvl}, sort_keys=True, ensure_ascii=False, indent=4))
