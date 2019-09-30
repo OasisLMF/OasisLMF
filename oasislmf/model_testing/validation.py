@@ -27,6 +27,7 @@ INPUT_FILES = {
     }
 }
 
+
 def csv_validity_test(model_data_fp):
     """
     Assess validity of model data.
@@ -68,7 +69,7 @@ def csv_validity_test(model_data_fp):
             '{}.csv'.format(input_file['name'])
         )
         cmd_str += " {} {}".format(flag, input_file_path)
-    
+
     try:
         subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
     except subprocess.CalledProcessError as e:

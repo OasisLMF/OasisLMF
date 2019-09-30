@@ -13,7 +13,6 @@ import importlib
 import io
 import itertools
 import json
-import logging
 import os
 import re
 import sys
@@ -180,7 +179,6 @@ class OasisBuiltinBaseLookup(object):
         return [self.lookup(loc, peril_id, coverage_type) for
                 loc, peril_id, coverage_type in
                 itertools.product(locs_seq, self.peril_ids, self.coverage_types)]
-
 
     @oasis_log()
     def bulk_lookup(self, locs, **kwargs):
@@ -381,7 +379,6 @@ class OasisLookupFactory(object):
         except AttributeError:
             lookup_config = None
 
-
         # load dtypes based on lookup config
         if lookup_config:
             peril_config = lookup.config.get('peril')
@@ -402,7 +399,6 @@ class OasisLookupFactory(object):
                 'sort_ascending': loc_config.get('sort_ascending')
             }
             loc_df = get_dataframe(**kwargs)
-
 
         # Load default dtypes from JSON definition
         else:
@@ -628,7 +624,6 @@ class OasisLookupFactory(object):
             else:
                 yield result
 
-
     @classmethod
     def get_keys_multiproc(
         cls,
@@ -655,7 +650,6 @@ class OasisLookupFactory(object):
         pool.close()
         pool.join()
         return sum([r for r in results if r], [])
-
 
     @classmethod
     def save_keys(
@@ -690,7 +684,6 @@ class OasisLookupFactory(object):
         number of "unsuccessful" keys records written to keys errors file.
         """
 
-
         _keys_file_path = as_path(keys_file_path, 'keys_file_path', preexists=False)
         _keys_errors_file_path = as_path(keys_errors_file_path, 'keys_errors_file_path', preexists=False)
 
@@ -715,7 +708,6 @@ class OasisLookupFactory(object):
             return cls.write_oasis_keys_file(successes, _keys_file_path)
         else:
             raise OasisException("Unrecognised keys file output format - valid formats are 'oasis' or 'json'")
-
 
     @classmethod
     def save_results(
@@ -762,8 +754,8 @@ class OasisLookupFactory(object):
             keys_generator = cls.get_keys_builtin if hasattr(lookup, 'config') else (
                              cls.get_keys_base)
         kwargs = {
-            "lookup":lookup,
-            "loc_df":location_df,
+            "lookup": lookup,
+            "loc_df": location_df,
             "success_only": (False if efp else True)
         }
 

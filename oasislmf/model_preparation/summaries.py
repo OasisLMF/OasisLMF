@@ -219,7 +219,7 @@ def write_summary_levels(exposure_df, accounts_fp, target_dir):
                          'contentstiv',
                          'bitiv',
                          'portnumber'],
-        
+
         'IL': {
                 ... etc ...
         }
@@ -240,10 +240,10 @@ def write_summary_levels(exposure_df, accounts_fp, target_dir):
     for k in list(l_col_info.keys()):
         l_col_info[k.lower()] = l_col_info[k]
         del l_col_info[k]
- 
+
     gul_avail = {k: l_col_info[k]['desc'] if k in l_col_info else desc_non_oed
                  for k in set([c.lower() for c in l_col_list]).difference(int_excluded_cols)}
-    gul_summary_lvl = {'GUL': { 'available': {**gul_avail, **int_oasis_cols}}}
+    gul_summary_lvl = {'GUL': {'available': {**gul_avail, **int_oasis_cols}}}
 
     # IL perspective (join of acc + loc col with no dups)
     il_summary_lvl = {}
@@ -255,7 +255,7 @@ def write_summary_levels(exposure_df, accounts_fp, target_dir):
 
         il_avail = {k: a_col_info[k]['desc'] if k in a_col_info else desc_non_oed
                     for k in a_avail.difference(gul_avail.keys())}
-        il_summary_lvl = {'IL': { 'available': {**gul_avail, **il_avail, **int_oasis_cols}}}
+        il_summary_lvl = {'IL': {'available': {**gul_avail, **il_avail, **int_oasis_cols}}}
 
     with io.open(os.path.join(target_dir, 'exposure_summary_levels.json'), 'w', encoding='utf-8') as f:
         f.write(json.dumps({**gul_summary_lvl, **il_summary_lvl}, sort_keys=True, ensure_ascii=False, indent=4))

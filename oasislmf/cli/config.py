@@ -39,21 +39,18 @@ class ConfigUpdateCmd(OasisBaseCommand):
             inputs.list_obsolete_keys()
             inputs.update_config_keys(warn_user=False)
             new_config_fp = inputs.get('output_config') if inputs.get('output_config') else inputs.config_fp
-           
+
             if inputs.get('no_confirm'):
                 inputs.write_config_file(new_config_fp)
             else:
-                msg = 'Write updated config file to "{}"?'.format(new_config_fp) 
+                msg = 'Write updated config file to "{}"?'.format(new_config_fp)
                 if inputs.confirm_action(msg):
                     inputs.write_config_file(new_config_fp)
         else:
             self.logger.info('File "{}" is up to date with version {}'.format(
                 inputs.config_fp,
-                __version__,                
+                __version__,
             ))
-
-
-
 
 
 class ConfigCmd(OasisBaseCommand):
