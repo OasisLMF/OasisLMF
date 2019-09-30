@@ -17,7 +17,6 @@ __all__ = [
     'KTOOLS_NUM_PROCESSES',
     'OASIS_FILES_PREFIXES',
     'SUMMARY_MAPPING',
-    'SUMMARY_GROUPING',
     'SUMMARY_OUTPUT',
     'SOURCE_IDX',
     'SOURCE_FILENAMES',
@@ -57,17 +56,6 @@ SUMMARY_MAPPING = OrderedDict({
 SUMMARY_OUTPUT = OrderedDict({
     'gul': 'gulsummaryxref.csv',
     'il': 'fmsummaryxref.csv'
-})
-
-# Update with load OED column names
-# NOTE:  this should be removed once UI column picker feature has been added
-SUMMARY_GROUPING = OrderedDict({
-    'prog': None,
-    'state': ['countrycode'],
-    'county': ['geogname1'],
-    'location': ['locnumber'],
-    'lob': ['occupancycode'],    # <-- "Work around, this value should come from 'LOB' in the accounts file"
-    'policy': ['polnumber'],
 })
 
 # Path for storing static data/metadata files used in the package

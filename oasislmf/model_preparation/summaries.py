@@ -27,7 +27,6 @@ from ..utils.defaults import (
     SOURCE_FILENAMES,
     SOURCE_IDX,
     SUMMARY_MAPPING,
-    SUMMARY_GROUPING,
     SUMMARY_OUTPUT,
     get_loc_dtypes,
     get_acc_dtypes,
@@ -310,9 +309,7 @@ def get_column_selection(summary_set):
     """
     Given a analysis_settings summary definition, return either
         1. the set of OED columns requested to group by
-        2. A set columns for one of the following default groupings
-            ['lob', 'county', 'policy', 'state', 'location', 'prog']
-        3. If no information key 'oed_fields', then group all outputs into a single summary_set
+        2. If no information key 'oed_fields', then group all outputs into a single summary_set
 
     :param summary_set: summary group dictionary from the `analysis_settings.json`
     :type summary_set: dict
@@ -324,13 +321,6 @@ def get_column_selection(summary_set):
         return None
     if not summary_set["oed_fields"]:
         return None
-
-    # Select Default Grouping for either
-    elif isinstance(summary_set['oed_fields'], str):
-        if summary_set['oed_fields'] in SUMMARY_GROUPING:
-            return SUMMARY_GROUPING[summary_set['oed_fields']]
-        else:
-            raise OasisException('oed_fields value Invalid: {}'.format(summary_set['oed_fields']))
 
     # Use OED column list set in analysis_settings file
     elif isinstance(summary_set['oed_fields'], list) and len(summary_set['oed_fields']) > 0:
