@@ -452,6 +452,7 @@ class OasisLookupFactory(object):
                 ('coverage_type', 'CoverageTypeID'),
                 ('area_peril_id', 'AreaPerilID'),
                 ('vulnerability_id', 'VulnerabilityID'),
+                ('message', 'Message'),
             ])
 
         pd.DataFrame(
