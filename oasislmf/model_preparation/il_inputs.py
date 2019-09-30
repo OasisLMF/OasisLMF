@@ -77,6 +77,17 @@ def get_calc_rule_ids(il_inputs_df):
     il_inputs_calc_rules_df = merge_dataframes(il_inputs_calc_rules_df, calc_rules, how='left', on='id_key').fillna(0)
     il_inputs_calc_rules_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id'].astype('uint32')
 
+    if 0 in il_inputs_calc_rules_df.calcrule_id.unique():
+        err_msg = 'Calculation Rule mapping error, non-matching keys:\n'
+        no_match_keys = il_inputs_calc_rules_df.loc[
+                        il_inputs_calc_rules_df.calcrule_id == 0
+                        ].id_key.unique()
+
+        err_msg += '   {}\n'.format(tuple(terms_indicators + types_and_codes))
+        for key_id in no_match_keys:
+            err_msg += '   {}\n'.format(key_id)
+        raise OasisException(err_msg)
+
     return il_inputs_calc_rules_df['calcrule_id'].values
 
 
