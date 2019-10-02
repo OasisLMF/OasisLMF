@@ -10,6 +10,7 @@ import logging
 from ..utils.defaults import get_config_profile
 from ..utils.exceptions import OasisException
 
+
 class InputValues(object):
     """
     Helper class for accessing the input values from either
@@ -34,8 +35,9 @@ class InputValues(object):
         else:
             self.config_dir = os.path.dirname(self.config_fp)
             self.config = self.load_config_file(self.config_dir)
-            self.obsolete_keys = set(self.config.keys()).intersection(
-                                 set(self.config_mapping.keys()))
+            self.obsolete_keys = (
+                set(self.config.keys()).intersection(set(self.config_mapping.keys()))
+            )
             if update_keys:
                 self.update_config_keys()
 
@@ -52,7 +54,6 @@ class InputValues(object):
     def has_obsolete_keys(self):
         return len(self.obsolete_keys) > 0
 
-
     def update_config_keys(self, warn_user=True):
         """
         If command line flags change between package versions, update them intenrally and warn the user
@@ -64,8 +65,8 @@ class InputValues(object):
 
             if warn_user:
                 self.logger.warn(
-                'Depricated key names found in MDK config: {} \n'
-                '  To fix run: oasislmf config update'.format(self.config_fp)
+                    'Depricated key names found in MDK config: {} \n'
+                    '  To fix run: oasislmf config update'.format(self.config_fp)
                 )
 
     def load_config_file(self, config_fp):
@@ -78,7 +79,6 @@ class InputValues(object):
     def write_config_file(self, config_fp):
         with io.open(config_fp, 'w', encoding='utf-8') as f:
             f.write(u'{}'.format(json.dumps(self.config, sort_keys=True, indent=4, ensure_ascii=False)))
-
 
     def confirm_action(self, question_str, no_confirm=False):
         self.logger.debug('Prompt user for confirmation')
@@ -95,7 +95,6 @@ class InputValues(object):
                 return self.confirm_action(question_str)
         except KeyboardInterrupt:
             self.logger.error('\nexiting.')
-
 
     def _select_by_type(self, val_cmd, val_default, val_config, types):
         if val_cmd or isinstance(val_cmd, types):

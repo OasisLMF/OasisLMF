@@ -93,6 +93,7 @@ class EnableBashCompleteCmd(OasisBaseCommand):
         except Exception as e:
             self.logger.error('{}: {}'.format(msg_failed, e))
 
+
 class CreateSimpleModelCmd(OasisBaseCommand):
     """
     Creates a local Git repository for a "simple model" (using the

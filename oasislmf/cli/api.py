@@ -12,6 +12,7 @@ from ..utils.path import PathCleaner
 from .base import OasisBaseCommand
 from .inputs import InputValues
 
+
 def load_credentials(login_arg, logger=None):
     """
     Load credentials from JSON file
@@ -255,7 +256,6 @@ class RunApiCmd(OasisBaseCommand):
         parser.add_argument('-s', '--oed-scope-csv', type=PathCleaner('OED Reinsurances scope file'), default=None, help='Reinsurance scope CSV file path')
         parser.add_argument('-o', '--output-dir', type=PathCleaner('Output directory', preexists=False), default='./', help="Output data directory (absolute or relative file path)")
 
-
     def _select_model(self, avalible_models):
         # list options
         for i in range(len(avalible_models)):
@@ -282,7 +282,6 @@ class RunApiCmd(OasisBaseCommand):
             else:
                 break
         return avalible_models[value]
-
 
     def action(self, args):
         inputs = InputValues(args)
@@ -319,7 +318,6 @@ class RunApiCmd(OasisBaseCommand):
             self.logger.info('Running model:')
             self.logger.info(json.dumps(selected_model, indent=4))
 
-
         # Create new analysis
         path_settings = inputs.get('analysis_settings_json')
         if not path_settings:
@@ -344,6 +342,7 @@ class RunApiCmd(OasisBaseCommand):
             overwrite=True,
             clean_up=False
         )
+
 
 class ApiCmd(OasisBaseCommand):
     sub_commands = {

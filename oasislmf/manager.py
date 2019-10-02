@@ -292,7 +292,7 @@ class OasisManager(object):
         location_df = olf.get_exposure(
             lookup=lookup,
             source_exposure_fp=exposure_fp,
-        ) 
+        )
 
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
 
@@ -421,7 +421,7 @@ class OasisManager(object):
                 location_df = olf.get_exposure(
                     lookup=lookup,
                     source_exposure_fp=exposure_fp,
-                ) 
+                )
                 f1, _, f2, _ = olf.save_results(
                     lookup,
                     location_df=location_df,
@@ -593,7 +593,7 @@ class OasisManager(object):
             analysis_settings['ri_output'] = False
             analysis_settings['ri_summaries'] = []
 
-        # guard - Check if at least one output type is selected 
+        # guard - Check if at least one output type is selected
         if not any([
             analysis_settings['gul_output'] if 'gul_output' in analysis_settings else False,
             analysis_settings['il_output'] if 'il_output' in analysis_settings else False,
