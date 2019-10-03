@@ -1,6 +1,13 @@
 OasisLMF Changelog
 ==================
 
+`1.4.2`_
+-------
+* Added Multi-process keys lookup
+* Updated API client
+* Added Verifying model files command 
+* Updated command line flags with backwards compatibility 
+
 `1.4.1`_
 -------
 * Added bash autocomplete #386
@@ -278,7 +285,8 @@ in the exposure manager
 ---------------
 
 * Add console logging
-
+* 
+.. _`1.4.2`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.1...1.4.2
 .. _`1.4.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.0...1.4.1
 .. _`1.4.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.10...1.4.0
 .. _`1.3.10`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.9...1.3.10
