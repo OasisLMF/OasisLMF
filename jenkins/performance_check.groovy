@@ -49,7 +49,7 @@ node {
         }
         stage('Build: oasislmf runner') {
             dir(source_workspace) {
-                sh "docker build --build-arg oasis_ver=$benchmark_branch -f docker/Dockerfile.oasislmf_benchmark -t mdk-bench ."
+                sh "docker build --no-cache --build-arg oasis_ver=$benchmark_branch -f docker/Dockerfile.oasislmf_benchmark -t mdk-bench ."
             }
         }
         stage('Test: Oasis Files Gen') {
