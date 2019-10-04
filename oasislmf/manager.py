@@ -298,13 +298,16 @@ class OasisManager(object):
 
         keys_fp = keys_fp or '{}-keys.csv'.format(utcnow)
         keys_errors_fp = keys_errors_fp or '{}-keys-errors.csv'.format(utcnow)
+        # TODO: set `keys_success_msg` based on lookup config
+        keys_success_msg = True if complex_lookup_config_fp else False
 
         return olf.save_results(
             lookup,
             location_df=location_df,
             successes_fp=keys_fp,
             errors_fp=keys_errors_fp,
-            format=keys_format
+            format=keys_format,
+            keys_success_msg=keys_success_msg
         )
 
     @oasis_log
