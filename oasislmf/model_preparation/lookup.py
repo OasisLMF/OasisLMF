@@ -430,7 +430,7 @@ class OasisLookupFactory(object):
         return loc_df
 
     @classmethod
-    def write_oasis_keys_file(cls, records, output_file_path, output_success_msg):
+    def write_oasis_keys_file(cls, records, output_file_path, output_success_msg=False):
         """
         Writes an Oasis keys file from an iterable of keys records.
         """
