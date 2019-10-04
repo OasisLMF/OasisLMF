@@ -47,9 +47,9 @@ class GeneratePerilAreasRtreeFileIndexCmd(OasisBaseCommand):
         """
         super(self.__class__, self).add_args(parser)
 
-        parser.add_argument( '-c', '--lookup-config-json', default=None, help='Lookup config JSON file path',)
-        parser.add_argument( '-d', '--lookup-data-dir', default=None, help='Keys data directory path')
-        parser.add_argument( '-f', '--index-output-file', default=None, help='Index file path (no file extension required)',)
+        parser.add_argument('-c', '--lookup-config-json', default=None, help='Lookup config JSON file path')
+        parser.add_argument('-d', '--lookup-data-dir', default=None, help='Keys data directory path')
+        parser.add_argument('-f', '--index-output-file', default=None, help='Index file path (no file extension required)')
 
     def action(self, args):
         """

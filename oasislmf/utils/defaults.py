@@ -6,6 +6,9 @@ __all__ = [
     'get_default_fm_aggregation_profile',
     'get_default_unified_profile',
     'get_loc_dtypes',
+    'get_acc_dtypes',
+    'get_scope_dtypes',
+    'get_info_dtypes',
     'KTOOLS_ALLOC_RULE_IL',
     'KTOOLS_ALLOC_RULE_GUL',
     'KTOOLS_FIFO_RELATIVE',
@@ -14,7 +17,6 @@ __all__ = [
     'KTOOLS_NUM_PROCESSES',
     'OASIS_FILES_PREFIXES',
     'SUMMARY_MAPPING',
-    'SUMMARY_GROUPING',
     'SUMMARY_OUTPUT',
     'SOURCE_IDX',
     'SOURCE_FILENAMES',
@@ -56,17 +58,6 @@ SUMMARY_OUTPUT = OrderedDict({
     'il': 'fmsummaryxref.csv'
 })
 
-# Update with load OED column names
-# NOTE:  this should be removed once UI column picker feature has been added
-SUMMARY_GROUPING = OrderedDict({
-    'prog': None,
-    'state': ['countrycode'],
-    'county': ['geogname1'],
-    'location': ['locnumber'],
-    'lob': ['occupancycode'],    # <-- "Work around, this value should come from 'LOB' in the accounts file"
-    'policy': ['polnumber'],
-})
-
 # Path for storing static data/metadata files used in the package
 STATIC_DATA_FP = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)), '_data')
 
@@ -84,9 +75,11 @@ def get_default_exposure_profile(path=False):
     fp = os.path.join(STATIC_DATA_FP, 'default_loc_profile.json')
     return get_json(src_fp=fp) if not path else fp
 
+
 def get_config_profile(path=False):
     fp = os.path.join(STATIC_DATA_FP, 'config_compatibility_profile.json')
     return get_json(src_fp=fp) if not path else fp
+
 
 def get_default_unified_profile(path=False):
     fp = os.path.join(STATIC_DATA_FP, 'default_unified_profile.json')
@@ -98,9 +91,23 @@ def get_default_fm_aggregation_profile(path=False):
     return {int(k): v for k, v in get_json(src_fp=fp).items()} if not path else fp
 
 
-# Data types for fields in OED loc. (exposure) file
 def get_loc_dtypes():
     fp = os.path.join(STATIC_DATA_FP, 'loc_dtypes.json')
+    return get_json(src_fp=fp)
+
+
+def get_acc_dtypes():
+    fp = os.path.join(STATIC_DATA_FP, 'acc_dtypes.json')
+    return get_json(src_fp=fp)
+
+
+def get_scope_dtypes():
+    fp = os.path.join(STATIC_DATA_FP, 'scope_dtypes.json')
+    return get_json(src_fp=fp)
+
+
+def get_info_dtypes():
+    fp = os.path.join(STATIC_DATA_FP, 'info_dtypes.json')
     return get_json(src_fp=fp)
 
 
