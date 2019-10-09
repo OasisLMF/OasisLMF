@@ -179,17 +179,6 @@ def do_make_fifos(runtype, analysis_settings, process_id, filename, fifo_dir='')
     do_fifos('mkfifo', runtype, analysis_settings, process_id, filename, fifo_dir)
 
 
-def do_ktools_mem_limit(max_process_id, filename):
-    """
-        Set each Ktools pipeline to trap and terminate on hitting its
-        memory allocation limit
-
-        Limit: Maximum avalible memory / max_process_id
-    """
-    cmd_mem_limit = 'ulimit -v $(ktgetmem {})'.format(max_process_id)
-    print_command(filename, cmd_mem_limit)
-
-
 def do_remove_fifos(runtype, analysis_settings, process_id, filename, fifo_dir=''):
     do_fifos('rm', runtype, analysis_settings, process_id, filename, fifo_dir)
 
@@ -556,9 +545,9 @@ def genbash(
     analysis_settings,
     num_reinsurance_iterations=0,
     fifo_tmp_dir=True,
-    mem_limit=False,
     gul_alloc_rule=None,
     il_alloc_rule=None,
+    stderr_guard=None,
     bash_trace=False,
     filename='run_kools.sh',
     _get_getmodel_cmd=None,
@@ -589,9 +578,6 @@ def genbash(
     :param il_alloc_rule: Allocation rule (0, 1 or 2) for fmcalc
     :type il_alloc_rule: Int
 
-    :param mem_limit: Flag to set a max memory limit for each ktools process
-    :type mem_limit: boolean
-
     :param get_getmodel_cmd: Method for getting the getmodel command, by default
         ``GenerateLossesCmd.get_getmodel_cmd`` is used.
     :type get_getmodel_cmd: callable
@@ -599,11 +585,11 @@ def genbash(
     process_counter = Counter()
 
     use_random_number_file = False
+    stderr_abort = stderr_guard if stderr_guard else (not bash_trace)
     gul_item_stream = (gul_alloc_rule and isinstance(gul_alloc_rule, int))
     gul_output = False
     il_output = False
     ri_output = False
-    stderr_abort = (not bash_trace)
     fifo_queue_dir = ""
 
     # Alloc Rule input guard - default to '2' if invalid value given
@@ -697,12 +683,6 @@ def genbash(
         print_command(filename, '# --- Do insured loss computes ---')
         print_command(filename, '')
         il(analysis_settings, max_process_id, filename, process_counter, fifo_queue_dir, stderr_abort)
-
-    if mem_limit:
-        print_command(filename, '')
-        print_command(filename, '# --- Use Ktools per process memory limit ---')
-        print_command(filename, '')
-        do_ktools_mem_limit(max_process_id, filename)
 
     if gul_output:
         print_command(filename, '')
@@ -828,12 +808,6 @@ def genbash(
 
     do_kwaits(filename, process_counter)
 
-    if mem_limit:
-        print_command(filename, '')
-        print_command(filename, '# --- Remove per process memory limit ---')
-        print_command(filename, '')
-        do_ktools_mem_limit(1, filename)
-
     print_command(filename, '')
     do_post_wait_processing(RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename, process_counter)
     do_post_wait_processing(RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter)
@@ -843,26 +817,13 @@ def genbash(
     do_lwaits(filename, process_counter)  # waits for leccalc
 
     print_command(filename, '')
-    print_command(filename, 'set +e')
-    print_command(filename, '')
-
-    if gul_output:
-        do_gul_remove_fifo(analysis_settings, max_process_id, filename, fifo_queue_dir)
-        remove_workfolders(RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename)
-
-    print_command(filename, '')
-
-    if ri_output:
-        ri_remove_fifo(analysis_settings, max_process_id, filename, fifo_queue_dir)
-        remove_workfolders(RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename)
-
-    if il_output:
-        il_remove_fifo(analysis_settings, max_process_id, filename, fifo_queue_dir)
-        remove_workfolders(RUNTYPE_INSURED_LOSS, analysis_settings, filename)
-
-    if re.search(r"((/tmp/)[A-Za-z0-9_-]+(/))", fifo_queue_dir) and fifo_tmp_dir:
-        print_command(filename, 'rmdir {}fifo'.format(fifo_queue_dir))
-        print_command(filename, 'rmdir {}'.format(fifo_queue_dir))
+    if not bash_trace:
+        print_command(filename, '')
+        print_command(filename, 'rm -R -f work/*')
+        if fifo_tmp_dir:
+            print_command(filename, 'rm -R -f {}'.format(fifo_queue_dir))
+        else:
+            print_command(filename, 'rm -R -f fifo/*')
 
     if stderr_abort:
         print_command(filename, '')
