@@ -60,7 +60,8 @@ class InputValues(object):
         """
         if self.has_obsolete_keys():
             for key in self.obsolete_keys:
-                self.config[self.config_mapping[key]['updated_to']] = self.config[key]
+                if not self.config_mapping[key]['deleted']:
+                    self.config[self.config_mapping[key]['updated_to']] = self.config[key]
                 del self.config[key]
 
             if warn_user:

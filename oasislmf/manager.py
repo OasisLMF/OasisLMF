@@ -61,7 +61,6 @@ from .utils.defaults import (
     get_default_exposure_profile,
     get_default_fm_aggregation_profile,
     KTOOLS_NUM_PROCESSES,
-    KTOOLS_MEM_LIMIT,
     KTOOLS_FIFO_RELATIVE,
     KTOOLS_ALLOC_RULE_GUL,
     KTOOLS_ALLOC_RULE_IL,
@@ -92,7 +91,6 @@ class OasisManager(object):
         fm_aggregation_profile=None,
         deterministic_analysis_settings=None,
         ktools_num_processes=None,
-        ktools_mem_limit=None,
         ktools_fifo_relative=None,
         ktools_alloc_rule_gul=None,
         ktools_alloc_rule_il=None,
@@ -107,7 +105,6 @@ class OasisManager(object):
         self._fm_aggregation_profile = fm_aggregation_profile or get_default_fm_aggregation_profile()
         self._deterministic_analysis_settings = deterministic_analysis_settings or get_default_deterministic_analysis_settings()
         self._ktools_num_processes = ktools_num_processes or KTOOLS_NUM_PROCESSES
-        self._ktools_mem_limit = ktools_mem_limit or KTOOLS_MEM_LIMIT
         self._ktools_fifo_relative = ktools_fifo_relative or KTOOLS_FIFO_RELATIVE
         self._ktools_alloc_rule_gul = ktools_alloc_rule_gul if isinstance(ktools_alloc_rule_gul, int) else KTOOLS_ALLOC_RULE_GUL
         self._ktools_alloc_rule_il = ktools_alloc_rule_il if isinstance(ktools_alloc_rule_il, int) else KTOOLS_ALLOC_RULE_IL
@@ -146,10 +143,6 @@ class OasisManager(object):
     @property
     def ktools_num_processes(self):
         return self._ktools_num_processes
-
-    @property
-    def ktools_mem_limit(self):
-        return self._ktools_mem_limit
 
     @property
     def ktools_fifo_relative(self):
@@ -540,7 +533,6 @@ class OasisManager(object):
         model_data_fp,
         model_package_fp=None,
         ktools_num_processes=None,
-        ktools_mem_limit=None,
         ktools_fifo_relative=None,
         ktools_alloc_rule_gul=None,
         ktools_alloc_rule_il=None,
@@ -631,7 +623,6 @@ class OasisManager(object):
                 number_of_processes=(ktools_num_processes or self.ktools_num_processes),
                 filename=script_fp,
                 num_reinsurance_iterations=ri_layers,
-                ktools_mem_limit=(ktools_mem_limit or self.ktools_mem_limit),
                 set_alloc_rule_gul=(ktools_alloc_rule_gul if isinstance(ktools_alloc_rule_gul, int) else self.ktools_alloc_rule_gul),
                 set_alloc_rule_il=(ktools_alloc_rule_il if isinstance(ktools_alloc_rule_il, int) else self.ktools_alloc_rule_il),
                 run_debug=(ktools_debug or self.ktools_debug),

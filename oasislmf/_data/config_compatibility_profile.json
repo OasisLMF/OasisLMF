@@ -113,5 +113,10 @@
         "from_ver": "1.4.1",
         "deleted": false,
         "updated_to": "output_dir"
+    },
+    "ktools_mem_limit":{
+        "from_ver": "1.4.2",
+        "deleted": true,
+        "updated_to": ""
     }
 }
