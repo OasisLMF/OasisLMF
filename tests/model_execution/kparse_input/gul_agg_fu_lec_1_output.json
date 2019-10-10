@@ -11,16 +11,15 @@
     },
     "gul_output": true,
     "gul_summaries": [
-      {
-        "id": 1,
-        "summarycalc": false,
-        "eltcalc": false,
-        "aalcalc": false,
-        "pltcalc": false,
-        "lec_output": true,
-        "leccalc": {
-            "return_period_file": true,
-            "outputs": {
+        {
+          "id": 1,
+          "summarycalc": false,
+          "eltcalc": false,
+          "aalcalc": false,
+          "pltcalc": false,
+          "lec_output": true,
+          "leccalc": {
+              "return_period_file": true,
               "full_uncertainty_aep": true,
               "full_uncertainty_oep": false,
               "wheatsheaf_aep": false,
@@ -29,9 +28,8 @@
               "wheatsheaf_mean_oep": false,
               "sample_mean_aep": false,
               "sample_mean_oep": false
-            }
           }
-      }
+        }
     ],
     "il_output": false,
     "il_summaries": [
@@ -44,7 +42,6 @@
         "lec_output": false,
         "leccalc": {
             "return_period_file": false,
-	    "outputs": {
             "full_uncertainty_aep": false,
             "full_uncertainty_oep": false,
             "wheatsheaf_aep": false,
@@ -53,7 +50,6 @@
             "wheatsheaf_mean_oep": false,
             "sample_mean_aep": false,
             "sample_mean_oep": false
-		}
         }
       }
     ]
