@@ -1,7 +1,12 @@
 #!/bin/bash
+SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")
+
+# --- Script Init ---
 
 set -e
 set -o pipefail
+
+# --- Setup run dirs ---
 
 find output/* ! -name '*summary-info*' -type f -exec rm -f {} +
 rm -R -f fifo/*
@@ -9,107 +14,68 @@ rm -R -f work/*
 
 mkdir work/kat
 mkfifo fifo/il_P1
-
 mkfifo fifo/il_S1_summary_P1
 
 mkfifo fifo/il_P2
-
 mkfifo fifo/il_S1_summary_P2
 
 mkfifo fifo/il_P3
-
 mkfifo fifo/il_S1_summary_P3
 
 mkfifo fifo/il_P4
-
 mkfifo fifo/il_S1_summary_P4
 
 mkfifo fifo/il_P5
-
 mkfifo fifo/il_S1_summary_P5
 
 mkfifo fifo/il_P6
-
 mkfifo fifo/il_S1_summary_P6
 
 mkfifo fifo/il_P7
-
 mkfifo fifo/il_S1_summary_P7
 
 mkfifo fifo/il_P8
-
 mkfifo fifo/il_S1_summary_P8
 
 mkfifo fifo/il_P9
-
 mkfifo fifo/il_S1_summary_P9
 
 mkfifo fifo/il_P10
-
 mkfifo fifo/il_S1_summary_P10
 
 mkfifo fifo/il_P11
-
 mkfifo fifo/il_S1_summary_P11
 
 mkfifo fifo/il_P12
-
 mkfifo fifo/il_S1_summary_P12
 
 mkfifo fifo/il_P13
-
 mkfifo fifo/il_S1_summary_P13
 
 mkfifo fifo/il_P14
-
 mkfifo fifo/il_S1_summary_P14
 
 mkfifo fifo/il_P15
-
 mkfifo fifo/il_S1_summary_P15
 
 mkfifo fifo/il_P16
-
 mkfifo fifo/il_S1_summary_P16
 
 mkfifo fifo/il_P17
-
 mkfifo fifo/il_S1_summary_P17
 
 mkfifo fifo/il_P18
-
 mkfifo fifo/il_S1_summary_P18
 
 mkfifo fifo/il_P19
-
 mkfifo fifo/il_S1_summary_P19
 
 mkfifo fifo/il_P20
-
 mkfifo fifo/il_S1_summary_P20
 
 mkdir work/il_S1_summaryaalcalc
 
 # --- Do insured loss computes ---
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 tee < fifo/il_S1_summary_P1 work/il_S1_summaryaalcalc/P1.bin > /dev/null & pid1=$!
@@ -132,6 +98,7 @@ tee < fifo/il_S1_summary_P17 work/il_S1_summaryaalcalc/P17.bin > /dev/null & pid
 tee < fifo/il_S1_summary_P18 work/il_S1_summaryaalcalc/P18.bin > /dev/null & pid18=$!
 tee < fifo/il_S1_summary_P19 work/il_S1_summaryaalcalc/P19.bin > /dev/null & pid19=$!
 tee < fifo/il_S1_summary_P20 work/il_S1_summaryaalcalc/P20.bin > /dev/null & pid20=$!
+
 summarycalc -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
 summarycalc -f  -1 fifo/il_S1_summary_P2 < fifo/il_P2 &
 summarycalc -f  -1 fifo/il_S1_summary_P3 < fifo/il_P3 &
@@ -183,90 +150,5 @@ wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 
 aalcalc -Kil_S1_summaryaalcalc > output/il_S1_aalcalc.csv & lpid1=$!
 wait $lpid1
 
-
-set +e
-
-
-rm fifo/il_P1
-
-rm fifo/il_S1_summary_P1
-
-rm fifo/il_P2
-
-rm fifo/il_S1_summary_P2
-
-rm fifo/il_P3
-
-rm fifo/il_S1_summary_P3
-
-rm fifo/il_P4
-
-rm fifo/il_S1_summary_P4
-
-rm fifo/il_P5
-
-rm fifo/il_S1_summary_P5
-
-rm fifo/il_P6
-
-rm fifo/il_S1_summary_P6
-
-rm fifo/il_P7
-
-rm fifo/il_S1_summary_P7
-
-rm fifo/il_P8
-
-rm fifo/il_S1_summary_P8
-
-rm fifo/il_P9
-
-rm fifo/il_S1_summary_P9
-
-rm fifo/il_P10
-
-rm fifo/il_S1_summary_P10
-
-rm fifo/il_P11
-
-rm fifo/il_S1_summary_P11
-
-rm fifo/il_P12
-
-rm fifo/il_S1_summary_P12
-
-rm fifo/il_P13
-
-rm fifo/il_S1_summary_P13
-
-rm fifo/il_P14
-
-rm fifo/il_S1_summary_P14
-
-rm fifo/il_P15
-
-rm fifo/il_S1_summary_P15
-
-rm fifo/il_P16
-
-rm fifo/il_S1_summary_P16
-
-rm fifo/il_P17
-
-rm fifo/il_S1_summary_P17
-
-rm fifo/il_P18
-
-rm fifo/il_S1_summary_P18
-
-rm fifo/il_P19
-
-rm fifo/il_S1_summary_P19
-
-rm fifo/il_P20
-
-rm fifo/il_S1_summary_P20
-
-rm -rf work/kat
-rm -rf work/il_S1_summaryaalcalc/*
-rmdir work/il_S1_summaryaalcalc
+rm -R -f work/*
+rm -R -f fifo/*

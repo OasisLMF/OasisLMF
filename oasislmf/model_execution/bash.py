@@ -100,7 +100,6 @@ def do_fifos(action, runtype, analysis_settings, process_id, filename, fifo_dir=
         return
 
     print_command(filename, '{} {}fifo/{}_P{}'.format(action, fifo_dir, runtype, process_id))
-    print_command(filename, '')
     for summary in summaries:
         if 'id' in summary:
             summary_set = summary['id']
@@ -341,16 +340,17 @@ def do_any(runtype, analysis_settings, process_id, filename, process_counter, fi
                     )
                 )
 
-        print_command(filename, '')
 
 
 def ri(analysis_settings, max_process_id, filename, process_counter, num_reinsurance_iterations, fifo_dir='', stderr_abort=True):
     for process_id in range(1, max_process_id + 1):
         do_any(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
+    print_command(filename, '')
     for process_id in range(1, max_process_id + 1):
         do_tees(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
+    print_command(filename, '')
     for process_id in range(1, max_process_id + 1):
         do_summarycalcs(
             runtype=RUNTYPE_REINSURANCE_LOSS,
@@ -367,9 +367,11 @@ def il(analysis_settings, max_process_id, filename, process_counter, fifo_dir=''
     for process_id in range(1, max_process_id + 1):
         do_any(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
+    print_command(filename, '')
     for process_id in range(1, max_process_id + 1):
         do_tees(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
+    print_command(filename, '')
     for process_id in range(1, max_process_id + 1):
         do_summarycalcs(
             runtype=RUNTYPE_INSURED_LOSS,
@@ -385,9 +387,11 @@ def do_gul(analysis_settings, max_process_id, filename, process_counter, fifo_di
     for process_id in range(1, max_process_id + 1):
         do_any(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
+    print_command(filename, '')
     for process_id in range(1, max_process_id + 1):
         do_tees(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
+    print_command(filename, '')
     for process_id in range(1, max_process_id + 1):
         do_summarycalcs(
             runtype=RUNTYPE_GROUNDUP_LOSS,
@@ -585,7 +589,7 @@ def genbash(
     process_counter = Counter()
 
     use_random_number_file = False
-    stderr_abort = stderr_guard if stderr_guard else (not bash_trace)
+    stderr_abort = stderr_guard if stderr_guard != None else (not bash_trace)
     gul_item_stream = (gul_alloc_rule and isinstance(gul_alloc_rule, int))
     gul_output = False
     il_output = False
@@ -618,10 +622,10 @@ def genbash(
         ri_output = analysis_settings['ri_output']
 
     print_command(filename, '#!/bin/bash')
-    print_command(filename, '')
     print_command(filename, 'SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")')
+    print_command(filename, '')
 
-    # Use 'set -e' so that any errors in script commands are passed back
+    print_command(filename, '# --- Script Init ---')
     print_command(filename, '')
     print_command(filename, 'set -eux') if bash_trace else print_command(filename, 'set -e')
     print_command(filename, 'set -o pipefail')
@@ -642,7 +646,9 @@ def genbash(
         print_command(filename, 'ktools_monitor $$ & pid0=$!')
         print_command(filename, '')
 
-    # print_command(filename, 'rm -R -f output/*')
+
+    print_command(filename, '# --- Setup run dirs ---')
+    print_command(filename, '')
     print_command(filename, "find output/* ! -name '*summary-info*' -type f -exec rm -f {} +")
     if not fifo_tmp_dir:
         print_command(filename, 'rm -R -f fifo/*')
@@ -816,9 +822,7 @@ def genbash(
     do_awaits(filename, process_counter)  # waits for aalcalc
     do_lwaits(filename, process_counter)  # waits for leccalc
 
-    print_command(filename, '')
     if not bash_trace:
-        print_command(filename, '')
         print_command(filename, 'rm -R -f work/*')
         if fifo_tmp_dir:
             print_command(filename, 'rm -R -f {}'.format(fifo_queue_dir))

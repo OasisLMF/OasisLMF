@@ -83,34 +83,30 @@ class Genbash(TestCase):
 
     def check(self, name, reference_filename=None):
         output_filename = os.path.join(self.KPARSE_OUTPUT_FOLDER, "{}.sh".format(name))
-
-        if self.fifo_tmp_dir:
-            self.update_fifo_tmpfile(name)
-
         if not reference_filename:
             reference_filename = os.path.join(self.KPARSE_REFERENCE_FOLDER, "{}.sh".format(name))
 
+        if self.fifo_tmp_dir:
+            # Create temp Ref file   
+            ref_template = reference_filename
+            ref_tmp_file = NamedTemporaryFile("w+", delete=False)
+            with io.open(output_filename, 'r') as f:
+                for line in f:
+                    if '/tmp/' in line:
+                        tmp_fifo_dir = line.split('/')[-2]
+                        break
+
+            # Replace placeholder '%FIFO_DIR%' with '<RandomDirName>'
+            with io.open(ref_template, 'r') as f:
+                ktools_script = f.read()
+            ktools_script = ktools_script.replace('%FIFO_DIR%', tmp_fifo_dir)
+            ref_tmp_file.write(ktools_script)
+            ref_tmp_file.close()
+            reference_filename = ref_tmp_file.name
+        
         d = diff.unified_diff(reference_filename, output_filename, as_string=True)
         if d:
             self.fail(d)
-
-    def update_fifo_tmpfile(self, name):
-        self.temp_reference_file = NamedTemporaryFile("w+", delete=False)
-        # Read random fifo dir name from generated file and replace in reference
-        output_filename = os.path.join(self.KPARSE_OUTPUT_FOLDER, "{}.sh".format(name))
-        ref_template = os.path.join(self.KPARSE_REFERENCE_FOLDER, "{}.sh".format(name))
-        with io.open(output_filename, 'r') as f:
-            for line in f:
-                if '/tmp/' in line:
-                    tmp_fifo_dir = line.split('/')[-2]
-                    break
-
-        # Replace placeholder '%FIFO_DIR%' with '<RandomDirName>'
-        with io.open(ref_template, 'r') as f:
-            ktools_script = f.read()
-        ktools_script = ktools_script.replace('%FIFO_DIR%', tmp_fifo_dir)
-        self.temp_reference_file.write(ktools_script)
-        self.temp_reference_file.close()
 
     def test_gul_summarycalc_1_partition(self):
         self.genbash("gul_summarycalc_1_output", 1)
