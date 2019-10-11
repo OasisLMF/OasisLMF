@@ -1,115 +1,81 @@
 #!/bin/bash
+SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")
+
+# --- Script Init ---
 
 set -e
 set -o pipefail
 
+# --- Setup run dirs ---
+
 find output/* ! -name '*summary-info*' -type f -exec rm -f {} +
+
 rm -R -f fifo/*
 rm -R -f work/*
-
 mkdir work/kat
 mkfifo fifo/gul_P1
-
 mkfifo fifo/gul_S1_summary_P1
 
 mkfifo fifo/gul_P2
-
 mkfifo fifo/gul_S1_summary_P2
 
 mkfifo fifo/gul_P3
-
 mkfifo fifo/gul_S1_summary_P3
 
 mkfifo fifo/gul_P4
-
 mkfifo fifo/gul_S1_summary_P4
 
 mkfifo fifo/gul_P5
-
 mkfifo fifo/gul_S1_summary_P5
 
 mkfifo fifo/gul_P6
-
 mkfifo fifo/gul_S1_summary_P6
 
 mkfifo fifo/gul_P7
-
 mkfifo fifo/gul_S1_summary_P7
 
 mkfifo fifo/gul_P8
-
 mkfifo fifo/gul_S1_summary_P8
 
 mkfifo fifo/gul_P9
-
 mkfifo fifo/gul_S1_summary_P9
 
 mkfifo fifo/gul_P10
-
 mkfifo fifo/gul_S1_summary_P10
 
 mkfifo fifo/gul_P11
-
 mkfifo fifo/gul_S1_summary_P11
 
 mkfifo fifo/gul_P12
-
 mkfifo fifo/gul_S1_summary_P12
 
 mkfifo fifo/gul_P13
-
 mkfifo fifo/gul_S1_summary_P13
 
 mkfifo fifo/gul_P14
-
 mkfifo fifo/gul_S1_summary_P14
 
 mkfifo fifo/gul_P15
-
 mkfifo fifo/gul_S1_summary_P15
 
 mkfifo fifo/gul_P16
-
 mkfifo fifo/gul_S1_summary_P16
 
 mkfifo fifo/gul_P17
-
 mkfifo fifo/gul_S1_summary_P17
 
 mkfifo fifo/gul_P18
-
 mkfifo fifo/gul_S1_summary_P18
 
 mkfifo fifo/gul_P19
-
 mkfifo fifo/gul_S1_summary_P19
 
 mkfifo fifo/gul_P20
-
 mkfifo fifo/gul_S1_summary_P20
 
 mkdir work/gul_S1_summaryleccalc
 
 # --- Do ground up loss computes ---
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 tee < fifo/gul_S1_summary_P1 work/gul_S1_summaryleccalc/P1.bin > /dev/null & pid1=$!
@@ -132,6 +98,7 @@ tee < fifo/gul_S1_summary_P17 work/gul_S1_summaryleccalc/P17.bin > /dev/null & p
 tee < fifo/gul_S1_summary_P18 work/gul_S1_summaryleccalc/P18.bin > /dev/null & pid18=$!
 tee < fifo/gul_S1_summary_P19 work/gul_S1_summaryleccalc/P19.bin > /dev/null & pid19=$!
 tee < fifo/gul_S1_summary_P20 work/gul_S1_summaryleccalc/P20.bin > /dev/null & pid20=$!
+
 summarycalc -g  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
 summarycalc -g  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 &
 summarycalc -g  -1 fifo/gul_S1_summary_P3 < fifo/gul_P3 &
@@ -183,90 +150,5 @@ wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 
 leccalc -r -Kgul_S1_summaryleccalc -M output/gul_S1_leccalc_wheatsheaf_mean_aep.csv & lpid1=$!
 wait $lpid1
 
-
-set +e
-
-rm fifo/gul_P1
-
-rm fifo/gul_S1_summary_P1
-
-rm fifo/gul_P2
-
-rm fifo/gul_S1_summary_P2
-
-rm fifo/gul_P3
-
-rm fifo/gul_S1_summary_P3
-
-rm fifo/gul_P4
-
-rm fifo/gul_S1_summary_P4
-
-rm fifo/gul_P5
-
-rm fifo/gul_S1_summary_P5
-
-rm fifo/gul_P6
-
-rm fifo/gul_S1_summary_P6
-
-rm fifo/gul_P7
-
-rm fifo/gul_S1_summary_P7
-
-rm fifo/gul_P8
-
-rm fifo/gul_S1_summary_P8
-
-rm fifo/gul_P9
-
-rm fifo/gul_S1_summary_P9
-
-rm fifo/gul_P10
-
-rm fifo/gul_S1_summary_P10
-
-rm fifo/gul_P11
-
-rm fifo/gul_S1_summary_P11
-
-rm fifo/gul_P12
-
-rm fifo/gul_S1_summary_P12
-
-rm fifo/gul_P13
-
-rm fifo/gul_S1_summary_P13
-
-rm fifo/gul_P14
-
-rm fifo/gul_S1_summary_P14
-
-rm fifo/gul_P15
-
-rm fifo/gul_S1_summary_P15
-
-rm fifo/gul_P16
-
-rm fifo/gul_S1_summary_P16
-
-rm fifo/gul_P17
-
-rm fifo/gul_S1_summary_P17
-
-rm fifo/gul_P18
-
-rm fifo/gul_S1_summary_P18
-
-rm fifo/gul_P19
-
-rm fifo/gul_S1_summary_P19
-
-rm fifo/gul_P20
-
-rm fifo/gul_S1_summary_P20
-
-rm -rf work/kat
-rm work/gul_S1_summaryleccalc/*
-rmdir work/gul_S1_summaryleccalc
-
+rm -R -f work/*
+rm -R -f fifo/*

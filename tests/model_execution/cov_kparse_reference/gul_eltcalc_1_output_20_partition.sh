@@ -1,129 +1,114 @@
 #!/bin/bash
+SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")
+
+# --- Script Init ---
 
 set -e
 set -o pipefail
 
+# --- Setup run dirs ---
+
 find output/* ! -name '*summary-info*' -type f -exec rm -f {} +
+
 rm -R -f fifo/*
 rm -R -f work/*
-
 mkdir work/kat
 mkfifo fifo/gul_P1
-
 mkfifo fifo/gul_S1_summary_P1
 mkfifo fifo/gul_S1_summaryeltcalc_P1
 mkfifo fifo/gul_S1_eltcalc_P1
 
 mkfifo fifo/gul_P2
-
 mkfifo fifo/gul_S1_summary_P2
 mkfifo fifo/gul_S1_summaryeltcalc_P2
 mkfifo fifo/gul_S1_eltcalc_P2
 
 mkfifo fifo/gul_P3
-
 mkfifo fifo/gul_S1_summary_P3
 mkfifo fifo/gul_S1_summaryeltcalc_P3
 mkfifo fifo/gul_S1_eltcalc_P3
 
 mkfifo fifo/gul_P4
-
 mkfifo fifo/gul_S1_summary_P4
 mkfifo fifo/gul_S1_summaryeltcalc_P4
 mkfifo fifo/gul_S1_eltcalc_P4
 
 mkfifo fifo/gul_P5
-
 mkfifo fifo/gul_S1_summary_P5
 mkfifo fifo/gul_S1_summaryeltcalc_P5
 mkfifo fifo/gul_S1_eltcalc_P5
 
 mkfifo fifo/gul_P6
-
 mkfifo fifo/gul_S1_summary_P6
 mkfifo fifo/gul_S1_summaryeltcalc_P6
 mkfifo fifo/gul_S1_eltcalc_P6
 
 mkfifo fifo/gul_P7
-
 mkfifo fifo/gul_S1_summary_P7
 mkfifo fifo/gul_S1_summaryeltcalc_P7
 mkfifo fifo/gul_S1_eltcalc_P7
 
 mkfifo fifo/gul_P8
-
 mkfifo fifo/gul_S1_summary_P8
 mkfifo fifo/gul_S1_summaryeltcalc_P8
 mkfifo fifo/gul_S1_eltcalc_P8
 
 mkfifo fifo/gul_P9
-
 mkfifo fifo/gul_S1_summary_P9
 mkfifo fifo/gul_S1_summaryeltcalc_P9
 mkfifo fifo/gul_S1_eltcalc_P9
 
 mkfifo fifo/gul_P10
-
 mkfifo fifo/gul_S1_summary_P10
 mkfifo fifo/gul_S1_summaryeltcalc_P10
 mkfifo fifo/gul_S1_eltcalc_P10
 
 mkfifo fifo/gul_P11
-
 mkfifo fifo/gul_S1_summary_P11
 mkfifo fifo/gul_S1_summaryeltcalc_P11
 mkfifo fifo/gul_S1_eltcalc_P11
 
 mkfifo fifo/gul_P12
-
 mkfifo fifo/gul_S1_summary_P12
 mkfifo fifo/gul_S1_summaryeltcalc_P12
 mkfifo fifo/gul_S1_eltcalc_P12
 
 mkfifo fifo/gul_P13
-
 mkfifo fifo/gul_S1_summary_P13
 mkfifo fifo/gul_S1_summaryeltcalc_P13
 mkfifo fifo/gul_S1_eltcalc_P13
 
 mkfifo fifo/gul_P14
-
 mkfifo fifo/gul_S1_summary_P14
 mkfifo fifo/gul_S1_summaryeltcalc_P14
 mkfifo fifo/gul_S1_eltcalc_P14
 
 mkfifo fifo/gul_P15
-
 mkfifo fifo/gul_S1_summary_P15
 mkfifo fifo/gul_S1_summaryeltcalc_P15
 mkfifo fifo/gul_S1_eltcalc_P15
 
 mkfifo fifo/gul_P16
-
 mkfifo fifo/gul_S1_summary_P16
 mkfifo fifo/gul_S1_summaryeltcalc_P16
 mkfifo fifo/gul_S1_eltcalc_P16
 
 mkfifo fifo/gul_P17
-
 mkfifo fifo/gul_S1_summary_P17
 mkfifo fifo/gul_S1_summaryeltcalc_P17
 mkfifo fifo/gul_S1_eltcalc_P17
 
 mkfifo fifo/gul_P18
-
 mkfifo fifo/gul_S1_summary_P18
 mkfifo fifo/gul_S1_summaryeltcalc_P18
 mkfifo fifo/gul_S1_eltcalc_P18
 
 mkfifo fifo/gul_P19
-
 mkfifo fifo/gul_S1_summary_P19
 mkfifo fifo/gul_S1_summaryeltcalc_P19
 mkfifo fifo/gul_S1_eltcalc_P19
 
 mkfifo fifo/gul_P20
-
 mkfifo fifo/gul_S1_summary_P20
 mkfifo fifo/gul_S1_summaryeltcalc_P20
 mkfifo fifo/gul_S1_eltcalc_P20
@@ -132,43 +117,24 @@ mkfifo fifo/gul_S1_eltcalc_P20
 # --- Do ground up loss computes ---
 
 eltcalc < fifo/gul_S1_summaryeltcalc_P1 > work/kat/gul_S1_eltcalc_P1 & pid1=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P2 > work/kat/gul_S1_eltcalc_P2 & pid2=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P3 > work/kat/gul_S1_eltcalc_P3 & pid3=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P4 > work/kat/gul_S1_eltcalc_P4 & pid4=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P5 > work/kat/gul_S1_eltcalc_P5 & pid5=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P6 > work/kat/gul_S1_eltcalc_P6 & pid6=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P7 > work/kat/gul_S1_eltcalc_P7 & pid7=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P8 > work/kat/gul_S1_eltcalc_P8 & pid8=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P9 > work/kat/gul_S1_eltcalc_P9 & pid9=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P10 > work/kat/gul_S1_eltcalc_P10 & pid10=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P11 > work/kat/gul_S1_eltcalc_P11 & pid11=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P12 > work/kat/gul_S1_eltcalc_P12 & pid12=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P13 > work/kat/gul_S1_eltcalc_P13 & pid13=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P14 > work/kat/gul_S1_eltcalc_P14 & pid14=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P15 > work/kat/gul_S1_eltcalc_P15 & pid15=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P16 > work/kat/gul_S1_eltcalc_P16 & pid16=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P17 > work/kat/gul_S1_eltcalc_P17 & pid17=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P18 > work/kat/gul_S1_eltcalc_P18 & pid18=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P19 > work/kat/gul_S1_eltcalc_P19 & pid19=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P20 > work/kat/gul_S1_eltcalc_P20 & pid20=$!
 
 tee < fifo/gul_S1_summary_P1 fifo/gul_S1_summaryeltcalc_P1 > /dev/null & pid21=$!
@@ -191,6 +157,7 @@ tee < fifo/gul_S1_summary_P17 fifo/gul_S1_summaryeltcalc_P17 > /dev/null & pid37
 tee < fifo/gul_S1_summary_P18 fifo/gul_S1_summaryeltcalc_P18 > /dev/null & pid38=$!
 tee < fifo/gul_S1_summary_P19 fifo/gul_S1_summaryeltcalc_P19 > /dev/null & pid39=$!
 tee < fifo/gul_S1_summary_P20 fifo/gul_S1_summaryeltcalc_P20 > /dev/null & pid40=$!
+
 summarycalc -g  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
 summarycalc -g  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 &
 summarycalc -g  -1 fifo/gul_S1_summary_P3 < fifo/gul_P3 &
@@ -242,128 +209,5 @@ kat work/kat/gul_S1_eltcalc_P1 work/kat/gul_S1_eltcalc_P2 work/kat/gul_S1_eltcal
 wait $kpid1
 
 
-
-set +e
-
-rm fifo/gul_P1
-
-rm fifo/gul_S1_summary_P1
-rm fifo/gul_S1_summaryeltcalc_P1
-rm fifo/gul_S1_eltcalc_P1
-
-rm fifo/gul_P2
-
-rm fifo/gul_S1_summary_P2
-rm fifo/gul_S1_summaryeltcalc_P2
-rm fifo/gul_S1_eltcalc_P2
-
-rm fifo/gul_P3
-
-rm fifo/gul_S1_summary_P3
-rm fifo/gul_S1_summaryeltcalc_P3
-rm fifo/gul_S1_eltcalc_P3
-
-rm fifo/gul_P4
-
-rm fifo/gul_S1_summary_P4
-rm fifo/gul_S1_summaryeltcalc_P4
-rm fifo/gul_S1_eltcalc_P4
-
-rm fifo/gul_P5
-
-rm fifo/gul_S1_summary_P5
-rm fifo/gul_S1_summaryeltcalc_P5
-rm fifo/gul_S1_eltcalc_P5
-
-rm fifo/gul_P6
-
-rm fifo/gul_S1_summary_P6
-rm fifo/gul_S1_summaryeltcalc_P6
-rm fifo/gul_S1_eltcalc_P6
-
-rm fifo/gul_P7
-
-rm fifo/gul_S1_summary_P7
-rm fifo/gul_S1_summaryeltcalc_P7
-rm fifo/gul_S1_eltcalc_P7
-
-rm fifo/gul_P8
-
-rm fifo/gul_S1_summary_P8
-rm fifo/gul_S1_summaryeltcalc_P8
-rm fifo/gul_S1_eltcalc_P8
-
-rm fifo/gul_P9
-
-rm fifo/gul_S1_summary_P9
-rm fifo/gul_S1_summaryeltcalc_P9
-rm fifo/gul_S1_eltcalc_P9
-
-rm fifo/gul_P10
-
-rm fifo/gul_S1_summary_P10
-rm fifo/gul_S1_summaryeltcalc_P10
-rm fifo/gul_S1_eltcalc_P10
-
-rm fifo/gul_P11
-
-rm fifo/gul_S1_summary_P11
-rm fifo/gul_S1_summaryeltcalc_P11
-rm fifo/gul_S1_eltcalc_P11
-
-rm fifo/gul_P12
-
-rm fifo/gul_S1_summary_P12
-rm fifo/gul_S1_summaryeltcalc_P12
-rm fifo/gul_S1_eltcalc_P12
-
-rm fifo/gul_P13
-
-rm fifo/gul_S1_summary_P13
-rm fifo/gul_S1_summaryeltcalc_P13
-rm fifo/gul_S1_eltcalc_P13
-
-rm fifo/gul_P14
-
-rm fifo/gul_S1_summary_P14
-rm fifo/gul_S1_summaryeltcalc_P14
-rm fifo/gul_S1_eltcalc_P14
-
-rm fifo/gul_P15
-
-rm fifo/gul_S1_summary_P15
-rm fifo/gul_S1_summaryeltcalc_P15
-rm fifo/gul_S1_eltcalc_P15
-
-rm fifo/gul_P16
-
-rm fifo/gul_S1_summary_P16
-rm fifo/gul_S1_summaryeltcalc_P16
-rm fifo/gul_S1_eltcalc_P16
-
-rm fifo/gul_P17
-
-rm fifo/gul_S1_summary_P17
-rm fifo/gul_S1_summaryeltcalc_P17
-rm fifo/gul_S1_eltcalc_P17
-
-rm fifo/gul_P18
-
-rm fifo/gul_S1_summary_P18
-rm fifo/gul_S1_summaryeltcalc_P18
-rm fifo/gul_S1_eltcalc_P18
-
-rm fifo/gul_P19
-
-rm fifo/gul_S1_summary_P19
-rm fifo/gul_S1_summaryeltcalc_P19
-rm fifo/gul_S1_eltcalc_P19
-
-rm fifo/gul_P20
-
-rm fifo/gul_S1_summary_P20
-rm fifo/gul_S1_summaryeltcalc_P20
-rm fifo/gul_S1_eltcalc_P20
-
-rm -rf work/kat
-
+rm -R -f work/*
+rm -R -f fifo/*
