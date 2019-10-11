@@ -88,5 +88,5 @@ all_files=(
 
 for f in "${all_files[@]}"; do 
     echo $f
-    #sed -i 's|/tmp/[a-zA-Z0-9]*/|/tmp/%FIFO_DIR%/|g' $f
+    sed -i 's|/tmp/[a-zA-Z0-9]*/|/tmp/%FIFO_DIR%/|g' $f
 done 

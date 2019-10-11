@@ -17,14 +17,14 @@ trap error_handler QUIT HUP INT KILL TERM ERR
 mkdir -p log
 rm -R -f log/*
 touch log/stderror.err
-ktools_monitor $$ & pid0=$!
+ktools_monitor.sh $$ & pid0=$!
 
 # --- Setup run dirs ---
 
 find output/* ! -name '*summary-info*' -type f -exec rm -f {} +
+
 rm -R -f fifo/*
 rm -R -f work/*
-
 mkdir work/kat
 mkfifo fifo/gul_P1
 mkfifo fifo/gul_S1_summary_P1

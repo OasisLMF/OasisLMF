@@ -9,9 +9,10 @@ set -o pipefail
 # --- Setup run dirs ---
 
 find output/* ! -name '*summary-info*' -type f -exec rm -f {} +
-rm -R -f work/*
 
+rm -R -f work/*
 mkdir work/kat
+
 rm -R -f /tmp/%FIFO_DIR%/
 mkdir -p /tmp/%FIFO_DIR%/fifo
 mkfifo /tmp/%FIFO_DIR%/fifo/il_P1
