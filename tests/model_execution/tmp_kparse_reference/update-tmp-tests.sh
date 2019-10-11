@@ -1,3 +1,12 @@
+#!/bin/bash
+
+if [ ! -d "../tmp_kparse_output" ]; then
+    echo 'no output in "tmp_kparse_output" to update - exit'
+    exit 1
+else 
+    cp ../tmp_kparse_output/* .
+fi
+
 all_files=(
     all_calcs_1_output_1_partition.sh
     all_calcs_1_output_20_partition.sh
@@ -80,7 +89,4 @@ all_files=(
 for f in "${all_files[@]}"; do 
     echo $f
     #sed -i 's|/tmp/[a-zA-Z0-9]*/|/tmp/%FIFO_DIR%/|g' $f
-
-    mv $f $f.temp
 done 
-
