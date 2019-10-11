@@ -238,6 +238,9 @@ def do_summarycalcs(runtype, analysis_settings, process_id, filename, fifo_dir='
     if not summaries:
         return
 
+    if process_id == 1:
+        print_command(filename, '')
+
     summarycalc_switch = '-f'
     if runtype == RUNTYPE_GROUNDUP_LOSS:
         if gul_alloc_rule:
@@ -267,6 +270,9 @@ def do_tees(runtype, analysis_settings, process_id, filename, process_counter, f
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
+        
+    if process_id == 1:
+        print_command(filename, '')
 
     for summary in summaries:
         if 'id' in summary:
@@ -297,6 +303,9 @@ def do_any(runtype, analysis_settings, process_id, filename, process_counter, fi
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
+
+    if process_id == 1:
+        print_command(filename, '')
 
     for summary in summaries:
         if 'id' in summary:
@@ -346,11 +355,9 @@ def ri(analysis_settings, max_process_id, filename, process_counter, num_reinsur
     for process_id in range(1, max_process_id + 1):
         do_any(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
-    print_command(filename, '')
     for process_id in range(1, max_process_id + 1):
         do_tees(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
-    print_command(filename, '')
     for process_id in range(1, max_process_id + 1):
         do_summarycalcs(
             runtype=RUNTYPE_REINSURANCE_LOSS,
@@ -367,11 +374,9 @@ def il(analysis_settings, max_process_id, filename, process_counter, fifo_dir=''
     for process_id in range(1, max_process_id + 1):
         do_any(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
-    print_command(filename, '')
     for process_id in range(1, max_process_id + 1):
         do_tees(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
-    print_command(filename, '')
     for process_id in range(1, max_process_id + 1):
         do_summarycalcs(
             runtype=RUNTYPE_INSURED_LOSS,
@@ -384,14 +389,13 @@ def il(analysis_settings, max_process_id, filename, process_counter, fifo_dir=''
 
 
 def do_gul(analysis_settings, max_process_id, filename, process_counter, fifo_dir='', gul_alloc_rule=None, stderr_abort=True):
+
     for process_id in range(1, max_process_id + 1):
         do_any(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
-    print_command(filename, '')
     for process_id in range(1, max_process_id + 1):
         do_tees(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
-    print_command(filename, '')
     for process_id in range(1, max_process_id + 1):
         do_summarycalcs(
             runtype=RUNTYPE_GROUNDUP_LOSS,
@@ -650,15 +654,15 @@ def genbash(
     print_command(filename, '# --- Setup run dirs ---')
     print_command(filename, '')
     print_command(filename, "find output/* ! -name '*summary-info*' -type f -exec rm -f {} +")
+    print_command(filename, '')
     if not fifo_tmp_dir:
         print_command(filename, 'rm -R -f fifo/*')
     print_command(filename, 'rm -R -f work/*')
-    print_command(filename, '')
-
     print_command(filename, 'mkdir work/kat')
 
     # Create tmp dir for FIFO queues (Windows support)
     if fifo_tmp_dir:
+        print_command(filename, '')
         fifo_queue_dir = '/tmp/{}/'.format(
             ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(10))
         )
@@ -681,19 +685,16 @@ def genbash(
     if ri_output:
         print_command(filename, '')
         print_command(filename, '# --- Do reinsurance loss computes ---')
-        print_command(filename, '')
         ri(analysis_settings, max_process_id, filename, process_counter, num_reinsurance_iterations, fifo_queue_dir, stderr_abort)
 
     if il_output:
         print_command(filename, '')
         print_command(filename, '# --- Do insured loss computes ---')
-        print_command(filename, '')
         il(analysis_settings, max_process_id, filename, process_counter, fifo_queue_dir, stderr_abort)
 
     if gul_output:
         print_command(filename, '')
         print_command(filename, '# --- Do ground up loss computes ---')
-        print_command(filename, '')
         do_gul(analysis_settings, max_process_id, filename, process_counter, fifo_queue_dir, gul_alloc_rule, stderr_abort)
 
     print_command(filename, '')
