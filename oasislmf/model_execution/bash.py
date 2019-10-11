@@ -643,7 +643,7 @@ def genbash(
         print_command(filename, 'mkdir -p log')
         print_command(filename, 'rm -R -f log/*')
         print_command(filename, 'touch log/stderror.err')
-        print_command(filename, 'ktools_monitor $$ & pid0=$!')
+        print_command(filename, 'ktools_monitor.sh $$ & pid0=$!')
         print_command(filename, '')
 
 
