@@ -168,6 +168,12 @@ class OasisManager(object):
         lookup_config_fp=None,
         lookup_config=None,
     ):
+
+        # Convert paths to absolute   
+        keys_data_fp = as_path(keys_data_fp, 'Lookup Data directory', is_dir=True, preexists=True)
+        areas_rtree_index_fp = as_path(areas_rtree_index_fp, 'Index output file path', preexists=False)
+        lookup_config_fp = as_path(lookup_config_fp, 'Built-in lookup config file path', preexists=True)
+
         if not (lookup_config or lookup_config_fp):
             raise OasisException('Either a built-in lookup config. or config. file path is required')
 
@@ -268,6 +274,26 @@ class OasisManager(object):
         keys_errors_fp=None,
         keys_format=None
     ):
+
+        # Convert paths to absolute
+        exposure_fp = as_path(exposure_fp, 'Source exposure file path')
+        lookup_config_fp = as_path(lookup_config_fp 'Lookup config JSON file path')
+        keys_data_fp = as_path(keys_data_fp 'Keys data path', is_dir=True, preexists=False)
+        model_version_fp = as_path(model_version_fp, 'Model version file path', preexists=False)
+        lookup_package_fp = as_path(lookup_package_fp, 'Lookup package path', is_dir=True, preexists=False)
+        complex_lookup_config_fp = as_path(complex_lookup_config_fp, 'Complex lookup config JSON file path', preexists=False)
+        keys_fp = as_path(keys_fp, 'Keys file path', preexists=False)
+        keys_errors_fp = as_path(keys_errors_fp, 'Keys errors file path', preexists=False)
+
+        if not (lookup_config_fp or (keys_data_fp and model_version_fp and lookup_package_fp)):
+            raise OasisException(
+                'No lookup assets provided to generate the mandatory keys '
+                'file - for built-in lookups the lookup config. JSON file '
+                'path must be provided, or for custom lookups the keys data '
+                'path + model version file path + lookup package path must be '
+                'provided'
+            )
+
         if keys_fp:
             lookup_extra_outputs_dir = os.path.basename(keys_fp)
         else:
@@ -330,6 +356,34 @@ class OasisManager(object):
         ri_scope_fp=None,
         oasis_files_prefixes=None
     ):
+
+        # Convert paths to absolute
+        target_dir = as_path(target_dir, 'Oasis files output dir', is_dir=True, preexists=False)
+        exposure_fp = as_path(exposure_fp, 'Source exposure file path')
+        exposure_profile_fp = as_path(exposure_profile_fp, required=False, is_path=True), 'Source OED location profile path')
+        keys_fp = as_path(keys_fp, 'Pre-generated keys file path', preexists=True)
+        lookup_config_fp = as_path(lookup_config_fp, 'Lookup config JSON file path', preexists=False)
+        keys_data_fp = as_path(keys_data_fp, 'Keys data path', preexists=False)
+        model_version_fp = as_path(model_version_fp, 'Model version file path', is_dir=True, preexists=False)
+        lookup_package_fp = as_path(lookup_package_fp, 'Lookup package path', is_dir=True, preexists=False)
+        complex_lookup_config_fp = as_path(complex_lookup_config_fp, 'Complex lookup config JSON file path', preexists=False)
+        user_data_dir = as_path(user_data_dir, 'Directory containing additional supplied model data files', preexists=False)
+        accounts_fp = as_path(accounts_fp, 'Source OED accounts file path')
+        accounts_profile_fp = as_path(accounts_profile_fp, required=False, is_path=True), 'Source OED accounts profile path')
+        aggregation_profile_fp = as_path(aggregation_profile_fp, required=False, is_path=True), 'FM OED aggregation profile path')
+        ri_info_fp = as_path(ri_info_fp, 'Reinsurance info. file path')
+        ri_scope_fp = as_path(ri_scope_fp, 'Reinsurance scope file path')
+
+        if not (keys_fp or lookup_config_fp or (keys_data_fp and model_version_fp and lookup_package_fp)):
+            raise OasisException(
+                'No pre-generated keys file provided, and no lookup assets '
+                'provided to generate a keys file - if you do not have a '
+                'pre-generated keys file then lookup assets must be provided - '
+                'for a built-in lookup the lookup config. JSON file path must '
+                'be provided, or for custom lookups the keys data path + model '
+                'version file path + lookup package path must be provided'
+            )
+
         # Prepare the target directory and copy the source files, profiles and
         # model version file into it
         target_dir = prepare_input_files_directory(
@@ -539,6 +593,15 @@ class OasisManager(object):
         ktools_debug=None,
         user_data_dir=None
     ):
+
+        # Convert paths to absolute
+        model_run_fp = as_path(model_run_fp, 'Model run directory', is_dir=True, preexists=False)
+        oasis_fp = as_path(oasis_fp, 'Path to direct Oasis files (GUL + optionally FM and RI input files)', is_dir=True, preexists=True)
+        analysis_settings_fp = as_path(analysis_settings_fp, 'Model analysis settings file path')
+        model_data_fp = as_path(model_data_fp, 'Model data path', is_dir=True)
+        model_package_fp = as_path(model_package_fp, 'Model package path', is_dir=True)
+        user_data_dir = as_path(user_data_dir, 'Directory containing additional user-supplied model data files', preexists=False)
+
         il = all(p in os.listdir(oasis_fp) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
         ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(oasis_fp)) + os.listdir(oasis_fp))
         gul_item_stream = False if (ktools_alloc_rule_gul == 0) or (self.ktools_alloc_rule_gul == 0) else True
