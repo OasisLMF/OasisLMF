@@ -1,7 +1,6 @@
 import io
 import os
 import random
-import re
 import string
 
 from collections import Counter
@@ -54,7 +53,7 @@ def leccalc_enabled(lec_options):
         lec_options = lec_options["outputs"]
 
     for option in lec_options:
-        if option in WAIT_PROCESSING_SWITCHES  and lec_options[option]:
+        if option in WAIT_PROCESSING_SWITCHES and lec_options[option]:
             return True
     return False
 
@@ -277,7 +276,7 @@ def do_tees(runtype, analysis_settings, process_id, filename, process_counter, f
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
-        
+
     if process_id == 1:
         print_command(filename, '')
 
@@ -355,7 +354,6 @@ def do_any(runtype, analysis_settings, process_id, filename, process_counter, fi
                         runtype, summary_set, process_id, cmd, process_counter['pid_monitor_count'], fifo_dir
                     )
                 )
-
 
 
 def ri(analysis_settings, max_process_id, filename, process_counter, num_reinsurance_iterations, fifo_dir='', stderr_abort=True):
@@ -600,7 +598,7 @@ def genbash(
     process_counter = Counter()
 
     use_random_number_file = False
-    stderr_abort = stderr_guard if stderr_guard != None else (not bash_trace)
+    stderr_abort = stderr_guard if stderr_guard is not None else (not bash_trace)
     gul_item_stream = (gul_alloc_rule and isinstance(gul_alloc_rule, int))
     gul_output = False
     il_output = False
@@ -656,7 +654,6 @@ def genbash(
         print_command(filename, 'touch log/stderror.err')
         print_command(filename, 'ktools_monitor.sh $$ & pid0=$!')
         print_command(filename, '')
-
 
     print_command(filename, '# --- Setup run dirs ---')
     print_command(filename, '')
@@ -752,7 +749,8 @@ def genbash(
             getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
             fm_cmd = '{2} | fmcalc -a{3} > {4}fifo/il_P{0} '
 
-            main_cmd = fm_cmd.format( process_id,
+            main_cmd = fm_cmd.format(
+                process_id,
                 max_process_id,
                 getmodel_cmd,
                 il_alloc_rule,
