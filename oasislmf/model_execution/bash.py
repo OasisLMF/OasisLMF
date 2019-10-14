@@ -48,10 +48,13 @@ def leccalc_enabled(lec_options):
 
     :return: True is leccalc is enables, False otherwise.
     """
-    if "outputs" not in lec_options:
-        return False
-    for option in lec_options["outputs"]:
-        if lec_options["outputs"][option]:
+
+    # Note: Backwards compatibility of "outputs" in lec_options
+    if "outputs" in lec_options:
+        lec_options = lec_options["outputs"]
+
+    for option in lec_options:
+        if option in WAIT_PROCESSING_SWITCHES  and lec_options[option]:
             return True
     return False
 
@@ -76,6 +79,10 @@ def do_post_wait_processing(runtype, analysis_settings, filename, process_counte
 
             if summary.get('lec_output'):
                 leccalc = summary.get('leccalc', {})
+                # Note: Backwards compatibility of "outputs" in lec_options
+                if "outputs" in leccalc:
+                    leccalc = leccalc["outputs"]
+
                 if leccalc and leccalc_enabled(leccalc):
                     cmd = 'leccalc {} -K{}_S{}_summaryleccalc'.format(
                         '-r' if leccalc.get('return_period_file') else '',
@@ -84,8 +91,8 @@ def do_post_wait_processing(runtype, analysis_settings, filename, process_counte
                     )
 
                     process_counter['lpid_monitor_count'] += 1
-                    for option, active in sorted(leccalc['outputs'].items()):
-                        if active:
+                    for option, active in sorted(leccalc.items()):
+                        if active and option in WAIT_PROCESSING_SWITCHES:
                             switch = WAIT_PROCESSING_SWITCHES.get(option, '')
                             cmd = '{} {} output/{}_S{}_leccalc_{}.csv'.format(cmd, switch, runtype, summary_set,
                                                                               option)
