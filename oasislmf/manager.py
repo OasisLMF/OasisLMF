@@ -277,8 +277,8 @@ class OasisManager(object):
 
         # Convert paths to absolute
         exposure_fp = as_path(exposure_fp, 'Source exposure file path')
-        lookup_config_fp = as_path(lookup_config_fp 'Lookup config JSON file path')
-        keys_data_fp = as_path(keys_data_fp 'Keys data path', is_dir=True, preexists=False)
+        lookup_config_fp = as_path(lookup_config_fp, 'Lookup config JSON file path')
+        keys_data_fp = as_path(keys_data_fp, 'Keys data path', is_dir=True, preexists=False)
         model_version_fp = as_path(model_version_fp, 'Model version file path', preexists=False)
         lookup_package_fp = as_path(lookup_package_fp, 'Lookup package path', is_dir=True, preexists=False)
         complex_lookup_config_fp = as_path(complex_lookup_config_fp, 'Complex lookup config JSON file path', preexists=False)
@@ -360,7 +360,7 @@ class OasisManager(object):
         # Convert paths to absolute
         target_dir = as_path(target_dir, 'Oasis files output dir', is_dir=True, preexists=False)
         exposure_fp = as_path(exposure_fp, 'Source exposure file path')
-        exposure_profile_fp = as_path(exposure_profile_fp, required=False, is_path=True), 'Source OED location profile path')
+        exposure_profile_fp = as_path(exposure_profile_fp, 'Source exposure profile file path')
         keys_fp = as_path(keys_fp, 'Pre-generated keys file path', preexists=True)
         lookup_config_fp = as_path(lookup_config_fp, 'Lookup config JSON file path', preexists=False)
         keys_data_fp = as_path(keys_data_fp, 'Keys data path', preexists=False)
@@ -369,8 +369,8 @@ class OasisManager(object):
         complex_lookup_config_fp = as_path(complex_lookup_config_fp, 'Complex lookup config JSON file path', preexists=False)
         user_data_dir = as_path(user_data_dir, 'Directory containing additional supplied model data files', preexists=False)
         accounts_fp = as_path(accounts_fp, 'Source OED accounts file path')
-        accounts_profile_fp = as_path(accounts_profile_fp, required=False, is_path=True), 'Source OED accounts profile path')
-        aggregation_profile_fp = as_path(aggregation_profile_fp, required=False, is_path=True), 'FM OED aggregation profile path')
+        accounts_profile_fp = as_path(accounts_profile_fp, 'Source OED accounts profile path')
+        fm_aggregation_profile_fp = as_path(fm_aggregation_profile_fp, 'FM OED aggregation profile path')
         ri_info_fp = as_path(ri_info_fp, 'Reinsurance info. file path')
         ri_scope_fp = as_path(ri_scope_fp, 'Reinsurance scope file path')
 

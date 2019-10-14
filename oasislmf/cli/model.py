@@ -229,8 +229,8 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         ri_scope_fp = inputs.get('oed_scope_csv', required=False, is_path=True)
 
         il = True if accounts_fp else False
-        ri = all(required_ri_paths) and il
         required_ri_paths = [ri_info_fp, ri_scope_fp]
+        ri = all(required_ri_paths) and il
 
         self.logger.info('\nGenerating Oasis files (GUL=True, IL={}, RIL={})'.format(il, ri))
         oasis_files = om().generate_oasis_files(
