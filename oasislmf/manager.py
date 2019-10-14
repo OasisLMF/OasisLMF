@@ -662,7 +662,7 @@ class OasisManager(object):
 
         prepare_run_inputs(analysis_settings, model_run_fp, ri=ri)
 
-        script_fp = os.path.join(model_run_fp, 'run_ktools.sh')
+        script_fp = os.path.join(os.path.abspath(model_run_fp), 'run_ktools.sh')
 
         if model_package_fp and os.path.exists(os.path.join(model_package_fp, 'supplier_model_runner.py')):
             path, package_name = os.path.split(model_package_fp)
