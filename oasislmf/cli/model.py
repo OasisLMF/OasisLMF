@@ -228,6 +228,16 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         ri_info_fp = inputs.get('oed_info_csv', required=False, is_path=True)
         ri_scope_fp = inputs.get('oed_scope_csv', required=False, is_path=True)
 
+        if not (keys_fp or lookup_config_fp or (keys_data_fp and model_version_fp and lookup_package_fp)):
+            raise OasisException(
+                'No pre-generated keys file provided, and no lookup assets '
+                'provided to generate a keys file - if you do not have a '
+                'pre-generated keys file then lookup assets must be provided - '
+                'for a built-in lookup the lookup config. JSON file path must '
+                'be provided, or for custom lookups the keys data path + model '
+                'version file path + lookup package path must be provided'
+            )
+
         il = True if accounts_fp else False
         required_ri_paths = [ri_info_fp, ri_scope_fp]
         ri = all(required_ri_paths) and il

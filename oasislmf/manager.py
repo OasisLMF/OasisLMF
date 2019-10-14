@@ -374,16 +374,6 @@ class OasisManager(object):
         ri_info_fp = as_path(ri_info_fp, 'Reinsurance info. file path')
         ri_scope_fp = as_path(ri_scope_fp, 'Reinsurance scope file path')
 
-        if not (keys_fp or lookup_config_fp or (keys_data_fp and model_version_fp and lookup_package_fp)):
-            raise OasisException(
-                'No pre-generated keys file provided, and no lookup assets '
-                'provided to generate a keys file - if you do not have a '
-                'pre-generated keys file then lookup assets must be provided - '
-                'for a built-in lookup the lookup config. JSON file path must '
-                'be provided, or for custom lookups the keys data path + model '
-                'version file path + lookup package path must be provided'
-            )
-
         # Prepare the target directory and copy the source files, profiles and
         # model version file into it
         target_dir = prepare_input_files_directory(
