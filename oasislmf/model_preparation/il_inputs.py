@@ -26,7 +26,9 @@ from ..utils.data import (
     fast_zip_arrays,
     get_dataframe,
     get_ids,
+    merge_check,
     merge_dataframes,
+
     set_dataframe_column_dtypes,
 )
 from ..utils.defaults import (
@@ -296,6 +298,13 @@ def get_il_input_items(
         gul_inputs_df.rename(columns={'item_id': 'gul_input_id'}, inplace=True)
         dtypes = {t: 'float64' for t in site_pd_and_site_all_term_cols}
         gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, dtypes)
+
+        # check for empty intersection between dfs
+        merge_check(
+            gul_inputs_df[[portfolio_num, acc_num, 'layer_id', cond_num]], 
+            accounts_df[[portfolio_num, acc_num, 'layer_id', cond_num]],
+            on=[portfolio_num, acc_num, 'layer_id', cond_num]
+        )
 
         # Construct a basic IL inputs frame by merging the combined exposure +
         # GUL inputs frame above, with the accounts frame, on portfolio no.,
