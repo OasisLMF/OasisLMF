@@ -78,16 +78,17 @@ def do_post_wait_processing(runtype, analysis_settings, filename, process_counte
 
             if summary.get('lec_output'):
                 leccalc = summary.get('leccalc', {})
-                # Note: Backwards compatibility of "outputs" in lec_options
-                if "outputs" in leccalc:
-                    leccalc = leccalc["outputs"]
-
                 if leccalc and leccalc_enabled(leccalc):
                     cmd = 'leccalc {} -K{}_S{}_summaryleccalc'.format(
                         '-r' if leccalc.get('return_period_file') else '',
                         runtype,
                         summary_set
                     )
+
+                # Note: Backwards compatibility of "outputs" in lec_options
+                if "outputs" in leccalc:
+                    leccalc = leccalc["outputs"]
+
 
                     process_counter['lpid_monitor_count'] += 1
                     for option, active in sorted(leccalc.items()):
