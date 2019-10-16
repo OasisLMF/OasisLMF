@@ -85,9 +85,9 @@ def do_post_wait_processing(runtype, analysis_settings, filename, process_counte
                         summary_set
                     )
 
-                # Note: Backwards compatibility of "outputs" in lec_options
-                if "outputs" in leccalc:
-                    leccalc = leccalc["outputs"]
+                    # Note: Backwards compatibility of "outputs" in lec_options
+                    if "outputs" in leccalc:
+                        leccalc = leccalc["outputs"]
 
 
                     process_counter['lpid_monitor_count'] += 1
