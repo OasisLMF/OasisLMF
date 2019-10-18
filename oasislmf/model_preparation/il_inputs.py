@@ -687,7 +687,7 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
             }
         ).dropna(axis=0).drop_duplicates()
 
-        # check dimensions of top level 
+        # check dimensions of top level
         if not len(max_level_agg_ids) == len(fm_programme_df.loc[fm_programme_df['level_id'] == max_level]):
             max_level_agg_ids = il_inputs_df[il_inputs_df['level_id'] == max_level].loc[:, ['loc_id', 'agg_id']].drop_duplicates()['agg_id'].tolist()
 
