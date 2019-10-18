@@ -675,7 +675,7 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
         ).reset_index(drop=True)
 
         min_level, max_level = 0, fm_programme_df['level_id'].max()
-        max_level_agg_ids = il_inputs_df[il_inputs_df['level_id'] == max_level].loc[:, ['loc_id', 'agg_id']].drop_duplicates()['agg_id'].tolist()
+        max_level_agg_ids = il_inputs_df[il_inputs_df['level_id'] == max_level].loc[:, ['loc_id', 'agg_id']]['agg_id'].tolist()
         if len(set(max_level_agg_ids)) == 1:
             max_level_agg_ids = [max_level_agg_ids[0]]
 
