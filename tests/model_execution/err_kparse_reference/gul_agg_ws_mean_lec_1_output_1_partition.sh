@@ -7,10 +7,18 @@ set -e
 set -o pipefail
 
 error_handler(){
-    echo 'Run Error - terminating, see the log dir for details'
-    proc_group_id=$(ps -p $$ -o pgid --no-headers)
-    pgrep -a --pgroup $proc_group_id >> log/killout.txt
-    pkill -9 --pgroup $proc_group_id
+   echo 'Run Error - terminating'
+   proc_group_id=$(ps -p $$ -o pgid --no-headers)
+   sess_id=$(ps -p $$ -o sess --no-headers)
+   echo "script pid: $$" > log/killout.txt
+   echo "group pid: $proc_group_id" >> log/killout.txt
+   echo "session pid: $sess_id" >> log/killout.txt
+   echo "----------------"  >> log/killout.txt
+
+   ps f -g $sess_id > log/subprocess_list
+   pgrep -a --pgroup $proc_group_id | grep -x -v $proc_group_id | grep -v $$ >> log/killout.txt
+   kill -9 $(pgrep --pgroup $proc_group_id | grep -x -v $proc_group_id | grep -x -v $$) 2>/dev/null
+   exit 1
 }
 trap error_handler QUIT HUP INT KILL TERM ERR
 
