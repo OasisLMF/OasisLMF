@@ -652,7 +652,7 @@ def genbash(
         print_command(filename, '   echo "----------------"  >> log/killout.txt')
         print_command(filename, '')
         print_command(filename, '   ps f -g $sess_id > log/subprocess_list')
-        print_command(filename, '   pgrep -a --pgroup $proc_group_id | grep -x -v $proc_group_id | grep -v $$ >> log/killout.txt')
+        print_command(filename, '   pgrep -a --pgroup $proc_group_id | grep -v $proc_group_id | grep -v $$ >> log/killout.txt')
         print_command(filename, '   kill -9 $(pgrep --pgroup $proc_group_id | grep -x -v $proc_group_id | grep -x -v $$) 2>/dev/null')
         print_command(filename, '   exit 1')
         print_command(filename, '}')
