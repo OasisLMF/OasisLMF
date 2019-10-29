@@ -16,7 +16,7 @@ error_handler(){
    echo "----------------"  >> log/killout.txt
 
    ps f -g $sess_id > log/subprocess_list
-   pgrep -a --pgroup $proc_group_id | grep -x -v $proc_group_id | grep -v $$ >> log/killout.txt
+   pgrep -a --pgroup $proc_group_id | grep -v $proc_group_id | grep -v $$ >> log/killout.txt
    kill -9 $(pgrep --pgroup $proc_group_id | grep -x -v $proc_group_id | grep -x -v $$) 2>/dev/null
    exit 1
 }
