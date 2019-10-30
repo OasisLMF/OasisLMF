@@ -5,7 +5,6 @@ ERR_FILE='log/stderror.err'
 STATUS_LINES=15
 POLL_RATE=2
 script_pid=$1
-echo "*** running ktools monitor - watching PID=$script_pid ***"
 
 
 run_ktools_kill(){
@@ -15,10 +14,6 @@ run_ktools_kill(){
      GETMODEL=`ps -C getmodel -o pmem | grep -v MEM | sort -n -r | head -1`
      echo "TOTALS:  $FMCALC $GULCALC $GETMODEL" >> log/mem-free
      free -h >> log/mem-free
-     sess_id=$(ps -p $$ -o sess --no-headers)
-     ps f -g $sess_id > log/subprocess_list
-
-     echo "**************** DOING KILL ***************"
      if ! kill $1 > /dev/null 2>&1; then
          kill $1
         echo "Could not send SIGTERM to process $1" >&2
@@ -50,7 +45,6 @@ else
         fi    
         # trigger kill on stderr output
         if [ -s $ERR_FILE ]; then
-            echo 'inotifywait not in system - install "inotify-tools"'
             run_ktools_kill $script_pid
         fi
     done
