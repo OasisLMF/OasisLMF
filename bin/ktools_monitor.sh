@@ -45,7 +45,6 @@ else
         fi    
         # trigger kill on stderr output
         if [ -s $ERR_FILE ]; then
-            echo 'inotifywait not in system - install "inotify-tools"'
             run_ktools_kill $script_pid
         fi
     done
