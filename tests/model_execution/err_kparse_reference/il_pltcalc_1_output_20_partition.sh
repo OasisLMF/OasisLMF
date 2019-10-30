@@ -15,9 +15,16 @@ error_handler(){
    echo "session pid: $sess_id" >> log/killout.txt
    echo "----------------"  >> log/killout.txt
 
-   ps f -g $sess_id > log/subprocess_list
-   pgrep -a --pgroup $proc_group_id | grep -v $proc_group_id | grep -v $$ >> log/killout.txt
-   kill -9 $(pgrep --pgroup $proc_group_id | grep -x -v $proc_group_id | grep -x -v $$) 2>/dev/null
+   if hash pstree 2>/dev/null; then
+       pstree -pn $$ >> log/killout.txt
+       PIDS_KILL=$(pstree -pn $$ | grep -o "([[:digit:]]*)" | grep -o "[[:digit:]]*")
+       kill -9 $(echo "$PIDS_KILL" | grep -v $proc_group_id | grep -v $$) 2>/dev/null
+   else
+       ps f -g $sess_id > log/subprocess_list
+       PIDS_KILL=$(pgrep -a --pgroup $proc_group_id | grep -v celery | grep -v $proc_group_id | grep -v $$)
+       echo "$PIDS_KILL" >> log/killout.txt
+       kill -9 $(echo "$PIDS_KILL" | awk 'BEGIN { FS = "[ \t\n]+" }{ print $1 }') 2>/dev/null
+   fi
    exit 1
 }
 trap error_handler QUIT HUP INT KILL TERM ERR
