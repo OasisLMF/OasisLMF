@@ -1,77 +1,90 @@
 {
     "accnumber": {
+        "py_dtype": "str",
         "data_type": "nvarchar(40)",
         "default_value": "n/a",
         "desc": "Account number:  used for defining treaty scope in the reinsurance scope file",
         "require_field": "CR"
     },
     "cedantname": {
+        "py_dtype": "str",
         "data_type": "varchar(40)",
         "default_value": "n/a",
         "desc": "Cedant name:  used for defining treaty scope in the reinsurance scope file",
         "require_field": "CR"
     },
     "cededpercent": {
+        "py_dtype": "float",
         "data_type": "float",
         "default_value": "1.0",
         "desc": "Ceded percentage (for 12%, enter 0.12). Within the reinsurance scope file, CededPercent should only be entered for surplus share treaties.",
         "require_field": "CR"
     },
     "countrycode": {
+        "py_dtype": "str",
         "data_type": "char(2)",
         "default_value": "n/a",
         "desc": "Country code: used for defining treaty scope in the reinsurance scope file",
         "require_field": "CR"
     },
     "lob": {
+        "py_dtype": "str",
         "data_type": "varchar(20)",
         "default_value": "n/a",
         "desc": "Line of business:  used for defining treaty scope in the reinsurance scope file",
         "require_field": "CR"
     },
     "locgroup": {
+        "py_dtype": "str",
         "data_type": "nvarchar(20)",
         "default_value": "n/a",
         "desc": "Location group name:  used for defining treaty scope in the reinsurance scope file",
         "require_field": "CR"
     },
     "locnumber": {
+        "py_dtype": "str",
         "data_type": "nvarchar(20)",
         "default_value": "n/a",
         "desc": "Location number:  used for defining treaty scope in the reinsurance scope file",
         "require_field": "CR"
     },
     "polnumber": {
+        "py_dtype": "str",
         "data_type": "varchar(20)",
         "default_value": "n/a",
         "desc": "Policy number:  used for defining treaty scope in the reinsurance scope file",
         "require_field": "CR"
     },
     "portnumber": {
+        "py_dtype": "str",
         "data_type": "varchar(20)",
         "default_value": "n/a",
         "desc": "Portfolio number: used for defining treaty scope in the reinsurance scope file",
         "require_field": "CR"
     },
     "producername": {
+        "py_dtype": "str",
         "data_type": "varchar(40)",
         "default_value": "n/a",
         "desc": "Producer name:  used for defining treaty scope in the reinsurance scope file",
         "require_field": "CR"
     },
     "reinsnumber": {
+        "py_dtype": "int",
         "data_type": "int",
         "default_value": "n/a",
         "desc": "Reinsurance number to link with ReinsInfo file",
         "require_field": "R"
     },
     "reinstag": {
+        "py_dtype": "str",
         "data_type": "varchar(20)",
         "default_value": "n/a",
         "desc": "Reinsurance tag: user defined field to for defining treaty scope in the reinsurance scope file",
         "require_field": "CR"
     },
     "risklevel": {
+        "py_dtype": "str",
         "data_type": "char(3)",
         "default_value": "n/a",
         "desc": "Code to indicate the definition of 'risk' for the per-risk terms in this particular treaty (or portion of the treaty)",
