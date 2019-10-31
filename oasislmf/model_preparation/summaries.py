@@ -515,7 +515,6 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
     ])
 
     # Load locations file for GUL OED fields
-    import ipdb; ipdb.set_trace()
     input_dir = os.path.join(model_run_fp, 'input')
     exposure_fp = find_exposure_fp(input_dir, 'loc')
     loc_dtypes, loc_required_cols = get_dtypes_and_required_cols(get_loc_dtypes)
