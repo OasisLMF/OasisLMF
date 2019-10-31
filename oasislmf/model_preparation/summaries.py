@@ -25,7 +25,7 @@ from ..utils.data import (
     get_dtypes_and_required_cols,
 )
 from ..utils.defaults import (
-    SOURCE_FILENAMES,
+    find_exposure_fp, 
     SOURCE_IDX,
     SUMMARY_MAPPING,
     SUMMARY_OUTPUT,
@@ -515,7 +515,8 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
     ])
 
     # Load locations file for GUL OED fields
-    exposure_fp = os.path.join(model_run_fp, 'input', SOURCE_FILENAMES['loc'])
+    input_dir = os.path.join(model_run_fp, 'input')
+    exposure_fp = find_exposure_fp(input_dir, 'loc')
     loc_dtypes, loc_required_cols = get_dtypes_and_required_cols(get_loc_dtypes)
     exposure_df = get_dataframe(
         src_fp=exposure_fp,
@@ -526,7 +527,7 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
 
     # Load accounts file for IL OED fields
     if (il_summaries or ri_summaries):
-        accounts_fp = os.path.join(model_run_fp, 'input', SOURCE_FILENAMES['acc'])
+        accounts_fp = find_exposure_fp(input_dir, 'acc')
         acc_dtypes, acc_required_cols = get_dtypes_and_required_cols(get_acc_dtypes)
         accounts_df = get_dataframe(
             src_fp=accounts_fp,
