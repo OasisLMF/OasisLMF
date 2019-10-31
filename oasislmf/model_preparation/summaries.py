@@ -22,6 +22,7 @@ from ..utils.data import (
     get_json,
     merge_dataframes,
     set_dataframe_column_dtypes,
+    get_dtypes_and_required_cols,
 )
 from ..utils.defaults import (
     SOURCE_FILENAMES,
@@ -515,17 +516,23 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
 
     # Load locations file for GUL OED fields
     exposure_fp = os.path.join(model_run_fp, 'input', SOURCE_FILENAMES['loc'])
+    loc_dtypes, loc_required_cols = get_dtypes_and_required_cols(get_loc_dtypes)
     exposure_df = get_dataframe(
         src_fp=exposure_fp,
-        empty_data_error_msg='No source exposure file found.')
+        empty_data_error_msg='No source exposure file found.',
+        col_dtypes=loc_dtypes,
+        required_cols=loc_required_cols)
     exposure_df[SOURCE_IDX['loc']] = exposure_df.index
 
     # Load accounts file for IL OED fields
     if (il_summaries or ri_summaries):
         accounts_fp = os.path.join(model_run_fp, 'input', SOURCE_FILENAMES['acc'])
+        acc_dtypes, acc_required_cols = get_dtypes_and_required_cols(get_acc_dtypes)
         accounts_df = get_dataframe(
             src_fp=accounts_fp,
-            empty_data_error_msg='No source accounts file found.')
+            empty_data_error_msg='No source accounts file found.',
+            col_dtypes=acc_dtypes,
+            required_cols=acc_required_cols)
         accounts_df[SOURCE_IDX['acc']] = accounts_df.index
 
     if gul_summaries:

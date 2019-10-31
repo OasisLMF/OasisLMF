@@ -1,1250 +1,1458 @@
 {
-    "acccurrency": {
+    "AccCurrency": {
         "data_type": "char(3)",
         "default_value": "n/a",
         "desc": "Account currency",
+        "py_dtype": "str",
         "require_field": "R"
     },
-    "accded1building": {
+    "AccDed1Building": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Account building deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "accded2other": {
+    "AccDed2Other": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Account other building deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "accded3contents": {
+    "AccDed3Contents": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Account contents deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "accded4bi": {
+    "AccDed4BI": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Account BI deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "accded5pd": {
+    "AccDed5PD": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Account PD deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "accded6all": {
+    "AccDed6All": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Account blanket deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "accdedcode1building": {
+    "AccDedCode1Building": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Account building deductible code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "accdedcode2other": {
+    "AccDedCode2Other": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Account other building deductible code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "accdedcode3contents": {
+    "AccDedCode3Contents": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Account contents deductible code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "accdedcode4bi": {
+    "AccDedCode4BI": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Account BI deductible code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "accdedcode5pd": {
+    "AccDedCode5PD": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Account PD deductible code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "accdedcode6all": {
+    "AccDedCode6All": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Account blanket deductible code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "accdedtype1building": {
+    "AccDedType1Building": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Account building deductible type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "accdedtype2other": {
+    "AccDedType2Other": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Account other building deductible type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "accdedtype3contents": {
+    "AccDedType3Contents": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Account contents deductible type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "accdedtype4bi": {
+    "AccDedType4BI": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Account BI deductible type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "accdedtype5pd": {
+    "AccDedType5PD": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Account PD deductible type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "accdedtype6all": {
+    "AccDedType6All": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Account blanket deductible type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "accgroup": {
+    "AccGroup": {
         "data_type": "varchar(40)",
         "default_value": "n/a",
         "desc": "Account group",
+        "py_dtype": "str",
         "require_field": "O"
     },
-    "acclimit1building": {
+    "AccLimit1Building": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Account building limit",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "acclimit2other": {
+    "AccLimit2Other": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Account other building limit",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "acclimit3contents": {
+    "AccLimit3Contents": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Account contents limit",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "acclimit4bi": {
+    "AccLimit4BI": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Account BI limit",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "acclimit5pd": {
+    "AccLimit5PD": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Account PD limit",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "acclimit6all": {
+    "AccLimit6All": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Account blanket limit",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "acclimitcode1building": {
+    "AccLimitCode1Building": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Account building limit code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "acclimitcode2other": {
+    "AccLimitCode2Other": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Account other building limit code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "acclimitcode3contents": {
+    "AccLimitCode3Contents": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Account contents limit code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "acclimitcode4bi": {
+    "AccLimitCode4BI": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Account BI limit code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "acclimitcode5pd": {
+    "AccLimitCode5PD": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Account PD limit code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "acclimitcode6all": {
+    "AccLimitCode6All": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Account blanket limit code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "acclimittype1building": {
+    "AccLimitType1Building": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Account building limit type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "acclimittype2other": {
+    "AccLimitType2Other": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Account other building limit type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "acclimittype3contents": {
+    "AccLimitType3Contents": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Account contents limit type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "acclimittype4bi": {
+    "AccLimitType4BI": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Account BI limit type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "acclimittype5pd": {
+    "AccLimitType5PD": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Account PD limit type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "acclimittype6all": {
+    "AccLimitType6All": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Account blanket limit type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "accmaxded1building": {
+    "AccMaxDed1Building": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Account maximum building deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "accmaxded2other": {
+    "AccMaxDed2Other": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Account maximum other building deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "accmaxded3contents": {
+    "AccMaxDed3Contents": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Account maximum contents deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "accmaxded4bi": {
+    "AccMaxDed4BI": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Account maximum BI deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "accmaxded5pd": {
+    "AccMaxDed5PD": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Account maximum PD deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "accmaxded6all": {
+    "AccMaxDed6All": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Account maximum blanket deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "accminded1building": {
+    "AccMinDed1Building": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Account minimum building deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "accminded2other": {
+    "AccMinDed2Other": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Account minimum other building deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "accminded3contents": {
+    "AccMinDed3Contents": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Account minimum contents deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "accminded4bi": {
+    "AccMinDed4BI": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Account minimum BI deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "accminded5pd": {
+    "AccMinDed5PD": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Account minimum PD deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "accminded6all": {
+    "AccMinDed6All": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Account minimum blanket deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "accname": {
+    "AccName": {
         "data_type": "nvarchar(100)",
         "default_value": "n/a",
         "desc": "Account name",
+        "py_dtype": "str",
         "require_field": "O"
     },
-    "accnumber": {
+    "AccNumber": {
         "data_type": "nvarchar(40)",
         "default_value": "n/a",
         "desc": "Account number",
+        "py_dtype": "str",
         "require_field": "R"
     },
-    "accperil": {
+    "AccPeril": {
         "data_type": "varchar(250)",
         "default_value": "n/a",
         "desc": "Perils for account financial terms",
+        "py_dtype": "str",
         "require_field": "CR"
     },
-    "accstatus": {
+    "AccStatus": {
         "data_type": "char(1)",
         "default_value": "n/a",
         "desc": "Account status",
+        "py_dtype": "str",
         "require_field": "O"
     },
-    "accuserdef1": {
+    "AccUserDef1": {
         "data_type": "varchar(20)",
         "default_value": "n/a",
         "desc": "Account user defined field 1",
+        "py_dtype": "str",
         "require_field": "O"
     },
-    "accuserdef2": {
+    "AccUserDef2": {
         "data_type": "varchar(20)",
         "default_value": "n/a",
         "desc": "Account user defined field 2",
+        "py_dtype": "str",
         "require_field": "O"
     },
-    "accuserdef3": {
+    "AccUserDef3": {
         "data_type": "varchar(20)",
         "default_value": "n/a",
         "desc": "Account user defined field 3",
+        "py_dtype": "str",
         "require_field": "O"
     },
-    "accuserdef4": {
+    "AccUserDef4": {
         "data_type": "varchar(20)",
         "default_value": "n/a",
         "desc": "Account user defined field 4",
+        "py_dtype": "str",
         "require_field": "O"
     },
-    "accuserdef5": {
+    "AccUserDef5": {
         "data_type": "varchar(20)",
         "default_value": "n/a",
         "desc": "Account user defined field 5",
+        "py_dtype": "str",
         "require_field": "O"
     },
-    "branchname": {
+    "BranchName": {
         "data_type": "varchar(20)",
         "default_value": "n/a",
         "desc": "Branch name",
+        "py_dtype": "str",
         "require_field": "O"
     },
-    "cedantname": {
+    "CedantName": {
         "data_type": "varchar(40)",
         "default_value": "n/a",
         "desc": "Cedant name (defined at account level)",
+        "py_dtype": "str",
         "require_field": "O"
     },
-    "condded1building": {
+    "CondDed1Building": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Special condition building deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "condded2other": {
+    "CondDed2Other": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Special condition other building deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "condded3contents": {
+    "CondDed3Contents": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Special condition contents deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "condded4bi": {
+    "CondDed4BI": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Special condition BI deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "condded5pd": {
+    "CondDed5PD": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Special condition PD deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "condded6all": {
+    "CondDed6All": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Special condition blanket deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "conddedcode1building": {
+    "CondDedCode1Building": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Special condition building deductible code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "conddedcode2other": {
+    "CondDedCode2Other": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Special condition other building deductible code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "conddedcode3contents": {
+    "CondDedCode3Contents": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Special condition contents deductible code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "conddedcode4bi": {
+    "CondDedCode4BI": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Special condition BI deductible code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "conddedcode5pd": {
+    "CondDedCode5PD": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Special condition PD deductible code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "conddedcode6all": {
+    "CondDedCode6All": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Special condition blanket deductible code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "conddedtype1building": {
+    "CondDedType1Building": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Special condition building deductible type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "conddedtype2other": {
+    "CondDedType2Other": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Special condition other building deductible type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "conddedtype3contents": {
+    "CondDedType3Contents": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Special condition contents deductible type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "conddedtype4bi": {
+    "CondDedType4BI": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Special condition BI deductible type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "conddedtype5pd": {
+    "CondDedType5PD": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Special condition PD deductible type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "conddedtype6all": {
+    "CondDedType6All": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Special condition blanket deductible type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "condlimit1building": {
+    "CondLimit1Building": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Special condition building limit",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "condlimit2other": {
+    "CondLimit2Other": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Special condition other building limit",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "condlimit3contents": {
+    "CondLimit3Contents": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Special condition contents limit",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "condlimit4bi": {
+    "CondLimit4BI": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Special condition BI limit",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "condlimit5pd": {
+    "CondLimit5PD": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Special condition PD limit",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "condlimit6all": {
+    "CondLimit6All": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Special condition blanket limit",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "condlimitcode1building": {
+    "CondLimitCode1Building": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Special condition building limit code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "condlimitcode2other": {
+    "CondLimitCode2Other": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Special condition other building limit code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "condlimitcode3contents": {
+    "CondLimitCode3Contents": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Special condition contents limit code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "condlimitcode4bi": {
+    "CondLimitCode4BI": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Special condition BI limit code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "condlimitcode5pd": {
+    "CondLimitCode5PD": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Special condition PD limit code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "condlimitcode6all": {
+    "CondLimitCode6All": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Special condition blanket limit code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "condlimittype1building": {
+    "CondLimitType1Building": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Special condition building limit type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "condlimittype2other": {
+    "CondLimitType2Other": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Special condition other building limit type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "condlimittype3contents": {
+    "CondLimitType3Contents": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Special condition contents limit type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "condlimittype4bi": {
+    "CondLimitType4BI": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Special condition BI limit type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "condlimittype5pd": {
+    "CondLimitType5PD": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Special condition PD limit type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "condlimittype6all": {
+    "CondLimitType6All": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Special condition blanket limit type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "condmaxded1building": {
+    "CondMaxDed1Building": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Special condition maximum building deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "condmaxded2other": {
+    "CondMaxDed2Other": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Special condition maximum other building deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "condmaxded3contents": {
+    "CondMaxDed3Contents": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Special condition maximum contents deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "condmaxded4bi": {
+    "CondMaxDed4BI": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Special condition maximum BI deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "condmaxded5pd": {
+    "CondMaxDed5PD": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Special condition maximum PD deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "condmaxded6all": {
+    "CondMaxDed6All": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Special condition maximum blanket deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "condminded1building": {
+    "CondMinDed1Building": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Special condition minimum building deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "condminded2other": {
+    "CondMinDed2Other": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Special condition minimum other building deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "condminded3contents": {
+    "CondMinDed3Contents": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Special condition minimum contents deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "condminded4bi": {
+    "CondMinDed4BI": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Special condition minimum BI deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "condminded5pd": {
+    "CondMinDed5PD": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Special condition minimum PD deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "condminded6all": {
+    "CondMinDed6All": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Special condition minimum blanket deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "condname": {
+    "CondName": {
         "data_type": "varchar(40)",
         "default_value": "n/a",
         "desc": "Condition name, relates to CondNumber.",
+        "py_dtype": "str",
         "require_field": "CR"
     },
-    "condnumber": {
+    "CondNumber": {
         "data_type": "int",
         "default_value": "n/a",
         "desc": "Condition number",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "condperil": {
+    "CondPeril": {
         "data_type": "varchar(250)",
         "default_value": "n/a",
         "desc": "Perils for condition financial terms",
+        "py_dtype": "str",
         "require_field": "CR"
     },
-    "deductiblebuilding": {
+    "DeductibleBuilding": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Building deductible that can be used",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "deductiblebuildingcontent": {
+    "DeductibleBuildingContent": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Building and content deductible that can be used",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "deductiblecontent": {
+    "DeductibleContent": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Content deductible that can be used",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "endtriggerbuilding": {
+    "EndTriggerBuilding": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Ending value of the building damage range over which the corresponding pay-out(s) should be made.",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "endtriggerbuildingcontent": {
+    "EndTriggerBuildingContent": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Ending value of the building and content damage range over which the corresponding pay-out(s) should be made.",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "endtriggercontent": {
+    "EndTriggerContent": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Ending value of the content damage range over which the corresponding pay-out(s) should be made.",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "expiringaccnumber": {
+    "ExpiringAccNumber": {
         "data_type": "nvarchar(40)",
         "default_value": "n/a",
         "desc": "Expiring account number",
+        "py_dtype": "str",
         "require_field": "O"
     },
-    "expiringpolnumber": {
+    "ExpiringPolNumber": {
         "data_type": "varchar(20)",
         "default_value": "n/a",
         "desc": "Expiring policy number",
+        "py_dtype": "str",
         "require_field": "O"
     },
-    "flexiacczzz": {
+    "FlexiAccZZZ": {
         "data_type": "varchar(40)",
         "default_value": "n/a",
         "desc": "Flexible field that is stored in FlexiAcc table in ModifierName = ZZZ",
+        "py_dtype": "str",
         "require_field": "O"
     },
-    "flexipolzzz": {
+    "FlexiPolZZZ": {
         "data_type": "varchar(40)",
         "default_value": "n/a",
         "desc": "Flexible field that is stored in FlexiPol table in ModifierName = ZZZ",
+        "py_dtype": "str",
         "require_field": "O"
     },
-    "hoursclause": {
+    "HoursClause": {
         "data_type": "int",
         "default_value": "n/a",
         "desc": "For perils with an inherent event duration",
+        "py_dtype": "int",
         "require_field": "O"
     },
-    "islimitatdamage": {
+    "IsLimitAtDamage": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Indicates whether the pay-out is limited by the actual ground-up loss.",
+        "py_dtype": "float",
         "require_field": "O"
     },
-    "layerattachment": {
-        "data_type": "float",
-        "default_value": "0",
-        "desc": "Policy layer attachment point",
-        "require_field": "O"
-    },
-    "layerlimit": {
-        "data_type": "float",
-        "default_value": "0",
-        "desc": "Policy layer limit",
-        "require_field": "O"
-    },
-    "layernumber": {
-        "data_type": "int",
-        "default_value": "1",
-        "desc": "Layer number",
-        "require_field": "O"
-    },
-    "layerparticipation": {
-        "data_type": "float",
-        "default_value": "1",
-        "desc": "Insurance company share of the policy layer",
-        "require_field": "O"
-    },
-    "lob": {
+    "LOB": {
         "data_type": "varchar(20)",
         "default_value": "n/a",
         "desc": "Line of business (defined at policy level)",
+        "py_dtype": "str",
         "require_field": "O"
     },
-    "minimumtiv": {
+    "LayerAttachment": {
+        "data_type": "float",
+        "default_value": "0",
+        "desc": "Policy layer attachment point",
+        "py_dtype": "float",
+        "require_field": "O"
+    },
+    "LayerLimit": {
+        "data_type": "float",
+        "default_value": "0",
+        "desc": "Policy layer limit",
+        "py_dtype": "float",
+        "require_field": "O"
+    },
+    "LayerNumber": {
+        "data_type": "int",
+        "default_value": "1",
+        "desc": "Layer number",
+        "py_dtype": "int",
+        "require_field": "O"
+    },
+    "LayerParticipation": {
+        "data_type": "float",
+        "default_value": "1",
+        "desc": "Insurance company share of the policy layer",
+        "py_dtype": "float",
+        "require_field": "O"
+    },
+    "MinimumTIV": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Minimum replacement value for which pay-outs to the corresponding damage range will be allowed.",
+        "py_dtype": "float",
         "require_field": "O"
     },
-    "payoutbuilding": {
+    "PayOutBuilding": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Pay-out that covers building gross losses for this step.",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "payoutbuildingcontent": {
+    "PayOutBuildingContent": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Pay-out that covers building and content gross losses for this step.",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "payoutcontent": {
+    "PayOutContent": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Pay-out that covers content gross losses for this step.",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "polbrokerage": {
+    "PolBrokerage": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Policy brokerage amount",
+        "py_dtype": "float",
         "require_field": "O"
     },
-    "polded1building": {
+    "PolDed1Building": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Policy building deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "polded2other": {
+    "PolDed2Other": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Policy other building deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "polded3contents": {
+    "PolDed3Contents": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Policy contents deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "polded4bi": {
+    "PolDed4BI": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Policy BI deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "polded5pd": {
+    "PolDed5PD": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Policy PD deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "polded6all": {
+    "PolDed6All": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Policy blanket deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "poldedcode1building": {
+    "PolDedCode1Building": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Policy building deductible code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "poldedcode2other": {
+    "PolDedCode2Other": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Policy other building deductible code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "poldedcode3contents": {
+    "PolDedCode3Contents": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Policy contents deductible code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "poldedcode4bi": {
+    "PolDedCode4BI": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Policy BI deductible code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "poldedcode5pd": {
+    "PolDedCode5PD": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Policy PD deductible code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "poldedcode6all": {
+    "PolDedCode6All": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Policy blanket deductible code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "poldedtype1building": {
+    "PolDedType1Building": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Policy building deductible type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "poldedtype2other": {
+    "PolDedType2Other": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Policy other building deductible type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "poldedtype3contents": {
+    "PolDedType3Contents": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Policy contents deductible type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "poldedtype4bi": {
+    "PolDedType4BI": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Policy BI deductible type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "poldedtype5pd": {
+    "PolDedType5PD": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Policy PD deductible type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "poldedtype6all": {
+    "PolDedType6All": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Policy blanket deductible type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "polexpirydate": {
+    "PolExpiryDate": {
         "data_type": "smalldatetime",
         "default_value": "n/a",
         "desc": "Policy expiry date - DD/MM/YYYY format",
+        "py_dtype": "str",
         "require_field": "O"
     },
-    "polgrosspremium": {
+    "PolGrossPremium": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Policy gross premium",
+        "py_dtype": "float",
         "require_field": "O"
     },
-    "polinceptiondate": {
+    "PolInceptionDate": {
         "data_type": "smalldatetime",
         "default_value": "n/a",
         "desc": "Policy inception date - DD/MM/YYYY format",
+        "py_dtype": "str",
         "require_field": "O"
     },
-    "pollimit1building": {
+    "PolLimit1Building": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Policy building limit",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "pollimit2other": {
+    "PolLimit2Other": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Policy other building limit",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "pollimit3contents": {
+    "PolLimit3Contents": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Policy contents limit",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "pollimit4bi": {
+    "PolLimit4BI": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Policy BI limit",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "pollimit5pd": {
+    "PolLimit5PD": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Policy PD limit",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "pollimit6all": {
+    "PolLimit6All": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Policy blanket limit",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "pollimitcode1building": {
+    "PolLimitCode1Building": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Policy building limit code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "pollimitcode2other": {
+    "PolLimitCode2Other": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Policy other building limit code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "pollimitcode3contents": {
+    "PolLimitCode3Contents": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Policy contents limit code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "pollimitcode4bi": {
+    "PolLimitCode4BI": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Policy BI limit code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "pollimitcode5pd": {
+    "PolLimitCode5PD": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Policy PD limit code",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "pollimitcode6all": {
+    "PolLimitCode6All": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Policy blanket limit code (annual aggregate only)",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "pollimittype1building": {
+    "PolLimitType1Building": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Policy building limit type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "pollimittype2other": {
+    "PolLimitType2Other": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Policy other building limit type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "pollimittype3contents": {
+    "PolLimitType3Contents": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Policy contents limit type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "pollimittype4bi": {
+    "PolLimitType4BI": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Policy BI limit type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "pollimittype5pd": {
+    "PolLimitType5PD": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Policy PD limit type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "pollimittype6all": {
+    "PolLimitType6All": {
         "data_type": "tinyint",
         "default_value": "0",
         "desc": "Policy blanket limit type",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "polmaxded1building": {
+    "PolMaxDed1Building": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Policy maximum building deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "polmaxded2other": {
+    "PolMaxDed2Other": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Policy maximum other building deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "polmaxded3contents": {
+    "PolMaxDed3Contents": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Policy maximum contents deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "polmaxded4bi": {
+    "PolMaxDed4BI": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Policy maximum BI deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "polmaxded5pd": {
+    "PolMaxDed5PD": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Policy maximum PD deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "polmaxded6all": {
+    "PolMaxDed6All": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Policy maximum blanket deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "polminded1building": {
+    "PolMinDed1Building": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Policy minimum building deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "polminded2other": {
+    "PolMinDed2Other": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Policy minimum other building deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "polminded3contents": {
+    "PolMinDed3Contents": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Policy minimum contents deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "polminded4bi": {
+    "PolMinDed4BI": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Policy minimum BI deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "polminded5pd": {
+    "PolMinDed5PD": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Policy minimum PD deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "polminded6all": {
+    "PolMinDed6All": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Policy minimum blanket deductible",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "polnetpremium": {
+    "PolNetPremium": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Policy net premium",
+        "py_dtype": "float",
         "require_field": "O"
     },
-    "polnumber": {
+    "PolNumber": {
         "data_type": "varchar(20)",
         "default_value": "n/a",
         "desc": "Policy layer number",
+        "py_dtype": "str",
         "require_field": "R"
     },
-    "polperil": {
+    "PolPeril": {
         "data_type": "varchar(250)",
         "default_value": "n/a",
         "desc": "Perils for policy financial terms",
+        "py_dtype": "str",
         "require_field": "CR"
     },
-    "polperilscovered": {
+    "PolPerilsCovered": {
         "data_type": "varchar(250)",
         "default_value": "n/a",
         "desc": "Policy perils covered",
+        "py_dtype": "str",
         "require_field": "R"
     },
-    "polstatus": {
+    "PolStatus": {
         "data_type": "char(1)",
         "default_value": "n/a",
         "desc": "Policy layer status",
+        "py_dtype": "str",
         "require_field": "O"
     },
-    "poltax": {
+    "PolTax": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Policy insurance tax amount",
+        "py_dtype": "float",
         "require_field": "O"
     },
-    "poluserdef1": {
+    "PolUserDef1": {
         "data_type": "varchar(20)",
         "default_value": "n/a",
         "desc": "Policy user defined field",
+        "py_dtype": "str",
         "require_field": "O"
     },
-    "poluserdef2": {
+    "PolUserDef2": {
         "data_type": "varchar(20)",
         "default_value": "n/a",
         "desc": "Policy user defined field",
+        "py_dtype": "str",
         "require_field": "O"
     },
-    "poluserdef3": {
+    "PolUserDef3": {
         "data_type": "varchar(20)",
         "default_value": "n/a",
         "desc": "Policy user defined field",
+        "py_dtype": "str",
         "require_field": "O"
     },
-    "poluserdef4": {
+    "PolUserDef4": {
         "data_type": "varchar(20)",
         "default_value": "n/a",
         "desc": "Policy user defined field",
+        "py_dtype": "str",
         "require_field": "O"
     },
-    "poluserdef5": {
+    "PolUserDef5": {
         "data_type": "varchar(20)",
         "default_value": "n/a",
         "desc": "Policy user defined field",
+        "py_dtype": "str",
         "require_field": "O"
     },
-    "portname": {
+    "PortName": {
         "data_type": "varchar(40)",
         "default_value": "n/a",
         "desc": "Portfolio name",
+        "py_dtype": "str",
         "require_field": "O"
     },
-    "portnotes": {
+    "PortNotes": {
         "data_type": "varchar(200)",
         "default_value": "n/a",
         "desc": "Portfolio notes",
+        "py_dtype": "str",
         "require_field": "O"
     },
-    "portnumber": {
+    "PortNumber": {
         "data_type": "varchar(20)",
         "default_value": "n/a",
         "desc": "Portfolio number",
+        "py_dtype": "str",
         "require_field": "R"
     },
-    "producername": {
+    "ProducerName": {
         "data_type": "varchar(40)",
         "default_value": "n/a",
         "desc": "Producer name (defined at policy level)",
+        "py_dtype": "str",
         "require_field": "O"
     },
-    "scalefactor": {
+    "ScaleFactor": {
         "data_type": "float",
         "default_value": "1",
         "desc": "Percentage factor used to scale calculated losses.",
+        "py_dtype": "float",
         "require_field": "O"
     },
-    "starttriggerbuilding": {
+    "StartTriggerBuilding": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Starting value of the building damage range over which the corresponding pay-out(s) should be made.",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "starttriggerbuildingcontent": {
+    "StartTriggerBuildingContent": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Starting value of the building and content damage range over which the corresponding pay-out(s) should be made.",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "starttriggercontent": {
+    "StartTriggerContent": {
         "data_type": "float",
         "default_value": "0",
         "desc": "Starting value of the content damage range over which the corresponding pay-out(s) should be made.",
+        "py_dtype": "float",
         "require_field": "CR"
     },
-    "stepfunctionname": {
+    "StepFunctionName": {
         "data_type": "varchar(30)",
         "default_value": "n/a",
         "desc": "Step function name",
+        "py_dtype": "str",
         "require_field": "CR"
     },
-    "stepnumber": {
+    "StepNumber": {
         "data_type": "tinyint",
         "default_value": "n/a",
         "desc": "Number between 1 and 7 that is used to sort the step function in the correct order.",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "steptriggertype": {
+    "StepTriggerType": {
         "data_type": "tinyint",
         "default_value": "n/a",
         "desc": "Code that represents how, and for which coverages, pay-outs are triggered.",
+        "py_dtype": "int",
         "require_field": "CR"
     },
-    "underwriter": {
+    "Underwriter": {
         "data_type": "varchar(40)",
         "default_value": "n/a",
         "desc": "Underwriter name",
+        "py_dtype": "str",
         "require_field": "O"
     }
 }
