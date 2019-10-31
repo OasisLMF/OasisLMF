@@ -69,22 +69,22 @@ STATIC_DATA_FP = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__fil
 
 
 
-'''
-Preserve original exposure file extention if its in a pandas supported
-compressed format
-
-compression : {‘infer’, ‘gzip’, ‘bz2’, ‘zip’, ‘xz’, None}, default ‘infer’
-              For on-the-fly decompression of on-disk data. If ‘infer’ and 
-              filepath_or_buffer is path-like, then detect compression from 
-              the following extensions: ‘.gz’, ‘.bz2’, ‘.zip’, or ‘.xz’ 
-              (otherwise no decompression). 
-              
-              If using ‘zip’, the ZIP file must contain only one data file 
-              to be read in. Set to None for no decompression.
-
-            New in version 0.18.1: support for ‘zip’ and ‘xz’ compression.
-'''
 def store_exposure_fp(fp, exposure_type):
+    """
+    Preserve original exposure file extention if its in a pandas supported
+    compressed format
+
+    compression : {‘infer’, ‘gzip’, ‘bz2’, ‘zip’, ‘xz’, None}, default ‘infer’
+                  For on-the-fly decompression of on-disk data. If ‘infer’ and 
+                  filepath_or_buffer is path-like, then detect compression from 
+                  the following extensions: ‘.gz’, ‘.bz2’, ‘.zip’, or ‘.xz’ 
+                  (otherwise no decompression). 
+                  
+                  If using ‘zip’, the ZIP file must contain only one data file 
+                  to be read in. Set to None for no decompression.
+
+                New in version 0.18.1: support for ‘zip’ and ‘xz’ compression.
+    """
     compressed_ext = ('.gz', '.bz2', '.zip','.xz')
     filename = SOURCE_FILENAMES[exposure_type]
     if fp.endswith(compressed_ext):
@@ -92,10 +92,11 @@ def store_exposure_fp(fp, exposure_type):
     else:    
         return filename
 
-''' Find an OED exposure file stored in the oasis inputs dir
-    while preserving the compressed ext  
-'''
 def find_exposure_fp(input_dir, exposure_type):
+    """ 
+    Find an OED exposure file stored in the oasis inputs dir
+    while preserving the compressed ext  
+    """ 
     fp = glob.glob(os.path.join(input_dir, SOURCE_FILENAMES[exposure_type] + '*'))
     return fp.pop()
 
