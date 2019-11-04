@@ -674,7 +674,10 @@ class PrepareRunInputs(TestCase):
                 returnperiods_file.write('returnperiods bin')
                 returnperiods_file.flush()
 
-                prepare_run_inputs({}, d)
+                settings = {"gul_summaries":[{
+                    "lec_output": True
+                }]}
+                prepare_run_inputs(settings, d)
 
             with io.open(os.path.join(d, 'input', 'returnperiods.bin'), 'r', encoding='utf-8') as new_returnperiods_file:
                 self.assertEqual('returnperiods bin', new_returnperiods_file.read())
@@ -685,7 +688,10 @@ class PrepareRunInputs(TestCase):
             os.remove(os.path.join(d, 'static', 'returnperiods.bin'))
 
             with self.assertRaises(OasisException):
-                prepare_run_inputs({}, d)
+                settings = {"gul_summaries":[{
+                    "lec_output": True
+                }]}
+                prepare_run_inputs(settings, d)
 
     def test_occurrence_bin_already_exists___existing_bin_is_uncahnged(self):
         with TemporaryDirectory() as d:
@@ -708,7 +714,10 @@ class PrepareRunInputs(TestCase):
                 occurrence_file.write('occurrence bin')
                 occurrence_file.flush()
 
-                prepare_run_inputs({}, d)
+                settings = {"gul_summaries":[{
+                    "lec_output": True
+                }]}
+                prepare_run_inputs(settings, d)
 
             with io.open(os.path.join(d, 'input', 'occurrence.bin'), 'r', encoding='utf-8') as new_occurrence_file:
                 self.assertEqual('occurrence bin', new_occurrence_file.read())
@@ -721,7 +730,11 @@ class PrepareRunInputs(TestCase):
                 occurrence_file.write('occurrence occurrence id bin')
                 occurrence_file.flush()
 
-                prepare_run_inputs({'model_settings': {'event_occurrence_id': 'occurrence id'}}, d)
+                settings = {
+                    "gul_summaries":[{ "lec_output": True}],
+                    'model_settings': {'event_occurrence_id': 'occurrence id'}
+                }
+                prepare_run_inputs(settings, d)
 
             with io.open(os.path.join(d, 'input', 'occurrence.bin'), 'r', encoding='utf-8') as new_occurrence_file:
                 self.assertEqual('occurrence occurrence id bin', new_occurrence_file.read())
@@ -732,7 +745,13 @@ class PrepareRunInputs(TestCase):
             os.remove(os.path.join(d, 'static', 'occurrence.bin'))
 
             with self.assertRaises(OasisException):
-                prepare_run_inputs({}, d)
+                settings = {"gul_summaries":[{
+                    "eltcalc": True,
+                    "aalcalc": True,
+                    "pltcalc": True,
+                    "lec_output": True,
+                }]}
+                prepare_run_inputs(settings, d)
 
     def test_periods_bin_already_exists___existing_bin_is_unchanged(self):
         with TemporaryDirectory() as d:
@@ -742,7 +761,13 @@ class PrepareRunInputs(TestCase):
                 periods_file.write('periods bin')
                 periods_file.flush()
 
-                prepare_run_inputs({}, d)
+                settings = {"gul_summaries":[{
+                    "eltcalc": True,
+                    "aalcalc": True,
+                    "pltcalc": True,
+                    "lec_output": True,
+                }]}
+                prepare_run_inputs(settings, d)
 
             with io.open(os.path.join(d, 'input', 'periods.bin'), 'r', encoding='utf-8') as new_periods_file:
                 self.assertEqual('periods bin', new_periods_file.read())
