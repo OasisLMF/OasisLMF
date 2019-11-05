@@ -160,6 +160,20 @@ class OasisManager(object):
     def ktools_debug(self):
         return self._ktools_debug
 
+    def get_alloc_rule(self, alloc_given, alloc_max, err_msg='Invalid alloc rule'):
+        alloc_valid_range = [r for r in range(alloc_max+1)]
+
+        if not isinstance(alloc_given, int):
+            return alloc_max
+        elif alloc_given not in alloc_valid_range:
+            raise OasisException('{}: {} not in {}'.format(
+                err_msg,
+                alloc_given,
+                alloc_valid_range,
+            ))
+        else:
+            return alloc_given
+
     @oasis_log
     def generate_peril_areas_rtree_file_index(
         self,
@@ -169,7 +183,7 @@ class OasisManager(object):
         lookup_config=None,
     ):
 
-        # Convert paths to absolute   
+        # Convert paths to absolute
         keys_data_fp = as_path(keys_data_fp, 'Lookup Data directory', is_dir=True, preexists=True)
         areas_rtree_index_fp = as_path(areas_rtree_index_fp, 'Index output file path', preexists=False)
         lookup_config_fp = as_path(lookup_config_fp, 'Built-in lookup config file path', preexists=True)
@@ -641,7 +655,7 @@ class OasisManager(object):
             analysis_settings['ri_output'] = False
             analysis_settings['ri_summaries'] = []
 
-        # guard - Check if at least one output type is selected
+        # Output selection guard - Check if at least one output type is set
         if not any([
             analysis_settings['gul_output'] if 'gul_output' in analysis_settings else False,
             analysis_settings['il_output'] if 'il_output' in analysis_settings else False,
@@ -649,6 +663,18 @@ class OasisManager(object):
         ]):
             raise OasisException(
                 'No valid output settings in: {}'.format(analysis_settings_fp))
+
+
+        gul_alloc_rule = self.get_alloc_rule(
+            alloc_given=ktools_alloc_rule_gul,
+            alloc_max=KTOOLS_ALLOC_RULE_GUL,
+            err_msg='Invalid alloc GUL rule'
+        )
+        il_alloc_rule = self.get_alloc_rule(
+            alloc_given=ktools_alloc_rule_il,
+            alloc_max=KTOOLS_ALLOC_RULE_IL,
+            err_msg='Invalid alloc IL rule'
+        )
 
         prepare_run_inputs(analysis_settings, model_run_fp, ri=ri)
 
@@ -676,8 +702,8 @@ class OasisManager(object):
                 number_of_processes=(ktools_num_processes or self.ktools_num_processes),
                 filename=script_fp,
                 num_reinsurance_iterations=ri_layers,
-                set_alloc_rule_gul=(ktools_alloc_rule_gul if isinstance(ktools_alloc_rule_gul, int) else self.ktools_alloc_rule_gul),
-                set_alloc_rule_il=(ktools_alloc_rule_il if isinstance(ktools_alloc_rule_il, int) else self.ktools_alloc_rule_il),
+                set_alloc_rule_gul=gul_alloc_rule,
+                set_alloc_rule_il=il_alloc_rule,
                 run_debug=(ktools_debug or self.ktools_debug),
                 fifo_tmp_dir=(not (ktools_fifo_relative or self.ktools_fifo_relative))
             )
@@ -704,7 +730,6 @@ class OasisManager(object):
         contents = [fn.lower() for fn in os.listdir(src_dir)]
         exposure_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'location.csv'][0]
         accounts_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'account.csv'][0]
-
         ri_info_fp = ri_scope_fp = None
         try:
             ri_info_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'ri_info.csv'][0]
@@ -715,6 +740,13 @@ class OasisManager(object):
                 ri_scope_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'ri_scope.csv'][0]
             except IndexError:
                 ri_info_fp = None
+
+
+        il_alloc_rule = self.get_alloc_rule(
+            alloc_given=alloc_rule,
+            alloc_max=KTOOLS_ALLOC_RULE_IL,
+            err_msg='Invalid alloc IL rule'
+        )
 
         # Start Oasis files generation
         self.generate_oasis_files(
@@ -730,7 +762,10 @@ class OasisManager(object):
             output_dir=os.path.join(run_dir, 'output'),
             loss_percentage_of_tiv=loss_percentage_of_tiv,
             net_ri=net_ri,
-            alloc_rule=alloc_rule
+            alloc_rule=il_alloc_rule
         )
 
         return losses['gul'], losses['il'], losses['ri']
+
+
+

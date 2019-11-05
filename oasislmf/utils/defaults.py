@@ -173,6 +173,6 @@ def get_default_deterministic_analysis_settings(path=False):
 KTOOLS_NUM_PROCESSES = -1
 KTOOLS_MEM_LIMIT = False
 KTOOLS_FIFO_RELATIVE = False
-KTOOLS_ALLOC_RULE_IL = 2
+KTOOLS_ALLOC_RULE_IL = 3
 KTOOLS_ALLOC_RULE_GUL = 1     # 1 = new item stream, 0 = use prev Coverage stream
 KTOOLS_DEBUG = False
