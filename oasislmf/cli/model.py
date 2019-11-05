@@ -340,7 +340,7 @@ class GenerateLossesCmd(OasisBaseCommand):
         model_package_fp = as_path(inputs.get('model_package_dir', required=False, is_path=True), 'Model package path', is_dir=True)
         user_data_dir = inputs.get('user_data_dir', required=False, is_path=True)
 
-        ktools_num_processes = inputs.get('ktools_num_processes', default=2, required=False)
+        ktools_num_processes = inputs.get('ktools_num_processes', default=None, required=False)
         ktools_fifo_relative = inputs.get('ktools_fifo_relative', type=bool, default=False, required=False)
         ktools_alloc_rule_gul = inputs.get('ktools_alloc_rule_gul', type=int, default=None, required=False)
         ktools_alloc_rule_il = inputs.get('ktools_alloc_rule_il', type=int, default=None, required=False)
