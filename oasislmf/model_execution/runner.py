@@ -20,9 +20,9 @@ def run(
     analysis_settings,
     number_of_processes=-1,
     num_reinsurance_iterations=0,
-    set_alloc_rule_gul=1,
-    set_alloc_rule_il=2,
-    set_alloc_rule_ri=3,
+    set_alloc_rule_gul=KTOOLS_ALLOC_GUL_DEFAULT,
+    set_alloc_rule_il=KTOOLS_ALLOC_IL_DEFAULT,
+    set_alloc_rule_ri=KTOOLS_ALLOC_RI_DEFAULT,
     fifo_tmp_dir=True,
     run_debug=False,
     filename='run_ktools.sh'
