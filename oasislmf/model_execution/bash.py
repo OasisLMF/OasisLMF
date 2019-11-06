@@ -555,6 +555,7 @@ def genbash(
     fifo_tmp_dir=True,
     gul_alloc_rule=None,
     il_alloc_rule=None,
+    ri_alloc_rule=None,
     stderr_guard=None,
     bash_trace=False,
     filename='run_kools.sh',
@@ -585,6 +586,9 @@ def genbash(
 
     :param il_alloc_rule: Allocation rule (0, 1 or 2) for fmcalc
     :type il_alloc_rule: Int
+
+    :param ri_alloc_rule: Allocation rule (0, 1 or 2) for fmcalc
+    :type ri_alloc_rule: Int
 
     :param get_getmodel_cmd: Method for getting the getmodel command, by default
         ``GenerateLossesCmd.get_getmodel_cmd`` is used.
@@ -741,7 +745,7 @@ def genbash(
 
             for i in range(1, num_reinsurance_iterations + 1):
                 main_cmd = "{0} | fmcalc -a{3} -n -p RI_{2}".format(
-                    main_cmd, os.sep, i, il_alloc_rule
+                    main_cmd, os.sep, i, ri_alloc_rule
                 )
 
             main_cmd = "{0} > {1}fifo/ri_P{2}".format(main_cmd, fifo_queue_dir, process_id)

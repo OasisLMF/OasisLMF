@@ -31,7 +31,7 @@ from .data import (
     merge_dataframes,
     set_dataframe_column_dtypes,
 )
-from .defaults import KTOOLS_ALLOC_RULE_IL
+from .defaults import KTOOLS_ALLOC_IL_DEFAULT, KTOOLS_ALLOC_RI_DEFAULT
 from .exceptions import OasisException
 
 
@@ -40,7 +40,8 @@ def generate_deterministic_losses(
     output_dir=None,
     loss_percentage_of_tiv=1.0,
     net_ri=False,
-    alloc_rule=KTOOLS_ALLOC_RULE_IL
+    il_alloc_rule=KTOOLS_ALLOC_IL_DEFAULT,
+    ri_alloc_rule=KTOOLS_ALLOC_RI_DEFAULT
 ):
     lf = loss_percentage_of_tiv
     losses = OrderedDict({
@@ -81,7 +82,7 @@ def generate_deterministic_losses(
 
     ils_fp = os.path.join(output_dir, 'raw_ils.csv')
     cmd = 'gultobin -S 1 < {} | fmcalc -p {} -a {} | tee ils.bin | fmtocsv > {}'.format(
-        guls_fp, output_dir, alloc_rule, ils_fp
+        guls_fp, output_dir, il_alloc_rule, ils_fp
     )
     try:
         check_call(cmd, shell=True)
@@ -120,7 +121,7 @@ def generate_deterministic_losses(
                 def run_ri_layer(layer):
                     layer_inputs_fp = os.path.join(output_dir, 'RI_{}'.format(layer))
                     _input = 'gultobin -S 1 < {} | fmcalc -p {} -a {} | tee ils.bin |'.format(
-                        guls_fp, output_dir, alloc_rule
+                        guls_fp, output_dir, il_alloc_rule
                     ) if layer == 1 else ''
                     pipe_in_previous_layer = '< ri{}.bin'.format(layer - 1) if layer > 1 else ''
                     ri_layer_fp = os.path.join(output_dir, 'ri{}.csv'.format(layer))
@@ -129,7 +130,7 @@ def generate_deterministic_losses(
                         _input,
                         layer_inputs_fp,
                         net_flag,
-                        alloc_rule,
+                        ri_alloc_rule,
                         pipe_in_previous_layer,
                         layer,
                         ri_layer_fp
