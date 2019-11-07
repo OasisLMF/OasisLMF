@@ -5,12 +5,6 @@ import string
 
 from collections import Counter
 
-from ..model_preparation.oed import (
-    ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID,  # Alloc Rule 2 (Default)
-    ALLOCATE_TO_ITEMS_BY_GUL_ALLOC_ID,             # Alloc Rule 1
-    NO_ALLOCATION_ALLOC_ID,                        # Alloc Rule 0
-)
-
 RUNTYPE_GROUNDUP_LOSS = 'gul'
 RUNTYPE_INSURED_LOSS = 'il'
 RUNTYPE_REINSURANCE_LOSS = 'ri'
@@ -561,6 +555,7 @@ def genbash(
     fifo_tmp_dir=True,
     gul_alloc_rule=None,
     il_alloc_rule=None,
+    ri_alloc_rule=None,
     stderr_guard=None,
     bash_trace=False,
     filename='run_kools.sh',
@@ -592,6 +587,9 @@ def genbash(
     :param il_alloc_rule: Allocation rule (0, 1 or 2) for fmcalc
     :type il_alloc_rule: Int
 
+    :param ri_alloc_rule: Allocation rule (0, 1 or 2) for fmcalc
+    :type ri_alloc_rule: Int
+
     :param get_getmodel_cmd: Method for getting the getmodel command, by default
         ``GenerateLossesCmd.get_getmodel_cmd`` is used.
     :type get_getmodel_cmd: callable
@@ -605,12 +603,6 @@ def genbash(
     il_output = False
     ri_output = False
     fifo_queue_dir = ""
-
-    # Alloc Rule input guard - default to '2' if invalid value given
-    if il_alloc_rule not in [ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID,
-                             ALLOCATE_TO_ITEMS_BY_GUL_ALLOC_ID,
-                             NO_ALLOCATION_ALLOC_ID]:
-        il_alloc_rule = ALLOCATE_TO_ITEMS_BY_PREVIOUS_LEVEL_ALLOC_ID
 
     # remove the file if it already exists
     if os.path.exists(filename):
@@ -753,7 +745,7 @@ def genbash(
 
             for i in range(1, num_reinsurance_iterations + 1):
                 main_cmd = "{0} | fmcalc -a{3} -n -p RI_{2}".format(
-                    main_cmd, os.sep, i, il_alloc_rule
+                    main_cmd, os.sep, i, ri_alloc_rule
                 )
 
             main_cmd = "{0} > {1}fifo/ri_P{2}".format(main_cmd, fifo_queue_dir, process_id)

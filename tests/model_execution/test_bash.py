@@ -25,6 +25,7 @@ class Genbash(TestCase):
         cls.ri_iterations  = 0
         cls.gul_alloc_rule = 0
         cls.il_alloc_rule  = 2
+        cls.ri_alloc_rule  = 2
         cls.fifo_tmp_dir   = False
         cls.bash_trace     = False
         cls.stderr_guard   = False
@@ -56,6 +57,7 @@ class Genbash(TestCase):
                 stderr_guard=None,
                 gul_alloc_rule=None,
                 il_alloc_rule=None,
+                ri_alloc_rule=None,
                 bash_trace=None):
 
         input_filename = os.path.join(self.KPARSE_INPUT_FOLDER, "{}.json".format(name))
@@ -78,6 +80,7 @@ class Genbash(TestCase):
             stderr_guard=(stderr_guard or self.stderr_guard),
             gul_alloc_rule=(gul_alloc_rule or self.gul_alloc_rule),
             il_alloc_rule=(il_alloc_rule or self.il_alloc_rule),
+            ri_alloc_rule=(ri_alloc_rule or self.ri_alloc_rule),
             bash_trace=(bash_trace or self.bash_trace),
         )
 
@@ -440,6 +443,7 @@ class Genbash_GulItemStream(Genbash):
         cls.ri_iterations  = 0
         cls.gul_alloc_rule = 1
         cls.il_alloc_rule  = 2
+        cls.ri_alloc_rule  = 3
         cls.fifo_tmp_dir   = False
         cls.bash_trace     = False
         cls.stderr_guard   = False
@@ -460,6 +464,7 @@ class Genbash_ErrorGuard(Genbash):
         cls.ri_iterations  = 0
         cls.gul_alloc_rule = 1
         cls.il_alloc_rule  = 2
+        cls.ri_alloc_rule  = 3
         cls.fifo_tmp_dir   = False
         cls.bash_trace     = False
         cls.stderr_guard   = True
@@ -480,6 +485,7 @@ class Genbash_TempDir(Genbash):
         cls.ri_iterations  = 0
         cls.gul_alloc_rule = 1
         cls.il_alloc_rule  = 2
+        cls.ri_alloc_rule  = 3
         cls.fifo_tmp_dir   = True
         cls.bash_trace     = False
         cls.stderr_guard   = False

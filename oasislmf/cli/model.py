@@ -316,7 +316,8 @@ class GenerateLossesCmd(OasisBaseCommand):
         parser.add_argument('-n', '--ktools-num-processes', default=None, help='Number of ktools calculation processes to use', type=int)
         parser.add_argument('-f', '--ktools-fifo-relative', default=None, help='Create ktools fifo queues under the ./fifo dir', action='store_true')
         parser.add_argument('-q', '--ktools-alloc-rule-gul', default=None, help='Override the allocation used in gulcalc', type=int)
-        parser.add_argument('-u', '--ktools-alloc-rule-il', default=None, help='Override the allocation used in fmcalc', type=int)
+        parser.add_argument('-u', '--ktools-alloc-rule-il', default=None, help='Override the fmcalc allocation rule used in direct insured loss', type=int)
+        parser.add_argument('-U', '--ktools-alloc-rule-ri', default=None, help='Override the fmcalc allocation rule used in reinsurance', type=int)
 
     def action(self, args):
         """
@@ -340,10 +341,11 @@ class GenerateLossesCmd(OasisBaseCommand):
         model_package_fp = as_path(inputs.get('model_package_dir', required=False, is_path=True), 'Model package path', is_dir=True)
         user_data_dir = inputs.get('user_data_dir', required=False, is_path=True)
 
-        ktools_num_processes = inputs.get('ktools_num_processes', default=2, required=False)
+        ktools_num_processes = inputs.get('ktools_num_processes', default=None, required=False)
         ktools_fifo_relative = inputs.get('ktools_fifo_relative', type=bool, default=False, required=False)
         ktools_alloc_rule_gul = inputs.get('ktools_alloc_rule_gul', type=int, default=None, required=False)
         ktools_alloc_rule_il = inputs.get('ktools_alloc_rule_il', type=int, default=None, required=False)
+        ktools_alloc_rule_ri = inputs.get('ktools_alloc_rule_ri', type=int, default=None, required=False)
         verbose_output = inputs.get('verbose', default=False, required=False)
 
         il = all(p in os.listdir(os.path.abspath(oasis_fp)) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
@@ -361,6 +363,7 @@ class GenerateLossesCmd(OasisBaseCommand):
             ktools_fifo_relative=ktools_fifo_relative,
             ktools_alloc_rule_gul=ktools_alloc_rule_gul,
             ktools_alloc_rule_il=ktools_alloc_rule_il,
+            ktools_alloc_rule_ri=ktools_alloc_rule_ri,
             ktools_debug=verbose_output,
             user_data_dir=user_data_dir
         )
@@ -413,7 +416,8 @@ class RunCmd(OasisBaseCommand):
         parser.add_argument('-n', '--ktools-num-processes', default=None, help='Number of ktools calculation processes to use', type=int)
         parser.add_argument('-f', '--ktools-fifo-relative', default=None, help='Create ktools fifo queues under the ./fifo dir', action='store_true')
         parser.add_argument('-q', '--ktools-alloc-rule-gul', default=None, help='Override the allocation used in gulcalc', type=int)
-        parser.add_argument('-u', '--ktools-alloc-rule-il', default=None, help='Override the allocation used in fmcalc', type=int)
+        parser.add_argument('-u', '--ktools-alloc-rule-il', default=None, help='Override the fmcalc allocation rule used in direct insured loss', type=int)
+        parser.add_argument('-U', '--ktools-alloc-rule-ri', default=None, help='Override the fmcalc allocation rule used in reinsurance', type=int)
 
         parser.add_argument('-S', '--summarise-exposure', default=None, help='Create exposure summary report', action='store_true')
         parser.add_argument('-W', '--write-chunksize', type=int, help='Chunk size to use when writing input files from the inputs dataframes')
