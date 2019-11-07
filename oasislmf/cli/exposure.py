@@ -111,8 +111,8 @@ class RunCmd(OasisBaseCommand):
 
         net_ri = True
 
-        il_alloc_rule = inputs.get('alloc-rule-il', default=KTOOLS_ALLOC_IL_DEFAULT, required=False)
-        ri_alloc_rule = inputs.get('alloc-rule-ri', default=KTOOLS_ALLOC_RI_DEFAULT, required=False)
+        il_alloc_rule = inputs.get('alloc_rule_il', default=KTOOLS_ALLOC_IL_DEFAULT, required=False)
+        ri_alloc_rule = inputs.get('alloc_rule_ri', default=KTOOLS_ALLOC_RI_DEFAULT, required=False)
 
         validate = inputs.get('validate', default=False, required=False)
 
