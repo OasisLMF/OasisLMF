@@ -5,6 +5,7 @@ __all__ = [
 
 import io
 import json
+import logging
 import os
 import re
 
@@ -33,8 +34,9 @@ from .data import (
 )
 from .defaults import KTOOLS_ALLOC_IL_DEFAULT, KTOOLS_ALLOC_RI_DEFAULT
 from .exceptions import OasisException
+from .log import oasis_log
 
-
+@oasis_log
 def generate_deterministic_losses(
     input_dir,
     output_dir=None,
@@ -43,6 +45,7 @@ def generate_deterministic_losses(
     il_alloc_rule=KTOOLS_ALLOC_IL_DEFAULT,
     ri_alloc_rule=KTOOLS_ALLOC_RI_DEFAULT
 ):
+    logger = logging.getLogger()
     lf = loss_percentage_of_tiv
     losses = OrderedDict({
         'gul': None, 'il': None, 'ri': None
@@ -85,6 +88,7 @@ def generate_deterministic_losses(
         guls_fp, output_dir, il_alloc_rule, ils_fp
     )
     try:
+        logger.debug("RUN: " + cmd)
         check_call(cmd, shell=True)
     except CalledProcessError as e:
         raise OasisException from e
@@ -136,6 +140,7 @@ def generate_deterministic_losses(
                         ri_layer_fp
                     )
                     try:
+                        logger.debug("RUN: " + cmd)
                         check_call(cmd, shell=True)
                     except CalledProcessError as e:
                         raise OasisException from e
