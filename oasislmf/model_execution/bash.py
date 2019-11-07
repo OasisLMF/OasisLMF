@@ -650,7 +650,7 @@ def genbash(
         print_command(filename, '   set +x')
         print_command(filename, '   group_pid=$(ps -p $$ -o pgid --no-headers)')
         print_command(filename, '   sess_pid=$(ps -p $$ -o sess --no-headers)')
-        print_command(filename, '   printf "Script PID:%d, GPID:%s, SPID:%d\n" $$ $group_pid $sess_pid >> log/killout.txt')
+        print_command(filename, '   printf "Script PID:%d, GPID:%s, SPID:%d" $$ $group_pid $sess_pid >> log/killout.txt')
         print_command(filename, '')
         print_command(filename, '   if hash pstree 2>/dev/null; then')
         print_command(filename, '       pstree -pn $$ >> log/killout.txt')
