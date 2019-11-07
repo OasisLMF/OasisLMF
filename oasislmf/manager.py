@@ -5,6 +5,7 @@ __all__ = [
 import io
 import importlib
 import json
+import logging
 import os
 import re
 import sys
@@ -15,6 +16,8 @@ from builtins import str
 from itertools import (
     product,
 )
+
+from subprocess import CalledProcessError
 
 import pandas as pd
 
@@ -116,6 +119,7 @@ class OasisManager(object):
         self._ktools_debug = ktools_debug or KTOOLS_DEBUG
         self._oasis_files_prefixes = oasis_files_prefixes or OASIS_FILES_PREFIXES
         self._write_chunksize = write_chunksize or WRITE_CHUNKSIZE
+        self.logger = logging.getLogger()
 
     @property
     def exposure_profile(self):
@@ -713,17 +717,34 @@ class OasisManager(object):
                     with io.open(os.path.join(model_run_fp, 'input', 'ri_layers.json'), 'r', encoding='utf-8') as f:
                         ri_layers = len(json.load(f))
 
-            model_runner_module.run(
-                analysis_settings,
-                number_of_processes=(ktools_num_processes or self.ktools_num_processes),
-                filename=script_fp,
-                num_reinsurance_iterations=ri_layers,
-                set_alloc_rule_gul=gul_alloc_rule,
-                set_alloc_rule_il=il_alloc_rule,
-                set_alloc_rule_ri=ri_alloc_rule,
-                run_debug=(ktools_debug or self.ktools_debug),
-                fifo_tmp_dir=(not (ktools_fifo_relative or self.ktools_fifo_relative))
-            )
+            try:
+                model_runner_module.run(
+                    analysis_settings,
+                    number_of_processes=(ktools_num_processes or self.ktools_num_processes),
+                    filename=script_fp,
+                    num_reinsurance_iterations=ri_layers,
+                    set_alloc_rule_gul=(ktools_alloc_rule_gul if isinstance(ktools_alloc_rule_gul, int) else self.ktools_alloc_rule_gul),
+                    set_alloc_rule_il=(ktools_alloc_rule_il if isinstance(ktools_alloc_rule_il, int) else self.ktools_alloc_rule_il),
+                    run_debug=(ktools_debug or self.ktools_debug),
+                    fifo_tmp_dir=(not (ktools_fifo_relative or self.ktools_fifo_relative))
+                )
+            except CalledProcessError as e:
+                bash_trace_fp = os.path.join(model_run_fp, 'log', 'bash.log')
+                if os.path.isfile(bash_trace_fp):
+                    with io.open(bash_trace_fp, 'r', encoding='utf-8') as f:
+                        self.logger.debug('BASH_TRACE:\n' + "".join(f.readlines()))
+
+                stderror_fp = os.path.join(model_run_fp, 'log', 'stderror.err')
+                if os.path.isfile(stderror_fp):
+                    with io.open(stderror_fp, 'r', encoding='utf-8') as f:
+                        self.logger.debug('STDERR:\n' + "".join(f.readlines()))
+
+                self.logger.debug('STDOUT:\n' + e.output.decode('utf-8').strip())
+
+                raise OasisException(
+                    'Ktools run Error: non-zero exit code or output detected on STDERR\n'
+                    'Logs stored in: {}/log'.format(model_run_fp)
+                )
 
         return model_run_fp
 
@@ -791,6 +812,3 @@ class OasisManager(object):
         )
 
         return losses['gul'], losses['il'], losses['ri']
-
-
-
