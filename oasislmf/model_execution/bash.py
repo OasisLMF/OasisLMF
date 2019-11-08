@@ -233,7 +233,7 @@ def do_kats(runtype, analysis_settings, max_process_id, filename, process_counte
 
 
 def do_summarycalcs(runtype, analysis_settings, process_id, filename, fifo_dir='',
-                    stderr_abort=True, num_reinsurance_iterations=0, gul_alloc_rule=None):
+                    stderr_guard=True, num_reinsurance_iterations=0, gul_alloc_rule=None):
 
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
@@ -263,7 +263,7 @@ def do_summarycalcs(runtype, analysis_settings, process_id, filename, fifo_dir='
             cmd = '{0} -{1} {4}fifo/{2}_S{1}_summary_P{3}'.format(cmd, summary_set, runtype, process_id, fifo_dir)
 
     cmd = '{0} < {1}fifo/{2}_P{3}'.format(cmd, fifo_dir, runtype, process_id)
-    cmd = '( {0} ) 2>> log/stderror.err  &'.format(cmd) if stderr_abort else '{0} &'.format(cmd)      # Wrap in subshell and pipe stderr to file
+    cmd = '( {0} ) 2>> log/stderror.err  &'.format(cmd) if stderr_guard else '{0} &'.format(cmd)      # Wrap in subshell and pipe stderr to file
     print_command(filename, cmd)
 
 
@@ -351,7 +351,7 @@ def do_any(runtype, analysis_settings, process_id, filename, process_counter, fi
                 )
 
 
-def ri(analysis_settings, max_process_id, filename, process_counter, num_reinsurance_iterations, fifo_dir='', stderr_abort=True):
+def ri(analysis_settings, max_process_id, filename, process_counter, num_reinsurance_iterations, fifo_dir='', stderr_guard=True):
     for process_id in range(1, max_process_id + 1):
         do_any(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
@@ -365,12 +365,12 @@ def ri(analysis_settings, max_process_id, filename, process_counter, num_reinsur
             process_id=process_id,
             filename=filename,
             fifo_dir=fifo_dir,
-            stderr_abort=stderr_abort,
+            stderr_guard=stderr_guard,
             num_reinsurance_iterations=num_reinsurance_iterations
         )
 
 
-def il(analysis_settings, max_process_id, filename, process_counter, fifo_dir='', stderr_abort=True):
+def il(analysis_settings, max_process_id, filename, process_counter, fifo_dir='', stderr_guard=True):
     for process_id in range(1, max_process_id + 1):
         do_any(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
 
@@ -384,11 +384,11 @@ def il(analysis_settings, max_process_id, filename, process_counter, fifo_dir=''
             process_id=process_id,
             filename=filename,
             fifo_dir=fifo_dir,
-            stderr_abort=stderr_abort
+            stderr_guard=stderr_guard
         )
 
 
-def do_gul(analysis_settings, max_process_id, filename, process_counter, fifo_dir='', gul_alloc_rule=None, stderr_abort=True):
+def do_gul(analysis_settings, max_process_id, filename, process_counter, fifo_dir='', gul_alloc_rule=None, stderr_guard=True):
 
     for process_id in range(1, max_process_id + 1):
         do_any(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir)
@@ -404,7 +404,7 @@ def do_gul(analysis_settings, max_process_id, filename, process_counter, fifo_di
             filename=filename,
             gul_alloc_rule=gul_alloc_rule,
             fifo_dir=fifo_dir,
-            stderr_abort=stderr_abort
+            stderr_guard=stderr_guard
         )
 
 
@@ -556,7 +556,7 @@ def genbash(
     gul_alloc_rule=None,
     il_alloc_rule=None,
     ri_alloc_rule=None,
-    stderr_guard=None,
+    stderr_guard=True,
     bash_trace=False,
     filename='run_kools.sh',
     _get_getmodel_cmd=None,
@@ -597,7 +597,7 @@ def genbash(
     process_counter = Counter()
 
     use_random_number_file = False
-    stderr_abort = stderr_guard if stderr_guard is not None else (not bash_trace)
+    stderr_guard = stderr_guard
     gul_item_stream = (gul_alloc_rule and isinstance(gul_alloc_rule, int))
     gul_output = False
     il_output = False
@@ -629,39 +629,51 @@ def genbash(
 
     print_command(filename, '# --- Script Init ---')
     print_command(filename, '')
-    print_command(filename, 'set -eux') if bash_trace else print_command(filename, 'set -e')
+    print_command(filename, 'set -e')
     print_command(filename, 'set -o pipefail')
+
+    if bash_trace or stderr_guard:
+        print_command(filename, 'mkdir -p log')
+        print_command(filename, 'rm -R -f log/*')
     print_command(filename, '')
 
-    if stderr_abort:
+    if bash_trace:
+        print_command(filename, '# --- Redirect Bash trace to file ---')
+        print_command(filename, 'exec   > >(tee -ia log/bash.log)')
+        print_command(filename, 'exec  2> >(tee -ia log/bash.log >& 2)')
+        print_command(filename, 'exec 19> log/bash.log')
+        print_command(filename, 'export BASH_XTRACEFD="19"')
+        print_command(filename, '')
+
+    if stderr_guard:
         print_command(filename, 'error_handler(){')
         print_command(filename, "   echo 'Run Error - terminating'")
-        print_command(filename, '   proc_group_id=$(ps -p $$ -o pgid --no-headers)')
-        print_command(filename, '   sess_id=$(ps -p $$ -o sess --no-headers)')
-        print_command(filename, '   echo "script pid: $$" > log/killout.txt')
-        print_command(filename, '   echo "group pid: $proc_group_id" >> log/killout.txt')
-        print_command(filename, '   echo "session pid: $sess_id" >> log/killout.txt')
-        print_command(filename, '   echo "----------------"  >> log/killout.txt')
+        print_command(filename, '   exit_code=$?')
+        print_command(filename, '   set +x')
+        print_command(filename, '   group_pid=$(ps -p $$ -o pgid --no-headers)')
+        print_command(filename, '   sess_pid=$(ps -p $$ -o sess --no-headers)')
+        print_command(filename, '   printf "Script PID:%d, GPID:%s, SPID:%d" $$ $group_pid $sess_pid >> log/killout.txt')
         print_command(filename, '')
         print_command(filename, '   if hash pstree 2>/dev/null; then')
         print_command(filename, '       pstree -pn $$ >> log/killout.txt')
         print_command(filename, '       PIDS_KILL=$(pstree -pn $$ | grep -o "([[:digit:]]*)" | grep -o "[[:digit:]]*")')
-        print_command(filename, '       kill -9 $(echo "$PIDS_KILL" | grep -v $proc_group_id | grep -v $$) 2>/dev/null')
+        print_command(filename, '       kill -9 $(echo "$PIDS_KILL" | grep -v $group_pid | grep -v $$) 2>/dev/null')
         print_command(filename, '   else')
-        print_command(filename, '       ps f -g $sess_id > log/subprocess_list')
-        print_command(filename, '       PIDS_KILL=$(pgrep -a --pgroup $proc_group_id | grep -v celery | grep -v $proc_group_id | grep -v $$)')
+        print_command(filename, '       ps f -g $sess_pid > log/subprocess_list')
+        print_command(filename, '       PIDS_KILL=$(pgrep -a --pgroup $group_pid | grep -v celery | grep -v $group_pid | grep -v $$)')
         print_command(filename, '       echo "$PIDS_KILL" >> log/killout.txt')
         print_command(filename, '       kill -9 $(echo "$PIDS_KILL" | awk \'BEGIN { FS = "[ \\t\\n]+" }{ print $1 }\') 2>/dev/null')
         print_command(filename, '   fi')
-        print_command(filename, '   exit 1')
+        print_command(filename, '   exit $(( 1 > $exit_code ? 1 : $exit_code ))')
         print_command(filename, '}')
         print_command(filename, 'trap error_handler QUIT HUP INT KILL TERM ERR')
         print_command(filename, '')
-        print_command(filename, 'mkdir -p log')
-        print_command(filename, 'rm -R -f log/*')
         print_command(filename, 'touch log/stderror.err')
         print_command(filename, 'ktools_monitor.sh $$ & pid0=$!')
         print_command(filename, '')
+
+    if bash_trace:
+        print_command(filename, 'set -x')
 
     print_command(filename, '# --- Setup run dirs ---')
     print_command(filename, '')
@@ -697,17 +709,17 @@ def genbash(
     if ri_output:
         print_command(filename, '')
         print_command(filename, '# --- Do reinsurance loss computes ---')
-        ri(analysis_settings, max_process_id, filename, process_counter, num_reinsurance_iterations, fifo_queue_dir, stderr_abort)
+        ri(analysis_settings, max_process_id, filename, process_counter, num_reinsurance_iterations, fifo_queue_dir, stderr_guard)
 
     if il_output:
         print_command(filename, '')
         print_command(filename, '# --- Do insured loss computes ---')
-        il(analysis_settings, max_process_id, filename, process_counter, fifo_queue_dir, stderr_abort)
+        il(analysis_settings, max_process_id, filename, process_counter, fifo_queue_dir, stderr_guard)
 
     if gul_output:
         print_command(filename, '')
         print_command(filename, '# --- Do ground up loss computes ---')
-        do_gul(analysis_settings, max_process_id, filename, process_counter, fifo_queue_dir, gul_alloc_rule, stderr_abort)
+        do_gul(analysis_settings, max_process_id, filename, process_counter, fifo_queue_dir, gul_alloc_rule, stderr_guard)
 
     print_command(filename, '')
 
@@ -749,7 +761,7 @@ def genbash(
                 )
 
             main_cmd = "{0} > {1}fifo/ri_P{2}".format(main_cmd, fifo_queue_dir, process_id)
-            main_cmd = '( {0} ) 2>> log/stderror.err  &'.format(main_cmd) if stderr_abort else '{0} &'.format(main_cmd)
+            main_cmd = '( {0} ) 2>> log/stderror.err  &'.format(main_cmd) if stderr_guard else '{0} &'.format(main_cmd)
             print_command(filename, main_cmd)
 
         elif gul_output and il_output:
@@ -764,7 +776,7 @@ def genbash(
                 il_alloc_rule,
                 fifo_queue_dir
             )
-            main_cmd = '( {0} ) 2>> log/stderror.err &'.format(main_cmd) if stderr_abort else '{0} &'.format(main_cmd)
+            main_cmd = '( {0} ) 2>> log/stderror.err &'.format(main_cmd) if stderr_guard else '{0} &'.format(main_cmd)
             print_command(filename, main_cmd)
 
         else:
@@ -784,7 +796,7 @@ def genbash(
                     getmodel_cmd,
                     fifo_queue_dir
                 )
-                main_cmd = '( {0} ) 2>> log/stderror.err &'.format(main_cmd) if stderr_abort else '{0} &'.format(main_cmd)
+                main_cmd = '( {0} ) 2>> log/stderror.err &'.format(main_cmd) if stderr_guard else '{0} &'.format(main_cmd)
                 print_command(filename, main_cmd)
 
             if il_output and 'il_summaries' in analysis_settings:
@@ -801,7 +813,7 @@ def genbash(
                     il_alloc_rule,
                     fifo_queue_dir
                 )
-                main_cmd = '( {0} ) 2>> log/stderror.err &'.format(main_cmd) if stderr_abort else '{0} &'.format(main_cmd)
+                main_cmd = '( {0} ) 2>> log/stderror.err &'.format(main_cmd) if stderr_guard else '{0} &'.format(main_cmd)
                 print_command(filename, main_cmd)
 
     print_command(filename, '')
@@ -836,14 +848,13 @@ def genbash(
     do_awaits(filename, process_counter)  # waits for aalcalc
     do_lwaits(filename, process_counter)  # waits for leccalc
 
-    if not bash_trace:
-        print_command(filename, 'rm -R -f work/*')
-        if fifo_tmp_dir:
-            print_command(filename, 'rm -R -f {}'.format(fifo_queue_dir))
-        else:
-            print_command(filename, 'rm -R -f fifo/*')
+    print_command(filename, 'rm -R -f work/*')
+    if fifo_tmp_dir:
+        print_command(filename, 'rm -R -f {}'.format(fifo_queue_dir))
+    else:
+        print_command(filename, 'rm -R -f fifo/*')
 
-    if stderr_abort:
+    if stderr_guard:
         print_command(filename, '')
         print_command(filename, '# Stop ktools watcher')
         print_command(filename, 'kill -9 $pid0')

@@ -87,8 +87,5 @@ def run(
             filename=filename
         )
 
-    try:
-        bash_trace = subprocess.check_output(['bash', filename], stderr=subprocess.STDOUT)
-        logging.info(bash_trace.decode('utf-8'))
-    except subprocess.CalledProcessError as e:
-        raise OasisException('Error running ktools: {}'.format(e.output.decode('utf-8').strip()))
+    bash_trace = subprocess.check_output(['bash', filename], stderr=subprocess.STDOUT)
+    logging.info(bash_trace.decode('utf-8'))
