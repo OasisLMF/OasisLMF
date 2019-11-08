@@ -5,9 +5,6 @@ SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")
 
 set -e
 set -o pipefail
-mkdir -p log
-rm -R -f log/*
-
 # --- Setup run dirs ---
 
 find output/* ! -name '*summary-info*' -type f -exec rm -f {} +
