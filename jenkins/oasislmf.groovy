@@ -194,5 +194,17 @@ node {
         dir(source_workspace) {
             archiveArtifacts artifacts: 'reports/**/*.*'
         }
+
+        // Run merge back if publish
+         if (params.PUBLISH){ 
+            dir(source_workspace) {
+                sshagent (credentials: [git_creds]) {
+                    sh "git checkout master && git pull"
+                    sh "git merge ${source_branch} && git push"
+                    sh "git checkout develop && git pull"
+                    sh "git merge master && git push"
+                }   
+            }   
+        }   
     }
 }
