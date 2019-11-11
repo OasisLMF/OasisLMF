@@ -65,6 +65,7 @@ from .utils.defaults import (
     get_default_fm_aggregation_profile,
     KTOOLS_NUM_PROCESSES,
     KTOOLS_FIFO_RELATIVE,
+    KTOOLS_ERR_GUARD,
     KTOOLS_ALLOC_GUL_MAX,
     KTOOLS_ALLOC_GUL_DEFAULT,
     KTOOLS_ALLOC_FM_MAX,
@@ -102,6 +103,7 @@ class OasisManager(object):
         ktools_alloc_rule_il=None,
         ktools_alloc_rule_ri=None,
         ktools_debug=None,
+        ktools_error_guard=None,
         oasis_files_prefixes=None,
         write_chunksize=None
     ):
@@ -117,6 +119,7 @@ class OasisManager(object):
         self._ktools_alloc_rule_il = self.get_alloc_rule(ktools_alloc_rule_il, KTOOLS_ALLOC_FM_MAX, fallback=KTOOLS_ALLOC_IL_DEFAULT)
         self._ktools_alloc_rule_ri = self.get_alloc_rule(ktools_alloc_rule_ri, KTOOLS_ALLOC_FM_MAX, fallback=KTOOLS_ALLOC_RI_DEFAULT)
         self._ktools_debug = ktools_debug or KTOOLS_DEBUG
+        self._ktools_error_guard = ktools_error_guard or KTOOLS_ERR_GUARD
         self._oasis_files_prefixes = oasis_files_prefixes or OASIS_FILES_PREFIXES
         self._write_chunksize = write_chunksize or WRITE_CHUNKSIZE
         self.logger = logging.getLogger()
@@ -172,6 +175,10 @@ class OasisManager(object):
     @property
     def ktools_debug(self):
         return self._ktools_debug
+
+    @property
+    def ktools_error_guard(self):
+        return self._ktools_error_guard
 
     def get_alloc_rule(self, alloc_given, alloc_max, err_msg='Invalid alloc rule', fallback=None):
         alloc_valid_range = [r for r in range(alloc_max+1)]
@@ -608,6 +615,7 @@ class OasisManager(object):
         ktools_alloc_rule_gul=None,
         ktools_alloc_rule_il=None,
         ktools_alloc_rule_ri=None,
+        ktools_error_guard=None,
         ktools_debug=None,
         user_data_dir=None
     ):
@@ -725,7 +733,8 @@ class OasisManager(object):
                     num_reinsurance_iterations=ri_layers,
                     set_alloc_rule_gul=(ktools_alloc_rule_gul if isinstance(ktools_alloc_rule_gul, int) else self.ktools_alloc_rule_gul),
                     set_alloc_rule_il=(ktools_alloc_rule_il if isinstance(ktools_alloc_rule_il, int) else self.ktools_alloc_rule_il),
-                    run_debug=(ktools_debug or self.ktools_debug),
+                    run_debug=(ktools_debug if isinstance(ktools_debug, bool) else self.ktools_debug),
+                    stderr_guard=(ktools_error_guard if isinstance(ktools_error_guard, bool) else self.ktools_error_guard),
                     fifo_tmp_dir=(not (ktools_fifo_relative or self.ktools_fifo_relative))
                 )
             except CalledProcessError as e:

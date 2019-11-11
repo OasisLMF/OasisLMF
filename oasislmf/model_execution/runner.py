@@ -24,6 +24,7 @@ def run(
     set_alloc_rule_il=KTOOLS_ALLOC_IL_DEFAULT,
     set_alloc_rule_ri=KTOOLS_ALLOC_RI_DEFAULT,
     fifo_tmp_dir=True,
+    stderr_guard=True,
     run_debug=False,
     filename='run_ktools.sh'
 ):
@@ -70,6 +71,7 @@ def run(
             gul_alloc_rule=set_alloc_rule_gul,
             il_alloc_rule=set_alloc_rule_il,
             ri_alloc_rule=set_alloc_rule_ri,
+            stderr_guard=stderr_guard,
             bash_trace=run_debug,
             filename=filename,
             _get_getmodel_cmd=custom_get_getmodel_cmd,
@@ -83,9 +85,10 @@ def run(
             gul_alloc_rule=set_alloc_rule_gul,
             il_alloc_rule=set_alloc_rule_il,
             ri_alloc_rule=set_alloc_rule_ri,
+            stderr_guard=stderr_guard,
             bash_trace=run_debug,
             filename=filename
         )
 
-    bash_trace = subprocess.check_output(['bash', filename], stderr=subprocess.STDOUT)
+    bash_trace = subprocess.check_output(['bash', filename])
     logging.info(bash_trace.decode('utf-8'))

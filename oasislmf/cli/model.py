@@ -315,6 +315,7 @@ class GenerateLossesCmd(OasisBaseCommand):
         parser.add_argument('-p', '--model-package-dir', default=None, help='Path containing model specific package')
         parser.add_argument('-n', '--ktools-num-processes', default=None, help='Number of ktools calculation processes to use', type=int)
         parser.add_argument('-f', '--ktools-fifo-relative', default=None, help='Create ktools fifo queues under the ./fifo dir', action='store_true')
+        parser.add_argument('-E', '--ktools-disable-guard', default=None, help='Disables error handling in the ktools run script (abort on non-zero exitcode or output on stderr)', action='store_true')
         parser.add_argument('-q', '--ktools-alloc-rule-gul', default=None, help='Override the allocation used in gulcalc', type=int)
         parser.add_argument('-u', '--ktools-alloc-rule-il', default=None, help='Override the fmcalc allocation rule used in direct insured loss', type=int)
         parser.add_argument('-U', '--ktools-alloc-rule-ri', default=None, help='Override the fmcalc allocation rule used in reinsurance', type=int)
@@ -343,6 +344,7 @@ class GenerateLossesCmd(OasisBaseCommand):
 
         ktools_num_processes = inputs.get('ktools_num_processes', default=None, required=False)
         ktools_fifo_relative = inputs.get('ktools_fifo_relative', type=bool, default=False, required=False)
+        ktools_error_guard = not(inputs.get('ktools_disable_guard', type=bool, default=False, required=False))
         ktools_alloc_rule_gul = inputs.get('ktools_alloc_rule_gul', type=int, default=None, required=False)
         ktools_alloc_rule_il = inputs.get('ktools_alloc_rule_il', type=int, default=None, required=False)
         ktools_alloc_rule_ri = inputs.get('ktools_alloc_rule_ri', type=int, default=None, required=False)
@@ -361,6 +363,7 @@ class GenerateLossesCmd(OasisBaseCommand):
             model_package_fp=model_package_fp,
             ktools_num_processes=ktools_num_processes,
             ktools_fifo_relative=ktools_fifo_relative,
+            ktools_error_guard=ktools_error_guard,
             ktools_alloc_rule_gul=ktools_alloc_rule_gul,
             ktools_alloc_rule_il=ktools_alloc_rule_il,
             ktools_alloc_rule_ri=ktools_alloc_rule_ri,
@@ -415,6 +418,7 @@ class RunCmd(OasisBaseCommand):
 
         parser.add_argument('-n', '--ktools-num-processes', default=None, help='Number of ktools calculation processes to use', type=int)
         parser.add_argument('-f', '--ktools-fifo-relative', default=None, help='Create ktools fifo queues under the ./fifo dir', action='store_true')
+        parser.add_argument('-E', '--ktools-disable-guard', default=None, help='Disables error handling in the ktools run script (abort on non-zero exitcode or output on stderr)', action='store_true')
         parser.add_argument('-q', '--ktools-alloc-rule-gul', default=None, help='Override the allocation used in gulcalc', type=int)
         parser.add_argument('-u', '--ktools-alloc-rule-il', default=None, help='Override the fmcalc allocation rule used in direct insured loss', type=int)
         parser.add_argument('-U', '--ktools-alloc-rule-ri', default=None, help='Override the fmcalc allocation rule used in reinsurance', type=int)
