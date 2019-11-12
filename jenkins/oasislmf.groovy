@@ -104,8 +104,9 @@ node {
                 }
                 if (! vers_pypi?.trim() && params.PUBLISH){
                     vers_file = readFile("oasislmf/__init__.py")
-                    vers_pypi = vers_file.split("'")[-1]
-                    println("load package version as: $vers_pypi")
+                    println(vers_file)
+                    String vers_pypi = vers_file.split("'")[-1]
+                    println(vers_pypi")
                 }    
             }
         }
