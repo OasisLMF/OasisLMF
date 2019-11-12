@@ -105,7 +105,7 @@ node {
                 if (! vers_pypi?.trim() && params.PUBLISH){
                     vers_file = readFile("oasislmf/__init__.py")
                     println(vers_file)
-                    String vers_pypi = vers_file.split("'")[-1]
+                    vers_pypi = vers_file.split("'")[-1]
                     println(vers_pypi)
                 }    
             }
