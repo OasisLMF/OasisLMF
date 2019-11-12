@@ -96,11 +96,17 @@ node {
 
         stage('Set version: ' + source_func) {
             dir(source_workspace) {
-                if (vers_pypi?.trim() && vers_ktools?.trim()) {
+                if (vers_pypi?.trim() || vers_ktools?.trim()) {
                     sh "${PIPELINE} set_vers_oasislmf ${vers_pypi} ${vers_ktools}"
                 } else {
                     println("Keep current version numbers")
+
                 }
+                if (! vers_pypi?.trim() && params.PUBLISH){
+                    vers_file = readFile("oasislmf/__init__.py")
+                    vers_pypi = vers_file.trim().split("'")[-1]
+                    println("Loaded package version from file: $vers_pypi")
+                }    
             }
         }
 
