@@ -1,6 +1,10 @@
 OasisLMF Changelog
 ==================
 
+`1.4.4`_
+-------
+* Hotfix - Added the run flag `--ktools-disable-guard` option for complex models & custom binaries 
+
 `1.4.3`_
 -------
 * Added support for compressed file extensions
@@ -297,6 +301,7 @@ in the exposure manager
 
 * Add console logging
 *
+.. _`1.4.4`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.3...1.4.4
 .. _`1.4.3`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.2...1.4.3
 .. _`1.4.2`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.1...1.4.2
 .. _`1.4.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.0...1.4.1
