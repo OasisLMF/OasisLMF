@@ -416,11 +416,13 @@ def get_il_input_items(
         ]
         fm_levels_with_no_terms = list(set(list(SUPPORTED_FM_LEVELS)[1:-1]).difference(intermediate_fm_levels))
         no_terms_cols = get_fm_terms_oed_columns(fm_terms, levels=fm_levels_with_no_terms, terms=terms)
-
         il_inputs_df.drop(no_terms_cols, axis=1, inplace=True)
 
         # Define a list of all supported OED coverage types in the exposure
         supp_cov_types = [v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()]
+
+        # For coverage level (level_id = 1) set the `agg_id` to `coverage id`
+        il_inputs_df.agg_id = il_inputs_df.coverage_id
 
         # The main loop for processing the financial terms for the sub-layer
         # non-coverage levels - currently these are site pd (# 2), site all (# 3),
@@ -675,9 +677,13 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
     :rtype: str
     """
     try:
+
+        item_level = il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].min()].loc[:, ['item_id']].assign(level_id=0)
+        item_level.rename(columns={'item_id':'agg_id'}, inplace=True)
+
         fm_programme_df = pd.concat(
             [
-                il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].min()].loc[:, ['agg_id']].assign(level_id=0),
+                item_level,
                 il_inputs_df.loc[:, ['level_id', 'agg_id']]
             ]
         ).reset_index(drop=True)
