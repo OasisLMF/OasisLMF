@@ -179,14 +179,15 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, accounts_df=None):
         exposure_cols = [c for c in unmapped_cols if c in exposure_df.columns]
         exposure_col_df = exposure_df.loc[:, exposure_cols]
         exposure_col_df[SOURCE_IDX['loc']] = exposure_df.index
-        summary_group_df = merge_dataframes(summary_group_df, exposure_df, join_on=SOURCE_IDX['loc'], how='inner')
+        summary_group_df = merge_dataframes(summary_group_df, exposure_col_df, join_on=SOURCE_IDX['loc'], how='inner')
 
         # Account file columns
         if isinstance(accounts_df, pd.DataFrame):
             accounts_cols = [c for c in unmapped_cols if c in set(accounts_df.columns) - set(exposure_df.columns)]
-            accounts_col_df = accounts_df.loc[:, accounts_cols]
-            accounts_col_df[SOURCE_IDX['acc']] = accounts_df.index
-            summary_group_df = merge_dataframes(summary_group_df, accounts_df, join_on=SOURCE_IDX['acc'], how='inner')
+            if accounts_cols:
+                accounts_col_df = accounts_df.loc[:, accounts_cols]
+                accounts_col_df[SOURCE_IDX['acc']] = accounts_df.index
+                summary_group_df = merge_dataframes(summary_group_df, accounts_col_df, join_on=SOURCE_IDX['acc'], how='inner')
 
     summary_group_df.fillna(0, inplace=True)
     summary_ids = factorize_dataframe(summary_group_df, by_col_labels=oed_cols)
