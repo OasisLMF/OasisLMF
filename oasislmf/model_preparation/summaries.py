@@ -22,20 +22,15 @@ from ..utils.data import (
     get_json,
     merge_dataframes,
     set_dataframe_column_dtypes,
+    get_dtypes_and_required_cols,
 )
 from ..utils.defaults import (
-    SOURCE_FILENAMES,
+    find_exposure_fp, 
     SOURCE_IDX,
     SUMMARY_MAPPING,
-    SUMMARY_GROUPING,
     SUMMARY_OUTPUT,
-)
-
-from ..utils.summary_levels import (
-    SUMMARY_LEVEL_LOC,
-    SUMMARY_LEVEL_ACC,
-    OED_LOCATION_COLS,
-    OED_ACCOUNT_COLS,
+    get_loc_dtypes,
+    get_acc_dtypes,
 )
 
 from ..utils.exceptions import OasisException
@@ -225,15 +220,6 @@ def write_summary_levels(exposure_df, accounts_fp, target_dir):
                          'bitiv',
                          'portnumber'],
 
-            'recommended': ['postalcode',
-                            'occupancycode',
-                            'constructioncode',
-                            'accnumber',
-                            'countrycode',
-                            'portnumber',
-                            'locperilscovered',
-                            'locnumber']
-        },
         'IL': {
                 ... etc ...
         }
@@ -250,32 +236,26 @@ def write_summary_levels(exposure_df, accounts_fp, target_dir):
 
     # GUL perspective (loc columns only)
     l_col_list = exposure_df.loc[:, exposure_df.any()].columns.to_list()
-    gul_avail = {k: OED_LOCATION_COLS[k]['desc'] if k in OED_LOCATION_COLS else desc_non_oed
-                 for k in set([c.lower() for c in l_col_list]).difference(int_excluded_cols)}
-    gul_rec = {k: OED_LOCATION_COLS[k]['desc'] if k in OED_LOCATION_COLS else desc_non_oed
-               for k in set(gul_avail.keys()).intersection(SUMMARY_LEVEL_LOC)}
+    l_col_info = get_loc_dtypes()
+    for k in list(l_col_info.keys()):
+        l_col_info[k.lower()] = l_col_info[k]
+        del l_col_info[k]
 
-    gul_summary_lvl = {'GUL': {
-        'available': {**gul_avail, **int_oasis_cols},
-        'recommended': {**gul_rec, **int_oasis_cols}}
-    }
+    gul_avail = {k: l_col_info[k]['desc'] if k in l_col_info else desc_non_oed
+                 for k in set([c.lower() for c in l_col_list]).difference(int_excluded_cols)}
+    gul_summary_lvl = {'GUL': {'available': {**gul_avail, **int_oasis_cols}}}
 
     # IL perspective (join of acc + loc col with no dups)
     il_summary_lvl = {}
     if accounts_fp:
         accounts_df = pd.read_csv(accounts_fp)
         a_col_list = accounts_df.loc[:, accounts_df.any()].columns.to_list()
+        a_col_info = get_acc_dtypes()
         a_avail = set([c.lower() for c in a_col_list])
-        a_rec = set(a_avail).intersection(SUMMARY_LEVEL_ACC)
 
-        il_avail = {k: OED_ACCOUNT_COLS[k]['desc'] if k in OED_ACCOUNT_COLS else desc_non_oed
+        il_avail = {k: a_col_info[k]['desc'] if k in a_col_info else desc_non_oed
                     for k in a_avail.difference(gul_avail.keys())}
-        il_rec = {k: OED_ACCOUNT_COLS[k]['desc'] if k in OED_ACCOUNT_COLS else desc_non_oed
-                  for k in a_rec.difference(gul_rec.keys())}
-        il_summary_lvl = {'IL': {
-            'available': {**gul_avail, **il_avail, **int_oasis_cols},
-            'recommended': {**gul_rec, **il_rec, **int_oasis_cols}}
-        }
+        il_summary_lvl = {'IL': {'available': {**gul_avail, **il_avail, **int_oasis_cols}}}
 
     with io.open(os.path.join(target_dir, 'exposure_summary_levels.json'), 'w', encoding='utf-8') as f:
         f.write(json.dumps({**gul_summary_lvl, **il_summary_lvl}, sort_keys=True, ensure_ascii=False, indent=4))
@@ -330,9 +310,7 @@ def get_column_selection(summary_set):
     """
     Given a analysis_settings summary definition, return either
         1. the set of OED columns requested to group by
-        2. A set columns for one of the following default groupings
-            ['lob', 'county', 'policy', 'state', 'location', 'prog']
-        3. If no information key 'oed_fields', then group all outputs into a single summary_set
+        2. If no information key 'oed_fields', then group all outputs into a single summary_set
 
     :param summary_set: summary group dictionary from the `analysis_settings.json`
     :type summary_set: dict
@@ -344,13 +322,6 @@ def get_column_selection(summary_set):
         return None
     if not summary_set["oed_fields"]:
         return None
-
-    # Select Default Grouping for either
-    elif isinstance(summary_set['oed_fields'], str):
-        if summary_set['oed_fields'] in SUMMARY_GROUPING:
-            return SUMMARY_GROUPING[summary_set['oed_fields']]
-        else:
-            raise OasisException('oed_fields value Invalid: {}'.format(summary_set['oed_fields']))
 
     # Use OED column list set in analysis_settings file
     elif isinstance(summary_set['oed_fields'], list) and len(summary_set['oed_fields']) > 0:
@@ -490,7 +461,7 @@ def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, s
         else:
             # Fall back to setting all in single group
             summary_set_df['summary_id'] = 1
-            summary_desc[desc_key] = pd.DataFrame(data=['undefined'], columns=['n/a'])
+            summary_desc[desc_key] = pd.DataFrame(data=['All-Risks'], columns=['_not_set_'])
             summary_desc[desc_key].insert(loc=0, column='summary_id', value=1)
 
         # Appends summary set to '__summaryxref.csv'
@@ -544,18 +515,25 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
     ])
 
     # Load locations file for GUL OED fields
-    exposure_fp = os.path.join(model_run_fp, 'input', SOURCE_FILENAMES['loc'])
+    input_dir = os.path.join(model_run_fp, 'input')
+    exposure_fp = find_exposure_fp(input_dir, 'loc')
+    loc_dtypes, loc_required_cols = get_dtypes_and_required_cols(get_loc_dtypes)
     exposure_df = get_dataframe(
         src_fp=exposure_fp,
-        empty_data_error_msg='No source exposure file found.')
+        empty_data_error_msg='No source exposure file found.',
+        col_dtypes=loc_dtypes,
+        required_cols=loc_required_cols)
     exposure_df[SOURCE_IDX['loc']] = exposure_df.index
 
     # Load accounts file for IL OED fields
     if (il_summaries or ri_summaries):
-        accounts_fp = os.path.join(model_run_fp, 'input', SOURCE_FILENAMES['acc'])
+        accounts_fp = find_exposure_fp(input_dir, 'acc')
+        acc_dtypes, acc_required_cols = get_dtypes_and_required_cols(get_acc_dtypes)
         accounts_df = get_dataframe(
             src_fp=accounts_fp,
-            empty_data_error_msg='No source accounts file found.')
+            empty_data_error_msg='No source accounts file found.',
+            col_dtypes=acc_dtypes,
+            required_cols=acc_required_cols)
         accounts_df[SOURCE_IDX['acc']] = accounts_df.index
 
     if gul_summaries:

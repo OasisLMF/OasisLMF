@@ -20,17 +20,17 @@ from ..utils.data import (
     print_dataframe,
 )
 from ..utils.defaults import (
-    KTOOLS_ALLOC_RULE_IL,
+    KTOOLS_ALLOC_IL_DEFAULT,
+    KTOOLS_ALLOC_RI_DEFAULT,
     OASIS_FILES_PREFIXES,
 )
 from ..utils.diff import column_diff
 from ..utils.exceptions import OasisException
 from ..utils.path import as_path
 from ..utils.profiles import get_oed_hierarchy
-from .base import (
-    InputValues,
-    OasisBaseCommand,
-)
+
+from .base import OasisBaseCommand
+from .inputs import InputValues
 
 
 class RunCmd(OasisBaseCommand):
@@ -68,7 +68,10 @@ class RunCmd(OasisBaseCommand):
             help='Loss factor to apply to TIVs - default is 1.0.'
         )
         parser.add_argument(
-            '-a', '--alloc-rule-il', type=int, default=KTOOLS_ALLOC_RULE_IL, help='Ktools IL back allocation rule to apply - default is 2, i.e. prior level loss basis'
+            '-a', '--alloc-rule-il', type=int, default=KTOOLS_ALLOC_IL_DEFAULT, help='Ktools IL back allocation rule to apply - default is 2, i.e. prior level loss basis'
+        )
+        parser.add_argument(
+            '-A', '--alloc-rule-ri', type=int, default=KTOOLS_ALLOC_RI_DEFAULT, help='Ktools RI back allocation rule to apply - default is 3, i.e. All level loss basis'
         )
         parser.add_argument(
             '-v', '--validate', default=False, help='Validate input files and loss tables - default is False', action='store_true'
@@ -108,7 +111,8 @@ class RunCmd(OasisBaseCommand):
 
         net_ri = True
 
-        alloc_rule = inputs.get('alloc_rule_il', default=KTOOLS_ALLOC_RULE_IL, required=False)
+        il_alloc_rule = inputs.get('alloc_rule_il', default=KTOOLS_ALLOC_IL_DEFAULT, required=False)
+        ri_alloc_rule = inputs.get('alloc_rule_ri', default=KTOOLS_ALLOC_RI_DEFAULT, required=False)
 
         validate = inputs.get('validate', default=False, required=False)
 
@@ -139,7 +143,8 @@ class RunCmd(OasisBaseCommand):
             run_dir=run_dir,
             loss_percentage_of_tiv=loss_factor,
             net_ri=net_ri,
-            alloc_rule=alloc_rule
+            il_alloc_rule=il_alloc_rule,
+            ri_alloc_rule=ri_alloc_rule
         )
 
         # Read in the summary map

@@ -8,7 +8,9 @@ from argparse import RawDescriptionHelpFormatter
 from ..api.client import APIClient
 from ..utils.exceptions import OasisException
 from ..utils.path import PathCleaner
-from .base import OasisBaseCommand, InputValues
+
+from .base import OasisBaseCommand
+from .inputs import InputValues
 
 
 def load_credentials(login_arg, logger=None):
@@ -141,6 +143,7 @@ class DelApiCmd(OasisBaseCommand):
     def action(self, args):
         inputs = InputValues(args)
         api = open_api_connection(inputs, self.logger)
+        warn_msg = 'Delete this record from the API?'
 
         try:
             if args.model_id:
@@ -148,7 +151,7 @@ class DelApiCmd(OasisBaseCommand):
                 r = api.models.get(id_ref)
                 r.raise_for_status()
                 self.logger.info(json.dumps(r.json(), indent=4, sort_keys=True))
-                if self.confirm_action(args.api_no_confirm):
+                if inputs.confirm_action(warn_msg, args.api_no_confirm):
                     r = api.models.delete(id_ref)
                     r.raise_for_status()
                     self.logger.info('Record deleted')
@@ -158,7 +161,7 @@ class DelApiCmd(OasisBaseCommand):
                 r = api.portfolios.get(id_ref)
                 r.raise_for_status()
                 self.logger.info(json.dumps(r.json(), indent=4, sort_keys=True))
-                if self.confirm_action(args.api_no_confirm):
+                if inputs.confirm_action(warn_msg, args.api_no_confirm):
                     r = api.portfolios.delete(id_ref)
                     r.raise_for_status()
                     self.logger.info('Record deleted')
@@ -168,7 +171,7 @@ class DelApiCmd(OasisBaseCommand):
                 r = api.analyses.get(id_ref)
                 r.raise_for_status()
                 self.logger.info(json.dumps(r.json(), indent=4, sort_keys=True))
-                if self.confirm_action(args.api_no_confirm):
+                if inputs.confirm_action(warn_msg, args.api_no_confirm):
                     r = api.analyses.delete(id_ref)
                     r.raise_for_status()
                     self.logger.info('Record deleted')
@@ -177,24 +180,6 @@ class DelApiCmd(OasisBaseCommand):
             self.logger.error(e)
             self.logger.error("Error on delete ref({}):".format(id_ref))
             self.logger.error(r.text)
-
-    def confirm_action(self, override=False, question_str='Delete this record from the API?'):
-        self.logger.debug('Prompt user for confirmation')
-        if override:
-            self.logger.debug('Defaulting to YES')
-            return True
-
-        try:
-            check = str(input("%s (Y/N): " % question_str)).lower().strip()
-            if check[0] == 'y':
-                return True
-            elif check[0] == 'n':
-                return False
-            else:
-                print('Invalid Input')
-                return self.confirm_action(question_str)
-        except KeyboardInterrupt:
-            self.logger.error('\nKeyboard Interrupt, exiting.')
 
 
 class PutApiModelCmd(OasisBaseCommand):
@@ -260,40 +245,16 @@ class RunApiCmd(OasisBaseCommand):
             help='API `id` of a model to run the analysis with'
         )
         parser.add_argument(
-            '-j', '--analysis-settings-file-path',
+            '-a', '--analysis-settings-json',
             type=PathCleaner('analysis settings file'), default=None,
             help='Analysis settings JSON file path'
         )
-        parser.add_argument(
-            '-x', '--source-exposure-file-path',
-            type=PathCleaner('Source exposures file'), default=None,
-            help='OED Source exposures CSV file path'
-        )
-        # Optional
-        parser.add_argument(
-            '-y', '--source-accounts-file-path',
-            type=PathCleaner('Source accounts file', preexists=False),
-            default=None, required=False,
-            help='OED Source accounts CSV file path'
-        )
-        parser.add_argument(
-            '-i', '--ri-info-file-path',
-            type=PathCleaner('Reinsurances Info file', preexists=False),
-            default=None, required=False,
-            help='OED Reinsurances Info CSV file path'
-        )
-        parser.add_argument(
-            '-r', '--ri-scope-file-path',
-            type=PathCleaner('Reinsurance Scope file', preexists=False),
-            default=None, required=False,
-            help='OED Reinsurance Scope CSV file path'
-        )
-        parser.add_argument(
-            '-o', '--output-directory',
-            type=PathCleaner('Output directory', preexists=False), default='./',
-            help="Output data directory (absolute or relative file path)"
-        )
 
+        parser.add_argument('-x', '--oed-location-csv', type=PathCleaner('OED location file'), default=None, help='Source exposure CSV file path')
+        parser.add_argument('-y', '--oed-accounts-csv', type=PathCleaner('OED accounts file'), default=None, help='Source accounts CSV file path')
+        parser.add_argument('-i', '--oed-info-csv', type=PathCleaner('OED Reinsurances info file'), default=None, help='Reinsurance info. CSV file path')
+        parser.add_argument('-s', '--oed-scope-csv', type=PathCleaner('OED Reinsurances scope file'), default=None, help='Reinsurance scope CSV file path')
+        parser.add_argument('-o', '--output-dir', type=PathCleaner('Output directory', preexists=False), default='./', help="Output data directory (absolute or relative file path)")
 
     def _select_model(self, avalible_models):
         # list options
@@ -305,10 +266,10 @@ class RunApiCmd(OasisBaseCommand):
                 avalible_models[i]['version_id'],
             ))
 
-        # Fetch user choice     
+        # Fetch user choice
         while True:
             try:
-                value = int(input('Select model: ')) 
+                value = int(input('Select model: '))
             except ValueError:
                 self.logger.info('Invalid Response: {}'.format(value))
                 continue
@@ -322,16 +283,15 @@ class RunApiCmd(OasisBaseCommand):
                 break
         return avalible_models[value]
 
-
     def action(self, args):
         inputs = InputValues(args)
         api = open_api_connection(inputs, self.logger)
 
         # Upload files
-        path_location = inputs.get('source_exposure_file_path')
-        path_account = inputs.get('source_accounts_file_path')
-        path_info = inputs.get('ri_info_file_path')
-        path_scope = inputs.get('ri_scope_file_path')
+        path_location = inputs.get('oed_location_csv')
+        path_account = inputs.get('oed_accounts_csv')
+        path_info = inputs.get('oed_info_csv')
+        path_scope = inputs.get('oed_scope_csv')
 
         portfolio = api.upload_inputs(
             portfolio_id=None,
@@ -358,9 +318,8 @@ class RunApiCmd(OasisBaseCommand):
             self.logger.info('Running model:')
             self.logger.info(json.dumps(selected_model, indent=4))
 
-
         # Create new analysis
-        path_settings = inputs.get('analysis_settings_file_path')
+        path_settings = inputs.get('analysis_settings_json')
         if not path_settings:
             self.logger.error('analysis settings: Not found')
             return False
@@ -379,13 +338,10 @@ class RunApiCmd(OasisBaseCommand):
         # Download Outputs
         api.download_output(
             analysis_id=analysis['id'],
-            download_path=inputs.get('output_directory'),
+            download_path=inputs.get('output_dir'),
             overwrite=True,
             clean_up=False
         )
-
-        # Clean up
-        api.portfolios.delete(portfolio['id'])
 
 
 class ApiCmd(OasisBaseCommand):

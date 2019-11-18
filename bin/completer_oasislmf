@@ -4,14 +4,17 @@ import argparse
 import os
 import pickle
 import sys
+import warnings
 
 from importlib.util import find_spec
 
-from anytree import (
-    find,
-    Node,
-    RenderTree,
-)
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    from anytree import (
+        find,
+        Node,
+        RenderTree,
+    )
 
 
 class Completer(object):

@@ -1,6 +1,28 @@
 OasisLMF Changelog
 ==================
 
+`1.4.4`_
+-------
+* Hotfix - Added the run flag `--ktools-disable-guard` option for complex models & custom binaries 
+
+`1.4.3`_
+-------
+* Added support for compressed file extensions
+* Fix docker kill error
+* Fix in IL inputs
+* Fix for multiprocessing lookup
+* Fix for summary info data types
+* Set IL alloc rule default to 3
+* Various fixes for CLI
+* Various fixes for ktools scripts
+
+`1.4.2`_
+-------
+* Added Multi-process keys lookup
+* Updated API client
+* Added Verifying model files command 
+* Updated command line flags with backwards compatibility 
+
 `1.4.1`_
 -------
 * Added bash autocomplete #386
@@ -278,7 +300,10 @@ in the exposure manager
 ---------------
 
 * Add console logging
-
+*
+.. _`1.4.4`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.3...1.4.4
+.. _`1.4.3`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.2...1.4.3
+.. _`1.4.2`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.1...1.4.2
 .. _`1.4.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.0...1.4.1
 .. _`1.4.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.10...1.4.0
 .. _`1.3.10`:  https://github.com/OasisLMF/OasisLMF/compare/1.3.9...1.3.10

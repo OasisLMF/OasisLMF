@@ -13,7 +13,6 @@ import importlib
 import io
 import itertools
 import json
-import logging
 import os
 import re
 import sys
@@ -180,7 +179,6 @@ class OasisBuiltinBaseLookup(object):
         return [self.lookup(loc, peril_id, coverage_type) for
                 loc, peril_id, coverage_type in
                 itertools.product(locs_seq, self.peril_ids, self.coverage_types)]
-
 
     @oasis_log()
     def bulk_lookup(self, locs, **kwargs):
@@ -381,7 +379,6 @@ class OasisLookupFactory(object):
         except AttributeError:
             lookup_config = None
 
-
         # load dtypes based on lookup config
         if lookup_config:
             peril_config = lookup.config.get('peril')
@@ -402,7 +399,6 @@ class OasisLookupFactory(object):
                 'sort_ascending': loc_config.get('sort_ascending')
             }
             loc_df = get_dataframe(**kwargs)
-
 
         # Load default dtypes from JSON definition
         else:
@@ -434,10 +430,11 @@ class OasisLookupFactory(object):
         return loc_df
 
     @classmethod
-    def write_oasis_keys_file(cls, records, output_file_path):
+    def write_oasis_keys_file(cls, records, output_file_path, output_success_msg=False):
         """
         Writes an Oasis keys file from an iterable of keys records.
         """
+
         if len(records) > 0 and 'model_data' in records[0]:
             heading_row = OrderedDict([
                 ('loc_id', 'LocID'),
@@ -453,6 +450,8 @@ class OasisLookupFactory(object):
                 ('area_peril_id', 'AreaPerilID'),
                 ('vulnerability_id', 'VulnerabilityID'),
             ])
+            if output_success_msg:
+                heading_row.update({'message': 'Message'})
 
         pd.DataFrame(
             columns=heading_row.keys(),
@@ -628,7 +627,6 @@ class OasisLookupFactory(object):
             else:
                 yield result
 
-
     @classmethod
     def get_keys_multiproc(
         cls,
@@ -656,14 +654,14 @@ class OasisLookupFactory(object):
         pool.join()
         return sum([r for r in results if r], [])
 
-
     @classmethod
     def save_keys(
         cls,
         keys_data,
         keys_file_path=None,
         keys_errors_file_path=None,
-        keys_format='oasis'
+        keys_format='oasis',
+        keys_success_msg=False
     ):
         """
         Writes a keys file, and optionally a keys error file, for the keys
@@ -690,7 +688,6 @@ class OasisLookupFactory(object):
         number of "unsuccessful" keys records written to keys errors file.
         """
 
-
         _keys_file_path = as_path(keys_file_path, 'keys_file_path', preexists=False)
         _keys_errors_file_path = as_path(keys_errors_file_path, 'keys_errors_file_path', preexists=False)
 
@@ -708,14 +705,13 @@ class OasisLookupFactory(object):
             return cls.write_json_keys_file(successes, _keys_file_path)
         elif keys_format == 'oasis':
             if _keys_errors_file_path:
-                fp1, n1 = cls.write_oasis_keys_file(successes, _keys_file_path)
+                fp1, n1 = cls.write_oasis_keys_file(successes, _keys_file_path, keys_success_msg)
                 fp2, n2 = cls.write_oasis_keys_errors_file(nonsuccesses, _keys_errors_file_path)
 
                 return fp1, n1, fp2, n2
-            return cls.write_oasis_keys_file(successes, _keys_file_path)
+            return cls.write_oasis_keys_file(successes, _keys_file_path, keys_success_msg)
         else:
             raise OasisException("Unrecognised keys file output format - valid formats are 'oasis' or 'json'")
-
 
     @classmethod
     def save_results(
@@ -725,7 +721,8 @@ class OasisLookupFactory(object):
         successes_fp=None,
         errors_fp=None,
         multiprocessing=True,
-        format='oasis'
+        format='oasis',
+        keys_success_msg=False
     ):
         """
         Writes a keys file, and optionally a keys error file, for the keys
@@ -762,8 +759,8 @@ class OasisLookupFactory(object):
             keys_generator = cls.get_keys_builtin if hasattr(lookup, 'config') else (
                              cls.get_keys_base)
         kwargs = {
-            "lookup":lookup,
-            "loc_df":location_df,
+            "lookup": lookup,
+            "loc_df": location_df,
             "success_only": (False if efp else True)
         }
 
@@ -783,10 +780,10 @@ class OasisLookupFactory(object):
             return cls.write_json_keys_file(successes, sfp)
         elif format == 'oasis':
             if efp:
-                fp1, n1 = cls.write_oasis_keys_file(successes, sfp)
+                fp1, n1 = cls.write_oasis_keys_file(successes, sfp, keys_success_msg)
                 fp2, n2 = cls.write_oasis_keys_errors_file(nonsuccesses, efp)
                 return fp1, n1, fp2, n2
-            return cls.write_oasis_keys_file(successes, sfp)
+            return cls.write_oasis_keys_file(successes, sfp, keys_success_msg)
         else:
             raise OasisException("Unrecognised lookup file output format - valid formats are 'oasis' or 'json'")
 

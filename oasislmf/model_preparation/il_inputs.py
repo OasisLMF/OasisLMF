@@ -26,6 +26,7 @@ from ..utils.data import (
     fast_zip_arrays,
     get_dataframe,
     get_ids,
+    merge_check,
     merge_dataframes,
     set_dataframe_column_dtypes,
 )
@@ -76,6 +77,17 @@ def get_calc_rule_ids(il_inputs_df):
     il_inputs_calc_rules_df['id_key'] = [t for t in fast_zip_arrays(*il_inputs_calc_rules_df.loc[:, terms_indicators + types_and_codes].transpose().values)]
     il_inputs_calc_rules_df = merge_dataframes(il_inputs_calc_rules_df, calc_rules, how='left', on='id_key').fillna(0)
     il_inputs_calc_rules_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id'].astype('uint32')
+
+    if 0 in il_inputs_calc_rules_df.calcrule_id.unique():
+        err_msg = 'Calculation Rule mapping error, non-matching keys:\n'
+        no_match_keys = il_inputs_calc_rules_df.loc[
+                        il_inputs_calc_rules_df.calcrule_id == 0
+                        ].id_key.unique()
+
+        err_msg += '   {}\n'.format(tuple(terms_indicators + types_and_codes))
+        for key_id in no_match_keys:
+            err_msg += '   {}\n'.format(key_id)
+        raise OasisException(err_msg)
 
     return il_inputs_calc_rules_df['calcrule_id'].values
 
@@ -286,6 +298,13 @@ def get_il_input_items(
         dtypes = {t: 'float64' for t in site_pd_and_site_all_term_cols}
         gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, dtypes)
 
+        # check for empty intersection between dfs
+        merge_check(
+            gul_inputs_df[[portfolio_num, acc_num, 'layer_id', cond_num]],
+            accounts_df[[portfolio_num, acc_num, 'layer_id', cond_num]],
+            on=[portfolio_num, acc_num, 'layer_id', cond_num]
+        )
+
         # Construct a basic IL inputs frame by merging the combined exposure +
         # GUL inputs frame above, with the accounts frame, on portfolio no.,
         # account no. and layer ID (by default items in the GUL inputs frame
@@ -397,11 +416,13 @@ def get_il_input_items(
         ]
         fm_levels_with_no_terms = list(set(list(SUPPORTED_FM_LEVELS)[1:-1]).difference(intermediate_fm_levels))
         no_terms_cols = get_fm_terms_oed_columns(fm_terms, levels=fm_levels_with_no_terms, terms=terms)
-
         il_inputs_df.drop(no_terms_cols, axis=1, inplace=True)
 
         # Define a list of all supported OED coverage types in the exposure
         supp_cov_types = [v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()]
+
+        # For coverage level (level_id = 1) set the `agg_id` to `coverage id`
+        il_inputs_df.agg_id = il_inputs_df.coverage_id
 
         # The main loop for processing the financial terms for the sub-layer
         # non-coverage levels - currently these are site pd (# 2), site all (# 3),
@@ -656,18 +677,19 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
     :rtype: str
     """
     try:
+
+        item_level = il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].min()].loc[:, ['item_id']].assign(level_id=0)
+        item_level.rename(columns={'item_id':'agg_id'}, inplace=True)
+
         fm_programme_df = pd.concat(
             [
-                il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].min()].loc[:, ['agg_id']].assign(level_id=0),
+                item_level,
                 il_inputs_df.loc[:, ['level_id', 'agg_id']]
             ]
         ).reset_index(drop=True)
 
         min_level, max_level = 0, fm_programme_df['level_id'].max()
         max_level_agg_ids = il_inputs_df[il_inputs_df['level_id'] == max_level].loc[:, ['loc_id', 'agg_id']].drop_duplicates()['agg_id'].tolist()
-        if len(set(max_level_agg_ids)) == 1:
-            max_level_agg_ids = [max_level_agg_ids[0]]
-
         fm_programme_df = pd.DataFrame(
             {
                 'from_agg_id': fm_programme_df[fm_programme_df['level_id'] < max_level]['agg_id'],
@@ -675,7 +697,10 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
                 'to_agg_id': fm_programme_df[fm_programme_df['level_id'] > min_level]['agg_id'].reset_index(drop=True)
             }
         ).dropna(axis=0).drop_duplicates()
-        fm_programme_df.loc[fm_programme_df[fm_programme_df['level_id'] == max_level].index, ['to_agg_id']] = max_level_agg_ids
+
+        # check dimensions of top level
+        if len(set(max_level_agg_ids)) == 1:
+            max_level_agg_ids = [max_level_agg_ids[0]]
 
         dtypes = {t: 'uint32' for t in fm_programme_df.columns}
         fm_programme_df = set_dataframe_column_dtypes(fm_programme_df, dtypes)

@@ -1,15 +1,19 @@
 #!/bin/bash
+SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")
+
+# --- Script Init ---
 
 set -e
 set -o pipefail
 
+# --- Setup run dirs ---
+
 find output/* ! -name '*summary-info*' -type f -exec rm -f {} +
+
 rm -R -f fifo/*
 rm -R -f work/*
-
 mkdir work/kat
 mkfifo fifo/gul_P1
-
 mkfifo fifo/gul_S1_summary_P1
 mkfifo fifo/gul_S1_summaryeltcalc_P1
 mkfifo fifo/gul_S1_eltcalc_P1
@@ -19,7 +23,6 @@ mkfifo fifo/gul_S1_summarypltcalc_P1
 mkfifo fifo/gul_S1_pltcalc_P1
 
 mkfifo fifo/gul_P2
-
 mkfifo fifo/gul_S1_summary_P2
 mkfifo fifo/gul_S1_summaryeltcalc_P2
 mkfifo fifo/gul_S1_eltcalc_P2
@@ -29,7 +32,6 @@ mkfifo fifo/gul_S1_summarypltcalc_P2
 mkfifo fifo/gul_S1_pltcalc_P2
 
 mkfifo fifo/gul_P3
-
 mkfifo fifo/gul_S1_summary_P3
 mkfifo fifo/gul_S1_summaryeltcalc_P3
 mkfifo fifo/gul_S1_eltcalc_P3
@@ -39,7 +41,6 @@ mkfifo fifo/gul_S1_summarypltcalc_P3
 mkfifo fifo/gul_S1_pltcalc_P3
 
 mkfifo fifo/gul_P4
-
 mkfifo fifo/gul_S1_summary_P4
 mkfifo fifo/gul_S1_summaryeltcalc_P4
 mkfifo fifo/gul_S1_eltcalc_P4
@@ -49,7 +50,6 @@ mkfifo fifo/gul_S1_summarypltcalc_P4
 mkfifo fifo/gul_S1_pltcalc_P4
 
 mkfifo fifo/gul_P5
-
 mkfifo fifo/gul_S1_summary_P5
 mkfifo fifo/gul_S1_summaryeltcalc_P5
 mkfifo fifo/gul_S1_eltcalc_P5
@@ -59,7 +59,6 @@ mkfifo fifo/gul_S1_summarypltcalc_P5
 mkfifo fifo/gul_S1_pltcalc_P5
 
 mkfifo fifo/gul_P6
-
 mkfifo fifo/gul_S1_summary_P6
 mkfifo fifo/gul_S1_summaryeltcalc_P6
 mkfifo fifo/gul_S1_eltcalc_P6
@@ -69,7 +68,6 @@ mkfifo fifo/gul_S1_summarypltcalc_P6
 mkfifo fifo/gul_S1_pltcalc_P6
 
 mkfifo fifo/gul_P7
-
 mkfifo fifo/gul_S1_summary_P7
 mkfifo fifo/gul_S1_summaryeltcalc_P7
 mkfifo fifo/gul_S1_eltcalc_P7
@@ -79,7 +77,6 @@ mkfifo fifo/gul_S1_summarypltcalc_P7
 mkfifo fifo/gul_S1_pltcalc_P7
 
 mkfifo fifo/gul_P8
-
 mkfifo fifo/gul_S1_summary_P8
 mkfifo fifo/gul_S1_summaryeltcalc_P8
 mkfifo fifo/gul_S1_eltcalc_P8
@@ -89,7 +86,6 @@ mkfifo fifo/gul_S1_summarypltcalc_P8
 mkfifo fifo/gul_S1_pltcalc_P8
 
 mkfifo fifo/gul_P9
-
 mkfifo fifo/gul_S1_summary_P9
 mkfifo fifo/gul_S1_summaryeltcalc_P9
 mkfifo fifo/gul_S1_eltcalc_P9
@@ -99,7 +95,6 @@ mkfifo fifo/gul_S1_summarypltcalc_P9
 mkfifo fifo/gul_S1_pltcalc_P9
 
 mkfifo fifo/gul_P10
-
 mkfifo fifo/gul_S1_summary_P10
 mkfifo fifo/gul_S1_summaryeltcalc_P10
 mkfifo fifo/gul_S1_eltcalc_P10
@@ -109,7 +104,6 @@ mkfifo fifo/gul_S1_summarypltcalc_P10
 mkfifo fifo/gul_S1_pltcalc_P10
 
 mkfifo fifo/gul_P11
-
 mkfifo fifo/gul_S1_summary_P11
 mkfifo fifo/gul_S1_summaryeltcalc_P11
 mkfifo fifo/gul_S1_eltcalc_P11
@@ -119,7 +113,6 @@ mkfifo fifo/gul_S1_summarypltcalc_P11
 mkfifo fifo/gul_S1_pltcalc_P11
 
 mkfifo fifo/gul_P12
-
 mkfifo fifo/gul_S1_summary_P12
 mkfifo fifo/gul_S1_summaryeltcalc_P12
 mkfifo fifo/gul_S1_eltcalc_P12
@@ -129,7 +122,6 @@ mkfifo fifo/gul_S1_summarypltcalc_P12
 mkfifo fifo/gul_S1_pltcalc_P12
 
 mkfifo fifo/gul_P13
-
 mkfifo fifo/gul_S1_summary_P13
 mkfifo fifo/gul_S1_summaryeltcalc_P13
 mkfifo fifo/gul_S1_eltcalc_P13
@@ -139,7 +131,6 @@ mkfifo fifo/gul_S1_summarypltcalc_P13
 mkfifo fifo/gul_S1_pltcalc_P13
 
 mkfifo fifo/gul_P14
-
 mkfifo fifo/gul_S1_summary_P14
 mkfifo fifo/gul_S1_summaryeltcalc_P14
 mkfifo fifo/gul_S1_eltcalc_P14
@@ -149,7 +140,6 @@ mkfifo fifo/gul_S1_summarypltcalc_P14
 mkfifo fifo/gul_S1_pltcalc_P14
 
 mkfifo fifo/gul_P15
-
 mkfifo fifo/gul_S1_summary_P15
 mkfifo fifo/gul_S1_summaryeltcalc_P15
 mkfifo fifo/gul_S1_eltcalc_P15
@@ -159,7 +149,6 @@ mkfifo fifo/gul_S1_summarypltcalc_P15
 mkfifo fifo/gul_S1_pltcalc_P15
 
 mkfifo fifo/gul_P16
-
 mkfifo fifo/gul_S1_summary_P16
 mkfifo fifo/gul_S1_summaryeltcalc_P16
 mkfifo fifo/gul_S1_eltcalc_P16
@@ -169,7 +158,6 @@ mkfifo fifo/gul_S1_summarypltcalc_P16
 mkfifo fifo/gul_S1_pltcalc_P16
 
 mkfifo fifo/gul_P17
-
 mkfifo fifo/gul_S1_summary_P17
 mkfifo fifo/gul_S1_summaryeltcalc_P17
 mkfifo fifo/gul_S1_eltcalc_P17
@@ -179,7 +167,6 @@ mkfifo fifo/gul_S1_summarypltcalc_P17
 mkfifo fifo/gul_S1_pltcalc_P17
 
 mkfifo fifo/gul_P18
-
 mkfifo fifo/gul_S1_summary_P18
 mkfifo fifo/gul_S1_summaryeltcalc_P18
 mkfifo fifo/gul_S1_eltcalc_P18
@@ -189,7 +176,6 @@ mkfifo fifo/gul_S1_summarypltcalc_P18
 mkfifo fifo/gul_S1_pltcalc_P18
 
 mkfifo fifo/gul_P19
-
 mkfifo fifo/gul_S1_summary_P19
 mkfifo fifo/gul_S1_summaryeltcalc_P19
 mkfifo fifo/gul_S1_eltcalc_P19
@@ -199,7 +185,6 @@ mkfifo fifo/gul_S1_summarypltcalc_P19
 mkfifo fifo/gul_S1_pltcalc_P19
 
 mkfifo fifo/gul_P20
-
 mkfifo fifo/gul_S1_summary_P20
 mkfifo fifo/gul_S1_summaryeltcalc_P20
 mkfifo fifo/gul_S1_eltcalc_P20
@@ -211,7 +196,6 @@ mkfifo fifo/gul_S1_pltcalc_P20
 mkdir work/gul_S1_summaryleccalc
 mkdir work/gul_S1_summaryaalcalc
 mkfifo fifo/il_P1
-
 mkfifo fifo/il_S1_summary_P1
 mkfifo fifo/il_S1_summaryeltcalc_P1
 mkfifo fifo/il_S1_eltcalc_P1
@@ -221,7 +205,6 @@ mkfifo fifo/il_S1_summarypltcalc_P1
 mkfifo fifo/il_S1_pltcalc_P1
 
 mkfifo fifo/il_P2
-
 mkfifo fifo/il_S1_summary_P2
 mkfifo fifo/il_S1_summaryeltcalc_P2
 mkfifo fifo/il_S1_eltcalc_P2
@@ -231,7 +214,6 @@ mkfifo fifo/il_S1_summarypltcalc_P2
 mkfifo fifo/il_S1_pltcalc_P2
 
 mkfifo fifo/il_P3
-
 mkfifo fifo/il_S1_summary_P3
 mkfifo fifo/il_S1_summaryeltcalc_P3
 mkfifo fifo/il_S1_eltcalc_P3
@@ -241,7 +223,6 @@ mkfifo fifo/il_S1_summarypltcalc_P3
 mkfifo fifo/il_S1_pltcalc_P3
 
 mkfifo fifo/il_P4
-
 mkfifo fifo/il_S1_summary_P4
 mkfifo fifo/il_S1_summaryeltcalc_P4
 mkfifo fifo/il_S1_eltcalc_P4
@@ -251,7 +232,6 @@ mkfifo fifo/il_S1_summarypltcalc_P4
 mkfifo fifo/il_S1_pltcalc_P4
 
 mkfifo fifo/il_P5
-
 mkfifo fifo/il_S1_summary_P5
 mkfifo fifo/il_S1_summaryeltcalc_P5
 mkfifo fifo/il_S1_eltcalc_P5
@@ -261,7 +241,6 @@ mkfifo fifo/il_S1_summarypltcalc_P5
 mkfifo fifo/il_S1_pltcalc_P5
 
 mkfifo fifo/il_P6
-
 mkfifo fifo/il_S1_summary_P6
 mkfifo fifo/il_S1_summaryeltcalc_P6
 mkfifo fifo/il_S1_eltcalc_P6
@@ -271,7 +250,6 @@ mkfifo fifo/il_S1_summarypltcalc_P6
 mkfifo fifo/il_S1_pltcalc_P6
 
 mkfifo fifo/il_P7
-
 mkfifo fifo/il_S1_summary_P7
 mkfifo fifo/il_S1_summaryeltcalc_P7
 mkfifo fifo/il_S1_eltcalc_P7
@@ -281,7 +259,6 @@ mkfifo fifo/il_S1_summarypltcalc_P7
 mkfifo fifo/il_S1_pltcalc_P7
 
 mkfifo fifo/il_P8
-
 mkfifo fifo/il_S1_summary_P8
 mkfifo fifo/il_S1_summaryeltcalc_P8
 mkfifo fifo/il_S1_eltcalc_P8
@@ -291,7 +268,6 @@ mkfifo fifo/il_S1_summarypltcalc_P8
 mkfifo fifo/il_S1_pltcalc_P8
 
 mkfifo fifo/il_P9
-
 mkfifo fifo/il_S1_summary_P9
 mkfifo fifo/il_S1_summaryeltcalc_P9
 mkfifo fifo/il_S1_eltcalc_P9
@@ -301,7 +277,6 @@ mkfifo fifo/il_S1_summarypltcalc_P9
 mkfifo fifo/il_S1_pltcalc_P9
 
 mkfifo fifo/il_P10
-
 mkfifo fifo/il_S1_summary_P10
 mkfifo fifo/il_S1_summaryeltcalc_P10
 mkfifo fifo/il_S1_eltcalc_P10
@@ -311,7 +286,6 @@ mkfifo fifo/il_S1_summarypltcalc_P10
 mkfifo fifo/il_S1_pltcalc_P10
 
 mkfifo fifo/il_P11
-
 mkfifo fifo/il_S1_summary_P11
 mkfifo fifo/il_S1_summaryeltcalc_P11
 mkfifo fifo/il_S1_eltcalc_P11
@@ -321,7 +295,6 @@ mkfifo fifo/il_S1_summarypltcalc_P11
 mkfifo fifo/il_S1_pltcalc_P11
 
 mkfifo fifo/il_P12
-
 mkfifo fifo/il_S1_summary_P12
 mkfifo fifo/il_S1_summaryeltcalc_P12
 mkfifo fifo/il_S1_eltcalc_P12
@@ -331,7 +304,6 @@ mkfifo fifo/il_S1_summarypltcalc_P12
 mkfifo fifo/il_S1_pltcalc_P12
 
 mkfifo fifo/il_P13
-
 mkfifo fifo/il_S1_summary_P13
 mkfifo fifo/il_S1_summaryeltcalc_P13
 mkfifo fifo/il_S1_eltcalc_P13
@@ -341,7 +313,6 @@ mkfifo fifo/il_S1_summarypltcalc_P13
 mkfifo fifo/il_S1_pltcalc_P13
 
 mkfifo fifo/il_P14
-
 mkfifo fifo/il_S1_summary_P14
 mkfifo fifo/il_S1_summaryeltcalc_P14
 mkfifo fifo/il_S1_eltcalc_P14
@@ -351,7 +322,6 @@ mkfifo fifo/il_S1_summarypltcalc_P14
 mkfifo fifo/il_S1_pltcalc_P14
 
 mkfifo fifo/il_P15
-
 mkfifo fifo/il_S1_summary_P15
 mkfifo fifo/il_S1_summaryeltcalc_P15
 mkfifo fifo/il_S1_eltcalc_P15
@@ -361,7 +331,6 @@ mkfifo fifo/il_S1_summarypltcalc_P15
 mkfifo fifo/il_S1_pltcalc_P15
 
 mkfifo fifo/il_P16
-
 mkfifo fifo/il_S1_summary_P16
 mkfifo fifo/il_S1_summaryeltcalc_P16
 mkfifo fifo/il_S1_eltcalc_P16
@@ -371,7 +340,6 @@ mkfifo fifo/il_S1_summarypltcalc_P16
 mkfifo fifo/il_S1_pltcalc_P16
 
 mkfifo fifo/il_P17
-
 mkfifo fifo/il_S1_summary_P17
 mkfifo fifo/il_S1_summaryeltcalc_P17
 mkfifo fifo/il_S1_eltcalc_P17
@@ -381,7 +349,6 @@ mkfifo fifo/il_S1_summarypltcalc_P17
 mkfifo fifo/il_S1_pltcalc_P17
 
 mkfifo fifo/il_P18
-
 mkfifo fifo/il_S1_summary_P18
 mkfifo fifo/il_S1_summaryeltcalc_P18
 mkfifo fifo/il_S1_eltcalc_P18
@@ -391,7 +358,6 @@ mkfifo fifo/il_S1_summarypltcalc_P18
 mkfifo fifo/il_S1_pltcalc_P18
 
 mkfifo fifo/il_P19
-
 mkfifo fifo/il_S1_summary_P19
 mkfifo fifo/il_S1_summaryeltcalc_P19
 mkfifo fifo/il_S1_eltcalc_P19
@@ -401,7 +367,6 @@ mkfifo fifo/il_S1_summarypltcalc_P19
 mkfifo fifo/il_S1_pltcalc_P19
 
 mkfifo fifo/il_P20
-
 mkfifo fifo/il_S1_summary_P20
 mkfifo fifo/il_S1_summaryeltcalc_P20
 mkfifo fifo/il_S1_eltcalc_P20
@@ -418,79 +383,60 @@ mkdir work/il_S1_summaryaalcalc
 eltcalc < fifo/il_S1_summaryeltcalc_P1 > work/kat/il_S1_eltcalc_P1 & pid1=$!
 summarycalctocsv < fifo/il_S1_summarysummarycalc_P1 > work/kat/il_S1_summarycalc_P1 & pid2=$!
 pltcalc < fifo/il_S1_summarypltcalc_P1 > work/kat/il_S1_pltcalc_P1 & pid3=$!
-
 eltcalc -s < fifo/il_S1_summaryeltcalc_P2 > work/kat/il_S1_eltcalc_P2 & pid4=$!
 summarycalctocsv -s < fifo/il_S1_summarysummarycalc_P2 > work/kat/il_S1_summarycalc_P2 & pid5=$!
 pltcalc -s < fifo/il_S1_summarypltcalc_P2 > work/kat/il_S1_pltcalc_P2 & pid6=$!
-
 eltcalc -s < fifo/il_S1_summaryeltcalc_P3 > work/kat/il_S1_eltcalc_P3 & pid7=$!
 summarycalctocsv -s < fifo/il_S1_summarysummarycalc_P3 > work/kat/il_S1_summarycalc_P3 & pid8=$!
 pltcalc -s < fifo/il_S1_summarypltcalc_P3 > work/kat/il_S1_pltcalc_P3 & pid9=$!
-
 eltcalc -s < fifo/il_S1_summaryeltcalc_P4 > work/kat/il_S1_eltcalc_P4 & pid10=$!
 summarycalctocsv -s < fifo/il_S1_summarysummarycalc_P4 > work/kat/il_S1_summarycalc_P4 & pid11=$!
 pltcalc -s < fifo/il_S1_summarypltcalc_P4 > work/kat/il_S1_pltcalc_P4 & pid12=$!
-
 eltcalc -s < fifo/il_S1_summaryeltcalc_P5 > work/kat/il_S1_eltcalc_P5 & pid13=$!
 summarycalctocsv -s < fifo/il_S1_summarysummarycalc_P5 > work/kat/il_S1_summarycalc_P5 & pid14=$!
 pltcalc -s < fifo/il_S1_summarypltcalc_P5 > work/kat/il_S1_pltcalc_P5 & pid15=$!
-
 eltcalc -s < fifo/il_S1_summaryeltcalc_P6 > work/kat/il_S1_eltcalc_P6 & pid16=$!
 summarycalctocsv -s < fifo/il_S1_summarysummarycalc_P6 > work/kat/il_S1_summarycalc_P6 & pid17=$!
 pltcalc -s < fifo/il_S1_summarypltcalc_P6 > work/kat/il_S1_pltcalc_P6 & pid18=$!
-
 eltcalc -s < fifo/il_S1_summaryeltcalc_P7 > work/kat/il_S1_eltcalc_P7 & pid19=$!
 summarycalctocsv -s < fifo/il_S1_summarysummarycalc_P7 > work/kat/il_S1_summarycalc_P7 & pid20=$!
 pltcalc -s < fifo/il_S1_summarypltcalc_P7 > work/kat/il_S1_pltcalc_P7 & pid21=$!
-
 eltcalc -s < fifo/il_S1_summaryeltcalc_P8 > work/kat/il_S1_eltcalc_P8 & pid22=$!
 summarycalctocsv -s < fifo/il_S1_summarysummarycalc_P8 > work/kat/il_S1_summarycalc_P8 & pid23=$!
 pltcalc -s < fifo/il_S1_summarypltcalc_P8 > work/kat/il_S1_pltcalc_P8 & pid24=$!
-
 eltcalc -s < fifo/il_S1_summaryeltcalc_P9 > work/kat/il_S1_eltcalc_P9 & pid25=$!
 summarycalctocsv -s < fifo/il_S1_summarysummarycalc_P9 > work/kat/il_S1_summarycalc_P9 & pid26=$!
 pltcalc -s < fifo/il_S1_summarypltcalc_P9 > work/kat/il_S1_pltcalc_P9 & pid27=$!
-
 eltcalc -s < fifo/il_S1_summaryeltcalc_P10 > work/kat/il_S1_eltcalc_P10 & pid28=$!
 summarycalctocsv -s < fifo/il_S1_summarysummarycalc_P10 > work/kat/il_S1_summarycalc_P10 & pid29=$!
 pltcalc -s < fifo/il_S1_summarypltcalc_P10 > work/kat/il_S1_pltcalc_P10 & pid30=$!
-
 eltcalc -s < fifo/il_S1_summaryeltcalc_P11 > work/kat/il_S1_eltcalc_P11 & pid31=$!
 summarycalctocsv -s < fifo/il_S1_summarysummarycalc_P11 > work/kat/il_S1_summarycalc_P11 & pid32=$!
 pltcalc -s < fifo/il_S1_summarypltcalc_P11 > work/kat/il_S1_pltcalc_P11 & pid33=$!
-
 eltcalc -s < fifo/il_S1_summaryeltcalc_P12 > work/kat/il_S1_eltcalc_P12 & pid34=$!
 summarycalctocsv -s < fifo/il_S1_summarysummarycalc_P12 > work/kat/il_S1_summarycalc_P12 & pid35=$!
 pltcalc -s < fifo/il_S1_summarypltcalc_P12 > work/kat/il_S1_pltcalc_P12 & pid36=$!
-
 eltcalc -s < fifo/il_S1_summaryeltcalc_P13 > work/kat/il_S1_eltcalc_P13 & pid37=$!
 summarycalctocsv -s < fifo/il_S1_summarysummarycalc_P13 > work/kat/il_S1_summarycalc_P13 & pid38=$!
 pltcalc -s < fifo/il_S1_summarypltcalc_P13 > work/kat/il_S1_pltcalc_P13 & pid39=$!
-
 eltcalc -s < fifo/il_S1_summaryeltcalc_P14 > work/kat/il_S1_eltcalc_P14 & pid40=$!
 summarycalctocsv -s < fifo/il_S1_summarysummarycalc_P14 > work/kat/il_S1_summarycalc_P14 & pid41=$!
 pltcalc -s < fifo/il_S1_summarypltcalc_P14 > work/kat/il_S1_pltcalc_P14 & pid42=$!
-
 eltcalc -s < fifo/il_S1_summaryeltcalc_P15 > work/kat/il_S1_eltcalc_P15 & pid43=$!
 summarycalctocsv -s < fifo/il_S1_summarysummarycalc_P15 > work/kat/il_S1_summarycalc_P15 & pid44=$!
 pltcalc -s < fifo/il_S1_summarypltcalc_P15 > work/kat/il_S1_pltcalc_P15 & pid45=$!
-
 eltcalc -s < fifo/il_S1_summaryeltcalc_P16 > work/kat/il_S1_eltcalc_P16 & pid46=$!
 summarycalctocsv -s < fifo/il_S1_summarysummarycalc_P16 > work/kat/il_S1_summarycalc_P16 & pid47=$!
 pltcalc -s < fifo/il_S1_summarypltcalc_P16 > work/kat/il_S1_pltcalc_P16 & pid48=$!
-
 eltcalc -s < fifo/il_S1_summaryeltcalc_P17 > work/kat/il_S1_eltcalc_P17 & pid49=$!
 summarycalctocsv -s < fifo/il_S1_summarysummarycalc_P17 > work/kat/il_S1_summarycalc_P17 & pid50=$!
 pltcalc -s < fifo/il_S1_summarypltcalc_P17 > work/kat/il_S1_pltcalc_P17 & pid51=$!
-
 eltcalc -s < fifo/il_S1_summaryeltcalc_P18 > work/kat/il_S1_eltcalc_P18 & pid52=$!
 summarycalctocsv -s < fifo/il_S1_summarysummarycalc_P18 > work/kat/il_S1_summarycalc_P18 & pid53=$!
 pltcalc -s < fifo/il_S1_summarypltcalc_P18 > work/kat/il_S1_pltcalc_P18 & pid54=$!
-
 eltcalc -s < fifo/il_S1_summaryeltcalc_P19 > work/kat/il_S1_eltcalc_P19 & pid55=$!
 summarycalctocsv -s < fifo/il_S1_summarysummarycalc_P19 > work/kat/il_S1_summarycalc_P19 & pid56=$!
 pltcalc -s < fifo/il_S1_summarypltcalc_P19 > work/kat/il_S1_pltcalc_P19 & pid57=$!
-
 eltcalc -s < fifo/il_S1_summaryeltcalc_P20 > work/kat/il_S1_eltcalc_P20 & pid58=$!
 summarycalctocsv -s < fifo/il_S1_summarysummarycalc_P20 > work/kat/il_S1_summarycalc_P20 & pid59=$!
 pltcalc -s < fifo/il_S1_summarypltcalc_P20 > work/kat/il_S1_pltcalc_P20 & pid60=$!
@@ -515,6 +461,7 @@ tee < fifo/il_S1_summary_P17 fifo/il_S1_summaryeltcalc_P17 fifo/il_S1_summaryplt
 tee < fifo/il_S1_summary_P18 fifo/il_S1_summaryeltcalc_P18 fifo/il_S1_summarypltcalc_P18 fifo/il_S1_summarysummarycalc_P18 work/il_S1_summaryaalcalc/P18.bin work/il_S1_summaryleccalc/P18.bin > /dev/null & pid78=$!
 tee < fifo/il_S1_summary_P19 fifo/il_S1_summaryeltcalc_P19 fifo/il_S1_summarypltcalc_P19 fifo/il_S1_summarysummarycalc_P19 work/il_S1_summaryaalcalc/P19.bin work/il_S1_summaryleccalc/P19.bin > /dev/null & pid79=$!
 tee < fifo/il_S1_summary_P20 fifo/il_S1_summaryeltcalc_P20 fifo/il_S1_summarypltcalc_P20 fifo/il_S1_summarysummarycalc_P20 work/il_S1_summaryaalcalc/P20.bin work/il_S1_summaryleccalc/P20.bin > /dev/null & pid80=$!
+
 summarycalc -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
 summarycalc -f  -1 fifo/il_S1_summary_P2 < fifo/il_P2 &
 summarycalc -f  -1 fifo/il_S1_summary_P3 < fifo/il_P3 &
@@ -541,79 +488,60 @@ summarycalc -f  -1 fifo/il_S1_summary_P20 < fifo/il_P20 &
 eltcalc < fifo/gul_S1_summaryeltcalc_P1 > work/kat/gul_S1_eltcalc_P1 & pid81=$!
 summarycalctocsv < fifo/gul_S1_summarysummarycalc_P1 > work/kat/gul_S1_summarycalc_P1 & pid82=$!
 pltcalc < fifo/gul_S1_summarypltcalc_P1 > work/kat/gul_S1_pltcalc_P1 & pid83=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P2 > work/kat/gul_S1_eltcalc_P2 & pid84=$!
 summarycalctocsv -s < fifo/gul_S1_summarysummarycalc_P2 > work/kat/gul_S1_summarycalc_P2 & pid85=$!
 pltcalc -s < fifo/gul_S1_summarypltcalc_P2 > work/kat/gul_S1_pltcalc_P2 & pid86=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P3 > work/kat/gul_S1_eltcalc_P3 & pid87=$!
 summarycalctocsv -s < fifo/gul_S1_summarysummarycalc_P3 > work/kat/gul_S1_summarycalc_P3 & pid88=$!
 pltcalc -s < fifo/gul_S1_summarypltcalc_P3 > work/kat/gul_S1_pltcalc_P3 & pid89=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P4 > work/kat/gul_S1_eltcalc_P4 & pid90=$!
 summarycalctocsv -s < fifo/gul_S1_summarysummarycalc_P4 > work/kat/gul_S1_summarycalc_P4 & pid91=$!
 pltcalc -s < fifo/gul_S1_summarypltcalc_P4 > work/kat/gul_S1_pltcalc_P4 & pid92=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P5 > work/kat/gul_S1_eltcalc_P5 & pid93=$!
 summarycalctocsv -s < fifo/gul_S1_summarysummarycalc_P5 > work/kat/gul_S1_summarycalc_P5 & pid94=$!
 pltcalc -s < fifo/gul_S1_summarypltcalc_P5 > work/kat/gul_S1_pltcalc_P5 & pid95=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P6 > work/kat/gul_S1_eltcalc_P6 & pid96=$!
 summarycalctocsv -s < fifo/gul_S1_summarysummarycalc_P6 > work/kat/gul_S1_summarycalc_P6 & pid97=$!
 pltcalc -s < fifo/gul_S1_summarypltcalc_P6 > work/kat/gul_S1_pltcalc_P6 & pid98=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P7 > work/kat/gul_S1_eltcalc_P7 & pid99=$!
 summarycalctocsv -s < fifo/gul_S1_summarysummarycalc_P7 > work/kat/gul_S1_summarycalc_P7 & pid100=$!
 pltcalc -s < fifo/gul_S1_summarypltcalc_P7 > work/kat/gul_S1_pltcalc_P7 & pid101=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P8 > work/kat/gul_S1_eltcalc_P8 & pid102=$!
 summarycalctocsv -s < fifo/gul_S1_summarysummarycalc_P8 > work/kat/gul_S1_summarycalc_P8 & pid103=$!
 pltcalc -s < fifo/gul_S1_summarypltcalc_P8 > work/kat/gul_S1_pltcalc_P8 & pid104=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P9 > work/kat/gul_S1_eltcalc_P9 & pid105=$!
 summarycalctocsv -s < fifo/gul_S1_summarysummarycalc_P9 > work/kat/gul_S1_summarycalc_P9 & pid106=$!
 pltcalc -s < fifo/gul_S1_summarypltcalc_P9 > work/kat/gul_S1_pltcalc_P9 & pid107=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P10 > work/kat/gul_S1_eltcalc_P10 & pid108=$!
 summarycalctocsv -s < fifo/gul_S1_summarysummarycalc_P10 > work/kat/gul_S1_summarycalc_P10 & pid109=$!
 pltcalc -s < fifo/gul_S1_summarypltcalc_P10 > work/kat/gul_S1_pltcalc_P10 & pid110=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P11 > work/kat/gul_S1_eltcalc_P11 & pid111=$!
 summarycalctocsv -s < fifo/gul_S1_summarysummarycalc_P11 > work/kat/gul_S1_summarycalc_P11 & pid112=$!
 pltcalc -s < fifo/gul_S1_summarypltcalc_P11 > work/kat/gul_S1_pltcalc_P11 & pid113=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P12 > work/kat/gul_S1_eltcalc_P12 & pid114=$!
 summarycalctocsv -s < fifo/gul_S1_summarysummarycalc_P12 > work/kat/gul_S1_summarycalc_P12 & pid115=$!
 pltcalc -s < fifo/gul_S1_summarypltcalc_P12 > work/kat/gul_S1_pltcalc_P12 & pid116=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P13 > work/kat/gul_S1_eltcalc_P13 & pid117=$!
 summarycalctocsv -s < fifo/gul_S1_summarysummarycalc_P13 > work/kat/gul_S1_summarycalc_P13 & pid118=$!
 pltcalc -s < fifo/gul_S1_summarypltcalc_P13 > work/kat/gul_S1_pltcalc_P13 & pid119=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P14 > work/kat/gul_S1_eltcalc_P14 & pid120=$!
 summarycalctocsv -s < fifo/gul_S1_summarysummarycalc_P14 > work/kat/gul_S1_summarycalc_P14 & pid121=$!
 pltcalc -s < fifo/gul_S1_summarypltcalc_P14 > work/kat/gul_S1_pltcalc_P14 & pid122=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P15 > work/kat/gul_S1_eltcalc_P15 & pid123=$!
 summarycalctocsv -s < fifo/gul_S1_summarysummarycalc_P15 > work/kat/gul_S1_summarycalc_P15 & pid124=$!
 pltcalc -s < fifo/gul_S1_summarypltcalc_P15 > work/kat/gul_S1_pltcalc_P15 & pid125=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P16 > work/kat/gul_S1_eltcalc_P16 & pid126=$!
 summarycalctocsv -s < fifo/gul_S1_summarysummarycalc_P16 > work/kat/gul_S1_summarycalc_P16 & pid127=$!
 pltcalc -s < fifo/gul_S1_summarypltcalc_P16 > work/kat/gul_S1_pltcalc_P16 & pid128=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P17 > work/kat/gul_S1_eltcalc_P17 & pid129=$!
 summarycalctocsv -s < fifo/gul_S1_summarysummarycalc_P17 > work/kat/gul_S1_summarycalc_P17 & pid130=$!
 pltcalc -s < fifo/gul_S1_summarypltcalc_P17 > work/kat/gul_S1_pltcalc_P17 & pid131=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P18 > work/kat/gul_S1_eltcalc_P18 & pid132=$!
 summarycalctocsv -s < fifo/gul_S1_summarysummarycalc_P18 > work/kat/gul_S1_summarycalc_P18 & pid133=$!
 pltcalc -s < fifo/gul_S1_summarypltcalc_P18 > work/kat/gul_S1_pltcalc_P18 & pid134=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P19 > work/kat/gul_S1_eltcalc_P19 & pid135=$!
 summarycalctocsv -s < fifo/gul_S1_summarysummarycalc_P19 > work/kat/gul_S1_summarycalc_P19 & pid136=$!
 pltcalc -s < fifo/gul_S1_summarypltcalc_P19 > work/kat/gul_S1_pltcalc_P19 & pid137=$!
-
 eltcalc -s < fifo/gul_S1_summaryeltcalc_P20 > work/kat/gul_S1_eltcalc_P20 & pid138=$!
 summarycalctocsv -s < fifo/gul_S1_summarysummarycalc_P20 > work/kat/gul_S1_summarycalc_P20 & pid139=$!
 pltcalc -s < fifo/gul_S1_summarypltcalc_P20 > work/kat/gul_S1_pltcalc_P20 & pid140=$!
@@ -638,6 +566,7 @@ tee < fifo/gul_S1_summary_P17 fifo/gul_S1_summaryeltcalc_P17 fifo/gul_S1_summary
 tee < fifo/gul_S1_summary_P18 fifo/gul_S1_summaryeltcalc_P18 fifo/gul_S1_summarypltcalc_P18 fifo/gul_S1_summarysummarycalc_P18 work/gul_S1_summaryaalcalc/P18.bin work/gul_S1_summaryleccalc/P18.bin > /dev/null & pid158=$!
 tee < fifo/gul_S1_summary_P19 fifo/gul_S1_summaryeltcalc_P19 fifo/gul_S1_summarypltcalc_P19 fifo/gul_S1_summarysummarycalc_P19 work/gul_S1_summaryaalcalc/P19.bin work/gul_S1_summaryleccalc/P19.bin > /dev/null & pid159=$!
 tee < fifo/gul_S1_summary_P20 fifo/gul_S1_summaryeltcalc_P20 fifo/gul_S1_summarypltcalc_P20 fifo/gul_S1_summarysummarycalc_P20 work/gul_S1_summaryaalcalc/P20.bin work/gul_S1_summaryleccalc/P20.bin > /dev/null & pid160=$!
+
 summarycalc -g  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
 summarycalc -g  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 &
 summarycalc -g  -1 fifo/gul_S1_summary_P3 < fifo/gul_P3 &
@@ -703,417 +632,5 @@ aalcalc -Kgul_S1_summaryaalcalc > output/gul_S1_aalcalc.csv & lpid3=$!
 leccalc -r -Kgul_S1_summaryleccalc -F output/gul_S1_leccalc_full_uncertainty_aep.csv -f output/gul_S1_leccalc_full_uncertainty_oep.csv -S output/gul_S1_leccalc_sample_mean_aep.csv -s output/gul_S1_leccalc_sample_mean_oep.csv -W output/gul_S1_leccalc_wheatsheaf_aep.csv -M output/gul_S1_leccalc_wheatsheaf_mean_aep.csv -m output/gul_S1_leccalc_wheatsheaf_mean_oep.csv -w output/gul_S1_leccalc_wheatsheaf_oep.csv & lpid4=$!
 wait $lpid1 $lpid2 $lpid3 $lpid4
 
-
-set +e
-
-rm fifo/gul_P1
-
-rm fifo/gul_S1_summary_P1
-rm fifo/gul_S1_summaryeltcalc_P1
-rm fifo/gul_S1_eltcalc_P1
-rm fifo/gul_S1_summarysummarycalc_P1
-rm fifo/gul_S1_summarycalc_P1
-rm fifo/gul_S1_summarypltcalc_P1
-rm fifo/gul_S1_pltcalc_P1
-
-rm fifo/gul_P2
-
-rm fifo/gul_S1_summary_P2
-rm fifo/gul_S1_summaryeltcalc_P2
-rm fifo/gul_S1_eltcalc_P2
-rm fifo/gul_S1_summarysummarycalc_P2
-rm fifo/gul_S1_summarycalc_P2
-rm fifo/gul_S1_summarypltcalc_P2
-rm fifo/gul_S1_pltcalc_P2
-
-rm fifo/gul_P3
-
-rm fifo/gul_S1_summary_P3
-rm fifo/gul_S1_summaryeltcalc_P3
-rm fifo/gul_S1_eltcalc_P3
-rm fifo/gul_S1_summarysummarycalc_P3
-rm fifo/gul_S1_summarycalc_P3
-rm fifo/gul_S1_summarypltcalc_P3
-rm fifo/gul_S1_pltcalc_P3
-
-rm fifo/gul_P4
-
-rm fifo/gul_S1_summary_P4
-rm fifo/gul_S1_summaryeltcalc_P4
-rm fifo/gul_S1_eltcalc_P4
-rm fifo/gul_S1_summarysummarycalc_P4
-rm fifo/gul_S1_summarycalc_P4
-rm fifo/gul_S1_summarypltcalc_P4
-rm fifo/gul_S1_pltcalc_P4
-
-rm fifo/gul_P5
-
-rm fifo/gul_S1_summary_P5
-rm fifo/gul_S1_summaryeltcalc_P5
-rm fifo/gul_S1_eltcalc_P5
-rm fifo/gul_S1_summarysummarycalc_P5
-rm fifo/gul_S1_summarycalc_P5
-rm fifo/gul_S1_summarypltcalc_P5
-rm fifo/gul_S1_pltcalc_P5
-
-rm fifo/gul_P6
-
-rm fifo/gul_S1_summary_P6
-rm fifo/gul_S1_summaryeltcalc_P6
-rm fifo/gul_S1_eltcalc_P6
-rm fifo/gul_S1_summarysummarycalc_P6
-rm fifo/gul_S1_summarycalc_P6
-rm fifo/gul_S1_summarypltcalc_P6
-rm fifo/gul_S1_pltcalc_P6
-
-rm fifo/gul_P7
-
-rm fifo/gul_S1_summary_P7
-rm fifo/gul_S1_summaryeltcalc_P7
-rm fifo/gul_S1_eltcalc_P7
-rm fifo/gul_S1_summarysummarycalc_P7
-rm fifo/gul_S1_summarycalc_P7
-rm fifo/gul_S1_summarypltcalc_P7
-rm fifo/gul_S1_pltcalc_P7
-
-rm fifo/gul_P8
-
-rm fifo/gul_S1_summary_P8
-rm fifo/gul_S1_summaryeltcalc_P8
-rm fifo/gul_S1_eltcalc_P8
-rm fifo/gul_S1_summarysummarycalc_P8
-rm fifo/gul_S1_summarycalc_P8
-rm fifo/gul_S1_summarypltcalc_P8
-rm fifo/gul_S1_pltcalc_P8
-
-rm fifo/gul_P9
-
-rm fifo/gul_S1_summary_P9
-rm fifo/gul_S1_summaryeltcalc_P9
-rm fifo/gul_S1_eltcalc_P9
-rm fifo/gul_S1_summarysummarycalc_P9
-rm fifo/gul_S1_summarycalc_P9
-rm fifo/gul_S1_summarypltcalc_P9
-rm fifo/gul_S1_pltcalc_P9
-
-rm fifo/gul_P10
-
-rm fifo/gul_S1_summary_P10
-rm fifo/gul_S1_summaryeltcalc_P10
-rm fifo/gul_S1_eltcalc_P10
-rm fifo/gul_S1_summarysummarycalc_P10
-rm fifo/gul_S1_summarycalc_P10
-rm fifo/gul_S1_summarypltcalc_P10
-rm fifo/gul_S1_pltcalc_P10
-
-rm fifo/gul_P11
-
-rm fifo/gul_S1_summary_P11
-rm fifo/gul_S1_summaryeltcalc_P11
-rm fifo/gul_S1_eltcalc_P11
-rm fifo/gul_S1_summarysummarycalc_P11
-rm fifo/gul_S1_summarycalc_P11
-rm fifo/gul_S1_summarypltcalc_P11
-rm fifo/gul_S1_pltcalc_P11
-
-rm fifo/gul_P12
-
-rm fifo/gul_S1_summary_P12
-rm fifo/gul_S1_summaryeltcalc_P12
-rm fifo/gul_S1_eltcalc_P12
-rm fifo/gul_S1_summarysummarycalc_P12
-rm fifo/gul_S1_summarycalc_P12
-rm fifo/gul_S1_summarypltcalc_P12
-rm fifo/gul_S1_pltcalc_P12
-
-rm fifo/gul_P13
-
-rm fifo/gul_S1_summary_P13
-rm fifo/gul_S1_summaryeltcalc_P13
-rm fifo/gul_S1_eltcalc_P13
-rm fifo/gul_S1_summarysummarycalc_P13
-rm fifo/gul_S1_summarycalc_P13
-rm fifo/gul_S1_summarypltcalc_P13
-rm fifo/gul_S1_pltcalc_P13
-
-rm fifo/gul_P14
-
-rm fifo/gul_S1_summary_P14
-rm fifo/gul_S1_summaryeltcalc_P14
-rm fifo/gul_S1_eltcalc_P14
-rm fifo/gul_S1_summarysummarycalc_P14
-rm fifo/gul_S1_summarycalc_P14
-rm fifo/gul_S1_summarypltcalc_P14
-rm fifo/gul_S1_pltcalc_P14
-
-rm fifo/gul_P15
-
-rm fifo/gul_S1_summary_P15
-rm fifo/gul_S1_summaryeltcalc_P15
-rm fifo/gul_S1_eltcalc_P15
-rm fifo/gul_S1_summarysummarycalc_P15
-rm fifo/gul_S1_summarycalc_P15
-rm fifo/gul_S1_summarypltcalc_P15
-rm fifo/gul_S1_pltcalc_P15
-
-rm fifo/gul_P16
-
-rm fifo/gul_S1_summary_P16
-rm fifo/gul_S1_summaryeltcalc_P16
-rm fifo/gul_S1_eltcalc_P16
-rm fifo/gul_S1_summarysummarycalc_P16
-rm fifo/gul_S1_summarycalc_P16
-rm fifo/gul_S1_summarypltcalc_P16
-rm fifo/gul_S1_pltcalc_P16
-
-rm fifo/gul_P17
-
-rm fifo/gul_S1_summary_P17
-rm fifo/gul_S1_summaryeltcalc_P17
-rm fifo/gul_S1_eltcalc_P17
-rm fifo/gul_S1_summarysummarycalc_P17
-rm fifo/gul_S1_summarycalc_P17
-rm fifo/gul_S1_summarypltcalc_P17
-rm fifo/gul_S1_pltcalc_P17
-
-rm fifo/gul_P18
-
-rm fifo/gul_S1_summary_P18
-rm fifo/gul_S1_summaryeltcalc_P18
-rm fifo/gul_S1_eltcalc_P18
-rm fifo/gul_S1_summarysummarycalc_P18
-rm fifo/gul_S1_summarycalc_P18
-rm fifo/gul_S1_summarypltcalc_P18
-rm fifo/gul_S1_pltcalc_P18
-
-rm fifo/gul_P19
-
-rm fifo/gul_S1_summary_P19
-rm fifo/gul_S1_summaryeltcalc_P19
-rm fifo/gul_S1_eltcalc_P19
-rm fifo/gul_S1_summarysummarycalc_P19
-rm fifo/gul_S1_summarycalc_P19
-rm fifo/gul_S1_summarypltcalc_P19
-rm fifo/gul_S1_pltcalc_P19
-
-rm fifo/gul_P20
-
-rm fifo/gul_S1_summary_P20
-rm fifo/gul_S1_summaryeltcalc_P20
-rm fifo/gul_S1_eltcalc_P20
-rm fifo/gul_S1_summarysummarycalc_P20
-rm fifo/gul_S1_summarycalc_P20
-rm fifo/gul_S1_summarypltcalc_P20
-rm fifo/gul_S1_pltcalc_P20
-
-rm -rf work/kat
-rm work/gul_S1_summaryleccalc/*
-rmdir work/gul_S1_summaryleccalc
-rm -rf work/gul_S1_summaryaalcalc/*
-rmdir work/gul_S1_summaryaalcalc
-
-rm fifo/il_P1
-
-rm fifo/il_S1_summary_P1
-rm fifo/il_S1_summaryeltcalc_P1
-rm fifo/il_S1_eltcalc_P1
-rm fifo/il_S1_summarysummarycalc_P1
-rm fifo/il_S1_summarycalc_P1
-rm fifo/il_S1_summarypltcalc_P1
-rm fifo/il_S1_pltcalc_P1
-
-rm fifo/il_P2
-
-rm fifo/il_S1_summary_P2
-rm fifo/il_S1_summaryeltcalc_P2
-rm fifo/il_S1_eltcalc_P2
-rm fifo/il_S1_summarysummarycalc_P2
-rm fifo/il_S1_summarycalc_P2
-rm fifo/il_S1_summarypltcalc_P2
-rm fifo/il_S1_pltcalc_P2
-
-rm fifo/il_P3
-
-rm fifo/il_S1_summary_P3
-rm fifo/il_S1_summaryeltcalc_P3
-rm fifo/il_S1_eltcalc_P3
-rm fifo/il_S1_summarysummarycalc_P3
-rm fifo/il_S1_summarycalc_P3
-rm fifo/il_S1_summarypltcalc_P3
-rm fifo/il_S1_pltcalc_P3
-
-rm fifo/il_P4
-
-rm fifo/il_S1_summary_P4
-rm fifo/il_S1_summaryeltcalc_P4
-rm fifo/il_S1_eltcalc_P4
-rm fifo/il_S1_summarysummarycalc_P4
-rm fifo/il_S1_summarycalc_P4
-rm fifo/il_S1_summarypltcalc_P4
-rm fifo/il_S1_pltcalc_P4
-
-rm fifo/il_P5
-
-rm fifo/il_S1_summary_P5
-rm fifo/il_S1_summaryeltcalc_P5
-rm fifo/il_S1_eltcalc_P5
-rm fifo/il_S1_summarysummarycalc_P5
-rm fifo/il_S1_summarycalc_P5
-rm fifo/il_S1_summarypltcalc_P5
-rm fifo/il_S1_pltcalc_P5
-
-rm fifo/il_P6
-
-rm fifo/il_S1_summary_P6
-rm fifo/il_S1_summaryeltcalc_P6
-rm fifo/il_S1_eltcalc_P6
-rm fifo/il_S1_summarysummarycalc_P6
-rm fifo/il_S1_summarycalc_P6
-rm fifo/il_S1_summarypltcalc_P6
-rm fifo/il_S1_pltcalc_P6
-
-rm fifo/il_P7
-
-rm fifo/il_S1_summary_P7
-rm fifo/il_S1_summaryeltcalc_P7
-rm fifo/il_S1_eltcalc_P7
-rm fifo/il_S1_summarysummarycalc_P7
-rm fifo/il_S1_summarycalc_P7
-rm fifo/il_S1_summarypltcalc_P7
-rm fifo/il_S1_pltcalc_P7
-
-rm fifo/il_P8
-
-rm fifo/il_S1_summary_P8
-rm fifo/il_S1_summaryeltcalc_P8
-rm fifo/il_S1_eltcalc_P8
-rm fifo/il_S1_summarysummarycalc_P8
-rm fifo/il_S1_summarycalc_P8
-rm fifo/il_S1_summarypltcalc_P8
-rm fifo/il_S1_pltcalc_P8
-
-rm fifo/il_P9
-
-rm fifo/il_S1_summary_P9
-rm fifo/il_S1_summaryeltcalc_P9
-rm fifo/il_S1_eltcalc_P9
-rm fifo/il_S1_summarysummarycalc_P9
-rm fifo/il_S1_summarycalc_P9
-rm fifo/il_S1_summarypltcalc_P9
-rm fifo/il_S1_pltcalc_P9
-
-rm fifo/il_P10
-
-rm fifo/il_S1_summary_P10
-rm fifo/il_S1_summaryeltcalc_P10
-rm fifo/il_S1_eltcalc_P10
-rm fifo/il_S1_summarysummarycalc_P10
-rm fifo/il_S1_summarycalc_P10
-rm fifo/il_S1_summarypltcalc_P10
-rm fifo/il_S1_pltcalc_P10
-
-rm fifo/il_P11
-
-rm fifo/il_S1_summary_P11
-rm fifo/il_S1_summaryeltcalc_P11
-rm fifo/il_S1_eltcalc_P11
-rm fifo/il_S1_summarysummarycalc_P11
-rm fifo/il_S1_summarycalc_P11
-rm fifo/il_S1_summarypltcalc_P11
-rm fifo/il_S1_pltcalc_P11
-
-rm fifo/il_P12
-
-rm fifo/il_S1_summary_P12
-rm fifo/il_S1_summaryeltcalc_P12
-rm fifo/il_S1_eltcalc_P12
-rm fifo/il_S1_summarysummarycalc_P12
-rm fifo/il_S1_summarycalc_P12
-rm fifo/il_S1_summarypltcalc_P12
-rm fifo/il_S1_pltcalc_P12
-
-rm fifo/il_P13
-
-rm fifo/il_S1_summary_P13
-rm fifo/il_S1_summaryeltcalc_P13
-rm fifo/il_S1_eltcalc_P13
-rm fifo/il_S1_summarysummarycalc_P13
-rm fifo/il_S1_summarycalc_P13
-rm fifo/il_S1_summarypltcalc_P13
-rm fifo/il_S1_pltcalc_P13
-
-rm fifo/il_P14
-
-rm fifo/il_S1_summary_P14
-rm fifo/il_S1_summaryeltcalc_P14
-rm fifo/il_S1_eltcalc_P14
-rm fifo/il_S1_summarysummarycalc_P14
-rm fifo/il_S1_summarycalc_P14
-rm fifo/il_S1_summarypltcalc_P14
-rm fifo/il_S1_pltcalc_P14
-
-rm fifo/il_P15
-
-rm fifo/il_S1_summary_P15
-rm fifo/il_S1_summaryeltcalc_P15
-rm fifo/il_S1_eltcalc_P15
-rm fifo/il_S1_summarysummarycalc_P15
-rm fifo/il_S1_summarycalc_P15
-rm fifo/il_S1_summarypltcalc_P15
-rm fifo/il_S1_pltcalc_P15
-
-rm fifo/il_P16
-
-rm fifo/il_S1_summary_P16
-rm fifo/il_S1_summaryeltcalc_P16
-rm fifo/il_S1_eltcalc_P16
-rm fifo/il_S1_summarysummarycalc_P16
-rm fifo/il_S1_summarycalc_P16
-rm fifo/il_S1_summarypltcalc_P16
-rm fifo/il_S1_pltcalc_P16
-
-rm fifo/il_P17
-
-rm fifo/il_S1_summary_P17
-rm fifo/il_S1_summaryeltcalc_P17
-rm fifo/il_S1_eltcalc_P17
-rm fifo/il_S1_summarysummarycalc_P17
-rm fifo/il_S1_summarycalc_P17
-rm fifo/il_S1_summarypltcalc_P17
-rm fifo/il_S1_pltcalc_P17
-
-rm fifo/il_P18
-
-rm fifo/il_S1_summary_P18
-rm fifo/il_S1_summaryeltcalc_P18
-rm fifo/il_S1_eltcalc_P18
-rm fifo/il_S1_summarysummarycalc_P18
-rm fifo/il_S1_summarycalc_P18
-rm fifo/il_S1_summarypltcalc_P18
-rm fifo/il_S1_pltcalc_P18
-
-rm fifo/il_P19
-
-rm fifo/il_S1_summary_P19
-rm fifo/il_S1_summaryeltcalc_P19
-rm fifo/il_S1_eltcalc_P19
-rm fifo/il_S1_summarysummarycalc_P19
-rm fifo/il_S1_summarycalc_P19
-rm fifo/il_S1_summarypltcalc_P19
-rm fifo/il_S1_pltcalc_P19
-
-rm fifo/il_P20
-
-rm fifo/il_S1_summary_P20
-rm fifo/il_S1_summaryeltcalc_P20
-rm fifo/il_S1_eltcalc_P20
-rm fifo/il_S1_summarysummarycalc_P20
-rm fifo/il_S1_summarycalc_P20
-rm fifo/il_S1_summarypltcalc_P20
-rm fifo/il_S1_pltcalc_P20
-
-rm -rf work/kat
-rm work/il_S1_summaryleccalc/*
-rmdir work/il_S1_summaryleccalc
-rm -rf work/il_S1_summaryaalcalc/*
-rmdir work/il_S1_summaryaalcalc
+rm -R -f work/*
+rm -R -f fifo/*

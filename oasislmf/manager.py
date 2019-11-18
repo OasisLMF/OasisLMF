@@ -5,6 +5,7 @@ __all__ = [
 import io
 import importlib
 import json
+import logging
 import os
 import re
 import sys
@@ -15,6 +16,8 @@ from builtins import str
 from itertools import (
     product,
 )
+
+from subprocess import CalledProcessError
 
 import pandas as pd
 
@@ -61,10 +64,13 @@ from .utils.defaults import (
     get_default_exposure_profile,
     get_default_fm_aggregation_profile,
     KTOOLS_NUM_PROCESSES,
-    KTOOLS_MEM_LIMIT,
     KTOOLS_FIFO_RELATIVE,
-    KTOOLS_ALLOC_RULE_GUL,
-    KTOOLS_ALLOC_RULE_IL,
+    KTOOLS_ERR_GUARD,
+    KTOOLS_ALLOC_GUL_MAX,
+    KTOOLS_ALLOC_GUL_DEFAULT,
+    KTOOLS_ALLOC_FM_MAX,
+    KTOOLS_ALLOC_IL_DEFAULT,
+    KTOOLS_ALLOC_RI_DEFAULT,
     KTOOLS_DEBUG,
     OASIS_FILES_PREFIXES,
     WRITE_CHUNKSIZE,
@@ -92,11 +98,12 @@ class OasisManager(object):
         fm_aggregation_profile=None,
         deterministic_analysis_settings=None,
         ktools_num_processes=None,
-        ktools_mem_limit=None,
         ktools_fifo_relative=None,
         ktools_alloc_rule_gul=None,
         ktools_alloc_rule_il=None,
+        ktools_alloc_rule_ri=None,
         ktools_debug=None,
+        ktools_error_guard=None,
         oasis_files_prefixes=None,
         write_chunksize=None
     ):
@@ -107,13 +114,15 @@ class OasisManager(object):
         self._fm_aggregation_profile = fm_aggregation_profile or get_default_fm_aggregation_profile()
         self._deterministic_analysis_settings = deterministic_analysis_settings or get_default_deterministic_analysis_settings()
         self._ktools_num_processes = ktools_num_processes or KTOOLS_NUM_PROCESSES
-        self._ktools_mem_limit = ktools_mem_limit or KTOOLS_MEM_LIMIT
         self._ktools_fifo_relative = ktools_fifo_relative or KTOOLS_FIFO_RELATIVE
-        self._ktools_alloc_rule_gul = ktools_alloc_rule_gul if isinstance(ktools_alloc_rule_gul, int) else KTOOLS_ALLOC_RULE_GUL
-        self._ktools_alloc_rule_il = ktools_alloc_rule_il if isinstance(ktools_alloc_rule_il, int) else KTOOLS_ALLOC_RULE_IL
+        self._ktools_alloc_rule_gul = self.get_alloc_rule(ktools_alloc_rule_gul, KTOOLS_ALLOC_GUL_MAX, fallback=KTOOLS_ALLOC_GUL_DEFAULT)
+        self._ktools_alloc_rule_il = self.get_alloc_rule(ktools_alloc_rule_il, KTOOLS_ALLOC_FM_MAX, fallback=KTOOLS_ALLOC_IL_DEFAULT)
+        self._ktools_alloc_rule_ri = self.get_alloc_rule(ktools_alloc_rule_ri, KTOOLS_ALLOC_FM_MAX, fallback=KTOOLS_ALLOC_RI_DEFAULT)
         self._ktools_debug = ktools_debug or KTOOLS_DEBUG
+        self._ktools_error_guard = ktools_error_guard or KTOOLS_ERR_GUARD
         self._oasis_files_prefixes = oasis_files_prefixes or OASIS_FILES_PREFIXES
         self._write_chunksize = write_chunksize or WRITE_CHUNKSIZE
+        self.logger = logging.getLogger()
 
     @property
     def exposure_profile(self):
@@ -148,10 +157,6 @@ class OasisManager(object):
         return self._ktools_num_processes
 
     @property
-    def ktools_mem_limit(self):
-        return self._ktools_mem_limit
-
-    @property
     def ktools_fifo_relative(self):
         return self._ktools_fifo_relative
 
@@ -164,8 +169,30 @@ class OasisManager(object):
         return self._ktools_alloc_rule_il
 
     @property
+    def ktools_alloc_rule_ri(self):
+        return self._ktools_alloc_rule_ri
+
+    @property
     def ktools_debug(self):
         return self._ktools_debug
+
+    @property
+    def ktools_error_guard(self):
+        return self._ktools_error_guard
+
+    def get_alloc_rule(self, alloc_given, alloc_max, err_msg='Invalid alloc rule', fallback=None):
+        alloc_valid_range = [r for r in range(alloc_max+1)]
+
+        if not isinstance(alloc_given, int):
+            return fallback if fallback else alloc_max
+        elif alloc_given not in alloc_valid_range:
+            raise OasisException('{}: {} not in {}'.format(
+                err_msg,
+                alloc_given,
+                alloc_valid_range,
+            ))
+        else:
+            return alloc_given
 
     @oasis_log
     def generate_peril_areas_rtree_file_index(
@@ -175,6 +202,12 @@ class OasisManager(object):
         lookup_config_fp=None,
         lookup_config=None,
     ):
+
+        # Convert paths to absolute
+        keys_data_fp = as_path(keys_data_fp, 'Lookup Data directory', is_dir=True, preexists=True)
+        areas_rtree_index_fp = as_path(areas_rtree_index_fp, 'Index output file path', preexists=False)
+        lookup_config_fp = as_path(lookup_config_fp, 'Built-in lookup config file path', preexists=True)
+
         if not (lookup_config or lookup_config_fp):
             raise OasisException('Either a built-in lookup config. or config. file path is required')
 
@@ -275,6 +308,26 @@ class OasisManager(object):
         keys_errors_fp=None,
         keys_format=None
     ):
+
+        # Convert paths to absolute
+        exposure_fp = as_path(exposure_fp, 'Source exposure file path')
+        lookup_config_fp = as_path(lookup_config_fp, 'Lookup config JSON file path')
+        keys_data_fp = as_path(keys_data_fp, 'Keys data path', is_dir=True, preexists=False)
+        model_version_fp = as_path(model_version_fp, 'Model version file path', preexists=False)
+        lookup_package_fp = as_path(lookup_package_fp, 'Lookup package path', is_dir=True, preexists=False)
+        complex_lookup_config_fp = as_path(complex_lookup_config_fp, 'Complex lookup config JSON file path', preexists=False)
+        keys_fp = as_path(keys_fp, 'Keys file path', preexists=False)
+        keys_errors_fp = as_path(keys_errors_fp, 'Keys errors file path', preexists=False)
+
+        if not (lookup_config_fp or (keys_data_fp and model_version_fp and lookup_package_fp)):
+            raise OasisException(
+                'No lookup assets provided to generate the mandatory keys '
+                'file - for built-in lookups the lookup config. JSON file '
+                'path must be provided, or for custom lookups the keys data '
+                'path + model version file path + lookup package path must be '
+                'provided'
+            )
+
         if keys_fp:
             lookup_extra_outputs_dir = os.path.basename(keys_fp)
         else:
@@ -292,19 +345,22 @@ class OasisManager(object):
         location_df = olf.get_exposure(
             lookup=lookup,
             source_exposure_fp=exposure_fp,
-        ) 
+        )
 
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
 
         keys_fp = keys_fp or '{}-keys.csv'.format(utcnow)
         keys_errors_fp = keys_errors_fp or '{}-keys-errors.csv'.format(utcnow)
+        # TODO: set `keys_success_msg` based on lookup config
+        keys_success_msg = True if complex_lookup_config_fp else False
 
         return olf.save_results(
             lookup,
             location_df=location_df,
             successes_fp=keys_fp,
             errors_fp=keys_errors_fp,
-            format=keys_format
+            format=keys_format,
+            keys_success_msg=keys_success_msg
         )
 
     @oasis_log
@@ -334,6 +390,24 @@ class OasisManager(object):
         ri_scope_fp=None,
         oasis_files_prefixes=None
     ):
+
+        # Convert paths to absolute
+        target_dir = as_path(target_dir, 'Oasis files output dir', is_dir=True, preexists=False)
+        exposure_fp = as_path(exposure_fp, 'Source exposure file path')
+        exposure_profile_fp = as_path(exposure_profile_fp, 'Source exposure profile file path')
+        keys_fp = as_path(keys_fp, 'Pre-generated keys file path', preexists=True)
+        lookup_config_fp = as_path(lookup_config_fp, 'Lookup config JSON file path', preexists=False)
+        keys_data_fp = as_path(keys_data_fp, 'Keys data path', preexists=False)
+        model_version_fp = as_path(model_version_fp, 'Model version file path', is_dir=True, preexists=False)
+        lookup_package_fp = as_path(lookup_package_fp, 'Lookup package path', is_dir=True, preexists=False)
+        complex_lookup_config_fp = as_path(complex_lookup_config_fp, 'Complex lookup config JSON file path', preexists=False)
+        user_data_dir = as_path(user_data_dir, 'Directory containing additional supplied model data files', preexists=False)
+        accounts_fp = as_path(accounts_fp, 'Source OED accounts file path')
+        accounts_profile_fp = as_path(accounts_profile_fp, 'Source OED accounts profile path')
+        fm_aggregation_profile_fp = as_path(fm_aggregation_profile_fp, 'FM OED aggregation profile path')
+        ri_info_fp = as_path(ri_info_fp, 'Reinsurance info. file path')
+        ri_scope_fp = as_path(ri_scope_fp, 'Reinsurance scope file path')
+
         # Prepare the target directory and copy the source files, profiles and
         # model version file into it
         target_dir = prepare_input_files_directory(
@@ -421,7 +495,7 @@ class OasisManager(object):
                 location_df = olf.get_exposure(
                     lookup=lookup,
                     source_exposure_fp=exposure_fp,
-                ) 
+                )
                 f1, _, f2, _ = olf.save_results(
                     lookup,
                     location_df=location_df,
@@ -537,13 +611,23 @@ class OasisManager(object):
         model_data_fp,
         model_package_fp=None,
         ktools_num_processes=None,
-        ktools_mem_limit=None,
         ktools_fifo_relative=None,
         ktools_alloc_rule_gul=None,
         ktools_alloc_rule_il=None,
+        ktools_alloc_rule_ri=None,
+        ktools_error_guard=None,
         ktools_debug=None,
         user_data_dir=None
     ):
+
+        # Convert paths to absolute
+        model_run_fp = as_path(model_run_fp, 'Model run directory', is_dir=True, preexists=False)
+        oasis_fp = as_path(oasis_fp, 'Path to direct Oasis files (GUL + optionally FM and RI input files)', is_dir=True, preexists=True)
+        analysis_settings_fp = as_path(analysis_settings_fp, 'Model analysis settings file path')
+        model_data_fp = as_path(model_data_fp, 'Model data path', is_dir=True)
+        model_package_fp = as_path(model_package_fp, 'Model package path', is_dir=True)
+        user_data_dir = as_path(user_data_dir, 'Directory containing additional user-supplied model data files', preexists=False)
+
         il = all(p in os.listdir(oasis_fp) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
         ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(oasis_fp)) + os.listdir(oasis_fp))
         gul_item_stream = False if (ktools_alloc_rule_gul == 0) or (self.ktools_alloc_rule_gul == 0) else True
@@ -593,17 +677,36 @@ class OasisManager(object):
             analysis_settings['ri_output'] = False
             analysis_settings['ri_summaries'] = []
 
-        # guard - Check if at least one output type is selected 
-        if not any([analysis_settings['gul_output'],
-                   analysis_settings['il_output'],
-                   analysis_settings['ri_summaries'],
+        # Output selection guard - Check if at least one output type is set
+        if not any([
+            analysis_settings['gul_output'] if 'gul_output' in analysis_settings else False,
+            analysis_settings['il_output'] if 'il_output' in analysis_settings else False,
+            analysis_settings['ri_output'] if 'ri_output' in analysis_settings else False,
         ]):
             raise OasisException(
                 'No valid output settings in: {}'.format(analysis_settings_fp))
 
-        prepare_run_inputs(analysis_settings, model_run_fp, ri=ri)
+        gul_alloc_rule = self.get_alloc_rule(
+            alloc_given=ktools_alloc_rule_gul,
+            alloc_max=KTOOLS_ALLOC_GUL_MAX,
+            err_msg='Invalid alloc GUL rule',
+            fallback=self.ktools_alloc_rule_gul
+        )
+        il_alloc_rule = self.get_alloc_rule(
+            alloc_given=ktools_alloc_rule_il,
+            alloc_max=KTOOLS_ALLOC_FM_MAX,
+            err_msg='Invalid alloc IL rule',
+            fallback=self.ktools_alloc_rule_il
+        )
+        ri_alloc_rule = self.get_alloc_rule(
+            alloc_given=ktools_alloc_rule_ri,
+            alloc_max=KTOOLS_ALLOC_FM_MAX,
+            err_msg='Invalid alloc RI rule',
+            fallback=self.ktools_alloc_rule_ri
+        )
 
-        script_fp = os.path.join(model_run_fp, 'run_ktools.sh')
+        prepare_run_inputs(analysis_settings, model_run_fp, ri=ri)
+        script_fp = os.path.join(os.path.abspath(model_run_fp), 'run_ktools.sh')
 
         if model_package_fp and os.path.exists(os.path.join(model_package_fp, 'supplier_model_runner.py')):
             path, package_name = os.path.split(model_package_fp)
@@ -622,17 +725,35 @@ class OasisManager(object):
                     with io.open(os.path.join(model_run_fp, 'input', 'ri_layers.json'), 'r', encoding='utf-8') as f:
                         ri_layers = len(json.load(f))
 
-            model_runner_module.run(
-                analysis_settings,
-                number_of_processes=(ktools_num_processes or self.ktools_num_processes),
-                filename=script_fp,
-                num_reinsurance_iterations=ri_layers,
-                ktools_mem_limit=(ktools_mem_limit or self.ktools_mem_limit),
-                set_alloc_rule_gul=(ktools_alloc_rule_gul if isinstance(ktools_alloc_rule_gul, int) else self.ktools_alloc_rule_gul),
-                set_alloc_rule_il=(ktools_alloc_rule_il if isinstance(ktools_alloc_rule_il, int) else self.ktools_alloc_rule_il),
-                run_debug=(ktools_debug or self.ktools_debug),
-                fifo_tmp_dir=(not (ktools_fifo_relative or self.ktools_fifo_relative))
-            )
+            try:
+                model_runner_module.run(
+                    analysis_settings,
+                    number_of_processes=(ktools_num_processes or self.ktools_num_processes),
+                    filename=script_fp,
+                    num_reinsurance_iterations=ri_layers,
+                    set_alloc_rule_gul=(ktools_alloc_rule_gul if isinstance(ktools_alloc_rule_gul, int) else self.ktools_alloc_rule_gul),
+                    set_alloc_rule_il=(ktools_alloc_rule_il if isinstance(ktools_alloc_rule_il, int) else self.ktools_alloc_rule_il),
+                    run_debug=(ktools_debug if isinstance(ktools_debug, bool) else self.ktools_debug),
+                    stderr_guard=(ktools_error_guard if isinstance(ktools_error_guard, bool) else self.ktools_error_guard),
+                    fifo_tmp_dir=(not (ktools_fifo_relative or self.ktools_fifo_relative))
+                )
+            except CalledProcessError as e:
+                bash_trace_fp = os.path.join(model_run_fp, 'log', 'bash.log')
+                if os.path.isfile(bash_trace_fp):
+                    with io.open(bash_trace_fp, 'r', encoding='utf-8') as f:
+                        self.logger.debug('BASH_TRACE:\n' + "".join(f.readlines()))
+
+                stderror_fp = os.path.join(model_run_fp, 'log', 'stderror.err')
+                if os.path.isfile(stderror_fp):
+                    with io.open(stderror_fp, 'r', encoding='utf-8') as f:
+                        self.logger.debug('STDERR:\n' + "".join(f.readlines()))
+
+                self.logger.debug('STDOUT:\n' + e.output.decode('utf-8').strip())
+
+                raise OasisException(
+                    'Ktools run Error: non-zero exit code or output detected on STDERR\n'
+                    'Logs stored in: {}/log'.format(model_run_fp)
+                )
 
         return model_run_fp
 
@@ -642,7 +763,8 @@ class OasisManager(object):
         src_dir,
         run_dir=None,
         loss_percentage_of_tiv=1.0,
-        alloc_rule=KTOOLS_ALLOC_RULE_IL,
+        il_alloc_rule=None,
+        ri_alloc_rule=None,
         net_ri=False
     ):
         """
@@ -656,7 +778,6 @@ class OasisManager(object):
         contents = [fn.lower() for fn in os.listdir(src_dir)]
         exposure_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'location.csv'][0]
         accounts_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'account.csv'][0]
-
         ri_info_fp = ri_scope_fp = None
         try:
             ri_info_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'ri_info.csv'][0]
@@ -667,6 +788,19 @@ class OasisManager(object):
                 ri_scope_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'ri_scope.csv'][0]
             except IndexError:
                 ri_info_fp = None
+
+        il_alloc_rule = self.get_alloc_rule(
+            alloc_given=il_alloc_rule,
+            alloc_max=KTOOLS_ALLOC_FM_MAX,
+            err_msg='Invalid alloc IL rule',
+            fallback=self.ktools_alloc_rule_il
+        )
+        ri_alloc_rule = self.get_alloc_rule(
+            alloc_given=ri_alloc_rule,
+            alloc_max=KTOOLS_ALLOC_FM_MAX,
+            err_msg='Invalid alloc RI rule',
+            fallback=self.ktools_alloc_rule_ri
+        )
 
         # Start Oasis files generation
         self.generate_oasis_files(
@@ -682,7 +816,8 @@ class OasisManager(object):
             output_dir=os.path.join(run_dir, 'output'),
             loss_percentage_of_tiv=loss_percentage_of_tiv,
             net_ri=net_ri,
-            alloc_rule=alloc_rule
+            il_alloc_rule=il_alloc_rule,
+            ri_alloc_rule=ri_alloc_rule
         )
 
         return losses['gul'], losses['il'], losses['ri']

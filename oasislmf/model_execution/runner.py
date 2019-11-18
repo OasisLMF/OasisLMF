@@ -5,10 +5,14 @@ import shutil
 
 import subprocess
 
-from ..utils.defaults import KTOOLS_ALLOC_RULE_IL, KTOOLS_ALLOC_RULE_GUL
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from .bash import genbash
+from ..utils.defaults import (
+    KTOOLS_ALLOC_GUL_DEFAULT,
+    KTOOLS_ALLOC_IL_DEFAULT,
+    KTOOLS_ALLOC_RI_DEFAULT,
+)
 
 
 @oasis_log()
@@ -16,10 +20,11 @@ def run(
     analysis_settings,
     number_of_processes=-1,
     num_reinsurance_iterations=0,
-    ktools_mem_limit=False,
-    set_alloc_rule_gul=KTOOLS_ALLOC_RULE_GUL,
-    set_alloc_rule_il=KTOOLS_ALLOC_RULE_IL,
+    set_alloc_rule_gul=KTOOLS_ALLOC_GUL_DEFAULT,
+    set_alloc_rule_il=KTOOLS_ALLOC_IL_DEFAULT,
+    set_alloc_rule_ri=KTOOLS_ALLOC_RI_DEFAULT,
     fifo_tmp_dir=True,
+    stderr_guard=True,
     run_debug=False,
     filename='run_ktools.sh'
 ):
@@ -63,9 +68,10 @@ def run(
             analysis_settings,
             num_reinsurance_iterations=num_reinsurance_iterations,
             fifo_tmp_dir=fifo_tmp_dir,
-            mem_limit=ktools_mem_limit,
             gul_alloc_rule=set_alloc_rule_gul,
             il_alloc_rule=set_alloc_rule_il,
+            ri_alloc_rule=set_alloc_rule_ri,
+            stderr_guard=stderr_guard,
             bash_trace=run_debug,
             filename=filename,
             _get_getmodel_cmd=custom_get_getmodel_cmd,
@@ -76,15 +82,13 @@ def run(
             analysis_settings,
             num_reinsurance_iterations=num_reinsurance_iterations,
             fifo_tmp_dir=fifo_tmp_dir,
-            mem_limit=ktools_mem_limit,
             gul_alloc_rule=set_alloc_rule_gul,
             il_alloc_rule=set_alloc_rule_il,
+            ri_alloc_rule=set_alloc_rule_ri,
+            stderr_guard=stderr_guard,
             bash_trace=run_debug,
             filename=filename
         )
 
-    try:
-        bash_trace = subprocess.check_output(['bash', filename], stderr=subprocess.STDOUT)
-        logging.info(bash_trace.decode('utf-8'))
-    except subprocess.CalledProcessError as e:
-        raise OasisException('Error running ktools: {}'.format(e.output.decode('utf-8').strip()))
+    bash_trace = subprocess.check_output(['bash', filename])
+    logging.info(bash_trace.decode('utf-8'))

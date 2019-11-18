@@ -1,0 +1,198 @@
+{
+    "AggAttachment": {
+        "data_type": "float",
+        "default_value": "0",
+        "desc": "The aggregate monetary amount during a given AggPeriod that the resinured retains under this treaty",
+        "py_dtype": "float",
+        "require_field": "O"
+    },
+    "AggLimit": {
+        "data_type": "float",
+        "default_value": "0",
+        "desc": "Maximum amount payable under this treaty during the AggPeriod",
+        "py_dtype": "float",
+        "require_field": "O"
+    },
+    "AggPeriod": {
+        "data_type": "float",
+        "default_value": "365",
+        "desc": "Aggregate period associated with the aggregate limits and attachments (in days). Default value = 365 (1 year)",
+        "py_dtype": "float",
+        "require_field": "O"
+    },
+    "AttachmentBasis": {
+        "data_type": "char(2)",
+        "default_value": "('LO')",
+        "desc": "Reinsurance attachment basis",
+        "py_dtype": "str",
+        "require_field": "O"
+    },
+    "CededPercent": {
+        "data_type": "float",
+        "default_value": "1.0",
+        "desc": "Reinsurance ceded percentage. Used mainly in surplus treaties. Applies before other reinsurance terms. Values between 0 to 1 (e.g. 12% entered as 0.12)",
+        "py_dtype": "float",
+        "require_field": "O"
+    },
+    "DeemedPercentPlaced": {
+        "data_type": "float",
+        "default_value": "0",
+        "desc": "Deemed percent placed, used to represent notional contracts or any part of the contract being notional. For fully notional contracts, enter 1 (i.e. 100%). For partially placed contracts, enter any value between 0 and 1. For real contracts, enter 0.",
+        "py_dtype": "float",
+        "require_field": "O"
+    },
+    "InuringPriority": {
+        "data_type": "tinyint",
+        "default_value": "n/a",
+        "desc": "Reinsurance inuring priority capturing the order in which reinsurance contracts apply. Treaties with lower number inuring priorities apply first.",
+        "py_dtype": "int",
+        "require_field": "R"
+    },
+    "OccAttachment": {
+        "data_type": "float",
+        "default_value": "0",
+        "desc": "Reinsurance per occurrence attachment",
+        "py_dtype": "float",
+        "require_field": "O"
+    },
+    "OccFranchiseDed": {
+        "data_type": "float",
+        "default_value": "0",
+        "desc": "Reinsurance franchise deductible",
+        "py_dtype": "float",
+        "require_field": "O"
+    },
+    "OccLimit": {
+        "data_type": "float",
+        "default_value": "0",
+        "desc": "Reinsurance occurrence limit",
+        "py_dtype": "float",
+        "require_field": "O"
+    },
+    "OccReverseFranchise": {
+        "data_type": "float",
+        "default_value": "0",
+        "desc": "Reinsurance reverse franchise - a value of loss that, if exceeded, results in no payment being made for this event from the reinsurer to insurer.",
+        "py_dtype": "float",
+        "require_field": "O"
+    },
+    "PlacedPercent": {
+        "data_type": "float",
+        "default_value": "n/a",
+        "desc": "Percentage of the limit that has been placed in the reinsurance market. The main percentage used for reinsurance treaties other than surplus. Applies after other reinsurance terms. Values between 0 to 1 (e.g. 12% entered as 0.12)",
+        "py_dtype": "float",
+        "require_field": "R"
+    },
+    "ReinsCurrency": {
+        "data_type": "char(3)",
+        "default_value": "n/a",
+        "desc": "Reinsurance currency",
+        "py_dtype": "str",
+        "require_field": "R"
+    },
+    "ReinsExpiryDate": {
+        "data_type": "smalldatetime",
+        "default_value": "n/a",
+        "desc": "Reinsurance expiry date - DD/MM/YYYY format",
+        "py_dtype": "str",
+        "require_field": "O"
+    },
+    "ReinsFXrate": {
+        "data_type": "float",
+        "default_value": "1",
+        "desc": "Reinsurance exchange rate (as the contractual reinsurance rate can be different from the actual exchange rates used for policies and locations)",
+        "py_dtype": "float",
+        "require_field": "O"
+    },
+    "ReinsInceptionDate": {
+        "data_type": "smalldatetime",
+        "default_value": "n/a",
+        "desc": "Reinsurance inception date - DD/MM/YYYY format",
+        "py_dtype": "str",
+        "require_field": "O"
+    },
+    "ReinsLayerNumber": {
+        "data_type": "int",
+        "default_value": "n/a",
+        "desc": "Reinsurance layer for information / ordering purposes",
+        "py_dtype": "int",
+        "require_field": "O"
+    },
+    "ReinsName": {
+        "data_type": "varchar(30)",
+        "default_value": "n/a",
+        "desc": "Reinsurance name",
+        "py_dtype": "str",
+        "require_field": "O"
+    },
+    "ReinsNumber": {
+        "data_type": "int",
+        "default_value": "n/a",
+        "desc": "Reinsurance number",
+        "py_dtype": "int",
+        "require_field": "R"
+    },
+    "ReinsPeril": {
+        "data_type": "varchar(250)",
+        "default_value": "n/a",
+        "desc": "Perils for reinsurance financial terms",
+        "py_dtype": "str",
+        "require_field": "R"
+    },
+    "ReinsPremium": {
+        "data_type": "float",
+        "default_value": "0",
+        "desc": "Reinsurance premium",
+        "py_dtype": "float",
+        "require_field": "O"
+    },
+    "ReinsType": {
+        "data_type": "varchar(3)",
+        "default_value": "n/a",
+        "desc": "Type of reinsurance contract",
+        "py_dtype": "str",
+        "require_field": "R"
+    },
+    "Reinstatement": {
+        "data_type": "tinyint",
+        "default_value": "n/a",
+        "desc": "Number of reinstatements",
+        "py_dtype": "int",
+        "require_field": "O"
+    },
+    "ReinstatementCharge": {
+        "data_type": "float",
+        "default_value": "n/a",
+        "desc": "Reinstatement charge as %; semi-colon separated if different for each reinstatement (e.g. 1-free, 2-50%, 3-100% should be entered as: 0;0.5;1). If all reinstatements are the same, then just one number is sufficient (e.g. 3 reinstatements at 100% should be entered as 1)",
+        "py_dtype": "float",
+        "require_field": "O"
+    },
+    "RiskAttachment": {
+        "data_type": "float",
+        "default_value": "0",
+        "desc": "Reinsurance per-risk attachment point",
+        "py_dtype": "float",
+        "require_field": "O"
+    },
+    "RiskLimit": {
+        "data_type": "float",
+        "default_value": "0",
+        "desc": "Reinsurance per-risk limit",
+        "py_dtype": "float",
+        "require_field": "O"
+    },
+    "TreatyShare": {
+        "data_type": "float",
+        "default_value": "1",
+        "desc": "The percentage of a treaty that a given reinsurer may write. Values between 0 to 1 (e.g. 12% entered as 0.12).",
+        "py_dtype": "float",
+        "require_field": "O"
+    },
+    "UseReinsDates": {
+        "data_type": "char(1)",
+        "default_value": "N",
+        "desc": "A flag to indicate if reinsurance contract dates or  policy inception / expiry dates are to be considered when calculating losses (Y) or ignored (N).",
+        "py_dtype": "str",
+        "require_field": "O"
+    }
+}

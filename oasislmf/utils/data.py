@@ -10,6 +10,7 @@ __all__ = [
     'get_json',
     'get_timestamp',
     'get_utctimestamp',
+    'merge_check',
     'merge_dataframes',
     'PANDAS_BASIC_DTYPES',
     'PANDAS_DEFAULT_NULL_VALUES',
@@ -469,6 +470,36 @@ def get_utctimestamp(thedate=datetime.utcnow(), fmt='%Y-%b-%d %H:%M:%S'):
     :rtype: str
     """
     return thedate.astimezone(pytz.utc).strftime(fmt)
+
+
+def merge_check(left, right, on=[], raise_error=True):
+    """
+    Check two dataframes for keys intersection, use before performing a merge
+
+    :param left: The first of two dataframes to be merged
+    :type left: pd.DataFrame
+
+    :param right: The second of two dataframes to be merged
+    :type left: pd.DataFrame
+
+    :param on: column keys to test
+    :type on: list
+
+    :return: A dict of booleans, True for an intersection between left/right
+    :rtype: dict
+
+    {'portnumber': False, 'accnumber': True, 'layer_id': True, 'condnumber': True}
+    """
+    keys_checked = {}
+    for key in on:
+        key_intersect = set(left[key].unique()).intersection(right[key].unique())
+        keys_checked[key] = bool(key_intersect)
+
+    if raise_error and not all(keys_checked.values()):
+        err_msg = "Error: Merge mismatch on column(s) {}".format(
+            [k for k in keys_checked if not keys_checked[k]]
+        )
+        raise OasisException(err_msg)
 
 
 def merge_dataframes(left, right, join_on=None, **kwargs):

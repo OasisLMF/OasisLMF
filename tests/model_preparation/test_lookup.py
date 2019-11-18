@@ -405,5 +405,4 @@ class OasisLookupFactoryWriteKeys(TestCase):
                 keys_data=data,
                 keys_file_path=keys_file_path,
             )
-
-            write_oasis_keys_file_mock.assert_called_once_with(data, keys_file_path)
+            write_oasis_keys_file_mock.assert_called_once_with(data, keys_file_path, False)

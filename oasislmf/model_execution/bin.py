@@ -189,6 +189,21 @@ def _prepare_input_bin(run_dir, bin_name, model_settings, setting_key=None, ri=F
         shutil.copyfile(model_data_bin_fp, bin_fp)
 
 
+def _calc_selected(analysis_settings, calc_type):
+    """
+    Return True, if "calc_type" is set in the anaylysis settings file
+
+    :param calc_type: one of `eltcalc`, `lec_output`, `aalcalc` or `pltcalc`
+    :type calc_type: str
+    """
+    is_in_gul = analysis_settings.get('gul_summaries')[0].get(
+                calc_type, None) if analysis_settings.get('gul_summaries') else None
+    is_in_il  = analysis_settings.get('il_summaries')[0].get(
+                calc_type, None) if analysis_settings.get('il_summaries') else None
+    is_in_ri  = analysis_settings.get('ri_summaries')[0].get(
+                calc_type, None) if analysis_settings.get('ri_summaries') else None
+    return any([is_in_gul, is_in_il, is_in_ri])
+
 @oasis_log
 def prepare_run_inputs(analysis_settings, run_dir, ri=False):
     """
@@ -202,10 +217,14 @@ def prepare_run_inputs(analysis_settings, run_dir, ri=False):
     """
     try:
         model_settings = analysis_settings.get('model_settings', {})
-
         _prepare_input_bin(run_dir, 'events', model_settings, setting_key='event_set', ri=ri)
-        _prepare_input_bin(run_dir, 'returnperiods', model_settings, ri=ri)
-        _prepare_input_bin(run_dir, 'occurrence', model_settings, setting_key='event_occurrence_id', ri=ri)
+
+        # Prepare occurrence / returnperiod depending on output calcs selected
+        if _calc_selected(analysis_settings, 'lec_output'):
+            _prepare_input_bin(run_dir, 'returnperiods', model_settings, ri=ri)
+            _prepare_input_bin(run_dir, 'occurrence', model_settings, setting_key='event_occurrence_id', ri=ri)
+        elif _calc_selected(analysis_settings, 'pltcalc') or _calc_selected(analysis_settings, 'aalcalc'):
+            _prepare_input_bin(run_dir, 'occurrence', model_settings, setting_key='event_occurrence_id', ri=ri)
 
         if os.path.exists(os.path.join(run_dir, 'static', 'periods.bin')):
             _prepare_input_bin(run_dir, 'periods', model_settings, ri=ri)

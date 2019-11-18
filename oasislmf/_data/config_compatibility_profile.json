@@ -1,0 +1,122 @@
+{
+    "complex_lookup_config_file_path":{
+        "from_ver": "1.4.1",
+        "deleted": false,
+        "updated_to": "lookup_complex_config_json"
+    },
+    "lookup_config_file_path":{
+        "from_ver": "1.4.1",
+        "deleted": false,
+        "updated_to": "lookup_config_json"
+    },
+    "lookup_package_path":{
+        "from_ver": "1.4.1",
+        "deleted": false,
+        "updated_to": "lookup_package_dir"
+    },
+    "keys_data_path":{
+        "from_ver": "1.4.1",
+        "deleted": false,
+        "updated_to": "lookup_data_dir"
+    },
+    "lookup_package_path":{
+        "from_ver": "1.4.1",
+        "deleted": false,
+        "updated_to": "lookup_package_dir"
+    },
+    "analysis_settings_file_path":{
+        "from_ver": "1.4.1",
+        "deleted": false,
+        "updated_to": "analysis_settings_json"
+    },
+    "source_exposure_file_path":{
+        "from_ver": "1.4.1",
+        "deleted": false,
+        "updated_to": "oed_location_csv"
+    },
+    "source_accounts_file_path":{
+        "from_ver": "1.4.1",
+        "deleted": false,
+        "updated_to": "oed_accounts_csv"
+    },
+    "ri_info_file_path":{
+        "from_ver": "1.4.1",
+        "deleted": false,
+        "updated_to": "oed_info_csv"
+    },
+    "ri_scope_file_path":{
+        "from_ver": "1.4.1",
+        "deleted": false,
+        "updated_to": "oed_scope_csv"
+    },
+    "source_exposure_profile_path":{
+        "from_ver": "1.4.1",
+        "deleted": false,
+        "updated_to": "profile_loc_json"
+    },
+    "source_accounts_profile_path":{
+        "from_ver": "1.4.1",
+        "deleted": false,
+        "updated_to": "profile_acc_json"
+    },
+    "fm_aggregation_profile_path":{
+        "from_ver": "1.4.1",
+        "deleted": false,
+        "updated_to": "profile_fm_agg_json"
+    },
+    "model_data_path":{
+        "from_ver": "1.4.1",
+        "deleted": false,
+        "updated_to": "model_data_dir"
+    },
+    "model_package_path":{
+        "from_ver": "1.4.1",
+        "deleted": false,
+        "updated_to": "model_package_dir"
+    },
+    "model_version_file_path":{
+        "from_ver": "1.4.1",
+        "deleted": false,
+        "updated_to": "model_version_csv"
+    },
+    "oasis_files_path":{
+        "from_ver": "1.4.1",
+        "deleted": false,
+        "updated_to": "oasis_files_dir"
+    },
+    "keys_file_path":{
+        "from_ver": "1.4.1",
+        "deleted": false,
+        "updated_to": "keys_data_csv"
+    },
+    "keys_errors_file_path":{
+        "from_ver": "1.4.1",
+        "deleted": false,
+        "updated_to": "keys_errors_csv"
+    },
+    "keys_data_path":{
+        "from_ver": "1.4.1",
+        "deleted": false,
+        "updated_to": "lookup_data_dir"
+    },
+    "bash_conf_filepath":{
+        "from_ver": "1.4.1",
+        "deleted": false,
+        "updated_to": "bash_conf_file"
+    },
+    "verbose_mode":{
+        "from_ver": "1.4.1",
+        "deleted": false,
+        "updated_to": "verbose"
+    },
+    "output_directory":{
+        "from_ver": "1.4.1",
+        "deleted": false,
+        "updated_to": "output_dir"
+    },
+    "ktools_mem_limit":{
+        "from_ver": "1.4.2",
+        "deleted": true,
+        "updated_to": ""
+    }
+}
