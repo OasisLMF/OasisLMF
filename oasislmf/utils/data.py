@@ -521,9 +521,6 @@ def merge_dataframes(left, right, join_on=None, **kwargs):
     :return: A merged dataframe
     :rtype: pd.DataFrame
     """
-    _left = left.copy(deep=True)
-    _right = right.copy(deep=True)
-
     merge = None
 
     if not join_on:
@@ -531,31 +528,27 @@ def merge_dataframes(left, right, join_on=None, **kwargs):
         left_keys = [left_keys] if isinstance(left_keys, str) else left_keys
 
         drop_cols = [
-            k for k in set(_left.columns).intersection(_right.columns)
+            k for k in set(left.columns).intersection(right.columns)
             if k and k not in left_keys
         ]
-
         drop_duplicates = kwargs.get('drop_duplicates', True)
         kwargs.pop('drop_duplicates') if 'drop_duplicates' in kwargs else None
 
         merge = pd.merge(
-            _left.drop(drop_cols, axis=1),
-            _right,
+            left.drop(drop_cols, axis=1),
+            right,
             **kwargs
         )
-        del [_left, _right]
 
         return merge if not drop_duplicates else merge.drop_duplicates()
     else:
         _join_on = [join_on] if isinstance(join_on, str) else join_on.copy()
-        _left.set_index(_join_on, inplace=True)
-        _right.set_index(_join_on, inplace=True)
-
-        drop_cols = list(set(_left.columns).intersection(_right.columns).difference(_join_on))
-        _right.drop(drop_cols, axis=1, inplace=True)
+        drop_cols = list(set(left.columns).intersection(right.columns).difference(_join_on))
+        _left = left.set_index(_join_on)
+        _right = right.drop(drop_cols, axis=1).set_index(_join_on)
 
         join = _left.join(_right, how=(kwargs.get('how') or 'left')).reset_index()
-        del [_left, _right]
+        del _left, _right
 
         return join
 
