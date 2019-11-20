@@ -147,7 +147,7 @@ def merge_oed_to_mapping(summary_map_df, exposure_df, oed_column_set, defaults=N
     return new_summary_map_df
 
 
-def group_by_oed(oed_col_group, summary_map_df, exposure_df, accounts_df=None):
+def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_df=None):
     """
     Adds list of OED fields from `column_set` to summary map file
 
@@ -168,7 +168,7 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, accounts_df=None):
     """
     oed_cols = [c.lower() for c in oed_col_group]                                               # All requred columns
     unmapped_cols = [c for c in oed_cols if c not in summary_map_df.columns]                    # columns which in locations / Accounts file
-    mapped_cols = [c for c in oed_cols + [SOURCE_IDX['loc'], SOURCE_IDX['acc']] if c in summary_map_df.columns]    # Columns already in summary_map_df
+    mapped_cols = [c for c in oed_cols + [SOURCE_IDX['loc'], SOURCE_IDX['acc'], sort_by] if c in summary_map_df.columns]    # Columns already in summary_map_df
 
     # Extract mapped_cols from summary_map_df
     summary_group_df = summary_map_df.loc[:, mapped_cols]
@@ -188,6 +188,7 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, accounts_df=None):
                 summary_group_df = merge_dataframes(summary_group_df, accounts_col_df, join_on=SOURCE_IDX['acc'], how='left')
 
     summary_group_df.fillna(0, inplace=True)
+    summary_group_df.sort_values(by=[sort_by], inplace=True)
     summary_ids = factorize_dataframe(summary_group_df, by_col_labels=oed_cols)
 
     return summary_ids[0], summary_ids[1]
@@ -436,11 +437,17 @@ def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, s
     summaryxref_df = pd.DataFrame()
     summary_desc = {}
 
-    # Infer il / gul xref type based on 'map_df'
+    # Extract the summary id index column dedpending on summary grouping type
     if 'output_id' in map_df:
-        ids_set_df = map_df.loc[:, ['output_id']].rename(columns={"output_id": "output"})
+        id_set_index = 'output_id'
+        ids_set_df = map_df.loc[:, [id_set_index]].rename(columns={id_set_index: "output"})
+    elif gul_items:
+        id_set_index = 'item_id'
+        ids_set_df = map_df.loc[:, [id_set_index]]
     else:
-        ids_set_df = map_df.loc[:, ['item_id']] if gul_items else map_df.loc[:, ['coverage_id']]
+        id_set_index = 'coverage_id'
+        ids_set_df = map_df.loc[:, [id_set_index]]
+
 
     # For each granularity build a set grouping
     for summary_set in summaries_info_dict:
@@ -452,7 +459,7 @@ def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, s
             (
                 summary_set_df['summary_id'],
                 set_values
-            ) = group_by_oed(cols_group_by, map_df, exposure_df, accounts_df)
+            ) = group_by_oed(cols_group_by, map_df, exposure_df, id_set_index, accounts_df)
 
             # Build description file
             summary_desc[desc_key] = pd.DataFrame(data=list(set_values), columns=cols_group_by)
