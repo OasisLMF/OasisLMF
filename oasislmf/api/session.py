@@ -60,6 +60,8 @@ class APISession(Session):
         r = super(APISession, self).post(url, timeout=self.timeout)
         if r.status_code == status.ok:
             self.tkn_access = r.json()['access_token']
+            if 'refresh_token' in r.json():
+                self.tkn_refresh = r.json()['refresh_token']
             self.headers['authorization'] = 'Bearer {}'.format(self.tkn_access)
         else:
             err_msg = 'Token refresh error: {}'.format(r.text)
