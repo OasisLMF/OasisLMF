@@ -609,7 +609,6 @@ def get_main_cmd_ri_stream(
         )
 
     main_cmd = "{0} > {1}ri_P{2}".format(main_cmd, fifo_dir, process_id)
-    main_cmd = '( {0} ) 2>> log/stderror.err  &'.format(main_cmd) if stderr_guard else '{0} &'.format(main_cmd)
 
     return main_cmd
 
@@ -624,7 +623,6 @@ def get_main_cmd_il_stream(
 
     fm_cmd = '{1} | fmcalc -a{2} > {3}il_P{0} '
     main_cmd = fm_cmd.format(process_id, cmd, il_alloc_rule, fifo_dir)
-    main_cmd = '( {0} ) 2>> log/stderror.err &'.format(main_cmd) if stderr_guard else '{0} &'.format(main_cmd)
 
     return main_cmd
 
@@ -638,7 +636,6 @@ def get_main_cmd_gul_stream(
 
     gul_cmd = '{1} > {2}gul_P{0} '
     main_cmd = gul_cmd.format(process_id, cmd, fifo_dir)
-    main_cmd = '( {0} ) 2>> log/stderror.err &'.format(main_cmd) if stderr_guard else '{0} &'.format(main_cmd)
 
     return main_cmd
 
@@ -785,6 +782,8 @@ def genbash(
     print_command(filename, '# --- Setup run dirs ---')
     print_command(filename, '')
     print_command(filename, "find output/* ! -name '*summary-info*' -type f -exec rm -f {} +")
+    if full_correlation:
+        print_command(filename, 'mkdir {}'.format(output_full_correlation_dir))
     print_command(filename, '')
     if not fifo_tmp_dir:
         fifo_queue_dir = 'fifo/'
@@ -942,6 +941,14 @@ def genbash(
         else:
             _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_cov_cmd)
 
+        # Set up stream for full correlation files
+        cat_cmd = ''
+        if full_correlation:
+            cat_cmd = '&& cat {} | tee {}gul_P{}'.format(
+                correlated_output_file, fifo_full_correlation_dir,
+                process_id
+            )
+
         # ! Should be able to streamline the logic a little
         if num_reinsurance_iterations > 0 and ri_output:
             getmodel_args.update(custom_args)
@@ -949,7 +956,15 @@ def genbash(
             main_cmd = get_main_cmd_ri_stream(
                 getmodel_cmd, process_id, il_alloc_rule, ri_alloc_rule,
                 num_reinsurance_iterations, fifo_queue_dir, stderr_guard
-           )
+            )
+            if full_correlation:
+                main_cmd = '{} {}'.format(main_cmd, cat_cmd)
+                main_cmd = get_main_cmd_ri_stream(
+                    main_cmd, process_id, il_alloc_rule, ri_alloc_rule,
+                    num_reinsurance_iterations, fifo_full_correlation_dir,
+                    stderr_guard
+                )
+            main_cmd = '( {0} ) 2>> log/stderror.err  &'.format(main_cmd) if stderr_guard else '{0} &'.format(main_cmd)
             print_command(filename, main_cmd)
 
         elif gul_output and il_output:
@@ -959,6 +974,13 @@ def genbash(
                 getmodel_cmd, process_id, il_alloc_rule, fifo_queue_dir,
                 stderr_guard
             )
+            if full_correlation:
+                main_cmd = '{} {}'.format(main_cmd, cat_cmd)
+                main_cmd = get_main_cmd_il_stream(
+                    main_cmd, process_id, il_alloc_rule,
+                    fifo_full_correlation_dir, stderr_guard
+                )
+            main_cmd = '( {0} ) 2>> log/stderror.err &'.format(main_cmd) if stderr_guard else '{0} &'.format(main_cmd)
             print_command(filename, main_cmd)
 
         else:
@@ -974,6 +996,9 @@ def genbash(
                 main_cmd = get_main_cmd_gul_stream(
                     getmodel_cmd, process_id, fifo_queue_dir, stderr_guard
                 )
+                if full_correlation:
+                    main_cmd = '{} {}'.format(main_cmd, cat_cmd)
+                main_cmd = '( {0} ) 2>> log/stderror.err &'.format(main_cmd) if stderr_guard else '{0} &'.format(main_cmd)
                 print_command(filename, main_cmd)
 
             if il_output and 'il_summaries' in analysis_settings:
@@ -986,48 +1011,14 @@ def genbash(
                     getmodel_cmd, process_id, il_alloc_rule, fifo_queue_dir,
                     stderr_guard
                 )
-                print_command(filename, main_cmd)
-
-    print_command(filename, '')
-
-    if full_correlation:
-        for process_id in range(1, max_process_id + 1):
-            correlated_output_file = '{0}gul_P{1}_file'.format(
-                fifo_full_correlation_dir,
-                process_id
-            )
-            cat_cmd = 'cat {}'.format(correlated_output_file)
-
-            if num_reinsurance_iterations > 0 and ri_output:
-                main_cmd = get_main_cmd_ri_stream(
-                    cat_cmd, process_id, il_alloc_rule, ri_alloc_rule,
-                    num_reinsurance_iterations, fifo_full_correlation_dir,
-                    stderr_guard
-            )
-                print_command(filename, main_cmd)
-
-            elif gul_output and il_output:
-                main_cmd = get_main_cmd_il_stream(
-                    cat_cmd, process_id, il_alloc_rule,
-                    fifo_full_correlation_dir, stderr_guard
-                )
-                print_command(filename, main_cmd)
-
-            else:
-                if gul_output and 'gul_summaries' in analysis_settings:
-
-                    main_cmd = '{1} | tee {2}gul_P{0} '.format(
-                        process_id, cat_cmd, fifo_full_correlation_dir
-                    )
-                    main_cmd = '( {0} ) 2>> log/stderror.err &'.format(main_cmd) if stderr_guard else '{0} &'.format(main_cmd)
-                    print_command(filename, main_cmd)
-
-                if il_output and 'il_summaries' in analysis_settings:
+                if full_correlation:
+                    main_cmd = '{} {}'.format(main_cmd, cat_cmd)
                     main_cmd = get_main_cmd_il_stream(
-                        cat_cmd, process_id, il_alloc_rule,
+                        main_cmd, process_id, il_alloc_rule,
                         fifo_full_correlation_dir, stderr_guard
                     )
-                    print_command(filename, main_cmd)
+                main_cmd = '( {0} ) 2>> log/stderror.err &'.format(main_cmd) if stderr_guard else '{0} &'.format(main_cmd)
+                print_command(filename, main_cmd)
 
     print_command(filename, '')
 
@@ -1050,7 +1041,7 @@ def genbash(
             print_command(filename, '')
             do_kats(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, max_process_id,
-                filename, process_counter, work_kat_full_correlaton_dir,
+                filename, process_counter, work_full_correlation_kat_dir,
                 output_full_correlation_dir
             )
 
@@ -1071,7 +1062,7 @@ def genbash(
             print_command(filename, '')
             do_kats(
                 RUNTYPE_INSURED_LOSS, analysis_settings, max_process_id,
-                filename, process_counter, work_kat_full_correlation_dir,
+                filename, process_counter, work_full_correlation_kat_dir,
                 output_full_correlation_dir
             )
 
@@ -1092,7 +1083,7 @@ def genbash(
             print_command(filename, '')
             do_kats(
                 RUNTYPE_GROUNDUP_LOSS, analysis_settings, max_process_id,
-                filename, process_counter, work_kat_full_correlation_dir,
+                filename, process_counter, work_full_correlation_kat_dir,
                 output_full_correlation_dir
             )
 
@@ -1119,11 +1110,11 @@ def genbash(
         )
         do_post_wait_processing(
             RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter,
-            work_sub_dir, output_dir
+            work_sub_dir, output_full_correlation_dir
         )
         do_post_wait_processing(
             RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter,
-            work_sub_dir, output_dir
+            work_sub_dir, output_full_correlation_dir
         )
 
     do_awaits(filename, process_counter)  # waits for aalcalc
