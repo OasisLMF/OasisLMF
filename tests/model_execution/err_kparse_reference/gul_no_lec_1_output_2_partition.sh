@@ -78,7 +78,6 @@ tee < fifo/gul_S1_summary_P2 fifo/gul_S1_summaryeltcalc_P2 fifo/gul_S1_summarypl
 ( eve 1 2 | getmodel | gulcalc -S0 -L0 -r -a1 -i - > fifo/gul_P1  ) 2>> log/stderror.err &
 ( eve 2 2 | getmodel | gulcalc -S0 -L0 -r -a1 -i - > fifo/gul_P2  ) 2>> log/stderror.err &
 
-
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8
 
 

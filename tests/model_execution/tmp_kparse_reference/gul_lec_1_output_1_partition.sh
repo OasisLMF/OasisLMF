@@ -39,7 +39,6 @@ summarycalc -i  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1 < /tmp/%FIFO_DIR%/fifo
 
 eve 1 1 | getmodel | gulcalc -S0 -L0 -r -a1 -i - > /tmp/%FIFO_DIR%/fifo/gul_P1  &
 
-
 wait $pid1 $pid2 $pid3 $pid4
 
 
