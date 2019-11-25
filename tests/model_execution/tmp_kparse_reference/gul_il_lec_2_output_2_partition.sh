@@ -11,10 +11,10 @@ set -o pipefail
 find output/* ! -name '*summary-info*' -type f -exec rm -f {} +
 
 rm -R -f work/*
-mkdir work/kat
+mkdir work/kat/
 
 rm -R -f /tmp/%FIFO_DIR%/
-mkdir -p /tmp/%FIFO_DIR%/fifo
+mkdir -p /tmp/%FIFO_DIR%/fifo/
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summaryeltcalc_P1
@@ -136,6 +136,7 @@ summarycalc -i  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P2 -2 /tmp/%FIFO_DIR%/fif
 
 eve 1 2 | getmodel | gulcalc -S0 -L0 -r -a1 -i - | tee /tmp/%FIFO_DIR%/fifo/gul_P1 | fmcalc -a2 > /tmp/%FIFO_DIR%/fifo/il_P1  &
 eve 2 2 | getmodel | gulcalc -S0 -L0 -r -a1 -i - | tee /tmp/%FIFO_DIR%/fifo/gul_P2 | fmcalc -a2 > /tmp/%FIFO_DIR%/fifo/il_P2  &
+
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22 $pid23 $pid24 $pid25 $pid26 $pid27 $pid28 $pid29 $pid30 $pid31 $pid32
 

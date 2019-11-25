@@ -39,7 +39,7 @@ find output/* ! -name '*summary-info*' -type f -exec rm -f {} +
 
 rm -R -f fifo/*
 rm -R -f work/*
-mkdir work/kat
+mkdir work/kat/
 mkfifo fifo/gul_P1
 mkfifo fifo/gul_S1_summary_P1
 mkfifo fifo/gul_S1_summarypltcalc_P1
@@ -55,6 +55,7 @@ tee < fifo/gul_S1_summary_P1 fifo/gul_S1_summarypltcalc_P1 > /dev/null & pid2=$!
 ( summarycalc -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 ) 2>> log/stderror.err  &
 
 ( eve 1 1 | getmodel | gulcalc -S100 -L100 -r -a1 -i - > fifo/gul_P1  ) 2>> log/stderror.err &
+
 
 wait $pid1 $pid2
 

@@ -12,7 +12,7 @@ find output/* ! -name '*summary-info*' -type f -exec rm -f {} +
 
 rm -R -f fifo/*
 rm -R -f work/*
-mkdir work/kat
+mkdir work/kat/
 mkfifo fifo/il_P1
 mkfifo fifo/il_S1_summary_P1
 mkfifo fifo/il_S1_summaryeltcalc_P1
@@ -37,6 +37,7 @@ summarycalc -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
 # --- Do ground up loss computes ---
 
 eve 1 1 | getmodel | gulcalc -S0 -L0 -r -c fifo/gul_P1 -i - | fmcalc -a2 > fifo/il_P1  &
+
 
 wait $pid1 $pid2 $pid3 $pid4
 

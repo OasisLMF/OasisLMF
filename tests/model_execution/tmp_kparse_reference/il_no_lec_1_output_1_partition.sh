@@ -11,10 +11,10 @@ set -o pipefail
 find output/* ! -name '*summary-info*' -type f -exec rm -f {} +
 
 rm -R -f work/*
-mkdir work/kat
+mkdir work/kat/
 
 rm -R -f /tmp/%FIFO_DIR%/
-mkdir -p /tmp/%FIFO_DIR%/fifo
+mkdir -p /tmp/%FIFO_DIR%/fifo/
 mkfifo /tmp/%FIFO_DIR%/fifo/il_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summaryeltcalc_P1
@@ -39,6 +39,7 @@ summarycalc -f  -1 /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1 < /tmp/%FIFO_DIR%/fifo/
 # --- Do ground up loss computes ---
 
 eve 1 1 | getmodel | gulcalc -S0 -L0 -r -a1 -i - | tee /tmp/%FIFO_DIR%/fifo/gul_P1 | fmcalc -a2 > /tmp/%FIFO_DIR%/fifo/il_P1  &
+
 
 wait $pid1 $pid2 $pid3 $pid4
 
