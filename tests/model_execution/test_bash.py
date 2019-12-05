@@ -493,3 +493,66 @@ class Genbash_TempDir(Genbash):
         if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
             shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
         os.makedirs(cls.KPARSE_OUTPUT_FOLDER)
+
+
+class Genbash_FullCorrItemStream(Genbash):
+    @classmethod
+    def setUpClass(cls):
+        # test dirs
+        cls.KPARSE_INPUT_FOLDER = os.path.join(TEST_DIRECTORY, "fc_kparse_input")
+        cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "itm_fc_kparse_output")
+        cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "itm_fc_kparse_reference")
+
+        cls.ri_iterations  = 0
+        cls.gul_alloc_rule = 1
+        cls.il_alloc_rule  = 2
+        cls.ri_alloc_rule  = 3
+        cls.fifo_tmp_dir   = False
+        cls.bash_trace     = False
+        cls.stderr_guard   = False
+
+        if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
+            shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
+        os.makedirs(cls.KPARSE_OUTPUT_FOLDER)
+
+
+class Genbash_FullCorrErrorGuard(Genbash):
+    @classmethod
+    def setUpClass(cls):
+        # test dirs
+        cls.KPARSE_INPUT_FOLDER = os.path.join(TEST_DIRECTORY, "fc_kparse_input")
+        cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "err_fc_kparse_output")
+        cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "err_fc_kparse_reference")
+
+        cls.ri_iterations  = 0
+        cls.gul_alloc_rule = 1
+        cls.il_alloc_rule  = 2
+        cls.ri_alloc_rule  = 3
+        cls.fifo_tmp_dir   = False
+        cls.bash_trace     = False
+        cls.stderr_guard   = True
+
+        if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
+            shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
+        os.makedirs(cls.KPARSE_OUTPUT_FOLDER)
+
+
+class Genbash_FullCorrTempDir(Genbash):
+    @classmethod
+    def setUpClass(cls):
+        # test dirs
+        cls.KPARSE_INPUT_FOLDER = os.path.join(TEST_DIRECTORY, "fc_kparse_input")
+        cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "tmp_fc_kparse_output")
+        cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "tmp_fc_kparse_reference")
+
+        cls.ri_iterations  = 0
+        cls.gul_alloc_rule = 1
+        cls.il_alloc_rule  = 2
+        cls.ri_alloc_rule  = 3
+        cls.fifo_tmp_dir   = True
+        cls.bash_trace     = False
+        cls.stderr_guard   = False
+
+        if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
+            shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
+        os.makedirs(cls.KPARSE_OUTPUT_FOLDER)
