@@ -1194,7 +1194,7 @@ def genbash(
                     main_cmd = get_main_cmd_il_stream(
                         correlated_output_file, process_id, il_alloc_rule,
                         fifo_full_correlation_dir, stderr_guard,
-                        full_correlation
+                        full_correlation, process_counter
                     )
                     print_command(filename, main_cmd)
 
