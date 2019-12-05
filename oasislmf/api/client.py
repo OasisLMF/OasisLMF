@@ -8,6 +8,7 @@ __all__ = [
 ]
 
 import io
+import json
 import logging
 import os
 import sys
@@ -43,6 +44,33 @@ class ApiEndpoint(object):
 
     def delete(self, ID):
         return self.session.delete('{}{}/'.format(self.url_endpoint, ID))
+
+
+class JsonEndpoint(object):
+    """
+    Used for JSON data End points.
+    """
+    def __init__(self, session, url_endpoint, url_resource, logger=None):
+        self.logger = logger or logging.getLogger()
+        self.session = session
+        self.url_endpoint = url_endpoint
+        self.url_resource = url_resource
+
+    def _build_url(self, ID):
+        return '{}{}/{}'.format(
+            self.url_endpoint,
+            ID,
+            self.url_resource
+        )
+
+    def get(self, ID):
+        return self.session.get(self._build_url(ID))
+
+    def post(self, ID, data):
+        return self.session.post(self._build_url(ID), json=data)
+
+    def delete(self, ID):
+        return self.session.delete(self._build_url(ID))
 
 
 class FileEndpoint(object):
@@ -144,6 +172,7 @@ class API_models(ApiEndpoint):
     def __init__(self, session, url_endpoint):
         super(API_models, self).__init__(session, url_endpoint)
         self.resource_file = FileEndpoint(self.session, self.url_endpoint, 'resource_file/')
+        self.settings = JsonEndpoint(self.session, self.url_endpoint, 'settings/')
 
     def data_files(self, ID):
         return self.session.get('{}{}/data_files'.format(self.url_endpoint, ID))
@@ -257,6 +286,7 @@ class API_analyses(ApiEndpoint):
         self.output_file = FileEndpoint(self.session, self.url_endpoint, 'output_file/')
         self.run_traceback_file = FileEndpoint(self.session, self.url_endpoint, 'run_traceback_file/')
         self.settings_file = FileEndpoint(self.session, self.url_endpoint, 'settings_file/')
+        self.settings = JsonEndpoint(self.session, self.url_endpoint, 'settings/')
 
     def search(self, metadata):
         search_string = None
@@ -367,26 +397,33 @@ class APIClient(object):
             self.api.unrecoverable_error(e, 'upload_inputs: failed')
             sys.exit(1)
 
+    def upload_settings(self, analyses, settings_fp=None):
+        if settings_fp:
+            if 'settings' in analyses:
+                # Upload settings data as JSON
+                with io.open(settings_fp, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                r = self.analyses.settings.post(analyses['id'], data)
+                self.logger.info("Settings JSON uploaded: {}".format(settings_fp))
+
+            else:
+                # Upload settings as file data
+                r = self.analyses.settings_file.upload(analyses['id'], settings_fp, 'application/json')
+                self.logger.info("Settings file uploaded: {}".format(settings_fp))
+
     def create_analysis(self, portfolio_id, model_id, analysis_name=None, analysis_settings_fp=None):
         try:
             if not analysis_name:
                 analysis_name = time.strftime("Analysis_%d%m%Y-%H%M%S")
 
-            r = self.models.get(model_id)
-            r = self.portfolios.get(portfolio_id)
-            r = self.analyses.create(analysis_name, portfolio_id, model_id)
-            analyses = r.json()
-
-            if analysis_settings_fp:
-                r = self.analyses.settings_file.upload(analyses['id'], analysis_settings_fp, 'application/json')
-                self.logger.info("File uploaded: {}".format(analysis_settings_fp))
+            analyses = self.analyses.create(analysis_name, portfolio_id, model_id).json()
+            self.upload_settings(analyses, analysis_settings_fp)
 
             return analyses
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'create_analysis: failed')
             sys.exit(1)
 
-    # BLOCKING CALL
     def run_generate(self, analysis_id, poll_interval=5):
         """
         Generates the inputs for the analysis based on the portfolio.
@@ -428,7 +465,6 @@ class APIClient(object):
             self.api.unrecoverable_error(e, 'run_generate: failed')
             sys.exit(1)
 
-    # BLOCKING CALL
     def run_analysis(self, analysis_id, analysis_settings_fp=None, poll_interval=5):
         """
         Runs all the analysis. The analysis must have one of the following
@@ -437,12 +473,9 @@ class APIClient(object):
         """
 
         try:
-            if analysis_settings_fp:
-                r = self.analyses.settings_file.upload(analysis_id, analysis_settings_fp, 'application/json')
-                self.logger.info("File uploaded: {}".format(analysis_settings_fp))
-
-            r = self.analyses.run(analysis_id)
-            analysis = r.json()
+            analyses = self.analyses.get(analysis_id)
+            self.upload_settings(analyses, analysis_settings_fp)
+            analysis = self.analyses.run(analysis_id).json()
             self.logger.info('Analysis Run: Started (id={})'.format(analysis_id))
 
             while True:
