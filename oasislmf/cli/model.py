@@ -218,7 +218,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         lookup_package_fp = inputs.get('lookup_package_dir', required=False, is_path=True)
         complex_lookup_config_fp = inputs.get('lookup_complex_config_json', required=False, is_path=True)
         user_data_dir = inputs.get('user_data_dir', required=False, is_path=True)
-        summarise_exposure = inputs.get('summarise_exposure', type=bool, default=False, required=False)
+        summarise_exposure = inputs.get('summarise_exposure', type=bool, default=True, required=False)
         write_chunksize = inputs.get('write_chunksize', default=2 * 10**5, required=False)
         exposure_fp = inputs.get('oed_location_csv', required=True, is_path=True) 
         exposure_profile_fp = inputs.get('profile_loc_json', default=get_default_exposure_profile(path=True))
