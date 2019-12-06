@@ -218,7 +218,13 @@
             "title": "Reinsurance net loss summary outputs",
             "description": "Specified which outputs should be generated for which summary sets, for reinsurance net losses.",
             "$ref": "#/definitions/output_summaries"
-        },        
+        },
+	"full_correlation": {
+	    "type": "boolean",
+    	    "title": "Produce fully correlated output",
+	    "description": "If true generate losses for fully correlated output, i.e. no independence between groups, in addition to losses for default output.",
+	    "default": false
+	},
         "required": [
             "source_tag",
             "analysis_tag",
