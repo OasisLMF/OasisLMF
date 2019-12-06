@@ -193,7 +193,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         parser.add_argument('-y', '--oed-accounts-csv', default=None, help='Source accounts CSV file path')
         parser.add_argument('-i', '--oed-info-csv', default=None, help='Reinsurance info. CSV file path')
         parser.add_argument('-s', '--oed-scope-csv', default=None, help='Reinsurance scope CSV file path')
-        parser.add_argument('-S', '--summarise-exposure', default=None, help='Create exposure summary report', action='store_true')
+        parser.add_argument('-S', '--disable-summarise-exposure', default=None, help='Create exposure summary report', action='store_false')
         parser.add_argument('-W', '--write-chunksize', type=int, help='Chunk size to use when writing input files from the inputs dataframes')
 
     def action(self, args):
@@ -218,7 +218,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         lookup_package_fp = inputs.get('lookup_package_dir', required=False, is_path=True)
         complex_lookup_config_fp = inputs.get('lookup_complex_config_json', required=False, is_path=True)
         user_data_dir = inputs.get('user_data_dir', required=False, is_path=True)
-        summarise_exposure = inputs.get('summarise_exposure', type=bool, default=False, required=False)
+        summarise_exposure = inputs.get('disable_summarise_exposure', type=bool, default=True, required=False)
         write_chunksize = inputs.get('write_chunksize', default=2 * 10**5, required=False)
         exposure_fp = inputs.get('oed_location_csv', required=True, is_path=True) 
         exposure_profile_fp = inputs.get('profile_loc_json', default=get_default_exposure_profile(path=True))
@@ -423,7 +423,7 @@ class RunCmd(OasisBaseCommand):
         parser.add_argument('-u', '--ktools-alloc-rule-il', default=None, help='Override the fmcalc allocation rule used in direct insured loss', type=int)
         parser.add_argument('-U', '--ktools-alloc-rule-ri', default=None, help='Override the fmcalc allocation rule used in reinsurance', type=int)
 
-        parser.add_argument('-S', '--summarise-exposure', default=None, help='Create exposure summary report', action='store_true')
+        parser.add_argument('-S', '--disable-summarise-exposure', default=None, help='Create exposure summary report', action='store_false')
         parser.add_argument('-W', '--write-chunksize', type=int, help='Chunk size to use when writing input files from the inputs dataframes')
 
     def action(self, args):
