@@ -1,6 +1,18 @@
 OasisLMF Changelog
 ==================
 
+`1.4.5`_
+-------
+* Fix for fm_programme mapping
+* Fix for IL files generation
+* Fix issue #439 - il summary groups
+* Reduce memory use in GUL inputs generation (#440)
+* Fix for api client - handle rotating refresh token
+* Feature/setting schemas (#438)
+* Update API client - add settings JSON endpoints (#444)
+* Add fully correlated option to MDK (#446)
+* Add dtype conversion and check for valid OED peril codes (#448)
+
 `1.4.4`_
 -------
 * Hotfix - Added the run flag `--ktools-disable-guard` option for complex models & custom binaries 
@@ -300,7 +312,8 @@ in the exposure manager
 ---------------
 
 * Add console logging
-*
+
+.. _`1.4.5`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.4...1.4.5
 .. _`1.4.4`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.3...1.4.4
 .. _`1.4.3`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.2...1.4.3
 .. _`1.4.2`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.1...1.4.2
