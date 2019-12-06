@@ -75,13 +75,13 @@
                 },
                 "max":{
                     "type": "number",
-                    "title": "Minimum value",
-                    "description": "Minimum Value for float variable"
+                    "title": "Maximum value",
+                    "description": "Maximum Value for float variable"
                 },
                 "min":{
                     "type": "number",
-                    "title": "Maximum value",
-                    "description": "Maximum Value for float variable"
+                    "title": "Minimum value",
+                    "description": "Minimum Value for float variable"
                 }
             },
             "required": ["name", "desc", "type", "default", "max", "min"]
@@ -143,7 +143,6 @@
             "required": ["type", "values"]
         }
     },
-
      "properties": {
          "model_settings":{
             "type": "array",
@@ -165,7 +164,7 @@
                     }
                 },
                 "patternProperties": {
-                    "^S_": {
+                    "^[a-zA-Z0-9]*$": {
                         "anyOf": [
                             {"$ref": "#/definitions/model_option_float"},
                             {"$ref": "#/definitions/model_option_boolean"}
@@ -174,7 +173,6 @@
                 }
             }
         },
-
         "lookup_settings":{
             "type": "array",
             "uniqueItems": false,
@@ -190,8 +188,31 @@
                     }
                 }
             }
+        },
+        "worker_versions":{
+            "type": "object",
+            "uniqueItems": false,
+            "title": "Worker component versions",
+            "description": "OasisLMF versions deployed in the model runner",
+            "properties":{
+                "oasislmf": {
+                    "type": "string",
+                    "title": "oasislmf package",
+                    "description": "MDK python package version"
+                },
+                "ktools": {
+                    "type": "string",
+                    "title": "Ktools build version",
+                    "description": "Reports the version info from the default fmcalc in path"
+                },
+                "platform": {
+                    "type": "string",
+                    "title": "Base worker Tag",
+                    "description": "The OasisPlatform tag used in the based model_worker image"
+                }
+            },
+            "required": ["oasislmf", "ktools", "platform"]
         }
-
     },
-      "required": ["model_settings", "lookup_settings"]
+    "required": ["model_settings", "lookup_settings"]
 }

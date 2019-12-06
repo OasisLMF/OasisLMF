@@ -3,7 +3,6 @@
     "type": "object",
     "title": "Analysis settings.",
     "description": "Specifies the model settings and outputs for an analysis.",
- 
     "definitions": {
         "output_summaries": {
             "type": "array",
@@ -17,7 +16,9 @@
                         "type": "integer",
                         "multipleOf": 1,
                         "title": "Summary ID",
-                        "description": "Identifier for the summary set."
+                        "description": "Identifier for the summary set.",
+                        "minimum": 1,
+                        "maximum": 9
                     },
                     "oed_fields": {
                         "type": "array",
@@ -25,7 +26,7 @@
                             "type": "string"
                         },
                         "title": "OED fields",
-                        "description": "A list of OED fields used to group the generated losses.",
+                        "description": "A list of OED fields used to group the generated losses."
                     },
                     "summarycalc": {
                         "type": "boolean",
@@ -128,13 +129,13 @@
 
     "properties": {
         "source_tag": {
-            "type": "string",
+            "type": ["integer","string"],
             "minLength": 1,
             "title": "Source Tag",
             "description": "Labels the origin of the analysis."
         },
         "analysis_tag": {
-            "type": "string",
+            "type": ["integer","string"],
             "minLength": 1,
             "title": "Analysis Tag",
             "description": "Labels the analysis with an identifier."
@@ -179,11 +180,7 @@
                     "description": "Identifier for the event occurrence file that is used for output calculations.",
                     "default": 1
                 }
-            },
-            "required": [
-                "use_random_number_file",
-                "event_occurrence_file_id"
-            ]
+            }
         },
         "gul_output": {
             "type": "boolean",
@@ -219,22 +216,22 @@
             "description": "Specified which outputs should be generated for which summary sets, for reinsurance net losses.",
             "$ref": "#/definitions/output_summaries"
         },
-	"full_correlation": {
-	    "type": "boolean",
-    	    "title": "Produce fully correlated output",
-	    "description": "If true generate losses for fully correlated output, i.e. no independence between groups, in addition to losses for default output.",
-	    "default": false
-	},
-        "required": [
-            "source_tag",
-            "analysis_tag",
-            "module_supplier_id",
-            "model_version_id",
-            "number_of_samples",
-            "gul_threshold",
-            "model_settings",
-            "gul_output",
-            "gul_summaries"
-        ]
-    }
+        "full_correlation": {
+            "type": "boolean",
+            "title": "Produce fully correlated output",
+            "description": "If true generate losses for fully correlated output, i.e. no independence between groups, in addition to losses for default output.",
+            "default": false
+        }
+    },
+    "required": [
+        "source_tag",
+        "analysis_tag",
+        "module_supplier_id",
+        "model_version_id",
+        "number_of_samples",
+        "gul_threshold",
+        "model_settings",
+        "gul_output",
+        "gul_summaries"
+    ]
 }
