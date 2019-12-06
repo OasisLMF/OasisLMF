@@ -118,5 +118,10 @@
         "from_ver": "1.4.2",
         "deleted": true,
         "updated_to": ""
+    },
+    "summarise_exposure":{
+        "from_ver": "1.4.5",
+        "deleted": true,
+        "updated_to": ""
     }
 }
