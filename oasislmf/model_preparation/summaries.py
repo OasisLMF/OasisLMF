@@ -729,6 +729,10 @@ def write_exposure_summary(
         index=exposure_df['loc_id']
     ).stack()
 
+    # Display warnings for invalid peril codes
+    for peril_id in exp_perils_df[~exp_perils_df.isin(peril_groups.keys())]:
+        warnings.warn('"{}" is not a valid OED peril ID/code. Please check the source exposure file.'.format(peril_id))
+
     # Split rows with peril codes corresponding to peril groups
     exp_perils_df = pd.DataFrame(
         exp_perils_df.map(peril_groups).to_list(),
@@ -738,6 +742,9 @@ def write_exposure_summary(
     exp_perils_df = exp_perils_df.reset_index([0, 'loc_id'])
 
     exp_perils_df.columns = ['loc_id', 'peril_id']
+    exp_perils_df = exp_perils_df.astype(
+        {'loc_id': 'int64', 'peril_id': 'object'}
+    )
 
     exposure_df = merge_dataframes(
         exposure_df,
