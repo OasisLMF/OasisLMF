@@ -12,7 +12,7 @@ find output/* ! -name '*summary-info*' -type f -exec rm -f {} +
 
 rm -R -f fifo/*
 rm -R -f work/*
-mkdir work/kat
+mkdir work/kat/
 mkfifo fifo/il_P1
 mkfifo fifo/il_S1_summary_P1
 

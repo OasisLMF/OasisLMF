@@ -11,10 +11,10 @@ set -o pipefail
 find output/* ! -name '*summary-info*' -type f -exec rm -f {} +
 
 rm -R -f work/*
-mkdir work/kat
+mkdir work/kat/
 
 rm -R -f /tmp/%FIFO_DIR%/
-mkdir -p /tmp/%FIFO_DIR%/fifo
+mkdir -p /tmp/%FIFO_DIR%/fifo/
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarysummarycalc_P1
