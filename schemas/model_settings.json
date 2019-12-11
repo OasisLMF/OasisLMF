@@ -2,220 +2,259 @@
     "type": "object",
     "title": "Model settings",
     "description": "Specifies the model resource schema",
-    "definitions": {
-        "model_option_select": {
-            "type": "object",
-            "uniqueItems": false,
-            "title": "Selection",
-            "description": "Drop down Selection from 'options'",
-            "additionalProperties": false,
-            "properties":{
-                "name": {
-                    "type": "string",
-                    "title": "UI Option",
-                    "description": "UI name for selection",
-                    "minLength": 1
-                },
-                "desc": {
-                    "type": "string",
-                    "title": "UI tooltip",
-                    "description": "UI description for selection"
-                },
-                "type": {
-                    "type": "string",
-                    "enum": ["selection"],
-                    "title": "UI select",
-                    "description": "Create UI dropdown widget"
-                },
-                "default":{
-                    "type": "string",
-                    "title": "Initial value",
-                    "description": "Default key to select from dictionary 'values'"
-                },
-                "options":{
-                    "type": "array",
-                    "title": "Selection options",
-                    "description": "Key value pairs to present in UI",
-                    "additionalItems": false,
-                    "items": {
-                        "oneOf": [
-                            { "$ref": "#/definitions/option_item" }
-                        ]
-                    }
-                }
-            },
-            "required": ["name", "desc", "type", "default", "options"]
-        },
-        "option_item": {
-            "type": "object",
-            "title": "Selection Item",
-            "description": "",
-            "additionalProperties": false,
-            "properties": {
-                "id": {
-                    "type": "string",
-                    "title": "",
-                    "description": "",
-                    "minLength": 1
-                },
-                "desc": {
-                    "type": "string",
-                    "title": "",
-                    "description": "",
-                    "minLength": 1
-                }
-            },
-            "required": ["id", "desc"]
-        },
-        "model_option_float": {
-            "type": "object",
-            "uniqueItems": false,
-            "title": "Float option",
-            "description": "Select float value",
-            "additionalProperties": false,
-            "properties":{
-                "name": {
-                    "type": "string",
-                    "title": "UI Option",
-                    "description": "UI name for selection",
-                    "minLength": 1
-                },
-                "desc": {
-                    "type": "string",
-                    "title": "UI tooltip",
-                    "description": "UI description for selection"
-                },
-                "type": {
-                    "type": "string",
-                    "enum": ["float"],
-                    "title": "UI float type",
-                    "description": "Create UI slider widget"
-                },
-                "default":{
-                    "type": "number",
-                    "title": "Initial value",
-                    "description": "Default 'value' set for float variable"
-                },
-                "max":{
-                    "type": "number",
-                    "title": "Maximum value",
-                    "description": "Maximum Value for float variable"
-                },
-                "min":{
-                    "type": "number",
-                    "title": "Minimum value",
-                    "description": "Minimum Value for float variable"
-                }
-            },
-            "required": ["name", "desc", "type", "default", "max", "min"]
-        },
-        "model_option_boolean": {
-            "type": "object",
-            "uniqueItems": false,
-            "title": "Boolean option",
-            "description": "Select boolean value",
-            "additionalProperties": false,
-            "properties":{
-                "name": {
-                    "type": "string",
-                    "title": "UI Option",
-                    "description": "UI name for selection",
-                    "minLength": 1
-                },
-                "desc": {
-                    "type": "string",
-                    "title": "UI tooltip",
-                    "description": "UI description for selection"
-                },
-                "type": {
-                    "type": "string",
-                    "enum": ["boolean"],
-                    "title": "UI boolean type",
-                    "description": "Create UI checkbox widget"
-                },
-                "default":{
-                    "type": "boolean",
-                    "title": "Initial value",
-                    "description": "Default 'value' set for variable"
-                }
-            },
-            "required": ["name", "desc", "type", "default"]
-        }
-    },
-     "properties": {
-         "model_settings":{
-            "type": "object",
-            "uniqueItems": false,
-            "title": "Model setting options",
-            "description": "Runtime settings available to a model",
-            "additionalProperties": false,
-            "properties": {
-                "event_set":{
-                    "title": "Event set selector",
-                    "description": "The 'key' from values is used as a file suffix' events_<k>.bin",
-                    "$ref": "#/definitions/model_option_select"
-                },
-                "event_occurrence_id":{
-                    "title": "Occurrence set selector",
-                    "description": "The 'key' from values is used as a file suffix' occurrence_<k>.bin",
-                    "$ref": "#/definitions/model_option_select"
-                },
-                "model_parameters": {
-                    "type":  "array",
-                    "uniqueItems": true,
-                    "additionalItems": false,
-                    "items": {
-                      "oneOf": [
-                        { "$ref": "#/definitions/model_option_float" },
-                        { "$ref": "#/definitions/model_option_boolean" }
-                      ]
-                    }
-                }
-            },
-            "required": ["model_parameters"]
-        },
-        "lookup_settings":{
-            "type": "object",
-            "title": "Model Lookup options",
-            "description": "Model lookup section",
-            "properties": {
-                "supported_perils": {
-                    "type": "array",
-                    "title": "Supported OED perils",
-                    "description": "Valid Peril codes for this model",
-                    "additionalProperties": false,
-                    "minProperties": 1,
-                    "items": {
-                        "oneOf": [
-                            {"$ref": "#/definitions/option_item"}
-                        ]
-                    }
-                }
-            }
+    "properties": {
+        "model_settings":{
+           "type": "object",
+           "uniqueItems": false,
+           "title": "Model setting options",
+           "description": "Runtime settings available to a model",
+           "additionalProperties": false,
+           "properties": {
+               "event_set":{
+                   "title": "Event set selector",
+                   "description": "The 'key' from values is used as a file suffix' events_<k>.bin",
+                   "type": "object",
+                   "uniqueItems": false,
+                   "title": "Selection",
+                   "description": "Drop down Selection from 'options'",
+                   "additionalProperties": false,
+                   "properties":{
+                       "name": {
+                           "type": "string",
+                           "title": "UI Option",
+                           "description": "UI name for selection",
+                           "minLength": 1
+                       },
+                       "desc": {
+                           "type": "string",
+                           "title": "UI tooltip",
+                           "description": "UI description for selection"
+                       },
+                       "type": {
+                           "type": "string",
+                           "enum": ["selection"],
+                           "title": "UI select",
+                           "description": "Create UI dropdown widget"
+                       },
+                       "default":{
+                           "type": "string",
+                           "title": "Initial value",
+                           "description": "Default key to select from dictionary 'values'"
+                       },
+                       "options":{
+                           "type": "array",
+                           "title": "Selection options",
+                           "description": "Key value pairs to present in UI",
+                           "items": {
+                               "type": "object",
+                               "title": "Selection Item",
+                               "description": "",
+                               "additionalProperties": false,
+                               "properties": {
+                                   "id": {
+                                       "type": "string",
+                                       "title": "",
+                                       "description": "",
+                                       "minLength": 1
+                                   },
+                                   "desc": {
+                                       "type": "string",
+                                       "title": "",
+                                       "description": "",
+                                       "minLength": 1
+                                   }
+                               },
+                               "required": ["id", "desc"]
+                           }
+                       }
+                   },
+                   "required": ["name", "desc", "type", "default", "options"]
+               },
+               "event_occurrence_id":{
+                   "title": "Occurrence set selector",
+                   "description": "The 'key' from values is used as a file suffix' occurrence_<k>.bin",
+                   "type": "object",
+                   "uniqueItems": false,
+                   "title": "Selection",
+                   "description": "Drop down Selection from 'options'",
+                   "additionalProperties": false,
+                   "properties":{
+                       "name": {
+                           "type": "string",
+                           "title": "UI Option",
+                           "description": "UI name for selection",
+                           "minLength": 1
+                       },
+                       "desc": {
+                           "type": "string",
+                           "title": "UI tooltip",
+                           "description": "UI description for selection"
+                       },
+                       "default":{
+                           "type": "string",
+                           "title": "Initial value",
+                           "description": "Default key to select from dictionary 'values'"
+                       },
+                       "options":{
+                           "type": "array",
+                           "title": "Selection options",
+                           "description": "Key value pairs to present in UI",
+                           "items": {
+                               "type": "object",
+                               "title": "Selection Item",
+                               "description": "",
+                               "additionalProperties": false,
+                               "properties": {
+                                   "id": {
+                                       "type": "string",
+                                       "title": "",
+                                       "description": "",
+                                       "minLength": 1
+                                   },
+                                   "desc": {
+                                       "type": "string",
+                                       "title": "",
+                                       "description": "",
+                                       "minLength": 1
+                                   }
+                               },
+                               "required": ["id", "desc"]
+                           }
+                       }
+                   },
+                   "required": ["name", "desc", "type", "default", "options"]
+               },
+               "boolean_parameters": {
+                   "type":  "array",
+                   "uniqueItems": true,
+                   "items": {
+                       "type": "object",
+                       "uniqueItems": false,
+                       "title": "Boolean option",
+                       "description": "Select boolean value",
+                       "additionalProperties": false,
+                       "properties":{
+                           "name": {
+                               "type": "string",
+                               "title": "UI Option",
+                               "description": "UI name for selection",
+                               "minLength": 1
+                           },
+                           "desc": {
+                               "type": "string",
+                               "title": "UI tooltip",
+                               "description": "UI description for selection"
+                           },
+                           "default":{
+                               "type": "boolean",
+                               "title": "Initial value",
+                               "description": "Default 'value' set for variable"
+                           }
+                       },
+                       "required": ["name", "desc", "type", "default"]
+                   }
+               },
+               "float_parameters": {
+                   "type":  "array",
+                   "uniqueItems": true,
+                   "items": {
+                       "type": "object",
+                       "uniqueItems": false,
+                       "title": "Float option",
+                       "description": "Select float value",
+                       "additionalProperties": false,
+                       "properties":{
+                           "name": {
+                               "type": "string",
+                               "title": "UI Option",
+                               "description": "UI name for selection",
+                               "minLength": 1
+                           },
+                           "desc": {
+                               "type": "string",
+                               "title": "UI tooltip",
+                               "description": "UI description for selection"
+                           },
+                           "default":{
+                               "type": "number",
+                               "title": "Initial value",
+                               "description": "Default 'value' set for float variable"
+                           },
+                           "max":{
+                               "type": "number",
+                               "title": "Maximum value",
+                               "description": "Maximum Value for float variable"
+                           },
+                           "min":{
+                               "type": "number",
+                               "title": "Minimum value",
+                               "description": "Minimum Value for float variable"
+                           }
+                       },
+                       "required": ["name", "desc", "type", "default", "max", "min"]
+                   }
+               }
+           },
+           "required": ["model_parameters"]
+       },
+       "lookup_settings":{
+           "type": "object",
+           "title": "Model Lookup options",
+           "description": "Model lookup section",
+           "properties": {
+               "supported_perils": {
+                   "type": "array",
+                   "title": "Supported OED perils",
+                   "description": "Valid Peril codes for this model",
+                   "additionalProperties": false,
+                   "minProperties": 1,
+                   "items": {
+                       "type": "object",
+                       "title": "Selection Item",
+                       "description": "",
+                       "additionalProperties": false,
+                       "properties": {
+                           "id": {
+                               "type": "string",
+                               "title": "",
+                               "description": "",
+                               "minLength": 1
+                           },
+                           "desc": {
+                               "type": "string",
+                               "title": "",
+                               "description": "",
+                               "minLength": 1
+                           }
+                       },
+                       "required": ["id", "desc"]
+                   }
+               }
+           }
         },
         "worker_versions":{
-            "type": "object",
-            "uniqueItems": false,
-            "title": "Worker component versions",
-            "description": "OasisLMF versions deployed in the model runner",
-            "properties":{
-                "oasislmf": {
-                    "type": "string",
-                    "title": "oasislmf package",
-                    "description": "MDK python package version"
-                },
-                "ktools": {
-                    "type": "string",
-                    "title": "Ktools build version",
-                    "description": "Reports the version info from the default fmcalc in path"
-                },
-                "platform": {
-                    "type": "string",
-                    "title": "Base worker Tag",
-                    "description": "The OasisPlatform tag used in the based model_worker image"
-                }
-            },
-            "required": ["oasislmf", "ktools", "platform"]
+           "type": "object",
+           "uniqueItems": false,
+           "title": "Worker component versions",
+           "description": "OasisLMF versions deployed in the model runner",
+           "properties":{
+               "oasislmf": {
+                   "type": "string",
+                   "title": "oasislmf package",
+                   "description": "MDK python package version"
+               },
+               "ktools": {
+                   "type": "string",
+                   "title": "Ktools build version",
+                   "description": "Reports the version info from the default fmcalc in path"
+               },
+               "platform": {
+                   "type": "string",
+                   "title": "Base worker Tag",
+                   "description": "The OasisPlatform tag used in the based model_worker image"
+               }
+           },
+           "required": ["oasislmf", "ktools", "platform"]
         }
     },
     "required": ["model_settings", "lookup_settings"]
