@@ -242,6 +242,9 @@ def get_il_input_items(
         empty_data_error_msg='No accounts found in the source accounts (loc.) file',
         memory_map=True,
     )
+    # Remove rows with duplicate account number-portfolio numbers pairs
+    accounts_df.drop_duplicates(subset=[acc_num, portfolio_num], inplace=True)
+    accounts_df.reset_index(drop=True, inplace=True)
     accounts_df[SOURCE_IDX['acc']] = accounts_df.index
 
     if not (accounts_df is not None or accounts_fp):
