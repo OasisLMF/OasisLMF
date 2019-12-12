@@ -61,10 +61,9 @@ def run(
                 cmd = '{} -c {}'.format(cmd, coverage_output)
             if item_output != '':
                 cmd = '{} -i {}'.format(cmd, item_output)
-
             if stderr_guard:
-                cmd = '{} 2> log/gul-stderror.err'
-            
+                cmd = '{} 2> log/gul_stderror.err'.format(cmd)
+
             return cmd
 
         genbash(
