@@ -47,6 +47,7 @@ def run(
             process_id,
             max_process_id,
             gul_alloc_rule,
+            stderr_guard,
             **kwargs
         ):
 
@@ -61,6 +62,9 @@ def run(
             if item_output != '':
                 cmd = '{} -i {}'.format(cmd, item_output)
 
+            if stderr_guard:
+                cmd = '{} 2> log/gul-stderror.err'
+            
             return cmd
 
         genbash(
