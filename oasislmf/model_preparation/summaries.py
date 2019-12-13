@@ -441,8 +441,6 @@ def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, s
     if isinstance(accounts_df, pd.DataFrame):
         all_cols.update(accounts_df.columns.to_list())
 
-
-
     # Extract the summary id index column depending on summary grouping type
     if 'output_id' in map_df:
         id_set_index = 'output_id'
@@ -466,7 +464,7 @@ def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, s
 
             # is the intersection empty because the columns don't exist?
             if set(cols_group_by).difference(all_cols):
-                err_msg = 'Summary set columns missing from the input files: {}'.format(
+                err_msg = 'Input error: Summary set columns missing from the input files: {}'.format(
                            set(cols_group_by).difference(all_cols))
                 raise OasisException(err_msg)
 
