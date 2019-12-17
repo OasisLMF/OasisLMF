@@ -41,6 +41,8 @@ from ..utils.exceptions import OasisException
 from ..utils.fm import (
     DEDUCTIBLE_AND_LIMIT_TYPES,
     SUPPORTED_FM_LEVELS,
+    STEP_TRIGGER_TYPES,
+    COVERAGE_AGGREGATION_METHODS
 )
 from ..utils.log import oasis_log
 from ..utils.path import as_path
@@ -266,6 +268,10 @@ def get_il_input_items(
     # file should contain all financial terms relating to the cond. all (# 6),
     # policy all (# 9) and policy layer (# 10) FM levels)
     usecols = [acc_num, portfolio_num, policy_num, cond_num, 'layer_id', SOURCE_IDX['acc']] + term_cols
+    # If step policies listed and is not full of nans, keep step trigger type
+    if 'steptriggertype' in accounts_df:
+        if accounts_df['steptriggertype'].notnull().any():
+            usecols += ['steptriggertype']
     accounts_df.drop([c for c in accounts_df.columns if c not in usecols], axis=1, inplace=True)
 
     try:
@@ -345,11 +351,13 @@ def get_il_input_items(
         # GUL input item ID, or one of the source columns for the
         # non-coverage FM levels (site PD (# 2), site all (# 3), cond. all (# 6),
         # policy all (# 9), policy layer (# 10))
+        # If step policies listed, keep step trigger type
         usecols = (
             gul_inputs_df.columns.to_list() +
             [policy_num, 'gul_input_id'] +
             ([SOURCE_IDX['loc']] if SOURCE_IDX['loc'] in il_inputs_df else []) +
             ([SOURCE_IDX['acc']] if SOURCE_IDX['acc'] in il_inputs_df else []) +
+            (['steptriggertype'] if 'steptriggertype' in il_inputs_df else []) +
             site_pd_and_site_all_term_cols +
             term_cols
         )
@@ -492,6 +500,17 @@ def get_il_input_items(
             on=[portfolio_num, acc_num],
             how='inner'
         )
+        # If step policies listed, create additional column to determine agg id
+        # from coverage aggregation method
+        if 'steptriggertype' in layer_df:
+            def assign_cov_agg_id(row):
+                try:
+                    cov_agg_method = STEP_TRIGGER_TYPES[row['steptriggertype']]['coverage_aggregation_method']
+                    return COVERAGE_AGGREGATION_METHODS[cov_agg_method][row['coverage_id']]
+                except KeyError:
+                    return 0
+                
+            layer_df['cov_agg_id'] = layer_df.apply(lambda row: assign_cov_agg_id(row), axis=1)
 
         # Remove the source columns for all non-layer FM levels - this includes the
         # site pd (# 2), site all (# 3), cond. all (# 6), policy all (# 9) FM levels
@@ -507,6 +526,9 @@ def get_il_input_items(
         # Set the layer level, layer IDs and agg. IDs
         layer_df['level_id'] = layer_level_id
         agg_key = [v['field'].lower() for v in fmap[layer_level_id]['FMAggKey'].values()]
+        # If step policies listed, use agg id from coverage aggregation method
+        if 'cov_agg_id' in layer_df:
+            agg_key += ['cov_agg_id']
         layer_df['agg_id'] = factorize_ndarray(layer_df.loc[:, agg_key].values, col_idxs=range(len(agg_key)))[0]
 
         # The layer level financial terms
