@@ -4,10 +4,14 @@ __all__ = [
     'FM_LEVELS',
     'FM_TERMS',
     'LIMIT_CODES',
-    'SUPPORTED_FM_LEVELS'
+    'SUPPORTED_FM_LEVELS',
+    'STEP_TRIGGER_TYPES',
+    'COVERAGE_AGGREGATION_METHODS'
 ]
 
 from collections import OrderedDict
+
+from .coverages import SUPPORTED_COVERAGE_TYPES
 
 
 DED_CODE_REG = 0
@@ -103,4 +107,26 @@ LIM_CODE_ANAGG = 1
 LIMIT_CODES = OrderedDict({
     'reg': {'id': LIM_CODE_REG, 'desc': 'Regular'},
     'anagg': {'id': LIM_CODE_ANAGG, 'desc': 'Annual aggregate'}
+})
+
+STEP_TRIGGER_TYPES = OrderedDict({
+    1: {'coverage_aggregation_method': 1, 'calcrule_assignment_method': 1},
+    2: {'coverage_aggregation_method': 1, 'calcrule_assignment_method': 2},
+    3: {'coverage_aggregation_method': 2, 'calcrule_assignment_method': 3},
+    5: {'coverage_aggregation_method': 1, 'calcrule_assignment_method': 4}
+})
+
+COVERAGE_AGGREGATION_METHODS = OrderedDict({
+    1: {
+        SUPPORTED_COVERAGE_TYPES['buildings']['id']: 1,
+        SUPPORTED_COVERAGE_TYPES['other']['id']: 2,
+        SUPPORTED_COVERAGE_TYPES['contents']['id']: 3,
+        SUPPORTED_COVERAGE_TYPES['bi']['id']: 4
+    },
+    2: {
+        SUPPORTED_COVERAGE_TYPES['buildings']['id']: 1,
+        SUPPORTED_COVERAGE_TYPES['other']['id']: 2,
+        SUPPORTED_COVERAGE_TYPES['contents']['id']: 1,
+        SUPPORTED_COVERAGE_TYPES['bi']['id']: 3
+    }
 })
