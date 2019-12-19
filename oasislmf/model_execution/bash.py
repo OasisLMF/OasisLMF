@@ -1100,7 +1100,8 @@ def genbash(
             'gul_alloc_rule': gul_alloc_rule,
             'process_id': process_id,
             'max_process_id': max_process_id,
-            'correlated_output': correlated_output_file
+            'correlated_output': correlated_output_file,
+            'stderr_guard': stderr_guard 
         }
 
         # GUL coverage & item stream (Older)

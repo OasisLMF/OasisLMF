@@ -748,6 +748,12 @@ class OasisManager(object):
                     with io.open(stderror_fp, 'r', encoding='utf-8') as f:
                         self.logger.info('STDERR:\n' + "".join(f.readlines()))
 
+                gul_stderror_fp = os.path.join(model_run_fp, 'log', 'gul_stderror.err')
+                if os.path.isfile(gul_stderror_fp):
+                    with io.open(gul_stderror_fp, 'r', encoding='utf-8') as f:
+                        self.logger.info('GUL_STDERR:\n' + "".join(f.readlines()))
+
+
                 self.logger.info('STDOUT:\n' + e.output.decode('utf-8').strip())
 
                 raise OasisException(
