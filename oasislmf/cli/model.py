@@ -195,6 +195,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         parser.add_argument('-s', '--oed-scope-csv', default=None, help='Reinsurance scope CSV file path')
         parser.add_argument('-S', '--disable-summarise-exposure', default=None, help='Create exposure summary report', action='store_false')
         parser.add_argument('-W', '--write-chunksize', type=int, help='Chunk size to use when writing input files from the inputs dataframes')
+        parser.add_argument('-G', '--group-id-cols', nargs='+', default=None, help='Columns from loc file to set group_id')
 
     def action(self, args):
         """
@@ -227,6 +228,8 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         aggregation_profile_fp = inputs.get('profile_fm_agg_json', default=get_default_fm_aggregation_profile(path=True))
         ri_info_fp = inputs.get('oed_info_csv', required=False, is_path=True)
         ri_scope_fp = inputs.get('oed_scope_csv', required=False, is_path=True)
+        group_id_cols = inputs.get('group_id_cols', required=False, default=['loc_id'])
+        group_id_cols = list(map(lambda col: col.lower(), group_id_cols))
 
         if not (keys_fp or lookup_config_fp or (keys_data_fp and model_version_fp and lookup_package_fp)):
             raise OasisException(
@@ -260,7 +263,8 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             ri_scope_fp=ri_scope_fp,
             user_data_dir=user_data_dir,
             summarise_exposure=summarise_exposure,
-            write_chunksize=write_chunksize
+            write_chunksize=write_chunksize,
+            group_id_cols=group_id_cols
         )
 
         self.logger.info('\nOasis files generated: {}'.format(oasis_files))
@@ -425,6 +429,7 @@ class RunCmd(OasisBaseCommand):
 
         parser.add_argument('-S', '--disable-summarise-exposure', default=None, help='Create exposure summary report', action='store_false')
         parser.add_argument('-W', '--write-chunksize', type=int, help='Chunk size to use when writing input files from the inputs dataframes')
+        parser.add_argument('-G', '--group-id-cols', nargs='+', default=None, help='Columns from loc file to set group_id')
 
     def action(self, args):
         """

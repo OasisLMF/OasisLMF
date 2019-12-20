@@ -51,7 +51,8 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 def get_gul_input_items(
     exposure_fp,
     keys_fp,
-    exposure_profile=get_default_exposure_profile()
+    exposure_profile=get_default_exposure_profile(),
+    group_id_cols=['loc_id']
 ):
     """
     Generates and returns a Pandas dataframe of GUL input items.
@@ -213,6 +214,20 @@ def get_gul_input_items(
         ] + term_cols + tiv_cols
         if SOURCE_IDX['loc'] in exposure_df:
             exposure_df_gul_inputs_cols += [SOURCE_IDX['loc']]
+        # Remove any duplicate column names used to assign group_id
+        group_id_cols = list(set(group_id_cols))
+        # Ignore any column names used to assign group_id that are missing from
+        # loc file
+        for col in group_id_cols:
+            if col not in exposure_df:
+                warnings.warn('Column {} not found in loc file, ignoring'.format(col))
+                group_id_cols.remove(col)
+        # Should list of column names used to group_id be empty, revert to
+        # default
+        if len(group_id_cols) == 0:
+            group_id_cols = ['loc_id']
+        missing_group_id_cols = [col for col in group_id_cols if col not in exposure_df_gul_inputs_cols]
+        exposure_df_gul_inputs_cols += missing_group_id_cols
 
         gul_inputs_df = merge_dataframes(
             exposure_df[exposure_df_gul_inputs_cols],
@@ -289,8 +304,16 @@ def get_gul_input_items(
         # Remove the source columns for the TIVs and coverage level financial terms
         gul_inputs_df.drop(tiv_cols + term_cols, axis=1, inplace=True)
 
-        # Set the group ID - group by loc. number
-        gul_inputs_df['group_id'] = factorize_array(gul_inputs_df['loc_id'].values)[0]
+        # Set the group ID
+        if len(group_id_cols) > 1:
+            gul_inputs_df['group_id'] = factorize_ndarray(
+                gul_inputs_df.loc[:, group_id_cols].values,
+                col_idxs=range(len(group_id_cols))
+            )[0]
+        else:
+            gul_inputs_df['group_id'] = factorize_array(
+                gul_inputs_df[group_id_cols[0]].values
+            )[0]
         gul_inputs_df['group_id'] = gul_inputs_df['group_id'].astype('uint32')
 
         # Set the item IDs and coverage IDs, and defaults and data types for

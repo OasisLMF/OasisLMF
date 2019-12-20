@@ -388,7 +388,8 @@ class OasisManager(object):
         fm_aggregation_profile_fp=None,
         ri_info_fp=None,
         ri_scope_fp=None,
-        oasis_files_prefixes=None
+        oasis_files_prefixes=None,
+        group_id_cols=['loc_id']
     ):
 
         # Convert paths to absolute
@@ -509,7 +510,8 @@ class OasisManager(object):
         gul_inputs_df, exposure_df = get_gul_input_items(
             exposure_fp,
             _keys_fp,
-            exposure_profile=exposure_profile
+            exposure_profile=exposure_profile,
+            group_id_cols=group_id_cols
         )
 
         # If not in det. loss gen. scenario, write exposure summary file
