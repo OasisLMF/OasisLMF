@@ -900,9 +900,8 @@ def genbash(
     print_command(filename, 'set -e')
     print_command(filename, 'set -o pipefail')
 
-    if bash_trace or stderr_guard:
-        print_command(filename, 'mkdir -p log')
-        print_command(filename, 'rm -R -f log/*')
+    print_command(filename, 'mkdir -p log')
+    print_command(filename, 'rm -R -f log/*')
     print_command(filename, '')
 
     if bash_trace:
