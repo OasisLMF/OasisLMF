@@ -1,6 +1,12 @@
 OasisLMF Changelog
 ==================
 
+`1.4.6`_
+-------
+* Update to model_settings schema 
+* Fixes #452 - Check columns before grouping output
+* Fixes #451 - Error checking ktools runs for complex models
+
 `1.4.5`_
 -------
 * Fix for fm_programme mapping
@@ -313,6 +319,7 @@ in the exposure manager
 
 * Add console logging
 
+.. _`1.4.6`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.5...1.4.6
 .. _`1.4.5`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.4...1.4.5
 .. _`1.4.4`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.3...1.4.4
 .. _`1.4.3`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.2...1.4.3

@@ -319,9 +319,9 @@ def get_column_selection(summary_set):
     :rtype: list
     """
     if "oed_fields" not in summary_set:
-        return None
+        return []
     if not summary_set["oed_fields"]:
-        return None
+        return []
 
     # Use OED column list set in analysis_settings file
     elif isinstance(summary_set['oed_fields'], list) and len(summary_set['oed_fields']) > 0:
@@ -437,7 +437,11 @@ def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, s
     summaryxref_df = pd.DataFrame()
     summary_desc = {}
 
-    # Extract the summary id index column dedpending on summary grouping type
+    all_cols = set(map_df.columns.to_list() + exposure_df.columns.to_list())
+    if isinstance(accounts_df, pd.DataFrame):
+        all_cols.update(accounts_df.columns.to_list())
+
+    # Extract the summary id index column depending on summary grouping type
     if 'output_id' in map_df:
         id_set_index = 'output_id'
         ids_set_df = map_df.loc[:, [id_set_index]].rename(columns={id_set_index: "output"})
@@ -455,7 +459,21 @@ def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, s
         cols_group_by = get_column_selection(summary_set)
         desc_key = '{}_S{}_summary-info.csv'.format(summaries_type, summary_set['id'])
 
-        if isinstance(cols_group_by, list):
+        # an empty intersection means no selected columns from the input data
+        if not set(cols_group_by).intersection(all_cols):
+
+            # is the intersection empty because the columns don't exist?
+            if set(cols_group_by).difference(all_cols):
+                err_msg = 'Input error: Summary set columns missing from the input files: {}'.format(
+                           set(cols_group_by).difference(all_cols))
+                raise OasisException(err_msg)
+
+            # Fall back to setting all in single group
+            summary_set_df['summary_id'] = 1
+            summary_desc[desc_key] = pd.DataFrame(data=['All-Risks'], columns=['_not_set_'])
+            summary_desc[desc_key].insert(loc=0, column='summary_id', value=1)
+
+        else:
             (
                 summary_set_df['summary_id'],
                 set_values
@@ -464,11 +482,6 @@ def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, s
             # Build description file
             summary_desc[desc_key] = pd.DataFrame(data=list(set_values), columns=cols_group_by)
             summary_desc[desc_key].insert(loc=0, column='summary_id', value=range(1, len(set_values) + 1))
-        else:
-            # Fall back to setting all in single group
-            summary_set_df['summary_id'] = 1
-            summary_desc[desc_key] = pd.DataFrame(data=['All-Risks'], columns=['_not_set_'])
-            summary_desc[desc_key].insert(loc=0, column='summary_id', value=1)
 
         # Appends summary set to '__summaryxref.csv'
         summary_set_df['summaryset_id'] = summary_set['id']

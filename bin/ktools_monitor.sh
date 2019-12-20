@@ -6,7 +6,6 @@ STATUS_LINES=15
 POLL_RATE=2
 script_pid=$1
 
-
 run_ktools_kill(){
      set -e
      FMCALC=`ps -C fmcalc -o pmem | grep -v MEM | sort -n -r | head -1`
@@ -22,30 +21,16 @@ run_ktools_kill(){
      fi 
 }
 
-if hash inotifywait 2>/dev/null; then
-    while inotifywait -e close_write $ERR_FILE; do
-        # check monitored process is running 
-        if [ $(ps xao pid | grep -c $script_pid) -eq 0 ]; then
-            echo "PID ($script_pid) is not running, exiting"
-            exit 0
-        fi    
-        # trigger kill on stderr output
-        if [ -s $ERR_FILE ]; then
-            run_ktools_kill $script_pid
-        fi
-    done
-else
-    while : 
-    do
-        sleep $POLL_RATE
-        # check monitored process is running 
-        if [ $(ps xao pid | grep -c $script_pid) -eq 0 ]; then
-            echo "PID ($script_pid) is not running, exiting"
-            exit 0
-        fi    
-        # trigger kill on stderr output
-        if [ -s $ERR_FILE ]; then
-            run_ktools_kill $script_pid
-        fi
-    done
-fi
+# trigger kill on stderr output
+while : 
+do
+    sleep $POLL_RATE
+    # check monitored process is running 
+    if [ $(ps xao pid | grep -c $script_pid) -eq 0 ]; then
+        echo "PID ($script_pid) is not running, exiting"
+        exit 0
+    fi    
+    if [ -s $ERR_FILE ]; then
+        run_ktools_kill $script_pid
+    fi
+done

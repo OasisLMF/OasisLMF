@@ -47,6 +47,7 @@ def run(
             process_id,
             max_process_id,
             gul_alloc_rule,
+            stderr_guard,
             **kwargs
         ):
 
@@ -60,6 +61,8 @@ def run(
                 cmd = '{} -c {}'.format(cmd, coverage_output)
             if item_output != '':
                 cmd = '{} -i {}'.format(cmd, item_output)
+            if stderr_guard:
+                cmd = '{} 2> log/gul_stderror.err'.format(cmd)
 
             return cmd
 
