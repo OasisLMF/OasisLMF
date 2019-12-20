@@ -3,6 +3,7 @@ __all__ = [
     'get_default_accounts_profile',
     'get_default_deterministic_analysis_settings',
     'get_default_exposure_profile',
+    'get_default_step_policies_profile',
     'get_default_fm_aggregation_profile',
     'get_default_unified_profile',
     'get_loc_dtypes',
@@ -107,6 +108,11 @@ def get_default_accounts_profile(path=False):
 
 def get_default_exposure_profile(path=False):
     fp = os.path.join(STATIC_DATA_FP, 'default_loc_profile.json')
+    return get_json(src_fp=fp) if not path else fp
+
+
+def get_default_step_policies_profile(path=False):
+    fp = os.path.join(STATIC_DATA_FP, 'default_step_politices_profile.json')
     return get_json(src_fp=fp) if not path else fp
 
 
