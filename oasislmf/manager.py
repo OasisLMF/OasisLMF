@@ -63,6 +63,7 @@ from .utils.defaults import (
     get_default_deterministic_analysis_settings,
     get_default_exposure_profile,
     get_default_fm_aggregation_profile,
+    GROUP_ID_COLS,
     KTOOLS_NUM_PROCESSES,
     KTOOLS_FIFO_RELATIVE,
     KTOOLS_ERR_GUARD,
@@ -105,7 +106,8 @@ class OasisManager(object):
         ktools_debug=None,
         ktools_error_guard=None,
         oasis_files_prefixes=None,
-        write_chunksize=None
+        write_chunksize=None,
+        group_id_cols=None
     ):
         # Set defaults for static data or runtime parameters
         self._exposure_profile = exposure_profile or get_default_exposure_profile()
@@ -122,6 +124,7 @@ class OasisManager(object):
         self._ktools_error_guard = ktools_error_guard or KTOOLS_ERR_GUARD
         self._oasis_files_prefixes = oasis_files_prefixes or OASIS_FILES_PREFIXES
         self._write_chunksize = write_chunksize or WRITE_CHUNKSIZE
+        self._group_id_cols = group_id_cols or GROUP_ID_COLS
         self.logger = logging.getLogger()
 
     @property
@@ -151,6 +154,10 @@ class OasisManager(object):
     @property
     def write_chunksize(self):
         return self._write_chunksize
+
+    @property
+    def group_id_cols(self):
+        return self._group_id_cols
 
     @property
     def ktools_num_processes(self):
@@ -388,7 +395,8 @@ class OasisManager(object):
         fm_aggregation_profile_fp=None,
         ri_info_fp=None,
         ri_scope_fp=None,
-        oasis_files_prefixes=None
+        oasis_files_prefixes=None,
+        group_id_cols=None
     ):
 
         # Convert paths to absolute
@@ -505,11 +513,15 @@ class OasisManager(object):
         else:
             _keys_fp = os.path.join(target_dir, os.path.basename(keys_fp))
 
+        # Columns from loc file to assign group_id
+        group_id_cols = group_id_cols or self.group_id_cols
+
         # Get the GUL input items and exposure dataframes
         gul_inputs_df, exposure_df = get_gul_input_items(
             exposure_fp,
             _keys_fp,
-            exposure_profile=exposure_profile
+            exposure_profile=exposure_profile,
+            group_id_cols=group_id_cols
         )
 
         # If not in det. loss gen. scenario, write exposure summary file
