@@ -227,11 +227,12 @@ class ReinsuranceLayer(object):
             parent=parent,
             level_id=level_id,
             agg_id=agg_id,
-            portfolio_number=portfolio_number,
-            account_number=account_number,
-            policy_number=policy_number,
-            location_group=location_group,
-            location_number=location_number)
+            portfolio_number=str(portfolio_number),
+            account_number=str(account_number),
+            policy_number=str(policy_number),
+            location_group=str(location_group),
+            location_number=str(location_number)
+        )
 
         return node
 
@@ -393,15 +394,7 @@ class ReinsuranceLayer(object):
             match = node.location_group == scope_row.LocGroup
         if match and self._is_valid_filter(scope_row.LocNumber):
             match = node.location_number == scope_row.LocNumber
-        # if match and self._is_valid_filter(scope_row.CedantName):
-
-        # if match and self._is_valid_filter(scope_row.ProducerName):
-
-        # if match and self._is_valid_filter(scope_row.LOB):
-
-        # if match and self._is_valid_filter(scope_row.CountryCode):
-
-        # if match and self._is_valid_filter(scope_row.ReinsTag):
+    
         return match
 
     def _scope_filter(self, nodes_list, scope_row, exact=False):
@@ -886,8 +879,7 @@ class ReinsuranceLayer(object):
                     # and combine into a single layer
                     for overlay_rule in range(1, overlay_loop + 1):
                         try:
-                            profiles_ids.append(
-                                node_layer_profile_map[(node.name, layer, overlay_rule)])
+                            profiles_ids.append(node_layer_profile_map[(node.name, layer, overlay_rule)])
                         except Exception:
                             profiles_ids.append(1)
                             pass
