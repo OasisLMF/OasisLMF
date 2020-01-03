@@ -27,6 +27,7 @@ from ..utils.data import (
 )
 from ..utils.defaults import (
     get_default_exposure_profile,
+    GROUP_ID_COLS,
     OASIS_FILES_PREFIXES,
 )
 from ..utils.exceptions import OasisException
@@ -225,7 +226,7 @@ def get_gul_input_items(
         # Should list of column names used to group_id be empty, revert to
         # default
         if len(group_id_cols) == 0:
-            group_id_cols = ['loc_id']
+            group_id_cols = GROUP_ID_COLS
         missing_group_id_cols = [col for col in group_id_cols if col not in exposure_df_gul_inputs_cols]
         exposure_df_gul_inputs_cols += missing_group_id_cols
 
