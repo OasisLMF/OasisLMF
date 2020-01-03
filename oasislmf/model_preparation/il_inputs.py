@@ -677,31 +677,36 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
     :rtype: str
     """
     try:
+        min_level = 0
+        max_level = il_inputs_df['level_id'].max()
+        programme_levels = list()
 
-        item_level = il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].min()].loc[:, ['item_id']].assign(level_id=0)
-        item_level.rename(columns={'item_id':'agg_id'}, inplace=True)
+        for level in range(max_level):
+            # Select The Agg ids based on the current level in the hierarchy 
+            if level == 0:
+                # Items level (first)
+                agg_from = il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].min()].item_id
+                agg_to = il_inputs_df[il_inputs_df.level_id == level+1].agg_id
+            
+            elif level < max_level-1:
+                # Intermediate levels 
+                agg_from = il_inputs_df[il_inputs_df.level_id == level].agg_id.reset_index(drop=True)
+                agg_to = il_inputs_df[il_inputs_df.level_id == level+1].agg_id.reset_index(drop=True)
 
-        fm_programme_df = pd.concat(
-            [
-                item_level,
-                il_inputs_df.loc[:, ['level_id', 'agg_id']]
-            ]
-        ).reset_index(drop=True)
+            else:
+                # Max level (Last)
+                agg_from = il_inputs_df[il_inputs_df.level_id == level].agg_id.unique()
+                agg_to = il_inputs_df[il_inputs_df['level_id'] == max_level].loc[:, ['loc_id', 'agg_id']].drop_duplicates()['agg_id']
 
-        min_level, max_level = 0, fm_programme_df['level_id'].max()
-        max_level_agg_ids = il_inputs_df[il_inputs_df['level_id'] == max_level].loc[:, ['loc_id', 'agg_id']].drop_duplicates()['agg_id'].tolist()
-        fm_programme_df = pd.DataFrame(
-            {
-                'from_agg_id': fm_programme_df[fm_programme_df['level_id'] < max_level]['agg_id'],
-                'level_id': fm_programme_df[fm_programme_df['level_id'] > min_level]['level_id'].reset_index(drop=True),
-                'to_agg_id': fm_programme_df[fm_programme_df['level_id'] > min_level]['agg_id'].reset_index(drop=True)
-            }
-        ).dropna(axis=0).drop_duplicates()
-
-        # check dimensions of top level
-        if len(set(max_level_agg_ids)) == 1:
-            max_level_agg_ids = [max_level_agg_ids[0]]
-
+            programme_levels.append(
+                pd.DataFrame({
+                    'from_agg_id': agg_from,
+                    'level_id': level+1,
+                    'to_agg_id': agg_to
+                }).drop_duplicates(subset=['from_agg_id','level_id'], keep="first")
+            )
+                
+        fm_programme_df = pd.concat(programme_levels)
         dtypes = {t: 'uint32' for t in fm_programme_df.columns}
         fm_programme_df = set_dataframe_column_dtypes(fm_programme_df, dtypes)
 
