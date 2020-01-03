@@ -11,6 +11,7 @@ __all__ = [
     'get_info_dtypes',
     'store_exposure_fp',
     'find_exposure_fp',
+    'GROUP_ID_COLS',
     'KTOOLS_ALLOC_GUL_MAX',
     'KTOOLS_ALLOC_FM_MAX',
     'KTOOLS_FIFO_RELATIVE',
@@ -146,6 +147,8 @@ def get_info_dtypes():
 
 
 WRITE_CHUNKSIZE = 2 * (10 ** 5)
+
+GROUP_ID_COLS = ['loc_id']
 
 # Default name prefixes of the Oasis input files (GUL + IL)
 OASIS_FILES_PREFIXES = OrderedDict({
