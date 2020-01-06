@@ -525,6 +525,10 @@ def get_il_input_items(
         il_inputs_df.drop(term_cols, axis=1, inplace=True)
         del layer_df
 
+        # il_inputs are not necessarily in the same order for the topmost level when layers are present, 
+        # fix by sorting the il_inputs_df 
+        il_inputs_df = il_inputs_df.sort_values(['level_id', 'loc_id', 'coverage_id']).reset_index(drop=True)
+
         # Resequence the level IDs and item IDs, but also store the "original"
         # FM level IDs (before the resequencing)
         il_inputs_df['orig_level_id'] = il_inputs_df['level_id']
