@@ -697,6 +697,10 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
                 # Max level (Last)
                 agg_from = il_inputs_df[il_inputs_df.level_id == level].agg_id.unique()
                 agg_to = il_inputs_df[il_inputs_df['level_id'] == max_level].loc[:, ['loc_id', 'agg_id']].drop_duplicates()['agg_id']
+                
+                # If a single unique value in the `to agg id` set then use the value directly 
+                if len(set(agg_to)) < 2:
+                    agg_to = agg_to.iloc[0]
 
             programme_levels.append(
                 pd.DataFrame({
@@ -707,6 +711,7 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
             )
                 
         fm_programme_df = pd.concat(programme_levels)
+
         dtypes = {t: 'uint32' for t in fm_programme_df.columns}
         fm_programme_df = set_dataframe_column_dtypes(fm_programme_df, dtypes)
 
