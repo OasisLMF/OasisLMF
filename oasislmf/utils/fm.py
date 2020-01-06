@@ -12,7 +12,6 @@ __all__ = [
 from collections import OrderedDict
 
 from .coverages import SUPPORTED_COVERAGE_TYPES
-from .profile import get_step_policies_oed_mapping
 
 
 DED_CODE_REG = 0
@@ -111,22 +110,10 @@ LIMIT_CODES = OrderedDict({
 })
 
 STEP_TRIGGER_TYPES = OrderedDict({
-    1: {
-        'coverage_aggregation_method': 1, 'calcrule_assignment_method': 1,
-        'oed_mapping': get_step_policies_oed_mapping(step_trigger_type=1)
-    },
-    2: {
-        'coverage_aggregation_method': 1, 'calcrule_assignment_method': 2,
-        'oed_mapping': get_step_policies_oed_mapping(step_trigger_type=2)
-    },
-    3: {
-        'coverage_aggregation_method': 2, 'calcrule_assignment_method': 3,
-        'oed_mapping': get_step_policies_oed_mapping(step_trigger_type=3)
-    },
-    5: {
-        'coverage_aggregation_method': 1, 'calcrule_assignment_method': 4,
-        'oed_mapping': get_step_policies_oed_mapping(step_trigger_type=5)
-    }
+    1: {'coverage_aggregation_method': 1, 'calcrule_assignment_method': 1},
+    2: {'coverage_aggregation_method': 1, 'calcrule_assignment_method': 2},
+    3: {'coverage_aggregation_method': 2, 'calcrule_assignment_method': 3},
+    5: {'coverage_aggregation_method': 1, 'calcrule_assignment_method': 4}
 })
 
 COVERAGE_AGGREGATION_METHODS = OrderedDict({
