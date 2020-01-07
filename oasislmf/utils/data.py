@@ -413,14 +413,8 @@ def get_ids(df, usecols, group_by=[]):
 
     if not group_by:
         return factorize_ndarray(df.loc[:, usecols].values, col_idxs=range(len(_usecols)))[0]
-
-    return np.hstack((
-        factorize_ndarray(np.asarray(list(group)), col_idxs=range(len(group_by) - 1, len(_usecols)))[0]
-        for _, group in groupby(
-            fast_zip_arrays(*df.loc[:, _usecols].transpose().values),
-            key=lambda t: tuple(t[_usecols.index(k)] for k in group_by)
-        )
-    ))
+    else:
+        return (df[usecols].groupby(group_by).cumcount()) + 1
 
 
 def get_json(src_fp):
