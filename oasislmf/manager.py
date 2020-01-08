@@ -515,6 +515,7 @@ class OasisManager(object):
 
         # Columns from loc file to assign group_id
         group_id_cols = group_id_cols or self.group_id_cols
+        group_id_cols = list(map(lambda col: col.lower(), group_id_cols))
 
         # Get the GUL input items and exposure dataframes
         gul_inputs_df, exposure_df = get_gul_input_items(

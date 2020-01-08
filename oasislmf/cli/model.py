@@ -229,7 +229,6 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         ri_info_fp = inputs.get('oed_info_csv', required=False, is_path=True)
         ri_scope_fp = inputs.get('oed_scope_csv', required=False, is_path=True)
         group_id_cols = inputs.get('group_id_cols', required=False, default=['loc_id'])
-        group_id_cols = list(map(lambda col: col.lower(), group_id_cols))
 
         if not (keys_fp or lookup_config_fp or (keys_data_fp and model_version_fp and lookup_package_fp)):
             raise OasisException(
