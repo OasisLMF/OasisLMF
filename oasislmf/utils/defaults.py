@@ -113,7 +113,7 @@ def get_default_exposure_profile(path=False):
 
 
 def get_default_step_policies_profile(path=False):
-    fp = os.path.join(STATIC_DATA_FP, 'default_step_politices_profile.json')
+    fp = os.path.join(STATIC_DATA_FP, 'default_step_policies_profile.json')
     return get_json(src_fp=fp) if not path else fp
 
 
