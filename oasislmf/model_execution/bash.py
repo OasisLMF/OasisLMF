@@ -113,13 +113,9 @@ def do_fifos_exec(runtype, max_process_id, filename, fifo_dir, action='mkfifo'):
         print_command(filename, '{} {}{}_P{}'.format(action, fifo_dir, runtype, process_id))
     print_command(filename, '')
 
-def do_fifos_calc(
-    runtype,
-    analysis_settings,
-    max_process_id,
-    filename,
-    fifo_dir='fifo/',
-    action='mkfifo'):
+
+def do_fifos_calc(runtype, analysis_settings, max_process_id,
+                  filename, fifo_dir='fifo/', action='mkfifo'):
 
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
@@ -887,7 +883,7 @@ def genbash(
         create_workfolders(RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, work_dir)
         if full_correlation:
             create_workfolders(
-                RUNTYPE_GROUNDUP_LOSS, analysis_settings, 
+                RUNTYPE_GROUNDUP_LOSS, analysis_settings,
                 filename, work_full_correlation_dir
             )
 
@@ -895,7 +891,7 @@ def genbash(
         create_workfolders(RUNTYPE_INSURED_LOSS, analysis_settings, filename, work_dir)
         if full_correlation:
             create_workfolders(
-                RUNTYPE_INSURED_LOSS, analysis_settings, 
+                RUNTYPE_INSURED_LOSS, analysis_settings,
                 filename, work_full_correlation_dir
             )
 
@@ -903,11 +899,10 @@ def genbash(
         create_workfolders(RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename, work_dir)
         if full_correlation:
             create_workfolders(
-                RUNTYPE_REINSURANCE_LOSS, analysis_settings, 
+                RUNTYPE_REINSURANCE_LOSS, analysis_settings,
                 filename, work_full_correlation_dir
             )
     print_command(filename, '')
-
 
     # Create Execution Pipeline FIFOs
     if gul_output or il_output or ri_output:
@@ -919,30 +914,30 @@ def genbash(
 
     # Create Summarycalc FIFOs
     if gul_output:
-        do_fifos_calc(RUNTYPE_GROUNDUP_LOSS, analysis_settings, max_process_id, 
-                     filename, fifo_queue_dir)
+        do_fifos_calc(RUNTYPE_GROUNDUP_LOSS, analysis_settings, max_process_id,
+                      filename, fifo_queue_dir)
     if il_output:
-        do_fifos_calc(RUNTYPE_INSURED_LOSS, analysis_settings, 
+        do_fifos_calc(RUNTYPE_INSURED_LOSS, analysis_settings,
                       max_process_id, filename, fifo_queue_dir)
     if ri_output:
-        do_fifos_calc(RUNTYPE_REINSURANCE_LOSS, analysis_settings, 
+        do_fifos_calc(RUNTYPE_REINSURANCE_LOSS, analysis_settings,
                       max_process_id, filename, fifo_queue_dir)
 
     # Create Full correlation FIFO
     if full_correlation:
         if gul_output:
             do_fifos_calc(
-                RUNTYPE_GROUNDUP_LOSS, analysis_settings, 
+                RUNTYPE_GROUNDUP_LOSS, analysis_settings,
                 max_process_id, filename, fifo_full_correlation_dir
             )
         if il_output:
             do_fifos_calc(
-                RUNTYPE_INSURED_LOSS, analysis_settings, 
+                RUNTYPE_INSURED_LOSS, analysis_settings,
                 max_process_id, filename, fifo_full_correlation_dir
             )
         if ri_output:
             do_fifos_calc(
-                RUNTYPE_REINSURANCE_LOSS, analysis_settings, 
+                RUNTYPE_REINSURANCE_LOSS, analysis_settings,
                 max_process_id, filename, fifo_full_correlation_dir
             )
 
@@ -1022,7 +1017,7 @@ def genbash(
             'process_id': process_id,
             'max_process_id': max_process_id,
             'correlated_output': correlated_output_file,
-            'stderr_guard': stderr_guard 
+            'stderr_guard': stderr_guard
         }
 
         # GUL coverage & item stream (Older)
