@@ -185,40 +185,6 @@ def create_workfolders(runtype, analysis_settings, filename, work_dir='work/'):
                 )
 
 
-def remove_workfolders(runtype, analysis_settings, filename):
-    print_command(filename, 'rm -rf work/kat')
-
-    summaries = analysis_settings.get('{}_summaries'.format(runtype))
-    if not summaries:
-        return
-
-    for summary in summaries:
-        if 'id' in summary:
-            summary_set = summary['id']
-            if summary.get('lec_output'):
-                if leccalc_enabled(summary['leccalc']):
-                    print_command(filename, 'rm work/{}_S{}_summaryleccalc/*'.format(runtype, summary_set))
-                    print_command(filename, 'rmdir work/{}_S{}_summaryleccalc'.format(runtype, summary_set))
-
-            if summary.get('aalcalc'):
-                print_command(filename, 'rm -rf work/{}_S{}_summaryaalcalc/*'.format(runtype, summary_set))
-                print_command(filename, 'rmdir work/{}_S{}_summaryaalcalc'.format(runtype, summary_set))
-
-
-def do_make_fifos(
-    runtype,
-    analysis_settings,
-    process_id,
-    filename,
-    fifo_dir='fifo/',
-    full_correlation=False
-):
-    do_fifos(
-        'mkfifo', runtype, analysis_settings, process_id, filename, fifo_dir,
-        full_correlation
-    )
-
-
 def do_kats(
     runtype,
     analysis_settings,
@@ -479,51 +445,6 @@ def do_gul(
             gul_alloc_rule=gul_alloc_rule,
             fifo_dir=fifo_dir,
             stderr_guard=stderr_guard
-        )
-
-
-def il_make_fifo(
-    analysis_settings,
-    max_process_id,
-    filename,
-    fifo_dir='fifo/',
-    full_correlation=False
-):
-
-    for process_id in range(1, max_process_id + 1):
-        do_make_fifos(
-            RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename,
-            fifo_dir, full_correlation
-        )
-
-
-def do_gul_make_fifo(
-    analysis_settings,
-    max_process_id,
-    filename,
-    fifo_dir='fifo/',
-    full_correlation=False
-):
-
-    for process_id in range(1, max_process_id + 1):
-        do_make_fifos(
-            RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename,
-            fifo_dir, full_correlation
-        )
-
-
-def ri_make_fifo(
-    analysis_settings,
-    max_process_id,
-    filename,
-    fifo_dir='fifo/',
-    full_correlation=False
-):
-
-    for process_id in range(1, max_process_id + 1):
-        do_make_fifos(
-            RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename,
-            fifo_dir, full_correlation
         )
 
 
