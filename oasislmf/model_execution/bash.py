@@ -218,10 +218,6 @@ def do_make_fifos(
     )
 
 
-def do_remove_fifos(runtype, analysis_settings, process_id, filename, fifo_dir='fifo/'):
-    do_fifos('rm', runtype, analysis_settings, process_id, filename, fifo_dir)
-
-
 def do_kats(
     runtype,
     analysis_settings,
@@ -528,21 +524,6 @@ def ri_make_fifo(
             RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename,
             fifo_dir, full_correlation
         )
-
-
-def il_remove_fifo(analysis_settings, max_process_id, filename, fifo_dir='fifo/'):
-    for process_id in range(1, max_process_id + 1):
-        do_remove_fifos(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, fifo_dir)
-
-
-def do_gul_remove_fifo(analysis_settings, max_process_id, filename, fifo_dir='fifo/'):
-    for process_id in range(1, max_process_id + 1):
-        do_remove_fifos(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, fifo_dir)
-
-
-def ri_remove_fifo(analysis_settings, max_process_id, filename, fifo_dir='fifo/'):
-    for process_id in range(1, max_process_id + 1):
-        do_remove_fifos(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, fifo_dir)
 
 
 def do_waits(wait_variable, wait_count, filename):
