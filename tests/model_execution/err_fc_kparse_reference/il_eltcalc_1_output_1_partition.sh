@@ -44,7 +44,12 @@ rm -R -f work/*
 mkdir work/kat/
 mkdir work/full_correlation/
 mkdir work/full_correlation/kat/
+
+
+mkfifo fifo/gul_P1
+
 mkfifo fifo/il_P1
+
 mkfifo fifo/il_S1_summary_P1
 mkfifo fifo/il_S1_summaryeltcalc_P1
 mkfifo fifo/il_S1_eltcalc_P1
@@ -52,6 +57,7 @@ mkfifo fifo/il_S1_eltcalc_P1
 mkfifo fifo/full_correlation/il_S1_summary_P1
 mkfifo fifo/full_correlation/il_S1_summaryeltcalc_P1
 mkfifo fifo/full_correlation/il_S1_eltcalc_P1
+
 
 
 # --- Do insured loss computes ---

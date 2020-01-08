@@ -44,102 +44,105 @@ rm -R -f work/*
 mkdir work/kat/
 mkdir work/full_correlation/
 mkdir work/full_correlation/kat/
+
+
 mkfifo fifo/gul_P1
+mkfifo fifo/gul_P2
+mkfifo fifo/gul_P3
+mkfifo fifo/gul_P4
+mkfifo fifo/gul_P5
+mkfifo fifo/gul_P6
+mkfifo fifo/gul_P7
+mkfifo fifo/gul_P8
+mkfifo fifo/gul_P9
+mkfifo fifo/gul_P10
+mkfifo fifo/gul_P11
+mkfifo fifo/gul_P12
+mkfifo fifo/gul_P13
+mkfifo fifo/gul_P14
+mkfifo fifo/gul_P15
+mkfifo fifo/gul_P16
+mkfifo fifo/gul_P17
+mkfifo fifo/gul_P18
+mkfifo fifo/gul_P19
+mkfifo fifo/gul_P20
+
 mkfifo fifo/gul_S1_summary_P1
 mkfifo fifo/gul_S1_summarysummarycalc_P1
 mkfifo fifo/gul_S1_summarycalc_P1
 
-mkfifo fifo/gul_P2
 mkfifo fifo/gul_S1_summary_P2
 mkfifo fifo/gul_S1_summarysummarycalc_P2
 mkfifo fifo/gul_S1_summarycalc_P2
 
-mkfifo fifo/gul_P3
 mkfifo fifo/gul_S1_summary_P3
 mkfifo fifo/gul_S1_summarysummarycalc_P3
 mkfifo fifo/gul_S1_summarycalc_P3
 
-mkfifo fifo/gul_P4
 mkfifo fifo/gul_S1_summary_P4
 mkfifo fifo/gul_S1_summarysummarycalc_P4
 mkfifo fifo/gul_S1_summarycalc_P4
 
-mkfifo fifo/gul_P5
 mkfifo fifo/gul_S1_summary_P5
 mkfifo fifo/gul_S1_summarysummarycalc_P5
 mkfifo fifo/gul_S1_summarycalc_P5
 
-mkfifo fifo/gul_P6
 mkfifo fifo/gul_S1_summary_P6
 mkfifo fifo/gul_S1_summarysummarycalc_P6
 mkfifo fifo/gul_S1_summarycalc_P6
 
-mkfifo fifo/gul_P7
 mkfifo fifo/gul_S1_summary_P7
 mkfifo fifo/gul_S1_summarysummarycalc_P7
 mkfifo fifo/gul_S1_summarycalc_P7
 
-mkfifo fifo/gul_P8
 mkfifo fifo/gul_S1_summary_P8
 mkfifo fifo/gul_S1_summarysummarycalc_P8
 mkfifo fifo/gul_S1_summarycalc_P8
 
-mkfifo fifo/gul_P9
 mkfifo fifo/gul_S1_summary_P9
 mkfifo fifo/gul_S1_summarysummarycalc_P9
 mkfifo fifo/gul_S1_summarycalc_P9
 
-mkfifo fifo/gul_P10
 mkfifo fifo/gul_S1_summary_P10
 mkfifo fifo/gul_S1_summarysummarycalc_P10
 mkfifo fifo/gul_S1_summarycalc_P10
 
-mkfifo fifo/gul_P11
 mkfifo fifo/gul_S1_summary_P11
 mkfifo fifo/gul_S1_summarysummarycalc_P11
 mkfifo fifo/gul_S1_summarycalc_P11
 
-mkfifo fifo/gul_P12
 mkfifo fifo/gul_S1_summary_P12
 mkfifo fifo/gul_S1_summarysummarycalc_P12
 mkfifo fifo/gul_S1_summarycalc_P12
 
-mkfifo fifo/gul_P13
 mkfifo fifo/gul_S1_summary_P13
 mkfifo fifo/gul_S1_summarysummarycalc_P13
 mkfifo fifo/gul_S1_summarycalc_P13
 
-mkfifo fifo/gul_P14
 mkfifo fifo/gul_S1_summary_P14
 mkfifo fifo/gul_S1_summarysummarycalc_P14
 mkfifo fifo/gul_S1_summarycalc_P14
 
-mkfifo fifo/gul_P15
 mkfifo fifo/gul_S1_summary_P15
 mkfifo fifo/gul_S1_summarysummarycalc_P15
 mkfifo fifo/gul_S1_summarycalc_P15
 
-mkfifo fifo/gul_P16
 mkfifo fifo/gul_S1_summary_P16
 mkfifo fifo/gul_S1_summarysummarycalc_P16
 mkfifo fifo/gul_S1_summarycalc_P16
 
-mkfifo fifo/gul_P17
 mkfifo fifo/gul_S1_summary_P17
 mkfifo fifo/gul_S1_summarysummarycalc_P17
 mkfifo fifo/gul_S1_summarycalc_P17
 
-mkfifo fifo/gul_P18
 mkfifo fifo/gul_S1_summary_P18
 mkfifo fifo/gul_S1_summarysummarycalc_P18
 mkfifo fifo/gul_S1_summarycalc_P18
 
-mkfifo fifo/gul_P19
 mkfifo fifo/gul_S1_summary_P19
 mkfifo fifo/gul_S1_summarysummarycalc_P19
 mkfifo fifo/gul_S1_summarycalc_P19
 
-mkfifo fifo/gul_P20
 mkfifo fifo/gul_S1_summary_P20
 mkfifo fifo/gul_S1_summarysummarycalc_P20
 mkfifo fifo/gul_S1_summarycalc_P20
@@ -223,6 +226,7 @@ mkfifo fifo/full_correlation/gul_S1_summarycalc_P19
 mkfifo fifo/full_correlation/gul_S1_summary_P20
 mkfifo fifo/full_correlation/gul_S1_summarysummarycalc_P20
 mkfifo fifo/full_correlation/gul_S1_summarycalc_P20
+
 
 
 # --- Do ground up loss computes ---

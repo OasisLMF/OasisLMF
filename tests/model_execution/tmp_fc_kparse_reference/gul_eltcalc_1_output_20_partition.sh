@@ -21,102 +21,104 @@ mkdir work/full_correlation/kat/
 rm -R -f /tmp/%FIFO_DIR%/
 mkdir -p /tmp/%FIFO_DIR%/fifo/
 mkdir /tmp/%FIFO_DIR%/fifo/full_correlation/
+
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_P1
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P2
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P3
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P4
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P5
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P6
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P7
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P8
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P9
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P10
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P11
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P12
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P13
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P14
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P15
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P16
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P17
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P18
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P19
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P20
+
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summaryeltcalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P1
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summaryeltcalc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P2
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P3
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P3
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summaryeltcalc_P3
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P3
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P4
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P4
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summaryeltcalc_P4
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P4
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P5
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P5
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summaryeltcalc_P5
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P5
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P6
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P6
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summaryeltcalc_P6
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P6
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P7
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P7
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summaryeltcalc_P7
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P7
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P8
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P8
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summaryeltcalc_P8
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P8
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P9
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P9
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summaryeltcalc_P9
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P9
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P10
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P10
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summaryeltcalc_P10
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P10
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P11
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P11
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summaryeltcalc_P11
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P11
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P12
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P12
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summaryeltcalc_P12
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P12
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P13
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P13
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summaryeltcalc_P13
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P13
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P14
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P14
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summaryeltcalc_P14
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P14
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P15
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P15
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summaryeltcalc_P15
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P15
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P16
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P16
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summaryeltcalc_P16
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P16
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P17
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P17
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summaryeltcalc_P17
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P17
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P18
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P18
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summaryeltcalc_P18
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P18
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P19
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P19
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summaryeltcalc_P19
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P19
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P20
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P20
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summaryeltcalc_P20
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P20
@@ -200,6 +202,7 @@ mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_eltcalc_P19
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summary_P20
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summaryeltcalc_P20
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_eltcalc_P20
+
 
 
 # --- Do ground up loss computes ---

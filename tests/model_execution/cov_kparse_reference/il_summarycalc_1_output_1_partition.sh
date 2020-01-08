@@ -15,10 +15,16 @@ find output/* ! -name '*summary-info*' -type f -exec rm -f {} +
 rm -R -f fifo/*
 rm -R -f work/*
 mkdir work/kat/
+
+
+mkfifo fifo/gul_P1
+
 mkfifo fifo/il_P1
+
 mkfifo fifo/il_S1_summary_P1
 mkfifo fifo/il_S1_summarysummarycalc_P1
 mkfifo fifo/il_S1_summarycalc_P1
+
 
 
 # --- Do insured loss computes ---

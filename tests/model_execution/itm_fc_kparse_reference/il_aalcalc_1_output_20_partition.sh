@@ -19,67 +19,92 @@ rm -R -f work/*
 mkdir work/kat/
 mkdir work/full_correlation/
 mkdir work/full_correlation/kat/
-mkfifo fifo/il_P1
-mkfifo fifo/il_S1_summary_P1
-
-mkfifo fifo/il_P2
-mkfifo fifo/il_S1_summary_P2
-
-mkfifo fifo/il_P3
-mkfifo fifo/il_S1_summary_P3
-
-mkfifo fifo/il_P4
-mkfifo fifo/il_S1_summary_P4
-
-mkfifo fifo/il_P5
-mkfifo fifo/il_S1_summary_P5
-
-mkfifo fifo/il_P6
-mkfifo fifo/il_S1_summary_P6
-
-mkfifo fifo/il_P7
-mkfifo fifo/il_S1_summary_P7
-
-mkfifo fifo/il_P8
-mkfifo fifo/il_S1_summary_P8
-
-mkfifo fifo/il_P9
-mkfifo fifo/il_S1_summary_P9
-
-mkfifo fifo/il_P10
-mkfifo fifo/il_S1_summary_P10
-
-mkfifo fifo/il_P11
-mkfifo fifo/il_S1_summary_P11
-
-mkfifo fifo/il_P12
-mkfifo fifo/il_S1_summary_P12
-
-mkfifo fifo/il_P13
-mkfifo fifo/il_S1_summary_P13
-
-mkfifo fifo/il_P14
-mkfifo fifo/il_S1_summary_P14
-
-mkfifo fifo/il_P15
-mkfifo fifo/il_S1_summary_P15
-
-mkfifo fifo/il_P16
-mkfifo fifo/il_S1_summary_P16
-
-mkfifo fifo/il_P17
-mkfifo fifo/il_S1_summary_P17
-
-mkfifo fifo/il_P18
-mkfifo fifo/il_S1_summary_P18
-
-mkfifo fifo/il_P19
-mkfifo fifo/il_S1_summary_P19
-
-mkfifo fifo/il_P20
-mkfifo fifo/il_S1_summary_P20
 
 mkdir work/il_S1_summaryaalcalc
+mkdir work/full_correlation/il_S1_summaryaalcalc
+
+mkfifo fifo/gul_P1
+mkfifo fifo/gul_P2
+mkfifo fifo/gul_P3
+mkfifo fifo/gul_P4
+mkfifo fifo/gul_P5
+mkfifo fifo/gul_P6
+mkfifo fifo/gul_P7
+mkfifo fifo/gul_P8
+mkfifo fifo/gul_P9
+mkfifo fifo/gul_P10
+mkfifo fifo/gul_P11
+mkfifo fifo/gul_P12
+mkfifo fifo/gul_P13
+mkfifo fifo/gul_P14
+mkfifo fifo/gul_P15
+mkfifo fifo/gul_P16
+mkfifo fifo/gul_P17
+mkfifo fifo/gul_P18
+mkfifo fifo/gul_P19
+mkfifo fifo/gul_P20
+
+mkfifo fifo/il_P1
+mkfifo fifo/il_P2
+mkfifo fifo/il_P3
+mkfifo fifo/il_P4
+mkfifo fifo/il_P5
+mkfifo fifo/il_P6
+mkfifo fifo/il_P7
+mkfifo fifo/il_P8
+mkfifo fifo/il_P9
+mkfifo fifo/il_P10
+mkfifo fifo/il_P11
+mkfifo fifo/il_P12
+mkfifo fifo/il_P13
+mkfifo fifo/il_P14
+mkfifo fifo/il_P15
+mkfifo fifo/il_P16
+mkfifo fifo/il_P17
+mkfifo fifo/il_P18
+mkfifo fifo/il_P19
+mkfifo fifo/il_P20
+
+mkfifo fifo/il_S1_summary_P1
+
+mkfifo fifo/il_S1_summary_P2
+
+mkfifo fifo/il_S1_summary_P3
+
+mkfifo fifo/il_S1_summary_P4
+
+mkfifo fifo/il_S1_summary_P5
+
+mkfifo fifo/il_S1_summary_P6
+
+mkfifo fifo/il_S1_summary_P7
+
+mkfifo fifo/il_S1_summary_P8
+
+mkfifo fifo/il_S1_summary_P9
+
+mkfifo fifo/il_S1_summary_P10
+
+mkfifo fifo/il_S1_summary_P11
+
+mkfifo fifo/il_S1_summary_P12
+
+mkfifo fifo/il_S1_summary_P13
+
+mkfifo fifo/il_S1_summary_P14
+
+mkfifo fifo/il_S1_summary_P15
+
+mkfifo fifo/il_S1_summary_P16
+
+mkfifo fifo/il_S1_summary_P17
+
+mkfifo fifo/il_S1_summary_P18
+
+mkfifo fifo/il_S1_summary_P19
+
+mkfifo fifo/il_S1_summary_P20
+
 mkfifo fifo/full_correlation/il_S1_summary_P1
 
 mkfifo fifo/full_correlation/il_S1_summary_P2
@@ -120,7 +145,7 @@ mkfifo fifo/full_correlation/il_S1_summary_P19
 
 mkfifo fifo/full_correlation/il_S1_summary_P20
 
-mkdir work/full_correlation/il_S1_summaryaalcalc
+
 
 # --- Do insured loss computes ---
 

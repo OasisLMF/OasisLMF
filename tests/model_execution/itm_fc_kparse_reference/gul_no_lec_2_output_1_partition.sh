@@ -19,7 +19,14 @@ rm -R -f work/*
 mkdir work/kat/
 mkdir work/full_correlation/
 mkdir work/full_correlation/kat/
+
+mkdir work/gul_S1_summaryaalcalc
+mkdir work/gul_S2_summaryaalcalc
+mkdir work/full_correlation/gul_S1_summaryaalcalc
+mkdir work/full_correlation/gul_S2_summaryaalcalc
+
 mkfifo fifo/gul_P1
+
 mkfifo fifo/gul_S1_summary_P1
 mkfifo fifo/gul_S1_summaryeltcalc_P1
 mkfifo fifo/gul_S1_eltcalc_P1
@@ -35,8 +42,6 @@ mkfifo fifo/gul_S2_summarycalc_P1
 mkfifo fifo/gul_S2_summarypltcalc_P1
 mkfifo fifo/gul_S2_pltcalc_P1
 
-mkdir work/gul_S1_summaryaalcalc
-mkdir work/gul_S2_summaryaalcalc
 mkfifo fifo/full_correlation/gul_S1_summary_P1
 mkfifo fifo/full_correlation/gul_S1_summaryeltcalc_P1
 mkfifo fifo/full_correlation/gul_S1_eltcalc_P1
@@ -52,8 +57,7 @@ mkfifo fifo/full_correlation/gul_S2_summarycalc_P1
 mkfifo fifo/full_correlation/gul_S2_summarypltcalc_P1
 mkfifo fifo/full_correlation/gul_S2_pltcalc_P1
 
-mkdir work/full_correlation/gul_S1_summaryaalcalc
-mkdir work/full_correlation/gul_S2_summaryaalcalc
+
 
 # --- Do ground up loss computes ---
 
