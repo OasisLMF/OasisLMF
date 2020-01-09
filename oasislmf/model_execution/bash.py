@@ -1022,9 +1022,13 @@ def genbash(
 
         # GUL coverage & item stream (Older)
         if gul_item_stream:
-            getmodel_args['item_output'] = '- | tee {0}gul_P{1}'.format(fifo_queue_dir, process_id)
+            if gul_output:
+                getmodel_args['item_output'] = '- | tee {0}gul_P{1}'.format(fifo_queue_dir, process_id)
+
             _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_itm_cmd)
         else:
+            if not gul_output:
+                getmodel_args['coverage_output'] = ""
             _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_cov_cmd)
 
         # ! Should be able to streamline the logic a little
@@ -1242,32 +1246,39 @@ def genbash(
     do_kwaits(filename, process_counter)
 
     print_command(filename, '')
-    do_post_wait_processing(
-        RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename, process_counter,
-        '', output_dir
-    )
-    do_post_wait_processing(
-        RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter, '',
-        output_dir
-    )
-    do_post_wait_processing(
-        RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter, '',
-        output_dir
-    )
+    if ri_output:
+        do_post_wait_processing(
+            RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename, process_counter,
+            '', output_dir
+        )
+    if il_output:
+        do_post_wait_processing(
+            RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter, '',
+            output_dir
+        )
+    if gul_output:
+        do_post_wait_processing(
+            RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter, '',
+            output_dir
+        )
+
     if full_correlation:
-        work_sub_dir = re.sub('^work/', '', work_full_correlation_dir)
-        do_post_wait_processing(
-            RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename,
-            process_counter, work_sub_dir, output_full_correlation_dir
-        )
-        do_post_wait_processing(
-            RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter,
-            work_sub_dir, output_full_correlation_dir
-        )
-        do_post_wait_processing(
-            RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter,
-            work_sub_dir, output_full_correlation_dir
-        )
+        if ri_output:
+            work_sub_dir = re.sub('^work/', '', work_full_correlation_dir)
+            do_post_wait_processing(
+                RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename,
+                process_counter, work_sub_dir, output_full_correlation_dir
+            )
+        if il_output:
+            do_post_wait_processing(
+                RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter,
+                work_sub_dir, output_full_correlation_dir
+            )
+        if gul_output:
+            do_post_wait_processing(
+                RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter,
+                work_sub_dir, output_full_correlation_dir
+            )
 
     do_awaits(filename, process_counter)  # waits for aalcalc
     do_lwaits(filename, process_counter)  # waits for leccalc
