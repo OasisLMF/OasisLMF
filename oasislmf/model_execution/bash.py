@@ -566,6 +566,7 @@ def get_getmodel_cov_cmd(
 def get_main_cmd_ri_stream(
     cmd,
     process_id,
+    il_output,
     il_alloc_rule,
     ri_alloc_rule,
     num_reinsurance_iterations,
@@ -580,6 +581,8 @@ def get_main_cmd_ri_stream(
     :type cmd: str
     :param process_id: ID corresponding to thread
     :type process_id: int
+    :param il_output: If insured loss outputs required 
+    :type il_output: Boolean 
     :param il_alloc_rule: insured loss allocation rule for fmcalc
     :type il_alloc_rule: int
     :param ri_alloc_rule: reinsurance allocation rule for fmcalc
@@ -598,10 +601,13 @@ def get_main_cmd_ri_stream(
     """
 
     if full_correlation:
-        fm_cmd = 'fmcalc -a{2} < {1} | tee {3}il_P{0}'
+        fm_cmd = 'fmcalc -a{1} < {0}'
     else:
-        fm_cmd = '{1} | fmcalc -a{2} | tee {3}il_P{0}'
-    main_cmd = fm_cmd.format(process_id, cmd, il_alloc_rule, fifo_dir)
+        fm_cmd = '{0} | fmcalc -a{1}'
+    main_cmd = fm_cmd.format(cmd, il_alloc_rule)
+
+    if il_output:
+        main_cmd = "{0} | tee {1}il_P{2}".format(main_cmd, fifo_dir, process_id)
 
     for i in range(1, num_reinsurance_iterations + 1):
         main_cmd = "{0} | fmcalc -a{2} -n -p RI_{1}".format(
@@ -905,9 +911,9 @@ def genbash(
     print_command(filename, '')
 
     # Create Execution Pipeline FIFOs
-    if gul_output or il_output or ri_output:
+    if gul_output:
         do_fifos_exec(RUNTYPE_GROUNDUP_LOSS, max_process_id, filename, fifo_queue_dir)
-    if il_output or ri_output:
+    if il_output:
         do_fifos_exec(RUNTYPE_INSURED_LOSS, max_process_id, filename, fifo_queue_dir)
     if ri_output:
         do_fifos_exec(RUNTYPE_REINSURANCE_LOSS, max_process_id, filename, fifo_queue_dir)
@@ -1036,8 +1042,14 @@ def genbash(
             getmodel_args.update(custom_args)
             getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
             main_cmd = get_main_cmd_ri_stream(
-                getmodel_cmd, process_id, il_alloc_rule, ri_alloc_rule,
-                num_reinsurance_iterations, fifo_queue_dir, stderr_guard
+                getmodel_cmd, 
+                process_id, 
+                il_output,
+                il_alloc_rule, 
+                ri_alloc_rule,
+                num_reinsurance_iterations, 
+                fifo_queue_dir, 
+                stderr_guard
             )
             print_command(filename, main_cmd)
 
@@ -1096,11 +1108,18 @@ def genbash(
 
             if num_reinsurance_iterations > 0 and ri_output:
                 main_cmd = get_main_cmd_ri_stream(
-                    correlated_output_file, process_id, il_alloc_rule,
-                    ri_alloc_rule, num_reinsurance_iterations,
-                    fifo_full_correlation_dir, stderr_guard, full_correlation,
+                    correlated_output_file, 
+                    process_id, 
+                    il_output,
+                    il_alloc_rule,
+                    ri_alloc_rule, 
+                    num_reinsurance_iterations,
+                    fifo_full_correlation_dir, 
+                    stderr_guard, 
+                    full_correlation,
                     process_counter
                 )
+
                 print_command(filename, main_cmd)
             elif gul_output and il_output:
                 main_cmd = get_main_cmd_il_stream(
