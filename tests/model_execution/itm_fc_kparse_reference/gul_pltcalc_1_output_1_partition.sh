@@ -70,3 +70,5 @@ kat work/full_correlation/kat/gul_S1_pltcalc_P1 > output/full_correlation/gul_S1
 wait $kpid1 $kpid2
 
 
+rm -R -f work/*
+rm -R -f fifo/*

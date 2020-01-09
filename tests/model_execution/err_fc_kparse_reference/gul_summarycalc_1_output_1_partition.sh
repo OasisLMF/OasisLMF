@@ -95,3 +95,8 @@ kat work/full_correlation/kat/gul_S1_summarycalc_P1 > output/full_correlation/gu
 wait $kpid1 $kpid2
 
 
+rm -R -f work/*
+rm -R -f fifo/*
+
+# Stop ktools watcher
+kill -9 $pid0

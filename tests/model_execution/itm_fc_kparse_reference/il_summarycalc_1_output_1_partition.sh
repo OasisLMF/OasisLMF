@@ -73,3 +73,5 @@ kat work/full_correlation/kat/il_S1_summarycalc_P1 > output/full_correlation/il_
 wait $kpid1 $kpid2
 
 
+rm -R -f work/*
+rm -R -f fifo/*

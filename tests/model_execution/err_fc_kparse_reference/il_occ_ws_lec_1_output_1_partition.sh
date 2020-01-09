@@ -91,3 +91,11 @@ wait $pid1
 
 
 leccalc -r -Kil_S1_summaryleccalc -w output/il_S1_leccalc_wheatsheaf_oep.csv & lpid1=$!
+leccalc -r -Kfull_correlation/il_S1_summaryleccalc -w output/full_correlation/il_S1_leccalc_wheatsheaf_oep.csv & lpid2=$!
+wait $lpid1 $lpid2
+
+rm -R -f work/*
+rm -R -f fifo/*
+
+# Stop ktools watcher
+kill -9 $pid0

@@ -397,3 +397,5 @@ kat work/full_correlation/kat/il_S1_eltcalc_P1 work/full_correlation/kat/il_S1_e
 wait $kpid1 $kpid2
 
 
+rm -R -f work/*
+rm -R -f /tmp/%FIFO_DIR%/
