@@ -115,6 +115,18 @@ def get_policytc_ids(il_inputs_df):
 
     return factorize_ndarray(fm_policytc_df.loc[:, policytc_cols[3:]].values, col_idxs=range(len(policytc_cols[3:])))[0]
 
+def get_programme_ids(il_inputs_df, level):
+    """
+    Returns a Serise of Agg ids by level for the FM programme file generation
+
+    :param il_inputs_df: IL input items dataframe
+    :type il_inputs_df: pandas.DataFrame
+
+    :param level: fm_programme level number
+    :type  level: int
+    """
+    return il_inputs_df[il_inputs_df['level_id'] == level][['agg_id','coverage_id']].drop_duplicates(
+                       subset=['agg_id','coverage_id'], keep="first").agg_id.reset_index(drop=True)
 
 @oasis_log
 def get_il_input_items(
@@ -525,8 +537,8 @@ def get_il_input_items(
         il_inputs_df.drop(term_cols, axis=1, inplace=True)
         del layer_df
 
-        # il_inputs are not necessarily in the same order for the topmost level when layers are present, 
-        # fix by sorting the il_inputs_df 
+        # il_inputs are not necessarily in the same order for the topmost level when layers are present,
+        # fix by sorting the il_inputs_df
         il_inputs_df = il_inputs_df.sort_values(['level_id', 'loc_id', 'coverage_id']).reset_index(drop=True)
 
         # Resequence the level IDs and item IDs, but also store the "original"
@@ -686,25 +698,16 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
         programme_levels = list()
 
         for level in range(max_level):
-            # Select The Agg ids based on the current level in the hierarchy 
+            # Select The Agg ids based on the current level in the hierarchy
             if level == 0:
                 # Items level (first)
                 agg_from = il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].min()].item_id
-                agg_to = il_inputs_df[il_inputs_df.level_id == level+1].agg_id
-            
-            elif level < max_level-1:
-                # Intermediate levels 
-                agg_from = il_inputs_df[il_inputs_df.level_id == level].agg_id.reset_index(drop=True)
-                agg_to = il_inputs_df[il_inputs_df.level_id == level+1].agg_id.reset_index(drop=True)
+                agg_to = get_programme_ids(il_inputs_df, level + 1)
 
-            else:
-                # Max level (Last)
-                agg_from = il_inputs_df[il_inputs_df.level_id == level].agg_id.unique()
-                agg_to = il_inputs_df[il_inputs_df['level_id'] == max_level].loc[:, ['loc_id', 'agg_id']].drop_duplicates()['agg_id']
-                
-                # If a single unique value in the `to agg id` set then use the value directly 
-                if len(set(agg_to)) < 2:
-                    agg_to = agg_to.iloc[0]
+            else:   
+                # All other levels   
+                agg_from = get_programme_ids(il_inputs_df, level)
+                agg_to = get_programme_ids(il_inputs_df, level + 1)
 
             programme_levels.append(
                 pd.DataFrame({
@@ -713,7 +716,7 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
                     'to_agg_id': agg_to
                 }).drop_duplicates(subset=['from_agg_id','level_id'], keep="first")
             )
-                
+
         fm_programme_df = pd.concat(programme_levels)
 
         dtypes = {t: 'uint32' for t in fm_programme_df.columns}
