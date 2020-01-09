@@ -1282,8 +1282,8 @@ def genbash(
         )
 
     if full_correlation:
+        work_sub_dir = re.sub('^work/', '', work_full_correlation_dir)
         if ri_output:
-            work_sub_dir = re.sub('^work/', '', work_full_correlation_dir)
             do_post_wait_processing(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename,
                 process_counter, work_sub_dir, output_full_correlation_dir
