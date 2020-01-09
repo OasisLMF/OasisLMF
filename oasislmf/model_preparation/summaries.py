@@ -606,7 +606,8 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
             model_run_fp, os.path.basename(ri_layers[max_layer]['directory']))
 
         ri_summaryxref_df = pd.DataFrame()
-        if 'il_summaries' not in analysis_settings:
+        import ipdb; ipdb.set_trace()
+        if ('il_summaries' not in analysis_settings) or (not il_summaries):
             il_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['fm_map_fn'])
             il_map_df = get_dataframe(
                 src_fp=il_map_fp,
