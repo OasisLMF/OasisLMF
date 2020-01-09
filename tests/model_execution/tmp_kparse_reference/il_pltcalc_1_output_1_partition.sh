@@ -18,8 +18,6 @@ mkdir work/kat/
 rm -R -f /tmp/%FIFO_DIR%/
 mkdir -p /tmp/%FIFO_DIR%/fifo/
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P1
-
 mkfifo /tmp/%FIFO_DIR%/fifo/il_P1
 
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1

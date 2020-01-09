@@ -48,8 +48,6 @@ mkdir work/full_correlation/kat/
 mkdir work/il_S1_summaryaalcalc
 mkdir work/full_correlation/il_S1_summaryaalcalc
 
-mkfifo fifo/gul_P1
-
 mkfifo fifo/il_P1
 
 mkfifo fifo/il_S1_summary_P1
@@ -93,11 +91,3 @@ wait $pid1
 
 
 aalcalc -Kil_S1_summaryaalcalc > output/il_S1_aalcalc.csv & lpid1=$!
-aalcalc -Kfull_correlation/il_S1_summaryaalcalc > output/full_correlation/il_S1_aalcalc.csv & lpid2=$!
-wait $lpid1 $lpid2
-
-rm -R -f work/*
-rm -R -f fifo/*
-
-# Stop ktools watcher
-kill -9 $pid0

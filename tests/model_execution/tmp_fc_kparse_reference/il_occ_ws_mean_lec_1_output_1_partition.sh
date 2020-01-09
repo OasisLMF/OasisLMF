@@ -24,8 +24,6 @@ mkdir /tmp/%FIFO_DIR%/fifo/full_correlation/
 mkdir work/il_S1_summaryleccalc
 mkdir work/full_correlation/il_S1_summaryleccalc
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P1
-
 mkfifo /tmp/%FIFO_DIR%/fifo/il_P1
 
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1
@@ -69,8 +67,3 @@ wait $pid1
 
 
 leccalc -r -Kil_S1_summaryleccalc -m output/il_S1_leccalc_wheatsheaf_mean_oep.csv & lpid1=$!
-leccalc -r -Kfull_correlation/il_S1_summaryleccalc -m output/full_correlation/il_S1_leccalc_wheatsheaf_mean_oep.csv & lpid2=$!
-wait $lpid1 $lpid2
-
-rm -R -f work/*
-rm -R -f /tmp/%FIFO_DIR%/

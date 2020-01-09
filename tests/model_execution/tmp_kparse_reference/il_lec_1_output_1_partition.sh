@@ -20,8 +20,6 @@ mkdir -p /tmp/%FIFO_DIR%/fifo/
 mkdir work/il_S1_summaryleccalc
 mkdir work/il_S1_summaryaalcalc
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P1
-
 mkfifo /tmp/%FIFO_DIR%/fifo/il_P1
 
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1

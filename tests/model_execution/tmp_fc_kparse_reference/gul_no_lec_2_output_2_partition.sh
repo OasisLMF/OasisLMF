@@ -171,9 +171,3 @@ wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6 $kpid7 $kpid8 $kpid9 $kpid10 $kpi
 
 aalcalc -Kgul_S1_summaryaalcalc > output/gul_S1_aalcalc.csv & lpid1=$!
 aalcalc -Kgul_S2_summaryaalcalc > output/gul_S2_aalcalc.csv & lpid2=$!
-aalcalc -Kfull_correlation/gul_S1_summaryaalcalc > output/full_correlation/gul_S1_aalcalc.csv & lpid3=$!
-aalcalc -Kfull_correlation/gul_S2_summaryaalcalc > output/full_correlation/gul_S2_aalcalc.csv & lpid4=$!
-wait $lpid1 $lpid2 $lpid3 $lpid4
-
-rm -R -f work/*
-rm -R -f /tmp/%FIFO_DIR%/

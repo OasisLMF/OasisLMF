@@ -21,9 +21,6 @@ mkdir work/il_S1_summaryaalcalc
 mkdir work/il_S2_summaryleccalc
 mkdir work/il_S2_summaryaalcalc
 
-mkfifo fifo/gul_P1
-mkfifo fifo/gul_P2
-
 mkfifo fifo/il_P1
 mkfifo fifo/il_P2
 

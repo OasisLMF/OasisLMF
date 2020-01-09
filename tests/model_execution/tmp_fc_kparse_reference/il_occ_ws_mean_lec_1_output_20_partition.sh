@@ -24,27 +24,6 @@ mkdir /tmp/%FIFO_DIR%/fifo/full_correlation/
 mkdir work/il_S1_summaryleccalc
 mkdir work/full_correlation/il_S1_summaryleccalc
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P1
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P2
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P3
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P4
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P5
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P6
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P7
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P8
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P9
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P10
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P11
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P12
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P13
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P14
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P15
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P16
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P17
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P18
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P19
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P20
-
 mkfifo /tmp/%FIFO_DIR%/fifo/il_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/il_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/il_P3
@@ -297,8 +276,3 @@ wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 
 
 
 leccalc -r -Kil_S1_summaryleccalc -m output/il_S1_leccalc_wheatsheaf_mean_oep.csv & lpid1=$!
-leccalc -r -Kfull_correlation/il_S1_summaryleccalc -m output/full_correlation/il_S1_leccalc_wheatsheaf_mean_oep.csv & lpid2=$!
-wait $lpid1 $lpid2
-
-rm -R -f work/*
-rm -R -f /tmp/%FIFO_DIR%/

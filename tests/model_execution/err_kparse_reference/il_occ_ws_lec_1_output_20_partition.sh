@@ -43,27 +43,6 @@ mkdir work/kat/
 
 mkdir work/il_S1_summaryleccalc
 
-mkfifo fifo/gul_P1
-mkfifo fifo/gul_P2
-mkfifo fifo/gul_P3
-mkfifo fifo/gul_P4
-mkfifo fifo/gul_P5
-mkfifo fifo/gul_P6
-mkfifo fifo/gul_P7
-mkfifo fifo/gul_P8
-mkfifo fifo/gul_P9
-mkfifo fifo/gul_P10
-mkfifo fifo/gul_P11
-mkfifo fifo/gul_P12
-mkfifo fifo/gul_P13
-mkfifo fifo/gul_P14
-mkfifo fifo/gul_P15
-mkfifo fifo/gul_P16
-mkfifo fifo/gul_P17
-mkfifo fifo/gul_P18
-mkfifo fifo/gul_P19
-mkfifo fifo/gul_P20
-
 mkfifo fifo/il_P1
 mkfifo fifo/il_P2
 mkfifo fifo/il_P3

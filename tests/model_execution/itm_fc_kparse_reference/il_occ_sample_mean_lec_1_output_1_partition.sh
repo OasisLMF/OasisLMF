@@ -23,8 +23,6 @@ mkdir work/full_correlation/kat/
 mkdir work/il_S1_summaryleccalc
 mkdir work/full_correlation/il_S1_summaryleccalc
 
-mkfifo fifo/gul_P1
-
 mkfifo fifo/il_P1
 
 mkfifo fifo/il_S1_summary_P1
@@ -68,8 +66,3 @@ wait $pid1
 
 
 leccalc -r -Kil_S1_summaryleccalc -s output/il_S1_leccalc_sample_mean_oep.csv & lpid1=$!
-leccalc -r -Kfull_correlation/il_S1_summaryleccalc -s output/full_correlation/il_S1_leccalc_sample_mean_oep.csv & lpid2=$!
-wait $lpid1 $lpid2
-
-rm -R -f work/*
-rm -R -f fifo/*

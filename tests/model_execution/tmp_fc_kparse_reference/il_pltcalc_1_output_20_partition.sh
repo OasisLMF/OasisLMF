@@ -22,27 +22,6 @@ rm -R -f /tmp/%FIFO_DIR%/
 mkdir -p /tmp/%FIFO_DIR%/fifo/
 mkdir /tmp/%FIFO_DIR%/fifo/full_correlation/
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P1
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P2
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P3
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P4
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P5
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P6
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P7
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P8
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P9
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P10
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P11
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P12
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P13
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P14
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P15
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P16
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P17
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P18
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P19
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P20
-
 mkfifo /tmp/%FIFO_DIR%/fifo/il_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/il_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/il_P3
@@ -418,5 +397,3 @@ kat work/full_correlation/kat/il_S1_pltcalc_P1 work/full_correlation/kat/il_S1_p
 wait $kpid1 $kpid2
 
 
-rm -R -f work/*
-rm -R -f /tmp/%FIFO_DIR%/

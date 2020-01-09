@@ -22,8 +22,6 @@ rm -R -f /tmp/%FIFO_DIR%/
 mkdir -p /tmp/%FIFO_DIR%/fifo/
 mkdir /tmp/%FIFO_DIR%/fifo/full_correlation/
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P1
-
 mkfifo /tmp/%FIFO_DIR%/fifo/il_P1
 
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1
@@ -76,5 +74,3 @@ kat work/full_correlation/kat/il_S1_summarycalc_P1 > output/full_correlation/il_
 wait $kpid1 $kpid2
 
 
-rm -R -f work/*
-rm -R -f /tmp/%FIFO_DIR%/

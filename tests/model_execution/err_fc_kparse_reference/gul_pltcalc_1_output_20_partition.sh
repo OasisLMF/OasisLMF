@@ -399,8 +399,3 @@ kat work/full_correlation/kat/gul_S1_pltcalc_P1 work/full_correlation/kat/gul_S1
 wait $kpid1 $kpid2
 
 
-rm -R -f work/*
-rm -R -f fifo/*
-
-# Stop ktools watcher
-kill -9 $pid0
