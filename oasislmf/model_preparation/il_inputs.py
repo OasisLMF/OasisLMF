@@ -697,7 +697,6 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
         max_level = il_inputs_df['level_id'].max()
         programme_levels = list()
 
-        import ipdb; ipdb.set_trace()
         for level in range(max_level):
             # Select The Agg ids based on the current level in the hierarchy
             if level == 0:
