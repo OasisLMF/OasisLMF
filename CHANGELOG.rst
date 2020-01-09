@@ -1,11 +1,15 @@
 OasisLMF Changelog
 ==================
 
+.. start_latest_release
+
 `1.4.6`_
 -------
 * Update to model_settings schema 
 * Fixes #452 - Check columns before grouping output
 * Fixes #451 - Error checking ktools runs for complex models
+
+.. end_latest_release
 
 `1.4.5`_
 -------
