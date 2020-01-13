@@ -435,7 +435,10 @@ class APIClient(object):
         try:
             r = self.analyses.generate(analysis_id)
             analysis = r.json()
-            self.logger.info('Inputs Generation: Started (id={})'.format(analysis_id))
+            self.logger.info('Inputs Generation: Starting (id={})'.format(analysis_id))
+            logged_queued = None
+            logged_running = None
+
             while True:
                 if analysis['status'] in ['READY']:
                     self.logger.info('Inputs Generation: Complete (id={})'.format(analysis_id))
@@ -446,13 +449,26 @@ class APIClient(object):
                     return False
 
                 elif analysis['status'] in ['INPUTS_GENERATION_ERROR']:
-                    self.logger.info('Input Generation: failed (id={})'.format(analysis_id))
+                    self.logger.info('Input Generation: Failed (id={})'.format(analysis_id))
                     error_trace = self.analyses.input_generation_traceback_file.get(analysis_id).text
                     self.logger.error(error_trace)
                     return False
 
+                elif analysis['status'] in ['INPUTS_GENERATION_QUEUED']:
+                    if not logged_queued:
+                        self.logger.info('Input Generation: Queued (id={})'.format(analysis_id))
+                        logged_queued == True
+
+                    time.sleep(poll_interval)
+                    r = self.analyses.get(analysis_id)
+                    analysis = r.json()
+                    continue
+
                 elif analysis['status'] in ['INPUTS_GENERATION_STARTED']:
-                    # self.logger.debug('Polling - status: {}'.format(analysis['status']))
+                    if not logged_running:
+                        self.logger.info('Input Generation: Executing (id={})'.format(analysis_id))
+                        logged_running == True
+
                     time.sleep(poll_interval)
                     r = self.analyses.get(analysis_id)
                     analysis = r.json()
@@ -461,6 +477,7 @@ class APIClient(object):
                 else:
                     err_msg = "Inputs Generation: Unknown State'{}'".format(analysis['status'])
                     self.logger.error(err_msg)
+                    sys.exit(1)
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'run_generate: failed')
             sys.exit(1)
@@ -476,7 +493,9 @@ class APIClient(object):
             analyses = self.analyses.get(analysis_id)
             self.upload_settings(analyses, analysis_settings_fp)
             analysis = self.analyses.run(analysis_id).json()
-            self.logger.info('Analysis Run: Started (id={})'.format(analysis_id))
+            self.logger.info('Analysis Run: Starting (id={})'.format(analysis_id))
+            logged_queued = None
+            logged_running = None
 
             while True:
                 if analysis['status'] in ['RUN_COMPLETED']:
@@ -488,13 +507,26 @@ class APIClient(object):
                     return False
 
                 elif analysis['status'] in ['RUN_ERROR']:
-                    self.logger.error('Analysis Run: failed (id={})'.format(analysis_id))
+                    self.logger.error('Analysis Run: Failed (id={})'.format(analysis_id))
                     error_trace = self.analyses.run_traceback_file.get(analysis_id).text
                     self.logger.error(error_trace)
                     return False
 
+                elif analysis['status'] in ['RUN_QUEUED']:
+                    if not logged_queued:
+                        self.logger.info('Analysis Run: Queued (id={})'.format(analysis_id))
+                        logged_queued == True
+
+                    time.sleep(poll_interval)
+                    r = self.analyses.get(analysis_id)
+                    analysis = r.json()
+                    continue
+
                 elif analysis['status'] in ['RUN_STARTED']:
-                    # self.logger.debug('Polling - status: {}'.format(analysis['status']))
+                    if not logged_running:
+                        self.logger.info('Analysis Run: Executing (id={})'.format(analysis_id))
+                        logged_running == True
+
                     time.sleep(poll_interval)
                     r = self.analyses.get(analysis_id)
                     analysis = r.json()
@@ -503,6 +535,7 @@ class APIClient(object):
                 else:
                     err_msg = "Execution status in Unknown State: '{}'".format(analysis['status'])
                     self.logger.error(err_msg)
+                    sys.exit(1)
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'run_analysis: failed')
             sys.exit(1)
