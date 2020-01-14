@@ -75,7 +75,9 @@
 	"FMProfileStep": [2, 5]
     },
     "PayOutType": {
-	"Key": "PayOutType"
+	"Key": "PayOutType",
+	"FMProfileField": "payout_type",
+	"FMProfileStep": [1, 2, 3, 5]
     },
     "StepNumber": {
 	"Key": "StepNumber",
@@ -113,6 +115,8 @@
 	"FMProfileStep": [2, 5]
     },
     "TriggerType": {
-	"Key": "TriggerType"
+	"Key": "TriggerType",
+	"FMProfileField": "trigger_type",
+	"FMProfileStep": [1, 2, 3, 5]
     }
 }
