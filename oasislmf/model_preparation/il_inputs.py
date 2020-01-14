@@ -675,7 +675,6 @@ def get_il_input_items(
                 il_inputs_df[il_inputs_df['steptriggertype'] > 0],
                 step_trigger_type_cols
             )
-            breakpoint()
         else:
             il_inputs_df['calcrule_id'] = get_calc_rule_ds(il_inputs_df)
 
