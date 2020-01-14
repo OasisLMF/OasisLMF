@@ -4,6 +4,7 @@ __all__ = [
     'get_grouped_fm_terms_by_level_and_term_group',
     'get_il_input_items',
     'get_policytc_ids',
+    'get_step_calc_rule_ids',
     'write_il_input_files',
     'write_fm_policytc_file',
     'write_fm_profile_file',
@@ -19,7 +20,10 @@ import warnings
 import pandas as pd
 import numpy as np
 
-from ..utils.calc_rules import get_calc_rules
+from ..utils.calc_rules import (
+    get_calc_rules,
+    get_step_calc_rules
+)
 from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
 from ..utils.data import (
     factorize_ndarray,
@@ -51,6 +55,7 @@ from ..utils.profiles import (
     get_grouped_fm_profile_by_level_and_term_group,
     get_grouped_fm_terms_by_level_and_term_group,
     get_oed_hierarchy,
+    get_step_policies_oed_mapping,
 )
 
 pd.options.mode.chained_assignment = None
@@ -87,6 +92,56 @@ def get_calc_rule_ids(il_inputs_df):
                         ].id_key.unique()
 
         err_msg += '   {}\n'.format(tuple(terms_indicators + types_and_codes))
+        for key_id in no_match_keys:
+            err_msg += '   {}\n'.format(key_id)
+        raise OasisException(err_msg)
+
+    return il_inputs_calc_rules_df['calcrule_id'].values
+
+
+def get_step_calc_rule_ids(il_inputs_df, step_trigger_type_cols):
+    """
+    Returns a Numpy array of calc. rule IDs from a table of IL input items that
+    include step policies
+
+    :param il_inputs_df: IL input items dataframe
+    :type il_inputs_df: pandas.DataFrame
+
+    :param step_trigger_type_cols: column names used to determine values for
+    terms indicators and types
+    :type step_trigger_type_cols: list
+
+    :return: Numpy array of calc. rule IDs
+    :rtype: numpy.ndarray
+    """
+    calc_rules_step = get_step_calc_rules().drop(['desc'], axis=1)
+    calc_rules_step['id_key'] = calc_rules_step['id_key'].apply(eval)
+
+    terms = ['deductible1', 'payout_start', 'payout_end', 'limit1', 'limit2']
+    terms_indicators = ['{}_gt_0'.format(t) for t in terms]
+    types = ['trigger_type', 'payout_type']
+
+    il_inputs_calc_rules_df = il_inputs_df.loc[:, ['item_id', 'steptriggertype'] + step_trigger_type_cols + terms + terms_indicators + types + ['calcrule_id']]
+
+    # Fill columns used to determine values for terms indicators and types
+    # Columns used depend on step trigger type
+    for term in terms + types:
+        il_inputs_calc_rules_df[term] = il_inputs_calc_rules_df.apply(lambda x: x[get_step_policies_oed_mapping(x['steptriggertype'])[term]] if get_step_policies_oed_mapping(x['steptriggertype']).get(term) is not None else 0, axis=1)
+
+    il_inputs_calc_rules_df.loc[:, terms_indicators] = np.where(il_inputs_calc_rules_df[terms] > 0, 1, 0)
+    il_inputs_calc_rules_df[types] = il_inputs_calc_rules_df[types].fillna(0).astype('uint8')
+    il_inputs_calc_rules_df['id_key'] = [t for t in fast_zip_arrays(*il_inputs_calc_rules_df.loc[:, terms_indicators + types].transpose().values)]
+
+    il_inputs_calc_rules_df = merge_dataframes(il_inputs_calc_rules_df, calc_rules_step, how='left', on='id_key').fillna(0)
+    il_inputs_calc_rules_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id'].astype('uint32')
+
+    if 0 in il_inputs_calc_rules_df.calcrule_id.unique():
+        err_msg = 'Calculation Rule mapping error, non-matching keys:\n'
+        no_match_keys = il_inputs_calc_rules_df.loc[
+            il_inputs_calc_rules_df.calcrule_id == 0
+        ].id_key.unique()
+
+        err_msg += '   {}\n'.format(tuple(terms_indicators + types))
         for key_id in no_match_keys:
             err_msg += '   {}\n'.format(key_id)
         raise OasisException(err_msg)
@@ -256,13 +311,6 @@ def get_il_input_items(
         empty_data_error_msg='No accounts found in the source accounts (loc.) file',
         memory_map=True,
     )
-    # Remove rows with duplicate account number-portfolio number-policy number
-    # sets
-    accounts_df.drop_duplicates(
-        subset=[acc_num, portfolio_num, policy_num], inplace=True
-    )
-    accounts_df.reset_index(drop=True, inplace=True)
-    accounts_df[SOURCE_IDX['acc']] = accounts_df.index
 
     if not (accounts_df is not None or accounts_fp):
         raise OasisException('No accounts frame or file path provided')
@@ -287,6 +335,13 @@ def get_il_input_items(
     if 'steptriggertype' in accounts_df:
         if accounts_df['steptriggertype'].notnull().any():
             usecols += ['steptriggertype']
+            # Find unique values of step policies to determine columns that need
+            # to be kept
+            step_trigger_types = accounts_df['steptriggertype'].dropna().unique()
+            step_trigger_type_cols = [
+                col for step_trigger_type in step_trigger_types for col in get_step_policies_oed_mapping(step_trigger_type).values()
+            ]
+            usecols += step_trigger_type_cols
     accounts_df.drop([c for c in accounts_df.columns if c not in usecols], axis=1, inplace=True)
 
     try:
@@ -608,7 +663,21 @@ def get_il_input_items(
         )
 
         # Set the calc. rule IDs
-        il_inputs_df['calcrule_id'] = get_calc_rule_ids(il_inputs_df)
+        if 'cov_agg_id' in il_inputs_df:
+            il_inputs_df.loc[
+                ~(il_inputs_df['steptriggertype'] > 0), 'calcrule_id'
+            ] = get_calc_rule_ids(
+                il_inputs_df[~(il_inputs_df['steptriggertype'] > 0)]
+            )
+            il_inputs_df.loc[
+                il_inputs_df['steptriggertype'] > 0, 'calcrule_id'
+            ] = get_step_calc_rule_ids(
+                il_inputs_df[il_inputs_df['steptriggertype'] > 0],
+                step_trigger_type_cols
+            )
+            breakpoint()
+        else:
+            il_inputs_df['calcrule_id'] = get_calc_rule_ds(il_inputs_df)
 
         # Set the policy TC IDs
         il_inputs_df['policytc_id'] = get_policytc_ids(il_inputs_df)
