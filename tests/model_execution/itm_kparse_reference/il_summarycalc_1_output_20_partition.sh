@@ -15,105 +15,109 @@ find output/* ! -name '*summary-info*' -type f -exec rm -f {} +
 rm -R -f fifo/*
 rm -R -f work/*
 mkdir work/kat/
+
+
 mkfifo fifo/il_P1
+mkfifo fifo/il_P2
+mkfifo fifo/il_P3
+mkfifo fifo/il_P4
+mkfifo fifo/il_P5
+mkfifo fifo/il_P6
+mkfifo fifo/il_P7
+mkfifo fifo/il_P8
+mkfifo fifo/il_P9
+mkfifo fifo/il_P10
+mkfifo fifo/il_P11
+mkfifo fifo/il_P12
+mkfifo fifo/il_P13
+mkfifo fifo/il_P14
+mkfifo fifo/il_P15
+mkfifo fifo/il_P16
+mkfifo fifo/il_P17
+mkfifo fifo/il_P18
+mkfifo fifo/il_P19
+mkfifo fifo/il_P20
+
 mkfifo fifo/il_S1_summary_P1
 mkfifo fifo/il_S1_summarysummarycalc_P1
 mkfifo fifo/il_S1_summarycalc_P1
 
-mkfifo fifo/il_P2
 mkfifo fifo/il_S1_summary_P2
 mkfifo fifo/il_S1_summarysummarycalc_P2
 mkfifo fifo/il_S1_summarycalc_P2
 
-mkfifo fifo/il_P3
 mkfifo fifo/il_S1_summary_P3
 mkfifo fifo/il_S1_summarysummarycalc_P3
 mkfifo fifo/il_S1_summarycalc_P3
 
-mkfifo fifo/il_P4
 mkfifo fifo/il_S1_summary_P4
 mkfifo fifo/il_S1_summarysummarycalc_P4
 mkfifo fifo/il_S1_summarycalc_P4
 
-mkfifo fifo/il_P5
 mkfifo fifo/il_S1_summary_P5
 mkfifo fifo/il_S1_summarysummarycalc_P5
 mkfifo fifo/il_S1_summarycalc_P5
 
-mkfifo fifo/il_P6
 mkfifo fifo/il_S1_summary_P6
 mkfifo fifo/il_S1_summarysummarycalc_P6
 mkfifo fifo/il_S1_summarycalc_P6
 
-mkfifo fifo/il_P7
 mkfifo fifo/il_S1_summary_P7
 mkfifo fifo/il_S1_summarysummarycalc_P7
 mkfifo fifo/il_S1_summarycalc_P7
 
-mkfifo fifo/il_P8
 mkfifo fifo/il_S1_summary_P8
 mkfifo fifo/il_S1_summarysummarycalc_P8
 mkfifo fifo/il_S1_summarycalc_P8
 
-mkfifo fifo/il_P9
 mkfifo fifo/il_S1_summary_P9
 mkfifo fifo/il_S1_summarysummarycalc_P9
 mkfifo fifo/il_S1_summarycalc_P9
 
-mkfifo fifo/il_P10
 mkfifo fifo/il_S1_summary_P10
 mkfifo fifo/il_S1_summarysummarycalc_P10
 mkfifo fifo/il_S1_summarycalc_P10
 
-mkfifo fifo/il_P11
 mkfifo fifo/il_S1_summary_P11
 mkfifo fifo/il_S1_summarysummarycalc_P11
 mkfifo fifo/il_S1_summarycalc_P11
 
-mkfifo fifo/il_P12
 mkfifo fifo/il_S1_summary_P12
 mkfifo fifo/il_S1_summarysummarycalc_P12
 mkfifo fifo/il_S1_summarycalc_P12
 
-mkfifo fifo/il_P13
 mkfifo fifo/il_S1_summary_P13
 mkfifo fifo/il_S1_summarysummarycalc_P13
 mkfifo fifo/il_S1_summarycalc_P13
 
-mkfifo fifo/il_P14
 mkfifo fifo/il_S1_summary_P14
 mkfifo fifo/il_S1_summarysummarycalc_P14
 mkfifo fifo/il_S1_summarycalc_P14
 
-mkfifo fifo/il_P15
 mkfifo fifo/il_S1_summary_P15
 mkfifo fifo/il_S1_summarysummarycalc_P15
 mkfifo fifo/il_S1_summarycalc_P15
 
-mkfifo fifo/il_P16
 mkfifo fifo/il_S1_summary_P16
 mkfifo fifo/il_S1_summarysummarycalc_P16
 mkfifo fifo/il_S1_summarycalc_P16
 
-mkfifo fifo/il_P17
 mkfifo fifo/il_S1_summary_P17
 mkfifo fifo/il_S1_summarysummarycalc_P17
 mkfifo fifo/il_S1_summarycalc_P17
 
-mkfifo fifo/il_P18
 mkfifo fifo/il_S1_summary_P18
 mkfifo fifo/il_S1_summarysummarycalc_P18
 mkfifo fifo/il_S1_summarycalc_P18
 
-mkfifo fifo/il_P19
 mkfifo fifo/il_S1_summary_P19
 mkfifo fifo/il_S1_summarysummarycalc_P19
 mkfifo fifo/il_S1_summarycalc_P19
 
-mkfifo fifo/il_P20
 mkfifo fifo/il_S1_summary_P20
 mkfifo fifo/il_S1_summarysummarycalc_P20
 mkfifo fifo/il_S1_summarycalc_P20
+
 
 
 # --- Do insured loss computes ---

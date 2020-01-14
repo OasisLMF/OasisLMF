@@ -108,58 +108,55 @@ def do_post_wait_processing(
                     print_command(filename, cmd)
 
 
-def do_fifos(
-    action,
-    runtype,
-    analysis_settings,
-    process_id,
-    filename,
-    fifo_dir='fifo/',
-    full_correlation=False
-):
+def do_fifos_exec(runtype, max_process_id, filename, fifo_dir, action='mkfifo'):
+    for process_id in range(1, max_process_id + 1):
+        print_command(filename, '{} {}{}_P{}'.format(action, fifo_dir, runtype, process_id))
+    print_command(filename, '')
+
+
+def do_fifos_calc(runtype, analysis_settings, max_process_id,
+                  filename, fifo_dir='fifo/', action='mkfifo'):
+
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
 
-    if not full_correlation:
-        print_command(filename, '{} {}{}_P{}'.format(action, fifo_dir, runtype, process_id))
+    for process_id in range(1, max_process_id + 1):
+        for summary in summaries:
+            if 'id' in summary:
+                summary_set = summary['id']
+                print_command(filename, '{} {}{}_S{}_summary_P{}'.format(action, fifo_dir, runtype, summary_set, process_id))
 
-    for summary in summaries:
-        if 'id' in summary:
-            summary_set = summary['id']
-            print_command(filename, '{} {}{}_S{}_summary_P{}'.format(action, fifo_dir, runtype, summary_set, process_id))
+                if summary.get('eltcalc'):
+                    print_command(
+                        filename,
+                        '{} {}{}_S{}_summaryeltcalc_P{}'.format(action, fifo_dir, runtype, summary_set, process_id)
+                    )
+                    print_command(
+                        filename,
+                        '{} {}{}_S{}_eltcalc_P{}'.format(action, fifo_dir, runtype, summary_set, process_id)
+                    )
 
-            if summary.get('eltcalc'):
-                print_command(
-                    filename,
-                    '{} {}{}_S{}_summaryeltcalc_P{}'.format(action, fifo_dir, runtype, summary_set, process_id)
-                )
-                print_command(
-                    filename,
-                    '{} {}{}_S{}_eltcalc_P{}'.format(action, fifo_dir, runtype, summary_set, process_id)
-                )
+                if summary.get('summarycalc'):
+                    print_command(
+                        filename,
+                        '{} {}{}_S{}_summarysummarycalc_P{}'.format(action, fifo_dir, runtype, summary_set, process_id)
+                    )
+                    print_command(
+                        filename,
+                        '{} {}{}_S{}_summarycalc_P{}'.format(action, fifo_dir, runtype, summary_set, process_id)
+                    )
 
-            if summary.get('summarycalc'):
-                print_command(
-                    filename,
-                    '{} {}{}_S{}_summarysummarycalc_P{}'.format(action, fifo_dir, runtype, summary_set, process_id)
-                )
-                print_command(
-                    filename,
-                    '{} {}{}_S{}_summarycalc_P{}'.format(action, fifo_dir, runtype, summary_set, process_id)
-                )
-
-            if summary.get('pltcalc'):
-                print_command(
-                    filename,
-                    '{} {}{}_S{}_summarypltcalc_P{}'.format(action, fifo_dir, runtype, summary_set, process_id)
-                )
-                print_command(
-                    filename,
-                    '{} {}{}_S{}_pltcalc_P{}'.format(action, fifo_dir, runtype, summary_set, process_id)
-                )
-
-    print_command(filename, '')
+                if summary.get('pltcalc'):
+                    print_command(
+                        filename,
+                        '{} {}{}_S{}_summarypltcalc_P{}'.format(action, fifo_dir, runtype, summary_set, process_id)
+                    )
+                    print_command(
+                        filename,
+                        '{} {}{}_S{}_pltcalc_P{}'.format(action, fifo_dir, runtype, summary_set, process_id)
+                    )
+        print_command(filename, '')
 
 
 def create_workfolders(runtype, analysis_settings, filename, work_dir='work/'):
@@ -182,44 +179,6 @@ def create_workfolders(runtype, analysis_settings, filename, work_dir='work/'):
                     filename,
                     'mkdir {}{}_S{}_summaryaalcalc'.format(work_dir, runtype, summary_set)
                 )
-
-
-def remove_workfolders(runtype, analysis_settings, filename):
-    print_command(filename, 'rm -rf work/kat')
-
-    summaries = analysis_settings.get('{}_summaries'.format(runtype))
-    if not summaries:
-        return
-
-    for summary in summaries:
-        if 'id' in summary:
-            summary_set = summary['id']
-            if summary.get('lec_output'):
-                if leccalc_enabled(summary['leccalc']):
-                    print_command(filename, 'rm work/{}_S{}_summaryleccalc/*'.format(runtype, summary_set))
-                    print_command(filename, 'rmdir work/{}_S{}_summaryleccalc'.format(runtype, summary_set))
-
-            if summary.get('aalcalc'):
-                print_command(filename, 'rm -rf work/{}_S{}_summaryaalcalc/*'.format(runtype, summary_set))
-                print_command(filename, 'rmdir work/{}_S{}_summaryaalcalc'.format(runtype, summary_set))
-
-
-def do_make_fifos(
-    runtype,
-    analysis_settings,
-    process_id,
-    filename,
-    fifo_dir='fifo/',
-    full_correlation=False
-):
-    do_fifos(
-        'mkfifo', runtype, analysis_settings, process_id, filename, fifo_dir,
-        full_correlation
-    )
-
-
-def do_remove_fifos(runtype, analysis_settings, process_id, filename, fifo_dir='fifo/'):
-    do_fifos('rm', runtype, analysis_settings, process_id, filename, fifo_dir)
 
 
 def do_kats(
@@ -485,66 +444,6 @@ def do_gul(
         )
 
 
-def il_make_fifo(
-    analysis_settings,
-    max_process_id,
-    filename,
-    fifo_dir='fifo/',
-    full_correlation=False
-):
-
-    for process_id in range(1, max_process_id + 1):
-        do_make_fifos(
-            RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename,
-            fifo_dir, full_correlation
-        )
-
-
-def do_gul_make_fifo(
-    analysis_settings,
-    max_process_id,
-    filename,
-    fifo_dir='fifo/',
-    full_correlation=False
-):
-
-    for process_id in range(1, max_process_id + 1):
-        do_make_fifos(
-            RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename,
-            fifo_dir, full_correlation
-        )
-
-
-def ri_make_fifo(
-    analysis_settings,
-    max_process_id,
-    filename,
-    fifo_dir='fifo/',
-    full_correlation=False
-):
-
-    for process_id in range(1, max_process_id + 1):
-        do_make_fifos(
-            RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename,
-            fifo_dir, full_correlation
-        )
-
-
-def il_remove_fifo(analysis_settings, max_process_id, filename, fifo_dir='fifo/'):
-    for process_id in range(1, max_process_id + 1):
-        do_remove_fifos(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, fifo_dir)
-
-
-def do_gul_remove_fifo(analysis_settings, max_process_id, filename, fifo_dir='fifo/'):
-    for process_id in range(1, max_process_id + 1):
-        do_remove_fifos(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, fifo_dir)
-
-
-def ri_remove_fifo(analysis_settings, max_process_id, filename, fifo_dir='fifo/'):
-    for process_id in range(1, max_process_id + 1):
-        do_remove_fifos(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, fifo_dir)
-
-
 def do_waits(wait_variable, wait_count, filename):
     """
     Add waits to the script
@@ -667,6 +566,7 @@ def get_getmodel_cov_cmd(
 def get_main_cmd_ri_stream(
     cmd,
     process_id,
+    il_output,
     il_alloc_rule,
     ri_alloc_rule,
     num_reinsurance_iterations,
@@ -681,6 +581,8 @@ def get_main_cmd_ri_stream(
     :type cmd: str
     :param process_id: ID corresponding to thread
     :type process_id: int
+    :param il_output: If insured loss outputs required 
+    :type il_output: Boolean 
     :param il_alloc_rule: insured loss allocation rule for fmcalc
     :type il_alloc_rule: int
     :param ri_alloc_rule: reinsurance allocation rule for fmcalc
@@ -699,10 +601,13 @@ def get_main_cmd_ri_stream(
     """
 
     if full_correlation:
-        fm_cmd = 'fmcalc -a{2} < {1} | tee {3}il_P{0}'
+        fm_cmd = 'fmcalc -a{1} < {0}'
     else:
-        fm_cmd = '{1} | fmcalc -a{2} | tee {3}il_P{0}'
-    main_cmd = fm_cmd.format(process_id, cmd, il_alloc_rule, fifo_dir)
+        fm_cmd = '{0} | fmcalc -a{1}'
+    main_cmd = fm_cmd.format(cmd, il_alloc_rule)
+
+    if il_output:
+        main_cmd = "{0} | tee {1}il_P{2}".format(main_cmd, fifo_dir, process_id)
 
     for i in range(1, num_reinsurance_iterations + 1):
         main_cmd = "{0} | fmcalc -a{2} -n -p RI_{1}".format(
@@ -963,10 +868,10 @@ def genbash(
         print_command(
             filename, 'mkdir {}'.format(work_full_correlation_kat_dir)
         )
+    print_command(filename, '')
 
-    # Create tmp dir for FIFO queues (Windows support)
+    # Create FIFOS under /tmp/* (Windows support)
     if fifo_tmp_dir:
-        print_command(filename, '')
         fifo_queue_dir = '/tmp/{}/'.format(
             ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(10))
         )
@@ -979,52 +884,70 @@ def genbash(
                 filename, 'mkdir {}'.format(fifo_full_correlation_dir)
             )
 
+    # Create workfolders
     if gul_output:
-        do_gul_make_fifo(analysis_settings, max_process_id, filename, fifo_queue_dir)
-        create_workfolders(
-            RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, work_dir
-        )
+        create_workfolders(RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, work_dir)
         if full_correlation:
-            do_gul_make_fifo(
-                analysis_settings, max_process_id, filename,
-                fifo_full_correlation_dir, full_correlation
-            )
             create_workfolders(
-                RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename,
-                work_full_correlation_dir
+                RUNTYPE_GROUNDUP_LOSS, analysis_settings,
+                filename, work_full_correlation_dir
             )
 
     if il_output:
-        il_make_fifo(analysis_settings, max_process_id, filename, fifo_queue_dir)
-        create_workfolders(
-            RUNTYPE_INSURED_LOSS, analysis_settings, filename, work_dir
-        )
+        create_workfolders(RUNTYPE_INSURED_LOSS, analysis_settings, filename, work_dir)
         if full_correlation:
-            il_make_fifo(
-                analysis_settings, max_process_id, filename,
-                fifo_full_correlation_dir, full_correlation
-            )
             create_workfolders(
-                RUNTYPE_INSURED_LOSS, analysis_settings, filename,
-                work_full_correlation_dir
+                RUNTYPE_INSURED_LOSS, analysis_settings,
+                filename, work_full_correlation_dir
             )
 
     if ri_output:
-        ri_make_fifo(analysis_settings, max_process_id, filename, fifo_queue_dir)
-        create_workfolders(
-            RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename, work_dir
-        )
+        create_workfolders(RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename, work_dir)
         if full_correlation:
-            ri_make_fifo(
-                analysis_settings, max_process_id, filename,
-                fifo_full_correlation_dir, full_correlation
-            )
             create_workfolders(
-                RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename,
-                work_full_correlation_dir
+                RUNTYPE_REINSURANCE_LOSS, analysis_settings,
+                filename, work_full_correlation_dir
             )
-        print_command(filename, '')
+    print_command(filename, '')
 
+    # Create Execution Pipeline FIFOs
+    if gul_output:
+        do_fifos_exec(RUNTYPE_GROUNDUP_LOSS, max_process_id, filename, fifo_queue_dir)
+    if il_output:
+        do_fifos_exec(RUNTYPE_INSURED_LOSS, max_process_id, filename, fifo_queue_dir)
+    if ri_output:
+        do_fifos_exec(RUNTYPE_REINSURANCE_LOSS, max_process_id, filename, fifo_queue_dir)
+
+    # Create Summarycalc FIFOs
+    if gul_output:
+        do_fifos_calc(RUNTYPE_GROUNDUP_LOSS, analysis_settings, max_process_id,
+                      filename, fifo_queue_dir)
+    if il_output:
+        do_fifos_calc(RUNTYPE_INSURED_LOSS, analysis_settings,
+                      max_process_id, filename, fifo_queue_dir)
+    if ri_output:
+        do_fifos_calc(RUNTYPE_REINSURANCE_LOSS, analysis_settings,
+                      max_process_id, filename, fifo_queue_dir)
+
+    # Create Full correlation FIFO
+    if full_correlation:
+        if gul_output:
+            do_fifos_calc(
+                RUNTYPE_GROUNDUP_LOSS, analysis_settings,
+                max_process_id, filename, fifo_full_correlation_dir
+            )
+        if il_output:
+            do_fifos_calc(
+                RUNTYPE_INSURED_LOSS, analysis_settings,
+                max_process_id, filename, fifo_full_correlation_dir
+            )
+        if ri_output:
+            do_fifos_calc(
+                RUNTYPE_REINSURANCE_LOSS, analysis_settings,
+                max_process_id, filename, fifo_full_correlation_dir
+            )
+
+    print_command(filename, '')
     compute_outputs = []
     if ri_output:
         ri_computes = {
@@ -1100,14 +1023,18 @@ def genbash(
             'process_id': process_id,
             'max_process_id': max_process_id,
             'correlated_output': correlated_output_file,
-            'stderr_guard': stderr_guard 
+            'stderr_guard': stderr_guard
         }
 
         # GUL coverage & item stream (Older)
         if gul_item_stream:
-            getmodel_args['item_output'] = '- | tee {0}gul_P{1}'.format(fifo_queue_dir, process_id)
+            if gul_output:
+                getmodel_args['item_output'] = '- | tee {0}gul_P{1}'.format(fifo_queue_dir, process_id)
+
             _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_itm_cmd)
         else:
+            if not gul_output:
+                getmodel_args['coverage_output'] = ""
             _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_cov_cmd)
 
         # ! Should be able to streamline the logic a little
@@ -1115,8 +1042,14 @@ def genbash(
             getmodel_args.update(custom_args)
             getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
             main_cmd = get_main_cmd_ri_stream(
-                getmodel_cmd, process_id, il_alloc_rule, ri_alloc_rule,
-                num_reinsurance_iterations, fifo_queue_dir, stderr_guard
+                getmodel_cmd, 
+                process_id, 
+                il_output,
+                il_alloc_rule, 
+                ri_alloc_rule,
+                num_reinsurance_iterations, 
+                fifo_queue_dir, 
+                stderr_guard
             )
             print_command(filename, main_cmd)
 
@@ -1175,11 +1108,18 @@ def genbash(
 
             if num_reinsurance_iterations > 0 and ri_output:
                 main_cmd = get_main_cmd_ri_stream(
-                    correlated_output_file, process_id, il_alloc_rule,
-                    ri_alloc_rule, num_reinsurance_iterations,
-                    fifo_full_correlation_dir, stderr_guard, full_correlation,
+                    correlated_output_file, 
+                    process_id, 
+                    il_output,
+                    il_alloc_rule,
+                    ri_alloc_rule, 
+                    num_reinsurance_iterations,
+                    fifo_full_correlation_dir, 
+                    stderr_guard, 
+                    full_correlation,
                     process_counter
                 )
+
                 print_command(filename, main_cmd)
             elif gul_output and il_output:
                 main_cmd = get_main_cmd_il_stream(
@@ -1325,32 +1265,39 @@ def genbash(
     do_kwaits(filename, process_counter)
 
     print_command(filename, '')
-    do_post_wait_processing(
-        RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename, process_counter,
-        '', output_dir
-    )
-    do_post_wait_processing(
-        RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter, '',
-        output_dir
-    )
-    do_post_wait_processing(
-        RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter, '',
-        output_dir
-    )
+    if ri_output:
+        do_post_wait_processing(
+            RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename, process_counter,
+            '', output_dir
+        )
+    if il_output:
+        do_post_wait_processing(
+            RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter, '',
+            output_dir
+        )
+    if gul_output:
+        do_post_wait_processing(
+            RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter, '',
+            output_dir
+        )
+
     if full_correlation:
         work_sub_dir = re.sub('^work/', '', work_full_correlation_dir)
-        do_post_wait_processing(
-            RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename,
-            process_counter, work_sub_dir, output_full_correlation_dir
-        )
-        do_post_wait_processing(
-            RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter,
-            work_sub_dir, output_full_correlation_dir
-        )
-        do_post_wait_processing(
-            RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter,
-            work_sub_dir, output_full_correlation_dir
-        )
+        if ri_output:
+            do_post_wait_processing(
+                RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename,
+                process_counter, work_sub_dir, output_full_correlation_dir
+            )
+        if il_output:
+            do_post_wait_processing(
+                RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter,
+                work_sub_dir, output_full_correlation_dir
+            )
+        if gul_output:
+            do_post_wait_processing(
+                RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter,
+                work_sub_dir, output_full_correlation_dir
+            )
 
     do_awaits(filename, process_counter)  # waits for aalcalc
     do_lwaits(filename, process_counter)  # waits for leccalc

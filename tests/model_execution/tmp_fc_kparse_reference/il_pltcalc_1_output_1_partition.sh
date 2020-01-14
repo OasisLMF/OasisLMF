@@ -21,7 +21,9 @@ mkdir work/full_correlation/kat/
 rm -R -f /tmp/%FIFO_DIR%/
 mkdir -p /tmp/%FIFO_DIR%/fifo/
 mkdir /tmp/%FIFO_DIR%/fifo/full_correlation/
+
 mkfifo /tmp/%FIFO_DIR%/fifo/il_P1
+
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summarypltcalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P1
@@ -29,6 +31,7 @@ mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summary_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summarypltcalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_pltcalc_P1
+
 
 
 # --- Do insured loss computes ---

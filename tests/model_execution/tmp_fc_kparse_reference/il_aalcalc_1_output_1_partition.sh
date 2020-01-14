@@ -21,13 +21,16 @@ mkdir work/full_correlation/kat/
 rm -R -f /tmp/%FIFO_DIR%/
 mkdir -p /tmp/%FIFO_DIR%/fifo/
 mkdir /tmp/%FIFO_DIR%/fifo/full_correlation/
+mkdir work/il_S1_summaryaalcalc
+mkdir work/full_correlation/il_S1_summaryaalcalc
+
 mkfifo /tmp/%FIFO_DIR%/fifo/il_P1
+
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1
 
-mkdir work/il_S1_summaryaalcalc
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summary_P1
 
-mkdir work/full_correlation/il_S1_summaryaalcalc
+
 
 # --- Do insured loss computes ---
 

@@ -15,7 +15,15 @@ find output/* ! -name '*summary-info*' -type f -exec rm -f {} +
 rm -R -f fifo/*
 rm -R -f work/*
 mkdir work/kat/
+
+mkdir work/il_S1_summaryleccalc
+mkdir work/il_S1_summaryaalcalc
+mkdir work/il_S2_summaryleccalc
+mkdir work/il_S2_summaryaalcalc
+
 mkfifo fifo/il_P1
+mkfifo fifo/il_P2
+
 mkfifo fifo/il_S1_summary_P1
 mkfifo fifo/il_S1_summaryeltcalc_P1
 mkfifo fifo/il_S1_eltcalc_P1
@@ -31,7 +39,6 @@ mkfifo fifo/il_S2_summarycalc_P1
 mkfifo fifo/il_S2_summarypltcalc_P1
 mkfifo fifo/il_S2_pltcalc_P1
 
-mkfifo fifo/il_P2
 mkfifo fifo/il_S1_summary_P2
 mkfifo fifo/il_S1_summaryeltcalc_P2
 mkfifo fifo/il_S1_eltcalc_P2
@@ -47,10 +54,7 @@ mkfifo fifo/il_S2_summarycalc_P2
 mkfifo fifo/il_S2_summarypltcalc_P2
 mkfifo fifo/il_S2_pltcalc_P2
 
-mkdir work/il_S1_summaryleccalc
-mkdir work/il_S1_summaryaalcalc
-mkdir work/il_S2_summaryleccalc
-mkdir work/il_S2_summaryaalcalc
+
 
 # --- Do insured loss computes ---
 

@@ -533,7 +533,7 @@ def get_il_input_items(
             agg_key = [v['field'].lower() for v in fmap[level_id]['FMAggKey'].values()]
             level_df['agg_id'] = factorize_ndarray(level_df.loc[:, agg_key].values, col_idxs=range(len(agg_key)))[0]
 
-            if level == 'cond all':
+            if level in ['cond all', 'site all', 'site coverage']:
                 level_df.loc[:, level_term_cols] = level_df.loc[:, level_term_cols].fillna(0)
             else:
                 level_df.loc[:, level_term_cols] = level_df.loc[:, level_term_cols].fillna(method='ffill')

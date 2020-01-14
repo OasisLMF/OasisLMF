@@ -21,13 +21,16 @@ mkdir work/full_correlation/kat/
 rm -R -f /tmp/%FIFO_DIR%/
 mkdir -p /tmp/%FIFO_DIR%/fifo/
 mkdir /tmp/%FIFO_DIR%/fifo/full_correlation/
+mkdir work/gul_S1_summaryleccalc
+mkdir work/full_correlation/gul_S1_summaryleccalc
+
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_P1
+
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1
 
-mkdir work/gul_S1_summaryleccalc
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summary_P1
 
-mkdir work/full_correlation/gul_S1_summaryleccalc
+
 
 # --- Do ground up loss computes ---
 

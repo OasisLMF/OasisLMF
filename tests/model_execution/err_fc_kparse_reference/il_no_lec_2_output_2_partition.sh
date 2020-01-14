@@ -44,7 +44,18 @@ rm -R -f work/*
 mkdir work/kat/
 mkdir work/full_correlation/
 mkdir work/full_correlation/kat/
+
+mkdir work/il_S1_summaryaalcalc
+mkdir work/il_S2_summaryaalcalc
+mkdir work/full_correlation/il_S1_summaryaalcalc
+mkdir work/full_correlation/il_S2_summaryaalcalc
+
+mkfifo fifo/gul_P1
+mkfifo fifo/gul_P2
+
 mkfifo fifo/il_P1
+mkfifo fifo/il_P2
+
 mkfifo fifo/il_S1_summary_P1
 mkfifo fifo/il_S1_summaryeltcalc_P1
 mkfifo fifo/il_S1_eltcalc_P1
@@ -60,7 +71,6 @@ mkfifo fifo/il_S2_summarycalc_P1
 mkfifo fifo/il_S2_summarypltcalc_P1
 mkfifo fifo/il_S2_pltcalc_P1
 
-mkfifo fifo/il_P2
 mkfifo fifo/il_S1_summary_P2
 mkfifo fifo/il_S1_summaryeltcalc_P2
 mkfifo fifo/il_S1_eltcalc_P2
@@ -76,8 +86,6 @@ mkfifo fifo/il_S2_summarycalc_P2
 mkfifo fifo/il_S2_summarypltcalc_P2
 mkfifo fifo/il_S2_pltcalc_P2
 
-mkdir work/il_S1_summaryaalcalc
-mkdir work/il_S2_summaryaalcalc
 mkfifo fifo/full_correlation/il_S1_summary_P1
 mkfifo fifo/full_correlation/il_S1_summaryeltcalc_P1
 mkfifo fifo/full_correlation/il_S1_eltcalc_P1
@@ -108,8 +116,7 @@ mkfifo fifo/full_correlation/il_S2_summarycalc_P2
 mkfifo fifo/full_correlation/il_S2_summarypltcalc_P2
 mkfifo fifo/full_correlation/il_S2_pltcalc_P2
 
-mkdir work/full_correlation/il_S1_summaryaalcalc
-mkdir work/full_correlation/il_S2_summaryaalcalc
+
 
 # --- Do insured loss computes ---
 

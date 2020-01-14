@@ -17,105 +17,108 @@ mkdir work/kat/
 
 rm -R -f /tmp/%FIFO_DIR%/
 mkdir -p /tmp/%FIFO_DIR%/fifo/
+
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_P1
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P2
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P3
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P4
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P5
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P6
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P7
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P8
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P9
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P10
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P11
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P12
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P13
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P14
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P15
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P16
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P17
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P18
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P19
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P20
+
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarypltcalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P1
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarypltcalc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P2
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P3
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P3
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarypltcalc_P3
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P3
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P4
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P4
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarypltcalc_P4
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P4
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P5
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P5
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarypltcalc_P5
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P5
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P6
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P6
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarypltcalc_P6
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P6
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P7
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P7
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarypltcalc_P7
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P7
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P8
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P8
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarypltcalc_P8
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P8
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P9
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P9
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarypltcalc_P9
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P9
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P10
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P10
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarypltcalc_P10
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P10
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P11
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P11
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarypltcalc_P11
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P11
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P12
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P12
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarypltcalc_P12
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P12
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P13
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P13
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarypltcalc_P13
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P13
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P14
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P14
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarypltcalc_P14
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P14
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P15
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P15
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarypltcalc_P15
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P15
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P16
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P16
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarypltcalc_P16
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P16
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P17
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P17
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarypltcalc_P17
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P17
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P18
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P18
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarypltcalc_P18
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P18
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P19
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P19
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarypltcalc_P19
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P19
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P20
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P20
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarypltcalc_P20
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P20
+
 
 
 # --- Do ground up loss computes ---
