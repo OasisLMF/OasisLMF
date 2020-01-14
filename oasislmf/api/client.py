@@ -456,8 +456,8 @@ class APIClient(object):
 
                 elif analysis['status'] in ['INPUTS_GENERATION_QUEUED']:
                     if not logged_queued:
+                        logged_queued = True
                         self.logger.info('Input Generation: Queued (id={})'.format(analysis_id))
-                        logged_queued == True
 
                     time.sleep(poll_interval)
                     r = self.analyses.get(analysis_id)
@@ -466,8 +466,8 @@ class APIClient(object):
 
                 elif analysis['status'] in ['INPUTS_GENERATION_STARTED']:
                     if not logged_running:
+                        logged_running = True
                         self.logger.info('Input Generation: Executing (id={})'.format(analysis_id))
-                        logged_running == True
 
                     time.sleep(poll_interval)
                     r = self.analyses.get(analysis_id)
@@ -514,8 +514,8 @@ class APIClient(object):
 
                 elif analysis['status'] in ['RUN_QUEUED']:
                     if not logged_queued:
+                        logged_queued = True
                         self.logger.info('Analysis Run: Queued (id={})'.format(analysis_id))
-                        logged_queued == True
 
                     time.sleep(poll_interval)
                     r = self.analyses.get(analysis_id)
@@ -524,8 +524,8 @@ class APIClient(object):
 
                 elif analysis['status'] in ['RUN_STARTED']:
                     if not logged_running:
+                        logged_running = True
                         self.logger.info('Analysis Run: Executing (id={})'.format(analysis_id))
-                        logged_running == True
 
                     time.sleep(poll_interval)
                     r = self.analyses.get(analysis_id)
