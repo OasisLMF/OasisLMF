@@ -106,6 +106,12 @@
                                        "title": "Occurrence set description",
                                        "description": "Short string description for an occurrence set file",
                                        "minLength": 1
+                                   },
+                                   "max_periods": {
+                                       "type": "integer",
+                                       "title": "Max periods",
+                                       "description": "Maximum periods for this occurrence set",
+                                       "minimum": 1
                                    }
                                },
                                "required": ["id", "desc"]
@@ -114,6 +120,99 @@
                    },
                    "required": ["name", "desc", "default", "options"]
                },
+               "string_parameters": {
+                   "type":  "array",
+                   "uniqueItems": true,
+                   "items": {
+                       "type": "object",
+                       "uniqueItems": false,
+                       "title": "String options",
+                       "description": "User selected string value",
+                       "additionalProperties": false,
+                       "properties":{
+                           "name": {
+                               "type": "string",
+                               "title": "UI Option",
+                               "description": "UI name for selection",
+                               "minLength": 1
+                           },
+                           "desc": {
+                               "type": "string",
+                               "title": "UI tooltip",
+                               "description": "UI description for selection"
+                           },
+                           "default":{
+                               "type": "string",
+                               "title": "Initial string",
+                               "description": "Default 'string' for variable"
+                           }
+                       },
+                       "required": ["name", "desc", "default"]
+                   }
+               },
+               "list_parameters": {
+                   "type":  "array",
+                   "uniqueItems": true,
+                   "items": {
+                       "type": "object",
+                       "uniqueItems": false,
+                       "title": "List options",
+                       "description": "User selected list values",
+                       "additionalProperties": false,
+                       "properties":{
+                           "name": {
+                               "type": "string",
+                               "title": "UI Option",
+                               "description": "UI name for selection",
+                               "minLength": 1
+                           },
+                           "desc": {
+                               "type": "string",
+                               "title": "UI tooltip",
+                               "description": "UI description for selection"
+                           },
+                           "default":{
+                               "type": "array",
+                               "title": "Default List value",
+                               "description": "Default 'list' set for variable",
+                               "items":{
+                                   "type": "string" 
+                               }
+                           }
+                       },
+                       "required": ["name", "desc", "default"]
+                   }
+               },
+               "dictionary_parameters": {
+                   "type":  "array",
+                   "uniqueItems": true,
+                   "items": {
+                       "type": "object",
+                       "uniqueItems": false,
+                       "title": "Dictionary option",
+                       "description": "User selected dictionarys",
+                       "additionalProperties": false,
+                       "properties":{
+                           "name": {
+                               "type": "string",
+                               "title": "UI Option",
+                               "description": "UI name for selection",
+                               "minLength": 1
+                           },
+                           "desc": {
+                               "type": "string",
+                               "title": "UI tooltip",
+                               "description": "UI description for selection"
+                           },
+                           "default":{
+                               "type": "object",
+                               "title": "Default dictionary",
+                               "description": "Defaults set for variable"
+                           }
+                       },
+                       "required": ["name", "desc", "default"]
+                   }
+               },
                "boolean_parameters": {
                    "type":  "array",
                    "uniqueItems": true,
@@ -121,7 +220,7 @@
                        "type": "object",
                        "uniqueItems": false,
                        "title": "Boolean option",
-                       "description": "Select boolean value",
+                       "description": "User selected boolean option",
                        "additionalProperties": false,
                        "properties":{
                            "name": {
