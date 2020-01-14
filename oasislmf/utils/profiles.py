@@ -4,7 +4,7 @@ __all__ = [
     'get_grouped_fm_profile_by_level_and_term_group',
     'get_grouped_fm_terms_by_level_and_term_group',
     'get_oed_hierarchy',
-    'get_step_policties_oed_mapping'
+    'get_step_policies_oed_mapping'
 ]
 
 
@@ -130,11 +130,7 @@ def get_step_policies_oed_mapping(step_trigger_type):
     oed_mapping = {}
 
     for k, v in step_policies_profile.items():
-        if v.get('FMProfileStep'):
-            if step_trigger_type in v['FMProfileStep']:
-                if v['FMProfileField'] in oed_mapping:
-                    oed_mapping[v['FMProfileField']].append(v['Key'].lower())
-                else:
-                    oed_mapping[v['FMProfileField']] = [v['Key'].lower()]
+        if step_trigger_type in v['FMProfileStep']:
+            oed_mapping[v['FMProfileField']] = v['Key'].lower()
 
     return oed_mapping
