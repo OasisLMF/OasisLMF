@@ -17,7 +17,17 @@ mkdir work/kat/
 
 rm -R -f /tmp/%FIFO_DIR%/
 mkdir -p /tmp/%FIFO_DIR%/fifo/
+mkdir work/gul_S1_summaryaalcalc
+mkdir work/gul_S2_summaryaalcalc
+mkdir work/il_S1_summaryaalcalc
+mkdir work/il_S2_summaryaalcalc
+
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_P1
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P2
+
+mkfifo /tmp/%FIFO_DIR%/fifo/il_P1
+mkfifo /tmp/%FIFO_DIR%/fifo/il_P2
+
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summaryeltcalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P1
@@ -33,7 +43,6 @@ mkfifo /tmp/%FIFO_DIR%/fifo/gul_S2_summarycalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S2_summarypltcalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S2_pltcalc_P1
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summaryeltcalc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P2
@@ -49,9 +58,6 @@ mkfifo /tmp/%FIFO_DIR%/fifo/gul_S2_summarycalc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S2_summarypltcalc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S2_pltcalc_P2
 
-mkdir work/gul_S1_summaryaalcalc
-mkdir work/gul_S2_summaryaalcalc
-mkfifo /tmp/%FIFO_DIR%/fifo/il_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summaryeltcalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_eltcalc_P1
@@ -67,7 +73,6 @@ mkfifo /tmp/%FIFO_DIR%/fifo/il_S2_summarycalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S2_summarypltcalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S2_pltcalc_P1
 
-mkfifo /tmp/%FIFO_DIR%/fifo/il_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summaryeltcalc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_eltcalc_P2
@@ -83,8 +88,7 @@ mkfifo /tmp/%FIFO_DIR%/fifo/il_S2_summarycalc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S2_summarypltcalc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S2_pltcalc_P2
 
-mkdir work/il_S1_summaryaalcalc
-mkdir work/il_S2_summaryaalcalc
+
 
 # --- Do insured loss computes ---
 

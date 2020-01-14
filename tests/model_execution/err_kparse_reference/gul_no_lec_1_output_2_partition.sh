@@ -40,7 +40,12 @@ find output/* ! -name '*summary-info*' -type f -exec rm -f {} +
 rm -R -f fifo/*
 rm -R -f work/*
 mkdir work/kat/
+
+mkdir work/gul_S1_summaryaalcalc
+
 mkfifo fifo/gul_P1
+mkfifo fifo/gul_P2
+
 mkfifo fifo/gul_S1_summary_P1
 mkfifo fifo/gul_S1_summaryeltcalc_P1
 mkfifo fifo/gul_S1_eltcalc_P1
@@ -49,7 +54,6 @@ mkfifo fifo/gul_S1_summarycalc_P1
 mkfifo fifo/gul_S1_summarypltcalc_P1
 mkfifo fifo/gul_S1_pltcalc_P1
 
-mkfifo fifo/gul_P2
 mkfifo fifo/gul_S1_summary_P2
 mkfifo fifo/gul_S1_summaryeltcalc_P2
 mkfifo fifo/gul_S1_eltcalc_P2
@@ -58,7 +62,7 @@ mkfifo fifo/gul_S1_summarycalc_P2
 mkfifo fifo/gul_S1_summarypltcalc_P2
 mkfifo fifo/gul_S1_pltcalc_P2
 
-mkdir work/gul_S1_summaryaalcalc
+
 
 # --- Do ground up loss computes ---
 

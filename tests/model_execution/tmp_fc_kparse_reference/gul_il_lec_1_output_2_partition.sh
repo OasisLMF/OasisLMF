@@ -21,7 +21,21 @@ mkdir work/full_correlation/kat/
 rm -R -f /tmp/%FIFO_DIR%/
 mkdir -p /tmp/%FIFO_DIR%/fifo/
 mkdir /tmp/%FIFO_DIR%/fifo/full_correlation/
+mkdir work/gul_S1_summaryleccalc
+mkdir work/gul_S1_summaryaalcalc
+mkdir work/full_correlation/gul_S1_summaryleccalc
+mkdir work/full_correlation/gul_S1_summaryaalcalc
+mkdir work/il_S1_summaryleccalc
+mkdir work/il_S1_summaryaalcalc
+mkdir work/full_correlation/il_S1_summaryleccalc
+mkdir work/full_correlation/il_S1_summaryaalcalc
+
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_P1
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_P2
+
+mkfifo /tmp/%FIFO_DIR%/fifo/il_P1
+mkfifo /tmp/%FIFO_DIR%/fifo/il_P2
+
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summaryeltcalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P1
@@ -30,7 +44,6 @@ mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarycalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarypltcalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P1
 
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summaryeltcalc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P2
@@ -39,8 +52,22 @@ mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarycalc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarypltcalc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P2
 
-mkdir work/gul_S1_summaryleccalc
-mkdir work/gul_S1_summaryaalcalc
+mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1
+mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summaryeltcalc_P1
+mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_eltcalc_P1
+mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summarysummarycalc_P1
+mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summarycalc_P1
+mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summarypltcalc_P1
+mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P1
+
+mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P2
+mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summaryeltcalc_P2
+mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_eltcalc_P2
+mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summarysummarycalc_P2
+mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summarycalc_P2
+mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summarypltcalc_P2
+mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P2
+
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summary_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summaryeltcalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_eltcalc_P1
@@ -57,28 +84,6 @@ mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summarycalc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summarypltcalc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_pltcalc_P2
 
-mkdir work/full_correlation/gul_S1_summaryleccalc
-mkdir work/full_correlation/gul_S1_summaryaalcalc
-mkfifo /tmp/%FIFO_DIR%/fifo/il_P1
-mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1
-mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summaryeltcalc_P1
-mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_eltcalc_P1
-mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summarysummarycalc_P1
-mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summarycalc_P1
-mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summarypltcalc_P1
-mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P1
-
-mkfifo /tmp/%FIFO_DIR%/fifo/il_P2
-mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P2
-mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summaryeltcalc_P2
-mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_eltcalc_P2
-mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summarysummarycalc_P2
-mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summarycalc_P2
-mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summarypltcalc_P2
-mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P2
-
-mkdir work/il_S1_summaryleccalc
-mkdir work/il_S1_summaryaalcalc
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summary_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summaryeltcalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_eltcalc_P1
@@ -95,8 +100,7 @@ mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summarycalc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summarypltcalc_P2
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_pltcalc_P2
 
-mkdir work/full_correlation/il_S1_summaryleccalc
-mkdir work/full_correlation/il_S1_summaryaalcalc
+
 
 # --- Do insured loss computes ---
 

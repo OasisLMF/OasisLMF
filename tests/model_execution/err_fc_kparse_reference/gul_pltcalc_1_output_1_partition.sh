@@ -44,7 +44,10 @@ rm -R -f work/*
 mkdir work/kat/
 mkdir work/full_correlation/
 mkdir work/full_correlation/kat/
+
+
 mkfifo fifo/gul_P1
+
 mkfifo fifo/gul_S1_summary_P1
 mkfifo fifo/gul_S1_summarypltcalc_P1
 mkfifo fifo/gul_S1_pltcalc_P1
@@ -52,6 +55,7 @@ mkfifo fifo/gul_S1_pltcalc_P1
 mkfifo fifo/full_correlation/gul_S1_summary_P1
 mkfifo fifo/full_correlation/gul_S1_summarypltcalc_P1
 mkfifo fifo/full_correlation/gul_S1_pltcalc_P1
+
 
 
 # --- Do ground up loss computes ---
