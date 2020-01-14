@@ -676,7 +676,7 @@ def get_il_input_items(
                 step_trigger_type_cols
             )
         else:
-            il_inputs_df['calcrule_id'] = get_calc_rule_ds(il_inputs_df)
+            il_inputs_df['calcrule_id'] = get_calc_rule_ids(il_inputs_df)
 
         # Set the policy TC IDs
         il_inputs_df['policytc_id'] = get_policytc_ids(il_inputs_df)
