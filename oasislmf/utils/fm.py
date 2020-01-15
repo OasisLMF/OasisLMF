@@ -6,7 +6,8 @@ __all__ = [
     'LIMIT_CODES',
     'SUPPORTED_FM_LEVELS',
     'STEP_TRIGGER_TYPES',
-    'COVERAGE_AGGREGATION_METHODS'
+    'COVERAGE_AGGREGATION_METHODS',
+    'CALCRULE_ASSIGNMENT_METHODS'
 ]
 
 from collections import OrderedDict
@@ -129,4 +130,11 @@ COVERAGE_AGGREGATION_METHODS = OrderedDict({
         SUPPORTED_COVERAGE_TYPES['contents']['id']: 1,
         SUPPORTED_COVERAGE_TYPES['bi']['id']: 3
     }
+})
+
+CALCRULE_ASSIGNMENT_METHODS = OrderedDict({
+    1: {1: True, 2: False, 3: False, 4: False},
+    2: {1: False, 2: True, 3: False, 4: False},
+    3: {1: True, 2: False, 3: False},
+    4: {1: True, 2: True, 3: False, 4: False}
 })

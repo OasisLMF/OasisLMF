@@ -46,7 +46,8 @@ from ..utils.fm import (
     DEDUCTIBLE_AND_LIMIT_TYPES,
     SUPPORTED_FM_LEVELS,
     STEP_TRIGGER_TYPES,
-    COVERAGE_AGGREGATION_METHODS
+    COVERAGE_AGGREGATION_METHODS,
+    CALCRULE_ASSIGNMENT_METHODS
 )
 from ..utils.log import oasis_log
 from ..utils.path import as_path
@@ -584,6 +585,16 @@ def get_il_input_items(
                     return 0
 
             layer_df['cov_agg_id'] = layer_df.apply(lambda row: assign_cov_agg_id(row), axis=1)
+
+            def assign_calcrule_flag(row):
+                try:
+                    calcrule_assign_method = STEP_TRIGGER_TYPES[row['steptriggertype']]['calcrule_assignment_method']
+                    return CALCRULE_ASSIGNMENT_METHODS[calcrule_assign_method][row['cov_agg_id']]
+
+                except KeyError:
+                    return False
+
+            layer_df['assign_step_calcrule'] = layer_df.apply(lambda row: assign_calcrule_flag(row), axis=1)
 
         # Remove the source columns for all non-layer FM levels - this includes the
         # site pd (# 2), site all (# 3), cond. all (# 6), policy all (# 9) FM levels
