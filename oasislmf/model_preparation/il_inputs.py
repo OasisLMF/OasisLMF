@@ -88,8 +88,8 @@ def get_calc_rule_ids(il_inputs_df):
     if 0 in il_inputs_calc_rules_df.calcrule_id.unique():
         err_msg = 'Calculation Rule mapping error, non-matching keys:\n'
         no_match_keys = il_inputs_calc_rules_df.loc[
-                        il_inputs_calc_rules_df.calcrule_id == 0
-                        ].id_key.unique()
+            il_inputs_calc_rules_df.calcrule_id == 0
+        ].id_key.unique()
 
         err_msg += '   {}\n'.format(tuple(terms_indicators + types_and_codes))
         for key_id in no_match_keys:
@@ -166,11 +166,11 @@ def get_policytc_ids(il_inputs_df):
     ]
     fm_policytc_df = il_inputs_df.loc[:, ['item_id'] + policytc_cols].drop_duplicates()
     fm_policytc_df = fm_policytc_df[
-        (fm_policytc_df['layer_id'] == 1) |
-        (fm_policytc_df['level_id'] == fm_policytc_df['level_id'].max())
+        (fm_policytc_df['layer_id'] == 1) | (fm_policytc_df['level_id'] == fm_policytc_df['level_id'].max())
     ]
 
     return factorize_ndarray(fm_policytc_df.loc[:, policytc_cols[3:]].values, col_idxs=range(len(policytc_cols[3:])))[0]
+
 
 def get_programme_ids(il_inputs_df, level):
     """
@@ -182,8 +182,10 @@ def get_programme_ids(il_inputs_df, level):
     :param level: fm_programme level number
     :type  level: int
     """
-    return il_inputs_df[il_inputs_df['level_id'] == level][['agg_id','coverage_id']].drop_duplicates(
-                       subset=['agg_id','coverage_id'], keep="first").agg_id.reset_index(drop=True)
+    return il_inputs_df[il_inputs_df['level_id'] == level][['agg_id', 'coverage_id']].drop_duplicates(
+        subset=['agg_id', 'coverage_id'], keep="first"
+    ).agg_id.reset_index(drop=True)
+
 
 @oasis_log
 def get_il_input_items(
@@ -311,6 +313,7 @@ def get_il_input_items(
         empty_data_error_msg='No accounts found in the source accounts (loc.) file',
         memory_map=True,
     )
+    accounts_df[SOURCE_IDX['acc']] = accounts_df.index
 
     if not (accounts_df is not None or accounts_fp):
         raise OasisException('No accounts frame or file path provided')
@@ -579,7 +582,7 @@ def get_il_input_items(
                     return COVERAGE_AGGREGATION_METHODS[cov_agg_method][row['coverage_id']]
                 except KeyError:
                     return 0
-                
+
             layer_df['cov_agg_id'] = layer_df.apply(lambda row: assign_cov_agg_id(row), axis=1)
 
         # Remove the source columns for all non-layer FM levels - this includes the
@@ -798,19 +801,19 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
             if level == 0:
                 # Items level (first)
                 agg_from = il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].min()].item_id
-                agg_to = il_inputs_df[il_inputs_df.level_id == level+1].agg_id
+                agg_to = il_inputs_df[il_inputs_df.level_id == level + 1].agg_id
 
-            else:   
-                # All other levels   
+            else:
+                # All other levels
                 agg_from = get_programme_ids(il_inputs_df, level)
                 agg_to = get_programme_ids(il_inputs_df, level + 1)
 
             programme_levels.append(
                 pd.DataFrame({
                     'from_agg_id': agg_from,
-                    'level_id': level+1,
+                    'level_id': level + 1,
                     'to_agg_id': agg_to
-                }).drop_duplicates(subset=['from_agg_id','level_id'], keep="first")
+                }).drop_duplicates(subset=['from_agg_id', 'level_id'], keep="first")
             )
 
         fm_programme_df = pd.concat(programme_levels)
