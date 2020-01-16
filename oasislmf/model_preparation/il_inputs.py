@@ -117,12 +117,13 @@ def get_step_calc_rule_ids(il_inputs_df, step_trigger_type_cols):
     """
     calc_rules_step = get_step_calc_rules().drop(['desc'], axis=1)
     calc_rules_step['id_key'] = calc_rules_step['id_key'].apply(eval)
+    calc_rules_step_len = len(calc_rules_step.columns[1:-1])
 
     terms = ['deductible1', 'payout_start', 'payout_end', 'limit1', 'limit2']
     terms_indicators = ['{}_gt_0'.format(t) for t in terms]
     types = ['trigger_type', 'payout_type']
 
-    il_inputs_calc_rules_df = il_inputs_df.loc[:, ['item_id', 'steptriggertype'] + step_trigger_type_cols + terms + terms_indicators + types + ['calcrule_id']]
+    il_inputs_calc_rules_df = il_inputs_df.loc[:, ['item_id', 'steptriggertype', 'assign_step_calcrule'] + step_trigger_type_cols + terms + terms_indicators + types + ['calcrule_id']]
 
     # Fill columns used to determine values for terms indicators and types
     # Columns used depend on step trigger type
@@ -132,6 +133,7 @@ def get_step_calc_rule_ids(il_inputs_df, step_trigger_type_cols):
     il_inputs_calc_rules_df.loc[:, terms_indicators] = np.where(il_inputs_calc_rules_df[terms] > 0, 1, 0)
     il_inputs_calc_rules_df[types] = il_inputs_calc_rules_df[types].fillna(0).astype('uint8')
     il_inputs_calc_rules_df['id_key'] = [t for t in fast_zip_arrays(*il_inputs_calc_rules_df.loc[:, terms_indicators + types].transpose().values)]
+    il_inputs_calc_rules_df['id_key'] = il_inputs_calc_rules_df.apply(lambda x: (0,) * calc_rules_step_len if x['assign_step_calcrule'] == False else x['id_key'], axis=1)
 
     il_inputs_calc_rules_df = merge_dataframes(il_inputs_calc_rules_df, calc_rules_step, how='left', on='id_key').fillna(0)
     il_inputs_calc_rules_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id'].astype('uint32')
