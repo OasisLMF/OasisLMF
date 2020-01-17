@@ -2,14 +2,24 @@ OasisLMF Changelog
 ==================
 
 .. start_latest_release
+`1.4.7`_
+-------
+* #415 - Fix RI matching issue
+* #462 - Fix Issue in fm_programmes file generation 
+* #464 - Update API client with new Queued Job states
+* #461 - Allow user to select group_id based on columns in loc file
+* #463 - Fix incorrect limits in FM file generation 
+* #468 - Fix fifo issue in Bash script generation 
+* #470 - Update model_settings.json schema 
+* #474 - Added option to set gulcalc command - raises an error if not in path
+*
+.. end_latest_release
 
 `1.4.6`_
 -------
 * Update to model_settings schema 
 * Fixes #452 - Check columns before grouping output
 * Fixes #451 - Error checking ktools runs for complex models
-
-.. end_latest_release
 
 `1.4.5`_
 -------
@@ -323,6 +333,7 @@ in the exposure manager
 
 * Add console logging
 
+.. _`1.4.7`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.6...1.4.7
 .. _`1.4.6`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.5...1.4.6
 .. _`1.4.5`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.4...1.4.5
 .. _`1.4.4`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.3...1.4.4
