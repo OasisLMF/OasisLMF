@@ -316,6 +316,7 @@ class GenerateLossesCmd(OasisBaseCommand):
         parser.add_argument('-d', '--model-data-dir', default=None, help='Model data directory path')
         parser.add_argument('-r', '--model-run-dir', default=None, help='Model run directory path')
         parser.add_argument('-p', '--model-package-dir', default=None, help='Path containing model specific package')
+        parser.add_argument('-B', '--model-custom-gulcalc', default=None, help='Callable custom gulcalc component to use as a drop-in replacement', type=str)
         parser.add_argument('-n', '--ktools-num-processes', default=None, help='Number of ktools calculation processes to use', type=int)
         parser.add_argument('-f', '--ktools-fifo-relative', default=None, help='Create ktools fifo queues under the ./fifo dir', action='store_true')
         parser.add_argument('-E', '--ktools-disable-guard', default=None, help='Disables error handling in the ktools run script (abort on non-zero exitcode or output on stderr)', action='store_true')
@@ -343,6 +344,7 @@ class GenerateLossesCmd(OasisBaseCommand):
         analysis_settings_fp = inputs.get('analysis_settings_json', required=True, is_path=True)
         model_data_fp = inputs.get('model_data_dir', required=True, is_path=True)
         model_package_fp = as_path(inputs.get('model_package_dir', required=False, is_path=True), 'Model package path', is_dir=True)
+        model_custom_gulcalc  = inputs.get('model_custom_gulcalc', required=False, is_path=False)
         user_data_dir = inputs.get('user_data_dir', required=False, is_path=True)
 
         ktools_num_processes = inputs.get('ktools_num_processes', default=None, required=False)
@@ -364,6 +366,7 @@ class GenerateLossesCmd(OasisBaseCommand):
             analysis_settings_fp,
             model_data_fp,
             model_package_fp=model_package_fp,
+            model_custom_gulcalc=model_custom_gulcalc,
             ktools_num_processes=ktools_num_processes,
             ktools_fifo_relative=ktools_fifo_relative,
             ktools_error_guard=ktools_error_guard,
@@ -371,7 +374,7 @@ class GenerateLossesCmd(OasisBaseCommand):
             ktools_alloc_rule_il=ktools_alloc_rule_il,
             ktools_alloc_rule_ri=ktools_alloc_rule_ri,
             ktools_debug=verbose_output,
-            user_data_dir=user_data_dir
+            user_data_dir=user_data_dir,
         )
 
         self.logger.info('\nLosses generated in {}'.format(model_run_fp))
@@ -418,6 +421,7 @@ class RunCmd(OasisBaseCommand):
         parser.add_argument('-d', '--model-data-dir', default=None, help='Model data directory path')
         parser.add_argument('-r', '--model-run-dir', default=None, help='Model run directory path')
         parser.add_argument('-p', '--model-package-dir', default=None, help='Path containing model specific package')
+        parser.add_argument('-B', '--model-custom-gulcalc', default=None, help='Callable custom gulcalc component to use as a drop-in replacement', type=str)
 
         parser.add_argument('-n', '--ktools-num-processes', default=None, help='Number of ktools calculation processes to use', type=int)
         parser.add_argument('-f', '--ktools-fifo-relative', default=None, help='Create ktools fifo queues under the ./fifo dir', action='store_true')
