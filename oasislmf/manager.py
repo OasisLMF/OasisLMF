@@ -623,6 +623,7 @@ class OasisManager(object):
         analysis_settings_fp,
         model_data_fp,
         model_package_fp=None,
+        model_custom_gulcalc=None,
         ktools_num_processes=None,
         ktools_fifo_relative=None,
         ktools_alloc_rule_gul=None,
@@ -748,7 +749,8 @@ class OasisManager(object):
                     set_alloc_rule_il=(ktools_alloc_rule_il if isinstance(ktools_alloc_rule_il, int) else self.ktools_alloc_rule_il),
                     run_debug=(ktools_debug if isinstance(ktools_debug, bool) else self.ktools_debug),
                     stderr_guard=(ktools_error_guard if isinstance(ktools_error_guard, bool) else self.ktools_error_guard),
-                    fifo_tmp_dir=(not (ktools_fifo_relative or self.ktools_fifo_relative))
+                    fifo_tmp_dir=(not (ktools_fifo_relative or self.ktools_fifo_relative)),
+                    custom_gulcalc_cmd=model_custom_gulcalc,
                 )
             except CalledProcessError as e:
                 bash_trace_fp = os.path.join(model_run_fp, 'log', 'bash.log')

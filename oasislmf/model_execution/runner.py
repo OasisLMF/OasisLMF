@@ -26,18 +26,29 @@ def run(
     fifo_tmp_dir=True,
     stderr_guard=True,
     run_debug=False,
+    custom_gulcalc_cmd=None,
     filename='run_ktools.sh'
 ):
     if number_of_processes == -1:
         number_of_processes = multiprocessing.cpu_count()
 
-    custom_gulcalc_cmd = "{}_{}_gulcalc".format(
-        analysis_settings.get('module_supplier_id'),
-        analysis_settings.get('model_version_id'))
+    # If `given_gulcalc_cmd` is set then always run as a complex model  
+    # and raise an exception when not found in PATH 
+    if custom_gulcalc_cmd:
+        if not shutil.which(custom_gulcalc_cmd):
+            raise OasisException(
+                'Run error: Custom Gulcalc command "{}" explicitly set but not found in path.'.format(custom_gulcalc_cmd)
+            )
+    # when not set then fallback to previous behaviour: 
+    # Check if a custom binary `<supplier>_<model>_gulcalc` exists in PATH
+    else:
+        inferred_gulcalc_cmd = "{}_{}_gulcalc".format(
+            analysis_settings.get('module_supplier_id'),
+            analysis_settings.get('model_version_id'))
+        if shutil.which(inferred_gulcalc_cmd):
+            custom_gulcalc_cmd = inferred_gulcalc_cmd
 
-    # Check for custom gulcalc
-    if shutil.which(custom_gulcalc_cmd):
-
+    if custom_gulcalc_cmd:
         def custom_get_getmodel_cmd(
             number_of_samples,
             gul_threshold,
