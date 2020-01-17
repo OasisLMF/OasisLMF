@@ -5,6 +5,7 @@ __all__ = [
     'get_il_input_items',
     'get_policytc_ids',
     'get_step_calc_rule_ids',
+    'get_step_policytc_ids',
     'write_il_input_files',
     'write_fm_policytc_file',
     'write_fm_profile_file',
@@ -168,6 +169,39 @@ def get_policytc_ids(il_inputs_df):
         'share'
     ]
     fm_policytc_df = il_inputs_df.loc[:, ['item_id'] + policytc_cols].drop_duplicates()
+    fm_policytc_df = fm_policytc_df[
+        (fm_policytc_df['layer_id'] == 1) | (fm_policytc_df['level_id'] == fm_policytc_df['level_id'].max())
+    ]
+
+    return factorize_ndarray(fm_policytc_df.loc[:, policytc_cols[3:]].values, col_idxs=range(len(policytc_cols[3:])))[0]
+
+
+def get_step_policytc_ids(il_inputs_df, step_trigger_type_cols):
+    """
+    Returns a Numpy array of policy TC IDs from a table of IL input items that
+    include step policies
+
+    :param il_inputs_df: IL input items dataframe
+    :type il_inputs_df: pandas.DataFrame
+
+    :param step_trigger_type_cols: column names used to determine values for
+    terms indicators and types
+    :type step_trigger_type_cols: list
+
+    :return: Numpy array of policy TC IDs
+    :rtype: numpy.ndarray
+    """
+    policytc_cols = [
+        'layer_id', 'level_id', 'agg_id', 'calcrule_id', 'deductible1',
+        'limit1', 'step_id', 'trigger_start', 'trigger_end', 'payout_start',
+        'payout_end', 'limit2', 'scale1', 'scale2'
+    ]
+    fm_policytc_df = il_inputs_df.loc[:, ['item_id', 'steptriggertype'] + policytc_cols[:4] + step_trigger_type_cols].drop_duplicates()
+
+    for col in policytc_cols[4:]:
+        fm_policytc_df[col] = fm_policytc_df.apply(lambda x: x[get_step_policies_oed_mapping(x['steptriggertype'])[col]] if get_step_policies_oed_mapping(x['steptriggertype']).get(col) is not None else 0, axis=1)
+        fm_policytc_df[col].fillna(0, inplace=True)
+
     fm_policytc_df = fm_policytc_df[
         (fm_policytc_df['layer_id'] == 1) | (fm_policytc_df['level_id'] == fm_policytc_df['level_id'].max())
     ]
@@ -695,7 +729,20 @@ def get_il_input_items(
             il_inputs_df['calcrule_id'] = get_calc_rule_ids(il_inputs_df)
 
         # Set the policy TC IDs
-        il_inputs_df['policytc_id'] = get_policytc_ids(il_inputs_df)
+        if 'cov_agg_id' in il_inputs_df:
+            il_inputs_df.loc[
+                ~(il_inputs_df['steptriggertype'] > 0), 'policytc_id'
+            ] = get_policytc_ids(
+                il_inputs_df[~(il_inputs_df['steptriggertype'] > 0)]
+            )
+            il_inputs_df.loc[
+                il_inputs_df['steptriggertype'] > 0, 'policytc_id'
+            ] = get_step_policytc_ids(
+                il_inputs_df[il_inputs_df['steptriggertype'] > 0],
+                step_trigger_type_cols
+            )
+        else:
+            il_inputs_df['policytc_id'] = get_policytc_ids(il_inputs_df)
 
         # Final setting of data types before returning the IL input items
         dtypes = {
@@ -756,34 +803,72 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        cols = ['policytc_id', 'calcrule_id', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'limit', 'share']
-        fm_profile_df = il_inputs_df.loc[:, cols]
+        # Step policies exist
+        if 'cov_agg_id' in il_inputs_df:
+            fm_profile_df = il_inputs_df.loc[:, ['policytc_id', 'calcrule_id']]
+            cols = [
+                'deductible1', 'deductible2', 'deductible3', 'attachment1',
+                'limit1', 'share1', 'share2', 'share3', 'step_id',
+                'trigger_start', 'trigger_end', 'payout_start', 'payout_end',
+                'limit2', 'scale1', 'scale2'
+            ]
+            non_step_cols_map = {
+                'deductible1': 'deductible',
+                'deductible2': 'deductible_min',
+                'deductible3': 'deductible_max',
+                'attachment1': 'attachment',
+                'limit1': 'limit',
+                'share1': 'share'
+            }
+            for col in cols:
+                fm_profile_df[col] = il_inputs_df.apply(lambda x: x[get_step_policies_oed_mapping(x['steptriggertype'])[col]] if x['steptriggertype'] > 0 and get_step_policies_oed_mapping(x['steptriggertype']).get(col) is not None else 0, axis=1)
+            for col in non_step_cols_map.keys():
+                fm_profile_df.loc[
+                    ~(il_inputs_df['steptriggertype'] > 0), col
+                ] = il_inputs_df.loc [
+                    ~(il_inputs_df['steptriggertype'] > 0),
+                    non_step_cols_map[col]
+                ]
+            fm_profile_df.fillna(0, inplace=True)
+            fm_profile_df = fm_profile_df.drop_duplicates()
 
-        fm_profile_df.loc[:, cols[2:]] = fm_profile_df.loc[:, cols[2:]].round(7).values
+            fm_profile_df.loc[:, ['policytc_id', 'calcrule_id'] + cols].to_csv(
+                path_or_buf=fm_profile_fp,
+                encoding='utf-8',
+                mode=('w' if os.path.exists(fm_profile_fp) else 'a'),
+                chunksize=chunksize,
+                index=False
+            )
+        # No step policies
+        else:
+            cols = ['policytc_id', 'calcrule_id', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'limit', 'share']
+            fm_profile_df = il_inputs_df.loc[:, cols]
 
-        fm_profile_df.rename(
-            columns={
-                'deductible': 'deductible1',
-                'deductible_min': 'deductible2',
-                'deductible_max': 'deductible3',
-                'attachment': 'attachment1',
-                'limit': 'limit1',
-                'share': 'share1'
-            },
-            inplace=True
-        )
-        fm_profile_df = fm_profile_df.drop_duplicates()
+            fm_profile_df.loc[:, cols[2:]] = fm_profile_df.loc[:, cols[2:]].round(7).values
 
-        fm_profile_df = fm_profile_df.assign(share2=0.0, share3=0.0)
+            fm_profile_df.rename(
+                columns={
+                    'deductible': 'deductible1',
+                    'deductible_min': 'deductible2',
+                    'deductible_max': 'deductible3',
+                    'attachment': 'attachment1',
+                    'limit': 'limit1',
+                    'share': 'share1'
+                },
+                inplace=True
+            )
+            fm_profile_df = fm_profile_df.drop_duplicates()
 
-        cols = ['policytc_id', 'calcrule_id', 'deductible1', 'deductible2', 'deductible3', 'attachment1', 'limit1', 'share1', 'share2', 'share3']
-        fm_profile_df.loc[:, cols].to_csv(
-            path_or_buf=fm_profile_fp,
-            encoding='utf-8',
-            mode=('w' if os.path.exists(fm_profile_fp) else 'a'),
-            chunksize=chunksize,
-            index=False
-        )
+            fm_profile_df = fm_profile_df.assign(share2=0.0, share3=0.0)
+
+            cols = ['policytc_id', 'calcrule_id', 'deductible1', 'deductible2', 'deductible3', 'attachment1', 'limit1', 'share1', 'share2', 'share3']
+            fm_profile_df.loc[:, cols].to_csv(
+                path_or_buf=fm_profile_fp,
+                encoding='utf-8',
+                mode=('w' if os.path.exists(fm_profile_fp) else 'a'),
+                chunksize=chunksize,
+                index=False
+            )
     except (IOError, OSError) as e:
         raise OasisException from e
 
