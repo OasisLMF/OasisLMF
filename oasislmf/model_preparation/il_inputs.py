@@ -371,17 +371,20 @@ def get_il_input_items(
     # file should contain all financial terms relating to the cond. all (# 6),
     # policy all (# 9) and policy layer (# 10) FM levels)
     usecols = [acc_num, portfolio_num, policy_num, cond_num, 'layer_id', SOURCE_IDX['acc']] + term_cols
-    # If step policies listed and is not full of nans, keep step trigger type
-    if 'steptriggertype' in accounts_df:
+    # If step policies listed, is not full of nans and step numbers are greater
+    # than zero, keep step trigger type and columns associated with those step
+    # trigger types that are present
+    if 'steptriggertype' in accounts_df and 'stepnumber' in accounts_df:
         if accounts_df['steptriggertype'].notnull().any():
-            usecols += ['steptriggertype']
-            # Find unique values of step policies to determine columns that need
-            # to be kept
-            step_trigger_types = accounts_df['steptriggertype'].dropna().unique()
-            step_trigger_type_cols = [
-                col for step_trigger_type in step_trigger_types for col in get_step_policies_oed_mapping(step_trigger_type).values()
-            ]
-            usecols += step_trigger_type_cols
+            if accounts_df[accounts_df['steptriggertype'].notnull()]['stepnumber'].gt(0).any():
+                usecols += ['steptriggertype']
+                # Find unique values of step policies to determine columns that
+                # need to be kept
+                step_trigger_types = accounts_df['steptriggertype'].dropna().unique()
+                step_trigger_type_cols = [
+                    col for step_trigger_type in step_trigger_types for col in get_step_policies_oed_mapping(step_trigger_type).values()
+                ]
+                usecols += step_trigger_type_cols
     accounts_df.drop([c for c in accounts_df.columns if c not in usecols], axis=1, inplace=True)
 
     try:
