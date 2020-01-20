@@ -19,9 +19,10 @@ node {
         [$class: 'StringParameterDefinition',  name: 'GPG_KEY', defaultValue: 'gpg-privatekey'],
         [$class: 'StringParameterDefinition',  name: 'GPG_PASSPHRASE', defaultValue: 'gpg-passphrase'],
         [$class: 'StringParameterDefinition',  name: 'TWINE_ACCOUNT', defaultValue: 'sams_twine_account'],
-        [$class: 'BooleanParameterDefinition', name: 'PURGE', value: Boolean.valueOf(false)],
-        [$class: 'BooleanParameterDefinition', name: 'PUBLISH', value: Boolean.valueOf(false)],
-        [$class: 'BooleanParameterDefinition', name: 'SLACK_MESSAGE', value: Boolean.valueOf(false)]
+        [$class: 'BooleanParameterDefinition', name: 'PURGE', defaultValue: Boolean.valueOf(false)],
+        [$class: 'BooleanParameterDefinition', name: 'PUBLISH', defaultValue: Boolean.valueOf(false)],
+        [$class: 'BooleanParameterDefinition', name: 'AUTO_MERGE', defaultValue: Boolean.valueOf(true)],
+        [$class: 'BooleanParameterDefinition', name: 'SLACK_MESSAGE', defaultValue: Boolean.valueOf(false)]
       ])
     ])
 
@@ -202,7 +203,7 @@ node {
         }
 
         // Run merge back if publish
-         if (params.PUBLISH){ 
+         if (params.PUBLISH && params.AUTO_MERGE){ 
             dir(source_workspace) {
                 sshagent (credentials: [git_creds]) {
                     sh "git checkout master && git pull"
