@@ -128,13 +128,15 @@ def get_step_calc_rule_ids(il_inputs_df, step_trigger_type_cols):
 
     # Fill columns used to determine values for terms indicators and types
     # Columns used depend on step trigger type
+    # Set terms indicators and types to 0 if calc. rule should not be assigned
     for term in terms + types:
         il_inputs_calc_rules_df[term] = il_inputs_calc_rules_df.apply(lambda x: x[get_step_policies_oed_mapping(x['steptriggertype'])[term]] if get_step_policies_oed_mapping(x['steptriggertype']).get(term) is not None else 0, axis=1)
+        il_inputs_calc_rules_df[term] = il_inputs_calc_rules_df.apply(lambda x: 0 if x['assign_step_calcrule'] == False else x[term], axis=1)
 
     il_inputs_calc_rules_df.loc[:, terms_indicators] = np.where(il_inputs_calc_rules_df[terms] > 0, 1, 0)
     il_inputs_calc_rules_df[types] = il_inputs_calc_rules_df[types].fillna(0).astype('uint8')
     il_inputs_calc_rules_df['id_key'] = [t for t in fast_zip_arrays(*il_inputs_calc_rules_df.loc[:, terms_indicators + types].transpose().values)]
-    il_inputs_calc_rules_df['id_key'] = il_inputs_calc_rules_df.apply(lambda x: (0,) * calc_rules_step_len if x['assign_step_calcrule'] == False else x['id_key'], axis=1)
+#    il_inputs_calc_rules_df['id_key'] = il_inputs_calc_rules_df.apply(lambda x: (0,) * calc_rules_step_len if x['assign_step_calcrule'] == False else x['id_key'], axis=1)
 
     il_inputs_calc_rules_df = merge_dataframes(il_inputs_calc_rules_df, calc_rules_step, how='left', on='id_key').fillna(0)
     il_inputs_calc_rules_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id'].astype('uint32')
@@ -176,7 +178,7 @@ def get_policytc_ids(il_inputs_df):
     return factorize_ndarray(fm_policytc_df.loc[:, policytc_cols[3:]].values, col_idxs=range(len(policytc_cols[3:])))[0]
 
 
-def get_step_policytc_ids(il_inputs_df, step_trigger_type_cols):
+def get_step_policytc_ids(il_inputs_df, step_trigger_type_cols, offset=0):
     """
     Returns a Numpy array of policy TC IDs from a table of IL input items that
     include step policies
@@ -196,17 +198,17 @@ def get_step_policytc_ids(il_inputs_df, step_trigger_type_cols):
         'limit1', 'step_id', 'trigger_start', 'trigger_end', 'payout_start',
         'payout_end', 'limit2', 'scale1', 'scale2'
     ]
-    fm_policytc_df = il_inputs_df.loc[:, ['item_id', 'steptriggertype'] + policytc_cols[:4] + step_trigger_type_cols].drop_duplicates()
+    fm_policytc_df = il_inputs_df.loc[:, ['item_id', 'steptriggertype', 'assign_step_calcrule'] + policytc_cols[:4] + step_trigger_type_cols].drop_duplicates()
 
     for col in policytc_cols[4:]:
-        fm_policytc_df[col] = fm_policytc_df.apply(lambda x: x[get_step_policies_oed_mapping(x['steptriggertype'])[col]] if get_step_policies_oed_mapping(x['steptriggertype']).get(col) is not None else 0, axis=1)
+        fm_policytc_df[col] = fm_policytc_df.apply(lambda x: x[get_step_policies_oed_mapping(x['steptriggertype'])[col]] if get_step_policies_oed_mapping(x['steptriggertype']).get(col) is not None and x['assign_step_calcrule'] == True else 0, axis=1)
         fm_policytc_df[col].fillna(0, inplace=True)
 
     fm_policytc_df = fm_policytc_df[
         (fm_policytc_df['layer_id'] == 1) | (fm_policytc_df['level_id'] == fm_policytc_df['level_id'].max())
     ]
 
-    return factorize_ndarray(fm_policytc_df.loc[:, policytc_cols[3:]].values, col_idxs=range(len(policytc_cols[3:])))[0]
+    return factorize_ndarray(fm_policytc_df.loc[:, policytc_cols[3:]].values, col_idxs=range(len(policytc_cols[3:])))[0] + offset
 
 
 def get_programme_ids(il_inputs_df, level):
@@ -742,7 +744,7 @@ def get_il_input_items(
                 il_inputs_df['steptriggertype'] > 0, 'policytc_id'
             ] = get_step_policytc_ids(
                 il_inputs_df[il_inputs_df['steptriggertype'] > 0],
-                step_trigger_type_cols
+                step_trigger_type_cols, offset=il_inputs_df['policytc_id'].max()
             )
         else:
             il_inputs_df['policytc_id'] = get_policytc_ids(il_inputs_df)
@@ -824,7 +826,7 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
                 'share1': 'share'
             }
             for col in cols:
-                fm_profile_df[col] = il_inputs_df.apply(lambda x: x[get_step_policies_oed_mapping(x['steptriggertype'])[col]] if x['steptriggertype'] > 0 and get_step_policies_oed_mapping(x['steptriggertype']).get(col) is not None else 0, axis=1)
+                fm_profile_df[col] = il_inputs_df.apply(lambda x: x[get_step_policies_oed_mapping(x['steptriggertype'])[col]] if x['steptriggertype'] > 0 and get_step_policies_oed_mapping(x['steptriggertype']).get(col) is not None and x['assign_step_calcrule'] == True else 0, axis=1)
             for col in non_step_cols_map.keys():
                 fm_profile_df.loc[
                     ~(il_inputs_df['steptriggertype'] > 0), col
