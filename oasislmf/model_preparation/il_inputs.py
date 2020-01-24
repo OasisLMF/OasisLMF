@@ -27,6 +27,7 @@ from ..utils.calc_rules import (
 )
 from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
 from ..utils.data import (
+    factorize_array,
     factorize_ndarray,
     fast_zip_arrays,
     get_dataframe,
@@ -136,7 +137,6 @@ def get_step_calc_rule_ids(il_inputs_df, step_trigger_type_cols):
     il_inputs_calc_rules_df.loc[:, terms_indicators] = np.where(il_inputs_calc_rules_df[terms] > 0, 1, 0)
     il_inputs_calc_rules_df[types] = il_inputs_calc_rules_df[types].fillna(0).astype('uint8')
     il_inputs_calc_rules_df['id_key'] = [t for t in fast_zip_arrays(*il_inputs_calc_rules_df.loc[:, terms_indicators + types].transpose().values)]
-#    il_inputs_calc_rules_df['id_key'] = il_inputs_calc_rules_df.apply(lambda x: (0,) * calc_rules_step_len if x['assign_step_calcrule'] == False else x['id_key'], axis=1)
 
     il_inputs_calc_rules_df = merge_dataframes(il_inputs_calc_rules_df, calc_rules_step, how='left', on='id_key').fillna(0)
     il_inputs_calc_rules_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id'].astype('uint32')
@@ -178,7 +178,12 @@ def get_policytc_ids(il_inputs_df):
     return factorize_ndarray(fm_policytc_df.loc[:, policytc_cols[3:]].values, col_idxs=range(len(policytc_cols[3:])))[0]
 
 
-def get_step_policytc_ids(il_inputs_df, step_trigger_type_cols, offset=0):
+def get_step_policytc_ids(
+    il_inputs_df,
+    step_trigger_type_cols,
+    offset=0,
+    idx_cols=[]
+):
     """
     Returns a Numpy array of policy TC IDs from a table of IL input items that
     include step policies
@@ -198,7 +203,7 @@ def get_step_policytc_ids(il_inputs_df, step_trigger_type_cols, offset=0):
         'limit1', 'step_id', 'trigger_start', 'trigger_end', 'payout_start',
         'payout_end', 'limit2', 'scale1', 'scale2'
     ]
-    fm_policytc_df = il_inputs_df.loc[:, ['item_id', 'steptriggertype', 'assign_step_calcrule'] + policytc_cols[:4] + step_trigger_type_cols].drop_duplicates()
+    fm_policytc_df = il_inputs_df.loc[:, ['item_id'] + idx_cols + ['coverage_id', 'steptriggertype', 'assign_step_calcrule'] + policytc_cols[:4] + step_trigger_type_cols].drop_duplicates()
 
     for col in policytc_cols[4:]:
         fm_policytc_df[col] = fm_policytc_df.apply(lambda x: x[get_step_policies_oed_mapping(x['steptriggertype'])[col]] if get_step_policies_oed_mapping(x['steptriggertype']).get(col) is not None and x['assign_step_calcrule'] == True else 0, axis=1)
@@ -207,8 +212,20 @@ def get_step_policytc_ids(il_inputs_df, step_trigger_type_cols, offset=0):
     fm_policytc_df = fm_policytc_df[
         (fm_policytc_df['layer_id'] == 1) | (fm_policytc_df['level_id'] == fm_policytc_df['level_id'].max())
     ]
+    fm_policytc_df['policytc_id'] = factorize_ndarray(fm_policytc_df.loc[:, policytc_cols[3:]].values, col_idxs=range(len(policytc_cols[3:])))[0]
+    fm_policytc_df['pol_id'] = factorize_ndarray(fm_policytc_df.loc[:, idx_cols + ['coverage_id']].values, col_idxs=range(len(idx_cols) + 1))[0]
 
-    return factorize_ndarray(fm_policytc_df.loc[:, policytc_cols[3:]].values, col_idxs=range(len(policytc_cols[3:])))[0] + offset
+    step_calcrule_policytc_agg = pd.DataFrame(
+        fm_policytc_df[fm_policytc_df['assign_step_calcrule'] == True]['policytc_id'].to_list(),
+        index=fm_policytc_df[fm_policytc_df['assign_step_calcrule'] == True]['pol_id']
+    ).groupby('pol_id').aggregate(list).to_dict()[0]
+
+    fm_policytc_df.loc[fm_policytc_df['assign_step_calcrule'] == True, 'policytc_id'] = fm_policytc_df.loc[fm_policytc_df['assign_step_calcrule'] == True]['pol_id'].map(step_calcrule_policytc_agg)
+    fm_policytc_df['policytc_id'] = fm_policytc_df['policytc_id'].apply(
+        lambda x: tuple(x) if isinstance(x, list) else x
+    )
+
+    return factorize_array(fm_policytc_df['policytc_id'])[0] + offset
 
 
 def get_programme_ids(il_inputs_df, level):
@@ -357,6 +374,14 @@ def get_il_input_items(
     if not (accounts_df is not None or accounts_fp):
         raise OasisException('No accounts frame or file path provided')
 
+    # Determine whether step policies are listed, are not full of nans and step
+    # numbers are greater than zero
+    step_policies_present = False
+    if 'steptriggertype' in accounts_df and 'stepnumber' in accounts_df:
+        if accounts_df['steptriggertype'].notnull().any():
+            if accounts_df[accounts_df['steptriggertype'].notnull()]['stepnumber'].gt(0).any():
+                step_policies_present = True
+
     # Look for a `layer_id` column in the accounts dataframe - this column
     # will exist if the accounts file has the column - the user has the option
     # of doing this before calling the MDK. The `layer_id` column is simply
@@ -364,7 +389,10 @@ def get_il_input_items(
     # combinations in the accounts file. If the column doesn't exist then
     # a custom method is called that will generate this column and set it
     # in the accounts dataframe
-    if 'layer_id' not in accounts_df:
+    # If step policies are listed use `stepnumber` column in combination
+    if step_policies_present:
+        accounts_df['layer_id'] = get_ids(accounts_df, [portfolio_num, acc_num, policy_num, 'stepnumber'], group_by=[portfolio_num, acc_num, 'stepnumber'])
+    else:
         accounts_df['layer_id'] = get_ids(accounts_df, [portfolio_num, acc_num, policy_num], group_by=[portfolio_num, acc_num])
 
     # Drop all columns from the accounts dataframe which are not either one of
@@ -744,7 +772,9 @@ def get_il_input_items(
                 il_inputs_df['steptriggertype'] > 0, 'policytc_id'
             ] = get_step_policytc_ids(
                 il_inputs_df[il_inputs_df['steptriggertype'] > 0],
-                step_trigger_type_cols, offset=il_inputs_df['policytc_id'].max()
+                step_trigger_type_cols,
+                offset=il_inputs_df['policytc_id'].max(),
+                idx_cols=[acc_num, policy_num, portfolio_num]
             )
         else:
             il_inputs_df['policytc_id'] = get_policytc_ids(il_inputs_df)
