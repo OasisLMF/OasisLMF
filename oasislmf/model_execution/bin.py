@@ -341,6 +341,9 @@ def _csv_to_bin(csv_directory, bin_directory, il=False):
                 col_names = next(reader)
 
         if 'step_id' in col_names:
+            output_file_path = os.path.join(
+                bin_directory, '{}{}.bin'.format(input_file['name'], '_step')
+            )
             cmd_str = "{} {} < {} > {}".format(conversion_tool, step_flag, input_file_path, output_file_path)
         else:
             cmd_str = "{} < {} > {}".format(conversion_tool, input_file_path, output_file_path)

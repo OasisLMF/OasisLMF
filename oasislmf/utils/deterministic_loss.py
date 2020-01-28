@@ -83,6 +83,7 @@ def generate_deterministic_losses(
     guls_fp = os.path.join(output_dir, "raw_guls.csv")
     guls.to_csv(guls_fp, index=False)
 
+    breakpoint()
     ils_fp = os.path.join(output_dir, 'raw_ils.csv')
     cmd = 'gultobin -S 1 < {} | fmcalc -p {} -a {} | tee ils.bin | fmtocsv > {}'.format(
         guls_fp, output_dir, il_alloc_rule, ils_fp
