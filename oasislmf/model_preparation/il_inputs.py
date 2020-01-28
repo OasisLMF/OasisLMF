@@ -867,6 +867,11 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
             fm_profile_df.fillna(0, inplace=True)
             fm_profile_df = fm_profile_df.drop_duplicates()
 
+            # Ensure step_id is of int data type and set default value to 1
+            dtypes = {t: 'int64' if t == 'step_id' else 'float64' for t in cols}
+            fm_profile_df = set_dataframe_column_dtypes(fm_profile_df, dtypes)
+            fm_profile_df.loc[fm_profile_df['step_id'] == 0, 'step_id'] = 1
+
             fm_profile_df.loc[:, ['policytc_id', 'calcrule_id'] + cols].to_csv(
                 path_or_buf=fm_profile_fp,
                 encoding='utf-8',
