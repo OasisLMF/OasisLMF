@@ -938,8 +938,8 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
             # Select The Agg ids based on the current level in the hierarchy
             if level == 0:
                 # Items level (first)
-                agg_from = il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].min()].drop_duplicates(subset=['loc_id', 'coverage_id']).reset_index().index + 1
-                agg_to = il_inputs_df[il_inputs_df['level_id'] == level + 1].drop_duplicates(subset=['loc_id', 'coverage_id']).agg_id
+                agg_from = il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].min()].drop_duplicates(subset=['loc_id', 'areaperil_id', 'coverage_id']).reset_index().index + 1
+                agg_to = il_inputs_df[il_inputs_df['level_id'] == level + 1].drop_duplicates(subset=['loc_id', 'areaperil_id', 'coverage_id']).agg_id
 
             else:
                 # All other levels
