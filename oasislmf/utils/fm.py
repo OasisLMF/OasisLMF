@@ -114,7 +114,10 @@ STEP_TRIGGER_TYPES = OrderedDict({
     1: {'coverage_aggregation_method': 1, 'calcrule_assignment_method': 1},
     2: {'coverage_aggregation_method': 1, 'calcrule_assignment_method': 2},
     3: {'coverage_aggregation_method': 2, 'calcrule_assignment_method': 3},
-    5: {'coverage_aggregation_method': 1, 'calcrule_assignment_method': 4}
+    5: {
+        'coverage_aggregation_method': 1, 'calcrule_assignment_method': 4,
+        'sub_step_trigger_types': [1, 2]
+    }
 })
 
 COVERAGE_AGGREGATION_METHODS = OrderedDict({
