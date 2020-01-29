@@ -123,14 +123,19 @@ def get_oed_hierarchy(
     return {v['Key'].lower(): v for k, v in {**exposure_profile, **accounts_profile}.items() if v.get('OEDHierarchy')}
 
 
-def get_step_policies_oed_mapping(step_trigger_type):
+def get_step_policies_oed_mapping(step_trigger_type, only_cols=False):
 
     step_policies_profile = get_default_step_policies_profile()
 
-    oed_mapping = {}
-
-    for k, v in step_policies_profile.items():
-        if step_trigger_type in v['FMProfileStep']:
-            oed_mapping[v['FMProfileField']] = v['Key'].lower()
-
-    return oed_mapping
+    if only_cols == True:
+        cols = []
+        for k, v in step_policies_profile.items():
+            if step_trigger_type in v['FMProfileStep']:
+                cols.append(v['Key'].lower())
+        return cols
+    else:
+        oed_mapping = {}
+        for k, v in step_policies_profile.items():
+            if step_trigger_type in v['FMProfileStep']:
+                oed_mapping[v['FMProfileField']] = v['Key'].lower()
+        return oed_mapping

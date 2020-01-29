@@ -412,9 +412,9 @@ def get_il_input_items(
                 # need to be kept
                 step_trigger_types = accounts_df['steptriggertype'].dropna().unique()
                 step_trigger_type_cols = [
-                    col for step_trigger_type in step_trigger_types for col in get_step_policies_oed_mapping(step_trigger_type).values()
+                    col for step_trigger_type in step_trigger_types for col in get_step_policies_oed_mapping(step_trigger_type, only_cols=True)
                 ]
-                usecols += step_trigger_type_cols
+                usecols += list(set(step_trigger_type_cols))
     accounts_df.drop([c for c in accounts_df.columns if c not in usecols], axis=1, inplace=True)
 
     try:
