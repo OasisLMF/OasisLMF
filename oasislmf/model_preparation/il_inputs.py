@@ -416,7 +416,8 @@ def get_il_input_items(
                 step_trigger_type_cols = [
                     col for step_trigger_type in step_trigger_types for col in get_step_policies_oed_mapping(step_trigger_type, only_cols=True)
                 ]
-                usecols += list(set(step_trigger_type_cols))
+                step_trigger_type_cols = list(set(step_trigger_type_cols))
+                usecols += step_trigger_type_cols
     accounts_df.drop([c for c in accounts_df.columns if c not in usecols], axis=1, inplace=True)
 
     try:
