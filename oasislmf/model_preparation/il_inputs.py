@@ -652,7 +652,7 @@ def get_il_input_items(
             def assign_cov_agg_id(row):
                 try:
                     cov_agg_method = STEP_TRIGGER_TYPES[row['steptriggertype']]['coverage_aggregation_method']
-                    return COVERAGE_AGGREGATION_METHODS[cov_agg_method][row['coverage_id']]
+                    return COVERAGE_AGGREGATION_METHODS[cov_agg_method][row['coverage_type_id']]
                 except KeyError:
                     return 0
 
