@@ -125,14 +125,37 @@ def get_step_calc_rule_ids(il_inputs_df, step_trigger_type_cols):
     terms_indicators = ['{}_gt_0'.format(t) for t in terms]
     types = ['trigger_type', 'payout_type']
 
-    il_inputs_calc_rules_df = il_inputs_df.loc[:, ['item_id', 'level_id', 'steptriggertype', 'assign_step_calcrule'] + step_trigger_type_cols + terms + terms_indicators + types + ['calcrule_id']]
+    cols = [
+        'item_id', 'level_id', 'steptriggertype', 'assign_step_calcrule',
+        'coverage_type_id'
+    ]
+    il_inputs_calc_rules_df = il_inputs_df.loc[
+        :,
+        cols + step_trigger_type_cols + terms + terms_indicators + types + ['calcrule_id']
+    ]
 
     # Fill columns used to determine values for terms indicators and types
-    # Columns used depend on step trigger type
+    # Columns used depend on step trigger type or sub step trigger type if
+    # applicable
     # Set terms indicators and types to 0 if calc. rule should not be assigned
+    def assign_terms_indicators_and_types(term, row):
+        step_trigger_type = row['steptriggertype']
+        # Reassign step trigger type if sub step trigger types exist
+        if STEP_TRIGGER_TYPES[step_trigger_type].get('sub_step_trigger_types'):
+            sub_trigger_types = STEP_TRIGGER_TYPES[step_trigger_type]['sub_step_trigger_types']
+            if row['coverage_type_id'] in sub_trigger_types.keys():
+                step_trigger_type = sub_trigger_types[row['coverage_type_id']]
+
+        if get_step_policies_oed_mapping(step_trigger_type).get(term) and row['assign_step_calcrule'] != False:
+            return row[get_step_policies_oed_mapping(step_trigger_type)[term]]
+        else:
+            return 0
+
     for term in terms + types:
-        il_inputs_calc_rules_df[term] = il_inputs_calc_rules_df.apply(lambda x: x[get_step_policies_oed_mapping(x['steptriggertype'])[term]] if get_step_policies_oed_mapping(x['steptriggertype']).get(term) is not None else 0, axis=1)
-        il_inputs_calc_rules_df[term] = il_inputs_calc_rules_df.apply(lambda x: 0 if x['assign_step_calcrule'] == False else x[term], axis=1)
+        il_inputs_calc_rules_df[term] = il_inputs_calc_rules_df.apply(
+            lambda row: assign_terms_indicators_and_types(term, row),
+            axis=1
+        )
 
     il_inputs_calc_rules_df.loc[:, terms_indicators] = np.where(il_inputs_calc_rules_df[terms] > 0, 1, 0)
     il_inputs_calc_rules_df[types] = il_inputs_calc_rules_df[types].fillna(0).astype('uint8')
