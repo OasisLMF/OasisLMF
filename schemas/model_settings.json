@@ -374,7 +374,8 @@
                            }
                        },
                        "required": ["name", "desc", "default", "options"]
-                   },
+                   }
+               },
                "parameter_groups": {
                    "title": "",
                    "type":  "array",
@@ -398,7 +399,7 @@
                               "description": "UI description for selection"
                           },
                           "priority_id":{
-                              "type": "interger",
+                              "type": "integer",
                               "title": "",
                               "description": ""
                           },
