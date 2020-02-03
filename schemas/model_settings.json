@@ -35,11 +35,11 @@
                        },
                        "options":{
                            "type": "array",
-                           "title": "Selection options",
+                           "title": "Selection options for events",
                            "description": "Array of possible event sets",
                            "items": {
                                "type": "object",
-                               "title": "Selection option",
+                               "title": "Selection option element",
                                "description": "Event sets option",
                                "additionalProperties": false,
                                "properties": {
@@ -87,11 +87,11 @@
                        },
                        "options":{
                            "type": "array",
-                           "title": "Selection options",
+                           "title": "Selection options for occurrence" ,
                            "description": "Array of possible occurrence sets",
                            "items": {
                                "type": "object",
-                               "title": "Selection option",
+                               "title": "Selection option element",
                                "description": "Occurrence set options",
                                "additionalProperties": false,
                                "properties": {
@@ -121,6 +121,7 @@
                    "required": ["name", "desc", "default", "options"]
                },
                "string_parameters": {
+                   "title": "Single string paramters",
                    "type":  "array",
                    "uniqueItems": true,
                    "items": {
@@ -151,6 +152,7 @@
                    }
                },
                "list_parameters": {
+                   "title": "List of strings parameters",
                    "type":  "array",
                    "uniqueItems": true,
                    "items": {
@@ -176,7 +178,7 @@
                                "title": "Default List value",
                                "description": "Default 'list' set for variable",
                                "items":{
-                                   "type": "string" 
+                                   "type": "string"
                                }
                            }
                        },
@@ -184,6 +186,7 @@
                    }
                },
                "dictionary_parameters": {
+                   "title": "Generic dictionary parameters",
                    "type":  "array",
                    "uniqueItems": true,
                    "items": {
@@ -214,6 +217,7 @@
                    }
                },
                "boolean_parameters": {
+                   "title": "Boolean parameters",
                    "type":  "array",
                    "uniqueItems": true,
                    "items": {
@@ -244,6 +248,7 @@
                    }
                },
                "float_parameters": {
+                   "title": "Bounded float paramters",
                    "type":  "array",
                    "uniqueItems": true,
                    "items": {
@@ -281,6 +286,133 @@
                            }
                        },
                        "required": ["name", "desc", "default", "max", "min"]
+                   }
+               },
+               "numeric_parameters": {
+                   "title": "unbounded numeric paramters",
+                   "type":  "array",
+                   "uniqueItems": true,
+                   "items": {
+                       "type": "object",
+                       "uniqueItems": false,
+                       "title": "Numeric option",
+                       "description": "Select float value",
+                       "additionalProperties": false,
+                       "properties":{
+                           "name": {
+                               "type": "string",
+                               "title": "UI Option",
+                               "description": "UI name for selection",
+                               "minLength": 1
+                           },
+                           "desc": {
+                               "type": "string",
+                               "title": "UI tooltip",
+                               "description": "UI description for selection"
+                           },
+                           "default":{
+                               "type": "number",
+                               "title": "Initial value, integer or float",
+                               "description": "Default integer or float 'value' set for variable"
+                           }
+                       },
+                       "required": ["name", "desc", "default"]
+                   }
+               },
+               "dropdown_parameters": {
+                   "title": "Generic dropdown paramters",
+                   "type":  "array",
+                   "uniqueItems": true,
+                   "items": {
+                       "title": "dropdown option selector",
+                       "description": "The 'id' field is mapped into the analysis settings as 'paramter_name': '<id-selected>'",
+                       "type": "object",
+                       "uniqueItems": false,
+                       "additionalProperties": false,
+                       "properties":{
+                           "name": {
+                               "type": "string",
+                               "title": "UI Option",
+                               "description": "UI name for selection",
+                               "minLength": 1
+                           },
+                           "desc": {
+                               "type": "string",
+                               "title": "UI tooltip",
+                               "description": "UI description for selection"
+                           },
+                           "default":{
+                               "type": "string",
+                               "title": "Default Event set",
+                               "description": "Initial setting for dropdown option"
+                           },
+                           "options":{
+                               "type": "array",
+                               "title": "Selection options",
+                               "description": "Array of possible event sets",
+                               "items": {
+                                   "type": "object",
+                                   "title": "Option element",
+                                   "description": "Dropdown option",
+                                   "additionalProperties": false,
+                                   "properties": {
+                                       "id": {
+                                           "type": "string",
+                                           "title": "event set suffix",
+                                           "description": "String value used to select an event set",
+                                           "minLength": 1
+                                       },
+                                       "desc": {
+                                           "type": "string",
+                                           "title": "Event set description",
+                                           "description": "Short string description for an event set file",
+                                           "minLength": 1
+                                       }
+                                   },
+                                   "required": ["id", "desc"]
+                               }
+                           }
+                       },
+                       "required": ["name", "desc", "default", "options"]
+                   },
+               "parameter_groups": {
+                   "title": "",
+                   "type":  "array",
+                   "uniqueItems": true,
+                   "items": {
+                      "title": "",
+                      "description": "",
+                      "type": "object",
+                      "uniqueItems": false,
+                      "additionalProperties": false,
+                      "properties":{
+                          "name": {
+                              "type": "string",
+                              "title": "UI Option",
+                              "description": "UI name for selection",
+                              "minLength": 1
+                          },
+                          "desc": {
+                              "type": "string",
+                              "title": "UI tooltip",
+                              "description": "UI description for selection"
+                          },
+                          "priority_id":{
+                              "type": "interger",
+                              "title": "",
+                              "description": ""
+                          },
+                          "presentation_order":{
+                              "type": "array",
+                              "title": "",
+                              "description": "Default 'list' set for variable",
+                              "items":{
+                                  "type": "string",
+                                  "minItems": 1
+                              }
+                           }
+                       },
+                       "required": ["name", "desc", "priority_id", "presentation_order"]
                    }
                }
            }
