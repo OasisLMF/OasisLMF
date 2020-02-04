@@ -1,0 +1,153 @@
+{
+   "model_settings":{
+      "event_set":{
+         "name":"Event Set",
+         "default":"P",
+		 "desc": "Lists of event sets",
+         "options":[
+            {
+               "id":"P",
+               "desc":"Proabilistic"
+            },
+            {
+               "id":"H",
+               "desc":"Historic"
+            }
+         ]
+      },
+      "event_occurrence_id":{
+         "name":"Occurrence Set",
+         "desc":"PiWind Occurrence selection",
+         "default":"1",
+         "options":[
+            {
+               "id":"1",
+               "desc":"Long Term",
+               "max_periods": 10000
+            }
+         ]
+      },
+      "string_parameters":[
+        {
+            "name": "option_str",
+            "desc": "Option for X, Y or Z",
+            "default": "some_string"
+        }
+      ],
+      "list_parameters":[
+        {
+            "name": "option_list",
+            "desc": "list is for A or B",
+            "default": ["str1", "str2"]
+        }
+      ],
+      "dictionary_parameters":[ 
+        {
+            "name": "dictionary_option",
+            "desc": "this Stores .. for ... etc",
+            "default": {"k1":"v1", "k2":"v2"}
+        }
+      ],
+      "boolean_parameters":[
+         {
+            "name":"peril_wind",
+            "desc":"Boolean option",
+            "default":false
+         },
+         {
+            "name":"peril_surge",
+            "desc":"Boolean option",
+            "default":true
+         }
+      ],
+      "float_parameters":[
+         {
+            "name":"float_1",
+            "desc":"Some float value",
+            "default":1.0,
+            "max":1.0,
+            "min":0.0
+         },
+         {
+            "name":"float_2",
+            "desc":"Some float value",
+            "default":0.3,
+            "max":1.0,
+            "min":0.0
+         }
+      ],
+      "numeric_parameters":[
+        {
+            "name":"numeric_val_1",
+            "desc":"Some float value",
+            "default": 4
+        }
+      ],
+      "parameter_groups":[
+        {
+            "name": "boolean_group",
+            "desc": "This is the presentation group for bools",
+            "priority_id": 1,
+            "presentation_order": ["peril_wind", "peril_surge"]
+        },
+        {
+            "name": "data_param_group",
+            "desc": "This is the presentation group for other types",
+            "priority_id": 2,
+            "presentation_order": ["dictionary_option", "option_list", "option_str"]
+        }
+      ],
+      "dropdown_parameters":[
+          {
+             "name":"dropdown_option_1",
+             "default":"s_hazard",
+             "desc": "Dropdown Option list for <something>",
+             "options":[
+                {"id":"s_hazard", "desc":"Simulated Hazard tooltip"},
+                {"id":"o_hazard", "desc":"Observed Hazard tooltip"}
+             ]
+          }
+      ]
+   },
+   "data_settings":{
+      "datafile_selectors":[
+          {
+            "name": "model_data_file_option_1",
+            "desc": "Additional model data file for foo",
+            "model_id": 4,
+            "allow_multiple": true,
+            "search_filters": [
+                {
+                    "user": "admin",
+                    "filename": "file_model_data.txt",
+                    "filename__contains": "txt",
+                    "file_description": "File for XYZ",
+                    "file_description__contains": "YX",
+                    "content_type": "text/plain",
+                    "content_type__contains": "text"
+                }
+            ]
+          }
+      ]
+   },
+   "lookup_settings":{
+      "supported_perils":[
+         {
+            "id":"WSS",
+            "desc":"Single Peril: Storm Surge"
+         },
+         {
+            "id":"WTC",
+            "desc":"Single Peril: Tropical Cyclone"
+         },
+         {
+            "id":"WW1",
+            "desc":"Group Peril: Windstorm with storm surge"
+         },
+         {
+            "id":"WW2",
+            "desc":"Group Peril: Windstorm w/o storm surge"
+         }
+      ]
+   }
+}
