@@ -1,0 +1,13 @@
+PortNumber,AccNumber,AccCurrency,PolNumber,PolPerilsCovered,StepFunctionName,StepTriggerType,StepNumber,TriggerBuildingStart,TriggerBuildingEnd,DeductibleBuilding,PayOutBuildingStart,PayOutBuildingEnd,PayOutLimitBuilding,TriggerContentsStart,TriggerContentsEnd,DeductibleContents,PayOutContentsStart,PayOutContentsEnd,PayOutLimitContents,TriggerBuildingContentsStart,TriggerBuildingContentsEnd,DeductibleBuildingContents,PayOutBuildingContentsStart,PayOutBuildingContentsEnd,PayOutLimitBuildingContents,MinimumTIV,ScaleFactor,IsLimitAtDamage,ExtraExpenseFactor,ExtraExpenseLimit,DebrisRemovalFactor,PayOutType,TriggerType
+FloodFranchise,A6_T1,JPY,A6_T1,OO1,32,1,1,4000000,,,1,,10000000,,,,,,,,,,,,,,,,,,0.1,1,0
+FloodFranchise,A6_T1,JPY,A6_T1,OO1,28,1,2,0.3,1,,0,,,,,,,,,,,,,,,,,,0.3,1000000,0.1,1,2
+FloodFranchise,A6_T2,JPY,A6_T2,OO1,32,2,1,,,,,,,4000000,,,1,,10000000,,,,,,,,,,,,0.1,1,0
+FloodFranchise,A6_T2,JPY,A6_T2,OO1,28,2,2,,,,,,,0.3,1,,0,,,,,,,,,,,,0.3,1000000,0.1,1,2
+FloodFranchise,A6_T3,JPY,A6_T3,OO1,32,3,1,,,,,,,,,,,,,4000000,,,1,,10000000,,,,,,0.1,1,0
+FloodFranchise,A6_T3,JPY,A6_T3,OO1,28,3,2,,,,,,,,,,,,,0.3,1,,0,,,,,,0.3,1000000,0.1,1,2
+FloodFranchise,A6_T5,JPY,A6_T5,OO1,32,5,1,4000000,,,1,,10000000,4000000,,,1,,10000000,,,,,,,,,,,,0.1,1,0
+FloodFranchise,A6_T5,JPY,A6_T5,OO1,28,5,2,0.3,1,,0,,,0.3,1,,0,,,,,,,,,,,,0.3,1000000,0.1,1,2
+FloodFranchise,A10_T1,JPY,A10_T1,OO1,32,1,1,4000000,,,1,,10000000,,,,,,,,,,,,,,,,,,,1,0
+FloodFranchise,A10_T2,JPY,A10_T2,OO1,32,2,1,,,,,,,4000000,,,1,,10000000,,,,,,,,,,,,,1,0
+FloodFranchise,A10_T3,JPY,A10_T3,OO1,32,3,1,,,,,,,,,,,,,4000000,,,1,,10000000,,,,,,,1,0
+FloodFranchise,A10_T5,JPY,A10_T5,OO1,32,5,1,4000000,,,1,,10000000,4000000,,,1,,10000000,,,,,,,,,,,,,1,0
