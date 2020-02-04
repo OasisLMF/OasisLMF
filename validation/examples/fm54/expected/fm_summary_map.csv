@@ -1,0 +1,9 @@
+acc_idx,accnumber,agg_id,coverage_id,coverage_type_id,layer_id,loc_id,loc_idx,locnumber,peril_id,polnumber,portnumber,tiv,output_id
+0,B1,1,1,1,1,1,0,B1,1,B1,TestStepPolicies,100000.0,1
+0,B1,2,2,2,1,1,0,B1,1,B1,TestStepPolicies,200000.0,2
+0,B1,3,3,3,1,1,0,B1,1,B1,TestStepPolicies,300000.0,3
+0,B1,4,4,4,1,1,0,B1,1,B1,TestStepPolicies,400000.0,4
+3,B2,5,5,1,1,2,1,B2,1,B2,TestStepPolicies,500000.0,5
+3,B2,6,6,2,1,2,1,B2,1,B2,TestStepPolicies,600000.0,6
+3,B2,7,7,3,1,2,1,B2,1,B2,TestStepPolicies,700000.0,7
+3,B2,8,8,4,1,2,1,B2,1,B2,TestStepPolicies,800000.0,8
