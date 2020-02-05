@@ -3,6 +3,7 @@ __all__ = [
     'get_default_accounts_profile',
     'get_default_deterministic_analysis_settings',
     'get_default_exposure_profile',
+    'get_default_step_policies_profile',
     'get_default_fm_aggregation_profile',
     'get_default_unified_profile',
     'get_loc_dtypes',
@@ -69,37 +70,38 @@ STATIC_DATA_FP = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__fil
 # in the different OED FM levels
 
 
-
 def store_exposure_fp(fp, exposure_type):
     """
     Preserve original exposure file extention if its in a pandas supported
     compressed format
 
     compression : {‘infer’, ‘gzip’, ‘bz2’, ‘zip’, ‘xz’, None}, default ‘infer’
-                  For on-the-fly decompression of on-disk data. If ‘infer’ and 
-                  filepath_or_buffer is path-like, then detect compression from 
-                  the following extensions: ‘.gz’, ‘.bz2’, ‘.zip’, or ‘.xz’ 
-                  (otherwise no decompression). 
-                  
-                  If using ‘zip’, the ZIP file must contain only one data file 
+                  For on-the-fly decompression of on-disk data. If ‘infer’ and
+                  filepath_or_buffer is path-like, then detect compression from
+                  the following extensions: ‘.gz’, ‘.bz2’, ‘.zip’, or ‘.xz’
+                  (otherwise no decompression).
+
+                  If using ‘zip’, the ZIP file must contain only one data file
                   to be read in. Set to None for no decompression.
 
                 New in version 0.18.1: support for ‘zip’ and ‘xz’ compression.
     """
-    compressed_ext = ('.gz', '.bz2', '.zip','.xz')
+    compressed_ext = ('.gz', '.bz2', '.zip', '.xz')
     filename = SOURCE_FILENAMES[exposure_type]
     if fp.endswith(compressed_ext):
         return '.'.join([filename, fp.rsplit('.')[-1]])
-    else:    
+    else:
         return filename
 
+
 def find_exposure_fp(input_dir, exposure_type):
-    """ 
+    """
     Find an OED exposure file stored in the oasis inputs dir
-    while preserving the compressed ext  
-    """ 
+    while preserving the compressed ext
+    """
     fp = glob.glob(os.path.join(input_dir, SOURCE_FILENAMES[exposure_type] + '*'))
     return fp.pop()
+
 
 def get_default_accounts_profile(path=False):
     fp = os.path.join(STATIC_DATA_FP, 'default_acc_profile.json')
@@ -108,6 +110,11 @@ def get_default_accounts_profile(path=False):
 
 def get_default_exposure_profile(path=False):
     fp = os.path.join(STATIC_DATA_FP, 'default_loc_profile.json')
+    return get_json(src_fp=fp) if not path else fp
+
+
+def get_default_step_policies_profile(path=False):
+    fp = os.path.join(STATIC_DATA_FP, 'default_step_policies_profile.json')
     return get_json(src_fp=fp) if not path else fp
 
 

@@ -3,6 +3,7 @@ __all__ = [
     'generate_deterministic_losses'
 ]
 
+import csv
 import io
 import json
 import logging
@@ -36,6 +37,7 @@ from .defaults import KTOOLS_ALLOC_IL_DEFAULT, KTOOLS_ALLOC_RI_DEFAULT
 from .exceptions import OasisException
 from .log import oasis_log
 
+
 @oasis_log
 def generate_deterministic_losses(
     input_dir,
@@ -56,6 +58,14 @@ def generate_deterministic_losses(
     il = all(p in os.listdir(input_dir) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
 
     ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(input_dir))
+
+    step_flag = ''
+    if 'fm_profile.csv' in os.listdir(input_dir):
+        with open(os.path.join(input_dir, 'fm_profile.csv')) as f:
+            reader = csv.reader(f)
+            col_names = next(reader)
+        if 'step_id' in col_names:
+            step_flag = '-S'
 
     csv_to_bin(input_dir, output_dir, il=il, ri=ri)
 
@@ -84,8 +94,8 @@ def generate_deterministic_losses(
     guls.to_csv(guls_fp, index=False)
 
     ils_fp = os.path.join(output_dir, 'raw_ils.csv')
-    cmd = 'gultobin -S 1 < {} | fmcalc -p {} -a {} | tee ils.bin | fmtocsv > {}'.format(
-        guls_fp, output_dir, il_alloc_rule, ils_fp
+    cmd = 'gultobin -S 1 < {} | fmcalc -p {} -a {} {} | tee ils.bin | fmtocsv > {}'.format(
+        guls_fp, output_dir, il_alloc_rule, step_flag, ils_fp
     )
     try:
         logger.debug("RUN: " + cmd)
@@ -124,18 +134,19 @@ def generate_deterministic_losses(
             else:
                 def run_ri_layer(layer):
                     layer_inputs_fp = os.path.join(output_dir, 'RI_{}'.format(layer))
-                    _input = 'gultobin -S 1 < {} | fmcalc -p {} -a {} | tee ils.bin |'.format(
-                        guls_fp, output_dir, il_alloc_rule
+                    _input = 'gultobin -S 1 < {} | fmcalc -p {} -a {} {} | tee ils.bin |'.format(
+                        guls_fp, output_dir, il_alloc_rule, step_flag
                     ) if layer == 1 else ''
                     pipe_in_previous_layer = '< ri{}.bin'.format(layer - 1) if layer > 1 else ''
                     ri_layer_fp = os.path.join(output_dir, 'ri{}.csv'.format(layer))
                     net_flag = "-n" if net_ri else ""
-                    cmd = '{} fmcalc -p {} {} -a {} {}| tee ri{}.bin | fmtocsv > {}'.format(
+                    cmd = '{} fmcalc -p {} {} -a {} {} {} | tee ri{}.bin | fmtocsv > {}'.format(
                         _input,
                         layer_inputs_fp,
                         net_flag,
                         ri_alloc_rule,
                         pipe_in_previous_layer,
+                        step_flag,
                         layer,
                         ri_layer_fp
                     )
