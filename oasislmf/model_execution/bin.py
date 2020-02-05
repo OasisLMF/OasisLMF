@@ -14,6 +14,7 @@ __all__ = [
     'prepare_run_inputs'
 ]
 
+import errno
 import filecmp
 import glob
 import logging
@@ -146,23 +147,40 @@ def prepare_run_directory(
 
         model_data_dst_fp = os.path.join(run_dir, 'static')
 
-        for path in glob.glob(os.path.join(model_data_fp, '*')):
-            fn = os.path.basename(path)
-            if os.name == 'nt':
-                shutil.copy(path, os.path.join(model_data_dst_fp, fn))
-            else:
-                os.symlink(path, os.path.join(model_data_dst_fp, fn))
+        try:
+            for sourcefile in glob.glob(os.path.join(model_data_fp, '*')):
+                destfile = os.path.join(model_data_dst_fp, os.path.basename(sourcefile))
 
+                if os.name == 'nt':
+                    shutil.copy(sourcefile, destfile)
+                else:
+                    os.symlink(sourcefile, destfile)
+        except OSError as e:
+            if not (e.errno == errno.EEXIST and os.path.islink(destfile) and os.name != 'nt'):
+                raise e
+            else:    
+                # If the link already exists, check files are different replace it
+                if os.readlink(destfile) != os.path.abspath(sourcefile):
+                    os.symlink(sourcefile, destfile + ".tmp")
+                    os.replace(destfile + ".tmp", destfile)
+            
         if user_data_dir and os.path.exists(user_data_dir):
-            for path in glob.glob(os.path.join(user_data_dir, '*')):
-                fn = os.path.basename(path)
+            for sourcefile in glob.glob(os.path.join(user_data_dir, '*')):
+                destfile = os.path.join(model_data_dst_fp, os.path.basename(sourcefile))
+                
                 try:
                     if os.name == 'nt':
-                        shutil.copy(path, os.path.join(oasis_dst_fp, fn))
+                        shutil.copy(sourcefile, destfile)
                     else:
-                        os.symlink(path, os.path.join(oasis_dst_fp, fn))
-                except OSError:
-                    shutil.copytree(user_data_dir, os.path.join(oasis_dst_fp, fn))
+                        os.symlink(sourcefile, destfile)
+                except OSError as e:
+                    if not (e.errno == errno.EEXIST and os.path.islink(destfile) and os.name != 'nt'):
+                        raise e
+                    else:    
+                        # If the link already exists, check files are different replace it
+                        if os.readlink(destfile) != os.path.abspath(sourcefile):
+                            os.symlink(sourcefile, destfile + ".tmp")
+                            os.replace(destfile + ".tmp", destfile)
 
     except OSError as e:
         raise OasisException("Error preparing the 'run' directory: {}".format(e))
