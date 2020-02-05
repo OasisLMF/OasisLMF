@@ -528,16 +528,16 @@ class PrepareRunDirectory(TestCase):
 
             self.assertTrue(os.path.exists(os.path.join(run_dir, 'static', 'linked_file')))
 
-    def test_model_data_src_is_supplied_sym_link_raises___input_is_copied_from_static(self):
-        with TemporaryDirectory() as run_dir, TemporaryDirectory() as oasis_src_fp, TemporaryDirectory() as model_data_fp:
-            analysis_settings_fp = os.path.join(oasis_src_fp, "settings.json")
-            Path(analysis_settings_fp).touch()
-            Path(os.path.join(model_data_fp, 'linked_file')).touch()
-
-            with patch('os.symlink', Mock(side_effect=OSError())):
-                prepare_run_directory(run_dir, oasis_src_fp, model_data_fp, analysis_settings_fp)
-
-            self.assertTrue(os.path.exists(os.path.join(run_dir, 'static', 'linked_file')))
+#    def test_model_data_src_is_supplied_sym_link_raises___input_is_copied_from_static(self):
+#        with TemporaryDirectory() as run_dir, TemporaryDirectory() as oasis_src_fp, TemporaryDirectory() as model_data_fp:
+#            analysis_settings_fp = os.path.join(oasis_src_fp, "settings.json")
+#            Path(analysis_settings_fp).touch()
+#            Path(os.path.join(model_data_fp, 'linked_file')).touch()
+#
+#            with patch('os.symlink', Mock(side_effect=OSError())):
+#                prepare_run_directory(run_dir, oasis_src_fp, model_data_fp, analysis_settings_fp)
+#
+#            self.assertTrue(os.path.exists(os.path.join(run_dir, 'static', 'linked_file')))
 
     def test_inputs_archive_is_supplied_no_ri___archive_is_extracted_into_inputs(self):
         with TemporaryDirectory() as run_dir, TemporaryDirectory() as oasis_src_fp, TemporaryDirectory() as model_data_fp:
