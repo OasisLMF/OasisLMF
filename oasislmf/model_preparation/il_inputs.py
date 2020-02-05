@@ -4,6 +4,8 @@ __all__ = [
     'get_grouped_fm_terms_by_level_and_term_group',
     'get_il_input_items',
     'get_policytc_ids',
+    'get_step_calc_rule_ids',
+    'get_step_policytc_ids',
     'write_il_input_files',
     'write_fm_policytc_file',
     'write_fm_profile_file',
@@ -19,9 +21,13 @@ import warnings
 import pandas as pd
 import numpy as np
 
-from ..utils.calc_rules import get_calc_rules
+from ..utils.calc_rules import (
+    get_calc_rules,
+    get_step_calc_rules
+)
 from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
 from ..utils.data import (
+    factorize_array,
     factorize_ndarray,
     fast_zip_arrays,
     get_dataframe,
@@ -41,6 +47,9 @@ from ..utils.exceptions import OasisException
 from ..utils.fm import (
     DEDUCTIBLE_AND_LIMIT_TYPES,
     SUPPORTED_FM_LEVELS,
+    STEP_TRIGGER_TYPES,
+    COVERAGE_AGGREGATION_METHODS,
+    CALCRULE_ASSIGNMENT_METHODS
 )
 from ..utils.log import oasis_log
 from ..utils.path import as_path
@@ -49,6 +58,7 @@ from ..utils.profiles import (
     get_grouped_fm_profile_by_level_and_term_group,
     get_grouped_fm_terms_by_level_and_term_group,
     get_oed_hierarchy,
+    get_step_policies_oed_mapping,
 )
 
 pd.options.mode.chained_assignment = None
@@ -82,10 +92,85 @@ def get_calc_rule_ids(il_inputs_df):
     if 0 in il_inputs_calc_rules_df.calcrule_id.unique():
         err_msg = 'Calculation Rule mapping error, non-matching keys:\n'
         no_match_keys = il_inputs_calc_rules_df.loc[
-                        il_inputs_calc_rules_df.calcrule_id == 0
-                        ].id_key.unique()
+            il_inputs_calc_rules_df.calcrule_id == 0
+        ].id_key.unique()
 
         err_msg += '   {}\n'.format(tuple(terms_indicators + types_and_codes))
+        for key_id in no_match_keys:
+            err_msg += '   {}\n'.format(key_id)
+        raise OasisException(err_msg)
+
+    return il_inputs_calc_rules_df['calcrule_id'].values
+
+
+def get_step_calc_rule_ids(il_inputs_df, step_trigger_type_cols):
+    """
+    Returns a Numpy array of calc. rule IDs from a table of IL input items that
+    include step policies
+
+    :param il_inputs_df: IL input items dataframe
+    :type il_inputs_df: pandas.DataFrame
+
+    :param step_trigger_type_cols: column names used to determine values for
+    terms indicators and types
+    :type step_trigger_type_cols: list
+
+    :return: Numpy array of calc. rule IDs
+    :rtype: numpy.ndarray
+    """
+    calc_rules_step = get_step_calc_rules().drop(['desc'], axis=1)
+    calc_rules_step['id_key'] = calc_rules_step['id_key'].apply(eval)
+
+    terms = ['deductible1', 'payout_start', 'payout_end', 'limit1', 'limit2']
+    terms_indicators = ['{}_gt_0'.format(t) for t in terms]
+    types = ['trigger_type', 'payout_type']
+
+    cols = [
+        'item_id', 'level_id', 'steptriggertype', 'assign_step_calcrule',
+        'coverage_type_id'
+    ]
+    calc_mapping_cols = cols + step_trigger_type_cols + terms + terms_indicators + types + ['calcrule_id']
+    il_inputs_calc_rules_df = il_inputs_df.reindex(columns=calc_mapping_cols)
+
+    # Fill columns used to determine values for terms indicators and types
+    # Columns used depend on step trigger type or sub step trigger type if
+    # applicable
+    # Set terms indicators and types to 0 if calc. rule should not be assigned
+    def assign_terms_indicators_and_types(term, row):
+        step_trigger_type = row['steptriggertype']
+        # Reassign step trigger type if sub step trigger types exist
+        if STEP_TRIGGER_TYPES[step_trigger_type].get('sub_step_trigger_types'):
+            sub_trigger_types = STEP_TRIGGER_TYPES[step_trigger_type]['sub_step_trigger_types']
+            if row['coverage_type_id'] in sub_trigger_types.keys():
+                step_trigger_type = sub_trigger_types[row['coverage_type_id']]
+
+        if get_step_policies_oed_mapping(step_trigger_type).get(term) and row['assign_step_calcrule'] != False:
+            return row[get_step_policies_oed_mapping(step_trigger_type)[term]]
+        else:
+            return 0
+
+    for term in terms + types:
+        il_inputs_calc_rules_df[term] = il_inputs_calc_rules_df.apply(
+            lambda row: assign_terms_indicators_and_types(term, row),
+            axis=1
+        )
+
+    il_inputs_calc_rules_df.loc[:, terms_indicators] = np.where(il_inputs_calc_rules_df[terms] > 0, 1, 0)
+    il_inputs_calc_rules_df[types] = il_inputs_calc_rules_df[types].fillna(0).astype('uint8')
+    il_inputs_calc_rules_df['id_key'] = [t for t in fast_zip_arrays(*il_inputs_calc_rules_df.loc[:, terms_indicators + types].transpose().values)]
+
+    il_inputs_calc_rules_df = merge_dataframes(il_inputs_calc_rules_df, calc_rules_step, how='left', on='id_key').fillna(0)
+    # Assign passthrough calcrule ID 100 to first level
+    il_inputs_calc_rules_df.loc[il_inputs_calc_rules_df['level_id'] == il_inputs_calc_rules_df['level_id'].min(), 'calcrule_id'] = 100
+    il_inputs_calc_rules_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id'].astype('uint32')
+
+    if 0 in il_inputs_calc_rules_df.calcrule_id.unique():
+        err_msg = 'Calculation Rule mapping error, non-matching keys:\n'
+        no_match_keys = il_inputs_calc_rules_df.loc[
+            il_inputs_calc_rules_df.calcrule_id == 0
+        ].id_key.unique()
+
+        err_msg += '   {}\n'.format(tuple(terms_indicators + types))
         for key_id in no_match_keys:
             err_msg += '   {}\n'.format(key_id)
         raise OasisException(err_msg)
@@ -110,11 +195,63 @@ def get_policytc_ids(il_inputs_df):
     ]
     fm_policytc_df = il_inputs_df.loc[:, ['item_id'] + policytc_cols].drop_duplicates()
     fm_policytc_df = fm_policytc_df[
-        (fm_policytc_df['layer_id'] == 1) |
-        (fm_policytc_df['level_id'] == fm_policytc_df['level_id'].max())
+        (fm_policytc_df['layer_id'] == 1) | (fm_policytc_df['level_id'] == fm_policytc_df['level_id'].max())
     ]
 
     return factorize_ndarray(fm_policytc_df.loc[:, policytc_cols[3:]].values, col_idxs=range(len(policytc_cols[3:])))[0]
+
+
+def get_step_policytc_ids(
+    il_inputs_df,
+    step_trigger_type_cols,
+    offset=0,
+    idx_cols=[]
+):
+    """
+    Returns a Numpy array of policy TC IDs from a table of IL input items that
+    include step policies
+
+    :param il_inputs_df: IL input items dataframe
+    :type il_inputs_df: pandas.DataFrame
+
+    :param step_trigger_type_cols: column names used to determine values for
+    terms indicators and types
+    :type step_trigger_type_cols: list
+
+    :return: Numpy array of policy TC IDs
+    :rtype: numpy.ndarray
+    """
+    policytc_cols = [
+        'layer_id', 'level_id', 'agg_id', 'calcrule_id', 'deductible1',
+        'limit1', 'step_id', 'trigger_start', 'trigger_end', 'payout_start',
+        'payout_end', 'limit2', 'scale1', 'scale2'
+    ]
+    fm_policytc_df = il_inputs_df.loc[:, ['item_id'] + idx_cols + ['coverage_id', 'steptriggertype', 'assign_step_calcrule'] + policytc_cols[:4] + step_trigger_type_cols].drop_duplicates()
+
+    for col in policytc_cols[4:]:
+        fm_policytc_df[col] = fm_policytc_df.apply(lambda x: x[get_step_policies_oed_mapping(x['steptriggertype'])[col]] if get_step_policies_oed_mapping(x['steptriggertype']).get(col) is not None and x['assign_step_calcrule'] == True else 0, axis=1)
+        fm_policytc_df[col].fillna(0, inplace=True)
+
+    fm_policytc_df = fm_policytc_df[
+        (fm_policytc_df['layer_id'] == 1) | (fm_policytc_df['level_id'] == fm_policytc_df['level_id'].max())
+    ]
+    fm_policytc_df['policytc_id'] = factorize_ndarray(fm_policytc_df.loc[:, policytc_cols[3:]].values, col_idxs=range(len(policytc_cols[3:])))[0]
+    fm_policytc_df['pol_id'] = factorize_ndarray(fm_policytc_df.loc[:, idx_cols + ['coverage_id']].values, col_idxs=range(len(idx_cols) + 1))[0]
+
+    step_calcrule_policytc_agg = pd.DataFrame(
+        fm_policytc_df[fm_policytc_df['assign_step_calcrule'] == True]['policytc_id'].to_list(),
+        index=fm_policytc_df[fm_policytc_df['assign_step_calcrule'] == True]['pol_id']
+    ).groupby('pol_id').aggregate(list).to_dict()[0]
+
+    fm_policytc_df.loc[
+        fm_policytc_df['assign_step_calcrule'] == True, 'policytc_id'
+    ] = fm_policytc_df.loc[fm_policytc_df['assign_step_calcrule'] == True]['pol_id'].map(step_calcrule_policytc_agg)
+    fm_policytc_df['policytc_id'] = fm_policytc_df['policytc_id'].apply(
+        lambda x: tuple(x) if isinstance(x, list) else x
+    )
+
+    return factorize_array(fm_policytc_df['policytc_id'])[0] + offset
+
 
 def get_programme_ids(il_inputs_df, level):
     """
@@ -126,8 +263,10 @@ def get_programme_ids(il_inputs_df, level):
     :param level: fm_programme level number
     :type  level: int
     """
-    return il_inputs_df[il_inputs_df['level_id'] == level][['agg_id','coverage_id']].drop_duplicates(
-                       subset=['agg_id','coverage_id'], keep="first").agg_id.reset_index(drop=True)
+    return il_inputs_df[il_inputs_df['level_id'] == level][['agg_id', 'coverage_id']].drop_duplicates(
+        subset=['agg_id', 'coverage_id'], keep="first"
+    ).agg_id.reset_index(drop=True)
+
 
 @oasis_log
 def get_il_input_items(
@@ -260,6 +399,14 @@ def get_il_input_items(
     if not (accounts_df is not None or accounts_fp):
         raise OasisException('No accounts frame or file path provided')
 
+    # Determine whether step policies are listed, are not full of nans and step
+    # numbers are greater than zero
+    step_policies_present = False
+    if 'steptriggertype' in accounts_df and 'stepnumber' in accounts_df:
+        if accounts_df['steptriggertype'].notnull().any():
+            if accounts_df[accounts_df['steptriggertype'].notnull()]['stepnumber'].gt(0).any():
+                step_policies_present = True
+
     # Look for a `layer_id` column in the accounts dataframe - this column
     # will exist if the accounts file has the column - the user has the option
     # of doing this before calling the MDK. The `layer_id` column is simply
@@ -267,7 +414,10 @@ def get_il_input_items(
     # combinations in the accounts file. If the column doesn't exist then
     # a custom method is called that will generate this column and set it
     # in the accounts dataframe
-    if 'layer_id' not in accounts_df:
+    # If step policies are listed use `stepnumber` column in combination
+    if step_policies_present:
+        accounts_df['layer_id'] = get_ids(accounts_df, [portfolio_num, acc_num, policy_num, 'stepnumber'], group_by=[portfolio_num, acc_num, 'stepnumber'])
+    else:
         accounts_df['layer_id'] = get_ids(accounts_df, [portfolio_num, acc_num, policy_num], group_by=[portfolio_num, acc_num])
 
     # Drop all columns from the accounts dataframe which are not either one of
@@ -276,6 +426,21 @@ def get_il_input_items(
     # file should contain all financial terms relating to the cond. all (# 6),
     # policy all (# 9) and policy layer (# 10) FM levels)
     usecols = [acc_num, portfolio_num, policy_num, cond_num, 'layer_id', SOURCE_IDX['acc']] + term_cols
+    # If step policies listed, is not full of nans and step numbers are greater
+    # than zero, keep step trigger type and columns associated with those step
+    # trigger types that are present
+    if 'steptriggertype' in accounts_df and 'stepnumber' in accounts_df:
+        if accounts_df['steptriggertype'].notnull().any():
+            if accounts_df[accounts_df['steptriggertype'].notnull()]['stepnumber'].gt(0).any():
+                usecols += ['steptriggertype']
+                # Find unique values of step policies to determine columns that
+                # need to be kept
+                step_trigger_types = accounts_df['steptriggertype'].dropna().unique()
+                step_trigger_type_cols = [
+                    col for step_trigger_type in step_trigger_types for col in get_step_policies_oed_mapping(step_trigger_type, only_cols=True)
+                ]
+                step_trigger_type_cols = list(set(step_trigger_type_cols))
+                usecols += step_trigger_type_cols
     accounts_df.drop([c for c in accounts_df.columns if c not in usecols], axis=1, inplace=True)
 
     # Create a list of all the IL columns for the site pd (# 2) and site all (# 3)
@@ -359,6 +524,7 @@ def get_il_input_items(
         [policy_num, 'gul_input_id'] +
         ([SOURCE_IDX['loc']] if SOURCE_IDX['loc'] in il_inputs_df else []) +
         ([SOURCE_IDX['acc']] if SOURCE_IDX['acc'] in il_inputs_df else []) +
+        (['steptriggertype'] if 'steptriggertype' in il_inputs_df else []) +
         site_pd_and_site_all_term_cols +
         term_cols
     )
@@ -502,6 +668,28 @@ def get_il_input_items(
         how='inner'
     )
 
+    # If step policies listed, create additional column to determine agg id
+    # from coverage aggregation method
+    if 'steptriggertype' in layer_df:
+        def assign_cov_agg_id(row):
+            try:
+                cov_agg_method = STEP_TRIGGER_TYPES[row['steptriggertype']]['coverage_aggregation_method']
+                return COVERAGE_AGGREGATION_METHODS[cov_agg_method][row['coverage_type_id']]
+            except KeyError:
+                return 0
+
+        layer_df['cov_agg_id'] = layer_df.apply(lambda row: assign_cov_agg_id(row), axis=1)
+
+        def assign_calcrule_flag(row):
+            try:
+                calcrule_assign_method = STEP_TRIGGER_TYPES[row['steptriggertype']]['calcrule_assignment_method']
+                return CALCRULE_ASSIGNMENT_METHODS[calcrule_assign_method][row['cov_agg_id']]
+
+            except KeyError:
+                return False
+
+        layer_df['assign_step_calcrule'] = layer_df.apply(lambda row: assign_calcrule_flag(row), axis=1)
+
     # Remove the source columns for all non-layer FM levels - this includes the
     # site pd (# 2), site all (# 3), cond. all (# 6), policy all (# 9) FM levels
     cond_all_and_pol_all_term_cols = get_fm_terms_oed_columns(fm_terms, levels=['cond all', 'policy all'])
@@ -516,6 +704,9 @@ def get_il_input_items(
     # Set the layer level, layer IDs and agg. IDs
     layer_df['level_id'] = layer_level_id
     agg_key = [v['field'].lower() for v in fmap[layer_level_id]['FMAggKey'].values()]
+    # If step policies listed, use agg id from coverage aggregation method
+    if 'cov_agg_id' in layer_df:
+        agg_key += ['cov_agg_id']
     layer_df['agg_id'] = factorize_ndarray(layer_df.loc[:, agg_key].values, col_idxs=range(len(agg_key)))[0]
 
     # The layer level financial terms
@@ -580,10 +771,38 @@ def get_il_input_items(
     )
 
     # Set the calc. rule IDs
-    il_inputs_df['calcrule_id'] = get_calc_rule_ids(il_inputs_df)
+    if 'cov_agg_id' in il_inputs_df:
+        il_inputs_df.loc[
+            ~(il_inputs_df['steptriggertype'] > 0), 'calcrule_id'
+        ] = get_calc_rule_ids(
+            il_inputs_df[~(il_inputs_df['steptriggertype'] > 0)]
+        )
+        il_inputs_df.loc[
+            il_inputs_df['steptriggertype'] > 0, 'calcrule_id'
+        ] = get_step_calc_rule_ids(
+            il_inputs_df[il_inputs_df['steptriggertype'] > 0],
+            step_trigger_type_cols
+        )
+    else:
+        il_inputs_df['calcrule_id'] = get_calc_rule_ids(il_inputs_df)
 
     # Set the policy TC IDs
-    il_inputs_df['policytc_id'] = get_policytc_ids(il_inputs_df)
+    if 'cov_agg_id' in il_inputs_df:
+        il_inputs_df.loc[
+            ~(il_inputs_df['steptriggertype'] > 0), 'policytc_id'
+        ] = get_policytc_ids(
+            il_inputs_df[~(il_inputs_df['steptriggertype'] > 0)]
+        )
+        il_inputs_df.loc[
+            il_inputs_df['steptriggertype'] > 0, 'policytc_id'
+        ] = get_step_policytc_ids(
+            il_inputs_df[il_inputs_df['steptriggertype'] > 0],
+            step_trigger_type_cols,
+            offset=il_inputs_df['policytc_id'].max(),
+            idx_cols=[acc_num, policy_num, portfolio_num]
+        )
+    else:
+        il_inputs_df['policytc_id'] = get_policytc_ids(il_inputs_df)
 
     # Final setting of data types before returning the IL input items
     dtypes = {
@@ -641,34 +860,77 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        cols = ['policytc_id', 'calcrule_id', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'limit', 'share']
-        fm_profile_df = il_inputs_df.loc[:, cols]
+        # Step policies exist
+        if 'cov_agg_id' in il_inputs_df:
+            fm_profile_df = il_inputs_df.loc[:, ['policytc_id', 'calcrule_id']]
+            cols = [
+                'deductible1', 'deductible2', 'deductible3', 'attachment1',
+                'limit1', 'share1', 'share2', 'share3', 'step_id',
+                'trigger_start', 'trigger_end', 'payout_start', 'payout_end',
+                'limit2', 'scale1', 'scale2'
+            ]
+            non_step_cols_map = {
+                'deductible1': 'deductible',
+                'deductible2': 'deductible_min',
+                'deductible3': 'deductible_max',
+                'attachment1': 'attachment',
+                'limit1': 'limit',
+                'share1': 'share'
+            }
+            for col in cols:
+                fm_profile_df[col] = il_inputs_df.apply(lambda x: x[get_step_policies_oed_mapping(x['steptriggertype'])[col]] if x['steptriggertype'] > 0 and get_step_policies_oed_mapping(x['steptriggertype']).get(col) is not None and x['assign_step_calcrule'] == True else 0, axis=1)
+            for col in non_step_cols_map.keys():
+                fm_profile_df.loc[
+                    ~(il_inputs_df['steptriggertype'] > 0), col
+                ] = il_inputs_df.loc[
+                    ~(il_inputs_df['steptriggertype'] > 0),
+                    non_step_cols_map[col]
+                ]
+            fm_profile_df.fillna(0, inplace=True)
+            fm_profile_df = fm_profile_df.drop_duplicates()
 
-        fm_profile_df.loc[:, cols[2:]] = fm_profile_df.loc[:, cols[2:]].round(7).values
+            # Ensure step_id is of int data type and set default value to 1
+            dtypes = {t: 'int64' if t == 'step_id' else 'float64' for t in cols}
+            fm_profile_df = set_dataframe_column_dtypes(fm_profile_df, dtypes)
+            fm_profile_df.loc[fm_profile_df['step_id'] == 0, 'step_id'] = 1
 
-        fm_profile_df.rename(
-            columns={
-                'deductible': 'deductible1',
-                'deductible_min': 'deductible2',
-                'deductible_max': 'deductible3',
-                'attachment': 'attachment1',
-                'limit': 'limit1',
-                'share': 'share1'
-            },
-            inplace=True
-        )
-        fm_profile_df = fm_profile_df.drop_duplicates()
+            fm_profile_df.loc[:, ['policytc_id', 'calcrule_id'] + cols].to_csv(
+                path_or_buf=fm_profile_fp,
+                encoding='utf-8',
+                mode=('w' if os.path.exists(fm_profile_fp) else 'a'),
+                chunksize=chunksize,
+                index=False
+            )
+        # No step policies
+        else:
+            cols = ['policytc_id', 'calcrule_id', 'deductible', 'deductible_min', 'deductible_max', 'attachment', 'limit', 'share']
+            fm_profile_df = il_inputs_df.loc[:, cols]
 
-        fm_profile_df = fm_profile_df.assign(share2=0.0, share3=0.0)
+            fm_profile_df.loc[:, cols[2:]] = fm_profile_df.loc[:, cols[2:]].round(7).values
 
-        cols = ['policytc_id', 'calcrule_id', 'deductible1', 'deductible2', 'deductible3', 'attachment1', 'limit1', 'share1', 'share2', 'share3']
-        fm_profile_df.loc[:, cols].to_csv(
-            path_or_buf=fm_profile_fp,
-            encoding='utf-8',
-            mode=('w' if os.path.exists(fm_profile_fp) else 'a'),
-            chunksize=chunksize,
-            index=False
-        )
+            fm_profile_df.rename(
+                columns={
+                    'deductible': 'deductible1',
+                    'deductible_min': 'deductible2',
+                    'deductible_max': 'deductible3',
+                    'attachment': 'attachment1',
+                    'limit': 'limit1',
+                    'share': 'share1'
+                },
+                inplace=True
+            )
+            fm_profile_df = fm_profile_df.drop_duplicates()
+
+            fm_profile_df = fm_profile_df.assign(share2=0.0, share3=0.0)
+
+            cols = ['policytc_id', 'calcrule_id', 'deductible1', 'deductible2', 'deductible3', 'attachment1', 'limit1', 'share1', 'share2', 'share3']
+            fm_profile_df.loc[:, cols].to_csv(
+                path_or_buf=fm_profile_fp,
+                encoding='utf-8',
+                mode=('w' if os.path.exists(fm_profile_fp) else 'a'),
+                chunksize=chunksize,
+                index=False
+            )
     except (IOError, OSError) as e:
         raise OasisException from e
 
@@ -690,7 +952,6 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        min_level = 0
         max_level = il_inputs_df['level_id'].max()
         programme_levels = list()
 
@@ -698,8 +959,8 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
             # Select The Agg ids based on the current level in the hierarchy
             if level == 0:
                 # Items level (first)
-                agg_from = il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].min()].item_id
-                agg_to = il_inputs_df[il_inputs_df.level_id == level+1].agg_id
+                agg_from = il_inputs_df[il_inputs_df['level_id'] == il_inputs_df['level_id'].min()].drop_duplicates(subset=['loc_id', 'areaperil_id', 'coverage_id']).reset_index().index + 1
+                agg_to = il_inputs_df[il_inputs_df['level_id'] == level + 1].drop_duplicates(subset=['loc_id', 'areaperil_id', 'coverage_id']).agg_id
 
             else:
                 # All other levels
@@ -709,9 +970,9 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
             programme_levels.append(
                 pd.DataFrame({
                     'from_agg_id': agg_from,
-                    'level_id': level+1,
+                    'level_id': level + 1,
                     'to_agg_id': agg_to
-                }).drop_duplicates(subset=['from_agg_id','level_id'], keep="first")
+                }).drop_duplicates(subset=['from_agg_id', 'level_id'], keep="first")
             )
 
         fm_programme_df = pd.concat(programme_levels)

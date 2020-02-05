@@ -3,7 +3,8 @@ __all__ = [
     'get_grouped_fm_profile_by_level',
     'get_grouped_fm_profile_by_level_and_term_group',
     'get_grouped_fm_terms_by_level_and_term_group',
-    'get_oed_hierarchy'
+    'get_oed_hierarchy',
+    'get_step_policies_oed_mapping'
 ]
 
 
@@ -13,6 +14,7 @@ from itertools import groupby
 from .defaults import (
     get_default_exposure_profile,
     get_default_accounts_profile,
+    get_default_step_policies_profile,
 )
 from .fm import (
     SUPPORTED_FM_LEVELS,
@@ -119,3 +121,21 @@ def get_oed_hierarchy(
     accounts_profile=get_default_accounts_profile()
 ):
     return {v['Key'].lower(): v for k, v in {**exposure_profile, **accounts_profile}.items() if v.get('OEDHierarchy')}
+
+
+def get_step_policies_oed_mapping(step_trigger_type, only_cols=False):
+
+    step_policies_profile = get_default_step_policies_profile()
+
+    if only_cols is True:
+        cols = []
+        for k, v in step_policies_profile.items():
+            if step_trigger_type in v['FMProfileStep']:
+                cols.append(v['Key'].lower())
+        return cols
+    else:
+        oed_mapping = {}
+        for k, v in step_policies_profile.items():
+            if step_trigger_type in v['FMProfileStep']:
+                oed_mapping[v['FMProfileField']] = v['Key'].lower()
+        return oed_mapping

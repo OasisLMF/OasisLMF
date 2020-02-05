@@ -1,5 +1,6 @@
 __all__ = [
     'get_calc_rules',
+    'get_step_calc_rules',
     'update_calc_rules'
 ]
 
@@ -44,4 +45,15 @@ def get_calc_rules(path=False, update=False):
     if update:
         update_calc_rules()
 
+    return get_dataframe(src_fp=fp)
+
+
+def get_step_calc_rules():
+    """
+    Get dataframe of calc rules for step policies
+
+    :return: dataframe of calc rules for step policies
+    :rtype: pandas.DataFrame
+    """
+    fp = os.path.join(STATIC_DATA_FP, 'calc_rules_step.csv')
     return get_dataframe(src_fp=fp)

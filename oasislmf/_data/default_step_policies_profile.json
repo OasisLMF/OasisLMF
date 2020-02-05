@@ -1,0 +1,122 @@
+{
+    "DebrisRemovalFactor": {
+	"Key": "DebrisRemovalFactor",
+	"FMProfileField": "scale1",
+	"FMProfileStep": [1, 2, 3, 5]
+    },
+    "DeductibleBuilding": {
+	"Key": "DeductibleBuilding",
+	"FMProfileField": "deductible1",
+	"FMProfileStep": [1, 5]
+    },
+    "DeductibleBuildingContents": {
+	"Key": "DeductibleBuildingContents",
+	"FMProfileField": "deductible1",
+	"FMProfileStep": [3]
+    },
+    "DeductibleContents": {
+	"Key": "DeductibleContents",
+	"FMProfileField": "deductible1",
+	"FMProfileStep": [2, 5]
+    },
+    "ExtraExpenseFactor": {
+	"Key": "ExtraExpenseFactor",
+	"FMProfileField": "scale2",
+	"FMProfileStep": [1, 2, 3, 5]
+    },
+    "ExtraExpenseLimit": {
+	"Key": "ExtraExpenseLimit",
+	"FMProfileField": "limit2",
+	"FMProfileStep": [1, 2, 3, 5]
+    },
+    "PayOutBuildingEnd": {
+	"Key": "PayOutBuildingEnd",
+	"FMProfileField": "payout_end",
+	"FMProfileStep": [1, 5]
+    },
+    "PayOutBuildingStart": {
+	"Key": "PayOutBuildingStart",
+	"FMProfileField": "payout_start",
+	"FMProfileStep": [1, 5]
+    },
+    "PayOutBuildingContentsEnd": {
+	"Key": "PayOutBuildingContentsEnd",
+	"FMProfileField": "payout_end",
+	"FMProfileStep": [3]
+    },
+    "PayOutBuildingContentsStart": {
+	"Key": "PayOutBuildingContentsStart",
+	"FMProfileField": "payout_start",
+	"FMProfileStep": [3]
+    },
+    "PayOutContentsEnd": {
+	"Key": "PayOutContentsEnd",
+	"FMProfileField": "payout_end",
+	"FMProfileStep": [2, 5]
+    },
+    "PayOutContentsStart": {
+	"Key": "PayOutContentsStart",
+	"FMProfileField": "payout_start",
+	"FMProfileStep": [2, 5]
+    },
+    "PayOutLimitBuilding": {
+	"Key": "PayOutLimitBuilding",
+	"FMProfileField": "limit1",
+	"FMProfileStep": [1, 5]
+    },
+    "PayOutLimitBuildingContents": {
+	"Key": "PayOutLimitBuildingContents",
+	"FMProfileField": "limit1",
+	"FMProfileStep": [3]
+    },
+    "PayOutLimitContents": {
+	"Key": "PayOutLimitContents",
+	"FMProfileField": "limit1",
+	"FMProfileStep": [2, 5]
+    },
+    "PayOutType": {
+	"Key": "PayOutType",
+	"FMProfileField": "payout_type",
+	"FMProfileStep": [1, 2, 3, 5]
+    },
+    "StepNumber": {
+	"Key": "StepNumber",
+	"FMProfileField": "step_id",
+	"FMProfileStep": [1, 2, 3, 5]
+    },
+    "TriggerBuildingEnd": {
+	"Key": "TriggerBuildingEnd",
+	"FMProfileField": "trigger_end",
+	"FMProfileStep": [1, 5]
+    },
+    "TriggerBuildingStart": {
+	"Key": "TriggerBuildingStart",
+	"FMProfileField": "trigger_start",
+	"FMProfileStep": [1, 5]
+    },
+    "TriggerBuildingContentsEnd": {
+	"Key": "TriggerBuildingContentsEnd",
+	"FMProfileField": "trigger_end",
+	"FMProfileStep": [3]
+    },
+    "TriggerBuildingContentsStart": {
+	"Key": "TriggerBuildingContentsStart",
+	"FMProfileField": "trigger_start",
+	"FMProfileStep": [3]
+    },
+    "TriggerContentsEnd": {
+	"Key": "TriggerContentsEnd",
+	"FMProfileField": "trigger_end",
+	"FMProfileStep": [2, 5]
+    },
+    "TriggerContentsStart": {
+	"Key": "TriggerContentsStart",
+	"FMProfileField": "trigger_start",
+	"FMProfileStep": [2, 5]
+    },
+    "TriggerType": {
+	"Key": "TriggerType",
+	"FMProfileField": "trigger_type",
+	"FMProfileStep": [1, 2, 3, 5]
+    }
+}

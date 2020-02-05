@@ -14,6 +14,7 @@ __all__ = [
     'prepare_run_inputs'
 ]
 
+import csv
 import filecmp
 import glob
 import logging
@@ -329,7 +330,23 @@ def _csv_to_bin(csv_directory, bin_directory, il=False):
             continue
 
         output_file_path = os.path.join(bin_directory, '{}.bin'.format(input_file['name']))
-        cmd_str = "{} < {} > {}".format(conversion_tool, input_file_path, output_file_path)
+
+        # If input file is different for step policies, apply flag when
+        # executing conversion tool should step policies be present
+        step_flag = input_file.get('step_flag')
+        col_names = []
+        if step_flag:
+            with open(input_file_path) as f:
+                reader = csv.reader(f)
+                col_names = next(reader)
+
+        if 'step_id' in col_names:
+            output_file_path = os.path.join(
+                bin_directory, '{}{}.bin'.format(input_file['name'], '_step')
+            )
+            cmd_str = "{} {} < {} > {}".format(conversion_tool, step_flag, input_file_path, output_file_path)
+        else:
+            cmd_str = "{} < {} > {}".format(conversion_tool, input_file_path, output_file_path)
 
         try:
             subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
