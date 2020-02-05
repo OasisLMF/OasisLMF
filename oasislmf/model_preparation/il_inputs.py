@@ -120,7 +120,6 @@ def get_step_calc_rule_ids(il_inputs_df, step_trigger_type_cols):
     """
     calc_rules_step = get_step_calc_rules().drop(['desc'], axis=1)
     calc_rules_step['id_key'] = calc_rules_step['id_key'].apply(eval)
-    calc_rules_step_len = len(calc_rules_step.columns[1:-1])
 
     terms = ['deductible1', 'payout_start', 'payout_end', 'limit1', 'limit2']
     terms_indicators = ['{}_gt_0'.format(t) for t in terms]
@@ -145,7 +144,7 @@ def get_step_calc_rule_ids(il_inputs_df, step_trigger_type_cols):
             if row['coverage_type_id'] in sub_trigger_types.keys():
                 step_trigger_type = sub_trigger_types[row['coverage_type_id']]
 
-        if get_step_policies_oed_mapping(step_trigger_type).get(term) and row['assign_step_calcrule'] != False:
+        if get_step_policies_oed_mapping(step_trigger_type).get(term) and row['assign_step_calcrule'] is not False:
             return row[get_step_policies_oed_mapping(step_trigger_type)[term]]
         else:
             return 0
@@ -230,7 +229,7 @@ def get_step_policytc_ids(
     fm_policytc_df = il_inputs_df.loc[:, ['item_id'] + idx_cols + ['coverage_id', 'steptriggertype', 'assign_step_calcrule'] + policytc_cols[:4] + step_trigger_type_cols].drop_duplicates()
 
     for col in policytc_cols[4:]:
-        fm_policytc_df[col] = fm_policytc_df.apply(lambda x: x[get_step_policies_oed_mapping(x['steptriggertype'])[col]] if get_step_policies_oed_mapping(x['steptriggertype']).get(col) is not None and x['assign_step_calcrule'] == True else 0, axis=1)
+        fm_policytc_df[col] = fm_policytc_df.apply(lambda x: x[get_step_policies_oed_mapping(x['steptriggertype'])[col]] if get_step_policies_oed_mapping(x['steptriggertype']).get(col) is not None and x['assign_step_calcrule'] is True else 0, axis=1)
         fm_policytc_df[col].fillna(0, inplace=True)
 
     fm_policytc_df = fm_policytc_df[
@@ -240,11 +239,13 @@ def get_step_policytc_ids(
     fm_policytc_df['pol_id'] = factorize_ndarray(fm_policytc_df.loc[:, idx_cols + ['coverage_id']].values, col_idxs=range(len(idx_cols) + 1))[0]
 
     step_calcrule_policytc_agg = pd.DataFrame(
-        fm_policytc_df[fm_policytc_df['assign_step_calcrule'] == True]['policytc_id'].to_list(),
-        index=fm_policytc_df[fm_policytc_df['assign_step_calcrule'] == True]['pol_id']
+        fm_policytc_df[fm_policytc_df['assign_step_calcrule'] is True]['policytc_id'].to_list(),
+        index=fm_policytc_df[fm_policytc_df['assign_step_calcrule'] is True]['pol_id']
     ).groupby('pol_id').aggregate(list).to_dict()[0]
 
-    fm_policytc_df.loc[fm_policytc_df['assign_step_calcrule'] == True, 'policytc_id'] = fm_policytc_df.loc[fm_policytc_df['assign_step_calcrule'] == True]['pol_id'].map(step_calcrule_policytc_agg)
+    fm_policytc_df.loc[
+        fm_policytc_df['assign_step_calcrule'] is True, 'policytc_id'
+    ] = fm_policytc_df.loc[fm_policytc_df['assign_step_calcrule'] is True]['pol_id'].map(step_calcrule_policytc_agg)
     fm_policytc_df['policytc_id'] = fm_policytc_df['policytc_id'].apply(
         lambda x: tuple(x) if isinstance(x, list) else x
     )
@@ -877,11 +878,11 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
                 'share1': 'share'
             }
             for col in cols:
-                fm_profile_df[col] = il_inputs_df.apply(lambda x: x[get_step_policies_oed_mapping(x['steptriggertype'])[col]] if x['steptriggertype'] > 0 and get_step_policies_oed_mapping(x['steptriggertype']).get(col) is not None and x['assign_step_calcrule'] == True else 0, axis=1)
+                fm_profile_df[col] = il_inputs_df.apply(lambda x: x[get_step_policies_oed_mapping(x['steptriggertype'])[col]] if x['steptriggertype'] > 0 and get_step_policies_oed_mapping(x['steptriggertype']).get(col) is not None and x['assign_step_calcrule'] is True else 0, axis=1)
             for col in non_step_cols_map.keys():
                 fm_profile_df.loc[
                     ~(il_inputs_df['steptriggertype'] > 0), col
-                ] = il_inputs_df.loc [
+                ] = il_inputs_df.loc[
                     ~(il_inputs_df['steptriggertype'] > 0),
                     non_step_cols_map[col]
                 ]
@@ -951,7 +952,6 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
     :rtype: str
     """
     try:
-        min_level = 0
         max_level = il_inputs_df['level_id'].max()
         programme_levels = list()
 

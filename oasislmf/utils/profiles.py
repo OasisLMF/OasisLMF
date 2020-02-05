@@ -127,7 +127,7 @@ def get_step_policies_oed_mapping(step_trigger_type, only_cols=False):
 
     step_policies_profile = get_default_step_policies_profile()
 
-    if only_cols == True:
+    if only_cols is True:
         cols = []
         for k, v in step_policies_profile.items():
             if step_trigger_type in v['FMProfileStep']:

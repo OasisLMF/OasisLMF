@@ -37,6 +37,7 @@ from .defaults import KTOOLS_ALLOC_IL_DEFAULT, KTOOLS_ALLOC_RI_DEFAULT
 from .exceptions import OasisException
 from .log import oasis_log
 
+
 @oasis_log
 def generate_deterministic_losses(
     input_dir,
