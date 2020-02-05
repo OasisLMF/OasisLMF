@@ -344,7 +344,7 @@ def _csv_to_bin(csv_directory, bin_directory, il=False):
             continue
 
         output_file_path = os.path.join(bin_directory, '{}.bin'.format(input_file['name']))
-        cmd_str = "{} < {} > {}".format(conversion_tool, input_file_path, output_file_path)
+        cmd_str = "{} < \"{}\" > \"{}\"".format(conversion_tool, input_file_path, output_file_path)
 
         try:
             subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
