@@ -148,13 +148,10 @@ def prepare_run_directory(
 
         for path in glob.glob(os.path.join(model_data_fp, '*')):
             fn = os.path.basename(path)
-            try:
-                if os.name == 'nt':
-                    shutil.copy(path, os.path.join(model_data_dst_fp, fn))
-                else:
-                    os.symlink(path, os.path.join(model_data_dst_fp, fn))
-            except Exception:
-                shutil.copytree(model_data_fp, os.path.join(model_data_dst_fp, fn))
+            if os.name == 'nt':
+                shutil.copy(path, os.path.join(model_data_dst_fp, fn))
+            else:
+                os.symlink(path, os.path.join(model_data_dst_fp, fn))
 
         if user_data_dir and os.path.exists(user_data_dir):
             for path in glob.glob(os.path.join(user_data_dir, '*')):
@@ -164,11 +161,11 @@ def prepare_run_directory(
                         shutil.copy(path, os.path.join(oasis_dst_fp, fn))
                     else:
                         os.symlink(path, os.path.join(oasis_dst_fp, fn))
-                except Exception:
+                except OSError:
                     shutil.copytree(user_data_dir, os.path.join(oasis_dst_fp, fn))
 
     except OSError as e:
-        raise OasisException from e
+        raise OasisException("Error preparing the 'run' directory: {}".format(e))
 
 
 def _prepare_input_bin(run_dir, bin_name, model_settings, setting_key=None, ri=False):
@@ -229,7 +226,7 @@ def prepare_run_inputs(analysis_settings, run_dir, ri=False):
         if os.path.exists(os.path.join(run_dir, 'static', 'periods.bin')):
             _prepare_input_bin(run_dir, 'periods', model_settings, ri=ri)
     except (OSError, IOError) as e:
-        raise OasisException from e
+        raise OasisException("Error preparing the model 'inputs' directory: {}".format(e))
 
 
 @oasis_log
@@ -334,7 +331,7 @@ def _csv_to_bin(csv_directory, bin_directory, il=False):
         try:
             subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
         except subprocess.CalledProcessError as e:
-            raise OasisException from e
+            raise OasisException("Error while converting csv's to ktools binary format: {}".format(e))
 
 
 @oasis_log
