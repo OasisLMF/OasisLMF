@@ -756,20 +756,20 @@ class OasisManager(object):
                 bash_trace_fp = os.path.join(model_run_fp, 'log', 'bash.log')
                 if os.path.isfile(bash_trace_fp):
                     with io.open(bash_trace_fp, 'r', encoding='utf-8') as f:
-                        self.logger.info('BASH_TRACE:\n' + "".join(f.readlines()))
+                        self.logger.info('\nBASH_TRACE:\n' + "".join(f.readlines()))
 
                 stderror_fp = os.path.join(model_run_fp, 'log', 'stderror.err')
                 if os.path.isfile(stderror_fp):
                     with io.open(stderror_fp, 'r', encoding='utf-8') as f:
-                        self.logger.info('STDERR:\n' + "".join(f.readlines()))
+                        self.logger.info('\nKTOOLS_STDERR:\n' + "".join(f.readlines()))
 
                 gul_stderror_fp = os.path.join(model_run_fp, 'log', 'gul_stderror.err')
                 if os.path.isfile(gul_stderror_fp):
                     with io.open(gul_stderror_fp, 'r', encoding='utf-8') as f:
-                        self.logger.info('GUL_STDERR:\n' + "".join(f.readlines()))
+                        self.logger.info('\nGUL_STDERR:\n' + "".join(f.readlines()))
 
 
-                self.logger.info('STDOUT:\n' + e.output.decode('utf-8').strip())
+                self.logger.info('\nSTDOUT:\n' + e.output.decode('utf-8').strip())
 
                 raise OasisException(
                     'Ktools run Error: non-zero exit code or output detected on STDERR\n'
