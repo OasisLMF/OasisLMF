@@ -54,6 +54,18 @@ class FmAcceptanceTests(TestCase):
     def test_fm41(self):
         self.run_test('fm41')
 
+    def test_fm54(self):
+        self.run_test('fm54')
+
+    def test_fm55(self):
+        self.run_test('fm55')
+
+    def test_fm57(self):
+        self.run_test('fm57')
+
+    def test_fm58(self):
+        self.run_test('fm58')
+
     def test_CX29_03(self):
         self.run_test('CX29_03')
 
