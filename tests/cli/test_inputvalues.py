@@ -6,7 +6,10 @@ from unittest import TestCase
 
 import os
 from hypothesis import given
-from hypothesis.strategies import text
+from hypothesis.strategies import (
+    floats,
+    text
+)
 
 from oasislmf.cli.inputs import InputValues
 from oasislmf.utils.exceptions import OasisException
