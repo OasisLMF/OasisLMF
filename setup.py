@@ -60,17 +60,31 @@ readme = get_readme()
 
 
 class InstallKtoolsMixin(object):
-    def fetch_ktools_tar(self, location, url, attempts=3, timeout=5, cooldown=1):
-        self.announce('Retrieving ktools from: {}'.format(url), INFO)
+    def fetch_ktools_tar(self, location, url, attempts=3, timeout=15, cooldown=1):
         last_error = None
-        req = None
+        proxy_config = urlrequest.getproxies()
+        self.announce('Retrieving ktools from: {}'.format(url), INFO)
+        self.announce('Proxy configuration: {}'.format(proxy_config), INFO)
+
+        if proxy_config:
+            # Handle Proxy config
+            proxy_handler = urlrequest.ProxyHandler(proxy_config)
+            opener = urlrequest.build_opener(proxy_handler)
+            urlrequest.install_opener(opener)
 
         for i in range(attempts):
             try:
-                req = urlrequest.urlopen(url, timeout=timeout * 1000)
-                break
+                if proxy_config:
+                    # Proxied connection 
+                    req = urlrequest.urlopen(urlrequest.Request(url), timeout=timeout)
+                    break
+                else:    
+                    # Non proxied connection
+                    req = urlrequest.urlopen(url, timeout=timeout)
+                    break
+
             except URLError as e:
-                self.announce('Failed to get ktools tar (attempt {})'.format(i + 1), WARN)
+                self.announce('Fetch ktools tar failed: {} (attempt {})'.format(e, (i+1)), WARN)
                 last_error = e
                 sleep(cooldown)
         else:

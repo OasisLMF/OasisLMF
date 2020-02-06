@@ -129,7 +129,7 @@ class CreateSimpleModelCmd(OasisBaseCommand):
             '-o', '--output-dir', default=None, required=False, help='Where to generate the project'
         )
         parser.add_argument(
-            '-c', '--cookiecutter-version', default=None, required=False, help='Cookiecutter version', action='store_true'
+            '-v', '--cookiecutter-version', default=None, required=False, help='Cookiecutter version', action='store_true'
         )
 
     def action(self, args):
@@ -221,7 +221,7 @@ class CreateComplexModelCmd(OasisBaseCommand):
             '-o', '--output-dir', default=None, required=False, help='Where to generate the project'
         )
         parser.add_argument(
-            '-c', '--cookiecutter-version', default=None, required=False, help='Cookiecutter version', action='store_true'
+            '-v', '--cookiecutter-version', default=None, required=False, help='Cookiecutter version', action='store_true'
         )
 
     def action(self, args):

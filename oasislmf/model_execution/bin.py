@@ -14,6 +14,8 @@ __all__ = [
     'prepare_run_inputs'
 ]
 
+
+import errno
 import csv
 import filecmp
 import glob
@@ -147,29 +149,43 @@ def prepare_run_directory(
 
         model_data_dst_fp = os.path.join(run_dir, 'static')
 
-        for path in glob.glob(os.path.join(model_data_fp, '*')):
-            fn = os.path.basename(path)
-            try:
-                if os.name == 'nt':
-                    shutil.copy(path, os.path.join(model_data_dst_fp, fn))
-                else:
-                    os.symlink(path, os.path.join(model_data_dst_fp, fn))
-            except Exception:
-                shutil.copytree(model_data_fp, os.path.join(model_data_dst_fp, fn))
+        try:
+            for sourcefile in glob.glob(os.path.join(model_data_fp, '*')):
+                destfile = os.path.join(model_data_dst_fp, os.path.basename(sourcefile))
 
+                if os.name == 'nt':
+                    shutil.copy(sourcefile, destfile)
+                else:
+                    os.symlink(sourcefile, destfile)
+        except OSError as e:
+            if not (e.errno == errno.EEXIST and os.path.islink(destfile) and os.name != 'nt'):
+                raise e
+            else:    
+                # If the link already exists, check files are different replace it
+                if os.readlink(destfile) != os.path.abspath(sourcefile):
+                    os.symlink(sourcefile, destfile + ".tmp")
+                    os.replace(destfile + ".tmp", destfile)
+            
         if user_data_dir and os.path.exists(user_data_dir):
-            for path in glob.glob(os.path.join(user_data_dir, '*')):
-                fn = os.path.basename(path)
+            for sourcefile in glob.glob(os.path.join(user_data_dir, '*')):
+                destfile = os.path.join(model_data_dst_fp, os.path.basename(sourcefile))
+                
                 try:
                     if os.name == 'nt':
-                        shutil.copy(path, os.path.join(oasis_dst_fp, fn))
+                        shutil.copy(sourcefile, destfile)
                     else:
-                        os.symlink(path, os.path.join(oasis_dst_fp, fn))
-                except Exception:
-                    shutil.copytree(user_data_dir, os.path.join(oasis_dst_fp, fn))
+                        os.symlink(sourcefile, destfile)
+                except OSError as e:
+                    if not (e.errno == errno.EEXIST and os.path.islink(destfile) and os.name != 'nt'):
+                        raise e
+                    else:    
+                        # If the link already exists, check files are different replace it
+                        if os.readlink(destfile) != os.path.abspath(sourcefile):
+                            os.symlink(sourcefile, destfile + ".tmp")
+                            os.replace(destfile + ".tmp", destfile)
 
     except OSError as e:
-        raise OasisException from e
+        raise OasisException("Error preparing the 'run' directory: {}".format(e))
 
 
 def _prepare_input_bin(run_dir, bin_name, model_settings, setting_key=None, ri=False):
@@ -230,7 +246,7 @@ def prepare_run_inputs(analysis_settings, run_dir, ri=False):
         if os.path.exists(os.path.join(run_dir, 'static', 'periods.bin')):
             _prepare_input_bin(run_dir, 'periods', model_settings, ri=ri)
     except (OSError, IOError) as e:
-        raise OasisException from e
+        raise OasisException("Error preparing the model 'inputs' directory: {}".format(e))
 
 
 @oasis_log
@@ -344,14 +360,15 @@ def _csv_to_bin(csv_directory, bin_directory, il=False):
             output_file_path = os.path.join(
                 bin_directory, '{}{}.bin'.format(input_file['name'], '_step')
             )
-            cmd_str = "{} {} < {} > {}".format(conversion_tool, step_flag, input_file_path, output_file_path)
+            
+            cmd_str = "{} {} < \"{}\" > \"{}\"".format(conversion_tool, step_flag, input_file_path, output_file_path)
         else:
-            cmd_str = "{} < {} > {}".format(conversion_tool, input_file_path, output_file_path)
+            cmd_str = "{} < \"{}\" > \"{}\"".format(conversion_tool, input_file_path, output_file_path)
 
         try:
             subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
         except subprocess.CalledProcessError as e:
-            raise OasisException from e
+            raise OasisException("Error while converting csv's to ktools binary format: {}".format(e))
 
 
 @oasis_log

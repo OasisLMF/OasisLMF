@@ -73,7 +73,7 @@ def run(
             if item_output != '':
                 cmd = '{} -i {}'.format(cmd, item_output)
             if stderr_guard:
-                cmd = '{} 2> log/gul_stderror.err'.format(cmd)
+                cmd = '({}) 2>> log/gul_stderror.err'.format(cmd)
 
             return cmd
 

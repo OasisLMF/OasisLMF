@@ -47,7 +47,7 @@ class GeneratePerilAreasRtreeFileIndexCmd(OasisBaseCommand):
         """
         super(self.__class__, self).add_args(parser)
 
-        parser.add_argument('-c', '--lookup-config-json', default=None, help='Lookup config JSON file path')
+        parser.add_argument('-m', '--lookup-config-json', default=None, help='Lookup config JSON file path')
         parser.add_argument('-d', '--lookup-data-dir', default=None, help='Keys data directory path')
         parser.add_argument('-f', '--index-output-file', default=None, help='Index file path (no file extension required)')
 
@@ -180,7 +180,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
 
         parser.add_argument('-o', '--oasis-files-dir', default=None, help='Path to the directory in which to generate the Oasis files')
         parser.add_argument('-z', '--keys-data-csv', default=None, help='Pre-generated keys CSV file path')
-        parser.add_argument('-c', '--lookup-config-json', default=None, help='Lookup config JSON file path')
+        parser.add_argument('-m', '--lookup-config-json', default=None, help='Lookup config JSON file path')
         parser.add_argument('-k', '--lookup-data-dir', default=None, help='Model lookup/keys data directory path')
         parser.add_argument('-l', '--lookup-package-dir', default=None, help='Lookup package path')
         parser.add_argument('-L', '--lookup-complex-config-json', default=None, help='Complex lookup config JSON file path')
@@ -403,7 +403,7 @@ class RunCmd(OasisBaseCommand):
         parser.add_argument('-k', '--lookup-data-dir', default=None, help='Model lookup/keys data directory path')
         parser.add_argument('-l', '--lookup-package-dir', default=None, help='Model lookup package path')
         parser.add_argument('-L', '--lookup-complex-config-json', default=None, help='Complex lookup config JSON file path')
-        parser.add_argument('-c', '--lookup-config-json', default=None, help='Built-in lookup config JSON file path')
+        parser.add_argument('-m', '--lookup-config-json', default=None, help='Built-in lookup config JSON file path')
 
         parser.add_argument('-e', '--profile-loc-json', default=None, help='Source OED location profile JSON path')
         parser.add_argument('-b', '--profile-acc-json', default=None, help='Source OED accounts profile JSON path')
