@@ -650,9 +650,9 @@ class OasisLookupFactory(object):
 
         pool = Pool(pool_count)
         results = pool.map(lookup.process_locations_multiproc, locations)
-        pool.close()
-        pool.join()
-        return sum([r for r in results if r], [])
+        lookup_results = sum([r for r in results if r], [])
+        pool.terminate()
+        return lookup_results
 
     @classmethod
     def save_keys(

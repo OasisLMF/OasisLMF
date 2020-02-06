@@ -2,14 +2,38 @@ OasisLMF Changelog
 ==================
 
 .. start_latest_release
+`1.5.0`_
+-------
+
+* Added step policy support 
+* Added #453 - Allow user to select group_id based on columns in loc file
+* Added #474 - Option to set gulcalc command - raises an error if not in path
+* Update to Model Settings schema, #478 #484 #485
+* Update #464 - API client with new Queued Job states
+* Update #470 - Model_settings.json schema 
+* Fix #491 -  in `oasislmf exposure run` command 
+* Fix #477 - setup.py fails when behind a proxy
+* Fix #482 - symlink error when rerunning analysis using existing analysis_folder
+* Fix #460 - CLI, remove use of lowercase '-c'
+* Fix #493 - generate_model_losses fix for spaces in filepath
+* Fix #475 - Prevent copy of model_data directory on OSError
+* Fix #486 - Run error using `pandas==1.0.0`
+* Fix #459 - File generation issue in fm_programme
+* Fix #456 - Remove calls to `get_ids` in favour of pandas groupby
+* Fix #492 - ComplexModel error guard run in subshell
+* Fix #451 - ComplexModel error guard in bash script
+* Fix #415 - RI String matching issue
+* Fix #462 - Issue in fm_programmes file generation 
+* Fix #463 - Incorrect limits in FM file generation 
+* Fix #468 - Fifo issue in Bash script generation 
+
+.. end_latest_release
 
 `1.4.6`_
 -------
 * Update to model_settings schema 
 * Fixes #452 - Check columns before grouping output
 * Fixes #451 - Error checking ktools runs for complex models
-
-.. end_latest_release
 
 `1.4.5`_
 -------
@@ -323,6 +347,7 @@ in the exposure manager
 
 * Add console logging
 
+.. _`1.5.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.6...1.5.0
 .. _`1.4.6`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.5...1.4.6
 .. _`1.4.5`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.4...1.4.5
 .. _`1.4.4`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.3...1.4.4
