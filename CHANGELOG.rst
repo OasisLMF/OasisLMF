@@ -4,10 +4,26 @@ OasisLMF Changelog
 .. start_latest_release
 `1.4.7`_
 -------
+
+### Final 
+* Added step policy support 
+* Fix #491 -  in `oasislmf exposure run` command 
+* Fix #477 - setup.py fails when behind a proxy
+* Fix #482 - symlink error when rerunning analysis using existing analysis_folder
+* Fix #460 - CLI, remove use of lowercase '-c'
+* Fix #493 - generate_model_losses fix for spaces in filepath
+* Fix #475 - Prevent copy of model_data directory on OSError
+* Fix #486 - Run error using `pandas==1.0.0`
+* Fix #459 - File generation issue in fm_programme
+* Fix #456 - Remove calls to `get_ids` in favour of pandas groupby
+* Fix #492,#451 - ComplexModel error guard in bash script
+* Update to Model Settings schema, #478 #484 #485
+
+### RC 1
 * #415 - Fix RI matching issue
 * #462 - Fix Issue in fm_programmes file generation 
 * #464 - Update API client with new Queued Job states
-* #461 - Allow user to select group_id based on columns in loc file
+* #453 - Allow user to select group_id based on columns in loc file
 * #463 - Fix incorrect limits in FM file generation 
 * #468 - Fix fifo issue in Bash script generation 
 * #470 - Update model_settings.json schema 
