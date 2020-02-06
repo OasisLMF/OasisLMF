@@ -1,0 +1,9 @@
+portnumber,accnumber,locnumber,loss_gul,loss_il
+FloodFranchise,A10_T1,A10_T1,70000000.0,1000000.0
+FloodFranchise,A10_T2,A10_T2,70000000.0,1000000.0
+FloodFranchise,A10_T3,A10_T3,70000000.0,999999.9299999999
+FloodFranchise,A10_T5,A10_T5,70000000.0,2000000.0
+FloodFranchise,A6_T1,A6_T1,70000000.0,1430000.0
+FloodFranchise,A6_T2,A6_T2,70000000.0,1430000.0
+FloodFranchise,A6_T3,A6_T3,70000000.0,1429999.87
+FloodFranchise,A6_T5,A6_T5,70000000.0,2860000.0
