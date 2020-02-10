@@ -21,6 +21,8 @@ import warnings
 import pandas as pd
 import numpy as np
 
+from ast import literal_eval
+
 from ..utils.calc_rules import (
     get_calc_rules,
     get_step_calc_rules
@@ -76,7 +78,10 @@ def get_calc_rule_ids(il_inputs_df):
     :rtype: numpy.ndarray
     """
     calc_rules = get_calc_rules().drop(['desc'], axis=1)
-    calc_rules['id_key'] = calc_rules['id_key'].apply(eval)
+    try:
+        calc_rules['id_key'] = calc_rules['id_key'].apply(literal_eval)
+    except ValueError as e:
+        raise OasisException(e)
 
     terms = ['deductible', 'deductible_min', 'deductible_max', 'limit', 'share', 'attachment']
     terms_indicators = ['{}_gt_0'.format(t) for t in terms]
@@ -119,7 +124,10 @@ def get_step_calc_rule_ids(il_inputs_df, step_trigger_type_cols):
     :rtype: numpy.ndarray
     """
     calc_rules_step = get_step_calc_rules().drop(['desc'], axis=1)
-    calc_rules_step['id_key'] = calc_rules_step['id_key'].apply(eval)
+    try:
+        calc_rules_step['id_key'] = calc_rules_step['id_key'].apply(literal_eval)
+    except ValueError as e:
+        raise OasisException(e)
 
     terms = ['deductible1', 'payout_start', 'payout_end', 'limit1', 'limit2']
     terms_indicators = ['{}_gt_0'.format(t) for t in terms]
