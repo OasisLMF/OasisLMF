@@ -3,7 +3,6 @@ __all__ = [
     'generate_deterministic_losses'
 ]
 
-import csv
 import io
 import json
 import logging
@@ -60,12 +59,12 @@ def generate_deterministic_losses(
     ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(input_dir))
 
     step_flag = ''
-    if 'fm_profile.csv' in os.listdir(input_dir):
-        with open(os.path.join(input_dir, 'fm_profile.csv')) as f:
-            reader = csv.reader(f)
-            col_names = next(reader)
-        if 'step_id' in col_names:
-            step_flag = '-S'
+    try:
+        pd.read_csv(os.path.join(input_dir, 'fm_profile.csv'))['step_id']
+    except (OSError, FileNotFoundError, KeyError):
+        pass
+    else:
+        step_flag = '-S'
 
     csv_to_bin(input_dir, output_dir, il=il, ri=ri)
 
