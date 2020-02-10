@@ -2,6 +2,11 @@ OasisLMF Changelog
 ==================
 
 .. start_latest_release
+`1.5.1`_
+-------
+* Fix - Issue in IL file generation, `fm_programme` file missing agg_id rows
+
+.. end_latest_release
 `1.5.0`_
 -------
 
@@ -27,7 +32,6 @@ OasisLMF Changelog
 * Fix #463 - Incorrect limits in FM file generation 
 * Fix #468 - Fifo issue in Bash script generation 
 
-.. end_latest_release
 
 `1.4.6`_
 -------
@@ -347,6 +351,7 @@ in the exposure manager
 
 * Add console logging
 
+.. _`1.5.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.5.0...1.5.1
 .. _`1.5.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.6...1.5.0
 .. _`1.4.6`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.5...1.4.6
 .. _`1.4.5`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.4...1.4.5

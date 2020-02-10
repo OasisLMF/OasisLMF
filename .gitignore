@@ -6,6 +6,9 @@ __pycache__/
 # C extensions
 *.so
 
+# Ktools binary files
+*.bin
+
 # Distribution / packaging
 .Python
 env/
