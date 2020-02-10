@@ -746,7 +746,7 @@ def get_il_input_items(
     # preparation for the next step which is to convert % TIV deductibles
     # to TIV fractional amounts
     agg_tivs = pd.DataFrame(
-        il_inputs_df.loc[:, ['level_id', 'loc_id', 'agg_id', 'tiv']].groupby(['level_id', 'loc_id', 'agg_id'])['tiv'].sum()
+        il_inputs_df.loc[:, ['level_id', 'loc_id', 'agg_id', 'tiv']].groupby(['level_id', 'agg_id'])['tiv'].sum()
     ).reset_index()
     agg_tivs.rename(columns={'tiv': 'agg_tiv'}, inplace=True)
     il_inputs_df['agg_tiv'] = il_inputs_df.loc[:, ['level_id', 'loc_id', 'agg_id']].merge(
