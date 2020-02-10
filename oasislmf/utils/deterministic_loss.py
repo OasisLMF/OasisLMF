@@ -3,7 +3,6 @@ __all__ = [
     'generate_deterministic_losses'
 ]
 
-import csv
 import io
 import json
 import logging
