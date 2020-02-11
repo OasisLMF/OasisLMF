@@ -864,8 +864,9 @@ def remove_duplicate_perils(exposure_df, loc_per_cov, peril_groups):
     for exposure_perils_set in unique_loc_per_cov:
         exposure_perils = exposure_perils_set.split(';')
         for peril_group in peril_groups:
-            if peril_group in exposure_perils and \
-                    all(peril in exposure_perils for peril in peril_groups[peril_group]):
+            if peril_group in exposure_perils and all(
+                peril in exposure_perils for peril in peril_groups[peril_group]
+            ):
                 exposure_perils.remove(peril_group)
                 to_replace[exposure_perils_set] = ';'.join(exposure_perils)
     exposure_df = exposure_df.replace(to_replace=to_replace)
