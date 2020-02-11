@@ -169,7 +169,7 @@ def get_gul_input_items(
         'locid': 'str',
         'perilid': 'str',
         'coveragetypeid': 'uint8',
-        'areaperilid': 'uint32',
+        'areaperilid': 'uint64',
         'vulnerabilityid': 'uint32',
         'modeldata': 'str'
     }
