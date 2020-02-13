@@ -547,6 +547,26 @@ def merge_dataframes(left, right, join_on=None, **kwargs):
         return join
 
 
+def reduce_df(df, cols=None):
+    """
+    A method to select columns in a dataframe
+
+    :param df: The dataframe to pretty-print
+    :type df: pd.DataFrame
+
+    :param cols: A list of columns
+    :type cols: list
+
+    :return: A reduced dataframe
+    :rtype: pd.DataFrame
+
+    """
+    if not cols:
+        return df
+    else:
+        return df[cols]
+
+
 def print_dataframe(
     df,
     string_cols=[],

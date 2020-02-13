@@ -23,6 +23,7 @@ from ..utils.data import (
     merge_dataframes,
     set_dataframe_column_dtypes,
     get_dtypes_and_required_cols,
+    reduce_df
 )
 from ..utils.defaults import (
     find_exposure_fp,
@@ -717,23 +718,41 @@ def write_exposure_summary(
     :return: Exposure summary file path
     :rtype: str
     """
+    loc_per_cov = oed_hierarchy['locperilid']['ProfileElementName'].lower()
+    exposure_df = reduce_df(
+        exposure_df,
+        cols=[loc_per_cov, 'loc_id']
+    )
+    gul_inputs_df = reduce_df(
+        gul_inputs_df,
+        cols=['peril_id', 'coverage_type_id', 'loc_id', 'tiv']
+    )
 
     # Get GUL input items dataframe to process keys errors
     try:
         gul_inputs_errors_df, _ = get_gul_input_items(
             exposure_fp, keys_errors_fp, exposure_profile=exposure_profile
         )
+        gul_inputs_errors_df = reduce_df(
+            gul_inputs_errors_df,
+            cols=['peril_id', 'coverage_type_id', 'loc_id', 'tiv', 'status']
+        )
+
     except OasisException:   # Empty dataframe (due to empty keys errors file)
-        gul_inputs_errors_df = pd.DataFrame(columns=gul_inputs_df.columns.append(pd.Index(['status'])))
+        gul_inputs_errors_df = pd.DataFrame(
+            columns=gul_inputs_df.columns.append(pd.Index(['status']))
+        )
 
     # Dictionary to map perils with peril groups
     peril_groups = {v['id']: v['peril_ids'] for k, v in PERIL_GROUPS.items()}
+
+    # Remove group peril codes in exposure if all constituent peril codes are present
+    exposure_df = remove_duplicate_perils(exposure_df, loc_per_cov, peril_groups)
+
     peril_ids = {v['id']: [v['id']] for k, v in PERILS.items()}
     peril_groups.update(peril_ids)
 
-    # Merge GUL input items and source exposure dataframes to leave covered
-    # perils
-    loc_per_cov = oed_hierarchy['locperilid']['ProfileElementName'].lower()
+    # Merge GUL input items and source exposure dataframes to leave covered perils
     model_peril_ids = gul_inputs_df['peril_id'].unique()
 
     # Split rows with multiple peril codes
@@ -779,7 +798,6 @@ def write_exposure_summary(
     )
 
     # Convert loc_id to uint32 in case column has been converted to type float
-    exposure_df['loc_id'] = exposure_df['loc_id'].astype('uint32')
     gul_inputs_df['loc_id'] = gul_inputs_df['loc_id'].astype('uint32')
     gul_inputs_errors_df['loc_id'] = gul_inputs_errors_df['loc_id'].astype('uint32')
 
@@ -823,3 +841,33 @@ def write_exposure_summary(
         f.write(json.dumps(exposure_summary, ensure_ascii=False, indent=4))
 
     return fp
+
+
+def remove_duplicate_perils(exposure_df, loc_per_cov, peril_groups):
+    """
+    Remove grouped peril codes in the case that all component peril codes are also provided.
+
+    :param exposure_df: source exposure dataframe
+    :type exposure df: pandas.DataFrame
+
+    :param loc_per_cov: dataframe column name covering the peril codes for an exposure
+    :type loc_per_cov: str
+
+    :param peril_groups: peril group codes and associated perils
+    :type peril_groups: dict
+
+    :return: dataframe with peril group code removed if all component perils are provided
+    :rtype: pandas.DataFrame
+    """
+    unique_loc_per_cov = exposure_df[loc_per_cov].unique()
+    to_replace = {}
+    for exposure_perils_set in unique_loc_per_cov:
+        exposure_perils = exposure_perils_set.split(';')
+        for peril_group in peril_groups:
+            if peril_group in exposure_perils and all(
+                peril in exposure_perils for peril in peril_groups[peril_group]
+            ):
+                exposure_perils.remove(peril_group)
+                to_replace[exposure_perils_set] = ';'.join(exposure_perils)
+    exposure_df = exposure_df.replace(to_replace=to_replace)
+    return exposure_df

@@ -174,8 +174,14 @@
                     "title": "Use random number file",
                     "description": "If true use a pre-generated set of random number, if false generate random numbers dynamically."
                 },
+                "event_set": {
+                    "type": "string",
+                    "title": "Event set file ID.",
+                    "description": "Identifier for the event set file that is used for output calculations.",
+                    "default": 1
+                },
                 "event_occurrence_file_id": {
-                    "type": "integer",
+                    "type": "string",
                     "title": "Event occurrence file ID.",
                     "description": "Identifier for the event occurrence file that is used for output calculations.",
                     "default": 1
