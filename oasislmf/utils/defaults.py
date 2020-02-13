@@ -3,6 +3,7 @@ __all__ = [
     'get_default_accounts_profile',
     'get_default_deterministic_analysis_settings',
     'get_default_exposure_profile',
+    'get_default_il_inputs_values',
     'get_default_step_policies_profile',
     'get_default_fm_aggregation_profile',
     'get_default_unified_profile',
@@ -10,6 +11,7 @@ __all__ = [
     'get_acc_dtypes',
     'get_scope_dtypes',
     'get_info_dtypes',
+    'assign_defaults_to_il_inputs',
     'store_exposure_fp',
     'find_exposure_fp',
     'GROUP_ID_COLS',
@@ -35,6 +37,7 @@ from collections import OrderedDict
 from .data import (
     get_json,
 )
+from .fm import SUPPORTED_FM_LEVELS
 
 
 SOURCE_FILENAMES = OrderedDict({
@@ -113,6 +116,11 @@ def get_default_exposure_profile(path=False):
     return get_json(src_fp=fp) if not path else fp
 
 
+def get_default_il_inputs_values(path=False):
+    fp = os.path.join(STATIC_DATA_FP, 'default_il_inputs_values.json')
+    return get_json(src_fp=fp) if not path else fp
+
+
 def get_default_step_policies_profile(path=False):
     fp = os.path.join(STATIC_DATA_FP, 'default_step_policies_profile.json')
     return get_json(src_fp=fp) if not path else fp
@@ -151,6 +159,36 @@ def get_scope_dtypes():
 def get_info_dtypes():
     fp = os.path.join(STATIC_DATA_FP, 'info_dtypes.json')
     return get_json(src_fp=fp)
+
+
+def assign_defaults_to_il_inputs(df):
+    """
+    Assign default values to IL inputs.
+
+    :param df: IL input items dataframe
+    :type df: pandas.DataFrame
+
+    :return: IL input items dataframe
+    :rtype: pandas.DataFrame
+    """
+    # Get default values for IL inputs
+    default_il_inputs_values = get_default_il_inputs_values()
+
+    for level in default_il_inputs_values.keys():
+        level_id = SUPPORTED_FM_LEVELS[level]['id']
+        for k, v in default_il_inputs_values[level].items():
+            # Evaluate condition for assigning default values if present
+            if v.get('condition'):
+                df.loc[df.level_id == level_id, k] = df.loc[
+                    df.level_id == level_id, k
+                ].where(eval(
+                    'df.loc[df.level_id == level_id, k]' + v['condition']),
+                    v['default_value']
+                )
+            else:
+                df.loc[df.level_id == level_id, k] = v['default_value']
+
+    return df
 
 
 WRITE_CHUNKSIZE = 2 * (10 ** 5)
