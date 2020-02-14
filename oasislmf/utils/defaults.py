@@ -3,7 +3,7 @@ __all__ = [
     'get_default_accounts_profile',
     'get_default_deterministic_analysis_settings',
     'get_default_exposure_profile',
-    'get_default_il_inputs_values',
+    'get_default_fm_profile_field_values',
     'get_default_step_policies_profile',
     'get_default_fm_aggregation_profile',
     'get_default_unified_profile',
@@ -116,8 +116,8 @@ def get_default_exposure_profile(path=False):
     return get_json(src_fp=fp) if not path else fp
 
 
-def get_default_il_inputs_values(path=False):
-    fp = os.path.join(STATIC_DATA_FP, 'default_il_inputs_values.json')
+def get_default_fm_profile_field_values(path=False):
+    fp = os.path.join(STATIC_DATA_FP, 'default_fm_profile_field_values.json')
     return get_json(src_fp=fp) if not path else fp
 
 
@@ -172,11 +172,11 @@ def assign_defaults_to_il_inputs(df):
     :rtype: pandas.DataFrame
     """
     # Get default values for IL inputs
-    default_il_inputs_values = get_default_il_inputs_values()
+    default_fm_profile_field_values = get_default_fm_profile_field_values()
 
-    for level in default_il_inputs_values.keys():
+    for level in default_fm_profile_field_values.keys():
         level_id = SUPPORTED_FM_LEVELS[level]['id']
-        for k, v in default_il_inputs_values[level].items():
+        for k, v in default_fm_profile_field_values[level].items():
             # Evaluate condition for assigning default values if present
             if v.get('condition'):
                 df.loc[df.level_id == level_id, k] = df.loc[
