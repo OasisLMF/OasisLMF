@@ -14,6 +14,7 @@ __all__ = [
     'merge_dataframes',
     'PANDAS_BASIC_DTYPES',
     'PANDAS_DEFAULT_NULL_VALUES',
+    'reduce_df',
     'set_dataframe_column_dtypes'
 ]
 
