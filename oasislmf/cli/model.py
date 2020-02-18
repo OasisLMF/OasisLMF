@@ -61,8 +61,8 @@ class GeneratePerilAreasRtreeFileIndexCmd(OasisBaseCommand):
         """
         inputs = InputValues(args)
 
-        keys_data_fp = inputs.get('lookup_data_dir', required=True, is_path=True),
-        rtree_index_fp = inputs.get('index_output_file', required=True, is_path=True),
+        keys_data_fp = inputs.get('lookup_data_dir', required=True, is_path=True)
+        rtree_index_fp = inputs.get('index_output_file', required=True, is_path=True)
         lookup_config_fp = inputs.get('lookup_config_json', required=True, is_path=True)
 
         _index_fp = om().generate_peril_areas_rtree_file_index(
