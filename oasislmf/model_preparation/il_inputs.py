@@ -424,10 +424,13 @@ def get_il_input_items(
     # a custom method is called that will generate this column and set it
     # in the accounts dataframe
     # If step policies are listed use `stepnumber` column in combination
+    layers_cols = [portfolio_num, acc_num]
     if step_policies_present:
-        accounts_df['layer_id'] = get_ids(accounts_df, [portfolio_num, acc_num, policy_num, 'stepnumber'], group_by=[portfolio_num, acc_num, 'stepnumber'])
-    else:
-        accounts_df['layer_id'] = get_ids(accounts_df, [portfolio_num, acc_num, policy_num], group_by=[portfolio_num, acc_num])
+        layers_cols += ['stepnumber']
+    accounts_df['layer_id'] = get_ids(
+        accounts_df[layers_cols + [policy_num]].drop_duplicates(keep='first'),
+        layers_cols + [policy_num], group_by=layers_cols
+    ).reindex(range(len(accounts_df))).fillna(method='ffill').astype('uint32')
 
     # Drop all columns from the accounts dataframe which are not either one of
     # portfolio num., acc. num., policy num., cond. numb., layer ID, or one of
@@ -754,12 +757,12 @@ def get_il_input_items(
     # preparation for the next step which is to convert % TIV deductibles
     # to TIV fractional amounts
     agg_tivs = pd.DataFrame(
-        il_inputs_df.loc[:, ['level_id', 'loc_id', 'agg_id', 'tiv']].groupby(['level_id', 'loc_id', 'agg_id'])['tiv'].sum()
+        il_inputs_df.loc[:, ['level_id', 'agg_id', 'tiv']].groupby(['level_id', 'agg_id'])['tiv'].sum()
     ).reset_index()
     agg_tivs.rename(columns={'tiv': 'agg_tiv'}, inplace=True)
-    il_inputs_df['agg_tiv'] = il_inputs_df.loc[:, ['level_id', 'loc_id', 'agg_id']].merge(
+    il_inputs_df['agg_tiv'] = il_inputs_df.loc[:, ['level_id', 'agg_id']].merge(
         agg_tivs,
-        on=['level_id', 'loc_id', 'agg_id'],
+        on=['level_id', 'agg_id'],
         how='inner'
     )['agg_tiv']
 
