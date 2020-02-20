@@ -196,6 +196,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         parser.add_argument('-S', '--disable-summarise-exposure', default=None, help='Create exposure summary report', action='store_false')
         parser.add_argument('-W', '--write-chunksize', type=int, help='Chunk size to use when writing input files from the inputs dataframes')
         parser.add_argument('-G', '--group-id-cols', nargs='+', default=None, help='Columns from loc file to set group_id')
+        parser.add_argument('-M', '--multiprocessing', default=True, type=bool, help='The chunk size to use when generating inputs for a specific lookup.')
 
     def action(self, args):
         """
@@ -229,6 +230,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         ri_info_fp = inputs.get('oed_info_csv', required=False, is_path=True)
         ri_scope_fp = inputs.get('oed_scope_csv', required=False, is_path=True)
         group_id_cols = inputs.get('group_id_cols', required=False, default=['loc_id'])
+        multiprocessing = inputs.get('multiprocessing', required=False, default=True)
 
         if not (keys_fp or lookup_config_fp or (keys_data_fp and model_version_fp and lookup_package_fp)):
             raise OasisException(
@@ -263,7 +265,8 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             user_data_dir=user_data_dir,
             summarise_exposure=summarise_exposure,
             write_chunksize=write_chunksize,
-            group_id_cols=group_id_cols
+            group_id_cols=group_id_cols,
+            multiprocessing=multiprocessing,
         )
 
         self.logger.info('\nOasis files generated: {}'.format(oasis_files))

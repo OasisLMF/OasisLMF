@@ -370,12 +370,136 @@ class OasisManager(object):
             keys_success_msg=keys_success_msg
         )
 
-    @oasis_log
-    def generate_oasis_files(
+    def prepare_deterministic_keys_file(
+        self,
+        keys_fp,
+        exposure_fp,
+        portfolio_num,
+        acc_num,
+        loc_num,
+        supported_oed_coverage_types=None,
+    ):
+        cov_types = supported_oed_coverage_types or self.supported_oed_coverage_types
+
+        exposure_df = get_dataframe(
+            src_fp=exposure_fp,
+            empty_data_error_msg='No exposure found in the source exposure (loc.) file'
+        )
+        exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
+        loc_ids = (loc_it['loc_id'] for _, loc_it in exposure_df.loc[:, ['loc_id']].iterrows())
+        keys = [
+            {'loc_id': _loc_id, 'peril_id': 1, 'coverage_type': cov_type, 'area_peril_id': i + 1,
+             'vulnerability_id': i + 1}
+            for i, (_loc_id, cov_type) in enumerate(product(loc_ids, cov_types))
+        ]
+        _, _ = olf.write_oasis_keys_file(keys, keys_fp)
+
+    def prepare_keys_file_chunk(
+        self,
+        keys_fp,
+        keys_errors_fp,
+        exposure_fp,
+        target_dir,
+        lookup_config=None,
+        lookup_config_fp=None,
+        keys_data_fp=None,
+        model_version_fp=None,
+        lookup_package_fp=None,
+        complex_lookup_config_fp=None,
+        user_data_dir=None,
+        multiprocessing=True,
+    ):
+        lookup_config = get_json(src_fp=lookup_config_fp) if lookup_config_fp else lookup_config
+        if lookup_config and lookup_config['keys_data_path'] in ['.', './']:
+            lookup_config['keys_data_path'] = os.path.join(os.path.dirname(lookup_config_fp))
+        elif lookup_config and not os.path.isabs(lookup_config['keys_data_path']):
+            lookup_config['keys_data_path'] = os.path.join(os.path.dirname(lookup_config_fp), keys_data_fp)
+
+        _, lookup = olf.create(
+            lookup_config=lookup_config,
+            model_keys_data_path=keys_data_fp,
+            model_version_file_path=model_version_fp,
+            lookup_package_path=lookup_package_fp,
+            complex_lookup_config_fp=complex_lookup_config_fp,
+            user_data_dir=user_data_dir,
+            output_directory=target_dir
+        )
+        # TODO: exposure_df is loaded twice, Elimilate step in `get_gul_input_items` if done here
+        location_df = olf.get_exposure(
+            lookup=lookup,
+            source_exposure_fp=exposure_fp,
+        )
+
+        f1, _, f2, _ = olf.save_results(
+            lookup,
+            location_df=location_df,
+            successes_fp=keys_fp,
+            errors_fp=keys_errors_fp,
+            multiprocessing=multiprocessing
+        )
+
+    def prepare_keys_file(
         self,
         target_dir,
         exposure_fp,
-        exposure_profile=None,
+        portfolio_num,
+        acc_num,
+        loc_num,
+        keys_fp=None,
+        supported_oed_coverage_types=None,
+        deterministic=False,
+        lookup_config=None,
+        lookup_config_fp=None,
+        keys_data_fp=None,
+        model_version_fp=None,
+        lookup_package_fp=None,
+        complex_lookup_config_fp=None,
+        user_data_dir=None,
+        multiprocessing=True,
+        **kwargs,
+    ):
+        # If a pre-generated keys file path has not been provided,
+        # then it is asssumed some model lookup assets have been provided, so
+        # as to allow the lookup to be instantiated and called to generated
+        # the keys file. Otherwise if no model keys file path or lookup assets
+        # were provided then a "deterministic" keys file is generated.
+        _keys_fp = _keys_errors_fp = None
+        if not keys_fp:
+            _keys_fp = os.path.join(target_dir, 'keys.csv')
+            _keys_errors_fp = os.path.join(target_dir, 'keys-errors.csv')
+
+            if deterministic:
+                self.prepare_deterministic_keys_file(
+                    keys_fp,
+                    exposure_fp,
+                    portfolio_num,
+                    acc_num,
+                    loc_num,
+                    supported_oed_coverage_types=supported_oed_coverage_types
+                )
+            else:
+                self.prepare_keys_file_chunk(
+                    _keys_fp,
+                    _keys_errors_fp,
+                    exposure_fp,
+                    target_dir,
+                    lookup_config=lookup_config,
+                    lookup_config_fp=lookup_config_fp,
+                    keys_data_fp=keys_data_fp,
+                    model_version_fp=model_version_fp,
+                    lookup_package_fp=lookup_package_fp,
+                    complex_lookup_config_fp=complex_lookup_config_fp,
+                    user_data_dir=user_data_dir,
+                    multiprocessing=multiprocessing,
+                )
+            return _keys_fp, _keys_errors_fp
+        else:
+            return os.path.join(target_dir, os.path.basename(keys_fp)), None
+
+    def prepare_input_generation_params(
+        self,
+        target_dir,
+        exposure_fp,
         exposure_profile_fp=None,
         keys_fp=None,
         lookup_config=None,
@@ -385,40 +509,93 @@ class OasisManager(object):
         lookup_package_fp=None,
         complex_lookup_config_fp=None,
         user_data_dir=None,
-        supported_oed_coverage_types=None,
-        summarise_exposure=None,
-        write_chunksize=None,
         accounts_fp=None,
-        accounts_profile=None,
         accounts_profile_fp=None,
         fm_aggregation_profile=None,
         fm_aggregation_profile_fp=None,
         ri_info_fp=None,
         ri_scope_fp=None,
+        write_chunksize=None,
+        exposure_profile=None,
+        accounts_profile=None,
+        supported_oed_coverage_types=None,
+        summarise_exposure=None,
+        multiprocessing=True,
         oasis_files_prefixes=None,
-        group_id_cols=None
+        group_id_cols=None,
     ):
-
         # Convert paths to absolute
-        target_dir = as_path(target_dir, 'Oasis files output dir', is_dir=True, preexists=False)
-        exposure_fp = as_path(exposure_fp, 'Source exposure file path')
-        exposure_profile_fp = as_path(exposure_profile_fp, 'Source exposure profile file path')
-        keys_fp = as_path(keys_fp, 'Pre-generated keys file path', preexists=True)
-        lookup_config_fp = as_path(lookup_config_fp, 'Lookup config JSON file path', preexists=False)
-        keys_data_fp = as_path(keys_data_fp, 'Keys data path', preexists=False)
-        model_version_fp = as_path(model_version_fp, 'Model version file path', is_dir=True, preexists=False)
-        lookup_package_fp = as_path(lookup_package_fp, 'Lookup package path', is_dir=True, preexists=False)
-        complex_lookup_config_fp = as_path(complex_lookup_config_fp, 'Complex lookup config JSON file path', preexists=False)
-        user_data_dir = as_path(user_data_dir, 'Directory containing additional supplied model data files', preexists=False)
-        accounts_fp = as_path(accounts_fp, 'Source OED accounts file path')
-        accounts_profile_fp = as_path(accounts_profile_fp, 'Source OED accounts profile path')
-        fm_aggregation_profile_fp = as_path(fm_aggregation_profile_fp, 'FM OED aggregation profile path')
-        ri_info_fp = as_path(ri_info_fp, 'Reinsurance info. file path')
-        ri_scope_fp = as_path(ri_scope_fp, 'Reinsurance scope file path')
+        res = {
+            'target_dir': as_path(target_dir, 'Oasis files output dir', is_dir=True, preexists=False),
+            'exposure_fp': as_path(exposure_fp, 'Source exposure file path'),
+            'exposure_profile_fp': as_path(exposure_profile_fp, 'Source exposure profile file path'),
+            'keys_fp': as_path(keys_fp, 'Pre-generated keys file path', preexists=True),
+            'lookup_config_fp': as_path(lookup_config_fp, 'Lookup config JSON file path', preexists=False),
+            'keys_data_fp': as_path(keys_data_fp, 'Keys data path', preexists=False),
+            'model_version_fp': as_path(model_version_fp, 'Model version file path', is_dir=True, preexists=False),
+            'lookup_package_fp': as_path(lookup_package_fp, 'Lookup package path', is_dir=True, preexists=False),
+            'complex_lookup_config_fp': as_path(complex_lookup_config_fp, 'Complex lookup config JSON file path', preexists=False),
+            'user_data_dir': as_path(user_data_dir, 'Directory containing additional supplied model data files', preexists=False),
+            'accounts_fp': as_path(accounts_fp, 'Source OED accounts file path'),
+            'accounts_profile_fp': as_path(accounts_profile_fp, 'Source OED accounts profile path'),
+            'fm_aggregation_profile_fp': as_path(fm_aggregation_profile_fp, 'FM OED aggregation profile path'),
+            'ri_info_fp': as_path(ri_info_fp, 'Reinsurance info. file path'),
+            'ri_scope_fp': as_path(ri_scope_fp, 'Reinsurance scope file path'),
+            'determanistic': not (
+                (lookup_config or lookup_config_fp) or
+                (keys_data_fp and model_version_fp or lookup_package_fp) or
+                keys_fp
+            ),
+            'write_chunksize': write_chunksize or self.write_chunksize,
+            'supported_oed_coverage_types': supported_oed_coverage_types or self.supported_oed_coverage_types,
+            'summarise_exposure': summarise_exposure,
+            'oasis_files_prefixes': oasis_files_prefixes,
+            'group_id_cols': group_id_cols,
+            'multiprocessing': multiprocessing,
+        }
 
+        res['exposure_profile'] = (
+            exposure_profile or (get_json(src_fp=res['exposure_profile_fp']) if res['exposure_profile_fp'] else self.exposure_profile)
+        )
+        res['accounts_profile'] = (
+            accounts_profile or (get_json(src_fp=res['accounts_profile_fp']) if res['accounts_profile_fp'] else self.accounts_profile)
+        )
+        res['oed_hierarchy'] = get_oed_hierarchy(res['exposure_profile'], res['accounts_profile'])
+
+        res.update({
+            'loc_num': res['oed_hierarchy']['locnum']['ProfileElementName'].lower(),
+            'loc_grp': res['oed_hierarchy']['locgrp']['ProfileElementName'].lower(),
+            'acc_num': res['oed_hierarchy']['accnum']['ProfileElementName'].lower(),
+            'portfolio_num': res['oed_hierarchy']['portnum']['ProfileElementName'].lower(),
+            'fm_aggregation_profile': (
+                fm_aggregation_profile or
+                ({int(k): v for k, v in
+                  get_json(src_fp=fm_aggregation_profile_fp).items()} if fm_aggregation_profile_fp else {}) or
+                self.fm_aggregation_profile
+            )
+        })
+
+        return res
+
+    def prepare_input_directory(
+        self,
+        target_dir,
+        exposure_fp,
+        exposure_profile_fp=None,
+        keys_fp=None,
+        lookup_config_fp=None,
+        model_version_fp=None,
+        complex_lookup_config_fp=None,
+        accounts_fp=None,
+        accounts_profile_fp=None,
+        fm_aggregation_profile_fp=None,
+        ri_info_fp=None,
+        ri_scope_fp=None,
+        **kwargs,
+    ):
         # Prepare the target directory and copy the source files, profiles and
         # model version file into it
-        target_dir = prepare_input_files_directory(
+        prepare_input_files_directory(
             target_dir,
             exposure_fp,
             exposure_profile_fp=exposure_profile_fp,
@@ -433,113 +610,54 @@ class OasisManager(object):
             ri_scope_fp=ri_scope_fp
         )
 
-        # Get the profiles defining the exposure and accounts files, ID related
-        # terms in these files, and FM aggregation hierarchy
-        exposure_profile = exposure_profile or (get_json(src_fp=exposure_profile_fp) if exposure_profile_fp else self.exposure_profile)
-        accounts_profile = accounts_profile or (get_json(src_fp=accounts_profile_fp) if accounts_profile_fp else self.accounts_profile)
-        oed_hierarchy = get_oed_hierarchy(exposure_profile, accounts_profile)
-        loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
-        loc_grp = oed_hierarchy['locgrp']['ProfileElementName'].lower()
-        acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
-        portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
-        fm_aggregation_profile = (
-            fm_aggregation_profile or
-            ({int(k): v for k, v in get_json(src_fp=fm_aggregation_profile_fp).items()} if fm_aggregation_profile_fp else {}) or
-            self.fm_aggregation_profile
-        )
-
-        # The chunksize to use when writing the GUL and IL inputs dataframes
-        # to file
-        write_chunksize = write_chunksize or self.write_chunksize
-
-        # Check whether the files generation is for deterministic or model losses
-        deterministic = not(
-            (lookup_config or lookup_config_fp) or
-            (keys_data_fp and model_version_fp and lookup_package_fp) or
-            keys_fp
-        )
-
-        # If a pre-generated keys file path has not been provided,
-        # then it is asssumed some model lookup assets have been provided, so
-        # as to allow the lookup to be instantiated and called to generated
-        # the keys file. Otherwise if no model keys file path or lookup assets
-        # were provided then a "deterministic" keys file is generated.
-        _keys_fp = _keys_errors_fp = None
-        if not keys_fp:
-            _keys_fp = os.path.join(target_dir, 'keys.csv')
-            _keys_errors_fp = os.path.join(target_dir, 'keys-errors.csv')
-
-            cov_types = supported_oed_coverage_types or self.supported_oed_coverage_types
-
-            if deterministic:
-                exposure_df = get_dataframe(
-                    src_fp=exposure_fp,
-                    empty_data_error_msg='No exposure found in the source exposure (loc.) file'
-                )
-                exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
-                loc_ids = (loc_it['loc_id'] for _, loc_it in exposure_df.loc[:, ['loc_id']].iterrows())
-                keys = [
-                    {'loc_id': _loc_id, 'peril_id': 1, 'coverage_type': cov_type, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
-                    for i, (_loc_id, cov_type) in enumerate(product(loc_ids, cov_types))
-                ]
-                _, _ = olf.write_oasis_keys_file(keys, _keys_fp)
-            else:
-                lookup_config = get_json(src_fp=lookup_config_fp) if lookup_config_fp else lookup_config
-                if lookup_config and lookup_config['keys_data_path'] in ['.', './']:
-                    lookup_config['keys_data_path'] = os.path.join(os.path.dirname(lookup_config_fp))
-                elif lookup_config and not os.path.isabs(lookup_config['keys_data_path']):
-                    lookup_config['keys_data_path'] = os.path.join(os.path.dirname(lookup_config_fp), keys_data_fp)
-
-                _, lookup = olf.create(
-                    lookup_config=lookup_config,
-                    model_keys_data_path=keys_data_fp,
-                    model_version_file_path=model_version_fp,
-                    lookup_package_path=lookup_package_fp,
-                    complex_lookup_config_fp=complex_lookup_config_fp,
-                    user_data_dir=user_data_dir,
-                    output_directory=target_dir
-                )
-                # TODO: exposure_df is loaded twice, Elimilate step in `get_gul_input_items` if done here
-                location_df = olf.get_exposure(
-                    lookup=lookup,
-                    source_exposure_fp=exposure_fp,
-                )
-                f1, _, f2, _ = olf.save_results(
-                    lookup,
-                    location_df=location_df,
-                    successes_fp=_keys_fp,
-                    errors_fp=_keys_errors_fp
-                )
-        else:
-            _keys_fp = os.path.join(target_dir, os.path.basename(keys_fp))
-
+    def write_input_files(
+        self,
+        target_dir,
+        summarise_exposure,
+        deterministic,
+        exposure_df,
+        keys_df,
+        keys_errors_df,
+        exposure_profile,
+        accounts_df,
+        accounts_profile,
+        group_id_cols,
+        oed_hierarchy,
+        oasis_files_prefixes,
+        write_chunksize,
+        fm_aggregation_profile,
+        loc_grp,
+        ri_info_fp,
+        ri_scope_fp,
+        **kwargs,
+    ):
         # Columns from loc file to assign group_id
         group_id_cols = group_id_cols or self.group_id_cols
         group_id_cols = list(map(lambda col: col.lower(), group_id_cols))
 
         # Get the GUL input items and exposure dataframes
         gul_inputs_df, exposure_df = get_gul_input_items(
-            exposure_fp,
-            _keys_fp,
+            exposure_df,
+            keys_df,
             exposure_profile=exposure_profile,
             group_id_cols=group_id_cols
         )
 
         # If not in det. loss gen. scenario, write exposure summary file
+
         if summarise_exposure and not deterministic:
             write_exposure_summary(
                 target_dir,
                 gul_inputs_df,
                 exposure_df,
-                exposure_fp,
-                keys_errors_fp=_keys_errors_fp,
+                keys_errors_fp=keys_errors_df,
                 exposure_profile=exposure_profile,
                 oed_hierarchy=oed_hierarchy
             )
 
         # If exposure summary set, write valid columns for summary levels to file
         if summarise_exposure:
-            write_summary_levels(exposure_df, accounts_fp, target_dir)
+            write_summary_levels(exposure_df, accounts_df, target_dir)
 
         # Write the GUL input files
         files_prefixes = oasis_files_prefixes or self.oasis_files_prefixes
@@ -554,7 +672,7 @@ class OasisManager(object):
 
         # If no source accounts file path has been provided assume that IL
         # input files, and therefore also RI input files, are not needed
-        if not accounts_fp:
+        if accounts_df.empty():
             # Write `summary_map.csv` for GUL only
             return gul_input_files
 
@@ -562,7 +680,7 @@ class OasisManager(object):
         il_inputs_df, _ = get_il_input_items(
             exposure_df,
             gul_inputs_df,
-            accounts_fp=accounts_fp,
+            accounts_df=accounts_df,
             exposure_profile=exposure_profile,
             accounts_profile=accounts_profile,
             fm_aggregation_profile=fm_aggregation_profile
@@ -614,6 +732,67 @@ class OasisManager(object):
                 oasis_files['RI_{}'.format(layer)] = layer_info['directory']
 
         return oasis_files
+
+    @oasis_log
+    def generate_oasis_files(
+        self,
+        target_dir,
+        exposure_fp,
+        exposure_profile=None,
+        exposure_profile_fp=None,
+        keys_fp=None,
+        lookup_config=None,
+        lookup_config_fp=None,
+        keys_data_fp=None,
+        model_version_fp=None,
+        lookup_package_fp=None,
+        complex_lookup_config_fp=None,
+        user_data_dir=None,
+        supported_oed_coverage_types=None,
+        summarise_exposure=None,
+        write_chunksize=None,
+        accounts_fp=None,
+        accounts_profile=None,
+        accounts_profile_fp=None,
+        fm_aggregation_profile=None,
+        fm_aggregation_profile_fp=None,
+        ri_info_fp=None,
+        ri_scope_fp=None,
+        oasis_files_prefixes=None,
+        group_id_cols=None,
+        multiprocessing=True,
+    ):
+        kwargs = self.prepare_input_generation_params(
+            target_dir=target_dir,
+            exposure_fp=exposure_fp,
+            exposure_profile=exposure_profile,
+            exposure_profile_fp=exposure_profile_fp,
+            keys_fp=keys_fp,
+            lookup_config=lookup_config,
+            lookup_config_fp=lookup_config_fp,
+            keys_data_fp=keys_data_fp,
+            model_version_fp=model_version_fp,
+            lookup_package_fp=lookup_package_fp,
+            complex_lookup_config_fp=complex_lookup_config_fp,
+            user_data_dir=user_data_dir,
+            supported_oed_coverage_types=supported_oed_coverage_types,
+            summarise_exposure=summarise_exposure,
+            write_chunksize=write_chunksize,
+            accounts_fp=accounts_fp,
+            accounts_profile=accounts_profile,
+            accounts_profile_fp=accounts_profile_fp,
+            fm_aggregation_profile=fm_aggregation_profile,
+            fm_aggregation_profile_fp=fm_aggregation_profile_fp,
+            ri_info_fp=ri_info_fp,
+            ri_scope_fp=ri_scope_fp,
+            oasis_files_prefixes=oasis_files_prefixes,
+            group_id_cols=group_id_cols,
+            multiprocessing=multiprocessing,
+        )
+
+        self.prepare_input_directory(**kwargs)
+        kwargs['keys_fp'], kwargs['keys_errors_fp'] = self.prepare_keys_file(**kwargs)
+        self.write_input_files(**kwargs)
 
     @oasis_log
     def generate_model_losses(
