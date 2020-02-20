@@ -84,3 +84,6 @@ deductible with max. deductible; no limit % TIV,26,1,0,1,0,0,0,0,0,2,0,"(1, 0, 1
 "deductible with min and max deductible, no limit",26,1,1,1,0,0,0,0,0,0,0,"(1, 1, 1, 0, 0, 0, 0, 0, 0, 0)"
 "deductible with min and max deductible, no limit % loss",26,1,1,1,0,0,0,0,0,1,0,"(1, 1, 1, 0, 0, 0, 0, 0, 1, 0)"
 "deductible with min and max deductible, no limit % TIV",26,1,1,1,0,0,0,0,0,2,0,"(1, 1, 1, 0, 0, 0, 0, 0, 2, 0)"
+"deductible with min deductible, no limit",26,1,1,0,0,0,0,0,0,0,0,"(1, 1, 0, 0, 0, 0, 0, 0, 0, 0)"
+"deductible with min deductible, no limit % loss",26,1,1,0,0,0,0,0,0,1,0,"(1, 1, 0, 0, 0, 0, 0, 0, 1, 0)"
+"deductible with min deductible, no limit % TIV",26,1,1,0,0,0,0,0,0,2,0,"(1, 1, 0, 0, 0, 0, 0, 0, 2, 0)"
