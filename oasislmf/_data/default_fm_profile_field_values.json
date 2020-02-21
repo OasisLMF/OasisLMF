@@ -1,0 +1,33 @@
+{
+    "site coverage": {
+	"deductible_min": {"condition": "!= 0", "default_value": 0},
+	"deductible_max": {"condition": "!= 0", "default_value": 0}
+    },
+    "site pd": {
+    	"deductible_min": {"condition": "!= 0", "default_value": 0},
+	"deductible_max": {"condition": "!= 0", "default_value": 0}
+    },
+    "site all": {
+	"deductible_min": {"condition": "!= 0", "default_value": 0},
+	"deductible_max": {"condition": "!= 0", "default_value": 0}
+    },
+    "cond all": {
+	"deductible_min": {"condition": "!= 0", "default_value": 0},
+	"deductible_max": {"condition": "!= 0", "default_value": 0}
+    },
+    "policy all": {
+	"deductible_min": {"condition": "!= 0", "default_value": 0},
+	"deductible_max": {"condition": "!= 0", "default_value": 0}
+    },
+    "policy layer": {
+	"limit": {"condition": "!= 0", "default_value": 9999999999},
+	"share": {"condition": "!= 0", "default_value": 1.0},
+	"deductible": {"default_value": 0},
+	"deductible_min": {"condition": "!= 0", "default_value": 0},
+	"deductible_max": {"condition": "!= 0", "default_value": 0},
+	"ded_code": {"default_value": 0},
+	"ded_type": {"default_value": 0},
+	"lim_code": {"default_value": 0},
+	"lim_type": {"default_value": 0}
+    }
+}
