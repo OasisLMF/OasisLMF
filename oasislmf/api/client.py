@@ -397,19 +397,34 @@ class APIClient(object):
             self.api.unrecoverable_error(e, 'upload_inputs: failed')
             sys.exit(1)
 
-    def upload_settings(self, analyses, settings_fp=None):
-        if settings_fp:
-            if 'settings' in analyses:
-                # Upload settings data as JSON
-                with io.open(settings_fp, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                r = self.analyses.settings.post(analyses['id'], data)
-                self.logger.info("Settings JSON uploaded: {}".format(settings_fp))
+    def upload_settings(self, analyses_id, settings):
+        """
+        Upload an analyses run settings to an API
 
-            else:
-                # Upload settings as file data
-                r = self.analyses.settings_file.upload(analyses['id'], settings_fp, 'application/json')
-                self.logger.info("Settings file uploaded: {}".format(settings_fp))
+        Method to post JSON data or upload a settings file containing JSON data
+
+        Parameters
+        ----------
+        :param analyses_id: Analyses settings {id} from, `v1/analyses/{id}/settings`
+        :type analyses_id: int
+
+        :param settings: Either a valid filepath or dictionary holding the settings
+        :type settings: [str, dict]
+
+        :return:
+        :rtype None
+        """
+        if isinstance(settings, dict):
+            r = self.analyses.settings.post(analyses_id, settings)
+            self.logger.info("Settings JSON uploaded: {}".format(settings))
+
+        elif os.path.isfile(str(settings)):
+            with io.open(settings, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            r = self.analyses.settings.post(analyses_id, data)
+            self.logger.info("Settings JSON uploaded: {}".format(settings))
+        else:
+            raise TypeError("'settings': not a valid filepath or dictionary")
 
     def create_analysis(self, portfolio_id, model_id, analysis_name=None, analysis_settings_fp=None):
         try:
@@ -417,7 +432,8 @@ class APIClient(object):
                 analysis_name = time.strftime("Analysis_%d%m%Y-%H%M%S")
 
             analyses = self.analyses.create(analysis_name, portfolio_id, model_id).json()
-            self.upload_settings(analyses, analysis_settings_fp)
+            if analysis_settings_fp:
+                self.upload_settings(analyses['id'], analysis_settings_fp)
 
             return analyses
         except HTTPError as e:
@@ -491,7 +507,9 @@ class APIClient(object):
 
         try:
             analyses = self.analyses.get(analysis_id)
-            self.upload_settings(analyses, analysis_settings_fp)
+            if analysis_settings_fp:
+                self.upload_settings(analysis_id, analysis_settings_fp)
+
             analysis = self.analyses.run(analysis_id).json()
             self.logger.info('Analysis Run: Starting (id={})'.format(analysis_id))
             logged_queued = None
@@ -546,7 +564,7 @@ class APIClient(object):
         try:
             output_file = os.path.join(download_path, filename + '.tar')
             self.analyses.output_file.download(ID=analysis_id, file_path=output_file, overwrite=overwrite)
-            self.logger.info('Analysis Download output: filename={}, (id={}'.format(output_file, analysis_id))
+            self.logger.info('Analysis Download output: filename={}, (id={})'.format(output_file, analysis_id))
             if clean_up:
                 self.analyses.delete(analysis_id)
                 self.analyses.output_file.delete(analysis_id)
@@ -562,7 +580,7 @@ class APIClient(object):
         """
         try:
             self.analyses.generate_cancel(analysis_id)
-            self.logger.info('Cancelled Input generation: Id={}'.format(analysis_id))
+            self.logger.info('Cancelled Input generation: (Id={})'.format(analysis_id))
             return True
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'cancel_generate: Failed')
@@ -575,7 +593,7 @@ class APIClient(object):
         """
         try:
             self.analyses.run_cancel(analysis_id)
-            self.logger.info('Cancelled analysis run: Id={}'.format(analysis_id))
+            self.logger.info('Cancelled analysis run: (Id={})'.format(analysis_id))
             return True
         except HTTPError as e:
             self.api.unrecoverable_error(e, 'cancel_analysis: Failed')
