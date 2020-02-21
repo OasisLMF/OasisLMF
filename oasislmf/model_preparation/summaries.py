@@ -756,6 +756,9 @@ def write_exposure_summary(
     model_peril_ids = gul_inputs_df['peril_id'].unique()
 
     # Split rows with multiple peril codes
+    exposure_df[loc_per_cov] = exposure_df[loc_per_cov].str.replace(' ','')
+    exposure_df[loc_per_cov] = exposure_df[loc_per_cov].str.replace(';$','', regex=True)
+
     exp_perils_df = pd.DataFrame(
         exposure_df[loc_per_cov].str.split(';').to_list(),
         index=exposure_df['loc_id']
