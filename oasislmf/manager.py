@@ -410,10 +410,11 @@ class OasisManager(object):
         multiprocessing=True,
     ):
         lookup_config = get_json(src_fp=lookup_config_fp) if lookup_config_fp else lookup_config
-        if lookup_config and lookup_config['keys_data_path'] in ['.', './']:
-            lookup_config['keys_data_path'] = os.path.join(os.path.dirname(lookup_config_fp))
-        elif lookup_config and not os.path.isabs(lookup_config['keys_data_path']):
-            lookup_config['keys_data_path'] = os.path.join(os.path.dirname(lookup_config_fp), keys_data_fp)
+        if not keys_data_fp:
+            if lookup_config and lookup_config['keys_data_path'] in ['.', './']:
+                lookup_config['keys_data_path'] = keys_data_fp = os.path.join(os.path.dirname(lookup_config_fp))
+            elif lookup_config and not os.path.isabs(lookup_config['keys_data_path']):
+                lookup_config['keys_data_path'] = keys_data_fp = os.path.join(os.path.dirname(lookup_config_fp), lookup_config['keys_data_path'])
 
         _, lookup = olf.create(
             lookup_config=lookup_config,
