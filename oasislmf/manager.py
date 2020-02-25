@@ -535,7 +535,7 @@ class OasisManager(object):
             'exposure_fp': as_path(exposure_fp, 'Source exposure file path'),
             'exposure_profile_fp': as_path(exposure_profile_fp, 'Source exposure profile file path'),
             'keys_fp': as_path(keys_fp, 'Pre-generated keys file path', preexists=True),
-            'lookup_config': as_path(lookup_config_fp, 'Lookup config JSON file path', preexists=False),
+            'lookup_config': lookup_config,
             'lookup_config_fp': as_path(lookup_config_fp, 'Lookup config JSON file path', preexists=False),
             'keys_data_fp': as_path(keys_data_fp, 'Keys data path', preexists=False),
             'keys_errors_fp': as_path(keys_errors_fp, 'Keys errors path', preexists=False),
