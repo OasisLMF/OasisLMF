@@ -506,6 +506,7 @@ class OasisManager(object):
         lookup_config=None,
         lookup_config_fp=None,
         keys_data_fp=None,
+        keys_errors_fp=None,
         model_version_fp=None,
         lookup_package_fp=None,
         complex_lookup_config_fp=None,
@@ -525,14 +526,19 @@ class OasisManager(object):
         oasis_files_prefixes=None,
         group_id_cols=None,
     ):
+        if not lookup_config and lookup_config_fp:
+            lookup_config = get_json(lookup_config_fp)
+
         # Convert paths to absolute
         res = {
             'target_dir': as_path(target_dir, 'Oasis files output dir', is_dir=True, preexists=False),
             'exposure_fp': as_path(exposure_fp, 'Source exposure file path'),
             'exposure_profile_fp': as_path(exposure_profile_fp, 'Source exposure profile file path'),
             'keys_fp': as_path(keys_fp, 'Pre-generated keys file path', preexists=True),
+            'lookup_config': as_path(lookup_config_fp, 'Lookup config JSON file path', preexists=False),
             'lookup_config_fp': as_path(lookup_config_fp, 'Lookup config JSON file path', preexists=False),
             'keys_data_fp': as_path(keys_data_fp, 'Keys data path', preexists=False),
+            'keys_errors_fp': as_path(keys_errors_fp, 'Keys errors path', preexists=False),
             'model_version_fp': as_path(model_version_fp, 'Model version file path', is_dir=True, preexists=False),
             'lookup_package_fp': as_path(lookup_package_fp, 'Lookup package path', is_dir=True, preexists=False),
             'complex_lookup_config_fp': as_path(complex_lookup_config_fp, 'Complex lookup config JSON file path', preexists=False),
