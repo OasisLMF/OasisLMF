@@ -542,7 +542,7 @@ class OasisManager(object):
             'fm_aggregation_profile_fp': as_path(fm_aggregation_profile_fp, 'FM OED aggregation profile path'),
             'ri_info_fp': as_path(ri_info_fp, 'Reinsurance info. file path'),
             'ri_scope_fp': as_path(ri_scope_fp, 'Reinsurance scope file path'),
-            'determanistic': not (
+            'deterministic': not (
                 (lookup_config or lookup_config_fp) or
                 (keys_data_fp and model_version_fp or lookup_package_fp) or
                 keys_fp
