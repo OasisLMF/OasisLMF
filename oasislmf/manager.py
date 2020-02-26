@@ -681,7 +681,7 @@ class OasisManager(object):
 
         # If no source accounts file path has been provided assume that IL
         # input files, and therefore also RI input files, are not needed
-        if accounts_df.empty():
+        if accounts_df.empty:
             # Write `summary_map.csv` for GUL only
             return gul_input_files
 
