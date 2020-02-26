@@ -627,6 +627,7 @@ class OasisManager(object):
         keys_errors_fp,
         exposure_profile,
         accounts_df,
+        accounts_fp,
         accounts_profile,
         group_id_cols,
         oed_hierarchy,
@@ -665,7 +666,7 @@ class OasisManager(object):
 
         # If exposure summary set, write valid columns for summary levels to file
         if summarise_exposure:
-            write_summary_levels(exposure_df, accounts_df, target_dir)
+            write_summary_levels(exposure_df, accounts_fp, target_dir)
 
         # Write the GUL input files
         files_prefixes = oasis_files_prefixes or self.oasis_files_prefixes
