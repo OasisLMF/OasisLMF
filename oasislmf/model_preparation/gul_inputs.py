@@ -162,7 +162,7 @@ def get_gul_input_items(
         memory_map=True
     )
     if 'loc_id' not in exposure_df:
-        exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
+        exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num]).astype('str')
 
     # Set data types for the keys dataframe
     dtypes = {

@@ -526,9 +526,6 @@ class OasisManager(object):
         oasis_files_prefixes=None,
         group_id_cols=None,
     ):
-        if not lookup_config and lookup_config_fp:
-            lookup_config = get_json(lookup_config_fp)
-
         # Convert paths to absolute
         res = {
             'target_dir': as_path(target_dir, 'Oasis files output dir', is_dir=True, preexists=False),
