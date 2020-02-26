@@ -622,9 +622,9 @@ class OasisManager(object):
         target_dir,
         summarise_exposure,
         deterministic,
-        exposure_df,
-        keys_df,
-        keys_errors_df,
+        exposure_fp,
+        keys_fp,
+        keys_errors_fp,
         exposure_profile,
         accounts_df,
         accounts_profile,
@@ -644,8 +644,8 @@ class OasisManager(object):
 
         # Get the GUL input items and exposure dataframes
         gul_inputs_df, exposure_df = get_gul_input_items(
-            exposure_df,
-            keys_df,
+            exposure_fp,
+            keys_fp,
             exposure_profile=exposure_profile,
             group_id_cols=group_id_cols
         )
@@ -657,7 +657,8 @@ class OasisManager(object):
                 target_dir,
                 gul_inputs_df,
                 exposure_df,
-                keys_errors_fp=keys_errors_df,
+                exposure_fp,
+                keys_errors_fp=keys_errors_fp,
                 exposure_profile=exposure_profile,
                 oed_hierarchy=oed_hierarchy
             )
