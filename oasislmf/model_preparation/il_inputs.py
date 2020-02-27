@@ -708,7 +708,10 @@ def get_il_input_items(
 
     # Set the layer level, layer IDs and agg. IDs
     layer_df['level_id'] = layer_level_id
-    agg_key = [v['field'].lower() for v in fmap[layer_level_id]['FMAggKey'].values()]
+    agg_key = [
+        v['field'].lower()
+        for v in (fmap.get(layer_level_id) or fmap.get(str(layer_level_id)))['FMAggKey'].values()
+    ]
     # If step policies listed, use agg id from coverage aggregation method
     if 'cov_agg_id' in layer_df:
         agg_key += ['cov_agg_id']
