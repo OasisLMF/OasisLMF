@@ -23,6 +23,7 @@ def items_to_csv(source, output):
             break
         item_id, coverage_id, group_id, model_data_len = struct_unpack(data)
 
+        # https://github.com/msgpack/msgpack-python#major-breaking-changes-in-msgpack-10
         if msgpack.version >= (1,0,0):
             model_data = msgpack.unpackb(source.read(model_data_len), raw=False)
             writer.writerow((item_id, coverage_id, model_data, group_id))
