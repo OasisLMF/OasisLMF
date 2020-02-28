@@ -733,11 +733,20 @@ def write_exposure_summary(
         gul_inputs_errors_df, _ = get_gul_input_items(
             exposure_fp, keys_errors_fp, exposure_profile=exposure_profile
         )
-        gul_inputs_errors_df = reduce_df(
-            gul_inputs_errors_df,
-            cols=['peril_id', 'coverage_type_id', 'loc_id', 'tiv', 'status']
+        
+        # Store the gul_input_errors for debugging then reduce
+        store_cols = ['loc_id', 'portnumber', 'accnumber', 'locnumber', 'condnumber']
+        reduce_cols = ['peril_id', 'coverage_type_id', 'loc_id', 'tiv', 'status']
+
+        gul_inputs_errors_df[store_cols + reduce_cols].to_csv(
+            os.path.join(target_dir, 'gul_errors_map.csv'),
+            index=False
         )
 
+        gul_inputs_errors_df = reduce_df(
+            gul_inputs_errors_df,
+            cols=reduce_cols
+        )
     except OasisException:   # Empty dataframe (due to empty keys errors file)
         gul_inputs_errors_df = pd.DataFrame(
             columns=gul_inputs_df.columns.append(pd.Index(['status']))
@@ -756,6 +765,9 @@ def write_exposure_summary(
     model_peril_ids = gul_inputs_df['peril_id'].unique()
 
     # Split rows with multiple peril codes
+    exposure_df[loc_per_cov] = exposure_df[loc_per_cov].str.replace(' ','')
+    exposure_df[loc_per_cov] = exposure_df[loc_per_cov].str.replace(';$','', regex=True)
+
     exp_perils_df = pd.DataFrame(
         exposure_df[loc_per_cov].str.split(';').to_list(),
         index=exposure_df['loc_id']

@@ -39,6 +39,7 @@ from ..utils.data import (
     set_dataframe_column_dtypes,
 )
 from ..utils.defaults import (
+    assign_defaults_to_il_inputs,
     get_default_accounts_profile,
     get_default_exposure_profile,
     get_default_fm_aggregation_profile,
@@ -423,10 +424,13 @@ def get_il_input_items(
     # a custom method is called that will generate this column and set it
     # in the accounts dataframe
     # If step policies are listed use `stepnumber` column in combination
+    layers_cols = [portfolio_num, acc_num]
     if step_policies_present:
-        accounts_df['layer_id'] = get_ids(accounts_df, [portfolio_num, acc_num, policy_num, 'stepnumber'], group_by=[portfolio_num, acc_num, 'stepnumber'])
-    else:
-        accounts_df['layer_id'] = get_ids(accounts_df, [portfolio_num, acc_num, policy_num], group_by=[portfolio_num, acc_num])
+        layers_cols += ['stepnumber']
+    accounts_df['layer_id'] = get_ids(
+        accounts_df[layers_cols + [policy_num]].drop_duplicates(keep='first'),
+        layers_cols + [policy_num], group_by=layers_cols
+    ).reindex(range(len(accounts_df))).fillna(method='ffill').astype('uint32')
 
     # Drop all columns from the accounts dataframe which are not either one of
     # portfolio num., acc. num., policy num., cond. numb., layer ID, or one of
@@ -724,10 +728,6 @@ def get_il_input_items(
     term_cols = get_fm_terms_oed_columns(fm_terms, levels=['policy layer'], terms=terms)
     layer_df.loc[:, term_cols] = layer_df.loc[:, term_cols].where(layer_df.notnull(), 0.0).values
     layer_df.loc[:, terms] = layer_df.loc[:, term_cols].values
-    layer_df['limit'] = layer_df['limit'].where(layer_df['limit'] != 0, 9999999999)
-    layer_df['share'] = layer_df['share'].where(layer_df['share'] != 0, 1.0)
-    layer_df['deductible'] = 0
-    layer_df.loc[:, ['ded_code', 'ded_type', 'lim_code', 'lim_type']] = 0
 
     # Join the IL inputs and layer level frames, drop the FM terms
     # source columns for the layer level, and mark the layer level dataframe
@@ -735,6 +735,9 @@ def get_il_input_items(
     il_inputs_df = pd.concat([il_inputs_df, layer_df], sort=True, ignore_index=True)
     il_inputs_df.drop(term_cols, axis=1, inplace=True)
     del layer_df
+
+    # Assign default values to IL inputs
+    il_inputs_df = assign_defaults_to_il_inputs(il_inputs_df)
 
     # il_inputs are not necessarily in the same order for the topmost level when layers are present,
     # fix by sorting the il_inputs_df
