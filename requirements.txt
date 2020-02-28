@@ -5,36 +5,36 @@
 #    pip-compile
 #
 alabaster==0.7.12         # via sphinx
-anytree==2.8.0
-argparsetree==0.0.6
+anytree==2.8.0            # via -r ./requirements-package.in
+argparsetree==0.0.6       # via -r ./requirements-package.in
 arrow==0.15.5             # via jinja2-time
 attrs==19.3.0             # via hypothesis, pytest
 babel==2.8.0              # via sphinx
 backcall==0.1.0           # via ipython
-backports.tempfile==1.0
-backports.weakref==1.0.post1
-billiard==3.6.0.0
+backports.tempfile==1.0   # via -r ./requirements-package.in, -r requirements.in
+backports.weakref==1.0.post1  # via -r requirements.in, backports.tempfile
+billiard==3.6.0.0         # via -r ./requirements-package.in
 binaryornot==0.4.4        # via cookiecutter
-certifi==2019.11.28
-chainmap==1.0.3
+certifi==2019.11.28       # via -r ./requirements-package.in, requests
+chainmap==1.0.3           # via -r ./requirements-package.in
 chardet==3.0.4            # via binaryornot, requests
 click==7.0                # via cookiecutter, pip-tools
-configparser==4.0.2
-cookiecutter==1.7.0
-coverage==5.0.3
+configparser==4.0.2       # via -r requirements.in
+cookiecutter==1.7.0       # via -r ./requirements-package.in
+coverage==5.0.3           # via -r requirements.in, pytest-cov
 decorator==4.4.1          # via ipython, traitlets
-discover==0.4.0
+discover==0.4.0           # via -r requirements.in
 docutils==0.16            # via sphinx
 entrypoints==0.3          # via flake8
 filelock==3.0.12          # via tox
-flake8==3.7.9
-freezegun==0.3.13
-future==0.18.2
-hypothesis==5.1.5
+flake8==3.7.9             # via -r requirements.in
+freezegun==0.3.13         # via -r requirements.in
+future==0.18.2            # via -r ./requirements-package.in, -r requirements.in, cookiecutter
+hypothesis==5.1.5         # via -r requirements.in
 idna==2.8                 # via requests
 imagesize==1.2.0          # via sphinx
 importlib-metadata==1.4.0  # via pluggy, pytest, tox
-ipdb==0.12.3
+ipdb==0.12.3              # via -r requirements.in
 ipython-genutils==0.2.0   # via traitlets
 ipython==7.11.1           # via ipdb
 jedi==0.15.2              # via ipython
@@ -42,17 +42,17 @@ jinja2-time==0.2.0        # via cookiecutter
 jinja2==2.10.3            # via cookiecutter, jinja2-time, sphinx
 markupsafe==1.1.1         # via jinja2
 mccabe==0.6.1             # via flake8
-mock==3.0.5
+mock==3.0.5               # via -r requirements.in
 more-itertools==8.1.0     # via pytest, zipp
 numpy==1.18.1             # via pandas
 packaging==20.0           # via pytest, sphinx, tox
-pandas==0.25.3
-parameterized==0.7.1
+pandas==0.25.3            # via -r ./requirements-package.in
+parameterized==0.7.1      # via -r requirements.in
 parso==0.5.2              # via jedi
-pathlib2==2.3.5
+pathlib2==2.3.5           # via -r ./requirements-package.in
 pexpect==4.7.0            # via ipython
 pickleshare==0.7.5        # via ipython
-pip-tools==4.3.0
+pip-tools==4.3.0          # via -r requirements.in
 pluggy==0.13.1            # via pytest, tox
 poyo==0.5.0               # via cookiecutter
 prompt-toolkit==3.0.2     # via ipython
@@ -62,31 +62,31 @@ pycodestyle==2.5.0        # via flake8
 pyflakes==2.1.1           # via flake8
 pygments==2.5.2           # via ipython, sphinx
 pyparsing==2.4.6          # via packaging
-pytest-cov==2.8.1
-pytest-ignore-flaky==1.0.0
-pytest==5.3.3
+pytest-cov==2.8.1         # via -r requirements.in
+pytest-ignore-flaky==1.0.0  # via -r requirements.in
+pytest==5.3.3             # via -r requirements.in, pytest-cov, pytest-ignore-flaky
 python-dateutil==2.8.1    # via arrow, freezegun, pandas
-pytz==2019.3
-requests-toolbelt==0.9.1
-requests==2.22.0
-responses==0.10.9
-rtree==0.9.3
-shapely==1.6.4.post2
-shutilwhich==1.1.0
+pytz==2019.3              # via -r ./requirements-package.in, babel, pandas
+requests-toolbelt==0.9.1  # via -r ./requirements-package.in
+requests==2.22.0          # via -r ./requirements-package.in, cookiecutter, requests-toolbelt, responses, sphinx
+responses==0.10.9         # via -r requirements.in
+rtree==0.9.3              # via -r ./requirements-package.in
+shapely==1.6.4.post2      # via -r ./requirements-package.in
+shutilwhich==1.1.0        # via -r ./requirements-package.in
 six==1.14.0               # via anytree, freezegun, mock, packaging, pathlib2, pip-tools, python-dateutil, responses, tox, traitlets
 snowballstemmer==2.0.0    # via sphinx
 sortedcontainers==2.1.0   # via hypothesis
-sphinx==2.3.1
+sphinx==2.3.1             # via -r requirements.in
 sphinxcontrib-applehelp==1.0.1  # via sphinx
 sphinxcontrib-devhelp==1.0.1  # via sphinx
 sphinxcontrib-htmlhelp==1.0.2  # via sphinx
 sphinxcontrib-jsmath==1.0.1  # via sphinx
 sphinxcontrib-qthelp==1.0.2  # via sphinx
 sphinxcontrib-serializinghtml==1.1.3  # via sphinx
-tabulate==0.8.6
+tabulate==0.8.6           # via -r ./requirements-package.in
 toml==0.10.0              # via tox
-tox==3.14.3
-tqdm==4.41.1
+tox==3.14.3               # via -r requirements.in
+tqdm==4.41.1              # via -r ./requirements-package.in
 traitlets==4.3.3          # via ipython
 urllib3==1.25.7           # via requests
 virtualenv==16.7.9        # via tox
@@ -95,4 +95,4 @@ whichcraft==0.6.1         # via cookiecutter
 zipp==1.0.0               # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
-# setuptools==45.0.0        # via ipdb, ipython, rtree, sphinx
+# setuptools

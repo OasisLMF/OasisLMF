@@ -471,7 +471,7 @@ class OasisManager(object):
 
             if deterministic:
                 self.prepare_deterministic_keys_file(
-                    keys_fp,
+                    _keys_fp,
                     exposure_fp,
                     portfolio_num,
                     acc_num,
@@ -626,7 +626,6 @@ class OasisManager(object):
         keys_fp,
         keys_errors_fp,
         exposure_profile,
-        accounts_df,
         accounts_fp,
         accounts_profile,
         group_id_cols,
@@ -681,7 +680,7 @@ class OasisManager(object):
 
         # If no source accounts file path has been provided assume that IL
         # input files, and therefore also RI input files, are not needed
-        if accounts_df.empty:
+        if accounts_fp:
             # Write `summary_map.csv` for GUL only
             return gul_input_files
 
@@ -689,7 +688,7 @@ class OasisManager(object):
         il_inputs_df, _ = get_il_input_items(
             exposure_df,
             gul_inputs_df,
-            accounts_df=accounts_df,
+            accounts_fp=accounts_fp,
             exposure_profile=exposure_profile,
             accounts_profile=accounts_profile,
             fm_aggregation_profile=fm_aggregation_profile

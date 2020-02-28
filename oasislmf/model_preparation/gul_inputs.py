@@ -163,6 +163,8 @@ def get_gul_input_items(
     )
     if 'loc_id' not in exposure_df:
         exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num]).astype('str')
+    else:
+        exposure_df['loc_id'] = exposure_df['loc_id'].astype('str')
 
     # Set data types for the keys dataframe
     dtypes = {
@@ -230,9 +232,13 @@ def get_gul_input_items(
         missing_group_id_cols = [col for col in group_id_cols if col not in exposure_df_gul_inputs_cols]
         exposure_df_gul_inputs_cols += missing_group_id_cols
 
+        _left = exposure_df[exposure_df_gul_inputs_cols]
+        _left['loc_id'] = _left['loc_id'].astype('str')
+        _right = keys_df
+        _right['loc_id'] = _right['loc_id'].astype('str')
         gul_inputs_df = merge_dataframes(
-            exposure_df[exposure_df_gul_inputs_cols],
-            keys_df,
+            _left,
+            _right,
             join_on='loc_id',
             how='inner'
         )
