@@ -160,7 +160,8 @@
                            "desc": {
                                "type": "string",
                                "title": "Short description",
-                               "description": "UI description for selection"
+                               "description": "UI description for selection",
+                               "minLength": 1
                            },
                            "tooltip": {
                                "type": "string",
@@ -196,7 +197,8 @@
                            "desc": {
                                "type": "string",
                                "title": "Short description",
-                               "description": "UI description for selection"
+                               "description": "UI description for selection",
+                               "minLength": 1
                            },
                            "tooltip": {
                                "type": "string",
@@ -235,7 +237,8 @@
                            "desc": {
                                "type": "string",
                                "title": "Short description",
-                               "description": "UI description for selection"
+                               "description": "UI description for selection",
+                               "minLength": 1
                            },
                            "tooltip": {
                                "type": "string",
@@ -271,7 +274,8 @@
                            "desc": {
                                "type": "string",
                                "title": "Short description",
-                               "description": "UI description for selection"
+                               "description": "UI description for selection",
+                               "minLength": 1
                            },
                            "tooltip": {
                                "type": "string",
@@ -307,7 +311,8 @@
                            "desc": {
                                "type": "string",
                                "title": "Short description",
-                               "description": "UI description for selection"
+                               "description": "UI description for selection",
+                               "minLength": 1
                            },
                            "tooltip": {
                                "type": "string",
@@ -353,7 +358,8 @@
                            "desc": {
                                "type": "string",
                                "title": "Short description",
-                               "description": "UI description for selection"
+                               "description": "UI description for selection",
+                               "minLength": 1
                            },
                            "tooltip": {
                                "type": "string",
@@ -389,7 +395,8 @@
                            "desc": {
                                "type": "string",
                                "title": "Short description",
-                               "description": "UI description for selection"
+                               "description": "UI description for selection",
+                               "minLength": 1
                            },
                            "tooltip": {
                                "type": "string",
@@ -456,7 +463,8 @@
                           "desc": {
                               "type": "string",
                               "title": "Short description",
-                              "description": "UI description for selection"
+                              "description": "UI description for selection",
+                              "minLength": 1
                           },
                           "tooltip": {
                               "type": "string",
