@@ -787,7 +787,7 @@ def write_exposure_summary(
 
     exp_perils_df.columns = ['loc_id', 'peril_id']
     exp_perils_df = exp_perils_df.astype(
-        {'loc_id': 'str', 'peril_id': 'object'}
+        {'loc_id': 'uint64', 'peril_id': 'object'}
     )
 
     exposure_df = merge_dataframes(
