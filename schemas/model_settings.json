@@ -25,8 +25,13 @@
                        },
                        "desc": {
                            "type": "string",
-                           "title": "UI tooltip",
+                           "title": "Short description",
                            "description": "UI description for selection"
+                       },
+                       "tooltip": {
+                           "type": "string",
+                           "title": "UI tooltip",
+                           "description": "Long description (optional)"
                        },
                        "default":{
                            "type": "string",
@@ -51,9 +56,14 @@
                                    },
                                    "desc": {
                                        "type": "string",
-                                       "title": "Event set description",
-                                       "description": "Short string description for an event set file",
+                                       "title": "Short description",
+                                       "description": "UI description for selection",
                                        "minLength": 1
+                                   },
+                                   "tooltip": {
+                                       "type": "string",
+                                       "title": "UI tooltip",
+                                       "description": "Long description (optional)"
                                    }
                                },
                                "required": ["id", "desc"]
@@ -77,8 +87,13 @@
                        },
                        "desc": {
                            "type": "string",
-                           "title": "UI tooltip",
+                           "title": "Short description",
                            "description": "UI description for selection"
+                       },
+                       "tooltip": {
+                           "type": "string",
+                           "title": "UI tooltip",
+                           "description": "Long description (optional)"
                        },
                        "default":{
                            "type": "string",
@@ -103,9 +118,14 @@
                                    },
                                    "desc": {
                                        "type": "string",
-                                       "title": "Occurrence set description",
-                                       "description": "Short string description for an occurrence set file",
+                                       "title": "Short description",
+                                       "description": "UI description for selection",
                                        "minLength": 1
+                                   },
+                                   "tooltip": {
+                                       "type": "string",
+                                       "title": "UI tooltip",
+                                       "description": "Long description (optional)"
                                    },
                                    "max_periods": {
                                        "type": "integer",
@@ -139,8 +159,13 @@
                            },
                            "desc": {
                                "type": "string",
-                               "title": "UI tooltip",
+                               "title": "Short description",
                                "description": "UI description for selection"
+                           },
+                           "tooltip": {
+                               "type": "string",
+                               "title": "UI tooltip",
+                               "description": "Long description (optional)"
                            },
                            "default":{
                                "type": "string",
@@ -170,8 +195,13 @@
                            },
                            "desc": {
                                "type": "string",
-                               "title": "UI tooltip",
+                               "title": "Short description",
                                "description": "UI description for selection"
+                           },
+                           "tooltip": {
+                               "type": "string",
+                               "title": "UI tooltip",
+                               "description": "Long description (optional)"
                            },
                            "default":{
                                "type": "array",
@@ -204,8 +234,13 @@
                            },
                            "desc": {
                                "type": "string",
-                               "title": "UI tooltip",
+                               "title": "Short description",
                                "description": "UI description for selection"
+                           },
+                           "tooltip": {
+                               "type": "string",
+                               "title": "UI tooltip",
+                               "description": "Long description (optional)"
                            },
                            "default":{
                                "type": "object",
@@ -235,8 +270,13 @@
                            },
                            "desc": {
                                "type": "string",
-                               "title": "UI tooltip",
+                               "title": "Short description",
                                "description": "UI description for selection"
+                           },
+                           "tooltip": {
+                               "type": "string",
+                               "title": "UI tooltip",
+                               "description": "Long description (optional)"
                            },
                            "default":{
                                "type": "boolean",
@@ -266,8 +306,13 @@
                            },
                            "desc": {
                                "type": "string",
-                               "title": "UI tooltip",
+                               "title": "Short description",
                                "description": "UI description for selection"
+                           },
+                           "tooltip": {
+                               "type": "string",
+                               "title": "UI tooltip",
+                               "description": "Long description (optional)"
                            },
                            "default":{
                                "type": "number",
@@ -307,8 +352,13 @@
                            },
                            "desc": {
                                "type": "string",
-                               "title": "UI tooltip",
+                               "title": "Short description",
                                "description": "UI description for selection"
+                           },
+                           "tooltip": {
+                               "type": "string",
+                               "title": "UI tooltip",
+                               "description": "Long description (optional)"
                            },
                            "default":{
                                "type": "number",
@@ -338,8 +388,13 @@
                            },
                            "desc": {
                                "type": "string",
-                               "title": "UI tooltip",
+                               "title": "Short description",
                                "description": "UI description for selection"
+                           },
+                           "tooltip": {
+                               "type": "string",
+                               "title": "UI tooltip",
+                               "description": "Long description (optional)"
                            },
                            "default":{
                                "type": "string",
@@ -364,9 +419,14 @@
                                        },
                                        "desc": {
                                            "type": "string",
-                                           "title": "Event set description",
-                                           "description": "Short string description for an event set file",
+                                           "title": "Short description",
+                                           "description": "UI description for selection",
                                            "minLength": 1
+                                       },
+                                       "tooltip": {
+                                           "type": "string",
+                                           "title": "UI tooltip",
+                                           "description": "Long description (optional)"
                                        }
                                    },
                                    "required": ["id", "desc"]
@@ -395,8 +455,13 @@
                           },
                           "desc": {
                               "type": "string",
+                              "title": "Short description",
+                              "description": "UI description for selection"
+                          },
+                          "tooltip": {
+                              "type": "string",
                               "title": "UI tooltip",
-                              "description": "UI description for group"
+                              "description": "Long description (optional)"
                           },
                           "priority_id":{
                               "type": "integer",
@@ -476,11 +541,16 @@
                                 "description": "name used store the selection under",
                                 "minLength": 1
                             },
-                            "desc": {
-                                "type": "string",
-                                "title": "UI tooltip",
-                                "description": "UI description for selector"
-                            },
+                           "desc": {
+                               "type": "string",
+                               "title": "Short description",
+                               "description": "UI description for selection"
+                           },
+                           "tooltip": {
+                               "type": "string",
+                               "title": "UI tooltip",
+                               "description": "Long description (optional)"
+                           },
                             "model_id":{
                                 "type": "integer",
                                 "title": "API Model_id reference",
