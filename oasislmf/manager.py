@@ -802,8 +802,7 @@ class OasisManager(object):
         kwargs['keys_fp'], kwargs['keys_errors_fp'] = self.prepare_keys_file(**kwargs)
         self.write_input_files(**kwargs)
 
-    @oasis_log
-    def generate_model_losses(
+    def prepare_loss_generation_params(
         self,
         model_run_fp,
         oasis_fp,
@@ -820,19 +819,88 @@ class OasisManager(object):
         ktools_debug=None,
         user_data_dir=None
     ):
-
-        # Convert paths to absolute
         model_run_fp = as_path(model_run_fp, 'Model run directory', is_dir=True, preexists=False)
-        oasis_fp = as_path(oasis_fp, 'Path to direct Oasis files (GUL + optionally FM and RI input files)', is_dir=True, preexists=True)
-        analysis_settings_fp = as_path(analysis_settings_fp, 'Model analysis settings file path')
-        model_data_fp = as_path(model_data_fp, 'Model data path', is_dir=True)
-        model_package_fp = as_path(model_package_fp, 'Model package path', is_dir=True)
-        user_data_dir = as_path(user_data_dir, 'Directory containing additional user-supplied model data files', preexists=False)
 
-        il = all(p in os.listdir(oasis_fp) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
-        ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(oasis_fp)) + os.listdir(oasis_fp))
-        gul_item_stream = False if (ktools_alloc_rule_gul == 0) or (self.ktools_alloc_rule_gul == 0) else True
+        params = {
+            'model_run_fp': model_run_fp,
+            'script_fp': os.path.join(os.path.abspath(model_run_fp), 'run_ktools.sh'),
+            'oasis_fp': as_path(oasis_fp, 'Path to direct Oasis files (GUL + optionally FM and RI input files)', is_dir=True, preexists=True),
+            'analysis_settings_fp': as_path(analysis_settings_fp, 'Model analysis settings file path'),
+            'model_data_fp': as_path(model_data_fp, 'Model data path', is_dir=True),
+            'model_package_fp': as_path(model_package_fp, 'Model package path', is_dir=True),
+            'user_data_dir': as_path(user_data_dir, 'Directory containing additional user-supplied model data files', preexists=False),
+            'il': all(p in os.listdir(oasis_fp) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv']),
+            'ri': any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(oasis_fp)) + os.listdir(oasis_fp)),
+            'gul_item_stream': False if (ktools_alloc_rule_gul == 0) or (self.ktools_alloc_rule_gul == 0) else True,
+            'ktools_num_processes': ktools_num_processes or self.ktools_num_processes,
+            'ktools_alloc_rule_gul': self.get_alloc_rule(
+                alloc_given=ktools_alloc_rule_gul,
+                alloc_max=KTOOLS_ALLOC_GUL_MAX,
+                err_msg='Invalid alloc GUL rule',
+                fallback=self.ktools_alloc_rule_gul
+            ),
+            'ktools_alloc_rule_il': self.get_alloc_rule(
+                alloc_given=ktools_alloc_rule_il,
+                alloc_max=KTOOLS_ALLOC_FM_MAX,
+                err_msg='Invalid alloc IL rule',
+                fallback=self.ktools_alloc_rule_il
+            ),
+            'ktools_alloc_rule_ri': self.get_alloc_rule(
+                alloc_given=ktools_alloc_rule_ri,
+                alloc_max=KTOOLS_ALLOC_FM_MAX,
+                err_msg='Invalid alloc RI rule',
+                fallback=self.ktools_alloc_rule_ri
+            ),
+            'ktools_fifo_relative': ktools_fifo_relative or self.ktools_fifo_relative,
+            'model_custom_gulcalc': model_custom_gulcalc,
+            'ktools_error_guard': ktools_error_guard if isinstance(ktools_error_guard, bool) else self.ktools_error_guard,
+            'ktools_debug': ktools_debug if isinstance(ktools_debug, bool) else self.ktools_debug,
+        }
 
+        # Load analysis_settings file
+        analysis_settings_fn = 'analysis_settings.json'
+        _analysis_settings_fp = os.path.join(params['model_run_fp'], analysis_settings_fn)
+        try:
+            with io.open(_analysis_settings_fp, 'r', encoding='utf-8') as f:
+                analysis_settings = json.load(f)
+            if analysis_settings.get('analysis_settings'):
+                analysis_settings = analysis_settings['analysis_settings']
+
+            params['analysis_settings'] = analysis_settings
+        except (IOError, TypeError, ValueError):
+            raise OasisException('Invalid analysis settings file or file path: {}.'.format(_analysis_settings_fp))
+
+        if not params['il']:
+            params['analysis_settings']['il_output'] = False
+            params['analysis_settings']['il_summaries'] = []
+
+        if not params['ri']:
+            params['analysis_settings']['ri_output'] = False
+            params['analysis_settings']['ri_summaries'] = []
+
+        # Output selection guard - Check if at least one output type is set
+        if not any([
+            params['analysis_settings']['gul_output'] if 'gul_output' in params['analysis_settings'] else False,
+            params['analysis_settings']['il_output'] if 'il_output' in params['analysis_settings'] else False,
+            params['analysis_settings']['ri_output'] if 'ri_output' in params['analysis_settings'] else False,
+        ]):
+            raise OasisException(
+                'No valid output settings in: {}'.format(analysis_settings_fp))
+
+        return params
+
+    def prepare_run_directory(
+        self,
+        model_run_fp,
+        oasis_fp,
+        model_data_fp,
+        analysis_settings,
+        gul_item_stream=None,
+        user_data_dir=None,
+        ri=False,
+        il=False,
+        **kwargs
+    ):
         if not os.path.exists(model_run_fp):
             Path(model_run_fp).mkdir(parents=True, exist_ok=True)
 
@@ -840,21 +908,10 @@ class OasisManager(object):
             model_run_fp,
             oasis_fp,
             model_data_fp,
-            analysis_settings_fp,
+            analysis_settings,
             user_data_dir=user_data_dir,
             ri=ri
         )
-
-        # Load analysis_settings file
-        try:
-            analysis_settings_fn = 'analysis_settings.json'
-            _analysis_settings_fp = os.path.join(model_run_fp, analysis_settings_fn)
-            with io.open(_analysis_settings_fp, 'r', encoding='utf-8') as f:
-                analysis_settings = json.load(f)
-            if analysis_settings.get('analysis_settings'):
-                analysis_settings = analysis_settings['analysis_settings']
-        except (IOError, TypeError, ValueError):
-            raise OasisException('Invalid analysis settings file or file path: {}.'.format(_analysis_settings_fp))
 
         generate_summaryxref_files(model_run_fp,
                                    analysis_settings,
@@ -870,45 +927,24 @@ class OasisManager(object):
             for fp in [os.path.join(model_run_fp, fn) for fn in contents if re.match(r'RI_\d+$', fn) or re.match(r'input$', fn)]:
                 csv_to_bin(fp, fp, il=True, ri=True)
 
-        if not il:
-            analysis_settings['il_output'] = False
-            analysis_settings['il_summaries'] = []
-
-        if not ri:
-            analysis_settings['ri_output'] = False
-            analysis_settings['ri_summaries'] = []
-
-        # Output selection guard - Check if at least one output type is set
-        if not any([
-            analysis_settings['gul_output'] if 'gul_output' in analysis_settings else False,
-            analysis_settings['il_output'] if 'il_output' in analysis_settings else False,
-            analysis_settings['ri_output'] if 'ri_output' in analysis_settings else False,
-        ]):
-            raise OasisException(
-                'No valid output settings in: {}'.format(analysis_settings_fp))
-
-        gul_alloc_rule = self.get_alloc_rule(
-            alloc_given=ktools_alloc_rule_gul,
-            alloc_max=KTOOLS_ALLOC_GUL_MAX,
-            err_msg='Invalid alloc GUL rule',
-            fallback=self.ktools_alloc_rule_gul
-        )
-        il_alloc_rule = self.get_alloc_rule(
-            alloc_given=ktools_alloc_rule_il,
-            alloc_max=KTOOLS_ALLOC_FM_MAX,
-            err_msg='Invalid alloc IL rule',
-            fallback=self.ktools_alloc_rule_il
-        )
-        ri_alloc_rule = self.get_alloc_rule(
-            alloc_given=ktools_alloc_rule_ri,
-            alloc_max=KTOOLS_ALLOC_FM_MAX,
-            err_msg='Invalid alloc RI rule',
-            fallback=self.ktools_alloc_rule_ri
-        )
-
         prepare_run_inputs(analysis_settings, model_run_fp, ri=ri)
-        script_fp = os.path.join(os.path.abspath(model_run_fp), 'run_ktools.sh')
 
+    def run_analysis(
+        self,
+        model_run_fp,
+        model_package_fp,
+        analysis_settings,
+        script_fp,
+        model_custom_gulcalc=None,
+        ktools_num_processes=None,
+        ktools_fifo_relative=None,
+        ktools_alloc_rule_gul=None,
+        ktools_alloc_rule_il=None,
+        ktools_error_guard=None,
+        ktools_debug=None,
+        ri=False,
+        **kwargs,
+    ):
         if model_package_fp and os.path.exists(os.path.join(model_package_fp, 'supplier_model_runner.py')):
             path, package_name = os.path.split(model_package_fp)
             sys.path.append(path)
@@ -929,14 +965,14 @@ class OasisManager(object):
             try:
                 model_runner_module.run(
                     analysis_settings,
-                    number_of_processes=(ktools_num_processes or self.ktools_num_processes),
+                    number_of_processes=ktools_num_processes,
                     filename=script_fp,
                     num_reinsurance_iterations=ri_layers,
-                    set_alloc_rule_gul=(ktools_alloc_rule_gul if isinstance(ktools_alloc_rule_gul, int) else self.ktools_alloc_rule_gul),
-                    set_alloc_rule_il=(ktools_alloc_rule_il if isinstance(ktools_alloc_rule_il, int) else self.ktools_alloc_rule_il),
-                    run_debug=(ktools_debug if isinstance(ktools_debug, bool) else self.ktools_debug),
-                    stderr_guard=(ktools_error_guard if isinstance(ktools_error_guard, bool) else self.ktools_error_guard),
-                    fifo_tmp_dir=(not (ktools_fifo_relative or self.ktools_fifo_relative)),
+                    set_alloc_rule_gul=ktools_alloc_rule_gul,
+                    set_alloc_rule_il=ktools_alloc_rule_il,
+                    run_debug=ktools_debug,
+                    stderr_guard=ktools_error_guard,
+                    fifo_tmp_dir=not ktools_fifo_relative,
                     custom_gulcalc_cmd=model_custom_gulcalc,
                 )
             except CalledProcessError as e:
@@ -963,7 +999,67 @@ class OasisManager(object):
                     'Logs stored in: {}/log'.format(model_run_fp)
                 )
 
-        return model_run_fp
+    @oasis_log
+    def generate_model_losses(
+        self,
+        model_run_fp,
+        oasis_fp,
+        analysis_settings_fp,
+        model_data_fp,
+        model_package_fp=None,
+        model_custom_gulcalc=None,
+        ktools_num_processes=None,
+        ktools_fifo_relative=None,
+        ktools_alloc_rule_gul=None,
+        ktools_alloc_rule_il=None,
+        ktools_alloc_rule_ri=None,
+        ktools_error_guard=None,
+        ktools_debug=None,
+        user_data_dir=None
+    ):
+        params = self.prepare_loss_generation_params(
+            model_run_fp,
+            oasis_fp,
+            analysis_settings_fp,
+            model_data_fp,
+            model_package_fp=model_package_fp,
+            model_custom_gulcalc=model_custom_gulcalc,
+            ktools_num_processes=ktools_num_processes,
+            ktools_fifo_relative=ktools_fifo_relative,
+            ktools_alloc_rule_gul=ktools_alloc_rule_gul,
+            ktools_alloc_rule_il=ktools_alloc_rule_il,
+            ktools_alloc_rule_ri=ktools_alloc_rule_ri,
+            ktools_error_guard=ktools_error_guard,
+            ktools_debug=ktools_debug,
+            user_data_dir=user_data_dir,
+        )
+
+        self.prepare_run_directory(
+            params['model_run_fp'],
+            params['oasis_fp'],
+            params['model_data_fp'],
+            params['analysis_settings_fp'],
+            gul_item_stream=params['gul_item_stream'],
+            user_data_dir=params['user_data_dir'],
+            ri=params['ri'],
+            il=params['il'],
+        )
+
+        self.run_analysis(
+            params['model_run_fp'],
+            params['model_package_fp'],
+            params['analysis_settings'],
+            params['script_fp'],
+            model_custom_gulcalc=params['model_custom_gulcalc'],
+            ktools_num_processes=params['ktools_num_processes'],
+            ktools_fifo_relative=params['ktools_fifo_relative'],
+            ktools_alloc_rule_gul=params['ktools_alloc_rule_gul'],
+            ktools_alloc_rule_il=params['ktools_alloc_rule_il'],
+            ktools_error_guard=params['ktools_error_guard'],
+            ktools_debug=params['ktools_debug'],
+            ri=params['ri'],
+        )
+        return params['model_run_fp']
 
     @oasis_log
     def run_deterministic(
