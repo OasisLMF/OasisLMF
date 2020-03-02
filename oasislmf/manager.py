@@ -409,12 +409,7 @@ class OasisManager(object):
         user_data_dir=None,
         multiprocessing=True,
     ):
-        lookup_config = get_json(src_fp=lookup_config_fp) if lookup_config_fp else lookup_config
-        if not keys_data_fp:
-            if lookup_config and lookup_config['keys_data_path'] in ['.', './']:
-                lookup_config['keys_data_path'] = keys_data_fp = os.path.join(os.path.dirname(lookup_config_fp))
-            elif lookup_config and not os.path.isabs(lookup_config['keys_data_path']):
-                lookup_config['keys_data_path'] = keys_data_fp = os.path.join(os.path.dirname(lookup_config_fp), lookup_config['keys_data_path'])
+        lookup_config = olf.load_config(lookup_config_fp) if lookup_config_fp else lookup_config
 
         _, lookup = olf.create(
             lookup_config=lookup_config,
@@ -526,8 +521,7 @@ class OasisManager(object):
         oasis_files_prefixes=None,
         group_id_cols=None,
     ):
-        if not lookup_config and lookup_config_fp:
-            lookup_config = get_json(lookup_config_fp)
+        lookup_config_fp = as_path(lookup_config_fp, 'Lookup config JSON file path', preexists=False)
 
         # Convert paths to absolute
         res = {
@@ -535,8 +529,8 @@ class OasisManager(object):
             'exposure_fp': as_path(exposure_fp, 'Source exposure file path'),
             'exposure_profile_fp': as_path(exposure_profile_fp, 'Source exposure profile file path'),
             'keys_fp': as_path(keys_fp, 'Pre-generated keys file path', preexists=True),
-            'lookup_config': lookup_config,
-            'lookup_config_fp': as_path(lookup_config_fp, 'Lookup config JSON file path', preexists=False),
+            'lookup_config': olf.load_config(lookup_config_fp),
+            'lookup_config_fp': lookup_config_fp,
             'keys_data_fp': as_path(keys_data_fp, 'Keys data path', preexists=False),
             'keys_errors_fp': as_path(keys_errors_fp, 'Keys errors path', preexists=False),
             'model_version_fp': as_path(model_version_fp, 'Model version file path', is_dir=True, preexists=False),
@@ -857,36 +851,6 @@ class OasisManager(object):
             'ktools_debug': ktools_debug if isinstance(ktools_debug, bool) else self.ktools_debug,
         }
 
-        # Load analysis_settings file
-        analysis_settings_fn = 'analysis_settings.json'
-        _analysis_settings_fp = os.path.join(params['model_run_fp'], analysis_settings_fn)
-        try:
-            with io.open(_analysis_settings_fp, 'r', encoding='utf-8') as f:
-                analysis_settings = json.load(f)
-            if analysis_settings.get('analysis_settings'):
-                analysis_settings = analysis_settings['analysis_settings']
-
-            params['analysis_settings'] = analysis_settings
-        except (IOError, TypeError, ValueError):
-            raise OasisException('Invalid analysis settings file or file path: {}.'.format(_analysis_settings_fp))
-
-        if not params['il']:
-            params['analysis_settings']['il_output'] = False
-            params['analysis_settings']['il_summaries'] = []
-
-        if not params['ri']:
-            params['analysis_settings']['ri_output'] = False
-            params['analysis_settings']['ri_summaries'] = []
-
-        # Output selection guard - Check if at least one output type is set
-        if not any([
-            params['analysis_settings']['gul_output'] if 'gul_output' in params['analysis_settings'] else False,
-            params['analysis_settings']['il_output'] if 'il_output' in params['analysis_settings'] else False,
-            params['analysis_settings']['ri_output'] if 'ri_output' in params['analysis_settings'] else False,
-        ]):
-            raise OasisException(
-                'No valid output settings in: {}'.format(analysis_settings_fp))
-
         return params
 
     def prepare_run_directory(
@@ -894,7 +858,7 @@ class OasisManager(object):
         model_run_fp,
         oasis_fp,
         model_data_fp,
-        analysis_settings,
+        analysis_settings_fp,
         gul_item_stream=None,
         user_data_dir=None,
         ri=False,
@@ -908,10 +872,23 @@ class OasisManager(object):
             model_run_fp,
             oasis_fp,
             model_data_fp,
-            analysis_settings,
+            analysis_settings_fp,
             user_data_dir=user_data_dir,
             ri=ri
         )
+
+        # Load analysis_settings file
+        analysis_settings_fn = 'analysis_settings.json'
+        _analysis_settings_fp = os.path.join(model_run_fp, analysis_settings_fn)
+        try:
+            with io.open(_analysis_settings_fp, 'r', encoding='utf-8') as f:
+                analysis_settings = json.load(f)
+            if analysis_settings.get('analysis_settings'):
+                analysis_settings = analysis_settings['analysis_settings']
+
+            analysis_settings = analysis_settings
+        except (IOError, TypeError, ValueError):
+            raise OasisException('Invalid analysis settings file or file path: {}.'.format(_analysis_settings_fp))
 
         generate_summaryxref_files(model_run_fp,
                                    analysis_settings,
@@ -927,7 +904,26 @@ class OasisManager(object):
             for fp in [os.path.join(model_run_fp, fn) for fn in contents if re.match(r'RI_\d+$', fn) or re.match(r'input$', fn)]:
                 csv_to_bin(fp, fp, il=True, ri=True)
 
+        if not il:
+            analysis_settings['il_output'] = False
+            analysis_settings['il_summaries'] = []
+
+        if not ri:
+            analysis_settings['ri_output'] = False
+            analysis_settings['ri_summaries'] = []
+
+        # Output selection guard - Check if at least one output type is set
+        if not any([
+            analysis_settings['gul_output'] if 'gul_output' in analysis_settings else False,
+            analysis_settings['il_output'] if 'il_output' in analysis_settings else False,
+            analysis_settings['ri_output'] if 'ri_output' in analysis_settings else False,
+        ]):
+            raise OasisException(
+                'No valid output settings in: {}'.format(analysis_settings_fp))
+
         prepare_run_inputs(analysis_settings, model_run_fp, ri=ri)
+
+        return analysis_settings
 
     def run_analysis(
         self,
@@ -1034,7 +1030,7 @@ class OasisManager(object):
             user_data_dir=user_data_dir,
         )
 
-        self.prepare_run_directory(
+        params['analysis_settings'] = self.prepare_run_directory(
             params['model_run_fp'],
             params['oasis_fp'],
             params['model_data_fp'],

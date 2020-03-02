@@ -40,7 +40,7 @@ from ..utils.data import (
     get_dataframe,
     get_dtypes_and_required_cols,
     get_ids,
-)
+    get_json)
 from ..utils.defaults import get_loc_dtypes
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
@@ -786,6 +786,18 @@ class OasisLookupFactory(object):
             return cls.write_oasis_keys_file(successes, sfp, keys_success_msg)
         else:
             raise OasisException("Unrecognised lookup file output format - valid formats are 'oasis' or 'json'")
+
+    @classmethod
+    def load_config(cls, file_path):
+        if file_path is None:
+            return None
+
+        conf = get_json(file_path)
+        config_dir = os.path.dirname(file_path)
+
+        conf['keys_data_path'] = os.path.join(config_dir, conf['keys_data_path'])
+
+        return conf
 
 
 class OasisLookup(OasisBuiltinBaseLookup):
