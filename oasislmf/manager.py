@@ -382,6 +382,7 @@ class OasisManager(object):
         lookup_config_fp=None,
         keys_data_fp=None,
         model_version_fp=None,
+        model_data_fp=None,
         lookup_package_fp=None,
         complex_lookup_config_fp=None,
         user_data_dir=None,
@@ -407,6 +408,7 @@ class OasisManager(object):
         lookup_config_fp = as_path(lookup_config_fp, 'Lookup config JSON file path', preexists=False)
         keys_data_fp = as_path(keys_data_fp, 'Keys data path', preexists=False)
         model_version_fp = as_path(model_version_fp, 'Model version file path', is_dir=True, preexists=False)
+        model_data_fp = as_path(model_data_fp, 'Model data path', is_dir=True, preexists=True)
         lookup_package_fp = as_path(lookup_package_fp, 'Lookup package path', is_dir=True, preexists=False)
         complex_lookup_config_fp = as_path(complex_lookup_config_fp, 'Complex lookup config JSON file path', preexists=False)
         user_data_dir = as_path(user_data_dir, 'Directory containing additional supplied model data files', preexists=False)
@@ -514,7 +516,18 @@ class OasisManager(object):
             _keys_fp = os.path.join(target_dir, os.path.basename(keys_fp))
 
         # Columns from loc file to assign group_id
-        group_id_cols = group_id_cols or self.group_id_cols
+        model_group_id_cols = None
+        if model_data_fp:
+            model_settings_fp = os.path.join(
+                model_data_fp, 'model_settings.json'
+            )
+            if os.path.isfile(model_settings_fp):
+                model_settings = get_json(model_settings_fp)
+                try:
+                    model_group_id_cols = model_settings['model_settings']['group_fields']
+                except KeyError:
+                    pass
+        group_id_cols = group_id_cols or model_group_id_cols or self.group_id_cols
         group_id_cols = list(map(lambda col: col.lower(), group_id_cols))
 
         # Get the GUL input items and exposure dataframes
