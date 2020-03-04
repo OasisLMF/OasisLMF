@@ -146,7 +146,7 @@
 		   "type": "object",
 		   "properties": {
 		       "default": {
-			   "type": "list",
+			   "type": "array",
 			   "title": "Default group OED fields",
 			   "descripton": "Initial setting for group OED fields"
 		       }
