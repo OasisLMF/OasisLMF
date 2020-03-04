@@ -145,13 +145,29 @@
 		   "description": "List of OED fields from location file to form groups",
 		   "type": "object",
 		   "properties": {
+                       "name": {
+                           "type": "string",
+                           "title": "UI Option",
+                           "description": "UI name for selection",
+                           "minLength": 1
+                       },
+                       "desc": {
+                           "type": "string",
+                           "title": "Short description",
+                           "description": "UI description for selection"
+                       },
+                       "tooltip": {
+                           "type": "string",
+                           "title": "UI tooltip",
+                           "description": "Long description (optional)"
+                       },
 		       "default": {
 			   "type": "array",
 			   "title": "Default group OED fields",
 			   "descripton": "Initial setting for group OED fields"
 		       }
 		   },
-		   "required": ["default"]
+		   "required": ["name", "desc", "default"]
 	       },
                "string_parameters": {
                    "title": "Single string paramters",
