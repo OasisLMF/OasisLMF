@@ -1,5 +1,6 @@
 import contextlib
 import io
+import multiprocessing
 import os
 import random
 import re
@@ -778,8 +779,9 @@ def genbash(
         ``GenerateLossesCmd.get_getmodel_cmd`` is used.
     :type get_getmodel_cmd: callable
     """
-    params = genpash_params(
-        analysis_settings,
+    params = genbash_params(
+        analysis_settings=analysis_settings,
+        max_process_id=max_process_id,
         num_reinsurance_iterations=num_reinsurance_iterations,
         fifo_tmp_dir=fifo_tmp_dir,
         gul_alloc_rule=gul_alloc_rule,
@@ -798,19 +800,13 @@ def genbash(
         os.remove(params['filename'])
 
     with genbash_wrapper(params['filename'], params['bash_trace'], params['stderr_guard']):
-        fifo_queue_dir = genbash_analysis(
-            max_process_id,
-            analysis_settings,
-            **params,
-        )
-        genbash_outputs(
-            analysis_settings,
-            **{**params, 'fifo_queue_dir': fifo_queue_dir},
-        )
+        fifo_queue_dir = genbash_analysis(**params)
+        genbash_outputs(**{**params, 'fifo_queue_dir': fifo_queue_dir})
 
 
-def genpash_params(
+def genbash_params(
     analysis_settings,
+    max_process_id=-1,
     num_reinsurance_iterations=0,
     fifo_tmp_dir=True,
     gul_alloc_rule=None,
@@ -823,6 +819,9 @@ def genpash_params(
     custom_args=None,
     process_number=None,
 ):
+    if max_process_id == -1:
+        max_process_id = multiprocessing.cpu_count()
+
     gul_threshold = analysis_settings.get('gul_threshold', 0)
     gul_item_stream = (gul_alloc_rule and isinstance(gul_alloc_rule, int))
     number_of_samples = analysis_settings.get('number_of_samples', 0)
@@ -849,6 +848,8 @@ def genpash_params(
         ri_output = analysis_settings['ri_output']
 
     return {
+        'max_process_id': max_process_id,
+        'analysis_settings': analysis_settings,
         'gul_threshold': gul_threshold,
         'gul_item_stream': gul_item_stream,
         'gul_alloc_rule': gul_alloc_rule,
@@ -937,8 +938,8 @@ def genbash_wrapper(filename, bash_trace, stderr_guard):
 
 
 def genbash_analysis(
-    max_process_id,
-    analysis_settings,
+    max_process_id=None,
+    analysis_settings=None,
     full_correlation=False,
     gul_output=False,
     il_output=False,
@@ -966,7 +967,7 @@ def genbash_analysis(
     gul_item_stream=None,
     use_random_number_file=False,
     number_of_samples=0,
-    **kwargs
+    **extra
 ):
     process_counter = process_counter or Counter()
     custom_args = custom_args or {}
@@ -1403,7 +1404,7 @@ def genbash_analysis(
 
 
 def genbash_outputs(
-    analysis_settings,
+    analysis_settings=None,
     full_correlation=False,
     gul_output=False,
     il_output=False,
