@@ -140,6 +140,19 @@
                    },
                    "required": ["name", "desc", "default", "options"]
                },
+	       "group_fields": {
+		   "title": "Group OED fields",
+		   "description": "List of OED fields from location file to form groups",
+		   "type": "object",
+		   "properties": {
+		       "default": {
+			   "type": "list",
+			   "title": "Default group OED fields",
+			   "descripton": "Initial setting for group OED fields"
+		       }
+		   },
+		   "required": ["default"]
+	       },
                "string_parameters": {
                    "title": "Single string paramters",
                    "type":  "array",
