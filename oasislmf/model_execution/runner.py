@@ -19,6 +19,7 @@ from ..utils.defaults import (
 def run(
     analysis_settings,
     number_of_processes=-1,
+    process_number=None,
     num_reinsurance_iterations=0,
     set_alloc_rule_gul=KTOOLS_ALLOC_GUL_DEFAULT,
     set_alloc_rule_il=KTOOLS_ALLOC_IL_DEFAULT,
@@ -80,6 +81,7 @@ def run(
         genbash(
             number_of_processes,
             analysis_settings,
+            process_number=process_number,
             num_reinsurance_iterations=num_reinsurance_iterations,
             fifo_tmp_dir=fifo_tmp_dir,
             gul_alloc_rule=set_alloc_rule_gul,
@@ -94,6 +96,7 @@ def run(
         genbash(
             number_of_processes,
             analysis_settings,
+            process_number=process_number,
             num_reinsurance_iterations=num_reinsurance_iterations,
             fifo_tmp_dir=fifo_tmp_dir,
             gul_alloc_rule=set_alloc_rule_gul,
