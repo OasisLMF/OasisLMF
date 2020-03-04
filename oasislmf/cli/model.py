@@ -179,13 +179,13 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         super(self.__class__, self).add_args(parser)
 
         parser.add_argument('-o', '--oasis-files-dir', default=None, help='Path to the directory in which to generate the Oasis files')
+        parser.add_argument('-a', '--analysis-settings-json', default=None, help='Analysis settings JSON file path')
         parser.add_argument('-z', '--keys-data-csv', default=None, help='Pre-generated keys CSV file path')
         parser.add_argument('-m', '--lookup-config-json', default=None, help='Lookup config JSON file path')
         parser.add_argument('-k', '--lookup-data-dir', default=None, help='Model lookup/keys data directory path')
         parser.add_argument('-l', '--lookup-package-dir', default=None, help='Lookup package path')
         parser.add_argument('-L', '--lookup-complex-config-json', default=None, help='Complex lookup config JSON file path')
         parser.add_argument('-v', '--model-version-csv', default=None, help='Model version CSV file path')
-        parser.add_argument('-d', '--model-data-dir', default=None, help='Model data directory path')
         parser.add_argument('-D', '--user-data-dir', default=None, help='Directory containing additional model data files which varies between analysis runs')
         parser.add_argument('-e', '--profile-loc-json', default=None, help='Source (OED) exposure profile JSON path')
         parser.add_argument('-b', '--profile-acc-json', default=None, help='Source (OED) accounts profile JSON path')
@@ -213,11 +213,11 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         default_oasis_fp = os.path.join(os.getcwd(), 'runs', 'OasisFiles-{}'.format(utcnow))
 
         oasis_fp = inputs.get('oasis_files_dir', is_path=True, default=default_oasis_fp)
+        analysis_settings_fp = inputs.get('analysis_settings_json', required=False, is_path=True)
         keys_fp = inputs.get('keys_data_csv', required=False, is_path=True)
         lookup_config_fp = inputs.get('lookup_config_json', required=False, is_path=True)
         keys_data_fp = inputs.get('lookup_data_dir', required=False, is_path=True)
         model_version_fp = inputs.get('model_version_csv', required=False, is_path=True)
-        model_data_fp = inputs.get('model_data_dir', required=False, is_path=True)
         lookup_package_fp = inputs.get('lookup_package_dir', required=False, is_path=True)
         complex_lookup_config_fp = inputs.get('lookup_complex_config_json', required=False, is_path=True)
         user_data_dir = inputs.get('user_data_dir', required=False, is_path=True)
@@ -254,8 +254,8 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             keys_fp=keys_fp,
             lookup_config_fp=lookup_config_fp,
             keys_data_fp=keys_data_fp,
+            analysis_settings_fp=analysis_settings_fp,
             model_version_fp=model_version_fp,
-            model_data_fp=model_data_fp,
             lookup_package_fp=lookup_package_fp,
             complex_lookup_config_fp=complex_lookup_config_fp,
             accounts_fp=accounts_fp,
