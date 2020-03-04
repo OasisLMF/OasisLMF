@@ -4,6 +4,7 @@ __all__ = [
     'factorize_ndarray',
     'fast_zip_arrays',
     'fast_zip_dataframe_columns',
+    'get_analysis_settings',
     'get_dataframe',
     'get_dtypes_and_required_cols',
     'get_ids',
@@ -202,6 +203,35 @@ def fast_zip_dataframe_columns(df, cols):
     :rtype: np.array
     """
     return fast_zip_arrays(*(df[col].values for col in cols))
+
+
+def get_analysis_settings(analysis_settings_fp, model_run_fp=None):
+    """
+    Get analysis settings from file.
+
+    :param analysis_settings_fp: file path for analysis settings file
+    :type analysis_settings_fp: str
+
+    :param model_run_fp: path for model run directory
+    :type model_run_fp: str
+
+    :return: analysis settings
+    :rtype: dict
+    """
+    try:
+        if model_run_fp:
+            analysis_settings_fn = 'analysis_settings.json'
+            _analysis_settings_fp = os.path.join(model_run_fp, analysis_settings_fn)
+        else:
+            _analysis_settings_fp = analysis_settings_fp
+        with io.open(_analysis_settings_fp, 'r', encoding='utf-8') as f:
+            analysis_settings = json.load(f)
+        if analysis_settings.get('analysis_settings'):
+            analysis_settings = analysis_settings['analysis_settings']
+    except (IOError, TypeError, ValueError):
+        raise OasisException('Invalid analysis settings file or file path: {}'.format(_analysis_settings_fp))
+
+    return analysis_settings
 
 
 def get_dataframe(
