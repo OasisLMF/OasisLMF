@@ -4,6 +4,7 @@ __all__ = [
     'factorize_ndarray',
     'fast_zip_arrays',
     'fast_zip_dataframe_columns',
+    'get_model_settings',
     'get_dataframe',
     'get_dtypes_and_required_cols',
     'get_ids',
@@ -202,6 +203,27 @@ def fast_zip_dataframe_columns(df, cols):
     :rtype: np.array
     """
     return fast_zip_arrays(*(df[col].values for col in cols))
+
+
+def get_model_settings(model_settings_fp, key=None):
+    """
+    Get model settings from file.
+
+    :param model_settings_fp: file path for model settings file
+    :type model_settings_fp: str
+
+    :return: model settings
+    :rtype: dict
+    """
+    try:
+        with io.open(model_settings_fp) as f:
+            model_settings = json.load(f)
+        if key:
+            model_settings = model_settings.get(key)
+    except (IOError, TypeError, ValueError):
+        raise OasisException('Invalid model settings file or file path: {}'.format(model_settings_fp))
+
+    return model_settings
 
 
 def get_dataframe(

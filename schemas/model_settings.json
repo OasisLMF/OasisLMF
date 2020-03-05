@@ -532,6 +532,14 @@
             "title": "Model data settings",
             "description": "Additional data options for a model",
             "properties": {
+	       "group_fields": {
+		   "title": "Group OED fields",
+		   "description": "List of OED fields from location file to form groups",
+		   "type": "array",
+		   "items": {
+		       "type": "string"
+		   }
+	       },
                 "datafile_selectors": {
                     "type": "array",
                     "title": "`Data_files  Selector",
