@@ -2,11 +2,29 @@ OasisLMF Changelog
 ==================
 
 .. start_latest_release
+`1.6.0`_
+-------
+* Fix #513 - Breaking change in msgpack 1.0.0
+* Fix #503 - Change areaperil id datatype to unit64 
+* Fix #481 - Corrections to fm_profile for type 2 terms
+* Fix #512 - Issue in generate rtree index CLI 
+* Fix #516 - Refactored the `upload_settings` method in API client 
+* Fix #514 - fix ; issues in LocPerilsCovered
+* Fix #515 - Store the `loc_id` of failed location rows 
+* Added #508 - fm12 acceptance test
+* Added #480 - Extend calcrules to cover more combinations of financial terms
+* Added #523 - Long description field to `model_settings.json` schema
+* Added #524 - Total TIV sums in exposure report
+* Added #527 - Group OED fields from model settings
+* Added #506 - Improve performance in `write_exposure_summary()` 
+
+
+.. end_latest_release
+
 `1.5.1`_
 -------
 * Fix - Issue in IL file generation, `fm_programme` file missing agg_id rows
 
-.. end_latest_release
 `1.5.0`_
 -------
 
@@ -351,6 +369,7 @@ in the exposure manager
 
 * Add console logging
 
+.. _`1.6.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.5.1...1.6.0
 .. _`1.5.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.5.0...1.5.1
 .. _`1.5.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.6...1.5.0
 .. _`1.4.6`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.5...1.4.6
