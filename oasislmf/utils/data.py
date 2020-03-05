@@ -205,7 +205,7 @@ def fast_zip_dataframe_columns(df, cols):
     return fast_zip_arrays(*(df[col].values for col in cols))
 
 
-def get_model_settings(model_settings_fp):
+def get_model_settings(model_settings_fp, key=None):
     """
     Get model settings from file.
 
@@ -218,8 +218,9 @@ def get_model_settings(model_settings_fp):
     try:
         with io.open(model_settings_fp) as f:
             model_settings = json.load(f)
-        model_settings = model_settings['model_settings']
-    except (IOError, TypeError, ValueError, KeyError):
+        if key:
+            model_settings = model_settings.get(key)
+    except (IOError, TypeError, ValueError):
         raise OasisException('Invalid model settings file or file path: {}'.format(model_settings_fp))
 
     return model_settings

@@ -518,7 +518,9 @@ class OasisManager(object):
 
         # Columns from loc file to assign group_id
         if model_settings_fp:
-            model_group_fields = get_model_settings(model_settings_fp).get('group_fields').get('default')
+            model_group_fields = get_model_settings(
+                model_settings_fp, key='data_settings'
+            ).get('group_fields')
         else:
             model_group_fields = None
         group_id_cols = group_id_cols or model_group_fields or self.group_id_cols
