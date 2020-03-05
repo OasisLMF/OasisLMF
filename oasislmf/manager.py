@@ -51,7 +51,7 @@ from .model_preparation.oed import load_oed_dfs
 from .model_preparation.utils import prepare_input_files_directory
 from .model_preparation.reinsurance_layer import write_files_for_reinsurance
 from .utils.data import (
-    get_analysis_settings,
+    get_model_settings,
     get_dataframe,
     get_ids,
     get_json,
@@ -382,8 +382,8 @@ class OasisManager(object):
         lookup_config=None,
         lookup_config_fp=None,
         keys_data_fp=None,
-        analysis_settings_fp=None,
         model_version_fp=None,
+        model_settings_fp=None,
         lookup_package_fp=None,
         complex_lookup_config_fp=None,
         user_data_dir=None,
@@ -408,8 +408,8 @@ class OasisManager(object):
         keys_fp = as_path(keys_fp, 'Pre-generated keys file path', preexists=True)
         lookup_config_fp = as_path(lookup_config_fp, 'Lookup config JSON file path', preexists=False)
         keys_data_fp = as_path(keys_data_fp, 'Keys data path', preexists=False)
-        analysis_settings_fp = as_path(analysis_settings_fp, 'Model analysis settings file path')
         model_version_fp = as_path(model_version_fp, 'Model version file path', is_dir=True, preexists=False)
+        model_settings_fp = as_path(model_settings_fp, 'Model settings file path')
         lookup_package_fp = as_path(lookup_package_fp, 'Lookup package path', is_dir=True, preexists=False)
         complex_lookup_config_fp = as_path(complex_lookup_config_fp, 'Complex lookup config JSON file path', preexists=False)
         user_data_dir = as_path(user_data_dir, 'Directory containing additional supplied model data files', preexists=False)
@@ -517,8 +517,8 @@ class OasisManager(object):
             _keys_fp = os.path.join(target_dir, os.path.basename(keys_fp))
 
         # Columns from loc file to assign group_id
-        if analysis_settings_fp:
-            model_group_fields = get_analysis_settings(analysis_settings_fp).get('model_settings').get('group_fields')
+        if model_settings_fp:
+            model_group_fields = get_model_settings(model_settings_fp).get('group_fields').get('default')
         else:
             model_group_fields = None
         group_id_cols = group_id_cols or model_group_fields or self.group_id_cols
