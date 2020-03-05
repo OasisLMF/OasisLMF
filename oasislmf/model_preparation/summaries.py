@@ -680,6 +680,47 @@ def get_exposure_summary(df, exposure_summary, peril_key, peril_id, status):
 
 
 @oasis_log
+def get_exposure_totals(df, df_errors):
+    """
+    Return dictionary with total TIVs and number of locations
+
+    :param df: dataframe from `gul_inputs_df`
+    :type df: pandas.DataFrame
+
+    :param df_errors: dataframe from `gul_input_errors_df`
+    :type df_errors: pandas.DataFrame
+
+    :param exposure_summary: dictionary to populate created in write_exposure_summary(..)
+    :type exposure_summary: dict
+
+    :return: totals section for exposure_summary dictionary
+    :rtype: dict
+    """
+    within_scope     = df.drop_duplicates(subset=['loc_id'])['tiv']
+    within_scope_tiv = within_scope.sum()
+    within_scope_num = int(within_scope.count())
+
+    outside_scope     = df_errors.drop_duplicates(subset=['loc_id'])['tiv']
+    outside_scope_tiv = outside_scope.sum()
+    outside_scope_num = int(outside_scope.count())
+
+    return {
+        "modelled": {
+            "tiv": within_scope_tiv,
+            "number_of_locations": within_scope_num
+        },
+        "not-modelled": {
+            "tiv": outside_scope_tiv,
+            "number_of_locations": outside_scope_num
+        },
+        "portfolio": {
+            "tiv": within_scope_tiv + outside_scope_tiv,
+            "number_of_locations": within_scope_num + outside_scope_num
+        }
+    }
+
+
+@oasis_log
 def write_exposure_summary(
     target_dir,
     gul_inputs_df,
@@ -815,6 +856,13 @@ def write_exposure_summary(
 
     # Compile summary of exposure data
     exposure_summary = {}
+
+    # Create totals section
+    exposure_summary['total'] = get_exposure_totals(
+        gul_inputs_df, 
+        gul_inputs_errors_df
+    )
+
     for peril_id in model_peril_ids:
         # Use descriptive names of perils as keys
         try:
