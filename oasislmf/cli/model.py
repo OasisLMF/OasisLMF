@@ -179,7 +179,6 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         super(self.__class__, self).add_args(parser)
 
         parser.add_argument('-o', '--oasis-files-dir', default=None, help='Path to the directory in which to generate the Oasis files')
-        parser.add_argument('-a', '--analysis-settings-json', default=None, help='Analysis settings JSON file path')
         parser.add_argument('-z', '--keys-data-csv', default=None, help='Pre-generated keys CSV file path')
         parser.add_argument('-m', '--lookup-config-json', default=None, help='Lookup config JSON file path')
         parser.add_argument('-k', '--lookup-data-dir', default=None, help='Model lookup/keys data directory path')
