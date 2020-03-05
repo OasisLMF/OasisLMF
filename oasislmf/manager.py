@@ -815,6 +815,16 @@ class OasisManager(object):
     ):
         model_run_fp = as_path(model_run_fp, 'Model run directory', is_dir=True, preexists=False)
 
+        ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(oasis_fp)) + os.listdir(oasis_fp)),
+        ri_layers = 0
+        if ri:
+            try:
+                with io.open(os.path.join(model_run_fp, 'ri_layers.json'), 'r', encoding='utf-8') as f:
+                    ri_layers = len(json.load(f))
+            except IOError:
+                with io.open(os.path.join(model_run_fp, 'input', 'ri_layers.json'), 'r', encoding='utf-8') as f:
+                    ri_layers = len(json.load(f))
+
         params = {
             'model_run_fp': model_run_fp,
             'script_fp': os.path.join(os.path.abspath(model_run_fp), 'run_ktools.sh'),
@@ -824,7 +834,8 @@ class OasisManager(object):
             'model_package_fp': as_path(model_package_fp, 'Model package path', is_dir=True),
             'user_data_dir': as_path(user_data_dir, 'Directory containing additional user-supplied model data files', preexists=False),
             'il': all(p in os.listdir(oasis_fp) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv']),
-            'ri': any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(oasis_fp)) + os.listdir(oasis_fp)),
+            'ri': ri,
+            'ri_layers': ri_layers,
             'gul_item_stream': False if (ktools_alloc_rule_gul == 0) or (self.ktools_alloc_rule_gul == 0) else True,
             'ktools_num_processes': ktools_num_processes or self.ktools_num_processes,
             'ktools_alloc_rule_gul': self.get_alloc_rule(
@@ -925,6 +936,14 @@ class OasisManager(object):
 
         return analysis_settings
 
+    def get_model_runner_module(self, model_package_fp):
+        if model_package_fp and os.path.exists(os.path.join(model_package_fp, 'supplier_model_runner.py')):
+            path, package_name = os.path.split(model_package_fp)
+            sys.path.append(path)
+            return importlib.import_module('{}.supplier_model_runner'.format(package_name))
+        else:
+            return runner
+
     def run_analysis(
         self,
         model_run_fp,
@@ -938,26 +957,12 @@ class OasisManager(object):
         ktools_alloc_rule_il=None,
         ktools_error_guard=None,
         ktools_debug=None,
-        ri=False,
+        ri_layers=0,
         **kwargs,
     ):
-        if model_package_fp and os.path.exists(os.path.join(model_package_fp, 'supplier_model_runner.py')):
-            path, package_name = os.path.split(model_package_fp)
-            sys.path.append(path)
-            model_runner_module = importlib.import_module('{}.supplier_model_runner'.format(package_name))
-        else:
-            model_runner_module = runner
+        model_runner_module = self.get_model_runner_module(model_package_fp)
 
         with setcwd(model_run_fp):
-            ri_layers = 0
-            if ri:
-                try:
-                    with io.open(os.path.join(model_run_fp, 'ri_layers.json'), 'r', encoding='utf-8') as f:
-                        ri_layers = len(json.load(f))
-                except IOError:
-                    with io.open(os.path.join(model_run_fp, 'input', 'ri_layers.json'), 'r', encoding='utf-8') as f:
-                        ri_layers = len(json.load(f))
-
             try:
                 model_runner_module.run(
                     analysis_settings,
@@ -1056,6 +1061,122 @@ class OasisManager(object):
             ri=params['ri'],
         )
         return params['model_run_fp']
+
+    def run_loss_generation(
+        self,
+        model_run_fp,
+        model_package_fp,
+        analysis_settings,
+        script_fp,
+        model_custom_gulcalc=None,
+        ktools_num_processes=None,
+        ktools_fifo_relative=None,
+        ktools_alloc_rule_gul=None,
+        ktools_alloc_rule_il=None,
+        ktools_error_guard=None,
+        ktools_debug=None,
+        ri_layers=0,
+        process_number=False,
+        **kwargs,
+    ):
+        with setcwd(model_run_fp):
+            try:
+                model_runner_module = self.get_model_runner_module(model_package_fp)
+                params = model_runner_module.genbash_params(
+                    analysis_settings=analysis_settings,
+                    max_process_id=ktools_num_processes,
+                    process_number=process_number,
+                    num_reinsurance_iterations=ri_layers,
+                    fifo_tmp_dir=not ktools_fifo_relative,
+                    gul_alloc_rule=ktools_alloc_rule_gul,
+                    il_alloc_rule=ktools_alloc_rule_il,
+                    stderr_guard=ktools_error_guard,
+                    bash_trace=ktools_debug,
+                    filename=script_fp,
+                    _get_getmodel_cmd=model_custom_gulcalc,
+                )
+                return model_runner_module.run_analysis(**params)
+            except CalledProcessError as e:
+                bash_trace_fp = os.path.join(model_run_fp, 'log', 'bash.log')
+                if os.path.isfile(bash_trace_fp):
+                    with io.open(bash_trace_fp, 'r', encoding='utf-8') as f:
+                        self.logger.info('\nBASH_TRACE:\n' + "".join(f.readlines()))
+
+                stderror_fp = os.path.join(model_run_fp, 'log', 'stderror.err')
+                if os.path.isfile(stderror_fp):
+                    with io.open(stderror_fp, 'r', encoding='utf-8') as f:
+                        self.logger.info('\nKTOOLS_STDERR:\n' + "".join(f.readlines()))
+
+                gul_stderror_fp = os.path.join(model_run_fp, 'log', 'gul_stderror.err')
+                if os.path.isfile(gul_stderror_fp):
+                    with io.open(gul_stderror_fp, 'r', encoding='utf-8') as f:
+                        self.logger.info('\nGUL_STDERR:\n' + "".join(f.readlines()))
+
+
+                self.logger.info('\nSTDOUT:\n' + e.output.decode('utf-8').strip())
+
+                raise OasisException(
+                    'Ktools run Error: non-zero exit code or output detected on STDERR\n'
+                    'Logs stored in: {}/log'.format(model_run_fp)
+                )
+
+    def run_loss_outputs(
+        self,
+        model_run_fp,
+        model_package_fp,
+        analysis_settings,
+        script_fp,
+        model_custom_gulcalc=None,
+        ktools_num_processes=None,
+        ktools_fifo_relative=None,
+        ktools_alloc_rule_gul=None,
+        ktools_alloc_rule_il=None,
+        ktools_error_guard=None,
+        ktools_debug=None,
+        ri_layers=0,
+        process_number=False,
+        **kwargs,
+    ):
+        with setcwd(model_run_fp):
+            try:
+                model_runner_module = self.get_model_runner_module(model_package_fp)
+                params = model_runner_module.genbash_params(
+                    analysis_settings=analysis_settings,
+                    max_process_id=ktools_num_processes,
+                    process_number=process_number,
+                    num_reinsurance_iterations=ri_layers,
+                    fifo_tmp_dir=not ktools_fifo_relative,
+                    gul_alloc_rule=ktools_alloc_rule_gul,
+                    il_alloc_rule=ktools_alloc_rule_il,
+                    stderr_guard=ktools_error_guard,
+                    bash_trace=ktools_debug,
+                    filename=script_fp,
+                    _get_getmodel_cmd=model_custom_gulcalc,
+                )
+                return model_runner_module.run_outputs(**params)
+            except CalledProcessError as e:
+                bash_trace_fp = os.path.join(model_run_fp, 'log', 'bash.log')
+                if os.path.isfile(bash_trace_fp):
+                    with io.open(bash_trace_fp, 'r', encoding='utf-8') as f:
+                        self.logger.info('\nBASH_TRACE:\n' + "".join(f.readlines()))
+
+                stderror_fp = os.path.join(model_run_fp, 'log', 'stderror.err')
+                if os.path.isfile(stderror_fp):
+                    with io.open(stderror_fp, 'r', encoding='utf-8') as f:
+                        self.logger.info('\nKTOOLS_STDERR:\n' + "".join(f.readlines()))
+
+                gul_stderror_fp = os.path.join(model_run_fp, 'log', 'gul_stderror.err')
+                if os.path.isfile(gul_stderror_fp):
+                    with io.open(gul_stderror_fp, 'r', encoding='utf-8') as f:
+                        self.logger.info('\nGUL_STDERR:\n' + "".join(f.readlines()))
+
+
+                self.logger.info('\nSTDOUT:\n' + e.output.decode('utf-8').strip())
+
+                raise OasisException(
+                    'Ktools run Error: non-zero exit code or output detected on STDERR\n'
+                    'Logs stored in: {}/log'.format(model_run_fp)
+                )
 
     @oasis_log
     def run_deterministic(
