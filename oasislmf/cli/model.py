@@ -134,6 +134,7 @@ class GenerateKeysCmd(OasisBaseCommand):
         :param args: The arguments from the command line
         :type args: Namespace
         """
+        self.logger.info('\nProcessing arguments - Creating Oasis Keys')
         inputs = InputValues(args)
 
         config_fp = inputs.get('lookup_config_json', required=False, is_path=True)

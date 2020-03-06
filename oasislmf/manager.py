@@ -355,9 +355,13 @@ class OasisManager(object):
         )
 
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
+        default_dir = os.path.join(os.getcwd(), 'runs', 'keys-{}'.format(utcnow))
 
-        keys_fp = keys_fp or '{}-keys.csv'.format(utcnow)
-        keys_errors_fp = keys_errors_fp or '{}-keys-errors.csv'.format(utcnow)
+        keys_fp = keys_fp or os.path.join(default_dir, 'keys.csv')
+        keys_errors_fp = keys_errors_fp or os.path.join(default_dir, 'keys-errors.csv')
+        os.makedirs(os.path.dirname(keys_fp), exist_ok=True)
+        os.makedirs(os.path.dirname(keys_errors_fp), exist_ok=True)
+
         # TODO: set `keys_success_msg` based on lookup config
         keys_success_msg = True if complex_lookup_config_fp else False
 
