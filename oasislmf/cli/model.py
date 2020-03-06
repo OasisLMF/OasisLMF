@@ -134,6 +134,7 @@ class GenerateKeysCmd(OasisBaseCommand):
         :param args: The arguments from the command line
         :type args: Namespace
         """
+        self.logger.info('\nProcessing arguments - Creating Oasis Keys')
         inputs = InputValues(args)
 
         config_fp = inputs.get('lookup_config_json', required=False, is_path=True)
@@ -210,7 +211,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         inputs = InputValues(args)
 
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-        default_oasis_fp = os.path.join(os.getcwd(), 'runs', 'OasisFiles-{}'.format(utcnow))
+        default_oasis_fp = os.path.join(os.getcwd(), 'runs', 'files-{}'.format(utcnow))
 
         oasis_fp = inputs.get('oasis_files_dir', is_path=True, default=default_oasis_fp)
         keys_fp = inputs.get('keys_data_csv', required=False, is_path=True)
@@ -223,7 +224,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         user_data_dir = inputs.get('user_data_dir', required=False, is_path=True)
         summarise_exposure = inputs.get('disable_summarise_exposure', type=bool, default=True, required=False)
         write_chunksize = inputs.get('write_chunksize', default=2 * 10**5, required=False)
-        exposure_fp = inputs.get('oed_location_csv', required=True, is_path=True) 
+        exposure_fp = inputs.get('oed_location_csv', required=True, is_path=True)
         exposure_profile_fp = inputs.get('profile_loc_json', default=get_default_exposure_profile(path=True))
         accounts_fp = inputs.get('oed_accounts_csv', required=False, is_path=True)
         accounts_profile_fp = inputs.get('profile_acc_json', default=get_default_accounts_profile(path=True))
@@ -338,9 +339,8 @@ class GenerateLossesCmd(OasisBaseCommand):
         self.logger.info('\nProcessing arguments - generating model losses')
         inputs = InputValues(args)
 
-
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-        default_model_run_fp = os.path.join(os.getcwd(), 'runs', 'ProgOasis-{}'.format(utcnow))
+        default_model_run_fp = os.path.join(os.getcwd(), 'runs', 'losses-{}'.format(utcnow))
 
         oasis_fp = inputs.get('oasis_files_dir', required=True, is_path=True)
         model_run_fp = inputs.get('model_run_dir', is_path=True, default=default_model_run_fp)
@@ -449,7 +449,7 @@ class RunCmd(OasisBaseCommand):
         inputs = InputValues(args)
 
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-        default_model_run_fp = os.path.join(os.getcwd(), 'runs', 'ProgOasis-{}'.format(utcnow))
+        default_model_run_fp = os.path.join(os.getcwd(), 'runs', 'losses-{}'.format(utcnow))
 
         model_run_fp = inputs.get('model_run_dir', is_path=True, default=default_model_run_fp)
 
