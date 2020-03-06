@@ -43,8 +43,9 @@ def run(
         filename=filename,
         _get_getmodel_cmd=custom_gulcalc_cmd,
     )
-    params['fifo_queue_dir'] = run_analysis(**params)
-    run_outputs(**params)
+    params['fifo_queue_dir'], params['analysis_bash_trace'] = run_analysis(**params)
+    params['output_bash_trace'] = run_outputs(**params)
+    return params
 
 
 @oasis_log()
@@ -160,10 +161,10 @@ def run_analysis(
             number_of_samples=number_of_samples,
         )
 
-    bash_trace = subprocess.check_output(['bash', filename])
-    logging.info(bash_trace.decode('utf-8'))
+    bash_trace = subprocess.check_output(['bash', filename]).decode('utf-8')
+    logging.info(bash_trace)
 
-    return fifo_queue_dir
+    return fifo_queue_dir, bash_trace
 
 
 @oasis_log()
@@ -173,5 +174,7 @@ def run_outputs(**params):
             **{**params, 'fifo_queue_dir': params['fifo_queue_dir']},
         )
 
-    bash_trace = subprocess.check_output(['bash', params['filename']])
-    logging.info(bash_trace.decode('utf-8'))
+    bash_trace = subprocess.check_output(['bash', params['filename']]).decode('utf-8')
+    logging.info(bash_trace)
+
+    return bash_trace
