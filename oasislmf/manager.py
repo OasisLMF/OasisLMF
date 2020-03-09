@@ -1084,7 +1084,7 @@ class OasisManager(object):
         ktools_error_guard=None,
         ktools_debug=None,
         ri_layers=0,
-        process_number=False,
+        process_number=None,
         remove_working_files=True,
         **kwargs,
     ):
@@ -1144,7 +1144,7 @@ class OasisManager(object):
         ktools_error_guard=None,
         ktools_debug=None,
         ri_layers=0,
-        process_number=False,
+        process_number=None,
         remove_working_files=True,
         **kwargs,
     ):
