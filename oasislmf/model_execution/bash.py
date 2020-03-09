@@ -818,6 +818,7 @@ def genbash_params(
     _get_getmodel_cmd=None,
     custom_args=None,
     process_number=None,
+    fifo_queue_dir=None,
 ):
     if max_process_id == -1:
         max_process_id = multiprocessing.cpu_count()
@@ -870,6 +871,7 @@ def genbash_params(
         'custom_args': custom_args,
         'process_number': process_number,
         'process_counter': Counter(),
+        'fifo_queue_dir': fifo_queue_dir,
     }
 
 
