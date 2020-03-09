@@ -819,6 +819,7 @@ def genbash_params(
     custom_args=None,
     process_number=None,
     fifo_queue_dir=None,
+    remove_working_files=False,
 ):
     if max_process_id == -1:
         max_process_id = multiprocessing.cpu_count()
@@ -872,6 +873,7 @@ def genbash_params(
         'process_number': process_number,
         'process_counter': Counter(),
         'fifo_queue_dir': fifo_queue_dir,
+        'remove_working_files': remove_working_files,
     }
 
 
@@ -1419,6 +1421,7 @@ def genbash_outputs(
     filename='run_kools.sh',
     _get_getmodel_cmd=None,
     process_counter=None,
+    remove_working_files=True,
     **kwargs,
 ):
     print_command(filename, '')
@@ -1459,10 +1462,11 @@ def genbash_outputs(
     do_awaits(filename, process_counter)  # waits for aalcalc
     do_lwaits(filename, process_counter)  # waits for leccalc
 
-    print_command(filename, 'rm -R -f work/*')
-    if fifo_tmp_dir:
-        print_command(
-            filename, 'rm -R -f {}'.format(re.sub('fifo/$', '', fifo_queue_dir))
-        )
-    else:
-        print_command(filename, 'rm -R -f fifo/*')
+    if remove_working_files:
+        print_command(filename, 'rm -R -f work/*')
+        if fifo_tmp_dir:
+            print_command(
+                filename, 'rm -R -f {}'.format(re.sub('fifo/$', '', fifo_queue_dir))
+            )
+        else:
+            print_command(filename, 'rm -R -f fifo/*')
