@@ -27,7 +27,8 @@ def run(
     stderr_guard=True,
     run_debug=False,
     custom_gulcalc_cmd=None,
-    filename='run_ktools.sh'
+    filename='run_ktools.sh',
+    remove_working_files=True,
 ):
     params = genbash_params(
         analysis_settings=analysis_settings,
@@ -42,6 +43,7 @@ def run(
         bash_trace=run_debug,
         filename=filename,
         _get_getmodel_cmd=custom_gulcalc_cmd,
+        remove_working_files=remove_working_files,
     )
     params['fifo_queue_dir'], params['analysis_bash_trace'] = run_analysis(**params)
     params['output_bash_trace'] = run_outputs(**params)

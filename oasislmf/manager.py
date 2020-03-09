@@ -811,7 +811,8 @@ class OasisManager(object):
         ktools_alloc_rule_ri=None,
         ktools_error_guard=None,
         ktools_debug=None,
-        user_data_dir=None
+        user_data_dir=None,
+        remove_working_files=True,
     ):
         model_run_fp = as_path(model_run_fp, 'Model run directory', is_dir=True, preexists=False)
 
@@ -860,6 +861,7 @@ class OasisManager(object):
             'model_custom_gulcalc': model_custom_gulcalc,
             'ktools_error_guard': ktools_error_guard if isinstance(ktools_error_guard, bool) else self.ktools_error_guard,
             'ktools_debug': ktools_debug if isinstance(ktools_debug, bool) else self.ktools_debug,
+            'remove_working_files': remove_working_files,
         }
 
         return params
@@ -885,7 +887,7 @@ class OasisManager(object):
             model_data_fp,
             analysis_settings_fp,
             user_data_dir=user_data_dir,
-            ri=ri
+            ri=ri,
         )
 
         # Load analysis_settings file
@@ -958,6 +960,7 @@ class OasisManager(object):
         ktools_error_guard=None,
         ktools_debug=None,
         ri_layers=0,
+        remove_working_files=True,
         **kwargs,
     ):
         model_runner_module = self.get_model_runner_module(model_package_fp)
@@ -975,6 +978,7 @@ class OasisManager(object):
                     stderr_guard=ktools_error_guard,
                     fifo_tmp_dir=not ktools_fifo_relative,
                     custom_gulcalc_cmd=model_custom_gulcalc,
+                    remove_working_files=remove_working_files,
                 )
             except CalledProcessError as e:
                 bash_trace_fp = os.path.join(model_run_fp, 'log', 'bash.log')
@@ -1016,7 +1020,8 @@ class OasisManager(object):
         ktools_alloc_rule_ri=None,
         ktools_error_guard=None,
         ktools_debug=None,
-        user_data_dir=None
+        user_data_dir=None,
+        remove_working_files=True,
     ):
         params = self.prepare_loss_generation_params(
             model_run_fp,
@@ -1033,6 +1038,7 @@ class OasisManager(object):
             ktools_error_guard=ktools_error_guard,
             ktools_debug=ktools_debug,
             user_data_dir=user_data_dir,
+            remove_working_files=remove_working_files
         )
 
         params['analysis_settings'] = self.prepare_run_directory(
@@ -1044,6 +1050,7 @@ class OasisManager(object):
             user_data_dir=params['user_data_dir'],
             ri=params['ri'],
             il=params['il'],
+            remove_working_files=params['remove_working_files']
         )
 
         self.run_analysis(
@@ -1059,6 +1066,7 @@ class OasisManager(object):
             ktools_error_guard=params['ktools_error_guard'],
             ktools_debug=params['ktools_debug'],
             ri=params['ri'],
+            remove_working_files=params['remove_working_files'],
         )
         return params['model_run_fp']
 
@@ -1077,6 +1085,7 @@ class OasisManager(object):
         ktools_debug=None,
         ri_layers=0,
         process_number=False,
+        remove_working_files=True,
         **kwargs,
     ):
         with setcwd(model_run_fp):
@@ -1094,6 +1103,7 @@ class OasisManager(object):
                     bash_trace=ktools_debug,
                     filename=script_fp,
                     _get_getmodel_cmd=model_custom_gulcalc,
+                    remove_working_files=remove_working_files,
                 )
                 return model_runner_module.run_analysis(**params)
             except CalledProcessError as e:
@@ -1135,6 +1145,7 @@ class OasisManager(object):
         ktools_debug=None,
         ri_layers=0,
         process_number=False,
+        remove_working_files=True,
         **kwargs,
     ):
         with setcwd(model_run_fp):
@@ -1152,6 +1163,7 @@ class OasisManager(object):
                     bash_trace=ktools_debug,
                     filename=script_fp,
                     _get_getmodel_cmd=model_custom_gulcalc,
+                    remove_working_files=remove_working_files,
                 )
                 return model_runner_module.run_outputs(**params)
             except CalledProcessError as e:
