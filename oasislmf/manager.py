@@ -813,6 +813,7 @@ class OasisManager(object):
         ktools_debug=None,
         user_data_dir=None,
         remove_working_files=True,
+        process_number=None,
     ):
         model_run_fp = as_path(model_run_fp, 'Model run directory', is_dir=True, preexists=False)
 
@@ -862,6 +863,7 @@ class OasisManager(object):
             'ktools_error_guard': ktools_error_guard if isinstance(ktools_error_guard, bool) else self.ktools_error_guard,
             'ktools_debug': ktools_debug if isinstance(ktools_debug, bool) else self.ktools_debug,
             'remove_working_files': remove_working_files,
+            'process_number': process_number,
         }
 
         return params
@@ -1022,6 +1024,7 @@ class OasisManager(object):
         ktools_debug=None,
         user_data_dir=None,
         remove_working_files=True,
+        process_number=None,
     ):
         params = self.prepare_loss_generation_params(
             model_run_fp,
@@ -1038,7 +1041,8 @@ class OasisManager(object):
             ktools_error_guard=ktools_error_guard,
             ktools_debug=ktools_debug,
             user_data_dir=user_data_dir,
-            remove_working_files=remove_working_files
+            remove_working_files=remove_working_files,
+            process_number=process_number,
         )
 
         params['analysis_settings'] = self.prepare_run_directory(
