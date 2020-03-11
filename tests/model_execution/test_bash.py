@@ -3,17 +3,20 @@ import hashlib
 import io
 import json
 import os
+import re
 import shutil
 from tempfile import NamedTemporaryFile
 from unittest import TestCase
 
-from oasislmf.model_execution.bash import genbash
+from oasislmf.model_execution.bash import genbash, genbash_outputs, genbash_analysis, genbash_wrapper, genbash_params
 from oasislmf.utils import diff
 
 TEST_DIRECTORY = os.path.dirname(__file__)
 
 
 class Genbash(TestCase):
+    tmpdir_re = re.compile('/tmp/([^/]*)/')
+
     @classmethod
     def setUpClass(cls):
         # test dirs
@@ -84,6 +87,63 @@ class Genbash(TestCase):
             bash_trace=(bash_trace or self.bash_trace),
         )
 
+    def gen_chunked_bash(self, name, num_partitions,
+                num_reinsurance_iterations=None,
+                fifo_tmp_dir=None,
+                stderr_guard=None,
+                gul_alloc_rule=None,
+                il_alloc_rule=None,
+                ri_alloc_rule=None,
+                bash_trace=None):
+
+        input_filename = os.path.join(self.KPARSE_INPUT_FOLDER, "{}.json".format(name))
+        if not num_reinsurance_iterations:
+            output_filename = os.path.join(self.KPARSE_OUTPUT_FOLDER, "{}_{}_partition".format(name, num_partitions))
+        else:
+            output_filename = os.path.join(
+                self.KPARSE_OUTPUT_FOLDER,
+                "{}_{}_reins_layer_{}_partition".format(name, num_reinsurance_iterations, num_partitions))
+
+        with io.open(input_filename, encoding='utf-8') as file:
+            analysis_settings = json.load(file)['analysis_settings']
+
+        params = genbash_params(
+            max_process_id=num_partitions,
+            analysis_settings=analysis_settings,
+            num_reinsurance_iterations=(num_reinsurance_iterations or self.ri_iterations),
+            fifo_tmp_dir=(fifo_tmp_dir or self.fifo_tmp_dir),
+            stderr_guard=(stderr_guard or self.stderr_guard),
+            gul_alloc_rule=(gul_alloc_rule or self.gul_alloc_rule),
+            il_alloc_rule=(il_alloc_rule or self.il_alloc_rule),
+            ri_alloc_rule=(ri_alloc_rule or self.ri_alloc_rule),
+            bash_trace=(bash_trace or self.bash_trace),
+        )
+
+        fifo_tmp_dir = params['fifo_tmp_dir']
+        for process_id in range(num_partitions):
+            params['filename'] = f'{output_filename}.{process_id}.sh'
+            # remove the file if it already exists
+            if os.path.exists(params['filename']):
+                os.remove(params['filename'])
+
+            with genbash_wrapper(params['filename'], bash_trace or self.bash_trace, stderr_guard or self.stderr_guard):
+                params['fifo_queue_dir'] = genbash_analysis(
+                    **{
+                        **params,
+                        'process_number': process_id + 1,
+                        'fifo_tmp_dir': fifo_tmp_dir,
+                    }
+                )
+                fifo_tmp_dir = False
+
+        # remove the file if it already exists
+        params['filename'] = f'{output_filename}.output.sh'
+        if os.path.exists(params['filename']):
+            os.remove(params['filename'])
+
+        with genbash_wrapper(params['filename'], bash_trace or self.bash_trace, stderr_guard or self.stderr_guard):
+            genbash_outputs(**params)
+
     def check(self, name, reference_filename=None):
         output_filename = os.path.join(self.KPARSE_OUTPUT_FOLDER, "{}.sh".format(name))
         if not reference_filename:
@@ -95,8 +155,9 @@ class Genbash(TestCase):
             ref_tmp_file = NamedTemporaryFile("w+", delete=False)
             with io.open(output_filename, 'r') as f:
                 for line in f:
-                    if '/tmp/' in line:
-                        tmp_fifo_dir = line.split('/')[-2]
+                    m = self.tmpdir_re.search(line)
+                    if m:
+                        tmp_fifo_dir = m.group(1)
                         break
 
             # Replace placeholder '%FIFO_DIR%' with '<RandomDirName>'
@@ -110,6 +171,11 @@ class Genbash(TestCase):
         d = diff.unified_diff(reference_filename, output_filename, as_string=True)
         if d:
             self.fail(d)
+
+    def check_chunks(self, name, num_partitions):
+        for i in range(num_partitions):
+            self.check(f'{name}.{i}')
+        self.check(f'{name}.output')
 
     def test_gul_summarycalc_1_partition(self):
         self.genbash("gul_summarycalc_1_output", 1)
@@ -430,6 +496,326 @@ class Genbash(TestCase):
     def test_analysis_settings_4_0_reins_iters(self):
         self.genbash("analysis_settings_4", 1, 1)
         self.check("analysis_settings_4_1_reins_layer_1_partition")
+
+    def test_gul_summarycalc_1_partition_chunk(self):
+        self.gen_chunked_bash("gul_summarycalc_1_output", 1)
+        self.check_chunks("gul_summarycalc_1_output_1_partition", 1)
+
+    def test_gul_summarycalc_20_partition_chunk(self):
+        self.gen_chunked_bash("gul_summarycalc_1_output", 20)
+        self.check_chunks("gul_summarycalc_1_output_20_partition", 20)
+
+    def test_gul_eltcalc_1_partition_chunk(self):
+        self.gen_chunked_bash("gul_eltcalc_1_output", 1)
+        self.check_chunks("gul_eltcalc_1_output_1_partition", 1)
+
+    def test_gul_eltcalc_20_partition_chunk(self):
+        self.gen_chunked_bash("gul_eltcalc_1_output", 20)
+        self.check_chunks("gul_eltcalc_1_output_20_partition", 20)
+
+    def test_gul_aalcalc_1_partition_chunk(self):
+        self.gen_chunked_bash("gul_aalcalc_1_output", 1)
+        self.check_chunks("gul_aalcalc_1_output_1_partition", 1)
+
+    def test_gul_aalcalc_20_partition_chunk(self):
+        self.gen_chunked_bash("gul_aalcalc_1_output", 20)
+        self.check_chunks("gul_aalcalc_1_output_20_partition", 20)
+
+    def test_gul_pltcalc_1_partition_chunk(self):
+        self.gen_chunked_bash("gul_pltcalc_1_output", 1)
+        self.check_chunks("gul_pltcalc_1_output_1_partition", 1)
+
+    def test_gul_pltcalc_20_partition_chunk(self):
+        self.gen_chunked_bash("gul_pltcalc_1_output", 20)
+        self.check_chunks("gul_pltcalc_1_output_20_partition", 20)
+
+    def test_gul_agg_fu_lec_1_partition_chunk(self):
+        self.gen_chunked_bash("gul_agg_fu_lec_1_output", 1)
+        self.check_chunks("gul_agg_fu_lec_1_output_1_partition", 1)
+
+    def test_gul_agg_fu_lec_20_partition_chunk(self):
+        self.gen_chunked_bash("gul_agg_fu_lec_1_output", 20)
+        self.check_chunks("gul_agg_fu_lec_1_output_20_partition", 20)
+
+    def test_gul_occ_fu_lec_1_output_1_partition_chunk(self):
+        self.gen_chunked_bash("gul_occ_fu_lec_1_output", 1)
+        self.check_chunks("gul_occ_fu_lec_1_output_1_partition", 1)
+
+    def test_gul_occ_fu_lec_1_output_20_partition_chunk(self):
+        self.gen_chunked_bash("gul_occ_fu_lec_1_output", 20)
+        self.check_chunks("gul_occ_fu_lec_1_output_20_partition", 20)
+
+    def test_gul_agg_ws_lec_1_partition_chunk(self):
+        self.gen_chunked_bash("gul_agg_ws_lec_1_output", 1)
+        self.check_chunks("gul_agg_ws_lec_1_output_1_partition", 1)
+
+    def test_gul_agg_ws_lec_20_partition_chunk(self):
+        self.gen_chunked_bash("gul_agg_ws_lec_1_output", 20)
+        self.check_chunks("gul_agg_ws_lec_1_output_20_partition", 20)
+
+    def test_gul_occ_ws_lec_1_partition_chunk(self):
+        self.gen_chunked_bash("gul_occ_ws_lec_1_output", 1)
+        self.check_chunks("gul_occ_ws_lec_1_output_1_partition", 1)
+
+    def test_gul_occ_ws_lec_20_partition_chunk(self):
+        self.gen_chunked_bash("gul_occ_ws_lec_1_output", 20)
+        self.check_chunks("gul_occ_ws_lec_1_output_20_partition", 20)
+
+    def test_gul_agg_ws_mean_lec_1_partition_chunk(self):
+        self.gen_chunked_bash("gul_agg_ws_mean_lec_1_output", 1)
+        self.check_chunks("gul_agg_ws_mean_lec_1_output_1_partition", 1)
+
+    def test_gul_agg_ws_mean_lec_20_partition_chunk(self):
+        self.gen_chunked_bash("gul_agg_ws_mean_lec_1_output", 20)
+        self.check_chunks("gul_agg_ws_mean_lec_1_output_20_partition", 20)
+
+    def test_gul_occ_ws_mean_lec_1_partition_chunk(self):
+        self.gen_chunked_bash("gul_occ_ws_mean_lec_1_output", 1)
+        self.check_chunks("gul_occ_ws_mean_lec_1_output_1_partition", 1)
+
+    def test_gul_occ_ws_mean_lec_20_partition_chunk(self):
+        self.gen_chunked_bash("gul_occ_ws_mean_lec_1_output", 20)
+        self.check_chunks("gul_occ_ws_mean_lec_1_output_20_partition", 20)
+
+    def test_il_agg_sample_mean_lec_1_partition_chunk(self):
+        self.gen_chunked_bash("il_agg_sample_mean_lec_1_output", 1)
+        self.check_chunks("il_agg_sample_mean_lec_1_output_1_partition", 1)
+
+    def test_il_agg_sample_mean_lec_20_partition_chunk(self):
+        self.gen_chunked_bash("il_agg_sample_mean_lec_1_output", 20)
+        self.check_chunks("il_agg_sample_mean_lec_1_output_20_partition", 20)
+
+    def test_il_occ_sample_mean_lec_1_partition_chunk(self):
+        self.gen_chunked_bash("il_occ_sample_mean_lec_1_output", 1)
+        self.check_chunks("il_occ_sample_mean_lec_1_output_1_partition", 1)
+
+    def test_il_occ_sample_mean_lec_20_partition_chunk(self):
+        self.gen_chunked_bash("il_occ_sample_mean_lec_1_output", 20)
+        self.check_chunks("il_occ_sample_mean_lec_1_output_20_partition", 20)
+
+    def test_il_summarycalc_1_partition_chunk(self):
+        self.gen_chunked_bash("il_summarycalc_1_output", 1)
+        self.check_chunks("il_summarycalc_1_output_1_partition", 1)
+
+    def test_il_summarycalc_20_partition_chunk(self):
+        self.gen_chunked_bash("il_summarycalc_1_output", 20)
+        self.check_chunks("il_summarycalc_1_output_20_partition", 20)
+
+    def test_il_eltcalc_1_partition_chunk(self):
+        self.gen_chunked_bash("il_eltcalc_1_output", 1)
+        self.check_chunks("il_eltcalc_1_output_1_partition", 1)
+
+    def test_il_eltcalc_20_partition_chunk(self):
+        self.gen_chunked_bash("il_eltcalc_1_output", 20)
+        self.check_chunks("il_eltcalc_1_output_20_partition", 20)
+
+    def test_il_aalcalc_1_partition_chunk(self):
+        self.gen_chunked_bash("il_aalcalc_1_output", 1)
+        self.check_chunks("il_aalcalc_1_output_1_partition", 1)
+
+    def test_il_aalcalc_20_partition_chunk(self):
+        self.gen_chunked_bash("il_aalcalc_1_output", 20)
+        self.check_chunks("il_aalcalc_1_output_20_partition", 20)
+
+    def test_il_pltcalc_1_partition_chunk(self):
+        self.gen_chunked_bash("il_pltcalc_1_output", 1)
+        self.check_chunks("il_pltcalc_1_output_1_partition", 1)
+
+    def test_il_pltcalc_20_partition_chunk(self):
+        self.gen_chunked_bash("il_pltcalc_1_output", 20)
+        self.check_chunks("il_pltcalc_1_output_20_partition", 20)
+
+    def test_il_agg_fu_lec_1_partition_chunk(self):
+        self.gen_chunked_bash("il_agg_fu_lec_1_output", 1)
+        self.check_chunks("il_agg_fu_lec_1_output_1_partition", 1)
+
+    def test_il_agg_fu_lec_20_partition_chunk(self):
+        self.gen_chunked_bash("il_agg_fu_lec_1_output", 20)
+        self.check_chunks("il_agg_fu_lec_1_output_20_partition", 20)
+
+    def test_il_occ_fu_lec_1_output_1_partition_chunk(self):
+        self.gen_chunked_bash("il_occ_fu_lec_1_output", 1)
+        self.check_chunks("il_occ_fu_lec_1_output_1_partition", 1)
+
+    def test_il_occ_fu_lec_1_output_20_partition_chunk(self):
+        self.gen_chunked_bash("il_occ_fu_lec_1_output", 20)
+        self.check_chunks("il_occ_fu_lec_1_output_20_partition", 20)
+
+    def test_il_agg_ws_lec_1_partition_chunk(self):
+        self.gen_chunked_bash("il_agg_ws_lec_1_output", 1)
+        self.check_chunks("il_agg_ws_lec_1_output_1_partition", 1)
+
+    def test_il_agg_ws_lec_20_partition_chunk(self):
+        self.gen_chunked_bash("il_agg_ws_lec_1_output", 20)
+        self.check_chunks("il_agg_ws_lec_1_output_20_partition", 20)
+
+    def test_il_occ_ws_lec_1_partition_chunk(self):
+        self.gen_chunked_bash("il_occ_ws_lec_1_output", 1)
+        self.check_chunks("il_occ_ws_lec_1_output_1_partition", 1)
+
+    def test_il_occ_ws_lec_20_partition_chunk(self):
+        self.gen_chunked_bash("il_occ_ws_lec_1_output", 20)
+        self.check_chunks("il_occ_ws_lec_1_output_20_partition", 20)
+
+    def test_il_agg_ws_mean_lec_1_partition_chunk(self):
+        self.gen_chunked_bash("il_agg_ws_mean_lec_1_output", 1)
+        self.check_chunks("il_agg_ws_mean_lec_1_output_1_partition", 1)
+
+    def test_il_agg_ws_mean_lec_20_partition_chunk(self):
+        self.gen_chunked_bash("il_agg_ws_mean_lec_1_output", 20)
+        self.check_chunks("il_agg_ws_mean_lec_1_output_20_partition", 20)
+
+    def test_il_occ_ws_mean_lec_1_partition_chunk(self):
+        self.gen_chunked_bash("il_occ_ws_mean_lec_1_output", 1)
+        self.check_chunks("il_occ_ws_mean_lec_1_output_1_partition", 1)
+
+    def test_il_occ_ws_mean_lec_20_partition_chunk(self):
+        self.gen_chunked_bash("il_occ_ws_mean_lec_1_output", 20)
+        self.check_chunks("il_occ_ws_mean_lec_1_output_20_partition", 20)
+
+    def test_il_agg_sample_mean_lec_1_output_1_partition_chunk(self):
+        self.gen_chunked_bash("il_agg_sample_mean_lec_1_output", 1)
+        self.check_chunks("il_agg_sample_mean_lec_1_output_1_partition", 1)
+
+    def test_il_agg_sample_mean_lec_1_output_20_partition_chunk(self):
+        self.gen_chunked_bash("il_agg_sample_mean_lec_1_output", 20)
+        self.check_chunks("il_agg_sample_mean_lec_1_output_20_partition", 20)
+
+    def test_il_occ_sample_mean_lec_1_output_1_partition_chunk(self):
+        self.gen_chunked_bash("il_occ_sample_mean_lec_1_output", 1)
+        self.check_chunks("il_occ_sample_mean_lec_1_output_1_partition", 1)
+
+    def test_il_occ_sample_mean_lec_1_output_20_partition_chunk(self):
+        self.gen_chunked_bash("il_occ_sample_mean_lec_1_output", 20)
+        self.check_chunks("il_occ_sample_mean_lec_1_output_20_partition", 20)
+
+    def test_all_calcs_1_partition_chunk(self):
+        self.gen_chunked_bash("all_calcs_1_output", 1)
+        self.check_chunks("all_calcs_1_output_1_partition", 1)
+
+    def test_all_calcs_20_partition_chunk(self):
+        self.gen_chunked_bash("all_calcs_1_output", 20)
+        self.check_chunks("all_calcs_1_output_20_partition", 20)
+
+    def test_all_calcs_40_partition_chunk(self):
+        self.gen_chunked_bash("all_calcs_1_output", 40)
+        self.check_chunks("all_calcs_1_output_40_partition", 40)
+
+    def test_gul_no_lec_1_output_1_partition_chunk(self):
+        self.gen_chunked_bash("gul_no_lec_1_output", 1)
+        self.check_chunks("gul_no_lec_1_output_1_partition", 1)
+
+    def test_gul_no_lec_1_output_2_partition_chunk(self):
+        self.gen_chunked_bash("gul_no_lec_1_output", 2)
+        self.check_chunks("gul_no_lec_1_output_2_partition", 2)
+
+    def test_gul_no_lec_2_output_1_partition_chunk(self):
+        self.gen_chunked_bash("gul_no_lec_2_output", 1)
+        self.check_chunks("gul_no_lec_2_output_1_partition", 1)
+
+    def test_gul_no_lec_2_output_2_partitions_chunk(self):
+        self.gen_chunked_bash("gul_no_lec_2_output", 2)
+        self.check_chunks("gul_no_lec_2_output_2_partition", 2)
+
+    def test_gul_lec_1_output_1_partition_chunk(self):
+        self.gen_chunked_bash("gul_lec_1_output", 1)
+        self.check_chunks("gul_lec_1_output_1_partition", 1)
+
+    def test_gul_lec_1_output_2_partitions_chunk(self):
+        self.gen_chunked_bash("gul_lec_1_output", 2)
+        self.check_chunks("gul_lec_1_output_2_partition", 2)
+
+    def test_gul_lec_2_output_1_partition_chunk(self):
+        self.gen_chunked_bash("gul_lec_2_output", 1)
+        self.check_chunks("gul_lec_2_output_1_partition", 1)
+
+    def test_gul_lec_2_output_2_partitions_chunk(self):
+        self.gen_chunked_bash("gul_lec_2_output", 2)
+        self.check_chunks("gul_lec_2_output_2_partition", 2)
+
+    def test_il_no_lec_1_output_1_partition_chunk(self):
+        self.gen_chunked_bash("il_no_lec_1_output", 1)
+        self.check_chunks("il_no_lec_1_output_1_partition", 1)
+
+    def test_il_no_lec_1_output_2_partition_chunk(self):
+        self.gen_chunked_bash("il_no_lec_1_output", 2)
+        self.check_chunks("il_no_lec_1_output_2_partition", 2)
+
+    def test_il_no_lec_2_output_1_partition_chunk(self):
+        self.gen_chunked_bash("il_no_lec_2_output", 1)
+        self.check_chunks("il_no_lec_2_output_1_partition", 1)
+
+    def test_il_no_lec_2_output_2_partitions_chunk(self):
+        self.gen_chunked_bash("il_no_lec_2_output", 2)
+        self.check_chunks("il_no_lec_2_output_2_partition", 2)
+
+    def test_il_lec_1_output_1_partition_chunk(self):
+        self.gen_chunked_bash("il_lec_1_output", 1)
+        self.check_chunks("il_lec_1_output_1_partition", 1)
+
+    def test_il_lec_1_output_2_partitions_chunk(self):
+        self.gen_chunked_bash("il_lec_1_output", 2)
+        self.check_chunks("il_lec_1_output_2_partition", 2)
+
+    def test_il_lec_2_output_1_partition_chunk(self):
+        self.gen_chunked_bash("il_lec_2_output", 1)
+        self.check_chunks("il_lec_2_output_1_partition", 1)
+
+    def test_il_lec_2_output_2_partitions_chunk(self):
+        self.gen_chunked_bash("il_lec_2_output", 2)
+        self.check_chunks("il_lec_2_output_2_partition", 2)
+
+    def test_gul_il_no_lec_1_output_1_partition_chunk(self):
+        self.gen_chunked_bash("gul_il_no_lec_1_output", 1)
+        self.check_chunks("gul_il_no_lec_1_output_1_partition", 1)
+
+    def test_gul_il_no_lec_1_output_2_partition_chunk(self):
+        self.gen_chunked_bash("gul_il_no_lec_1_output", 2)
+        self.check_chunks("gul_il_no_lec_1_output_2_partition", 2)
+
+    def test_gul_il_no_lec_2_output_1_partition_chunk(self):
+        self.gen_chunked_bash("gul_il_no_lec_2_output", 1)
+        self.check_chunks("gul_il_no_lec_2_output_1_partition", 1)
+
+    def test_gul_il_no_lec_2_output_2_partitions_chunk(self):
+        self.gen_chunked_bash("gul_il_no_lec_2_output", 2)
+        self.check_chunks("gul_il_no_lec_2_output_2_partition", 2)
+
+    def test_gul_il_lec_1_output_1_partition_chunk(self):
+        self.gen_chunked_bash("gul_il_lec_1_output", 1)
+        self.check_chunks("gul_il_lec_1_output_1_partition", 1)
+
+    def test_gul_il_lec_1_output_2_partitions_chunk(self):
+        self.gen_chunked_bash("gul_il_lec_1_output", 2)
+        self.check_chunks("gul_il_lec_1_output_2_partition", 2)
+
+    def test_gul_il_lec_2_output_1_partition_chunk(self):
+        self.gen_chunked_bash("gul_il_lec_2_output", 1)
+        self.check_chunks("gul_il_lec_2_output_1_partition", 1)
+
+    def test_gul_il_lec_2_output_2_partitions_chunk(self):
+        self.gen_chunked_bash("gul_il_lec_2_output", 2)
+        self.check_chunks("gul_il_lec_2_output_2_partition", 2)
+
+    def test_gul_il_lec_2_output_10_partitions_chunk(self):
+        self.gen_chunked_bash("gul_il_lec_2_output", 10)
+        self.check_chunks("gul_il_lec_2_output_10_partition", 10)
+
+    def test_analysis_settings_1_chunk(self):
+        self.gen_chunked_bash("analysis_settings_1", 1)
+        self.check_chunks("analysis_settings_1_1_partition", 1)
+
+    def test_analysis_settings_2_chunk(self):
+        self.gen_chunked_bash("analysis_settings_2", 1)
+        self.check_chunks("analysis_settings_2_1_partition", 1)
+
+    def test_analysis_settings_3_0_reins_iters_chunk(self):
+        self.gen_chunked_bash("analysis_settings_3", 1, 1)
+        self.check_chunks("analysis_settings_3_1_reins_layer_1_partition", 1)
+
+    def test_analysis_settings_4_0_reins_iters_chunk(self):
+        self.gen_chunked_bash("analysis_settings_4", 1, 1)
+        self.check_chunks("analysis_settings_4_1_reins_layer_1_partition", 1)
 
 
 class Genbash_GulItemStream(Genbash):

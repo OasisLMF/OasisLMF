@@ -819,7 +819,7 @@ def genbash_params(
     custom_args=None,
     process_number=None,
     fifo_queue_dir=None,
-    remove_working_files=False,
+    remove_working_files=True,
 ):
     if max_process_id == -1:
         max_process_id = multiprocessing.cpu_count()
@@ -982,7 +982,7 @@ def genbash_analysis(
     if full_correlation:
         print_command(filename, 'mkdir {}'.format(output_full_correlation_dir))
     print_command(filename, '')
-    if not fifo_tmp_dir:
+    if not fifo_tmp_dir and not fifo_queue_dir:
         fifo_queue_dir = 'fifo/'
         print_command(filename, 'rm -R -f {}*'.format(fifo_queue_dir))
         if full_correlation:
@@ -1417,7 +1417,7 @@ def genbash_outputs(
     work_full_correlation_dir='work/full_correlation/',
     output_dir='output/',
     output_full_correlation_dir='output/full_correlation/',
-    fifo_tmp_dir=True,
+    fifo_tmp_dir='',
     filename='run_kools.sh',
     _get_getmodel_cmd=None,
     process_counter=None,
