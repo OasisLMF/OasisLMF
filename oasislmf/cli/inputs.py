@@ -20,57 +20,46 @@ class InputValues(object):
 
     """
     def __init__(self, args, update_keys=True):
-        self.args = args
-        self.config_fp = None
-        self.config = {}
-
         self.logger = logging.getLogger()
+
+        self.args = args
+        self.config = {}
+        self.config_fp = self.get('config', is_path=True)
+
         self.config_mapping = get_config_profile()
-        self.obsolete_keys = None
 
-        try:
-            self.config_fp = os.path.abspath(args.config)
-        except (AttributeError, OSError, TypeError):
-            pass
-        else:
+        if self.config_fp is not None:
+            self.config = self.load_config_file()
             self.config_dir = os.path.dirname(self.config_fp)
-            self.config = self.load_config_file(self.config_dir)
-            self.obsolete_keys = (
-                set(self.config.keys()).intersection(set(self.config_mapping.keys()))
-            )
-            if update_keys:
-                self.update_config_keys()
 
-    def list_obsolete_keys(self):
-        if len(self.obsolete_keys) > 0:
-            self.logger.warn('Depricated key(s) in MDK config:')
+        self.obsolete_keys = set(self.config) & set(self.config_mapping)
+        self.logger.warning(str(self.config))
+        self.list_obsolete_keys()
+        if update_keys:
+            self.update_config_keys()
+
+    def list_obsolete_keys(self, fix_warning=True):
+        if self.obsolete_keys:
+            self.logger.warning('Depricated key(s) in MDK config:')
             for k in self.obsolete_keys:
-                self.logger.warn('   {} : {}'.format(
+                self.logger.warning('   {} : {}'.format(
                     k,
                     self.config_mapping[k],
                 ))
-            self.logger.warn('')
+            self.logger.warning('')
+            if fix_warning:
+                self.logger.warning('  To fix run: oasislmf config update'.format(self.config_fp))
 
-    def has_obsolete_keys(self):
-        return len(self.obsolete_keys) > 0
-
-    def update_config_keys(self, warn_user=True):
+    def update_config_keys(self):
         """
-        If command line flags change between package versions, update them intenrally and warn the user
+        If command line flags change between package versions, update them internally
         """
-        if self.has_obsolete_keys():
-            for key in self.obsolete_keys:
-                if not self.config_mapping[key]['deleted']:
-                    self.config[self.config_mapping[key]['updated_to']] = self.config[key]
-                del self.config[key]
+        for key in self.obsolete_keys:
+            if not self.config_mapping[key]['deleted']:
+                self.config[self.config_mapping[key]['updated_to']] = self.config[key]
+            del self.config[key]
 
-            if warn_user:
-                self.logger.warn(
-                    'Depricated key names found in MDK config: {} \n'
-                    '  To fix run: oasislmf config update'.format(self.config_fp)
-                )
-
-    def load_config_file(self, config_fp):
+    def load_config_file(self):
         try:
             with io.open(self.config_fp, 'r', encoding='utf-8') as f:
                 return json.load(f)
@@ -97,25 +86,15 @@ class InputValues(object):
         except KeyboardInterrupt:
             self.logger.error('\nexiting.')
 
-    def _select_by_type(self, val_cmd, val_default, val_config, types):
-        if val_cmd or isinstance(val_cmd, types):
-            return val_cmd
-        if val_default or isinstance(val_default, types):
-            return val_default
-        if val_config or isinstance(val_config, types):
-            return val_config
-        return None
-
-    def get(self, name, default=None, type=None, required=False, is_path=False):
+    def get(self, name, default=None, required=False, is_path=False):
         """
-        Gets the names parameter from the command line arguments.
+        Gets the name parameter until found from:
+          - the command line arguments.
+          - the configuration file
+          - the environment variable (put in uppercase)
 
-        If it is not set on the command line the configuration file
-        is checked.
-
-        If it is also not present in the configuration file then
-        ``default`` is returned unless ``required`` is false in which
-        case an ``OasisException`` is raised.
+        If it is not found then ``default`` is returned
+        unless ``required`` is True in which case an ``OasisException`` is raised.
 
         :param name: The name of the parameter to lookup
         :type name: str
@@ -128,8 +107,8 @@ class InputValues(object):
             configuration file an error is raised.
         :type required: bool
 
-        :param is_path: Flag whether the value should be treated as a path,
-            is so the value is processed as relative to the config file.
+        :param is_path: Flag whether the value should be treated as a path and return an abspath,
+            use config_dir as base dir if value comes from the config
         :type is_path: bool
 
         :raise OasisException: If the value is not found and ``required``
@@ -137,30 +116,27 @@ class InputValues(object):
 
         :return: The found value or the default
         """
-        value = None
 
-        cmd_value = getattr(self.args, name, None)
-        config_value = self.config.get(name)
-
-        if type is None:
-            value = cmd_value or config_value or default
-        else:
-            value = self._select_by_type(cmd_value, config_value, default, type)
-
-        if (cmd_value or default) and is_path and not os.path.isabs(value):
-            value = os.path.abspath(value)
-        elif config_value and is_path and not os.path.isabs(value):
-            value = os.path.join(self.config_dir, value)
-
-        if required and value is None:
+        value = getattr(self.args, name, None)
+        source = 'arg'
+        if value is None:
+            value = self.config.get(name)
+            source = 'config'
+        if value is None:
+            value = os.environ.get('OASIS_' + name.upper())
+            source = 'env'
+        if value is None and required:
             raise OasisException(
                 'Required argument {} could not be found in the command args or the MDK config. file'.format(name)
             )
-
         if value is None:
             value = default
+            source = 'default'
 
         if is_path and value is not None and not os.path.isabs(value):
-            value = os.path.abspath(value) if cmd_value else os.path.join(self.config_dir, value)
+            if source == 'config':
+                value = os.path.join(self.config_dir, value)
+            else:
+                value = os.path.abspath(value)
 
         return value

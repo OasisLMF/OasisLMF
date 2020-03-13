@@ -108,7 +108,7 @@ class RunCmd(OasisBaseCommand):
             Path(run_dir).mkdir(parents=True, exist_ok=True)
 
         loss_factor = inputs.get(
-            'loss_factor', default=1.0, type=float, required=False
+            'loss_factor', default=1.0, required=False
         )
 
         net_ri = True
