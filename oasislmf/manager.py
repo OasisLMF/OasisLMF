@@ -1069,7 +1069,9 @@ class OasisManager(object):
             ktools_alloc_rule_il=params['ktools_alloc_rule_il'],
             ktools_error_guard=params['ktools_error_guard'],
             ktools_debug=params['ktools_debug'],
-            ri=params['ri'],
+            gul_output=params['analysis_settings']['gul_output'],
+            il_output=params['analysis_settings']['il_output'],
+            ri_output=params['analysis_settings']['ri_output'],
             remove_working_files=params['remove_working_files'],
         )
         return params['model_run_fp']
