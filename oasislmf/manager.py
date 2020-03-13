@@ -1072,6 +1072,7 @@ class OasisManager(object):
             gul_output=params['analysis_settings']['gul_output'],
             il_output=params['analysis_settings']['il_output'],
             ri_output=params['analysis_settings']['ri_output'],
+            ri_layers=params['ri_layers'],
             remove_working_files=params['remove_working_files'],
         )
         return params['model_run_fp']
