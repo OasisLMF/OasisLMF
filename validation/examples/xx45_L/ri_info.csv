@@ -1,0 +1,6 @@
+ReinsNumber,ReinsPeril,ReinsCurrency,CededPercent,RiskLimit,RiskAttachment,OccLimit,OccAttachment,PlacedPercent,InuringPriority,ReinsType,ReinsName
+149,OO1,CAD,1.0000,1000000.00,.00,.00,.00,.2000,2,FAC,T45 xx Loc - FA2
+152,OO1,CAD,1.0000,1000000.00,.00,.00,.00,.1000,2,PR,T45 xx Loc - PR2
+155,OO1,CAD,1.0000,1000000.00,1000000.00,.00,.00,.2000,2,PR,T45 xx Loc - PR2 L2
+158,OO1,CAD,1.0000,.00,.00,1000000.00,2000000.00,.2000,3,CXL,T45 xx Loc - CX3 L1
+161,OO1,CAD,1.0000,.00,.00,1000000.00,5000000.00,.2000,4,CXL,T45 xx Loc - CX4 L3
