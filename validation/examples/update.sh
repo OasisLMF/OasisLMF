@@ -11,4 +11,5 @@ mkdir "$d/expected"
 cp -r "$d/run/"* "$d/expected/"
 n=$((n+1))
 done < $filename
+n=$((n-1))
 echo "$n test case expected results updated"
