@@ -1,4 +1,5 @@
 __all__ = [
+    'GenerateExposurePreAnalysisCmd',
     'GenerateKeysCmd',
     'GenerateLossesCmd',
     'GenerateOasisFilesCmd',
@@ -26,8 +27,10 @@ from ..utils.defaults import (
     get_default_exposure_profile,
     get_default_accounts_profile,
     get_default_fm_aggregation_profile,
+    KEY_NAME_TO_FILE_NAME,
 )
 from .base import OasisBaseCommand
+from .computation_command import OasisComputationCommand
 from .inputs import InputValues
 
 
@@ -72,6 +75,22 @@ class GeneratePerilAreasRtreeFileIndexCmd(OasisBaseCommand):
         )
         self.logger.info('\nGenerated peril areas Rtree file index {}\n'.format(_index_fp))
 
+
+class GenerateExposurePreAnalysisCmd(OasisComputationCommand):
+    """
+    Generate a new EOD from original one by specifying a model specific pre-analysis hook for exposure modification
+    see ExposurePreAnalysis for more detail
+    """
+    formatter_class = RawDescriptionHelpFormatter
+    computation_name = 'ExposurePreAnalysis'
+
+    def action(self, args):  # TODO remove once integrated with archi 2020
+        super().action(args)
+
+        if args.model_run_dir:
+            input_dir = os.path.join(args.model_run_dir, 'input')
+            for input_name in ('oed_location_csv', 'oed_accounts_csv', 'oed_info_csv', 'oed_scope_csv'):
+                setattr(args, input_name, os.path.join(input_dir, KEY_NAME_TO_FILE_NAME[input_name]))
 
 class GenerateKeysCmd(OasisBaseCommand):
     """
@@ -123,7 +142,7 @@ class GenerateKeysCmd(OasisBaseCommand):
         parser.add_argument('-f', '--keys-format', choices=['oasis', 'json'], help='Keys files output format')
         parser.add_argument('-g', '--lookup-config-json', default=None, help='Lookup config JSON file path')
         parser.add_argument('-d', '--lookup-data-dir', default=None, help='Model lookup data path')
-        parser.add_argument('-l', '--lookup-package-dir', default=None, help='Model lookup package directory path')
+        parser.add_argument('-l', '--lookup-module-path', default=None, help='Model lookup module path')
         parser.add_argument('-L', '--lookup-complex-config-json', default=None, help='Complex lookup config JSON file path')
         parser.add_argument('-v', '--model-version-csv', default=None, help='Model version CSV file path')
 
@@ -140,7 +159,7 @@ class GenerateKeysCmd(OasisBaseCommand):
         config_fp = inputs.get('lookup_config_json', required=False, is_path=True)
         keys_data_fp = inputs.get('lookup_data_dir', required=False, is_path=True)
         model_version_fp = inputs.get('model_version_csv', required=False, is_path=True)
-        lookup_package_fp = inputs.get('lookup_package_dir', required=False, is_path=True)
+        lookup_module_path = inputs.get('lookup_module_path', required=False, is_path=True)
         complex_lookup_config_fp = inputs.get('lookup_complex_config_json', required=False, is_path=True)
         exposure_fp = inputs.get('oed_location_csv', required=True, is_path=True)
         keys_fp = inputs.get('keys_data_csv', required=False, is_path=True)
@@ -152,7 +171,7 @@ class GenerateKeysCmd(OasisBaseCommand):
             lookup_config_fp=config_fp,
             keys_data_fp=keys_data_fp,
             model_version_fp=model_version_fp,
-            lookup_package_fp=lookup_package_fp,
+            lookup_module_path=lookup_module_path,
             complex_lookup_config_fp=complex_lookup_config_fp,
             keys_fp=keys_fp,
             keys_errors_fp=keys_errors_fp,
@@ -183,7 +202,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         parser.add_argument('-z', '--keys-data-csv', default=None, help='Pre-generated keys CSV file path')
         parser.add_argument('-m', '--lookup-config-json', default=None, help='Lookup config JSON file path')
         parser.add_argument('-k', '--lookup-data-dir', default=None, help='Model lookup/keys data directory path')
-        parser.add_argument('-l', '--lookup-package-dir', default=None, help='Lookup package path')
+        parser.add_argument('-l', '--lookup-module-path', default=None, help='Model lookup module path')
         parser.add_argument('-L', '--lookup-complex-config-json', default=None, help='Complex lookup config JSON file path')
         parser.add_argument('-v', '--model-version-csv', default=None, help='Model version CSV file path')
         parser.add_argument('-M', '--model-settings-json', default=None, help='Model settings JSON file path')
@@ -219,7 +238,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         keys_data_fp = inputs.get('lookup_data_dir', required=False, is_path=True)
         model_version_fp = inputs.get('model_version_csv', required=False, is_path=True)
         model_settings_fp = inputs.get('model_settings_json', required=False, is_path=True)
-        lookup_package_fp = inputs.get('lookup_package_dir', required=False, is_path=True)
+        lookup_module_path = inputs.get('lookup_module_path', required=False, is_path=True)
         complex_lookup_config_fp = inputs.get('lookup_complex_config_json', required=False, is_path=True)
         user_data_dir = inputs.get('user_data_dir', required=False, is_path=True)
         summarise_exposure = inputs.get('disable_summarise_exposure', default=True, required=False)
@@ -233,7 +252,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
         ri_scope_fp = inputs.get('oed_scope_csv', required=False, is_path=True)
         group_id_cols = inputs.get('group_id_cols', required=False, default=None)
 
-        if not (keys_fp or lookup_config_fp or (keys_data_fp and model_version_fp and lookup_package_fp)):
+        if not (keys_fp or lookup_config_fp or (keys_data_fp and model_version_fp and lookup_module_path)):
             raise OasisException(
                 'No pre-generated keys file provided, and no lookup assets '
                 'provided to generate a keys file - if you do not have a '
@@ -257,7 +276,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             keys_data_fp=keys_data_fp,
             model_version_fp=model_version_fp,
             model_settings_fp=model_settings_fp,
-            lookup_package_fp=lookup_package_fp,
+            lookup_module_path=lookup_module_path,
             complex_lookup_config_fp=complex_lookup_config_fp,
             accounts_fp=accounts_fp,
             accounts_profile_fp=accounts_profile_fp,
@@ -404,13 +423,20 @@ class RunCmd(OasisBaseCommand):
         parser.add_argument('-z', '--keys-data-csv', default=None, help='Pre-generated keys CSV file path')
 
         parser.add_argument('-k', '--lookup-data-dir', default=None, help='Model lookup/keys data directory path')
-        parser.add_argument('-l', '--lookup-package-dir', default=None, help='Model lookup package path')
+        parser.add_argument('-l', '--lookup-module-path', default=None, help='Model lookup module path')
         parser.add_argument('-L', '--lookup-complex-config-json', default=None, help='Complex lookup config JSON file path')
         parser.add_argument('-m', '--lookup-config-json', default=None, help='Built-in lookup config JSON file path')
 
         parser.add_argument('-e', '--profile-loc-json', default=None, help='Source OED location profile JSON path')
         parser.add_argument('-b', '--profile-acc-json', default=None, help='Source OED accounts profile JSON path')
         parser.add_argument('-g', '--profile-fm-agg-json', default=None, help='FM OED aggregation profile JSON path')
+
+        parser.add_argument('--exposure-pre-analysis-module', default=None,
+                                help='Exposure Pre-Analysis lookup module path')
+        parser.add_argument('--exposure-pre-analysis-class-name', default=None,
+                                help='Name of the class to use for the exposure_pre_analysis')
+        parser.add_argument('--exposure-pre-analysis-setting-json', default=None,
+                                help='Exposure Pre-Analysis config JSON file path')
 
         parser.add_argument('-x', '--oed-location-csv', default=None, help='Source location CSV file path')
         parser.add_argument('-y', '--oed-accounts-csv', default=None, help='Source accounts CSV file path')
@@ -483,7 +509,11 @@ class RunCmd(OasisBaseCommand):
 
         args.oasis_files_dir = os.path.join(model_run_fp, 'input')
 
-        cmds = [GenerateOasisFilesCmd(args), GenerateLossesCmd(args)]
+        if inputs.get('exposure_pre_analysis_module', is_path=True):
+            cmds = [GenerateExposurePreAnalysisCmd(args), GenerateOasisFilesCmd(args), GenerateLossesCmd(args)]
+        else:
+            cmds = [GenerateOasisFilesCmd(args), GenerateLossesCmd(args)]
+
         with tqdm(total=len(cmds)) as pbar:
             for cmd in cmds:
                 cmd.action(args)
@@ -505,6 +535,7 @@ class ModelCmd(OasisBaseCommand):
     """
     sub_commands = {
         'generate-peril-areas-rtree-file-index': GeneratePerilAreasRtreeFileIndexCmd,
+        'generate-exposure-pre-analysis': GenerateExposurePreAnalysisCmd,
         'generate-keys': GenerateKeysCmd,
         'generate-oasis-files': GenerateOasisFilesCmd,
         'generate-losses': GenerateLossesCmd,
