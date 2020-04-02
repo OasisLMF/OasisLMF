@@ -56,7 +56,9 @@ from .utils.data import (
     get_ids,
     get_json,
     get_utctimestamp,
+    print_dataframe,
 )
+
 from .utils.exceptions import OasisException
 from .utils.log import oasis_log
 from .utils.defaults import (
@@ -790,6 +792,119 @@ class OasisManager(object):
                 )
 
         return model_run_fp
+
+
+    def run_exposure_wrapper(
+        self, src_dir, run_dir, loss_factor, 
+        net_ri, il_alloc_rule, ri_alloc_rule, 
+        output_level, output_file):
+        
+        src_contents = [fn.lower() for fn in os.listdir(src_dir)]
+
+        if 'location.csv' not in src_contents:
+            raise OasisException(
+                'No location/exposure file found in source directory - '
+                'a file named `location.csv` is expected'
+            )
+
+        il = ril = False
+        il = ('account.csv' in src_contents)
+        ril = il and ('ri_info.csv' in src_contents) and ('ri_scope.csv' in src_contents)
+
+        self.logger.info('\nRunning deterministic losses (GUL=True, IL={}, RIL={})\n'.format(il, ril))
+        guls_df, ils_df, rils_df = self.run_deterministic(
+            src_dir,
+            run_dir=run_dir,
+            loss_percentage_of_tiv=loss_factor,
+            net_ri=net_ri,
+            il_alloc_rule=il_alloc_rule,
+            ri_alloc_rule=ri_alloc_rule
+        )
+
+        # Read in the summary map
+        summaries_df = get_dataframe(src_fp=os.path.join(run_dir, 'fm_summary_map.csv'))
+
+        guls_df.to_csv(path_or_buf=os.path.join(run_dir, 'guls.csv'), index=False, encoding='utf-8')
+        guls_df.rename(columns={'loss': 'loss_gul'}, inplace=True)
+
+        total_gul = guls_df.loss_gul.sum()
+
+        guls_df = guls_df.merge(
+            right=summaries_df,
+            left_on=["item_id"],
+            right_on=["agg_id"]
+        )
+
+        if il:
+            ils_df.to_csv(path_or_buf=os.path.join(run_dir, 'ils.csv'), index=False, encoding='utf-8')
+            ils_df.rename(columns={'loss': 'loss_il'}, inplace=True)
+            all_losses_df = guls_df.merge(
+                how='left',
+                right=ils_df,
+                on=["event_id", "output_id"],
+                suffixes=["_gul", "_il"]
+            )
+        if ril:
+            rils_df.to_csv(path_or_buf=os.path.join(run_dir, 'rils.csv'), index=False, encoding='utf-8')
+            rils_df.rename(columns={'loss': 'loss_ri'}, inplace=True)
+            all_losses_df = all_losses_df.merge(
+                how='left',
+                right=rils_df,
+                on=["event_id", "output_id"]
+            )
+
+        oed_hierarchy = get_oed_hierarchy()
+        portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
+        acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
+        loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
+        policy_num = oed_hierarchy['polnum']['ProfileElementName'].lower()
+
+        if output_level == 'port':
+            summary_cols = [portfolio_num]
+        elif output_level == 'acc':
+            summary_cols = [portfolio_num, acc_num]
+        elif output_level == 'pol':
+            summary_cols = [portfolio_num, acc_num, policy_num]
+        elif output_level == 'loc':
+            summary_cols = [portfolio_num, acc_num, loc_num]
+        elif output_level == 'item':
+            summary_cols = ['output_id', portfolio_num, acc_num, loc_num, policy_num, 'coverage_type_id']
+
+        guls_df = guls_df.loc[:, summary_cols + ['loss_gul']]
+
+        if not il and not ril:
+            all_losses_df = guls_df.loc[:, summary_cols + ['loss_gul']]
+            all_losses_df.drop_duplicates(keep=False, inplace=True)
+            header = 'Losses (loss factor={}; total gul={:,.00f})'.format(loss_factor, total_gul)
+        elif not ril:
+            total_il = ils_df.loss_il.sum()
+            all_losses_df = all_losses_df.loc[:, summary_cols + ['loss_gul', 'loss_il']]
+            summary_gul_df = pd.DataFrame({'loss_gul': guls_df.groupby(summary_cols)['loss_gul'].sum()}).reset_index()
+            summary_il_df = pd.DataFrame({'loss_il': all_losses_df.groupby(summary_cols)['loss_il'].sum()}).reset_index()
+            all_losses_df = summary_gul_df.merge(how='left', right=summary_il_df, on=summary_cols)
+            header = 'Losses (loss factor={}; total gul={:,.00f}; total il={:,.00f})'.format(
+                loss_factor,
+                total_gul,
+                total_il
+            )
+        else:
+            total_il = ils_df.loss_il.sum()
+            total_ri_net = rils_df.loss_ri.sum()
+            total_ri_ceded = total_il - total_ri_net
+            all_losses_df = all_losses_df.loc[:, summary_cols + ['loss_gul', 'loss_il', 'loss_ri']]
+            summary_gul_df = pd.DataFrame({'loss_gul': guls_df.groupby(summary_cols)['loss_gul'].sum()}).reset_index()
+            summary_il_df = pd.DataFrame({'loss_il': all_losses_df.groupby(summary_cols)['loss_il'].sum()}).reset_index()
+            summary_ri_df = pd.DataFrame({'loss_ri': all_losses_df.groupby(summary_cols)['loss_ri'].sum()}).reset_index()
+            all_losses_df = summary_gul_df.merge(how='left', right=summary_il_df, on=summary_cols)
+            all_losses_df = all_losses_df.merge(how='left', right=summary_ri_df, on=summary_cols)
+            header = 'Losses (loss factor={}; total gul={:,.00f}; total il={:,.00f}; total ri ceded={:,.00f})'.format(
+                loss_factor, total_gul, total_il, total_ri_ceded)
+
+        print_dataframe(all_losses_df, frame_header=header, string_cols=all_losses_df.columns)
+        if output_file:
+            all_losses_df.to_csv(output_file, index=False, encoding='utf-8')
+
+        return (il, ril)
 
     @oasis_log
     def run_deterministic(
