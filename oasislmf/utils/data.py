@@ -96,7 +96,7 @@ def factorize_array(arr):
     :return: A 2-tuple consisting of the enumeration and the value groups
     :rtype: tuple
     """
-    enum, groups = pd.factorize(arr)
+    enum, groups = pd.factorize(arr,sort=True)
 
     return enum + 1, groups
 
@@ -128,7 +128,7 @@ def factorize_ndarray(ndarr, row_idxs=[], col_idxs=[]):
     if rows == 1:
         return factorize_array(_ndarr[0])
 
-    enum, groups = pd.factorize(fast_zip_arrays(*(arr for arr in _ndarr)))
+    enum, groups = pd.factorize(fast_zip_arrays(*(arr for arr in _ndarr)),sort=True)
 
     return enum + 1, groups
 
