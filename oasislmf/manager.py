@@ -795,9 +795,16 @@ class OasisManager(object):
 
 
     def run_exposure_wrapper(
-        self, src_dir, run_dir, loss_factor, 
-        net_ri, il_alloc_rule, ri_alloc_rule, 
-        output_level, output_file):
+        self, 
+        src_dir, 
+        run_dir, 
+        loss_percentages_of_tiv, 
+        net_ri, 
+        il_alloc_rule, 
+        ri_alloc_rule, 
+        output_level, 
+        output_file, 
+        print_summary=False):
         
         src_contents = [fn.lower() for fn in os.listdir(src_dir)]
 
@@ -811,11 +818,11 @@ class OasisManager(object):
         il = ('account.csv' in src_contents)
         ril = il and ('ri_info.csv' in src_contents) and ('ri_scope.csv' in src_contents)
 
-        self.logger.info('\nRunning deterministic losses (GUL=True, IL={}, RIL={})\n'.format(il, ril))
+        self.logger.debug('\nRunning deterministic losses (GUL=True, IL={}, RIL={})\n'.format(il, ril))
         guls_df, ils_df, rils_df = self.run_deterministic(
             src_dir,
             run_dir=run_dir,
-            loss_percentage_of_tiv=loss_factor,
+            loss_percentages_of_tiv=loss_percentages_of_tiv,
             net_ri=net_ri,
             il_alloc_rule=il_alloc_rule,
             ri_alloc_rule=ri_alloc_rule
@@ -826,8 +833,6 @@ class OasisManager(object):
 
         guls_df.to_csv(path_or_buf=os.path.join(run_dir, 'guls.csv'), index=False, encoding='utf-8')
         guls_df.rename(columns={'loss': 'loss_gul'}, inplace=True)
-
-        total_gul = guls_df.loss_gul.sum()
 
         guls_df = guls_df.merge(
             right=summaries_df,
@@ -868,39 +873,60 @@ class OasisManager(object):
         elif output_level == 'loc':
             summary_cols = [portfolio_num, acc_num, loc_num]
         elif output_level == 'item':
-            summary_cols = ['output_id', portfolio_num, acc_num, loc_num, policy_num, 'coverage_type_id']
+            summary_cols = [
+                'output_id', portfolio_num, acc_num, loc_num, policy_num, 
+                'coverage_type_id']
+        all_loss_cols = summary_cols + ['loss_percentages_of_tiv_idx']
+        guls_df = guls_df.loc[:, all_loss_cols + ['loss_gul']]
 
-        guls_df = guls_df.loc[:, summary_cols + ['loss_gul']]
+        ##! Handle multiple damage factors
+        for i in range(len(loss_percentages_of_tiv)):
+            total_gul = guls_df[guls_df.loss_percentages_of_tiv_idx == i].loss_gul.sum()
+            if not il and not ril:
+                all_loss_cols = all_loss_cols + ['loss_gul']
+                all_losses_df = guls_df.loc[:, all_loss_cols]
+                all_losses_df.drop_duplicates(keep=False, inplace=True)
+                header = \
+                    'Losses (loss factor={:.2%}; total gul={:,.00f})'.format(
+                        loss_percentages_of_tiv[i], 
+                        total_gul)
+            elif not ril:
+                total_il = ils_df[ils_df.loss_percentages_of_tiv_idx == i].loss_il.sum()
+                all_loss_cols = all_loss_cols + ['loss_gul', 'loss_il']
+                all_losses_df = all_losses_df.loc[:, all_loss_cols]
+                summary_gul_df = pd.DataFrame({'loss_gul': guls_df.groupby(summary_cols)['loss_gul'].sum()}).reset_index()
+                summary_il_df = pd.DataFrame({'loss_il': all_losses_df.groupby(summary_cols)['loss_il'].sum()}).reset_index()
+                all_losses_df = summary_gul_df.merge(how='left', right=summary_il_df, on=summary_cols)
+                header = \
+                    'Losses (loss factor={:.2%}; total gul={:,.00f}; total il={:,.00f})'.format(
+                        loss_percentages_of_tiv[i],
+                        total_gul, total_il)
+            else:
+                total_il = ils_df[ils_df.loss_percentages_of_tiv_idx == i].loss_il.sum()
+                total_ri_net = rils_df[rils_df.loss_percentages_of_tiv_idx == i].loss_ri.sum()
+                total_ri_ceded = total_il - total_ri_net
+                all_loss_cols = all_loss_cols + ['loss_gul', 'loss_il', 'loss_ri']
+                all_losses_df = all_losses_df.loc[:, all_loss_cols]
+                summary_gul_df = pd.DataFrame({'loss_gul': guls_df.groupby(summary_cols)['loss_gul'].sum()}).reset_index()
+                summary_il_df = pd.DataFrame({'loss_il': all_losses_df.groupby(summary_cols)['loss_il'].sum()}).reset_index()
+                summary_ri_df = pd.DataFrame({'loss_ri': all_losses_df.groupby(summary_cols)['loss_ri'].sum()}).reset_index()
+                all_losses_df = summary_gul_df.merge(how='left', right=summary_il_df, on=summary_cols)
+                all_losses_df = all_losses_df.merge(how='left', right=summary_ri_df, on=summary_cols)
+                header = \
+                    'Losses (loss factor={:.2%}; total gul={:,.00f}; total il={:,.00f}; total ri ceded={:,.00f})'.format(
+                        loss_percentages_of_tiv[i], 
+                        total_gul, total_il, total_ri_ceded)
 
-        if not il and not ril:
-            all_losses_df = guls_df.loc[:, summary_cols + ['loss_gul']]
-            all_losses_df.drop_duplicates(keep=False, inplace=True)
-            header = 'Losses (loss factor={}; total gul={:,.00f})'.format(loss_factor, total_gul)
-        elif not ril:
-            total_il = ils_df.loss_il.sum()
-            all_losses_df = all_losses_df.loc[:, summary_cols + ['loss_gul', 'loss_il']]
-            summary_gul_df = pd.DataFrame({'loss_gul': guls_df.groupby(summary_cols)['loss_gul'].sum()}).reset_index()
-            summary_il_df = pd.DataFrame({'loss_il': all_losses_df.groupby(summary_cols)['loss_il'].sum()}).reset_index()
-            all_losses_df = summary_gul_df.merge(how='left', right=summary_il_df, on=summary_cols)
-            header = 'Losses (loss factor={}; total gul={:,.00f}; total il={:,.00f})'.format(
-                loss_factor,
-                total_gul,
-                total_il
-            )
-        else:
-            total_il = ils_df.loss_il.sum()
-            total_ri_net = rils_df.loss_ri.sum()
-            total_ri_ceded = total_il - total_ri_net
-            all_losses_df = all_losses_df.loc[:, summary_cols + ['loss_gul', 'loss_il', 'loss_ri']]
-            summary_gul_df = pd.DataFrame({'loss_gul': guls_df.groupby(summary_cols)['loss_gul'].sum()}).reset_index()
-            summary_il_df = pd.DataFrame({'loss_il': all_losses_df.groupby(summary_cols)['loss_il'].sum()}).reset_index()
-            summary_ri_df = pd.DataFrame({'loss_ri': all_losses_df.groupby(summary_cols)['loss_ri'].sum()}).reset_index()
-            all_losses_df = summary_gul_df.merge(how='left', right=summary_il_df, on=summary_cols)
-            all_losses_df = all_losses_df.merge(how='left', right=summary_ri_df, on=summary_cols)
-            header = 'Losses (loss factor={}; total gul={:,.00f}; total il={:,.00f}; total ri ceded={:,.00f})'.format(
-                loss_factor, total_gul, total_il, total_ri_ceded)
+            # Convert output cols to strings for formatting
+            for c in summary_cols:
+                all_losses_df[c] = all_losses_df[c].apply(str)
 
-        print_dataframe(all_losses_df, frame_header=header, string_cols=all_losses_df.columns)
+            if print_summary:
+                cols_to_print = all_loss_cols.copy()
+                    
+                cols_to_print.remove('loss_percentages_of_tiv_idx')
+                print_dataframe(all_losses_df, frame_header=header, cols=cols_to_print)
+        
         if output_file:
             all_losses_df.to_csv(output_file, index=False, encoding='utf-8')
 
@@ -911,7 +937,7 @@ class OasisManager(object):
         self,
         src_dir,
         run_dir=None,
-        loss_percentage_of_tiv=1.0,
+        loss_percentages_of_tiv=[1.0],
         il_alloc_rule=None,
         ri_alloc_rule=None,
         net_ri=False
@@ -963,7 +989,7 @@ class OasisManager(object):
         losses = generate_deterministic_losses(
             run_dir,
             output_dir=os.path.join(run_dir, 'output'),
-            loss_percentage_of_tiv=loss_percentage_of_tiv,
+            loss_percentages_of_tiv=loss_percentages_of_tiv,
             net_ri=net_ri,
             il_alloc_rule=il_alloc_rule,
             ri_alloc_rule=ri_alloc_rule

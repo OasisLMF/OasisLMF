@@ -20,7 +20,6 @@ from ..utils.defaults import (
     KTOOLS_ALLOC_RI_DEFAULT,
     OASIS_FILES_PREFIXES,
 )
-from ..utils.diff import column_diff
 from ..utils.exceptions import OasisException
 from ..utils.path import as_path
 from ..utils.profiles import get_oed_hierarchy
@@ -85,7 +84,7 @@ class RunCmd(OasisBaseCommand):
         """
         inputs = InputValues(args)
 
-        self.logger.info('\nProcessing arguments')
+        self.logger.debug('\nProcessing arguments')
 
         call_dir = os.getcwd()
 
@@ -115,9 +114,11 @@ class RunCmd(OasisBaseCommand):
 
         output_file = as_path(inputs.get('output_file', required=False, is_path=True), 'Output file path', preexists=False)
 
+        loss_percentages_of_tiv = [loss_factor]
         om().run_exposure_wrapper(
-            src_dir, run_dir, loss_factor, net_ri, 
-            il_alloc_rule, ri_alloc_rule, output_level, output_file)
+            src_dir, run_dir, loss_percentages_of_tiv, net_ri, 
+            il_alloc_rule, ri_alloc_rule, output_level, output_file,
+            print_summary=True)
 
 
 class ExposureCmd(OasisBaseCommand):
