@@ -56,8 +56,8 @@ class RunCmd(OasisBaseCommand):
             '-r', '--run-dir', type=str, default=None, required=False, help='Run directory - where files should be generated'
         )
         parser.add_argument(
-            '-l', '--loss-factor', type=float, default=None,
-            help='Loss factor to apply to TIVs - default is 1.0.'
+            '-l', '--loss-factor', type=float, nargs='+',
+            help='Loss factors to apply to TIVs - default is 1.0. Multiple factors can be specified.'
         )
         parser.add_argument(
             '-a', '--alloc-rule-il', type=int, default=KTOOLS_ALLOC_IL_DEFAULT, help='Ktools IL back allocation rule to apply - default is 2, i.e. prior level loss basis'
@@ -94,7 +94,7 @@ class RunCmd(OasisBaseCommand):
         if not os.path.exists(run_dir):
             Path(run_dir).mkdir(parents=True, exist_ok=True)
 
-        loss_factor = inputs.get(
+        loss_percentages_of_tiv = inputs.get(
             'loss_factor', default=1.0, required=False
         )
 
@@ -102,8 +102,6 @@ class RunCmd(OasisBaseCommand):
 
         il_alloc_rule = inputs.get('alloc_rule_il', default=KTOOLS_ALLOC_IL_DEFAULT, required=False)
         ri_alloc_rule = inputs.get('alloc_rule_ri', default=KTOOLS_ALLOC_RI_DEFAULT, required=False)
-
-        validate = False
 
         # item, loc, pol, acc, port
         output_level = inputs.get('output_level', default="item", required=False)
@@ -114,7 +112,6 @@ class RunCmd(OasisBaseCommand):
 
         output_file = as_path(inputs.get('output_file', required=False, is_path=True), 'Output file path', preexists=False)
 
-        loss_percentages_of_tiv = [loss_factor]
         om().run_exposure_wrapper(
             src_dir, run_dir, loss_percentages_of_tiv, net_ri, 
             il_alloc_rule, ri_alloc_rule, output_level, output_file,

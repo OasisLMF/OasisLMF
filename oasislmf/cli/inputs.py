@@ -33,7 +33,10 @@ class InputValues(object):
             self.config_dir = os.path.dirname(self.config_fp)
 
         self.obsolete_keys = set(self.config) & set(self.config_mapping)
-        self.logger.warning(str(self.config))
+    
+        ##! Not sure why this is needed?
+        #self.logger.warning(str(self.config))
+    
         self.list_obsolete_keys()
         if update_keys:
             self.update_config_keys()

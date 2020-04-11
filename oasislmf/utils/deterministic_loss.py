@@ -134,12 +134,10 @@ def generate_deterministic_losses(
 
     guls.drop(guls[guls['sidx'] < 1].index, inplace=True)
     guls.reset_index(drop=True, inplace=True)
-    #! Why do I need to cast the sidx as int?
     guls['loss_percentages_of_tiv_idx'] = guls.apply(
-        lambda r: int(r['sidx'])-1, axis='columns')
+        lambda r: r['sidx']-1, axis='columns')
     guls.drop('sidx', axis=1, inplace=True)
     guls = guls[(guls[['loss']] != 0).any(axis=1)]
-    guls['item_id'] = guls.index + 1
     losses['gul'] = guls
 
     ils = get_dataframe(src_fp=ils_fp)
