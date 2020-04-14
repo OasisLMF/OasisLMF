@@ -27,6 +27,7 @@ from ..utils.profiles import get_oed_hierarchy
 from .base import OasisBaseCommand
 from .inputs import InputValues
 
+import tempfile
 
 class RunCmd(OasisBaseCommand):
     """
@@ -50,20 +51,23 @@ class RunCmd(OasisBaseCommand):
 
         parser.add_argument(
             '-s', '--src-dir', type=str, default=None, required=True,
-            help='Source files directory - should contain the OED exposure file + optionally the accounts, and RI info. and scope files'
+            help='Source files directory - should contain the OED exposure files'
         )
         parser.add_argument(
-            '-r', '--run-dir', type=str, default=None, required=False, help='Run directory - where files should be generated'
+            '-r', '--run-dir', type=str, default=None, required=False, 
+            help='Run directory - where files should be generated'
         )
         parser.add_argument(
             '-l', '--loss-factor', type=float, nargs='+',
             help='Loss factors to apply to TIVs - default is 1.0. Multiple factors can be specified.'
         )
         parser.add_argument(
-            '-a', '--alloc-rule-il', type=int, default=KTOOLS_ALLOC_IL_DEFAULT, help='Ktools IL back allocation rule to apply - default is 2, i.e. prior level loss basis'
+            '-a', '--alloc-rule-il', type=int, default=KTOOLS_ALLOC_IL_DEFAULT, 
+            help='Ktools IL back allocation rule to apply - default is 2, i.e. prior level loss basis'
         )
         parser.add_argument(
-            '-A', '--alloc-rule-ri', type=int, default=KTOOLS_ALLOC_RI_DEFAULT, help='Ktools RI back allocation rule to apply - default is 3, i.e. All level loss basis'
+            '-A', '--alloc-rule-ri', type=int, default=KTOOLS_ALLOC_RI_DEFAULT, 
+            help='Ktools RI back allocation rule to apply - default is 3, i.e. All level loss basis'
         )
         parser.add_argument(
             '-o', '--output-level', default='item',
@@ -90,11 +94,7 @@ class RunCmd(OasisBaseCommand):
 
         src_dir = as_path(inputs.get('src_dir', default=call_dir, is_path=True), 'Source files directory', is_dir=True, preexists=True)
 
-        run_dir = as_path(inputs.get('run_dir', default=os.path.join(src_dir, 'run'), is_path=True), 'Run directory', is_dir=True, preexists=False)
-        if not os.path.exists(run_dir):
-            Path(run_dir).mkdir(parents=True, exist_ok=True)
-
-        loss_percentages_of_tiv = inputs.get(
+        loss_factors = inputs.get(
             'loss_factor', default=1.0, required=False
         )
 
@@ -112,10 +112,20 @@ class RunCmd(OasisBaseCommand):
 
         output_file = as_path(inputs.get('output_file', required=False, is_path=True), 'Output file path', preexists=False)
 
-        om().run_exposure_wrapper(
-            src_dir, run_dir, loss_percentages_of_tiv, net_ri, 
-            il_alloc_rule, ri_alloc_rule, output_level, output_file,
-            print_summary=True)
+        run_dir = as_path(inputs.get('run_dir', is_path=True), 'Run directory', is_dir=True, preexists=False)
+        if run_dir is None:
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                om().run_exposure_wrapper(
+                    src_dir, tmpdirname, loss_factors, net_ri, 
+                    il_alloc_rule, ri_alloc_rule, output_level, output_file,
+                    print_summary=True)
+        else:
+            if not os.path.exists(run_dir):
+                Path(run_dir).mkdir(parents=True, exist_ok=True)
+            om().run_exposure_wrapper(
+                src_dir, run_dir, loss_factors, net_ri, 
+                il_alloc_rule, ri_alloc_rule, output_level, output_file,
+                print_summary=True)
 
 
 class ExposureCmd(OasisBaseCommand):

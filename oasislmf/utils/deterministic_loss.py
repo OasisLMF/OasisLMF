@@ -48,7 +48,7 @@ from .log import oasis_log
 def generate_deterministic_losses(
     input_dir,
     output_dir=None,
-    loss_percentages_of_tiv=[1.0],
+    loss_factors=[1.0],
     net_ri=False,
     il_alloc_rule=KTOOLS_ALLOC_IL_DEFAULT,
     ri_alloc_rule=KTOOLS_ALLOC_RI_DEFAULT
@@ -87,12 +87,12 @@ def generate_deterministic_losses(
 
     gulcalc_sidxs = \
         [KTOOLS_MEAN_SAMPLE_IDX, KTOOLS_STD_DEV_SAMPLE_IDX, KTOOLS_TIV_SAMPLE_IDX] + \
-        list(range(1, len(loss_percentages_of_tiv) + 1))
+        list(range(1, len(loss_factors) + 1))
 
     # Set damage percentages corresponing to the special indexes.
     # We don't care about mean and std_dev, but
     # TIV needs to be set correctly.
-    special_loss_percentages_of_tiv = {
+    special_loss_factors = {
         KTOOLS_MEAN_SAMPLE_IDX: 0.,
         KTOOLS_STD_DEV_SAMPLE_IDX: 0.,
         KTOOLS_TIV_SAMPLE_IDX: 1.
@@ -104,8 +104,8 @@ def generate_deterministic_losses(
             'item_id': item_id,
             'sidx': sidx,
             'loss':
-            tiv * special_loss_percentages_of_tiv[sidx] if sidx < 0
-            else (tiv * loss_percentages_of_tiv[sidx - 1])
+            tiv * special_loss_factors[sidx] if sidx < 0
+            else (tiv * loss_factors[sidx - 1])
         })
         for (item_id, tiv), sidx in product(
             fast_zip_dataframe_columns(items, ['item_id', 'tiv']), gulcalc_sidxs
@@ -124,7 +124,7 @@ def generate_deterministic_losses(
 
     ils_fp = os.path.join(output_dir, 'raw_ils.csv')
     cmd = 'gultobin -S {} < {} | fmcalc -p {} -a {} {} | tee ils.bin | fmtocsv > {}'.format(
-        len(loss_percentages_of_tiv), guls_fp, output_dir, il_alloc_rule, step_flag, ils_fp
+        len(loss_factors), guls_fp, output_dir, il_alloc_rule, step_flag, ils_fp
     )
     try:
         logger.debug("RUN: " + cmd)
@@ -134,7 +134,7 @@ def generate_deterministic_losses(
 
     guls.drop(guls[guls['sidx'] < 1].index, inplace=True)
     guls.reset_index(drop=True, inplace=True)
-    guls['loss_percentages_of_tiv_idx'] = guls.apply(
+    guls['loss_factors_idx'] = guls.apply(
         lambda r: r['sidx']-1, axis='columns')
     guls.drop('sidx', axis=1, inplace=True)
     guls = guls[(guls[['loss']] != 0).any(axis=1)]
@@ -143,7 +143,7 @@ def generate_deterministic_losses(
     ils = get_dataframe(src_fp=ils_fp)
     ils.drop(ils[ils['sidx'] < 0].index, inplace=True)  
     ils.reset_index(drop=True, inplace=True)
-    ils['loss_percentages_of_tiv_idx'] = ils.apply(
+    ils['loss_factors_idx'] = ils.apply(
         lambda r: int(r['sidx'])-1, axis='columns')
     ils.drop('sidx', axis=1, inplace=True)
     ils = ils[(ils[['loss']] != 0).any(axis=1)]
@@ -189,7 +189,7 @@ def generate_deterministic_losses(
                         raise OasisException from e
                     rils = get_dataframe(src_fp=ri_layer_fp)
                     rils.drop(rils[rils['sidx'] < 0].index, inplace=True)
-                    rils['loss_percentages_of_tiv_idx'] = rils.apply(
+                    rils['loss_factors_idx'] = rils.apply(
                         lambda r: int(r['sidx'])-1, axis='columns')
                     rils.drop('sidx', axis=1, inplace=True)
                     rils.reset_index(drop=True, inplace=True)

@@ -798,7 +798,7 @@ class OasisManager(object):
         self, 
         src_dir, 
         run_dir, 
-        loss_percentages_of_tiv, 
+        loss_factors, 
         net_ri, 
         il_alloc_rule, 
         ri_alloc_rule, 
@@ -822,7 +822,7 @@ class OasisManager(object):
         guls_df, ils_df, rils_df = self.run_deterministic(
             src_dir,
             run_dir=run_dir,
-            loss_percentages_of_tiv=loss_percentages_of_tiv,
+            loss_factors=loss_factors,
             net_ri=net_ri,
             il_alloc_rule=il_alloc_rule,
             ri_alloc_rule=ri_alloc_rule
@@ -846,7 +846,7 @@ class OasisManager(object):
             all_losses_df = guls_df.merge(
                 how='left',
                 right=ils_df,
-                on=["event_id", "output_id", "loss_percentages_of_tiv_idx"],
+                on=["event_id", "output_id", "loss_factors_idx"],
                 suffixes=["_gul", "_il"]
             )
         if ril:
@@ -855,7 +855,7 @@ class OasisManager(object):
             all_losses_df = all_losses_df.merge(
                 how='left',
                 right=rils_df,
-                on=["event_id", "output_id", "loss_percentages_of_tiv_idx"]
+                on=["event_id", "output_id", "loss_factors_idx"]
             )
 
         oed_hierarchy = get_oed_hierarchy()
@@ -877,7 +877,7 @@ class OasisManager(object):
                 'output_id', portfolio_num, acc_num, loc_num, policy_num, 
                 'coverage_type_id']
 
-        group_by_cols = summary_cols + ['loss_percentages_of_tiv_idx']
+        group_by_cols = summary_cols + ['loss_factors_idx']
         guls_df = guls_df.loc[:, group_by_cols + ['loss_gul']]
 
         if not il and not ril:
@@ -902,30 +902,30 @@ class OasisManager(object):
             all_losses_df = summary_gul_df.merge(how='left', right=summary_il_df, on=group_by_cols)
             all_losses_df = all_losses_df.merge(how='left', right=summary_ri_df, on=group_by_cols)
 
-        for i in range(len(loss_percentages_of_tiv)):
+        for i in range(len(loss_factors)):
 
-            total_gul = guls_df[guls_df.loss_percentages_of_tiv_idx == i].loss_gul.sum()
+            total_gul = guls_df[guls_df.loss_factors_idx == i].loss_gul.sum()
             if not il and not ril:
                 all_loss_cols = all_loss_cols + ['loss_gul']
                 all_losses_df = guls_df.loc[:, all_loss_cols]
                 all_losses_df.drop_duplicates(keep=False, inplace=True)
                 header = \
                     'Losses (loss factor={:.2%}; total gul={:,.00f})'.format(
-                        loss_percentages_of_tiv[i], 
+                        loss_factors[i], 
                         total_gul)
             elif not ril:
-                total_il = ils_df[ils_df.loss_percentages_of_tiv_idx == i].loss_il.sum()
+                total_il = ils_df[ils_df.loss_factors_idx == i].loss_il.sum()
                 header = \
                     'Losses (loss factor={:.2%}; total gul={:,.00f}; total il={:,.00f})'.format(
-                        loss_percentages_of_tiv[i],
+                        loss_factors[i],
                         total_gul, total_il)
             else:
-                total_il = ils_df[ils_df.loss_percentages_of_tiv_idx == i].loss_il.sum()
-                total_ri_net = rils_df[rils_df.loss_percentages_of_tiv_idx == i].loss_ri.sum()
+                total_il = ils_df[ils_df.loss_factors_idx == i].loss_il.sum()
+                total_ri_net = rils_df[rils_df.loss_factors_idx == i].loss_ri.sum()
                 total_ri_ceded = total_il - total_ri_net
                 header = \
                     'Losses (loss factor={:.2%}; total gul={:,.00f}; total il={:,.00f}; total ri ceded={:,.00f})'.format(
-                        loss_percentages_of_tiv[i], 
+                        loss_factors[i], 
                         total_gul, total_il, total_ri_ceded)
 
             # Convert output cols to strings for formatting
@@ -934,9 +934,9 @@ class OasisManager(object):
 
             if print_summary:
                 cols_to_print = all_loss_cols.copy()     
-                cols_to_print.remove('loss_percentages_of_tiv_idx')
+                cols_to_print.remove('loss_factors_idx')
                 print_dataframe(
-                    all_losses_df[all_losses_df.loss_percentages_of_tiv_idx == i], 
+                    all_losses_df[all_losses_df.loss_factors_idx == i], 
                     frame_header=header, 
                     cols=cols_to_print)
         
@@ -950,7 +950,7 @@ class OasisManager(object):
         self,
         src_dir,
         run_dir=None,
-        loss_percentages_of_tiv=[1.0],
+        loss_factors=[1.0],
         il_alloc_rule=None,
         ri_alloc_rule=None,
         net_ri=False
@@ -1002,7 +1002,7 @@ class OasisManager(object):
         losses = generate_deterministic_losses(
             run_dir,
             output_dir=os.path.join(run_dir, 'output'),
-            loss_percentages_of_tiv=loss_percentages_of_tiv,
+            loss_factors=loss_factors,
             net_ri=net_ri,
             il_alloc_rule=il_alloc_rule,
             ri_alloc_rule=ri_alloc_rule
