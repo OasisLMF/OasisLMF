@@ -348,7 +348,7 @@ def get_gul_input_items(
             inplace=True
         )
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
-        raise OasisException from e
+        raise OasisException("Exception raised in 'get_gul_input_items'", e)
 
     return gul_inputs_df, exposure_df
 
@@ -376,7 +376,7 @@ def write_complex_items_file(gul_inputs_df, complex_items_fp, chunksize=100000):
             index=False
         )
     except (IOError, OSError) as e:
-        raise OasisException from e
+        raise OasisException("Exception raised in 'write_complex_items_file'", e)
 
 
 @oasis_log
@@ -402,7 +402,7 @@ def write_items_file(gul_inputs_df, items_fp, chunksize=100000):
             index=False
         )
     except (IOError, OSError) as e:
-        raise OasisException from e
+        raise OasisException("Exception raised in 'write_items_file'", e)
 
     return items_fp
 
@@ -430,7 +430,7 @@ def write_coverages_file(gul_inputs_df, coverages_fp, chunksize=100000):
             index=False
         )
     except (IOError, OSError) as e:
-        raise OasisException from e
+        raise OasisException("Exception raised in 'write_coverages_file'", e)
 
     return coverages_fp
 
