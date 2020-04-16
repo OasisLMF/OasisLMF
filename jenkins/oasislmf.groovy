@@ -171,6 +171,8 @@ node {
                 // Create GH release
                 withCredentials([string(credentialsId: 'github-api-token', variable: 'gh_token')]) {
                     String repo = "OasisLMF/OasisLMF"
+
+                    // Create release 
                     def json_request = readJSON text: '{}'
                     json_request['tag_name'] = vers_pypi
                     json_request['target_commitish'] = 'master'
@@ -180,6 +182,11 @@ node {
                     json_request['prerelease'] = false
                     writeJSON file: 'gh_request.json', json: json_request
                     sh 'curl -XPOST -H "Authorization:token ' + gh_token + "\" --data @gh_request.json https://api.github.com/repos/$repo/releases > gh_response.json"
+
+                   // Create milestone
+                    dir(source_workspace) {
+                        sh PIPELINE + " create_milestone ${gh_token} ${repo} ${vers_pypi} CHANGELOG.rst"
+                    }
                 }
             }
         }
