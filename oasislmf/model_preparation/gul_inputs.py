@@ -309,7 +309,7 @@ def get_gul_input_items(
         if len(group_id_cols) > 1:
             gul_inputs_df['group_id'] = factorize_ndarray(
                 gul_inputs_df.loc[:, group_id_cols].values,
-                col_idxs=range(len(group_id_cols))
+                col_idxs=range(len(group_id_cols),sort_opt=True)
             )[0]
         else:
             gul_inputs_df['group_id'] = factorize_array(

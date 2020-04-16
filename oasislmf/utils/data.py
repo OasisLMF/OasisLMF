@@ -84,7 +84,7 @@ PANDAS_DEFAULT_NULL_VALUES = {
 }
 
 
-def factorize_array(arr):
+def factorize_array(arr,sort_opt=False):
     """
     Groups a 1D Numpy array by item value, and optionally enumerates the
     groups, starting from 1. The default or assumed type is a Nunpy
@@ -96,12 +96,12 @@ def factorize_array(arr):
     :return: A 2-tuple consisting of the enumeration and the value groups
     :rtype: tuple
     """
-    enum, groups = pd.factorize(arr,sort=True)
+    enum, groups = pd.factorize(arr,sort=sort_opt)
 
     return enum + 1, groups
 
 
-def factorize_ndarray(ndarr, row_idxs=[], col_idxs=[]):
+def factorize_ndarray(ndarr, row_idxs=[], col_idxs=[], sort_opt=False):
     """
     Groups an n-D Numpy array by item value, and optionally enumerates the
     groups, starting from 1. The default or assumed type is a Nunpy
@@ -128,7 +128,7 @@ def factorize_ndarray(ndarr, row_idxs=[], col_idxs=[]):
     if rows == 1:
         return factorize_array(_ndarr[0])
 
-    enum, groups = pd.factorize(fast_zip_arrays(*(arr for arr in _ndarr)),sort=True)
+    enum, groups = pd.factorize(fast_zip_arrays(*(arr for arr in _ndarr)),sort=sort_opt)
 
     return enum + 1, groups
 
