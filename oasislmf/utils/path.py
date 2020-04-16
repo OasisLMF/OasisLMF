@@ -2,10 +2,14 @@ __all__ = [
     'as_path',
     'empty_dir',
     'PathCleaner',
+    'get_custom_module',
     'setcwd'
 ]
 
 import os
+import sys
+import importlib
+import re
 import shutil
 
 from contextlib import contextmanager
@@ -13,7 +17,7 @@ from contextlib import contextmanager
 from .exceptions import OasisException
 
 
-def as_path(path, label, is_dir=False, preexists=True):
+def as_path(path, label, is_dir=False, preexists=True, null_is_valid=True):
     """
     Processes the path and returns the absolute path.
 
@@ -33,20 +37,27 @@ def as_path(path, label, is_dir=False, preexists=True):
         does not exist.
     :type preexists: bool
 
+    :param null_is_valid: flag to indicate if None is a valid value
+    :type null_is_valid: bool
+
     :return: The absolute path of the input path
     """
+    if path is None and null_is_valid:
+        return
 
     if not isinstance(path, str):
-        return
-    _path = ''.join(path)
+        if preexists:
+            raise OasisException(f'The path {path} ({label}) is indicated as preexisting but is not a valid path')
+        else:
+            return
     if not os.path.isabs(path):
-        _path = os.path.abspath(_path)
-    if preexists and not os.path.exists(_path):
-        raise OasisException('The path {} ({}) is indicated as preexisting but does not exist'.format(_path, label))
-    if is_dir and preexists and not os.path.isdir(_path):
-        raise OasisException('The path {} ({}) is indicated as a preexisting directory but is not actually a directory'.format(_path, label))
+        path = os.path.abspath(path)
+    if preexists and not os.path.exists(path):
+        raise OasisException(f'The path {path} ({label}) is indicated as preexisting but does not exist')
+    if is_dir and preexists and not os.path.isdir(path):
+        raise OasisException(f'The path {path} ({label}) is indicated as a preexisting directory but is not actually a directory')
 
-    return _path
+    return path
 
 
 def empty_dir(dir_fp):
@@ -82,9 +93,49 @@ class PathCleaner(object):
         return as_path(path, self.label, preexists=self.preexists)
 
 
+def get_custom_module(custom_module_path, label):
+    """
+    return the custom module present at the custom_module_path.
+    the try loop allow for the custom module to work even if it depends on other module of its package
+    by testing recursively for the presence of __init__.py file
+
+    (ex: this module "path" is using from .exceptions import OasisException so it can only be imported as part of the
+    utils package => sys.path.insert(0, path_to_utils);importlib.import_module('utils.path'))
+    >>> mod = get_custom_module(__file__, "test module")
+    >>> mod.__name__.rsplit('.', 1)[-1]
+    'path'
+    """
+    custom_module_path = as_path(custom_module_path, label, preexists=True, null_is_valid=False)
+
+    package_dir = os.path.dirname(custom_module_path)
+    module_name = re.sub(r'\.py$', '', os.path.basename(custom_module_path))
+
+    while True:
+        sys.path.insert(0, package_dir)
+        try:
+            custom_module = importlib.import_module(module_name)
+            importlib.reload(custom_module)
+            return custom_module
+        except ImportError:
+            if '__init__.py' in os.listdir(package_dir):
+                module_name = os.path.basename(package_dir) + '.' + module_name
+                package_dir, old_package_dir = os.path.dirname(package_dir), package_dir
+                if package_dir == old_package_dir:
+                    raise
+            else:
+                raise
+        finally:
+            sys.path.pop(0)
+
+
 @contextmanager
 def setcwd(path):
     pwd = os.getcwd()
     os.chdir(str(path))
     yield path
     os.chdir(pwd)
+
+
+if __name__ == '__main__':
+    import doctest
+    doctest.testmod()

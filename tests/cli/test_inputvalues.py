@@ -41,7 +41,7 @@ class InputValuesGet(TestCase):
 
             inputs = InputValues(args)
 
-            self.assertEqual(False, inputs.get('foo', type=bool))
+            self.assertEqual(False, inputs.get('foo'))
         finally:
             os.remove(conf_file.name)
 
@@ -55,7 +55,7 @@ class InputValuesGet(TestCase):
 
             inputs = InputValues(args)
 
-            self.assertEqual(False, inputs.get('foo', type=bool, default=False))
+            self.assertEqual(False, inputs.get('foo', default=False))
         finally:
             os.remove(conf_file.name)
 
@@ -69,7 +69,7 @@ class InputValuesGet(TestCase):
 
             inputs = InputValues(args)
 
-            self.assertEqual(True, inputs.get('foo', type=bool, default=True))
+            self.assertEqual(True, inputs.get('foo', default=True))
         finally:
             os.remove(conf_file.name)
 
@@ -83,7 +83,7 @@ class InputValuesGet(TestCase):
 
             inputs = InputValues(args)
 
-            self.assertEqual(False, inputs.get('foo', type=bool, default=True))
+            self.assertEqual(False, inputs.get('foo', default=True))
         finally:
             os.remove(conf_file.name)
 
@@ -97,7 +97,7 @@ class InputValuesGet(TestCase):
 
             inputs = InputValues(args)
 
-            self.assertEqual(False, inputs.get('foo', type=bool))
+            self.assertEqual(False, inputs.get('foo'))
         finally:
             os.remove(conf_file.name)
 
@@ -111,7 +111,7 @@ class InputValuesGet(TestCase):
 
             inputs = InputValues(args)
 
-            self.assertEqual(True, inputs.get('foo', type=bool, default=False))
+            self.assertEqual(True, inputs.get('foo', default=False))
         finally:
             os.remove(conf_file.name)
 
@@ -158,7 +158,7 @@ class InputValuesGet(TestCase):
 
             inputs = InputValues(args)
 
-            self.assertEqual(True, inputs.get('foo', type=bool))
+            self.assertEqual(True, inputs.get('foo'))
         finally:
             os.remove(conf_file.name)
 
@@ -172,7 +172,7 @@ class InputValuesGet(TestCase):
 
             inputs = InputValues(args)
 
-            self.assertEqual(True, inputs.get('foo', type=bool, default=False))
+            self.assertEqual(True, inputs.get('foo', default=False))
         finally:
             os.remove(conf_file.name)
 
@@ -186,7 +186,7 @@ class InputValuesGet(TestCase):
 
             inputs = InputValues(args)
 
-            self.assertEqual(False, inputs.get('foo', type=bool, default=True))
+            self.assertEqual(False, inputs.get('foo', default=True))
         finally:
             os.remove(conf_file.name)
 
@@ -200,7 +200,7 @@ class InputValuesGet(TestCase):
 
             inputs = InputValues(args)
 
-            self.assertEqual(False, inputs.get('foo', type=bool))
+            self.assertEqual(False, inputs.get('foo'))
         finally:
             os.remove(conf_file.name)
 
@@ -260,7 +260,7 @@ class InputValuesGet(TestCase):
             inputs = InputValues(args)
 
             self.assertEqual(
-                default, inputs.get('foo', default=default, type=float)
+                default, inputs.get('foo', default=default)
             )
         finally:
             os.remove(conf_file.name)
@@ -277,7 +277,7 @@ class InputValuesGet(TestCase):
             inputs = InputValues(args)
 
             self.assertEqual(
-                cmd_var, inputs.get('foo', default=default, type=float)
+                cmd_var, inputs.get('foo', default=default)
             )
         finally:
             os.remove(conf_file.name)
@@ -294,7 +294,7 @@ class InputValuesGet(TestCase):
             inputs = InputValues(args)
 
             self.assertEqual(
-                cmd_var, inputs.get('foo', default=default, type=float)
+                cmd_var, inputs.get('foo', default=default)
             )
         finally:
             os.remove(conf_file.name)
@@ -311,7 +311,7 @@ class InputValuesGet(TestCase):
             inputs = InputValues(args)
 
             self.assertEqual(
-                conf_var, inputs.get('foo', default=default, type=float)
+                conf_var, inputs.get('foo', default=default)
             )
         finally:
             os.remove(conf_file.name)

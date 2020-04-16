@@ -318,3 +318,46 @@ class FmAcceptanceTests(TestCase):
     @pytest.mark.skip(reason='Needs fixing')
     def test_ri_single_pol_level_fac(self):
         self.run_test('ri_single_pol_level_fac')
+
+    def test_fm24(self):
+        self.run_test('fm24')
+
+    def test_xx45_L(self):
+        self.run_test('xx45_L')
+
+    def test_xx45_A(self):
+        self.run_test('xx45_A')
+
+    def test_xx45_P(self):
+        self.run_test('xx45_P')
+
+    def test_fm27(self):
+        self.run_test('fm27')
+
+    def test_xx_32(self):
+        self.run_test('xx_32')
+
+    def test_xx_38(self):
+        self.run_test('xx_38')
+
+    def test_xx_39(self):
+        self.run_test('xx_39')
+
+    def test_xx_42(self):
+        self.run_test('xx_42')
+
+    def test_xx_43(self):
+        self.run_test('xx_43')
+
+    def test_xx_47(self):
+        self.run_test('xx_47')
+
+    def test_xx_53(self):
+        self.run_test('xx_53')
+
+    def test_xx_54(self):
+        self.run_test('xx_54')
+
+    def test_Q1_all(self):
+        self.run_test('Q1_all')
+

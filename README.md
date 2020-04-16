@@ -10,6 +10,7 @@ The `oasislmf` Python package, loosely called the *model development kit (MDK)* 
 
 For running models locally the CLI provides a `model` subcommand with the following options:
 
+* `model generate-exposure-pre-analysis`: generate new Exposure input using user custom code (ex: geo-coding, exposure enhancement, or dis-aggregation...) 
 * `model generate-keys`: generates Oasis keys files from model lookups; these are essentially line items of (location ID, peril ID, coverage type ID, area peril ID, vulnerability ID) where peril ID and coverage type ID span the full set of perils and coverage types that the model supports; if the lookup is for a complex/custom model the keys file will have the same format except that area peril ID and vulnerability ID are replaced by a model data JSON string
 * `model generate-oasis-files`: generates the Oasis input CSV files for losses (GUL, GUL + IL, or GUL + IL + RIL); it requires the provision of source exposure and optionally source accounts and reinsurance info. and scope files (in OED format), as well as assets for instantiating model lookups and generating keys files
 * `model generate-losses`: generates losses (GUL, or GUL + IL, or GUL + IL + RIL) from a set of pre-existing Oasis files
