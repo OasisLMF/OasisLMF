@@ -82,7 +82,7 @@ def get_calc_rule_ids(il_inputs_df):
     try:
         calc_rules['id_key'] = calc_rules['id_key'].apply(literal_eval)
     except ValueError as e:
-        raise OasisException(e)
+        raise OasisException("Exception raised in 'get_calc_rule_ids'", e)
 
     terms = ['deductible', 'deductible_min', 'deductible_max', 'limit', 'share', 'attachment']
     terms_indicators = ['{}_gt_0'.format(t) for t in terms]
@@ -128,7 +128,7 @@ def get_step_calc_rule_ids(il_inputs_df, step_trigger_type_cols):
     try:
         calc_rules_step['id_key'] = calc_rules_step['id_key'].apply(literal_eval)
     except ValueError as e:
-        raise OasisException(e)
+        raise OasisException("Exception raised in 'get_step_calc_rule_ids'", e)
 
     terms = ['deductible1', 'payout_start', 'payout_end', 'limit1', 'limit2']
     terms_indicators = ['{}_gt_0'.format(t) for t in terms]
@@ -848,7 +848,7 @@ def write_fm_policytc_file(il_inputs_df, fm_policytc_fp, chunksize=100000):
             index=False
         )
     except (IOError, OSError) as e:
-        raise OasisException from e
+        raise OasisException("Exception raised in 'write_fm_policytc_file'", e)
 
     return fm_policytc_fp
 
@@ -940,7 +940,7 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
                 index=False
             )
     except (IOError, OSError) as e:
-        raise OasisException from e
+        raise OasisException("Exception raised in 'write_fm_profile_file'", e)
 
     return fm_profile_fp
 
@@ -996,7 +996,7 @@ def write_fm_programme_file(il_inputs_df, fm_programme_fp, chunksize=100000):
             index=False
         )
     except (IOError, OSError) as e:
-        raise OasisException from e
+        raise OasisException("Exception raised in 'write_fm_programme_file'", e)
 
     return fm_programme_fp
 
@@ -1031,7 +1031,7 @@ def write_fm_xref_file(il_inputs_df, fm_xref_fp, chunksize=100000):
             index=False
         )
     except (IOError, OSError) as e:
-        raise OasisException from e
+        raise OasisException("Exception raised in 'write_fm_xref_file'", e)
 
     return fm_xref_fp
 
