@@ -80,7 +80,8 @@ class OasisLog(TestCase):
             wrapped = oasis_log(callable)
             wrapped('first', second='second')
 
-            self.assertGreater(logger_mock.info.call_count, 0)
+            self.assertGreater(logger_mock.debug.call_count, 0) 
+            self.assertEqual(logger_mock.info.call_count, 0)
 
     def test_wrapped_function_is_called___args_and_kwargs_are_logged_to_debug_excluding_self(self):
         logger_mock = MockLogger()
