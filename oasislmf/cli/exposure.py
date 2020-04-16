@@ -87,7 +87,7 @@ class RunCmd(OasisBaseCommand):
         src_dir = as_path(inputs.get('src_dir', default=call_dir, is_path=True), 'Source files directory', is_dir=True, preexists=True)
 
         loss_factors = inputs.get(
-            'loss_factor', default=1.0, required=False
+            'loss_factor', default=[1.0], required=False
         )
 
         net_ri = True
@@ -107,14 +107,14 @@ class RunCmd(OasisBaseCommand):
         run_dir = as_path(inputs.get('run_dir', is_path=True), 'Run directory', is_dir=True, preexists=False)
         if run_dir is None:
             with tempfile.TemporaryDirectory() as tmpdirname:
-                om().run_exposure_wrapper(
+                om().run_exposure(
                     src_dir, tmpdirname, loss_factors, net_ri,
                     il_alloc_rule, ri_alloc_rule, output_level, output_file,
                     print_summary=True)
         else:
             if not os.path.exists(run_dir):
                 Path(run_dir).mkdir(parents=True, exist_ok=True)
-            om().run_exposure_wrapper(
+            om().run_exposure(
                 src_dir, run_dir, loss_factors, net_ri,
                 il_alloc_rule, ri_alloc_rule, output_level, output_file,
                 print_summary=True)

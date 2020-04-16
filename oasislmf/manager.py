@@ -796,7 +796,8 @@ class OasisManager(object):
 
         return model_run_fp
 
-    def run_exposure_wrapper(
+    @oasis_log
+    def run_exposure(
             self,
             src_dir,
             run_dir,
@@ -808,6 +809,10 @@ class OasisManager(object):
             output_file,
             include_loss_factor=True,
             print_summary=False):
+        """
+        Generates insured losses from preexisting Oasis files with specified
+        loss factors (loss % of TIV).
+        """
 
         src_contents = [fn.lower() for fn in os.listdir(src_dir)]
 
@@ -822,15 +827,59 @@ class OasisManager(object):
         ril = il and ('ri_info.csv' in src_contents) and ('ri_scope.csv' in src_contents)
 
         self.logger.debug('\nRunning deterministic losses (GUL=True, IL={}, RIL={})\n'.format(il, ril))
-        guls_df, ils_df, rils_df = self.run_deterministic(
-            src_dir,
-            run_dir=run_dir,
+
+        if not os.path.exists(run_dir):
+            Path(run_dir).mkdir(parents=True, exist_ok=True)
+        
+        contents = [fn.lower() for fn in os.listdir(src_dir)]
+        exposure_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'location.csv'][0]
+        accounts_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'account.csv'][0]
+        ri_info_fp = ri_scope_fp = None
+        try:
+            ri_info_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'ri_info.csv'][0]
+        except IndexError:
+            pass
+        else:
+            try:
+                ri_scope_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'ri_scope.csv'][0]
+            except IndexError:
+                ri_info_fp = None
+
+        il_alloc_rule = self.get_alloc_rule(
+            alloc_given=il_alloc_rule,
+            alloc_max=KTOOLS_ALLOC_FM_MAX,
+            err_msg='Invalid alloc IL rule',
+            fallback=self.ktools_alloc_rule_il
+        )
+        ri_alloc_rule = self.get_alloc_rule(
+            alloc_given=ri_alloc_rule,
+            alloc_max=KTOOLS_ALLOC_FM_MAX,
+            err_msg='Invalid alloc RI rule',
+            fallback=self.ktools_alloc_rule_ri
+        )
+
+        # Start Oasis files generation
+        self.generate_oasis_files(
+            run_dir,
+            exposure_fp,
+            accounts_fp=accounts_fp,
+            ri_info_fp=ri_info_fp,
+            ri_scope_fp=ri_scope_fp
+        )
+
+        losses = generate_deterministic_losses(
+            run_dir,
+            output_dir=os.path.join(run_dir, 'output'),
+            include_loss_factor=include_loss_factor,
             loss_factors=loss_factors,
             net_ri=net_ri,
             il_alloc_rule=il_alloc_rule,
-            ri_alloc_rule=ri_alloc_rule,
-            include_loss_factor=include_loss_factor
+            ri_alloc_rule=ri_alloc_rule
         )
+
+        guls_df = losses['gul']
+        ils_df = losses['il']
+        rils_df = losses['ri']
 
         # Read in the summary map
         summaries_df = get_dataframe(src_fp=os.path.join(run_dir, 'fm_summary_map.csv'))
@@ -936,7 +985,7 @@ class OasisManager(object):
                     total_il = ils_df[ils_df.loss_factor_idx == i].loss_il.sum()
                 else:
                     total_il = ils_df.loss_il.sum()
-                
+
                 header = \
                     'Losses (loss factor={:.2%}; total gul={:,.00f}; total il={:,.00f})'.format(
                         loss_factors[i],
@@ -963,7 +1012,7 @@ class OasisManager(object):
                 if False:
                     cols_to_print.remove('loss_factor_idx')
                 print_dataframe(
-                    all_losses_df[all_losses_df.loss_factor_idx == i],
+                    all_losses_df[all_losses_df.loss_factor_idx == str(i)],
                     frame_header=header,
                     cols=cols_to_print)
 
@@ -972,74 +1021,11 @@ class OasisManager(object):
 
         return (il, ril)
 
-    @oasis_log
-    def run_deterministic(
-        self,
-        src_dir,
-        run_dir=None,
-        include_loss_factor=True,
-        loss_factors=[1.0],
-        il_alloc_rule=None,
-        ri_alloc_rule=None,
-        net_ri=False
-    ):
+    def run_fm_test(self, test_case_dir, run_dir):
         """
-        Generates insured losses from preexisting Oasis files with a specified
-        damage ratio (loss % of TIV).
+        Runs an FM test case and validates generated
+        losses against expected losses.
         """
-        if not run_dir:
-            run_dir = os.path.join(src_dir, 'run')
-        elif not os.path.exists(run_dir):
-            Path(run_dir).mkdir(parents=True, exist_ok=True)
-        contents = [fn.lower() for fn in os.listdir(src_dir)]
-        exposure_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'location.csv'][0]
-        accounts_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'account.csv'][0]
-        ri_info_fp = ri_scope_fp = None
-        try:
-            ri_info_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'ri_info.csv'][0]
-        except IndexError:
-            pass
-        else:
-            try:
-                ri_scope_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'ri_scope.csv'][0]
-            except IndexError:
-                ri_info_fp = None
-
-        il_alloc_rule = self.get_alloc_rule(
-            alloc_given=il_alloc_rule,
-            alloc_max=KTOOLS_ALLOC_FM_MAX,
-            err_msg='Invalid alloc IL rule',
-            fallback=self.ktools_alloc_rule_il
-        )
-        ri_alloc_rule = self.get_alloc_rule(
-            alloc_given=ri_alloc_rule,
-            alloc_max=KTOOLS_ALLOC_FM_MAX,
-            err_msg='Invalid alloc RI rule',
-            fallback=self.ktools_alloc_rule_ri
-        )
-
-        # Start Oasis files generation
-        self.generate_oasis_files(
-            run_dir,
-            exposure_fp,
-            accounts_fp=accounts_fp,
-            ri_info_fp=ri_info_fp,
-            ri_scope_fp=ri_scope_fp
-        )
-
-        losses = generate_deterministic_losses(
-            run_dir,
-            output_dir=os.path.join(run_dir, 'output'),
-            include_loss_factor=include_loss_factor,
-            loss_factors=loss_factors,
-            net_ri=net_ri,
-            il_alloc_rule=il_alloc_rule,
-            ri_alloc_rule=ri_alloc_rule
-        )
-
-        return losses['gul'], losses['il'], losses['ri']
-
-    def run_fm_test(self,test_case_dir, run_dir):
 
         net_ri = True
         il_alloc_rule = KTOOLS_ALLOC_IL_DEFAULT
@@ -1064,7 +1050,7 @@ class OasisManager(object):
             loss_factor.append(1.0)
 
         output_file = os.path.join(run_dir, 'loc_summary.csv')
-        (il, ril) = self.run_exposure_wrapper(
+        (il, ril) = self.run_exposure(
             test_case_dir, run_dir, loss_factor, net_ri,
             il_alloc_rule, ri_alloc_rule, output_level, output_file,
             include_loss_factor)
@@ -1099,7 +1085,8 @@ class OasisManager(object):
 
             file_test_result = compare_files(generated, expected)
             if not file_test_result:
-                logger.debug('\n FAIL: generated {} vs expected {}'.format(generated, expected))
+                self.logger.debug(
+                    f'\n FAIL: generated {generated} vs expected {expected}')
             test_result = test_result and file_test_result
 
         return file_test_result

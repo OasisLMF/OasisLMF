@@ -71,11 +71,11 @@ class FmValidationCmd(OasisBaseCommand):
         parser.add_argument(
             '-c', '--test-case-name',
             type=str, default=None, required=False,
-            help='Test case name - runs a specific test in the test directory'
+            help='Test case name - runs a specific test in the test directory. Otherwise run all tests.'
         )
         parser.add_argument(
             '-l', '--list-tests',
-            type=bool, default=False,
+            action='store_true', 
             help='List the valid test cases in the test directory rather than running'
         )
         parser.add_argument(
@@ -101,6 +101,8 @@ class FmValidationCmd(OasisBaseCommand):
 
         call_dir = os.getcwd()
 
+        do_list_tests = inputs.get('list_tests')
+
         test_case_name = inputs.get('test_case_name')
         run_all_tests = test_case_name is None
 
@@ -123,6 +125,11 @@ class FmValidationCmd(OasisBaseCommand):
 
         status = 0
 
+        if do_list_tests:
+            for test_case_name in test_case_names:
+                print(test_case_name)
+            exit(0)
+
         for test_case_name in test_case_names:
 
             test_case_dir = os.path.join(test_dir, test_case_name)
@@ -132,7 +139,7 @@ class FmValidationCmd(OasisBaseCommand):
             run_dir = as_path(inputs.get('run_dir', is_path=True), 'Run directory', is_dir=True, preexists=False)
             if run_dir is None:
                 with tempfile.TemporaryDirectory() as tmp_run_dir:
-                    test_result = om().run_test(test_case_dir, tmp_run_dir)
+                    test_result = om().run_fm_test(test_case_dir, tmp_run_dir)
             else:
                 run_dir = os.path.join(run_dir, test_case_name)
                 test_result = om().run_fm_test(test_case_dir, run_dir)
