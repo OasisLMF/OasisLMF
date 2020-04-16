@@ -41,7 +41,7 @@ def unified_diff(a, b, as_string=False):
                     tofile=f2.name,
                 )
     except (OSError, IOError) as e:
-        raise OasisException from e
+        raise OasisException("Exception raised in 'unified_diff'", e)
 
     if as_string:
         return ''.join(diff)
