@@ -48,6 +48,7 @@ from .log import oasis_log
 def generate_deterministic_losses(
     input_dir,
     output_dir=None,
+    include_loss_factor=True,
     loss_factors=[1.0],
     net_ri=False,
     il_alloc_rule=KTOOLS_ALLOC_IL_DEFAULT,
@@ -82,7 +83,6 @@ def generate_deterministic_losses(
     )
 
     dtypes = {t: ('uint32' if t != 'tiv' else 'float32') for t in items.columns}
-
     items = set_dataframe_column_dtypes(items, dtypes)
 
     gulcalc_sidxs = \
@@ -134,17 +134,20 @@ def generate_deterministic_losses(
 
     guls.drop(guls[guls['sidx'] < 1].index, inplace=True)
     guls.reset_index(drop=True, inplace=True)
-    guls['loss_factors_idx'] = guls.apply(
-        lambda r: r['sidx']-1, axis='columns')
+    if include_loss_factor:
+        guls['loss_factor_idx'] = guls.apply(
+            lambda r: int(r['sidx'] - 1), axis='columns')
     guls.drop('sidx', axis=1, inplace=True)
     guls = guls[(guls[['loss']] != 0).any(axis=1)]
+
     losses['gul'] = guls
 
     ils = get_dataframe(src_fp=ils_fp)
-    ils.drop(ils[ils['sidx'] < 0].index, inplace=True)  
+    ils.drop(ils[ils['sidx'] < 0].index, inplace=True)
     ils.reset_index(drop=True, inplace=True)
-    ils['loss_factors_idx'] = ils.apply(
-        lambda r: int(r['sidx'])-1, axis='columns')
+    if include_loss_factor:
+        ils['loss_factor_idx'] = ils.apply(
+            lambda r: int(r['sidx'] - 1), axis='columns')
     ils.drop('sidx', axis=1, inplace=True)
     ils = ils[(ils[['loss']] != 0).any(axis=1)]
     losses['il'] = ils
@@ -189,8 +192,10 @@ def generate_deterministic_losses(
                         raise OasisException from e
                     rils = get_dataframe(src_fp=ri_layer_fp)
                     rils.drop(rils[rils['sidx'] < 0].index, inplace=True)
-                    rils['loss_factors_idx'] = rils.apply(
-                        lambda r: int(r['sidx'])-1, axis='columns')
+                    if include_loss_factor:
+                        rils['loss_factor_idx'] = rils.apply(
+                            lambda r: int(r['sidx'] - 1), axis='columns')
+
                     rils.drop('sidx', axis=1, inplace=True)
                     rils.reset_index(drop=True, inplace=True)
                     rils = rils[(rils[['loss']] != 0).any(axis=1)]

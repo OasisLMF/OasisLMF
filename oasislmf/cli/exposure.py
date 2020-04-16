@@ -4,30 +4,22 @@ __all__ = [
 ]
 
 import os
-import sys
 
 from argparse import RawDescriptionHelpFormatter
-from itertools import chain
-
-import pandas as pd
-
 from pathlib2 import Path
-
 from ..manager import OasisManager as om
-
 from ..utils.defaults import (
     KTOOLS_ALLOC_IL_DEFAULT,
-    KTOOLS_ALLOC_RI_DEFAULT,
-    OASIS_FILES_PREFIXES,
+    KTOOLS_ALLOC_RI_DEFAULT
 )
 from ..utils.exceptions import OasisException
 from ..utils.path import as_path
-from ..utils.profiles import get_oed_hierarchy
 
 from .base import OasisBaseCommand
 from .inputs import InputValues
 
 import tempfile
+
 
 class RunCmd(OasisBaseCommand):
     """
@@ -54,7 +46,7 @@ class RunCmd(OasisBaseCommand):
             help='Source files directory - should contain the OED exposure files'
         )
         parser.add_argument(
-            '-r', '--run-dir', type=str, default=None, required=False, 
+            '-r', '--run-dir', type=str, default=None, required=False,
             help='Run directory - where files should be generated'
         )
         parser.add_argument(
@@ -62,11 +54,11 @@ class RunCmd(OasisBaseCommand):
             help='Loss factors to apply to TIVs - default is 1.0. Multiple factors can be specified.'
         )
         parser.add_argument(
-            '-a', '--alloc-rule-il', type=int, default=KTOOLS_ALLOC_IL_DEFAULT, 
+            '-a', '--alloc-rule-il', type=int, default=KTOOLS_ALLOC_IL_DEFAULT,
             help='Ktools IL back allocation rule to apply - default is 2, i.e. prior level loss basis'
         )
         parser.add_argument(
-            '-A', '--alloc-rule-ri', type=int, default=KTOOLS_ALLOC_RI_DEFAULT, 
+            '-A', '--alloc-rule-ri', type=int, default=KTOOLS_ALLOC_RI_DEFAULT,
             help='Ktools RI back allocation rule to apply - default is 3, i.e. All level loss basis'
         )
         parser.add_argument(
@@ -116,14 +108,14 @@ class RunCmd(OasisBaseCommand):
         if run_dir is None:
             with tempfile.TemporaryDirectory() as tmpdirname:
                 om().run_exposure_wrapper(
-                    src_dir, tmpdirname, loss_factors, net_ri, 
+                    src_dir, tmpdirname, loss_factors, net_ri,
                     il_alloc_rule, ri_alloc_rule, output_level, output_file,
                     print_summary=True)
         else:
             if not os.path.exists(run_dir):
                 Path(run_dir).mkdir(parents=True, exist_ok=True)
             om().run_exposure_wrapper(
-                src_dir, run_dir, loss_factors, net_ri, 
+                src_dir, run_dir, loss_factors, net_ri,
                 il_alloc_rule, ri_alloc_rule, output_level, output_file,
                 print_summary=True)
 

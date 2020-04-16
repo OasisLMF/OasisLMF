@@ -191,7 +191,7 @@ class OasisManager(object):
         return self._ktools_error_guard
 
     def get_alloc_rule(self, alloc_given, alloc_max, err_msg='Invalid alloc rule', fallback=None):
-        alloc_valid_range = [r for r in range(alloc_max+1)]
+        alloc_valid_range = [r for r in range(alloc_max + 1)]
 
         if not isinstance(alloc_given, int):
             return fallback if fallback else alloc_max
@@ -783,7 +783,6 @@ class OasisManager(object):
                     with io.open(gul_stderror_fp, 'r', encoding='utf-8') as f:
                         self.logger.info('\nGUL_STDERR:\n' + "".join(f.readlines()))
 
-
                 self.logger.info('\nSTDOUT:\n' + e.output.decode('utf-8').strip())
 
                 raise OasisException(
@@ -793,19 +792,19 @@ class OasisManager(object):
 
         return model_run_fp
 
-
     def run_exposure_wrapper(
-        self, 
-        src_dir, 
-        run_dir, 
-        loss_factors, 
-        net_ri, 
-        il_alloc_rule, 
-        ri_alloc_rule, 
-        output_level, 
-        output_file, 
-        print_summary=False):
-        
+            self,
+            src_dir,
+            run_dir,
+            loss_factors,
+            net_ri,
+            il_alloc_rule,
+            ri_alloc_rule,
+            output_level,
+            output_file,
+            include_loss_factor=True,
+            print_summary=False):
+
         src_contents = [fn.lower() for fn in os.listdir(src_dir)]
 
         if 'location.csv' not in src_contents:
@@ -825,7 +824,8 @@ class OasisManager(object):
             loss_factors=loss_factors,
             net_ri=net_ri,
             il_alloc_rule=il_alloc_rule,
-            ri_alloc_rule=ri_alloc_rule
+            ri_alloc_rule=ri_alloc_rule,
+            include_loss_factor=include_loss_factor
         )
 
         # Read in the summary map
@@ -840,13 +840,18 @@ class OasisManager(object):
             right_on=["agg_id"]
         )
 
+        if include_loss_factor:
+            join_cols = ["event_id", "output_id", "loss_factor_idx"]
+        else:
+            join_cols = ["event_id", "output_id"]
+
         if il:
             ils_df.to_csv(path_or_buf=os.path.join(run_dir, 'ils.csv'), index=False, encoding='utf-8')
             ils_df.rename(columns={'loss': 'loss_il'}, inplace=True)
             all_losses_df = guls_df.merge(
                 how='left',
                 right=ils_df,
-                on=["event_id", "output_id", "loss_factors_idx"],
+                on=join_cols,
                 suffixes=["_gul", "_il"]
             )
         if ril:
@@ -855,7 +860,7 @@ class OasisManager(object):
             all_losses_df = all_losses_df.merge(
                 how='left',
                 right=rils_df,
-                on=["event_id", "output_id", "loss_factors_idx"]
+                on=join_cols
             )
 
         oed_hierarchy = get_oed_hierarchy()
@@ -874,10 +879,13 @@ class OasisManager(object):
             summary_cols = [portfolio_num, acc_num, loc_num]
         elif output_level == 'item':
             summary_cols = [
-                'output_id', portfolio_num, acc_num, loc_num, policy_num, 
+                'output_id', portfolio_num, acc_num, loc_num, policy_num,
                 'coverage_type_id']
 
-        group_by_cols = summary_cols + ['loss_factors_idx']
+        if include_loss_factor:
+            group_by_cols = summary_cols + ['loss_factor_idx']
+        else:
+            group_by_cols = summary_cols
         guls_df = guls_df.loc[:, group_by_cols + ['loss_gul']]
 
         if not il and not ril:
@@ -897,49 +905,64 @@ class OasisManager(object):
             all_losses_df = all_losses_df.loc[:, all_loss_cols]
             summary_gul_df = pd.DataFrame(
                 {'loss_gul': guls_df.groupby(group_by_cols)['loss_gul'].sum()}).reset_index()
-            summary_il_df = pd.DataFrame({'loss_il': all_losses_df.groupby(group_by_cols)['loss_il'].sum()}).reset_index()
-            summary_ri_df = pd.DataFrame({'loss_ri': all_losses_df.groupby(group_by_cols)['loss_ri'].sum()}).reset_index()
+            summary_il_df = pd.DataFrame(
+                {'loss_il': all_losses_df.groupby(group_by_cols)['loss_il'].sum()}).reset_index()
+            summary_ri_df = pd.DataFrame(
+                {'loss_ri': all_losses_df.groupby(group_by_cols)['loss_ri'].sum()}).reset_index()
             all_losses_df = summary_gul_df.merge(how='left', right=summary_il_df, on=group_by_cols)
             all_losses_df = all_losses_df.merge(how='left', right=summary_ri_df, on=group_by_cols)
 
         for i in range(len(loss_factors)):
 
-            total_gul = guls_df[guls_df.loss_factors_idx == i].loss_gul.sum()
+            if include_loss_factor:
+                total_gul = guls_df[guls_df.loss_factor_idx == i].loss_gul.sum()
+            else:
+                total_gul = guls_df.loss_gul.sum()
+
             if not il and not ril:
                 all_loss_cols = all_loss_cols + ['loss_gul']
                 all_losses_df = guls_df.loc[:, all_loss_cols]
                 all_losses_df.drop_duplicates(keep=False, inplace=True)
                 header = \
                     'Losses (loss factor={:.2%}; total gul={:,.00f})'.format(
-                        loss_factors[i], 
+                        loss_factors[i],
                         total_gul)
             elif not ril:
-                total_il = ils_df[ils_df.loss_factors_idx == i].loss_il.sum()
+                if include_loss_factor:
+                    total_il = ils_df[ils_df.loss_factor_idx == i].loss_il.sum()
+                else:
+                    total_il = ils_df.loss_il.sum()
+                
                 header = \
                     'Losses (loss factor={:.2%}; total gul={:,.00f}; total il={:,.00f})'.format(
                         loss_factors[i],
                         total_gul, total_il)
             else:
-                total_il = ils_df[ils_df.loss_factors_idx == i].loss_il.sum()
-                total_ri_net = rils_df[rils_df.loss_factors_idx == i].loss_ri.sum()
+                if include_loss_factor:
+                    total_il = ils_df[ils_df.loss_factor_idx == i].loss_il.sum()
+                    total_ri_net = rils_df[rils_df.loss_factor_idx == i].loss_ri.sum()
+                else:
+                    total_il = ils_df.loss_il.sum()
+                    total_ri_net = rils_df.loss_ri.sum()
                 total_ri_ceded = total_il - total_ri_net
                 header = \
                     'Losses (loss factor={:.2%}; total gul={:,.00f}; total il={:,.00f}; total ri ceded={:,.00f})'.format(
-                        loss_factors[i], 
+                        loss_factors[i],
                         total_gul, total_il, total_ri_ceded)
 
             # Convert output cols to strings for formatting
-            for c in summary_cols:
+            for c in group_by_cols:
                 all_losses_df[c] = all_losses_df[c].apply(str)
 
             if print_summary:
-                cols_to_print = all_loss_cols.copy()     
-                cols_to_print.remove('loss_factors_idx')
+                cols_to_print = all_loss_cols.copy()
+                if False:
+                    cols_to_print.remove('loss_factor_idx')
                 print_dataframe(
-                    all_losses_df[all_losses_df.loss_factors_idx == i], 
-                    frame_header=header, 
+                    all_losses_df[all_losses_df.loss_factor_idx == i],
+                    frame_header=header,
                     cols=cols_to_print)
-        
+
         if output_file:
             all_losses_df.to_csv(output_file, index=False, encoding='utf-8')
 
@@ -950,6 +973,7 @@ class OasisManager(object):
         self,
         src_dir,
         run_dir=None,
+        include_loss_factor=True,
         loss_factors=[1.0],
         il_alloc_rule=None,
         ri_alloc_rule=None,
@@ -1002,6 +1026,7 @@ class OasisManager(object):
         losses = generate_deterministic_losses(
             run_dir,
             output_dir=os.path.join(run_dir, 'output'),
+            include_loss_factor=include_loss_factor,
             loss_factors=loss_factors,
             net_ri=net_ri,
             il_alloc_rule=il_alloc_rule,
