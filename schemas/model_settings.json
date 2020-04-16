@@ -443,6 +443,43 @@
                        "required": ["name", "desc", "default", "options"]
                    }
                },
+               "multi_parameter_options": {
+                   "title": "Multiple Parameter option",
+                   "description": "Sets of parameters with pre-assigned values",
+                   "type":  "array",
+                   "uniqueItems": true,
+                   "items": {
+                       "type": "object",
+                       "uniqueItems": false,
+                       "title": "Parameter group option",
+                       "additionalProperties": false,
+                       "properties":{
+                           "name": {
+                               "type": "string",
+                               "title": "UI Option",
+                               "description": "UI name for selection",
+                               "minLength": 1
+                           },
+                           "desc": {
+                               "type": "string",
+                               "title": "Short group description",
+                               "description": "UI description for selection",
+                               "minLength": 1
+                           },
+                           "tooltip": {
+                               "type": "string",
+                               "title": "UI tooltip",
+                               "description": "Long description (optional)"
+                           },
+                           "config":{
+                               "type": "object",
+                               "title": "Parameter Group configuration",
+                               "description": "JSON object holding <parameter_name>:<value> pairs"
+                           }
+                       },
+                       "required": ["name", "desc", "config"]
+                   }
+               },
                "parameter_groups": {
                    "title": "Parameter Groups",
                    "type":  "array",
@@ -484,6 +521,16 @@
                                   "type": "string",
                                   "minItems": 1
                               }
+                           },
+                           "collapsible":{
+                               "title": "Collapsible option for UI",
+                               "description": "Boolean to mark if this parameter group is collapsible",
+                               "type": "boolean"
+                           },
+                           "default_collapsed": {
+                               "title": "Default Collapsed State",
+                               "description": "Boolean to mark if parameter group starts collapsed",
+                               "type": "boolean"
                            }
                        },
                        "required": ["name", "desc", "priority_id", "presentation_order"]

@@ -100,7 +100,7 @@ def generate_deterministic_losses(
         logger.debug("RUN: " + cmd)
         check_call(cmd, shell=True)
     except CalledProcessError as e:
-        raise OasisException from e
+        raise OasisException("Exception raised in 'generate_deterministic_losses'", e)
 
     guls.drop(guls[guls['sidx'] != 1].index, inplace=True)
     guls.reset_index(drop=True, inplace=True)
@@ -153,7 +153,7 @@ def generate_deterministic_losses(
                         logger.debug("RUN: " + cmd)
                         check_call(cmd, shell=True)
                     except CalledProcessError as e:
-                        raise OasisException from e
+                        raise OasisException("Exception raised in 'generate_deterministic_losses'", e)
                     rils = get_dataframe(src_fp=ri_layer_fp)
                     rils.drop(rils[rils['sidx'] != (-1 if lf < 1 else -3)].index, inplace=True)
                     rils.drop('sidx', axis=1, inplace=True)

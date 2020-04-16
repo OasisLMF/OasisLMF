@@ -784,6 +784,7 @@ class OasisManager(object):
                     num_reinsurance_iterations=ri_layers,
                     set_alloc_rule_gul=(ktools_alloc_rule_gul if isinstance(ktools_alloc_rule_gul, int) else self.ktools_alloc_rule_gul),
                     set_alloc_rule_il=(ktools_alloc_rule_il if isinstance(ktools_alloc_rule_il, int) else self.ktools_alloc_rule_il),
+                    set_alloc_rule_ri=(ktools_alloc_rule_ri if isinstance(ktools_alloc_rule_ri, int) else self.ktools_alloc_rule_ri),
                     run_debug=(ktools_debug if isinstance(ktools_debug, bool) else self.ktools_debug),
                     stderr_guard=(ktools_error_guard if isinstance(ktools_error_guard, bool) else self.ktools_error_guard),
                     fifo_tmp_dir=(not (ktools_fifo_relative or self.ktools_fifo_relative)),
