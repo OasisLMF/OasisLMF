@@ -550,7 +550,7 @@ class TestGetDataframe(TestCase):
     @given(
         data=lists(
             fixed_dictionaries({
-                'str_col': text(min_size=1, max_size=10, alphabet=string.ascii_lowercase),
+                'str_col': text(min_size=10, max_size=15, alphabet=string.ascii_lowercase),
                 'int_col': integers(min_value=1, max_value=10),
                 'float_col': floats(min_value=0.0, max_value=10.0),
                 'bool_col': sampled_from([True, False])

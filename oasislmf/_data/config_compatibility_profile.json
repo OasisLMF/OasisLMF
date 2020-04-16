@@ -9,11 +9,6 @@
         "deleted": false,
         "updated_to": "lookup_config_json"
     },
-    "lookup_package_path":{
-        "from_ver": "1.4.1",
-        "deleted": false,
-        "updated_to": "lookup_package_dir"
-    },
     "keys_data_path":{
         "from_ver": "1.4.1",
         "deleted": false,
@@ -22,7 +17,12 @@
     "lookup_package_path":{
         "from_ver": "1.4.1",
         "deleted": false,
-        "updated_to": "lookup_package_dir"
+        "updated_to": "lookup_module_path"
+    },
+    "lookup_package_dir": {
+        "from_ver": "1.7.0",
+        "deleted": false,
+        "updated_to": "lookup_module_path"
     },
     "analysis_settings_file_path":{
         "from_ver": "1.4.1",
