@@ -1,7 +1,8 @@
 import os.path
-import subprocess
 import sys
+import tempfile
 
+from oasislmf.manager import OasisManager
 from unittest import TestCase
 
 import pytest
@@ -13,15 +14,12 @@ class FmAcceptanceTests(TestCase):
         self.test_cases_fp = os.path.join(sys.path[0], 'validation', 'examples')
 
     def run_test(self, test_case):
-        test_case_fp = os.path.join(self.test_cases_fp, test_case)
-        loc_summary_fp = os.path.join(test_case_fp, 'run', 'loc_summary.csv')
-        cmd_str = 'oasislmf exposure run -s {} --output-level loc -f {} --validate'.format(test_case_fp, loc_summary_fp)
-        failed = False
-        try:
-            subprocess.run(cmd_str.split(), check=True)
-        except subprocess.CalledProcessError as e:
-            failed = (e.returncode != 0)
-        self.assertTrue(failed is False)
+        with tempfile.TemporaryDirectory() as tmp_run_dir:
+            result = OasisManager().run_fm_test(
+                os.path.join(self.test_cases_fp, test_case),
+                tmp_run_dir)
+
+        self.assertTrue(result)
 
     def test_fm3(self):
         self.run_test('fm3')

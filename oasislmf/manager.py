@@ -10,6 +10,10 @@ import os
 import re
 import sys
 import warnings
+import csv
+
+from itertools import chain
+from filecmp import cmp as compare_files
 
 from builtins import str
 
@@ -1034,3 +1038,68 @@ class OasisManager(object):
         )
 
         return losses['gul'], losses['il'], losses['ri']
+
+    def run_fm_test(self,test_case_dir, run_dir):
+
+        net_ri = True
+        il_alloc_rule = KTOOLS_ALLOC_IL_DEFAULT
+        ri_alloc_rule = KTOOLS_ALLOC_RI_DEFAULT
+        output_level = 'loc'
+
+        loss_factor_fp = os.path.join(test_case_dir, 'loss_factors.csv')
+        loss_factor = []
+        include_loss_factor = False
+        if os.path.exists(loss_factor_fp):
+            loss_factor = []
+            include_loss_factor = True
+            try:
+                with open(loss_factor_fp, 'r') as csvfile:
+                    reader = csv.DictReader(csvfile)
+                    for row in reader:
+                        loss_factor.append(
+                            float(row['loss_factor']))
+            except:
+                raise OasisException(f"Failed to read {loss_factor_fp}")
+        else:
+            loss_factor.append(1.0)
+
+        output_file = os.path.join(run_dir, 'loc_summary.csv')
+        (il, ril) = self.run_exposure_wrapper(
+            test_case_dir, run_dir, loss_factor, net_ri,
+            il_alloc_rule, ri_alloc_rule, output_level, output_file,
+            include_loss_factor)
+
+        expected_data_dir = os.path.join(test_case_dir, 'expected')
+        if not os.path.exists(expected_data_dir):
+            raise OasisException(
+                'No subfolder named `expected` found in the input directory - '
+                'this subfolder should contain the expected set of GUL + IL '
+                'input files, optionally the RI input files, and the expected '
+                'set of GUL, IL and optionally the RI loss files'
+            )
+
+        files = ['keys.csv', 'loc_summary.csv']
+        files += [
+            '{}.csv'.format(fn)
+            for ft, fn in chain(OASIS_FILES_PREFIXES['gul'].items(), OASIS_FILES_PREFIXES['il'].items())
+        ]
+        files += ['gul_summary_map.csv', 'guls.csv']
+        if il:
+            files += ['fm_summary_map.csv', 'ils.csv']
+        if ril:
+            files += ['rils.csv']
+
+        test_result = True
+        for f in files:
+            generated = os.path.join(run_dir, f)
+            expected = os.path.join(expected_data_dir, f)
+
+            if not os.path.exists(expected):
+                continue
+
+            file_test_result = compare_files(generated, expected)
+            if not file_test_result:
+                logger.debug('\n FAIL: generated {} vs expected {}'.format(generated, expected))
+            test_result = test_result and file_test_result
+
+        return file_test_result
