@@ -2,6 +2,17 @@ OasisLMF Changelog
 ==================
 
 .. start_latest_release
+`1.7.0`_
+-------
+* #497 - Add exception wrapping to OasisException
+* #528 - FM validation tests with % damage range
+* #531 - item file ordering of item_id 
+* #533 - Added new FM acceptance tests
+* Added - Pre-analysis exposure modification (CLI interface)
+* Added - revamped CLI Structure 
+
+.. end_latest_release
+
 `1.6.0`_
 -------
 * Fix #513 - Breaking change in msgpack 1.0.0
@@ -17,9 +28,6 @@ OasisLMF Changelog
 * Added #524 - Total TIV sums in exposure report
 * Added #527 - Group OED fields from model settings
 * Added #506 - Improve performance in `write_exposure_summary()` 
-
-
-.. end_latest_release
 
 `1.5.1`_
 -------
@@ -369,6 +377,7 @@ in the exposure manager
 
 * Add console logging
 
+.. _`1.7.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.6.0...1.7.0
 .. _`1.6.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.5.1...1.6.0
 .. _`1.5.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.5.0...1.5.1
 .. _`1.5.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.4.6...1.5.0
