@@ -302,7 +302,7 @@ def write_mapping_file(sum_inputs_df, target_dir, is_fm_summary=False):
             index=False
         )
     except (IOError, OSError) as e:
-        raise OasisException from e
+        raise OasisException("Exception raised in 'write_mapping_file'", e)
 
     return sum_mapping_fp
 
@@ -379,7 +379,7 @@ def write_df_to_file(df, target_dir, filename):
             index=False
         )
     except (IOError, OSError) as e:
-        raise OasisException from e
+        raise OasisException("Exception raised in 'write_df_to_file'", e)
 
     return csv_fp
 
@@ -774,7 +774,7 @@ def write_exposure_summary(
         gul_inputs_errors_df, _ = get_gul_input_items(
             exposure_fp, keys_errors_fp, exposure_profile=exposure_profile
         )
-        
+
         # Store the gul_input_errors for debugging then reduce
         store_cols = ['loc_id', 'portnumber', 'accnumber', 'locnumber', 'condnumber']
         reduce_cols = ['peril_id', 'coverage_type_id', 'loc_id', 'tiv', 'status']
@@ -859,7 +859,7 @@ def write_exposure_summary(
 
     # Create totals section
     exposure_summary['total'] = get_exposure_totals(
-        gul_inputs_df, 
+        gul_inputs_df,
         gul_inputs_errors_df
     )
 

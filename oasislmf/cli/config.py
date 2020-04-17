@@ -33,7 +33,7 @@ class ConfigUpdateCmd(OasisBaseCommand):
 
         inputs = InputValues(args, update_keys=False)
 
-        if inputs.obsolete_key:
+        if inputs.obsolete_keys:
             # Update exec
 
             inputs.list_obsolete_keys(fix_warning=False)

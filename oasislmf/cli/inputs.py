@@ -25,7 +25,6 @@ class InputValues(object):
         self.args = args
         self.config = {}
         self.config_fp = self.get('config', is_path=True)
-
         self.config_mapping = get_config_profile()
 
         if self.config_fp is not None:
@@ -125,9 +124,6 @@ class InputValues(object):
         if value is None:
             value = self.config.get(name)
             source = 'config'
-        if value is None:
-            value = os.environ.get('OASIS_' + name.upper())
-            source = 'env'
         if value is None and required:
             raise OasisException(
                 'Required argument {} could not be found in the command args or the MDK config. file'.format(name)

@@ -40,7 +40,7 @@ def compress_string(st: str) -> bytes:
 
         compressed += compressor.flush()
     except zlib.error as e:
-        raise OasisException from e
+        raise OasisException("Exception raised in 'compress_string'", e)
 
     return compressed
 
