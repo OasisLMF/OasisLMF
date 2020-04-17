@@ -361,3 +361,6 @@ class FmAcceptanceTests(TestCase):
     def test_Q1_all(self):
         self.run_test('Q1_all')
 
+    def test_Q2_all(self):
+        self.run_test('Q2_all')
+
