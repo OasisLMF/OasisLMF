@@ -830,7 +830,7 @@ class OasisManager(object):
 
         if not os.path.exists(run_dir):
             Path(run_dir).mkdir(parents=True, exist_ok=True)
-        
+
         contents = [fn.lower() for fn in os.listdir(src_dir)]
         exposure_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'location.csv'][0]
         accounts_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'account.csv'][0]

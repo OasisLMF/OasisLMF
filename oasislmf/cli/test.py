@@ -75,7 +75,7 @@ class FmValidationCmd(OasisBaseCommand):
         )
         parser.add_argument(
             '-l', '--list-tests',
-            action='store_true', 
+            action='store_true',
             help='List the valid test cases in the test directory rather than running'
         )
         parser.add_argument(
@@ -109,7 +109,7 @@ class FmValidationCmd(OasisBaseCommand):
         test_dir = as_path(
             inputs.get(
                 'test_dir', default=call_dir, is_path=True),
-                'Source files directory', is_dir=True, preexists=True)
+            'Source files directory', is_dir=True, preexists=True)
 
         test_case_names = []
         if run_all_tests:
