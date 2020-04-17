@@ -34,10 +34,9 @@ from oasislmf.utils.status import OASIS_KEYS_STATUS
 
 from tests.data import keys
 
-
 # Determine number and names of required columns in loc file
 _, loc_required_cols = get_dtypes_and_required_cols(get_loc_dtypes)
-loc_required_cols = [name.lower() for name in loc_required_cols] 
+loc_required_cols = [name.lower() for name in loc_required_cols]
 loc_required_cols.append('loc_id')
 loc_data_cols = [
     integers(min_value=0, max_value=100)
@@ -71,7 +70,8 @@ class OasisLookupFactoryCreate(TestCase):
         model=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
         version=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
     )
-    def test_keys_path_is_supplied___correct_instance_is_created_with_correct_model_info_and_keys_path(self, supplier, model, version):
+    def test_keys_path_is_supplied___correct_instance_is_created_with_correct_model_info_and_keys_path(self, supplier,
+                                                                                                       model, version):
         with TemporaryDirectory() as d:
             keys_path = os.path.join(d, 'keys')
             os.mkdir(keys_path)
@@ -85,7 +85,7 @@ class OasisLookupFactoryCreate(TestCase):
             _, instance = olf.create(
                 model_keys_data_path=keys_path,
                 model_version_file_path=version_path,
-                lookup_package_path=module_path
+                lookup_module_path=module_path
             )
 
             self.assertEqual(type(instance).__name__, '{}KeysLookup'.format(model))
@@ -100,7 +100,8 @@ class OasisLookupFactoryCreate(TestCase):
         model=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
         version=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
     )
-    def test_keys_path_not_supplied___correct_instance_is_created_with_correct_model_info_and_keys_path(self, supplier, model, version):
+    def test_keys_path_not_supplied___correct_instance_is_created_with_correct_model_info_and_keys_path(self, supplier,
+                                                                                                        model, version):
         with TemporaryDirectory() as d:
             version_path = os.path.join(d, 'version.csv')
             self.write_version_file(supplier, model, version, version_path)
@@ -110,7 +111,7 @@ class OasisLookupFactoryCreate(TestCase):
 
             _, instance = olf.create(
                 model_version_file_path=version_path,
-                lookup_package_path=module_path
+                lookup_module_path=module_path
             )
 
             self.assertEqual(type(instance).__name__, '{}KeysLookup'.format(model))
@@ -126,7 +127,9 @@ class OasisLookupFactoryCreate(TestCase):
         version=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
         complex_lookup_data=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
     )
-    def test_complex_lookup_config_is_supplied___correct_instance_is_created_with_correct_config_path(self, supplier, model, version, complex_lookup_data):
+    def test_complex_lookup_config_is_supplied___correct_instance_is_created_with_correct_config_path(self, supplier,
+                                                                                                      model, version,
+                                                                                                      complex_lookup_data):
         with TemporaryDirectory() as d:
             keys_path = os.path.join(d, 'keys')
             os.mkdir(keys_path)
@@ -146,7 +149,7 @@ class OasisLookupFactoryCreate(TestCase):
             _, instance = olf.create(
                 model_keys_data_path=keys_path,
                 model_version_file_path=version_path,
-                lookup_package_path=module_path,
+                lookup_module_path=module_path,
                 complex_lookup_config_fp=complex_lookup_config_path,
                 output_directory=output_directory
             )
@@ -164,15 +167,21 @@ class OasisLookupFactoryCreate(TestCase):
     )
     def test_version_file_missing___correct_exception_raised(self, model):
         with TemporaryDirectory() as d:
+            keys_path = os.path.join(d, 'keys')
+            os.mkdir(keys_path)
+
             version_path = os.path.join(d, 'version.csv')
 
             module_path = os.path.join(d, '{}_lookup.py'.format(model))
             self.write_py_module(model, module_path)
 
             with self.assertRaisesRegex(OasisException,
-                                         r"model_version_file_path does not exist.*"):
+                                        r"The path .*/version.csv \(model_version_file_path\) is indicated as preexisting"
+                                        r" but does not exist"):
                 _, instance = olf.create(
-                    model_version_file_path=version_path
+                    model_keys_data_path=keys_path,
+                    model_version_file_path=version_path,
+                    lookup_module_path=module_path
                 )
 
     @given(
@@ -180,18 +189,23 @@ class OasisLookupFactoryCreate(TestCase):
         model=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
         version=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
     )
-    def test_lookup_package_path_missing___correct_exception_raised(self, supplier, model, version):
+    def test_lookup_module_path_missing___correct_exception_raised(self, supplier, model, version):
         with TemporaryDirectory() as d:
+            keys_path = os.path.join(d, 'keys')
+            os.mkdir(keys_path)
+
             version_path = os.path.join(d, 'version.csv')
             self.write_version_file(supplier, model, version, version_path)
 
             module_path = os.path.join(d, '{}_lookup.py'.format(model))
 
             with self.assertRaisesRegex(OasisException,
-                                         r"lookup_package_path does not exist.*"):
+                                        r"The path .*_lookup\.py \(lookup_module_path\) is indicated as preexisting"
+                                        r" but does not exist"):
                 _, instance = olf.create(
+                    model_keys_data_path=keys_path,
                     model_version_file_path=version_path,
-                    lookup_package_path=module_path
+                    lookup_module_path=module_path
                 )
 
     @given(
@@ -210,10 +224,11 @@ class OasisLookupFactoryCreate(TestCase):
             self.write_py_module(model, module_path)
 
             with self.assertRaisesRegex(OasisException,
-                                         r"model_keys_data_path does not exist.*"):
+                                        r"The path .*/keys \(model_keys_data_path\) is indicated as preexisting"
+                                        r" but does not exist"):
                 _, instance = olf.create(
                     model_version_file_path=version_path,
-                    lookup_package_path=module_path,
+                    lookup_module_path=module_path,
                     model_keys_data_path=keys_path
                 )
 
@@ -222,15 +237,20 @@ class OasisLookupFactoryCreate(TestCase):
         model=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
         version=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
     )
-    def test_lookup_package_path_not_supplied___correct_exception_raised(self, supplier, model, version):
+    def test_lookup_module_path_not_supplied___correct_exception_raised(self, supplier, model, version):
         with TemporaryDirectory() as d:
+            keys_path = os.path.join(d, 'keys')
+            os.mkdir(keys_path)
+
             version_path = os.path.join(d, 'version.csv')
             self.write_version_file(supplier, model, version, version_path)
 
             with self.assertRaisesRegex(OasisException,
-                                         r"Unable to import lookup package without lookup_package_path"):
+                                        r"The path None \(lookup_module_path\) is indicated as preexisting"
+                                        r" but is not a valid path"):
                 _, instance = olf.create(
-                    model_version_file_path=version_path
+                    model_version_file_path=version_path,
+                    model_keys_data_path = keys_path
                 )
 
     @given(
@@ -238,13 +258,18 @@ class OasisLookupFactoryCreate(TestCase):
     )
     def test_model_version_file_path_not_supplied___correct_exception_raised(self, model):
         with TemporaryDirectory() as d:
+            keys_path = os.path.join(d, 'keys')
+            os.mkdir(keys_path)
+
             module_path = os.path.join(d, '{}_lookup.py'.format(model))
             self.write_py_module(model, module_path)
 
             with self.assertRaisesRegex(OasisException,
-                                         r"Unable to get model version data without model_version_file_path"):
+                                        r"The path None \(model_version_file_path\) is indicated as preexisting"
+                                        r" but is not a valid path"):
                 _, instance = olf.create(
-                    lookup_package_path=module_path
+                    model_keys_data_path=keys_path,
+                    lookup_module_path=module_path
                 )
 
 
@@ -288,10 +313,10 @@ class OasisLookupFactoryWriteOasisKeysFiles(TestCase):
     @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
         successes=keys(from_statuses=just(OASIS_KEYS_STATUS['success']['id']), size=5),
-        nonsuccesses=keys(from_statuses=sampled_from([OASIS_KEYS_STATUS['fail']['id'], OASIS_KEYS_STATUS['nomatch']['id']]), size=5)
+        nonsuccesses=keys(
+            from_statuses=sampled_from([OASIS_KEYS_STATUS['fail']['id'], OASIS_KEYS_STATUS['nomatch']['id']]), size=5)
     )
     def test_records_are_given___records_are_written_to_oasis_keys_files_correctly(self, successes, nonsuccesses):
-
         oasis_keys_file_to_record_metadict = {
             'LocID': 'id',
             'PerilID': 'peril_id',
@@ -314,12 +339,16 @@ class OasisLookupFactoryWriteOasisKeysFiles(TestCase):
             _, successes_count = olf.write_oasis_keys_file(successes, keys_file_path)
             _, nonsuccesses_count = olf.write_oasis_keys_errors_file(nonsuccesses, keys_errors_file_path)
 
-            with io.open(keys_file_path, 'r', encoding='utf-8') as f1, io.open(keys_errors_file_path, 'r', encoding='utf-8') as f2:
-                written_successes = [dict((oasis_keys_file_to_record_metadict[k], r[k]) for k in r) for r in pd.read_csv(f1).T.to_dict().values()]
-                written_nonsuccesses = [dict((oasis_keys_errors_file_to_record_metadict[k], r[k]) for k in r) for r in pd.read_csv(f2).T.to_dict().values()]
+            with io.open(keys_file_path, 'r', encoding='utf-8') as f1, io.open(keys_errors_file_path, 'r',
+                                                                               encoding='utf-8') as f2:
+                written_successes = [dict((oasis_keys_file_to_record_metadict[k], r[k]) for k in r) for r in
+                                     pd.read_csv(f1).T.to_dict().values()]
+                written_nonsuccesses = [dict((oasis_keys_errors_file_to_record_metadict[k], r[k]) for k in r) for r in
+                                        pd.read_csv(f2).T.to_dict().values()]
 
             success_matches = list(filter(lambda r: (r['id'] == ws['id'] for ws in written_successes), successes))
-            nonsuccess_matches = list(filter(lambda r: (r['id'] == ws['id'] for ws in written_nonsuccesses), nonsuccesses))
+            nonsuccess_matches = list(
+                filter(lambda r: (r['id'] == ws['id'] for ws in written_nonsuccesses), nonsuccesses))
 
             self.assertEqual(successes_count, len(successes))
             self.assertEqual(success_matches, successes)
@@ -333,10 +362,10 @@ class OasisLookupFactoryWriteJsonFiles(TestCase):
     @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
         successes=keys(from_statuses=just(OASIS_KEYS_STATUS['success']['id']), size=5),
-        nonsuccesses=keys(from_statuses=sampled_from([OASIS_KEYS_STATUS['fail']['id'], OASIS_KEYS_STATUS['nomatch']['id']]), size=5)
+        nonsuccesses=keys(
+            from_statuses=sampled_from([OASIS_KEYS_STATUS['fail']['id'], OASIS_KEYS_STATUS['nomatch']['id']]), size=5)
     )
     def test_records_are_given___records_are_written_to_json_keys_files_correctly(self, successes, nonsuccesses):
-
         with TemporaryDirectory() as d:
             keys_file_path = os.path.join(d, 'keys.json')
             keys_errors_file_path = os.path.join(d, 'keys-errors.json')
@@ -344,7 +373,8 @@ class OasisLookupFactoryWriteJsonFiles(TestCase):
             _, successes_count = olf.write_json_keys_file(successes, keys_file_path)
             _, nonsuccesses_count = olf.write_json_keys_file(nonsuccesses, keys_errors_file_path)
 
-            with io.open(keys_file_path, 'r', encoding='utf-8') as f1, io.open(keys_errors_file_path, 'r', encoding='utf-8') as f2:
+            with io.open(keys_file_path, 'r', encoding='utf-8') as f1, io.open(keys_errors_file_path, 'r',
+                                                                               encoding='utf-8') as f2:
                 written_successes = json.load(f1)
                 written_nonsuccesses = json.load(f2)
 
@@ -383,7 +413,6 @@ class OasisLookupFactoryGetKeys(TestCase):
             mock_df = pd.DataFrame.from_dict(data)
             res = list(olf.get_keys_base(lookup=self.lookup_instance, loc_df=mock_df, success_only=False))
             self.assertEqual(res, data)
-    
 
 
 class OasisLookupFactoryWriteKeys(TestCase):

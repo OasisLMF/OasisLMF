@@ -1,3 +1,5 @@
+__all__ = ["OasisBaseCommand"]
+
 import logging
 import os
 import sys

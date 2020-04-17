@@ -83,12 +83,36 @@
             "default": 4
         }
       ],
+      "multi_parameter_options":[
+        {
+            "name": "location_dependent_config_option_1",
+            "desc": "param group option 1",
+            "config": {
+                "parameter_name_a": "A_value",
+                "parameter_name_b": ["B_value"],
+                "parameter_name_c": true,
+                "parameter_name_n": {"K1": "V1"}
+            }    
+        },    
+        {
+            "name": "location_dependent_config_option_2",
+            "desc": "param group option 2",
+            "config": {
+                "parameter_name_a": "A_value_2",
+                "parameter_name_b": ["B_value_2"],
+                "parameter_name_c": false,
+                "parameter_name_n": {"K2": "V2"}
+            }    
+        }    
+      ],
       "parameter_groups":[
         {
             "name": "boolean_group",
             "desc": "This is the presentation group for bools",
             "priority_id": 1,
-            "presentation_order": ["peril_wind", "peril_surge"]
+            "presentation_order": ["peril_wind", "peril_surge"],
+            "collapsible": true,
+            "default_collapsed": false
         },
         {
             "name": "data_param_group",

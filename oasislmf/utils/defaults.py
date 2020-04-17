@@ -15,6 +15,7 @@ __all__ = [
     'store_exposure_fp',
     'find_exposure_fp',
     'GROUP_ID_COLS',
+    'KEY_NAME_TO_FILE_NAME',
     'KTOOLS_ALLOC_GUL_MAX',
     'KTOOLS_ALLOC_FM_MAX',
     'KTOOLS_FIFO_RELATIVE',
@@ -44,8 +45,22 @@ SOURCE_FILENAMES = OrderedDict({
     'loc': 'location.csv',
     'acc': 'account.csv',
     'info': 'reinsinfo.csv',
-    'scope': 'reinsscope.csv'
+    'scope': 'reinsscope.csv',
 })
+
+KEY_NAME_TO_FILE_NAME = {
+    'oed_location_csv': 'location.csv',
+    'oed_accounts_csv': 'account.csv',
+    'oed_info_csv': 'reinsinfo.csv',
+    'oed_scope_csv': 'reinsscope.csv',
+    'lookup_config_json': 'lookup.json',
+    'profile_loc_json': 'profile_location.json',
+    'keys_data_csv': 'keys.csv',
+    'model_version_csv': 'model_version.csv',
+    'lookup_complex_config_json': 'lookup_complex.json',
+    'profile_acc_json': 'profile_account.json',
+    'profile_fm_agg_json': 'profile_fm_agg.json',
+}
 
 # Store index from merged source files (for later slice & dice)
 SOURCE_IDX = OrderedDict({

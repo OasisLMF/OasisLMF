@@ -19,7 +19,6 @@ import sys
 import types
 import uuid
 
-
 from collections import OrderedDict
 
 from multiprocessing import cpu_count
@@ -50,39 +49,11 @@ from ..utils.peril import (
 )
 from ..utils.profiles import get_oed_hierarchy
 from ..utils.status import OASIS_KEYS_STATUS
+from ..utils.path import get_custom_module, as_path
 
 if shapely_speedups.available:
     shapely_speedups.enable()
 UNKNOWN_ID = -1
-
-
-def as_path(value, name, preexists=True):
-    """
-    Processes the path and returns the absolute path.
-
-    If the path does not exist and ``preexists`` is true
-    an ``OasisException`` is raised.
-
-    :param value: The path to process
-    :type value: str
-
-    :param name: The name of the path (used for error reporting)
-    :type name: str
-
-    :param preexists: Flag whether to raise an error if the path
-        does not exist.
-    :type preexists: bool
-
-    :return: The absolute path of the input path
-    """
-    if not value:
-        return None
-    if not os.path.isabs(value):
-        value = os.path.abspath(value)
-    if preexists and not os.path.exists(value):
-        raise OasisException('{} does not exist: {}'.format(name, value))
-
-    return value
 
 
 class OasisBuiltinBaseLookup(object):
@@ -290,8 +261,7 @@ class OasisLookupFactory(object):
         """
         Get model information from the model version file.
         """
-        if not model_version_file_path:
-            raise OasisException("Unable to get model version data without model_version_file_path")
+        model_version_file_path = as_path(model_version_file_path, 'model_version_file_path', preexists=True, null_is_valid=False)
 
         with io.open(model_version_file_path, 'r', encoding='utf-8') as f:
             return next(csv.DictReader(
@@ -299,33 +269,9 @@ class OasisLookupFactory(object):
             ))
 
     @classmethod
-    def get_custom_lookup_package(cls, lookup_package_path):
-        """
-        Returns the lookup service parent package (called `keys_server` and
-        located in `src` in the model keys server Git repository or in
-        `var/www/oasis` in the keys server Docker container) from the given
-        path.
-        """
-        if not lookup_package_path:
-            raise OasisException("Unable to import lookup package without lookup_package_path")
-
-        if lookup_package_path and not os.path.isabs(lookup_package_path):
-            lookup_package_path = os.path.abspath(lookup_package_path)
-
-        parent_dir = os.path.abspath(os.path.dirname(lookup_package_path))
-        package_name = re.sub(r'\.py$', '', os.path.basename(lookup_package_path))
-
-        sys.path.insert(0, parent_dir)
-        lookup_package = importlib.import_module(package_name)
-        importlib.reload(lookup_package)
-        sys.path.pop(0)
-
-        return lookup_package
-
-    @classmethod
     def get_custom_lookup(
         cls,
-        lookup_package,
+        lookup_module,
         keys_data_path,
         model_info,
         complex_lookup_config_fp=None,
@@ -335,7 +281,7 @@ class OasisLookupFactory(object):
         """
         Get the keys lookup class instance.
         """
-        klc = getattr(lookup_package, '{}KeysLookup'.format(model_info['model_id']))
+        klc = getattr(lookup_module, '{}KeysLookup'.format(model_info['model_id']))
 
         if not (complex_lookup_config_fp and output_directory):
             return klc(
@@ -505,7 +451,7 @@ class OasisLookupFactory(object):
         cls,
         model_keys_data_path=None,
         model_version_file_path=None,
-        lookup_package_path=None,
+        lookup_module_path=None,
         lookup_config=None,
         lookup_config_json=None,
         lookup_config_fp=None,
@@ -547,14 +493,13 @@ class OasisLookupFactory(object):
                 return model_info, lookup.vulnerability_lookup
         else:
             _model_keys_data_path = as_path(model_keys_data_path, 'model_keys_data_path', preexists=True)
-            _model_version_file_path = as_path(model_version_file_path, 'model_version_file_path', preexists=True)
-            _lookup_package_path = as_path(lookup_package_path, 'lookup_package_path', preexists=True)
-            model_info = cls.get_model_info(_model_version_file_path)
-            lookup_package = cls.get_custom_lookup_package(_lookup_package_path)
+
+            model_info = cls.get_model_info(model_version_file_path)
+            lookup_module = get_custom_module(lookup_module_path, 'lookup_module_path')
 
             if not is_complex:
                 lookup = cls.get_custom_lookup(
-                    lookup_package=lookup_package,
+                    lookup_module=lookup_module,
                     keys_data_path=_model_keys_data_path,
                     model_info=model_info
                 )
@@ -564,7 +509,7 @@ class OasisLookupFactory(object):
             _output_directory = as_path(output_directory, 'output_directory', preexists=True)
 
             lookup = cls.get_custom_lookup(
-                lookup_package=lookup_package,
+                lookup_module=lookup_module,
                 keys_data_path=_model_keys_data_path,
                 model_info=model_info,
                 complex_lookup_config_fp=_complex_lookup_config_fp,

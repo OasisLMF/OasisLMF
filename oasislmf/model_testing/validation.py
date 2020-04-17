@@ -57,7 +57,7 @@ def csv_validity_test(model_data_fp):
         try:
             subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
         except subprocess.CalledProcessError as e:
-            raise OasisException from e
+            raise OasisException("Exception raised in 'csv_validity_test'", e)
 
     # Execute cross checks
     logger.info("Executing cross checks")
@@ -73,4 +73,4 @@ def csv_validity_test(model_data_fp):
     try:
         subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
     except subprocess.CalledProcessError as e:
-        raise OasisException from e
+        raise OasisException("Exception raised in 'csv_validity_test'", e)

@@ -50,6 +50,7 @@ from .model_preparation.summaries import (
     write_exposure_summary,
     write_summary_levels,
 )
+from .model_preparation.exposure_pre_analysis import ExposurePreAnalysis
 from .model_preparation.lookup import OasisLookupFactory as olf
 from .model_preparation.oed import load_oed_dfs
 from .model_preparation.utils import prepare_input_files_directory
@@ -94,8 +95,9 @@ from .utils.coverages import SUPPORTED_COVERAGE_TYPES
 pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-
 class OasisManager(object):
+    computation_classes = [ExposurePreAnalysis]
+    computations_params = {}
 
     @oasis_log
     def __init__(
@@ -194,19 +196,41 @@ class OasisManager(object):
     def ktools_error_guard(self):
         return self._ktools_error_guard
 
-    def get_alloc_rule(self, alloc_given, alloc_max, err_msg='Invalid alloc rule', fallback=None):
-        alloc_valid_range = [r for r in range(alloc_max + 1)]
+    def consolidate_input(self, computation_cls, kwargs):
+        for param in computation_cls.get_params():
+            if kwargs.get(param['name']) is None:
+                kwargs[param['name']] = getattr(self, param['name'], None)
+        return kwargs
 
+    @staticmethod
+    def get_alloc_rule(alloc_given, alloc_max, err_msg='Invalid alloc rule', fallback=None):
         if not isinstance(alloc_given, int):
             return fallback if fallback else alloc_max
-        elif alloc_given not in alloc_valid_range:
-            raise OasisException('{}: {} not in {}'.format(
+        elif alloc_given > alloc_max:
+            raise OasisException('{}: {} bigger than {}'.format(
                 err_msg,
                 alloc_given,
-                alloc_valid_range,
+                alloc_max,
             ))
         else:
             return alloc_given
+
+    @staticmethod
+    def computation_name_to_method(name):
+        """
+        generate the name of the method in manager for a given ComputationStep name
+
+        taken from https://stackoverflow.com/questions/1175208/elegant-python-function-to-convert-camelcase-to-snake-case
+
+        >>> OasisManager.computation_name_to_method('ExposurePreAnalysis')
+        'generate_exposure_pre_analysis'
+        >>> OasisManager.computation_name_to_method('EODFile')
+        'generate_eod_file'
+        >>> OasisManager.computation_name_to_method('Model1Data')
+        'generate_model1_data'
+        """
+        return 'generate_' + re.sub('((?<=[a-z0-9])[A-Z]|(?!^)[A-Z](?=[a-z]))', r'_\1', name).lower()
+
 
     @oasis_log
     def generate_peril_areas_rtree_file_index(
@@ -316,7 +340,7 @@ class OasisManager(object):
         lookup_config_fp=None,
         keys_data_fp=None,
         model_version_fp=None,
-        lookup_package_fp=None,
+        lookup_module_path=None,
         complex_lookup_config_fp=None,
         keys_fp=None,
         keys_errors_fp=None,
@@ -328,12 +352,12 @@ class OasisManager(object):
         lookup_config_fp = as_path(lookup_config_fp, 'Lookup config JSON file path')
         keys_data_fp = as_path(keys_data_fp, 'Keys data path', is_dir=True, preexists=False)
         model_version_fp = as_path(model_version_fp, 'Model version file path', preexists=False)
-        lookup_package_fp = as_path(lookup_package_fp, 'Lookup package path', is_dir=True, preexists=False)
+        lookup_module_path = as_path(lookup_module_path, 'Lookup module path', is_dir=True, preexists=False)
         complex_lookup_config_fp = as_path(complex_lookup_config_fp, 'Complex lookup config JSON file path', preexists=False)
         keys_fp = as_path(keys_fp, 'Keys file path', preexists=False)
         keys_errors_fp = as_path(keys_errors_fp, 'Keys errors file path', preexists=False)
 
-        if not (lookup_config_fp or (keys_data_fp and model_version_fp and lookup_package_fp)):
+        if not (lookup_config_fp or (keys_data_fp and model_version_fp and lookup_module_path)):
             raise OasisException(
                 'No lookup assets provided to generate the mandatory keys '
                 'file - for built-in lookups the lookup config. JSON file '
@@ -351,7 +375,7 @@ class OasisManager(object):
             lookup_config_fp=lookup_config_fp,
             model_keys_data_path=keys_data_fp,
             model_version_file_path=model_version_fp,
-            lookup_package_path=lookup_package_fp,
+            lookup_module_path=lookup_module_path,
             complex_lookup_config_fp=complex_lookup_config_fp,
             output_directory=lookup_extra_outputs_dir
         )
@@ -394,7 +418,7 @@ class OasisManager(object):
         keys_data_fp=None,
         model_version_fp=None,
         model_settings_fp=None,
-        lookup_package_fp=None,
+        lookup_module_path=None,
         complex_lookup_config_fp=None,
         user_data_dir=None,
         supported_oed_coverage_types=None,
@@ -420,7 +444,7 @@ class OasisManager(object):
         keys_data_fp = as_path(keys_data_fp, 'Keys data path', preexists=False)
         model_version_fp = as_path(model_version_fp, 'Model version file path', is_dir=True, preexists=False)
         model_settings_fp = as_path(model_settings_fp, 'Model settings file path')
-        lookup_package_fp = as_path(lookup_package_fp, 'Lookup package path', is_dir=True, preexists=False)
+        lookup_module_path = as_path(lookup_module_path, 'Lookup module path', is_dir=True, preexists=False)
         complex_lookup_config_fp = as_path(complex_lookup_config_fp, 'Complex lookup config JSON file path', preexists=False)
         user_data_dir = as_path(user_data_dir, 'Directory containing additional supplied model data files', preexists=False)
         accounts_fp = as_path(accounts_fp, 'Source OED accounts file path')
@@ -468,7 +492,7 @@ class OasisManager(object):
         # Check whether the files generation is for deterministic or model losses
         deterministic = not(
             (lookup_config or lookup_config_fp) or
-            (keys_data_fp and model_version_fp and lookup_package_fp) or
+            (keys_data_fp and model_version_fp and lookup_module_path) or
             keys_fp
         )
 
@@ -507,7 +531,7 @@ class OasisManager(object):
                     lookup_config=lookup_config,
                     model_keys_data_path=keys_data_fp,
                     model_version_file_path=model_version_fp,
-                    lookup_package_path=lookup_package_fp,
+                    lookup_module_path=lookup_module_path,
                     complex_lookup_config_fp=complex_lookup_config_fp,
                     user_data_dir=user_data_dir,
                     output_directory=target_dir
@@ -766,6 +790,7 @@ class OasisManager(object):
                     num_reinsurance_iterations=ri_layers,
                     set_alloc_rule_gul=(ktools_alloc_rule_gul if isinstance(ktools_alloc_rule_gul, int) else self.ktools_alloc_rule_gul),
                     set_alloc_rule_il=(ktools_alloc_rule_il if isinstance(ktools_alloc_rule_il, int) else self.ktools_alloc_rule_il),
+                    set_alloc_rule_ri=(ktools_alloc_rule_ri if isinstance(ktools_alloc_rule_ri, int) else self.ktools_alloc_rule_ri),
                     run_debug=(ktools_debug if isinstance(ktools_debug, bool) else self.ktools_debug),
                     stderr_guard=(ktools_error_guard if isinstance(ktools_error_guard, bool) else self.ktools_error_guard),
                     fifo_tmp_dir=(not (ktools_fifo_relative or self.ktools_fifo_relative)),
@@ -1090,3 +1115,24 @@ class OasisManager(object):
             test_result = test_result and file_test_result
 
         return file_test_result
+
+
+def __interface_factory(computation_cls):
+    OasisManager.computations_params[computation_cls.__name__] = computation_cls.get_params()
+
+    @oasis_log
+    def interface(self, **kwargs):
+        self.consolidate_input(computation_cls, kwargs)
+        return computation_cls(**kwargs).run()
+
+    return interface
+
+
+for computation_cls in OasisManager.computation_classes:
+    setattr(OasisManager, OasisManager.computation_name_to_method(computation_cls.__name__),
+            __interface_factory(computation_cls))
+
+
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()
