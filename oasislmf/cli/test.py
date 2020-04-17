@@ -130,6 +130,8 @@ class FmValidationCmd(OasisBaseCommand):
                 print(test_case_name)
             exit(0)
 
+        failed_tests = []
+
         for test_case_name in test_case_names:
 
             test_case_dir = os.path.join(test_dir, test_case_name)
@@ -144,13 +146,16 @@ class FmValidationCmd(OasisBaseCommand):
                 run_dir = os.path.join(run_dir, test_case_name)
                 test_result = om().run_fm_test(test_case_dir, run_dir)
 
-            self.logger.info('{}: {}'.format(
-                test_case_name,
-                'PASS' if test_result else 'FAIL')
-            )
+            if not test_result:
+                failed_tests.append(test_case_name)
+                if status == 0:
+                    status = 1
 
-            if not test_result and status == 0:
-                status = 1
+        if len(failed_tests) == 0:
+            self.logger.info("All tests passed")
+        else:
+            self.logger.info("{} test failed: ".format(len(failed_tests)))
+            [self.logger.info(n) for n in failed_tests]
 
         exit(status)
 
