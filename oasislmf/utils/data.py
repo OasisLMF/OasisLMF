@@ -592,12 +592,13 @@ def reduce_df(df, cols=None):
 
 def print_dataframe(
     df,
+    cols=[],
     string_cols=[],
     show_index=False,
     frame_header=None,
     column_headers='keys',
     tablefmt='psql',
-    floatfmt=".2f",
+    floatfmt=",.2f",
     end='\n',
     **tabulate_kwargs
 ):
@@ -607,6 +608,10 @@ def print_dataframe(
 
     :param df: The dataframe to pretty-print
     :type df: pd.DataFrame
+
+    :param cols: An iterable of names of columns whose values should
+                           be printed (optional). If unset, all columns will be printed.
+    :type cols: list, tuple, collections.Iterable
 
     :param string_cols: An iterable of names of columns whose values should
                            be treated as strings (optional)
@@ -643,6 +648,9 @@ def print_dataframe(
     """
     _df = df.copy(deep=True)
 
+    if cols is not None and len(cols) > 0:
+        _df = _df[cols]
+
     for col in string_cols:
         _df[col] = _df[col].astype(object)
 
@@ -655,7 +663,11 @@ def print_dataframe(
         tabulate_kwargs.pop('floatfmt') if 'floatfmt' in tabulate_kwargs else None
         tabulate_kwargs.pop('showindex') if 'showindex' in tabulate_kwargs else None
 
-    print(tabulate(_df, headers=column_headers, tablefmt=tablefmt, showindex=show_index, floatfmt=floatfmt, **tabulate_kwargs), end=end)
+    print(
+        tabulate(
+            _df, headers=column_headers, tablefmt=tablefmt, 
+            showindex=show_index, floatfmt=floatfmt, **tabulate_kwargs), 
+        end=end)
 
 
 def set_dataframe_column_dtypes(df, dtypes):
