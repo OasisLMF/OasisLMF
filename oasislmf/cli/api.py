@@ -47,19 +47,30 @@ def load_credentials(login_arg, logger=None):
 
 def open_api_connection(input_args, logger):
     try:
-        credentials = load_credentials(input_args.get('api_server_login'), logger=logger)
-        logger.info('Connecting to - {}'.format(input_args.get('api_server_url')))
+        ## If no password given try the 'default' reference password
         return APIClient(
             api_url=input_args.get('api_server_url'),
             api_ver='V1',
-            username=credentials['username'],
-            password=credentials['password'],
+            username='admin',
+            password='password',
             logger=logger
         )
-    except OasisException as e:
-        logger.error('API Connection error:')
-        logger.error(e)
-        sys.exit(1)
+    except OasisException:
+        ## Prompt for password and try to re-autehnticate
+        try:
+            credentials = load_credentials(input_args.get('api_server_login'), logger=logger)
+            logger.info('Connecting to - {}'.format(input_args.get('api_server_url')))
+            return APIClient(
+                api_url=input_args.get('api_server_url'),
+                api_ver='V1',
+                username=credentials['username'],
+                password=credentials['password'],
+                logger=logger
+            )
+        except OasisException as e:
+            logger.error('API Connection error:')
+            logger.error(e)
+            sys.exit(1)
 
 
 class GetApiCmd(OasisBaseCommand):
