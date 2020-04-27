@@ -414,7 +414,7 @@ def get_dtypes_and_required_cols(get_dtypes):
     return col_dtypes, required_cols
 
 
-def get_ids(df, usecols, group_by=[]):
+def get_ids(df, usecols, group_by=[], check_unquie=False):
     """
     Enumerates (counts) the rows of a given dataframe in a given subset
     of dataframe columns, and optionally does the enumeration with
@@ -433,6 +433,12 @@ def get_ids(df, usecols, group_by=[]):
     :rtype: numpy.ndarray
     """
     _usecols = group_by + list(set(usecols).difference(group_by))
+
+    # Handle case where selected usecols list is not unique
+    if not df.set_index(usecols).index.is_unique and check_unquie:
+        # Place holder returns #
+        return df.index +1
+        raise OasisException(f'Selected usecols list "{usecols}" is not unquie')
 
     if not group_by:
         return factorize_ndarray(df.loc[:, usecols].values, col_idxs=range(len(_usecols)))[0]
