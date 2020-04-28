@@ -15,6 +15,7 @@ __all__ = [
     'store_exposure_fp',
     'find_exposure_fp',
     'GROUP_ID_COLS',
+    'API_EXAMPLE_AUTH',
     'KEY_NAME_TO_FILE_NAME',
     'KTOOLS_ALLOC_GUL_MAX',
     'KTOOLS_ALLOC_FM_MAX',
@@ -46,6 +47,11 @@ SOURCE_FILENAMES = OrderedDict({
     'acc': 'account.csv',
     'info': 'reinsinfo.csv',
     'scope': 'reinsscope.csv',
+})
+
+API_EXAMPLE_AUTH = OrderedDict({
+    'user': 'admin',
+    'pass': 'password',
 })
 
 KEY_NAME_TO_FILE_NAME = {

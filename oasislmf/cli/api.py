@@ -8,6 +8,7 @@ from argparse import RawDescriptionHelpFormatter
 from ..api.client import APIClient
 from ..utils.exceptions import OasisException
 from ..utils.path import PathCleaner
+from ..utils.defaults import API_EXAMPLE_AUTH
 
 from .base import OasisBaseCommand
 from .inputs import InputValues
@@ -47,12 +48,12 @@ def load_credentials(login_arg, logger=None):
 
 def open_api_connection(input_args, logger):
     try:
-        ## If no password given try the 'default' reference password
+        ## If no password given try the reference example
         return APIClient(
             api_url=input_args.get('api_server_url'),
             api_ver='V1',
-            username='admin',
-            password='password',
+            username=API_EXAMPLE_AUTH['user'],
+            password=API_EXAMPLE_AUTH['pass'],
             logger=logger
         )
     except OasisException:

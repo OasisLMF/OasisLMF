@@ -61,6 +61,7 @@ class APISession(Session):
         if r.status_code == status.ok:
             self.tkn_access = r.json()['access_token']
             if 'refresh_token' in r.json():
+                self.logger.info(f"Refreshing access token")
                 self.tkn_refresh = r.json()['refresh_token']
             self.headers['authorization'] = 'Bearer {}'.format(self.tkn_access)
         else:
@@ -100,7 +101,7 @@ class APISession(Session):
                 error = "HTTP {}".format(http_err_code)
                 return True
             elif http_err_code in [401]:
-                self.logger.info(f"Session Expired - Refreshing access token")
+                self.logger.info(f"Authentication Required")
                 self._refresh_token()
                 return True
         return False
