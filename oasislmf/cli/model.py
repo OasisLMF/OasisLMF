@@ -8,11 +8,12 @@ __all__ = [
     'RunCmd'
 ]
 
-import json
 import os
 import re
 
 from argparse import RawDescriptionHelpFormatter
+
+from tqdm import tqdm
 
 from ..manager import OasisManager as om
 
@@ -288,7 +289,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             group_id_cols=group_id_cols
         )
 
-        self.logger.info('\nOasis files generated: {}'.format(json.dumps(oasis_files, indent=4)))
+        self.logger.info('\nOasis files generated: {}'.format(oasis_files))
 
 
 class GenerateLossesCmd(OasisBaseCommand):
@@ -513,8 +514,10 @@ class RunCmd(OasisBaseCommand):
         else:
             cmds = [GenerateOasisFilesCmd(args), GenerateLossesCmd(args)]
 
-        for cmd in cmds:
-            cmd.action(args)
+        with tqdm(total=len(cmds)) as pbar:
+            for cmd in cmds:
+                cmd.action(args)
+                pbar.update(1)
 
         self.logger.info('\nModel run completed successfully in {}'.format(model_run_fp))
 
