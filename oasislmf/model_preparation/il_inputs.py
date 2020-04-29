@@ -429,7 +429,7 @@ def get_il_input_items(
         layers_cols += ['stepnumber']
     accounts_df['layer_id'] = get_ids(
         accounts_df[layers_cols + [policy_num]].drop_duplicates(keep='first'),
-        layers_cols + [policy_num], group_by=layers_cols
+        layers_cols + [policy_num], group_by=layers_cols,
     ).reindex(range(len(accounts_df))).fillna(method='ffill').astype('uint32')
 
     # Drop all columns from the accounts dataframe which are not either one of

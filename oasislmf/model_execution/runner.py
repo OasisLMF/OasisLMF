@@ -25,6 +25,7 @@ def run(
     set_alloc_rule_ri=KTOOLS_ALLOC_RI_DEFAULT,
     fifo_tmp_dir=True,
     stderr_guard=True,
+    gul_legacy_steam=False,
     run_debug=False,
     custom_gulcalc_cmd=None,
     filename='run_ktools.sh'
@@ -68,7 +69,7 @@ def run(
                 max_process_id,
                 os.path.abspath("analysis_settings.json"),
                 "input")
-            if coverage_output != '' and not gul_alloc_rule:
+            if coverage_output != '' and gul_legacy_steam:
                 cmd = '{} -c {}'.format(cmd, coverage_output)
             if item_output != '':
                 cmd = '{} -i {}'.format(cmd, item_output)
@@ -86,6 +87,7 @@ def run(
             il_alloc_rule=set_alloc_rule_il,
             ri_alloc_rule=set_alloc_rule_ri,
             stderr_guard=stderr_guard,
+            gul_legacy_steam=gul_legacy_steam,
             bash_trace=run_debug,
             filename=filename,
             _get_getmodel_cmd=custom_get_getmodel_cmd,
@@ -100,6 +102,7 @@ def run(
             il_alloc_rule=set_alloc_rule_il,
             ri_alloc_rule=set_alloc_rule_ri,
             stderr_guard=stderr_guard,
+            gul_legacy_steam=gul_legacy_steam,
             bash_trace=run_debug,
             filename=filename
         )
