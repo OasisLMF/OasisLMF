@@ -654,7 +654,7 @@ def get_main_cmd_il_stream(
     """
 
     if full_correlation:
-        fm_cmd = 'fmcalc-a{2} < {1} > {3}il_P{0}'
+        fm_cmd = 'fmcalc -a{2} < {1} > {3}il_P{0}'
     else:
         fm_cmd = '{1} | fmcalc -a{2} > {3}il_P{0} '
     main_cmd = fm_cmd.format(process_id, cmd, il_alloc_rule, fifo_dir)
