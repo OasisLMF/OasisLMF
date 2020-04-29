@@ -9,6 +9,7 @@ __all__ = [
 ]
 
 import os
+import json
 import re
 
 from argparse import RawDescriptionHelpFormatter
@@ -289,7 +290,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             group_id_cols=group_id_cols
         )
 
-        self.logger.info('\nOasis files generated: {}'.format(oasis_files))
+        self.logger.info('\nOasis files generated: {}'.format(json.dumps(oasis_files, indent=4)))
 
 
 class GenerateLossesCmd(OasisBaseCommand):
