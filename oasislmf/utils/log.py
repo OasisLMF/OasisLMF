@@ -85,8 +85,13 @@ def oasis_log(*args, **kwargs):
         def wrapper(*args, **kwargs):
             func_name = func.__name__
             caller_module_name = func.__globals__.get('__name__')
-            logger.info("STARTED: {}.{}".format(
-                caller_module_name, func_name))
+            
+            if func_name == '__init__':
+                logger.debug("RUNNING: {}.{}".format(
+                    caller_module_name, func_name))
+            else:    
+                logger.info("RUNNING: {}.{}".format(
+                    caller_module_name, func_name))
 
             args_name = getargspec(func)[0]
             args_dict = dict(zip(args_name, args))
@@ -105,7 +110,7 @@ def oasis_log(*args, **kwargs):
             start = time.time()
             result = func(*args, **kwargs)
             end = time.time()
-            logger.info(
+            logger.debug(
                 "COMPLETED: {}.{} in {}s".format(
                     caller_module_name, func_name, round(end - start, 2)))
             return result
