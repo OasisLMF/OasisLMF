@@ -638,7 +638,7 @@ class OasisManager(object):
             exposure_df,
             oed_column_set=[loc_grp],
             defaults={loc_grp: 1}
-        )
+        ).sort_values(by='agg_id')
 
         ri_info_df, ri_scope_df, _ = load_oed_dfs(ri_info_fp, ri_scope_fp)
         ri_layers = write_files_for_reinsurance(
