@@ -258,7 +258,7 @@ def do_summarycalcs(
     fifo_dir='fifo/',
     stderr_guard=True,
     num_reinsurance_iterations=0,
-    gul_legacy_steam=None,
+    gul_legacy_stream=None,
 ):
 
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
@@ -270,7 +270,7 @@ def do_summarycalcs(
 
     summarycalc_switch = '-f'
     if runtype == RUNTYPE_GROUNDUP_LOSS:
-        if gul_legacy_steam:
+        if gul_legacy_stream:
             # gul coverage stream
             summarycalc_switch = '-g'
         else:
@@ -422,7 +422,7 @@ def do_gul(
     fifo_dir='fifo/',
     work_dir='work/',
     gul_alloc_rule=None,
-    gul_legacy_steam=None,
+    gul_legacy_stream=None,
     stderr_guard=True,
     full_correlation=False
 ):
@@ -439,7 +439,7 @@ def do_gul(
             analysis_settings=analysis_settings,
             process_id=process_id,
             filename=filename,
-            gul_legacy_steam=gul_legacy_steam,
+            gul_legacy_stream=gul_legacy_stream,
             fifo_dir=fifo_dir,
             stderr_guard=stderr_guard
         )
@@ -719,7 +719,7 @@ def genbash(
     il_alloc_rule=None,
     ri_alloc_rule=None,
     stderr_guard=True,
-    gul_legacy_steam=False,
+    gul_legacy_stream=False,
     bash_trace=False,
     filename='run_kools.sh',
     _get_getmodel_cmd=None,
@@ -761,7 +761,7 @@ def genbash(
 
     use_random_number_file = False
     stderr_guard = stderr_guard
-    gul_item_stream = not gul_legacy_steam
+    gul_item_stream = not gul_legacy_stream
     full_correlation = False
     gul_output = False
     il_output = False
@@ -996,7 +996,7 @@ def genbash(
                 'fifo_dir': fifo_queue_dir,
                 'work_dir': work_dir,
                 'gul_alloc_rule': gul_alloc_rule,
-                'gul_legacy_steam': gul_legacy_steam,
+                'gul_legacy_stream': gul_legacy_stream,
                 'stderr_guard': stderr_guard
             }
         }
@@ -1023,7 +1023,7 @@ def genbash(
             'coverage_output': '{0}gul_P{1}'.format(fifo_queue_dir, process_id),
             'item_output': '-',
             'gul_alloc_rule': gul_alloc_rule,
-            'gul_legacy_steam': gul_legacy_steam,
+            'gul_legacy_stream': gul_legacy_stream,
             'process_id': process_id,
             'max_process_id': max_process_id,
             'correlated_output': correlated_output_file,
@@ -1191,7 +1191,7 @@ def genbash(
                     'fifo_dir': fifo_full_correlation_dir,
                     'work_dir': work_full_correlation_dir,
                     'gul_alloc_rule': gul_alloc_rule,
-                    'gul_legacy_steam': gul_legacy_steam,
+                    'gul_legacy_stream': gul_legacy_stream,
                     'stderr_guard': stderr_guard,
                     'full_correlation': full_correlation
                 }

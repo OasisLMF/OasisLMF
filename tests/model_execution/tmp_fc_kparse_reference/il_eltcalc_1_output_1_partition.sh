@@ -48,7 +48,7 @@ wait $pid1 $pid2
 
 # --- Do computes for fully correlated output ---
 
-fmcalc-a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P1 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P1 & fcpid1=$!
+fmcalc -a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P1 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P1 & fcpid1=$!
 
 wait $fcpid1
 
