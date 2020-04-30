@@ -1,4 +1,4 @@
-__all__ = [
+_all__ = [
     'OasisManager'
 ]
 
@@ -521,6 +521,7 @@ class OasisManager(object):
                     empty_data_error_msg='No exposure found in the source exposure (loc.) file'
                 )
                 exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
+
                 loc_ids = (loc_it['loc_id'] for _, loc_it in exposure_df.loc[:, ['loc_id']].iterrows())
                 keys = [
                     {'loc_id': _loc_id, 'peril_id': 1, 'coverage_type': cov_type, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
@@ -801,7 +802,7 @@ class OasisManager(object):
                     set_alloc_rule_ri=(ktools_alloc_rule_ri if isinstance(ktools_alloc_rule_ri, int) else self.ktools_alloc_rule_ri),
                     run_debug=(ktools_debug if isinstance(ktools_debug, bool) else self.ktools_debug),
                     stderr_guard=(ktools_error_guard if isinstance(ktools_error_guard, bool) else self.ktools_error_guard),
-                    gul_legacy_steam=(ktools_gul_legacy_stream if isinstance(ktools_gul_legacy_stream, bool) else self.ktools_gul_legacy_stream),
+                    gul_legacy_stream=(ktools_gul_legacy_stream if isinstance(ktools_gul_legacy_stream, bool) else self.ktools_gul_legacy_stream),
                     fifo_tmp_dir=(not (ktools_fifo_relative or self.ktools_fifo_relative)),
                     custom_gulcalc_cmd=model_custom_gulcalc,
                 )
@@ -1122,7 +1123,6 @@ class OasisManager(object):
                 self.logger.debug(
                     f'\n FAIL: generated {generated} vs expected {expected}')
             test_result = test_result and file_test_result
-
         return file_test_result
 
 
