@@ -69,7 +69,7 @@ def run(
                 max_process_id,
                 os.path.abspath("analysis_settings.json"),
                 "input")
-            if coverage_output != '' and gul_legacy_stream:
+            if gul_legacy_stream and coverage_output != '':    
                 cmd = '{} -c {}'.format(cmd, coverage_output)
             if item_output != '':
                 cmd = '{} -i {}'.format(cmd, item_output)

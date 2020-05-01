@@ -428,9 +428,6 @@ def get_ids(df, usecols, group_by=[], sort_keys=True):
     :param group_by: A subset of the column subset to use a subgroup key
     :param group_by: list
 
-    :param allow_duplicates: allow non-unique ids in return
-    :param allow_duplicates: Boolean
-
     :param sort_keys: Sort keys by value before assigning ids
     :param sort_keys: Boolean
 
