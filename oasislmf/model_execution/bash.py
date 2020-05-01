@@ -582,8 +582,8 @@ def get_main_cmd_ri_stream(
     :type cmd: str
     :param process_id: ID corresponding to thread
     :type process_id: int
-    :param il_output: If insured loss outputs required 
-    :type il_output: Boolean 
+    :param il_output: If insured loss outputs required
+    :type il_output: Boolean
     :param il_alloc_rule: insured loss allocation rule for fmcalc
     :type il_alloc_rule: int
     :param ri_alloc_rule: reinsurance allocation rule for fmcalc
@@ -1046,13 +1046,13 @@ def genbash(
             getmodel_args.update(custom_args)
             getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
             main_cmd = get_main_cmd_ri_stream(
-                getmodel_cmd, 
-                process_id, 
+                getmodel_cmd,
+                process_id,
                 il_output,
-                il_alloc_rule, 
+                il_alloc_rule,
                 ri_alloc_rule,
-                num_reinsurance_iterations, 
-                fifo_queue_dir, 
+                num_reinsurance_iterations,
+                fifo_queue_dir,
                 stderr_guard
             )
             print_command(filename, main_cmd)
@@ -1112,14 +1112,14 @@ def genbash(
 
             if num_reinsurance_iterations > 0 and ri_output:
                 main_cmd = get_main_cmd_ri_stream(
-                    correlated_output_file, 
-                    process_id, 
+                    correlated_output_file,
+                    process_id,
                     il_output,
                     il_alloc_rule,
-                    ri_alloc_rule, 
+                    ri_alloc_rule,
                     num_reinsurance_iterations,
-                    fifo_full_correlation_dir, 
-                    stderr_guard, 
+                    fifo_full_correlation_dir,
+                    stderr_guard,
                     full_correlation,
                     process_counter
                 )

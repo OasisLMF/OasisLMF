@@ -166,10 +166,10 @@ def get_gul_input_items(
         exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
 
 
-    # Handle duplicate location `loc_id` rows, this needs be replaced with logic to collapse 
+    # Handle duplicate location `loc_id` rows, this needs be replaced with logic to collapse
     # Duplicated rows into a Function of the FM which applies multiple terms to a single location
-    # Until implemented: A warning message is sent to the user 
-    # and `all` rows with duplicated `loc_id` keys are removed from the File generation logic 
+    # Until implemented: A warning message is sent to the user
+    # and `all` rows with duplicated `loc_id` keys are removed from the File generation logic
     if not exposure_df.set_index('loc_id').index.is_unique:
         index_dups = exposure_df[exposure_df.duplicated(subset=['loc_id'], keep=False)].index
         exposure_df.drop(index=index_dups, inplace=True)
@@ -181,7 +181,7 @@ def get_gul_input_items(
         ]))
         logger.debug('Dropped location rows: \n{}'.format(
             exposure_df.iloc[index_dups]
-        )) 
+        ))
 
     # Set data types for the keys dataframe
     dtypes = {

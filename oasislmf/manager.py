@@ -1,4 +1,4 @@
-_all__ = [
+__all__ = [
     'OasisManager'
 ]
 
@@ -95,6 +95,7 @@ from .utils.coverages import SUPPORTED_COVERAGE_TYPES
 
 pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
+
 
 class OasisManager(object):
     computation_classes = [ExposurePreAnalysis]
@@ -212,7 +213,7 @@ class OasisManager(object):
     @staticmethod
     def get_alloc_rule(alloc_given, alloc_max, err_msg='Invalid alloc rule', fallback=None):
         if not isinstance(alloc_given, int):
-            return fallback if fallback != None else alloc_max
+            return fallback if fallback is not None else alloc_max
         elif alloc_given > alloc_max:
             raise OasisException('{}: {} larger than max value "{}"'.format(
                 err_msg,
@@ -237,7 +238,6 @@ class OasisManager(object):
         'generate_model1_data'
         """
         return 'generate_' + re.sub('((?<=[a-z0-9])[A-Z]|(?!^)[A-Z](?=[a-z]))', r'_\1', name).lower()
-
 
     @oasis_log
     def generate_peril_areas_rtree_file_index(
@@ -752,25 +752,6 @@ class OasisManager(object):
             raise OasisException(
                 'No valid output settings in: {}'.format(analysis_settings_fp))
 
-        gul_alloc_rule = self.get_alloc_rule(
-            alloc_given=ktools_alloc_rule_gul,
-            alloc_max=KTOOLS_ALLOC_GUL_MAX,
-            err_msg='Invalid alloc GUL rule',
-            fallback=self.ktools_alloc_rule_gul
-        )
-        il_alloc_rule = self.get_alloc_rule(
-            alloc_given=ktools_alloc_rule_il,
-            alloc_max=KTOOLS_ALLOC_FM_MAX,
-            err_msg='Invalid alloc IL rule',
-            fallback=self.ktools_alloc_rule_il
-        )
-        ri_alloc_rule = self.get_alloc_rule(
-            alloc_given=ktools_alloc_rule_ri,
-            alloc_max=KTOOLS_ALLOC_FM_MAX,
-            err_msg='Invalid alloc RI rule',
-            fallback=self.ktools_alloc_rule_ri
-        )
-
         prepare_run_inputs(analysis_settings, model_run_fp, ri=ri)
         script_fp = os.path.join(os.path.abspath(model_run_fp), 'run_ktools.sh')
 
@@ -1079,8 +1060,8 @@ class OasisManager(object):
                     for row in reader:
                         loss_factor.append(
                             float(row['loss_factor']))
-            except:
-                raise OasisException(f"Failed to read {loss_factor_fp}")
+            except Exception as e:
+                raise OasisException(f"Failed to read {loss_factor_fp}", e)
         else:
             loss_factor.append(1.0)
 

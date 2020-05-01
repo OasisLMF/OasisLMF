@@ -33,14 +33,14 @@ def run(
     if number_of_processes == -1:
         number_of_processes = multiprocessing.cpu_count()
 
-    # If `given_gulcalc_cmd` is set then always run as a complex model  
-    # and raise an exception when not found in PATH 
+    # If `given_gulcalc_cmd` is set then always run as a complex model
+    # and raise an exception when not found in PATH
     if custom_gulcalc_cmd:
         if not shutil.which(custom_gulcalc_cmd):
             raise OasisException(
                 'Run error: Custom Gulcalc command "{}" explicitly set but not found in path.'.format(custom_gulcalc_cmd)
             )
-    # when not set then fallback to previous behaviour: 
+    # when not set then fallback to previous behaviour:
     # Check if a custom binary `<supplier>_<model>_gulcalc` exists in PATH
     else:
         inferred_gulcalc_cmd = "{}_{}_gulcalc".format(

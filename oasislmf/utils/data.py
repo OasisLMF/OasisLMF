@@ -26,7 +26,6 @@ import re
 import warnings
 
 from datetime import datetime
-from itertools import groupby
 
 try:
     from json import JSONDecodeError
@@ -80,11 +79,11 @@ PANDAS_DEFAULT_NULL_VALUES = {
     '-NaN',
     'nan',
     '-nan',
-    ''
+    '',
 }
 
 
-def factorize_array(arr,sort_opt=False):
+def factorize_array(arr, sort_opt=False):
     """
     Groups a 1D Numpy array by item value, and optionally enumerates the
     groups, starting from 1. The default or assumed type is a Nunpy
@@ -96,7 +95,7 @@ def factorize_array(arr,sort_opt=False):
     :return: A 2-tuple consisting of the enumeration and the value groups
     :rtype: tuple
     """
-    enum, groups = pd.factorize(arr,sort=sort_opt)
+    enum, groups = pd.factorize(arr, sort=sort_opt)
 
     return enum + 1, groups
 
@@ -128,7 +127,7 @@ def factorize_ndarray(ndarr, row_idxs=[], col_idxs=[], sort_opt=False):
     if rows == 1:
         return factorize_array(_ndarr[0])
 
-    enum, groups = pd.factorize(fast_zip_arrays(*(arr for arr in _ndarr)),sort=sort_opt)
+    enum, groups = pd.factorize(fast_zip_arrays(*(arr for arr in _ndarr)), sort=sort_opt)
 
     return enum + 1, groups
 
@@ -429,11 +428,11 @@ def get_ids(df, usecols, group_by=[], sort_keys=True):
     :param group_by: A subset of the column subset to use a subgroup key
     :param group_by: list
 
-    :param allow_duplicates: allow non-unique ids in return 
-    :param allow_duplicates: Boolean 
+    :param allow_duplicates: allow non-unique ids in return
+    :param allow_duplicates: Boolean
 
-    :param sort_keys: Sort keys by value before assigning ids 
-    :param sort_keys: Boolean 
+    :param sort_keys: Sort keys by value before assigning ids
+    :param sort_keys: Boolean
 
         Example if sort_keys=True:
         -----------------
@@ -459,7 +458,7 @@ def get_ids(df, usecols, group_by=[], sort_keys=True):
             sorted_df = df.loc[:, usecols].sort_values(by=usecols)
             sorted_df['ids'] = factorize_ndarray(sorted_df.values, col_idxs=range(len(_usecols)))[0]
             return sorted_df.sort_index()['ids'].to_list()
-        else:    
+        else:
             return factorize_ndarray(df.loc[:, usecols].values, col_idxs=range(len(_usecols)))[0]
     else:
         return (df[usecols].groupby(group_by).cumcount()) + 1
@@ -690,8 +689,8 @@ def print_dataframe(
 
     print(
         tabulate(
-            _df, headers=column_headers, tablefmt=tablefmt, 
-            showindex=show_index, floatfmt=floatfmt, **tabulate_kwargs), 
+            _df, headers=column_headers, tablefmt=tablefmt,
+            showindex=show_index, floatfmt=floatfmt, **tabulate_kwargs),
         end=end)
 
 
