@@ -41,7 +41,6 @@ def pasrse_gen_output(stdout_string):
         line = l.split(' ')
         func = line[-3]
         time = line[-1]
-        _ ,func ,_ ,time = l.split(' ')
         t_breakdown[func] = float(time[:-1])
     return t_breakdown
 
