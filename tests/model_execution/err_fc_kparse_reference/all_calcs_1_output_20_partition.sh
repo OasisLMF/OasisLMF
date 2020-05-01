@@ -973,26 +973,26 @@ wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 
 
 # --- Do computes for fully correlated output ---
 
-( fmcalc-a2 < fifo/full_correlation/gul_P1 > fifo/full_correlation/il_P1 ) 2>> log/stderror.err & fcpid1=$!
-( fmcalc-a2 < fifo/full_correlation/gul_P2 > fifo/full_correlation/il_P2 ) 2>> log/stderror.err & fcpid2=$!
-( fmcalc-a2 < fifo/full_correlation/gul_P3 > fifo/full_correlation/il_P3 ) 2>> log/stderror.err & fcpid3=$!
-( fmcalc-a2 < fifo/full_correlation/gul_P4 > fifo/full_correlation/il_P4 ) 2>> log/stderror.err & fcpid4=$!
-( fmcalc-a2 < fifo/full_correlation/gul_P5 > fifo/full_correlation/il_P5 ) 2>> log/stderror.err & fcpid5=$!
-( fmcalc-a2 < fifo/full_correlation/gul_P6 > fifo/full_correlation/il_P6 ) 2>> log/stderror.err & fcpid6=$!
-( fmcalc-a2 < fifo/full_correlation/gul_P7 > fifo/full_correlation/il_P7 ) 2>> log/stderror.err & fcpid7=$!
-( fmcalc-a2 < fifo/full_correlation/gul_P8 > fifo/full_correlation/il_P8 ) 2>> log/stderror.err & fcpid8=$!
-( fmcalc-a2 < fifo/full_correlation/gul_P9 > fifo/full_correlation/il_P9 ) 2>> log/stderror.err & fcpid9=$!
-( fmcalc-a2 < fifo/full_correlation/gul_P10 > fifo/full_correlation/il_P10 ) 2>> log/stderror.err & fcpid10=$!
-( fmcalc-a2 < fifo/full_correlation/gul_P11 > fifo/full_correlation/il_P11 ) 2>> log/stderror.err & fcpid11=$!
-( fmcalc-a2 < fifo/full_correlation/gul_P12 > fifo/full_correlation/il_P12 ) 2>> log/stderror.err & fcpid12=$!
-( fmcalc-a2 < fifo/full_correlation/gul_P13 > fifo/full_correlation/il_P13 ) 2>> log/stderror.err & fcpid13=$!
-( fmcalc-a2 < fifo/full_correlation/gul_P14 > fifo/full_correlation/il_P14 ) 2>> log/stderror.err & fcpid14=$!
-( fmcalc-a2 < fifo/full_correlation/gul_P15 > fifo/full_correlation/il_P15 ) 2>> log/stderror.err & fcpid15=$!
-( fmcalc-a2 < fifo/full_correlation/gul_P16 > fifo/full_correlation/il_P16 ) 2>> log/stderror.err & fcpid16=$!
-( fmcalc-a2 < fifo/full_correlation/gul_P17 > fifo/full_correlation/il_P17 ) 2>> log/stderror.err & fcpid17=$!
-( fmcalc-a2 < fifo/full_correlation/gul_P18 > fifo/full_correlation/il_P18 ) 2>> log/stderror.err & fcpid18=$!
-( fmcalc-a2 < fifo/full_correlation/gul_P19 > fifo/full_correlation/il_P19 ) 2>> log/stderror.err & fcpid19=$!
-( fmcalc-a2 < fifo/full_correlation/gul_P20 > fifo/full_correlation/il_P20 ) 2>> log/stderror.err & fcpid20=$!
+( fmcalc -a2 < fifo/full_correlation/gul_P1 > fifo/full_correlation/il_P1 ) 2>> log/stderror.err & fcpid1=$!
+( fmcalc -a2 < fifo/full_correlation/gul_P2 > fifo/full_correlation/il_P2 ) 2>> log/stderror.err & fcpid2=$!
+( fmcalc -a2 < fifo/full_correlation/gul_P3 > fifo/full_correlation/il_P3 ) 2>> log/stderror.err & fcpid3=$!
+( fmcalc -a2 < fifo/full_correlation/gul_P4 > fifo/full_correlation/il_P4 ) 2>> log/stderror.err & fcpid4=$!
+( fmcalc -a2 < fifo/full_correlation/gul_P5 > fifo/full_correlation/il_P5 ) 2>> log/stderror.err & fcpid5=$!
+( fmcalc -a2 < fifo/full_correlation/gul_P6 > fifo/full_correlation/il_P6 ) 2>> log/stderror.err & fcpid6=$!
+( fmcalc -a2 < fifo/full_correlation/gul_P7 > fifo/full_correlation/il_P7 ) 2>> log/stderror.err & fcpid7=$!
+( fmcalc -a2 < fifo/full_correlation/gul_P8 > fifo/full_correlation/il_P8 ) 2>> log/stderror.err & fcpid8=$!
+( fmcalc -a2 < fifo/full_correlation/gul_P9 > fifo/full_correlation/il_P9 ) 2>> log/stderror.err & fcpid9=$!
+( fmcalc -a2 < fifo/full_correlation/gul_P10 > fifo/full_correlation/il_P10 ) 2>> log/stderror.err & fcpid10=$!
+( fmcalc -a2 < fifo/full_correlation/gul_P11 > fifo/full_correlation/il_P11 ) 2>> log/stderror.err & fcpid11=$!
+( fmcalc -a2 < fifo/full_correlation/gul_P12 > fifo/full_correlation/il_P12 ) 2>> log/stderror.err & fcpid12=$!
+( fmcalc -a2 < fifo/full_correlation/gul_P13 > fifo/full_correlation/il_P13 ) 2>> log/stderror.err & fcpid13=$!
+( fmcalc -a2 < fifo/full_correlation/gul_P14 > fifo/full_correlation/il_P14 ) 2>> log/stderror.err & fcpid14=$!
+( fmcalc -a2 < fifo/full_correlation/gul_P15 > fifo/full_correlation/il_P15 ) 2>> log/stderror.err & fcpid15=$!
+( fmcalc -a2 < fifo/full_correlation/gul_P16 > fifo/full_correlation/il_P16 ) 2>> log/stderror.err & fcpid16=$!
+( fmcalc -a2 < fifo/full_correlation/gul_P17 > fifo/full_correlation/il_P17 ) 2>> log/stderror.err & fcpid17=$!
+( fmcalc -a2 < fifo/full_correlation/gul_P18 > fifo/full_correlation/il_P18 ) 2>> log/stderror.err & fcpid18=$!
+( fmcalc -a2 < fifo/full_correlation/gul_P19 > fifo/full_correlation/il_P19 ) 2>> log/stderror.err & fcpid19=$!
+( fmcalc -a2 < fifo/full_correlation/gul_P20 > fifo/full_correlation/il_P20 ) 2>> log/stderror.err & fcpid20=$!
 
 wait $fcpid1 $fcpid2 $fcpid3 $fcpid4 $fcpid5 $fcpid6 $fcpid7 $fcpid8 $fcpid9 $fcpid10 $fcpid11 $fcpid12 $fcpid13 $fcpid14 $fcpid15 $fcpid16 $fcpid17 $fcpid18 $fcpid19 $fcpid20
 

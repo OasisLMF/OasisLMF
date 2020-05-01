@@ -10,6 +10,7 @@ import copy
 import os
 import sys
 import warnings
+import logging
 
 from collections import OrderedDict
 
@@ -164,6 +165,24 @@ def get_gul_input_items(
     if 'loc_id' not in exposure_df:
         exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
 
+
+    # Handle duplicate location `loc_id` rows, this needs be replaced with logic to collapse
+    # Duplicated rows into a Function of the FM which applies multiple terms to a single location
+    # Until implemented: A warning message is sent to the user
+    # and `all` rows with duplicated `loc_id` keys are removed from the File generation logic
+    if not exposure_df.set_index('loc_id').index.is_unique:
+        index_dups = exposure_df[exposure_df.duplicated(subset=['loc_id'], keep=False)].index
+        exposure_df.drop(index=index_dups, inplace=True)
+        logger = logging.getLogger()
+        logger.warn('\n'.join([
+            'WARNING: Duplicate keys {} detected in location file'.format([portfolio_num, acc_num, loc_num]),
+            "\t oasislmf doesn't currently support multiple terms for a single location"
+            '\n\t dropping the following row(s): {}'.format(index_dups.to_list())
+        ]))
+        logger.debug('Dropped location rows: \n{}'.format(
+            exposure_df.iloc[index_dups]
+        ))
+
     # Set data types for the keys dataframe
     dtypes = {
         'locid': 'str',
@@ -236,6 +255,7 @@ def get_gul_input_items(
             join_on='loc_id',
             how='inner'
         )
+
         if gul_inputs_df.empty:
             raise OasisException(
                 'Inner merge of the exposure file dataframe ({}) '

@@ -258,7 +258,7 @@ def do_summarycalcs(
     fifo_dir='fifo/',
     stderr_guard=True,
     num_reinsurance_iterations=0,
-    gul_alloc_rule=None,
+    gul_legacy_stream=None,
 ):
 
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
@@ -270,12 +270,12 @@ def do_summarycalcs(
 
     summarycalc_switch = '-f'
     if runtype == RUNTYPE_GROUNDUP_LOSS:
-        if gul_alloc_rule:
-            # Accept item stream only
-            summarycalc_switch = '-i'
-        else:
+        if gul_legacy_stream:
             # gul coverage stream
             summarycalc_switch = '-g'
+        else:
+            # Accept item stream only
+            summarycalc_switch = '-i'
 
     summarycalc_directory_switch = ""
     if runtype == RUNTYPE_REINSURANCE_LOSS:
@@ -422,6 +422,7 @@ def do_gul(
     fifo_dir='fifo/',
     work_dir='work/',
     gul_alloc_rule=None,
+    gul_legacy_stream=None,
     stderr_guard=True,
     full_correlation=False
 ):
@@ -438,7 +439,7 @@ def do_gul(
             analysis_settings=analysis_settings,
             process_id=process_id,
             filename=filename,
-            gul_alloc_rule=gul_alloc_rule,
+            gul_legacy_stream=gul_legacy_stream,
             fifo_dir=fifo_dir,
             stderr_guard=stderr_guard
         )
@@ -581,8 +582,8 @@ def get_main_cmd_ri_stream(
     :type cmd: str
     :param process_id: ID corresponding to thread
     :type process_id: int
-    :param il_output: If insured loss outputs required 
-    :type il_output: Boolean 
+    :param il_output: If insured loss outputs required
+    :type il_output: Boolean
     :param il_alloc_rule: insured loss allocation rule for fmcalc
     :type il_alloc_rule: int
     :param ri_alloc_rule: reinsurance allocation rule for fmcalc
@@ -654,7 +655,7 @@ def get_main_cmd_il_stream(
     """
 
     if full_correlation:
-        fm_cmd = 'fmcalc-a{2} < {1} > {3}il_P{0}'
+        fm_cmd = 'fmcalc -a{2} < {1} > {3}il_P{0}'
     else:
         fm_cmd = '{1} | fmcalc -a{2} > {3}il_P{0} '
     main_cmd = fm_cmd.format(process_id, cmd, il_alloc_rule, fifo_dir)
@@ -718,6 +719,7 @@ def genbash(
     il_alloc_rule=None,
     ri_alloc_rule=None,
     stderr_guard=True,
+    gul_legacy_stream=False,
     bash_trace=False,
     filename='run_kools.sh',
     _get_getmodel_cmd=None,
@@ -759,7 +761,7 @@ def genbash(
 
     use_random_number_file = False
     stderr_guard = stderr_guard
-    gul_item_stream = (gul_alloc_rule and isinstance(gul_alloc_rule, int))
+    gul_item_stream = not gul_legacy_stream
     full_correlation = False
     gul_output = False
     il_output = False
@@ -994,6 +996,7 @@ def genbash(
                 'fifo_dir': fifo_queue_dir,
                 'work_dir': work_dir,
                 'gul_alloc_rule': gul_alloc_rule,
+                'gul_legacy_stream': gul_legacy_stream,
                 'stderr_guard': stderr_guard
             }
         }
@@ -1020,6 +1023,7 @@ def genbash(
             'coverage_output': '{0}gul_P{1}'.format(fifo_queue_dir, process_id),
             'item_output': '-',
             'gul_alloc_rule': gul_alloc_rule,
+            'gul_legacy_stream': gul_legacy_stream,
             'process_id': process_id,
             'max_process_id': max_process_id,
             'correlated_output': correlated_output_file,
@@ -1042,13 +1046,13 @@ def genbash(
             getmodel_args.update(custom_args)
             getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
             main_cmd = get_main_cmd_ri_stream(
-                getmodel_cmd, 
-                process_id, 
+                getmodel_cmd,
+                process_id,
                 il_output,
-                il_alloc_rule, 
+                il_alloc_rule,
                 ri_alloc_rule,
-                num_reinsurance_iterations, 
-                fifo_queue_dir, 
+                num_reinsurance_iterations,
+                fifo_queue_dir,
                 stderr_guard
             )
             print_command(filename, main_cmd)
@@ -1108,14 +1112,14 @@ def genbash(
 
             if num_reinsurance_iterations > 0 and ri_output:
                 main_cmd = get_main_cmd_ri_stream(
-                    correlated_output_file, 
-                    process_id, 
+                    correlated_output_file,
+                    process_id,
                     il_output,
                     il_alloc_rule,
-                    ri_alloc_rule, 
+                    ri_alloc_rule,
                     num_reinsurance_iterations,
-                    fifo_full_correlation_dir, 
-                    stderr_guard, 
+                    fifo_full_correlation_dir,
+                    stderr_guard,
                     full_correlation,
                     process_counter
                 )
@@ -1187,6 +1191,7 @@ def genbash(
                     'fifo_dir': fifo_full_correlation_dir,
                     'work_dir': work_full_correlation_dir,
                     'gul_alloc_rule': gul_alloc_rule,
+                    'gul_legacy_stream': gul_legacy_stream,
                     'stderr_guard': stderr_guard,
                     'full_correlation': full_correlation
                 }

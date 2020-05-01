@@ -327,8 +327,13 @@ def get_column_selection(summary_set):
     # Use OED column list set in analysis_settings file
     elif isinstance(summary_set['oed_fields'], list) and len(summary_set['oed_fields']) > 0:
         return [c.lower() for c in summary_set['oed_fields']]
+    elif isinstance(summary_set['oed_fields'], str) and len(summary_set['oed_fields']) > 0:
+        return [summary_set['oed_fields'].lower()]
     else:
-        raise OasisException('Unable to process settings file')
+        raise OasisException(
+            'Error processing settings file: "oed_fields" '
+            'is expected to be a list of strings, not {}'.format(type(summary_set['oed_fields']))
+        )
 
 
 def get_ri_settings(run_dir):

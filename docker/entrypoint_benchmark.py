@@ -38,7 +38,9 @@ def pasrse_gen_output(stdout_string):
     t_breakdown['total'] = float(total[:-1])
 
     for l in runtime_list:
-        _ ,func ,_ ,time = l.split(' ')
+        line = l.split(' ')
+        func = line[-3]
+        time = line[-1]
         t_breakdown[func] = float(time[:-1])
     return t_breakdown
 
@@ -106,7 +108,7 @@ def run_tests(test_dir, run_dir, log_fp, oasis_args, threshold=None):
         keys_fp = os.path.join(test_dir, d, 'keys.csv')
 
         n_sample = sum(1 for line in open(loc_fp)) -1
-        cmd_str = f'oasislmf model generate-oasis-files -x {loc_fp} -y {acc_fp} -z {keys_fp} --oasis-files-dir {run_dir} {oasis_args}'
+        cmd_str = f'oasislmf model generate-oasis-files -x {loc_fp} -y {acc_fp} -z {keys_fp} --oasis-files-dir {run_dir} {oasis_args} --verbose'
         test_data[n_sample] = cmd_str
 
     for t in sorted(test_data.keys()):

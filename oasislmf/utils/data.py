@@ -26,7 +26,6 @@ import re
 import warnings
 
 from datetime import datetime
-from itertools import groupby
 
 try:
     from json import JSONDecodeError
@@ -80,11 +79,11 @@ PANDAS_DEFAULT_NULL_VALUES = {
     '-NaN',
     'nan',
     '-nan',
-    ''
+    '',
 }
 
 
-def factorize_array(arr,sort_opt=False):
+def factorize_array(arr, sort_opt=False):
     """
     Groups a 1D Numpy array by item value, and optionally enumerates the
     groups, starting from 1. The default or assumed type is a Nunpy
@@ -96,7 +95,7 @@ def factorize_array(arr,sort_opt=False):
     :return: A 2-tuple consisting of the enumeration and the value groups
     :rtype: tuple
     """
-    enum, groups = pd.factorize(arr,sort=sort_opt)
+    enum, groups = pd.factorize(arr, sort=sort_opt)
 
     return enum + 1, groups
 
@@ -128,7 +127,7 @@ def factorize_ndarray(ndarr, row_idxs=[], col_idxs=[], sort_opt=False):
     if rows == 1:
         return factorize_array(_ndarr[0])
 
-    enum, groups = pd.factorize(fast_zip_arrays(*(arr for arr in _ndarr)),sort=sort_opt)
+    enum, groups = pd.factorize(fast_zip_arrays(*(arr for arr in _ndarr)), sort=sort_opt)
 
     return enum + 1, groups
 
@@ -414,7 +413,7 @@ def get_dtypes_and_required_cols(get_dtypes):
     return col_dtypes, required_cols
 
 
-def get_ids(df, usecols, group_by=[]):
+def get_ids(df, usecols, group_by=[], sort_keys=True):
     """
     Enumerates (counts) the rows of a given dataframe in a given subset
     of dataframe columns, and optionally does the enumeration with
@@ -429,13 +428,35 @@ def get_ids(df, usecols, group_by=[]):
     :param group_by: A subset of the column subset to use a subgroup key
     :param group_by: list
 
+    :param sort_keys: Sort keys by value before assigning ids
+    :param sort_keys: Boolean
+
+        Example if sort_keys=True:
+        -----------------
+        index  portnumber accnumber    locnumbera  id (returned)
+            0           1    A11111  10002082049    3
+            1           1    A11111  10002082050    4
+            2           1    A11111  10002082051    5
+            3           1    A11111  10002082053    7
+            4           1    A11111  10002082054    8
+            5           1    A11111  10002082052    6
+            6           1    A11111  10002082046    1
+            7           1    A11111  10002082046    1
+            8           1    A11111  10002082048    2
+            9           1    A11111  10002082055    9
+
     :return: The enumeration
     :rtype: numpy.ndarray
     """
     _usecols = group_by + list(set(usecols).difference(group_by))
 
     if not group_by:
-        return factorize_ndarray(df.loc[:, usecols].values, col_idxs=range(len(_usecols)))[0]
+        if sort_keys:
+            sorted_df = df.loc[:, usecols].sort_values(by=usecols)
+            sorted_df['ids'] = factorize_ndarray(sorted_df.values, col_idxs=range(len(_usecols)))[0]
+            return sorted_df.sort_index()['ids'].to_list()
+        else:
+            return factorize_ndarray(df.loc[:, usecols].values, col_idxs=range(len(_usecols)))[0]
     else:
         return (df[usecols].groupby(group_by).cumcount()) + 1
 
@@ -665,8 +686,8 @@ def print_dataframe(
 
     print(
         tabulate(
-            _df, headers=column_headers, tablefmt=tablefmt, 
-            showindex=show_index, floatfmt=floatfmt, **tabulate_kwargs), 
+            _df, headers=column_headers, tablefmt=tablefmt,
+            showindex=show_index, floatfmt=floatfmt, **tabulate_kwargs),
         end=end)
 
 

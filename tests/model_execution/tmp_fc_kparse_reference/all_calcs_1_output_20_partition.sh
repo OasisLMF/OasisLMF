@@ -949,26 +949,26 @@ wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 
 
 # --- Do computes for fully correlated output ---
 
-fmcalc-a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P1 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P1 & fcpid1=$!
-fmcalc-a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P2 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P2 & fcpid2=$!
-fmcalc-a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P3 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P3 & fcpid3=$!
-fmcalc-a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P4 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P4 & fcpid4=$!
-fmcalc-a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P5 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P5 & fcpid5=$!
-fmcalc-a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P6 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P6 & fcpid6=$!
-fmcalc-a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P7 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P7 & fcpid7=$!
-fmcalc-a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P8 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P8 & fcpid8=$!
-fmcalc-a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P9 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P9 & fcpid9=$!
-fmcalc-a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P10 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P10 & fcpid10=$!
-fmcalc-a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P11 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P11 & fcpid11=$!
-fmcalc-a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P12 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P12 & fcpid12=$!
-fmcalc-a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P13 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P13 & fcpid13=$!
-fmcalc-a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P14 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P14 & fcpid14=$!
-fmcalc-a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P15 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P15 & fcpid15=$!
-fmcalc-a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P16 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P16 & fcpid16=$!
-fmcalc-a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P17 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P17 & fcpid17=$!
-fmcalc-a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P18 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P18 & fcpid18=$!
-fmcalc-a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P19 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P19 & fcpid19=$!
-fmcalc-a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P20 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P20 & fcpid20=$!
+fmcalc -a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P1 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P1 & fcpid1=$!
+fmcalc -a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P2 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P2 & fcpid2=$!
+fmcalc -a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P3 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P3 & fcpid3=$!
+fmcalc -a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P4 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P4 & fcpid4=$!
+fmcalc -a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P5 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P5 & fcpid5=$!
+fmcalc -a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P6 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P6 & fcpid6=$!
+fmcalc -a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P7 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P7 & fcpid7=$!
+fmcalc -a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P8 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P8 & fcpid8=$!
+fmcalc -a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P9 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P9 & fcpid9=$!
+fmcalc -a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P10 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P10 & fcpid10=$!
+fmcalc -a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P11 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P11 & fcpid11=$!
+fmcalc -a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P12 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P12 & fcpid12=$!
+fmcalc -a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P13 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P13 & fcpid13=$!
+fmcalc -a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P14 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P14 & fcpid14=$!
+fmcalc -a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P15 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P15 & fcpid15=$!
+fmcalc -a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P16 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P16 & fcpid16=$!
+fmcalc -a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P17 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P17 & fcpid17=$!
+fmcalc -a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P18 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P18 & fcpid18=$!
+fmcalc -a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P19 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P19 & fcpid19=$!
+fmcalc -a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P20 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P20 & fcpid20=$!
 
 wait $fcpid1 $fcpid2 $fcpid3 $fcpid4 $fcpid5 $fcpid6 $fcpid7 $fcpid8 $fcpid9 $fcpid10 $fcpid11 $fcpid12 $fcpid13 $fcpid14 $fcpid15 $fcpid16 $fcpid17 $fcpid18 $fcpid19 $fcpid20
 

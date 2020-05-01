@@ -866,16 +866,16 @@ wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 
 
 # --- Do computes for fully correlated output ---
 
-fmcalc-a2 < fifo/full_correlation/gul_P1 > fifo/full_correlation/il_P1 & fcpid1=$!
-fmcalc-a2 < fifo/full_correlation/gul_P2 > fifo/full_correlation/il_P2 & fcpid2=$!
-fmcalc-a2 < fifo/full_correlation/gul_P3 > fifo/full_correlation/il_P3 & fcpid3=$!
-fmcalc-a2 < fifo/full_correlation/gul_P4 > fifo/full_correlation/il_P4 & fcpid4=$!
-fmcalc-a2 < fifo/full_correlation/gul_P5 > fifo/full_correlation/il_P5 & fcpid5=$!
-fmcalc-a2 < fifo/full_correlation/gul_P6 > fifo/full_correlation/il_P6 & fcpid6=$!
-fmcalc-a2 < fifo/full_correlation/gul_P7 > fifo/full_correlation/il_P7 & fcpid7=$!
-fmcalc-a2 < fifo/full_correlation/gul_P8 > fifo/full_correlation/il_P8 & fcpid8=$!
-fmcalc-a2 < fifo/full_correlation/gul_P9 > fifo/full_correlation/il_P9 & fcpid9=$!
-fmcalc-a2 < fifo/full_correlation/gul_P10 > fifo/full_correlation/il_P10 & fcpid10=$!
+fmcalc -a2 < fifo/full_correlation/gul_P1 > fifo/full_correlation/il_P1 & fcpid1=$!
+fmcalc -a2 < fifo/full_correlation/gul_P2 > fifo/full_correlation/il_P2 & fcpid2=$!
+fmcalc -a2 < fifo/full_correlation/gul_P3 > fifo/full_correlation/il_P3 & fcpid3=$!
+fmcalc -a2 < fifo/full_correlation/gul_P4 > fifo/full_correlation/il_P4 & fcpid4=$!
+fmcalc -a2 < fifo/full_correlation/gul_P5 > fifo/full_correlation/il_P5 & fcpid5=$!
+fmcalc -a2 < fifo/full_correlation/gul_P6 > fifo/full_correlation/il_P6 & fcpid6=$!
+fmcalc -a2 < fifo/full_correlation/gul_P7 > fifo/full_correlation/il_P7 & fcpid7=$!
+fmcalc -a2 < fifo/full_correlation/gul_P8 > fifo/full_correlation/il_P8 & fcpid8=$!
+fmcalc -a2 < fifo/full_correlation/gul_P9 > fifo/full_correlation/il_P9 & fcpid9=$!
+fmcalc -a2 < fifo/full_correlation/gul_P10 > fifo/full_correlation/il_P10 & fcpid10=$!
 
 wait $fcpid1 $fcpid2 $fcpid3 $fcpid4 $fcpid5 $fcpid6 $fcpid7 $fcpid8 $fcpid9 $fcpid10
 

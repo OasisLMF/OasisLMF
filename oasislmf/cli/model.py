@@ -9,6 +9,7 @@ __all__ = [
 ]
 
 import os
+import json
 import re
 
 from argparse import RawDescriptionHelpFormatter
@@ -289,7 +290,7 @@ class GenerateOasisFilesCmd(OasisBaseCommand):
             group_id_cols=group_id_cols
         )
 
-        self.logger.info('\nOasis files generated: {}'.format(oasis_files))
+        self.logger.info('\nOasis files generated: {}'.format(json.dumps(oasis_files, indent=4)))
 
 
 class GenerateLossesCmd(OasisBaseCommand):
@@ -346,6 +347,7 @@ class GenerateLossesCmd(OasisBaseCommand):
         parser.add_argument('-q', '--ktools-alloc-rule-gul', default=None, help='Override the allocation used in gulcalc', type=int)
         parser.add_argument('-u', '--ktools-alloc-rule-il', default=None, help='Override the fmcalc allocation rule used in direct insured loss', type=int)
         parser.add_argument('-U', '--ktools-alloc-rule-ri', default=None, help='Override the fmcalc allocation rule used in reinsurance', type=int)
+        parser.add_argument('-X', '--ktools-legacy-stream', default=None, help='Run gulcalc using the legacy coverage/item steam, this option disables the GUL allocation rule', action='store_true')
 
     def action(self, args):
         """
@@ -375,6 +377,7 @@ class GenerateLossesCmd(OasisBaseCommand):
         ktools_alloc_rule_gul = inputs.get('ktools_alloc_rule_gul', default=None, required=False)
         ktools_alloc_rule_il = inputs.get('ktools_alloc_rule_il', default=None, required=False)
         ktools_alloc_rule_ri = inputs.get('ktools_alloc_rule_ri', default=None, required=False)
+        ktools_gul_legacy_stream = inputs.get('ktools_legacy_gul_stream', default=None, required=False)
         verbose_output = inputs.get('verbose', default=False, required=False)
 
         il = all(p in os.listdir(os.path.abspath(oasis_fp)) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
@@ -396,6 +399,7 @@ class GenerateLossesCmd(OasisBaseCommand):
             ktools_alloc_rule_il=ktools_alloc_rule_il,
             ktools_alloc_rule_ri=ktools_alloc_rule_ri,
             ktools_debug=verbose_output,
+            ktools_gul_legacy_stream=ktools_gul_legacy_stream,
             user_data_dir=user_data_dir,
         )
 
@@ -459,6 +463,7 @@ class RunCmd(OasisBaseCommand):
         parser.add_argument('-q', '--ktools-alloc-rule-gul', default=None, help='Override the allocation used in gulcalc', type=int)
         parser.add_argument('-u', '--ktools-alloc-rule-il', default=None, help='Override the fmcalc allocation rule used in direct insured loss', type=int)
         parser.add_argument('-U', '--ktools-alloc-rule-ri', default=None, help='Override the fmcalc allocation rule used in reinsurance', type=int)
+        parser.add_argument('--ktools-legacy-gul-stream', default=None, help='Run gulcalc using the legacy coverage/item steam, this option disables the GUL allocation rule', action='store_true')
 
         parser.add_argument('-S', '--disable-summarise-exposure', default=None, help='Create exposure summary report', action='store_false')
         parser.add_argument('-W', '--write-chunksize', type=int, help='Chunk size to use when writing input files from the inputs dataframes')

@@ -80,6 +80,7 @@ from .utils.defaults import (
     KTOOLS_ALLOC_FM_MAX,
     KTOOLS_ALLOC_IL_DEFAULT,
     KTOOLS_ALLOC_RI_DEFAULT,
+    KTOOLS_GUL_LEGACY_STREAM,
     KTOOLS_DEBUG,
     OASIS_FILES_PREFIXES,
     WRITE_CHUNKSIZE,
@@ -94,6 +95,7 @@ from .utils.coverages import SUPPORTED_COVERAGE_TYPES
 
 pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
+
 
 class OasisManager(object):
     computation_classes = [ExposurePreAnalysis]
@@ -114,6 +116,7 @@ class OasisManager(object):
         ktools_alloc_rule_ri=None,
         ktools_debug=None,
         ktools_error_guard=None,
+        ktools_gul_legacy_stream=None,
         oasis_files_prefixes=None,
         write_chunksize=None,
         group_id_cols=None
@@ -131,6 +134,7 @@ class OasisManager(object):
         self._ktools_alloc_rule_ri = self.get_alloc_rule(ktools_alloc_rule_ri, KTOOLS_ALLOC_FM_MAX, fallback=KTOOLS_ALLOC_RI_DEFAULT)
         self._ktools_debug = ktools_debug or KTOOLS_DEBUG
         self._ktools_error_guard = ktools_error_guard or KTOOLS_ERR_GUARD
+        self._ktools_gul_legacy_stream = ktools_gul_legacy_stream or KTOOLS_GUL_LEGACY_STREAM
         self._oasis_files_prefixes = oasis_files_prefixes or OASIS_FILES_PREFIXES
         self._write_chunksize = write_chunksize or WRITE_CHUNKSIZE
         self._group_id_cols = group_id_cols or GROUP_ID_COLS
@@ -196,6 +200,10 @@ class OasisManager(object):
     def ktools_error_guard(self):
         return self._ktools_error_guard
 
+    @property
+    def ktools_gul_legacy_stream(self):
+        return self._ktools_gul_legacy_stream
+
     def consolidate_input(self, computation_cls, kwargs):
         for param in computation_cls.get_params():
             if kwargs.get(param['name']) is None:
@@ -205,9 +213,9 @@ class OasisManager(object):
     @staticmethod
     def get_alloc_rule(alloc_given, alloc_max, err_msg='Invalid alloc rule', fallback=None):
         if not isinstance(alloc_given, int):
-            return fallback if fallback else alloc_max
+            return fallback if fallback is not None else alloc_max
         elif alloc_given > alloc_max:
-            raise OasisException('{}: {} bigger than {}'.format(
+            raise OasisException('{}: {} larger than max value "{}"'.format(
                 err_msg,
                 alloc_given,
                 alloc_max,
@@ -230,7 +238,6 @@ class OasisManager(object):
         'generate_model1_data'
         """
         return 'generate_' + re.sub('((?<=[a-z0-9])[A-Z]|(?!^)[A-Z](?=[a-z]))', r'_\1', name).lower()
-
 
     @oasis_log
     def generate_peril_areas_rtree_file_index(
@@ -514,6 +521,7 @@ class OasisManager(object):
                     empty_data_error_msg='No exposure found in the source exposure (loc.) file'
                 )
                 exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
+
                 loc_ids = (loc_it['loc_id'] for _, loc_it in exposure_df.loc[:, ['loc_id']].iterrows())
                 keys = [
                     {'loc_id': _loc_id, 'peril_id': 1, 'coverage_type': cov_type, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
@@ -638,7 +646,7 @@ class OasisManager(object):
             exposure_df,
             oed_column_set=[loc_grp],
             defaults={loc_grp: 1}
-        )
+        ).sort_values(by='agg_id')
 
         ri_info_df, ri_scope_df, _ = load_oed_dfs(ri_info_fp, ri_scope_fp)
         ri_layers = write_files_for_reinsurance(
@@ -673,6 +681,7 @@ class OasisManager(object):
         ktools_alloc_rule_il=None,
         ktools_alloc_rule_ri=None,
         ktools_error_guard=None,
+        ktools_gul_legacy_stream=None,
         ktools_debug=None,
         user_data_dir=None
     ):
@@ -687,7 +696,7 @@ class OasisManager(object):
 
         il = all(p in os.listdir(oasis_fp) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
         ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(oasis_fp)) + os.listdir(oasis_fp))
-        gul_item_stream = False if (ktools_alloc_rule_gul == 0) or (self.ktools_alloc_rule_gul == 0) else True
+        gul_item_stream = (not ktools_gul_legacy_stream)
 
         if not os.path.exists(model_run_fp):
             Path(model_run_fp).mkdir(parents=True, exist_ok=True)
@@ -743,25 +752,6 @@ class OasisManager(object):
             raise OasisException(
                 'No valid output settings in: {}'.format(analysis_settings_fp))
 
-        gul_alloc_rule = self.get_alloc_rule(
-            alloc_given=ktools_alloc_rule_gul,
-            alloc_max=KTOOLS_ALLOC_GUL_MAX,
-            err_msg='Invalid alloc GUL rule',
-            fallback=self.ktools_alloc_rule_gul
-        )
-        il_alloc_rule = self.get_alloc_rule(
-            alloc_given=ktools_alloc_rule_il,
-            alloc_max=KTOOLS_ALLOC_FM_MAX,
-            err_msg='Invalid alloc IL rule',
-            fallback=self.ktools_alloc_rule_il
-        )
-        ri_alloc_rule = self.get_alloc_rule(
-            alloc_given=ktools_alloc_rule_ri,
-            alloc_max=KTOOLS_ALLOC_FM_MAX,
-            err_msg='Invalid alloc RI rule',
-            fallback=self.ktools_alloc_rule_ri
-        )
-
         prepare_run_inputs(analysis_settings, model_run_fp, ri=ri)
         script_fp = os.path.join(os.path.abspath(model_run_fp), 'run_ktools.sh')
 
@@ -793,6 +783,7 @@ class OasisManager(object):
                     set_alloc_rule_ri=(ktools_alloc_rule_ri if isinstance(ktools_alloc_rule_ri, int) else self.ktools_alloc_rule_ri),
                     run_debug=(ktools_debug if isinstance(ktools_debug, bool) else self.ktools_debug),
                     stderr_guard=(ktools_error_guard if isinstance(ktools_error_guard, bool) else self.ktools_error_guard),
+                    gul_legacy_stream=(ktools_gul_legacy_stream if isinstance(ktools_gul_legacy_stream, bool) else self.ktools_gul_legacy_stream),
                     fifo_tmp_dir=(not (ktools_fifo_relative or self.ktools_fifo_relative)),
                     custom_gulcalc_cmd=model_custom_gulcalc,
                 )
@@ -1069,8 +1060,8 @@ class OasisManager(object):
                     for row in reader:
                         loss_factor.append(
                             float(row['loss_factor']))
-            except:
-                raise OasisException(f"Failed to read {loss_factor_fp}")
+            except Exception as e:
+                raise OasisException(f"Failed to read {loss_factor_fp}", e)
         else:
             loss_factor.append(1.0)
 
@@ -1113,7 +1104,6 @@ class OasisManager(object):
                 self.logger.debug(
                     f'\n FAIL: generated {generated} vs expected {expected}')
             test_result = test_result and file_test_result
-
         return file_test_result
 
 

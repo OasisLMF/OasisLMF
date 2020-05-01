@@ -15,6 +15,7 @@ __all__ = [
     'store_exposure_fp',
     'find_exposure_fp',
     'GROUP_ID_COLS',
+    'API_EXAMPLE_AUTH',
     'KEY_NAME_TO_FILE_NAME',
     'KTOOLS_ALLOC_GUL_MAX',
     'KTOOLS_ALLOC_FM_MAX',
@@ -22,6 +23,7 @@ __all__ = [
     'KTOOLS_DEBUG',
     'KTOOLS_ERR_GUARD',
     'KTOOLS_NUM_PROCESSES',
+    'KTOOLS_GUL_LEGACY_STREAM',
     'OASIS_FILES_PREFIXES',
     'SUMMARY_MAPPING',
     'SUMMARY_OUTPUT',
@@ -46,6 +48,11 @@ SOURCE_FILENAMES = OrderedDict({
     'acc': 'account.csv',
     'info': 'reinsinfo.csv',
     'scope': 'reinsscope.csv',
+})
+
+API_EXAMPLE_AUTH = OrderedDict({
+    'user': 'admin',
+    'pass': 'password',
 })
 
 KEY_NAME_TO_FILE_NAME = {
@@ -236,9 +243,10 @@ def get_default_deterministic_analysis_settings(path=False):
 KTOOLS_NUM_PROCESSES = -1
 KTOOLS_FIFO_RELATIVE = False
 KTOOLS_ERR_GUARD = True
+KTOOLS_GUL_LEGACY_STREAM = False
 KTOOLS_ALLOC_FM_MAX = 3
-KTOOLS_ALLOC_GUL_MAX = 1     # 1 = new item stream, 0 = use prev Coverage stream
-KTOOLS_ALLOC_GUL_DEFAULT = 1
+KTOOLS_ALLOC_GUL_MAX = 1     # 1 = w back allocation, 0 = w/o back allocation
+KTOOLS_ALLOC_GUL_DEFAULT = 0
 KTOOLS_ALLOC_IL_DEFAULT = 2
 KTOOLS_ALLOC_RI_DEFAULT = 3
 KTOOLS_TIV_SAMPLE = -2

@@ -25,6 +25,7 @@ def run(
     set_alloc_rule_ri=KTOOLS_ALLOC_RI_DEFAULT,
     fifo_tmp_dir=True,
     stderr_guard=True,
+    gul_legacy_stream=False,
     run_debug=False,
     custom_gulcalc_cmd=None,
     filename='run_ktools.sh'
@@ -32,14 +33,14 @@ def run(
     if number_of_processes == -1:
         number_of_processes = multiprocessing.cpu_count()
 
-    # If `given_gulcalc_cmd` is set then always run as a complex model  
-    # and raise an exception when not found in PATH 
+    # If `given_gulcalc_cmd` is set then always run as a complex model
+    # and raise an exception when not found in PATH
     if custom_gulcalc_cmd:
         if not shutil.which(custom_gulcalc_cmd):
             raise OasisException(
                 'Run error: Custom Gulcalc command "{}" explicitly set but not found in path.'.format(custom_gulcalc_cmd)
             )
-    # when not set then fallback to previous behaviour: 
+    # when not set then fallback to previous behaviour:
     # Check if a custom binary `<supplier>_<model>_gulcalc` exists in PATH
     else:
         inferred_gulcalc_cmd = "{}_{}_gulcalc".format(
@@ -68,7 +69,7 @@ def run(
                 max_process_id,
                 os.path.abspath("analysis_settings.json"),
                 "input")
-            if coverage_output != '' and not gul_alloc_rule:
+            if gul_legacy_stream and coverage_output != '':    
                 cmd = '{} -c {}'.format(cmd, coverage_output)
             if item_output != '':
                 cmd = '{} -i {}'.format(cmd, item_output)
@@ -86,6 +87,7 @@ def run(
             il_alloc_rule=set_alloc_rule_il,
             ri_alloc_rule=set_alloc_rule_ri,
             stderr_guard=stderr_guard,
+            gul_legacy_stream=gul_legacy_stream,
             bash_trace=run_debug,
             filename=filename,
             _get_getmodel_cmd=custom_get_getmodel_cmd,
@@ -100,6 +102,7 @@ def run(
             il_alloc_rule=set_alloc_rule_il,
             ri_alloc_rule=set_alloc_rule_ri,
             stderr_guard=stderr_guard,
+            gul_legacy_stream=gul_legacy_stream,
             bash_trace=run_debug,
             filename=filename
         )

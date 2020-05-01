@@ -154,7 +154,7 @@ wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 
 
 # --- Do computes for fully correlated output ---
 
-( fmcalc-a2 < fifo/full_correlation/gul_P1 > fifo/full_correlation/il_P1 ) 2>> log/stderror.err & fcpid1=$!
+( fmcalc -a2 < fifo/full_correlation/gul_P1 > fifo/full_correlation/il_P1 ) 2>> log/stderror.err & fcpid1=$!
 
 wait $fcpid1
 

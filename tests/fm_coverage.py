@@ -12,7 +12,6 @@ if __name__ == '__main__':
             l.strip() for l in f.readlines()
             if l.strip().startswith('@pytest.mark.skip') or l.strip().startswith('def test')
         ]
-    #import ipdb; ipdb.set_trace()
     for i, line in enumerate(lines):
         if line.startswith('def') and not lines[i - 1].startswith('@pytest.mark.skip'):
             print(re.match(r'def test_(\w+\d+)\(self\):$', line).groups()[0])
