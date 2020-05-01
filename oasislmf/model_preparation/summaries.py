@@ -414,7 +414,7 @@ def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, s
         "aalcalc": true,
         "pltcalc": true,
         "id": 1,
-        "oed_fields": "prog",
+        "oed_fields": [],
         "lec_output": true,
         "leccalc": {
           "return_period_file": true,
