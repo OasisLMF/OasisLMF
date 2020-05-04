@@ -5,6 +5,7 @@ __all__ = [
 import os
 import pathlib
 
+from ..utils.data import get_utctimestamp
 from ..utils.exceptions import OasisException
 
 
@@ -49,6 +50,10 @@ class ComputationStep:
                     else:
                         pathlib.Path(os.path.dirname(param_value)).mkdir(parents=True, exist_ok=True)
             setattr(self, param['name'], param_value)
+
+    @classmethod
+    def get_default_run_dir(cls):
+        return os.path.join(os.getcwd(), 'runs', f'{cls.run_dir_key}-{get_utctimestamp(fmt="%Y%m%d%H%M%S")}')
 
     @classmethod
     def get_params(cls):
