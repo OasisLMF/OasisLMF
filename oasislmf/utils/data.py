@@ -4,11 +4,14 @@ __all__ = [
     'factorize_ndarray',
     'fast_zip_arrays',
     'fast_zip_dataframe_columns',
+    'get_analysis_settings',
     'get_model_settings',
     'get_dataframe',
     'get_dtypes_and_required_cols',
     'get_ids',
     'get_json',
+    'get_analysis_schema_fp',
+    'get_model_schema_fp',
     'get_timestamp',
     'get_utctimestamp',
     'merge_check',
@@ -21,7 +24,9 @@ __all__ = [
 
 import builtins
 import io
+import os
 import json
+import jsonschema
 import re
 import warnings
 
@@ -82,6 +87,8 @@ PANDAS_DEFAULT_NULL_VALUES = {
     '',
 }
 
+# Load schema json dir 
+SCHEMA_DATA_FP = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)), 'schema')
 
 def factorize_array(arr, sort_opt=False):
     """
@@ -204,12 +211,83 @@ def fast_zip_dataframe_columns(df, cols):
     return fast_zip_arrays(*(df[col].values for col in cols))
 
 
-def get_model_settings(model_settings_fp, key=None):
+def get_model_schema_fp():
+    return os.path.join(SCHEMA_DATA_FP, 'model_settings.json')
+
+
+def get_analysis_schema_fp():
+    return os.path.join(SCHEMA_DATA_FP, 'analysis_settings.json')
+
+def validate_json(json_data, json_schema):
+    validator = jsonschema.Draft4Validator(json_schema)
+    validation_errors = [e for e in validator.iter_errors(json_data)]
+
+    exception_msgs = {}
+    is_valid = validator.is_valid(json_data)
+
+    if validation_errors:
+        for err in validation_errors:
+            if err.path:
+                field = '-'.join([str(e) for e in err.path])
+            elif err.schema_path:
+                field = '-'.join([str(e) for e in err.schema_path])
+            else:
+                field = 'error'
+
+            if field in exception_msgs:
+                exception_msgs[field].append(err.message)
+            else:    
+                exception_msgs[field] = [err.message]
+
+    return is_valid, exception_msgs
+
+
+def get_analysis_settings(analysis_settings_fp, key=None, validate=True):
+    """
+    Get analysis settings from file.
+
+    :param model_settings_fp: file path for model settings file
+    :type model_settings_fp: str
+
+    :param key: return contents of `key` from json
+    :type  key: Str
+
+    :param validate: When true run json Schema validation
+    :type  validate: Boolean  
+
+    :return: model settings
+    :rtype: dict
+    """
+    try:
+        with io.open(analysis_settings_fp) as f:
+            analysis_settings = json.load(f)
+            
+            if validate:
+                schema = get_json(get_analysis_schema_fp())
+                valid, error_messages  = validate_json(analysis_settings, schema)
+                if not valid:
+                    raise OasisException("JSON Validation error in 'analysis_settings.json': {}".format(
+                        json.dumps(error_messages, indent=4)
+                    ))
+
+    except (IOError, TypeError, ValueError) as e:
+        raise OasisException('Invalid model settings file or file path: {}, \n {}'.format(analysis_settings_fp))
+
+    return analysis_settings if not key else analysis_settings.get(key)
+
+
+def get_model_settings(model_settings_fp, key=None, validate=True):
     """
     Get model settings from file.
 
     :param model_settings_fp: file path for model settings file
     :type model_settings_fp: str
+
+    :param key: return contents of `key` from json
+    :type  key: Str
+
+    :param validate: When true run json Schema validation
+    :type  validate: Boolean  
 
     :return: model settings
     :rtype: dict
@@ -217,12 +295,19 @@ def get_model_settings(model_settings_fp, key=None):
     try:
         with io.open(model_settings_fp) as f:
             model_settings = json.load(f)
-        if key:
-            model_settings = model_settings.get(key)
+
+            if validate:
+                schema = get_json(get_model_schema_fp())
+                valid, error_messages  = validate_json(model_settings, schema)
+                if not valid:
+                    raise OasisException("JSON Validation error in 'model_settings.json': {}".format(
+                        json.dumps(error_messages, indent=4)
+                    ))
+
     except (IOError, TypeError, ValueError):
         raise OasisException('Invalid model settings file or file path: {}'.format(model_settings_fp))
 
-    return model_settings
+    return model_settings if not key else model_settings.get(key)
 
 
 def get_dataframe(
