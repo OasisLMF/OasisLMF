@@ -74,6 +74,7 @@ deductible % loss; limit; attachment and share,17,1,0,0,1,1,1,1,0,0,0,"(1, 0, 0,
 deductible % loss; limit; no attachment and share,17,1,0,0,1,1,0,1,0,0,0,"(1, 0, 0, 1, 1, 0, 1, 0, 0, 0)"
 deductible % loss; limit % TIV; attachment and share,17,1,0,0,1,1,1,1,0,2,0,"(1, 0, 0, 1, 1, 1, 1, 0, 2, 0)"
 deductible % loss; limit % TIV; no attachment and share,17,1,0,0,1,1,0,1,0,2,0,"(1, 0, 0, 1, 1, 0, 1, 0, 2, 0)"
+deductible % loss; limit,33,1,0,0,1,0,0,1,0,0,0,"(1, 0, 0, 1, 0, 0, 1, 0, 0, 0)"
 deductible % loss with min. and max. deductible; no limit,19,1,1,1,0,0,0,1,0,0,0,"(1, 1, 1, 0, 0, 0, 1, 0, 0, 0)"
 deductible % loss with min. and max. deductible; no limit % loss,19,1,1,1,0,0,0,1,0,1,0,"(1, 1, 1, 0, 0, 0, 1, 0, 1, 0)"
 deductible % loss with min. and max. deductible; no limit % TIV,19,1,1,1,0,0,0,1,0,2,0,"(1, 1, 1, 0, 0, 0, 1, 0, 2, 0)"
