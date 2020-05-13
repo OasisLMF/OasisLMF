@@ -296,7 +296,7 @@ def get_analysis_settings(analysis_settings_fp, key=None, validate=True):
                 schema = get_json(get_analysis_schema_fp())
                 valid, error_messages = validate_json(analysis_settings, schema)
                 if not valid:
-                    raise OasisException("JSON Validation error in 'analysis_settings.json': {}".format(
+                    raise OasisException("\nJSON Validation error in 'analysis_settings.json': {}".format(
                         json.dumps(error_messages, indent=4)
                     ))
 
@@ -330,7 +330,7 @@ def get_model_settings(model_settings_fp, key=None, validate=True):
                 schema = get_json(get_model_schema_fp())
                 valid, error_messages = validate_json(model_settings, schema)
                 if not valid:
-                    raise OasisException("JSON Validation error in 'model_settings.json': {}".format(
+                    raise OasisException("\nJSON Validation error in 'model_settings.json': {}".format(
                         json.dumps(error_messages, indent=4)
                     ))
 
