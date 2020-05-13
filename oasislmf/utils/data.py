@@ -87,8 +87,9 @@ PANDAS_DEFAULT_NULL_VALUES = {
     '',
 }
 
-# Load schema json dir 
+# Load schema json dir
 SCHEMA_DATA_FP = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)), 'schema')
+
 
 def factorize_array(arr, sort_opt=False):
     """
@@ -218,7 +219,36 @@ def get_model_schema_fp():
 def get_analysis_schema_fp():
     return os.path.join(SCHEMA_DATA_FP, 'analysis_settings.json')
 
+
 def validate_json(json_data, json_schema):
+    """
+    Wapper function around jsonschema to Validate json data vs a given schema
+
+    :param json_data: JSON data for validation
+    :type  json_data: dict
+
+    :param json_schema: JSON schema to check against
+    :type  json_schema: dict
+
+    :return: returns valid status as boolean and a dictonary of error messages
+    :rtype: (boolean, dict)
+
+    Example error output:
+    ---------------------
+    {
+        "model_settings-event_occurrence_id": [
+            "Additional properties are not allowed ('names' was unexpected)",
+            "'name' is a required property"
+        ],
+        "lookup_settings-supported_perils-0": [
+            "Additional properties are not allowed ('i' was unexpected)",
+            "'id' is a required property"
+        ],
+        "lookup_settings-supported_perils-1-id": [
+            "'TC' is too short"
+        ]
+    }
+    """
     validator = jsonschema.Draft4Validator(json_schema)
     validation_errors = [e for e in validator.iter_errors(json_data)]
 
@@ -236,7 +266,7 @@ def validate_json(json_data, json_schema):
 
             if field in exception_msgs:
                 exception_msgs[field].append(err.message)
-            else:    
+            else:
                 exception_msgs[field] = [err.message]
 
     return is_valid, exception_msgs
@@ -253,7 +283,7 @@ def get_analysis_settings(analysis_settings_fp, key=None, validate=True):
     :type  key: Str
 
     :param validate: When true run json Schema validation
-    :type  validate: Boolean  
+    :type  validate: Boolean
 
     :return: model settings
     :rtype: dict
@@ -261,17 +291,17 @@ def get_analysis_settings(analysis_settings_fp, key=None, validate=True):
     try:
         with io.open(analysis_settings_fp) as f:
             analysis_settings = json.load(f)
-            
+
             if validate:
                 schema = get_json(get_analysis_schema_fp())
-                valid, error_messages  = validate_json(analysis_settings, schema)
+                valid, error_messages = validate_json(analysis_settings, schema)
                 if not valid:
                     raise OasisException("JSON Validation error in 'analysis_settings.json': {}".format(
                         json.dumps(error_messages, indent=4)
                     ))
 
-    except (IOError, TypeError, ValueError) as e:
-        raise OasisException('Invalid model settings file or file path: {}, \n {}'.format(analysis_settings_fp))
+    except (IOError, TypeError, ValueError):
+        raise OasisException('Invalid model settings file or file path: {}'.format(analysis_settings_fp))
 
     return analysis_settings if not key else analysis_settings.get(key)
 
@@ -287,7 +317,7 @@ def get_model_settings(model_settings_fp, key=None, validate=True):
     :type  key: Str
 
     :param validate: When true run json Schema validation
-    :type  validate: Boolean  
+    :type  validate: Boolean
 
     :return: model settings
     :rtype: dict
@@ -298,7 +328,7 @@ def get_model_settings(model_settings_fp, key=None, validate=True):
 
             if validate:
                 schema = get_json(get_model_schema_fp())
-                valid, error_messages  = validate_json(model_settings, schema)
+                valid, error_messages = validate_json(model_settings, schema)
                 if not valid:
                     raise OasisException("JSON Validation error in 'model_settings.json': {}".format(
                         json.dumps(error_messages, indent=4)

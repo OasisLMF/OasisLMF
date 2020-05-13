@@ -1,5 +1,4 @@
-i
-clude README.md
+include README.md
 include LICENSE
 include CHANGELOG.rst
 include setup.cfg
