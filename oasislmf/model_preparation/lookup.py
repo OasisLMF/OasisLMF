@@ -316,6 +316,11 @@ class OasisLookupFactory(object):
         Get the source OED exposure/location data as a Pandas dataframe.
         """
 
+        oed_hierarchy = get_oed_hierarchy()
+        loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
+        acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
+        portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
+
         if not (source_exposure or source_exposure_fp):
             raise OasisException('No source exposures data or file path provided')
 
@@ -335,14 +340,16 @@ class OasisLookupFactory(object):
             loc_config = lookup.config.get('exposure') or lookup.config.get('locations') or {}
             src_type = 'csv'
 
+            
+            loc_dtypes = {t: 'str' for t in [loc_num, portfolio_num, acc_num]}
+            looup_dtypes = loc_config.get('col_dtypes') or {}
+
             kwargs = {
                 'src_data': source_exposure,
                 'src_fp': _source_exposure_fp,
                 'src_type': src_type,
                 'non_na_cols': tuple(loc_config.get('non_na_cols') or ()),
-                'col_dtypes': loc_config.get('col_dtypes') or {},
-                'sort_cols': loc_config.get('sort_cols'),
-                'sort_ascending': loc_config.get('sort_ascending')
+                'col_dtypes': {**loc_dtypes, **looup_dtypes},
             }
             loc_df = get_dataframe(**kwargs)
 
@@ -365,10 +372,6 @@ class OasisLookupFactory(object):
                 raise OasisException('Either the source exposure or exposure file path must be specified')
 
         # Set Loc_id
-        oed_hierarchy = get_oed_hierarchy()
-        loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
-        acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
-        portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
         if 'loc_id' not in loc_df:
             loc_df['loc_id'] = get_ids(loc_df, [portfolio_num, acc_num, loc_num])
             loc_df['loc_id'] = loc_df['loc_id'].astype('uint32')
