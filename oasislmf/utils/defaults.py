@@ -33,15 +33,18 @@ __all__ = [
 ]
 
 import os
+import io
 import glob
+import json 
 
 from collections import OrderedDict
 
-from .data import (
-    get_json,
-)
 from .fm import SUPPORTED_FM_LEVELS
 
+try:
+    from json import JSONDecodeError
+except ImportError:
+    from builtins import ValueError as JSONDecodeError
 
 SOURCE_FILENAMES = OrderedDict({
     'loc': 'location.csv',
@@ -127,60 +130,76 @@ def find_exposure_fp(input_dir, exposure_type):
     fp = glob.glob(os.path.join(input_dir, SOURCE_FILENAMES[exposure_type] + '*'))
     return fp.pop()
 
+def get_default_json(src_fp):
+    """
+    Loads JSON from file.
+
+    :param src_fp: Source JSON file path
+    :type src_fp: str
+
+    :return: dict
+    :rtype: dict
+    """
+    try:
+        with io.open(src_fp, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (IOError, JSONDecodeError, OSError, TypeError):
+        raise OasisException('Error trying to load JSON from {}'.format(src_fp))
+
 
 def get_default_accounts_profile(path=False):
     fp = os.path.join(STATIC_DATA_FP, 'default_acc_profile.json')
-    return get_json(src_fp=fp) if not path else fp
+    return get_default_json(src_fp=fp) if not path else fp
 
 
 def get_default_exposure_profile(path=False):
     fp = os.path.join(STATIC_DATA_FP, 'default_loc_profile.json')
-    return get_json(src_fp=fp) if not path else fp
+    return get_default_json(src_fp=fp) if not path else fp
 
 
 def get_default_fm_profile_field_values(path=False):
     fp = os.path.join(STATIC_DATA_FP, 'default_fm_profile_field_values.json')
-    return get_json(src_fp=fp) if not path else fp
+    return get_default_json(src_fp=fp) if not path else fp
 
 
 def get_default_step_policies_profile(path=False):
     fp = os.path.join(STATIC_DATA_FP, 'default_step_policies_profile.json')
-    return get_json(src_fp=fp) if not path else fp
+    return get_default_json(src_fp=fp) if not path else fp
 
 
 def get_config_profile(path=False):
     fp = os.path.join(STATIC_DATA_FP, 'config_compatibility_profile.json')
-    return get_json(src_fp=fp) if not path else fp
+    return get_default_json(src_fp=fp) if not path else fp
 
 
 def get_default_unified_profile(path=False):
     fp = os.path.join(STATIC_DATA_FP, 'default_unified_profile.json')
-    return get_json(src_fp=fp) if not path else fp
+    return get_default_json(src_fp=fp) if not path else fp
 
 
 def get_default_fm_aggregation_profile(path=False):
     fp = os.path.join(STATIC_DATA_FP, 'default_fm_agg_profile.json')
-    return {int(k): v for k, v in get_json(src_fp=fp).items()} if not path else fp
+    return {int(k): v for k, v in get_default_json(src_fp=fp).items()} if not path else fp
 
 
 def get_loc_dtypes():
     fp = os.path.join(STATIC_DATA_FP, 'loc_dtypes.json')
-    return get_json(src_fp=fp)
+    return get_default_json(src_fp=fp)
 
 
 def get_acc_dtypes():
     fp = os.path.join(STATIC_DATA_FP, 'acc_dtypes.json')
-    return get_json(src_fp=fp)
+    return get_default_json(src_fp=fp)
 
 
 def get_scope_dtypes():
     fp = os.path.join(STATIC_DATA_FP, 'scope_dtypes.json')
-    return get_json(src_fp=fp)
+    return get_default_json(src_fp=fp)
 
 
 def get_info_dtypes():
     fp = os.path.join(STATIC_DATA_FP, 'info_dtypes.json')
-    return get_json(src_fp=fp)
+    return get_default_json(src_fp=fp)
 
 
 def assign_defaults_to_il_inputs(df):
@@ -236,7 +255,7 @@ OASIS_FILES_PREFIXES = OrderedDict({
 # Default analysis settings for deterministic loss generation
 def get_default_deterministic_analysis_settings(path=False):
     fp = os.path.join(STATIC_DATA_FP, 'analysis_settings.json')
-    return get_json(src_fp=fp) if not path else fp
+    return get_default_json(src_fp=fp) if not path else fp
 
 
 # Defaults for Ktools runtime parameters

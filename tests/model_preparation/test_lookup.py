@@ -27,7 +27,7 @@ from mock import Mock, patch
 from tempfile import NamedTemporaryFile
 
 from oasislmf.model_preparation.lookup import OasisLookupFactory as olf
-from oasislmf.utils.data import get_dtypes_and_required_cols
+from oasislmf.utils.data import get_dtypes_and_required_cols, get_location_df 
 from oasislmf.utils.defaults import get_loc_dtypes
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.status import OASIS_KEYS_STATUS
@@ -277,36 +277,7 @@ class OasisLookupFactoryGetSourceExposure(TestCase):
 
     def test_no_file_or_exposure_are_provided___oasis_exception_is_raised(self):
         with self.assertRaises(OasisException):
-            olf.get_exposure()
-
-    @given(lists(tuples(*loc_data_cols), min_size=1, max_size=10))
-    def test_file_is_provided___file_content_is_loaded(self, data):
-        columns = loc_required_cols
-
-        exposure_str = pd.DataFrame(columns=columns, data=data).to_csv(index=False)
-
-        f = NamedTemporaryFile('w', delete=False)
-
-        try:
-            f.writelines(exposure_str)
-            f.close()
-
-            res_str = olf.get_exposure(source_exposure_fp=f.name).to_csv(index=False)
-
-            self.assertEqual(exposure_str, res_str)
-        finally:
-            os.remove(f.name)
-
-    @given(lists(tuples(*loc_data_cols), min_size=1, max_size=10))
-    def test_exposure_string_is_provided___file_content_is_loaded(self, data):
-        columns = loc_required_cols
-
-        exposure_str = pd.DataFrame(columns=columns, data=data).to_csv(index=False)
-
-        res_str = olf.get_exposure(source_exposure=exposure_str).to_csv(index=False)
-
-        self.assertEqual(exposure_str, res_str)
-
+            get_location_df(exposure_fp=None)
 
 class OasisLookupFactoryWriteOasisKeysFiles(TestCase):
 
@@ -397,22 +368,20 @@ class OasisLookupFactoryGetKeys(TestCase):
         'status': sampled_from(['success', 'failure'])
     })))
     def test_entries_are_dictionaries_success_only_is_true___only_successes_are_included(self, data):
-        with patch('oasislmf.model_preparation.lookup.OasisLookupFactory.get_exposure'):
-            self.create_fake_lookup(return_value=data)
-            mock_df = pd.DataFrame.from_dict(data)
-            res = list(olf.get_keys_base(lookup=self.lookup_instance, loc_df=mock_df, success_only=True))
-            self.assertEqual(res, [d for d in data if d['status'] == 'success'])
+        self.create_fake_lookup(return_value=data)
+        mock_df = pd.DataFrame.from_dict(data)
+        res = list(olf.get_keys_base(lookup=self.lookup_instance, loc_df=mock_df, success_only=True))
+        self.assertEqual(res, [d for d in data if d['status'] == 'success'])
 
     @given(lists(fixed_dictionaries({
         'id': integers(),
         'status': sampled_from(['success', 'failure'])
     })))
     def test_entries_are_dictionaries_success_only_is_false___all_entries_are_included(self, data):
-        with patch('oasislmf.model_preparation.lookup.OasisLookupFactory.get_exposure'):
-            self.create_fake_lookup(return_value=data)
-            mock_df = pd.DataFrame.from_dict(data)
-            res = list(olf.get_keys_base(lookup=self.lookup_instance, loc_df=mock_df, success_only=False))
-            self.assertEqual(res, data)
+        self.create_fake_lookup(return_value=data)
+        mock_df = pd.DataFrame.from_dict(data)
+        res = list(olf.get_keys_base(lookup=self.lookup_instance, loc_df=mock_df, success_only=False))
+        self.assertEqual(res, data)
 
 
 class OasisLookupFactoryWriteKeys(TestCase):
