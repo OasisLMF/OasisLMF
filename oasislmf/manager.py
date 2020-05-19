@@ -56,6 +56,7 @@ from .model_preparation.oed import load_oed_dfs
 from .model_preparation.utils import prepare_input_files_directory
 from .model_preparation.reinsurance_layer import write_files_for_reinsurance
 from .utils.data import (
+    get_analysis_settings,
     get_model_settings,
     get_dataframe,
     get_location_df,
@@ -697,16 +698,11 @@ class OasisManager(object):
         )
 
         # Load analysis_settings file
-        try:
-            analysis_settings_fn = 'analysis_settings.json'
-            _analysis_settings_fp = os.path.join(model_run_fp, analysis_settings_fn)
-            with io.open(_analysis_settings_fp, 'r', encoding='utf-8') as f:
-                analysis_settings = json.load(f)
-            if analysis_settings.get('analysis_settings'):
-                analysis_settings = analysis_settings['analysis_settings']
-        except (IOError, TypeError, ValueError):
-            raise OasisException('Invalid analysis settings file or file path: {}.'.format(_analysis_settings_fp))
-
+        analysis_settings = get_analysis_settings(os.path.join(
+            model_run_fp,
+            'analysis_settings.json'
+        ))
+        
         generate_summaryxref_files(model_run_fp,
                                    analysis_settings,
                                    gul_item_stream=gul_item_stream,
