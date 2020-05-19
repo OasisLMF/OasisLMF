@@ -569,7 +569,6 @@ class OasisManager(object):
                 target_dir,
                 gul_inputs_df,
                 exposure_df,
-                exposure_fp,
                 keys_errors_fp=_keys_errors_fp,
                 exposure_profile=exposure_profile,
                 oed_hierarchy=oed_hierarchy
