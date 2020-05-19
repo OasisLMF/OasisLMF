@@ -777,7 +777,7 @@ def write_exposure_summary(
     # Get GUL input items dataframe to process keys errors
     try:
         gul_inputs_errors_df, _ = get_gul_input_items(
-            exposure_fp, keys_errors_fp, exposure_profile=exposure_profile
+            exposure_df, keys_errors_fp, exposure_profile=exposure_profile
         )
 
         # Store the gul_input_errors for debugging then reduce

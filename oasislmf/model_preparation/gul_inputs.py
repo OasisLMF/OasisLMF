@@ -51,7 +51,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 @oasis_log
 def get_gul_input_items(
-    exposure_fp,
+    exposure_df,
     keys_fp,
     exposure_profile=get_default_exposure_profile(),
     group_id_cols=['loc_id']
@@ -133,37 +133,6 @@ def get_gul_input_items(
         terms=terms_ints
     )
     term_cols = term_cols_floats + term_cols_ints
-
-    # Set defaults and data types for the TIV and cov. level IL columns as
-    # as well as the portfolio num. and cond. num. columns
-    defaults = {
-        **{t: 0.0 for t in tiv_cols + term_cols_floats},
-        **{t: 0 for t in term_cols_ints},
-        **{cond_num: 0},
-        **{portfolio_num: '1'}
-    }
-    dtypes = {
-        **{t: 'float64' for t in tiv_cols + term_cols_floats},
-        **{t: 'uint8' for t in term_cols_ints},
-        **{t: 'uint16' for t in [cond_num]},
-        **{t: 'str' for t in [loc_num, portfolio_num, acc_num]},
-        **{t: 'uint32' for t in ['loc_id']}
-    }
-    # Load the exposure and keys dataframes - set 64-bit float data types
-    # for all real number columns - and in the keys frame rename some columns
-    # to align with underscored-naming convention; set the `loc_id` column
-    # in the exposure dataframe to identify locations uniquely with respect
-    # to portfolios and portfolio accounts
-    exposure_df = get_dataframe(
-        src_fp=exposure_fp,
-        required_cols=(loc_num, acc_num, portfolio_num,),
-        col_dtypes=dtypes,
-        col_defaults=defaults,
-        empty_data_error_msg='No data found in the source exposure (loc.) file',
-        memory_map=True
-    )
-    if 'loc_id' not in exposure_df:
-        exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
 
 
     # Handle duplicate location `loc_id` rows, this needs be replaced with logic to collapse
@@ -370,7 +339,7 @@ def get_gul_input_items(
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
         raise OasisException("Exception raised in 'get_gul_input_items'", e)
 
-    return gul_inputs_df, exposure_df
+    return gul_inputs_df
 
 
 @oasis_log
