@@ -27,6 +27,7 @@ import re
 import warnings
 
 from datetime import datetime
+from collections import OrderedDict
 
 try:
     from json import JSONDecodeError
@@ -40,6 +41,18 @@ import pandas as pd
 import pytz
 
 from .exceptions import OasisException
+from .fm import SUPPORTED_FM_LEVELS
+
+from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
+from ..utils.profiles import (
+    get_fm_terms_oed_columns,
+    get_grouped_fm_profile_by_level_and_term_group,
+    get_grouped_fm_terms_by_level_and_term_group,
+    get_oed_hierarchy,
+)
+from ..utils.defaults import (
+    get_default_exposure_profile,
+)
 
 pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -592,28 +605,16 @@ def merge_dataframes(left, right, join_on=None, **kwargs):
         return join
 
 
-from ..utils.profiles import ( 
-    get_fm_terms_oed_columns,
-    get_grouped_fm_profile_by_level_and_term_group,
-    get_grouped_fm_terms_by_level_and_term_group,
-    get_oed_hierarchy,
-)
-from ..utils.defaults import (
-    get_default_exposure_profile,
-    GROUP_ID_COLS,
-    OASIS_FILES_PREFIXES,
-)
-from collections import OrderedDict
-from .fm import SUPPORTED_FM_LEVELS
-from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
-
 def get_location_df(
-    exposure_fp, 
-    exposure_profile=get_default_exposure_profile(), 
+    exposure_fp,
+    exposure_profile=get_default_exposure_profile(),
     group_id_cols=['loc_id']
 ):
     """
     Load OED location data into pandas DataFrame
+
+    Function Moved from gul_inputs.py
+
     """
     # Get the grouped exposure profile - this describes the financial terms to
     # to be found in the source exposure file, which are for the following
@@ -660,7 +661,6 @@ def get_location_df(
     fm_terms = get_grouped_fm_terms_by_level_and_term_group(grouped_profile_by_level_and_term_group=profile)
     terms_floats = ['deductible', 'deductible_min', 'deductible_max', 'limit']
     terms_ints = ['ded_code', 'ded_type', 'lim_code', 'lim_type']
-    terms = terms_floats + terms_ints
     term_cols_floats = get_fm_terms_oed_columns(
         fm_terms,
         levels=['site coverage'],
@@ -673,7 +673,6 @@ def get_location_df(
         term_group_ids=cov_types,
         terms=terms_ints
     )
-    term_cols = term_cols_floats + term_cols_ints
 
     # Set defaults and data types for the TIV and cov. level IL columns as
     # as well as the portfolio num. and cond. num. columns
@@ -704,12 +703,9 @@ def get_location_df(
         memory_map=True
     )
 
-    # Set interal location id index 
+    # Set interal location id index
     exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
-
     return exposure_df
-
-
 
 
 def reduce_df(df, cols=None):

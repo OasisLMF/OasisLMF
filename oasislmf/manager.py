@@ -59,7 +59,6 @@ from .utils.data import (
     get_model_settings,
     get_dataframe,
     get_location_df,
-    get_ids,
     get_json,
     get_utctimestamp,
     print_dataframe,
@@ -480,10 +479,8 @@ class OasisManager(object):
         exposure_profile = exposure_profile or (get_json(src_fp=exposure_profile_fp) if exposure_profile_fp else self.exposure_profile)
         accounts_profile = accounts_profile or (get_json(src_fp=accounts_profile_fp) if accounts_profile_fp else self.accounts_profile)
         oed_hierarchy = get_oed_hierarchy(exposure_profile, accounts_profile)
-        loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
         loc_grp = oed_hierarchy['locgrp']['ProfileElementName'].lower()
-        acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
-        portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
+
         fm_aggregation_profile = (
             fm_aggregation_profile or
             ({int(k): v for k, v in get_json(src_fp=fm_aggregation_profile_fp).items()} if fm_aggregation_profile_fp else {}) or
@@ -522,7 +519,6 @@ class OasisManager(object):
                     for i, (_loc_id, cov_type) in enumerate(product(loc_ids, cov_types))
                 ]
                 _, _ = olf.write_oasis_keys_file(keys, _keys_fp)
-
 
             else:
                 lookup_config = get_json(src_fp=lookup_config_fp) if lookup_config_fp else lookup_config

@@ -22,7 +22,6 @@ from ..utils.data import (
     factorize_array,
     factorize_ndarray,
     get_dataframe,
-    get_ids,
     merge_dataframes,
     set_dataframe_column_dtypes,
 )
@@ -134,7 +133,6 @@ def get_gul_input_items(
     )
     term_cols = term_cols_floats + term_cols_ints
 
-
     # Handle duplicate location `loc_id` rows, this needs be replaced with logic to collapse
     # Duplicated rows into a Function of the FM which applies multiple terms to a single location
     # Until implemented: A warning message is sent to the user
@@ -228,11 +226,11 @@ def get_gul_input_items(
         if gul_inputs_df.empty:
             raise OasisException(
                 'Inner merge of the exposure file dataframe ({}) '
-                'and the keys file dataframe ({}) on loc. number/loc. ID '
+                'and the keys file dataframe on loc. number/loc. ID '
                 'is empty - '
                 'please check that the loc. number and loc. ID columns '
                 'in the exposure and keys files respectively have a non-empty '
-                'intersection'.format(exposure_fp, keys_fp)
+                'intersection'.format(keys_fp)
             )
 
         del keys_df
@@ -298,7 +296,8 @@ def get_gul_input_items(
         if len(group_id_cols) > 1:
             gul_inputs_df['group_id'] = factorize_ndarray(
                 gul_inputs_df.loc[:, group_id_cols].values,
-                col_idxs=range(len(group_id_cols)),sort_opt=True
+                col_idxs=range(len(group_id_cols)),
+                sort_opt=True
             )[0]
         else:
             gul_inputs_df['group_id'] = factorize_array(
