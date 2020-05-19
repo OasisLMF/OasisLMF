@@ -2,6 +2,16 @@ OasisLMF Changelog
 ==================
 
 .. start_latest_release
+`1.7.1`_
+-------
+* #553 - Fix alc rule mapping error 
+* #550 - Fix enbash fmcalc and full_correlation
+* #548 - Fix UL Alloc Rule 0
+* Fix - Assign loc_id by sorted values of (LocNum, AccNum, PortNum) - location file resistant to reordering rows
+* Fix - default `run_dir` in `oasislmf model generate-exposure-pre-analysis` cmd
+
+.. end_latest_release
+
 `1.7.0`_
 -------
 * #497 - Add exception wrapping to OasisException
@@ -10,8 +20,6 @@ OasisLMF Changelog
 * #533 - Added new FM acceptance tests
 * Added - Pre-analysis exposure modification (CLI interface)
 * Added - revamped CLI Structure 
-
-.. end_latest_release
 
 `1.6.0`_
 -------
@@ -377,6 +385,7 @@ in the exposure manager
 
 * Add console logging
 
+.. _`1.7.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.7.0...1.7.1
 .. _`1.7.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.6.0...1.7.0
 .. _`1.6.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.5.1...1.6.0
 .. _`1.5.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.5.0...1.5.1
