@@ -730,7 +730,6 @@ def write_exposure_summary(
     target_dir,
     gul_inputs_df,
     exposure_df,
-    exposure_fp,
     keys_errors_fp,
     exposure_profile,
     oed_hierarchy
@@ -749,9 +748,6 @@ def write_exposure_summary(
     :param exposure_df: source exposure dataframe
     :type exposure df: pandas.DataFrame
 
-    :param exposure_fp: file path to input exposure file
-    :type exposure_fp: str
-
     :param keys_errors_fp: file path to keys erors file
     :type keys_errors_fp: str
 
@@ -765,10 +761,6 @@ def write_exposure_summary(
     :rtype: str
     """
     loc_per_cov = oed_hierarchy['locperilid']['ProfileElementName'].lower()
-    exposure_df = reduce_df(
-        exposure_df,
-        cols=[loc_per_cov, 'loc_id']
-    )
     gul_inputs_df = reduce_df(
         gul_inputs_df,
         cols=['peril_id', 'coverage_type_id', 'loc_id', 'tiv']
@@ -776,7 +768,7 @@ def write_exposure_summary(
 
     # Get GUL input items dataframe to process keys errors
     try:
-        gul_inputs_errors_df, _ = get_gul_input_items(
+        gul_inputs_errors_df = get_gul_input_items(
             exposure_df, keys_errors_fp, exposure_profile=exposure_profile
         )
 
@@ -788,7 +780,6 @@ def write_exposure_summary(
             os.path.join(target_dir, 'gul_errors_map.csv'),
             index=False
         )
-
         gul_inputs_errors_df = reduce_df(
             gul_inputs_errors_df,
             cols=reduce_cols
@@ -802,6 +793,7 @@ def write_exposure_summary(
     peril_groups = {v['id']: v['peril_ids'] for k, v in PERIL_GROUPS.items()}
 
     # Remove group peril codes in exposure if all constituent peril codes are present
+    exposure_df = reduce_df(exposure_df, cols=[loc_per_cov, 'loc_id'])
     exposure_df = remove_duplicate_perils(exposure_df, loc_per_cov, peril_groups)
 
     peril_ids = {v['id']: [v['id']] for k, v in PERILS.items()}
