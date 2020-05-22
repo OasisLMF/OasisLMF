@@ -309,3 +309,11 @@ class FmAcceptanceTests(TestCase):
 
     def test_Q2_all(self):
         self.run_test('Q2_all')
+
+    @pytest.mark.skip(reason='Needs fixing')
+    def test_Q3_all(self):
+        self.run_test('Q3_all')
+
+    @pytest.mark.skip(reason='Needs fixing')
+    def test_Q4_all(self):
+        self.run_test('Q4_all')
