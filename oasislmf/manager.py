@@ -1028,10 +1028,16 @@ class OasisManager(object):
                 cols_to_print = all_loss_cols.copy()
                 if False:
                     cols_to_print.remove('loss_factor_idx')
-                print_dataframe(
-                    all_losses_df[all_losses_df.loss_factor_idx == str(i)],
-                    frame_header=header,
-                    cols=cols_to_print)
+                if include_loss_factor:
+                    print_dataframe(
+                        all_losses_df[all_losses_df.loss_factor_idx == str(i)],
+                        frame_header=header,
+                        cols=cols_to_print)
+                else:    
+                    print_dataframe(
+                        all_losses_df,
+                        frame_header=header,
+                        cols=cols_to_print)
 
         if output_file:
             all_losses_df.to_csv(output_file, index=False, encoding='utf-8')
