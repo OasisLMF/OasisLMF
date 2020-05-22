@@ -11,10 +11,11 @@ import re
 import sys
 import warnings
 import csv
+import shutil
 
 from itertools import chain
 from filecmp import cmp as compare_files
-
+                    
 from builtins import str
 
 from itertools import (
@@ -1037,10 +1038,13 @@ class OasisManager(object):
 
         return (il, ril)
 
-    def run_fm_test(self, test_case_dir, run_dir):
+    def run_fm_test(self, test_case_dir, run_dir, update_expected=False):
         """
         Runs an FM test case and validates generated
         losses against expected losses.
+
+        only use 'update_expected' for debugging
+        it replaces the expected file with generated
         """
 
         net_ri = True
@@ -1101,8 +1105,12 @@ class OasisManager(object):
 
             file_test_result = compare_files(generated, expected)
             if not file_test_result:
-                self.logger.debug(
-                    f'\n FAIL: generated {generated} vs expected {expected}')
+                if update_expected:
+                    shutil.copyfile(generated, expected)  
+                else:    
+                    raise OasisException(
+                        f'\n FAIL: generated {generated} vs expected {expected}'
+                    )
             test_result = test_result and file_test_result
         return file_test_result
 

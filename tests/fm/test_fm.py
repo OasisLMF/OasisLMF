@@ -14,10 +14,13 @@ class FmAcceptanceTests(TestCase):
         self.test_cases_fp = os.path.join(sys.path[0], 'validation', 'examples')
 
     def run_test(self, test_case):
+        update_expected = False
         with tempfile.TemporaryDirectory() as tmp_run_dir:
             result = OasisManager().run_fm_test(
                 os.path.join(self.test_cases_fp, test_case),
-                tmp_run_dir)
+                tmp_run_dir,
+                update_expected
+            )
 
         self.assertTrue(result)
 
@@ -310,10 +313,8 @@ class FmAcceptanceTests(TestCase):
     def test_Q2_all(self):
         self.run_test('Q2_all')
 
-    @pytest.mark.skip(reason='Needs fixing')
     def test_Q3_all(self):
         self.run_test('Q3_all')
 
-    @pytest.mark.skip(reason='Needs fixing')
     def test_Q4_all(self):
         self.run_test('Q4_all')
