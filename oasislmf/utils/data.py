@@ -4,11 +4,15 @@ __all__ = [
     'factorize_ndarray',
     'fast_zip_arrays',
     'fast_zip_dataframe_columns',
+    'get_analysis_settings',
     'get_model_settings',
     'get_dataframe',
     'get_dtypes_and_required_cols',
     'get_ids',
     'get_json',
+    'get_location_df',
+    'get_analysis_schema_fp',
+    'get_model_schema_fp',
     'get_timestamp',
     'get_utctimestamp',
     'merge_check',
@@ -21,11 +25,14 @@ __all__ = [
 
 import builtins
 import io
+import os
 import json
+import jsonschema
 import re
 import warnings
 
 from datetime import datetime
+from collections import OrderedDict
 
 try:
     from json import JSONDecodeError
@@ -39,6 +46,18 @@ import pandas as pd
 import pytz
 
 from .exceptions import OasisException
+from .fm import SUPPORTED_FM_LEVELS
+
+from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
+from ..utils.profiles import (
+    get_fm_terms_oed_columns,
+    get_grouped_fm_profile_by_level_and_term_group,
+    get_grouped_fm_terms_by_level_and_term_group,
+    get_oed_hierarchy,
+)
+from ..utils.defaults import (
+    get_default_exposure_profile,
+)
 
 pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -81,6 +100,9 @@ PANDAS_DEFAULT_NULL_VALUES = {
     '-nan',
     '',
 }
+
+# Load schema json dir
+SCHEMA_DATA_FP = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)), 'schema')
 
 
 def factorize_array(arr, sort_opt=False):
@@ -204,12 +226,112 @@ def fast_zip_dataframe_columns(df, cols):
     return fast_zip_arrays(*(df[col].values for col in cols))
 
 
-def get_model_settings(model_settings_fp, key=None):
+def get_model_schema_fp():
+    return os.path.join(SCHEMA_DATA_FP, 'model_settings.json')
+
+
+def get_analysis_schema_fp():
+    return os.path.join(SCHEMA_DATA_FP, 'analysis_settings.json')
+
+
+def validate_json(json_data, json_schema):
+    """
+    Wapper function around jsonschema to Validate json data vs a given schema
+
+    :param json_data: JSON data for validation
+    :type  json_data: dict
+
+    :param json_schema: JSON schema to check against
+    :type  json_schema: dict
+
+    :return: returns valid status as boolean and a dictonary of error messages
+    :rtype: (boolean, dict)
+
+    Example error output:
+    ---------------------
+    {
+        "model_settings-event_occurrence_id": [
+            "Additional properties are not allowed ('names' was unexpected)",
+            "'name' is a required property"
+        ],
+        "lookup_settings-supported_perils-0": [
+            "Additional properties are not allowed ('i' was unexpected)",
+            "'id' is a required property"
+        ],
+        "lookup_settings-supported_perils-1-id": [
+            "'TC' is too short"
+        ]
+    }
+    """
+    validator = jsonschema.Draft4Validator(json_schema)
+    validation_errors = [e for e in validator.iter_errors(json_data)]
+
+    exception_msgs = {}
+    is_valid = validator.is_valid(json_data)
+
+    if validation_errors:
+        for err in validation_errors:
+            if err.path:
+                field = '-'.join([str(e) for e in err.path])
+            elif err.schema_path:
+                field = '-'.join([str(e) for e in err.schema_path])
+            else:
+                field = 'error'
+
+            if field in exception_msgs:
+                exception_msgs[field].append(err.message)
+            else:
+                exception_msgs[field] = [err.message]
+
+    return is_valid, exception_msgs
+
+
+def get_analysis_settings(analysis_settings_fp, key=None, validate=True):
+    """
+    Get analysis settings from file.
+
+    :param model_settings_fp: file path for model settings file
+    :type model_settings_fp: str
+
+    :param key: return contents of `key` from json
+    :type  key: Str
+
+    :param validate: When true run json Schema validation
+    :type  validate: Boolean
+
+    :return: model settings
+    :rtype: dict
+    """
+    try:
+        with io.open(analysis_settings_fp) as f:
+            analysis_settings = json.load(f)
+
+            if validate:
+                schema = get_json(get_analysis_schema_fp())
+                valid, error_messages = validate_json(analysis_settings, schema)
+                if not valid:
+                    raise OasisException("\nJSON Validation error in 'analysis_settings.json': {}".format(
+                        json.dumps(error_messages, indent=4)
+                    ))
+
+    except (IOError, TypeError, ValueError):
+        raise OasisException('Invalid model settings file or file path: {}'.format(analysis_settings_fp))
+
+    return analysis_settings if not key else analysis_settings.get(key)
+
+
+def get_model_settings(model_settings_fp, key=None, validate=True):
     """
     Get model settings from file.
 
     :param model_settings_fp: file path for model settings file
     :type model_settings_fp: str
+
+    :param key: return contents of `key` from json
+    :type  key: Str
+
+    :param validate: When true run json Schema validation
+    :type  validate: Boolean
 
     :return: model settings
     :rtype: dict
@@ -217,12 +339,19 @@ def get_model_settings(model_settings_fp, key=None):
     try:
         with io.open(model_settings_fp) as f:
             model_settings = json.load(f)
-        if key:
-            model_settings = model_settings.get(key)
+
+            if validate:
+                schema = get_json(get_model_schema_fp())
+                valid, error_messages = validate_json(model_settings, schema)
+                if not valid:
+                    raise OasisException("\nJSON Validation error in 'model_settings.json': {}".format(
+                        json.dumps(error_messages, indent=4)
+                    ))
+
     except (IOError, TypeError, ValueError):
         raise OasisException('Invalid model settings file or file path: {}'.format(model_settings_fp))
 
-    return model_settings
+    return model_settings if not key else model_settings.get(key)
 
 
 def get_dataframe(
@@ -589,6 +718,109 @@ def merge_dataframes(left, right, join_on=None, **kwargs):
         del _left, _right
 
         return join
+
+
+def get_location_df(
+    exposure_fp,
+    exposure_profile=get_default_exposure_profile(),
+    group_id_cols=['loc_id']
+):
+    """
+    Load OED location data into pandas DataFrame
+
+    Function Moved from gul_inputs.py
+
+    """
+    # Get the grouped exposure profile - this describes the financial terms to
+    # to be found in the source exposure file, which are for the following
+    # FM levels: site coverage (# 1), site pd (# 2), site all (# 3). It also
+    # describes the OED hierarchy terms present in the exposure file, namely
+    # portfolio num., acc. num., loc. num., and cond. num.
+    profile = get_grouped_fm_profile_by_level_and_term_group(exposure_profile=exposure_profile)
+
+    if not profile:
+        raise OasisException(
+            'Source exposure profile is possibly missing FM term information: '
+            'FM term definitions for TIV, limit, deductible, attachment and/or share.'
+        )
+
+    # Get the OED hierarchy terms profile - this defines the column names for loc.
+    # ID, acc. ID, policy no. and portfolio no., as used in the source exposure
+    # and accounts files. This is to ensure that the method never makes hard
+    # coded references to the corresponding columns in the source files, as
+    # that would mean that changes to these column names in the source files
+    # may break the method
+    oed_hierarchy = get_oed_hierarchy(exposure_profile=exposure_profile)
+    loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
+    acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
+    portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
+    cond_num = oed_hierarchy['condnum']['ProfileElementName'].lower()
+
+    # The (site) coverage FM level ID (# 1 in the OED FM levels hierarchy)
+    cov_level_id = SUPPORTED_FM_LEVELS['site coverage']['id']
+
+    # Get the TIV column names and corresponding coverage types
+    tiv_terms = OrderedDict({v['tiv']['CoverageTypeID']: v['tiv']['ProfileElementName'].lower() for k, v in profile[cov_level_id].items()})
+    tiv_cols = list(tiv_terms.values())
+
+    # Get the list of coverage type IDs - financial terms for the coverage
+    # level are grouped by coverage type ID in the grouped version of the
+    # exposure profile (profile of the financial terms sourced from the
+    # source exposure file)
+    cov_types = [v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()]
+
+    # Get the FM terms profile (this is a simplfied view of the main grouped
+    # profile, containing only information about the financial terms), and
+    # the list of OED colum names for the financial terms for the site coverage
+    # (# 1 ) FM level
+    fm_terms = get_grouped_fm_terms_by_level_and_term_group(grouped_profile_by_level_and_term_group=profile)
+    terms_floats = ['deductible', 'deductible_min', 'deductible_max', 'limit']
+    terms_ints = ['ded_code', 'ded_type', 'lim_code', 'lim_type']
+    term_cols_floats = get_fm_terms_oed_columns(
+        fm_terms,
+        levels=['site coverage'],
+        term_group_ids=cov_types,
+        terms=terms_floats
+    )
+    term_cols_ints = get_fm_terms_oed_columns(
+        fm_terms,
+        levels=['site coverage'],
+        term_group_ids=cov_types,
+        terms=terms_ints
+    )
+
+    # Set defaults and data types for the TIV and cov. level IL columns as
+    # as well as the portfolio num. and cond. num. columns
+    defaults = {
+        **{t: 0.0 for t in tiv_cols + term_cols_floats},
+        **{t: 0 for t in term_cols_ints},
+        **{cond_num: 0},
+        **{portfolio_num: '1'}
+    }
+    dtypes = {
+        **{t: 'float64' for t in tiv_cols + term_cols_floats},
+        **{t: 'uint8' for t in term_cols_ints},
+        **{t: 'uint16' for t in [cond_num]},
+        **{t: 'str' for t in [loc_num, portfolio_num, acc_num]},
+        **{t: 'uint32' for t in ['loc_id']}
+    }
+    # Load the exposure and keys dataframes - set 64-bit float data types
+    # for all real number columns - and in the keys frame rename some columns
+    # to align with underscored-naming convention; set the `loc_id` column
+    # in the exposure dataframe to identify locations uniquely with respect
+    # to portfolios and portfolio accounts
+    exposure_df = get_dataframe(
+        src_fp=exposure_fp,
+        required_cols=(loc_num, acc_num, portfolio_num,),
+        col_dtypes=dtypes,
+        col_defaults=defaults,
+        empty_data_error_msg='No data found in the source exposure (loc.) file',
+        memory_map=True
+    )
+
+    # Set interal location id index
+    exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
+    return exposure_df
 
 
 def reduce_df(df, cols=None):

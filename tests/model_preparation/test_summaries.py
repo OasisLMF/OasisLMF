@@ -21,6 +21,7 @@ from oasislmf.manager import OasisManager as om
 from oasislmf.model_preparation.summaries import write_exposure_summary
 from oasislmf.model_preparation.gul_inputs import get_gul_input_items
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
+from oasislmf.utils.data import get_location_df
 from oasislmf.utils.peril import PERILS, PERIL_GROUPS
 from oasislmf.utils.profiles import get_oed_hierarchy
 from oasislmf.utils.status import OASIS_KEYS_STATUS
@@ -192,8 +193,9 @@ class TestSummaries(TestCase):
             self.manager = om()
             exposure_profile = self.manager.exposure_profile
 
-            gul_inputs_df, exposure_df = get_gul_input_items(
-                exposure_fp, keys_fp, exposure_profile
+            exposure_df = get_location_df(exposure_fp, exposure_profile)
+            gul_inputs_df = get_gul_input_items(
+                exposure_df, keys_fp, exposure_profile
             )
 
             oed_hierarchy = get_oed_hierarchy(exposure_profile=exposure_profile)
@@ -203,7 +205,6 @@ class TestSummaries(TestCase):
                 target_dir,
                 gul_inputs_df,
                 exposure_df,
-                exposure_fp,
                 keys_errors_fp,
                 exposure_profile,
                 oed_hierarchy

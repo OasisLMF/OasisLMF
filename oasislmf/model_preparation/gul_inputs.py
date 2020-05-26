@@ -22,7 +22,6 @@ from ..utils.data import (
     factorize_array,
     factorize_ndarray,
     get_dataframe,
-    get_ids,
     merge_dataframes,
     set_dataframe_column_dtypes,
 )
@@ -51,7 +50,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 @oasis_log
 def get_gul_input_items(
-    exposure_fp,
+    exposure_df,
     keys_fp,
     exposure_profile=get_default_exposure_profile(),
     group_id_cols=['loc_id']
@@ -133,38 +132,6 @@ def get_gul_input_items(
         terms=terms_ints
     )
     term_cols = term_cols_floats + term_cols_ints
-
-    # Set defaults and data types for the TIV and cov. level IL columns as
-    # as well as the portfolio num. and cond. num. columns
-    defaults = {
-        **{t: 0.0 for t in tiv_cols + term_cols_floats},
-        **{t: 0 for t in term_cols_ints},
-        **{cond_num: 0},
-        **{portfolio_num: '1'}
-    }
-    dtypes = {
-        **{t: 'float64' for t in tiv_cols + term_cols_floats},
-        **{t: 'uint8' for t in term_cols_ints},
-        **{t: 'uint16' for t in [cond_num]},
-        **{t: 'str' for t in [loc_num, portfolio_num, acc_num]},
-        **{t: 'uint32' for t in ['loc_id']}
-    }
-    # Load the exposure and keys dataframes - set 64-bit float data types
-    # for all real number columns - and in the keys frame rename some columns
-    # to align with underscored-naming convention; set the `loc_id` column
-    # in the exposure dataframe to identify locations uniquely with respect
-    # to portfolios and portfolio accounts
-    exposure_df = get_dataframe(
-        src_fp=exposure_fp,
-        required_cols=(loc_num, acc_num, portfolio_num,),
-        col_dtypes=dtypes,
-        col_defaults=defaults,
-        empty_data_error_msg='No data found in the source exposure (loc.) file',
-        memory_map=True
-    )
-    if 'loc_id' not in exposure_df:
-        exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
-
 
     # Handle duplicate location `loc_id` rows, this needs be replaced with logic to collapse
     # Duplicated rows into a Function of the FM which applies multiple terms to a single location
@@ -259,11 +226,11 @@ def get_gul_input_items(
         if gul_inputs_df.empty:
             raise OasisException(
                 'Inner merge of the exposure file dataframe ({}) '
-                'and the keys file dataframe ({}) on loc. number/loc. ID '
+                'and the keys file dataframe on loc. number/loc. ID '
                 'is empty - '
                 'please check that the loc. number and loc. ID columns '
                 'in the exposure and keys files respectively have a non-empty '
-                'intersection'.format(exposure_fp, keys_fp)
+                'intersection'.format(keys_fp)
             )
 
         del keys_df
@@ -329,7 +296,8 @@ def get_gul_input_items(
         if len(group_id_cols) > 1:
             gul_inputs_df['group_id'] = factorize_ndarray(
                 gul_inputs_df.loc[:, group_id_cols].values,
-                col_idxs=range(len(group_id_cols)),sort_opt=True
+                col_idxs=range(len(group_id_cols)),
+                sort_opt=True
             )[0]
         else:
             gul_inputs_df['group_id'] = factorize_array(
@@ -370,7 +338,7 @@ def get_gul_input_items(
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
         raise OasisException("Exception raised in 'get_gul_input_items'", e)
 
-    return gul_inputs_df, exposure_df
+    return gul_inputs_df
 
 
 @oasis_log
