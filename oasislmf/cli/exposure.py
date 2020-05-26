@@ -89,7 +89,7 @@ class RunCmd(OasisBaseCommand):
         loss_factors = inputs.get(
             'loss_factor', default=[1.0], required=False
         )
-        include_loss_factor = not (loss_factors == [1.0]) 
+        include_loss_factor = not (len(loss_factors) == 1) 
 
         net_ri = True
 
