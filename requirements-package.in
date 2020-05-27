@@ -4,6 +4,7 @@ backports.tempfile
 billiard>=3.6.0.0
 certifi
 chainmap
+chardet
 cookiecutter>=1.6.0
 future
 jsonschema
