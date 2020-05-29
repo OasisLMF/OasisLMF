@@ -15,6 +15,7 @@ __all__ = [
     'get_model_schema_fp',
     'get_timestamp',
     'get_utctimestamp',
+    'detect_encoding',
     'merge_check',
     'merge_dataframes',
     'PANDAS_BASIC_DTYPES',
@@ -39,6 +40,7 @@ try:
 except ImportError:
     from builtins import ValueError as JSONDecodeError
 
+from chardet.universaldetector import UniversalDetector
 from tabulate import tabulate
 
 import numpy as np
@@ -354,6 +356,28 @@ def get_model_settings(model_settings_fp, key=None, validate=True):
     return model_settings if not key else model_settings.get(key)
 
 
+def detect_encoding(filepath):
+    """
+    Given a path to a CSV of unknown encoding
+    read lines to detects its encoding type
+
+    :param filepath: Filepath to check
+    :type  filepath: str
+
+    :return: Example `{'encoding': 'ISO-8859-1', 'confidence': 0.73, 'language': ''}`
+    :rtype: dict
+    """
+
+    detector = UniversalDetector()
+    with io.open(filepath, 'rb') as f:
+        for line in f:
+            detector.feed(line)
+            if detector.done:
+                break
+    detector.close()
+    return detector.result
+
+
 def get_dataframe(
     src_fp=None,
     src_type='csv',
@@ -368,7 +392,8 @@ def get_dataframe(
     col_dtypes={},
     sort_cols=None,
     sort_ascending=None,
-    memory_map=False
+    memory_map=False,
+    encoding=None
 ):
     """
     Loads a Pandas dataframe from a source CSV or JSON file, or a text buffer
@@ -430,6 +455,12 @@ def get_dataframe(
                        for the pd.read_csv method
     :type memory_map: bool
 
+    :param encoding: Try to read CSV of JSON data with the given encoding type,
+                     if 'None' will try to auto-detect on UnicodeDecodeError
+    :type  encoding: str
+
+
+
     :return: A Pandas dataframe
     :rtype: pd.DataFrame
     """
@@ -446,24 +477,62 @@ def get_dataframe(
     # which can appear in the `CountryCode` column in the loc. file
     na_values = list(PANDAS_DEFAULT_NULL_VALUES.difference(['NA']))
 
-    if src_fp and src_type == 'csv':
-        # Find flexible fields in loc file and set their data types to that of
-        # FlexiLocZZZ
-        if 'FlexiLocZZZ' in col_dtypes.keys():
-            headers = list(pd.read_csv(src_fp).head(0))
-            for flexiloc_col in filter(re.compile('^FlexiLoc').match, headers):
-                col_dtypes[flexiloc_col] = col_dtypes['FlexiLocZZZ']
-        df = pd.read_csv(src_fp, float_precision=float_precision, memory_map=memory_map, keep_default_na=False, na_values=na_values, dtype=col_dtypes)
-    elif src_buf and src_type == 'csv':
-        df = pd.read_csv(io.StringIO(src_buf), float_precision=float_precision, memory_map=memory_map, keep_default_na=False, na_values=na_values)
-    elif src_fp and src_type == 'json':
-        df = pd.read_json(src_fp, precise_float=(True if float_precision == 'high' else False))
-    elif src_buf and src_type == 'json':
-        df = pd.read_json(io.StringIO(src_buf), precise_float=(True if float_precision == 'high' else False))
-    elif isinstance(src_data, list) and src_data:
-        df = pd.DataFrame(data=src_data)
-    elif isinstance(src_data, pd.DataFrame):
-        df = src_data.copy(deep=True)
+    try:
+        use_encoding = encoding if encoding else 'utf-8'
+        if src_fp and src_type == 'csv':
+            # Find flexible fields in loc file and set their data types to that of
+            # FlexiLocZZZ
+            if 'FlexiLocZZZ' in col_dtypes.keys():
+                headers = list(pd.read_csv(src_fp).head(0))
+                for flexiloc_col in filter(re.compile('^FlexiLoc').match, headers):
+                    col_dtypes[flexiloc_col] = col_dtypes['FlexiLocZZZ']
+            df = pd.read_csv(
+                src_fp,
+                float_precision=float_precision,
+                memory_map=memory_map,
+                keep_default_na=False,
+                na_values=na_values,
+                dtype=col_dtypes,
+                encoding=use_encoding
+            )
+        elif src_buf and src_type == 'csv':
+            df = pd.read_csv(
+                io.StringIO(src_buf),
+                float_precision=float_precision,
+                memory_map=memory_map,
+                keep_default_na=False,
+                na_values=na_values,
+                encoding=use_encoding
+            )
+        elif src_fp and src_type == 'json':
+            df = pd.read_json(
+                src_fp,
+                precise_float=(True if float_precision == 'high' else False),
+                encoding=use_encoding
+            )
+        elif src_buf and src_type == 'json':
+            df = pd.read_json(
+                io.StringIO(src_buf),
+                precise_float=(True if float_precision == 'high' else False),
+                encoding=use_encoding
+            )
+        elif isinstance(src_data, list) and src_data:
+            df = pd.DataFrame(data=src_data)
+        elif isinstance(src_data, pd.DataFrame):
+            df = src_data.copy(deep=True)
+
+    # On DecodeError try to auto-detect the encoding and retry once
+    except UnicodeDecodeError as e:
+        if encoding is None:
+            detected_encoding = detect_encoding(src_fp)['encoding']
+            return get_dataframe(
+                src_fp=src_fp, src_type=src_type, src_buf=src_buf, src_data=src_data,
+                float_precision=float_precision, empty_data_error_msg=empty_data_error_msg,
+                lowercase_cols=lowercase_cols, required_cols=required_cols, col_defaults=col_defaults,
+                non_na_cols=non_na_cols, col_dtypes=col_dtypes, sort_cols=sort_cols,
+                sort_ascending=sort_ascending, memory_map=memory_map, encoding=detected_encoding)
+        else:
+            raise OasisException('Failed to load DataFrame due to Encoding error', e)
 
     if len(df) == 0:
         raise OasisException(empty_data_error_msg)
