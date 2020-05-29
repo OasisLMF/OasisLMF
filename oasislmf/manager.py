@@ -11,10 +11,11 @@ import re
 import sys
 import warnings
 import csv
+import shutil
 
 from itertools import chain
 from filecmp import cmp as compare_files
-
+                    
 from builtins import str
 
 from itertools import (
@@ -514,7 +515,7 @@ class OasisManager(object):
             cov_types = supported_oed_coverage_types or self.supported_oed_coverage_types
 
             if deterministic:
-                loc_ids = (loc_it['loc_id'] for _, loc_it in exposure_df.loc[:, ['loc_id']].iterrows())
+                loc_ids = (loc_it['loc_id'] for _, loc_it in exposure_df.loc[:, ['loc_id']].sort_values('loc_id').iterrows())
                 keys = [
                     {'loc_id': _loc_id, 'peril_id': 1, 'coverage_type': cov_type, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
                     for i, (_loc_id, cov_type) in enumerate(product(loc_ids, cov_types))
@@ -1009,20 +1010,29 @@ class OasisManager(object):
                 cols_to_print = all_loss_cols.copy()
                 if False:
                     cols_to_print.remove('loss_factor_idx')
-                print_dataframe(
-                    all_losses_df[all_losses_df.loss_factor_idx == str(i)],
-                    frame_header=header,
-                    cols=cols_to_print)
+                if include_loss_factor:
+                    print_dataframe(
+                        all_losses_df[all_losses_df.loss_factor_idx == str(i)],
+                        frame_header=header,
+                        cols=cols_to_print)
+                else:    
+                    print_dataframe(
+                        all_losses_df,
+                        frame_header=header,
+                        cols=cols_to_print)
 
         if output_file:
             all_losses_df.to_csv(output_file, index=False, encoding='utf-8')
 
         return (il, ril)
 
-    def run_fm_test(self, test_case_dir, run_dir):
+    def run_fm_test(self, test_case_dir, run_dir, update_expected=False):
         """
         Runs an FM test case and validates generated
         losses against expected losses.
+
+        only use 'update_expected' for debugging
+        it replaces the expected file with generated
         """
 
         net_ri = True
@@ -1083,8 +1093,12 @@ class OasisManager(object):
 
             file_test_result = compare_files(generated, expected)
             if not file_test_result:
-                self.logger.debug(
-                    f'\n FAIL: generated {generated} vs expected {expected}')
+                if update_expected:
+                    shutil.copyfile(generated, expected)  
+                else:    
+                    raise OasisException(
+                        f'\n FAIL: generated {generated} vs expected {expected}'
+                    )
             test_result = test_result and file_test_result
         return file_test_result
 
