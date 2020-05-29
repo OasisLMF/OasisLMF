@@ -701,11 +701,11 @@ def get_exposure_totals(df, df_errors):
     :return: totals section for exposure_summary dictionary
     :rtype: dict
     """
-    within_scope     = df.drop_duplicates(subset=['loc_id'])['tiv']
+    within_scope     = df.drop_duplicates(subset=['loc_id', 'coverage_type_id'])['tiv']
     within_scope_tiv = within_scope.sum()
     within_scope_num = int(within_scope.count())
 
-    outside_scope     = df_errors.drop_duplicates(subset=['loc_id'])['tiv']
+    outside_scope     = df_errors.drop_duplicates(subset=['loc_id', 'coverage_type_id'])['tiv']
     outside_scope_tiv = outside_scope.sum()
     outside_scope_num = int(outside_scope.count())
 
