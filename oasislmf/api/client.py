@@ -507,8 +507,7 @@ class APIClient(object):
                                 time.sleep(poll_interval)
                     else:
                         time.sleep(poll_interval)
-                        r = self.analyses.get(analysis_id)
-                        analysis = r.json()
+                        analysis = self.analyses.get(analysis_id).json()
 
                     continue
 
@@ -586,8 +585,7 @@ class APIClient(object):
                                 time.sleep(poll_interval)
                     else:
                         time.sleep(poll_interval)
-                        r = self.analyses.get(analysis_id)
-                        analysis = r.json()
+                        analysis = self.analyses.get(analysis_id).json()
                     continue
 
                 else:
