@@ -416,13 +416,13 @@ class APIClient(object):
         :rtype None
         """
         if isinstance(settings, dict):
-            r = self.analyses.settings.post(analyses_id, settings)
+            self.analyses.settings.post(analyses_id, settings)
             self.logger.info("Settings JSON uploaded: {}".format(settings))
 
         elif os.path.isfile(str(settings)):
             with io.open(settings, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            r = self.analyses.settings.post(analyses_id, data)
+            self.analyses.settings.post(analyses_id, data)
             self.logger.info("Settings JSON uploaded: {}".format(settings))
         else:
             raise TypeError("'settings': not a valid filepath or dictionary")
@@ -487,10 +487,9 @@ class APIClient(object):
                         self.logger.info('Input Generation: Executing (id={})'.format(analysis_id))
 
                     if 'sub_task_statuses' in analysis:
-                        with tqdm(
-                            total=len(analysis['sub_task_statuses']),
-                            unit=' sub_task',
-                            desc='Input Generation') as pbar:
+                        with tqdm(total=len(analysis['sub_task_statuses']),
+                                  unit=' sub_task',
+                                  desc='Input Generation') as pbar:
 
                             completed = []
                             while len(completed) < len(analysis['sub_task_statuses']):
@@ -529,7 +528,6 @@ class APIClient(object):
         """
 
         try:
-            analyses = self.analyses.get(analysis_id)
             if analysis_settings_fp:
                 self.upload_settings(analysis_id, analysis_settings_fp)
 
@@ -569,10 +567,9 @@ class APIClient(object):
                         self.logger.info('Analysis Run: Executing (id={})'.format(analysis_id))
 
                     if 'sub_task_statuses' in analysis:
-                        with tqdm(
-                            total=len(analysis['sub_task_statuses']),
-                            unit=' sub_task',
-                            desc='Analysis Run') as pbar:
+                        with tqdm(total=len(analysis['sub_task_statuses']),
+                                  unit=' sub_task',
+                                  desc='Analysis Run') as pbar:
 
                             completed = []
                             while len(completed) < len(analysis['sub_task_statuses']):
