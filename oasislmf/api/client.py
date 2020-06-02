@@ -498,8 +498,13 @@ class APIClient(object):
                                 completed = [tsk for tsk in analysis['sub_task_statuses'] if tsk['status'] == 'COMPLETED']
                                 pbar.update(len(completed) - pbar.n)
 
+                                # Exit conditions
                                 if ('_CANCELED' in analysis['status']) or ('_ERROR' in analysis['status']):
                                     break
+                                elif 'READY' in analysis['status']:
+                                    pbar.update(pbar.total - pbar.n)
+                                    break
+
                                 time.sleep(poll_interval)
                     else:
                         time.sleep(poll_interval)
@@ -575,7 +580,11 @@ class APIClient(object):
                                 completed = [tsk for tsk in analysis['sub_task_statuses'] if tsk['status'] == 'COMPLETED']
                                 pbar.update(len(completed) - pbar.n)
 
+                                # Exit conditions
                                 if ('_CANCELED' in analysis['status']) or ('_ERROR' in analysis['status']):
+                                    break
+                                elif 'COMPLETED' in analysis['status']:
+                                    pbar.update(pbar.total - pbar.n)
                                     break
                                 time.sleep(poll_interval)
                     else:
