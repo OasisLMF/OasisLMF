@@ -25,7 +25,7 @@ except ImportError:
     from urllib2 import urlopen, URLError
 
 
-KTOOLS_VERSION = '3.2.6-rc1'
+KTOOLS_VERSION = '3.2.6'
 
 SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -327,6 +327,12 @@ setup(
         '': ['__pycache__', '*.py[co]'],
     },
     scripts=['bin/oasislmf', 'bin/completer_oasislmf', 'bin/ktools_monitor.sh'],
+    entry_points={
+        'console_scripts': [
+            'complex_itemtobin=oasislmf.model_execution.complex_items_to_bin:main',
+            'complex_itemtocsv=oasislmf.model_execution.complex_items_to_csv:main',
+        ]
+    },
     license='BSD 3-Clause',
     description='Core loss modelling framework.',
     long_description=readme,
