@@ -17,6 +17,7 @@ import time
 
 import pandas as pd
 
+from tqdm import tqdm
 from requests_toolbelt import MultipartEncoder
 from requests.exceptions import (
     HTTPError,
@@ -415,13 +416,13 @@ class APIClient(object):
         :rtype None
         """
         if isinstance(settings, dict):
-            r = self.analyses.settings.post(analyses_id, settings)
+            self.analyses.settings.post(analyses_id, settings)
             self.logger.info("Settings JSON uploaded: {}".format(settings))
 
         elif os.path.isfile(str(settings)):
             with io.open(settings, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            r = self.analyses.settings.post(analyses_id, data)
+            self.analyses.settings.post(analyses_id, data)
             self.logger.info("Settings JSON uploaded: {}".format(settings))
         else:
             raise TypeError("'settings': not a valid filepath or dictionary")
@@ -485,13 +486,33 @@ class APIClient(object):
                         logged_running = True
                         self.logger.info('Input Generation: Executing (id={})'.format(analysis_id))
 
-                    time.sleep(poll_interval)
-                    r = self.analyses.get(analysis_id)
-                    analysis = r.json()
+                    if 'sub_task_statuses' in analysis:
+                        with tqdm(total=len(analysis['sub_task_statuses']),
+                                  unit=' sub_task',
+                                  desc='Input Generation') as pbar:
+
+                            completed = []
+                            while len(completed) < len(analysis['sub_task_statuses']):
+                                analysis = self.analyses.get(analysis_id).json()
+                                completed = [tsk for tsk in analysis['sub_task_statuses'] if tsk['status'] == 'COMPLETED']
+                                pbar.update(len(completed) - pbar.n)
+
+                                # Exit conditions
+                                if ('_CANCELED' in analysis['status']) or ('_ERROR' in analysis['status']):
+                                    break
+                                elif 'READY' in analysis['status']:
+                                    pbar.update(pbar.total - pbar.n)
+                                    break
+
+                                time.sleep(poll_interval)
+                    else:
+                        time.sleep(poll_interval)
+                        analysis = self.analyses.get(analysis_id).json()
+
                     continue
 
                 else:
-                    err_msg = "Inputs Generation: Unknown State'{}'".format(analysis['status'])
+                    err_msg = "Input Generation: Unknown State'{}'".format(analysis['status'])
                     self.logger.error(err_msg)
                     sys.exit(1)
         except HTTPError as e:
@@ -506,7 +527,6 @@ class APIClient(object):
         """
 
         try:
-            analyses = self.analyses.get(analysis_id)
             if analysis_settings_fp:
                 self.upload_settings(analysis_id, analysis_settings_fp)
 
@@ -545,9 +565,27 @@ class APIClient(object):
                         logged_running = True
                         self.logger.info('Analysis Run: Executing (id={})'.format(analysis_id))
 
-                    time.sleep(poll_interval)
-                    r = self.analyses.get(analysis_id)
-                    analysis = r.json()
+                    if 'sub_task_statuses' in analysis:
+                        with tqdm(total=len(analysis['sub_task_statuses']),
+                                  unit=' sub_task',
+                                  desc='Analysis Run') as pbar:
+
+                            completed = []
+                            while len(completed) < len(analysis['sub_task_statuses']):
+                                analysis = self.analyses.get(analysis_id).json()
+                                completed = [tsk for tsk in analysis['sub_task_statuses'] if tsk['status'] == 'COMPLETED']
+                                pbar.update(len(completed) - pbar.n)
+
+                                # Exit conditions
+                                if ('_CANCELED' in analysis['status']) or ('_ERROR' in analysis['status']):
+                                    break
+                                elif 'COMPLETED' in analysis['status']:
+                                    pbar.update(pbar.total - pbar.n)
+                                    break
+                                time.sleep(poll_interval)
+                    else:
+                        time.sleep(poll_interval)
+                        analysis = self.analyses.get(analysis_id).json()
                     continue
 
                 else:
