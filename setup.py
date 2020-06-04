@@ -203,7 +203,7 @@ class PostInstallKtools(InstallKtoolsMixin, install):
                 self.install_ktools_bin(OS, ARCH)
             except:    
                 print('Fallback - building ktools from source')
-                self.install_ktools_source()
+                self.install_ktools_bin()
         else:
             self.install_ktools_source()
         install.run(self)
@@ -225,7 +225,7 @@ class PostDevelopKtools(InstallKtoolsMixin, develop):
         develop.__init__(self, *args, **kwargs)
 
     def run(self):
-        self.install_ktools_source()
+        self.install_ktools_bin(system(), machine())
         develop.run(self)
 
     def get_outputs(self):
