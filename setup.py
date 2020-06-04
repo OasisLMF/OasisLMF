@@ -327,6 +327,12 @@ setup(
         '': ['__pycache__', '*.py[co]'],
     },
     scripts=['bin/oasislmf', 'bin/completer_oasislmf', 'bin/ktools_monitor.sh'],
+    entry_points={
+        'console_scripts': [
+            'complex_itemtobin=oasislmf.model_execution.complex_items_to_bin:main',
+            'complex_itemtocsv=oasislmf.model_execution.complex_items_to_csv:main',
+        ]
+    },
     license='BSD 3-Clause',
     description='Core loss modelling framework.',
     long_description=readme,
