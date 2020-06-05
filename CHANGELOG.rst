@@ -1,19 +1,30 @@
 OasisLMF Changelog
 ==================
+.. * [#_](https://github.com/OasisLMF/OasisLMF/issues/_) - 
 
+`1.8.0`_
+--------
 .. start_latest_release
+* [#579](https://github.com/OasisLMF/OasisLMF/issues/579) - Install complex_itemstobin and complex_itemstocsv
+* [#565](https://github.com/OasisLMF/OasisLMF/issues/565) - Non-unicode CSV data is not handled neatly
+* [#570](https://github.com/OasisLMF/OasisLMF/issues/570) - Issue with item_id to from_agg_id mapping at level 1
+* [#556](https://github.com/OasisLMF/OasisLMF/issues/556) - review calc_rules.csv mapping for duplicates and logical gaps
+* [#549](https://github.com/OasisLMF/OasisLMF/issues/549) - Add FM Tests May 2020
+* [#555](https://github.com/OasisLMF/OasisLMF/issues/555) - Add JSON schema validation on CLI
+* [#577](https://github.com/OasisLMF/OasisLMF/issues/577) - Add api client progressbars for OasisAtScale
+.. end_latest_release
+
+
 `1.7.1`_
--------
+--------
 * #553 - Fix alc rule mapping error 
 * #550 - Fix enbash fmcalc and full_correlation
 * #548 - Fix UL Alloc Rule 0
 * Fix - Assign loc_id by sorted values of (LocNum, AccNum, PortNum) - location file resistant to reordering rows
 * Fix - default `run_dir` in `oasislmf model generate-exposure-pre-analysis` cmd
 
-.. end_latest_release
-
 `1.7.0`_
--------
+--------
 * #497 - Add exception wrapping to OasisException
 * #528 - FM validation tests with % damage range
 * #531 - item file ordering of item_id 
@@ -22,7 +33,7 @@ OasisLMF Changelog
 * Added - revamped CLI Structure 
 
 `1.6.0`_
--------
+--------
 * Fix #513 - Breaking change in msgpack 1.0.0
 * Fix #503 - Change areaperil id datatype to unit64 
 * Fix #481 - Corrections to fm_profile for type 2 terms
@@ -38,11 +49,11 @@ OasisLMF Changelog
 * Added #506 - Improve performance in `write_exposure_summary()` 
 
 `1.5.1`_
--------
+--------
 * Fix - Issue in IL file generation, `fm_programme` file missing agg_id rows
 
 `1.5.0`_
--------
+--------
 
 * Added step policy support 
 * Added #453 - Allow user to select group_id based on columns in loc file
@@ -68,13 +79,13 @@ OasisLMF Changelog
 
 
 `1.4.6`_
--------
+--------
 * Update to model_settings schema 
 * Fixes #452 - Check columns before grouping output
 * Fixes #451 - Error checking ktools runs for complex models
 
 `1.4.5`_
--------
+--------
 * Fix for fm_programme mapping
 * Fix for IL files generation
 * Fix issue #439 - il summary groups
@@ -86,11 +97,11 @@ OasisLMF Changelog
 * Add dtype conversion and check for valid OED peril codes (#448)
 
 `1.4.4`_
--------
+--------
 * Hotfix - Added the run flag `--ktools-disable-guard` option for complex models & custom binaries 
 
 `1.4.3`_
--------
+--------
 * Added support for compressed file extensions
 * Fix docker kill error
 * Fix in IL inputs
@@ -101,14 +112,14 @@ OasisLMF Changelog
 * Various fixes for ktools scripts
 
 `1.4.2`_
--------
+--------
 * Added Multi-process keys lookup
 * Updated API client
 * Added Verifying model files command 
 * Updated command line flags with backwards compatibility 
 
 `1.4.1`_
--------
+--------
 * Added bash autocomplete #386
 * Fix for exposure data types on lookup #387
 * Fix for non-OED fields in summary levels #377
@@ -118,7 +129,7 @@ OasisLMF Changelog
 * Added Allocation rule for Ground up loss #376
 
 `1.4.0`_
--------
+--------
 * Cookiecutter CLI integration - commands for creating simple and complex Oasis model projects/repositories from project templates
 * Extend calc. rules and FM test coverage
 * Various fixes in FM and data utils
@@ -132,17 +143,17 @@ OasisLMF Changelog
 * Ktools updated to v3.1.0
 
 `1.3.10`_
--------
+---------
 * Hotfix release - fix for models using custom lookups
 
 `1.3.9`_
--------
+--------
 * Updated validation and fixes for FM file generation  
 * Fixes for exposure-summary reporting 
 * Fixes for FM calc rule selection 
 
 `1.3.8`_
--------
+--------
 * Add FM support for processing types and codes for deductibles and limits
 * Improvements for complex model support and logging 
 * Update to summary sets for grouping results 
@@ -152,15 +163,15 @@ OasisLMF Changelog
 * new sub-command `oasislmf exposure ..` for running and validating deterministic models 
 
 `1.3.7`_
--------
+--------
 * Hotfix - ktools-num-processes not read as int from CLI 
 
 `1.3.6`_
--------
+--------
 * Hotfix - Custom lookup issue in manager 
 
 `1.3.5`_
--------
+--------
 * Issue found in ktools `3.0.7` hotfix downgrade to `3.0.6` 
 
 `1.3.4`_
@@ -290,8 +301,7 @@ OasisLMF Changelog
 `1.1.22`_ (beta)
 ----------------
 
-* Fix bug in coverage type matching of canonical items and keys items in the GUL items generator
-in the exposure manager
+* Fix bug in coverage type matching of canonical items and keys items in the GUL items generator in the exposure manager
 
 `1.1.21`_ (beta)
 ----------------
@@ -385,6 +395,7 @@ in the exposure manager
 
 * Add console logging
 
+.. _`1.8.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.7.1...1.8.0
 .. _`1.7.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.7.0...1.7.1
 .. _`1.7.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.6.0...1.7.0
 .. _`1.6.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.5.1...1.6.0
