@@ -180,7 +180,7 @@
                     "description": "Identifier for the event set file that is used for output calculations.",
                     "default": 1
                 },
-                "event_occurrence_file_id": {
+                "event_occurrence_id": {
                     "type": "string",
                     "title": "Event occurrence file ID.",
                     "description": "Identifier for the event occurrence file that is used for output calculations.",
