@@ -781,8 +781,7 @@ def merge_dataframes(left, right, join_on=None, **kwargs):
         left = left.set_index(_join_on)
         right = right.drop(drop_cols, axis=1).set_index(_join_on)
 
-        join = left.join(right, how=(kwargs.get('how') or 'left'))
-        join.reset_index(inplace=True)
+        join = left.join(right, how=(kwargs.get('how') or 'left')).reset_index()
 
         return join
 

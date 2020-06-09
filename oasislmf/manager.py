@@ -461,7 +461,6 @@ class OasisManager(object):
 
         # Prepare the target directory and copy the source files, profiles and
         # model version file into it
-        self.logger.info("Preparing input files directory")
         target_dir = prepare_input_files_directory(
             target_dir,
             exposure_fp,
@@ -479,7 +478,6 @@ class OasisManager(object):
 
         # Get the profiles defining the exposure and accounts files, ID related
         # terms in these files, and FM aggregation hierarchy
-        self.logger.info("Loading OED format definitions")
         exposure_profile = exposure_profile or (get_json(src_fp=exposure_profile_fp) if exposure_profile_fp else self.exposure_profile)
         accounts_profile = accounts_profile or (get_json(src_fp=accounts_profile_fp) if accounts_profile_fp else self.accounts_profile)
         oed_hierarchy = get_oed_hierarchy(exposure_profile, accounts_profile)
@@ -525,7 +523,6 @@ class OasisManager(object):
                 _, _ = olf.write_oasis_keys_file(keys, _keys_fp)
 
             else:
-                self.logger.info("Generating keys data from model lookup")
                 lookup_config = get_json(src_fp=lookup_config_fp) if lookup_config_fp else lookup_config
                 if lookup_config and lookup_config['keys_data_path'] in ['.', './']:
                     lookup_config['keys_data_path'] = os.path.join(os.path.dirname(lookup_config_fp))
@@ -548,7 +545,6 @@ class OasisManager(object):
                     errors_fp=_keys_errors_fp
                 )
         else:
-            self.logger.info("Keys data file provided, skipping lookup")
             _keys_fp = os.path.join(target_dir, os.path.basename(keys_fp))
 
         # Columns from loc file to assign group_id
@@ -707,11 +703,7 @@ class OasisManager(object):
             model_run_fp,
             'analysis_settings.json'
         ))
-<<<<<<< HEAD
 
-=======
-
->>>>>>> index on (no branch): 560749e Set version 1.7.1
         generate_summaryxref_files(model_run_fp,
                                    analysis_settings,
                                    gul_item_stream=gul_item_stream,
@@ -1099,16 +1091,26 @@ class OasisManager(object):
             if not os.path.exists(expected):
                 continue
 
-            file_test_result = compare_files(generated, expected)
-            if not file_test_result:
+            try:
+                pd.testing.assert_frame_equal(
+                    pd.read_csv(expected),
+                    pd.read_csv(generated)
+                )
+            except AssertionError:
                 if update_expected:
                     shutil.copyfile(generated, expected)
                 else:
+                    print("Expected:")
+                    with open(expected) as f:
+                        print(f.read())
+                    print("Generated:")
+                    with open(generated) as f:
+                        print(f.read())
                     raise OasisException(
                         f'\n FAIL: generated {generated} vs expected {expected}'
                     )
-            test_result = test_result and file_test_result
-        return file_test_result
+                test_result = False
+        return test_result
 
 
 def __interface_factory(computation_cls):
