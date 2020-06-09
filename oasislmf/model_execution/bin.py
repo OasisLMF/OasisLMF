@@ -213,12 +213,21 @@ def _calc_selected(analysis_settings, calc_type):
     :param calc_type: one of `eltcalc`, `lec_output`, `aalcalc` or `pltcalc`
     :type calc_type: str
     """
-    is_in_gul = analysis_settings.get('gul_summaries')[0].get(
-                calc_type, None) if analysis_settings.get('gul_summaries') else None
-    is_in_il  = analysis_settings.get('il_summaries')[0].get(
-                calc_type, None) if analysis_settings.get('il_summaries') else None
-    is_in_ri  = analysis_settings.get('ri_summaries')[0].get(
-                calc_type, None) if analysis_settings.get('ri_summaries') else None
+    is_in_gul = False
+    is_in_il = False
+    is_in_ri = False
+
+    gul_section = analysis_settings.get('gul_summaries')
+    il_section = analysis_settings.get('il_summaries')
+    ri_section = analysis_settings.get('ri_summaries')
+
+    if gul_section:
+        is_in_gul = any(gul_summary.get(calc_type, None) for gul_summary in gul_section) 
+    if il_section:
+        is_in_il = any(il_summary.get(calc_type, None) for il_summary in il_section) 
+    if ri_section:
+        is_in_ri = any(ri_summary.get(calc_type, None) for ri_summary in ri_section) 
+
     return any([is_in_gul, is_in_il, is_in_ri])
 
 @oasis_log
