@@ -1,10 +1,16 @@
 OasisLMF Changelog
 ==================
-.. * [#_](https://github.com/OasisLMF/OasisLMF/issues/_) - 
+
+`1.8.1`_
+--------
+.. start_latest_release
+* [#589](https://github.com/OasisLMF/OasisLMF/issues/589) - Schema fix to allow for 0 samples 
+* [#583](https://github.com/OasisLMF/OasisLMF/pull/583) - Reduce memory use in gul_inputs creation (DanielFEvans)
+* [#582](https://github.com/OasisLMF/OasisLMF/issues/582) -  Check for calc_type in all sections 
+.. end_latest_release
 
 `1.8.0`_
 --------
-.. start_latest_release
 * [#579](https://github.com/OasisLMF/OasisLMF/issues/579) - Install complex_itemstobin and complex_itemstocsv
 * [#565](https://github.com/OasisLMF/OasisLMF/issues/565) - Non-unicode CSV data is not handled neatly
 * [#570](https://github.com/OasisLMF/OasisLMF/issues/570) - Issue with item_id to from_agg_id mapping at level 1
@@ -12,7 +18,6 @@ OasisLMF Changelog
 * [#549](https://github.com/OasisLMF/OasisLMF/issues/549) - Add FM Tests May 2020
 * [#555](https://github.com/OasisLMF/OasisLMF/issues/555) - Add JSON schema validation on CLI
 * [#577](https://github.com/OasisLMF/OasisLMF/issues/577) - Add api client progressbars for OasisAtScale
-.. end_latest_release
 
 
 `1.7.1`_
@@ -395,6 +400,7 @@ OasisLMF Changelog
 
 * Add console logging
 
+.. _`1.8.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.8.0...1.8.1
 .. _`1.8.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.7.1...1.8.0
 .. _`1.7.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.7.0...1.7.1
 .. _`1.7.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.6.0...1.7.0
