@@ -178,7 +178,8 @@ def get_gul_input_items(
             'vulnerabilityid': 'vulnerability_id',
             'modeldata': 'model_data'
         },
-        inplace=True
+        inplace=True,
+        copy=False  # Pandas copies column data by default on rename
     )
 
     # If the keys file relates to a complex/custom model then look for a
@@ -216,12 +217,19 @@ def get_gul_input_items(
         missing_group_id_cols = [col for col in group_id_cols if col not in exposure_df_gul_inputs_cols]
         exposure_df_gul_inputs_cols += missing_group_id_cols
 
+        query_nonzero_tiv = " | ".join(f"({tiv_col} != 0)" for tiv_col in tiv_cols)
+        exposure_df.loc[:, tiv_cols] = exposure_df.loc[:, tiv_cols].fillna(0.0)
+        exposure_df.query(query_nonzero_tiv, inplace=True, engine='numexpr')
+
         gul_inputs_df = merge_dataframes(
             exposure_df[exposure_df_gul_inputs_cols],
             keys_df,
             join_on='loc_id',
             how='inner'
         )
+
+        # Free memory after merge, before memory-intensive restructuring of data
+        del keys_df
 
         if gul_inputs_df.empty:
             raise OasisException(
@@ -233,64 +241,68 @@ def get_gul_input_items(
                 'intersection'.format(keys_fp)
             )
 
-        del keys_df
-
         gul_inputs_df[cond_num].fillna(0, inplace=True)
         gul_inputs_df[cond_num] = gul_inputs_df[cond_num].astype('uint32')
+        gul_inputs_df[tiv_terms.values()].fillna(0, inplace=True)
 
-        gul_inputs_df = gul_inputs_df[(gul_inputs_df.loc[:, tiv_cols] != 0).any(axis=1)]
-        gul_inputs_df.loc[:, tiv_cols] = gul_inputs_df.loc[:, tiv_cols].where(gul_inputs_df.notnull(), 0.0)
+        # Group the rows in the GUL inputs table by coverage type, and set the
+        # IL terms (and BI coverage boolean) in each group and update the
+        # corresponding frame section in the GUL inputs table
+        gul_inputs_reformatted_chunks = []
+        for cov_type, cov_type_group in gul_inputs_df.groupby(by=['coverage_type_id'], sort=True):
+            tiv_col = tiv_terms[cov_type]
 
+            # Remove rows with null/0 TIV
+            cov_type_group.query(f"{tiv_col} > 0.0", inplace=True)
+
+            # Drop columns corresponding to other cov types
+            other_cov_types = [v['id'] for v in SUPPORTED_COVERAGE_TYPES.values() if v['id'] != cov_type]
+            other_cov_type_term_cols = (
+                [v for k, v in tiv_terms.items() if k != cov_type] +
+                get_fm_terms_oed_columns(fm_terms=fm_terms, levels=['site coverage'], term_group_ids=other_cov_types, terms=terms)
+            )
+            other_tiv_cols = list(set(tiv_terms.values()) - {tiv_col})
+            cov_type_group.drop(
+                columns=other_cov_type_term_cols + other_tiv_cols,
+                errors="ignore",  # Ignore if any of these cols don't exist
+                inplace=True
+            )
+
+            cov_type_group['is_bi_coverage'] = cov_type == SUPPORTED_COVERAGE_TYPES['bi']['id']
+
+            # Convert null T&C values to 0
+            # Move all T&C values from coverage-specific columns to generic columns
+            # One row with four coverages is being transformed to four rows, one per coverage,
+            # in this loop
+            cov_type_terms = [t for t in terms if fm_terms[cov_level_id][cov_type].get(t)]
+            cov_type_term_cols = get_fm_terms_oed_columns(fm_terms, levels=['site coverage'], term_group_ids=[cov_type], terms=cov_type_terms)
+            column_mapping_dict = {
+                generic_col: cov_col
+                for generic_col, cov_col in zip(cov_type_term_cols, cov_type_terms)
+            }
+            column_mapping_dict[tiv_col] = 'tiv'
+            cov_type_group.rename(columns=column_mapping_dict, inplace=True, copy=False)
+            cov_type_group.loc[:, ['tiv'] + cov_type_terms].fillna(0.0, inplace=True)
+
+            cov_type_group['coverage_type_id'] = cov_type
+
+            gul_inputs_reformatted_chunks.append(cov_type_group)
+
+        # Concatenate chunks. Sort by index to preserve item_id order in generated outputs compared
+        # to original code.
+        gul_inputs_df = pd.concat(gul_inputs_reformatted_chunks).sort_index().reset_index()
         # Set default values and data types for BI coverage boolean, TIV, deductibles and limit
-        gul_inputs_df = gul_inputs_df.assign(
-            is_bi_coverage=False,
-            tiv=0.0,
-            deductible=0.0,
-            ded_code=0,
-            ded_type=0,
-            deductible_min=0.0,
-            deductible_max=0.0,
-            limit=0.0,
-            lim_code=0,
-            lim_type=0
-        )
         dtypes = {
             **{t: 'uint8' for t in term_cols_ints + terms_ints},
             **{'is_bi_coverage': 'bool'}
         }
         gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, dtypes)
 
-        # Group the rows in the GUL inputs table by coverage type, and set the
-        # IL terms (and BI coverage boolean) in each group and update the
-        # corresponding frame section in the GUL inputs table
-        for cov_type, cov_type_group in gul_inputs_df.groupby(by=['coverage_type_id'], sort=True):
-            cov_type_group['is_bi_coverage'] = np.where(cov_type == SUPPORTED_COVERAGE_TYPES['bi']['id'], True, False)
-            tiv_col = tiv_terms[cov_type]
-            cov_type_terms = [t for t in terms if fm_terms[cov_level_id][cov_type].get(t)]
-            cov_type_term_cols = get_fm_terms_oed_columns(fm_terms, levels=['site coverage'], term_group_ids=[cov_type], terms=cov_type_terms)
-            cov_type_group.loc[:, [tiv_col] + cov_type_term_cols] = cov_type_group.loc[:, [tiv_col] + cov_type_term_cols].where(cov_type_group.notnull(), 0.0)
-            cov_type_group.loc[:, ['tiv'] + cov_type_terms] = cov_type_group.loc[:, [tiv_col] + cov_type_term_cols].values
-            cov_type_group = cov_type_group[(cov_type_group[['tiv']] != 0).any(axis=1)]
-            if cov_type_group.empty:
-                cov_type_group.loc[:, terms] = 0.0
-            other_cov_types = [v['id'] for v in SUPPORTED_COVERAGE_TYPES.values() if v['id'] != cov_type]
-            other_cov_type_term_cols = (
-                [v for k, v in tiv_terms.items() if k != cov_type] +
-                get_fm_terms_oed_columns(fm_terms=fm_terms, levels=['site coverage'], term_group_ids=other_cov_types, terms=terms)
-            )
-            cov_type_group.loc[:, other_cov_type_term_cols] = 0.0
-            gul_inputs_df.loc[cov_type_group.index, ['tiv', 'is_bi_coverage'] + cov_type_terms] = cov_type_group.loc[:, ['tiv', 'is_bi_coverage'] + cov_type_terms].values
-
-        # Remove any rows with zeros in the ``tiv`` column and reset the index
-        gul_inputs_df = gul_inputs_df[(gul_inputs_df.loc[:, ['tiv']] != 0).any(axis=1)].reset_index()
         if gul_inputs_df.empty:
             raise OasisException(
                 'Empry gul_inputs_df dataframe after dropping rows with zero for tiv, '
                 'please check the exposure input files'
             )
-
-        # Remove the source columns for the TIVs and coverage level financial terms
-        gul_inputs_df.drop(tiv_cols + term_cols, axis=1, inplace=True)
 
         # Set the group ID
         if len(group_id_cols) > 1:
@@ -321,20 +333,18 @@ def get_gul_input_items(
         }
         gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, dtypes)
 
-        # Drop all unnecessary columns
+        # Select only required columns
+        # Order here matches test output expectations
         usecols = (
-            ['loc_id', loc_num, acc_num, portfolio_num, cond_num] +
-            ['tiv'] + terms +
-            ['peril_id', 'coverage_type_id', 'areaperil_id', 'vulnerability_id'] +
-            (['model_data'] if 'model_data' in gul_inputs_df else []) +
+            ['loc_id', portfolio_num, acc_num, loc_num, cond_num] +
             ([SOURCE_IDX['loc']] if SOURCE_IDX['loc'] in gul_inputs_df else []) +
-            ['is_bi_coverage', 'group_id', 'item_id', 'coverage_id', 'layer_id', 'agg_id', 'status']
+            ['peril_id', 'coverage_type_id', 'tiv', 'areaperil_id', 'vulnerability_id'] +
+            terms +
+            (['model_data'] if 'model_data' in gul_inputs_df else []) +
+            ['is_bi_coverage', 'group_id', 'coverage_id', 'item_id', 'layer_id', 'agg_id', 'status']
         )
-        gul_inputs_df.drop(
-            [c for c in gul_inputs_df.columns if c not in usecols],
-            axis=1,
-            inplace=True
-        )
+        usecols = [col for col in usecols if col in gul_inputs_df]
+        gul_inputs_df = gul_inputs_df[usecols]
     except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
         raise OasisException("Exception raised in 'get_gul_input_items'", e)
 

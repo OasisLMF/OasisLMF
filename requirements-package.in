@@ -9,6 +9,7 @@ cookiecutter>=1.6.0
 future
 jsonschema
 msgpack
+numexpr
 pandas>=0.24.0
 pathlib2
 pytz

@@ -757,8 +757,6 @@ def merge_dataframes(left, right, join_on=None, **kwargs):
     :return: A merged dataframe
     :rtype: pd.DataFrame
     """
-    merge = None
-
     if not join_on:
         left_keys = kwargs.get('left_on') or kwargs.get('on') or []
         left_keys = [left_keys] if isinstance(left_keys, str) else left_keys
@@ -780,11 +778,10 @@ def merge_dataframes(left, right, join_on=None, **kwargs):
     else:
         _join_on = [join_on] if isinstance(join_on, str) else join_on.copy()
         drop_cols = list(set(left.columns).intersection(right.columns).difference(_join_on))
-        _left = left.set_index(_join_on)
-        _right = right.drop(drop_cols, axis=1).set_index(_join_on)
+        left = left.set_index(_join_on)
+        right = right.drop(drop_cols, axis=1).set_index(_join_on)
 
-        join = _left.join(_right, how=(kwargs.get('how') or 'left')).reset_index()
-        del _left, _right
+        join = left.join(right, how=(kwargs.get('how') or 'left')).reset_index()
 
         return join
 
