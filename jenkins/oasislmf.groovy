@@ -213,6 +213,7 @@ node {
          if (params.PUBLISH && params.AUTO_MERGE){ 
             dir(source_workspace) {
                 sshagent (credentials: [git_creds]) {
+                    sh "git stash"
                     sh "git checkout master && git pull"
                     sh "git merge ${source_branch} && git push"
                     sh "git checkout develop && git pull"
