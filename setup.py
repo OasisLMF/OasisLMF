@@ -39,6 +39,7 @@ def get_install_requirements():
     with io.open(os.path.join(SCRIPT_DIR, 'requirements-package.in'), encoding='utf-8') as reqs:
         return reqs.readlines()
 
+
 def get_version():
     """
     Return package version as listed in `__version__` in `init.py`.
@@ -75,10 +76,10 @@ class InstallKtoolsMixin(object):
         for i in range(attempts):
             try:
                 if proxy_config:
-                    # Proxied connection 
+                    # Proxied connection
                     req = urlrequest.urlopen(urlrequest.Request(url), timeout=timeout)
                     break
-                else:    
+                else:
                     # Non proxied connection
                     req = urlrequest.urlopen(url, timeout=timeout)
                     break
@@ -153,12 +154,25 @@ class InstallKtoolsMixin(object):
             shutil.copy(p, component_path)
             yield component_path
 
+    def try_get_bin_install_kwargs(self):
+        if '--plat-name' in sys.argv:
+            PLATFORM = sys.argv[sys.argv.index('--plat-name') + 1]
+            OS, ARCH = PLATFORM.split('_', 1)
+        else:
+            ARCH = machine()
+            OS = system()
+
+        if ARCH in ['x86_64'] and OS in ['Linux', 'Darwin']:
+            return {"system_os": OS, "system_architecture": ARCH}
+        else:
+            return None
+
     def install_ktools_source(self):
         with temp_dir() as d:
             local_tar_path = os.path.join(d, 'ktools.tar.gz')
             local_extract_path = os.path.join(d, 'extracted')
             source_url = 'https://github.com/OasisLMF/ktools/archive/v{}.tar.gz'.format(KTOOLS_VERSION)
-            
+
             self.fetch_ktools_tar(local_tar_path, source_url)
             self.unpack_tar(local_tar_path, local_extract_path)
             build_dir = self.build_ktools(local_extract_path)
@@ -174,6 +188,7 @@ class InstallKtoolsMixin(object):
             self.unpack_tar(local_tar_path, local_extract_path)
             self.ktools_components = list(self.add_ktools_bins_to_path(local_extract_path))
 
+
 class PostInstallKtools(InstallKtoolsMixin, install):
     command_name = 'install'
     user_options = install.user_options + [
@@ -186,26 +201,20 @@ class PostInstallKtools(InstallKtoolsMixin, install):
         install.__init__(self, *args, **kwargs)
 
     def run(self):
-        ''' 
-        If system arch matches Ktools static build try to install from pre-build 
-        with a fallback of compile ktools from source 
         '''
-        if '--plat-name' in sys.argv:
-            PLATFORM = sys.argv[sys.argv.index('--plat-name') + 1]
-            OS, ARCH = PLATFORM.split('_', 1)
-        else:
-            ARCH = machine()
-            OS = system()
-
-
-        if ARCH in ['x86_64'] and OS in ['Linux', 'Darwin']:
+        If system arch matches Ktools static build try to install from pre-build
+        with a fallback of compile ktools from source
+        '''
+        bin_install_kwargs = self.try_get_bin_install_kwargs()
+        if bin_install_kwargs:
             try:
-                self.install_ktools_bin(OS, ARCH)
-            except:    
+                self.install_ktools_bin(**bin_install_kwargs)
+            except:
                 print('Fallback - building ktools from source')
                 self.install_ktools_source()
         else:
             self.install_ktools_source()
+
         install.run(self)
 
     def get_outputs(self):
@@ -225,7 +234,16 @@ class PostDevelopKtools(InstallKtoolsMixin, develop):
         develop.__init__(self, *args, **kwargs)
 
     def run(self):
-        self.install_ktools_source()
+        try:
+            self.install_ktools_source()
+        except:
+            bin_install_kwargs = self.try_get_bin_install_kwargs()
+            if bin_install_kwargs:
+                print('Fallback - installing precompiled ktools binary')
+                self.install_ktools_source()
+            else:
+                raise
+
         develop.run(self)
 
     def get_outputs(self):
@@ -237,7 +255,7 @@ class PostDevelopKtools(InstallKtoolsMixin, develop):
 
 try:
     from wheel.bdist_wheel import bdist_wheel
-    
+
     # https://github.com/pypa/wheel/blob/master/wheel/bdist_wheel.py#L43
     class BdistWheel(bdist_wheel):
         command_name = 'bdist_wheel'

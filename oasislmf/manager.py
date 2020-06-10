@@ -15,7 +15,7 @@ import shutil
 
 from itertools import chain
 from filecmp import cmp as compare_files
-                    
+
 from builtins import str
 
 from itertools import (
@@ -703,7 +703,7 @@ class OasisManager(object):
             model_run_fp,
             'analysis_settings.json'
         ))
-        
+
         generate_summaryxref_files(model_run_fp,
                                    analysis_settings,
                                    gul_item_stream=gul_item_stream,
@@ -1015,7 +1015,7 @@ class OasisManager(object):
                         all_losses_df[all_losses_df.loss_factor_idx == str(i)],
                         frame_header=header,
                         cols=cols_to_print)
-                else:    
+                else:
                     print_dataframe(
                         all_losses_df,
                         frame_header=header,
@@ -1091,16 +1091,26 @@ class OasisManager(object):
             if not os.path.exists(expected):
                 continue
 
-            file_test_result = compare_files(generated, expected)
-            if not file_test_result:
+            try:
+                pd.testing.assert_frame_equal(
+                    pd.read_csv(expected),
+                    pd.read_csv(generated)
+                )
+            except AssertionError:
                 if update_expected:
-                    shutil.copyfile(generated, expected)  
-                else:    
+                    shutil.copyfile(generated, expected)
+                else:
+                    print("Expected:")
+                    with open(expected) as f:
+                        print(f.read())
+                    print("Generated:")
+                    with open(generated) as f:
+                        print(f.read())
                     raise OasisException(
                         f'\n FAIL: generated {generated} vs expected {expected}'
                     )
-            test_result = test_result and file_test_result
-        return file_test_result
+                test_result = False
+        return test_result
 
 
 def __interface_factory(computation_cls):
