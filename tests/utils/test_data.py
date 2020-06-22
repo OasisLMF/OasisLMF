@@ -1558,10 +1558,14 @@ class TestGetLocationDf(TestCase):
         )
         valid_int_types = (
             int, 
-            np.int8
+            np.int8,
             np.int16, 
             np.int32, 
             np.int64, 
+            np.uint8,
+            np.uint16,
+            np.uint32,
+            np.uint64,
         )
         valid_float_types = (
             float, 
@@ -1579,16 +1583,17 @@ class TestGetLocationDf(TestCase):
 
             df_result = get_location_df(loc_sample_file.name)
             for col in df_result.columns:
-                dtype_expected = loc_expected_dtypes[col]['py_dtype']
-                dtype_found = type(df_result[col][0])
-                print(f'{col} - Expected: {dtype_expected}, Found: {dtype_found}')
+                if col in loc_expected_dtypes:
+                    dtype_expected = loc_expected_dtypes[col]['py_dtype']
+                    dtype_found = type(df_result[col][0])
+                    print(f'{col} - Expected: {dtype_expected}, Found: {dtype_found}')
 
-                if dtype_expected == 'str':
-                    self.assertTrue(isinstance(df_result[col][0], valid_str_types))
-                elif dtype_expected == 'int':
-                    self.assertTrue(isinstance(df_result[col][0], valid_int_types))
-                elif dtype_expected == 'float':
-                    self.assertTrue(isinstance(df_result[col][0], valid_float_types))
+                    if dtype_expected == 'str':
+                        self.assertTrue(isinstance(df_result[col][0], valid_str_types))
+                    elif dtype_expected == 'int':
+                        self.assertTrue(isinstance(df_result[col][0], valid_int_types))
+                    elif dtype_expected == 'float':
+                        self.assertTrue(isinstance(df_result[col][0], valid_float_types))
 
         finally:
             os.remove(loc_sample_file.name)
