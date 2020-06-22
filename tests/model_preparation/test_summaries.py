@@ -217,6 +217,11 @@ class TestSummaries(TestCase):
                 COVERAGE_TYPE_IDS[k]: model_coverage_tivs[k] for k in set(COVERAGE_TYPE_IDS.keys()) & set(model_coverage_tivs.keys())
             }
 
+            # Workaround: 
+            # Test is expecting 'locnumber' to be type int when its OED type is string 
+            # it ends up comparing str(s) to int(s) so fails, fix by covert locnumber before check
+            exposure_df["locnumber"] = pd.to_numeric(exposure_df["locnumber"])
+
             # Get output file for testing
             output_filename = target_dir + "/exposure_summary_report.json"
             with open(output_filename) as f:
