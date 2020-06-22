@@ -36,7 +36,13 @@ from oasislmf.utils.data import (
     get_dataframe,
     get_timestamp,
     get_utctimestamp,
+    get_location_df,
 )
+
+from oasislmf.utils.defaults import (
+    get_loc_dtypes,
+)
+
 from oasislmf.utils.exceptions import OasisException
 
 
@@ -1328,3 +1334,261 @@ class TestGetTimestamp(TestCase):
         result = get_utctimestamp(dt, fmt=fmt)
 
         self.assertEqual(result, expected)
+
+
+
+class TestGetLocationDf(TestCase):
+
+    @settings(max_examples=10)
+    @given(
+        data=fixed_dictionaries({
+             "PortNumber": sampled_from([str(1), int(1), float(1)]),
+             "AccNumber": sampled_from([str(1), int(1), float(1)]),
+             "LocNumber": sampled_from([str(1), int(1), float(1)]),
+             "LocName": sampled_from([str(1), int(1), float(1)]),
+             "LocGroup": sampled_from([str(1), int(1), float(1)]),
+             "CorrelationGroup": sampled_from([str(1), int(1), float(1)]),
+             "IsPrimary": sampled_from([str(1), int(1), float(1)]),
+             "IsTenant": sampled_from([str(1), int(1), float(1)]),
+             "BuildingID": sampled_from([str(1), int(1), float(1)]),
+             "LocInceptionDate": sampled_from([str(1), int(1), float(1)]),
+             "LocExpiryDate": sampled_from([str(1), int(1), float(1)]),
+             "PercentComplete": sampled_from([str(1), int(1), float(1)]),
+             "CompletionDate": sampled_from([str(1), int(1), float(1)]),
+             "CountryCode": sampled_from([str(1), int(1), float(1)]),
+             "Latitude": sampled_from([str(1), int(1), float(1)]),
+             "Longitude": sampled_from([str(1), int(1), float(1)]),
+             "StreetAddress": sampled_from([str(1), int(1), float(1)]),
+             "PostalCode": sampled_from([str(1), int(1), float(1)]),
+             "City": sampled_from([str(1), int(1), float(1)]),
+             "AreaCode": sampled_from([str(1), int(1), float(1)]),
+             "AreaName": sampled_from([str(1), int(1), float(1)]),
+             "GeogScheme1": sampled_from([str(1), int(1), float(1)]),
+             "GeogName1": sampled_from([str(1), int(1), float(1)]),
+             "GeogScheme2": sampled_from([str(1), int(1), float(1)]),
+             "GeogName2": sampled_from([str(1), int(1), float(1)]),
+             "GeogScheme3": sampled_from([str(1), int(1), float(1)]),
+             "GeogName3": sampled_from([str(1), int(1), float(1)]),
+             "GeogScheme4": sampled_from([str(1), int(1), float(1)]),
+             "GeogName4": sampled_from([str(1), int(1), float(1)]),
+             "GeogScheme5": sampled_from([str(1), int(1), float(1)]),
+             "GeogName5": sampled_from([str(1), int(1), float(1)]),
+             "AddressMatch": sampled_from([str(1), int(1), float(1)]),
+             "GeocodeQuality": sampled_from([str(1), int(1), float(1)]),
+             "Geocoder": sampled_from([str(1), int(1), float(1)]),
+             "OrgOccupancyScheme": sampled_from([str(1), int(1), float(1)]),
+             "OrgOccupancyCode": sampled_from([str(1), int(1), float(1)]),
+             "OrgConstructionScheme": sampled_from([str(1), int(1), float(1)]),
+             "OrgConstructionCode": sampled_from([str(1), int(1), float(1)]),
+             "OccupancyCode": sampled_from([str(1), int(1), float(1)]),
+             "ConstructionCode": sampled_from([str(1), int(1), float(1)]),
+             "YearBuilt": sampled_from([str(1), int(1), float(1)]),
+             "NumberOfStoreys": sampled_from([str(1), int(1), float(1)]),
+             "NumberOfBuildings": sampled_from([str(1), int(1), float(1)]),
+             "FloorArea": sampled_from([str(1), int(1), float(1)]),
+             "FloorAreaUnit": sampled_from([str(1), int(1), float(1)]),
+             "LocUserDef1": sampled_from([str(1), int(1), float(1)]),
+             "LocUserDef2": sampled_from([str(1), int(1), float(1)]),
+             "LocUserDef3": sampled_from([str(1), int(1), float(1)]),
+             "LocUserDef4": sampled_from([str(1), int(1), float(1)]),
+             "LocUserDef5": sampled_from([str(1), int(1), float(1)]),
+             "FlexiLocZZZ": sampled_from([str(1), int(1), float(1)]),
+             "LocPerilsCovered": sampled_from([str(1), int(1), float(1)]),
+             "BuildingTIV": sampled_from([str(1), int(1), float(1)]),
+             "OtherTIV": sampled_from([str(1), int(1), float(1)]),
+             "ContentsTIV": sampled_from([str(1), int(1), float(1)]),
+             "BITIV": sampled_from([str(1), int(1), float(1)]),
+             "BIPOI": sampled_from([str(1), int(1), float(1)]),
+             "LocCurrency": sampled_from([str(1), int(1), float(1)]),
+             "LocGrossPremium": sampled_from([str(1), int(1), float(1)]),
+             "LocTax": sampled_from([str(1), int(1), float(1)]),
+             "LocBrokerage": sampled_from([str(1), int(1), float(1)]),
+             "LocNetPremium": sampled_from([str(1), int(1), float(1)]),
+             "NonCatGroundUpLoss": sampled_from([str(1), int(1), float(1)]),
+             "LocParticipation": sampled_from([str(1), int(1), float(1)]),
+             "PayoutBasis": sampled_from([str(1), int(1), float(1)]),
+             "ReinsTag": sampled_from([str(1), int(1), float(1)]),
+             "CondNumber": sampled_from([str(1), int(1), float(1)]),
+             "CondPriority": sampled_from([str(1), int(1), float(1)]),
+             "LocDedCode1Building": sampled_from([str(1), int(1), float(1)]),
+             "LocDedType1Building": sampled_from([str(1), int(1), float(1)]),
+             "LocDed1Building": sampled_from([str(1), int(1), float(1)]),
+             "LocMinDed1Building": sampled_from([str(1), int(1), float(1)]),
+             "LocMaxDed1Building": sampled_from([str(1), int(1), float(1)]),
+             "LocDedCode2Other": sampled_from([str(1), int(1), float(1)]),
+             "LocDedType2Other": sampled_from([str(1), int(1), float(1)]),
+             "LocDed2Other": sampled_from([str(1), int(1), float(1)]),
+             "LocMinDed2Other": sampled_from([str(1), int(1), float(1)]),
+             "LocMaxDed2Other": sampled_from([str(1), int(1), float(1)]),
+             "LocDedCode3Contents": sampled_from([str(1), int(1), float(1)]),
+             "LocDedType3Contents": sampled_from([str(1), int(1), float(1)]),
+             "LocDed3Contents": sampled_from([str(1), int(1), float(1)]),
+             "LocMinDed3Contents": sampled_from([str(1), int(1), float(1)]),
+             "LocMaxDed3Contents": sampled_from([str(1), int(1), float(1)]),
+             "LocDedCode4BI": sampled_from([str(1), int(1), float(1)]),
+             "LocDedType4BI": sampled_from([str(1), int(1), float(1)]),
+             "LocDed4BI": sampled_from([str(1), int(1), float(1)]),
+             "LocMinDed4BI": sampled_from([str(1), int(1), float(1)]),
+             "LocMaxDed4BI": sampled_from([str(1), int(1), float(1)]),
+             "LocDedCode5PD": sampled_from([str(1), int(1), float(1)]),
+             "LocDedType5PD": sampled_from([str(1), int(1), float(1)]),
+             "LocDed5PD": sampled_from([str(1), int(1), float(1)]),
+             "LocMinDed5PD": sampled_from([str(1), int(1), float(1)]),
+             "LocMaxDed5PD": sampled_from([str(1), int(1), float(1)]),
+             "LocDedCode6All": sampled_from([str(1), int(1), float(1)]),
+             "LocDedType6All": sampled_from([str(1), int(1), float(1)]),
+             "LocDed6All": sampled_from([str(1), int(1), float(1)]),
+             "LocMinDed6All": sampled_from([str(1), int(1), float(1)]),
+             "LocMaxDed6All": sampled_from([str(1), int(1), float(1)]),
+             "LocLimitCode1Building": sampled_from([str(1), int(1), float(1)]),
+             "LocLimitType1Building": sampled_from([str(1), int(1), float(1)]),
+             "LocLimit1Building": sampled_from([str(1), int(1), float(1)]),
+             "LocLimitCode2Other": sampled_from([str(1), int(1), float(1)]),
+             "LocLimitType2Other": sampled_from([str(1), int(1), float(1)]),
+             "LocLimit2Other": sampled_from([str(1), int(1), float(1)]),
+             "LocLimitCode3Contents": sampled_from([str(1), int(1), float(1)]),
+             "LocLimitType3Contents": sampled_from([str(1), int(1), float(1)]),
+             "LocLimit3Contents": sampled_from([str(1), int(1), float(1)]),
+             "LocLimitCode4BI": sampled_from([str(1), int(1), float(1)]),
+             "LocLimitType4BI": sampled_from([str(1), int(1), float(1)]),
+             "LocLimit4BI": sampled_from([str(1), int(1), float(1)]),
+             "LocLimitCode5PD": sampled_from([str(1), int(1), float(1)]),
+             "LocLimitType5PD": sampled_from([str(1), int(1), float(1)]),
+             "LocLimit5PD": sampled_from([str(1), int(1), float(1)]),
+             "LocLimitCode6All": sampled_from([str(1), int(1), float(1)]),
+             "LocLimitType6All": sampled_from([str(1), int(1), float(1)]),
+             "LocLimit6All": sampled_from([str(1), int(1), float(1)]),
+             "BIWaitingPeriod": sampled_from([str(1), int(1), float(1)]),
+             "LocPeril": sampled_from([str(1), int(1), float(1)]),
+             "YearUpgraded": sampled_from([str(1), int(1), float(1)]),
+             "SurgeLeakage": sampled_from([str(1), int(1), float(1)]),
+             "SprinklerType": sampled_from([str(1), int(1), float(1)]),
+             "PercentSprinklered": sampled_from([str(1), int(1), float(1)]),
+             "RoofCover": sampled_from([str(1), int(1), float(1)]),
+             "RoofYearBuilt": sampled_from([str(1), int(1), float(1)]),
+             "RoofGeometry": sampled_from([str(1), int(1), float(1)]),
+             "RoofEquipment": sampled_from([str(1), int(1), float(1)]),
+             "RoofFrame": sampled_from([str(1), int(1), float(1)]),
+             "RoofMaintenance": sampled_from([str(1), int(1), float(1)]),
+             "BuildingCondition": sampled_from([str(1), int(1), float(1)]),
+             "RoofAttachedStructures": sampled_from([str(1), int(1), float(1)]),
+             "RoofDeck": sampled_from([str(1), int(1), float(1)]),
+             "RoofPitch": sampled_from([str(1), int(1), float(1)]),
+             "RoofAnchorage": sampled_from([str(1), int(1), float(1)]),
+             "RoofDeckAttachment": sampled_from([str(1), int(1), float(1)]),
+             "RoofCoverAttachment": sampled_from([str(1), int(1), float(1)]),
+             "GlassType": sampled_from([str(1), int(1), float(1)]),
+             "LatticeType": sampled_from([str(1), int(1), float(1)]),
+             "FloodZone": sampled_from([str(1), int(1), float(1)]),
+             "SoftStory": sampled_from([str(1), int(1), float(1)]),
+             "Basement": sampled_from([str(1), int(1), float(1)]),
+             "BasementLevelCount": sampled_from([str(1), int(1), float(1)]),
+             "WindowProtection": sampled_from([str(1), int(1), float(1)]),
+             "FoundationType": sampled_from([str(1), int(1), float(1)]),
+             "WallAttachedStructure": sampled_from([str(1), int(1), float(1)]),
+             "AppurtenantStructure": sampled_from([str(1), int(1), float(1)]),
+             "ConstructionQuality": sampled_from([str(1), int(1), float(1)]),
+             "GroundEquipment": sampled_from([str(1), int(1), float(1)]),
+             "EquipmentBracing": sampled_from([str(1), int(1), float(1)]),
+             "Flashing": sampled_from([str(1), int(1), float(1)]),
+             "BuildingShape": sampled_from([str(1), int(1), float(1)]),
+             "ShapeIrregularity": sampled_from([str(1), int(1), float(1)]),
+             "Pounding": sampled_from([str(1), int(1), float(1)]),
+             "Ornamentation": sampled_from([str(1), int(1), float(1)]),
+             "SpecialEQConstruction": sampled_from([str(1), int(1), float(1)]),
+             "Retrofit": sampled_from([str(1), int(1), float(1)]),
+             "CrippleWall": sampled_from([str(1), int(1), float(1)]),
+             "FoundationConnection": sampled_from([str(1), int(1), float(1)]),
+             "ShortColumn": sampled_from([str(1), int(1), float(1)]),
+             "Fatigue": sampled_from([str(1), int(1), float(1)]),
+             "Cladding": sampled_from([str(1), int(1), float(1)]),
+             "BIPreparedness": sampled_from([str(1), int(1), float(1)]),
+             "BIRedundancy": sampled_from([str(1), int(1), float(1)]),
+             "FirstFloorHeight": sampled_from([str(1), int(1), float(1)]),
+             "FirstFloorHeightUnit": sampled_from([str(1), int(1), float(1)]),
+             "Datum": sampled_from([str(1), int(1), float(1)]),
+             "GroundElevation": sampled_from([str(1), int(1), float(1)]),
+             "GroundElevationUnit": sampled_from([str(1), int(1), float(1)]),
+             "Tank": sampled_from([str(1), int(1), float(1)]),
+             "Redundancy": sampled_from([str(1), int(1), float(1)]),
+             "InternalPartition": sampled_from([str(1), int(1), float(1)]),
+             "ExternalDoors": sampled_from([str(1), int(1), float(1)]),
+             "Torsion": sampled_from([str(1), int(1), float(1)]),
+             "MechanicalEquipmentSide": sampled_from([str(1), int(1), float(1)]),
+             "ContentsWindVuln": sampled_from([str(1), int(1), float(1)]),
+             "ContentsFloodVuln": sampled_from([str(1), int(1), float(1)]),
+             "ContentsQuakeVuln": sampled_from([str(1), int(1), float(1)]),
+             "SmallDebris": sampled_from([str(1), int(1), float(1)]),
+             "FloorsOccupied": sampled_from([str(1), int(1), float(1)]),
+             "FloodDefenseHeight": sampled_from([str(1), int(1), float(1)]),
+             "FloodDefenseHeightUnit": sampled_from([str(1), int(1), float(1)]),
+             "FloodDebrisResilience": sampled_from([str(1), int(1), float(1)]),
+             "BaseFloodElevation": sampled_from([str(1), int(1), float(1)]),
+             "BaseFloodElevationUnit": sampled_from([str(1), int(1), float(1)]),
+             "BuildingHeight": sampled_from([str(1), int(1), float(1)]),
+             "BuildingHeightUnit": sampled_from([str(1), int(1), float(1)]),
+             "BuildingValuation": sampled_from([str(1), int(1), float(1)]),
+             "TreeExposure": sampled_from([str(1), int(1), float(1)]),
+             "Chimney": sampled_from([str(1), int(1), float(1)]),
+             "BuildingType": sampled_from([str(1), int(1), float(1)]),
+             "Packaging": sampled_from([str(1), int(1), float(1)]),
+             "Protection": sampled_from([str(1), int(1), float(1)]),
+             "SalvageProtection": sampled_from([str(1), int(1), float(1)]),
+             "ValuablesStorage": sampled_from([str(1), int(1), float(1)]),
+             "DaysHeld": sampled_from([str(1), int(1), float(1)]),
+             "BrickVeneer": sampled_from([str(1), int(1), float(1)]),
+             "FEMACompliance": sampled_from([str(1), int(1), float(1)]),
+             "CustomFloodSOP": sampled_from([str(1), int(1), float(1)]),
+             "CustomFloodZone": sampled_from([str(1), int(1), float(1)]),
+             "MultiStoryHall": sampled_from([str(1), int(1), float(1)]),
+             "BuildingExteriorOpening": sampled_from([str(1), int(1), float(1)]),
+             "ServiceEquipmentProtection": sampled_from([str(1), int(1), float(1)]),
+             "TallOneStory": sampled_from([str(1), int(1), float(1)]),
+             "TerrainRoughness": sampled_from([str(1), int(1), float(1)]),
+             "NumberOfEmployees": sampled_from([str(1), int(1), float(1)]),
+             "Payroll": sampled_from([str(1), int(1), float(1)]),
+        })
+    )
+    def test_csv_dtypes_loaded_correctly(self, data):
+        loc_expected_dtypes = {k.lower(): v for k, v in get_loc_dtypes().items()}
+        loc_sample_file = NamedTemporaryFile("w", delete=False)
+
+        valid_str_types = (
+            str
+        )
+        valid_int_types = (
+            int, 
+            np.int8
+            np.int16, 
+            np.int32, 
+            np.int64, 
+        )
+        valid_float_types = (
+            float, 
+            np.single, 
+            np.double, 
+            np.longdouble, 
+            np.float32, 
+            np.float64
+        )
+
+        try:
+            df = pd.DataFrame(data, index=[0])
+            df.to_csv(path_or_buf=loc_sample_file, encoding='utf-8', index=False)
+            loc_sample_file.close()
+
+            df_result = get_location_df(loc_sample_file.name)
+            for col in df_result.columns:
+                dtype_expected = loc_expected_dtypes[col]['py_dtype']
+                dtype_found = type(df_result[col][0])
+                print(f'{col} - Expected: {dtype_expected}, Found: {dtype_found}')
+
+                if dtype_expected == 'str':
+                    self.assertTrue(isinstance(df_result[col][0], valid_str_types))
+                elif dtype_expected == 'int':
+                    self.assertTrue(isinstance(df_result[col][0], valid_int_types))
+                elif dtype_expected == 'float':
+                    self.assertTrue(isinstance(df_result[col][0], valid_float_types))
+
+        finally:
+            os.remove(loc_sample_file.name)
