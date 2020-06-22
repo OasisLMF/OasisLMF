@@ -894,7 +894,7 @@ def get_location_df(
 
 
     # Enforce OED string dtypes: if get_dataframe didn't correctly set  and replace any string 'nan'
-    # with blank strings 
+    # with blank strings
     dtypes = {k.lower(): v for k, v in str_dtypes.items()}
     existing_cols = list(set(dtypes).intersection(exposure_df.columns))
     _dtypes = {
@@ -904,7 +904,7 @@ def get_location_df(
     exposure_df = exposure_df.astype(_dtypes)
     exposure_df.replace('nan', '', inplace=True)
 
-    # Enforce OED int dtypes:  Loading int rows with NaN will fail on load, fill these NaN with '0' and then convert 
+    # Enforce OED int dtypes:  Loading int rows with NaN will fail on load, fill these NaN with '0' and then convert
     existing_cols = list(set(int_dtypes.keys()).intersection(exposure_df.columns))
     exposure_df[existing_cols] = exposure_df[existing_cols].fillna(0)
     exposure_df[existing_cols] = pd.to_numeric(exposure_df[existing_cols].stack(), errors='coerce', downcast='integer').unstack()

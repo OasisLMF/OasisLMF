@@ -1557,22 +1557,22 @@ class TestGetLocationDf(TestCase):
             str
         )
         valid_int_types = (
-            int, 
+            int,
             np.int8,
-            np.int16, 
-            np.int32, 
-            np.int64, 
+            np.int16,
+            np.int32,
+            np.int64,
             np.uint8,
             np.uint16,
             np.uint32,
             np.uint64,
         )
         valid_float_types = (
-            float, 
-            np.single, 
-            np.double, 
-            np.longdouble, 
-            np.float32, 
+            float,
+            np.single,
+            np.double,
+            np.longdouble,
+            np.float32,
             np.float64
         )
 
