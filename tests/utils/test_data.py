@@ -1339,7 +1339,7 @@ class TestGetTimestamp(TestCase):
 
 class TestGetLocationDf(TestCase):
 
-    @settings(max_examples=10)
+    @settings(max_examples=10, deadline=None)
     @given(
         data=fixed_dictionaries({
              "PortNumber": sampled_from([str(1), int(1), float(1)]),
