@@ -540,7 +540,7 @@ class OasisManager(object):
                 )
                 f1, _, f2, _ = olf.save_results(
                     lookup,
-                    location_df=exposure_df,
+                    location_df=exposure_df.copy(deep=True),
                     successes_fp=_keys_fp,
                     errors_fp=_keys_errors_fp
                 )
