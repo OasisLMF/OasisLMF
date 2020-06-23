@@ -1,13 +1,23 @@
 OasisLMF Changelog
 ==================
 
-`1.8.1`_
+`1.8.2`_
 --------
 .. start_latest_release
+* [#594](https://github.com/OasisLMF/OasisLMF/issues/594) - Pass copy of location df to custom lookup to avoid side effects
+* [#593](https://github.com/OasisLMF/OasisLMF/issues/593) - Fail fast on analysis settings formatting problem
+* [#591](https://github.com/OasisLMF/OasisLMF/issues/591) - Update pinned pandas package
+* [#588](https://github.com/OasisLMF/OasisLMF/issues/588) - AreaCode is defined as "string" in OED, but loaded as a number in the DF
+* [#596](https://github.com/OasisLMF/OasisLMF/issues/596) - Incorrect number of locations in Overview
+* [3dce18f](https://github.com/OasisLMF/OasisLMF/pull/595/commits/3dce18f5872c2855f29548845212bdde8813f472) - Relax required fields in analysis_settings validation
+* [bd052a6](https://github.com/OasisLMF/OasisLMF/pull/595/commits/bd052a641b53db5284fb9609b43d6080df77711c) - Fix issue in gen bash, only enable an output type if summary section exists
+.. end_latest_release
+
+`1.8.1`_
+--------
 * [#589](https://github.com/OasisLMF/OasisLMF/issues/589) - Schema fix to allow for 0 samples 
 * [#583](https://github.com/OasisLMF/OasisLMF/pull/583) - Reduce memory use in gul_inputs creation (DanielFEvans)
 * [#582](https://github.com/OasisLMF/OasisLMF/issues/582) -  Check for calc_type in all sections 
-.. end_latest_release
 
 `1.8.0`_
 --------
@@ -400,6 +410,7 @@ OasisLMF Changelog
 
 * Add console logging
 
+.. _`1.8.2`:  https://github.com/OasisLMF/OasisLMF/compare/1.8.1...1.8.2
 .. _`1.8.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.8.0...1.8.1
 .. _`1.8.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.7.1...1.8.0
 .. _`1.7.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.7.0...1.7.1
