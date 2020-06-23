@@ -895,7 +895,10 @@ def get_location_df(
 
     # Enforce OED string dtypes: if get_dataframe didn't correctly set  and replace any string 'nan'
     # with blank strings
-    dtypes = {k.lower(): v for k, v in str_dtypes.items()}
+    dtypes = {
+        **{k.lower(): v for k, v in str_dtypes.items()},
+        **{f: 'str' for f in exposure_df.columns if f.startswith('flexiloc')}
+    }    
     existing_cols = list(set(dtypes).intersection(exposure_df.columns))
     _dtypes = {
         col: dtype
@@ -909,9 +912,10 @@ def get_location_df(
     exposure_df[existing_cols] = exposure_df[existing_cols].fillna(0)
     exposure_df[existing_cols] = pd.to_numeric(exposure_df[existing_cols].stack(), errors='coerce', downcast='integer').unstack()
 
-
     # Set interal location id index
-    exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
+    if 'loc_id' not in exposure_df.columns:
+        exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
+
     return exposure_df
 
 

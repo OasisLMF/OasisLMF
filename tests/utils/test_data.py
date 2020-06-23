@@ -1420,6 +1420,7 @@ class TestOedDataTypes(TestCase):
              "LocUserDef4": sampled_from([pd.np.nan, str(1), int(1), float(1)]),
              "LocUserDef5": sampled_from([pd.np.nan, str(1), int(1), float(1)]),
              "FlexiLocZZZ": sampled_from([pd.np.nan, str(1), int(1), float(1)]),
+             "FlexiLocTEST": sampled_from([pd.np.nan, str(1), int(1), float(1)]),
              "LocPerilsCovered": sampled_from([pd.np.nan, str(1), int(1), float(1)]),
              "BuildingTIV": sampled_from([pd.np.nan, str(1), int(1), float(1)]),
              "OtherTIV": sampled_from([pd.np.nan, str(1), int(1), float(1)]),
@@ -1591,13 +1592,19 @@ class TestOedDataTypes(TestCase):
                     dtype_expected = loc_expected_dtypes[col]['py_dtype']
                     dtype_found = type(df_result[col][0])
                     print(f'{col} - Expected: {dtype_expected}, Found: {dtype_found}')
-
                     if dtype_expected == 'str':
                         self.assertTrue(isinstance(df_result[col][0], self.valid_str_types))
                     elif dtype_expected == 'int':
                         self.assertTrue(isinstance(df_result[col][0], self.valid_int_types))
                     elif dtype_expected == 'float':
                         self.assertTrue(isinstance(df_result[col][0], self.valid_float_types))
+
+                elif col.lower().startswith('flexiloc'):
+                    dtype_expected = loc_expected_dtypes['flexiloczzz']['py_dtype']
+                    dtype_found = type(df_result[col][0])
+                    print(f'{col} - Expected: {dtype_expected}, Found: {dtype_found}')
+                    self.assertTrue(isinstance(df_result[col][0], self.valid_str_types))
+
 
         finally:
             os.remove(loc_sample_file.name)
