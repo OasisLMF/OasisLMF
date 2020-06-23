@@ -10,7 +10,7 @@ rm -R -f log/*
 
 # --- Setup run dirs ---
 
-find output/* ! -name '*summary-info*' -type f -exec rm -f {} +
+find output/* ! -name '*summary-info*' -exec rm -R -f {} +
 
 rm -R -f fifo/*
 rm -R -f work/*
@@ -18,9 +18,6 @@ mkdir work/kat/
 
 mkdir work/il_S1_summaryaalcalc
 mkdir work/il_S2_summaryaalcalc
-
-mkfifo fifo/gul_P1
-mkfifo fifo/gul_P2
 
 mkfifo fifo/il_P1
 mkfifo fifo/il_P2
@@ -80,10 +77,8 @@ tee < fifo/il_S2_summary_P2 fifo/il_S2_summaryeltcalc_P2 fifo/il_S2_summarypltca
 summarycalc -f  -1 fifo/il_S1_summary_P1 -2 fifo/il_S2_summary_P1 < fifo/il_P1 &
 summarycalc -f  -1 fifo/il_S1_summary_P2 -2 fifo/il_S2_summary_P2 < fifo/il_P2 &
 
-# --- Do ground up loss computes ---
-
-eve 1 2 | getmodel | gulcalc -S0 -L0 -r -c fifo/gul_P1 -i - | fmcalc -a2 > fifo/il_P1  &
-eve 2 2 | getmodel | gulcalc -S0 -L0 -r -c fifo/gul_P2 -i - | fmcalc -a2 > fifo/il_P2  &
+eve 1 2 | getmodel | gulcalc -S0 -L0 -r -i - | fmcalc -a2 > fifo/il_P1  &
+eve 2 2 | getmodel | gulcalc -S0 -L0 -r -i - | fmcalc -a2 > fifo/il_P2  &
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16
 
@@ -96,9 +91,6 @@ kat work/kat/il_S1_summarycalc_P1 work/kat/il_S1_summarycalc_P2 > output/il_S1_s
 kat work/kat/il_S2_eltcalc_P1 work/kat/il_S2_eltcalc_P2 > output/il_S2_eltcalc.csv & kpid4=$!
 kat work/kat/il_S2_pltcalc_P1 work/kat/il_S2_pltcalc_P2 > output/il_S2_pltcalc.csv & kpid5=$!
 kat work/kat/il_S2_summarycalc_P1 work/kat/il_S2_summarycalc_P2 > output/il_S2_summarycalc.csv & kpid6=$!
-
-# --- Do ground up loss kats ---
-
 wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6
 
 

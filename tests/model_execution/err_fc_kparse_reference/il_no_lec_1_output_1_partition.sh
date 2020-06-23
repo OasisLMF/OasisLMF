@@ -35,7 +35,7 @@ ktools_monitor.sh $$ & pid0=$!
 
 # --- Setup run dirs ---
 
-find output/* ! -name '*summary-info*' -type f -exec rm -f {} +
+find output/* ! -name '*summary-info*' -exec rm -R -f {} +
 mkdir output/full_correlation/
 
 rm -R -f fifo/*
@@ -47,8 +47,6 @@ mkdir work/full_correlation/kat/
 
 mkdir work/il_S1_summaryaalcalc
 mkdir work/full_correlation/il_S1_summaryaalcalc
-
-mkfifo fifo/gul_P1
 
 mkfifo fifo/il_P1
 
@@ -80,9 +78,7 @@ tee < fifo/il_S1_summary_P1 fifo/il_S1_summaryeltcalc_P1 fifo/il_S1_summarypltca
 
 ( summarycalc -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 ) 2>> log/stderror.err  &
 
-# --- Do ground up loss computes ---
-
-( eve 1 1 | getmodel | gulcalc -S0 -L0 -r -j fifo/full_correlation/gul_P1 -a1 -i - | tee fifo/gul_P1 | fmcalc -a2 > fifo/il_P1  ) 2>> log/stderror.err &
+( eve 1 1 | getmodel | gulcalc -S0 -L0 -r -j fifo/full_correlation/gul_P1 -a1 -i - | fmcalc -a2 > fifo/il_P1  ) 2>> log/stderror.err &
 
 wait $pid1 $pid2 $pid3 $pid4
 
@@ -103,8 +99,6 @@ tee < fifo/full_correlation/il_S1_summary_P1 fifo/full_correlation/il_S1_summary
 
 ( summarycalc -f  -1 fifo/full_correlation/il_S1_summary_P1 < fifo/full_correlation/il_P1 ) 2>> log/stderror.err  &
 
-# --- Do ground up loss computes ---
-
 wait $pid1 $pid2 $pid3 $pid4
 
 
@@ -119,12 +113,6 @@ kat work/kat/il_S1_summarycalc_P1 > output/il_S1_summarycalc.csv & kpid3=$!
 kat work/full_correlation/kat/il_S1_eltcalc_P1 > output/full_correlation/il_S1_eltcalc.csv & kpid4=$!
 kat work/full_correlation/kat/il_S1_pltcalc_P1 > output/full_correlation/il_S1_pltcalc.csv & kpid5=$!
 kat work/full_correlation/kat/il_S1_summarycalc_P1 > output/full_correlation/il_S1_summarycalc.csv & kpid6=$!
-
-# --- Do ground up loss kats ---
-
-
-# --- Do ground up loss kats for fully correlated output ---
-
 wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6
 
 
