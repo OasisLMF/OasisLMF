@@ -230,12 +230,9 @@
         }
     },
     "required": [
-        "source_tag",
-        "analysis_tag",
         "module_supplier_id",
         "model_version_id",
         "number_of_samples",
-        "gul_threshold",
         "model_settings",
         "gul_output",
         "gul_summaries"

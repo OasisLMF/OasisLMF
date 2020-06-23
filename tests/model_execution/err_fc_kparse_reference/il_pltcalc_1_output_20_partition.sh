@@ -35,7 +35,7 @@ ktools_monitor.sh $$ & pid0=$!
 
 # --- Setup run dirs ---
 
-find output/* ! -name '*summary-info*' -type f -exec rm -f {} +
+find output/* ! -name '*summary-info*' -exec rm -R -f {} +
 mkdir output/full_correlation/
 
 rm -R -f fifo/*

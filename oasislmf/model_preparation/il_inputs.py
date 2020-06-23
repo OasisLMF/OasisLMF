@@ -37,12 +37,14 @@ from ..utils.data import (
     merge_check,
     merge_dataframes,
     set_dataframe_column_dtypes,
+    get_dtypes_and_required_cols,
 )
 from ..utils.defaults import (
     assign_defaults_to_il_inputs,
     get_default_accounts_profile,
     get_default_exposure_profile,
     get_default_fm_aggregation_profile,
+    get_acc_dtypes,
     OASIS_FILES_PREFIXES,
     SOURCE_IDX,
 )
@@ -386,12 +388,14 @@ def get_il_input_items(
         **{cond_num: 0},
         **{portfolio_num: '1'}
     }
+    oed_acc_dtypes, _ = get_dtypes_and_required_cols(get_acc_dtypes)
     dtypes = {
         **{t: 'str' for t in [acc_num, portfolio_num, policy_num]},
         **{t: 'float64' for t in term_cols_floats},
         **{t: 'uint8' for t in term_cols_ints},
         **{t: 'uint16' for t in [cond_num]},
-        **{t: 'uint32' for t in ['layer_id']}
+        **{t: 'uint32' for t in ['layer_id']},
+        **oed_acc_dtypes
     }
 
     # Get the accounts frame either directly or from a file path if provided

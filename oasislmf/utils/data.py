@@ -59,6 +59,7 @@ from ..utils.profiles import (
 )
 from ..utils.defaults import (
     get_default_exposure_profile,
+    get_loc_dtypes,
 )
 
 pd.options.mode.chained_assignment = None
@@ -863,12 +864,19 @@ def get_location_df(
         **{cond_num: 0},
         **{portfolio_num: '1'}
     }
+
+    str_dtypes, _ = get_dtypes_and_required_cols(get_loc_dtypes)
+    int_dtypes = {k.lower(): v for k, v in get_loc_dtypes().items() if v['py_dtype'] == 'int'}
+    float_dtypes = {k.lower(): v for k, v in get_loc_dtypes().items() if v['py_dtype'] == 'float'}
+
+
     dtypes = {
-        **{t: 'float64' for t in tiv_cols + term_cols_floats},
+        **{t: 'float64' for t in tiv_cols + term_cols_floats + list(float_dtypes.keys())},
         **{t: 'uint8' for t in term_cols_ints},
         **{t: 'uint16' for t in [cond_num]},
         **{t: 'str' for t in [loc_num, portfolio_num, acc_num]},
-        **{t: 'uint32' for t in ['loc_id']}
+        **{t: 'uint32' for t in ['loc_id']},
+        **str_dtypes
     }
     # Load the exposure and keys dataframes - set 64-bit float data types
     # for all real number columns - and in the keys frame rename some columns
@@ -883,6 +891,24 @@ def get_location_df(
         empty_data_error_msg='No data found in the source exposure (loc.) file',
         memory_map=True
     )
+
+
+    # Enforce OED string dtypes: if get_dataframe didn't correctly set  and replace any string 'nan'
+    # with blank strings
+    dtypes = {k.lower(): v for k, v in str_dtypes.items()}
+    existing_cols = list(set(dtypes).intersection(exposure_df.columns))
+    _dtypes = {
+        col: dtype
+        for col, dtype in [(_col, dtypes[_col]) for _col in existing_cols]
+    }
+    exposure_df = exposure_df.astype(_dtypes)
+    exposure_df.replace('nan', '', inplace=True)
+
+    # Enforce OED int dtypes:  Loading int rows with NaN will fail on load, fill these NaN with '0' and then convert
+    existing_cols = list(set(int_dtypes.keys()).intersection(exposure_df.columns))
+    exposure_df[existing_cols] = exposure_df[existing_cols].fillna(0)
+    exposure_df[existing_cols] = pd.to_numeric(exposure_df[existing_cols].stack(), errors='coerce', downcast='integer').unstack()
+
 
     # Set interal location id index
     exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])

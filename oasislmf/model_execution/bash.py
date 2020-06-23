@@ -789,14 +789,10 @@ def genbash(
         if _get_getmodel_cmd is None and gul_item_stream:
             full_correlation = analysis_settings['full_correlation']
 
-    if 'gul_output' in analysis_settings:
-        gul_output = analysis_settings['gul_output']
-
-    if 'il_output' in analysis_settings:
-        il_output = analysis_settings['il_output']
-
-    if 'ri_output' in analysis_settings:
-        ri_output = analysis_settings['ri_output']
+    # Output depends on being enabled AND having at lease one summaries section
+    gul_output = analysis_settings.get('gul_output', False) and (len(analysis_settings.get('gul_summaries', [])) > 0)
+    il_output = analysis_settings.get('il_output', False) and (len(analysis_settings.get('il_summaries', [])) > 0)
+    ri_output = analysis_settings.get('ri_output', False) and (len(analysis_settings.get('ri_summaries', [])) > 0)
 
     print_command(filename, '#!/bin/bash')
     print_command(filename, 'SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")')
@@ -851,7 +847,7 @@ def genbash(
 
     print_command(filename, '# --- Setup run dirs ---')
     print_command(filename, '')
-    print_command(filename, "find output/* ! -name '*summary-info*' -type f -exec rm -f {} +")
+    print_command(filename, "find output/* ! -name '*summary-info*' -exec rm -R -f {} +")
     if full_correlation:
         print_command(filename, 'mkdir {}'.format(output_full_correlation_dir))
     print_command(filename, '')

@@ -703,11 +703,11 @@ def get_exposure_totals(df, df_errors):
     """
     within_scope     = df.drop_duplicates(subset=['loc_id', 'coverage_type_id'])['tiv']
     within_scope_tiv = within_scope.sum()
-    within_scope_num = int(within_scope.count())
+    within_scope_num = len(df['loc_id'].unique())
 
     outside_scope     = df_errors.drop_duplicates(subset=['loc_id', 'coverage_type_id'])['tiv']
     outside_scope_tiv = outside_scope.sum()
-    outside_scope_num = int(outside_scope.count())
+    outside_scope_num = len(df_errors['loc_id'].unique())
 
     return {
         "modelled": {

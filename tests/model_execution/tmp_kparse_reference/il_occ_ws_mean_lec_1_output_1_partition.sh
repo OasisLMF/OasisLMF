@@ -10,7 +10,7 @@ rm -R -f log/*
 
 # --- Setup run dirs ---
 
-find output/* ! -name '*summary-info*' -type f -exec rm -f {} +
+find output/* ! -name '*summary-info*' -exec rm -R -f {} +
 
 rm -R -f work/*
 mkdir work/kat/

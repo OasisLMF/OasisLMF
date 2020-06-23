@@ -23,7 +23,11 @@ from ..utils.path import (
     as_path,
     empty_dir,
 )
-from ..utils.data import get_utctimestamp
+from ..utils.data import (
+    get_utctimestamp,
+    get_analysis_settings,
+    get_model_settings,
+)    
 from ..utils.defaults import (
     get_default_exposure_profile,
     get_default_accounts_profile,
@@ -497,10 +501,16 @@ class RunCmd(OasisBaseCommand):
         ri_info_fp = inputs.get('oed_info_csv', required=False, is_path=True)
         ri_scope_fp = inputs.get('oed_scope_csv', required=False, is_path=True)
 
-        il = True if accounts_fp else False
-
+        # Validate JSON files (Fail at entry point not after input generation)
+        analysis_settings_fp = inputs.get('analysis_settings_json', required=False, is_path=True)
+        if analysis_settings_fp:
+            get_analysis_settings(analysis_settings_fp)
+        model_settings_fp = inputs.get('model_settings_json', required=False, is_path=True)
+        if model_settings_fp:
+            get_model_settings(model_settings_fp)
+        
         required_ri_paths = [ri_info_fp, ri_scope_fp]
-
+        il = True if accounts_fp else False
         ri = all(required_ri_paths) and il
 
         if any(required_ri_paths) and not ri:

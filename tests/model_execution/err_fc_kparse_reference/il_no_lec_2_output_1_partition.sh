@@ -35,7 +35,7 @@ ktools_monitor.sh $$ & pid0=$!
 
 # --- Setup run dirs ---
 
-find output/* ! -name '*summary-info*' -type f -exec rm -f {} +
+find output/* ! -name '*summary-info*' -exec rm -R -f {} +
 mkdir output/full_correlation/
 
 rm -R -f fifo/*
@@ -49,8 +49,6 @@ mkdir work/il_S1_summaryaalcalc
 mkdir work/il_S2_summaryaalcalc
 mkdir work/full_correlation/il_S1_summaryaalcalc
 mkdir work/full_correlation/il_S2_summaryaalcalc
-
-mkfifo fifo/gul_P1
 
 mkfifo fifo/il_P1
 
@@ -100,9 +98,7 @@ tee < fifo/il_S2_summary_P1 fifo/il_S2_summaryeltcalc_P1 fifo/il_S2_summarypltca
 
 ( summarycalc -f  -1 fifo/il_S1_summary_P1 -2 fifo/il_S2_summary_P1 < fifo/il_P1 ) 2>> log/stderror.err  &
 
-# --- Do ground up loss computes ---
-
-( eve 1 1 | getmodel | gulcalc -S0 -L0 -r -j fifo/full_correlation/gul_P1 -a1 -i - | tee fifo/gul_P1 | fmcalc -a2 > fifo/il_P1  ) 2>> log/stderror.err &
+( eve 1 1 | getmodel | gulcalc -S0 -L0 -r -j fifo/full_correlation/gul_P1 -a1 -i - | fmcalc -a2 > fifo/il_P1  ) 2>> log/stderror.err &
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8
 
@@ -127,8 +123,6 @@ tee < fifo/full_correlation/il_S2_summary_P1 fifo/full_correlation/il_S2_summary
 
 ( summarycalc -f  -1 fifo/full_correlation/il_S1_summary_P1 -2 fifo/full_correlation/il_S2_summary_P1 < fifo/full_correlation/il_P1 ) 2>> log/stderror.err  &
 
-# --- Do ground up loss computes ---
-
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8
 
 
@@ -149,12 +143,6 @@ kat work/full_correlation/kat/il_S1_summarycalc_P1 > output/full_correlation/il_
 kat work/full_correlation/kat/il_S2_eltcalc_P1 > output/full_correlation/il_S2_eltcalc.csv & kpid10=$!
 kat work/full_correlation/kat/il_S2_pltcalc_P1 > output/full_correlation/il_S2_pltcalc.csv & kpid11=$!
 kat work/full_correlation/kat/il_S2_summarycalc_P1 > output/full_correlation/il_S2_summarycalc.csv & kpid12=$!
-
-# --- Do ground up loss kats ---
-
-
-# --- Do ground up loss kats for fully correlated output ---
-
 wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6 $kpid7 $kpid8 $kpid9 $kpid10 $kpid11 $kpid12
 
 
