@@ -139,16 +139,14 @@ def get_gul_input_items(
     # and `all` rows with duplicated `loc_id` keys are removed from the File generation logic
     if not exposure_df.set_index('loc_id').index.is_unique:
         index_dups = exposure_df[exposure_df.duplicated(subset=['loc_id'], keep=False)].index
-        exposure_df.drop(index=index_dups, inplace=True)
         logger = logging.getLogger()
         logger.warn('\n'.join([
             'WARNING: Duplicate keys {} detected in location file'.format([portfolio_num, acc_num, loc_num]),
             "\t oasislmf doesn't currently support multiple terms for a single location"
-            '\n\t dropping the following row(s): {}'.format(index_dups.to_list())
+            '\n\t dropping the following location row(s): {}'.format(index_dups.to_list())
         ]))
-        logger.debug('Dropped location rows: \n{}'.format(
-            exposure_df.iloc[index_dups]
-        ))
+        logger.debug('Dropped location rows: \n{}'.format(exposure_df.iloc[index_dups]))
+        exposure_df.drop(index=index_dups, inplace=True)
 
     # Set data types for the keys dataframe
     dtypes = {

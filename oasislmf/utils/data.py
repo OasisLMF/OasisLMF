@@ -909,9 +909,10 @@ def get_location_df(
     exposure_df[existing_cols] = exposure_df[existing_cols].fillna(0)
     exposure_df[existing_cols] = pd.to_numeric(exposure_df[existing_cols].stack(), errors='coerce', downcast='integer').unstack()
 
-
     # Set interal location id index
-    exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
+    if 'loc_id' not in exposure_df.columns:
+        exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
+
     return exposure_df
 
 

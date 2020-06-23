@@ -4,6 +4,7 @@ OasisLMF Changelog
 `1.8.2`_
 --------
 .. start_latest_release
+* [#599](https://github.com/OasisLMF/OasisLMF/issues/599) - Allow setting 'loc_id' externally
 * [#594](https://github.com/OasisLMF/OasisLMF/issues/594) - Pass copy of location df to custom lookup to avoid side effects
 * [#593](https://github.com/OasisLMF/OasisLMF/issues/593) - Fail fast on analysis settings formatting problem
 * [#591](https://github.com/OasisLMF/OasisLMF/issues/591) - Update pinned pandas package
