@@ -895,7 +895,10 @@ def get_location_df(
 
     # Enforce OED string dtypes: if get_dataframe didn't correctly set  and replace any string 'nan'
     # with blank strings
-    dtypes = {k.lower(): v for k, v in str_dtypes.items()}
+    dtypes = {
+        **{k.lower(): v for k, v in str_dtypes.items()},
+        **{f: 'str' for f in exposure_df.columns if f.startswith('flexiloc')}
+    }    
     existing_cols = list(set(dtypes).intersection(exposure_df.columns))
     _dtypes = {
         col: dtype
