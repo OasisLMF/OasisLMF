@@ -1,13 +1,27 @@
 OasisLMF Changelog
 ==================
 
-`1.8.1`_
+`1.8.2`_
 --------
 .. start_latest_release
-* [#589](https://github.com/OasisLMF/OasisLMF/issues/589) - Schema fix to allow for 0 samples 
+
+* [#594](https://github.com/OasisLMF/OasisLMF/issues/594) - Pass copy of location df to custom lookup to avoid side effects
+* [#593](https://github.com/OasisLMF/OasisLMF/issues/593) - Fail fast on analysis settings formatting problem
+* [#591](https://github.com/OasisLMF/OasisLMF/issues/591) - Update pinned pandas package
+* [#588](https://github.com/OasisLMF/OasisLMF/issues/588) - AreaCode is defined as "string" in OED, but loaded as a number in the DF
+* [#596](https://github.com/OasisLMF/OasisLMF/issues/596) - Incorrect number of locations in Overview
+* 3dce18f - Relax required fields in analysis_settings validation
+* bd052a6 - Fix issue in gen bash, only enable an output type if summary section exists
+
+.. end_latest_release
+
+
+`1.8.1`_
+--------
+* [#589](https://github.com/OasisLMF/OasisLMF/issues/589) - Schema fix to allow for 0 samples
 * [#583](https://github.com/OasisLMF/OasisLMF/pull/583) - Reduce memory use in gul_inputs creation (DanielFEvans)
 * [#582](https://github.com/OasisLMF/OasisLMF/issues/582) -  Check for calc_type in all sections 
-.. end_latest_release
+
 
 `1.8.0`_
 --------
