@@ -789,14 +789,10 @@ def genbash(
         if _get_getmodel_cmd is None and gul_item_stream:
             full_correlation = analysis_settings['full_correlation']
 
-    if 'gul_output' in analysis_settings:
-        gul_output = analysis_settings['gul_output']
-
-    if 'il_output' in analysis_settings:
-        il_output = analysis_settings['il_output']
-
-    if 'ri_output' in analysis_settings:
-        ri_output = analysis_settings['ri_output']
+    # Output depends on being enabled AND having at lease one summaries section
+    gul_output = analysis_settings.get('gul_output', False) and (len(analysis_settings.get('gul_summaries', [])) > 0)
+    il_output = analysis_settings.get('il_output', False) and (len(analysis_settings.get('il_summaries', [])) > 0)
+    ri_output = analysis_settings.get('ri_output', False) and (len(analysis_settings.get('ri_summaries', [])) > 0)
 
     print_command(filename, '#!/bin/bash')
     print_command(filename, 'SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")')
