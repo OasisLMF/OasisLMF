@@ -11,7 +11,7 @@ class ModelFile:
 
     def seed_rng(self):
         if self.random_seed == 0:
-            np.random.seed(0)
+            np.random.seed()
         elif self.random_seed == -1:
             np.random.seed(1234)
         else:
