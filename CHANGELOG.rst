@@ -1,9 +1,14 @@
 OasisLMF Changelog
 ==================
 
-`1.8.2`_
+`1.8.3`_
 --------
 .. start_latest_release
+* [#601](https://github.com/OasisLMF/OasisLMF/issues/601) - Fix calculations for type 2 deductibles and limits in multi-peril models
+.. end_latest_release
+
+`1.8.2`_
+--------
 * [#599](https://github.com/OasisLMF/OasisLMF/issues/599) - Allow setting 'loc_id' externally
 * [#594](https://github.com/OasisLMF/OasisLMF/issues/594) - Pass copy of location df to custom lookup to avoid side effects
 * [#593](https://github.com/OasisLMF/OasisLMF/issues/593) - Fail fast on analysis settings formatting problem
@@ -12,7 +17,6 @@ OasisLMF Changelog
 * [#596](https://github.com/OasisLMF/OasisLMF/issues/596) - Incorrect number of locations in Overview
 * [3dce18f](https://github.com/OasisLMF/OasisLMF/pull/595/commits/3dce18f5872c2855f29548845212bdde8813f472) - Relax required fields in analysis_settings validation
 * [bd052a6](https://github.com/OasisLMF/OasisLMF/pull/595/commits/bd052a641b53db5284fb9609b43d6080df77711c) - Fix issue in gen bash, only enable an output type if summary section exists
-.. end_latest_release
 
 `1.8.1`_
 --------
