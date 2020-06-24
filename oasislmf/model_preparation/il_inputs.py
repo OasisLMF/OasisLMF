@@ -756,17 +756,17 @@ def get_il_input_items(
     dtypes = {t: 'uint8' for t in ['ded_code', 'ded_type', 'lim_code', 'lim_type']}
     il_inputs_df = set_dataframe_column_dtypes(il_inputs_df, dtypes)
 
-    # Group and sum TIVS for items by loc. ID and agg. ID, within each
+    # Group and sum TIVS for items by peril ID, loc. ID and agg. ID, within each
     # level, and store in a new ``agg_tiv`` column - this step is
     # preparation for the next step which is to convert % TIV deductibles
     # to TIV fractional amounts
     agg_tivs = pd.DataFrame(
-        il_inputs_df.loc[:, ['level_id', 'agg_id', 'tiv']].groupby(['level_id', 'agg_id'])['tiv'].sum()
+        il_inputs_df.loc[:, ['peril_id', 'level_id', 'agg_id', 'tiv']].groupby(['peril_id', 'level_id', 'agg_id'])['tiv'].sum()
     ).reset_index()
     agg_tivs.rename(columns={'tiv': 'agg_tiv'}, inplace=True)
-    il_inputs_df['agg_tiv'] = il_inputs_df.loc[:, ['level_id', 'agg_id']].merge(
+    il_inputs_df['agg_tiv'] = il_inputs_df.loc[:, ['peril_id', 'level_id', 'agg_id']].merge(
         agg_tivs,
-        on=['level_id', 'agg_id'],
+        on=['peril_id', 'level_id', 'agg_id'],
         how='inner'
     )['agg_tiv']
 
