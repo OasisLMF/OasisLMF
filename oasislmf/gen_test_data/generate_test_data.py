@@ -13,9 +13,13 @@ class ModelFile:
         if self.random_seed == 0:
             np.random.seed()
         elif self.random_seed == -1:
-            np.random.seed(1234)
+            # Add salt to random seed using name of child class
+            salt = int.from_bytes(type(self).__name__.encode(), 'little')
+            np.random.seed((1234 + salt) % 0xFFFFFFFF)
         else:
-            np.random.seed(self.random_seed)
+            # Add salt to random seed using name of child class
+            salt = int.from_bytes(type(self).__name__.encode(), 'little')
+            np.random.seed((self.random_seed + salt) % 0xFFFFFFFF)
 
     def write_file(self):
         with open(self.file_name, 'wb') as f:
