@@ -29,17 +29,15 @@ class ModelFile:
             ))
 
     # Method for debugging file output
+    # Prints csv output to screen
     def debug_write_file(self):
         if self.start_stats:
             for stat in self.start_stats:
                 print('{} = {}'.format(stat['desc'], stat['value']))
-        for line in self.data:
-            for idx, col in enumerate(self.dtypes):
-                try:
-                    print(line[idx], end=',')
-                except TypeError:   # If line is not tuple
-                    print(line, end='')
-            print()
+        line_format = '{}' + ',{}'*(len(self.dtypes)-1)
+        print(line_format.format(*self.dtypes.keys()))
+        for line in self.generate_data():
+            print(line_format.format(*line))
 
 
 class VulnerabilityFile(ModelFile):
