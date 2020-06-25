@@ -209,9 +209,11 @@ class FootprintIdxFile(FootprintFiles):
     def generate_data(self):
         # Size is the same for all events
         size = 0
-        for field, dtype in FootprintFiles.bin_dtypes.items():
+        for dtype in FootprintFiles.bin_dtypes.values():
             size += struct.calcsize(dtype)
-        size *= self.areaperils_per_event * self.num_intensity_bins
+        size *= self.areaperils_per_event
+        if not self.no_intensity_uncertainty:
+            size *= self.num_intensity_bins
         # Set initial offset
         offset = 0
         for stat in self.get_bin_start_stats():
