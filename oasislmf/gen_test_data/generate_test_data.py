@@ -20,8 +20,8 @@ class ModelFile:
     def write_file(self):
         with open(self.file_name, 'wb') as f:
             if self.start_stats:
-                for k, v in self.start_stats.items():
-                    f.write(struct.pack(v['dtype'], v['value']))
+                for stat in self.start_stats:
+                    f.write(struct.pack(stat['dtype'], stat['value']))
             for col in self.data:
                 for idx, dtype in enumerate(self.dtypes.values()):
                     try:
@@ -32,8 +32,8 @@ class ModelFile:
     # Method for debugging file output
     def debug_write_file(self):
         if self.start_stats:
-            for k, v in self.start_stats.items():
-                print(v['value'])
+            for stat in self.start_stats:
+                print('{} = {}'.format(stat['desc'], stat['value']))
         for line in self.data:
             for idx, col in enumerate(self.dtypes):
                 try:
@@ -56,9 +56,12 @@ class VulnerabilityFile(ModelFile):
             ('vulnerability_id', 'i'), ('intensity_bin_index', 'i'),
             ('damage_bin_index', 'i'), ('prob', 'f')
         ])
-        self.start_stats = OrderedDict([
-            (1, {'value': num_damage_bins, 'dtype': 'i'})
-        ])
+        self.start_stats = [
+            {
+                'desc': 'Number of damage bins', 'value': num_damage_bins,
+                'dtype': 'i'
+            }
+        ]
         self.random_seed = random_seed
 
     def generate_data(self):
@@ -115,10 +118,16 @@ class FootprintFiles(ModelFile):
         self.no_intensity_uncertainty = no_intensity_uncertainty
 
     def get_bin_start_stats(self):
-        return OrderedDict([
-            (1, {'value': self.num_intensity_bins, 'dtype': 'i'}),
-            (2, {'value': not self.no_intensity_uncertainty, 'dtype': 'i'})
-        ])
+        return [
+            {
+                'desc': 'Number of intensity bins',
+                'value': self.num_intensity_bins, 'dtype': 'i'
+            },
+            {
+                'desc': 'Has Intensity Uncertainty',
+                'value': not self.no_intensity_uncertainty, 'dtype': 'i'
+            }
+        ]
 
 
 class FootprintBinFile(FootprintFiles):
@@ -199,8 +208,8 @@ class FootprintIdxFile(FootprintFiles):
         size *= self.areaperils_per_event * self.num_intensity_bins
         # Set initial offset
         offset = 0
-        for k, v in self.get_bin_start_stats().items():
-            offset += struct.calcsize(v['dtype'])
+        for stat in self.get_bin_start_stats():
+            offset += struct.calcsize(stat['dtype'])
 
         for event in range(self.num_events):
             yield event+1, offset, size
@@ -259,10 +268,16 @@ class OccurrenceFile(ModelFile):
             ('event_id', 'i'), ('period_no', 'i'), ('occ_date_id', 'i')
         ])
         self.date_algorithm = 1
-        self.start_stats = OrderedDict([
-            (1, {'value': self.date_algorithm, 'dtype': 'i'}),
-            (2, {'value': self.num_periods, 'dtype': 'i'})
-        ])
+        self.start_stats = [
+            {
+                'desc': 'Date algorithm', 'value': self.date_algorithm,
+                'dtype': 'i'
+            },
+            {
+                'desc': 'Number of periods', 'value': self.num_periods,
+                'dtype': 'i'
+            }
+        ]
         self.random_seed = random_seed
 
     def set_occ_date_id(self, year, month, day):
@@ -463,10 +478,6 @@ class FMProfileFile(ModelFile):
             profile_rows.append(
                 (policytc_id, 2, 0.0, 0.0, 0.0, attachment1, limit1, 0.3, 0.0, 0.0)
             )
-#        profile_rows = [
-#            (1, 100, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
-#            (2, 2, 0.0, 0.0, 0.0, 500000.0, 5000000.0, 0.3, 0.0, 0.0)
-#       ]
         for row in profile_rows:
             yield row
 
