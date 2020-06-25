@@ -25,7 +25,7 @@ class ModelFile:
             dtypes_list = ''.join(self.dtypes.values())
             f.write(struct.pack(
                 '=' + dtypes_list * self.data_length,
-                *(x for y in self.data for x in y)
+                *(x for y in self.generate_data() for x in y)
             ))
 
     # Method for debugging file output
@@ -45,7 +45,7 @@ class ModelFile:
 class VulnerabilityFile(ModelFile):
     def __init__(
         self, num_vulnerabilities, num_intensity_bins, num_damage_bins,
-        vulnerability_sparseness, random_seed
+        vulnerability_sparseness, random_seed, directory
     ):
         self.num_vulnerabilities = num_vulnerabilities
         self.num_intensity_bins = num_intensity_bins
@@ -63,6 +63,7 @@ class VulnerabilityFile(ModelFile):
         ]
         self.random_seed = random_seed
         self.data_length = num_vulnerabilities * num_intensity_bins * num_damage_bins
+        self.file_name = os.path.join(directory, 'vulnerability.bin')
 
     def generate_data(self):
         super().seed_rng()
@@ -83,23 +84,17 @@ class VulnerabilityFile(ModelFile):
                 for damage_bin, probability in enumerate(probabilities):
                     yield vulnerability+1, intensity_bin+1, damage_bin+1, probability
 
-    def write_file(self, model_data_dir):
-        self.file_name = os.path.join(model_data_dir, 'vulnerability.bin')
-        self.data = self.generate_data()
-        super().write_file()
-
 
 class EventsFile(ModelFile):
-    def __init__(self, num_events):
+    def __init__(self, num_events, directory):
         self.num_events = num_events
         self.dtypes = {'event_id': 'i'}
         self.start_stats = None
         self.data_length = num_events
+        self.file_name = os.path.join(directory, 'events.bin')
 
-    def write_file(self, model_data_dir):
-        self.file_name = os.path.join(model_data_dir, 'events.bin')
-        self.data = (tuple([event]) for event in range(1, self.num_events+1))
-        super().write_file()
+    def generate_data(self):
+        return (tuple([event]) for event in range(1, self.num_events+1))
 
 
 class FootprintFiles(ModelFile):
@@ -135,7 +130,7 @@ class FootprintBinFile(FootprintFiles):
     def __init__(
         self, num_events, num_areaperils, areaperils_per_event,
         num_intensity_bins, intensity_sparseness, no_intensity_uncertainty,
-        random_seed
+        random_seed, directory
     ):
         super().__init__(
             num_events, num_areaperils, areaperils_per_event,
@@ -148,6 +143,7 @@ class FootprintBinFile(FootprintFiles):
             self.data_length = num_events * areaperils_per_event
         else:
             self.data_length = num_events * areaperils_per_event * num_intensity_bins
+        self.file_name = os.path.join(directory, 'footprint.bin')
 
     def generate_data(self):
         super().seed_rng()
@@ -185,16 +181,12 @@ class FootprintBinFile(FootprintFiles):
                     for intensity_bin, probability in enumerate(probabilities):
                         yield areaperil, intensity_bin+1, probability
 
-    def write_file(self, model_data_dir):
-        self.file_name = os.path.join(model_data_dir, 'footprint.bin')
-        self.data = self.generate_data()
-        super().write_file()
-
 
 class FootprintIdxFile(FootprintFiles):
     def __init__(
         self, num_events, num_areaperils, areaperils_per_event,
-        num_intensity_bins, intensity_sparseness, no_intensity_uncertainty
+        num_intensity_bins, intensity_sparseness, no_intensity_uncertainty,
+        directory
     ):
         super().__init__(
             num_events, num_areaperils, areaperils_per_event,
@@ -205,6 +197,7 @@ class FootprintIdxFile(FootprintFiles):
             ('event_id', 'i'), ('offset', 'q'), ('size', 'q')
         ])
         self.data_length = num_events
+        self.file_name = os.path.join(directory, 'footprint.idx')
 
     def generate_data(self):
         # Size is the same for all events
@@ -223,14 +216,9 @@ class FootprintIdxFile(FootprintFiles):
             yield event+1, offset, size
             offset += size
 
-    def write_file(self, model_data_dir):
-        self.file_name = os.path.join(model_data_dir, 'footprint.idx')
-        self.data = self.generate_data()
-        super().write_file()
-
 
 class DamageBinDictFile(ModelFile):
-    def __init__(self, num_damage_bins):
+    def __init__(self, num_damage_bins, directory):
         self.num_damage_bins = num_damage_bins
         self.dtypes = OrderedDict([
             ('bin_index', 'i'), ('bin_from', 'f'), ('bin_to', 'f'),
@@ -238,6 +226,7 @@ class DamageBinDictFile(ModelFile):
         ])
         self.start_stats = None
         self.data_length = num_damage_bins
+        self.file_name = os.path.join(directory, 'damage_bin_dict.bin')
 
     def generate_data(self):
         # Exclude first and last bins for now
@@ -263,14 +252,9 @@ class DamageBinDictFile(ModelFile):
         ):
             yield bin_id, bin_from, bin_to, interpolation, interval_type
 
-    def write_file(self, model_data_dir):
-        self.file_name = os.path.join(model_data_dir, 'damage_bin_dict.bin')
-        self.data = self.generate_data()
-        super().write_file()
-
 
 class OccurrenceFile(ModelFile):
-    def __init__(self, num_events, num_periods, random_seed):
+    def __init__(self, num_events, num_periods, random_seed, directory):
         self.num_events = num_events
         self.num_periods = num_periods
         self.dtypes = OrderedDict([
@@ -289,6 +273,7 @@ class OccurrenceFile(ModelFile):
         ]
         self.random_seed = random_seed
         self.data_length = num_events
+        self.file_name = os.path.join(directory, 'occurrence.bin')
 
     def set_occ_date_id(self, year, month, day):
         # Set date relative to epoch
@@ -310,55 +295,48 @@ class OccurrenceFile(ModelFile):
             occ_date = self.set_occ_date_id(occ_year, occ_month, occ_day)
             yield event+1, period_no, occ_date
 
-    def write_file(self, model_data_dir):
-        self.file_name = os.path.join(model_data_dir, 'occurrence.bin')
-        self.data = self.generate_data()
-        super().write_file()
-
 
 class RandomFile(ModelFile):
-    def __init__(self, num_randoms, random_seed):
+    def __init__(self, num_randoms, random_seed, directory):
         self.num_randoms = num_randoms
         self.dtypes = {'random_no': 'f'}
         self.start_stats = None
         self.random_seed = random_seed
         self.data_length = num_randoms
+        self.file_name = os.path.join(directory, 'random.bin')
 
-    def write_file(self, model_data_dir):
-        self.file_name = os.path.join(model_data_dir, 'random.bin')
+    def generate_data(self):
         super().seed_rng()
         # First random number is 0
-        self.data = (
-            tuple([np.random.uniform()]) if i != 0 else (0,) for i in range(self.num_randoms)
-        )
-        super().write_file()
+        return (tuple([np.random.uniform()]) if i != 0 else (0,) for i in range(self.num_randoms))
 
 
 class CoveragesFile(ModelFile):
-    def __init__(self, num_locations, coverages_per_location, random_seed):
+    def __init__(
+        self, num_locations, coverages_per_location, random_seed, directory
+    ):
         self.num_locations = num_locations
         self.coverages_per_location = coverages_per_location
         self.dtypes = {'tiv': 'f'}
         self.start_stats = None
         self.random_seed = random_seed
         self.data_length = num_locations * coverages_per_location
+        self.file_name = os.path.join(directory, 'coverages.bin')
 
-    def write_file(self, model_data_dir):
-        self.file_name = os.path.join(model_data_dir, 'coverages.bin')
+    def generate_data(self):
         super().seed_rng()
         # Assume 1-1 mapping between item and coverage IDs
-        self.data = (
+        return (
             tuple([np.random.uniform(1, 1000000)]) for _ in range(
                 self.num_locations * self.coverages_per_location
             )
         )
-        super().write_file()
 
 
 class ItemsFile(ModelFile):
     def __init__(
         self, num_locations, coverages_per_location, num_areaperils,
-        num_vulnerabilities, random_seed
+        num_vulnerabilities, random_seed, directory
     ):
         self.num_locations = num_locations
         self.coverages_per_location = coverages_per_location
@@ -371,6 +349,7 @@ class ItemsFile(ModelFile):
         self.start_stats = None
         self.random_seed = random_seed
         self.data_length = num_locations * coverages_per_location
+        self.file_name = os.path.join(directory, 'items.bin')
 
     def generate_data(self):
         super().seed_rng()
@@ -387,11 +366,6 @@ class ItemsFile(ModelFile):
                 # Assume group ID mapped to location
                 yield item, item, areaperils[coverage], vulnerabilities[coverage], location+1
 
-    def write_file(self, model_data_dir):
-        self.file_name = os.path.join(model_data_dir, 'items.bin')
-        self.data = self.generate_data()
-        super().write_file()
-
 
 class FMFile(ModelFile):
     def __init__(self, num_locations, coverages_per_location):
@@ -401,12 +375,13 @@ class FMFile(ModelFile):
 
 
 class FMProgrammeFile(FMFile):
-    def __init__(self, num_locations, coverages_per_location):
+    def __init__(self, num_locations, coverages_per_location, directory):
         super().__init__(num_locations, coverages_per_location)
         self.dtypes = OrderedDict([
             ('from_agg_id', 'i'), ('level_id', 'i'), ('to_agg_id', 'i')
         ])
         self.data_length = num_locations * coverages_per_location * 2   # 2 from number of levels
+        self.file_name = os.path.join(directory, 'fm_programme.bin')
 
     def generate_data(self):
         levels = [1, 10]
@@ -422,14 +397,11 @@ class FMProgrammeFile(FMFile):
                 elif level == len(levels):
                     yield agg_id, level, 1
 
-    def write_file(self, input_dir):
-        self.file_name = os.path.join(input_dir, 'fm_programme.bin')
-        self.data = self.generate_data()
-        super().write_file()
-
 
 class FMPolicyTCFile(FMFile):
-    def __init__(self, num_locations, coverages_per_location, num_layers):
+    def __init__(
+        self, num_locations, coverages_per_location, num_layers, directory
+    ):
         super().__init__(num_locations, coverages_per_location)
         self.num_layers = num_layers
         self.dtypes = OrderedDict([
@@ -437,6 +409,7 @@ class FMPolicyTCFile(FMFile):
             ('policytc_id', 'i')
         ])
         self.data_length = num_locations * coverages_per_location + num_layers
+        self.file_name = os.path.join(directory, 'fm_policytc.bin')
 
     def generate_data(self):
         # Site coverage #1 & policy layer #10 FM levels
@@ -458,14 +431,9 @@ class FMPolicyTCFile(FMFile):
                     yield level, 1, layer+1, policytc_id
                     policytc_id += 1   # Next policytc_id
 
-    def write_file(self, input_dir):
-        self.file_name = os.path.join(input_dir, 'fm_policytc.bin')
-        self.data = self.generate_data()
-        super().write_file()
-
 
 class FMProfileFile(ModelFile):
-    def __init__(self, num_layers):
+    def __init__(self, num_layers, directory):
         self.num_layers = num_layers
         self.dtypes = OrderedDict([
             ('policytc_id', 'i'), ('calcrule_id', 'i'), ('deductible1', 'f'),
@@ -474,6 +442,7 @@ class FMProfileFile(ModelFile):
         ])
         self.start_stats = None
         self.data_length = 1 + num_layers   # 1 from pass through at level 1
+        self.file_name = os.path.join(directory, 'fm_profile.bin')
 
     def generate_data(self):
         # Pass through for level 1
@@ -497,20 +466,18 @@ class FMProfileFile(ModelFile):
         for row in profile_rows:
             yield row
 
-    def write_file(self, input_dir):
-        self.file_name = os.path.join(input_dir, 'fm_profile.bin')
-        self.data = self.generate_data()
-        super().write_file()
-
 
 class FMXrefFile(FMFile):
-    def __init__(self, num_locations, coverages_per_location, num_layers):
+    def __init__(
+        self, num_locations, coverages_per_location, num_layers, directory
+    ):
         super().__init__(num_locations, coverages_per_location)
         self.num_layers = num_layers
         self.dtypes = OrderedDict([
             ('output', 'i'), ('agg_id', 'i'), ('layer_id', 'i')
         ])
         self.data_length = num_locations * coverages_per_location * num_layers
+        self.file_name = os.path.join(directory, 'fm_xref.bin')
 
     def generate_data(self):
         layers = range(1, self.num_layers+1)
@@ -522,19 +489,15 @@ class FMXrefFile(FMFile):
                 yield output_count, agg_id, layer
                 output_count += 1
 
-    def write_file(self, input_dir):
-        self.file_name = os.path.join(input_dir, 'fm_xref.bin')
-        self.data = self.generate_data()
-        super().write_file()
-
 
 class GULSummaryXrefFile(FMFile):
-    def __init__(self, num_locations, coverages_per_location):
+    def __init__(self, num_locations, coverages_per_location, directory):
         super().__init__(num_locations, coverages_per_location)
         self.dtypes = OrderedDict([
             ('item_id', 'i'), ('summary_id', 'i'), ('summaryset_id', 'i')
         ])
         self.data_length = num_locations * coverages_per_location
+        self.file_name = os.path.join(directory, 'gulsummaryxref.bin')
 
     def generate_data(self):
         summary_id = 1
@@ -542,34 +505,26 @@ class GULSummaryXrefFile(FMFile):
         for item in range(self.num_locations * self.coverages_per_location):
             yield item+1, summary_id, summaryset_id
 
-    def write_file(self, input_dir):
-        self.file_name = os.path.join(input_dir, 'gulsummaryxref.bin')
-        self.data = self.generate_data()
-        super().write_file()
-
 
 class FMSummaryXrefFile(FMFile):
-    def __init__(self, num_locations, coverages_per_location, num_layers):
+    def __init__(
+        self, num_locations, coverages_per_location, num_layers, directory
+    ):
         super().__init__(num_locations, coverages_per_location)
         self.num_layers = num_layers
         self.dtypes = OrderedDict([
             ('output_id', 'i'), ('summary_id', 'i'), ('summaryset_id', 'i')
         ])
         self.data_length = num_locations * coverages_per_location * num_layers
+        self.file_name = os.path.join(directory, 'fmsummaryxref.bin')
 
     def generate_data(self):
         summary_id = 1
         summaryset_id = 1
-#        layers = range(1, self.num_layers)
         for output_id in range(
             self.num_locations * self.coverages_per_location * self.num_layers
         ):
             yield output_id+1, summary_id, summaryset_id
-
-    def write_file(self, input_dir):
-        self.file_name = os.path.join(input_dir, 'fmsummaryxref.bin')
-        self.data = self.generate_data()
-        super().write_file()
 
 
 def parse_arguments():
@@ -675,80 +630,85 @@ def main():
     # Model files
     vulnerability_file = VulnerabilityFile(
         args.num_vulnerabilities, args.num_intensity_bins, args.num_damage_bins,
-        args.vulnerability_sparseness, args.random_seed
+        args.vulnerability_sparseness, args.random_seed, static_dir
     )
-    vulnerability_file.write_file(static_dir)
+    vulnerability_file.write_file()
 
-    events_file = EventsFile(args.num_events)
-    events_file.write_file(input_dir)
+    events_file = EventsFile(args.num_events, input_dir)
+    events_file.write_file()
 
     footprint_files_inputs = {
         'num_events': args.num_events, 'num_areaperils': args.num_areaperils,
         'areaperils_per_event': args.areaperils_per_event,
         'num_intensity_bins': args.num_intensity_bins,
         'intensity_sparseness': args.intensity_sparseness,
-        'no_intensity_uncertainty': args.no_intensity_uncertainty
+        'no_intensity_uncertainty': args.no_intensity_uncertainty,
+        'directory': static_dir
     }
     footprint_bin_file = FootprintBinFile(
         **footprint_files_inputs, random_seed=args.random_seed
     )
-    footprint_bin_file.write_file(static_dir)
+    footprint_bin_file.write_file()
     footprint_idx_file = FootprintIdxFile(**footprint_files_inputs)
-    footprint_idx_file.write_file(static_dir)
+    footprint_idx_file.write_file()
 
-    damage_bin_dict_file = DamageBinDictFile(args.num_damage_bins)
-    damage_bin_dict_file.write_file(static_dir)
+    damage_bin_dict_file = DamageBinDictFile(args.num_damage_bins, static_dir)
+    damage_bin_dict_file.write_file()
 
     occurrence_file = OccurrenceFile(
-        args.num_events, args.num_periods, args.random_seed
+        args.num_events, args.num_periods, args.random_seed, input_dir
     )
-    occurrence_file.write_file(input_dir)
+    occurrence_file.write_file()
 
     if args.num_randoms > 0:
-        random_file = RandomFile(args.num_randoms, args.random_seed)
-        random_file.write_file(static_dir)
+        random_file = RandomFile(args.num_randoms, args.random_seed, static_dir)
+        random_file.write_file()
 
     # GUL files
     coverages_file = CoveragesFile(
-        args.num_locations, args.coverages_per_location, args.random_seed
+        args.num_locations, args.coverages_per_location, args.random_seed,
+        input_dir
     )
-    coverages_file.write_file(input_dir)
+    coverages_file.write_file()
 
     items_file = ItemsFile(
         args.num_locations, args.coverages_per_location, args.num_areaperils,
-        args.num_vulnerabilities, args.random_seed
+        args.num_vulnerabilities, args.random_seed, input_dir
     )
-    items_file.write_file(input_dir)
+    items_file.write_file()
 
     # FM files
     fm_programme_file = FMProgrammeFile(
-        args.num_locations, args.coverages_per_location
+        args.num_locations, args.coverages_per_location, input_dir
     )
-    fm_programme_file.write_file(input_dir)
+    fm_programme_file.write_file()
 
     fm_policytc_file = FMPolicyTCFile(
-        args.num_locations, args.coverages_per_location, args.num_layers
+        args.num_locations, args.coverages_per_location, args.num_layers,
+        input_dir
     )
-    fm_policytc_file.write_file(input_dir)
+    fm_policytc_file.write_file()
 
-    fm_profile_file = FMProfileFile(args.num_layers)
-    fm_profile_file.write_file(input_dir)
+    fm_profile_file = FMProfileFile(args.num_layers, input_dir)
+    fm_profile_file.write_file()
 
     fm_xref_file = FMXrefFile(
-        args.num_locations, args.coverages_per_location, args.num_layers
+        args.num_locations, args.coverages_per_location, args.num_layers,
+        input_dir
     )
-    fm_xref_file.write_file(input_dir)
+    fm_xref_file.write_file()
 
     # Summary files
     gulsummaryxref_file = GULSummaryXrefFile(
-        args.num_locations, args.coverages_per_location
+        args.num_locations, args.coverages_per_location, input_dir
     )
-    gulsummaryxref_file.write_file(input_dir)
+    gulsummaryxref_file.write_file()
 
     fmsummaryxref_file = FMSummaryXrefFile(
-        args.num_locations, args.coverages_per_location, args.num_layers
+        args.num_locations, args.coverages_per_location, args.num_layers,
+        input_dir
     )
-    fmsummaryxref_file.write_file(input_dir)
+    fmsummaryxref_file.write_file()
 
 
 if __name__ == "__main__":
