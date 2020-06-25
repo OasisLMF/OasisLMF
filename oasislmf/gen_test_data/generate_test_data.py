@@ -22,12 +22,11 @@ class ModelFile:
             if self.start_stats:
                 for stat in self.start_stats:
                     f.write(struct.pack(stat['dtype'], stat['value']))
-            for col in self.data:
-                for idx, dtype in enumerate(self.dtypes.values()):
-                    try:
-                        f.write(struct.pack(dtype, col[idx]))
-                    except TypeError:   # If line is not tuple
-                        f.write(struct.pack(dtype, col))
+            dtypes_list = ''.join(self.dtypes.values())
+            f.write(struct.pack(
+                '=' + dtypes_list * self.data_length,
+                *(x for y in self.data for x in y)
+            ))
 
     # Method for debugging file output
     def debug_write_file(self):
@@ -63,6 +62,7 @@ class VulnerabilityFile(ModelFile):
             }
         ]
         self.random_seed = random_seed
+        self.data_length = num_vulnerabilities * num_intensity_bins * num_damage_bins
 
     def generate_data(self):
         super().seed_rng()
@@ -94,10 +94,11 @@ class EventsFile(ModelFile):
         self.num_events = num_events
         self.dtypes = {'event_id': 'i'}
         self.start_stats = None
+        self.data_length = num_events
 
     def write_file(self, model_data_dir):
         self.file_name = os.path.join(model_data_dir, 'events.bin')
-        self.data = range(1, self.num_events+1)
+        self.data = (tuple([event]) for event in range(1, self.num_events+1))
         super().write_file()
 
 
@@ -143,6 +144,10 @@ class FootprintBinFile(FootprintFiles):
         self.start_stats = self.get_bin_start_stats()
         self.dtypes = FootprintFiles.bin_dtypes
         self.random_seed = random_seed
+        if no_intensity_uncertainty:
+            self.data_length = num_events * areaperils_per_event
+        else:
+            self.data_length = num_events * areaperils_per_event * num_intensity_bins
 
     def generate_data(self):
         super().seed_rng()
@@ -199,6 +204,7 @@ class FootprintIdxFile(FootprintFiles):
         self.dtypes = OrderedDict([
             ('event_id', 'i'), ('offset', 'q'), ('size', 'q')
         ])
+        self.data_length = num_events
 
     def generate_data(self):
         # Size is the same for all events
@@ -229,6 +235,7 @@ class DamageBinDictFile(ModelFile):
             ('interpolation', 'f'), ('interval_type', 'i')
         ])
         self.start_stats = None
+        self.data_length = num_damage_bins
 
     def generate_data(self):
         # Exclude first and last bins for now
@@ -279,6 +286,7 @@ class OccurrenceFile(ModelFile):
             }
         ]
         self.random_seed = random_seed
+        self.data_length = num_events
 
     def set_occ_date_id(self, year, month, day):
         # Set date relative to epoch
@@ -312,13 +320,14 @@ class RandomFile(ModelFile):
         self.dtypes = {'random_no': 'f'}
         self.start_stats = None
         self.random_seed = random_seed
+        self.data_length = num_randoms
 
     def write_file(self, model_data_dir):
         self.file_name = os.path.join(model_data_dir, 'random.bin')
         super().seed_rng()
         # First random number is 0
         self.data = (
-            np.random.uniform() if i != 0 else 0 for i in range(self.num_randoms)
+            tuple([np.random.uniform()]) if i != 0 else (0,) for i in range(self.num_randoms)
         )
         super().write_file()
 
@@ -330,13 +339,14 @@ class CoveragesFile(ModelFile):
         self.dtypes = {'tiv': 'f'}
         self.start_stats = None
         self.random_seed = random_seed
+        self.data_length = num_locations * coverages_per_location
 
     def write_file(self, model_data_dir):
         self.file_name = os.path.join(model_data_dir, 'coverages.bin')
         super().seed_rng()
         # Assume 1-1 mapping between item and coverage IDs
         self.data = (
-            np.random.uniform(1, 1000000) for _ in range(
+            tuple([np.random.uniform(1, 1000000)]) for _ in range(
                 self.num_locations * self.coverages_per_location
             )
         )
@@ -358,6 +368,7 @@ class ItemsFile(ModelFile):
         ])
         self.start_stats = None
         self.random_seed = random_seed
+        self.data_length = num_locations * coverages_per_location
 
     def generate_data(self):
         super().seed_rng()
@@ -393,6 +404,7 @@ class FMProgrammeFile(FMFile):
         self.dtypes = OrderedDict([
             ('from_agg_id', 'i'), ('level_id', 'i'), ('to_agg_id', 'i')
         ])
+        self.data_length = num_locations * coverages_per_location * 2   # 2 from number of levels
 
     def generate_data(self):
         levels = [1, 10]
@@ -422,6 +434,7 @@ class FMPolicyTCFile(FMFile):
             ('layer_id', 'i'), ('level_id', 'i'), ('agg_id', 'i'),
             ('policytc_id', 'i')
         ])
+        self.data_length = num_locations * coverages_per_location + num_layers
 
     def generate_data(self):
         # Site coverage #1 & policy layer #10 FM levels
@@ -458,6 +471,7 @@ class FMProfileFile(ModelFile):
             ('limit1', 'f'), ('share1', 'f'), ('share2', 'f'), ('share3', 'f')
         ])
         self.start_stats = None
+        self.data_length = 1 + num_layers   # 1 from pass through at level 1
 
     def generate_data(self):
         # Pass through for level 1
@@ -494,6 +508,7 @@ class FMXrefFile(FMFile):
         self.dtypes = OrderedDict([
             ('output', 'i'), ('agg_id', 'i'), ('layer_id', 'i')
         ])
+        self.data_length = num_locations * coverages_per_location * num_layers
 
     def generate_data(self):
         layers = range(1, self.num_layers+1)
@@ -517,6 +532,7 @@ class GULSummaryXrefFile(FMFile):
         self.dtypes = OrderedDict([
             ('item_id', 'i'), ('summary_id', 'i'), ('summaryset_id', 'i')
         ])
+        self.data_length = num_locations * coverages_per_location
 
     def generate_data(self):
         summary_id = 1
@@ -537,6 +553,7 @@ class FMSummaryXrefFile(FMFile):
         self.dtypes = OrderedDict([
             ('output_id', 'i'), ('summary_id', 'i'), ('summaryset_id', 'i')
         ])
+        self.data_length = num_locations * coverages_per_location * num_layers
 
     def generate_data(self):
         summary_id = 1
