@@ -20,7 +20,6 @@
 	"deductible_max": {"condition": "!= 0", "default_value": 0}
     },
     "policy layer": {
-	"limit": {"condition": "!= 0", "default_value": 9999999999},
 	"share": {"condition": "!= 0", "default_value": 1.0},
 	"deductible": {"default_value": 0},
 	"deductible_min": {"default_value": 0},
