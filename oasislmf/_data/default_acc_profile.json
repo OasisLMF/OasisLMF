@@ -19,6 +19,11 @@
         "OEDHierarchy": "SpecialCondition",
         "Key": "CondNum"
     },
+    "LayerNumber": {
+	"ProfileElementName": "LayerNumber",
+	"OEDHierarchy": "Policy",
+	"Key": "LayerNum"
+    },
     "CondDed6All": {
         "ProfileElementName": "CondDed6All",
         "DeductibleType": "B",
