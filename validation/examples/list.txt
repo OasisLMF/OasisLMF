@@ -62,6 +62,7 @@ fm41
 fm5
 fm8
 fm9
+fm54
 xx45_A
 xx45_L
 xx45_P
