@@ -38,7 +38,7 @@
     },
     "3": {
         "FMLevel": 3,
-        "FMLevel": "SiteAll",
+        "FMLevelName": "SiteAll",
         "FMAggKey": {
             "PortNum": {
                 "src": "FM",

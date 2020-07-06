@@ -101,10 +101,4 @@ ENV/
 # mypy
 .mypy_cache/
 
-# generated GUL + IL + RI files and/or folders 
-run/
-input/
-output/
-static/
-fifo/
-work/
+tests/model_execution/kparse_output/
