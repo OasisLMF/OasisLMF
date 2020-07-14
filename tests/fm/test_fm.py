@@ -322,3 +322,6 @@ class FmAcceptanceTests(TestCase):
 
     def test_FA45_151(self):
         self.run_test('FA45_151')
+
+    def test_FA45_152(self):
+        self.run_test('FA45_152')
