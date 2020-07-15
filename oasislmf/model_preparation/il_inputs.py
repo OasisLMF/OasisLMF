@@ -355,6 +355,7 @@ def get_il_input_items(
     policy_num = oed_hierarchy['polnum']['ProfileElementName'].lower()
     portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
     cond_num = oed_hierarchy['condnum']['ProfileElementName'].lower()
+    layer_num = oed_hierarchy['layernum']['ProfileElementName'].lower()
 
     # Get the FM terms profile (this is a simplfied view of the main grouped
     # profile, containing only information about the financial terms)
@@ -420,20 +421,22 @@ def get_il_input_items(
             if accounts_df[accounts_df['steptriggertype'].notnull()]['stepnumber'].gt(0).any():
                 step_policies_present = True
 
-    # Look for a `layer_id` column in the accounts dataframe - this column
-    # will exist if the accounts file has the column - the user has the option
-    # of doing this before calling the MDK. The `layer_id` column is simply
-    # an enumeration of the unique (portfolio num., acc. num., policy num.)
-    # combinations in the accounts file. If the column doesn't exist then
-    # a custom method is called that will generate this column and set it
-    # in the accounts dataframe
+    # Determine whether layer num. column exists in the accounts dataframe and
+    # create it if needed, filling it with default value. The layer num. field
+    # is used to identify unique layers in cases where layers share the same
+    # policy num.
+    # Create `layer_id` column, which is simply an enumeration of the unique
+    # (portfolio_num., acc. num., policy num., layer num.) combinations in the
+    # accounts file.
     # If step policies are listed use `stepnumber` column in combination
+    if layer_num not in accounts_df:
+        accounts_df[layer_num] = 1
     layers_cols = [portfolio_num, acc_num]
     if step_policies_present:
         layers_cols += ['stepnumber']
     accounts_df['layer_id'] = get_ids(
-        accounts_df[layers_cols + [policy_num]].drop_duplicates(keep='first'),
-        layers_cols + [policy_num], group_by=layers_cols,
+        accounts_df[layers_cols + [policy_num, layer_num]].drop_duplicates(keep='first'),
+        layers_cols + [policy_num, layer_num], group_by=layers_cols,
     ).reindex(range(len(accounts_df))).fillna(method='ffill').astype('uint32')
 
     # Drop all columns from the accounts dataframe which are not either one of
