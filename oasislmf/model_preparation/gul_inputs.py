@@ -157,10 +157,15 @@ def get_gul_input_items(
         'vulnerabilityid': 'uint32',
         'modeldata': 'str'
     }
+
+    keys_error_fp = os.path.join(os.path.dirname(keys_fp), 'keys-errors.csv')
+    missing_keys_msg = 'No successful lookup results found in the keys file - '
+    missing_keys_msg += 'Check the `keys-errors.csv` file for details. \n File path: {}'.format(keys_error_fp)
+
     keys_df = get_dataframe(
         src_fp=keys_fp,
         col_dtypes=dtypes,
-        empty_data_error_msg='No keys found in the keys file',
+        empty_data_error_msg=missing_keys_msg,
         memory_map=True
     )
 
