@@ -548,12 +548,16 @@ class OasisManager(object):
             _keys_fp = os.path.join(target_dir, os.path.basename(keys_fp))
 
         # Columns from loc file to assign group_id
+        model_group_fields = None
         if model_settings_fp:
-            model_group_fields = get_model_settings(
-                model_settings_fp, key='data_settings'
-            ).get('group_fields')
-        else:
-            model_group_fields = None
+            try:
+                model_group_fields = get_model_settings(
+                    model_settings_fp, key='data_settings'
+                ).get('group_fields')
+            except (KeyError, AttributeError, OasisException) as e:
+                self.logger.warn('WARNING: Failed to load {} - {}'.format(model_settings_fp, e))
+            
+
         group_id_cols = group_id_cols or model_group_fields or self.group_id_cols
         group_id_cols = list(map(lambda col: col.lower(), group_id_cols))
 
