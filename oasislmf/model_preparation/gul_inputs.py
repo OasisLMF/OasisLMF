@@ -158,7 +158,7 @@ def get_gul_input_items(
         'modeldata': 'str'
     }
 
-    keys_error_fp = os.path.join(os.path.dirname(keys_fp), 'keys-errors.csv')
+    keys_error_fp = os.path.join(os.path.dirname(keys_fp), 'keys-errors.csv') if keys_fp else 'Missing'
     missing_keys_msg = 'No successful lookup results found in the keys file - '
     missing_keys_msg += 'Check the `keys-errors.csv` file for details. \n File path: {}'.format(keys_error_fp)
 
