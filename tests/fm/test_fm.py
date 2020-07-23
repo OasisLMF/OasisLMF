@@ -325,3 +325,30 @@ class FmAcceptanceTests(TestCase):
 
     def test_FA45_152(self):
         self.run_test('FA45_152')
+
+    def test_CX33_109(self):
+        self.run_test('CX33_109')
+
+    def test_CX33_112(self):
+        self.run_test('CX33_112')
+
+    @pytest.mark.skip(reason='Needs fixing')
+    def test_CX34_114(self):
+        self.run_test('CX34_114')
+
+    @pytest.mark.skip(reason='Needs fixing')
+    def test_CX34_116(self):
+        self.run_test('CX34_116')
+
+    def test_CX35_119(self):
+        self.run_test('CX35_119')
+
+    def test_CX35_120(self):
+        self.run_test('CX35_120')
+
+    def test_CX36_121(self):
+        self.run_test('CX36_121')
+
+    @pytest.mark.skip(reason='Needs fixing')
+    def test_CX36_124(self):
+        self.run_test('CX36_124')
