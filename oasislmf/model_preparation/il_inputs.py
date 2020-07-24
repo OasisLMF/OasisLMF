@@ -807,7 +807,7 @@ def get_il_input_items(
                 keep='first'
             ).groupby([
                 'peril_id', 'orig_level_id', 'is_bi_coverage', 'agg_id'
-            ])['tiv_sum', 'bitiv'].sum()
+            ])[['tiv_sum', 'bitiv']].sum()
         )
         intermediate_fm_agg_tivs.reset_index(inplace=True)
         intermediate_fm_agg_tivs['agg_tiv'] = intermediate_fm_agg_tivs['tiv_sum']
