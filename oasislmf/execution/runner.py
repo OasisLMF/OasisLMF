@@ -25,7 +25,8 @@ def run(
     gul_legacy_stream=False,
     run_debug=False,
     custom_gulcalc_cmd=None,
-    filename='run_ktools.sh'
+    filename='run_ktools.sh',
+    fmpy=False,
 ):
     # TODO: need clearer responsibility between runner.py and manager.py
     #  ie: why is cpu count and custom_gulcalc_cmd checks here and not in manager
@@ -96,6 +97,7 @@ def run(
         bash_trace=run_debug,
         filename=filename,
         _get_getmodel_cmd=custom_get_getmodel_cmd,
+        fmpy=fmpy,
     )
 
     bash_trace = subprocess.check_output(['bash', filename])
