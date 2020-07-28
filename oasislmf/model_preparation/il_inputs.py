@@ -812,10 +812,10 @@ def get_il_input_items(
         intermediate_fm_agg_tivs.reset_index(inplace=True)
         intermediate_fm_agg_tivs['agg_tiv'] = intermediate_fm_agg_tivs['tiv_sum']
         # Adjust agg_tiv for any levels that use BI coverage aggregation key
-        bi_coverage_levels = [
+        bi_coverage_levels = (
             level_id for level_id in intermediate_fm_level_ids
             if 'IsBICoverage' in fmap[level_id]['FMAggKey'].keys()
-        ]
+        )
         for level_id in bi_coverage_levels:
             intermediate_fm_agg_tivs.loc[
                 (
