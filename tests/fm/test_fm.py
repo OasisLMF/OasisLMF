@@ -332,11 +332,9 @@ class FmAcceptanceTests(TestCase):
     def test_CX33_112(self):
         self.run_test('CX33_112')
 
-    @pytest.mark.skip(reason='Needs fixing')
     def test_CX34_114(self):
         self.run_test('CX34_114')
 
-    @pytest.mark.skip(reason='Needs fixing')
     def test_CX34_116(self):
         self.run_test('CX34_116')
 
@@ -349,6 +347,5 @@ class FmAcceptanceTests(TestCase):
     def test_CX36_121(self):
         self.run_test('CX36_121')
 
-    @pytest.mark.skip(reason='Needs fixing')
     def test_CX36_124(self):
         self.run_test('CX36_124')
