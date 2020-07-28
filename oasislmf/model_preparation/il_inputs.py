@@ -477,12 +477,30 @@ def get_il_input_items(
     if defaults:
         exposure_df = get_dataframe(src_data=exposure_df, col_defaults=defaults)
 
+    # The coverage FM level (site coverage, #1) ID
+    cov_level_id = SUPPORTED_FM_LEVELS['site coverage']['id']
+
+    # Get the TIV column names and corresponding coverage types
+    tiv_terms = {
+        v['tiv']['CoverageTypeID']: v['tiv']['ProfileElementName'].lower()
+        for v in profile[cov_level_id].values()
+    }
+
+    # Calculate sum of TIV columns
+    exposure_df['tiv_sum'] = exposure_df[tiv_terms.values()].sum(axis=1)
+
+    # Identify BI TIV column
+    bi_cov_id = SUPPORTED_COVERAGE_TYPES['bi']['id']
+    bi_tiv_col = profile[cov_level_id][bi_cov_id]['tiv']['ProfileElementName'].lower()
+
     # First, merge the exposure and GUL inputs frame to augment the GUL inputs
     # frame with financial terms for level 2 (site PD) and level 3 (site all) -
     # the GUL inputs frame effectively only contains financial terms related to
     # FM level 1 (site coverage)
     gul_inputs_df = merge_dataframes(
-        exposure_df.loc[:, site_pd_and_site_all_term_cols + ['loc_id']],
+        exposure_df.loc[:, site_pd_and_site_all_term_cols + [
+            'loc_id', 'tiv_sum', bi_tiv_col
+        ]],
         gul_inputs_df,
         join_on='loc_id',
         how='inner'
@@ -552,9 +570,6 @@ def get_il_input_items(
 
     # Mark the GUL inputs frame for deletion - no longer needed
     del gul_inputs_df
-
-    # The coverage FM level (site coverage, # 1) ID
-    cov_level_id = SUPPORTED_FM_LEVELS['site coverage']['id']
 
     # Now set the IL input item IDs, and some other required columns such
     # as the level ID, and initial values for some financial terms,
@@ -772,6 +787,60 @@ def get_il_input_items(
         on=['peril_id', 'level_id', 'agg_id'],
         how='inner'
     )['agg_tiv']
+
+    # In cases where the default FM aggregation profile is used, the agg_tiv
+    # column for intermediate FM levels should include TIVs that are not covered
+    # by the model.
+    if fmap == get_default_fm_aggregation_profile() and intermediate_fm_levels:
+        intermediate_fm_level_ids = [
+            SUPPORTED_FM_LEVELS[level]['id'] for level in intermediate_fm_levels
+        ]
+        intermediate_fm_agg_tivs = pd.DataFrame(
+            il_inputs_df.loc[
+                il_inputs_df['orig_level_id'].isin(intermediate_fm_level_ids),
+                [
+                    'loc_id', 'peril_id', 'orig_level_id', 'is_bi_coverage',
+                    'agg_id', 'tiv_sum', bi_tiv_col
+                ]
+            ].drop_duplicates(
+                subset=['loc_id', 'peril_id', 'orig_level_id', 'agg_id'],
+                keep='first'
+            ).groupby([
+                'peril_id', 'orig_level_id', 'is_bi_coverage', 'agg_id'
+            ])[['tiv_sum', 'bitiv']].sum()
+        )
+        intermediate_fm_agg_tivs.reset_index(inplace=True)
+        intermediate_fm_agg_tivs['agg_tiv'] = intermediate_fm_agg_tivs['tiv_sum']
+        # Adjust agg_tiv for any levels that use BI coverage aggregation key
+        bi_coverage_levels = (
+            level_id for level_id in intermediate_fm_level_ids
+            if 'IsBICoverage' in fmap[level_id]['FMAggKey'].keys()
+        )
+        for level_id in bi_coverage_levels:
+            intermediate_fm_agg_tivs.loc[
+                (
+                    (intermediate_fm_agg_tivs['orig_level_id'] == level_id)
+                    & (intermediate_fm_agg_tivs['is_bi_coverage'] == False)
+                ),
+                'agg_tiv'
+            ] = intermediate_fm_agg_tivs['tiv_sum'] - intermediate_fm_agg_tivs[bi_tiv_col]
+            intermediate_fm_agg_tivs.loc[
+                (
+                    (intermediate_fm_agg_tivs['orig_level_id'] == level_id)
+                    & (intermediate_fm_agg_tivs['is_bi_coverage'] == True)
+                ),
+                'agg_tiv'
+            ] = intermediate_fm_agg_tivs[bi_tiv_col]
+        il_inputs_df = il_inputs_df.merge(
+            intermediate_fm_agg_tivs[['peril_id', 'orig_level_id', 'agg_id', 'agg_tiv']],
+            on=['peril_id', 'orig_level_id', 'agg_id'],
+            how='left'
+        )
+        il_inputs_df['agg_tiv_y'].fillna(
+            il_inputs_df['agg_tiv_x'],
+            inplace=True
+        )
+        il_inputs_df.rename(columns={'agg_tiv_y': 'agg_tiv'}, inplace=True)
 
     # Apply rule to convert type 2 deductibles and limits to TIV shares
     il_inputs_df['deductible'] = np.where(
