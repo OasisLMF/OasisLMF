@@ -349,3 +349,15 @@ class FmAcceptanceTests(TestCase):
 
     def test_CX36_124(self):
         self.run_test('CX36_124')
+
+    def test_xxAcc1(self):
+        self.run_test('xxAcc1')
+
+    def test_xxAcc2(self):
+        self.run_test('xxAcc2')
+
+    def test_xxAcc3(self):
+        self.run_test('xxAcc3')
+
+    def test_xxAcc4(self):
+        self.run_test('xxAcc4')
