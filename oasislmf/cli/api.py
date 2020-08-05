@@ -5,7 +5,7 @@ import sys
 
 from argparse import RawDescriptionHelpFormatter
 
-from ..api.client import APIClient
+from ..platform.client import APIClient
 from ..utils.exceptions import OasisException
 from ..utils.path import PathCleaner
 from ..utils.defaults import API_EXAMPLE_AUTH

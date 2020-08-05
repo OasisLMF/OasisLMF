@@ -28,22 +28,22 @@ import pandas as pd
 
 from pathlib2 import Path
 
-from .model_execution import runner
-from .model_execution.bin import (
+from .execution import runner
+from .execution.bin import (
     csv_to_bin,
     prepare_run_directory,
     prepare_run_inputs,
 )
-from .model_preparation.gul_inputs import (
+from .preparation.gul_inputs import (
     get_gul_input_items,
     write_gul_input_files,
 )
-from .model_preparation.il_inputs import (
+from .preparation.il_inputs import (
     get_il_input_items,
     get_oed_hierarchy,
     write_il_input_files,
 )
-from .model_preparation.summaries import (
+from .preparation.summaries import (
     get_summary_mapping,
     generate_summaryxref_files,
     merge_oed_to_mapping,
@@ -51,11 +51,10 @@ from .model_preparation.summaries import (
     write_exposure_summary,
     write_summary_levels,
 )
-from .model_preparation.exposure_pre_analysis import ExposurePreAnalysis
-from .model_preparation.lookup import OasisLookupFactory as olf
-from .model_preparation.oed import load_oed_dfs
-from .model_preparation.utils import prepare_input_files_directory
-from .model_preparation.reinsurance_layer import write_files_for_reinsurance
+from .preparation.lookup import OasisLookupFactory as olf
+from .preparation.oed import load_oed_dfs
+from .preparation.dir_inputs import prepare_input_files_directory
+from .preparation.reinsurance_layer import write_files_for_reinsurance
 from .utils.data import (
     get_analysis_settings,
     get_model_settings,
@@ -88,7 +87,7 @@ from .utils.defaults import (
     WRITE_CHUNKSIZE,
 )
 from .utils.deterministic_loss import generate_deterministic_losses
-from .utils.peril import PerilAreasIndex
+from .lookup.rtree import PerilAreasIndex
 from .utils.path import (
     as_path,
     setcwd,
@@ -98,6 +97,13 @@ from .utils.coverages import SUPPORTED_COVERAGE_TYPES
 pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
+## IMPORT Computation commands (MOVE THIS LATER)
+from .computation.hooks.pre_analysis import ExposurePreAnalysis
+#from .computation._ import _ 
+#from .computation._ import _ 
+#from .computation._ import _ 
+#from .computation._ import _ 
+#from .computation._ import _ 
 
 class OasisManager(object):
     computation_classes = [ExposurePreAnalysis]

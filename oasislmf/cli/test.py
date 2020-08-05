@@ -4,7 +4,7 @@ import os
 
 from argparsetree import BaseCommand
 
-from ..model_testing.validation import csv_validity_test
+from ..validation.model_data import csv_validity_test
 
 from ..utils.path import as_path
 
