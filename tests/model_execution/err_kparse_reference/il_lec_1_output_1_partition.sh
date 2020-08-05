@@ -47,22 +47,19 @@ mkdir work/il_S1_summaryaalcalc
 mkfifo fifo/il_P1
 
 mkfifo fifo/il_S1_summary_P1
-mkfifo fifo/il_S1_summaryeltcalc_P1
 mkfifo fifo/il_S1_eltcalc_P1
-mkfifo fifo/il_S1_summarysummarycalc_P1
 mkfifo fifo/il_S1_summarycalc_P1
-mkfifo fifo/il_S1_summarypltcalc_P1
 mkfifo fifo/il_S1_pltcalc_P1
 
 
 
 # --- Do insured loss computes ---
 
-eltcalc < fifo/il_S1_summaryeltcalc_P1 > work/kat/il_S1_eltcalc_P1 & pid1=$!
-summarycalctocsv < fifo/il_S1_summarysummarycalc_P1 > work/kat/il_S1_summarycalc_P1 & pid2=$!
-pltcalc < fifo/il_S1_summarypltcalc_P1 > work/kat/il_S1_pltcalc_P1 & pid3=$!
+eltcalc < fifo/il_S1_eltcalc_P1 > work/kat/il_S1_eltcalc_P1 & pid1=$!
+summarycalctocsv < fifo/il_S1_summarycalc_P1 > work/kat/il_S1_summarycalc_P1 & pid2=$!
+pltcalc < fifo/il_S1_pltcalc_P1 > work/kat/il_S1_pltcalc_P1 & pid3=$!
 
-tee < fifo/il_S1_summary_P1 fifo/il_S1_summaryeltcalc_P1 fifo/il_S1_summarypltcalc_P1 fifo/il_S1_summarysummarycalc_P1 work/il_S1_summaryaalcalc/P1.bin work/il_S1_summaryleccalc/P1.bin > /dev/null & pid4=$!
+tee < fifo/il_S1_summary_P1 fifo/il_S1_eltcalc_P1 fifo/il_S1_summarycalc_P1 fifo/il_S1_pltcalc_P1 work/il_S1_summaryaalcalc/P1.bin work/il_S1_summaryleccalc/P1.bin > /dev/null & pid4=$!
 
 ( summarycalc -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 ) 2>> log/stderror.err  &
 

@@ -45,16 +45,15 @@ mkdir work/kat/
 mkfifo fifo/il_P1
 
 mkfifo fifo/il_S1_summary_P1
-mkfifo fifo/il_S1_summarypltcalc_P1
 mkfifo fifo/il_S1_pltcalc_P1
 
 
 
 # --- Do insured loss computes ---
 
-pltcalc < fifo/il_S1_summarypltcalc_P1 > work/kat/il_S1_pltcalc_P1 & pid1=$!
+pltcalc < fifo/il_S1_pltcalc_P1 > work/kat/il_S1_pltcalc_P1 & pid1=$!
 
-tee < fifo/il_S1_summary_P1 fifo/il_S1_summarypltcalc_P1 > /dev/null & pid2=$!
+tee < fifo/il_S1_summary_P1 fifo/il_S1_pltcalc_P1 > /dev/null & pid2=$!
 
 ( summarycalc -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 ) 2>> log/stderror.err  &
 

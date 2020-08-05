@@ -4,18 +4,26 @@ import os
 import random
 import re
 import string
+import logging
+from functools import partial
+logger = logging.getLogger()
 
 from collections import Counter
 
+from ..utils.exceptions import OasisException
 from ..utils.defaults import (
     KTOOLS_ALLOC_GUL_DEFAULT,
     KTOOLS_ALLOC_IL_DEFAULT,
     KTOOLS_ALLOC_RI_DEFAULT,
+    KTOOL_N_GUL_PER_LB,
+    KTOOL_N_FM_PER_LB,
 )
 
 RUNTYPE_GROUNDUP_LOSS = 'gul'
+RUNTYPE_LOAD_BALANCED_LOSS = 'lb'
 RUNTYPE_INSURED_LOSS = 'il'
 RUNTYPE_REINSURANCE_LOSS = 'ri'
+RUNTYPE_FULL_CORRELATION = 'fc'
 
 WAIT_PROCESSING_SWITCHES = {
     'full_uncertainty_aep': '-F',
@@ -28,6 +36,7 @@ WAIT_PROCESSING_SWITCHES = {
     'wheatsheaf_mean_oep': '-m',
 }
 
+SUMMARY_TYPES = ['eltcalc', 'summarycalc', 'pltcalc']
 
 def print_command(command_file, cmd):
     """
@@ -115,9 +124,21 @@ def do_post_wait_processing(
                     print_command(filename, cmd)
 
 
-def do_fifos_exec(runtype, max_process_id, filename, fifo_dir, action='mkfifo'):
+def get_fifo_name(fifo_dir, producer, producer_id, consumer=''):
+    """Standard name for FIFO"""
+    if consumer:
+        return f'{fifo_dir}{producer}_{consumer}_P{producer_id}'
+    else:
+        return f'{fifo_dir}{producer}_P{producer_id}'
+
+
+def do_fifo_exec(producer, producer_id, filename, fifo_dir, action='mkfifo', consumer=''):
+    print_command(filename, f'{action} {get_fifo_name(fifo_dir, producer, producer_id, consumer)}')
+
+
+def do_fifos_exec(runtype, max_process_id, filename, fifo_dir, action='mkfifo', consumer=''):
     for process_id in range(1, max_process_id + 1):
-        print_command(filename, '{} {}{}_P{}'.format(action, fifo_dir, runtype, process_id))
+        do_fifo_exec(runtype, process_id, filename, fifo_dir, action, consumer)
     print_command(filename, '')
 
 
@@ -147,37 +168,12 @@ def do_fifos_calc(runtype, analysis_settings, max_process_id,
         for summary in summaries:
             if 'id' in summary:
                 summary_set = summary['id']
-                print_command(filename, '{} {}{}_S{}_summary_P{}'.format(action, fifo_dir, runtype, summary_set, process_id))
+                do_fifo_exec(runtype, process_id, filename, fifo_dir, action, f'S{summary_set}_summary')
 
-                if summary.get('eltcalc'):
-                    print_command(
-                        filename,
-                        '{} {}{}_S{}_summaryeltcalc_P{}'.format(action, fifo_dir, runtype, summary_set, process_id)
-                    )
-                    print_command(
-                        filename,
-                        '{} {}{}_S{}_eltcalc_P{}'.format(action, fifo_dir, runtype, summary_set, process_id)
-                    )
+                for summary_type in SUMMARY_TYPES:
+                    if summary.get(summary_type):
+                        do_fifo_exec(runtype, process_id, filename, fifo_dir, action, f'S{summary_set}_{summary_type}')
 
-                if summary.get('summarycalc'):
-                    print_command(
-                        filename,
-                        '{} {}{}_S{}_summarysummarycalc_P{}'.format(action, fifo_dir, runtype, summary_set, process_id)
-                    )
-                    print_command(
-                        filename,
-                        '{} {}{}_S{}_summarycalc_P{}'.format(action, fifo_dir, runtype, summary_set, process_id)
-                    )
-
-                if summary.get('pltcalc'):
-                    print_command(
-                        filename,
-                        '{} {}{}_S{}_summarypltcalc_P{}'.format(action, fifo_dir, runtype, summary_set, process_id)
-                    )
-                    print_command(
-                        filename,
-                        '{} {}{}_S{}_pltcalc_P{}'.format(action, fifo_dir, runtype, summary_set, process_id)
-                    )
         print_command(filename, '')
 
 
@@ -334,16 +330,13 @@ def do_tees(runtype, analysis_settings, process_id, filename, process_counter, f
         if 'id' in summary:
             process_counter['pid_monitor_count'] += 1
             summary_set = summary['id']
-            cmd = 'tee < {}{}_S{}_summary_P{}'.format(fifo_dir, runtype, summary_set, process_id)
 
-            if summary.get('eltcalc'):
-                cmd = '{} {}{}_S{}_summaryeltcalc_P{}'.format(cmd, fifo_dir, runtype, summary_set, process_id)
 
-            if summary.get('pltcalc'):
-                cmd = '{} {}{}_S{}_summarypltcalc_P{}'.format(cmd, fifo_dir, runtype, summary_set, process_id)
+            cmd = f'tee < {get_fifo_name(fifo_dir, runtype, process_id, f"S{summary_set}_summary")}'
 
-            if summary.get('summarycalc'):
-                cmd = '{} {}{}_S{}_summarysummarycalc_P{}'.format(cmd, fifo_dir, runtype, summary_set, process_id)
+            for summary_type in SUMMARY_TYPES:
+                if summary.get(summary_type):
+                    cmd = f'{cmd} {get_fifo_name(fifo_dir, runtype, process_id, f"S{summary_set}_{summary_type}")}'
 
             if summary.get('aalcalc'):
                 cmd = '{} {}{}_S{}_summaryaalcalc/P{}.bin'.format(cmd, work_dir, runtype, summary_set, process_id)
@@ -400,45 +393,24 @@ def do_any(runtype, analysis_settings, process_id, filename, process_counter, fi
     for summary in summaries:
         if 'id' in summary:
             summary_set = summary['id']
-            if summary.get('eltcalc'):
-                cmd = 'eltcalc -s'
-                if process_id == 1:
-                    cmd = 'eltcalc'
+            for summary_type in SUMMARY_TYPES:
+                if summary.get(summary_type):
+                    #cmd exception for summarycalc
+                    if summary_type == 'summarycalc':
+                        cmd = 'summarycalctocsv'
+                    else:
+                        cmd = summary_type
 
-                process_counter['pid_monitor_count'] += 1
-                print_command(
-                    filename,
-                    "{3} < {5}{0}_S{1}_summaryeltcalc_P{2} > {6}kat/{0}_S{1}_eltcalc_P{2} & pid{4}=$!".format(
-                        runtype, summary_set, process_id, cmd, process_counter['pid_monitor_count'], fifo_dir, work_dir
+                    if process_id != 1:
+                        cmd += ' -s'
+
+                    process_counter['pid_monitor_count'] += 1
+                    fifo_in_name = get_fifo_name(fifo_dir, runtype, process_id, f'S{summary_set}_{summary_type}')
+                    fifo_out_name = get_fifo_name(f'{work_dir}kat/', runtype, process_id, f'S{summary_set}_{summary_type}')
+                    print_command(
+                        filename,
+                        f'{cmd} < {fifo_in_name} > {fifo_out_name} & pid{process_counter["pid_monitor_count"]}=$!'
                     )
-                )
-
-            if summary.get("summarycalc"):
-                cmd = 'summarycalctocsv -s'
-                if process_id == 1:
-                    cmd = 'summarycalctocsv'
-
-                process_counter['pid_monitor_count'] += 1
-                print_command(
-                    filename,
-                    '{3} < {5}{0}_S{1}_summarysummarycalc_P{2} > {6}kat/{0}_S{1}_summarycalc_P{2} & pid{4}=$!'.format(
-                        runtype, summary_set, process_id, cmd, process_counter['pid_monitor_count'], fifo_dir, work_dir
-                    )
-                )
-
-            if summary.get('pltcalc'):
-                cmd = 'pltcalc -s'
-                if process_id == 1:
-                    cmd = 'pltcalc'
-
-                process_counter['pid_monitor_count'] += 1
-                print_command(
-                    filename,
-                    '{3} < {5}{0}_S{1}_summarypltcalc_P{2} > {6}kat/{0}_S{1}_pltcalc_P{2} & pid{4}=$!'.format(
-                        runtype, summary_set, process_id, cmd, process_counter['pid_monitor_count'], fifo_dir, work_dir
-                    )
-                )
-
 
 def ri(analysis_settings, max_process_id, filename, process_counter, num_reinsurance_iterations, fifo_dir='fifo/', work_dir='work/', stderr_guard=True):
     for process_id in range(1, max_process_id + 1):
@@ -653,7 +625,7 @@ def get_main_cmd_ri_stream(
     num_reinsurance_iterations,
     fifo_dir='fifo/',
     stderr_guard=True,
-    full_correlation=False
+    from_file=False
 ):
     """
     Gets the fmcalc ktools command reinsurance stream
@@ -673,29 +645,25 @@ def get_main_cmd_ri_stream(
     :type fifo_dir: str
     :param stderr_guard: send stderr output to log file
     :type stderr_guard: bool
-    :param full_correlation: execute fmcalc on fully correlated data
-    :type full_correlation: bool
-    :param process_counter: process counter
-    :type process_counter: Counter
-    :return: generated fmcalc command as str
+    :param from_file: must be true if cmd is a file and false if it can be piped
+    :type from_file: bool
     """
 
-    if full_correlation:
+    if from_file:
         fm_cmd = 'fmcalc -a{1} < {0}'
     else:
         fm_cmd = '{0} | fmcalc -a{1}'
     main_cmd = fm_cmd.format(cmd, il_alloc_rule)
 
     if il_output:
-        main_cmd = "{0} | tee {1}il_P{2}".format(main_cmd, fifo_dir, process_id)
+        main_cmd += f" | tee {get_fifo_name(fifo_dir, RUNTYPE_INSURED_LOSS, process_id)}"
 
     for i in range(1, num_reinsurance_iterations + 1):
-        main_cmd = "{0} | fmcalc -a{2} -n -p RI_{1}".format(
-            main_cmd, i, ri_alloc_rule
-        )
+        main_cmd += f" | fmcalc -a{ri_alloc_rule} -n -p RI_{i}"
 
-    main_cmd = "{0} > {1}ri_P{2}".format(main_cmd, fifo_dir, process_id)
-    main_cmd = '( {0} ) 2>> log/stderror.err &'.format(main_cmd) if stderr_guard else '{0} &'.format(main_cmd)
+    ri_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_LOSS, process_id)
+    main_cmd += f" > {ri_fifo_name}"
+    main_cmd = f'( {main_cmd} ) 2>> log/stderror.err &' if stderr_guard else f'{main_cmd} &'
 
     return main_cmd
 
@@ -706,7 +674,7 @@ def get_main_cmd_il_stream(
     il_alloc_rule,
     fifo_dir='fifo/',
     stderr_guard=True,
-    full_correlation=False
+    from_file=False,
 ):
     """
     Gets the fmcalc ktools command insured losses stream
@@ -720,19 +688,18 @@ def get_main_cmd_il_stream(
     :type fifo_dir: str
     :param stderr_guard: send stderr output to log file
     :type stderr_guard: bool
-    :param full_correlation: execute fmcalc on fully correlated data
-    :type full_correlation: bool
-    :param process_counter: process counter
-    :type process_counter: Counter
+    :param from_file: must be true if cmd is a file and false if it can be piped
+    :type from_file: bool
     :return: generated fmcalc command as str
     """
 
-    if full_correlation:
-        fm_cmd = 'fmcalc -a{2} < {1} > {3}il_P{0}'
+    il_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_INSURED_LOSS, process_id)
+    if from_file:
+        main_cmd = f'fmcalc -a{il_alloc_rule} < {cmd} > {il_fifo_name}'
     else:
-        fm_cmd = '{1} | fmcalc -a{2} > {3}il_P{0} '
-    main_cmd = fm_cmd.format(process_id, cmd, il_alloc_rule, fifo_dir)
-    main_cmd = '( {0} ) 2>> log/stderror.err &'.format(main_cmd) if stderr_guard else '{0} &'.format(main_cmd)
+        main_cmd = f'{cmd} | fmcalc -a{il_alloc_rule} > {il_fifo_name} '#need extra space at the end to pass test
+
+    main_cmd = f'( {main_cmd} ) 2>> log/stderror.err &' if stderr_guard else f'{main_cmd} &'
 
     return main_cmd
 
@@ -741,7 +708,8 @@ def get_main_cmd_gul_stream(
     cmd,
     process_id,
     fifo_dir='fifo/',
-    stderr_guard=True
+    stderr_guard=True,
+    consumer='',
 ):
     """
     Gets the command to output ground up losses
@@ -753,12 +721,14 @@ def get_main_cmd_gul_stream(
     :type fifo_dir: str
     :param stderr_guard: send stderr output to log file
     :type stderr_guard: bool
+    :param consumer: optional name of the consumer of the stream
+    :type consumer: string
     :return: generated command as str
     """
 
-    gul_cmd = '{1} > {2}gul_P{0} '
-    main_cmd = gul_cmd.format(process_id, cmd, fifo_dir)
-    main_cmd = '( {0} ) 2>> log/stderror.err &'.format(main_cmd) if stderr_guard else '{0} &'.format(main_cmd)
+    gul_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_GROUNDUP_LOSS, process_id, consumer)
+    main_cmd = f'{cmd} > {gul_fifo_name} '
+    main_cmd = f'( {main_cmd} ) 2>> log/stderror.err &' if stderr_guard else f'{main_cmd} &'
 
     return main_cmd
 
@@ -778,6 +748,29 @@ def do_computes(outputs):
         output['compute_fun'](**output['compute_args'])
 
 
+def get_main_cmd_lb(num_lb, num_in_per_lb, num_out_per_lb, get_input_stream_name, get_output_stream_name, stderr_guard):
+    in_id = 1
+    out_id = 1
+    for _ in range(num_lb):
+        lb_in_l = []
+        for _ in range(num_in_per_lb):
+            lb_in_fifo_name = get_input_stream_name(producer_id=in_id)
+            in_id += 1
+            lb_in_l.append(lb_in_fifo_name)
+        lb_in = ' '.join(lb_in_l)
+
+        lb_out_l = []
+        for _ in range(num_out_per_lb):
+            lb_out_fifo_name = get_output_stream_name(producer_id=out_id)
+            out_id += 1
+            lb_out_l.append(lb_out_fifo_name)
+        lb_out = ' '.join(lb_out_l)
+
+        lb_main_cmd = f"load_balancer -i {lb_in} -o {lb_out}"
+        lb_main_cmd = f'( {lb_main_cmd} ) 2>> log/stderror.err &' if stderr_guard else f'{lb_main_cmd} &'
+        yield lb_main_cmd
+
+
 def genbash(
     max_process_id,
     analysis_settings,
@@ -786,6 +779,8 @@ def genbash(
     gul_alloc_rule=None,
     il_alloc_rule=None,
     ri_alloc_rule=None,
+    num_gul_per_lb=None,
+    num_fm_per_lb=None,
     stderr_guard=True,
     gul_legacy_stream=False,
     bash_trace=False,
@@ -821,6 +816,12 @@ def genbash(
     :param ri_alloc_rule: Allocation rule (0, 1 or 2) for fmcalc
     :type ri_alloc_rule: Int
 
+    :param num_gul_in_calc_block: number of gul in calc block
+    :type num_gul_in_calc_block: Int
+
+    :param num_fm_in_calc_block: number of gul in calc block
+    :type num_fm_in_calc_block: Int
+
     :param get_getmodel_cmd: Method for getting the getmodel command, by default
         ``GenerateLossesCmd.get_getmodel_cmd`` is used.
     :type get_getmodel_cmd: callable
@@ -831,9 +832,6 @@ def genbash(
     stderr_guard = stderr_guard
     gul_item_stream = not gul_legacy_stream
     full_correlation = False
-    gul_output = False
-    il_output = False
-    ri_output = False
     fifo_queue_dir = ""
     fifo_full_correlation_dir = ""
     work_dir = 'work/'
@@ -847,6 +845,8 @@ def genbash(
     gul_alloc_rule = gul_alloc_rule if isinstance(gul_alloc_rule, int) else KTOOLS_ALLOC_GUL_DEFAULT
     il_alloc_rule = il_alloc_rule if isinstance(il_alloc_rule, int) else KTOOLS_ALLOC_IL_DEFAULT
     ri_alloc_rule = ri_alloc_rule if isinstance(ri_alloc_rule, int) else KTOOLS_ALLOC_RI_DEFAULT
+    num_gul_per_lb = num_gul_per_lb if isinstance(num_gul_per_lb, int) else KTOOL_N_GUL_PER_LB
+    num_fm_per_lb = num_fm_per_lb if isinstance(num_fm_per_lb, int) else KTOOL_N_FM_PER_LB
 
     # remove the file if it already exists
     if os.path.exists(filename):
@@ -862,16 +862,26 @@ def genbash(
         if _get_getmodel_cmd is None and gul_item_stream:
             full_correlation = analysis_settings['full_correlation']
 
-    # Output depends on being enabled AND having at lease one summaries section
-    gul_output = analysis_settings.get('gul_output', False) and (len(analysis_settings.get('gul_summaries', [])) > 0)
-    il_output = analysis_settings.get('il_output', False) and (len(analysis_settings.get('il_summaries', [])) > 0)
-    ri_output = analysis_settings.get('ri_output', False) and (len(analysis_settings.get('ri_summaries', [])) > 0)
+    # Output depends on being enabled AND having at least one summaries section
+    # checking output settings coherence
+    for mod in ['gul', 'il', 'ri']:
+        if analysis_settings.get(f'{mod}_output') and not analysis_settings.get(f'{mod}_summaries'):
+            logger.warning(f'{mod}_output set to True but there is no {mod}_summaries')
+            analysis_settings[f'{mod}_output'] = False
 
-    # Determine whether GUL output only
-    # This is used for full correlation
-    gul_output_only = False
-    if gul_output and not il_output and not ri_output:
-        gul_output_only = True
+    # additional check for ri, must have num_reinsurance_iterations
+    if analysis_settings.get('ri_output', False) and not num_reinsurance_iterations:
+        logger.warning('ri_output set to True but there is no reinsurance layers')
+        analysis_settings['ri_output'] = False
+
+    if not any(analysis_settings.get(f'{mod}_output') for mod in ['gul', 'il', 'ri']):
+        raise OasisException('No valid output settings')
+
+    gul_output = analysis_settings.get('gul_output', False)
+    il_output = analysis_settings.get('il_output', False)
+    ri_output = analysis_settings.get('ri_output', False)
+
+    need_summary_fifo_for_gul = gul_output and (il_output or ri_output)
 
     print_command(filename, '#!/bin/bash')
     print_command(filename, 'SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")')
@@ -987,282 +997,226 @@ def genbash(
             )
     print_command(filename, '')
 
-    # Create Execution Pipeline FIFOs
-    if gul_output:
-        do_fifos_exec(RUNTYPE_GROUNDUP_LOSS, max_process_id, filename, fifo_queue_dir)
-    if il_output:
-        do_fifos_exec(RUNTYPE_INSURED_LOSS, max_process_id, filename, fifo_queue_dir)
-    if ri_output:
-        do_fifos_exec(RUNTYPE_REINSURANCE_LOSS, max_process_id, filename, fifo_queue_dir)
+    # infer number of calc block and FIFO to create, (no load balancer for old stream option)
+    if num_gul_per_lb and num_fm_per_lb and (il_output or ri_output) and gul_item_stream:
+        block_process_size = num_gul_per_lb + (num_fm_per_lb * (2 if ri_output else 1))
+        num_lb = (max_process_id - 1) // block_process_size + 1
+        num_gul_output = num_lb * num_gul_per_lb
+        num_fm_output = num_lb * num_fm_per_lb
+    else:
+        num_lb = 0
+        num_gul_output = num_fm_output = max_process_id
 
-    # Create Summarycalc FIFOs
-    if gul_output:
-        do_fifos_calc(RUNTYPE_GROUNDUP_LOSS, analysis_settings, max_process_id,
-                      filename, fifo_queue_dir)
-    if il_output:
-        do_fifos_calc(RUNTYPE_INSURED_LOSS, analysis_settings,
-                      max_process_id, filename, fifo_queue_dir)
-    if ri_output:
-        do_fifos_calc(RUNTYPE_REINSURANCE_LOSS, analysis_settings,
-                      max_process_id, filename, fifo_queue_dir)
-
-    # Create Full correlation FIFO
+    fifo_dirs = [fifo_queue_dir]
     if full_correlation:
+        fifo_dirs.append(fifo_full_correlation_dir)
+        if (il_output or ri_output) and (gul_output or not num_lb):
+            #create fifo for il or ri full correlation compute
+            do_fifos_exec(RUNTYPE_GROUNDUP_LOSS, num_gul_output, filename, fifo_full_correlation_dir, consumer=RUNTYPE_FULL_CORRELATION)
+
+    for fifo_dir in fifo_dirs:
+        # create fifos for Summarycalc
         if gul_output:
-            do_fifos_exec(
-                RUNTYPE_GROUNDUP_LOSS, max_process_id, filename,
-                fifo_full_correlation_dir
-            )
-            if not gul_output_only:
-                do_fifos_exec_full_correlation(
-                    RUNTYPE_GROUNDUP_LOSS, max_process_id, filename,
-                    fifo_full_correlation_dir
-                )
+            do_fifos_exec(RUNTYPE_GROUNDUP_LOSS, num_gul_output, filename, fifo_dir)
+            do_fifos_calc(RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output, filename, fifo_dir)
         if il_output:
-            do_fifos_exec(
-                RUNTYPE_INSURED_LOSS, max_process_id, filename,
-                fifo_full_correlation_dir
-            )
+            do_fifos_exec(RUNTYPE_INSURED_LOSS, num_fm_output, filename, fifo_dir)
+            do_fifos_calc(RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output, filename, fifo_dir)
         if ri_output:
-            do_fifos_exec(
-                RUNTYPE_REINSURANCE_LOSS, max_process_id, filename,
-                fifo_full_correlation_dir
-            )
-        if gul_output:
-            do_fifos_calc(
-                RUNTYPE_GROUNDUP_LOSS, analysis_settings,
-                max_process_id, filename, fifo_full_correlation_dir
-            )
-        if il_output:
-            do_fifos_calc(
-                RUNTYPE_INSURED_LOSS, analysis_settings,
-                max_process_id, filename, fifo_full_correlation_dir
-            )
-        if ri_output:
-            do_fifos_calc(
-                RUNTYPE_REINSURANCE_LOSS, analysis_settings,
-                max_process_id, filename, fifo_full_correlation_dir
-            )
+            do_fifos_exec(RUNTYPE_REINSURANCE_LOSS, num_fm_output, filename, fifo_dir)
+            do_fifos_calc(RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output, filename, fifo_dir)
+
+        # create fifos for Load balancer
+        if num_lb:
+            do_fifos_exec(RUNTYPE_GROUNDUP_LOSS, num_gul_output, filename, fifo_dir, consumer=RUNTYPE_LOAD_BALANCED_LOSS)
+            do_fifos_exec(RUNTYPE_LOAD_BALANCED_LOSS, num_fm_output, filename, fifo_dir, consumer=RUNTYPE_INSURED_LOSS)
 
     print_command(filename, '')
+    dirs = [(fifo_queue_dir, work_dir)]
+    if full_correlation:
+        dirs.append((fifo_full_correlation_dir, work_full_correlation_dir))
+
     compute_outputs = []
-    if ri_output:
-        ri_computes = {
-            'loss_type': 'reinsurance',
-            'compute_fun': ri,
-            'compute_args': {
-                'analysis_settings': analysis_settings,
-                'max_process_id': max_process_id,
-                'filename': filename,
-                'process_counter': process_counter,
-                'num_reinsurance_iterations': num_reinsurance_iterations,
-                'fifo_dir': fifo_queue_dir,
-                'work_dir': work_dir,
-                'stderr_guard': stderr_guard
+    for (_fifo_dir, _work_dir) in dirs:  # create Summarycalc
+        if ri_output:
+            ri_computes = {
+                'loss_type': 'reinsurance',
+                'compute_fun': ri,
+                'compute_args': {
+                    'analysis_settings': analysis_settings,
+                    'max_process_id': num_fm_output,
+                    'filename': filename,
+                    'process_counter': process_counter,
+                    'num_reinsurance_iterations': num_reinsurance_iterations,
+                    'fifo_dir': _fifo_dir,
+                    'work_dir': _work_dir,
+                    'stderr_guard': stderr_guard
+                }
             }
-        }
-        compute_outputs.append(ri_computes)
-        if full_correlation:
-            ri_fc_computes = copy.deepcopy(ri_computes)
-            ri_fc_computes['compute_args']['fifo_dir'] = fifo_full_correlation_dir
-            ri_fc_computes['compute_args']['work_dir'] = work_full_correlation_dir
-            compute_outputs.append(ri_fc_computes)
+            compute_outputs.append(ri_computes)
 
-    if il_output:
-        il_computes = {
-            'loss_type': 'insured',
-            'compute_fun': il,
-            'compute_args': {
-                'analysis_settings': analysis_settings,
-                'max_process_id': max_process_id,
-                'filename': filename,
-                'process_counter': process_counter,
-                'fifo_dir': fifo_queue_dir,
-                'work_dir': work_dir,
-                'stderr_guard': stderr_guard
+        if il_output:
+            il_computes = {
+                'loss_type': 'insured',
+                'compute_fun': il,
+                'compute_args': {
+                    'analysis_settings': analysis_settings,
+                    'max_process_id': num_fm_output,
+                    'filename': filename,
+                    'process_counter': process_counter,
+                    'fifo_dir': _fifo_dir,
+                    'work_dir': _work_dir,
+                    'stderr_guard': stderr_guard
+                }
             }
-        }
-        compute_outputs.append(il_computes)
-        if full_correlation:
-            il_fc_computes = copy.deepcopy(il_computes)
-            il_fc_computes['compute_args']['fifo_dir'] = fifo_full_correlation_dir
-            il_fc_computes['compute_args']['work_dir'] = work_full_correlation_dir
-            compute_outputs.append(il_fc_computes)
+            compute_outputs.append(il_computes)
 
-    if gul_output:
-        gul_computes = {
-            'loss_type': 'ground up',
-            'compute_fun': do_gul,
-            'compute_args': {
-                'analysis_settings': analysis_settings,
-                'max_process_id': max_process_id,
-                'filename': filename,
-                'process_counter': process_counter,
-                'fifo_dir': fifo_queue_dir,
-                'work_dir': work_dir,
-                'gul_legacy_stream': gul_legacy_stream,
-                'stderr_guard': stderr_guard
+        if gul_output:
+            gul_computes = {
+                'loss_type': 'ground up',
+                'compute_fun': do_gul,
+                'compute_args': {
+                    'analysis_settings': analysis_settings,
+                    'max_process_id': num_gul_output,
+                    'filename': filename,
+                    'process_counter': process_counter,
+                    'fifo_dir': _fifo_dir,
+                    'work_dir': _work_dir,
+                    'gul_legacy_stream': gul_legacy_stream,
+                    'stderr_guard': stderr_guard
+                }
             }
-        }
-        compute_outputs.append(gul_computes)
+            compute_outputs.append(gul_computes)
 
     do_computes(compute_outputs)
 
     print_command(filename, '')
 
-    if full_correlation:
-        correlated_output_stems = get_correlated_output_stems(
-            fifo_full_correlation_dir
-        )
-        if gul_output:
-            gul_fc_computes = copy.deepcopy(gul_computes)
-            gul_fc_computes['compute_args']['fifo_dir'] = fifo_full_correlation_dir
-            gul_fc_computes['compute_args']['work_dir'] = work_full_correlation_dir
-            do_gul_full_correlation(**gul_fc_computes['compute_args'])
+    # create all gul streams
+    get_gul_stream_cmds = {}
+    for gul_id in range(1, num_gul_output + 1):
+        getmodel_args = {
+            'number_of_samples': number_of_samples,
+            'gul_threshold': gul_threshold,
+            'use_random_number_file': use_random_number_file,
+            'gul_alloc_rule': gul_alloc_rule,
+            'gul_legacy_stream': gul_legacy_stream,
+            'process_id': gul_id,
+            'max_process_id': num_gul_output,
+            'stderr_guard': stderr_guard
+        }
 
-        for process_id in range(1, max_process_id + 1):
-            # Set up file name for full correlation file
-            correlated_output_file = '{0}{1}'.format(
-                correlated_output_stems['fmcalc_input'], process_id
+        # GUL coverage & item stream (Older)
+        gul_fifo_name = get_fifo_name(fifo_queue_dir, RUNTYPE_GROUNDUP_LOSS, gul_id)
+        if gul_item_stream:
+            if need_summary_fifo_for_gul:
+                getmodel_args['item_output'] = f'- | tee {gul_fifo_name}'
+            else:
+                getmodel_args['item_output'] = '-'
+            _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_itm_cmd)
+        else:
+            if need_summary_fifo_for_gul:
+                getmodel_args['coverage_output'] = f'{gul_fifo_name}'
+                getmodel_args['item_output'] = '-'
+            elif gul_output:# only gul direct stdout to summary
+                getmodel_args['coverage_output'] = '-'
+                getmodel_args['item_output'] = ''
+            else:# direct stdout to il
+                getmodel_args['coverage_output'] = ''
+                getmodel_args['item_output'] = '-'
+            _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_cov_cmd)
+
+        # gulcalc output file for fully correlated output
+        if full_correlation:
+            fc_gul_fifo_name = get_fifo_name(fifo_full_correlation_dir, RUNTYPE_GROUNDUP_LOSS, gul_id)
+            if need_summary_fifo_for_gul:# need both stream for summary and tream for il
+                getmodel_args['correlated_output'] = get_fifo_name(fifo_full_correlation_dir, RUNTYPE_GROUNDUP_LOSS, gul_id,
+                                                                   consumer=RUNTYPE_FULL_CORRELATION)
+                if num_lb:
+                    tee_output = get_fifo_name(fifo_full_correlation_dir, RUNTYPE_GROUNDUP_LOSS, gul_id,
+                                                                   consumer=RUNTYPE_LOAD_BALANCED_LOSS)
+                    tee_cmd = f"tee < {getmodel_args['correlated_output']} {fc_gul_fifo_name} > {tee_output} &"
+                    print_command(filename, tee_cmd)
+
+                else:
+                    tee_output = get_fifo_name(fifo_full_correlation_dir, RUNTYPE_GROUNDUP_LOSS, gul_id,
+                                                                   consumer=RUNTYPE_INSURED_LOSS)
+                    tee_cmd = f"tee < {getmodel_args['correlated_output']} {fc_gul_fifo_name} "
+                    get_gul_stream_cmds.setdefault(fifo_full_correlation_dir, []).append((tee_cmd, False))
+
+            elif gul_output:# only gul direct correlated_output to summary
+                getmodel_args['correlated_output'] = fc_gul_fifo_name
+            else:
+                if num_lb:
+                    getmodel_args['correlated_output'] = get_fifo_name(fifo_full_correlation_dir, RUNTYPE_GROUNDUP_LOSS, gul_id,
+                                  consumer=RUNTYPE_LOAD_BALANCED_LOSS)
+
+                else:
+                    getmodel_args['correlated_output'] = get_fifo_name(fifo_full_correlation_dir, RUNTYPE_GROUNDUP_LOSS, gul_id,
+                                                                   consumer=RUNTYPE_FULL_CORRELATION)
+                    get_gul_stream_cmds.setdefault(fifo_full_correlation_dir, []).append((getmodel_args['correlated_output'], True))
+
+        else:
+            getmodel_args['correlated_output'] = ''
+
+        getmodel_args.update(custom_args)
+        getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
+        if num_lb: # print main_cmd_gul_stream, get_gul_stream_cmds will be updated after by the main lb block
+            main_cmd_gul_stream = get_main_cmd_gul_stream(
+                getmodel_cmd, gul_id, fifo_queue_dir, stderr_guard, RUNTYPE_LOAD_BALANCED_LOSS
             )
+            print_command(filename, main_cmd_gul_stream)
+        else:
+            get_gul_stream_cmds.setdefault(fifo_queue_dir, []).append((getmodel_cmd, False))
 
-            if num_reinsurance_iterations > 0 and ri_output:
+    if num_lb: # create load balancer cmds
+        for fifo_dir in fifo_dirs:
+            get_gul_stream_cmds[fifo_dir] = [
+                (get_fifo_name(fifo_dir, RUNTYPE_LOAD_BALANCED_LOSS, fm_id, RUNTYPE_INSURED_LOSS), True) for
+                fm_id in range(1, num_fm_output + 1)]
+
+            #print the load balancing command
+            get_input_stream_name = partial(get_fifo_name,
+                                            fifo_dir=fifo_dir,
+                                            producer=RUNTYPE_GROUNDUP_LOSS,
+                                            consumer=RUNTYPE_LOAD_BALANCED_LOSS)
+            get_output_stream_name = partial(get_fifo_name,
+                                             fifo_dir=fifo_dir,
+                                             producer=RUNTYPE_LOAD_BALANCED_LOSS,
+                                             consumer=RUNTYPE_INSURED_LOSS)
+            for lb_main_cmd in get_main_cmd_lb(num_lb, num_gul_per_lb, num_fm_per_lb, get_input_stream_name,
+                                               get_output_stream_name, stderr_guard):
+                print_command(filename, lb_main_cmd)
+
+    for fifo_dir, gul_streams in get_gul_stream_cmds.items():
+        for i, (getmodel_cmd, from_file) in enumerate(gul_streams):
+            process_id = i + 1
+
+            if ri_output:
                 main_cmd = get_main_cmd_ri_stream(
-                    correlated_output_file,
+                    getmodel_cmd,
                     process_id,
                     il_output,
                     il_alloc_rule,
                     ri_alloc_rule,
                     num_reinsurance_iterations,
-                    fifo_full_correlation_dir,
+                    fifo_dir,
                     stderr_guard,
-                    full_correlation
+                    from_file
                 )
+                print_command(filename, main_cmd)
 
-                print_command(filename, main_cmd)
-            elif gul_output and il_output:
+            elif il_output:
                 main_cmd = get_main_cmd_il_stream(
-                    correlated_output_file, process_id, il_alloc_rule,
-                    fifo_full_correlation_dir, stderr_guard, full_correlation
+                    getmodel_cmd, process_id, il_alloc_rule, fifo_dir,
+                    stderr_guard,
+                    from_file
                 )
                 print_command(filename, main_cmd)
+
             else:
-                if il_output and 'il_summaries' in analysis_settings:
-
-                    main_cmd = get_main_cmd_il_stream(
-                        correlated_output_file, process_id, il_alloc_rule,
-                        fifo_full_correlation_dir, stderr_guard,
-                        full_correlation
-                    )
-                    print_command(filename, main_cmd)
-
-        gul_full_correlation = True
-        if gul_output_only:
-            gul_full_correlation = False
-        for process_id in range(1, max_process_id + 1):
-            do_summarycalcs(
-                runtype=RUNTYPE_GROUNDUP_LOSS,
-                analysis_settings=analysis_settings,
-                process_id=process_id,
-                filename=filename,
-                gul_legacy_stream=gul_legacy_stream,
-                fifo_dir=fifo_full_correlation_dir,
-                stderr_guard=stderr_guard,
-                gul_full_correlation=gul_full_correlation
-            )
-
-        if not gul_output_only:
-            for process_id in range(1, max_process_id + 1):
-                do_tees_fc_sumcalc_fmcalc(
-                    process_id, filename, correlated_output_stems
-                )
-
-        print_command(filename, '')
-
-
-    for process_id in range(1, max_process_id + 1):
-        # gulcalc output file for fully correlated output
-        if full_correlation:
-            correlated_output_file = '{0}{1}'.format(
-                correlated_output_stems['gulcalc_output'], process_id
-            )
-        else:
-            correlated_output_file = ''
-
-        getmodel_args = {
-            'number_of_samples': number_of_samples,
-            'gul_threshold': gul_threshold,
-            'use_random_number_file': use_random_number_file,
-            'coverage_output': '{0}gul_P{1}'.format(fifo_queue_dir, process_id),
-            'item_output': '-',
-            'gul_alloc_rule': gul_alloc_rule,
-            'gul_legacy_stream': gul_legacy_stream,
-            'process_id': process_id,
-            'max_process_id': max_process_id,
-            'correlated_output': correlated_output_file,
-            'stderr_guard': stderr_guard
-        }
-
-        # GUL coverage & item stream (Older)
-        if gul_item_stream:
-            if gul_output:
-                getmodel_args['item_output'] = '- | tee {0}gul_P{1}'.format(fifo_queue_dir, process_id)
-
-            _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_itm_cmd)
-        else:
-            if not gul_output:
-                getmodel_args['coverage_output'] = ""
-            _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_cov_cmd)
-
-        # ! Should be able to streamline the logic a little
-        if num_reinsurance_iterations > 0 and ri_output:
-            getmodel_args.update(custom_args)
-            getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
-            main_cmd = get_main_cmd_ri_stream(
-                getmodel_cmd,
-                process_id,
-                il_output,
-                il_alloc_rule,
-                ri_alloc_rule,
-                num_reinsurance_iterations,
-                fifo_queue_dir,
-                stderr_guard
-            )
-            print_command(filename, main_cmd)
-
-        elif gul_output and il_output:
-            getmodel_args.update(custom_args)
-            getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
-            main_cmd = get_main_cmd_il_stream(
-                getmodel_cmd, process_id, il_alloc_rule, fifo_queue_dir,
-                stderr_guard
-            )
-            print_command(filename, main_cmd)
-
-        else:
-            if gul_output and 'gul_summaries' in analysis_settings:
-                getmodel_args['coverage_output'] = '-'
-                getmodel_args['item_output'] = ''
-
-                if gul_item_stream:
-                    getmodel_args['item_output'] = '-'
-
-                getmodel_args.update(custom_args)
-                getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
                 main_cmd = get_main_cmd_gul_stream(
-                    getmodel_cmd, process_id, fifo_queue_dir, stderr_guard
-                )
-                print_command(filename, main_cmd)
-
-            if il_output and 'il_summaries' in analysis_settings:
-                getmodel_args['coverage_output'] = ''
-                getmodel_args['item_output'] = '-'
-
-                getmodel_args.update(custom_args)
-                getmodel_cmd = _get_getmodel_cmd(**getmodel_args)
-                main_cmd = get_main_cmd_il_stream(
-                    getmodel_cmd, process_id, il_alloc_rule, fifo_queue_dir,
-                    stderr_guard
+                    getmodel_cmd, process_id, fifo_dir, stderr_guard
                 )
                 print_command(filename, main_cmd)
 
@@ -1275,7 +1229,7 @@ def genbash(
         print_command(filename, '# --- Do reinsurance loss kats ---')
         print_command(filename, '')
         do_kats(
-            RUNTYPE_REINSURANCE_LOSS, analysis_settings, max_process_id,
+            RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
             filename, process_counter, work_kat_dir, output_dir
         )
         if full_correlation:
@@ -1286,7 +1240,7 @@ def genbash(
             )
             print_command(filename, '')
             do_kats(
-                RUNTYPE_REINSURANCE_LOSS, analysis_settings, max_process_id,
+                RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
                 filename, process_counter, work_full_correlation_kat_dir,
                 output_full_correlation_dir
             )
@@ -1296,7 +1250,7 @@ def genbash(
         print_command(filename, '# --- Do insured loss kats ---')
         print_command(filename, '')
         do_kats(
-            RUNTYPE_INSURED_LOSS, analysis_settings, max_process_id, filename,
+            RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output, filename,
             process_counter, work_kat_dir, output_dir
         )
         if full_correlation:
@@ -1307,7 +1261,7 @@ def genbash(
             )
             print_command(filename, '')
             do_kats(
-                RUNTYPE_INSURED_LOSS, analysis_settings, max_process_id,
+                RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output,
                 filename, process_counter, work_full_correlation_kat_dir,
                 output_full_correlation_dir
             )
@@ -1317,7 +1271,7 @@ def genbash(
         print_command(filename, '# --- Do ground up loss kats ---')
         print_command(filename, '')
         do_kats(
-            RUNTYPE_GROUNDUP_LOSS, analysis_settings, max_process_id, filename,
+            RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output, filename,
             process_counter, work_kat_dir, output_dir
         )
         if full_correlation:
@@ -1328,7 +1282,7 @@ def genbash(
             )
             print_command(filename, '')
             do_kats(
-                RUNTYPE_GROUNDUP_LOSS, analysis_settings, max_process_id,
+                RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output,
                 filename, process_counter, work_full_correlation_kat_dir,
                 output_full_correlation_dir
             )

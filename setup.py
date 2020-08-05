@@ -347,8 +347,9 @@ setup(
     scripts=['bin/oasislmf', 'bin/completer_oasislmf', 'bin/ktools_monitor.sh'],
     entry_points={
         'console_scripts': [
-            'complex_itemtobin=oasislmf.model_execution.complex_items_to_bin:main',
-            'complex_itemtocsv=oasislmf.model_execution.complex_items_to_csv:main',
+            'complex_itemtobin=oasislmf.execution.complex_items_to_bin:main',
+            'complex_itemtocsv=oasislmf.execution.complex_items_to_csv:main',
+            'load_balancer=oasislmf.execution.load_balancer:main',
         ]
     },
     license='BSD 3-Clause',

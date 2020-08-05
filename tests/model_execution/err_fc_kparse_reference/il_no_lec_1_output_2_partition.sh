@@ -48,86 +48,73 @@ mkdir work/full_correlation/kat/
 mkdir work/il_S1_summaryaalcalc
 mkdir work/full_correlation/il_S1_summaryaalcalc
 
+mkfifo fifo/full_correlation/gul_fc_P1
+mkfifo fifo/full_correlation/gul_fc_P2
+
 mkfifo fifo/il_P1
 mkfifo fifo/il_P2
 
 mkfifo fifo/il_S1_summary_P1
-mkfifo fifo/il_S1_summaryeltcalc_P1
 mkfifo fifo/il_S1_eltcalc_P1
-mkfifo fifo/il_S1_summarysummarycalc_P1
 mkfifo fifo/il_S1_summarycalc_P1
-mkfifo fifo/il_S1_summarypltcalc_P1
 mkfifo fifo/il_S1_pltcalc_P1
 
 mkfifo fifo/il_S1_summary_P2
-mkfifo fifo/il_S1_summaryeltcalc_P2
 mkfifo fifo/il_S1_eltcalc_P2
-mkfifo fifo/il_S1_summarysummarycalc_P2
 mkfifo fifo/il_S1_summarycalc_P2
-mkfifo fifo/il_S1_summarypltcalc_P2
 mkfifo fifo/il_S1_pltcalc_P2
 
 mkfifo fifo/full_correlation/il_P1
 mkfifo fifo/full_correlation/il_P2
 
 mkfifo fifo/full_correlation/il_S1_summary_P1
-mkfifo fifo/full_correlation/il_S1_summaryeltcalc_P1
 mkfifo fifo/full_correlation/il_S1_eltcalc_P1
-mkfifo fifo/full_correlation/il_S1_summarysummarycalc_P1
 mkfifo fifo/full_correlation/il_S1_summarycalc_P1
-mkfifo fifo/full_correlation/il_S1_summarypltcalc_P1
 mkfifo fifo/full_correlation/il_S1_pltcalc_P1
 
 mkfifo fifo/full_correlation/il_S1_summary_P2
-mkfifo fifo/full_correlation/il_S1_summaryeltcalc_P2
 mkfifo fifo/full_correlation/il_S1_eltcalc_P2
-mkfifo fifo/full_correlation/il_S1_summarysummarycalc_P2
 mkfifo fifo/full_correlation/il_S1_summarycalc_P2
-mkfifo fifo/full_correlation/il_S1_summarypltcalc_P2
 mkfifo fifo/full_correlation/il_S1_pltcalc_P2
 
 
 
 # --- Do insured loss computes ---
 
-eltcalc < fifo/il_S1_summaryeltcalc_P1 > work/kat/il_S1_eltcalc_P1 & pid1=$!
-summarycalctocsv < fifo/il_S1_summarysummarycalc_P1 > work/kat/il_S1_summarycalc_P1 & pid2=$!
-pltcalc < fifo/il_S1_summarypltcalc_P1 > work/kat/il_S1_pltcalc_P1 & pid3=$!
-eltcalc -s < fifo/il_S1_summaryeltcalc_P2 > work/kat/il_S1_eltcalc_P2 & pid4=$!
-summarycalctocsv -s < fifo/il_S1_summarysummarycalc_P2 > work/kat/il_S1_summarycalc_P2 & pid5=$!
-pltcalc -s < fifo/il_S1_summarypltcalc_P2 > work/kat/il_S1_pltcalc_P2 & pid6=$!
+eltcalc < fifo/il_S1_eltcalc_P1 > work/kat/il_S1_eltcalc_P1 & pid1=$!
+summarycalctocsv < fifo/il_S1_summarycalc_P1 > work/kat/il_S1_summarycalc_P1 & pid2=$!
+pltcalc < fifo/il_S1_pltcalc_P1 > work/kat/il_S1_pltcalc_P1 & pid3=$!
+eltcalc -s < fifo/il_S1_eltcalc_P2 > work/kat/il_S1_eltcalc_P2 & pid4=$!
+summarycalctocsv -s < fifo/il_S1_summarycalc_P2 > work/kat/il_S1_summarycalc_P2 & pid5=$!
+pltcalc -s < fifo/il_S1_pltcalc_P2 > work/kat/il_S1_pltcalc_P2 & pid6=$!
 
-tee < fifo/il_S1_summary_P1 fifo/il_S1_summaryeltcalc_P1 fifo/il_S1_summarypltcalc_P1 fifo/il_S1_summarysummarycalc_P1 work/il_S1_summaryaalcalc/P1.bin > /dev/null & pid7=$!
-tee < fifo/il_S1_summary_P2 fifo/il_S1_summaryeltcalc_P2 fifo/il_S1_summarypltcalc_P2 fifo/il_S1_summarysummarycalc_P2 work/il_S1_summaryaalcalc/P2.bin > /dev/null & pid8=$!
+tee < fifo/il_S1_summary_P1 fifo/il_S1_eltcalc_P1 fifo/il_S1_summarycalc_P1 fifo/il_S1_pltcalc_P1 work/il_S1_summaryaalcalc/P1.bin > /dev/null & pid7=$!
+tee < fifo/il_S1_summary_P2 fifo/il_S1_eltcalc_P2 fifo/il_S1_summarycalc_P2 fifo/il_S1_pltcalc_P2 work/il_S1_summaryaalcalc/P2.bin > /dev/null & pid8=$!
 
 ( summarycalc -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 ) 2>> log/stderror.err  &
 ( summarycalc -f  -1 fifo/il_S1_summary_P2 < fifo/il_P2 ) 2>> log/stderror.err  &
 
 # --- Do insured loss computes ---
 
-eltcalc < fifo/full_correlation/il_S1_summaryeltcalc_P1 > work/full_correlation/kat/il_S1_eltcalc_P1 & pid1=$!
-summarycalctocsv < fifo/full_correlation/il_S1_summarysummarycalc_P1 > work/full_correlation/kat/il_S1_summarycalc_P1 & pid2=$!
-pltcalc < fifo/full_correlation/il_S1_summarypltcalc_P1 > work/full_correlation/kat/il_S1_pltcalc_P1 & pid3=$!
-eltcalc -s < fifo/full_correlation/il_S1_summaryeltcalc_P2 > work/full_correlation/kat/il_S1_eltcalc_P2 & pid4=$!
-summarycalctocsv -s < fifo/full_correlation/il_S1_summarysummarycalc_P2 > work/full_correlation/kat/il_S1_summarycalc_P2 & pid5=$!
-pltcalc -s < fifo/full_correlation/il_S1_summarypltcalc_P2 > work/full_correlation/kat/il_S1_pltcalc_P2 & pid6=$!
+eltcalc < fifo/full_correlation/il_S1_eltcalc_P1 > work/full_correlation/kat/il_S1_eltcalc_P1 & pid9=$!
+summarycalctocsv < fifo/full_correlation/il_S1_summarycalc_P1 > work/full_correlation/kat/il_S1_summarycalc_P1 & pid10=$!
+pltcalc < fifo/full_correlation/il_S1_pltcalc_P1 > work/full_correlation/kat/il_S1_pltcalc_P1 & pid11=$!
+eltcalc -s < fifo/full_correlation/il_S1_eltcalc_P2 > work/full_correlation/kat/il_S1_eltcalc_P2 & pid12=$!
+summarycalctocsv -s < fifo/full_correlation/il_S1_summarycalc_P2 > work/full_correlation/kat/il_S1_summarycalc_P2 & pid13=$!
+pltcalc -s < fifo/full_correlation/il_S1_pltcalc_P2 > work/full_correlation/kat/il_S1_pltcalc_P2 & pid14=$!
 
-tee < fifo/full_correlation/il_S1_summary_P1 fifo/full_correlation/il_S1_summaryeltcalc_P1 fifo/full_correlation/il_S1_summarypltcalc_P1 fifo/full_correlation/il_S1_summarysummarycalc_P1 work/full_correlation/il_S1_summaryaalcalc/P1.bin > /dev/null & pid7=$!
-tee < fifo/full_correlation/il_S1_summary_P2 fifo/full_correlation/il_S1_summaryeltcalc_P2 fifo/full_correlation/il_S1_summarypltcalc_P2 fifo/full_correlation/il_S1_summarysummarycalc_P2 work/full_correlation/il_S1_summaryaalcalc/P2.bin > /dev/null & pid8=$!
+tee < fifo/full_correlation/il_S1_summary_P1 fifo/full_correlation/il_S1_eltcalc_P1 fifo/full_correlation/il_S1_summarycalc_P1 fifo/full_correlation/il_S1_pltcalc_P1 work/full_correlation/il_S1_summaryaalcalc/P1.bin > /dev/null & pid15=$!
+tee < fifo/full_correlation/il_S1_summary_P2 fifo/full_correlation/il_S1_eltcalc_P2 fifo/full_correlation/il_S1_summarycalc_P2 fifo/full_correlation/il_S1_pltcalc_P2 work/full_correlation/il_S1_summaryaalcalc/P2.bin > /dev/null & pid16=$!
 
 ( summarycalc -f  -1 fifo/full_correlation/il_S1_summary_P1 < fifo/full_correlation/il_P1 ) 2>> log/stderror.err  &
 ( summarycalc -f  -1 fifo/full_correlation/il_S1_summary_P2 < fifo/full_correlation/il_P2 ) 2>> log/stderror.err  &
 
-( fmcalc -a2 < fifo/full_correlation/gul_fmcalc_P1 > fifo/full_correlation/il_P1 ) 2>> log/stderror.err &
-( fmcalc -a2 < fifo/full_correlation/gul_fmcalc_P2 > fifo/full_correlation/il_P2 ) 2>> log/stderror.err &
+( fmcalc -a2 < fifo/full_correlation/gul_fc_P1 > fifo/full_correlation/il_P1 ) 2>> log/stderror.err &
+( fmcalc -a2 < fifo/full_correlation/gul_fc_P2 > fifo/full_correlation/il_P2 ) 2>> log/stderror.err &
+( eve 1 2 | getmodel | gulcalc -S0 -L0 -r -j fifo/full_correlation/gul_fc_P1 -a1 -i - | fmcalc -a2 > fifo/il_P1  ) 2>> log/stderror.err &
+( eve 2 2 | getmodel | gulcalc -S0 -L0 -r -j fifo/full_correlation/gul_fc_P2 -a1 -i - | fmcalc -a2 > fifo/il_P2  ) 2>> log/stderror.err &
 
-tee < fifo/full_correlation/gul_P1 fifo/full_correlation/gul_sumcalc_P1 fifo/full_correlation/gul_fmcalc_P1 > /dev/null &
-tee < fifo/full_correlation/gul_P2 fifo/full_correlation/gul_sumcalc_P2 fifo/full_correlation/gul_fmcalc_P2 > /dev/null &
-
-( eve 1 2 | getmodel | gulcalc -S0 -L0 -r -j fifo/full_correlation/gul_P1 -a1 -i - | fmcalc -a2 > fifo/il_P1  ) 2>> log/stderror.err &
-( eve 2 2 | getmodel | gulcalc -S0 -L0 -r -j fifo/full_correlation/gul_P2 -a1 -i - | fmcalc -a2 > fifo/il_P2  ) 2>> log/stderror.err &
-
-wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8
+wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16
 
 
 # --- Do insured loss kats ---

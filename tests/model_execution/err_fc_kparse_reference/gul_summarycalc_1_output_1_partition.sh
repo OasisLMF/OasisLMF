@@ -49,36 +49,34 @@ mkdir work/full_correlation/kat/
 mkfifo fifo/gul_P1
 
 mkfifo fifo/gul_S1_summary_P1
-mkfifo fifo/gul_S1_summarysummarycalc_P1
 mkfifo fifo/gul_S1_summarycalc_P1
 
 mkfifo fifo/full_correlation/gul_P1
 
 mkfifo fifo/full_correlation/gul_S1_summary_P1
-mkfifo fifo/full_correlation/gul_S1_summarysummarycalc_P1
 mkfifo fifo/full_correlation/gul_S1_summarycalc_P1
 
 
 
 # --- Do ground up loss computes ---
 
-summarycalctocsv < fifo/gul_S1_summarysummarycalc_P1 > work/kat/gul_S1_summarycalc_P1 & pid1=$!
+summarycalctocsv < fifo/gul_S1_summarycalc_P1 > work/kat/gul_S1_summarycalc_P1 & pid1=$!
 
-tee < fifo/gul_S1_summary_P1 fifo/gul_S1_summarysummarycalc_P1 > /dev/null & pid2=$!
+tee < fifo/gul_S1_summary_P1 fifo/gul_S1_summarycalc_P1 > /dev/null & pid2=$!
 
 ( summarycalc -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 ) 2>> log/stderror.err  &
 
+# --- Do ground up loss computes ---
 
-summarycalctocsv < fifo/full_correlation/gul_S1_summarysummarycalc_P1 > work/full_correlation/kat/gul_S1_summarycalc_P1 & pid3=$!
+summarycalctocsv < fifo/full_correlation/gul_S1_summarycalc_P1 > work/full_correlation/kat/gul_S1_summarycalc_P1 & pid3=$!
 
-tee < fifo/full_correlation/gul_S1_summary_P1 fifo/full_correlation/gul_S1_summarysummarycalc_P1 > /dev/null & pid4=$!
-
+tee < fifo/full_correlation/gul_S1_summary_P1 fifo/full_correlation/gul_S1_summarycalc_P1 > /dev/null & pid4=$!
 
 ( summarycalc -i  -1 fifo/full_correlation/gul_S1_summary_P1 < fifo/full_correlation/gul_P1 ) 2>> log/stderror.err  &
 
 ( eve 1 1 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_P1 -a1 -i - > fifo/gul_P1  ) 2>> log/stderror.err &
 
-wait $pid1 $pid2
+wait $pid1 $pid2 $pid3 $pid4
 
 
 # --- Do ground up loss kats ---

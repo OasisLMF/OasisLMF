@@ -22,43 +22,37 @@ mkdir work/il_S1_summaryaalcalc
 
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_P1
 
-mkfifo /tmp/%FIFO_DIR%/fifo/il_P1
-
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summaryeltcalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P1
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarysummarycalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarycalc_P1
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarypltcalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P1
 
+mkfifo /tmp/%FIFO_DIR%/fifo/il_P1
+
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1
-mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summaryeltcalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_eltcalc_P1
-mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summarysummarycalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summarycalc_P1
-mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summarypltcalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P1
 
 
 
 # --- Do insured loss computes ---
 
-eltcalc < /tmp/%FIFO_DIR%/fifo/il_S1_summaryeltcalc_P1 > work/kat/il_S1_eltcalc_P1 & pid1=$!
-summarycalctocsv < /tmp/%FIFO_DIR%/fifo/il_S1_summarysummarycalc_P1 > work/kat/il_S1_summarycalc_P1 & pid2=$!
-pltcalc < /tmp/%FIFO_DIR%/fifo/il_S1_summarypltcalc_P1 > work/kat/il_S1_pltcalc_P1 & pid3=$!
+eltcalc < /tmp/%FIFO_DIR%/fifo/il_S1_eltcalc_P1 > work/kat/il_S1_eltcalc_P1 & pid1=$!
+summarycalctocsv < /tmp/%FIFO_DIR%/fifo/il_S1_summarycalc_P1 > work/kat/il_S1_summarycalc_P1 & pid2=$!
+pltcalc < /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P1 > work/kat/il_S1_pltcalc_P1 & pid3=$!
 
-tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1 /tmp/%FIFO_DIR%/fifo/il_S1_summaryeltcalc_P1 /tmp/%FIFO_DIR%/fifo/il_S1_summarypltcalc_P1 /tmp/%FIFO_DIR%/fifo/il_S1_summarysummarycalc_P1 work/il_S1_summaryaalcalc/P1.bin > /dev/null & pid4=$!
+tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1 /tmp/%FIFO_DIR%/fifo/il_S1_eltcalc_P1 /tmp/%FIFO_DIR%/fifo/il_S1_summarycalc_P1 /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P1 work/il_S1_summaryaalcalc/P1.bin > /dev/null & pid4=$!
 
 summarycalc -f  -1 /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1 < /tmp/%FIFO_DIR%/fifo/il_P1 &
 
 # --- Do ground up loss computes ---
 
-eltcalc < /tmp/%FIFO_DIR%/fifo/gul_S1_summaryeltcalc_P1 > work/kat/gul_S1_eltcalc_P1 & pid5=$!
-summarycalctocsv < /tmp/%FIFO_DIR%/fifo/gul_S1_summarysummarycalc_P1 > work/kat/gul_S1_summarycalc_P1 & pid6=$!
-pltcalc < /tmp/%FIFO_DIR%/fifo/gul_S1_summarypltcalc_P1 > work/kat/gul_S1_pltcalc_P1 & pid7=$!
+eltcalc < /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P1 > work/kat/gul_S1_eltcalc_P1 & pid5=$!
+summarycalctocsv < /tmp/%FIFO_DIR%/fifo/gul_S1_summarycalc_P1 > work/kat/gul_S1_summarycalc_P1 & pid6=$!
+pltcalc < /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P1 > work/kat/gul_S1_pltcalc_P1 & pid7=$!
 
-tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1 /tmp/%FIFO_DIR%/fifo/gul_S1_summaryeltcalc_P1 /tmp/%FIFO_DIR%/fifo/gul_S1_summarypltcalc_P1 /tmp/%FIFO_DIR%/fifo/gul_S1_summarysummarycalc_P1 work/gul_S1_summaryaalcalc/P1.bin > /dev/null & pid8=$!
+tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1 /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P1 /tmp/%FIFO_DIR%/fifo/gul_S1_summarycalc_P1 /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P1 work/gul_S1_summaryaalcalc/P1.bin > /dev/null & pid8=$!
 
 summarycalc -i  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1 < /tmp/%FIFO_DIR%/fifo/gul_P1 &
 
