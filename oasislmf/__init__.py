@@ -5,7 +5,6 @@ __version__ = '1.9.0'
 
     model_execution   -> execution
     model_preparation -> preparation
-    model_test        -> validation
     api               -> platform
 
     Example:
@@ -48,7 +47,6 @@ class MyImport(MetaPathFinder):
         self.depricated_modules = {
             "model_execution": "execution",
             "model_preparation": "preparation",
-            "model_test": "validation",
             "api": "platform",
         }
 

@@ -16,13 +16,13 @@ BUILD_OUTPUT_DIR='/tmp/output/'
     python setup.py sdist
 
 # Test install
-    VER_PKG=$(cat ./oasislmf/__init__.py | awk -F"'" ' {print $2} ')
+    VER_PKG=$(cat ./oasislmf/__init__.py | grep  __version__ | awk -F"'" ' {print $2} ')
     python setup.py bdist_wheel --verbose > >(tee -a $LOG_BUILD) 2> >(tee -a ${LOG_BUILD} >&2)
     WHL_PKG=$(find ./dist/ -name "oasislmf-${VER_PKG}*.whl")
-    pip install --verbose $WHL_PKG 
+    pip install --verbose $WHL_PKG
 
-    # Create OSX wheel 
-    python setup.py bdist_wheel --plat-name Darwin_x86_64 
+    # Create OSX wheel
+    python setup.py bdist_wheel --plat-name Darwin_x86_64
 
 # Unit testing
     find /home/ -name __pycache__ | xargs -r rm -rfv
@@ -32,15 +32,15 @@ BUILD_OUTPUT_DIR='/tmp/output/'
     set +exu
     TOX_FAILED=$(cat $LOG_TOX | grep -ci 'ERROR: InvocationError')
     set -exu
-    if [ $TOX_FAILED -ne 0 ]; then 
+    if [ $TOX_FAILED -ne 0 ]; then
         echo "Unit testing failed - Exiting build"
         exit 1
-    fi 
- 
+    fi
+
 # Code Standards report
-    flake8 oasislmf/ --ignore=E501,E402 | tee -a $LOG_FLAKE 
+    flake8 oasislmf/ --ignore=E501,E402 | tee -a $LOG_FLAKE
     flake8 tests/ --ignore=E501,E402 --exclude=tests/model_preparation/test_reinsurance.py | tee -a $LOG_FLAKE
 
-# Coverate report 
+# Coverate report
     coverage combine
     coverage report -i oasislmf/*/*.py oasislmf/*.py > $LOG_COV
