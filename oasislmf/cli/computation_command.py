@@ -23,12 +23,14 @@ class OasisComputationCommand(OasisBaseCommand):
 
         for param in om.computations_params[self.computation_name]:
             add_argument_kwargs = {key: param.get(key) for key in ['action', 'nargs', 'const', 'type', 'choices',
-                                                                   'help', 'metavar', 'dest']}
-            arg_name = f"--{param['name'].replace('_', '-')}"
-            if param.get('flag'):
-                parser.add_argument(param.get('flag'), arg_name, **add_argument_kwargs)
-            else:
-                parser.add_argument(arg_name, **add_argument_kwargs)
+                                                                   'help', 'metavar', 'dest'] if param.get(key) is not None}
+            # If 'Help' is not set then this is a function only paramter, skip
+            if 'help' in add_argument_kwargs:
+                arg_name = f"--{param['name'].replace('_', '-')}"
+                if param.get('flag'):
+                    parser.add_argument(param.get('flag'), arg_name, **add_argument_kwargs)
+                else:
+                    parser.add_argument(arg_name, **add_argument_kwargs)
 
     def action(self, args):
         """

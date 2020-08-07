@@ -4,6 +4,7 @@ __all__ = [
 
 import os
 import pathlib
+import logging
 
 from ..utils.data import get_utctimestamp
 from ..utils.exceptions import OasisException
@@ -30,6 +31,8 @@ class ComputationStep:
          - check path existence (pre_exist)
          - create necessary directories (is_dir, is_path)
         """
+        self.logger = logging.getLogger()
+
         for param in self.get_params():
             param_value = kwargs.get(param['name'])
             if param_value is None:

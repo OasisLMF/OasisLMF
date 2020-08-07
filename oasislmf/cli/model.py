@@ -187,114 +187,17 @@ class GenerateKeysCmd(OasisBaseCommand):
         self.logger.info('\nKeys errors file {} generated with {} items'.format(f2, n2))
 
 
-class GenerateOasisFilesCmd(OasisBaseCommand):
+
+class GenerateOasisFilesCmd(OasisComputationCommand):
     """
     Generates the standard Oasis GUL input files + optionally the IL/FM input
     files and the RI input files.
     """
     formatter_class = RawDescriptionHelpFormatter
-
-    def add_args(self, parser):
-        """
-        Adds arguments to the argument parser.
-
-        :param parser: The argument parser object
-        :type parser: ArgumentParser
-        """
-        super(self.__class__, self).add_args(parser)
-
-        parser.add_argument('-o', '--oasis-files-dir', default=None, help='Path to the directory in which to generate the Oasis files')
-        parser.add_argument('-z', '--keys-data-csv', default=None, help='Pre-generated keys CSV file path')
-        parser.add_argument('-m', '--lookup-config-json', default=None, help='Lookup config JSON file path')
-        parser.add_argument('-k', '--lookup-data-dir', default=None, help='Model lookup/keys data directory path')
-        parser.add_argument('-l', '--lookup-module-path', default=None, help='Model lookup module path')
-        parser.add_argument('-L', '--lookup-complex-config-json', default=None, help='Complex lookup config JSON file path')
-        parser.add_argument('-v', '--model-version-csv', default=None, help='Model version CSV file path')
-        parser.add_argument('-M', '--model-settings-json', default=None, help='Model settings JSON file path')
-        parser.add_argument('-D', '--user-data-dir', default=None, help='Directory containing additional model data files which varies between analysis runs')
-        parser.add_argument('-e', '--profile-loc-json', default=None, help='Source (OED) exposure profile JSON path')
-        parser.add_argument('-b', '--profile-acc-json', default=None, help='Source (OED) accounts profile JSON path')
-        parser.add_argument('-g', '--profile-fm-agg-json', default=None, help='FM (OED) aggregation profile path')
-        parser.add_argument('-x', '--oed-location-csv', default=None, help='Source location CSV file path')
-        parser.add_argument('-y', '--oed-accounts-csv', default=None, help='Source accounts CSV file path')
-        parser.add_argument('-i', '--oed-info-csv', default=None, help='Reinsurance info. CSV file path')
-        parser.add_argument('-s', '--oed-scope-csv', default=None, help='Reinsurance scope CSV file path')
-        parser.add_argument('-S', '--disable-summarise-exposure', default=None, help='Create exposure summary report', action='store_false')
-        parser.add_argument('-W', '--write-chunksize', type=int, help='Chunk size to use when writing input files from the inputs dataframes')
-        parser.add_argument('-G', '--group-id-cols', nargs='+', default=None, help='Columns from loc file to set group_id')
+    computation_name = 'OasisFiles'
 
     def action(self, args):
-        """
-        Generates the standard Oasis GUL input files + optionally the IL/FM input
-        files and the RI input files.
-
-        :param args: The arguments from the command line
-        :type args: Namespace
-        """
-        self.logger.info('\nProcessing arguments - Creating Oasis Files')
-        inputs = InputValues(args)
-
-        utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-        default_oasis_fp = os.path.join(os.getcwd(), 'runs', 'files-{}'.format(utcnow))
-
-        oasis_fp = inputs.get('oasis_files_dir', is_path=True, default=default_oasis_fp)
-        keys_fp = inputs.get('keys_data_csv', required=False, is_path=True)
-        lookup_config_fp = inputs.get('lookup_config_json', required=False, is_path=True)
-        keys_data_fp = inputs.get('lookup_data_dir', required=False, is_path=True)
-        model_version_fp = inputs.get('model_version_csv', required=False, is_path=True)
-        model_settings_fp = inputs.get('model_settings_json', required=False, is_path=True)
-        lookup_module_path = inputs.get('lookup_module_path', required=False, is_path=True)
-        complex_lookup_config_fp = inputs.get('lookup_complex_config_json', required=False, is_path=True)
-        user_data_dir = inputs.get('user_data_dir', required=False, is_path=True)
-        summarise_exposure = inputs.get('disable_summarise_exposure', default=True, required=False)
-        write_chunksize = inputs.get('write_chunksize', default=2 * 10**5, required=False)
-        exposure_fp = inputs.get('oed_location_csv', required=True, is_path=True)
-        exposure_profile_fp = inputs.get('profile_loc_json', default=get_default_exposure_profile(path=True))
-        accounts_fp = inputs.get('oed_accounts_csv', required=False, is_path=True)
-        accounts_profile_fp = inputs.get('profile_acc_json', default=get_default_accounts_profile(path=True))
-        aggregation_profile_fp = inputs.get('profile_fm_agg_json', default=get_default_fm_aggregation_profile(path=True))
-        ri_info_fp = inputs.get('oed_info_csv', required=False, is_path=True)
-        ri_scope_fp = inputs.get('oed_scope_csv', required=False, is_path=True)
-        group_id_cols = inputs.get('group_id_cols', required=False, default=None)
-
-        if not (keys_fp or lookup_config_fp or (keys_data_fp and model_version_fp and lookup_module_path)):
-            raise OasisException(
-                'No pre-generated keys file provided, and no lookup assets '
-                'provided to generate a keys file - if you do not have a '
-                'pre-generated keys file then lookup assets must be provided - '
-                'for a built-in lookup the lookup config. JSON file path must '
-                'be provided, or for custom lookups the keys data path + model '
-                'version file path + lookup package path must be provided'
-            )
-
-        il = True if accounts_fp else False
-        required_ri_paths = [ri_info_fp, ri_scope_fp]
-        ri = all(required_ri_paths) and il
-
-        self.logger.info('\nGenerating Oasis files (GUL=True, IL={}, RIL={})'.format(il, ri))
-        oasis_files = om().generate_oasis_files(
-            oasis_fp,
-            exposure_fp,
-            exposure_profile_fp=exposure_profile_fp,
-            keys_fp=keys_fp,
-            lookup_config_fp=lookup_config_fp,
-            keys_data_fp=keys_data_fp,
-            model_version_fp=model_version_fp,
-            model_settings_fp=model_settings_fp,
-            lookup_module_path=lookup_module_path,
-            complex_lookup_config_fp=complex_lookup_config_fp,
-            accounts_fp=accounts_fp,
-            accounts_profile_fp=accounts_profile_fp,
-            fm_aggregation_profile_fp=aggregation_profile_fp,
-            ri_info_fp=ri_info_fp,
-            ri_scope_fp=ri_scope_fp,
-            user_data_dir=user_data_dir,
-            summarise_exposure=summarise_exposure,
-            write_chunksize=write_chunksize,
-            group_id_cols=group_id_cols
-        )
-
-        self.logger.info('\nOasis files generated: {}'.format(json.dumps(oasis_files, indent=4)))
+        super().action(args)
 
 
 class GenerateLossesCmd(OasisBaseCommand):
