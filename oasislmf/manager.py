@@ -881,20 +881,18 @@ class OasisManager(object):
 
 
 def __interface_factory(computation_cls):
-    OasisManager.computations_params[computation_cls.__name__] = computation_cls.get_params()
-
     @oasis_log
     def interface(self, **kwargs):
         self.consolidate_input(computation_cls, kwargs)
         return computation_cls(**kwargs).run()
 
+    OasisManager.computations_params[computation_cls.__name__] = computation_cls.get_params()
+    interface.__doc__ =  computation_cls.__doc__
     return interface
-
 
 for computation_cls in OasisManager.computation_classes:
     setattr(OasisManager, OasisManager.computation_name_to_method(computation_cls.__name__),
             __interface_factory(computation_cls))
-
 
 if __name__ == "__main__":
     import doctest
