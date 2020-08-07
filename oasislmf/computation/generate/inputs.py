@@ -128,7 +128,7 @@ class OasisFiles(ComputationStep):
             lookup_config_fp=self.lookup_config_json,
             model_version_fp=self.model_version_csv,
             complex_lookup_config_fp=self.lookup_complex_config_json,
-            accounts_fp=self.oed_location_csv,
+            accounts_fp=self.oed_accounts_csv,
             accounts_profile_fp=self.profile_acc_json,
             fm_aggregation_profile_fp=self.profile_fm_agg_json,
             ri_info_fp=self.oed_info_csv,
