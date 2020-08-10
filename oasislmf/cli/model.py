@@ -27,7 +27,7 @@ from ..utils.data import (
     get_utctimestamp,
     get_analysis_settings,
     get_model_settings,
-)    
+)
 from ..utils.defaults import (
     get_default_exposure_profile,
     get_default_accounts_profile,
@@ -97,95 +97,15 @@ class GenerateExposurePreAnalysisCmd(OasisComputationCommand):
             for input_name in ('oed_location_csv', 'oed_accounts_csv', 'oed_info_csv', 'oed_scope_csv'):
                 setattr(args, input_name, os.path.join(input_dir, KEY_NAME_TO_FILE_NAME[input_name]))
 
-class GenerateKeysCmd(OasisBaseCommand):
+
+class GenerateKeysCmd(OasisComputationCommand):
     """
     Generates keys from a model lookup, and write Oasis keys and keys error files.
-
-    The model lookup, which is normally independently implemented by the model
-    supplier, should generate keys as dicts with the following format
-    ::
-
-        {
-            "id": <loc. ID>,
-            "peril_id": <OED sub-peril ID>,
-            "coverage_type": <OED coverage type ID>,
-            "area_peril_id": <area peril ID>,
-            "vulnerability_id": <vulnerability ID>,
-            "message": <loc. lookup status message>,
-            "status": <loc. lookup status flag indicating success, failure or no-match>
-        }
-
-    The keys generation command can generate these dicts, and write them to
-    file. It can also be used to write these to an Oasis keys file (which is a
-    requirement for model execution), which has the following format.::
-
-        LocID,PerilID,CoverageTypeID,AreaPerilID,VulnerabilityID
-        ..
-        ..
-    This file only lists the locations for which there has been a successful
-    lookup. The keys errors file lists all the locations with failing or
-    non-matching lookups and has the following format::
-
-        LocID,PerilID,CoverageTypeID,Message
-        ..
-        ..
     """
     formatter_class = RawDescriptionHelpFormatter
-
-    def add_args(self, parser):
-        """
-        Adds arguments to the argument parser.
-
-        :param parser: The argument parser object
-        :type parser: ArgumentParser
-        """
-        super(self.__class__, self).add_args(parser)
-
-        parser.add_argument('-x', '--oed-location-csv', default=None, help='Source location CSV file path')
-        parser.add_argument('-k', '--keys-data-csv', default=None, help='Keys CSV file path')
-        parser.add_argument('-e', '--keys-errors-csv', default=None, help='Keys errors CSV file path')
-        parser.add_argument('-f', '--keys-format', choices=['oasis', 'json'], help='Keys files output format')
-        parser.add_argument('-g', '--lookup-config-json', default=None, help='Lookup config JSON file path')
-        parser.add_argument('-d', '--lookup-data-dir', default=None, help='Model lookup data path')
-        parser.add_argument('-l', '--lookup-module-path', default=None, help='Model lookup module path')
-        parser.add_argument('-L', '--lookup-complex-config-json', default=None, help='Complex lookup config JSON file path')
-        parser.add_argument('-v', '--model-version-csv', default=None, help='Model version CSV file path')
-
+    computation_name = 'OasisKeys'
     def action(self, args):
-        """
-        Generates keys from a model lookup, and write Oasis keys and keys error files.
-
-        :param args: The arguments from the command line
-        :type args: Namespace
-        """
-        self.logger.info('\nProcessing arguments - Creating Oasis Keys')
-        inputs = InputValues(args)
-
-        config_fp = inputs.get('lookup_config_json', required=False, is_path=True)
-        keys_data_fp = inputs.get('lookup_data_dir', required=False, is_path=True)
-        model_version_fp = inputs.get('model_version_csv', required=False, is_path=True)
-        lookup_module_path = inputs.get('lookup_module_path', required=False, is_path=True)
-        complex_lookup_config_fp = inputs.get('lookup_complex_config_json', required=False, is_path=True)
-        exposure_fp = inputs.get('oed_location_csv', required=True, is_path=True)
-        keys_fp = inputs.get('keys_data_csv', required=False, is_path=True)
-        keys_errors_fp = inputs.get('keys_errors_csv', required=False, is_path=True)
-        keys_format = inputs.get('keys_format', default='oasis')
-
-        f1, n1, f2, n2 = om().generate_keys(
-            exposure_fp,
-            lookup_config_fp=config_fp,
-            keys_data_fp=keys_data_fp,
-            model_version_fp=model_version_fp,
-            lookup_module_path=lookup_module_path,
-            complex_lookup_config_fp=complex_lookup_config_fp,
-            keys_fp=keys_fp,
-            keys_errors_fp=keys_errors_fp,
-            keys_format=keys_format
-        )
-
-        self.logger.info('\nKeys file {} generated with {} items'.format(f1, n1))
-        self.logger.info('\nKeys errors file {} generated with {} items'.format(f2, n2))
-
+        super().action(args)
 
 
 class GenerateOasisFilesCmd(OasisComputationCommand):
@@ -411,7 +331,7 @@ class RunCmd(OasisBaseCommand):
         model_settings_fp = inputs.get('model_settings_json', required=False, is_path=True)
         if model_settings_fp:
             get_model_settings(model_settings_fp)
-        
+
         required_ri_paths = [ri_info_fp, ri_scope_fp]
         il = True if accounts_fp else False
         ri = all(required_ri_paths) and il

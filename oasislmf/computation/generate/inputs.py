@@ -2,21 +2,36 @@ __all__ = [
     'OasisFiles'
 ]
 
-from ..base import ComputationStep
-
-# ----------------
-
-
 import io
 import json
 import os
-
-
 
 from itertools import (
     product,
 )
 
+from ..base import ComputationStep
+from ...utils.coverages import SUPPORTED_COVERAGE_TYPES
+from ...lookup.factory import OasisLookupFactory as olf
+from ...preparation.oed import load_oed_dfs
+from ...preparation.dir_inputs import prepare_input_files_directory
+from ...preparation.reinsurance_layer import write_files_for_reinsurance
+from ...utils.exceptions import OasisException
+
+from ...utils.data import (
+    get_model_settings,
+    get_location_df,
+    get_json,
+    get_utctimestamp,
+)
+from ...utils.defaults import (
+    get_default_accounts_profile,
+    get_default_exposure_profile,
+    get_default_fm_aggregation_profile,
+    GROUP_ID_COLS,
+    OASIS_FILES_PREFIXES,
+    WRITE_CHUNKSIZE,
+)
 from ...preparation.gul_inputs import (
     get_gul_input_items,
     write_gul_input_files,
@@ -33,27 +48,7 @@ from ...preparation.summaries import (
     write_exposure_summary,
     write_summary_levels,
 )
-from ...lookup.factory import OasisLookupFactory as olf
-from ...preparation.oed import load_oed_dfs
-from ...preparation.dir_inputs import prepare_input_files_directory
-from ...preparation.reinsurance_layer import write_files_for_reinsurance
-from ...utils.data import (
-    get_model_settings,
-    get_location_df,
-    get_json,
-    get_utctimestamp,
-)
 
-from ...utils.exceptions import OasisException
-from ...utils.defaults import (
-    get_default_accounts_profile,
-    get_default_exposure_profile,
-    get_default_fm_aggregation_profile,
-    GROUP_ID_COLS,
-    OASIS_FILES_PREFIXES,
-    WRITE_CHUNKSIZE,
-)
-from ...utils.coverages import SUPPORTED_COVERAGE_TYPES
 
 
 class OasisFiles(ComputationStep):
@@ -64,36 +59,36 @@ class OasisFiles(ComputationStep):
     step_params = [
         # Command line options
         {'name': 'oasis_files_dir',            'flag':'-o', 'is_path': True, 'pre_exist': False, 'help': 'Path to the directory in which to generate the Oasis files'},
-        {'name': 'keys_data_csv',              'flag':'-z', 'is_path': True, 'pre_exist': True, 'help': 'Pre-generated keys CSV file path'},
+        {'name': 'keys_data_csv',              'flag':'-z', 'is_path': True, 'pre_exist': True,  'help': 'Pre-generated keys CSV file path'},
         {'name': 'lookup_config_json',         'flag':'-m', 'is_path': True, 'pre_exist': False, 'help': 'Lookup config JSON file path'},
-        {'name': 'lookup_data_dir',            'flag':'-k', 'is_path': True, 'pre_exist': True, 'help': 'Model lookup/keys data directory path'},
+        {'name': 'lookup_data_dir',            'flag':'-k', 'is_path': True, 'pre_exist': True,  'help': 'Model lookup/keys data directory path'},
         {'name': 'lookup_module_path',         'flag':'-l', 'is_path': True, 'pre_exist': False, 'help': 'Model lookup module path'},
         {'name': 'lookup_complex_config_json', 'flag':'-L', 'is_path': True, 'pre_exist': False, 'help': 'Complex lookup config JSON file path'},
         {'name': 'model_version_csv',          'flag':'-v', 'is_path': True, 'pre_exist': False, 'help': 'Model version CSV file path'},
-        {'name': 'model_settings_json',        'flag':'-M', 'is_path': True, 'pre_exist': True, 'help': 'Model settings JSON file path'},
+        {'name': 'model_settings_json',        'flag':'-M', 'is_path': True, 'pre_exist': True,  'help': 'Model settings JSON file path'},
         {'name': 'user_data_dir',              'flag':'-D', 'is_path': True, 'pre_exist': False, 'help': 'Directory containing additional model data files which varies between analysis runs'},
-        {'name': 'profile_loc_json',           'flag':'-e', 'is_path': True, 'pre_exist': True, 'help': 'Source (OED) exposure profile JSON path'},
-        {'name': 'profile_acc_json',           'flag':'-b', 'is_path': True, 'pre_exist': True, 'help': 'Source (OED) accounts profile JSON path'},
-        {'name': 'profile_fm_agg_json',        'flag':'-g', 'is_path': True, 'pre_exist': True, 'help': 'FM (OED) aggregation profile path'},
-        {'name': 'oed_location_csv',           'flag':'-x', 'is_path': True, 'pre_exist': True, 'help': 'Source location CSV file path', 'required': True},
-        {'name': 'oed_accounts_csv',           'flag':'-y', 'is_path': True, 'pre_exist': True, 'help': 'Source accounts CSV file path'},
-        {'name': 'oed_info_csv',               'flag':'-i', 'is_path': True, 'pre_exist': True, 'help': 'Reinsurance info. CSV file path'},
-        {'name': 'oed_scope_csv',              'flag':'-s', 'is_path': True, 'pre_exist': True, 'help': 'Reinsurance scope CSV file path'},
-        {'name': 'disable_summarise_exposure', 'flag':'-S', 'action':'store_false', 'help': 'Disables creation of an exposure summary report'},
-        {'name': 'group_id_cols',              'flag':'-G', 'nargs':'+', 'help': 'Columns from loc file to set group_id', 'default': GROUP_ID_COLS},
+        {'name': 'profile_loc_json',           'flag':'-e', 'is_path': True, 'pre_exist': True,  'help': 'Source (OED) exposure profile JSON path'},
+        {'name': 'profile_acc_json',           'flag':'-b', 'is_path': True, 'pre_exist': True,  'help': 'Source (OED) accounts profile JSON path'},
+        {'name': 'profile_fm_agg_json',        'flag':'-g', 'is_path': True, 'pre_exist': True,  'help': 'FM (OED) aggregation profile path'},
+        {'name': 'oed_location_csv',           'flag':'-x', 'is_path': True, 'pre_exist': True,  'help': 'Source location CSV file path', 'required': True},
+        {'name': 'oed_accounts_csv',           'flag':'-y', 'is_path': True, 'pre_exist': True,  'help': 'Source accounts CSV file path'},
+        {'name': 'oed_info_csv',               'flag':'-i', 'is_path': True, 'pre_exist': True,  'help': 'Reinsurance info. CSV file path'},
+        {'name': 'oed_scope_csv',              'flag':'-s', 'is_path': True, 'pre_exist': True,  'help': 'Reinsurance scope CSV file path'},
+        {'name': 'disable_summarise_exposure', 'flag':'-S', 'action':'store_false',              'help': 'Disables creation of an exposure summary report'},
+        {'name': 'group_id_cols',              'flag':'-G', 'nargs':'+',                         'help': 'Columns from loc file to set group_id', 'default': GROUP_ID_COLS},
 
         # Manager only options (pass data directy instead of filepaths)
-        {'name': 'write_chunksize', 'type':int, 'default': WRITE_CHUNKSIZE},
-        {'name': 'oasis_files_prefixes',  'default': OASIS_FILES_PREFIXES},
         {'name': 'lookup_config'},
         {'name': 'lookup_complex_config'},
-        {'name': 'profile_loc', 'default': get_default_exposure_profile()},
-        {'name': 'profile_acc', 'default': get_default_accounts_profile()},
-        {'name': 'profile_fm_agg', 'default': get_default_fm_aggregation_profile()},
-        {'name': 'supported_oed_coverage_types', 'default': tuple(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values())},
+        {'name': 'write_chunksize', 'type':int,   'default': WRITE_CHUNKSIZE},
+        {'name': 'oasis_files_prefixes',          'default': OASIS_FILES_PREFIXES},
+        {'name': 'profile_loc',                   'default': get_default_exposure_profile()},
+        {'name': 'profile_acc',                   'default': get_default_accounts_profile()},
+        {'name': 'profile_fm_agg',                'default': get_default_fm_aggregation_profile()},
+        {'name': 'supported_oed_coverage_types',  'default': tuple(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values())},
     ]
 
-    def _get_oasis_files_dir(self):
+    def _get_output_dir(self):
         if self.oasis_files_dir:
             return self.oasis_files_dir
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
@@ -121,7 +116,7 @@ class OasisFiles(ComputationStep):
         # Prepare the target directory and copy the source files, profiles and
         # model version into it
         target_dir = prepare_input_files_directory(
-            self._get_oasis_files_dir(),
+            self._get_output_dir(),
             self.oed_location_csv,
             exposure_profile_fp=self.profile_loc_json,
             keys_fp=self.keys_data_csv,

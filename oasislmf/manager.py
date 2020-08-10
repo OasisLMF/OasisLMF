@@ -100,7 +100,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 ## IMPORT Computation commands (MOVE THIS LATER)
 from .computation.hooks.pre_analysis import ExposurePreAnalysis
 from .computation.generate.inputs import OasisFiles 
-#from .computation._ import _ 
+from .computation.generate.keys import OasisKeys 
 #from .computation._ import _ 
 #from .computation._ import _ 
 #from .computation._ import _ 
@@ -109,6 +109,7 @@ class OasisManager(object):
     computation_classes = [
         ExposurePreAnalysis,
         OasisFiles,
+        OasisKeys,
     ]
     computations_params = {}
 
@@ -349,75 +350,6 @@ class OasisManager(object):
             area_reg_poly_radius=area_reg_poly_radius,
             index_fp=areas_rtree_index_fp,
             index_props=index_props
-        )
-
-    @oasis_log
-    def generate_keys(
-        self,
-        exposure_fp,
-        lookup_config_fp=None,
-        keys_data_fp=None,
-        model_version_fp=None,
-        lookup_module_path=None,
-        complex_lookup_config_fp=None,
-        keys_fp=None,
-        keys_errors_fp=None,
-        keys_format=None
-    ):
-
-        # Convert paths to absolute
-        exposure_fp = as_path(exposure_fp, 'Source exposure file path')
-        lookup_config_fp = as_path(lookup_config_fp, 'Lookup config JSON file path')
-        keys_data_fp = as_path(keys_data_fp, 'Keys data path', is_dir=True, preexists=False)
-        model_version_fp = as_path(model_version_fp, 'Model version file path', preexists=False)
-        lookup_module_path = as_path(lookup_module_path, 'Lookup module path', is_dir=True, preexists=False)
-        complex_lookup_config_fp = as_path(complex_lookup_config_fp, 'Complex lookup config JSON file path', preexists=False)
-        keys_fp = as_path(keys_fp, 'Keys file path', preexists=False)
-        keys_errors_fp = as_path(keys_errors_fp, 'Keys errors file path', preexists=False)
-
-        if not (lookup_config_fp or (keys_data_fp and model_version_fp and lookup_module_path)):
-            raise OasisException(
-                'No lookup assets provided to generate the mandatory keys '
-                'file - for built-in lookups the lookup config. JSON file '
-                'path must be provided, or for custom lookups the keys data '
-                'path + model version file path + lookup package path must be '
-                'provided'
-            )
-
-        if keys_fp:
-            lookup_extra_outputs_dir = os.path.basename(keys_fp)
-        else:
-            lookup_extra_outputs_dir = os.getcwd()
-
-        model_info, lookup = olf.create(
-            lookup_config_fp=lookup_config_fp,
-            model_keys_data_path=keys_data_fp,
-            model_version_file_path=model_version_fp,
-            lookup_module_path=lookup_module_path,
-            complex_lookup_config_fp=complex_lookup_config_fp,
-            output_directory=lookup_extra_outputs_dir
-        )
-
-        location_df = get_location_df(exposure_fp)
-
-        utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-        default_dir = os.path.join(os.getcwd(), 'runs', 'keys-{}'.format(utcnow))
-
-        keys_fp = keys_fp or os.path.join(default_dir, 'keys.csv')
-        keys_errors_fp = keys_errors_fp or os.path.join(default_dir, 'keys-errors.csv')
-        os.makedirs(os.path.dirname(keys_fp), exist_ok=True)
-        os.makedirs(os.path.dirname(keys_errors_fp), exist_ok=True)
-
-        # TODO: set `keys_success_msg` based on lookup config
-        keys_success_msg = True if complex_lookup_config_fp else False
-
-        return olf.save_results(
-            lookup,
-            location_df=location_df,
-            successes_fp=keys_fp,
-            errors_fp=keys_errors_fp,
-            format=keys_format,
-            keys_success_msg=keys_success_msg
         )
 
 
