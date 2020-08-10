@@ -101,7 +101,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 from .computation.hooks.pre_analysis import ExposurePreAnalysis
 from .computation.generate.inputs import OasisFiles 
 from .computation.generate.keys import OasisKeys 
-#from .computation._ import _ 
+from .computation.generate.losses import Losses 
 #from .computation._ import _ 
 #from .computation._ import _ 
 
@@ -110,6 +110,7 @@ class OasisManager(object):
         ExposurePreAnalysis,
         OasisFiles,
         OasisKeys,
+        Losses
     ]
     computations_params = {}
 
@@ -352,147 +353,6 @@ class OasisManager(object):
             index_props=index_props
         )
 
-
-    @oasis_log
-    def generate_model_losses(
-        self,
-        model_run_fp,
-        oasis_fp,
-        analysis_settings_fp,
-        model_data_fp,
-        model_package_fp=None,
-        model_custom_gulcalc=None,
-        ktools_num_processes=None,
-        ktools_fifo_relative=None,
-        ktools_alloc_rule_gul=None,
-        ktools_alloc_rule_il=None,
-        ktools_alloc_rule_ri=None,
-        ktools_error_guard=None,
-        ktools_gul_legacy_stream=None,
-        ktools_debug=None,
-        user_data_dir=None
-    ):
-
-        # Convert paths to absolute
-        model_run_fp = as_path(model_run_fp, 'Model run directory', is_dir=True, preexists=False)
-        oasis_fp = as_path(oasis_fp, 'Path to direct Oasis files (GUL + optionally FM and RI input files)', is_dir=True, preexists=True)
-        analysis_settings_fp = as_path(analysis_settings_fp, 'Model analysis settings file path')
-        model_data_fp = as_path(model_data_fp, 'Model data path', is_dir=True)
-        model_package_fp = as_path(model_package_fp, 'Model package path', is_dir=True)
-        user_data_dir = as_path(user_data_dir, 'Directory containing additional user-supplied model data files', preexists=False)
-
-        il = all(p in os.listdir(oasis_fp) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
-        ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(oasis_fp)) + os.listdir(oasis_fp))
-        gul_item_stream = (not ktools_gul_legacy_stream)
-
-        if not os.path.exists(model_run_fp):
-            Path(model_run_fp).mkdir(parents=True, exist_ok=True)
-
-        prepare_run_directory(
-            model_run_fp,
-            oasis_fp,
-            model_data_fp,
-            analysis_settings_fp,
-            user_data_dir=user_data_dir,
-            ri=ri
-        )
-
-        # Load analysis_settings file
-        analysis_settings = get_analysis_settings(os.path.join(
-            model_run_fp,
-            'analysis_settings.json'
-        ))
-
-        generate_summaryxref_files(model_run_fp,
-                                   analysis_settings,
-                                   gul_item_stream=gul_item_stream,
-                                   il=il,
-                                   ri=ri)
-
-        if not ri:
-            fp = os.path.join(model_run_fp, 'input')
-            csv_to_bin(fp, fp, il=il)
-        else:
-            contents = os.listdir(model_run_fp)
-            for fp in [os.path.join(model_run_fp, fn) for fn in contents if re.match(r'RI_\d+$', fn) or re.match(r'input$', fn)]:
-                csv_to_bin(fp, fp, il=True, ri=True)
-
-        if not il:
-            analysis_settings['il_output'] = False
-            analysis_settings['il_summaries'] = []
-
-        if not ri:
-            analysis_settings['ri_output'] = False
-            analysis_settings['ri_summaries'] = []
-
-        # Output selection guard - Check if at least one output type is set
-        if not any([
-            analysis_settings['gul_output'] if 'gul_output' in analysis_settings else False,
-            analysis_settings['il_output'] if 'il_output' in analysis_settings else False,
-            analysis_settings['ri_output'] if 'ri_output' in analysis_settings else False,
-        ]):
-            raise OasisException(
-                'No valid output settings in: {}'.format(analysis_settings_fp))
-
-        prepare_run_inputs(analysis_settings, model_run_fp, ri=ri)
-        script_fp = os.path.join(os.path.abspath(model_run_fp), 'run_ktools.sh')
-
-        if model_package_fp and os.path.exists(os.path.join(model_package_fp, 'supplier_model_runner.py')):
-            path, package_name = os.path.split(model_package_fp)
-            sys.path.append(path)
-            model_runner_module = importlib.import_module('{}.supplier_model_runner'.format(package_name))
-        else:
-            model_runner_module = runner
-
-        with setcwd(model_run_fp):
-            ri_layers = 0
-            if ri:
-                try:
-                    with io.open(os.path.join(model_run_fp, 'ri_layers.json'), 'r', encoding='utf-8') as f:
-                        ri_layers = len(json.load(f))
-                except IOError:
-                    with io.open(os.path.join(model_run_fp, 'input', 'ri_layers.json'), 'r', encoding='utf-8') as f:
-                        ri_layers = len(json.load(f))
-
-            try:
-                model_runner_module.run(
-                    analysis_settings,
-                    number_of_processes=(ktools_num_processes or self.ktools_num_processes),
-                    filename=script_fp,
-                    num_reinsurance_iterations=ri_layers,
-                    set_alloc_rule_gul=(ktools_alloc_rule_gul if isinstance(ktools_alloc_rule_gul, int) else self.ktools_alloc_rule_gul),
-                    set_alloc_rule_il=(ktools_alloc_rule_il if isinstance(ktools_alloc_rule_il, int) else self.ktools_alloc_rule_il),
-                    set_alloc_rule_ri=(ktools_alloc_rule_ri if isinstance(ktools_alloc_rule_ri, int) else self.ktools_alloc_rule_ri),
-                    run_debug=(ktools_debug if isinstance(ktools_debug, bool) else self.ktools_debug),
-                    stderr_guard=(ktools_error_guard if isinstance(ktools_error_guard, bool) else self.ktools_error_guard),
-                    gul_legacy_stream=(ktools_gul_legacy_stream if isinstance(ktools_gul_legacy_stream, bool) else self.ktools_gul_legacy_stream),
-                    fifo_tmp_dir=(not (ktools_fifo_relative or self.ktools_fifo_relative)),
-                    custom_gulcalc_cmd=model_custom_gulcalc,
-                )
-            except CalledProcessError as e:
-                bash_trace_fp = os.path.join(model_run_fp, 'log', 'bash.log')
-                if os.path.isfile(bash_trace_fp):
-                    with io.open(bash_trace_fp, 'r', encoding='utf-8') as f:
-                        self.logger.info('\nBASH_TRACE:\n' + "".join(f.readlines()))
-
-                stderror_fp = os.path.join(model_run_fp, 'log', 'stderror.err')
-                if os.path.isfile(stderror_fp):
-                    with io.open(stderror_fp, 'r', encoding='utf-8') as f:
-                        self.logger.info('\nKTOOLS_STDERR:\n' + "".join(f.readlines()))
-
-                gul_stderror_fp = os.path.join(model_run_fp, 'log', 'gul_stderror.err')
-                if os.path.isfile(gul_stderror_fp):
-                    with io.open(gul_stderror_fp, 'r', encoding='utf-8') as f:
-                        self.logger.info('\nGUL_STDERR:\n' + "".join(f.readlines()))
-
-                self.logger.info('\nSTDOUT:\n' + e.output.decode('utf-8').strip())
-
-                raise OasisException(
-                    'Ktools run Error: non-zero exit code or output detected on STDERR\n'
-                    'Logs stored in: {}/log'.format(model_run_fp)
-                )
-
-        return model_run_fp
 
     @oasis_log
     def run_exposure(

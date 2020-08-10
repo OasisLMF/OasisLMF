@@ -104,8 +104,6 @@ class GenerateKeysCmd(OasisComputationCommand):
     """
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'OasisKeys'
-    def action(self, args):
-        super().action(args)
 
 
 class GenerateOasisFilesCmd(OasisComputationCommand):
@@ -116,121 +114,14 @@ class GenerateOasisFilesCmd(OasisComputationCommand):
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'OasisFiles'
 
-    def action(self, args):
-        super().action(args)
 
-
-class GenerateLossesCmd(OasisBaseCommand):
+class GenerateLossesCmd(OasisComputationCommand):
     """
-    Generates losses using the installed ktools framework given Oasis files,
-    model analysis settings JSON file, model data and model package data.
-
-    The command line arguments can be supplied in the configuration file
-    (``oasislmf.json`` by default or specified with the ``--config`` flag).
-    Run ``oasislmf config --help`` for more information.
-
-    The script creates a time-stamped folder in the model run directory and
-    sets that as the new model run directory, copies the analysis settings
-    JSON file into the run directory and creates the following folder
-    structure
-    ::
-
-        |-- analysis_settings.json
-        |-- fifo
-        |-- input
-        |-- output
-        |-- RI_1
-        |-- ri_layers.json
-        |-- run_ktools.sh
-        |-- static
-        `-- work
-
-    Depending on the OS type the model data is symlinked (Linux, Darwin) or
-    copied (Cygwin, Windows) into the ``static`` subfolder. The input files
-    are kept in the ``input`` subfolder and the losses are generated as CSV
-    files in the ``output`` subfolder.
+    Generates the standard Oasis GUL input files + optionally the IL/FM input
+    files and the RI input files.
     """
     formatter_class = RawDescriptionHelpFormatter
-
-    def add_args(self, parser):
-        """
-        Adds arguments to the argument parser.
-
-        :param parser: The argument parser object
-        :type parser: ArgumentParser
-        """
-        super(self.__class__, self).add_args(parser)
-
-        parser.add_argument('-o', '--oasis-files-dir', default=None, help='Path to pre-existing direct Oasis files (GUL + FM input files)')
-        parser.add_argument('-a', '--analysis-settings-json', default=None, help='Analysis settings JSON file path')
-        parser.add_argument('-D', '--user-data-dir', default=None, help='Directory containing additional model data files which varies between analysis runs')
-        parser.add_argument('-d', '--model-data-dir', default=None, help='Model data directory path')
-        parser.add_argument('-r', '--model-run-dir', default=None, help='Model run directory path')
-        parser.add_argument('-p', '--model-package-dir', default=None, help='Path containing model specific package')
-        parser.add_argument('-B', '--model-custom-gulcalc', default=None, help='Callable custom gulcalc component to use as a drop-in replacement', type=str)
-        parser.add_argument('-n', '--ktools-num-processes', default=None, help='Number of ktools calculation processes to use', type=int)
-        parser.add_argument('-f', '--ktools-fifo-relative', default=None, help='Create ktools fifo queues under the ./fifo dir', action='store_true')
-        parser.add_argument('-E', '--ktools-disable-guard', default=None, help='Disables error handling in the ktools run script (abort on non-zero exitcode or output on stderr)', action='store_true')
-        parser.add_argument('-q', '--ktools-alloc-rule-gul', default=None, help='Override the allocation used in gulcalc', type=int)
-        parser.add_argument('-u', '--ktools-alloc-rule-il', default=None, help='Override the fmcalc allocation rule used in direct insured loss', type=int)
-        parser.add_argument('-U', '--ktools-alloc-rule-ri', default=None, help='Override the fmcalc allocation rule used in reinsurance', type=int)
-        parser.add_argument('-X', '--ktools-legacy-stream', default=None, help='Run gulcalc using the legacy coverage/item steam, this option disables the GUL allocation rule', action='store_true')
-
-    def action(self, args):
-        """
-        Generates losses using the installed ktools framework given Oasis files,
-        model analysis settings JSON file, model data and model package data.
-
-        :param args: The arguments from the command line
-        :type args: Namespace
-        """
-        self.logger.info('\nProcessing arguments - generating model losses')
-        inputs = InputValues(args)
-
-        utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-        default_model_run_fp = os.path.join(os.getcwd(), 'runs', 'losses-{}'.format(utcnow))
-
-        oasis_fp = inputs.get('oasis_files_dir', required=True, is_path=True)
-        model_run_fp = inputs.get('model_run_dir', is_path=True, default=default_model_run_fp)
-        analysis_settings_fp = inputs.get('analysis_settings_json', required=True, is_path=True)
-        model_data_fp = inputs.get('model_data_dir', required=True, is_path=True)
-        model_package_fp = as_path(inputs.get('model_package_dir', required=False, is_path=True), 'Model package path', is_dir=True)
-        model_custom_gulcalc  = inputs.get('model_custom_gulcalc', required=False, is_path=False)
-        user_data_dir = inputs.get('user_data_dir', required=False, is_path=True)
-
-        ktools_num_processes = inputs.get('ktools_num_processes', default=None, required=False)
-        ktools_fifo_relative = inputs.get('ktools_fifo_relative', default=False, required=False)
-        ktools_error_guard = not(inputs.get('ktools_disable_guard', default=False, required=False))
-        ktools_alloc_rule_gul = inputs.get('ktools_alloc_rule_gul', default=None, required=False)
-        ktools_alloc_rule_il = inputs.get('ktools_alloc_rule_il', default=None, required=False)
-        ktools_alloc_rule_ri = inputs.get('ktools_alloc_rule_ri', default=None, required=False)
-        ktools_gul_legacy_stream = inputs.get('ktools_legacy_gul_stream', default=None, required=False)
-        verbose_output = inputs.get('verbose', default=False, required=False)
-
-        il = all(p in os.listdir(os.path.abspath(oasis_fp)) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
-        ri = False
-        ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.abspath(oasis_fp)))
-        self.logger.info('\nGenerating losses (GUL=True, IL={}, RIL={})'.format(il, ri))
-
-        om().generate_model_losses(
-            model_run_fp,
-            oasis_fp,
-            analysis_settings_fp,
-            model_data_fp,
-            model_package_fp=model_package_fp,
-            model_custom_gulcalc=model_custom_gulcalc,
-            ktools_num_processes=ktools_num_processes,
-            ktools_fifo_relative=ktools_fifo_relative,
-            ktools_error_guard=ktools_error_guard,
-            ktools_alloc_rule_gul=ktools_alloc_rule_gul,
-            ktools_alloc_rule_il=ktools_alloc_rule_il,
-            ktools_alloc_rule_ri=ktools_alloc_rule_ri,
-            ktools_debug=verbose_output,
-            ktools_gul_legacy_stream=ktools_gul_legacy_stream,
-            user_data_dir=user_data_dir,
-        )
-
-        self.logger.info('\nLosses generated in {}'.format(model_run_fp))
+    computation_name = 'Losses'
 
 
 class RunCmd(OasisBaseCommand):

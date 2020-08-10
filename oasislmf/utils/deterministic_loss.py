@@ -30,7 +30,7 @@ from subprocess import (
 
 import pandas as pd
 
-from ..model_execution.bin import csv_to_bin
+from ..execution.bin import csv_to_bin
 
 from .data import (
     fast_zip_dataframe_columns,
