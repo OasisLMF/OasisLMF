@@ -1,12 +1,18 @@
 __all__ = [
-    'OasisKeys'
+    'GenerateKeys',
+    'GenerateKeysDeterministic'
 ]
 
 import os
 
+from itertools import (
+    product,
+)
+
 from ..base import ComputationStep
 from ...lookup.factory import OasisLookupFactory as olf
 from ...utils.exceptions import OasisException
+from ...utils.coverages import SUPPORTED_COVERAGE_TYPES
 
 from ...utils.data import (
     get_location_df,
@@ -14,7 +20,7 @@ from ...utils.data import (
 )
 
 
-class OasisKeys(ComputationStep):
+class GenerateKeys(ComputationStep):
     """
     Generates keys from a model lookup, and write Oasis keys and keys error files.
 
@@ -60,6 +66,7 @@ class OasisKeys(ComputationStep):
         {'name': 'model_version_csv',          'flag':'-v', 'is_path': True, 'pre_exist': False, 'help': 'Model version CSV file path'},
         {'name': 'user_data_dir',              'flag':'-D', 'is_path': True, 'pre_exist': False, 'help': 'Directory containing additional model data files which varies between analysis runs'},
     ]
+
 
     def _get_output_dir(self):
         if self.keys_data_csv:
@@ -109,3 +116,30 @@ class OasisKeys(ComputationStep):
         self.logger.info('\nKeys successful: {} generated with {} items'.format(f1, n1))
         self.logger.info('Keys errors: {} generated with {} items'.format(f2, n2))
         return (f1, n1, f2, n2)
+
+
+class GenerateKeysDeterministic(ComputationStep):
+
+    step_params = [
+        {'name': 'oed_location_csv',           'flag':'-x', 'is_path': True, 'pre_exist': True,  'help': 'Source location CSV file path', 'required': True},
+        {'name': 'keys_data_csv',              'flag':'-k', 'is_path': True, 'pre_exist': False,  'help': 'Generated keys CSV output path'},
+        {'name': 'supported_oed_coverage_types',  'default': tuple(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values())},
+    ]
+
+    def _get_output_dir(self):
+        if self.keys_data_csv:
+            return os.path.basename(self.keys_data_csv)
+        utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
+        return os.path.join(os.getcwd(), 'runs', 'keys-{}'.format(utcnow))
+
+    def run(self):
+        output_dir = self._get_output_dir()
+        keys_fp = self.keys_data_csv or os.path.join(output_dir, 'keys.csv')
+        location_df = get_location_df(self.oed_location_csv)
+
+        loc_ids = (loc_it['loc_id'] for _, loc_it in location_df.loc[:, ['loc_id']].sort_values('loc_id').iterrows())
+        keys = [
+            {'loc_id': _loc_id, 'peril_id': 1, 'coverage_type': cov_type, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
+            for i, (_loc_id, cov_type) in enumerate(product(loc_ids, self.supported_oed_coverage_types))
+        ]
+        return  olf.write_oasis_keys_file(keys, keys_fp)

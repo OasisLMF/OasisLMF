@@ -1,5 +1,5 @@
 __all__ = [
-    'Losses'
+    'GenerateLosses'
 ]
 
 import importlib
@@ -44,7 +44,7 @@ from ...utils.defaults import (
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-class Losses(ComputationStep):
+class GenerateLosses(ComputationStep):
     """
     Generates losses using the installed ktools framework given Oasis files,
     model analysis settings JSON file, model data and model package data.
@@ -119,12 +119,12 @@ class Losses(ComputationStep):
 
     def run(self):
 
+        model_run_fp = self._get_output_dir()
         il = all(p in os.listdir(self.oasis_files_dir) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
         ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(self.oasis_files_dir)) + os.listdir(self.oasis_files_dir))
         gul_item_stream = (not self.ktools_legacy_stream)
         self.logger.info('\nGenerating losses (GUL=True, IL={}, RIL={})'.format(il, ri))
 
-        model_run_fp = self._get_output_dir()
         self._check_alloc_rules()
         analysis_settings = get_analysis_settings(self.analysis_settings_json)
 

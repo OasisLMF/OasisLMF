@@ -32,6 +32,7 @@ class ComputationStep:
          - create necessary directories (is_dir, is_path)
         """
         self.logger = logging.getLogger()
+        self.kwargs = kwargs
 
         for param in self.get_params():
             param_value = kwargs.get(param['name'])

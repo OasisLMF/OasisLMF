@@ -1,18 +1,15 @@
 __all__ = [
-    'OasisFiles'
+    'GenerateOasisFiles'
 ]
 
 import io
 import json
 import os
 
-from itertools import (
-    product,
-)
-
+from .keys import GenerateKeys, GenerateKeysDeterministic
 from ..base import ComputationStep
-from ...utils.coverages import SUPPORTED_COVERAGE_TYPES
-from ...lookup.factory import OasisLookupFactory as olf
+
+#from ...utils.coverages import SUPPORTED_COVERAGE_TYPES
 from ...preparation.oed import load_oed_dfs
 from ...preparation.dir_inputs import prepare_input_files_directory
 from ...preparation.reinsurance_layer import write_files_for_reinsurance
@@ -51,7 +48,7 @@ from ...preparation.summaries import (
 
 
 
-class OasisFiles(ComputationStep):
+class GenerateOasisFiles(ComputationStep):
     """
     Generates the standard Oasis GUL input files + optionally the IL/FM input
     files and the RI input files.
@@ -85,7 +82,7 @@ class OasisFiles(ComputationStep):
         {'name': 'profile_loc',                   'default': get_default_exposure_profile()},
         {'name': 'profile_acc',                   'default': get_default_accounts_profile()},
         {'name': 'profile_fm_agg',                'default': get_default_fm_aggregation_profile()},
-        {'name': 'supported_oed_coverage_types',  'default': tuple(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values())},
+        #{'name': 'supported_oed_coverage_types',  'default': tuple(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values())},
     ]
 
     def _get_output_dir(self):
@@ -160,39 +157,13 @@ class OasisFiles(ComputationStep):
         # were provided then a "deterministic" keys file is generated.
         _keys_fp = _keys_errors_fp = None
         if not self.keys_data_csv:
-            _keys_fp = os.path.join(target_dir, 'keys.csv')
-            _keys_errors_fp = os.path.join(target_dir, 'keys-errors.csv')
+            _keys_fp = self.kwargs['keys_data_csv'] = os.path.join(target_dir, 'keys.csv')
+            _keys_errors_fp = self.kwargs['keys_errors_csv'] = os.path.join(target_dir, 'keys-errors.csv')
 
             if deterministic:
-                loc_ids = (loc_it['loc_id'] for _, loc_it in location_df.loc[:, ['loc_id']].sort_values('loc_id').iterrows())
-                keys = [
-                    {'loc_id': _loc_id, 'peril_id': 1, 'coverage_type': cov_type, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
-                    for i, (_loc_id, cov_type) in enumerate(product(loc_ids, self.supported_oed_coverage_types))
-                ]
-                _, _ = olf.write_oasis_keys_file(keys, _keys_fp)
-
+                GenerateKeysDeterministic(**self.kwargs).run()
             else:
-                lookup_config = get_json(src_fp=self.lookup_config_json) if self.lookup_config_json else self.lookup_config
-                if lookup_config and lookup_config['keys_data_path'] in ['.', './']:
-                    lookup_config['keys_data_path'] = os.path.join(os.path.dirname(self.lookup_config_json))
-                elif lookup_config and not os.path.isabs(lookup_config['keys_data_path']):
-                    lookup_config['keys_data_path'] = os.path.join(os.path.dirname(self.lookup_config_json), self.lookup_data_dir)
-
-                _, lookup = olf.create(
-                    lookup_config=lookup_config,
-                    model_keys_data_path=self.lookup_data_dir,
-                    model_version_file_path=self.model_version_csv,
-                    lookup_module_path=self.lookup_module_path,
-                    complex_lookup_config_fp=self.lookup_complex_config_json,
-                    user_data_dir=self.user_data_dir,
-                    output_directory=target_dir
-                )
-                f1, _, f2, _ = olf.save_results(
-                    lookup,
-                    location_df=location_df.copy(deep=True),
-                    successes_fp=_keys_fp,
-                    errors_fp=_keys_errors_fp
-                )
+                GenerateKeys(**self.kwargs).run()
         else:
             _keys_fp = os.path.join(target_dir, os.path.basename(self.keys_data_csv))
 

@@ -87,7 +87,7 @@ class GenerateExposurePreAnalysisCmd(OasisComputationCommand):
     see ExposurePreAnalysis for more detail
     """
     formatter_class = RawDescriptionHelpFormatter
-    computation_name = 'ExposurePreAnalysis'
+    computation_name = 'HookPreAnalysis'
 
     def action(self, args):  # TODO remove once integrated with archi 2020
         super().action(args)
@@ -103,7 +103,7 @@ class GenerateKeysCmd(OasisComputationCommand):
     Generates keys from a model lookup, and write Oasis keys and keys error files.
     """
     formatter_class = RawDescriptionHelpFormatter
-    computation_name = 'OasisKeys'
+    computation_name = 'GenerateKeys'
 
 
 class GenerateOasisFilesCmd(OasisComputationCommand):
@@ -112,7 +112,7 @@ class GenerateOasisFilesCmd(OasisComputationCommand):
     files and the RI input files.
     """
     formatter_class = RawDescriptionHelpFormatter
-    computation_name = 'OasisFiles'
+    computation_name = 'GenerateOasisFiles'
 
 
 class GenerateLossesCmd(OasisComputationCommand):
@@ -121,10 +121,10 @@ class GenerateLossesCmd(OasisComputationCommand):
     files and the RI input files.
     """
     formatter_class = RawDescriptionHelpFormatter
-    computation_name = 'Losses'
+    computation_name = 'GenerateLosses'
 
 
-class RunCmd(OasisBaseCommand):
+class RunCmd(OasisComputationCommand):
     """
     Run models end to end.
 
@@ -132,123 +132,7 @@ class RunCmd(OasisBaseCommand):
     (``oasislmf.json`` by default or specified with the ``--config`` flag).
     """
     formatter_class = RawDescriptionHelpFormatter
-
-    def add_args(self, parser):
-        """
-        Run models end to end.
-
-        :param parser: The argument parser object
-        :type parser: ArgumentParser
-        """
-        super(self.__class__, self).add_args(parser)
-
-        parser.add_argument('-z', '--keys-data-csv', default=None, help='Pre-generated keys CSV file path')
-
-        parser.add_argument('-k', '--lookup-data-dir', default=None, help='Model lookup/keys data directory path')
-        parser.add_argument('-l', '--lookup-module-path', default=None, help='Model lookup module path')
-        parser.add_argument('-L', '--lookup-complex-config-json', default=None, help='Complex lookup config JSON file path')
-        parser.add_argument('-m', '--lookup-config-json', default=None, help='Built-in lookup config JSON file path')
-
-        parser.add_argument('-e', '--profile-loc-json', default=None, help='Source OED location profile JSON path')
-        parser.add_argument('-b', '--profile-acc-json', default=None, help='Source OED accounts profile JSON path')
-        parser.add_argument('-g', '--profile-fm-agg-json', default=None, help='FM OED aggregation profile JSON path')
-
-        parser.add_argument('--exposure-pre-analysis-module', default=None,
-                                help='Exposure Pre-Analysis lookup module path')
-        parser.add_argument('--exposure-pre-analysis-class-name', default=None,
-                                help='Name of the class to use for the exposure_pre_analysis')
-        parser.add_argument('--exposure-pre-analysis-setting-json', default=None,
-                                help='Exposure Pre-Analysis config JSON file path')
-
-        parser.add_argument('-x', '--oed-location-csv', default=None, help='Source location CSV file path')
-        parser.add_argument('-y', '--oed-accounts-csv', default=None, help='Source accounts CSV file path')
-        parser.add_argument('-i', '--oed-info-csv', default=None, help='Reinsurance info. CSV file path')
-        parser.add_argument('-s', '--oed-scope-csv', default=None, help='Reinsurance scope CSV file path')
-
-        parser.add_argument('-a', '--analysis-settings-json', default=None, help='Model analysis settings JSON file path')
-        parser.add_argument('-D', '--user-data-dir', default=None, help='Directory containing additional model data files which varies between analysis runs')
-
-        parser.add_argument('-v', '--model-version-csv', default=None, help='Model version CSV file path')
-        parser.add_argument('-M', '--model-settings-json', default=None, help='Model settings JSON file path')
-        parser.add_argument('-d', '--model-data-dir', default=None, help='Model data directory path')
-        parser.add_argument('-r', '--model-run-dir', default=None, help='Model run directory path')
-        parser.add_argument('-p', '--model-package-dir', default=None, help='Path containing model specific package')
-        parser.add_argument('-B', '--model-custom-gulcalc', default=None, help='Callable custom gulcalc component to use as a drop-in replacement', type=str)
-
-        parser.add_argument('-n', '--ktools-num-processes', default=None, help='Number of ktools calculation processes to use', type=int)
-        parser.add_argument('-f', '--ktools-fifo-relative', default=None, help='Create ktools fifo queues under the ./fifo dir', action='store_true')
-        parser.add_argument('-E', '--ktools-disable-guard', default=None, help='Disables error handling in the ktools run script (abort on non-zero exitcode or output on stderr)', action='store_true')
-        parser.add_argument('-q', '--ktools-alloc-rule-gul', default=None, help='Override the allocation used in gulcalc', type=int)
-        parser.add_argument('-u', '--ktools-alloc-rule-il', default=None, help='Override the fmcalc allocation rule used in direct insured loss', type=int)
-        parser.add_argument('-U', '--ktools-alloc-rule-ri', default=None, help='Override the fmcalc allocation rule used in reinsurance', type=int)
-        parser.add_argument('--ktools-legacy-gul-stream', default=None, help='Run gulcalc using the legacy coverage/item steam, this option disables the GUL allocation rule', action='store_true')
-
-        parser.add_argument('-S', '--disable-summarise-exposure', default=None, help='Create exposure summary report', action='store_false')
-        parser.add_argument('-W', '--write-chunksize', type=int, help='Chunk size to use when writing input files from the inputs dataframes')
-        parser.add_argument('-G', '--group-id-cols', nargs='+', default=None, help='Columns from loc file to set group_id')
-
-    def action(self, args):
-        """
-        Generate Oasis files (items, coverages, GUL summary) for a model
-
-        :param args: The arguments from the command line
-        :type args: Namespace
-        """
-        self.logger.info('\nProcessing arguments - model run')
-        inputs = InputValues(args)
-
-        utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-        default_model_run_fp = os.path.join(os.getcwd(), 'runs', 'losses-{}'.format(utcnow))
-
-        model_run_fp = inputs.get('model_run_dir', is_path=True, default=default_model_run_fp)
-
-        if os.path.exists(model_run_fp):
-            empty_dir(model_run_fp)
-
-        args.model_run_dir = model_run_fp
-
-        model_package_fp = inputs.get('model_package_dir', required=False, is_path=True)
-
-        args.model_package_path = model_package_fp
-
-        accounts_fp = inputs.get('oed_accounts_csv', required=False, is_path=True)
-        ri_info_fp = inputs.get('oed_info_csv', required=False, is_path=True)
-        ri_scope_fp = inputs.get('oed_scope_csv', required=False, is_path=True)
-
-        # Validate JSON files (Fail at entry point not after input generation)
-        analysis_settings_fp = inputs.get('analysis_settings_json', required=False, is_path=True)
-        if analysis_settings_fp:
-            get_analysis_settings(analysis_settings_fp)
-        model_settings_fp = inputs.get('model_settings_json', required=False, is_path=True)
-        if model_settings_fp:
-            get_model_settings(model_settings_fp)
-
-        required_ri_paths = [ri_info_fp, ri_scope_fp]
-        il = True if accounts_fp else False
-        ri = all(required_ri_paths) and il
-
-        if any(required_ri_paths) and not ri:
-            raise OasisException(
-                'RI option indicated by provision of some RI related assets, but other assets are missing. '
-                'To generate RI inputs you need to provide all of the assets required to generate direct '
-                'Oasis files (GUL + FM input files) plus all of the following assets: '
-                '    reinsurance info. file path, '
-                '    reinsurance scope file path.'
-            )
-
-        args.oasis_files_dir = os.path.join(model_run_fp, 'input')
-
-        if inputs.get('exposure_pre_analysis_module', is_path=True):
-            cmds = [GenerateExposurePreAnalysisCmd(args), GenerateOasisFilesCmd(args), GenerateLossesCmd(args)]
-        else:
-            cmds = [GenerateOasisFilesCmd(args), GenerateLossesCmd(args)]
-
-        with tqdm(total=len(cmds)) as pbar:
-            for cmd in cmds:
-                cmd.action(args)
-                pbar.update(1)
-
-        self.logger.info('\nModel run completed successfully in {}'.format(model_run_fp))
+    computation_name = 'RunModel'
 
 
 class ModelCmd(OasisBaseCommand):

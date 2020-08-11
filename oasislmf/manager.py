@@ -98,19 +98,20 @@ pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 ## IMPORT Computation commands (MOVE THIS LATER)
-from .computation.hooks.pre_analysis import ExposurePreAnalysis
-from .computation.generate.inputs import OasisFiles 
-from .computation.generate.keys import OasisKeys 
-from .computation.generate.losses import Losses 
-#from .computation._ import _ 
+from .computation.hooks.pre_analysis import HookPreAnalysis
+from .computation.generate.files import GenerateOasisFiles 
+from .computation.generate.keys import GenerateKeys 
+from .computation.generate.losses import GenerateLosses 
+from .computation.run.model import RunModel
 #from .computation._ import _ 
 
 class OasisManager(object):
     computation_classes = [
-        ExposurePreAnalysis,
-        OasisFiles,
-        OasisKeys,
-        Losses
+        HookPreAnalysis,
+        GenerateOasisFiles,
+        GenerateKeys,
+        GenerateLosses,
+        RunModel,
     ]
     computations_params = {}
 
@@ -244,13 +245,14 @@ class OasisManager(object):
         taken from https://stackoverflow.com/questions/1175208/elegant-python-function-to-convert-camelcase-to-snake-case
 
         >>> OasisManager.computation_name_to_method('ExposurePreAnalysis')
-        'generate_exposure_pre_analysis'
+        'exposure_pre_analysis'
         >>> OasisManager.computation_name_to_method('EODFile')
-        'generate_eod_file'
+        'eod_file'
         >>> OasisManager.computation_name_to_method('Model1Data')
-        'generate_model1_data'
+        'model1_data'
         """
-        return 'generate_' + re.sub('((?<=[a-z0-9])[A-Z]|(?!^)[A-Z](?=[a-z]))', r'_\1', name).lower()
+        
+        return re.sub('((?<=[a-z0-9])[A-Z]|(?!^)[A-Z](?=[a-z]))', r'_\1', name).lower()
 
     @oasis_log
     def generate_peril_areas_rtree_file_index(
