@@ -281,29 +281,29 @@ class FmAcceptanceTests(TestCase):
     def test_fm27(self):
         self.run_test('fm27')
 
-    def test_xx_32(self):
-        self.run_test('xx_32')
+    def test_xx32(self):
+        self.run_test('xx32')
 
-    def test_xx_38(self):
-        self.run_test('xx_38')
+    def test_xx38(self):
+        self.run_test('xx38')
 
-    def test_xx_39(self):
-        self.run_test('xx_39')
+    def test_xx39(self):
+        self.run_test('xx39')
 
-    def test_xx_42(self):
-        self.run_test('xx_42')
+    def test_xx42(self):
+        self.run_test('xx42')
 
-    def test_xx_43(self):
-        self.run_test('xx_43')
+    def test_xx43(self):
+        self.run_test('xx43')
 
-    def test_xx_47(self):
-        self.run_test('xx_47')
+    def test_xx47(self):
+        self.run_test('xx47')
 
-    def test_xx_53(self):
-        self.run_test('xx_53')
+    def test_xx53(self):
+        self.run_test('xx53')
 
-    def test_xx_54(self):
-        self.run_test('xx_54')
+    def test_QS46_1(self):
+        self.run_test('QS46_1')
 
     def test_Q1_all(self):
         self.run_test('Q1_all')
@@ -332,11 +332,9 @@ class FmAcceptanceTests(TestCase):
     def test_CX33_112(self):
         self.run_test('CX33_112')
 
-    @pytest.mark.skip(reason='Needs fixing')
     def test_CX34_114(self):
         self.run_test('CX34_114')
 
-    @pytest.mark.skip(reason='Needs fixing')
     def test_CX34_116(self):
         self.run_test('CX34_116')
 
@@ -349,6 +347,17 @@ class FmAcceptanceTests(TestCase):
     def test_CX36_121(self):
         self.run_test('CX36_121')
 
-    @pytest.mark.skip(reason='Needs fixing')
     def test_CX36_124(self):
         self.run_test('CX36_124')
+
+    def test_xxAcc1(self):
+        self.run_test('xxAcc1')
+
+    def test_xxAcc2(self):
+        self.run_test('xxAcc2')
+
+    def test_xxAcc3(self):
+        self.run_test('xxAcc3')
+
+    def test_xxAcc4(self):
+        self.run_test('xxAcc4')
