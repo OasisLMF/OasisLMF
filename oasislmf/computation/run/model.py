@@ -24,9 +24,9 @@ class RunModel(ComputationStep):
     """
 
     chained_commands = [
-        HookPreAnalysis,
-        GenerateOasisFiles,
         GenerateLosses,
+        GenerateOasisFiles,
+        HookPreAnalysis,
     ]
 
     # Combine all arguments for each sub-command
@@ -46,7 +46,7 @@ class RunModel(ComputationStep):
         if not self.model_run_dir:
             self.model_run_dir = GenerateLosses._get_output_dir(self)
         self.kwargs['model_run_dir'] = self.model_run_dir
-        self.kwargs['oasis_files_dir'] = os.path.join(self.model_run_dir, 'input')
+       # self.kwargs['oasis_files_dir'] = os.path.join(self.model_run_dir, 'input')
 
         # Validate JSON files (Fail at entry point not after input generation)
         if self.analysis_settings_json:

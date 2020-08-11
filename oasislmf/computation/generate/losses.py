@@ -76,7 +76,7 @@ class GenerateLosses(ComputationStep):
     """
     step_params = [
         # Command line options
-        {'name': 'oasis_files_dir',        'flag':'-o', 'is_path': True, 'pre_exist': False, 'help': 'Path to the directory in which to generate the Oasis files'},
+        {'name': 'oasis_files_dir',        'flag':'-o', 'is_path': True, 'pre_exist': True, 'help': 'Path to the directory in which to generate the Oasis files'},
         {'name': 'analysis_settings_json', 'flag':'-a', 'is_path': True, 'pre_exist': True,  'help': 'Analysis settings JSON file path'},
         {'name': 'user_data_dir',          'flag':'-D', 'is_path': True, 'pre_exist': False, 'help': 'Directory containing additional model data files which varies between analysis runs'},
         {'name': 'model_data_dir',         'flag':'-d', 'is_path': True, 'pre_exist': True,  'help': 'Model data directory path'},
@@ -99,10 +99,10 @@ class GenerateLosses(ComputationStep):
         run_dir = None
         if self.model_run_dir:
             run_dir = self.model_run_dir
-        else:    
+        else:
             utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
             run_dir = os.path.join(os.getcwd(), 'runs', 'losses-{}'.format(utcnow))
-        
+
         if not os.path.exists(run_dir):
             Path(run_dir).mkdir(parents=True, exist_ok=True)
         return run_dir
@@ -120,6 +120,23 @@ class GenerateLosses(ComputationStep):
     def run(self):
 
         model_run_fp = self._get_output_dir()
+        if self.oasis_files_dir:
+            # if files are given copy it over
+            # (oasislmf model generate-losses ..)
+            prepare_run_directory(
+                model_run_fp,
+                self.oasis_files_dir,
+                self.model_data_dir,
+                self.analysis_settings_json,
+                user_data_dir=self.user_data_dir,
+                ri=ri
+            )
+        else:
+            # otherwise assume the files exist
+            # (oasislmf model run ..)
+            self.oasis_files_dir = os.path.join(model_run_fp, 'input')
+
+
         il = all(p in os.listdir(self.oasis_files_dir) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
         ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(self.oasis_files_dir)) + os.listdir(self.oasis_files_dir))
         gul_item_stream = (not self.ktools_legacy_stream)
@@ -127,15 +144,6 @@ class GenerateLosses(ComputationStep):
 
         self._check_alloc_rules()
         analysis_settings = get_analysis_settings(self.analysis_settings_json)
-
-        prepare_run_directory(
-            model_run_fp,
-            self.oasis_files_dir,
-            self.model_data_dir,
-            self.analysis_settings_json,
-            user_data_dir=self.user_data_dir,
-            ri=ri
-        )
 
         generate_summaryxref_files(
             model_run_fp,
