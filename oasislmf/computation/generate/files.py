@@ -96,13 +96,6 @@ class GenerateOasisFiles(ComputationStep):
     def run(self):
         self.logger.info('\nProcessing arguments - Creating Oasis Files')
 
-        # Check whether the files generation is for deterministic or model losses
-        deterministic = not(
-            (self.lookup_config or self.lookup_config_json) or
-            (self.lookup_data_dir and self.model_version_csv and self.lookup_module_path) or
-            self.keys_data_csv
-        )
-
         if not self.deterministic:
             if not (self.keys_data_csv or self.lookup_config_json or (self.lookup_data_dir and self.model_version_csv and self.lookup_module_path)):
                 raise OasisException(

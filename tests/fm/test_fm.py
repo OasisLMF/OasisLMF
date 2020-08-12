@@ -17,9 +17,9 @@ class FmAcceptanceTests(TestCase):
         update_expected = False
         with tempfile.TemporaryDirectory() as tmp_run_dir:
             result = OasisManager().run_fm_test(
-                os.path.join(self.test_cases_fp, test_case),
-                tmp_run_dir,
-                update_expected
+                test_case_dir=os.path.join(self.test_cases_fp, test_case),
+                run_dir=tmp_run_dir,
+                update_expected=update_expected
             )
 
         self.assertTrue(result)

@@ -3,8 +3,6 @@ __all__ = [
     'RunFmTest',
 ]
 
-
-
 import tempfile
 import os
 import csv
@@ -52,53 +50,6 @@ class RunExposure(ComputationStep):
         {'name': 'print_summary', 'default': True},
     ]
 
-    '''
-        parser.add_argument(
-            '-s', '--src-dir', type=str, default=None, required=True,
-            help='Source files directory - should contain the OED exposure files'
-        )
-        parser.add_argument(
-            '-r', '--run-dir', type=str, default=None, required=False,
-            help='Run directory - where files should be generated'
-        )
-        parser.add_argument(
-            '-l', '--loss-factor', type=float, nargs='+',
-            help='Loss factors to apply to TIVs - default is 1.0. Multiple factors can be specified.'
-        )
-        parser.add_argument(
-            '-a', '--alloc-rule-il', type=int, default=KTOOLS_ALLOC_IL_DEFAULT,
-            help='Ktools IL back allocation rule to apply - default is 2, i.e. prior level loss basis'
-        )
-        parser.add_argument(
-            '-A', '--alloc-rule-ri', type=int, default=KTOOLS_ALLOC_RI_DEFAULT,
-            help='Ktools RI back allocation rule to apply - default is 3, i.e. All level loss basis'
-        )
-        parser.add_argument(
-            '-o', '--output-level', default='item',
-            help='Level to output losses. Options are: item, loc, pol, acc or port.', type=str
-        )
-        parser.add_argument(
-            '-f', '--output-file', default=None,
-            help='Write the output to file.', type=str
-        )
-
-    '''
-
-
-    '''
-        def run_exposure(                                                                                                                                          
-            self,
-            src_dir,
-            run_dir,
-            loss_factors,
-            net_ri,
-            il_alloc_rule,
-    ri_alloc_rule,
-            output_level,
-            output_file,
-            include_loss_factor=True,
-            print_summary=False):
-    '''
     def _check_alloc_rules(self):
         alloc_ranges = {
             'ktools_alloc_rule_il': KTOOLS_ALLOC_FM_MAX,
@@ -109,49 +60,6 @@ class RunExposure(ComputationStep):
                 raise OasisException(f'Error: {rule}={alloc_val} - Not withing valid range [0..{alloc_ranges[rule]}]')
 
     def run(self):
-        '''
-        inputs = InputValues(args)
-
-        self.logger.debug('\nProcessing arguments')
-
-        call_dir = os.getcwd()
-
-        src_dir = as_path(inputs.get('src_dir', default=call_dir, is_path=True), 'Source files directory', is_dir=True, preexists=True)
-
-        loss_factors = inputs.get(
-            'loss_factor', default=[1.0], required=False
-        )
-
-        net_ri = True
-
-        il_alloc_rule = inputs.get('alloc_rule_il', default=KTOOLS_ALLOC_IL_DEFAULT, required=False)
-        ri_alloc_rule = inputs.get('alloc_rule_ri', default=KTOOLS_ALLOC_RI_DEFAULT, required=False)
-
-        # item, loc, pol, acc, port
-        output_level = inputs.get('output_level', default="item", required=False)
-        if output_level not in ['port', 'acc', 'loc', 'pol', 'item']:
-            raise OasisException(
-                'Invalid output level. Must be one of port, acc, loc, pol or item.'
-            )
-
-        output_file = as_path(inputs.get('output_file', required=False, is_path=True), 'Output file path', preexists=False)
-
-        run_dir = as_path(inputs.get('run_dir', is_path=True), 'Run directory', is_dir=True, preexists=False)
-        if run_dir is None:
-            with tempfile.TemporaryDirectory() as tmpdirname:
-                om().run_exposure(
-                    src_dir, tmpdirname, loss_factors, net_ri,
-                    il_alloc_rule, ri_alloc_rule, output_level, output_file,
-                    print_summary=True, include_loss_factor=include_loss_factor)
-        else:
-            if not os.path.exists(run_dir):
-                Path(run_dir).mkdir(parents=True, exist_ok=True)
-            om().run_exposure(
-                src_dir, run_dir, loss_factors, net_ri,
-                il_alloc_rule, ri_alloc_rule, output_level, output_file,
-                print_summary=True, include_loss_factor=include_loss_factor)
-        '''
-
         tmp_dir = None
         src_dir = self.src_dir if self.src_dir else os.getcwd()
 
@@ -196,8 +104,6 @@ class RunExposure(ComputationStep):
             except IndexError:
                 ri_info_fp = None
 
-
-
         # Start Oasis files generation
         GenerateOasisFiles(
            oasis_files_dir=run_dir,
@@ -207,7 +113,6 @@ class RunExposure(ComputationStep):
             oed_scope_csv=ri_scope_fp,
             deterministic=True,
         ).run()
-
 
         losses = GenerateLossesDeterministic(
             oasis_files_dir=run_dir,
@@ -365,7 +270,7 @@ class RunExposure(ComputationStep):
                         cols=cols_to_print)
 
         if self.output_file:
-            all_losses_df.to_csv(output_file, index=False, encoding='utf-8')
+            all_losses_df.to_csv(self.output_file, index=False, encoding='utf-8')
 
         if tmp_dir:
             tmp_dir.cleanup()
@@ -392,16 +297,11 @@ class RunFmTest(ComputationStep):
 
 
     def run(self):
-    #def run_fm_test(self, test_case_dir, run_dir, update_expected=False):
-
-        net_ri = True
-        il_alloc_rule = KTOOLS_ALLOC_IL_DEFAULT
-        ri_alloc_rule = KTOOLS_ALLOC_RI_DEFAULT
         output_level = 'loc'
-
-        loss_factor_fp = os.path.join(test_case_dir, 'loss_factors.csv')
+        loss_factor_fp = os.path.join(self.test_case_dir, 'loss_factors.csv')
         loss_factor = []
         include_loss_factor = False
+
         if os.path.exists(loss_factor_fp):
             loss_factor = []
             include_loss_factor = True
@@ -416,13 +316,17 @@ class RunFmTest(ComputationStep):
         else:
             loss_factor.append(1.0)
 
-        output_file = os.path.join(run_dir, 'loc_summary.csv')
-        (il, ril) = self.run_exposure(
-            test_case_dir, run_dir, loss_factor, net_ri,
-            il_alloc_rule, ri_alloc_rule, output_level, output_file,
-            include_loss_factor)
+        output_file = os.path.join(self.run_dir, 'loc_summary.csv')
+        (il, ril) = RunExposure(
+            src_dir=self.test_case_dir, 
+            run_dir=self.run_dir, 
+            loss_factor=loss_factor, 
+            output_level=output_level, 
+            output_file=output_file,
+            include_loss_factor=include_loss_factor
+        ).run()
 
-        expected_data_dir = os.path.join(test_case_dir, 'expected')
+        expected_data_dir = os.path.join(self.test_case_dir, 'expected')
         if not os.path.exists(expected_data_dir):
             raise OasisException(
                 'No subfolder named `expected` found in the input directory - '
@@ -444,7 +348,7 @@ class RunFmTest(ComputationStep):
 
         test_result = True
         for f in files:
-            generated = os.path.join(run_dir, f)
+            generated = os.path.join(self.run_dir, f)
             expected = os.path.join(expected_data_dir, f)
 
             if not os.path.exists(expected):
@@ -456,15 +360,15 @@ class RunFmTest(ComputationStep):
                     pd.read_csv(generated)
                 )
             except AssertionError:
-                if update_expected:
+                if self.update_expected:
                     shutil.copyfile(generated, expected)
                 else:
                     print("Expected:")
                     with open(expected) as f:
-                        print(f.read())
+                        self.logger.info(f.read())
                     print("Generated:")
                     with open(generated) as f:
-                        print(f.read())
+                        self.logger.info(f.read())
                     raise OasisException(
                         f'\n FAIL: generated {generated} vs expected {expected}'
                     )
