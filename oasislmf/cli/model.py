@@ -9,76 +9,23 @@ __all__ = [
 ]
 
 import os
-import json
-import re
 
 from argparse import RawDescriptionHelpFormatter
 
-from tqdm import tqdm
-
-from ..manager import OasisManager as om
-
-from ..utils.exceptions import OasisException
-from ..utils.path import (
-    as_path,
-    empty_dir,
-)
-from ..utils.data import (
-    get_utctimestamp,
-    get_analysis_settings,
-    get_model_settings,
-)
 from ..utils.defaults import (
-    get_default_exposure_profile,
-    get_default_accounts_profile,
-    get_default_fm_aggregation_profile,
     KEY_NAME_TO_FILE_NAME,
 )
 from .base import OasisBaseCommand
 from .computation_command import OasisComputationCommand
-from .inputs import InputValues
 
 
-class GeneratePerilAreasRtreeFileIndexCmd(OasisBaseCommand):
+class GeneratePerilAreasRtreeFileIndexCmd(OasisComputationCommand):
     """
     Generates and writes an Rtree file index of peril area IDs (area peril IDs)
     and area polygon bounds from a peril areas (area peril) file.
     """
     formatter_class = RawDescriptionHelpFormatter
-
-    def add_args(self, parser):
-        """
-        Adds arguments to the argument parser.
-
-        :param parser: The argument parser object
-        :type parser: ArgumentParser
-        """
-        super(self.__class__, self).add_args(parser)
-
-        parser.add_argument('-m', '--lookup-config-json', default=None, help='Lookup config JSON file path')
-        parser.add_argument('-d', '--lookup-data-dir', default=None, help='Keys data directory path')
-        parser.add_argument('-f', '--index-output-file', default=None, help='Index file path (no file extension required)')
-
-    def action(self, args):
-        """
-        Generates and writes an Rtree file index of peril area IDs (area peril IDs)
-        and area polygon bounds from a peril areas (area peril) file.
-
-        :param args: The arguments from the command line
-        :type args: Namespace
-        """
-        inputs = InputValues(args)
-
-        keys_data_fp = inputs.get('lookup_data_dir', required=True, is_path=True)
-        rtree_index_fp = inputs.get('index_output_file', required=True, is_path=True)
-        lookup_config_fp = inputs.get('lookup_config_json', required=True, is_path=True)
-
-        _index_fp = om().generate_peril_areas_rtree_file_index(
-            keys_data_fp=keys_data_fp,
-            areas_rtree_index_fp=rtree_index_fp,
-            lookup_config_fp=lookup_config_fp
-        )
-        self.logger.info('\nGenerated peril areas Rtree file index {}\n'.format(_index_fp))
+    computation_name = 'GenerateRtreeIndexData'
 
 
 class GenerateExposurePreAnalysisCmd(OasisComputationCommand):
