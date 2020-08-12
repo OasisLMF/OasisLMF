@@ -130,7 +130,6 @@ class GenerateLosses(ComputationStep):
                 raise OasisException(f'Error: {rule}={alloc_val} - Not withing valid range [0..{alloc_ranges[rule]}]')
 
     def run(self):
-
         model_run_fp = self._get_output_dir()
 
         il = all(p in os.listdir(self.oasis_files_dir) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])

@@ -34,7 +34,7 @@ class GenerateExposurePreAnalysisCmd(OasisComputationCommand):
     see ExposurePreAnalysis for more detail
     """
     formatter_class = RawDescriptionHelpFormatter
-    computation_name = 'HookPreAnalysis'
+    computation_name = 'ExposurePreAnalysis'
 
     def action(self, args):  # TODO remove once integrated with archi 2020
         super().action(args)

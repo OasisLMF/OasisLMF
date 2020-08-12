@@ -9,7 +9,7 @@ from ..base import ComputationStep
 
 from ..generate.files import GenerateOasisFiles
 from ..generate.losses import GenerateLosses
-from ..hooks.pre_analysis import HookPreAnalysis
+from ..hooks.pre_analysis import ExposurePreAnalysis
 
 from ...utils.data import (
     get_analysis_settings,
@@ -26,7 +26,7 @@ class RunModel(ComputationStep):
     chained_commands = [
         GenerateLosses,
         GenerateOasisFiles,
-        HookPreAnalysis,
+        ExposurePreAnalysis,
     ]
 
     # Override params set from sub-commands 
@@ -56,8 +56,7 @@ class RunModel(ComputationStep):
 
 
         # Validate JSON files (Fail at entry point not after input generation)
-        if self.analysis_settings_json:
-            get_analysis_settings(self.analysis_settings_json)
+        get_analysis_settings(self.analysis_settings_json)
         if self.model_settings_json:
             get_model_settings(self.model_settings_json)
 
@@ -76,7 +75,7 @@ class RunModel(ComputationStep):
 
         # Run chain 
         if self.exposure_pre_analysis_module:
-            cmds = [HookPreAnalysis(**self.kwargs), GenerateOasisFiles(**self.kwargs), GenerateLosses(**self.kwargs)]
+            cmds = [ExposurePreAnalysis(**self.kwargs), GenerateOasisFiles(**self.kwargs), GenerateLosses(**self.kwargs)]
         else:
             cmds = [GenerateOasisFiles(**self.kwargs), GenerateLosses(**self.kwargs)]
 

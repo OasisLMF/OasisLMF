@@ -6,7 +6,7 @@ import re
 
 from .utils.log import oasis_log
 
-from .computation.hooks.pre_analysis import HookPreAnalysis
+from .computation.hooks.pre_analysis import ExposurePreAnalysis
 from .computation.generate.files import GenerateOasisFiles
 from .computation.generate.keys import GenerateKeys
 from .computation.generate.losses import GenerateLosses
@@ -17,7 +17,7 @@ from .computation.lookup.rtree import GenerateRtreeIndexData
 
 class OasisManager(object):
     computation_classes = [
-        HookPreAnalysis,
+        ExposurePreAnalysis,
         GenerateOasisFiles,
         GenerateKeys,
         GenerateLosses,
