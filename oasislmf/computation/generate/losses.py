@@ -120,22 +120,6 @@ class GenerateLosses(ComputationStep):
     def run(self):
 
         model_run_fp = self._get_output_dir()
-        if self.oasis_files_dir:
-            # if files are given copy it over
-            # (oasislmf model generate-losses ..)
-            prepare_run_directory(
-                model_run_fp,
-                self.oasis_files_dir,
-                self.model_data_dir,
-                self.analysis_settings_json,
-                user_data_dir=self.user_data_dir,
-                ri=ri
-            )
-        else:
-            # otherwise assume the files exist
-            # (oasislmf model run ..)
-            self.oasis_files_dir = os.path.join(model_run_fp, 'input')
-
 
         il = all(p in os.listdir(self.oasis_files_dir) for p in ['fm_policytc.csv', 'fm_profile.csv', 'fm_programme.csv', 'fm_xref.csv'])
         ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(self.oasis_files_dir)) + os.listdir(self.oasis_files_dir))
@@ -145,6 +129,14 @@ class GenerateLosses(ComputationStep):
         self._check_alloc_rules()
         analysis_settings = get_analysis_settings(self.analysis_settings_json)
 
+        prepare_run_directory(
+            model_run_fp,
+            self.oasis_files_dir,
+            self.model_data_dir,
+            self.analysis_settings_json,
+            user_data_dir=self.user_data_dir,
+            ri=ri
+        )
         generate_summaryxref_files(
             model_run_fp,
             analysis_settings,

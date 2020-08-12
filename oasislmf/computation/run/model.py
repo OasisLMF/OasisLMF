@@ -11,12 +11,12 @@ from ..generate.files import GenerateOasisFiles
 from ..generate.losses import GenerateLosses
 from ..hooks.pre_analysis import HookPreAnalysis
 
-
 from ...utils.data import (
     get_analysis_settings,
     get_model_settings,
 )
 
+from ...utils.path import empty_dir
 
 class RunModel(ComputationStep):
     """
@@ -29,24 +29,31 @@ class RunModel(ComputationStep):
         HookPreAnalysis,
     ]
 
-    # Combine all arguments for each sub-command
-    step_params = list()
+    # Override params set from sub-commands 
+    step_params = [
+        {'name': 'oasis_files_dir',        'flag':'-o', 'is_path': True, 'pre_exist': False, 'help': 'Path to the directory in which to generate the Oasis files'},
+        {'name': 'exposure_pre_analysis_module', 'required': False, 'is_path': True, 'pre_exist': True, 'help': 'Exposure Pre-Analysis lookup module path'},
+    ]
+
+    # Combine all other params for each sub-command
     for cmd in chained_commands:
         step_params += cmd.step_params
 
-    # Remove the requirment for pre_analysis_module
-    for param in step_params:
-        if param['name'] == 'exposure_pre_analysis_module':
-            param['required'] = False
-            break
 
     def run(self):
 
-        # setup output paths
+        # setup output dir
         if not self.model_run_dir:
             self.model_run_dir = GenerateLosses._get_output_dir(self)
+        if os.path.exists(self.model_run_dir):
+            empty_dir(self.model_run_dir)
+        os.makedirs(os.path.join(self.model_run_dir, 'input'))
+
+
         self.kwargs['model_run_dir'] = self.model_run_dir
-       # self.kwargs['oasis_files_dir'] = os.path.join(self.model_run_dir, 'input')
+        self.kwargs['oasis_files_dir'] = os.path.join(self.model_run_dir, 'input')
+
+
 
         # Validate JSON files (Fail at entry point not after input generation)
         if self.analysis_settings_json:
