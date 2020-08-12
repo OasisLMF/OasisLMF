@@ -25,6 +25,7 @@ from oasislmf.utils.data import get_location_df
 from oasislmf.utils.peril import PERILS, PERIL_GROUPS
 from oasislmf.utils.profiles import get_oed_hierarchy
 from oasislmf.utils.status import OASIS_KEYS_STATUS
+from oasislmf.utils.defaults import get_default_exposure_profile
 
 from tests.data import (
     keys,
@@ -191,7 +192,7 @@ class TestSummaries(TestCase):
             write_source_files(exposure=exposure, exposure_fp=exposure_fp)
 
             self.manager = om()
-            exposure_profile = self.manager.exposure_profile
+            exposure_profile = get_default_exposure_profile()
 
             exposure_df = get_location_df(exposure_fp, exposure_profile)
             gul_inputs_df = get_gul_input_items(
