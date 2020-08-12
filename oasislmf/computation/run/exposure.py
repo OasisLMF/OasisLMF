@@ -4,13 +4,53 @@ __all__ = [
 ]
 
 
+
+import tempfile
+import os
+import csv
+import shutil
+
+from itertools import chain
+import pandas as pd
+
+from ..base import ComputationStep
+from ..generate.files import GenerateOasisFiles
+from ..generate.losses import GenerateLossesDeterministic
+
+
+from ...preparation.il_inputs import get_oed_hierarchy
+from ...utils.exceptions import OasisException
+
+from ...utils.data import (
+    get_dataframe,
+    print_dataframe,
+)
+
+from ...utils.defaults import (
+    KTOOLS_ALLOC_IL_DEFAULT,
+    KTOOLS_ALLOC_RI_DEFAULT,
+    KTOOLS_ALLOC_FM_MAX,
+    OASIS_FILES_PREFIXES,
+)
+
 class RunExposure(ComputationStep):
     """
-    - desc here -   
+    Generates insured losses from preexisting Oasis files with specified
+    loss factors (loss % of TIV).
     """
-    step_params = [ {'name': 'oed_location_csv', 'is_path': True, 'pre_exist': True,
-                    'help': 'Source location CSV file path'},
-                   ]
+    step_params = [
+        {'name': 'src_dir',              'flag':'-s', 'is_path': True, 'pre_exist': True, 'help': ''},
+        {'name': 'run_dir',              'flag':'-r', 'is_path': True, 'pre_exist': False, 'help': ''},
+        {'name': 'output_file',          'flag':'-f', 'is_path': True, 'pre_exist': False, 'help': '', 'type': str},
+        {'name': 'loss_factor',          'flag':'-l', 'type' :float, 'nargs':'+', 'help': '', 'default': [1.0]},
+        {'name': 'ktools_alloc_rule_il', 'flag':'-a', 'default': KTOOLS_ALLOC_IL_DEFAULT,  'type':int, 'help': 'Set the fmcalc allocation rule used in direct insured loss'},
+        {'name': 'ktools_alloc_rule_ri', 'flag':'-A', 'default': KTOOLS_ALLOC_RI_DEFAULT,  'type':int, 'help': 'Set the fmcalc allocation rule used in reinsurance'},
+        {'name': 'output_level',         'flag':'-o', 'help': 'Keys files output format', 'choices':['item', 'loc', 'pol', 'acc', 'port'], 'default': 'item'},
+
+        {'name': 'net_ri', 'default': True},
+        {'name': 'include_loss_factor', 'default': True},
+        {'name': 'print_summary', 'default': True},
+    ]
 
     '''
         parser.add_argument(
@@ -53,27 +93,380 @@ class RunExposure(ComputationStep):
             loss_factors,
             net_ri,
             il_alloc_rule,
-            ri_alloc_rule,
+    ri_alloc_rule,
             output_level,
             output_file,
             include_loss_factor=True,
             print_summary=False):
     '''
+    def _check_alloc_rules(self):
+        alloc_ranges = {
+            'ktools_alloc_rule_il': KTOOLS_ALLOC_FM_MAX,
+            'ktools_alloc_rule_ri': KTOOLS_ALLOC_FM_MAX}
+        for rule in alloc_ranges:
+            alloc_val = getattr(self, rule)
+            if (alloc_val < 0) or (alloc_val > alloc_ranges[rule]):
+                raise OasisException(f'Error: {rule}={alloc_val} - Not withing valid range [0..{alloc_ranges[rule]}]')
 
     def run(self):
-        return None
+        '''
+        inputs = InputValues(args)
+
+        self.logger.debug('\nProcessing arguments')
+
+        call_dir = os.getcwd()
+
+        src_dir = as_path(inputs.get('src_dir', default=call_dir, is_path=True), 'Source files directory', is_dir=True, preexists=True)
+
+        loss_factors = inputs.get(
+            'loss_factor', default=[1.0], required=False
+        )
+
+        net_ri = True
+
+        il_alloc_rule = inputs.get('alloc_rule_il', default=KTOOLS_ALLOC_IL_DEFAULT, required=False)
+        ri_alloc_rule = inputs.get('alloc_rule_ri', default=KTOOLS_ALLOC_RI_DEFAULT, required=False)
+
+        # item, loc, pol, acc, port
+        output_level = inputs.get('output_level', default="item", required=False)
+        if output_level not in ['port', 'acc', 'loc', 'pol', 'item']:
+            raise OasisException(
+                'Invalid output level. Must be one of port, acc, loc, pol or item.'
+            )
+
+        output_file = as_path(inputs.get('output_file', required=False, is_path=True), 'Output file path', preexists=False)
+
+        run_dir = as_path(inputs.get('run_dir', is_path=True), 'Run directory', is_dir=True, preexists=False)
+        if run_dir is None:
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                om().run_exposure(
+                    src_dir, tmpdirname, loss_factors, net_ri,
+                    il_alloc_rule, ri_alloc_rule, output_level, output_file,
+                    print_summary=True, include_loss_factor=include_loss_factor)
+        else:
+            if not os.path.exists(run_dir):
+                Path(run_dir).mkdir(parents=True, exist_ok=True)
+            om().run_exposure(
+                src_dir, run_dir, loss_factors, net_ri,
+                il_alloc_rule, ri_alloc_rule, output_level, output_file,
+                print_summary=True, include_loss_factor=include_loss_factor)
+        '''
+
+        tmp_dir = None
+        src_dir = self.src_dir if self.src_dir else os.getcwd()
+
+        if self.run_dir:
+            run_dir = self.run_dir
+        else:
+            tmp_dir = tempfile.TemporaryDirectory()
+            run_dir = tmp_dir.name
+
+        include_loss_factor = not (len(self.loss_factor) == 1) 
+        src_contents = [fn.lower() for fn in os.listdir(src_dir)]
+
+        self._check_alloc_rules()
+
+        
+        if 'location.csv' not in src_contents:
+            raise OasisException(
+                'No location/exposure file found in source directory - '
+                'a file named `location.csv` is expected'
+            )
+
+        il = ril = False
+        il = ('account.csv' in src_contents)
+        ril = il and ('ri_info.csv' in src_contents) and ('ri_scope.csv' in src_contents)
+
+        self.logger.debug('\nRunning deterministic losses (GUL=True, IL={}, RIL={})\n'.format(il, ril))
+
+        if not os.path.exists(run_dir):
+            os.makedirs(run_dir)
+
+        contents = [fn.lower() for fn in os.listdir(src_dir)]
+        location_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'location.csv'][0]
+        accounts_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'account.csv'][0]
+        ri_info_fp = ri_scope_fp = None
+        try:
+            ri_info_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'ri_info.csv'][0]
+        except IndexError:
+            pass
+        else:
+            try:
+                ri_scope_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'ri_scope.csv'][0]
+            except IndexError:
+                ri_info_fp = None
+
+
+
+        # Start Oasis files generation
+        GenerateOasisFiles(
+           oasis_files_dir=run_dir,
+            oed_location_csv=location_fp,
+            oed_accounts_csv=accounts_fp,
+            oed_info_csv=ri_info_fp,
+            oed_scope_csv=ri_scope_fp,
+            deterministic=True,
+        ).run()
+
+
+        losses = GenerateLossesDeterministic(
+            oasis_files_dir=run_dir,
+            output_dir=os.path.join(run_dir, 'output'),
+            include_loss_factor=include_loss_factor,
+            loss_factor=self.loss_factor,
+            net_ri=self.net_ri,
+            ktools_alloc_rule_il=self.ktools_alloc_rule_il,
+            ktools_alloc_rule_ri=self.ktools_alloc_rule_ri
+        ).run()
+
+        guls_df = losses['gul']
+        ils_df = losses['il']
+        rils_df = losses['ri']
+
+        # Read in the summary map
+        summaries_df = get_dataframe(src_fp=os.path.join(run_dir, 'fm_summary_map.csv'))
+
+        guls_df.to_csv(path_or_buf=os.path.join(run_dir, 'guls.csv'), index=False, encoding='utf-8')
+        guls_df.rename(columns={'loss': 'loss_gul'}, inplace=True)
+
+        guls_df = guls_df.merge(
+            right=summaries_df,
+            left_on=["item_id"],
+            right_on=["agg_id"]
+        )
+
+        if include_loss_factor:
+            join_cols = ["event_id", "output_id", "loss_factor_idx"]
+        else:
+            join_cols = ["event_id", "output_id"]
+
+        if il:
+            ils_df.to_csv(path_or_buf=os.path.join(run_dir, 'ils.csv'), index=False, encoding='utf-8')
+            ils_df.rename(columns={'loss': 'loss_il'}, inplace=True)
+            all_losses_df = guls_df.merge(
+                how='left',
+                right=ils_df,
+                on=join_cols,
+                suffixes=["_gul", "_il"]
+            )
+        if ril:
+            rils_df.to_csv(path_or_buf=os.path.join(run_dir, 'rils.csv'), index=False, encoding='utf-8')
+            rils_df.rename(columns={'loss': 'loss_ri'}, inplace=True)
+            all_losses_df = all_losses_df.merge(
+                how='left',
+                right=rils_df,
+                on=join_cols
+            )
+
+        oed_hierarchy = get_oed_hierarchy()
+        portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
+        acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
+        loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
+        policy_num = oed_hierarchy['polnum']['ProfileElementName'].lower()
+
+        if self.output_level == 'port':
+            summary_cols = [portfolio_num]
+        elif self.output_level == 'acc':
+            summary_cols = [portfolio_num, acc_num]
+        elif self.output_level == 'pol':
+            summary_cols = [portfolio_num, acc_num, policy_num]
+        elif self.output_level == 'loc':
+            summary_cols = [portfolio_num, acc_num, loc_num]
+        elif self.output_level == 'item':
+            summary_cols = [
+                'output_id', portfolio_num, acc_num, loc_num, policy_num,
+                'coverage_type_id']
+
+        if include_loss_factor:
+            group_by_cols = summary_cols + ['loss_factor_idx']
+        else:
+            group_by_cols = summary_cols
+        guls_df = guls_df.loc[:, group_by_cols + ['loss_gul']]
+
+        if not il and not ril:
+            all_loss_cols = group_by_cols + ['loss_gul']
+            all_losses_df = guls_df.loc[:, all_loss_cols]
+            all_losses_df.drop_duplicates(keep=False, inplace=True)
+        elif not ril:
+            all_loss_cols = group_by_cols + ['loss_gul', 'loss_il']
+            all_losses_df = all_losses_df.loc[:, all_loss_cols]
+            summary_gul_df = pd.DataFrame(
+                {'loss_gul': guls_df.groupby(group_by_cols)['loss_gul'].sum()}).reset_index()
+            summary_il_df = pd.DataFrame(
+                {'loss_il': all_losses_df.groupby(group_by_cols)['loss_il'].sum()}).reset_index()
+            all_losses_df = summary_gul_df.merge(how='left', right=summary_il_df, on=group_by_cols)
+        else:
+            all_loss_cols = group_by_cols + ['loss_gul', 'loss_il', 'loss_ri']
+            all_losses_df = all_losses_df.loc[:, all_loss_cols]
+            summary_gul_df = pd.DataFrame(
+                {'loss_gul': guls_df.groupby(group_by_cols)['loss_gul'].sum()}).reset_index()
+            summary_il_df = pd.DataFrame(
+                {'loss_il': all_losses_df.groupby(group_by_cols)['loss_il'].sum()}).reset_index()
+            summary_ri_df = pd.DataFrame(
+                {'loss_ri': all_losses_df.groupby(group_by_cols)['loss_ri'].sum()}).reset_index()
+            all_losses_df = summary_gul_df.merge(how='left', right=summary_il_df, on=group_by_cols)
+            all_losses_df = all_losses_df.merge(how='left', right=summary_ri_df, on=group_by_cols)
+
+        for i in range(len(self.loss_factor)):
+
+            if include_loss_factor:
+                total_gul = guls_df[guls_df.loss_factor_idx == i].loss_gul.sum()
+            else:
+                total_gul = guls_df.loss_gul.sum()
+
+            if not il and not ril:
+                all_loss_cols = all_loss_cols + ['loss_gul']
+                all_losses_df = guls_df.loc[:, all_loss_cols]
+                all_losses_df.drop_duplicates(keep=False, inplace=True)
+                header = \
+                    'Losses (loss factor={:.2%}; total gul={:,.00f})'.format(
+                        self.loss_factor[i],
+                        total_gul)
+            elif not ril:
+                if include_loss_factor:
+                    total_il = ils_df[ils_df.loss_factor_idx == i].loss_il.sum()
+                else:
+                    total_il = ils_df.loss_il.sum()
+
+                header = \
+                    'Losses (loss factor={:.2%}; total gul={:,.00f}; total il={:,.00f})'.format(
+                        self.loss_factor[i],
+                        total_gul, total_il)
+            else:
+                if include_loss_factor:
+                    total_il = ils_df[ils_df.loss_factor_idx == i].loss_il.sum()
+                    total_ri_net = rils_df[rils_df.loss_factor_idx == i].loss_ri.sum()
+                else:
+                    total_il = ils_df.loss_il.sum()
+                    total_ri_net = rils_df.loss_ri.sum()
+                total_ri_ceded = total_il - total_ri_net
+                header = \
+                    'Losses (loss factor={:.2%}; total gul={:,.00f}; total il={:,.00f}; total ri ceded={:,.00f})'.format(
+                        self.loss_factor[i],
+                        total_gul, total_il, total_ri_ceded)
+
+            # Convert output cols to strings for formatting
+            for c in group_by_cols:
+                all_losses_df[c] = all_losses_df[c].apply(str)
+
+            if self.print_summary:
+                cols_to_print = all_loss_cols.copy()
+                if False:
+                    cols_to_print.remove('loss_factor_idx')
+                if include_loss_factor:
+                    print_dataframe(
+                        all_losses_df[all_losses_df.loss_factor_idx == str(i)],
+                        frame_header=header,
+                        cols=cols_to_print)
+                else:
+                    print_dataframe(
+                        all_losses_df,
+                        frame_header=header,
+                        cols=cols_to_print)
+
+        if self.output_file:
+            all_losses_df.to_csv(output_file, index=False, encoding='utf-8')
+
+        if tmp_dir:
+            tmp_dir.cleanup()
+
+        return (il, ril)
+        
 
 
 
 class RunFmTest(ComputationStep):
     """
-    - desc here -   
-    """
-    step_params = [ {'name': 'oed_location_csv', 'is_path': True, 'pre_exist': True,
-                    'help': 'Source location CSV file path'},
-                   ]
+    Runs an FM test case and validates generated
+    losses against expected losses.
 
+    only use 'update_expected' for debugging
+    it replaces the expected file with generated
+    """
+
+    step_params = [
+        {'name': 'test_case_dir'},
+        {'name': 'run_dir'},
+        {'name': 'update_expected', 'default': False},
+    ]
 
 
     def run(self):
-        return None
+    #def run_fm_test(self, test_case_dir, run_dir, update_expected=False):
+
+        net_ri = True
+        il_alloc_rule = KTOOLS_ALLOC_IL_DEFAULT
+        ri_alloc_rule = KTOOLS_ALLOC_RI_DEFAULT
+        output_level = 'loc'
+
+        loss_factor_fp = os.path.join(test_case_dir, 'loss_factors.csv')
+        loss_factor = []
+        include_loss_factor = False
+        if os.path.exists(loss_factor_fp):
+            loss_factor = []
+            include_loss_factor = True
+            try:
+                with open(loss_factor_fp, 'r') as csvfile:
+                    reader = csv.DictReader(csvfile)
+                    for row in reader:
+                        loss_factor.append(
+                            float(row['loss_factor']))
+            except Exception as e:
+                raise OasisException(f"Failed to read {loss_factor_fp}", e)
+        else:
+            loss_factor.append(1.0)
+
+        output_file = os.path.join(run_dir, 'loc_summary.csv')
+        (il, ril) = self.run_exposure(
+            test_case_dir, run_dir, loss_factor, net_ri,
+            il_alloc_rule, ri_alloc_rule, output_level, output_file,
+            include_loss_factor)
+
+        expected_data_dir = os.path.join(test_case_dir, 'expected')
+        if not os.path.exists(expected_data_dir):
+            raise OasisException(
+                'No subfolder named `expected` found in the input directory - '
+                'this subfolder should contain the expected set of GUL + IL '
+                'input files, optionally the RI input files, and the expected '
+                'set of GUL, IL and optionally the RI loss files'
+            )
+
+        files = ['keys.csv', 'loc_summary.csv']
+        files += [
+            '{}.csv'.format(fn)
+            for ft, fn in chain(OASIS_FILES_PREFIXES['gul'].items(), OASIS_FILES_PREFIXES['il'].items())
+        ]
+        files += ['gul_summary_map.csv', 'guls.csv']
+        if il:
+            files += ['fm_summary_map.csv', 'ils.csv']
+        if ril:
+            files += ['rils.csv']
+
+        test_result = True
+        for f in files:
+            generated = os.path.join(run_dir, f)
+            expected = os.path.join(expected_data_dir, f)
+
+            if not os.path.exists(expected):
+                continue
+
+            try:
+                pd.testing.assert_frame_equal(
+                    pd.read_csv(expected),
+                    pd.read_csv(generated)
+                )
+            except AssertionError:
+                if update_expected:
+                    shutil.copyfile(generated, expected)
+                else:
+                    print("Expected:")
+                    with open(expected) as f:
+                        print(f.read())
+                    print("Generated:")
+                    with open(generated) as f:
+                        print(f.read())
+                    raise OasisException(
+                        f'\n FAIL: generated {generated} vs expected {expected}'
+                    )
+                test_result = False
+        return test_result

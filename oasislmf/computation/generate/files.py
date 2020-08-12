@@ -82,6 +82,7 @@ class GenerateOasisFiles(ComputationStep):
         {'name': 'profile_loc',                   'default': get_default_exposure_profile()},
         {'name': 'profile_acc',                   'default': get_default_accounts_profile()},
         {'name': 'profile_fm_agg',                'default': get_default_fm_aggregation_profile()},
+        {'name': 'deterministic',                 'default': False},
         #{'name': 'supported_oed_coverage_types',  'default': tuple(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values())},
     ]
 
@@ -95,15 +96,23 @@ class GenerateOasisFiles(ComputationStep):
     def run(self):
         self.logger.info('\nProcessing arguments - Creating Oasis Files')
 
-        if not (self.keys_data_csv or self.lookup_config_json or (self.lookup_data_dir and self.model_version_csv and self.lookup_module_path)):
-            raise OasisException(
-                'No pre-generated keys file provided, and no lookup assets '
-                'provided to generate a keys file - if you do not have a '
-                'pre-generated keys file then lookup assets must be provided - '
-                'for a built-in lookup the lookup config. JSON file path must '
-                'be provided, or for custom lookups the keys data path + model '
-                'version file path + lookup package path must be provided'
-            )
+        # Check whether the files generation is for deterministic or model losses
+        deterministic = not(
+            (self.lookup_config or self.lookup_config_json) or
+            (self.lookup_data_dir and self.model_version_csv and self.lookup_module_path) or
+            self.keys_data_csv
+        )
+
+        if not self.deterministic:
+            if not (self.keys_data_csv or self.lookup_config_json or (self.lookup_data_dir and self.model_version_csv and self.lookup_module_path)):
+                raise OasisException(
+                    'No pre-generated keys file provided, and no lookup assets '
+                    'provided to generate a keys file - if you do not have a '
+                    'pre-generated keys file then lookup assets must be provided - '
+                    'for a built-in lookup the lookup config. JSON file path must '
+                    'be provided, or for custom lookups the keys data path + model '
+                    'version file path + lookup package path must be provided'
+                )
 
         il = True if self.oed_accounts_csv else False
         ri = all([self.oed_info_csv, self.oed_scope_csv]) and il
@@ -142,14 +151,6 @@ class GenerateOasisFiles(ComputationStep):
         # Load Location file at a single point in the Generate files cmd
         location_df = get_location_df(self.oed_location_csv, location_profile)
 
-        # Check whether the files generation is for deterministic or model losses
-        deterministic = not(
-            (self.lookup_config or self.lookup_config_json) or
-            (self.lookup_data_dir and self.model_version_csv and self.lookup_module_path) or
-            self.keys_data_csv
-        )
-
-
         # If a pre-generated keys file path has not been provided,
         # then it is asssumed some model lookup assets have been provided, so
         # as to allow the lookup to be instantiated and called to generated
@@ -160,7 +161,7 @@ class GenerateOasisFiles(ComputationStep):
             _keys_fp = self.kwargs['keys_data_csv'] = os.path.join(target_dir, 'keys.csv')
             _keys_errors_fp = self.kwargs['keys_errors_csv'] = os.path.join(target_dir, 'keys-errors.csv')
 
-            if deterministic:
+            if self.deterministic:
                 GenerateKeysDeterministic(**self.kwargs).run()
             else:
                 GenerateKeys(**self.kwargs).run()
@@ -190,7 +191,7 @@ class GenerateOasisFiles(ComputationStep):
         )
 
         # If not in det. loss gen. scenario, write exposure summary file
-        if summarise_exposure and not deterministic:
+        if summarise_exposure and not self.deterministic:
             write_exposure_summary(
                 target_dir,
                 gul_inputs_df,
