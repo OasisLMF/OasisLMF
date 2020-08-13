@@ -174,6 +174,7 @@ class API_models(ApiEndpoint):
         super(API_models, self).__init__(session, url_endpoint)
         self.resource_file = FileEndpoint(self.session, self.url_endpoint, 'resource_file/')
         self.settings = JsonEndpoint(self.session, self.url_endpoint, 'settings/')
+        self.versions = JsonEndpoint(self.session, self.url_endpoint, 'versions/')
 
     def data_files(self, ID):
         return self.session.get('{}{}/data_files'.format(self.url_endpoint, ID))
