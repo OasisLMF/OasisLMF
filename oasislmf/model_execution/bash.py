@@ -6,6 +6,12 @@ import string
 
 from collections import Counter
 
+from ..utils.defaults import (
+    KTOOLS_ALLOC_GUL_DEFAULT,
+    KTOOLS_ALLOC_IL_DEFAULT,
+    KTOOLS_ALLOC_RI_DEFAULT,
+)
+
 RUNTYPE_GROUNDUP_LOSS = 'gul'
 RUNTYPE_INSURED_LOSS = 'il'
 RUNTYPE_REINSURANCE_LOSS = 'ri'
@@ -774,6 +780,11 @@ def genbash(
     work_full_correlation_kat_dir = 'work/full_correlation/kat/'
     output_dir = 'output/'
     output_full_correlation_dir = 'output/full_correlation/'
+
+    # Set default alloc rules if missing
+    gul_alloc_rule = gul_alloc_rule if isinstance(gul_alloc_rule, int) else KTOOLS_ALLOC_GUL_DEFAULT
+    il_alloc_rule = il_alloc_rule if isinstance(il_alloc_rule, int) else KTOOLS_ALLOC_IL_DEFAULT
+    ri_alloc_rule = ri_alloc_rule if isinstance(ri_alloc_rule, int) else KTOOLS_ALLOC_RI_DEFAULT
 
     # remove the file if it already exists
     if os.path.exists(filename):

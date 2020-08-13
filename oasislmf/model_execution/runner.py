@@ -8,11 +8,6 @@ import subprocess
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from .bash import genbash
-from ..utils.defaults import (
-    KTOOLS_ALLOC_GUL_DEFAULT,
-    KTOOLS_ALLOC_IL_DEFAULT,
-    KTOOLS_ALLOC_RI_DEFAULT,
-)
 
 
 @oasis_log()
@@ -20,9 +15,9 @@ def run(
     analysis_settings,
     number_of_processes=-1,
     num_reinsurance_iterations=0,
-    set_alloc_rule_gul=KTOOLS_ALLOC_GUL_DEFAULT,
-    set_alloc_rule_il=KTOOLS_ALLOC_IL_DEFAULT,
-    set_alloc_rule_ri=KTOOLS_ALLOC_RI_DEFAULT,
+    set_alloc_rule_gul=None,
+    set_alloc_rule_il=None,
+    set_alloc_rule_ri=None,
     fifo_tmp_dir=True,
     stderr_guard=True,
     gul_legacy_stream=False,
