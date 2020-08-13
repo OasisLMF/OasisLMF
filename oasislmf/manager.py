@@ -12,7 +12,8 @@ from .computation.generate.keys import GenerateKeys
 from .computation.generate.losses import GenerateLosses
 from .computation.run.model import RunModel
 from .computation.run.exposure import RunExposure, RunFmTest
-from .computation.lookup.rtree import GenerateRtreeIndexData
+from .computation.run.platform import PlatformGetDetails, PlatformRun
+from .computation.data.rtree import GenerateRtreeIndexData
 
 
 class OasisManager(object):
@@ -25,6 +26,8 @@ class OasisManager(object):
         RunModel,
         RunExposure,
         RunFmTest,
+        PlatformGetDetails,
+        PlatformRun,
     ]
     computations_params = {}
 
