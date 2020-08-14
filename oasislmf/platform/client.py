@@ -306,6 +306,7 @@ class API_analyses(ApiEndpoint):
         self.input_generation_traceback_file = FileEndpoint(self.session, self.url_endpoint, 'input_generation_traceback_file/')
         self.output_file = FileEndpoint(self.session, self.url_endpoint, 'output_file/')
         self.run_traceback_file = FileEndpoint(self.session, self.url_endpoint, 'run_traceback_file/')
+        self.run_log_file = FileEndpoint(self.session, self.url_endpoint, 'run_log_file/')
         self.settings_file = FileEndpoint(self.session, self.url_endpoint, 'settings_file/')
         self.settings = JsonEndpoint(self.session, self.url_endpoint, 'settings/')
 
