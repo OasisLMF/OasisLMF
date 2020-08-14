@@ -290,15 +290,79 @@ class RunFmTest(ComputationStep):
     """
 
     step_params = [
-        {'name': 'test_case_dir'},
-        {'name': 'run_dir'},
+        {'name': 'test_case_name', 'flag': '-c', 'type': str, 'help': 'Test case name - runs a specific test in the test directory. Otherwise run all tests.'},
+        {'name': 'test_case_dir', 'flag': '-t', 'help': 'Test directory - should contain test directories containing OED files and expected results'},
+        {'name': 'list_tests', 'flag': '-l', 'action': 'store_true', 'help': 'List the valid test cases in the test directory rather than running'},
+        {'name': 'run_dir', 'flag': '-r', 'help': 'Run directory - where files should be generated. If not sst, no files will be saved.'},
         {'name': 'update_expected', 'default': False},
     ]
 
 
+    def search_test_cases(self):
+        case_names = []                                                                                                                                   
+        for test_case in os.listdir(path=self.test_case_dir):
+            if os.path.exists(              
+                os.path.join(self.test_case_dir, test_case, "expected")
+            ):
+                case_names.append(test_case)
+        case_names.sort()        
+        return case_names, len(case_names)
+
+
     def run(self):
+
+        # Setup and search test case dir
+        if not self.test_case_dir:
+            self.test_case_dir = os.getcwd()
+        case_names, case_num = self.search_test_cases()
+
+        # If enabled, list found test cases and exit 
+        if self.list_tests:
+            for name in case_names:
+                self.logger.info(name)
+            exit(0)
+
+        # Check selected test case exisits
+        if self.test_case_name:
+            if self.test_case_name not in case_names:
+                raise OasisException(f'Error: case "{self.test_case_name}" not found in "{self.test_case_dir}"')
+
+            return self.execute_test_case(self.test_case_name)
+
+        # If test_case not selected run all cases
+        self.logger.info(f"Running: All tests in '{self.test_case_dir}'")
+        failed_tests = []
+        exit_status = 0
+        for case in case_names:
+            test_result = self.execute_test_case(case)                                                                                                                                                               
+
+            if not test_result:
+                failed_tests.append(case)
+                exit_status = 1
+            
+        if len(failed_tests) == 0:
+            self.logger.info("All tests passed")
+        else:
+            self.logger.info("{} test failed: ".format(len(failed_tests)))
+            [self.logger.info(n) for n in failed_tests]
+        exit(exit_status)
+            
+
+
+
+
+
+    def execute_test_case(self, test_case):
+        if self.run_dir:
+            tmp_dir = None
+            run_dir = self.run_dir
+        else:
+            tmp_dir = tempfile.TemporaryDirectory()
+            run_dir = tmp_dir.name
+
+        test_dir = os.path.join(self.test_case_dir, test_case)
         output_level = 'loc'
-        loss_factor_fp = os.path.join(self.test_case_dir, 'loss_factors.csv')
+        loss_factor_fp = os.path.join(test_dir, 'loss_factors.csv')
         loss_factor = []
         include_loss_factor = False
 
@@ -316,17 +380,17 @@ class RunFmTest(ComputationStep):
         else:
             loss_factor.append(1.0)
 
-        output_file = os.path.join(self.run_dir, 'loc_summary.csv')
+        output_file = os.path.join(run_dir, 'loc_summary.csv')
         (il, ril) = RunExposure(
-            src_dir=self.test_case_dir, 
-            run_dir=self.run_dir, 
+            src_dir=test_dir, 
+            run_dir=run_dir, 
             loss_factor=loss_factor, 
             output_level=output_level, 
             output_file=output_file,
             include_loss_factor=include_loss_factor
         ).run()
 
-        expected_data_dir = os.path.join(self.test_case_dir, 'expected')
+        expected_data_dir = os.path.join(test_dir, 'expected')
         if not os.path.exists(expected_data_dir):
             raise OasisException(
                 'No subfolder named `expected` found in the input directory - '
@@ -348,7 +412,7 @@ class RunFmTest(ComputationStep):
 
         test_result = True
         for f in files:
-            generated = os.path.join(self.run_dir, f)
+            generated = os.path.join(run_dir, f)
             expected = os.path.join(expected_data_dir, f)
 
             if not os.path.exists(expected):
@@ -373,4 +437,6 @@ class RunFmTest(ComputationStep):
                         f'\n FAIL: generated {generated} vs expected {expected}'
                     )
                 test_result = False
+        if tmp_dir:
+            tmp_dir.cleanup()
         return test_result

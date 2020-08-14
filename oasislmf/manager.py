@@ -14,11 +14,11 @@ from .computation.run.model import RunModel
 from .computation.run.exposure import RunExposure, RunFmTest
 from .computation.data.rtree import GenerateRtreeIndexData
 from .computation.run.platform import (
-    PlatformList, 
-    PlatformRun, 
-    PlatformDelete, 
+    PlatformList,
+    PlatformRun,
+    PlatformDelete,
     PlatformGet
-)    
+)
 
 
 class OasisManager(object):
