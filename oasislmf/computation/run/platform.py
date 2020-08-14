@@ -1,13 +1,20 @@
 __all__ = [
-    '_'
+    'PlatformBase',
+    'PlatformList',
+    'PlatformGet',
+    'PlatformRun',
+    'PlatformDelete',
 ]
 
 
 import getpass
 import io
+import os
 import json
 import sys
+
 from tabulate import tabulate
+from mimetypes import guess_extension
 
 from requests.exceptions import HTTPError, ConnectionError
 
@@ -20,7 +27,7 @@ from ..base import ComputationStep
 
 class PlatformBase(ComputationStep):
     """
-    - desc here -   
+    - desc here -
     """
     step_params = [
         {'name': 'server_login_json', 'is_path': True, 'pre_exist': False, 'help': 'Source location CSV file path'},
@@ -29,20 +36,16 @@ class PlatformBase(ComputationStep):
     ]
 
     def __init__(self, **kwargs):
-        # Run init & start connection with server 
         super().__init__(**kwargs)
         self.server = self.open_connection()
-
 
     def load_credentials(self, login_arg):
         """
         Load credentials from JSON file or Prompt for username / password
 
         Options:
-            1. '--server-login ./APIcredentials.json'
-
-            2. Load credentials from default config file
-            '-C oasislmf.json'
+            1.'--server-login ./APIcredentials.json'
+            2. Load credentials from default config file '-C oasislmf.json'
         """
         if isinstance(login_arg, str):
             with io.open(login_arg, encoding='utf-8') as f:
@@ -94,64 +97,68 @@ class PlatformBase(ComputationStep):
             self.logger.debug(e)
             sys.exit(1)
 
-
-    def print_endpoint(self, attr, items):
-        endpoint_obj = getattr(self.server, attr)
+    def tabulate_json(self, json_data, items):
         table_data = dict()
 
         for i in items:
             table_data[i] = list()
 
-        self.logger.info(f'\nList of available {attr}:')
-        for m in endpoint_obj.get().json():
-
+        for m in json_data:
             for k in table_data:
                 # will have link+data if dict returned
                 if isinstance(m[k], dict):
                     table_data[k].append('Yes')
 
-                # If none then no data     
-                elif m[k] == None:    
+                # If none then no data
+                elif m[k] == None:
                     table_data[k].append('-')
 
-                # If URL then something linked to field    
+                # If URL then something linked to field
                 elif isinstance(m[k], str):
                     if any(v in m[k] for v in ['http://', 'https://']):
                         table_data[k].append('Linked')
                     else:
                         table_data[k].append(m[k])
 
-                # Fallback - add value as string        
+                # Fallback - add value as string
                 else:
                     table_data[k].append(str(m[k]))
-        self.logger.info(tabulate(table_data, headers=items, tablefmt='psql'))
+        return table_data
+
+    def print_endpoint(self, attr, items):
+        endpoint_obj = getattr(self.server, attr)
+
+        self.logger.info(f'\nAvailable {attr}:')
+        data = self.tabulate_json(endpoint_obj.get().json(), items)
+        self.logger.info(tabulate(data, headers=items, tablefmt='psql'))
+        return data
 
 
     def run(self):
-        """ Add the logic for platform API interaction here 
+        """ Add the logic for platform API interaction here
         """
         raise NotImplemented(f'Methode run must be implemented, this class handles base server connection')
 
 
 
 
-class PlatformGetDetails(PlatformBase):
-    """ Return status and details from an Oasis Platform API server 
+class PlatformList(PlatformBase):
+    """ Return status and details from an Oasis Platform API server
     """
     step_params = PlatformBase.step_params + [
-        {'name': 'models', 'flag': '-m', 'type' :int, 'nargs':'+', 'help': '', 'default': None},
-        {'name': 'portfolios', 'flag': '-p', 'type' :int, 'nargs':'+', 'help': '', 'default': None},
-        {'name': 'analyses', 'flag': '-a', 'type' :int, 'nargs':'+', 'help': '', 'default': None},
+        {'name': 'models', 'flag': '-m', 'type' :int, 'nargs':'+', 'help': 'List of model ids to list in detail'},
+        {'name': 'portfolios', 'flag': '-p', 'type' :int, 'nargs':'+', 'help': 'List of portfolio ids to list in detail'},
+        {'name': 'analyses', 'flag': '-a', 'type' :int, 'nargs':'+', 'help': 'List of analyses ids to list in detail'},
     ]
 
 
     def run(self):
 
-        # Default to printing summary of API status 
+        # Default to printing summary of API status
         if not any([self.models, self.portfolios, self.analyses]):
             self.print_endpoint('models', ['id', 'supplier_id', 'model_id', 'version_id'])
             self.print_endpoint('portfolios', ['id', 'name', 'location_file', 'accounts_file', 'reinsurance_info_file', 'reinsurance_scope_file'])
-            self.print_endpoint('analyses', ['id', 'name', 'model', 'portfolio', 'status', 'output_file'])
+            self.print_endpoint('analyses', ['id', 'name', 'model', 'portfolio', 'status', 'input_file', 'output_file', 'run_log_file'])
 
         if self.models:
             for Id in self.models:
@@ -192,7 +199,7 @@ class PlatformRun(PlatformBase):
         {'name': 'portfolio_id', 'type' :int, 'help': 'API `id` of a portfolio to run an analysis with'},
         {'name': 'analysis_id',  'type' :int, 'help': 'API `id` of an analysis to run'},
 
-        {'name': 'output_dir',        'flag':'-o', 'is_path': True, 'pre_exist': True, 'help': 'Output data directory for results data (absolute or relative file path)', 'default':'./'},
+        {'name': 'output_dir',             'flag':'-o', 'is_path': True, 'pre_exist': True, 'help': 'Output data directory for results data (absolute or relative file path)', 'default':'./'},
         {'name': 'analysis_settings_json', 'flag':'-a', 'is_path': True, 'pre_exist': True,  'help': 'Analysis settings JSON file path'},
         {'name': 'oed_location_csv',       'flag':'-x', 'is_path': True, 'pre_exist': True,  'help': 'Source location CSV file path'},
         {'name': 'oed_accounts_csv',       'flag':'-y', 'is_path': True, 'pre_exist': True,  'help': 'Source accounts CSV file path'},
@@ -200,118 +207,199 @@ class PlatformRun(PlatformBase):
         {'name': 'oed_scope_csv',          'flag':'-s', 'is_path': True, 'pre_exist': True,  'help': 'Reinsurance scope CSV file path'},
     ]
 
-
-    def select_id(self, attr):
+    def select_id(self, msg, valid_ids):
         while True:
             try:
-                value = int(input(f'Select {attr}: '))
+                value = int(input(f'Select {msg} ID: '))
             except ValueError:
                 self.logger.info('Invalid Response: {}'.format(value))
                 continue
             except KeyboardInterrupt:
                 exit(1)
 
-            if (value < 0) or (value >= len(avalible_models)):
-                self.logger.info('Invalid Response: {}'.format(value))
+            if (value < 0) or (str(value) not in valid_ids):
+                self.logger.info('Not a valid id from: {}'.format(valid_ids))
                 continue
             else:
                 break
-        return avalible_models[value]
+        return value
 
-    
 
 
     def run(self):
-        
-        # if given run that analysis, with new settings file (If given) 
+        # if given an analysis id, select that with new settings file (If given)
         if self.analysis_id:
             try:
                 status = self.server.analyses.status(self.analysis_id)
                 if status in ['RUN_QUEUED','RUN_STARTED']:
                     self.server.cancel_analysis(self.analysis_id)
-                elif status in ['INPUTS_GENERATION_QUEUED', 'INPUTS_GENERATION_STARTED']
+                elif status in ['INPUTS_GENERATION_QUEUED', 'INPUTS_GENERATION_STARTED']:
                     self.server.cancel_generate(self.analysis_id)
-
-                self.server.run_generate(self.analysis_id)
-                self.server.run_analysis(self.analysis_id, self.analysis_settings_json)
-                self.server.download_output(self.analysis_id, output_dir)
+                analysis_id = self.analysis_id
             except HTTPError as e:
                 self.logger.error('Error running analysis ({}) - {}'.format(
                     self.analysis_id, e))
                 sys.exit(1)
 
+        else:
+            # If not given an analsis then we need to select a model + portfolio
+            # when no model is selected prompt user for choice of installed models
+            if not self.model_id:
+               models = self.server.models.get().json()
 
-         # If not given an analsis then we need to select a model + portfolio 
-         # when no model is selected prompt user for choice of installed models
-         if not self.model_id:
-
-         if self.portfolio_id
-
-
-#        # Upload files
-#        path_location = inputs.get('oed_location_csv')
-#        path_account = inputs.get('oed_accounts_csv')
-#        path_info = inputs.get('oed_info_csv')
-#        path_scope = inputs.get('oed_scope_csv')
-#
-#        portfolio = api.upload_inputs(
-#            portfolio_id=None,
-#            location_fp=path_location,
-#            accounts_fp=path_account,
-#            ri_info_fp=path_info,
-#            ri_scope_fp=path_scope,
-#        )
-#
-#        model_id = inputs.get('model_id')
-#        if not model_id:
-#            avalible_models = api.models.get().json()
-#
-#            if len(avalible_models) > 1:
-#                selected_model = self._select_model(avalible_models)
-#            elif len(avalible_models) == 1:
-#                selected_model = avalible_models[0]
-#            else:
-#                raise OasisException(
-#                    'No models found in API: {}'.format(inputs.get('api_server_url'))
-#                )
-#
-#            model_id = selected_model['id']
-#            self.logger.info('Running model:')
-#            self.logger.info(json.dumps(selected_model, indent=4))
-#
-#        # Create new analysis
-#        path_settings = inputs.get('analysis_settings_json')
-#        if not path_settings:
-#            self.logger.error('analysis settings: Not found')
-#            return False
-#        analysis = api.create_analysis(
-#            portfolio_id=portfolio['id'],
-#            model_id=model_id,
-#            analysis_settings_fp=path_settings,
-#        )
-#        self.logger.info('Loaded analysis settings:')
-#        self.logger.info(json.dumps(analysis, indent=4))
-#
-#        # run and poll
-#        api.run_generate(analysis['id'], poll_interval=3)
-#        api.run_analysis(analysis['id'], poll_interval=3)
-#
-#        # Download Outputs
-#        api.download_output(
-#            analysis_id=analysis['id'],
-#            download_path=inputs.get('output_dir'),
-#            overwrite=True,
-#            clean_up=False
-#        )
+               if len(models) > 1:
+                   models_table = self.print_endpoint('models', ['id', 'supplier_id', 'model_id', 'version_id'])
+                   model_id = self.select_id('models', models_table['id'])
+               elif len(models) == 1:
+                   model_id = models[0]['id']
+               else:
+                   raise OasisException(
+                       'No models found in API: {}'.format(inputs.get('api_server_url'))
+                   )
 
 
-#class PlatformGet(platformbase):
-    """ todo - download file(s) from the api
+            # Select or create a portfilo
+            if self.portfolio_id:
+                portfolios = self.server.portfolios.get().json()
+                valid_portfolios = self.tabulate_json(portfolios, ['id'])
+                portfolio_id = self.portfolio_id
+                if str(self.portfolio_id) not in valid_portfolios['id']:
+                    raise OasisException(f'Run Error: Invalid selected value "{self.portfolio_id}" for portfolio_id:')
+
+            elif self.oed_location_csv:
+                portfolio = self.server.upload_inputs(
+                    portfolio_id=None,
+                    location_fp=self.oed_location_csv,
+                    accounts_fp=self.oed_accounts_csv,
+                    ri_info_fp=self.oed_info_csv,
+                    ri_scope_fp=self.oed_scope_csv,
+                )
+                portfolio_id = portfolio['id']
+            else:
+                raise OasisException(f'Error: Either select a "portfolio_id" or Input exposure files to run.')
+            analysis = self.server.create_analysis(
+                portfolio_id=portfolio_id,
+                model_id=model_id,
+                analysis_settings_fp=self.analysis_settings_json,
+            )
+            analysis_id = analysis['id']
+
+        # Execure run
+        self.server.run_generate(analysis_id)
+        self.server.run_analysis(analysis_id, self.analysis_settings_json)
+        self.server.download_output(analysis_id, self.output_dir)
+
+class PlatformDelete(PlatformBase):
+    """ Delete either a 'model', 'portfolio' or an 'analysis' from the API's Database
     """
+    step_params = PlatformBase.step_params + [
+        {'name': 'models', 'flag': '-m', 'type' :int, 'nargs':'+', 'help': 'List of model ids to Delete.'},
+        {'name': 'portfolios', 'flag': '-p', 'type' :int, 'nargs':'+', 'help': 'List of Portfolio ids to Delete'},
+        {'name': 'analyses', 'flag': '-a', 'type' :int, 'nargs':'+', 'help': 'List of Analyses ids to Detele'},
+    ]
 
-#class PlatformPut(platformbase):
-    """ todo - create obj or Upload files
+
+    def delete_list(self, attr, id_list):
+        api_endpoint = getattr(self.server, attr)
+        for Id in id_list:
+            try:
+                if api_endpoint.delete(Id).ok:
+                    self.logger.info(f'Deleted {attr}_id={Id}')
+            except HTTPError as e:
+                self.logger.error('Delete error {}_id={} - {}'.format(attr,Id, e))
+                continue
+
+    def run(self):
+
+        if not any([self.models, self.portfolios, self.analyses]):
+            raise OasisException("""Select item(s) to delete, list of either:
+                --models MODEL_ID [MODEL_ID ... n],
+                --portfolios PORTFOLIOS_ID [PORTFOLIO_ID ... n]
+                --analyses ANALYSES_ID [ANALYSES_ID ... n]
+                """)
+
+        if self.models:
+            self.delete_list('models', self.models)
+        if self.portfolios:
+            self.delete_list('portfolios', self.portfolios)
+        if self.analyses:
+            self.delete_list('analyses', self.analyses)
+
+
+
+class PlatformGet(PlatformBase):
+    """ Download file(s) from the api
     """
+    step_params = PlatformBase.step_params + [
+        {'name': 'output_dir',             'flag':'-o', 'is_path': True, 'pre_exist': True, 'help': 'Output data directory for results data (absolute or relative file path)', 'default':'./'},
+
+        {'name': 'model_settings',     'type' :int, 'nargs':'+', 'help': ''},
+        {'name': 'model_versions',     'type' :int, 'nargs':'+', 'help': ''},
+
+        {'name': 'portfolio_location_file',          'type' :int, 'nargs':'+', 'help': ''},
+        {'name': 'portfolio_accounts_file',          'type' :int, 'nargs':'+', 'help': ''},
+        {'name': 'portfolio_reinsurance_scope_file', 'type' :int, 'nargs':'+', 'help': ''},
+        {'name': 'portfolio_reinsurance_info_file',  'type' :int, 'nargs':'+', 'help': ''},
+
+        {'name': 'analyses_settings_file',                   'type' :int, 'nargs':'+', 'help': ''},
+        {'name': 'analyses_run_traceback_file',              'type' :int, 'nargs':'+', 'help': ''},
+        {'name': 'analyses_run_log_file',                    'type' :int, 'nargs':'+', 'help': ''},
+        {'name': 'analyses_input_generation_traceback_file', 'type' :int, 'nargs':'+', 'help': ''},
+        {'name': 'analyses_input_file',                      'type' :int, 'nargs':'+', 'help': ''},
+        {'name': 'analyses_output_file',                     'type' :int, 'nargs':'+', 'help': ''},
+        {'name': 'analyses_summary_levels_file',             'type' :int, 'nargs':'+', 'help': ''},
+        {'name': 'analyses_lookup_validation_file',          'type' :int, 'nargs':'+', 'help': ''},
+        {'name': 'analyses_lookup_success_file',             'type' :int, 'nargs':'+', 'help': ''},
+        {'name': 'analyses_lookup_errors_file',              'type' :int, 'nargs':'+', 'help': ''},
+    ]
 
 
+    def extract_args(self, param_suffix):
+        return {k.replace(param_suffix,''): v for k, v in self.kwargs.items() if v and param_suffix in k}
 
+    def download(self, collection, req_files, chuck_size=1024):
+        collection_obj = getattr(self.server, collection)
+
+        for File in req_files:
+            resource =  getattr(collection_obj, File)
+            for ID in req_files[File]:
+                try:
+                    r = resource.get(ID)
+
+                    ext = guess_extension(r.headers['content-type'].partition(';')[0].strip())
+                    filename = os.path.join(self.output_dir, f'{ID}_{collection}_{File}{ext}')
+
+                    with io.open(filename, 'wb') as f:
+                        for chunk in r.iter_content(chunk_size=chuck_size):
+                            f.write(chunk)
+                    self.logger.info(f'Downloaded: {File} from {collection}_id={ID} "{filename}"')
+                except HTTPError as e:
+                    self.logger.error('Download failed: - {}'.format(e))
+
+
+    def run(self):
+        model_files = self.extract_args('model_')
+        portfolio_files = self.extract_args('portfolio_')
+        analyses_files = self.extract_args('analyses_')
+        #self.server.models.versions.download(1, './foo.json')
+
+        # Check that at least one option is given
+        if not any([model_files, portfolio_files, analyses_files]):
+            raise OasisException('Select file for download e.g. "--analyses_output <id_1> .. <id_n>"')
+
+        if model_files:
+            self.download('models', model_files)
+
+
+        if portfolio_files:
+            self.download('portfolios', portfolio_files)
+
+        if analyses_files:
+            self.download('analyses', analyses_files)
+
+
+#class PlatformAdd(PlatformBase):
+#    """ Add an model to the API
+#    """
+#    pass
+#
