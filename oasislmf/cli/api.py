@@ -19,7 +19,7 @@ class RunApiCmd(OasisComputationCommand):
 
 class DeleteApiCmd(OasisComputationCommand):
     """
-    Run a model via the Oasis Platoform API end to end 
+    Delete items from the Platform API
     """
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'PlatformDelete'

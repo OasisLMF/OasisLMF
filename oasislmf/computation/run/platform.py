@@ -142,9 +142,9 @@ class PlatformList(PlatformBase):
     """ Return status and details from an Oasis Platform API server
     """
     step_params = PlatformBase.step_params + [
-        {'name': 'models', 'flag': '-m', 'type': int, 'nargs': '+', 'help': 'List of model ids to list in detail'},
-        {'name': 'portfolios', 'flag': '-p', 'type': int, 'nargs': '+', 'help': 'List of portfolio ids to list in detail'},
-        {'name': 'analyses', 'flag': '-a', 'type': int, 'nargs': '+', 'help': 'List of analyses ids to list in detail'},
+        {'name': 'models', 'flag': '-m', 'type': int, 'nargs': '+', 'help': 'List of model ids to print in detail'},
+        {'name': 'portfolios', 'flag': '-p', 'type': int, 'nargs': '+', 'help': 'List of portfolio ids to print in detail'},
+        {'name': 'analyses', 'flag': '-a', 'type': int, 'nargs': '+', 'help': 'List of analyses ids to print in detail'},
     ]
 
     def run(self):
