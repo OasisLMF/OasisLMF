@@ -34,8 +34,6 @@ class ConfigUpdateCmd(OasisBaseCommand):
         inputs = InputValues(args, update_keys=False)
 
         if inputs.obsolete_keys:
-            # Update exec
-
             inputs.list_obsolete_keys(fix_warning=False)
             inputs.update_config_keys()
             new_config_fp = inputs.get('output_config') if inputs.get('output_config') else inputs.config_fp

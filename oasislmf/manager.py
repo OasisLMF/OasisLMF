@@ -6,13 +6,15 @@ import re
 
 from .utils.log import oasis_log
 
+from .computation.data.rtree import GenerateRtreeIndexData
 from .computation.hooks.pre_analysis import ExposurePreAnalysis
 from .computation.generate.files import GenerateOasisFiles
-from .computation.generate.keys import GenerateKeys
-from .computation.generate.losses import GenerateLosses
+from .computation.generate.keys import GenerateKeys, GenerateKeysDeterministic
+from .computation.generate.losses import GenerateLosses, GenerateLossesDeterministic
+from .computation.helper.autocomplete import HelperTabComplete
+from .computation.helper.cookiecutter import CreateModelRepo, CreateComplexModelRepo
 from .computation.run.model import RunModel
 from .computation.run.exposure import RunExposure, RunFmTest
-from .computation.data.rtree import GenerateRtreeIndexData
 from .computation.run.platform import (
     PlatformList,
     PlatformRun,
@@ -20,13 +22,14 @@ from .computation.run.platform import (
     PlatformGet
 )
 
-
 class OasisManager(object):
     computation_classes = [
         ExposurePreAnalysis,
         GenerateOasisFiles,
         GenerateKeys,
+        GenerateKeysDeterministic,
         GenerateLosses,
+        GenerateLossesDeterministic,
         GenerateRtreeIndexData,
         RunModel,
         RunExposure,
@@ -35,6 +38,9 @@ class OasisManager(object):
         PlatformRun,
         PlatformDelete,
         PlatformGet,
+        HelperTabComplete,
+        CreateModelRepo,
+        CreateComplexModelRepo,
     ]
     computations_params = {}
 
