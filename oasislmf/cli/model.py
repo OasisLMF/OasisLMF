@@ -15,8 +15,7 @@ from argparse import RawDescriptionHelpFormatter
 from ..utils.defaults import (
     KEY_NAME_TO_FILE_NAME,
 )
-from .base import OasisBaseCommand
-from .computation_command import OasisComputationCommand
+from .command import OasisBaseCommand, OasisComputationCommand
 
 
 class GeneratePerilAreasRtreeFileIndexCmd(OasisComputationCommand):

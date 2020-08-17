@@ -1,7 +1,7 @@
 from argparse import RawDescriptionHelpFormatter
 
-from .base import OasisBaseCommand
-from .inputs import InputValues
+from .command import OasisBaseCommand
+from ..utils.inputs import InputValues
 
 from .. import __version__
 

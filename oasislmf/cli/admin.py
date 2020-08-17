@@ -16,9 +16,9 @@ from subprocess import (
 )
 
 from ..utils.path import as_path
+from ..utils.inputs import InputValues
 
-from .base import OasisBaseCommand
-from .inputs import InputValues
+from .command import OasisBaseCommand
 
 
 class EnableBashCompleteCmd(OasisBaseCommand):

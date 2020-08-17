@@ -7,8 +7,7 @@ import os
 
 from argparse import RawDescriptionHelpFormatter
 
-from .base import OasisBaseCommand
-from .computation_command import OasisComputationCommand
+from .command import OasisBaseCommand, OasisComputationCommand
 
 
 class RunCmd(OasisComputationCommand):
