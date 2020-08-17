@@ -123,7 +123,7 @@ node {
 
         stage('Build: ' + source_func) {
             dir(source_workspace) {
-                sh ' ./runtests.sh'
+                sh ' ./scripts/runtests.sh'
             }
         }
 
