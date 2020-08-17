@@ -5,6 +5,7 @@ __all__ = [
 import os
 import pathlib
 import logging
+import json
 
 from ..utils.data import get_utctimestamp
 from ..utils.exceptions import OasisException
@@ -33,6 +34,7 @@ class ComputationStep:
         """
         self.logger = logging.getLogger()
         self.kwargs = kwargs
+        self.logger.debug(f"{self.__class__.__name__}: " + json.dumps(self.kwargs, indent=4))
 
         for param in self.get_params():
             param_value = kwargs.get(param['name'])
