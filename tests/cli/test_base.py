@@ -1,7 +1,7 @@
 import logging
 from unittest import TestCase
 
-from oasislmf.cli.base import OasisBaseCommand
+from oasislmf.cli.command import OasisBaseCommand
 
 
 class BaseLogger(TestCase):
