@@ -57,6 +57,7 @@ class GenerateOasisFiles(ComputationStep):
         # Command line options
         {'name': 'oasis_files_dir',            'flag':'-o', 'is_path': True, 'pre_exist': False, 'help': 'Path to the directory in which to generate the Oasis files'},
         {'name': 'keys_data_csv',              'flag':'-z', 'is_path': True, 'pre_exist': True,  'help': 'Pre-generated keys CSV file path'},
+        {'name': 'keys_errors_csv',                         'is_path': True, 'pre_exist': True,  'help': 'Pre-generated keys errors CSV file path'},
         {'name': 'lookup_config_json',         'flag':'-m', 'is_path': True, 'pre_exist': False, 'help': 'Lookup config JSON file path'},
         {'name': 'lookup_data_dir',            'flag':'-k', 'is_path': True, 'pre_exist': True,  'help': 'Model lookup/keys data directory path'},
         {'name': 'lookup_module_path',         'flag':'-l', 'is_path': True, 'pre_exist': False, 'help': 'Model lookup module path'},
@@ -71,7 +72,7 @@ class GenerateOasisFiles(ComputationStep):
         {'name': 'oed_accounts_csv',           'flag':'-y', 'is_path': True, 'pre_exist': True,  'help': 'Source accounts CSV file path'},
         {'name': 'oed_info_csv',               'flag':'-i', 'is_path': True, 'pre_exist': True,  'help': 'Reinsurance info. CSV file path'},
         {'name': 'oed_scope_csv',              'flag':'-s', 'is_path': True, 'pre_exist': True,  'help': 'Reinsurance scope CSV file path'},
-        {'name': 'disable_summarise_exposure', 'flag':'-S', 'action':'store_false',              'help': 'Disables creation of an exposure summary report'},
+        {'name': 'disable_summarise_exposure', 'flag':'-S', 'action':'store_true',               'help': 'Disables creation of an exposure summary report'},
         {'name': 'group_id_cols',              'flag':'-G', 'nargs':'+',                         'help': 'Columns from loc file to set group_id', 'default': GROUP_ID_COLS},
 
         # Manager only options (pass data directy instead of filepaths)
@@ -119,6 +120,7 @@ class GenerateOasisFiles(ComputationStep):
             self.oed_location_csv,
             exposure_profile_fp=self.profile_loc_json,
             keys_fp=self.keys_data_csv,
+            keys_errors_fp=self.keys_errors_csv,
             lookup_config_fp=self.lookup_config_json,
             model_version_fp=self.model_version_csv,
             complex_lookup_config_fp=self.lookup_complex_config_json,
@@ -160,6 +162,10 @@ class GenerateOasisFiles(ComputationStep):
                 GenerateKeys(**self.kwargs).run()
         else:
             _keys_fp = os.path.join(target_dir, os.path.basename(self.keys_data_csv))
+            if self.keys_errors_csv:
+                _keys_errors_fp = os.path.join(target_dir, os.path.basename(self.keys_errors_csv))
+
+
 
         # Columns from loc file to assign group_id
         model_group_fields = None
