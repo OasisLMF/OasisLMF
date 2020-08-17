@@ -1,0 +1,11 @@
+ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsTag,CededPercent,RiskLevel
+1,T,363487,363487_1,,,,,,,,,POL
+2,T,363487,363487_1,,,,,,,,,POL
+3,T,363487,363487_1,,,,,,,,,POL
+4,T,363487,363487_1,,,,,,,,,POL
+5,T,363487,363487_1,,,,,,,,,POL
+6,T,,,,,,,,,,,LOC
+7,T,,,,,,,,,,,LOC
+8,T,,,,,,,,,,,LOC
+9,T,,,,,,,,,,,LOC
+10,T,,,,,,,,,,,LOC
