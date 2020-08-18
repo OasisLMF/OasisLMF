@@ -52,6 +52,8 @@ mkfifo fifo/gul_P1
 
 mkfifo fifo/gul_S1_summary_P1
 
+mkfifo fifo/full_correlation/gul_P1
+
 mkfifo fifo/full_correlation/gul_S1_summary_P1
 
 
@@ -63,20 +65,14 @@ tee < fifo/gul_S1_summary_P1 work/gul_S1_summaryleccalc/P1.bin > /dev/null & pid
 
 ( summarycalc -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 ) 2>> log/stderror.err  &
 
-( eve 1 1 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_P1 -a1 -i - > fifo/gul_P1  ) 2>> log/stderror.err &
-
-wait $pid1
-
-# --- Do computes for fully correlated output ---
 
 
+tee < fifo/full_correlation/gul_S1_summary_P1 work/full_correlation/gul_S1_summaryleccalc/P1.bin > /dev/null & pid2=$!
 
-# --- Do ground up loss computes ---
-
-
-tee < fifo/full_correlation/gul_S1_summary_P1 work/full_correlation/gul_S1_summaryleccalc/P1.bin > /dev/null & pid1=$!
 
 ( summarycalc -i  -1 fifo/full_correlation/gul_S1_summary_P1 < fifo/full_correlation/gul_P1 ) 2>> log/stderror.err  &
+
+( eve 1 1 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_P1 -a1 -i - > fifo/gul_P1  ) 2>> log/stderror.err &
 
 wait $pid1
 

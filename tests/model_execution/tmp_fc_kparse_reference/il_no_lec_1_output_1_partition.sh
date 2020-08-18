@@ -34,6 +34,8 @@ mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summarycalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summarypltcalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P1
 
+mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/il_P1
+
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summary_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summaryeltcalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_eltcalc_P1
@@ -54,17 +56,6 @@ tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1 /tmp/%FIFO_DIR%/fifo/il_S1_summaryel
 
 summarycalc -f  -1 /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1 < /tmp/%FIFO_DIR%/fifo/il_P1 &
 
-eve 1 1 | getmodel | gulcalc -S0 -L0 -r -j /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P1 -a1 -i - | fmcalc -a2 > /tmp/%FIFO_DIR%/fifo/il_P1  &
-
-wait $pid1 $pid2 $pid3 $pid4
-
-# --- Do computes for fully correlated output ---
-
-fmcalc -a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P1 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P1 & fcpid1=$!
-
-wait $fcpid1
-
-
 # --- Do insured loss computes ---
 
 eltcalc < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summaryeltcalc_P1 > work/full_correlation/kat/il_S1_eltcalc_P1 & pid1=$!
@@ -74,6 +65,12 @@ pltcalc < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summarypltcalc_P1 > work/f
 tee < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summary_P1 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summaryeltcalc_P1 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summarypltcalc_P1 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summarysummarycalc_P1 work/full_correlation/il_S1_summaryaalcalc/P1.bin > /dev/null & pid4=$!
 
 summarycalc -f  -1 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summary_P1 < /tmp/%FIFO_DIR%/fifo/full_correlation/il_P1 &
+
+fmcalc -a2 < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_fmcalc_P1 > /tmp/%FIFO_DIR%/fifo/full_correlation/il_P1 &
+
+tee < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P1 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_sumcalc_P1 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_fmcalc_P1 > /dev/null &
+
+eve 1 1 | getmodel | gulcalc -S0 -L0 -r -j /tmp/%FIFO_DIR%/fifo/full_correlation/gul_P1 -a1 -i - | fmcalc -a2 > /tmp/%FIFO_DIR%/fifo/il_P1  &
 
 wait $pid1 $pid2 $pid3 $pid4
 
