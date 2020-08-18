@@ -73,6 +73,7 @@ def __interface_factory(computation_cls):
         return computation_cls(**kwargs).run()
 
     OasisManager.computations_params[computation_cls.__name__] = computation_cls.get_params()
+    interface.__signature__ = computation_cls.get_signature()
     interface.__doc__ = computation_cls.__doc__
     return interface
 
