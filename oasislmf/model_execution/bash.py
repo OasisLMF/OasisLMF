@@ -1166,7 +1166,7 @@ def genbash(
                 process_id=process_id,
                 filename=filename,
                 gul_legacy_stream=gul_legacy_stream,
-                fifo_dir=gul_fc_computes['compute_args']['fifo_dir'],
+                fifo_dir=fifo_full_correlation_dir,
                 stderr_guard=stderr_guard,
                 gul_full_correlation=gul_full_correlation
             )
