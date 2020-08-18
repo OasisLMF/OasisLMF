@@ -1,3 +1,4 @@
+import copy
 import io
 import os
 import random
@@ -111,6 +112,21 @@ def do_post_wait_processing(
 def do_fifos_exec(runtype, max_process_id, filename, fifo_dir, action='mkfifo'):
     for process_id in range(1, max_process_id + 1):
         print_command(filename, '{} {}{}_P{}'.format(action, fifo_dir, runtype, process_id))
+    print_command(filename, '')
+
+
+def do_fifos_exec_full_correlation(
+    runtype, max_process_id, filename, fifo_dir, action='mkfifo'
+):
+    for process_id in range(1, max_process_id + 1):
+        print_command(filename, '{} {}{}_sumcalc_P{}'.format(
+            action, fifo_dir, runtype, process_id
+        ))
+    print_command(filename, '')
+    for process_id in range(1, max_process_id + 1):
+        print_command(filename, '{} {}{}_fmcalc_P{}'.format(
+            action, fifo_dir, runtype, process_id
+        ))
     print_command(filename, '')
 
 
@@ -259,6 +275,7 @@ def do_summarycalcs(
     stderr_guard=True,
     num_reinsurance_iterations=0,
     gul_legacy_stream=None,
+    gul_full_correlation=False
 ):
 
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
@@ -282,13 +299,19 @@ def do_summarycalcs(
         i = num_reinsurance_iterations
         summarycalc_directory_switch = "-p RI_{0}".format(i)
 
+    input_filename_component = ''
+    if gul_full_correlation:
+        input_filename_component = '_sumcalc'
+
     cmd = 'summarycalc {} {}'.format(summarycalc_switch, summarycalc_directory_switch)
     for summary in summaries:
         if 'id' in summary:
             summary_set = summary['id']
             cmd = '{0} -{1} {4}{2}_S{1}_summary_P{3}'.format(cmd, summary_set, runtype, process_id, fifo_dir)
 
-    cmd = '{0} < {1}{2}_P{3}'.format(cmd, fifo_dir, runtype, process_id)
+    cmd = '{0} < {1}{2}{3}_P{4}'.format(
+        cmd, fifo_dir, runtype, input_filename_component, process_id
+    )
     cmd = '( {0} ) 2>> log/stderror.err  &'.format(cmd) if stderr_guard else '{0} &'.format(cmd)      # Wrap in subshell and pipe stderr to file
     print_command(filename, cmd)
 
@@ -324,6 +347,40 @@ def do_tees(runtype, analysis_settings, process_id, filename, process_counter, f
 
             cmd = '{} > /dev/null & pid{}=$!'.format(cmd, process_counter['pid_monitor_count'])
             print_command(filename, cmd)
+
+
+def do_tees_fc_sumcalc_fmcalc(process_id, filename, correlated_output_stems):
+
+    if process_id == 1:
+        print_command(filename, '')
+
+    cmd = 'tee < {0}{1}'.format(
+        correlated_output_stems['gulcalc_output'], process_id
+    )
+    cmd = '{0} {1}{3} {2}{3} > /dev/null &'.format(
+        cmd,
+        correlated_output_stems['sumcalc_input'], 
+        correlated_output_stems['fmcalc_input'],
+        process_id
+    )
+
+    print_command(filename, cmd)
+
+
+def get_correlated_output_stems(fifo_dir):
+
+    correlated_output_stems = {}
+    correlated_output_stems['gulcalc_output'] = '{0}{1}_P'.format(
+        fifo_dir, RUNTYPE_GROUNDUP_LOSS
+    )
+    correlated_output_stems['fmcalc_input'] = '{0}{1}_fmcalc_P'.format(
+        fifo_dir, RUNTYPE_GROUNDUP_LOSS
+    )
+    correlated_output_stems['sumcalc_input'] = '{0}{1}_sumcalc_P'.format(
+        fifo_dir, RUNTYPE_GROUNDUP_LOSS
+    )
+
+    return correlated_output_stems
 
 
 def do_any(runtype, analysis_settings, process_id, filename, process_counter, fifo_dir='fifo/', work_dir='work/'):
@@ -421,10 +478,8 @@ def do_gul(
     process_counter,
     fifo_dir='fifo/',
     work_dir='work/',
-    gul_alloc_rule=None,
     gul_legacy_stream=None,
-    stderr_guard=True,
-    full_correlation=False
+    stderr_guard=True
 ):
 
     for process_id in range(1, max_process_id + 1):
@@ -443,6 +498,32 @@ def do_gul(
             fifo_dir=fifo_dir,
             stderr_guard=stderr_guard
         )
+
+
+def do_gul_full_correlation(
+    analysis_settings,
+    max_process_id,
+    filename,
+    process_counter,
+    fifo_dir='fifo/full_correlation/',
+    work_dir='work/full_correlation/',
+    gul_legacy_stream=None,
+    stderr_guard=None
+):
+
+    for process_id in range(1, max_process_id + 1):
+        do_any(
+            RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename,
+            process_counter, fifo_dir, work_dir
+        )
+
+    for process_id in range(1, max_process_id + 1):
+        do_tees(
+            RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename,
+            process_counter, fifo_dir, work_dir
+        )
+
+    print_command(filename, '')
 
 
 def do_waits(wait_variable, wait_count, filename):
@@ -493,13 +574,6 @@ def do_kwaits(filename, process_counter):
     Add kwaits to the script
     """
     do_waits('kpid', process_counter['kpid_monitor_count'], filename)
-
-
-def do_fcwaits(filename, process_counter):
-    """
-    Add fcwaits to the script
-    """
-    do_waits('fcpid', process_counter['fcpid_monitor_count'], filename)
 
 
 def get_getmodel_itm_cmd(
@@ -573,8 +647,7 @@ def get_main_cmd_ri_stream(
     num_reinsurance_iterations,
     fifo_dir='fifo/',
     stderr_guard=True,
-    full_correlation=False,
-    process_counter=None
+    full_correlation=False
 ):
     """
     Gets the fmcalc ktools command reinsurance stream
@@ -617,11 +690,6 @@ def get_main_cmd_ri_stream(
 
     main_cmd = "{0} > {1}ri_P{2}".format(main_cmd, fifo_dir, process_id)
     main_cmd = '( {0} ) 2>> log/stderror.err &'.format(main_cmd) if stderr_guard else '{0} &'.format(main_cmd)
-    if full_correlation:
-        process_counter['fcpid_monitor_count'] += 1
-        main_cmd = '{0} fcpid{1}=$!'.format(
-            main_cmd, process_counter['fcpid_monitor_count']
-        )
 
     return main_cmd
 
@@ -632,8 +700,7 @@ def get_main_cmd_il_stream(
     il_alloc_rule,
     fifo_dir='fifo/',
     stderr_guard=True,
-    full_correlation=False,
-    process_counter=None
+    full_correlation=False
 ):
     """
     Gets the fmcalc ktools command insured losses stream
@@ -660,11 +727,6 @@ def get_main_cmd_il_stream(
         fm_cmd = '{1} | fmcalc -a{2} > {3}il_P{0} '
     main_cmd = fm_cmd.format(process_id, cmd, il_alloc_rule, fifo_dir)
     main_cmd = '( {0} ) 2>> log/stderror.err &'.format(main_cmd) if stderr_guard else '{0} &'.format(main_cmd)
-    if full_correlation:
-        process_counter['fcpid_monitor_count'] += 1
-        main_cmd = '{0} fcpid{1}=$!'.format(
-            main_cmd, process_counter['fcpid_monitor_count']
-        )
 
     return main_cmd
 
@@ -793,6 +855,12 @@ def genbash(
     gul_output = analysis_settings.get('gul_output', False) and (len(analysis_settings.get('gul_summaries', [])) > 0)
     il_output = analysis_settings.get('il_output', False) and (len(analysis_settings.get('il_summaries', [])) > 0)
     ri_output = analysis_settings.get('ri_output', False) and (len(analysis_settings.get('ri_summaries', [])) > 0)
+
+    # Determine whether GUL output only
+    # This is used for full correlation
+    gul_output_only = False
+    if gul_output and not il_output and not ri_output:
+        gul_output_only = True
 
     print_command(filename, '#!/bin/bash')
     print_command(filename, 'SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")')
@@ -930,6 +998,26 @@ def genbash(
     # Create Full correlation FIFO
     if full_correlation:
         if gul_output:
+            do_fifos_exec(
+                RUNTYPE_GROUNDUP_LOSS, max_process_id, filename,
+                fifo_full_correlation_dir
+            )
+            if not gul_output_only:
+                do_fifos_exec_full_correlation(
+                    RUNTYPE_GROUNDUP_LOSS, max_process_id, filename,
+                    fifo_full_correlation_dir
+                )
+        if il_output:
+            do_fifos_exec(
+                RUNTYPE_INSURED_LOSS, max_process_id, filename,
+                fifo_full_correlation_dir
+            )
+        if ri_output:
+            do_fifos_exec(
+                RUNTYPE_REINSURANCE_LOSS, max_process_id, filename,
+                fifo_full_correlation_dir
+            )
+        if gul_output:
             do_fifos_calc(
                 RUNTYPE_GROUNDUP_LOSS, analysis_settings,
                 max_process_id, filename, fifo_full_correlation_dir
@@ -963,6 +1051,11 @@ def genbash(
             }
         }
         compute_outputs.append(ri_computes)
+        if full_correlation:
+            ri_fc_computes = copy.deepcopy(ri_computes)
+            ri_fc_computes['compute_args']['fifo_dir'] = fifo_full_correlation_dir
+            ri_fc_computes['compute_args']['work_dir'] = work_full_correlation_dir
+            compute_outputs.append(ri_fc_computes)
 
     if il_output:
         il_computes = {
@@ -979,6 +1072,11 @@ def genbash(
             }
         }
         compute_outputs.append(il_computes)
+        if full_correlation:
+            il_fc_computes = copy.deepcopy(il_computes)
+            il_fc_computes['compute_args']['fifo_dir'] = fifo_full_correlation_dir
+            il_fc_computes['compute_args']['work_dir'] = work_full_correlation_dir
+            compute_outputs.append(il_fc_computes)
 
     if gul_output:
         gul_computes = {
@@ -991,7 +1089,6 @@ def genbash(
                 'process_counter': process_counter,
                 'fifo_dir': fifo_queue_dir,
                 'work_dir': work_dir,
-                'gul_alloc_rule': gul_alloc_rule,
                 'gul_legacy_stream': gul_legacy_stream,
                 'stderr_guard': stderr_guard
             }
@@ -1002,12 +1099,81 @@ def genbash(
 
     print_command(filename, '')
 
+    if full_correlation:
+        correlated_output_stems = get_correlated_output_stems(
+            fifo_full_correlation_dir
+        )
+        if gul_output:
+            gul_fc_computes = copy.deepcopy(gul_computes)
+            gul_fc_computes['compute_args']['fifo_dir'] = fifo_full_correlation_dir
+            gul_fc_computes['compute_args']['work_dir'] = work_full_correlation_dir
+            do_gul_full_correlation(**gul_fc_computes['compute_args'])
+
+        for process_id in range(1, max_process_id + 1):
+            # Set up file name for full correlation file
+            correlated_output_file = '{0}{1}'.format(
+                correlated_output_stems['fmcalc_input'], process_id
+            )
+
+            if num_reinsurance_iterations > 0 and ri_output:
+                main_cmd = get_main_cmd_ri_stream(
+                    correlated_output_file,
+                    process_id,
+                    il_output,
+                    il_alloc_rule,
+                    ri_alloc_rule,
+                    num_reinsurance_iterations,
+                    fifo_full_correlation_dir,
+                    stderr_guard,
+                    full_correlation
+                )
+
+                print_command(filename, main_cmd)
+            elif gul_output and il_output:
+                main_cmd = get_main_cmd_il_stream(
+                    correlated_output_file, process_id, il_alloc_rule,
+                    fifo_full_correlation_dir, stderr_guard, full_correlation
+                )
+                print_command(filename, main_cmd)
+            else:
+                if il_output and 'il_summaries' in analysis_settings:
+
+                    main_cmd = get_main_cmd_il_stream(
+                        correlated_output_file, process_id, il_alloc_rule,
+                        fifo_full_correlation_dir, stderr_guard,
+                        full_correlation
+                    )
+                    print_command(filename, main_cmd)
+
+        gul_full_correlation = True
+        if gul_output_only:
+            gul_full_correlation = False
+        for process_id in range(1, max_process_id + 1):
+            do_summarycalcs(
+                runtype=RUNTYPE_GROUNDUP_LOSS,
+                analysis_settings=analysis_settings,
+                process_id=process_id,
+                filename=filename,
+                gul_legacy_stream=gul_legacy_stream,
+                fifo_dir=fifo_full_correlation_dir,
+                stderr_guard=stderr_guard,
+                gul_full_correlation=gul_full_correlation
+            )
+
+        if not gul_output_only:
+            for process_id in range(1, max_process_id + 1):
+                do_tees_fc_sumcalc_fmcalc(
+                    process_id, filename, correlated_output_stems
+                )
+
+        print_command(filename, '')
+
+
     for process_id in range(1, max_process_id + 1):
         # gulcalc output file for fully correlated output
         if full_correlation:
-            correlated_output_file = '{0}gul_P{1}'.format(
-                fifo_full_correlation_dir,
-                process_id
+            correlated_output_file = '{0}{1}'.format(
+                correlated_output_stems['gulcalc_output'], process_id
             )
         else:
             correlated_output_file = ''
@@ -1092,113 +1258,6 @@ def genbash(
     print_command(filename, '')
 
     do_pwaits(filename, process_counter)
-
-    if full_correlation:
-        print_command(
-            filename, '# --- Do computes for fully correlated output ---'
-        )
-        print_command(filename, '')
-
-        for process_id in range(1, max_process_id + 1):
-            # Set up file name for full correlation file
-            correlated_output_file = '{0}gul_P{1}'.format(
-                fifo_full_correlation_dir,
-                process_id
-            )
-
-            if num_reinsurance_iterations > 0 and ri_output:
-                main_cmd = get_main_cmd_ri_stream(
-                    correlated_output_file,
-                    process_id,
-                    il_output,
-                    il_alloc_rule,
-                    ri_alloc_rule,
-                    num_reinsurance_iterations,
-                    fifo_full_correlation_dir,
-                    stderr_guard,
-                    full_correlation,
-                    process_counter
-                )
-
-                print_command(filename, main_cmd)
-            elif gul_output and il_output:
-                main_cmd = get_main_cmd_il_stream(
-                    correlated_output_file, process_id, il_alloc_rule,
-                    fifo_full_correlation_dir, stderr_guard, full_correlation,
-                    process_counter
-                )
-                print_command(filename, main_cmd)
-            else:
-                if il_output and 'il_summaries' in analysis_settings:
-
-                    main_cmd = get_main_cmd_il_stream(
-                        correlated_output_file, process_id, il_alloc_rule,
-                        fifo_full_correlation_dir, stderr_guard,
-                        full_correlation, process_counter
-                    )
-                    print_command(filename, main_cmd)
-
-        print_command(filename, '')
-
-        do_fcwaits(filename, process_counter)
-
-        process_counter['pid_monitor_count'] = 0
-        compute_outputs = []
-        if ri_output:
-            ri_computes = {
-                'loss_type': 'reinsurance',
-                'compute_fun': ri,
-                'compute_args': {
-                    'analysis_settings': analysis_settings,
-                    'max_process_id': max_process_id,
-                    'filename': filename,
-                    'process_counter': process_counter,
-                    'num_reinsurance_iterations': num_reinsurance_iterations,
-                    'fifo_dir': fifo_full_correlation_dir,
-                    'work_dir': work_full_correlation_dir,
-                    'stderr_guard': stderr_guard
-                }
-            }
-            compute_outputs.append(ri_computes)
-        if il_output:
-            il_computes = {
-                'loss_type': 'insured',
-                'compute_fun': il,
-                'compute_args': {
-                    'analysis_settings': analysis_settings,
-                    'max_process_id': max_process_id,
-                    'filename': filename,
-                    'process_counter': process_counter,
-                    'fifo_dir': fifo_full_correlation_dir,
-                    'work_dir': work_full_correlation_dir,
-                    'stderr_guard': stderr_guard
-                }
-            }
-            compute_outputs.append(il_computes)
-        if gul_output:
-            gul_computes = {
-                'loss_type': 'ground up',
-                'compute_fun': do_gul,
-                'compute_args': {
-                    'analysis_settings': analysis_settings,
-                    'max_process_id': max_process_id,
-                    'filename': filename,
-                    'process_counter': process_counter,
-                    'fifo_dir': fifo_full_correlation_dir,
-                    'work_dir': work_full_correlation_dir,
-                    'gul_alloc_rule': gul_alloc_rule,
-                    'gul_legacy_stream': gul_legacy_stream,
-                    'stderr_guard': stderr_guard,
-                    'full_correlation': full_correlation
-                }
-            }
-            compute_outputs.append(gul_computes)
-
-        do_computes(compute_outputs)
-
-        print_command(filename, '')
-
-        do_pwaits(filename, process_counter)
 
     if ri_output:
         print_command(filename, '')
