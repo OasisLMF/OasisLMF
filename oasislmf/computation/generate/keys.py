@@ -70,7 +70,7 @@ class GenerateKeys(ComputationStep):
 
     def _get_output_dir(self):
         if self.keys_data_csv:
-            return os.path.basename(self.keys_data_csv)
+            return os.path.dirname(self.keys_data_csv)
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
         return os.path.join(os.getcwd(), 'runs', 'keys-{}'.format(utcnow))
 
