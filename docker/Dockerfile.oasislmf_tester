@@ -1,4 +1,4 @@
-FROM python:3.6
+FROM python:3.6.11-buster
 
 RUN  mkdir /tmp/output && \
      mkdir /var/log/oasis
