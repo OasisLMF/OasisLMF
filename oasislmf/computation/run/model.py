@@ -11,12 +11,14 @@ from ..generate.files import GenerateOasisFiles
 from ..generate.losses import GenerateLosses
 from ..hooks.pre_analysis import ExposurePreAnalysis
 
+from ...utils.exceptions import OasisException
 from ...utils.data import (
     get_analysis_settings,
     get_model_settings,
 )
 
 from ...utils.path import empty_dir
+
 
 class RunModel(ComputationStep):
     """
@@ -29,16 +31,15 @@ class RunModel(ComputationStep):
         ExposurePreAnalysis,
     ]
 
-    # Override params set from sub-commands 
+    # Override params set from sub-commands
     step_params = [
-        {'name': 'oasis_files_dir',        'flag':'-o', 'is_path': True, 'pre_exist': False, 'help': 'Path to the directory in which to generate the Oasis files'},
+        {'name': 'oasis_files_dir', 'flag': '-o', 'is_path': True, 'pre_exist': False, 'help': 'Path to the directory in which to generate the Oasis files'},
         {'name': 'exposure_pre_analysis_module', 'required': False, 'is_path': True, 'pre_exist': True, 'help': 'Exposure Pre-Analysis lookup module path'},
     ]
 
     # Combine all other params for each sub-command
     for cmd in chained_commands:
         step_params += cmd.step_params
-
 
     def run(self):
 
@@ -49,11 +50,8 @@ class RunModel(ComputationStep):
             empty_dir(self.model_run_dir)
         os.makedirs(os.path.join(self.model_run_dir, 'input'))
 
-
         self.kwargs['model_run_dir'] = self.model_run_dir
         self.kwargs['oasis_files_dir'] = os.path.join(self.model_run_dir, 'input')
-
-
 
         # Validate JSON files (Fail at entry point not after input generation)
         get_analysis_settings(self.analysis_settings_json)
@@ -61,7 +59,7 @@ class RunModel(ComputationStep):
             get_model_settings(self.model_settings_json)
 
         # Check input expsoure
-        required_ri_paths = [self.oed_info_csv , self.oed_scope_csv]
+        required_ri_paths = [self.oed_info_csv, self.oed_scope_csv]
         il = True if self.oed_accounts_csv else False
         ri = all(required_ri_paths) and il
         if any(required_ri_paths) and not ri:
@@ -73,7 +71,7 @@ class RunModel(ComputationStep):
                 '    reinsurance scope file path.'
             )
 
-        # Run chain 
+        # Run chain
         if self.exposure_pre_analysis_module:
             cmds = [ExposurePreAnalysis(**self.kwargs), GenerateOasisFiles(**self.kwargs), GenerateLosses(**self.kwargs)]
         else:
