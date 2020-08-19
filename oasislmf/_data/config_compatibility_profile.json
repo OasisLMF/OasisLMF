@@ -19,11 +19,6 @@
         "deleted": false,
         "updated_to": "lookup_module_path"
     },
-    "lookup_package_dir": {
-        "from_ver": "1.7.0",
-        "deleted": false,
-        "updated_to": "lookup_module_path"
-    },
     "analysis_settings_file_path":{
         "from_ver": "1.4.1",
         "deleted": false,
@@ -123,5 +118,35 @@
         "from_ver": "1.4.5",
         "deleted": true,
         "updated_to": ""
+    },
+    "lookup_package_dir": {
+        "from_ver": "1.7.0",
+        "deleted": false,
+        "updated_to": "lookup_module_path"
+    },
+    "api_server_login":{
+        "from_ver": "1.9.1",
+        "deleted": false,
+        "updated_to": "server_login_json"
+    },
+    "api_server_url":{
+        "from_ver": "1.9.1",
+        "deleted": false,
+        "updated_to": "server_url"
+    },
+    "alloc_rule_il":{
+        "from_ver": "1.9.1",
+        "deleted": false,
+        "updated_to": "ktools_alloc_rule_il"
+    },
+    "alloc_rule_ri":{
+        "from_ver": "1.9.1",
+        "deleted": false,
+        "updated_to": "ktools_alloc_rule_ri"
+    },
+    "test_dir":{
+        "from_ver": "1.9.1",
+        "deleted": false,
+        "updated_to": "test_case_dir"
     }
 }

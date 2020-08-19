@@ -11,7 +11,7 @@ from hypothesis.strategies import (
     text
 )
 
-from oasislmf.cli.inputs import InputValues
+from oasislmf.utils.inputs import InputValues
 from oasislmf.utils.exceptions import OasisException
 
 

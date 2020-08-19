@@ -7,10 +7,10 @@ import os
 import pathlib
 import shutil
 
-from .computation_step import ComputationStep
-from ..utils.path import get_custom_module
-from ..utils.exceptions import OasisException
-from ..utils.defaults import store_exposure_fp, KEY_NAME_TO_FILE_NAME
+from ..base import ComputationStep
+from ...utils.path import get_custom_module
+from ...utils.exceptions import OasisException
+from ...utils.defaults import store_exposure_fp, KEY_NAME_TO_FILE_NAME
 
 
 class ExposurePreAnalysis(ComputationStep):

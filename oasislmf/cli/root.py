@@ -4,7 +4,7 @@ from .admin import AdminCmd
 from .config import ConfigCmd
 from .exposure import ExposureCmd
 from .model import ModelCmd
-from .base import OasisBaseCommand
+from .command import OasisBaseCommand
 from .test import TestCmd
 from .version import VersionCmd
 from .api import ApiCmd

@@ -18,6 +18,7 @@ def prepare_input_files_directory(
     exposure_fp,
     exposure_profile_fp=None,
     keys_fp=None,
+    keys_errors_fp=None,
     lookup_config_fp=None,
     model_version_fp=None,
     complex_lookup_config_fp=None,
@@ -38,10 +39,10 @@ def prepare_input_files_directory(
             (p, os.path.join(target_dir, os.path.basename(p))) for p in (
                 exposure_profile_fp, accounts_profile_fp,
                 fm_aggregation_profile_fp, lookup_config_fp, model_version_fp,
-                complex_lookup_config_fp, keys_fp
+                complex_lookup_config_fp, keys_fp, keys_errors_fp
             ) if p
         ]
-
+        
         if exposure_fp:
             paths.append((exposure_fp, os.path.join(target_dir, store_exposure_fp(exposure_fp, 'loc'))))
         if accounts_fp:

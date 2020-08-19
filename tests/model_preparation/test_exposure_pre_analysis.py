@@ -67,7 +67,7 @@ def test_exposure_pre_analysis_simple_example():
         write_oed_location(kwargs['oed_location_csv'] )
         write_exposure_pre_analysis_setting_json(kwargs['exposure_pre_analysis_setting_json'])
 
-        OasisManager().generate_exposure_pre_analysis(**kwargs)
+        OasisManager().exposure_pre_analysis(**kwargs)
 
         with open(os.path.join(d, 'input', KEY_NAME_TO_FILE_NAME['oed_location_csv'])) as new_oed_location_csv:
             new_oed_location_csv_data = new_oed_location_csv.read()
@@ -86,7 +86,7 @@ def test_exposure_pre_analysis_class_name():
         write_oed_location(kwargs['oed_location_csv'])
         write_exposure_pre_analysis_setting_json(kwargs['exposure_pre_analysis_setting_json'])
 
-        OasisManager().generate_exposure_pre_analysis(**kwargs)
+        OasisManager().exposure_pre_analysis(**kwargs)
 
         with open(os.path.join(d, 'input', KEY_NAME_TO_FILE_NAME['oed_location_csv'])) as new_oed_location_csv:
             new_oed_location_csv_data = new_oed_location_csv.read()
@@ -95,7 +95,7 @@ def test_exposure_pre_analysis_class_name():
 
 def test_missing_module():
     with pytest.raises(OasisException, match="parameter exposure_pre_analysis_module is required for Computation Step ExposurePreAnalysis"):
-        OasisManager().generate_exposure_pre_analysis()
+        OasisManager().exposure_pre_analysis()
 
 
 def test_wrong_class():
@@ -112,4 +112,4 @@ def test_wrong_class():
 
         with pytest.raises(OasisException, match=f"class {kwargs['exposure_pre_analysis_class_name']} "
                                                  f"is not defined in module {kwargs['exposure_pre_analysis_module']}"):
-            OasisManager().generate_exposure_pre_analysis(**kwargs)
+            OasisManager().exposure_pre_analysis(**kwargs)

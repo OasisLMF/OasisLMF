@@ -1,5 +1,5 @@
 from .. import __version__
-from .base import OasisBaseCommand
+from .command import OasisBaseCommand
 
 
 class VersionCmd(OasisBaseCommand):

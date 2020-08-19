@@ -318,7 +318,7 @@ def get_analysis_settings(analysis_settings_fp, key=None, validate=True):
                     ))
 
     except (IOError, TypeError, ValueError):
-        raise OasisException('Invalid model settings file or file path: {}'.format(analysis_settings_fp))
+        raise OasisException('Invalid Analysis settings file or file path: {}'.format(analysis_settings_fp))
 
     return analysis_settings if not key else analysis_settings.get(key)
 

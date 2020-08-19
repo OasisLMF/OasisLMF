@@ -4,6 +4,10 @@ __all__ = [
 
 import os
 import pathlib
+import logging
+import json
+import inspect
+from collections import OrderedDict
 
 from ..utils.data import get_utctimestamp
 from ..utils.exceptions import OasisException
@@ -20,7 +24,7 @@ class ComputationStep:
     """
 
     step_params = []
-    computation_steps = []
+    chained_commands = []
 
     def __init__(self, **kwargs):
         """
@@ -30,6 +34,10 @@ class ComputationStep:
          - check path existence (pre_exist)
          - create necessary directories (is_dir, is_path)
         """
+        self.logger = logging.getLogger()
+        self.kwargs = kwargs
+        self.logger.debug(f"{self.__class__.__name__}: " + json.dumps(self.kwargs, indent=4))
+
         for param in self.get_params():
             param_value = kwargs.get(param['name'])
             if param_value is None:
@@ -59,7 +67,7 @@ class ComputationStep:
     def get_params(cls):
         """
         return all the params of the computation step defined in step_params
-        and the params from the sub_computation step in computation_steps
+        and the params from the sub_computation step in chained_commands
         if two params have the same name, return the param definition of the first param found only
         this allow to overwrite the param definition of sub step if necessary.
         """
@@ -69,8 +77,8 @@ class ComputationStep:
         def all_params():
             for param in cls.step_params:
                 yield param
-            for computation_step in cls.computation_steps:
-                for param in computation_step.get_params():
+            for command in cls.chained_commands:
+                for param in command.get_params():
                     yield param
 
         for param in all_params():
@@ -79,6 +87,32 @@ class ComputationStep:
                 params.append(param)
 
         return params
+
+    @classmethod
+    def get_signature(cls):
+        """ Create a function signature based on the 'get_params()' return
+        """
+        try:
+            # Create keyword params (without default values)
+            params = ["{}=None".format(p.get('name')) for p in cls.get_params() if not p.get('default')]
+
+            # Create keyword params (with default values)
+            for p in [p for p in cls.get_params() if p.get('default')]:
+                if isinstance(p.get('default'), str):
+                    params.append("{}='{}'".format(p.get('name'), p.get('default')))
+                elif isinstance(p.get('default'), dict):
+                    params.append("{}=dict()".format(p.get('name'), p.get('default')))
+                elif isinstance(p.get('default'), OrderedDict):
+                    params.append("{}=OrderedDict()".format(p.get('name'), p.get('default')))
+                else:
+                    params.append("{}={}".format(p.get('name'), p.get('default')))
+
+            exec('def func_sig({}): pass'.format(", ".join(params)))
+            return inspect.signature(locals()['func_sig'])
+        except:
+            # ignore any errors in signature creation and return blank
+            return None
+
 
     def run(self):
         """method that will be call by all the interface to execute the computation step"""

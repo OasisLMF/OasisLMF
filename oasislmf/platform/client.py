@@ -73,6 +73,25 @@ class JsonEndpoint(object):
     def delete(self, ID):
         return self.session.delete(self._build_url(ID))
 
+    def download(self, ID, file_path, overwrite=True):
+        abs_fp = os.path.realpath(os.path.expanduser(file_path))
+
+        # Check and create base dir
+        if not os.path.exists(os.path.dirname(file_path)):
+            os.makedirs(os.path.dirname(file_path))
+
+        # Check if file exists
+        if os.path.exists(abs_fp) and not overwrite:
+            if overwrite:
+                os.remove(abs_fp)
+            else:
+                error_message = 'Local file alreday exists: {}'.format(abs_fp)
+                raise IOError(error_message)
+
+        with io.open(abs_fp, 'w', encoding='utf-8') as f:                                                                                                                                                                                                                                  
+            r = self.get(ID)
+            f.write(json.dumps(r.json(), ensure_ascii=False, indent=4))
+        return r
 
 class FileEndpoint(object):
     """
@@ -174,6 +193,7 @@ class API_models(ApiEndpoint):
         super(API_models, self).__init__(session, url_endpoint)
         self.resource_file = FileEndpoint(self.session, self.url_endpoint, 'resource_file/')
         self.settings = JsonEndpoint(self.session, self.url_endpoint, 'settings/')
+        self.versions = JsonEndpoint(self.session, self.url_endpoint, 'versions/')
 
     def data_files(self, ID):
         return self.session.get('{}{}/data_files'.format(self.url_endpoint, ID))
@@ -286,6 +306,7 @@ class API_analyses(ApiEndpoint):
         self.input_generation_traceback_file = FileEndpoint(self.session, self.url_endpoint, 'input_generation_traceback_file/')
         self.output_file = FileEndpoint(self.session, self.url_endpoint, 'output_file/')
         self.run_traceback_file = FileEndpoint(self.session, self.url_endpoint, 'run_traceback_file/')
+        self.run_log_file = FileEndpoint(self.session, self.url_endpoint, 'run_log_file/')
         self.settings_file = FileEndpoint(self.session, self.url_endpoint, 'settings_file/')
         self.settings = JsonEndpoint(self.session, self.url_endpoint, 'settings/')
 

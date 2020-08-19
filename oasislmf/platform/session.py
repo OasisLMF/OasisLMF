@@ -26,7 +26,7 @@ class APISession(Session):
         self.tkn_refresh = None
         self.url_base = urljoin(api_url, '')
         self.timeout = timeout
-        self.retry_max = retries
+        self.retry_max = 0
         self.retry_delay = retry_delay
         self.request_interval = request_interval
         self.headers = {
@@ -39,35 +39,38 @@ class APISession(Session):
 
         # Check connectivity & authentication
         self.health_check()
+        self.retry_max = retries
         self.__get_access_token(username, password)
 
     def __get_access_token(self, username, password):
-        url = urljoin(self.url_base, 'access_token/')
-        r = self.post(url, json={"username": username, "password": password})
-
-        if r.ok:
+        try:
+            url = urljoin(self.url_base, 'access_token/')
+            r = self.post(url, json={"username": username, "password": password})
+            r.raise_for_status()
             self.tkn_access = r.json()['access_token']
             self.tkn_refresh = r.json()['refresh_token']
             self.headers['authorization'] = 'Bearer {}'.format(self.tkn_access)
-        else:
-            err_msg = 'Login failed: {}'.format(r.json())
-            raise OasisException(err_msg)
-        return r
+            return r
+        except (TypeError, AttributeError, BytesWarning, HTTPError, ConnectionError, ReadTimeout) as e:
+            err_msg = 'Authentication Error'
+            raise OasisException(err_msg, e)
 
     def _refresh_token(self):
-        self.headers['authorization'] = 'Bearer {}'.format(self.tkn_refresh)
-        url = urljoin(self.url_base, 'refresh_token/')
-        r = super(APISession, self).post(url, timeout=self.timeout)
-        if r.status_code == status.ok:
+        try:
+            self.headers['authorization'] = 'Bearer {}'.format(self.tkn_refresh)
+            url = urljoin(self.url_base, 'refresh_token/')
+            r = super(APISession, self).post(url, timeout=self.timeout)
+            r.raise_for_status()
+
             self.tkn_access = r.json()['access_token']
             if 'refresh_token' in r.json():
-                self.logger.info(f"Refreshing access token")
+                self.logger.debug(f"Refreshing access token")
                 self.tkn_refresh = r.json()['refresh_token']
             self.headers['authorization'] = 'Bearer {}'.format(self.tkn_access)
-        else:
-            err_msg = 'Token refresh error: {}'.format(r.text)
-            raise OasisException(err_msg)
-        return r
+            return r
+        except (TypeError, AttributeError, BytesWarning, HTTPError, ConnectionError, ReadTimeout) as e:    
+            err_msg = 'Authentication Error: {}'.format(r.text)
+            raise OasisException(err_msg, e)
 
     def unrecoverable_error(self, error, msg=None):
         err_r = error.response
@@ -80,8 +83,8 @@ class APISession(Session):
     def __recoverable(self, error, url, request, counter=1):
         self.logger.debug(f"Connection exception handler: {error}")
         if not (counter < self.retry_max):
-            self.logger.info("Max retries of '{}' reached".format(self.retry_max))
-            raise OasisException(f'Failed to recover from error: {error}')
+            self.logger.debug("Max retries of '{}' reached".format(self.retry_max))
+            raise OasisException(f'Failed to recover from error: {error}', error)
 
         if isinstance(error, (ConnectionError, ReadTimeout)):
             self.logger.debug(f"Recoverable error [{error}] from {request} {url}")
@@ -101,7 +104,7 @@ class APISession(Session):
                 error = "HTTP {}".format(http_err_code)
                 return True
             elif http_err_code in [401]:
-                self.logger.info(f"Authentication Required")
+                self.logger.debug(f"requesting refresh token")
                 self._refresh_token()
                 return True
         return False
@@ -114,10 +117,10 @@ class APISession(Session):
         """
         try:
             url = urljoin(self.url_base, 'healthcheck/')
-            return self.get(url)
-        except (TypeError, AttributeError, BytesWarning, HTTPError, ConnectionError, ReadTimeout):
+            return super(APISession, self).get(url)
+        except (TypeError, AttributeError, BytesWarning, HTTPError, ConnectionError, ReadTimeout) as e:
             err_msg = 'Health check failed: Unable to connect to {}'.format(self.url_base)
-            raise OasisException(err_msg)
+            raise OasisException(err_msg, e)
 
     def upload(self, url, filepath, content_type, **kwargs):
         counter = 0
