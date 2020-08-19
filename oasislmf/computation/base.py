@@ -24,7 +24,7 @@ class ComputationStep:
     """
 
     step_params = []
-    computation_steps = []
+    chained_commands = []
 
     def __init__(self, **kwargs):
         """
@@ -67,7 +67,7 @@ class ComputationStep:
     def get_params(cls):
         """
         return all the params of the computation step defined in step_params
-        and the params from the sub_computation step in computation_steps
+        and the params from the sub_computation step in chained_commands
         if two params have the same name, return the param definition of the first param found only
         this allow to overwrite the param definition of sub step if necessary.
         """
@@ -77,8 +77,8 @@ class ComputationStep:
         def all_params():
             for param in cls.step_params:
                 yield param
-            for computation_step in cls.computation_steps:
-                for param in computation_step.get_params():
+            for command in cls.chained_commands:
+                for param in command.get_params():
                     yield param
 
         for param in all_params():

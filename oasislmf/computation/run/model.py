@@ -25,21 +25,18 @@ class RunModel(ComputationStep):
     Run models end to end.
     """
 
+    # Override params
+    step_params = [
+        {'name': 'oasis_files_dir', 'flag': '-o', 'is_path': True, 'pre_exist': False, 'help': 'Path to the directory in which to generate the Oasis files'},
+        {'name': 'exposure_pre_analysis_module', 'required': False, 'is_path': True, 'pre_exist': True, 'help': 'Exposure Pre-Analysis lookup module path'},
+    ]
+    # Add params from each sub command not in 'step_params'
     chained_commands = [
         GenerateLosses,
         GenerateOasisFiles,
         ExposurePreAnalysis,
     ]
 
-    # Override params set from sub-commands
-    step_params = [
-        {'name': 'oasis_files_dir', 'flag': '-o', 'is_path': True, 'pre_exist': False, 'help': 'Path to the directory in which to generate the Oasis files'},
-        {'name': 'exposure_pre_analysis_module', 'required': False, 'is_path': True, 'pre_exist': True, 'help': 'Exposure Pre-Analysis lookup module path'},
-    ]
-
-    # Combine all other params for each sub-command
-    for cmd in chained_commands:
-        step_params += cmd.step_params
 
     def run(self):
 
