@@ -1,20 +1,4 @@
-__version__ = '1.9.0'
-
-
-''' Support alias of depreciated sub-modules
-
-    model_execution   -> execution
-    model_preparation -> preparation
-    api               -> platform
-
-    Example:
-
-        'from oasislmf.model_execution.bash import genbash'
-
-            is the same as calling the new name
-
-        'from oasislmf.execution.bash import genbash'
-'''
+__version__ = '1.9.1'
 
 import sys
 import os
@@ -42,6 +26,17 @@ class MyLoader(Loader):
 
 
 class MyImport(MetaPathFinder):
+    """ Support alias of depreciated sub-modules
+
+        * model_execution   -> execution
+        * model_preparation -> preparation
+        * api               -> platform
+
+        Example:
+            `from oasislmf.model_execution.bash import genbash`
+                is the same as calling the new name
+            `from oasislmf.execution.bash import genbash`
+    """
 
     def __init__(self):
         self.depricated_modules = {

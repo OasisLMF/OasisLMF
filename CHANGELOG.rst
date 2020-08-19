@@ -1,15 +1,20 @@
 OasisLMF Changelog
 ==================
 
-`1.9.0`_
+`1.9.1`_
 --------
 .. start_latest_release
+* [#630](https://github.com/OasisLMF/OasisLMF/issues/630) - full_correlation gulcalc option creates large output files.
+.. end_latest_release
+
+
+`1.9.0`_
+--------
 * [#566](https://github.com/OasisLMF/OasisLMF/issues/566) - Handle unlimited LayerLimit without large default value
 * [#574](https://github.com/OasisLMF/OasisLMF/issues/574) - Use LayerNumber to identify unique policy layers in gross fm file generation 
 * [#578](https://github.com/OasisLMF/OasisLMF/issues/578) - Added missing combination of terms in calcrules
 * [#603](https://github.com/OasisLMF/OasisLMF/issues/603) - Add type 2 financial terms tests for multi-peril to regression test
 * [PR 600](https://github.com/OasisLMF/OasisLMF/pull/600) - Added Scripts for generated example model data for testing.
-.. end_latest_release
 
 `1.8.3`_
 --------
@@ -423,6 +428,7 @@ OasisLMF Changelog
 
 * Add console logging
 
+.. _`1.9.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.9.0...1.9.1
 .. _`1.9.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.8.3...1.9.0
 .. _`1.8.3`:  https://github.com/OasisLMF/OasisLMF/compare/1.8.2...1.8.3
 .. _`1.8.2`:  https://github.com/OasisLMF/OasisLMF/compare/1.8.1...1.8.2
