@@ -45,6 +45,7 @@ from ..utils.defaults import (
     get_default_exposure_profile,
     get_default_fm_aggregation_profile,
     get_acc_dtypes,
+    get_oed_default_values,
     OASIS_FILES_PREFIXES,
     SOURCE_IDX,
 )
@@ -383,12 +384,9 @@ def get_il_input_items(
 
     # Set defaults and data types for all the financial terms columns in the
     # accounts dataframe
-    defaults = {
-        **{t: 0.0 for t in term_cols_floats},
-        **{t: 0 for t in term_cols_ints},
-        **{cond_num: 0},
-        **{portfolio_num: '1'}
-    }
+    defaults = get_oed_default_values(terms=term_cols)
+    defaults[cond_num] = 0
+    defaults[portfolio_num] = 1
     oed_acc_dtypes, _ = get_dtypes_and_required_cols(get_acc_dtypes)
     dtypes = {
         **{t: 'str' for t in [acc_num, portfolio_num, policy_num]},
@@ -470,10 +468,8 @@ def get_il_input_items(
     # set the missing columns with a default value of 0.0 in the exposure frame
     missing_floats = set(site_pd_and_site_all_term_cols_floats).difference(exposure_df.columns)
     missing_ints = set(site_pd_and_site_all_term_cols_ints).difference(exposure_df.columns)
-    defaults = {
-        **{t: 0.0 for t in missing_floats},
-        **{t: 0 for t in missing_ints}
-    }
+    missing_cols = {*missing_floats, *missing_ints}
+    defaults = get_oed_default_values(missing_cols)
     if defaults:
         exposure_df = get_dataframe(src_data=exposure_df, col_defaults=defaults)
 
@@ -756,7 +752,8 @@ def get_il_input_items(
     del layer_df
 
     # Assign default values to IL inputs
-    il_inputs_df = assign_defaults_to_il_inputs(il_inputs_df)
+# HC - Comment line for testing
+#    il_inputs_df = assign_defaults_to_il_inputs(il_inputs_df)
 
     # il_inputs are not necessarily in the same order for the topmost level when layers are present,
     # fix by sorting the il_inputs_df
