@@ -752,8 +752,7 @@ def get_il_input_items(
     del layer_df
 
     # Assign default values to IL inputs
-# HC - Comment line for testing
-#    il_inputs_df = assign_defaults_to_il_inputs(il_inputs_df)
+    il_inputs_df = assign_defaults_to_il_inputs(il_inputs_df)
 
     # il_inputs are not necessarily in the same order for the topmost level when layers are present,
     # fix by sorting the il_inputs_df
