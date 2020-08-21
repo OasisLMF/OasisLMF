@@ -18,5 +18,14 @@
     "policy all": {
 	"deductible_min": {"condition": "!= 0", "default_value": 0},
 	"deductible_max": {"condition": "!= 0", "default_value": 0}
+    },
+    "policy layer": {
+        "deductible": {"default_value": 0},
+        "deductible_min": {"default_value": 0},
+        "deductible_max": {"default_value": 0},
+        "ded_code": {"default_value": 0},
+        "ded_type": {"default_value": 0},
+        "lim_code": {"default_value": 0},
+        "lim_type": {"default_value": 0}
     }
 }
