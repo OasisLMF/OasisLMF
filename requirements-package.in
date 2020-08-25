@@ -9,6 +9,7 @@ cookiecutter>=1.6.0
 future
 jsonschema
 msgpack
+numba>=0.50.1
 numexpr
 pandas>=1.0.3
 pathlib2

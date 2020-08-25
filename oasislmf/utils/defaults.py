@@ -43,6 +43,7 @@ from collections import OrderedDict
 from itertools import chain
 
 from .fm import SUPPORTED_FM_LEVELS
+from .exceptions import OasisException
 
 try:
     from json import JSONDecodeError
@@ -322,5 +323,7 @@ KTOOLS_TIV_SAMPLE = -2
 KTOOLS_MEAN_SAMPLE_IDX = -1
 KTOOLS_STD_DEV_SAMPLE_IDX = -2
 KTOOLS_TIV_SAMPLE_IDX = -3
+KTOOL_N_GUL_PER_LB = 0
+KTOOL_N_FM_PER_LB = 0
 
 KTOOLS_DEBUG = False

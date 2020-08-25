@@ -1,5 +1,5 @@
 __all__ = [
-    'GenerateLosses'
+    'GenerateLosses',
     'GenerateLossesDeterministic'
 ]
 
@@ -49,12 +49,14 @@ from ...utils.defaults import (
     KTOOLS_GUL_LEGACY_STREAM,
     KTOOLS_MEAN_SAMPLE_IDX,
     KTOOLS_NUM_PROCESSES,
+    KTOOL_N_GUL_PER_LB,
+    KTOOL_N_FM_PER_LB,
     KTOOLS_STD_DEV_SAMPLE_IDX,
     KTOOLS_TIV_SAMPLE_IDX
 )
 
-
 warnings.simplefilter(action='ignore', category=FutureWarning)
+
 
 class GenerateLosses(ComputationStep):
     """
@@ -98,6 +100,8 @@ class GenerateLosses(ComputationStep):
         {'name': 'ktools_alloc_rule_gul',  'default': KTOOLS_ALLOC_GUL_DEFAULT, 'type':int, 'help': 'Set the allocation used in gulcalc'},
         {'name': 'ktools_alloc_rule_il',   'default': KTOOLS_ALLOC_IL_DEFAULT,  'type':int, 'help': 'Set the fmcalc allocation rule used in direct insured loss'},
         {'name': 'ktools_alloc_rule_ri',   'default': KTOOLS_ALLOC_RI_DEFAULT,  'type':int, 'help': 'Set the fmcalc allocation rule used in reinsurance'},
+        {'name': 'ktools_num_gul_per_lb',  'default': KTOOL_N_GUL_PER_LB,       'type':int, 'help': 'Number of gul per load balancer (0 means no load balancer)'},
+        {'name': 'ktools_num_fm_per_lb',   'default': KTOOL_N_FM_PER_LB,        'type':int, 'help': 'Number of fm per load balancer (0 means no load balancer)'},
         {'name': 'ktools_disable_guard',   'default': not KTOOLS_ERR_GUARD, 'action': 'store_true', 'help': 'Disables error handling in the ktools run script (abort on non-zero exitcode or output on stderr)'},
         {'name': 'ktools_fifo_relative',   'default': KTOOLS_FIFO_RELATIVE, 'action': 'store_true', 'help': 'Create ktools fifo queues under the ./fifo dir'},
 
@@ -172,11 +176,7 @@ class GenerateLosses(ComputationStep):
             analysis_settings['ri_output'] = False
             analysis_settings['ri_summaries'] = []
 
-        if not any([
-            analysis_settings['gul_output'] if 'gul_output' in analysis_settings else False,
-            analysis_settings['il_output'] if 'il_output' in analysis_settings else False,
-            analysis_settings['ri_output'] if 'ri_output' in analysis_settings else False,
-        ]):
+        if not any(analysis_settings.get(output) for output in ['gul_output', 'il_output', 'ri_output']):
             raise OasisException(
                 'No valid output settings in: {}'.format(self.analysis_settings_json))
 
@@ -209,6 +209,8 @@ class GenerateLosses(ComputationStep):
                     set_alloc_rule_gul=self.ktools_alloc_rule_gul,
                     set_alloc_rule_il=self.ktools_alloc_rule_il,
                     set_alloc_rule_ri=self.ktools_alloc_rule_ri,
+                    num_gul_per_lb=self.ktools_num_gul_per_lb,
+                    num_fm_per_lb=self.ktools_num_fm_per_lb,
                     run_debug=self.ktools_debug,
                     stderr_guard= not self.ktools_disable_guard,
                     gul_legacy_stream=self.ktools_legacy_stream,

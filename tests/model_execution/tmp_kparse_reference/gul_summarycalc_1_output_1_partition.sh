@@ -21,16 +21,15 @@ mkdir -p /tmp/%FIFO_DIR%/fifo/
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_P1
 
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1
-mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarysummarycalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarycalc_P1
 
 
 
 # --- Do ground up loss computes ---
 
-summarycalctocsv < /tmp/%FIFO_DIR%/fifo/gul_S1_summarysummarycalc_P1 > work/kat/gul_S1_summarycalc_P1 & pid1=$!
+summarycalctocsv < /tmp/%FIFO_DIR%/fifo/gul_S1_summarycalc_P1 > work/kat/gul_S1_summarycalc_P1 & pid1=$!
 
-tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1 /tmp/%FIFO_DIR%/fifo/gul_S1_summarysummarycalc_P1 > /dev/null & pid2=$!
+tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1 /tmp/%FIFO_DIR%/fifo/gul_S1_summarycalc_P1 > /dev/null & pid2=$!
 
 summarycalc -i  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1 < /tmp/%FIFO_DIR%/fifo/gul_P1 &
 

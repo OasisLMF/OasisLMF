@@ -46,45 +46,40 @@ mkdir work/full_correlation/
 mkdir work/full_correlation/kat/
 
 
+mkfifo fifo/full_correlation/gul_fc_P1
+
 mkfifo fifo/il_P1
 
 mkfifo fifo/il_S1_summary_P1
-mkfifo fifo/il_S1_summarysummarycalc_P1
 mkfifo fifo/il_S1_summarycalc_P1
 
 mkfifo fifo/full_correlation/il_P1
 
 mkfifo fifo/full_correlation/il_S1_summary_P1
-mkfifo fifo/full_correlation/il_S1_summarysummarycalc_P1
 mkfifo fifo/full_correlation/il_S1_summarycalc_P1
 
 
 
 # --- Do insured loss computes ---
 
-summarycalctocsv < fifo/il_S1_summarysummarycalc_P1 > work/kat/il_S1_summarycalc_P1 & pid1=$!
+summarycalctocsv < fifo/il_S1_summarycalc_P1 > work/kat/il_S1_summarycalc_P1 & pid1=$!
 
-tee < fifo/il_S1_summary_P1 fifo/il_S1_summarysummarycalc_P1 > /dev/null & pid2=$!
+tee < fifo/il_S1_summary_P1 fifo/il_S1_summarycalc_P1 > /dev/null & pid2=$!
 
 ( summarycalc -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 ) 2>> log/stderror.err  &
 
 # --- Do insured loss computes ---
 
-summarycalctocsv < fifo/full_correlation/il_S1_summarysummarycalc_P1 > work/full_correlation/kat/il_S1_summarycalc_P1 & pid1=$!
+summarycalctocsv < fifo/full_correlation/il_S1_summarycalc_P1 > work/full_correlation/kat/il_S1_summarycalc_P1 & pid3=$!
 
-tee < fifo/full_correlation/il_S1_summary_P1 fifo/full_correlation/il_S1_summarysummarycalc_P1 > /dev/null & pid2=$!
+tee < fifo/full_correlation/il_S1_summary_P1 fifo/full_correlation/il_S1_summarycalc_P1 > /dev/null & pid4=$!
 
 ( summarycalc -f  -1 fifo/full_correlation/il_S1_summary_P1 < fifo/full_correlation/il_P1 ) 2>> log/stderror.err  &
 
-( fmcalc -a2 < fifo/full_correlation/gul_fmcalc_P1 > fifo/full_correlation/il_P1 ) 2>> log/stderror.err &
+( fmcalc -a2 < fifo/full_correlation/gul_fc_P1 > fifo/full_correlation/il_P1 ) 2>> log/stderror.err &
+( eve 1 1 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P1 -a1 -i - | fmcalc -a2 > fifo/il_P1  ) 2>> log/stderror.err &
 
-( summarycalc -i  -1 fifo/full_correlation/gul_S1_summary_P1 < fifo/full_correlation/gul_sumcalc_P1 ) 2>> log/stderror.err  &
-
-tee < fifo/full_correlation/gul_P1 fifo/full_correlation/gul_sumcalc_P1 fifo/full_correlation/gul_fmcalc_P1 > /dev/null &
-
-( eve 1 1 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_P1 -a1 -i - | fmcalc -a2 > fifo/il_P1  ) 2>> log/stderror.err &
-
-wait $pid1 $pid2
+wait $pid1 $pid2 $pid3 $pid4
 
 
 # --- Do insured loss kats ---

@@ -21,16 +21,15 @@ mkdir -p /tmp/%FIFO_DIR%/fifo/
 mkfifo /tmp/%FIFO_DIR%/fifo/il_P1
 
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1
-mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_summarypltcalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P1
 
 
 
 # --- Do insured loss computes ---
 
-pltcalc < /tmp/%FIFO_DIR%/fifo/il_S1_summarypltcalc_P1 > work/kat/il_S1_pltcalc_P1 & pid1=$!
+pltcalc < /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P1 > work/kat/il_S1_pltcalc_P1 & pid1=$!
 
-tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1 /tmp/%FIFO_DIR%/fifo/il_S1_summarypltcalc_P1 > /dev/null & pid2=$!
+tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1 /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P1 > /dev/null & pid2=$!
 
 summarycalc -f  -1 /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1 < /tmp/%FIFO_DIR%/fifo/il_P1 &
 

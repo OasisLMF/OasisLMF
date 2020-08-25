@@ -22,6 +22,7 @@ from .computation.run.platform import (
     PlatformGet
 )
 
+
 class OasisManager(object):
     computation_classes = [
         ExposurePreAnalysis,

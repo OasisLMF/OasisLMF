@@ -18,6 +18,8 @@ def run(
     set_alloc_rule_gul=None,
     set_alloc_rule_il=None,
     set_alloc_rule_ri=None,
+    num_gul_per_lb=None,
+    num_fm_per_lb=None,
     fifo_tmp_dir=True,
     stderr_guard=True,
     gul_legacy_stream=False,
@@ -25,6 +27,9 @@ def run(
     custom_gulcalc_cmd=None,
     filename='run_ktools.sh'
 ):
+    # TODO: need clearer responsibility between runner.py and manager.py
+    #  ie: why is cpu count and custom_gulcalc_cmd checks here and not in manager
+    #      as manager does a lot of alike env check.
     if number_of_processes == -1:
         number_of_processes = multiprocessing.cpu_count()
 
@@ -44,6 +49,7 @@ def run(
         if shutil.which(inferred_gulcalc_cmd):
             custom_gulcalc_cmd = inferred_gulcalc_cmd
 
+    # TODO: should be integrated into bash.py
     if custom_gulcalc_cmd:
         def custom_get_getmodel_cmd(
             number_of_samples,
@@ -72,35 +78,25 @@ def run(
                 cmd = '({}) 2>> log/gul_stderror.err'.format(cmd)
 
             return cmd
-
-        genbash(
-            number_of_processes,
-            analysis_settings,
-            num_reinsurance_iterations=num_reinsurance_iterations,
-            fifo_tmp_dir=fifo_tmp_dir,
-            gul_alloc_rule=set_alloc_rule_gul,
-            il_alloc_rule=set_alloc_rule_il,
-            ri_alloc_rule=set_alloc_rule_ri,
-            stderr_guard=stderr_guard,
-            gul_legacy_stream=gul_legacy_stream,
-            bash_trace=run_debug,
-            filename=filename,
-            _get_getmodel_cmd=custom_get_getmodel_cmd,
-        )
     else:
-        genbash(
-            number_of_processes,
-            analysis_settings,
-            num_reinsurance_iterations=num_reinsurance_iterations,
-            fifo_tmp_dir=fifo_tmp_dir,
-            gul_alloc_rule=set_alloc_rule_gul,
-            il_alloc_rule=set_alloc_rule_il,
-            ri_alloc_rule=set_alloc_rule_ri,
-            stderr_guard=stderr_guard,
-            gul_legacy_stream=gul_legacy_stream,
-            bash_trace=run_debug,
-            filename=filename
-        )
+        custom_get_getmodel_cmd = None
+
+    genbash(
+        number_of_processes,
+        analysis_settings,
+        num_reinsurance_iterations=num_reinsurance_iterations,
+        fifo_tmp_dir=fifo_tmp_dir,
+        gul_alloc_rule=set_alloc_rule_gul,
+        il_alloc_rule=set_alloc_rule_il,
+        ri_alloc_rule=set_alloc_rule_ri,
+        num_gul_per_lb=num_gul_per_lb,
+        num_fm_per_lb=num_fm_per_lb,
+        stderr_guard=stderr_guard,
+        gul_legacy_stream=gul_legacy_stream,
+        bash_trace=run_debug,
+        filename=filename,
+        _get_getmodel_cmd=custom_get_getmodel_cmd,
+    )
 
     bash_trace = subprocess.check_output(['bash', filename])
     logging.info(bash_trace.decode('utf-8'))
