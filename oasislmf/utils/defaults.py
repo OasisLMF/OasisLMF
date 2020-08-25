@@ -11,6 +11,7 @@ __all__ = [
     'get_acc_dtypes',
     'get_scope_dtypes',
     'get_info_dtypes',
+    'get_oed_default_values',
     'assign_defaults_to_il_inputs',
     'store_exposure_fp',
     'find_exposure_fp',
@@ -39,6 +40,7 @@ import glob
 import json 
 
 from collections import OrderedDict
+from itertools import chain
 
 from .fm import SUPPORTED_FM_LEVELS
 from .exceptions import OasisException
@@ -230,6 +232,25 @@ def get_scope_dtypes():
 def get_info_dtypes():
     fp = os.path.join(STATIC_DATA_FP, 'info_dtypes.json')
     return get_default_json(src_fp=fp)
+
+
+def get_oed_default_values(terms):
+    """
+    Get defaults value of OED terms.
+
+    :param terms: list of OED terms
+    :type terms: list
+
+    :return: default values for OED terms
+    :rtype: dict
+    """
+    loc_defaults = {k.lower(): v['default_value'] for k, v in get_loc_dtypes().items() if k.lower() in terms}
+    acc_defaults = {k.lower(): v['default_value'] for k, v in get_acc_dtypes().items() if k.lower() in terms}
+    defaults = dict(
+        chain.from_iterable(d.items() for d in (loc_defaults, acc_defaults))
+    )
+
+    return defaults
 
 
 def assign_defaults_to_il_inputs(df):
