@@ -63,8 +63,7 @@ exit_handler(){
    kill -9 $(echo "$PIDS_KILL" | awk \'BEGIN { FS = "[ \\t\\n]+" }{ print $1 }\') 2>/dev/null
    exit $exit_code
 }
-trap exit_handler QUIT HUP INT KILL TERM ERR
-"""
+trap exit_handler QUIT HUP INT KILL TERM ERR"""
 
 CHECK_FUNC = """
 check_complete(){
@@ -84,16 +83,14 @@ check_complete(){
     if [ "$has_error" -ne 0 ]; then
         false # raise non-zero exit code
     fi
-}    
-"""
+}"""
 
 BASH_TRACE = """
 # --- Redirect Bash trace to file ---
 exec   > >(tee -ia log/bash.log)
 exec  2> >(tee -ia log/bash.log >& 2)
 exec 19> log/bash.log
-export BASH_XTRACEFD="19"
-"""
+export BASH_XTRACEFD="19" """
 
 
 def print_command(command_file, cmd):
@@ -829,14 +826,6 @@ def get_main_cmd_lb(num_lb, num_in_per_lb, num_out_per_lb, get_input_stream_name
         yield lb_main_cmd
 
 
-def do_script_block(filename, str_multiline):                                                                                                                                  
-    """ Add a multiline strings as a 'code block'
-        to bash script
-    """
-    with io.open(filename, "a", encoding='utf-8') as myfile:
-        myfile.writelines(str_multiline)
-
-
 def genbash(
     max_process_id,
     analysis_settings,
@@ -963,10 +952,10 @@ def genbash(
     print_command(filename, '')
 
     if bash_trace:
-        do_script_block(filename, BASH_TRACE)
+        print_command(filename, BASH_TRACE)
     if stderr_guard:
-        do_script_block(filename, TRAP_FUNC)
-        do_script_block(filename, CHECK_FUNC)
+        print_command(filename, TRAP_FUNC)
+        print_command(filename, CHECK_FUNC)
     if bash_trace:
         print_command(filename, 'set -x')
 
