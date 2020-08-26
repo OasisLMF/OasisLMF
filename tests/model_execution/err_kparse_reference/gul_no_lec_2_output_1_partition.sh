@@ -51,7 +51,7 @@ check_complete(){
     if [ "$has_error" -ne 0 ]; then
         false # raise non-zero exit code
     fi
-}    
+}
 # --- Setup run dirs ---
 
 find output/* ! -name '*summary-info*' -exec rm -R -f {} +
