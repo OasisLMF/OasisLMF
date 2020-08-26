@@ -106,7 +106,7 @@ class GenerateLosses(ComputationStep):
         {'name': 'ktools_fifo_relative',   'default': KTOOLS_FIFO_RELATIVE, 'action': 'store_true', 'help': 'Create ktools fifo queues under the ./fifo dir'},
 
         # Manager only options (pass data directy instead of filepaths)
-        {'name': 'ktools_debug',         'default': KTOOLS_DEBUG},
+        {'name': 'verbose',              'default': KTOOLS_DEBUG},
         {'name': 'ktools_legacy_stream', 'default': KTOOLS_GUL_LEGACY_STREAM},
         {'name': 'model_custom_gulcalc', 'default': None},
     ]
@@ -211,7 +211,7 @@ class GenerateLosses(ComputationStep):
                     set_alloc_rule_ri=self.ktools_alloc_rule_ri,
                     num_gul_per_lb=self.ktools_num_gul_per_lb,
                     num_fm_per_lb=self.ktools_num_fm_per_lb,
-                    run_debug=self.ktools_debug,
+                    run_debug=self.verbose,
                     stderr_guard= not self.ktools_disable_guard,
                     gul_legacy_stream=self.ktools_legacy_stream,
                     fifo_tmp_dir=self.ktools_fifo_relative,
