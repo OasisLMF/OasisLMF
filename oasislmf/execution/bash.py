@@ -38,6 +38,61 @@ WAIT_PROCESSING_SWITCHES = {
 
 SUMMARY_TYPES = ['eltcalc', 'summarycalc', 'pltcalc']
 
+
+TRAP_FUNC = """
+touch log/stderror.err
+ktools_monitor.sh $$ & pid0=$!
+
+exit_handler(){
+   exit_code=$?
+   kill -9 $pid0 2> /dev/null
+   if [ "$exit_code" -gt 0 ]; then
+       echo 'Ktools Run Error - exitcode='$exit_code
+   else
+       echo 'Run Completed'
+   fi
+   
+   set +x
+   group_pid=$(ps -p $$ -o pgid --no-headers)
+   sess_pid=$(ps -p $$ -o sess --no-headers)
+   printf "Script PID:%d, GPID:%s, SPID:%d" $$ $group_pid $sess_pid >> log/killout.txt
+
+   ps f -g $sess_pid > log/subprocess_list
+   PIDS_KILL=$(pgrep -a --pgroup $group_pid | grep -v celery | grep -v python | grep -v $group_pid | grep -v run_ktools)
+   echo "$PIDS_KILL" >> log/killout.txt
+   kill -9 $(echo "$PIDS_KILL" | awk \'BEGIN { FS = "[ \\t\\n]+" }{ print $1 }\') 2>/dev/null
+   exit $exit_code
+}
+trap exit_handler QUIT HUP INT KILL TERM ERR"""
+
+CHECK_FUNC = """
+check_complete(){
+    set +e
+    proc_list="eve getmodel gulcalc fmcalc summarycalc eltcalc aalcalc leccalc pltcalc"
+    has_error=0
+    for p in $proc_list; do
+        started=$(find log -name "$p*.log" | wc -l)
+        finished=$(find log -name "$p*.log" -exec grep -l "finish" {} + | wc -l)
+        if [ "$finished" -lt "$started" ]; then
+            echo "[ERROR] $p - $((started-finished)) processes lost"
+            has_error=1
+        elif [ "$started" -gt 0 ]; then
+            echo "[OK] $p"
+        fi
+    done
+    if [ "$has_error" -ne 0 ]; then
+        false # raise non-zero exit code
+    fi
+}"""
+
+BASH_TRACE = """
+# --- Redirect Bash trace to file ---
+exec   > >(tee -ia log/bash.log)
+exec  2> >(tee -ia log/bash.log >& 2)
+exec 19> log/bash.log
+export BASH_XTRACEFD="19" """
+
+
 def print_command(command_file, cmd):
     """
     Writes the supplied command to the end of the generated script
@@ -897,40 +952,10 @@ def genbash(
     print_command(filename, '')
 
     if bash_trace:
-        print_command(filename, '# --- Redirect Bash trace to file ---')
-        print_command(filename, 'exec   > >(tee -ia log/bash.log)')
-        print_command(filename, 'exec  2> >(tee -ia log/bash.log >& 2)')
-        print_command(filename, 'exec 19> log/bash.log')
-        print_command(filename, 'export BASH_XTRACEFD="19"')
-        print_command(filename, '')
-
+        print_command(filename, BASH_TRACE)
     if stderr_guard:
-        print_command(filename, 'error_handler(){')
-        print_command(filename, "   echo 'Run Error - terminating'")
-        print_command(filename, '   exit_code=$?')
-        print_command(filename, '   set +x')
-        print_command(filename, '   group_pid=$(ps -p $$ -o pgid --no-headers)')
-        print_command(filename, '   sess_pid=$(ps -p $$ -o sess --no-headers)')
-        print_command(filename, '   printf "Script PID:%d, GPID:%s, SPID:%d" $$ $group_pid $sess_pid >> log/killout.txt')
-        print_command(filename, '')
-        print_command(filename, '   if hash pstree 2>/dev/null; then')
-        print_command(filename, '       pstree -pn $$ >> log/killout.txt')
-        print_command(filename, '       PIDS_KILL=$(pstree -pn $$ | grep -o "([[:digit:]]*)" | grep -o "[[:digit:]]*")')
-        print_command(filename, '       kill -9 $(echo "$PIDS_KILL" | grep -v $group_pid | grep -v $$) 2>/dev/null')
-        print_command(filename, '   else')
-        print_command(filename, '       ps f -g $sess_pid > log/subprocess_list')
-        print_command(filename, '       PIDS_KILL=$(pgrep -a --pgroup $group_pid | grep -v celery | grep -v $group_pid | grep -v $$)')
-        print_command(filename, '       echo "$PIDS_KILL" >> log/killout.txt')
-        print_command(filename, '       kill -9 $(echo "$PIDS_KILL" | awk \'BEGIN { FS = "[ \\t\\n]+" }{ print $1 }\') 2>/dev/null')
-        print_command(filename, '   fi')
-        print_command(filename, '   exit $(( 1 > $exit_code ? 1 : $exit_code ))')
-        print_command(filename, '}')
-        print_command(filename, 'trap error_handler QUIT HUP INT KILL TERM ERR')
-        print_command(filename, '')
-        print_command(filename, 'touch log/stderror.err')
-        print_command(filename, 'ktools_monitor.sh $$ & pid0=$!')
-        print_command(filename, '')
-
+        print_command(filename, TRAP_FUNC)
+        print_command(filename, CHECK_FUNC)
     if bash_trace:
         print_command(filename, 'set -x')
 
@@ -1337,5 +1362,5 @@ def genbash(
 
     if stderr_guard:
         print_command(filename, '')
-        print_command(filename, '# Stop ktools watcher')
-        print_command(filename, 'kill -9 $pid0')
+        print_command(filename, 'check_complete')
+        print_command(filename, 'exit_handler')
