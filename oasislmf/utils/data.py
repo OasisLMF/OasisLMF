@@ -565,6 +565,10 @@ def get_dataframe(
         _col_defaults = {k.lower(): v for k, v in col_defaults.items()} if lowercase_cols else col_defaults
 
         # Use the defaults dict to set defaults for existing columns
+        for col_name, fill_value in _col_defaults.items():
+            col = df[col_name]
+            if pd.api.types.is_categorical_dtype(col):
+                col.cat.add_categories([fill_value], inplace=True)
         df.fillna(value=_col_defaults, inplace=True)
 
         # A separate step to set as yet non-existent columns with default values
