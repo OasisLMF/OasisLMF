@@ -1136,8 +1136,10 @@ def genbash(
         gul_fifo_name = get_fifo_name(fifo_queue_dir, RUNTYPE_GROUNDUP_LOSS, gul_id)
         if gul_item_stream:
             if need_summary_fifo_for_gul:
+                getmodel_args['coverage_output'] = ''
                 getmodel_args['item_output'] = f'- | tee {gul_fifo_name}'
             else:
+                getmodel_args['coverage_output'] = ''
                 getmodel_args['item_output'] = '-'
             _get_getmodel_cmd = (_get_getmodel_cmd or get_getmodel_itm_cmd)
         else:
