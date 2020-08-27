@@ -217,7 +217,7 @@ class GenerateOasisFiles(ComputationStep):
 
         # If no source accounts file path has been provided assume that IL
         # input files, and therefore also RI input files, are not needed
-        if not self.oed_location_csv:
+        if not il:
             # Write `summary_map.csv` for GUL only
             return gul_input_files
 
@@ -246,7 +246,7 @@ class GenerateOasisFiles(ComputationStep):
 
         # If no RI input file paths (info. and scope) have been provided then
         # no RI input files are needed, just return the GUL and IL Oasis files
-        if not (self.oed_info_csv or self.oed_scope_csv):
+        if not ri:
             return oasis_files
 
         # Write the RI input files, and write the returned RI layer info. as a
