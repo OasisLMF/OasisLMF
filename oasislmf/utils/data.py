@@ -81,7 +81,8 @@ PANDAS_BASIC_DTYPES = {
     'bool': np.bool,
     builtins.bool: np.bool,
     'str': np.object,
-    builtins.str: np.object
+    builtins.str: np.object,
+    'category': 'category'
 }
 
 PANDAS_DEFAULT_NULL_VALUES = {
@@ -599,7 +600,7 @@ def get_dtypes_and_required_cols(get_dtypes):
     """
     dtypes = get_dtypes()
     col_dtypes = {
-        k: v['py_dtype']
+        k: 'category'
         for k, v in dtypes.items()
         if v['py_dtype'] == 'str'
     }
@@ -874,7 +875,7 @@ def get_location_df(
         **{t: 'float64' for t in tiv_cols + term_cols_floats + list(float_dtypes.keys())},
         **{t: 'uint8' for t in term_cols_ints},
         **{t: 'uint16' for t in [cond_num]},
-        **{t: 'str' for t in [loc_num, portfolio_num, acc_num]},
+        **{t: 'category' for t in [loc_num, portfolio_num, acc_num]},
         **{t: 'uint32' for t in ['loc_id']},
         **str_dtypes
     }
@@ -898,7 +899,7 @@ def get_location_df(
     dtypes = {
         **{k.lower(): v for k, v in str_dtypes.items()},
         **{f: 'str' for f in exposure_df.columns if f.startswith('flexiloc')}
-    }    
+    }
     existing_cols = list(set(dtypes).intersection(exposure_df.columns))
     _dtypes = {
         col: dtype
