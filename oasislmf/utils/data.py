@@ -559,32 +559,12 @@ def get_dataframe(
     # optional argument is redundant - but there may be some cases where it is
     # convenient to have this feature at the code level.
 
-    # For categorical columns, ensure there's a category for standard NA/default values
-    for col_name in df:
-        col = df[col_name]
-        if not pd.api.types.is_categorical_dtype(col):
-            continue
-
-        for fill_value in (-1, "-1", 0, "0", 1, "1"):
-            if fill_value not in col.cat.categories:
-                col.cat.add_categories([fill_value], inplace=True)
-
     if col_defaults:
         # Lowercase the keys in the defaults dict depending on whether the `lowercase_cols`
         # option was passed
         _col_defaults = {k.lower(): v for k, v in col_defaults.items()} if lowercase_cols else col_defaults
 
-        # Ensure default value exists as a category
-        for col_name, fill_value in _col_defaults.items():
-            if col_name not in df:
-                continue
-
-            col = df[col_name]
-            if pd.api.types.is_categorical_dtype(col) and fill_value not in col.cat.categories:
-                col.cat.add_categories([fill_value], inplace=True)
-
-        # Use the defaults dict to set defaults for existing columns
-        df.fillna(value=_col_defaults, inplace=True)
+        fill_na_with_categoricals(df, _col_defaults)
 
         # A separate step to set as yet non-existent columns with default values
         # in the frame
@@ -1062,3 +1042,34 @@ def set_dataframe_column_dtypes(df, dtypes):
     df = df.astype(_dtypes)
 
     return df
+
+
+def fill_na_with_categoricals(df, fill_value):
+    """
+    Fill NA values in a Pandas DataFrame, with handling for Categorical dtype columns.
+
+    The input dataframe is modified inplace.
+
+    :param df: The dataframe to process
+    :type df: pd.DataFrame
+
+    :param fill_value: A single value to use in all columns, or a dict of column names and
+                       corresponding values to fill.
+    :type fill_value: int, float, str, dict
+
+    """
+    if not isinstance(fill_value, dict):
+        fill_value = {col_name: fill_value for col_name in df.columns}
+
+    for col_name, value in fill_value.items():
+        if col_name not in df:
+            continue
+
+        col = df[col_name]
+        if pd.api.types.is_categorical_dtype(col) and value not in col.cat.categories:
+            col.cat.add_categories([value], inplace=True)
+
+    # Note bug in Pandas 1.1.0/1.1.1 for fillna(inplace=True) when categorical dtypes are involved
+    # It doesn't hit here, but leads to very confusing errors internal to Pandas later on
+    # https://github.com/pandas-dev/pandas/issues/35731
+    df.fillna(value=fill_value, inplace=True)
