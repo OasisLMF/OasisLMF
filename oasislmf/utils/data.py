@@ -548,6 +548,12 @@ def get_dataframe(
         if missing:
             raise OasisException('Missing required columns: {}'.format(missing))
 
+    # Force categorical column values to string
+    for col_name in df:
+        col = df[col_name]
+        if pd.api.types.is_categorical_dtype(col):
+            col.cat.categories = col.cat.categories.astype(str)
+
     # Defaulting of column values is best done via the source data and not the
     # code, i.e. if a column 'X' in a frame is supposed to have 0s everywhere
     # the simplest way of achieving this is for the source data (whether it is
@@ -1040,12 +1046,6 @@ def set_dataframe_column_dtypes(df, dtypes):
     }
     df = df.astype(_dtypes)
 
-    # Force categorical column values to string
-    for col_name in existing_cols:
-        col = df[col_name]
-        if pd.api.types.is_categorical_dtype(col):
-            col.cat.categories = col.cat.categories.astype(str)
-
     return df
 
 
@@ -1071,8 +1071,14 @@ def fill_na_with_categoricals(df, fill_value):
             continue
 
         col = df[col_name]
-        if pd.api.types.is_categorical_dtype(col) and value not in col.cat.categories:
-            col.cat.add_categories([value], inplace=True)
+        if pd.api.types.is_categorical_dtype(col):
+            # Force to be a string - using categorical for string columns
+            value = str(value)
+            fill_value[col_name] = value
+
+            if value not in col.cat.categories:
+                fill_value[col_name] = value
+                col.cat.add_categories([value], inplace=True)
 
     # Note bug in Pandas 1.1.0/1.1.1 for fillna(inplace=True) when categorical dtypes are involved
     # It doesn't hit here, but leads to very confusing errors internal to Pandas later on
