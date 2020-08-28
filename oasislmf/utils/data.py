@@ -910,6 +910,7 @@ def get_location_df(
         for col, dtype in [(_col, dtypes[_col]) for _col in existing_cols]
     }
     exposure_df = exposure_df.astype(_dtypes)
+    fill_na_with_categoricals(exposure_df, {col: '' for col in existing_cols})
     exposure_df.replace('nan', '', inplace=True)
 
     # Enforce OED int dtypes:  Loading int rows with NaN will fail on load, fill these NaN with '0' and then convert
@@ -1083,4 +1084,5 @@ def fill_na_with_categoricals(df, fill_value):
     # Note bug in Pandas 1.1.0/1.1.1 for fillna(inplace=True) when categorical dtypes are involved
     # It doesn't hit here, but leads to very confusing errors internal to Pandas later on
     # https://github.com/pandas-dev/pandas/issues/35731
+    df.replace('nan', np.nan, inplace=True)
     df.fillna(value=fill_value, inplace=True)
