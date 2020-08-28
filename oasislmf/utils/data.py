@@ -558,7 +558,6 @@ def get_dataframe(
     # In this sense, defaulting of column values via the `col_defaults`
     # optional argument is redundant - but there may be some cases where it is
     # convenient to have this feature at the code level.
-
     if col_defaults:
         # Lowercase the keys in the defaults dict depending on whether the `lowercase_cols`
         # option was passed
@@ -1040,6 +1039,12 @@ def set_dataframe_column_dtypes(df, dtypes):
         for col, dtype in [(_col, dtypes[_col]) for _col in existing_cols]
     }
     df = df.astype(_dtypes)
+
+    # Force categorical column values to string
+    for col_name in existing_cols:
+        col = df[col_name]
+        if pd.api.types.is_categorical_dtype(col):
+            col.cat.categories = col.cat.categories.astype(str)
 
     return df
 
