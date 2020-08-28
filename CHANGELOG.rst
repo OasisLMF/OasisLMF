@@ -1,12 +1,22 @@
 OasisLMF Changelog
 ==================
 
-`1.9.1`_
---------
+`1.10.0`_
+---------
 .. start_latest_release
-* [#630](https://github.com/OasisLMF/OasisLMF/issues/630) - full_correlation gulcalc option creates large output files.
+* [#573](https://github.com/OasisLMF/OasisLMF/issues/573) - Extract and apply default values for OED mapped FM terms
+* [#581](https://github.com/OasisLMF/OasisLMF/issues/581) - Split calc. rules files
+* [#604](https://github.com/OasisLMF/OasisLMF/issues/604) - Include unsupported coverages in type 2 financial terms calculation
+( [#608](https://github.com/OasisLMF/OasisLMF/issues/608) - Integration of GUL-FM load balancer
+* [#614](https://github.com/OasisLMF/OasisLMF/issues/614) - Refactor oasislmf package
+* [#617](https://github.com/OasisLMF/OasisLMF/issues/617) - Fix TypeError in write_exposure_summary
+* [#636](https://github.com/OasisLMF/OasisLMF/issues/636) - Improve error handling in run_ktools.sh
+* Fix minor issues in oasis file generation and complex model runs
 .. end_latest_release
 
+`1.9.1`_
+--------
+* [#630](https://github.com/OasisLMF/OasisLMF/issues/630) - full_correlation gulcalc option creates large output files.
 
 `1.9.0`_
 --------
