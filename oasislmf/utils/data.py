@@ -559,12 +559,22 @@ def get_dataframe(
     # optional argument is redundant - but there may be some cases where it is
     # convenient to have this feature at the code level.
 
+    # For categorical columns, ensure there's a category for standard NA/default values
+    for col_name in df:
+        col = df[col_name]
+        if not pd.api.types.is_categorical_dtype(col):
+            continue
+
+        for fill_value in (-1, "-1", 0, "0", 1, "1", np.nan):
+            if fill_value not in col.cat.categories:
+                col.cat.add_categories([fill_value], inplace=True)
+
     if col_defaults:
         # Lowercase the keys in the defaults dict depending on whether the `lowercase_cols`
         # option was passed
         _col_defaults = {k.lower(): v for k, v in col_defaults.items()} if lowercase_cols else col_defaults
 
-        # Use the defaults dict to set defaults for existing columns
+        # Ensure default value exists as a category
         for col_name, fill_value in _col_defaults.items():
             if col_name not in df:
                 continue
@@ -572,6 +582,8 @@ def get_dataframe(
             col = df[col_name]
             if pd.api.types.is_categorical_dtype(col) and fill_value not in col.cat.categories:
                 col.cat.add_categories([fill_value], inplace=True)
+
+        # Use the defaults dict to set defaults for existing columns
         df.fillna(value=_col_defaults, inplace=True)
 
         # A separate step to set as yet non-existent columns with default values
