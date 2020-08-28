@@ -565,7 +565,7 @@ def get_dataframe(
         if not pd.api.types.is_categorical_dtype(col):
             continue
 
-        for fill_value in (-1, "-1", 0, "0", 1, "1", np.nan):
+        for fill_value in (-1, "-1", 0, "0", 1, "1"):
             if fill_value not in col.cat.categories:
                 col.cat.add_categories([fill_value], inplace=True)
 
