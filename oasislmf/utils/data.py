@@ -570,7 +570,7 @@ def get_dataframe(
                 continue
 
             col = df[col_name]
-            if pd.api.types.is_categorical_dtype(col):
+            if pd.api.types.is_categorical_dtype(col) and fill_value not in col.cat.categories:
                 col.cat.add_categories([fill_value], inplace=True)
         df.fillna(value=_col_defaults, inplace=True)
 
