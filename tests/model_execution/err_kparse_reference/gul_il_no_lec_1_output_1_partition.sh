@@ -8,31 +8,52 @@ set -o pipefail
 mkdir -p log
 rm -R -f log/*
 
-error_handler(){
-   echo 'Run Error - terminating'
-   exit_code=$?
-   set +x
-   group_pid=$(ps -p $$ -o pgid --no-headers)
-   sess_pid=$(ps -p $$ -o sess --no-headers)
-   printf "Script PID:%d, GPID:%s, SPID:%d" $$ $group_pid $sess_pid >> log/killout.txt
-
-   if hash pstree 2>/dev/null; then
-       pstree -pn $$ >> log/killout.txt
-       PIDS_KILL=$(pstree -pn $$ | grep -o "([[:digit:]]*)" | grep -o "[[:digit:]]*")
-       kill -9 $(echo "$PIDS_KILL" | grep -v $group_pid | grep -v $$) 2>/dev/null
-   else
-       ps f -g $sess_pid > log/subprocess_list
-       PIDS_KILL=$(pgrep -a --pgroup $group_pid | grep -v celery | grep -v $group_pid | grep -v $$)
-       echo "$PIDS_KILL" >> log/killout.txt
-       kill -9 $(echo "$PIDS_KILL" | awk 'BEGIN { FS = "[ \t\n]+" }{ print $1 }') 2>/dev/null
-   fi
-   exit $(( 1 > $exit_code ? 1 : $exit_code ))
-}
-trap error_handler QUIT HUP INT KILL TERM ERR
 
 touch log/stderror.err
 ktools_monitor.sh $$ & pid0=$!
 
+exit_handler(){
+   exit_code=$?
+   kill -9 $pid0 2> /dev/null
+   if [ "$exit_code" -gt 0 ]; then
+       echo 'Ktools Run Error - exitcode='$exit_code
+   else
+       echo 'Run Completed'
+   fi
+   
+   set +x
+   group_pid=$(ps -p $$ -o pgid --no-headers)
+   sess_pid=$(ps -p $$ -o sess --no-headers)
+   script_pid=$$
+   printf "Script PID:%d, GPID:%s, SPID:%d
+" $script_pid $group_pid $sess_pid >> log/killout.txt
+
+   ps f -g $sess_pid > log/subprocess_list
+   PIDS_KILL=$(pgrep -a --pgroup $group_pid | awk -F: '$1>$script_pid' | grep -v celery | grep -v python | grep -v $group_pid | grep -v run_ktools)
+   echo "$PIDS_KILL" >> log/killout.txt
+   kill -9 $(echo "$PIDS_KILL" | awk 'BEGIN { FS = "[ \t\n]+" }{ print $1 }') 2>/dev/null
+   exit $exit_code
+}
+trap exit_handler QUIT HUP INT KILL TERM ERR
+
+check_complete(){
+    set +e
+    proc_list="eve getmodel gulcalc fmcalc summarycalc eltcalc aalcalc leccalc pltcalc"
+    has_error=0
+    for p in $proc_list; do
+        started=$(find log -name "$p*.log" | wc -l)
+        finished=$(find log -name "$p*.log" -exec grep -l "finish" {} + | wc -l)
+        if [ "$finished" -lt "$started" ]; then
+            echo "[ERROR] $p - $((started-finished)) processes lost"
+            has_error=1
+        elif [ "$started" -gt 0 ]; then
+            echo "[OK] $p"
+        fi
+    done
+    if [ "$has_error" -ne 0 ]; then
+        false # raise non-zero exit code
+    fi
+}
 # --- Setup run dirs ---
 
 find output/* ! -name '*summary-info*' -exec rm -R -f {} +
@@ -46,43 +67,37 @@ mkdir work/il_S1_summaryaalcalc
 
 mkfifo fifo/gul_P1
 
-mkfifo fifo/il_P1
-
 mkfifo fifo/gul_S1_summary_P1
-mkfifo fifo/gul_S1_summaryeltcalc_P1
 mkfifo fifo/gul_S1_eltcalc_P1
-mkfifo fifo/gul_S1_summarysummarycalc_P1
 mkfifo fifo/gul_S1_summarycalc_P1
-mkfifo fifo/gul_S1_summarypltcalc_P1
 mkfifo fifo/gul_S1_pltcalc_P1
 
+mkfifo fifo/il_P1
+
 mkfifo fifo/il_S1_summary_P1
-mkfifo fifo/il_S1_summaryeltcalc_P1
 mkfifo fifo/il_S1_eltcalc_P1
-mkfifo fifo/il_S1_summarysummarycalc_P1
 mkfifo fifo/il_S1_summarycalc_P1
-mkfifo fifo/il_S1_summarypltcalc_P1
 mkfifo fifo/il_S1_pltcalc_P1
 
 
 
 # --- Do insured loss computes ---
 
-eltcalc < fifo/il_S1_summaryeltcalc_P1 > work/kat/il_S1_eltcalc_P1 & pid1=$!
-summarycalctocsv < fifo/il_S1_summarysummarycalc_P1 > work/kat/il_S1_summarycalc_P1 & pid2=$!
-pltcalc < fifo/il_S1_summarypltcalc_P1 > work/kat/il_S1_pltcalc_P1 & pid3=$!
+eltcalc < fifo/il_S1_eltcalc_P1 > work/kat/il_S1_eltcalc_P1 & pid1=$!
+summarycalctocsv < fifo/il_S1_summarycalc_P1 > work/kat/il_S1_summarycalc_P1 & pid2=$!
+pltcalc < fifo/il_S1_pltcalc_P1 > work/kat/il_S1_pltcalc_P1 & pid3=$!
 
-tee < fifo/il_S1_summary_P1 fifo/il_S1_summaryeltcalc_P1 fifo/il_S1_summarypltcalc_P1 fifo/il_S1_summarysummarycalc_P1 work/il_S1_summaryaalcalc/P1.bin > /dev/null & pid4=$!
+tee < fifo/il_S1_summary_P1 fifo/il_S1_eltcalc_P1 fifo/il_S1_summarycalc_P1 fifo/il_S1_pltcalc_P1 work/il_S1_summaryaalcalc/P1.bin > /dev/null & pid4=$!
 
 ( summarycalc -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 ) 2>> log/stderror.err  &
 
 # --- Do ground up loss computes ---
 
-eltcalc < fifo/gul_S1_summaryeltcalc_P1 > work/kat/gul_S1_eltcalc_P1 & pid5=$!
-summarycalctocsv < fifo/gul_S1_summarysummarycalc_P1 > work/kat/gul_S1_summarycalc_P1 & pid6=$!
-pltcalc < fifo/gul_S1_summarypltcalc_P1 > work/kat/gul_S1_pltcalc_P1 & pid7=$!
+eltcalc < fifo/gul_S1_eltcalc_P1 > work/kat/gul_S1_eltcalc_P1 & pid5=$!
+summarycalctocsv < fifo/gul_S1_summarycalc_P1 > work/kat/gul_S1_summarycalc_P1 & pid6=$!
+pltcalc < fifo/gul_S1_pltcalc_P1 > work/kat/gul_S1_pltcalc_P1 & pid7=$!
 
-tee < fifo/gul_S1_summary_P1 fifo/gul_S1_summaryeltcalc_P1 fifo/gul_S1_summarypltcalc_P1 fifo/gul_S1_summarysummarycalc_P1 work/gul_S1_summaryaalcalc/P1.bin > /dev/null & pid8=$!
+tee < fifo/gul_S1_summary_P1 fifo/gul_S1_eltcalc_P1 fifo/gul_S1_summarycalc_P1 fifo/gul_S1_pltcalc_P1 work/gul_S1_summaryaalcalc/P1.bin > /dev/null & pid8=$!
 
 ( summarycalc -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 ) 2>> log/stderror.err  &
 
@@ -112,5 +127,5 @@ wait $lpid1 $lpid2
 rm -R -f work/*
 rm -R -f fifo/*
 
-# Stop ktools watcher
-kill -9 $pid0
+check_complete
+exit_handler

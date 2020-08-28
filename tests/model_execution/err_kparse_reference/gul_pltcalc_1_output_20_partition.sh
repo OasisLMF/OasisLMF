@@ -8,31 +8,52 @@ set -o pipefail
 mkdir -p log
 rm -R -f log/*
 
-error_handler(){
-   echo 'Run Error - terminating'
-   exit_code=$?
-   set +x
-   group_pid=$(ps -p $$ -o pgid --no-headers)
-   sess_pid=$(ps -p $$ -o sess --no-headers)
-   printf "Script PID:%d, GPID:%s, SPID:%d" $$ $group_pid $sess_pid >> log/killout.txt
-
-   if hash pstree 2>/dev/null; then
-       pstree -pn $$ >> log/killout.txt
-       PIDS_KILL=$(pstree -pn $$ | grep -o "([[:digit:]]*)" | grep -o "[[:digit:]]*")
-       kill -9 $(echo "$PIDS_KILL" | grep -v $group_pid | grep -v $$) 2>/dev/null
-   else
-       ps f -g $sess_pid > log/subprocess_list
-       PIDS_KILL=$(pgrep -a --pgroup $group_pid | grep -v celery | grep -v $group_pid | grep -v $$)
-       echo "$PIDS_KILL" >> log/killout.txt
-       kill -9 $(echo "$PIDS_KILL" | awk 'BEGIN { FS = "[ \t\n]+" }{ print $1 }') 2>/dev/null
-   fi
-   exit $(( 1 > $exit_code ? 1 : $exit_code ))
-}
-trap error_handler QUIT HUP INT KILL TERM ERR
 
 touch log/stderror.err
 ktools_monitor.sh $$ & pid0=$!
 
+exit_handler(){
+   exit_code=$?
+   kill -9 $pid0 2> /dev/null
+   if [ "$exit_code" -gt 0 ]; then
+       echo 'Ktools Run Error - exitcode='$exit_code
+   else
+       echo 'Run Completed'
+   fi
+   
+   set +x
+   group_pid=$(ps -p $$ -o pgid --no-headers)
+   sess_pid=$(ps -p $$ -o sess --no-headers)
+   script_pid=$$
+   printf "Script PID:%d, GPID:%s, SPID:%d
+" $script_pid $group_pid $sess_pid >> log/killout.txt
+
+   ps f -g $sess_pid > log/subprocess_list
+   PIDS_KILL=$(pgrep -a --pgroup $group_pid | awk -F: '$1>$script_pid' | grep -v celery | grep -v python | grep -v $group_pid | grep -v run_ktools)
+   echo "$PIDS_KILL" >> log/killout.txt
+   kill -9 $(echo "$PIDS_KILL" | awk 'BEGIN { FS = "[ \t\n]+" }{ print $1 }') 2>/dev/null
+   exit $exit_code
+}
+trap exit_handler QUIT HUP INT KILL TERM ERR
+
+check_complete(){
+    set +e
+    proc_list="eve getmodel gulcalc fmcalc summarycalc eltcalc aalcalc leccalc pltcalc"
+    has_error=0
+    for p in $proc_list; do
+        started=$(find log -name "$p*.log" | wc -l)
+        finished=$(find log -name "$p*.log" -exec grep -l "finish" {} + | wc -l)
+        if [ "$finished" -lt "$started" ]; then
+            echo "[ERROR] $p - $((started-finished)) processes lost"
+            has_error=1
+        elif [ "$started" -gt 0 ]; then
+            echo "[OK] $p"
+        fi
+    done
+    if [ "$has_error" -ne 0 ]; then
+        false # raise non-zero exit code
+    fi
+}
 # --- Setup run dirs ---
 
 find output/* ! -name '*summary-info*' -exec rm -R -f {} +
@@ -64,130 +85,110 @@ mkfifo fifo/gul_P19
 mkfifo fifo/gul_P20
 
 mkfifo fifo/gul_S1_summary_P1
-mkfifo fifo/gul_S1_summarypltcalc_P1
 mkfifo fifo/gul_S1_pltcalc_P1
 
 mkfifo fifo/gul_S1_summary_P2
-mkfifo fifo/gul_S1_summarypltcalc_P2
 mkfifo fifo/gul_S1_pltcalc_P2
 
 mkfifo fifo/gul_S1_summary_P3
-mkfifo fifo/gul_S1_summarypltcalc_P3
 mkfifo fifo/gul_S1_pltcalc_P3
 
 mkfifo fifo/gul_S1_summary_P4
-mkfifo fifo/gul_S1_summarypltcalc_P4
 mkfifo fifo/gul_S1_pltcalc_P4
 
 mkfifo fifo/gul_S1_summary_P5
-mkfifo fifo/gul_S1_summarypltcalc_P5
 mkfifo fifo/gul_S1_pltcalc_P5
 
 mkfifo fifo/gul_S1_summary_P6
-mkfifo fifo/gul_S1_summarypltcalc_P6
 mkfifo fifo/gul_S1_pltcalc_P6
 
 mkfifo fifo/gul_S1_summary_P7
-mkfifo fifo/gul_S1_summarypltcalc_P7
 mkfifo fifo/gul_S1_pltcalc_P7
 
 mkfifo fifo/gul_S1_summary_P8
-mkfifo fifo/gul_S1_summarypltcalc_P8
 mkfifo fifo/gul_S1_pltcalc_P8
 
 mkfifo fifo/gul_S1_summary_P9
-mkfifo fifo/gul_S1_summarypltcalc_P9
 mkfifo fifo/gul_S1_pltcalc_P9
 
 mkfifo fifo/gul_S1_summary_P10
-mkfifo fifo/gul_S1_summarypltcalc_P10
 mkfifo fifo/gul_S1_pltcalc_P10
 
 mkfifo fifo/gul_S1_summary_P11
-mkfifo fifo/gul_S1_summarypltcalc_P11
 mkfifo fifo/gul_S1_pltcalc_P11
 
 mkfifo fifo/gul_S1_summary_P12
-mkfifo fifo/gul_S1_summarypltcalc_P12
 mkfifo fifo/gul_S1_pltcalc_P12
 
 mkfifo fifo/gul_S1_summary_P13
-mkfifo fifo/gul_S1_summarypltcalc_P13
 mkfifo fifo/gul_S1_pltcalc_P13
 
 mkfifo fifo/gul_S1_summary_P14
-mkfifo fifo/gul_S1_summarypltcalc_P14
 mkfifo fifo/gul_S1_pltcalc_P14
 
 mkfifo fifo/gul_S1_summary_P15
-mkfifo fifo/gul_S1_summarypltcalc_P15
 mkfifo fifo/gul_S1_pltcalc_P15
 
 mkfifo fifo/gul_S1_summary_P16
-mkfifo fifo/gul_S1_summarypltcalc_P16
 mkfifo fifo/gul_S1_pltcalc_P16
 
 mkfifo fifo/gul_S1_summary_P17
-mkfifo fifo/gul_S1_summarypltcalc_P17
 mkfifo fifo/gul_S1_pltcalc_P17
 
 mkfifo fifo/gul_S1_summary_P18
-mkfifo fifo/gul_S1_summarypltcalc_P18
 mkfifo fifo/gul_S1_pltcalc_P18
 
 mkfifo fifo/gul_S1_summary_P19
-mkfifo fifo/gul_S1_summarypltcalc_P19
 mkfifo fifo/gul_S1_pltcalc_P19
 
 mkfifo fifo/gul_S1_summary_P20
-mkfifo fifo/gul_S1_summarypltcalc_P20
 mkfifo fifo/gul_S1_pltcalc_P20
 
 
 
 # --- Do ground up loss computes ---
 
-pltcalc < fifo/gul_S1_summarypltcalc_P1 > work/kat/gul_S1_pltcalc_P1 & pid1=$!
-pltcalc -s < fifo/gul_S1_summarypltcalc_P2 > work/kat/gul_S1_pltcalc_P2 & pid2=$!
-pltcalc -s < fifo/gul_S1_summarypltcalc_P3 > work/kat/gul_S1_pltcalc_P3 & pid3=$!
-pltcalc -s < fifo/gul_S1_summarypltcalc_P4 > work/kat/gul_S1_pltcalc_P4 & pid4=$!
-pltcalc -s < fifo/gul_S1_summarypltcalc_P5 > work/kat/gul_S1_pltcalc_P5 & pid5=$!
-pltcalc -s < fifo/gul_S1_summarypltcalc_P6 > work/kat/gul_S1_pltcalc_P6 & pid6=$!
-pltcalc -s < fifo/gul_S1_summarypltcalc_P7 > work/kat/gul_S1_pltcalc_P7 & pid7=$!
-pltcalc -s < fifo/gul_S1_summarypltcalc_P8 > work/kat/gul_S1_pltcalc_P8 & pid8=$!
-pltcalc -s < fifo/gul_S1_summarypltcalc_P9 > work/kat/gul_S1_pltcalc_P9 & pid9=$!
-pltcalc -s < fifo/gul_S1_summarypltcalc_P10 > work/kat/gul_S1_pltcalc_P10 & pid10=$!
-pltcalc -s < fifo/gul_S1_summarypltcalc_P11 > work/kat/gul_S1_pltcalc_P11 & pid11=$!
-pltcalc -s < fifo/gul_S1_summarypltcalc_P12 > work/kat/gul_S1_pltcalc_P12 & pid12=$!
-pltcalc -s < fifo/gul_S1_summarypltcalc_P13 > work/kat/gul_S1_pltcalc_P13 & pid13=$!
-pltcalc -s < fifo/gul_S1_summarypltcalc_P14 > work/kat/gul_S1_pltcalc_P14 & pid14=$!
-pltcalc -s < fifo/gul_S1_summarypltcalc_P15 > work/kat/gul_S1_pltcalc_P15 & pid15=$!
-pltcalc -s < fifo/gul_S1_summarypltcalc_P16 > work/kat/gul_S1_pltcalc_P16 & pid16=$!
-pltcalc -s < fifo/gul_S1_summarypltcalc_P17 > work/kat/gul_S1_pltcalc_P17 & pid17=$!
-pltcalc -s < fifo/gul_S1_summarypltcalc_P18 > work/kat/gul_S1_pltcalc_P18 & pid18=$!
-pltcalc -s < fifo/gul_S1_summarypltcalc_P19 > work/kat/gul_S1_pltcalc_P19 & pid19=$!
-pltcalc -s < fifo/gul_S1_summarypltcalc_P20 > work/kat/gul_S1_pltcalc_P20 & pid20=$!
+pltcalc < fifo/gul_S1_pltcalc_P1 > work/kat/gul_S1_pltcalc_P1 & pid1=$!
+pltcalc -s < fifo/gul_S1_pltcalc_P2 > work/kat/gul_S1_pltcalc_P2 & pid2=$!
+pltcalc -s < fifo/gul_S1_pltcalc_P3 > work/kat/gul_S1_pltcalc_P3 & pid3=$!
+pltcalc -s < fifo/gul_S1_pltcalc_P4 > work/kat/gul_S1_pltcalc_P4 & pid4=$!
+pltcalc -s < fifo/gul_S1_pltcalc_P5 > work/kat/gul_S1_pltcalc_P5 & pid5=$!
+pltcalc -s < fifo/gul_S1_pltcalc_P6 > work/kat/gul_S1_pltcalc_P6 & pid6=$!
+pltcalc -s < fifo/gul_S1_pltcalc_P7 > work/kat/gul_S1_pltcalc_P7 & pid7=$!
+pltcalc -s < fifo/gul_S1_pltcalc_P8 > work/kat/gul_S1_pltcalc_P8 & pid8=$!
+pltcalc -s < fifo/gul_S1_pltcalc_P9 > work/kat/gul_S1_pltcalc_P9 & pid9=$!
+pltcalc -s < fifo/gul_S1_pltcalc_P10 > work/kat/gul_S1_pltcalc_P10 & pid10=$!
+pltcalc -s < fifo/gul_S1_pltcalc_P11 > work/kat/gul_S1_pltcalc_P11 & pid11=$!
+pltcalc -s < fifo/gul_S1_pltcalc_P12 > work/kat/gul_S1_pltcalc_P12 & pid12=$!
+pltcalc -s < fifo/gul_S1_pltcalc_P13 > work/kat/gul_S1_pltcalc_P13 & pid13=$!
+pltcalc -s < fifo/gul_S1_pltcalc_P14 > work/kat/gul_S1_pltcalc_P14 & pid14=$!
+pltcalc -s < fifo/gul_S1_pltcalc_P15 > work/kat/gul_S1_pltcalc_P15 & pid15=$!
+pltcalc -s < fifo/gul_S1_pltcalc_P16 > work/kat/gul_S1_pltcalc_P16 & pid16=$!
+pltcalc -s < fifo/gul_S1_pltcalc_P17 > work/kat/gul_S1_pltcalc_P17 & pid17=$!
+pltcalc -s < fifo/gul_S1_pltcalc_P18 > work/kat/gul_S1_pltcalc_P18 & pid18=$!
+pltcalc -s < fifo/gul_S1_pltcalc_P19 > work/kat/gul_S1_pltcalc_P19 & pid19=$!
+pltcalc -s < fifo/gul_S1_pltcalc_P20 > work/kat/gul_S1_pltcalc_P20 & pid20=$!
 
-tee < fifo/gul_S1_summary_P1 fifo/gul_S1_summarypltcalc_P1 > /dev/null & pid21=$!
-tee < fifo/gul_S1_summary_P2 fifo/gul_S1_summarypltcalc_P2 > /dev/null & pid22=$!
-tee < fifo/gul_S1_summary_P3 fifo/gul_S1_summarypltcalc_P3 > /dev/null & pid23=$!
-tee < fifo/gul_S1_summary_P4 fifo/gul_S1_summarypltcalc_P4 > /dev/null & pid24=$!
-tee < fifo/gul_S1_summary_P5 fifo/gul_S1_summarypltcalc_P5 > /dev/null & pid25=$!
-tee < fifo/gul_S1_summary_P6 fifo/gul_S1_summarypltcalc_P6 > /dev/null & pid26=$!
-tee < fifo/gul_S1_summary_P7 fifo/gul_S1_summarypltcalc_P7 > /dev/null & pid27=$!
-tee < fifo/gul_S1_summary_P8 fifo/gul_S1_summarypltcalc_P8 > /dev/null & pid28=$!
-tee < fifo/gul_S1_summary_P9 fifo/gul_S1_summarypltcalc_P9 > /dev/null & pid29=$!
-tee < fifo/gul_S1_summary_P10 fifo/gul_S1_summarypltcalc_P10 > /dev/null & pid30=$!
-tee < fifo/gul_S1_summary_P11 fifo/gul_S1_summarypltcalc_P11 > /dev/null & pid31=$!
-tee < fifo/gul_S1_summary_P12 fifo/gul_S1_summarypltcalc_P12 > /dev/null & pid32=$!
-tee < fifo/gul_S1_summary_P13 fifo/gul_S1_summarypltcalc_P13 > /dev/null & pid33=$!
-tee < fifo/gul_S1_summary_P14 fifo/gul_S1_summarypltcalc_P14 > /dev/null & pid34=$!
-tee < fifo/gul_S1_summary_P15 fifo/gul_S1_summarypltcalc_P15 > /dev/null & pid35=$!
-tee < fifo/gul_S1_summary_P16 fifo/gul_S1_summarypltcalc_P16 > /dev/null & pid36=$!
-tee < fifo/gul_S1_summary_P17 fifo/gul_S1_summarypltcalc_P17 > /dev/null & pid37=$!
-tee < fifo/gul_S1_summary_P18 fifo/gul_S1_summarypltcalc_P18 > /dev/null & pid38=$!
-tee < fifo/gul_S1_summary_P19 fifo/gul_S1_summarypltcalc_P19 > /dev/null & pid39=$!
-tee < fifo/gul_S1_summary_P20 fifo/gul_S1_summarypltcalc_P20 > /dev/null & pid40=$!
+tee < fifo/gul_S1_summary_P1 fifo/gul_S1_pltcalc_P1 > /dev/null & pid21=$!
+tee < fifo/gul_S1_summary_P2 fifo/gul_S1_pltcalc_P2 > /dev/null & pid22=$!
+tee < fifo/gul_S1_summary_P3 fifo/gul_S1_pltcalc_P3 > /dev/null & pid23=$!
+tee < fifo/gul_S1_summary_P4 fifo/gul_S1_pltcalc_P4 > /dev/null & pid24=$!
+tee < fifo/gul_S1_summary_P5 fifo/gul_S1_pltcalc_P5 > /dev/null & pid25=$!
+tee < fifo/gul_S1_summary_P6 fifo/gul_S1_pltcalc_P6 > /dev/null & pid26=$!
+tee < fifo/gul_S1_summary_P7 fifo/gul_S1_pltcalc_P7 > /dev/null & pid27=$!
+tee < fifo/gul_S1_summary_P8 fifo/gul_S1_pltcalc_P8 > /dev/null & pid28=$!
+tee < fifo/gul_S1_summary_P9 fifo/gul_S1_pltcalc_P9 > /dev/null & pid29=$!
+tee < fifo/gul_S1_summary_P10 fifo/gul_S1_pltcalc_P10 > /dev/null & pid30=$!
+tee < fifo/gul_S1_summary_P11 fifo/gul_S1_pltcalc_P11 > /dev/null & pid31=$!
+tee < fifo/gul_S1_summary_P12 fifo/gul_S1_pltcalc_P12 > /dev/null & pid32=$!
+tee < fifo/gul_S1_summary_P13 fifo/gul_S1_pltcalc_P13 > /dev/null & pid33=$!
+tee < fifo/gul_S1_summary_P14 fifo/gul_S1_pltcalc_P14 > /dev/null & pid34=$!
+tee < fifo/gul_S1_summary_P15 fifo/gul_S1_pltcalc_P15 > /dev/null & pid35=$!
+tee < fifo/gul_S1_summary_P16 fifo/gul_S1_pltcalc_P16 > /dev/null & pid36=$!
+tee < fifo/gul_S1_summary_P17 fifo/gul_S1_pltcalc_P17 > /dev/null & pid37=$!
+tee < fifo/gul_S1_summary_P18 fifo/gul_S1_pltcalc_P18 > /dev/null & pid38=$!
+tee < fifo/gul_S1_summary_P19 fifo/gul_S1_pltcalc_P19 > /dev/null & pid39=$!
+tee < fifo/gul_S1_summary_P20 fifo/gul_S1_pltcalc_P20 > /dev/null & pid40=$!
 
 ( summarycalc -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 ) 2>> log/stderror.err  &
 ( summarycalc -i  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 ) 2>> log/stderror.err  &
@@ -243,5 +244,5 @@ wait $kpid1
 rm -R -f work/*
 rm -R -f fifo/*
 
-# Stop ktools watcher
-kill -9 $pid0
+check_complete
+exit_handler
