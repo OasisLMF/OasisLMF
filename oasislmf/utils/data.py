@@ -566,6 +566,9 @@ def get_dataframe(
 
         # Use the defaults dict to set defaults for existing columns
         for col_name, fill_value in _col_defaults.items():
+            if col_name not in df:
+                continue
+
             col = df[col_name]
             if pd.api.types.is_categorical_dtype(col):
                 col.cat.add_categories([fill_value], inplace=True)
