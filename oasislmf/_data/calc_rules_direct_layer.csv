@@ -1,0 +1,8 @@
+desc,calcrule_id,limit_gt_0,share_gt_0,attachment_gt_0,id_key
+limit and participation,2,1,1,0,"(1, 1, 0)"
+"attachment, limit and participation",2,1,1,1,"(1, 1, 1)"
+no terms (pass through),100,0,0,0,"(0, 0, 0)"
+participation only,34,0,1,0,"(0, 1, 0)"
+attachment and participation,34,0,1,1,"(0, 1, 1)"
+attachment only,34,0,0,1,"(0, 0, 1)"
+attachment and limit,2,1,0,1,"(1, 0, 1)"
