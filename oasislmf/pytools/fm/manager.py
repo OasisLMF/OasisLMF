@@ -129,6 +129,7 @@ def run_ray(allocation_rule, static_path, files_in, queue_in_size, files_out, qu
             queue_out.terminated = True
             raise
 
+import tempfile
 
 def run_synchronous(allocation_rule, static_path, files_in, files_out, **kwargs):
     node_to_index, compute_queue, dependencies, output_item_index, storage_to_len, options, profile = load_financial_structure(
@@ -144,12 +145,14 @@ def run_synchronous(allocation_rule, static_path, files_in, files_out, **kwargs)
 
     stream_type, len_sample = read_stream_header(stream_in)
     len_array = len_sample + EXTRA_VALUES + 1
-    temp_loss, temp_not_null, losses_sum, deductibles, over_limit, under_limit = init_intermediary_variable(storage_to_len, len_array, options)
-    output_loss, output_not_null = init_loss_variable(storage_to_len, OUTPUT_STORAGE, len_array)
+    with tempfile.TemporaryDirectory() as tempdir:
+        temp_loss, temp_not_null, losses_sum, deductibles, over_limit, under_limit = init_intermediary_variable(storage_to_len, len_array, options, tempdir)
+        input_loss, input_not_null = init_loss_variable(storage_to_len, INPUT_STORAGE, len_array, tempdir)
+        output_loss, output_not_null = init_loss_variable(storage_to_len, OUTPUT_STORAGE, len_array, tempdir)
 
-    with EventWriter(files_out, output_item_index, len_sample) as event_writer:
-        for event_id, input_loss, input_not_null in read_event(stream_in, node_to_index, storage_to_len[INPUT_STORAGE], len_sample):
-            compute_event(compute_queue, dependencies, input_loss, input_not_null, profile,
-                          temp_loss, temp_not_null, losses_sum, deductibles, over_limit, under_limit, output_loss, output_not_null)
-            event_writer.write((event_id, output_loss, output_not_null))
+        with EventWriter(files_out, output_item_index, len_sample) as event_writer:
+            for event_id in read_event(stream_in, node_to_index, storage_to_len[INPUT_STORAGE], len_sample, input_loss, input_not_null):
+                compute_event(compute_queue, dependencies, input_loss, input_not_null, profile,
+                              temp_loss, temp_not_null, losses_sum, deductibles, over_limit, under_limit, output_loss, output_not_null)
+                event_writer.write((event_id, output_loss, output_not_null))
 

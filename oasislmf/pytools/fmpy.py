@@ -12,7 +12,7 @@ parser.add_argument('-i', '--files-in', help='names of the input file_path', nar
 parser.add_argument('--queue-in-size', help='maximum size of the queue in', default=5, type=int)
 parser.add_argument('-o', '--files-out', help='names of the output file_path', nargs='+')
 parser.add_argument('--queue-out-size', help='maximum size of the queue in', default=5, type=int)
-parser.add_argument('--run-mode', help='rum mode (synchronous :0, threaded: 1, ray: 2)', default=1, type=int)
+parser.add_argument('--run-mode', help='rum mode (synchronous :0, threaded: 1, ray: 2)', default=0, type=int)
 parser.add_argument('--ray-address', help='Address of the ray server', default=None)
 parser.add_argument('-v', '--logging-level', help='logging level (debug:10, info:20, warning:30, error:40, critical:50)',
                     default=30, type=int)

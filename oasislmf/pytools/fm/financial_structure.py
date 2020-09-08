@@ -5,6 +5,7 @@ __all__ = [
     'INPUT_STORAGE',
     'TEMP_STORAGE',
     'OUTPUT_STORAGE',
+    'TOP_UP',
     'PROFILE',
     'IL_PER_GUL',
     'IL_PER_SUB_IL',
@@ -21,10 +22,13 @@ from numba import njit, types, from_dtype
 from numba.typed import List, Dict
 import numpy as np
 import os
+import logging
+logger = logging.getLogger(__name__)
 
 INPUT_STORAGE = nb_oasis_int(0)
 TEMP_STORAGE = nb_oasis_int(1)
 OUTPUT_STORAGE = nb_oasis_int(2)
+TOP_UP = nb_oasis_int(3)
 
 PROFILE = nb_oasis_int(0)
 IL_PER_GUL = nb_oasis_int(1)
@@ -264,8 +268,9 @@ def process_programme(allocation_rule, programme_nodes, programme_node_to_layers
                 node_to_index[node], i_input = (INPUT_STORAGE, nb_oasis_int(i_input)), i_input + 1
 
                 temp_not_visited.remove(programme_node)
-
         not_visited, temp_not_visited = temp_not_visited, set(temp_not_visited)
+
+    i_top_up = i_temp
     if allocation_rule == 0:
         for node in top_nodes:
             copy_node = (node[0], node[1], node[2], COPY)
@@ -317,18 +322,18 @@ def process_programme(allocation_rule, programme_nodes, programme_node_to_layers
             if node_il in node_to_dependencies:
                 children = node_to_dependencies[node_il]
                 for child in children:
+                    res_child = child
                     while True:
-                        if (child[1], child[2]) in parent_to_children:
-                            sub_childs = parent_to_children[(child[1], child[2])]
-                            sub_node = effective_node(node_to_index, node_ba[0], child)
-                            if len(sub_childs) == 1 and does_nothing(fm_profile[node_to_profile[sub_node]]):
-                                child = effective_node(node_to_index, node_ba[0], sub_childs[0])
+                        if (res_child[1], res_child[2]) in parent_to_children:
+                            sub_childs = parent_to_children[(res_child[1], res_child[2])]
+                            if len(sub_childs) == 1:
+                                res_child = effective_node(node_to_index, node_ba[0], sub_childs[0])
                             else:
                                 break
                         else:
                             break
 
-                    node_child = (node_ba[0], child[1], child[2], PROPORTION)
+                    node_child = (node_ba[0], res_child[1], res_child[2], PROPORTION)
                     dependencies = List()
                     dependencies.append(node_il_per_sub_il)
                     dependencies.append(child)
@@ -343,7 +348,7 @@ def process_programme(allocation_rule, programme_nodes, programme_node_to_layers
             else:
                 raise Exception('missing dependencies')
 
-    storage_to_len = np.array([i_input, i_temp, i_output], dtype=nb_oasis_int)
+    storage_to_len = np.array([i_input, i_temp, i_output, i_top_up], dtype=nb_oasis_int)
 
     node_to_dependencies_index = Dict.empty(node_type, List.empty_list(storage_type))
     for node, dependencies in node_to_dependencies.items():
@@ -466,5 +471,6 @@ def load_financial_structure(allocation_rule, static_path):
     programme, policytc, profile, xref = load_static(static_path)
     financial_structure = prepare_financial_structure(allocation_rule, programme, policytc, profile, xref)
     node_to_index, compute_queue, dependencies, output_item_index, storage_to_len = financial_structure
-
+    logger.info(f'compute_queue has {len(compute_queue)} elements')
+    logger.info(f'storage_to_len : {storage_to_len}')
     return node_to_index, compute_queue, dependencies, output_item_index, storage_to_len, options, profile

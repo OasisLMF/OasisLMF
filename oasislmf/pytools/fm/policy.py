@@ -136,11 +136,63 @@ def calcrule_6(policy, loss_out, loss_in, deductible, over_limit, under_limit):
 
 
 @njit(cache=True, fastmath=True)
-def calcrule_7(policy, loss_out, loss_in, deductible, over_limit, under_limit):
+def calcrule_12(policy, loss_out, loss_in, deductible, over_limit, under_limit):
     """
-    limit and maximum deductible
+    Deductible only
     """
-    pass
+    for i in range(loss_in.shape[0]):
+        if loss_in[i] <= policy['deductible_1']:
+            over_limit[i] = 0
+            under_limit[i] = 0
+            deductible[i] += loss_in[i]
+            loss_out[i] = 0
+        else:
+            over_limit[i] = 0
+            under_limit[i] = 0
+            deductible[i] += policy['deductible_1']
+            loss_out[i] = loss_in[i] - policy['deductible_1']
+
+
+@njit(cache=True, fastmath=True)
+def calcrule_14(policy, loss_out, loss_in, deductible, over_limit, under_limit):
+    """
+    Limit only
+    """
+    for i in range(loss_in.shape[0]):
+        if loss_in[i] <= policy['limit_1']:
+            over_limit[i] = 0
+            under_limit[i] = policy['limit_1'] - loss_in[i]
+            deductible[i] = 0
+            loss_out[i] = loss_in[i]
+        else:
+            over_limit[i] = loss_in[i] - policy['limit_1']
+            under_limit[i] = 0
+            deductible[i] = 0
+            loss_out[i] = loss_in[i] - policy['limit_1']
+
+
+@njit(cache=True, fastmath=True)
+def calcrule_34(policy, loss_out, loss_in, deductible, over_limit, under_limit):
+    """
+    deductible with attachment and share
+    """
+    ded_att = policy['deductible_1'] + policy['attachment_1']
+    for i in range(loss_in.shape[0]):
+        if loss_in[i] <= policy['deductible_1']:
+            over_limit[i] = 0
+            under_limit[i] = 0
+            deductible[i] = loss_in[i]
+            loss_out[i] = 0
+        elif loss_in[i] <= ded_att:
+            over_limit[i] = 0
+            under_limit[i] = 0
+            deductible[i] = policy['deductible_1']
+            loss_out[i] = 0
+        else:
+            over_limit[i] = 0
+            under_limit[i] = 0
+            deductible[i] = 0
+            loss_out[i] = (loss_in[i] - ded_att) * policy['share_1']
 
 
 
@@ -158,6 +210,12 @@ def calc(policy, loss_out, loss_in, deductible, over_limit, under_limit):
         calcrule_5(policy, loss_out, loss_in, deductible, over_limit, under_limit)
     elif policy['calcrule_id'] == 6:
         calcrule_6(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+    elif policy['calcrule_id'] == 12:
+        calcrule_12(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+    elif policy['calcrule_id'] == 14:
+        calcrule_14(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+    elif policy['calcrule_id'] == 34:
+        calcrule_34(policy, loss_out, loss_in, deductible, over_limit, under_limit)
     elif policy['calcrule_id'] == 100:
         loss_out = loss_in
     else:

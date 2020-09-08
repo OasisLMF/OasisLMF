@@ -71,10 +71,11 @@ def read_stream_header(stream_obj):
     return stream_type, len_sample
 
 
-def read_event(stream_in, node_to_index, len_inputs, len_sample):
+def read_event(stream_in, node_to_index, len_inputs, len_sample, losses, not_null):
 
-    losses = np.zeros([len_inputs, len_sample + EXTRA_VALUES + 1], dtype=np.float32)
-    not_null = np.zeros([len_inputs, ], dtype=np.bool)
+    # losses = np.zeros([len_inputs, len_sample + EXTRA_VALUES + 1], dtype=np.float32)
+    # not_null = np.zeros([len_inputs, ], dtype=np.bool)
+    not_null.fill(False)
 
     buf = bytearray(buff_size)
     mv = memoryview(buf)
@@ -99,16 +100,17 @@ def read_event(stream_in, node_to_index, len_inputs, len_sample):
             last_event_id, last_event_cursor, full_event = stream_to_loss_table(stream_as_int32, stream_as_float32, valid_buf // number_size,
                                                                  last_event_cursor, node_to_index, losses, not_null)
             if full_event:
-                yield last_event_id, losses, not_null
-                losses = np.zeros([len_inputs, len_sample + EXTRA_VALUES +1], dtype=np.float32)
-                not_null = np.zeros([len_inputs, ], dtype=np.bool)
+                yield last_event_id
+                # losses = np.zeros([len_inputs, len_sample + EXTRA_VALUES +1], dtype=np.float32)
+                # not_null = np.zeros([len_inputs, ], dtype=np.bool)
+                not_null.fill(False)
             else:
                 read_cursor = valid_buf - number_size * last_event_cursor
                 mv[:read_cursor] = mv[number_size * last_event_cursor: valid_buf]
                 last_event_cursor = 0
                 break
     try:
-        yield last_event_id, losses,  not_null
+        yield last_event_id
     except UnboundLocalError:  # Nothing was read
         pass
 
