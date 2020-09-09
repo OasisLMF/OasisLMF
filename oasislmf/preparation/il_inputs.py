@@ -127,8 +127,7 @@ def set_calc_rule_ids(
         ].transpose().values)
     ]
     il_inputs_calc_rules_df = merge_dataframes(
-        il_inputs_calc_rules_df, calc_rules, how='left', on='id_key',
-        drop_duplicates=False
+        il_inputs_calc_rules_df, calc_rules, how='left', on='id_key'
     ).fillna(0)
     il_inputs_calc_rules_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id'].astype('uint32')
 
@@ -909,8 +908,8 @@ def get_il_input_items(
                 'agg_tiv'
             ] = intermediate_fm_agg_tivs[bi_tiv_col]
         il_inputs_df = il_inputs_df.merge(
-            intermediate_fm_agg_tivs[['peril_id', 'orig_level_id', 'agg_id', 'agg_tiv']],
-            on=['peril_id', 'orig_level_id', 'agg_id'],
+            intermediate_fm_agg_tivs[['peril_id', 'orig_level_id', 'is_bi_coverage', 'agg_id', 'agg_tiv']],
+            on=['peril_id', 'orig_level_id', 'is_bi_coverage', 'agg_id'],
             how='left'
         )
         il_inputs_df['agg_tiv_y'].fillna(
