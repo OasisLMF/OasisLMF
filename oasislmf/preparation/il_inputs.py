@@ -127,7 +127,8 @@ def set_calc_rule_ids(
         ].transpose().values)
     ]
     il_inputs_calc_rules_df = merge_dataframes(
-        il_inputs_calc_rules_df, calc_rules, how='left', join_on='id_key'
+        il_inputs_calc_rules_df, calc_rules, how='left', on='id_key',
+        drop_duplicates=False
     ).fillna(0)
     il_inputs_calc_rules_df['calcrule_id'] = il_inputs_calc_rules_df['calcrule_id'].astype('uint32')
 
