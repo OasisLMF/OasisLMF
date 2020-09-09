@@ -908,8 +908,8 @@ def get_il_input_items(
                 'agg_tiv'
             ] = intermediate_fm_agg_tivs[bi_tiv_col]
         il_inputs_df = il_inputs_df.merge(
-            intermediate_fm_agg_tivs[['peril_id', 'orig_level_id', 'agg_id', 'agg_tiv']],
-            on=['peril_id', 'orig_level_id', 'agg_id'],
+            intermediate_fm_agg_tivs[['peril_id', 'orig_level_id', 'is_bi_coverage', 'agg_id', 'agg_tiv']],
+            on=['peril_id', 'orig_level_id', 'is_bi_coverage', 'agg_id'],
             how='left'
         )
         il_inputs_df['agg_tiv_y'].fillna(
