@@ -4,6 +4,7 @@ __all__ = [
     'factorize_ndarray',
     'fast_zip_arrays',
     'fast_zip_dataframe_columns',
+    'fill_na_with_categoricals',
     'get_analysis_settings',
     'get_model_settings',
     'get_dataframe',
@@ -548,12 +549,6 @@ def get_dataframe(
         if missing:
             raise OasisException('Missing required columns: {}'.format(missing))
 
-    # Force categorical column values to string
-    for col_name in df:
-        col = df[col_name]
-        if pd.api.types.is_categorical_dtype(col):
-            col.cat.categories = col.cat.categories.astype(str)
-
     # Defaulting of column values is best done via the source data and not the
     # code, i.e. if a column 'X' in a frame is supposed to have 0s everywhere
     # the simplest way of achieving this is for the source data (whether it is
@@ -1078,11 +1073,9 @@ def fill_na_with_categoricals(df, fill_value):
             fill_value[col_name] = value
 
             if value not in col.cat.categories:
-                fill_value[col_name] = value
                 col.cat.add_categories([value], inplace=True)
 
-    # Note bug in Pandas 1.1.0/1.1.1 for fillna(inplace=True) when categorical dtypes are involved
-    # It doesn't hit here, but leads to very confusing errors internal to Pandas later on
+    # Note that the following lines do not work properly with Pandas 1.1.0/1.1.1, due to a bug
+    # related to fillna and categorical dtypes. This bug should be fixed in >1.1.2.
     # https://github.com/pandas-dev/pandas/issues/35731
-    df.replace('nan', np.nan, inplace=True)
     df.fillna(value=fill_value, inplace=True)
