@@ -1,11 +1,15 @@
 OasisLMF Changelog
 ==================
 
-`1.10.1`_
+`1.10.2`_
 ---------
 .. start_latest_release
-* Fix issue with supplier model runner
+* [8fdc512](https://github.com/OasisLMF/OasisLMF/pull/644) - Fix issue with introduction of erroneous duplicate rows when calculating aggregated TIVs
 .. end_latest_release
+
+`1.10.1`_
+---------
+* Fix issue with supplier model runner
 
 `1.10.0`_
 ---------
