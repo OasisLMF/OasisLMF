@@ -4,6 +4,7 @@ __all__ = [
     'factorize_ndarray',
     'fast_zip_arrays',
     'fast_zip_dataframe_columns',
+    'fill_na_with_categoricals',
     'get_analysis_settings',
     'get_model_settings',
     'get_dataframe',
@@ -81,7 +82,8 @@ PANDAS_BASIC_DTYPES = {
     'bool': np.bool,
     builtins.bool: np.bool,
     'str': np.object,
-    builtins.str: np.object
+    builtins.str: np.object,
+    'category': 'category'
 }
 
 PANDAS_DEFAULT_NULL_VALUES = {
@@ -557,14 +559,12 @@ def get_dataframe(
     # In this sense, defaulting of column values via the `col_defaults`
     # optional argument is redundant - but there may be some cases where it is
     # convenient to have this feature at the code level.
-
     if col_defaults:
         # Lowercase the keys in the defaults dict depending on whether the `lowercase_cols`
         # option was passed
         _col_defaults = {k.lower(): v for k, v in col_defaults.items()} if lowercase_cols else col_defaults
 
-        # Use the defaults dict to set defaults for existing columns
-        df.fillna(value=_col_defaults, inplace=True)
+        fill_na_with_categoricals(df, _col_defaults)
 
         # A separate step to set as yet non-existent columns with default values
         # in the frame
@@ -599,7 +599,7 @@ def get_dtypes_and_required_cols(get_dtypes):
     """
     dtypes = get_dtypes()
     col_dtypes = {
-        k: v['py_dtype']
+        k: 'category'
         for k, v in dtypes.items()
         if v['py_dtype'] == 'str'
     }
@@ -874,7 +874,7 @@ def get_location_df(
         **{t: 'float64' for t in tiv_cols + term_cols_floats + list(float_dtypes.keys())},
         **{t: 'uint8' for t in term_cols_ints},
         **{t: 'uint16' for t in [cond_num]},
-        **{t: 'str' for t in [loc_num, portfolio_num, acc_num]},
+        **{t: 'category' for t in [loc_num, portfolio_num, acc_num]},
         **{t: 'uint32' for t in ['loc_id']},
         **str_dtypes
     }
@@ -898,13 +898,14 @@ def get_location_df(
     dtypes = {
         **{k.lower(): v for k, v in str_dtypes.items()},
         **{f: 'str' for f in exposure_df.columns if f.startswith('flexiloc')}
-    }    
+    }
     existing_cols = list(set(dtypes).intersection(exposure_df.columns))
     _dtypes = {
         col: dtype
         for col, dtype in [(_col, dtypes[_col]) for _col in existing_cols]
     }
     exposure_df = exposure_df.astype(_dtypes)
+    fill_na_with_categoricals(exposure_df, {col: '' for col in existing_cols})
     exposure_df.replace('nan', '', inplace=True)
 
     # Enforce OED int dtypes:  Loading int rows with NaN will fail on load, fill these NaN with '0' and then convert
@@ -1042,3 +1043,39 @@ def set_dataframe_column_dtypes(df, dtypes):
     df = df.astype(_dtypes)
 
     return df
+
+
+def fill_na_with_categoricals(df, fill_value):
+    """
+    Fill NA values in a Pandas DataFrame, with handling for Categorical dtype columns.
+
+    The input dataframe is modified inplace.
+
+    :param df: The dataframe to process
+    :type df: pd.DataFrame
+
+    :param fill_value: A single value to use in all columns, or a dict of column names and
+                       corresponding values to fill.
+    :type fill_value: int, float, str, dict
+
+    """
+    if not isinstance(fill_value, dict):
+        fill_value = {col_name: fill_value for col_name in df.columns}
+
+    for col_name, value in fill_value.items():
+        if col_name not in df:
+            continue
+
+        col = df[col_name]
+        if pd.api.types.is_categorical_dtype(col):
+            # Force to be a string - using categorical for string columns
+            value = str(value)
+            fill_value[col_name] = value
+
+            if value not in col.cat.categories:
+                col.cat.add_categories([value], inplace=True)
+
+    # Note that the following lines do not work properly with Pandas 1.1.0/1.1.1, due to a bug
+    # related to fillna and categorical dtypes. This bug should be fixed in >1.1.2.
+    # https://github.com/pandas-dev/pandas/issues/35731
+    df.fillna(value=fill_value, inplace=True)

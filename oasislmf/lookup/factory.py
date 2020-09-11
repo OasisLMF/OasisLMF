@@ -11,6 +11,7 @@ from collections import OrderedDict
 from multiprocessing import cpu_count
 from billiard import Pool
 
+import numpy as np
 import pandas as pd
 
 from .base import OasisBaseLookup
@@ -296,7 +297,7 @@ class OasisLookupFactory(object):
         """
         pool_count = num_cores if num_cores else cpu_count()
         part_count = num_partitions if num_partitions else min(pool_count * 2, len(loc_df))
-        locations = pd.np.array_split(loc_df, part_count)
+        locations = np.array_split(loc_df, part_count)
 
         pool = Pool(pool_count)
         results = pool.map(lookup.process_locations_multiproc, locations)
