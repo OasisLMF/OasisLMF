@@ -10,6 +10,7 @@ nb_oasis_int = nb.int32
 
 float_equal_precision = np.finfo(np_oasis_float).eps
 
+null_index = np.uint32(-1)
 
 @nb.njit(cache=True)
 def almost_equal(a, b):

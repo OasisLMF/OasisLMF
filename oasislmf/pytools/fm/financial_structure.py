@@ -16,7 +16,7 @@ __all__ = [
     'CALC_DEDUCTIBLE_OPTION',
 ]
 
-from .common import nb_oasis_int, almost_equal
+from .common import nb_oasis_int, np_oasis_int, almost_equal
 
 from numba import njit, types, from_dtype
 from numba.typed import List, Dict
@@ -265,7 +265,9 @@ def process_programme(allocation_rule, programme_nodes, programme_node_to_layers
                 if programme_node[0] != 0:
                     raise Exception('non-input node have no dependencies')
                 node = (nb_oasis_int(1), programme_node[0], programme_node[1], PROFILE)
-                node_to_index[node], i_input = (INPUT_STORAGE, nb_oasis_int(i_input)), i_input + 1
+                node_to_index[node] = (INPUT_STORAGE, programme_node[1] - nb_oasis_int(1))
+                if i_input < programme_node[1]:
+                    i_input = programme_node[1]
 
                 temp_not_visited.remove(programme_node)
         not_visited, temp_not_visited = temp_not_visited, set(temp_not_visited)
@@ -359,6 +361,7 @@ def process_programme(allocation_rule, programme_nodes, programme_node_to_layers
 
     return compute_queue, top_nodes, node_to_index, node_to_dependencies_index, node_to_profile, storage_to_len
 
+
 @njit(cache=True)
 def get_output_item_index(node_to_index, fm_xref):
     output_item_index = np.empty(fm_xref.shape[0], dtype=output_item_index_dtype)
@@ -448,7 +451,7 @@ def prepare_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     output_item_index = get_output_item_index(node_to_index, fm_xref)
     compute_array, dependencies_array = to_arrays(compute_queue, node_to_index, node_to_dependencies, node_to_profile)
 
-    return node_to_index, compute_array, dependencies_array, output_item_index, storage_to_len
+    return compute_array, dependencies_array, output_item_index, storage_to_len
 
 
 def load_financial_structure(allocation_rule, static_path):
@@ -465,12 +468,12 @@ def load_financial_structure(allocation_rule, static_path):
         node_profile : map node to profile
         output_item_index : list of item_id, index to put in the output
     """
-    options = Dict.empty(nb_oasis_int, nb_oasis_int)
-    options[STORE_LOSS_SUM_OPTION] = nb_oasis_int(allocation_rule==2)
+    options = np.empty(1, dtype=np_oasis_int)
+    options[STORE_LOSS_SUM_OPTION] = nb_oasis_int(allocation_rule == 2)
 
     programme, policytc, profile, xref = load_static(static_path)
     financial_structure = prepare_financial_structure(allocation_rule, programme, policytc, profile, xref)
-    node_to_index, compute_queue, dependencies, output_item_index, storage_to_len = financial_structure
+    compute_queue, dependencies, output_item_index, storage_to_len = financial_structure
     logger.info(f'compute_queue has {len(compute_queue)} elements')
     logger.info(f'storage_to_len : {storage_to_len}')
-    return node_to_index, compute_queue, dependencies, output_item_index, storage_to_len, options, profile
+    return compute_queue, dependencies, output_item_index, storage_to_len, options, profile
