@@ -1,5 +1,5 @@
 from .queue import TerminableQueue
-from .financial_structure import load_financial_structure, INPUT_STORAGE, OUTPUT_STORAGE
+from .financial_structure import create_financial_structure, load_financial_structure, INPUT_STORAGE, OUTPUT_STORAGE
 from .stream import read_stream_header, queue_event_reader, read_event, queue_event_writer, EventWriter, EXTRA_VALUES
 from .compute import event_computer, compute_event, init_loss_variable, init_intermediary_variable
 try:
@@ -16,15 +16,18 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def run(run_mode, **kwargs):
-    if run_mode == 0:
-        return run_synchronous(**kwargs)
-    elif run_mode == 1:
-        run_threaded(**kwargs)
-    elif run_mode == 2:
-        run_ray(**kwargs)
+def run(run_mode, create_financial_structure_files, **kwargs):
+    if create_financial_structure_files:
+        create_financial_structure(kwargs['allocation_rule'], kwargs['static_path'])
     else:
-        raise ValueError(f"Unknow run_mode {run_mode}")
+        if run_mode == 0:
+            return run_synchronous(**kwargs)
+        elif run_mode == 1:
+            run_threaded(**kwargs)
+        elif run_mode == 2:
+            run_ray(**kwargs)
+        else:
+            raise ValueError(f"Unknow run_mode {run_mode}")
 
 
 def run_threaded(allocation_rule, static_path, files_in, queue_in_size, files_out, queue_out_size, **kwargs):

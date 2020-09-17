@@ -114,12 +114,12 @@ def calcrule_5(policy, loss_out, loss_in, deductible, over_limit, under_limit):
     deductible += effective_deductible
     if policy['deductible_1'] + policy['limit_1'] >= 1 : # always under limit
         loss_out = loss_in - effective_deductible
-        over_limit = 0
-        under_limit = effective_limit - loss_out
+        over_limit.fill(0)
+        under_limit[:] = effective_limit - loss_out
     else: # always over limit
-        loss_out = effective_limit
-        over_limit = loss_in - effective_deductible - effective_limit
-        under_limit = 0
+        loss_out[:] = effective_limit
+        over_limit[:] = loss_in - effective_deductible - effective_limit
+        under_limit.fill(0)
 
 
 
@@ -130,9 +130,9 @@ def calcrule_6(policy, loss_out, loss_in, deductible, over_limit, under_limit):
     """
     effective_deductible = loss_in * policy['deductible_1']
     deductible += effective_deductible
-    loss_out = loss_in - effective_deductible
-    over_limit = 0
-    under_limit = 0
+    loss_out[:] = loss_in - effective_deductible
+    over_limit.fill(0)
+    under_limit.fill(0)
 
 
 @njit(cache=True, fastmath=True)

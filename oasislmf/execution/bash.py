@@ -992,6 +992,11 @@ def genbash(
         )
     print_command(filename, '')
 
+    if fmpy:
+        print_command(
+            filename, f'{get_fmcmd(fmpy)} -a{il_alloc_rule} --create-financial-structure-files True'
+        )
+
     # Create FIFOS under /tmp/* (Windows support)
     if fifo_tmp_dir:
         fifo_queue_dir = '/tmp/{}/'.format(

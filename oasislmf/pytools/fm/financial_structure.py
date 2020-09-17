@@ -1,5 +1,6 @@
 __all__ = [
     'load_financial_structure',
+    'create_financial_structure',
     'load_static',
     'prepare_financial_structure',
     'INPUT_STORAGE',
@@ -31,6 +32,7 @@ OUTPUT_STORAGE = nb_oasis_int(2)
 TOP_UP = nb_oasis_int(3)
 
 PROFILE = nb_oasis_int(0)
+PROFILE_INPUT = nb_oasis_int(6)
 IL_PER_GUL = nb_oasis_int(1)
 IL_PER_SUB_IL = nb_oasis_int(2)
 PROPORTION = nb_oasis_int(3)
@@ -113,13 +115,20 @@ def does_nothing(profile):
             profile['calcrule_id'] == 16 and almost_equal(profile['deductible_1'], 0)
             )
 
+@njit(cache=True)
+def get_profile(level):
+    if level == 1:
+        return PROFILE_INPUT
+    else:
+        return PROFILE
 
 @njit(cache=True)
 def effective_node(node_indexes, layer, child):
     #if the sublayer doesn't exist we use the layer 1
-    child_node = (layer, child[0], child[1], PROFILE)
+    profile = get_profile(child[0])
+    child_node = (layer, child[0], child[1], profile)
     if child_node not in node_indexes:
-        child_node = (nb_oasis_int(1), child[0], child[1], PROFILE)
+        child_node = (nb_oasis_int(1), child[0], child[1], profile)
     return child_node
 
 
@@ -236,7 +245,7 @@ def process_programme(allocation_rule, programme_nodes, programme_node_to_layers
                         break
                 else: # dependencies are satisfied
                     for layer, profile_index in programme_node_to_layers[programme_node]:
-                        node = (layer, programme_node[0], programme_node[1], PROFILE)
+                        node = (layer, programme_node[0], programme_node[1], get_profile(programme_node[0]))
                         node_to_profile[node] = profile_index
 
                         if len(children) == 1 and does_nothing(fm_profile[profile_index]):
@@ -400,7 +409,7 @@ def to_arrays(compute_queue, node_to_index, node_to_dependencies, node_to_profil
         compute_line['dependencies_index_end'] = dependencies_index
 
         #profile info
-        if node[3] == PROFILE:
+        if node[3] in [PROFILE, PROFILE_INPUT]:
             compute_line['profile'] = node_to_profile[node]
 
     # reformat dependency as np array
@@ -454,7 +463,7 @@ def prepare_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     return compute_array, dependencies_array, output_item_index, storage_to_len
 
 
-def load_financial_structure(allocation_rule, static_path):
+def create_financial_structure(allocation_rule, static_path):
     """
 
     :param allocation_rule: int
@@ -476,4 +485,21 @@ def load_financial_structure(allocation_rule, static_path):
     compute_queue, dependencies, output_item_index, storage_to_len = financial_structure
     logger.info(f'compute_queue has {len(compute_queue)} elements')
     logger.info(f'storage_to_len : {storage_to_len}')
+
+    np.save(os.path.join(static_path, f'compute_queue_{allocation_rule}'), compute_queue)
+    np.save(os.path.join(static_path, f'dependencies_{allocation_rule}'), dependencies)
+    np.save(os.path.join(static_path, f'output_item_index_{allocation_rule}'), output_item_index)
+    np.save(os.path.join(static_path, f'storage_to_len_{allocation_rule}'), storage_to_len)
+    np.save(os.path.join(static_path, f'options_{allocation_rule}'), options)
+    np.save(os.path.join(static_path, f'profile_{allocation_rule}'), profile)
+
+
+def load_financial_structure(allocation_rule, static_path):
+    compute_queue = np.load(os.path.join(static_path, f'compute_queue_{allocation_rule}.npy'), mmap_mode='r')
+    dependencies = np.load(os.path.join(static_path, f'dependencies_{allocation_rule}.npy'), mmap_mode='r')
+    output_item_index = np.load(os.path.join(static_path, f'output_item_index_{allocation_rule}.npy'), mmap_mode='r')
+    storage_to_len = np.load(os.path.join(static_path, f'storage_to_len_{allocation_rule}.npy'), mmap_mode='r')
+    options = np.load(os.path.join(static_path, f'options_{allocation_rule}.npy'), mmap_mode='r')
+    profile = np.load(os.path.join(static_path, f'profile_{allocation_rule}.npy'), mmap_mode='r')
+
     return compute_queue, dependencies, output_item_index, storage_to_len, options, profile

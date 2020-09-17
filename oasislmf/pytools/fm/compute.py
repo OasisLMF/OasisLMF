@@ -1,5 +1,5 @@
 from .financial_structure import TEMP_STORAGE, OUTPUT_STORAGE, TOP_UP, STORE_LOSS_SUM_OPTION,\
-    PROFILE, IL_PER_GUL, IL_PER_SUB_IL, PROPORTION, COPY
+    PROFILE, PROFILE_INPUT, IL_PER_GUL, IL_PER_SUB_IL, PROPORTION, COPY
 from .policy import calc
 from .common import float_equal_precision, np_oasis_float, null_index
 from .queue import QueueTerminated
@@ -14,13 +14,14 @@ logger = logging.getLogger(__name__)
 def compute_event(compute_queue, dependencies, input_loss, input_index, profile,
                   temp_loss, temp_index, losses_sum, deductibles, over_limit, under_limit,
                   output_loss, output_index):
-    temp_index.fill(-1)
-    output_index.fill(-1)
+    temp_index.fill(null_index)
+    output_index.fill(null_index)
 
     losses = [input_loss,
               temp_loss,
               output_loss
               ]
+
     index = [input_index,
              temp_index,
              output_index
@@ -28,15 +29,36 @@ def compute_event(compute_queue, dependencies, input_loss, input_index, profile,
     index_new = np.zeros(3, dtype=np.uint32)
 
     for node in compute_queue:
-        if node['computation_id'] == PROFILE:
-            for dependency in dependencies[node['dependencies_index_start']: node['dependencies_index_end']]:
-                if index[dependency['storage']][dependency['index']] != null_index:
-                    node_index = index_new[node['storage']]
-                    index_new[node['storage']] += 1
-                    index[node['storage']][node['index']] = node_index
+        if node['computation_id'] == PROFILE_INPUT:
+            if input_index[dependencies[node['dependencies_index_start']]['index']] == null_index:
+                continue
+
+            node_index = index_new[node['storage']]
+            index_new[TEMP_STORAGE] += 1
+            temp_index[node['index']] = node_index
+
+            deductibles[node_index].fill(0)
+            over_limit[node_index].fill(0)
+            under_limit[node_index].fill(0)
+
+            calc(profile[node['profile']],
+                 temp_loss[node_index],
+                 input_loss[dependencies[node['dependencies_index_start']]['index']],
+                 deductibles[node_index],
+                 over_limit[node_index],
+                 under_limit[node_index])
+
+        elif node['computation_id'] == PROFILE:
+
+            for i in range(node['dependencies_index_start'], node['dependencies_index_end']):
+                if index[dependencies[i]['storage']][dependencies[i]['index']] != null_index:
                     break
             else:
                 continue
+
+            node_index = index_new[node['storage']]
+            index_new[node['storage']] += 1
+            index[node['storage']][node['index']] = node_index
 
             loss_sum = losses_sum[node_index]
             loss_sum.fill(0)
@@ -44,11 +66,11 @@ def compute_event(compute_queue, dependencies, input_loss, input_index, profile,
             over_limit[node_index].fill(0)
             under_limit[node_index].fill(0)
 
-            for dependency in dependencies[node['dependencies_index_start']: node['dependencies_index_end']]:
-                dependency_index = index[dependency['storage']][dependency['index']]
+            for i in range(node['dependencies_index_start'], node['dependencies_index_end']):
+                dependency_index = index[dependencies[i]['storage']][dependencies[i]['index']]
                 if dependency_index != null_index:
-                    loss_sum += losses[dependency['storage']][dependency_index]
-                    if dependency['storage'] == TEMP_STORAGE:
+                    loss_sum += losses[dependencies[i]['storage']][dependency_index]
+                    if dependencies[i]['storage'] == TEMP_STORAGE:
                         deductibles[node['index']] += deductibles[dependency_index]
                         over_limit[node['index']] += over_limit[dependency_index]
                         under_limit[node['index']] += under_limit[dependency_index]
@@ -61,8 +83,7 @@ def compute_event(compute_queue, dependencies, input_loss, input_index, profile,
                  under_limit[node_index])
 
         elif node['computation_id'] == IL_PER_GUL:
-            node_dependencies = dependencies[node['dependencies_index_start']: node['dependencies_index_end']]
-            top_node = node_dependencies[0]
+            top_node = dependencies[node['dependencies_index_start']]
             if index[top_node['storage']][top_node['index']] != null_index:
                 node_index = index_new[node['storage']]
                 index_new[node['storage']] += 1
@@ -70,10 +91,10 @@ def compute_event(compute_queue, dependencies, input_loss, input_index, profile,
                 node_loss = losses[node['storage']][node_index]
 
                 top_loss = losses[top_node['storage']][index[top_node['storage']][top_node['index']]]
-                for dependency_node in node_dependencies[1:]:
-                    dependency_index = index[dependency['storage']][dependency['index']]
+                for i in range(node['dependencies_index_start'] + 1, node['dependencies_index_end']):
+                    dependency_index = index[dependencies[i]['storage']][dependencies[i]['index']]
                     if dependency_index != null_index:
-                        node_loss += losses[dependency_node['storage']][dependency_index]
+                        node_loss += losses[dependencies[i]['storage']][dependency_index]
 
                 for i in range(top_loss.shape[0]):
                     if top_loss[i] < float_equal_precision:
@@ -82,18 +103,16 @@ def compute_event(compute_queue, dependencies, input_loss, input_index, profile,
                         node_loss[i] = top_loss[i] / node_loss[i]
 
         elif node['computation_id'] == IL_PER_SUB_IL:
-            ba_node, il_node = dependencies[node['dependencies_index_start']: node['dependencies_index_end']]
-            if index[ba_node['storage']][ba_node['index']] != null_index:
+            ba_node = dependencies[node['dependencies_index_start']]
+            if temp_index[ba_node['index']] != null_index:
+                il_node = dependencies[node['dependencies_index_start'] + 1]
                 node_index = index_new[node['storage']]
-                index_new[node['storage']] += 1
-                index[node['storage']][node['index']] = node_index
-                node_loss = losses[node['storage']][node_index]
+                index_new[TEMP_STORAGE] += 1
+                temp_index[node['index']] = node_index
+                node_loss = temp_loss[node_index]
 
-                ba_loss = losses[ba_node['storage']][index[ba_node['storage']][ba_node['index']]]
-                if il_node['storage'] == TEMP_STORAGE:
-                    il_loss = losses_sum[index[il_node['storage']][il_node['index']]]
-                else:
-                    il_loss = losses[il_node['storage']][index[il_node['storage']][il_node['index']]]
+                ba_loss = temp_loss[temp_index[ba_node['index']]]
+                il_loss = losses_sum[temp_index[il_node['index']]]
 
                 for i in range(node_loss.shape[0]):
                     if ba_loss[i] < float_equal_precision:
@@ -102,9 +121,11 @@ def compute_event(compute_queue, dependencies, input_loss, input_index, profile,
                         node_loss[i] = ba_loss[i] / il_loss[i]
 
         elif node['computation_id'] == PROPORTION:
-            top_node, il_node = dependencies[node['dependencies_index_start']: node['dependencies_index_end']]
-            top_index = index[top_node['storage']][top_node['index']]
-            il_index = index[il_node['storage']][il_node['index']]
+            top_node = dependencies[node['dependencies_index_start']]
+            il_node = dependencies[node['dependencies_index_start'] + 1]
+
+            top_index = temp_index[top_node['index']]
+            il_index = temp_index[il_node['index']]
             if il_index != null_index and top_index != null_index:
                 node_index = index_new[node['storage']]
                 index_new[node['storage']] += 1

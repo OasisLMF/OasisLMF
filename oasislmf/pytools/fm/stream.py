@@ -22,7 +22,7 @@ from .queue import QueueTerminated
 import sys
 from numba import njit, int32
 import numpy as np
-import select
+from select import select
 import logging
 logger = logging.getLogger(__name__)
 
@@ -126,7 +126,7 @@ def read_event(stream_in, losses, index):
     read_cursor = 0
 
     while True:
-        readable, _, exceptional = select.select([stream_in], [], [stream_in])
+        readable, _, exceptional = select([stream_in], [], [stream_in])
         if exceptional:
             raise IOError(f'error with input stream, {exceptional}')
         len_read = readable[0].readinto1(mv[read_cursor:])
@@ -141,6 +141,7 @@ def read_event(stream_in, losses, index):
             # last_event_id, last_event_cursor, full_event = stream_to_loss_table(stream_as_int32, stream_as_float32, valid_buf // number_size,
             #                                                      last_event_cursor, node_to_index, losses, index)
             if event_id:
+                logger.debug(f'event_id: {event_id}, loss_index :{loss_index}')
                 yield event_id
                 # losses = np.zeros([len_inputs, len_sample + EXTRA_VALUES +1], dtype=np.float32)
                 # not_null = np.zeros([len_inputs, ], dtype=np.bool)
@@ -186,7 +187,8 @@ def queue_event_reader(event_queue, file_in, node_to_index, len_indexes):
 def load_event(as_int, as_float, event_id, output_item_index, losses, index, i_output, i_index, nb_values):
     cursor = 0
     top_sidx_range = losses.shape[1] - EXTRA_VALUES + 1
-    for output in output_item_index[i_output:]:
+    for o in range(i_output, output_item_index.shape[0]):
+        output = output_item_index[o]
         output_index = index[output['index']]
         while cursor < nb_values:
             if i_index == 0:
@@ -267,6 +269,7 @@ class EventWriter:
         #print(event_id, len([x for x in index if x != null_index]))
         i_output = 0
         i_index= 0
+        stream_out = [self.stream_out]
         while i_output < self.nb_output_items:
             cursor, i_output, i_index = load_event(self.as_int, self.as_float, event_id, self.output_item_index, loss,
                                                     index, i_output, i_index, self.nb_values)
@@ -274,7 +277,10 @@ class EventWriter:
             # print(self.as_int[:2])
             # print(self.as_int[cursor//4-2:cursor//4])
             # #print(self.as_float[cursor//4:cursor//4])
-            self.stream_out.write(self.mv[:cursor])
+            _, writable, exceptional = select([], stream_out, stream_out)
+            if exceptional:
+                raise IOError(f'error with input stream, {exceptional}')
+            writable[0].write(self.mv[:cursor])
         #self.stream_out.write(self.mv[:cursor])
 
 
