@@ -314,7 +314,11 @@ KTOOLS_NUM_PROCESSES = -1
 KTOOLS_FIFO_RELATIVE = False
 KTOOLS_ERR_GUARD = True
 KTOOLS_GUL_LEGACY_STREAM = False
-KTOOLS_ALLOC_GUL_MAX = 1     # 1 = w back allocation, 0 = w/o back allocation
+# ktools gul alloc rules:
+# 2 = total loss is maximum subperil loss
+# 1 = default with back allocation
+# 0 = default without back allocation
+KTOOLS_ALLOC_GUL_MAX = 2
 KTOOLS_ALLOC_FM_MAX = 3
 KTOOLS_ALLOC_GUL_DEFAULT = 0
 KTOOLS_ALLOC_IL_DEFAULT = 2
