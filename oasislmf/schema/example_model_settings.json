@@ -7,11 +7,11 @@
          "options":[
             {
                "id":"P",
-               "desc":"Proabilistic"
+               "desc":"Probabilistic"
             },
             {
                "id":"H",
-               "desc":"Historic"
+               "desc":"Historical"
             }
          ]
       },
