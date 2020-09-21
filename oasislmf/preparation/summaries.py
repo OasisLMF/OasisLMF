@@ -23,7 +23,8 @@ from ..utils.data import (
     merge_dataframes,
     set_dataframe_column_dtypes,
     get_dtypes_and_required_cols,
-    reduce_df
+    reduce_df,
+    fill_na_with_categoricals
 )
 from ..utils.defaults import (
     find_exposure_fp,
@@ -144,7 +145,7 @@ def merge_oed_to_mapping(summary_map_df, exposure_df, oed_column_set, defaults=N
     exposure_col_df[SOURCE_IDX['loc']] = exposure_df.index
     new_summary_map_df = merge_dataframes(summary_map_df, exposure_col_df, join_on=SOURCE_IDX['loc'], how='inner')
     if defaults:
-        new_summary_map_df.fillna(value=defaults, inplace=True)
+        fill_na_with_categoricals(new_summary_map_df, defaults)
     return new_summary_map_df
 
 
@@ -188,7 +189,7 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
                 accounts_col_df = accounts_df.loc[:, accounts_cols + [SOURCE_IDX['acc']]]
                 summary_group_df = merge_dataframes(summary_group_df, accounts_col_df, join_on=SOURCE_IDX['acc'], how='left')
 
-    summary_group_df.fillna(0, inplace=True)
+    fill_na_with_categoricals(summary_group_df, 0)
     summary_group_df.sort_values(by=[sort_by], inplace=True)
     summary_ids = factorize_dataframe(summary_group_df, by_col_labels=oed_cols)
 
