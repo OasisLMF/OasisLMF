@@ -273,6 +273,7 @@ class GenerateLossesDeterministic(ComputationStep):
         {'name': 'net_ri',               'default': False},
         {'name': 'ktools_alloc_rule_il', 'default': KTOOLS_ALLOC_IL_DEFAULT},
         {'name': 'ktools_alloc_rule_ri', 'default': KTOOLS_ALLOC_RI_DEFAULT},
+        {'name': 'num_subperils',        'default': 1}
     ]
 
     def run(self):
@@ -322,8 +323,8 @@ class GenerateLossesDeterministic(ComputationStep):
                 'item_id': item_id,
                 'sidx': sidx,
                 'loss':
-                tiv * special_loss_factors[sidx] if sidx < 0
-                else (tiv * self.loss_factor[sidx - 1])
+                (tiv * special_loss_factors[sidx]) / self.num_subperils if sidx < 0
+                else (tiv * self.loss_factor[sidx - 1]) / self.num_subperils
             })
             for (item_id, tiv), sidx in product(
                 fast_zip_dataframe_columns(items, ['item_id', 'tiv']), gulcalc_sidxs
