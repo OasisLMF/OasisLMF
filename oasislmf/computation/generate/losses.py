@@ -265,7 +265,7 @@ class GenerateLosses(ComputationStep):
 class GenerateLossesDeterministic(ComputationStep):
 
 
-    step_params = [ 
+    step_params = [
         {'name': 'oasis_files_dir',  'is_path': True, 'pre_exist': True},
         {'name': 'output_dir',           'default': None},
         {'name': 'include_loss_factor',  'default': True},
@@ -297,7 +297,7 @@ class GenerateLossesDeterministic(ComputationStep):
         items = merge_dataframes(
             pd.read_csv(os.path.join(self.oasis_files_dir, 'items.csv')),
             pd.read_csv(os.path.join(self.oasis_files_dir, 'coverages.csv')),
-            left_index=True, right_index=True
+            on=['coverage_id'], how='left'
         )
 
         dtypes = {t: ('uint32' if t != 'tiv' else 'float32') for t in items.columns}
