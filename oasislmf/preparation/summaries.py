@@ -694,13 +694,15 @@ def get_exposure_totals(df):
     :rtype: dict
     """
 
-    within_scope_tiv = df[df.status.isin(OASIS_KEYS_STATUS_MODELLED)]['tiv'].sum()
+    dedupe_cols = ['loc_id', 'coverage_type_id']
+
+    within_scope_tiv = df[df.status.isin(OASIS_KEYS_STATUS_MODELLED)].drop_duplicates(subset=dedupe_cols)['tiv'].sum()
     within_scope_num = len(df[df.status.isin(OASIS_KEYS_STATUS_MODELLED)]['loc_id'].unique())
 
-    outside_scope_tiv = df[~df.status.isin(OASIS_KEYS_STATUS_MODELLED)]['tiv'].sum()
+    outside_scope_tiv = df[~df.status.isin(OASIS_KEYS_STATUS_MODELLED)].drop_duplicates(subset=dedupe_cols)['tiv'].sum()
     outside_scope_num = len(~df[df.status.isin(OASIS_KEYS_STATUS_MODELLED)]['loc_id'].unique())
 
-    portfolio_tiv = df['tiv'].sum()
+    portfolio_tiv = df.drop_duplicates(subset=dedupe_cols)['tiv'].sum()
     portfolio_num = len(df['loc_id'].unique())
 
     return {
@@ -777,12 +779,6 @@ def write_exposure_summary(
                 tmp_df['coverage_type_id']=coverage_type_id
                 df_summary = pd.concat([df_summary,tmp_df])
 
-    # Compile summary of exposure data
-    exposure_summary = {}
-
-    # Create totals section
-    exposure_summary['total'] = get_exposure_totals(df_summary)
-
     #get all perils
     peril_list = df_keys['peril_id'].drop_duplicates().to_list()
 
@@ -794,6 +790,12 @@ def write_exposure_summary(
         df_summary_peril = pd.concat([df_summary_peril,tmp_df])
 
     df_summary_peril = df_summary_peril.merge(df_keys,how='Left',on=['loc_id','coverage_type_id','peril_id'])
+
+    # Compile summary of exposure data
+    exposure_summary = {}
+
+    # Create totals section
+    exposure_summary['total'] = get_exposure_totals(df_summary_peril)
 
     for peril_id in peril_list:
 

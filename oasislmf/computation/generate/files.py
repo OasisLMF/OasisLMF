@@ -196,8 +196,7 @@ class GenerateOasisFiles(ComputationStep):
                 gul_inputs_df,
                 location_df,
                 keys_errors_fp=_keys_errors_fp,
-                exposure_profile=location_profile,
-                oed_hierarchy=oed_hierarchy
+                exposure_profile=location_profile
             )
 
         # If exposure summary set, write valid columns for summary levels to file
