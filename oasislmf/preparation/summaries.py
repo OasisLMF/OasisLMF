@@ -791,7 +791,7 @@ def write_exposure_summary(
 
     df_summary_peril = df_summary_peril.merge(df_keys,how='left',on=['loc_id','coverage_type_id','peril_id'])
     no_return = OASIS_KEYS_STATUS['noreturn']['id']
-    df_summary_peril['status'].fillna(no_return)
+    df_summary_peril['status'] = df_summary_peril['status'].fillna(no_return)
 
     # Compile summary of exposure data
     exposure_summary = {}
