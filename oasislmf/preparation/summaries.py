@@ -653,7 +653,6 @@ def get_exposure_summary_by_status(df, exposure_summary, peril_id, status):
     :return: populated exposure_summary dictionary
     :rtype: dict
     """
-
     # Separate TIVs by coverage type and acquire sum
     for coverage_type in SUPPORTED_COVERAGE_TYPES:
         tiv_sum = df.loc[
@@ -669,6 +668,8 @@ def get_exposure_summary_by_status(df, exposure_summary, peril_id, status):
     loc_count = df.loc[df['peril_id'] == peril_id, 'loc_id'].drop_duplicates().count()
     loc_count = int(loc_count)
     exposure_summary[peril_id][status]['number_of_locations'] = loc_count
+
+    return exposure_summary
 
 @oasis_log
 def get_exposure_summary_all(df, exposure_summary, peril_id):
@@ -828,24 +829,25 @@ def write_exposure_summary(
 
         exposure_summary[peril_id] = {}
         # Create dictionary structure for all and each validity status
-        exposure_summary[peril_id]['all'] = {}
-        exposure_summary[peril_id]['all']['tiv'] = 0.0
-        exposure_summary[peril_id]['all']['tiv_by_coverage'] = {}
-        exposure_summary[peril_id]['all']['number_of_locations'] = 0
-        exposure_summary = get_exposure_summary_all(exposure_summary,df_summary_peril,peril_id)
-
-        for status in list(OASIS_KEYS_STATUS.keys()):
+        for status in ['all'] + list(OASIS_KEYS_STATUS.keys()):
             exposure_summary[peril_id][status] = {}
             exposure_summary[peril_id][status]['tiv'] = 0.0
             exposure_summary[peril_id][status]['tiv_by_coverage'] = {}
             exposure_summary[peril_id][status]['number_of_locations'] = 0
             # Fill exposure summary dictionary
-            exposure_summary = get_exposure_summary_by_status(
-                df_summary_peril[df_summary_peril['status'] == status],
-                exposure_summary,
-                peril_id,
-                status
-                )
+            if status == 'all':
+                exposure_summary = get_exposure_summary_all(
+                    df_summary_peril,
+                    exposure_summary,
+                    peril_id
+                    )
+            else:
+                exposure_summary = get_exposure_summary_by_status(
+                    df_summary_peril[df_summary_peril['status'] == status],
+                    exposure_summary,
+                    peril_id,
+                    status
+                    )
 
     # Write exposure summary as json file
     fp = os.path.join(target_dir, 'exposure_summary_report.json')
@@ -853,5 +855,6 @@ def write_exposure_summary(
         f.write(json.dumps(exposure_summary, ensure_ascii=False, indent=4))
 
     return fp
+
 
 
