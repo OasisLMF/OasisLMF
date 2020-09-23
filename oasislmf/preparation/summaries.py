@@ -636,9 +636,9 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
 
 
 @oasis_log
-def get_exposure_summary(df, exposure_summary, peril_id, status):
+def get_exposure_summary_by_status(df, exposure_summary, peril_id, status):
     """
-    Populate dictionary with TIVs and number of locations, grouped by peril and
+    Populate dictionary of TIV and number of locations, grouped by peril and
     validity respectively
 
     :param df: dataframe from gul_inputs.get_gul_input_items(..)
@@ -663,18 +663,43 @@ def get_exposure_summary(df, exposure_summary, peril_id, status):
         ].sum()
         tiv_sum = float(tiv_sum)
         exposure_summary[peril_id][status]['tiv_by_coverage'][coverage_type] = tiv_sum
-        if coverage_type in exposure_summary[peril_id]['all']['tiv_by_coverage']:
-            exposure_summary[peril_id]['all']['tiv_by_coverage'][coverage_type] += tiv_sum
-        else:
-            exposure_summary[peril_id]['all']['tiv_by_coverage'][coverage_type] = tiv_sum
         exposure_summary[peril_id][status]['tiv'] += tiv_sum
-        exposure_summary[peril_id]['all']['tiv'] += tiv_sum
 
     # Find number of locations
     loc_count = df.loc[df['peril_id'] == peril_id, 'loc_id'].drop_duplicates().count()
     loc_count = int(loc_count)
     exposure_summary[peril_id][status]['number_of_locations'] = loc_count
-    exposure_summary[peril_id]['all']['number_of_locations'] += loc_count
+
+@oasis_log
+def get_exposure_summary_all(df, exposure_summary, peril_id):
+    """
+    Populate dictionary of TIV and number of locations, grouped by peril
+
+    :param df: dataframe from gul_inputs.get_gul_input_items(..)
+    :type df: pandas.DataFrame
+
+    :param exposure_summary: dictionary to populate created in write_exposure_summary(..)
+    :type exposure_summary: dict
+
+    :return: populated exposure_summary dictionary
+    :rtype: dict
+    """
+
+    # Separate TIVs by coverage type and acquire sum
+    for coverage_type in SUPPORTED_COVERAGE_TYPES:
+        tiv_sum = df.loc[
+            (df['peril_id'] == peril_id) &
+            (df['coverage_type_id'] == SUPPORTED_COVERAGE_TYPES[coverage_type]['id']),
+            'tiv'
+        ].sum()
+        tiv_sum = float(tiv_sum)
+        exposure_summary[peril_id]['all']['tiv_by_coverage'][coverage_type] = tiv_sum
+        exposure_summary[peril_id]['all']['tiv'] += tiv_sum
+    
+    # Find number of locations
+    loc_count = df.loc[df['peril_id'] == peril_id, 'loc_id'].drop_duplicates().count()
+    loc_count = int(loc_count)
+    exposure_summary[peril_id]['all']['number_of_locations'] = loc_count
 
     return exposure_summary
 
@@ -803,13 +828,19 @@ def write_exposure_summary(
 
         exposure_summary[peril_id] = {}
         # Create dictionary structure for all and each validity status
-        for status in ['all'] + list(OASIS_KEYS_STATUS.keys()):
+        exposure_summary[peril_id]['all'] = {}
+        exposure_summary[peril_id]['all']['tiv'] = 0.0
+        exposure_summary[peril_id]['all']['tiv_by_coverage'] = {}
+        exposure_summary[peril_id]['all']['number_of_locations'] = 0
+        exposure_summary = get_exposure_summary_all(exposure_summary,df_summary_peril,peril_id)
+
+        for status in list(OASIS_KEYS_STATUS.keys()):
             exposure_summary[peril_id][status] = {}
             exposure_summary[peril_id][status]['tiv'] = 0.0
             exposure_summary[peril_id][status]['tiv_by_coverage'] = {}
             exposure_summary[peril_id][status]['number_of_locations'] = 0
             # Fill exposure summary dictionary
-            exposure_summary = get_exposure_summary(
+            exposure_summary = get_exposure_summary_by_status(
                 df_summary_peril[df_summary_peril['status'] == status],
                 exposure_summary,
                 peril_id,
