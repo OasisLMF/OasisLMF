@@ -7,7 +7,7 @@ node {
       parameters([
         [$class: 'StringParameterDefinition',  name: 'SOURCE_BRANCH', defaultValue: BRANCH_NAME],
         [$class: 'StringParameterDefinition',  name: 'BENCHMARK_MNT', defaultValue: '/mnt/efs/benchmark/axa_test'],
-        [$class: 'StringParameterDefinition',  name: 'BENCHMARK_THRESHOLD', defaultValue: '300'],
+        [$class: 'StringParameterDefinition',  name: 'BENCHMARK_THRESHOLD', defaultValue: '500'],
         [$class: 'StringParameterDefinition',  name: 'OASISLMF_ARGS', defaultValue: ''],
       ])
     ])
