@@ -132,7 +132,7 @@ class InputValues(object):
             value = default
             source = 'default'
 
-        if is_path and value is not None and not os.path.isabs(value):
+        if is_path and value not in [None, ""] and not os.path.isabs(value):
             if source == 'config':
                 value = os.path.join(self.config_dir, value)
             else:
