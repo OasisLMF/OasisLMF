@@ -700,7 +700,7 @@ def get_exposure_totals(df):
     within_scope_num = len(df[df.status.isin(OASIS_KEYS_STATUS_MODELLED)]['loc_id'].unique())
 
     outside_scope_tiv = df[~df.status.isin(OASIS_KEYS_STATUS_MODELLED)].drop_duplicates(subset=dedupe_cols)['tiv'].sum()
-    outside_scope_num = len(~df[df.status.isin(OASIS_KEYS_STATUS_MODELLED)]['loc_id'].unique())
+    outside_scope_num = len(df[~df.status.isin(OASIS_KEYS_STATUS_MODELLED)]['loc_id'].unique())
 
     portfolio_tiv = df.drop_duplicates(subset=dedupe_cols)['tiv'].sum()
     portfolio_num = len(df['loc_id'].unique())
@@ -789,7 +789,9 @@ def write_exposure_summary(
         tmp_df['peril_id']=peril_id
         df_summary_peril = pd.concat([df_summary_peril,tmp_df])
 
-    df_summary_peril = df_summary_peril.merge(df_keys,how='Left',on=['loc_id','coverage_type_id','peril_id'])
+    df_summary_peril = df_summary_peril.merge(df_keys,how='left',on=['loc_id','coverage_type_id','peril_id'])
+    no_return = OASIS_KEYS_STATUS['noreturn']['id']
+    df_summary_peril['status'].fillna(no_return)
 
     # Compile summary of exposure data
     exposure_summary = {}
