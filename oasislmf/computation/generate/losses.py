@@ -265,7 +265,7 @@ class GenerateLosses(ComputationStep):
 class GenerateLossesDeterministic(ComputationStep):
 
 
-    step_params = [ 
+    step_params = [
         {'name': 'oasis_files_dir',  'is_path': True, 'pre_exist': True},
         {'name': 'output_dir',           'default': None},
         {'name': 'include_loss_factor',  'default': True},
@@ -273,6 +273,7 @@ class GenerateLossesDeterministic(ComputationStep):
         {'name': 'net_ri',               'default': False},
         {'name': 'ktools_alloc_rule_il', 'default': KTOOLS_ALLOC_IL_DEFAULT},
         {'name': 'ktools_alloc_rule_ri', 'default': KTOOLS_ALLOC_RI_DEFAULT},
+        {'name': 'num_subperils',        'default': 1}
     ]
 
     def run(self):
@@ -297,7 +298,7 @@ class GenerateLossesDeterministic(ComputationStep):
         items = merge_dataframes(
             pd.read_csv(os.path.join(self.oasis_files_dir, 'items.csv')),
             pd.read_csv(os.path.join(self.oasis_files_dir, 'coverages.csv')),
-            left_index=True, right_index=True
+            on=['coverage_id'], how='left'
         )
 
         dtypes = {t: ('uint32' if t != 'tiv' else 'float32') for t in items.columns}
@@ -322,8 +323,8 @@ class GenerateLossesDeterministic(ComputationStep):
                 'item_id': item_id,
                 'sidx': sidx,
                 'loss':
-                tiv * special_loss_factors[sidx] if sidx < 0
-                else (tiv * self.loss_factor[sidx - 1])
+                (tiv * special_loss_factors[sidx]) / self.num_subperils if sidx < 0
+                else (tiv * self.loss_factor[sidx - 1]) / self.num_subperils
             })
             for (item_id, tiv), sidx in product(
                 fast_zip_dataframe_columns(items, ['item_id', 'tiv']), gulcalc_sidxs
