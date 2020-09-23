@@ -40,7 +40,7 @@ class ComputationStep:
 
         for param in self.get_params():
             param_value = kwargs.get(param['name'])
-            if param_value is None:
+            if param_value in [None, ""]:
                 if param.get('required'):
                     raise OasisException(f"parameter {param['name']} is required "
                                          f"for Computation Step {self.__class__.__name__}")
