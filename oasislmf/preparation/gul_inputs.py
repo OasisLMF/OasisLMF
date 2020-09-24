@@ -51,18 +51,18 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 @oasis_log
 def get_gul_input_items(
     exposure_df,
-    keys_fp,
+    keys_df,
     exposure_profile=get_default_exposure_profile(),
     group_id_cols=['loc_id']
 ):
     """
     Generates and returns a Pandas dataframe of GUL input items.
 
-    :param exposure_fp: Exposure file
-    :type exposure_fp: str
+    :param exposure_fp: Exposure dataframe
+    :type exposure_fp: pandas.DataFrame
 
-    :param keys_fp: Keys file path
-    :type keys_fp: str
+    :param keys_fp: Keys dataframe
+    :type keys_fp: pandas.DataFrame
 
     :param exposure_profile: Exposure profile
     :type exposure_profile: dict
@@ -147,27 +147,6 @@ def get_gul_input_items(
         ]))
         logger.debug('Dropped location rows: \n{}'.format(exposure_df.iloc[index_dups]))
         exposure_df.drop(index=index_dups, inplace=True)
-
-    # Set data types for the keys dataframe
-    dtypes = {
-        'locid': 'str',
-        'perilid': 'str',
-        'coveragetypeid': 'uint8',
-        'areaperilid': 'uint64',
-        'vulnerabilityid': 'uint32',
-        'modeldata': 'str'
-    }
-
-    keys_error_fp = os.path.join(os.path.dirname(keys_fp), 'keys-errors.csv') if keys_fp else 'Missing'
-    missing_keys_msg = 'No successful lookup results found in the keys file - '
-    missing_keys_msg += 'Check the `keys-errors.csv` file for details. \n File path: {}'.format(keys_error_fp)
-
-    keys_df = get_dataframe(
-        src_fp=keys_fp,
-        col_dtypes=dtypes,
-        empty_data_error_msg=missing_keys_msg,
-        memory_map=True
-    )
 
     # Rename the main keys dataframe columns - this is due to the fact that the
     # keys file headers use camel case, and don't use underscored names, which
