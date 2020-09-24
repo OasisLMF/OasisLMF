@@ -3,6 +3,7 @@ __all__ = [
     'generate_summaryxref_files',
     'merge_oed_to_mapping',
     'write_exposure_summary',
+    'get_exposure_summary',
     'write_summary_levels',
     'write_mapping_file',
 ]
@@ -696,7 +697,7 @@ def get_exposure_summary_all(df, exposure_summary, peril_id):
         tiv_sum = float(tiv_sum)
         exposure_summary[peril_id]['all']['tiv_by_coverage'][coverage_type] = tiv_sum
         exposure_summary[peril_id]['all']['tiv'] += tiv_sum
-    
+
     # Find number of locations
     loc_count = df.loc[df['peril_id'] == peril_id, 'loc_id'].drop_duplicates().count()
     loc_count = int(loc_count)
@@ -747,21 +748,16 @@ def get_exposure_totals(df):
     }
 
 
-@oasis_log
-def write_exposure_summary(
-    target_dir,
-    gul_inputs_df,
+
+def get_exposure_summary(
     exposure_df,
-    keys_errors_fp,
-    exposure_profile
+    exposure_profile,
+    keys_success_df,
+    keys_errors_df,
 ):
     """
     Create exposure summary as dictionary of TIVs and number of locations
-    grouped by peril and validity respectively. Writes dictionary as json file
-    to disk.
-
-    :param target_dir: directory on disk to write exposure summary file
-    :type target_dir: str
+    grouped by peril and validity respectively. returns a python dict().
 
     :param gul_inputs_df: dataframe from gul_inputs.get_gul_input_items(..)
     :type gul_inputs_df: pandas.DataFrame
@@ -769,35 +765,25 @@ def write_exposure_summary(
     :param exposure_df: source exposure dataframe
     :type exposure df: pandas.DataFrame
 
-    :param keys_errors_fp: file path to keys erors file
-    :type keys_errors_fp: str
+    :param keys_errors_df: dataFrame holding keys errors data
+    :type keys_errors_df: pandas.DataFrame
 
     :param exposure_profile: profile defining exposure file
     :type exposure_profile: dict
 
-    :param oed_hierarchy: exposure dataframe column names
-    :type oed_hierarchy: dict
-
     :return: Exposure summary file path
-    :rtype: str
+    :rtype: dict
     """
-    #get keys success
-    df_keys_success = gul_inputs_df[['loc_id','peril_id','coverage_type_id']] 
-    df_keys_success['status'] = OASIS_KEYS_STATUS['success']['id']
-
-    #get keys errors
-    df_keys_errors = pd.read_csv(keys_errors_fp)[['LocID', 'PerilID', 'CoverageTypeID', 'Status']]  
-    df_keys_errors.columns = ['loc_id','peril_id','coverage_type_id','status']
 
     #concatinate keys responses
-    df_keys = pd.concat([df_keys_success,df_keys_errors])
+    keys_df = pd.concat([keys_success_df,keys_errors_df])
 
     #get location tivs by coveragetype
     df_summary = pd.DataFrame(columns=['loc_id','coverage_type_id','tiv'])
 
-    for field in exposure_profile: 
-        if 'FMTermType' in exposure_profile[field].keys(): 
-            if exposure_profile[field]['FMTermType'] == 'TIV': 
+    for field in exposure_profile:
+        if 'FMTermType' in exposure_profile[field].keys():
+            if exposure_profile[field]['FMTermType'] == 'TIV':
                 cov_name = str.lower(exposure_profile[field]['ProfileElementName'])
                 coverage_type_id = exposure_profile[field]['CoverageTypeID']
                 tmp_df = exposure_df[['loc_id',cov_name]]
@@ -806,7 +792,7 @@ def write_exposure_summary(
                 df_summary = pd.concat([df_summary,tmp_df])
 
     #get all perils
-    peril_list = df_keys['peril_id'].drop_duplicates().to_list()
+    peril_list = keys_df['peril_id'].drop_duplicates().to_list()
 
     df_summary_peril = pd.DataFrame(columns=['loc_id','coverage_type_id','tiv','peril_id'])
 
@@ -815,7 +801,7 @@ def write_exposure_summary(
         tmp_df['peril_id']=peril_id
         df_summary_peril = pd.concat([df_summary_peril,tmp_df])
 
-    df_summary_peril = df_summary_peril.merge(df_keys,how='left',on=['loc_id','coverage_type_id','peril_id'])
+    df_summary_peril = df_summary_peril.merge(keys_df,how='left',on=['loc_id','coverage_type_id','peril_id'])
     no_return = OASIS_KEYS_STATUS['noreturn']['id']
     df_summary_peril['status'] = df_summary_peril['status'].fillna(no_return)
 
@@ -849,12 +835,52 @@ def write_exposure_summary(
                     status
                     )
 
-    # Write exposure summary as json file
+    return exposure_summary
+
+
+@oasis_log
+def write_exposure_summary(
+    target_dir,
+    gul_inputs_df,
+    exposure_df,
+    keys_errors_fp,
+    exposure_profile
+):
+    """
+    Create exposure summary as dictionary of TIVs and number of locations
+    grouped by peril and validity respectively. Writes dictionary as json file
+    to disk.
+
+    :param target_dir: directory on disk to write exposure summary file
+    :type target_dir: str
+
+    :param gul_inputs_df: dataframe from gul_inputs.get_gul_input_items(..)
+    :type gul_inputs_df: pandas.DataFrame
+
+    :param exposure_df: source exposure dataframe
+    :type exposure df: pandas.DataFrame
+
+    :param keys_errors_fp: file path to keys erors file
+    :type keys_errors_fp: str
+
+    :param exposure_profile: profile defining exposure file
+    :type exposure_profile: dict
+
+    :return: Exposure summary file path
+    :rtype: str
+    """
+    #get keys success
+    df_keys_success = gul_inputs_df[['loc_id','peril_id','coverage_type_id']]
+    df_keys_success['status'] = OASIS_KEYS_STATUS['success']['id']
+
+    #get keys errors
+    df_keys_errors = pd.read_csv(keys_errors_fp)[['LocID', 'PerilID', 'CoverageTypeID', 'Status']]
+    df_keys_errors.columns = ['loc_id','peril_id','coverage_type_id','status']
+    exposure_summary = get_exposure_summary(exposure_df, exposure_profile, df_keys_success, df_keys_errors)
+
+    # Write exposure summary as json fileV
     fp = os.path.join(target_dir, 'exposure_summary_report.json')
     with io.open(fp, 'w', encoding='utf-8') as f:
         f.write(json.dumps(exposure_summary, ensure_ascii=False, indent=4))
 
     return fp
-
-
-
