@@ -55,14 +55,6 @@ SOURCE_FILENAMES = OrderedDict({
     'acc': 'account.csv',
     'info': 'reinsinfo.csv',
     'scope': 'reinsscope.csv',
-})
-
-API_EXAMPLE_AUTH = OrderedDict({
-    'user': 'admin',
-    'pass': 'password',
-})
-
-KEY_NAME_TO_FILE_NAME = {
     'oed_location_csv': 'location.csv',
     'oed_accounts_csv': 'account.csv',
     'oed_info_csv': 'reinsinfo.csv',
@@ -74,7 +66,12 @@ KEY_NAME_TO_FILE_NAME = {
     'lookup_complex_config_json': 'lookup_complex.json',
     'profile_acc_json': 'profile_account.json',
     'profile_fm_agg_json': 'profile_fm_agg.json',
-}
+})
+
+API_EXAMPLE_AUTH = OrderedDict({
+    'user': 'admin',
+    'pass': 'password',
+})
 
 DEFAULT_RTREE_INDEX_PROPS = {
     'buffering_capacity': 10,

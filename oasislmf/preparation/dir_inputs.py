@@ -42,15 +42,12 @@ def prepare_input_files_directory(
                 complex_lookup_config_fp, keys_fp, keys_errors_fp
             ) if p
         ]
-        
-        if exposure_fp:
-            paths.append((exposure_fp, os.path.join(target_dir, store_exposure_fp(exposure_fp, 'loc'))))
-        if accounts_fp:
-            paths.append((accounts_fp, os.path.join(target_dir, store_exposure_fp(accounts_fp, 'acc'))))
-        if ri_info_fp:
-            paths.append((ri_info_fp, os.path.join(target_dir, store_exposure_fp(ri_info_fp, 'info'))))
-        if ri_scope_fp:
-            paths.append((ri_scope_fp, os.path.join(target_dir, store_exposure_fp(ri_scope_fp, 'scope'))))
+
+        for fp, key in ((exposure_fp, "loc"), (accounts_fp, "acc"), (ri_info_fp, "info"), (ri_scope_fp, "scope")):
+            if fp:
+                # check if exposure pre-analysis has run:
+                if not os.path.exists(os.path.join(target_dir, f'epa_{store_exposure_fp(fp, key)}')):
+                    paths.append((fp, os.path.join(target_dir, store_exposure_fp(fp, key))))
 
         for src, dst in paths:
             if src and os.path.exists(src):
