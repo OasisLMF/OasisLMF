@@ -33,6 +33,7 @@ from oasislmf.utils.defaults import get_default_exposure_profile
 from tests.data import (
     keys,
     source_exposure,
+    min_source_exposure,
     write_source_files,
     write_keys_files,
 )
@@ -43,7 +44,7 @@ from tests.data import (
 class TestSummaries(TestCase):
 
     @given(st.data())
-    @settings(max_examples=5, deadline=None)
+    @settings(max_examples=10, deadline=None)
     def test_totals_match_single_peril(self, data):
     
         # Shared Values between Loc / keys
@@ -54,13 +55,15 @@ class TestSummaries(TestCase):
         keys_df = pd.DataFrame.from_dict(data.draw(keys(
             size=loc_size,
             from_peril_ids=just(perils),
+            from_area_peril_ids=just(1),
+            from_vulnerability_ids=just(1),
+            from_messages=just('str'),
         )))
-        print(keys_df)
         keys_success = keys_df[keys_df['status'].isin(['success'])] 
         keys_failed = keys_df[~keys_df['status'].isin(['success'])]
 
         # Create Mock location_df 
-        loc_df = pd.DataFrame.from_dict(data.draw(source_exposure(
+        loc_df = pd.DataFrame.from_dict(data.draw(min_source_exposure(
             size=loc_size,
             from_location_perils_covered=just(perils),
             from_location_perils=just(perils),
@@ -70,6 +73,7 @@ class TestSummaries(TestCase):
             from_bi_tivs=integers(20, 20000),
         )))
         loc_df['loc_id'] = loc_df.index
+        #print(loc_df)
 
         # Run exposure_summary
         exp_summary = get_exposure_summary(
@@ -81,7 +85,7 @@ class TestSummaries(TestCase):
 
         # Run Gul Proccessing 
         gul_inputs = get_gul_input_items(loc_df, keys_df)
-        gul_inputs = gul_inputs[gul_inputs['status'].isin(['success'])]
+        gul_inputs = gul_inputs[gul_inputs['status'].isin(['success', 'notatrisk'])]
 
         print(exp_summary['total'])
     
