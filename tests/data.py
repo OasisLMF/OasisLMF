@@ -88,6 +88,8 @@ fm_terms = tuple(k for k in FM_TERMS)
 fm_profile_types = ('acc', 'loc',)
 
 keys_status_flags = tuple(v['id'] for v in OASIS_KEYS_STATUS.values())
+keys_status_flags = tuple([s for s in keys_status_flags if s != 'noreturn']) # Workaround filter out no-return
+
 
 perils = tuple(v['id'] for v in PERILS.values())
 

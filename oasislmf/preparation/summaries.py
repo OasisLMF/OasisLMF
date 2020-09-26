@@ -34,8 +34,8 @@ from ..utils.defaults import (
     SUMMARY_OUTPUT,
     get_loc_dtypes,
     get_acc_dtypes,
+    get_default_exposure_profile,
 )
-
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from ..utils.path import as_path
@@ -751,9 +751,8 @@ def get_exposure_totals(df):
 
 def get_exposure_summary(
     exposure_df,
-    exposure_profile,
-    keys_success_df,
-    keys_errors_df,
+    keys_df,
+    exposure_profile=get_default_exposure_profile(),
 ):
     """
     Create exposure summary as dictionary of TIVs and number of locations
@@ -765,7 +764,7 @@ def get_exposure_summary(
     :param exposure_df: source exposure dataframe
     :type exposure df: pandas.DataFrame
 
-    :param keys_errors_df: dataFrame holding keys errors data
+    :param keys_df: dataFrame holding keys data (success and errors)
     :type keys_errors_df: pandas.DataFrame
 
     :param exposure_profile: profile defining exposure file
@@ -774,9 +773,6 @@ def get_exposure_summary(
     :return: Exposure summary file path
     :rtype: dict
     """
-
-    #concatinate keys responses
-    keys_df = pd.concat([keys_success_df,keys_errors_df])
 
     #get location tivs by coveragetype
     df_summary = pd.DataFrame(columns=['loc_id','coverage_type_id','tiv'])
@@ -876,7 +872,10 @@ def write_exposure_summary(
     #get keys errors
     df_keys_errors = pd.read_csv(keys_errors_fp)[['LocID', 'PerilID', 'CoverageTypeID', 'Status']]
     df_keys_errors.columns = ['loc_id','peril_id','coverage_type_id','status']
-    exposure_summary = get_exposure_summary(exposure_df, exposure_profile, df_keys_success, df_keys_errors)
+
+    #concatinate keys responses & run
+    df_keys = pd.concat([keys_success_df,keys_errors_df])
+    exposure_summary = get_exposure_summary(exposure_df, exposure_profile, df_keys)
 
     # Write exposure summary as json fileV
     fp = os.path.join(target_dir, 'exposure_summary_report.json')

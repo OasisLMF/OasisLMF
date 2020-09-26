@@ -61,8 +61,8 @@ def get_gul_input_items(
     :param exposure_fp: Exposure dataframe
     :type exposure_fp: pandas.DataFrame
 
-    :param keys_fp: Keys dataframe
-    :type keys_fp: pandas.DataFrame
+    :param keys_df: Keys dataframe
+    :type keys_df: pandas.DataFrame
 
     :param exposure_profile: Exposure profile
     :type exposure_profile: dict
@@ -210,18 +210,18 @@ def get_gul_input_items(
             how='inner'
         )
 
-        # Free memory after merge, before memory-intensive restructuring of data
-        del keys_df
-
         if gul_inputs_df.empty:
             raise OasisException(
-                'Inner merge of the exposure file dataframe ({}) '
+                'Inner merge of the exposure file dataframe '
                 'and the keys file dataframe on loc. number/loc. ID '
                 'is empty - '
                 'please check that the loc. number and loc. ID columns '
                 'in the exposure and keys files respectively have a non-empty '
-                'intersection'.format(keys_fp)
+                'intersection'
             )
+
+        # Free memory after merge, before memory-intensive restructuring of data
+        del keys_df
 
         gul_inputs_df[cond_num].fillna(0, inplace=True)
         gul_inputs_df[cond_num] = gul_inputs_df[cond_num].astype('uint32')
