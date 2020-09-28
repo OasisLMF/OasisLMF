@@ -458,7 +458,7 @@ def keys(
 ):
     def _sequence(li):
         for i, data in enumerate(li):
-            data['loc_id'] = i
+            data['loc_id'] = i + 1
             data['locnumber'] = '{}'.format(i + 1)
 
         return li
@@ -612,7 +612,7 @@ def write_keys_files(
     heading_row = OrderedDict([
         ('locnumber', 'LocID'),
         ('peril_id', 'PerilID'),
-        ('coverage_type', 'CoverageTypeID'),
+        ('coverage_type_id', 'CoverageTypeID'),
         ('area_peril_id', 'AreaPerilID'),
         ('vulnerability_id', 'VulnerabilityID')
     ])
@@ -627,11 +627,11 @@ def write_keys_files(
         header=False
     )
 
-    if keys_errors and keys_errors_file_path:
+    if keys_errors_file_path:
         heading_row = OrderedDict([
             ('locnumber', 'LocID'),
             ('peril_id', 'PerilID'),
-            ('coverage_type', 'CoverageTypeID'),
+            ('coverage_type_id', 'CoverageTypeID'),
             ('message', 'Message'),
             ('status', 'Status'),
         ])

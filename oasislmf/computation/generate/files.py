@@ -214,8 +214,8 @@ class GenerateOasisFiles(ComputationStep):
         if summarise_exposure and not self.deterministic:
             write_exposure_summary(
                 target_dir,
-                gul_inputs_df,
                 location_df,
+                keys_fp=_keys_fp,
                 keys_errors_fp=_keys_errors_fp,
                 exposure_profile=location_profile
             )

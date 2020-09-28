@@ -837,8 +837,8 @@ def get_exposure_summary(
 @oasis_log
 def write_exposure_summary(
     target_dir,
-    gul_inputs_df,
     exposure_df,
+    keys_fp,
     keys_errors_fp,
     exposure_profile
 ):
@@ -850,13 +850,13 @@ def write_exposure_summary(
     :param target_dir: directory on disk to write exposure summary file
     :type target_dir: str
 
-    :param gul_inputs_df: dataframe from gul_inputs.get_gul_input_items(..)
-    :type gul_inputs_df: pandas.DataFrame
-
     :param exposure_df: source exposure dataframe
     :type exposure df: pandas.DataFrame
 
-    :param keys_errors_fp: file path to keys erors file
+    :param keys_fp: file path to keys file
+    :type keys_fp: str
+
+    :param keys_errors_fp: file path to keys errors file
     :type keys_errors_fp: str
 
     :param exposure_profile: profile defining exposure file
@@ -866,16 +866,17 @@ def write_exposure_summary(
     :rtype: str
     """
     #get keys success
-    df_keys_success = gul_inputs_df[['loc_id','peril_id','coverage_type_id']]
-    df_keys_success['status'] = OASIS_KEYS_STATUS['success']['id']
+    keys_success_df = pd.read_csv(keys_fp)[['LocID', 'PerilID', 'CoverageTypeID']]
+    keys_success_df['status'] = OASIS_KEYS_STATUS['success']['id']
+    keys_success_df.columns = ['loc_id','peril_id','coverage_type_id','status']
 
     #get keys errors
-    df_keys_errors = pd.read_csv(keys_errors_fp)[['LocID', 'PerilID', 'CoverageTypeID', 'Status']]
-    df_keys_errors.columns = ['loc_id','peril_id','coverage_type_id','status']
+    keys_errors_df = pd.read_csv(keys_errors_fp)[['LocID', 'PerilID', 'CoverageTypeID', 'Status']]
+    keys_errors_df.columns = ['loc_id','peril_id','coverage_type_id','status']
 
     #concatinate keys responses & run
     df_keys = pd.concat([keys_success_df,keys_errors_df])
-    exposure_summary = get_exposure_summary(exposure_df, exposure_profile, df_keys)
+    exposure_summary = get_exposure_summary(exposure_df, df_keys, exposure_profile)
 
     # Write exposure summary as json fileV
     fp = os.path.join(target_dir, 'exposure_summary_report.json')
