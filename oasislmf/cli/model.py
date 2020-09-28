@@ -8,13 +8,8 @@ __all__ = [
     'RunCmd'
 ]
 
-import os
-
 from argparse import RawDescriptionHelpFormatter
 
-from ..utils.defaults import (
-    KEY_NAME_TO_FILE_NAME,
-)
 from .command import OasisBaseCommand, OasisComputationCommand
 
 
@@ -34,15 +29,6 @@ class GenerateExposurePreAnalysisCmd(OasisComputationCommand):
     """
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'ExposurePreAnalysis'
-
-    def action(self, args):  # TODO remove once integrated with archi 2020
-        super().action(args)
-
-        if args.model_run_dir:
-            input_dir = os.path.join(args.model_run_dir, 'input')
-            for input_name in ('oed_location_csv', 'oed_accounts_csv', 'oed_info_csv', 'oed_scope_csv'):
-                setattr(args, input_name, os.path.join(input_dir, KEY_NAME_TO_FILE_NAME[input_name]))
-
 
 class GenerateKeysCmd(OasisComputationCommand):
     """

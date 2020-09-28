@@ -12,6 +12,7 @@ from itertools import chain
 import pandas as pd
 
 from ..base import ComputationStep
+from ..generate.keys import GenerateKeysDeterministic
 from ..generate.files import GenerateOasisFiles
 from ..generate.losses import GenerateLossesDeterministic
 
@@ -44,6 +45,7 @@ class RunExposure(ComputationStep):
         {'name': 'ktools_alloc_rule_il', 'flag':'-a', 'default': KTOOLS_ALLOC_IL_DEFAULT,  'type':int, 'help': 'Set the fmcalc allocation rule used in direct insured loss'},
         {'name': 'ktools_alloc_rule_ri', 'flag':'-A', 'default': KTOOLS_ALLOC_RI_DEFAULT,  'type':int, 'help': 'Set the fmcalc allocation rule used in reinsurance'},
         {'name': 'output_level',         'flag':'-o', 'help': 'Keys files output format', 'choices':['item', 'loc', 'pol', 'acc', 'port'], 'default': 'item'},
+        {'name': 'num_subperils',        'flag':'-p', 'default': 1,  'type':int,          'help': 'Set the number of subperils returned by deterministic key generator'},
 
         {'name': 'net_ri', 'default': True},
         {'name': 'include_loss_factor', 'default': True},
@@ -69,12 +71,12 @@ class RunExposure(ComputationStep):
             tmp_dir = tempfile.TemporaryDirectory()
             run_dir = tmp_dir.name
 
-        include_loss_factor = not (len(self.loss_factor) == 1) 
+        include_loss_factor = not (len(self.loss_factor) == 1)
         src_contents = [fn.lower() for fn in os.listdir(src_dir)]
 
         self._check_alloc_rules()
 
-        
+
         if 'location.csv' not in src_contents:
             raise OasisException(
                 'No location/exposure file found in source directory - '
@@ -104,21 +106,31 @@ class RunExposure(ComputationStep):
             except IndexError:
                 ri_info_fp = None
 
-        # Start Oasis files generation
+        # 1. Create Deterministic keys file
+        keys_fp = os.path.join(run_dir, 'keys.csv')
+        GenerateKeysDeterministic(
+            oed_location_csv=location_fp,
+            keys_data_csv=keys_fp,
+            num_subperils=self.num_subperils,
+        ).run()
+
+        # 2. Start Oasis files generation
         GenerateOasisFiles(
            oasis_files_dir=run_dir,
             oed_location_csv=location_fp,
             oed_accounts_csv=accounts_fp,
             oed_info_csv=ri_info_fp,
             oed_scope_csv=ri_scope_fp,
-            deterministic=True,
+            keys_data_csv=keys_fp,
         ).run()
 
+        # 3. Run Deterministic Losses
         losses = GenerateLossesDeterministic(
             oasis_files_dir=run_dir,
             output_dir=os.path.join(run_dir, 'output'),
             include_loss_factor=include_loss_factor,
             loss_factor=self.loss_factor,
+            num_subperils=self.num_subperils,
             net_ri=self.net_ri,
             ktools_alloc_rule_il=self.ktools_alloc_rule_il,
             ktools_alloc_rule_ri=self.ktools_alloc_rule_ri
@@ -276,7 +288,7 @@ class RunExposure(ComputationStep):
             tmp_dir.cleanup()
 
         return (il, ril)
-        
+
 
 
 
@@ -299,13 +311,13 @@ class RunFmTest(ComputationStep):
 
 
     def search_test_cases(self):
-        case_names = []                                                                                                                                   
+        case_names = []
         for test_case in os.listdir(path=self.test_case_dir):
-            if os.path.exists(              
+            if os.path.exists(
                 os.path.join(self.test_case_dir, test_case, "expected")
             ):
                 case_names.append(test_case)
-        case_names.sort()        
+        case_names.sort()
         return case_names, len(case_names)
 
 
@@ -316,7 +328,7 @@ class RunFmTest(ComputationStep):
             self.test_case_dir = os.getcwd()
         case_names, case_num = self.search_test_cases()
 
-        # If enabled, list found test cases and exit 
+        # If enabled, list found test cases and exit
         if self.list_tests:
             for name in case_names:
                 self.logger.info(name)
@@ -334,19 +346,19 @@ class RunFmTest(ComputationStep):
         failed_tests = []
         exit_status = 0
         for case in case_names:
-            test_result = self.execute_test_case(case)                                                                                                                                                               
+            test_result = self.execute_test_case(case)
 
             if not test_result:
                 failed_tests.append(case)
                 exit_status = 1
-            
+
         if len(failed_tests) == 0:
             self.logger.info("All tests passed")
         else:
             self.logger.info("{} test failed: ".format(len(failed_tests)))
             [self.logger.info(n) for n in failed_tests]
         exit(exit_status)
-            
+
 
 
 
@@ -382,10 +394,10 @@ class RunFmTest(ComputationStep):
 
         output_file = os.path.join(run_dir, 'loc_summary.csv')
         (il, ril) = RunExposure(
-            src_dir=test_dir, 
-            run_dir=run_dir, 
-            loss_factor=loss_factor, 
-            output_level=output_level, 
+            src_dir=test_dir,
+            run_dir=run_dir,
+            loss_factor=loss_factor,
+            output_level=output_level,
             output_file=output_file,
             include_loss_factor=include_loss_factor
         ).run()

@@ -10,7 +10,7 @@ import shutil
 from ..base import ComputationStep
 from ...utils.path import get_custom_module
 from ...utils.exceptions import OasisException
-from ...utils.defaults import store_exposure_fp, KEY_NAME_TO_FILE_NAME
+from ...utils.defaults import store_exposure_fp
 
 
 class ExposurePreAnalysis(ComputationStep):
@@ -63,8 +63,8 @@ class ExposurePreAnalysis(ComputationStep):
         for input_name in ('oed_location_csv', 'oed_accounts_csv', 'oed_info_csv', 'oed_scope_csv'):
             file_path_in = getattr(self, input_name)
             if file_path_in is not None:
-                file_path_raw = os.path.join(input_dir, f'epa_{KEY_NAME_TO_FILE_NAME[input_name]}')
-                file_path_out = os.path.join(input_dir, KEY_NAME_TO_FILE_NAME[input_name])
+                file_path_raw = os.path.join(input_dir, f'epa_{store_exposure_fp(file_path_in, input_name)}')
+                file_path_out = os.path.join(input_dir, store_exposure_fp(file_path_in, input_name))
                 kwargs[f'raw_{input_name}'] = file_path_raw
                 kwargs[input_name] = file_path_out
 

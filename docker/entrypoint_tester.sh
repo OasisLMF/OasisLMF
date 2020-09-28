@@ -8,6 +8,8 @@ LOG_COV=$LOG_DIR'coverage_oasislmf.log'
 
 BUILD_OUTPUT_DIR='/tmp/output/'
 
+# Clear prev wheels & tars
+    find ./dist/ -name "oasislmf-${VER_PKG}*" -exec rm -rf {} \;    
 
 # Install requirements && build
     set -exu
