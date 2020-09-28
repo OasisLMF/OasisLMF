@@ -865,14 +865,18 @@ def write_exposure_summary(
     :return: Exposure summary file path
     :rtype: str
     """
+    keys_success_df = keys_errors_df = None
+
     #get keys success
-    keys_success_df = pd.read_csv(keys_fp)[['LocID', 'PerilID', 'CoverageTypeID']]
-    keys_success_df['status'] = OASIS_KEYS_STATUS['success']['id']
-    keys_success_df.columns = ['loc_id','peril_id','coverage_type_id','status']
+    if keys_fp:
+        keys_success_df = pd.read_csv(keys_fp)[['LocID', 'PerilID', 'CoverageTypeID']]
+        keys_success_df['status'] = OASIS_KEYS_STATUS['success']['id']
+        keys_success_df.columns = ['loc_id','peril_id','coverage_type_id','status']
 
     #get keys errors
-    keys_errors_df = pd.read_csv(keys_errors_fp)[['LocID', 'PerilID', 'CoverageTypeID', 'Status']]
-    keys_errors_df.columns = ['loc_id','peril_id','coverage_type_id','status']
+    if keys_errors_fp:
+        keys_errors_df = pd.read_csv(keys_errors_fp)[['LocID', 'PerilID', 'CoverageTypeID', 'Status']]
+        keys_errors_df.columns = ['loc_id','peril_id','coverage_type_id','status']
 
     #concatinate keys responses & run
     df_keys = pd.concat([keys_success_df,keys_errors_df])
