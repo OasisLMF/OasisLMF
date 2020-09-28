@@ -94,7 +94,7 @@ class TestReinsurance(unittest.TestCase):
     def test_single_loc_level_fac(self):
 
         ri_info_df = pd.DataFrame.from_dict({
-            'ReinsNumber': ['1'],
+            'ReinsNumber': [1],
             'CededPercent': [1.0],
             'RiskLimit': [10.0],
             'RiskAttachment': [0.0],
@@ -106,7 +106,7 @@ class TestReinsurance(unittest.TestCase):
             'TreatyShare': [1.0]
         })        
         ri_scope_df = pd.DataFrame.from_dict({
-            'ReinsNumber': ['1'],
+            'ReinsNumber': [1],
             'PortNumber': ['1'],
             'AccNumber': ['1'],
             'PolNumber': ['1'],
@@ -163,7 +163,7 @@ class TestReinsurance(unittest.TestCase):
     def test_single_pol_level_fac(self):
 
         ri_info_df = pd.DataFrame.from_dict({
-            'ReinsNumber': ['1'],
+            'ReinsNumber': [1],
             'CededPercent': [1.0],
             'RiskLimit': [10.0],
             'RiskAttachment': [0.0],
@@ -175,7 +175,7 @@ class TestReinsurance(unittest.TestCase):
             'TreatyShare': [1.0]
         })        
         ri_scope_df = pd.DataFrame.from_dict({
-            'ReinsNumber': ['1'],
+            'ReinsNumber': [1],
             'PortNumber': ['1'],
             'AccNumber': ['1'],
             'PolNumber': ['1'],
@@ -232,7 +232,7 @@ class TestReinsurance(unittest.TestCase):
     def test_single_acc_level_fac(self):
 
         ri_info_df = pd.DataFrame.from_dict({
-            'ReinsNumber': ['1'],
+            'ReinsNumber': [1],
             'CededPercent': [1.0],
             'RiskLimit': [10.0],
             'RiskAttachment': [0.0],
@@ -244,7 +244,7 @@ class TestReinsurance(unittest.TestCase):
             'TreatyShare': [1.0]
         })        
         ri_scope_df = pd.DataFrame.from_dict({
-            'ReinsNumber': ['1'],
+            'ReinsNumber': [1],
             'PortNumber': ['1'],
             'AccNumber': ['1'],
             'PolNumber': [''],
@@ -302,7 +302,7 @@ class TestReinsurance(unittest.TestCase):
     def test_single_lgr_level_fac(self):
 
         ri_info_df = pd.DataFrame.from_dict({
-            'ReinsNumber': ['1'],
+            'ReinsNumber': [1],
             'CededPercent': [1.0],
             'RiskLimit': [10.0],
             'RiskAttachment': [0.0],
@@ -314,7 +314,7 @@ class TestReinsurance(unittest.TestCase):
             'TreatyShare': [1.0]
         })        
         ri_scope_df = pd.DataFrame.from_dict({
-            'ReinsNumber': ['1'],
+            'ReinsNumber': [1],
             'PortNumber': ['1'],
             'AccNumber': [''],
             'PolNumber': [''],
@@ -371,7 +371,7 @@ class TestReinsurance(unittest.TestCase):
     def test_multiple_facs_same_inuring_level(self):
 
         ri_info_df = pd.DataFrame.from_dict({
-            'ReinsNumber':      [   '1',    '2',    '3',    '4'     ],
+            'ReinsNumber':      [   1,      2,      3,      4       ],
             'CededPercent':     [   1.0,    1.0,    1.0,    1.0     ],
             'RiskLimit':        [   10.0,   10.0,   10.0,   10.0    ],
             'RiskAttachment':   [   0.0,    0.0,    0.0,    0.0     ],
@@ -383,7 +383,7 @@ class TestReinsurance(unittest.TestCase):
             'TreatyShare':      [   1.0,    1.0,    1.0,    1.0     ]
         })        
         ri_scope_df = pd.DataFrame.from_dict({
-            'ReinsNumber':  [   '1',    '2',    '3',    '4'     ],
+            'ReinsNumber':  [   1,      2,      3,      4       ],
             'PortNumber':   [   '1',    '1',    '1',    '1'     ],
             'AccNumber':    [   '1',    '1',    '1',    '1'     ],
             'PolNumber':    [   '1',    '1',    '1',    ''      ],
@@ -411,10 +411,10 @@ class TestReinsurance(unittest.TestCase):
                 inuring_priority=1,
                 ri_inputs=reinsurance_layer.RiLayerInputs(
                     fm_policytc=pd.DataFrame.from_dict({
-                        'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1,  1,  2,  2,  2,  2,  2,  2,  2,  2,  2   ],
-                        'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1,  3,  2,  2,  2,  2,  1,  1,  1,  1   ],
-                        'agg_id':       [   1,  1,  2,  3,  4,  1,  2,  3,  4,  1,  1,  2,  3,  4,  1,  2,  3,  4   ],
-                        'profile_id':   [   2,  3,  1,  1,  1,  2,  2,  2,  2,  2,  1,  4,  1,  1,  2,  2,  2,  2   ]
+                        'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1,  1   ],
+                        'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1   ],
+                        'agg_id':       [   1,  1,  2,  3,  4,  1,  2,  3,  4   ],
+                        'profile_id':   [   2,  3,  4,  1,  1,  2,  2,  2,  2   ]
                     }),
                     fm_profile=pd.DataFrame.from_dict({
                         'profile_id':  [    1,      2,      3,      4       ],
