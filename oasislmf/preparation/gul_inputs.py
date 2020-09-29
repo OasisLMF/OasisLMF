@@ -58,8 +58,8 @@ def get_gul_input_items(
     """
     Generates and returns a Pandas dataframe of GUL input items.
 
-    :param exposure_fp: Exposure dataframe
-    :type exposure_fp: pandas.DataFrame
+    :param exposure_df: Exposure dataframe
+    :type exposure_df: pandas.DataFrame
 
     :param keys_df: Keys dataframe
     :type keys_df: pandas.DataFrame

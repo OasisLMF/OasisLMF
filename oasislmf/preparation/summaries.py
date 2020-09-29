@@ -645,8 +645,8 @@ def get_exposure_summary_by_status(df, exposure_summary, peril_id, status):
     :param df: dataframe from gul_inputs.get_gul_input_items(..)
     :type df: pandas.DataFrame
 
-    :param exposure_summary: dictionary to populate created in write_exposure_summary(..)
-    :type exposure_summary: dict
+    :param peril_id: Descriptive OED peril key, e.g. "WTC"
+    :type peril_id: str
 
     :param status: status returned by lookup ('success', 'fail' or 'nomatch')
     :type status: str
@@ -683,6 +683,9 @@ def get_exposure_summary_all(df, exposure_summary, peril_id):
     :param exposure_summary: dictionary to populate created in write_exposure_summary(..)
     :type exposure_summary: dict
 
+    :param peril_id: Descriptive OED peril key, e.g. "WTC"
+    :type peril_id: str
+
     :return: populated exposure_summary dictionary
     :rtype: dict
     """
@@ -711,11 +714,8 @@ def get_exposure_totals(df):
     """
     Return dictionary with total TIVs and number of locations
 
-    :param df: dataframe from `gul_inputs_df`
+    :param df: dataframe `df_summary_peril` from `get_exposure_summary`
     :type df: pandas.DataFrame
-
-    :param exposure_summary: dictionary to populate created in write_exposure_summary(..)
-    :type exposure_summary: dict
 
     :return: totals section for exposure_summary dictionary
     :rtype: dict
@@ -758,9 +758,6 @@ def get_exposure_summary(
     Create exposure summary as dictionary of TIVs and number of locations
     grouped by peril and validity respectively. returns a python dict().
 
-    :param gul_inputs_df: dataframe from gul_inputs.get_gul_input_items(..)
-    :type gul_inputs_df: pandas.DataFrame
-
     :param exposure_df: source exposure dataframe
     :type exposure df: pandas.DataFrame
 
@@ -770,7 +767,7 @@ def get_exposure_summary(
     :param exposure_profile: profile defining exposure file
     :type exposure_profile: dict
 
-    :return: Exposure summary file path
+    :return: Exposure summary dictionary
     :rtype: dict
     """
 
