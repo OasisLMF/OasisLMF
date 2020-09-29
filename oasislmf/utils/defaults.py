@@ -16,6 +16,7 @@ __all__ = [
     'store_exposure_fp',
     'find_exposure_fp',
     'GROUP_ID_COLS',
+    'CORRELATION_GROUP_ID',
     'API_EXAMPLE_AUTH',
     'KEY_NAME_TO_FILE_NAME',
     'DEFAULT_RTREE_INDEX_PROPS',
@@ -286,6 +287,8 @@ def assign_defaults_to_il_inputs(df):
 WRITE_CHUNKSIZE = 2 * (10 ** 5)
 
 GROUP_ID_COLS = ['loc_id']
+
+CORRELATION_GROUP_ID = ['CorrelationGroup']
 
 # Default name prefixes of the Oasis input files (GUL + IL)
 OASIS_FILES_PREFIXES = OrderedDict({

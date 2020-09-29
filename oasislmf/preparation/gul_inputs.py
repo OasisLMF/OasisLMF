@@ -28,6 +28,7 @@ from ..utils.data import (
 from ..utils.defaults import (
     get_default_exposure_profile,
     GROUP_ID_COLS,
+    CORRELATION_GROUP_ID,
     OASIS_FILES_PREFIXES,
 )
 from ..utils.exceptions import OasisException
@@ -308,16 +309,27 @@ def get_gul_input_items(
             )
 
         # Set the group ID
-        if len(group_id_cols) > 1:
-            gul_inputs_df['group_id'] = factorize_ndarray(
-                gul_inputs_df.loc[:, group_id_cols].values,
-                col_idxs=range(len(group_id_cols)),
-                sort_opt=True
-            )[0]
+        correlation_field = CORRELATION_GROUP_ID[0]
+        # first check if correlation group present and valid
+        correlation_check = False
+        if group_id_cols == CORRELATION_GROUP_ID:
+            if correlation_field in gul_inputs_df.columns:
+                if gul_inputs_df[correlation_field].astype('uint32').isnull().sum() == 0:
+                    correlation_check = True
+
+        if correlation_check == True:
+            gul_inputs_df['group_id'] = gul_inputs_df[CORRELATION_GROUP_ID]
         else:
-            gul_inputs_df['group_id'] = factorize_array(
-                gul_inputs_df[group_id_cols[0]].values
-            )[0]
+            if len(group_id_cols) > 1:
+                gul_inputs_df['group_id'] = factorize_ndarray(
+                    gul_inputs_df.loc[:, group_id_cols].values,
+                    col_idxs=range(len(group_id_cols)),
+                    sort_opt=True
+                )[0]
+            else:
+                gul_inputs_df['group_id'] = factorize_array(
+                    gul_inputs_df[group_id_cols[0]].values
+                )[0]
         gul_inputs_df['group_id'] = gul_inputs_df['group_id'].astype('uint32')
 
         # Set the item IDs and coverage IDs, and defaults and data types for
