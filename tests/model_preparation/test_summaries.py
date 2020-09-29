@@ -23,6 +23,7 @@ from oasislmf.preparation.gul_inputs import get_gul_input_items
 from oasislmf.utils.coverages import SUPPORTED_COVERAGE_TYPES
 from oasislmf.utils.defaults import get_default_exposure_profile
 from oasislmf.utils.data import get_location_df, get_ids
+from oasislmf.utils.status import OASIS_KEYS_STATUS_MODELLED
 
 from tests.data import (
     keys,
@@ -76,7 +77,7 @@ class TestSummaries(TestCase):
             for status in lookup_status:
                 peril_status = peril_expected[peril_expected.status == status]
                 self.assertAlmostEqual(peril_status.tiv.sum(), peril_summary[status]['tiv'])
-                self.assertEqual(len(peril_status), peril_summary[status]['number_of_locations'])
+                self.assertEqual(len(peril_status.loc_id.unique()), peril_summary[status]['number_of_locations'])
 
                 for cov in cov_types:
                     cov_type_id = SUPPORTED_COVERAGE_TYPES[cov]['id']
@@ -93,20 +94,25 @@ class TestSummaries(TestCase):
             self.assertAlmostEqual(peril_summary['all']['tiv_by_coverage'][cov] - cov_tiv_returned, peril_summary['noreturn']['tiv_by_coverage'][cov])
 
     @given(st.data())
-    @settings(max_examples=10, deadline=None)
+    @settings(max_examples=20, deadline=None)
     def test_single_peril__totals_correct(self, data):
 
         # Shared Values between Loc / keys
         loc_size = data.draw(integers(10, 20))
+        supported_cov = data.draw(st.lists(integers(1,4), unique=True, min_size=1, max_size=4))
         perils = 'WTC'
 
         # Create Mock keys_df
-        keys_df = pd.DataFrame.from_dict(data.draw(keys(
-            size=loc_size,
-            from_peril_ids=just(perils),
-            from_area_peril_ids=just(1),
-            from_vulnerability_ids=just(1),
-            from_messages=just('str'))))
+        keys_data = list()
+        for i in supported_cov:
+            keys_data += data.draw(keys(
+                size=loc_size,
+                from_peril_ids=just(perils),
+                from_coverage_type_ids=just(i),
+                from_area_peril_ids=just(1),
+                from_vulnerability_ids=just(1),
+                from_messages=just('str')))
+        keys_df = pd.DataFrame.from_dict(keys_data)
 
         # Create Mock location_df
         loc_df = pd.DataFrame.from_dict(data.draw(min_source_exposure(
@@ -127,7 +133,7 @@ class TestSummaries(TestCase):
 
         # Run Gul Proccessing
         gul_inputs = get_gul_input_items(loc_df, keys_df)
-        gul_inputs = gul_inputs[gul_inputs['status'].isin(['success', 'notatrisk'])]
+        gul_inputs = gul_inputs[gul_inputs['status'].isin(OASIS_KEYS_STATUS_MODELLED)]
 
         # Fetch expected TIVS
         tiv_portfolio = loc_df[['buildingtiv', 'othertiv', 'bitiv', 'contentstiv']].sum(1).sum(0)
@@ -141,21 +147,22 @@ class TestSummaries(TestCase):
 
         # Check number of locs
         self.assertEqual(len(loc_df), exp_summary['total']['portfolio']['number_of_locations'])
-        self.assertEqual(len(gul_inputs), exp_summary['total']['modelled']['number_of_locations'])
+        self.assertEqual(len(gul_inputs.loc_id.unique()), exp_summary['total']['modelled']['number_of_locations'])
 
-        # Cleaner way to do this?
-        moddeld_locs = gul_inputs[gul_inputs['status'] == 'success']
-        non_cov_locs = len(loc_df) - min(
-            len(moddeld_locs[moddeld_locs.coverage_type_id == 1]),
-            len(moddeld_locs[moddeld_locs.coverage_type_id == 2]),
-            len(moddeld_locs[moddeld_locs.coverage_type_id == 3]),
-            len(moddeld_locs[moddeld_locs.coverage_type_id == 4]))
-        self.assertEqual(non_cov_locs, exp_summary['total']['not-modelled']['number_of_locations'])
+        # Check number of not-modelled
+        # WARNING: current assumption is that all cov types must be covered to be modelled 
+        moddeled = 0
+        moddeld_loc_ids = gul_inputs[gul_inputs['status'] == 'success'].loc_id.unique()
+        for loc_id in moddeld_loc_ids:
+            if len(gul_inputs[gul_inputs.loc_id == loc_id].coverage_type_id.unique()) == 4:
+                moddeled+=1
+        self.assertEqual(len(loc_df) - moddeled, exp_summary['total']['not-modelled']['number_of_locations'])
 
     @given(st.data())
     @settings(max_examples=10, deadline=None)
-    def test_multi_perils__perils_all_supported(self, data):
+    def test_multi_perils__single_covarage(self, data):
         loc_size = data.draw(integers(10, 20))
+        supported_cov = data.draw(integers(1,4))
         perils = data.draw(st.lists(
             st.text(alphabet=(string.ascii_letters + string.digits), min_size=2, max_size=6),
             min_size=2,
@@ -164,12 +171,17 @@ class TestSummaries(TestCase):
         ))
 
         # Create Mock keys_df
-        keys_df = pd.DataFrame.from_dict(data.draw(keys(
-            size=loc_size,
-            from_peril_ids=st.sampled_from(perils),
-            from_area_peril_ids=just(1),
-            from_vulnerability_ids=just(1),
-            from_messages=just('str'))))
+        keys_data = list()
+        for p in perils:
+            keys_data += data.draw(keys(
+                size=loc_size,
+                from_peril_ids=just(p),
+                from_coverage_type_ids=just(supported_cov),
+                from_area_peril_ids=just(1),
+                from_vulnerability_ids=just(1),
+                from_messages=just('str')))
+
+        keys_df = pd.DataFrame.from_dict(keys_data)
         perils_returned = keys_df.peril_id.unique().tolist()
 
         # Create Mock location_df
@@ -194,8 +206,9 @@ class TestSummaries(TestCase):
 
     @given(st.data())
     @settings(max_examples=20, deadline=None)
-    def test_multi_perils__perils_partialaly_supported(self, data):
+    def test_multi_perils__multi_covarage(self, data):
         loc_size = data.draw(integers(10, 20))
+        supported_cov = data.draw(st.lists(integers(1,4), unique=True, min_size=1, max_size=4))
         perils = data.draw(st.lists(
             st.text(alphabet=(string.ascii_letters + string.digits), min_size=2, max_size=6),
             min_size=2,
@@ -203,12 +216,18 @@ class TestSummaries(TestCase):
             unique=True))
 
         # Create Mock keys_df
-        keys_df = pd.DataFrame.from_dict(data.draw(keys(
-            size=loc_size,
-            from_peril_ids=st.sampled_from(perils),
-            from_area_peril_ids=just(1),
-            from_vulnerability_ids=just(1),
-            from_messages=just('str'))))
+        keys_data = list()
+        for c in supported_cov:
+            for p in perils:
+                keys_data += data.draw(keys(
+                    size=loc_size,
+                    from_peril_ids=just(p),
+                    from_coverage_type_ids=just(c),
+                    from_area_peril_ids=just(1),
+                    from_vulnerability_ids=just(1),
+                    from_messages=just('str')))
+
+        keys_df = pd.DataFrame.from_dict(keys_data)
         perils_returned = keys_df.peril_id.unique().tolist()
 
         # Create Mock location_df
