@@ -56,6 +56,7 @@ SOURCE_FILENAMES = OrderedDict({
     'acc': 'account.csv',
     'info': 'reinsinfo.csv',
     'scope': 'reinsscope.csv',
+    'complex_lookup': 'analysis_settings.json',
     'oed_location_csv': 'location.csv',
     'oed_accounts_csv': 'account.csv',
     'oed_info_csv': 'reinsinfo.csv',
