@@ -18,6 +18,7 @@ from ...utils.exceptions import OasisException
 from ...utils.data import (
     get_model_settings,
     get_location_df,
+    get_dataframe,
     get_json,
     get_utctimestamp,
 )
@@ -83,8 +84,6 @@ class GenerateOasisFiles(ComputationStep):
         {'name': 'profile_loc',                   'default': get_default_exposure_profile()},
         {'name': 'profile_acc',                   'default': get_default_accounts_profile()},
         {'name': 'profile_fm_agg',                'default': get_default_fm_aggregation_profile()},
-        {'name': 'deterministic',                 'default': False},
-        #{'name': 'supported_oed_coverage_types',  'default': tuple(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values())},
     ]
 
     def _get_output_dir(self):
@@ -97,16 +96,15 @@ class GenerateOasisFiles(ComputationStep):
     def run(self):
         self.logger.info('\nProcessing arguments - Creating Oasis Files')
 
-        if not self.deterministic:
-            if not (self.keys_data_csv or self.lookup_config_json or (self.lookup_data_dir and self.model_version_csv and self.lookup_module_path)):
-                raise OasisException(
-                    'No pre-generated keys file provided, and no lookup assets '
-                    'provided to generate a keys file - if you do not have a '
-                    'pre-generated keys file then lookup assets must be provided - '
-                    'for a built-in lookup the lookup config. JSON file path must '
-                    'be provided, or for custom lookups the keys data path + model '
-                    'version file path + lookup package path must be provided'
-                )
+        if not (self.keys_data_csv or self.lookup_config_json or (self.lookup_data_dir and self.model_version_csv and self.lookup_module_path)):
+            raise OasisException(
+                'No pre-generated keys file provided, and no lookup assets '
+                'provided to generate a keys file - if you do not have a '
+                'pre-generated keys file then lookup assets must be provided - '
+                'for a built-in lookup the lookup config. JSON file path must '
+                'be provided, or for custom lookups the keys data path + model '
+                'version file path + lookup package path must be provided'
+            )
 
         il = True if self.oed_accounts_csv else False
         ri = all([self.oed_info_csv, self.oed_scope_csv]) and il
@@ -149,22 +147,37 @@ class GenerateOasisFiles(ComputationStep):
         # If a pre-generated keys file path has not been provided,
         # then it is asssumed some model lookup assets have been provided, so
         # as to allow the lookup to be instantiated and called to generated
-        # the keys file. Otherwise if no model keys file path or lookup assets
-        # were provided then a "deterministic" keys file is generated.
+        # the keys file. 
         _keys_fp = _keys_errors_fp = None
         if not self.keys_data_csv:
             _keys_fp = self.kwargs['keys_data_csv'] = os.path.join(target_dir, 'keys.csv')
             _keys_errors_fp = self.kwargs['keys_errors_csv'] = os.path.join(target_dir, 'keys-errors.csv')
-
-            if self.deterministic:
-                GenerateKeysDeterministic(**self.kwargs).run()
-            else:
-                GenerateKeys(**self.kwargs).run()
+            GenerateKeys(**self.kwargs).run()
         else:
             _keys_fp = os.path.join(target_dir, os.path.basename(self.keys_data_csv))
             if self.keys_errors_csv:
                 _keys_errors_fp = os.path.join(target_dir, os.path.basename(self.keys_errors_csv))
 
+
+        # Load keys file  **** WARNING - REFACTOR THIS ****
+        dtypes = {
+            'locid': 'str',
+            'perilid': 'str',
+            'coveragetypeid': 'uint8',
+            'areaperilid': 'uint64',
+            'vulnerabilityid': 'uint32',
+            'modeldata': 'str'
+        }
+        keys_error_fp = os.path.join(os.path.dirname(_keys_fp), 'keys-errors.csv') if _keys_fp else 'Missing'
+        missing_keys_msg = 'No successful lookup results found in the keys file - '
+        missing_keys_msg += 'Check the `keys-errors.csv` file for details. \n File path: {}'.format(keys_error_fp)
+        keys_df = get_dataframe(
+            src_fp=_keys_fp,
+            col_dtypes=dtypes,
+            empty_data_error_msg=missing_keys_msg,
+            memory_map=True
+        )
+        # ************************************************
 
 
         # Columns from loc file to assign group_id
@@ -184,20 +197,19 @@ class GenerateOasisFiles(ComputationStep):
         # Get the GUL input items and exposure dataframes
         gul_inputs_df = get_gul_input_items(
             location_df,
-            _keys_fp,
+            keys_df,
             exposure_profile=location_profile,
             group_id_cols=group_id_cols
         )
 
         # If not in det. loss gen. scenario, write exposure summary file
-        if summarise_exposure and not self.deterministic:
+        if summarise_exposure:
             write_exposure_summary(
                 target_dir,
-                gul_inputs_df,
                 location_df,
+                keys_fp=_keys_fp,
                 keys_errors_fp=_keys_errors_fp,
-                exposure_profile=location_profile,
-                oed_hierarchy=oed_hierarchy
+                exposure_profile=location_profile
             )
 
         # If exposure summary set, write valid columns for summary levels to file
@@ -219,6 +231,7 @@ class GenerateOasisFiles(ComputationStep):
         # input files, and therefore also RI input files, are not needed
         if not il:
             # Write `summary_map.csv` for GUL only
+            self.logger.info('\nOasis files generated: {}'.format(json.dumps(gul_input_files, indent=4)))
             return gul_input_files
 
         # Get the IL input items
@@ -247,6 +260,7 @@ class GenerateOasisFiles(ComputationStep):
         # If no RI input file paths (info. and scope) have been provided then
         # no RI input files are needed, just return the GUL and IL Oasis files
         if not ri:
+            self.logger.info('\nOasis files generated: {}'.format(json.dumps(oasis_files, indent=4)))
             return oasis_files
 
         # Write the RI input files, and write the returned RI layer info. as a

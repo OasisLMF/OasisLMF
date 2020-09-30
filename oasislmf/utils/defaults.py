@@ -56,14 +56,6 @@ SOURCE_FILENAMES = OrderedDict({
     'acc': 'account.csv',
     'info': 'reinsinfo.csv',
     'scope': 'reinsscope.csv',
-})
-
-API_EXAMPLE_AUTH = OrderedDict({
-    'user': 'admin',
-    'pass': 'password',
-})
-
-KEY_NAME_TO_FILE_NAME = {
     'oed_location_csv': 'location.csv',
     'oed_accounts_csv': 'account.csv',
     'oed_info_csv': 'reinsinfo.csv',
@@ -75,7 +67,12 @@ KEY_NAME_TO_FILE_NAME = {
     'lookup_complex_config_json': 'lookup_complex.json',
     'profile_acc_json': 'profile_account.json',
     'profile_fm_agg_json': 'profile_fm_agg.json',
-}
+})
+
+API_EXAMPLE_AUTH = OrderedDict({
+    'user': 'admin',
+    'pass': 'password',
+})
 
 DEFAULT_RTREE_INDEX_PROPS = {
     'buffering_capacity': 10,
@@ -317,7 +314,11 @@ KTOOLS_NUM_PROCESSES = -1
 KTOOLS_FIFO_RELATIVE = False
 KTOOLS_ERR_GUARD = True
 KTOOLS_GUL_LEGACY_STREAM = False
-KTOOLS_ALLOC_GUL_MAX = 1     # 1 = w back allocation, 0 = w/o back allocation
+# ktools gul alloc rules:
+# 2 = total loss is maximum subperil loss
+# 1 = default with back allocation
+# 0 = default without back allocation
+KTOOLS_ALLOC_GUL_MAX = 2
 KTOOLS_ALLOC_FM_MAX = 3
 KTOOLS_ALLOC_GUL_DEFAULT = 0
 KTOOLS_ALLOC_IL_DEFAULT = 2
