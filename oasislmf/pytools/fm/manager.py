@@ -1,145 +1,25 @@
-from .queue import TerminableQueue
-from .financial_structure import create_financial_structure, load_financial_structure, INPUT_STORAGE, OUTPUT_STORAGE
-from .stream import read_stream_header, queue_event_reader, read_event, queue_event_writer, EventWriter, EXTRA_VALUES
-from .compute import event_computer, compute_event, init_loss_variable, init_intermediary_variable
-try:
-    from .compute import ray_event_computer, numba_to_python
-    from .queue import RayTerminableQueue
-    import ray
-except ImportError:
-    pass
+from .financial_structure import create_financial_structure, load_financial_structure
+from .stream import read_stream_header, read_event, EventWriter, EXTRA_VALUES
+from .compute import compute_event, init_variable, reset_variabe
 
 
+import tempfile
 import sys
-import concurrent.futures
 import logging
 logger = logging.getLogger(__name__)
 
 
-def run(run_mode, create_financial_structure_files, **kwargs):
+def run(create_financial_structure_files, **kwargs):
     if create_financial_structure_files:
         create_financial_structure(kwargs['allocation_rule'], kwargs['static_path'])
     else:
-        if run_mode == 0:
-            return run_synchronous(**kwargs)
-        elif run_mode == 1:
-            run_threaded(**kwargs)
-        elif run_mode == 2:
-            run_ray(**kwargs)
-        else:
-            raise ValueError(f"Unknow run_mode {run_mode}")
+        return run_synchronous(**kwargs)
 
 
-def run_threaded(allocation_rule, static_path, files_in, queue_in_size, files_out, queue_out_size, **kwargs):
-    node_to_index, compute_queue, dependencies, output_item_index, storage_to_len, options, profile = load_financial_structure(
+def run_synchronous(allocation_rule, static_path, files_in, files_out, low_memory, **kwargs):
+    compute_info, nodes_array, node_parents_array, node_profiles_array, output_array, fm_profile = load_financial_structure(
         allocation_rule, static_path)
-    sentinel = 'STOP'
-
-    queue_in = TerminableQueue(maxsize=queue_in_size, sentinel=sentinel)
-    queue_out = TerminableQueue(maxsize=queue_out_size, sentinel=sentinel)
-
-    logger.info(f"starting, {files_in}, {files_out}")
-    if files_in is None:
-        inputs = [None]
-    else:
-        inputs = files_in
-
-    if files_out is None:
-        outputs = [None]
-    else:
-        outputs = files_out
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(inputs) + len(outputs) + 1) as executor:
-        reader_tasks = [executor.submit(queue_event_reader, queue_in, stream_in, node_to_index, storage_to_len[INPUT_STORAGE])
-                        for stream_in in inputs]
-        logger.info(f"reader_tasks started")
-        computation_task = executor.submit(event_computer, queue_in, queue_out, compute_queue, dependencies, storage_to_len,
-                                           options, profile, sentinel)
-        logger.info(f"computation_task started")
-        writer_tasks = [
-            executor.submit(queue_event_writer, queue_out, stream_out, output_item_index, sentinel) for
-            stream_out in outputs]
-        logger.info(f"writer_tasks started")
-
-        reader_result = [t.result() for t in reader_tasks]
-
-        logger.info(f"reader_tasks finished")
-
-        queue_in.put(sentinel)
-        computation_result = computation_task.result()
-        logger.info(f"computation_task finished")
-        for _ in writer_tasks:
-            queue_out.put(sentinel)
-
-        writer_result = [t.result() for t in writer_tasks]
-        logger.info(f"writer_tasks finished")
-
-
-def run_ray(allocation_rule, static_path, files_in, queue_in_size, files_out, queue_out_size, ray_address, **kwargs):
-    """ray can only be use for compute as the stream interface is limited to the running machine"""
-    ray.init(address=ray_address)
-    computation_task = int(ray.available_resources()['CPU']) - 2
-    node_to_index, compute_queue, dependencies, output_item_index, storage_to_len, options, profile = load_financial_structure(
-        allocation_rule, static_path)
-
-    py_options = numba_to_python(options)
-
-    sentinel = 'STOP'
-
-    queue_in = RayTerminableQueue(maxsize=queue_in_size, sentinel=sentinel)
-    queue_out = RayTerminableQueue(maxsize=queue_out_size, sentinel=sentinel)
-
-    logger.info(f"starting, {files_in}, {files_out}")
-    if files_in is None:
-        inputs = [None]
-    else:
-        inputs = files_in
-
-    if files_out is None:
-        outputs = [None]
-    else:
-        outputs = files_out
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(inputs) + len(outputs)) as executor:
-        try:
-            compute_task = [ray_event_computer.remote(queue_in, queue_out, compute_queue, dependencies, storage_to_len,
-                                                      py_options, profile, sentinel) for _ in range(computation_task)]
-            logger.info(f"computation_task started")
-
-            reader_tasks = [executor.submit(queue_event_reader, queue_in, stream_in, node_to_index, storage_to_len[INPUT_STORAGE])
-                            for stream_in in inputs]
-            logger.info(f"reader_tasks started")
-
-            writer_tasks = [
-                executor.submit(queue_event_writer, queue_out, stream_out, output_item_index, sentinel) for
-                stream_out in outputs]
-            logger.info(f"writer_tasks started")
-
-            reader_result = [t.result() for t in reader_tasks]
-
-            logger.info(f"reader_tasks finished")
-
-            [queue_in.put(sentinel) for _ in range(computation_task)]
-            computation_result = [ray.get(t) for t in compute_task]
-            logger.info(f"computation_task finished")
-            for _ in writer_tasks:
-                queue_out.put(sentinel)
-
-            writer_result = [t.result() for t in writer_tasks]
-            logger.info(f"writer_tasks finished")
-        except:
-            queue_in.terminated = True
-            queue_out.terminated = True
-            raise
-
-
-import tempfile
-import numpy as np
-from .common import float_equal_precision, nb_oasis_float, nb_oasis_int, null_index
-def run_synchronous(allocation_rule, static_path, files_in, files_out, **kwargs):
-    compute_queue, dependencies, output_item_index, storage_to_len, options, profile = load_financial_structure(
-        allocation_rule, static_path)
-
+    compute_info = compute_info[0]
     if files_in is None:
         stream_in = sys.stdin.buffer
     else:
@@ -150,14 +30,26 @@ def run_synchronous(allocation_rule, static_path, files_in, files_out, **kwargs)
 
     stream_type, len_sample = read_stream_header(stream_in)
     len_array = len_sample + EXTRA_VALUES
-    with tempfile.TemporaryDirectory() as tempdir:
-        temp_loss, temp_index, losses_sum, deductibles, over_limit, under_limit = init_intermediary_variable(storage_to_len, len_array, options, tempdir)
-        input_loss, input_index = init_loss_variable(storage_to_len, INPUT_STORAGE, len_array, tempdir)
-        output_loss, output_index = init_loss_variable(storage_to_len, OUTPUT_STORAGE, len_array, tempdir)
 
-        with EventWriter(files_out, output_item_index, len_sample) as event_writer:
-            for event_id in read_event(stream_in, input_loss, input_index):
-                compute_event(compute_queue, dependencies, input_loss, input_index, profile,
-                              temp_loss, temp_index, losses_sum, deductibles, over_limit, under_limit, output_loss, output_index)
-                event_writer.write((event_id, output_loss, output_index))
+    with tempfile.TemporaryDirectory() as tempdir:
+        losses, loss_indexes, extras, extra_indexes, children, computes = init_variable(compute_info, len_array, tempdir, low_memory)
+
+        with EventWriter(files_out, nodes_array, output_array, losses, loss_indexes, computes, len_sample) as event_writer:
+            for event_id, compute_i in read_event(stream_in, nodes_array, losses, loss_indexes, computes):
+                compute_i, loss_i, extra_i = compute_event(compute_info,
+                                                           nodes_array,
+                                                           node_parents_array,
+                                                           node_profiles_array,
+                                                           losses,
+                                                           loss_indexes,
+                                                           extras,
+                                                           extra_indexes,
+                                                           children,
+                                                           computes,
+                                                           compute_i,
+                                                           fm_profile)
+                compute_i = event_writer.write(event_id, compute_i)
+                reset_variabe(children, compute_i, computes)
+
+
 

@@ -11,22 +11,16 @@ from .bash import genbash
 
 
 @oasis_log()
-def run(
-    analysis_settings,
-    number_of_processes=-1,
-    num_reinsurance_iterations=0,
-    set_alloc_rule_gul=None,
-    set_alloc_rule_il=None,
-    set_alloc_rule_ri=None,
-    num_gul_per_lb=None,
-    num_fm_per_lb=None,
-    fifo_tmp_dir=True,
-    stderr_guard=True,
-    gul_legacy_stream=False,
-    run_debug=False,
-    custom_gulcalc_cmd=None,
-    filename='run_ktools.sh',
-    fmpy=False,
+def run(analysis_settings,
+        number_of_processes=-1,
+        set_alloc_rule_gul=None,
+        set_alloc_rule_il=None,
+        set_alloc_rule_ri=None,
+        gul_legacy_stream=False,
+        run_debug=False,
+        custom_gulcalc_cmd=None,
+        filename='run_ktools.sh',
+        **kwargs
 ):
     # TODO: need clearer responsibility between runner.py and manager.py
     #  ie: why is cpu count and custom_gulcalc_cmd checks here and not in manager
@@ -85,19 +79,14 @@ def run(
     genbash(
         number_of_processes,
         analysis_settings,
-        num_reinsurance_iterations=num_reinsurance_iterations,
-        fifo_tmp_dir=fifo_tmp_dir,
         gul_alloc_rule=set_alloc_rule_gul,
         il_alloc_rule=set_alloc_rule_il,
         ri_alloc_rule=set_alloc_rule_ri,
-        num_gul_per_lb=num_gul_per_lb,
-        num_fm_per_lb=num_fm_per_lb,
-        stderr_guard=stderr_guard,
         gul_legacy_stream=gul_legacy_stream,
         bash_trace=run_debug,
         filename=filename,
         _get_getmodel_cmd=custom_get_getmodel_cmd,
-        fmpy=fmpy,
+        **kwargs,
     )
 
     bash_trace = subprocess.check_output(['bash', filename])

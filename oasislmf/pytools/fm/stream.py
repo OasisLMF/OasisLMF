@@ -5,22 +5,22 @@ Some detail on the data layout.
 event id fron the stream can be:
  - negative for special values like the mean or the standard deviation.
  - positive for normal sample id
-in the several data matrix:
- - index 0 is not used
- - length is the given len_sample + the number of special values + 1
- - value are arranged so the index in the data correspond to the sample id,
-   the special values are place at the end therefor.
-   ie: [0, sidx_1, sidx_2, ...sidx_len_sample, sidx_-3, sidx_-2, sidx_-1]
+in the loss array:
+ - sidx -3 correspond to index 0
+ - sidx -2 is filtered
+ - all other sidx egual their index
+ - value are arranged so the index in the array mostly correspond to the sample id,
+   the special values -1 is place at the end therefor.
+   ie: [sidx_-3, sidx_1, sidx_2, ...sidx_len_sample, sidx_-1]
    here we use python ability to understand negative indexes to equate sidx and index simplifying index management
 
 
 """
-from .financial_structure import PROFILE
-from .common import float_equal_precision, nb_oasis_float, nb_oasis_int, null_index
-from .queue import QueueTerminated
+
+from .common import float_equal_precision
 
 import sys
-from numba import njit, int32
+from numba import njit
 import numpy as np
 from select import select
 import logging
@@ -31,56 +31,35 @@ logger = logging.getLogger(__name__)
 fm_header = np.int32(1 | 2 << 24).tobytes()
 
 
-buff_size = 65536#*2048
-number_size = 4
+buff_size = 65536
+event_agg_dtype = np.dtype([('event_id', 'i4'), ('agg_id', 'i4')])
+sidx_loss_dtype = np.dtype([('sidx', 'i4'), ('loss', 'f4')])
+number_size = 8
 nb_number = buff_size // number_size
 
 EXTRA_VALUES = 2
 
 
-# @njit(cache=True)
-# def stream_to_loss_table(stream_as_int, stream_as_float, valid_len, last_event_cursor, node_to_index, losses, not_null):
-#     last_event_id = stream_as_int[last_event_cursor]
-#     cursor = last_event_cursor
-#
-#     while cursor < valid_len - 2:
-#         event_id, cursor = stream_as_int[cursor], cursor + 1
-#         if event_id != last_event_id:
-#             return last_event_id, last_event_cursor, 1
-#
-#         i, cursor = node_to_index[(nb_oasis_int(1), nb_oasis_int(0), nb_oasis_int(stream_as_int[cursor]), PROFILE)][1], cursor + 1
-#         not_null[i] = True
-#         while cursor < valid_len - 2:
-#             sidx, cursor = nb_oasis_int(stream_as_int[cursor]), cursor + 1
-#             loss, cursor = nb_oasis_float(stream_as_float[cursor]), cursor + 1
-#             if sidx == 0:
-#                 last_event_cursor = cursor
-#                 break
-#             elif sidx == -2:
-#                 pass
-#             elif sidx == -3:
-#                 sidx=0
-#
-#             losses[i, sidx] = 0 if np.isnan(loss) else loss
-#
-#     return last_event_id, last_event_cursor, 0
-
 @njit(cache=True)
-def stream_to_loss_table(stream_as_int, stream_as_float, valid_buf, last_event_id, cursor, loss_index, losses, index):
-    """valid len must be divisible par 2*4 bytes"""
-    valid_len = (valid_buf // 8) * 2
-    if last_event_id == 0:
-        event_id, cursor = stream_as_int[cursor], cursor + 1
-        i, cursor = nb_oasis_int(stream_as_int[cursor]) - 1, cursor + 1
-        index[i] = loss_index
+def stream_to_loss_table(event_agg, sidx_loss, valid_buf, cursor, event_id, agg_id, loss_index, nodes_array, losses, index, computes):
+    """valid len must be divisible par 2*4 bytes
+    cursor, event_id, agg_id, loss_index, yield_event
+    """
+    valid_len = valid_buf // number_size
+
+    if agg_id:
         last_event_id = event_id
+        node = nodes_array[agg_id]
+        index[node['loss']: node['loss'] + node['layer_len']] = loss_index
+        computes[loss_index] = agg_id
     else:
-        event_id = last_event_id
+        last_event_id = event_id
 
     while cursor < valid_len:
-        if event_id:
-            sidx, cursor = nb_oasis_int(stream_as_int[cursor]), cursor + 1
-            loss, cursor = nb_oasis_float(stream_as_float[cursor]), cursor + 1
+        if agg_id:
+            sidx, loss = sidx_loss[cursor]['sidx'], sidx_loss[cursor]['loss']
+            cursor += 1
+
             if sidx:
                 if sidx == -2:
                     continue
@@ -88,18 +67,22 @@ def stream_to_loss_table(stream_as_int, stream_as_float, valid_buf, last_event_i
                     sidx = 0
                 losses[loss_index, sidx] = 0 if np.isnan(loss) else loss
             else:
-                event_id = 0
+                agg_id = 0
                 loss_index += 1
         else:
-            event_id, cursor = stream_as_int[cursor], cursor + 1
-            i, cursor = nb_oasis_int(stream_as_int[cursor]) - 1, cursor + 1
-            index[i] = loss_index
+            event_id, agg_id = event_agg[cursor]['event_id'], event_agg[cursor]['agg_id']
+            cursor += 1
+            if event_id != last_event_id:
+                if last_event_id:
+                    return cursor - 1, last_event_id, 0, loss_index, 1
+                else:
+                    last_event_id = event_id
+            node = nodes_array[agg_id]
+            index[node['loss']: node['loss'] + node['layer_len']] = loss_index
+            computes[loss_index] = agg_id
             losses[loss_index].fill(0)
 
-            if event_id != last_event_id:
-                return event_id, cursor, loss_index, last_event_id
-
-    return event_id, cursor, loss_index, 0
+    return cursor, event_id, agg_id, loss_index, 0
 
 
 def read_stream_header(stream_obj):
@@ -108,20 +91,17 @@ def read_stream_header(stream_obj):
     return stream_type, len_sample
 
 
-def read_event(stream_in, losses, index):
-
-    # losses = np.zeros([len_inputs, len_sample + EXTRA_VALUES + 1], dtype=np.float32)
-    # not_null = np.zeros([len_inputs, ], dtype=np.bool)
-    index.fill(null_index)
+def read_event(stream_in, nodes_array, losses, index, computes):
 
     buf = bytearray(buff_size)
     mv = memoryview(buf)
 
-    stream_as_int32 = np.ndarray(nb_number, buffer=mv, dtype=np.int32)
-    stream_as_float32 = np.ndarray(nb_number, buffer=mv, dtype=np.float32)
+    event_agg = np.ndarray(nb_number, buffer=mv, dtype=event_agg_dtype)
+    sidx_loss = np.ndarray(nb_number, buffer=mv, dtype=sidx_loss_dtype)
 
-    last_event_id = 0
     cursor = 0
+    event_id = 0
+    agg_id = 0
     loss_index = 0
     read_cursor = 0
 
@@ -136,117 +116,88 @@ def read_event(stream_in, losses, index):
             break
 
         while True:
-            last_event_id, cursor, loss_index, event_id = stream_to_loss_table(stream_as_int32, stream_as_float32, valid_buf, last_event_id, cursor,
-                                                                                            loss_index, losses, index)
-            # last_event_id, last_event_cursor, full_event = stream_to_loss_table(stream_as_int32, stream_as_float32, valid_buf // number_size,
-            #                                                      last_event_cursor, node_to_index, losses, index)
-            if event_id:
+            cursor, event_id, agg_id, loss_index, yield_event = stream_to_loss_table(event_agg, sidx_loss, valid_buf, cursor,
+                                                                                     event_id, agg_id, loss_index,
+                                                                                     nodes_array, losses, index, computes)
+            if yield_event:
                 logger.debug(f'event_id: {event_id}, loss_index :{loss_index}')
-                yield event_id
-                # losses = np.zeros([len_inputs, len_sample + EXTRA_VALUES +1], dtype=np.float32)
-                # not_null = np.zeros([len_inputs, ], dtype=np.bool)
+                yield event_id, loss_index
+                event_id = 0
                 loss_index=0
-                index.fill(null_index)
             else:
                 read_cursor = valid_buf - number_size * cursor
                 mv[:read_cursor] = mv[number_size * cursor: valid_buf]
                 cursor = 0
                 break
-    try:
-        yield last_event_id
-    except UnboundLocalError:  # Nothing was read
-        pass
 
-
-def queue_event_reader(event_queue, file_in, node_to_index, len_indexes):
-    try:
-        if file_in is None:
-            stream_in = sys.stdin.buffer
-        else:
-            stream_in = open(file_in, 'rb')
-        try:
-            stream_type, len_sample = read_stream_header(stream_in)
-
-            for event in read_event(stream_in, node_to_index, len_indexes, len_sample):
-                logger.debug(f"reading {event[0]}")
-                try:
-                    event_queue.put(event)
-                except QueueTerminated:
-                    logger.warning(f"stopped because exception was raised")
-                    break
-            logger.info(f"reading done")
-        finally:
-            if file_in:
-                stream_in.close()
-    except Exception:
-        event_queue.terminate = True
-        raise
+    if event_id:
+        if agg_id:
+            loss_index += 1
+        logger.debug(f'event_id: {event_id}, loss_index :{loss_index}')
+        yield event_id, loss_index
 
 
 @njit(cache=True)
-def load_event(as_int, as_float, event_id, output_item_index, losses, index, i_output, i_index, nb_values):
+def load_event(event_agg, sidx_loss, event_id, nodes_array, losses, loss_indexes, computes, output_array, compute_i, i_layer, i_index, nb_values):
     cursor = 0
     top_sidx_range = losses.shape[1] - EXTRA_VALUES + 1
-    for o in range(i_output, output_item_index.shape[0]):
-        output = output_item_index[o]
-        output_index = index[output['index']]
-        while cursor < nb_values:
-            if i_index == 0:
-                if output_index != null_index:
-                    #print(event_id, output['output_id'])
-                    as_int[cursor], cursor = event_id, cursor + 1
-                    as_int[cursor], cursor = output['output_id'], cursor + 1
+
+    while computes[compute_i]:
+        node = nodes_array[computes[compute_i]]
+        for layer in range(i_layer, node['layer_len']):
+            output_id = output_array[node['output_ids']+layer]
+            loss_index = loss_indexes[node['ba']+layer]
+            #print(computes[compute_i], output_id, loss_index, losses[loss_index])
+            while cursor < nb_values:
+                if i_index == 0:
+                    event_agg[cursor]['event_id'], event_agg[cursor]['agg_id'] = event_id, output_id
+                    cursor += 1
                     i_index = -3
-                else:
+
+                elif i_index == -3:
+                    sidx_loss[cursor]['sidx'], sidx_loss[cursor]['loss'] = -3, losses[loss_index, 0]
+                    cursor += 1
+                    i_index = -1
+                elif i_index == -1:
+                    sidx_loss[cursor]['sidx'], sidx_loss[cursor]['loss'] = -1, losses[loss_index, -1]
+                    cursor += 1
+                    i_index = 1
+
+                elif i_index == top_sidx_range:
+                    sidx_loss[cursor]['sidx'], sidx_loss[cursor]['loss'] = 0, 0
+                    cursor += 1
+                    i_index = 0
                     break
-            elif i_index == -3:
-                #print(-3, losses[output['index']][0])
-                as_int[cursor], cursor = -3, cursor + 1
-                as_float[cursor], cursor = losses[output_index, 0], cursor + 1
-                i_index = -1
-            elif i_index == -1:
-                #if losses[output_index, -1] > float_equal_precision:
-                    #print(-1, losses[output['index']][-1])
-                as_int[cursor], cursor = -1, cursor + 1
-                as_float[cursor], cursor = losses[output_index, -1], cursor + 1
-                i_index = 1
 
-            elif i_index == top_sidx_range:
-                #print(0, 0)
-                as_int[cursor], cursor = 0, cursor + 1
-                as_float[cursor], cursor = 0, cursor + 1
-                i_index = 0
-                break
-
+                else:
+                    if losses[loss_index, i_index] > float_equal_precision:
+                        sidx_loss[cursor]['sidx'], sidx_loss[cursor]['loss'] = i_index, losses[loss_index, i_index]
+                        cursor += 1
+                    i_index += 1
             else:
-                if losses[output_index, i_index] > float_equal_precision:
-                    #print(i_index, losses[output['index']][i_index])
-                    as_int[cursor], cursor = i_index, cursor + 1
-                    as_float[cursor], cursor = losses[output_index, i_index], cursor + 1
-                i_index += 1
-        else:
-            break
+                return cursor * number_size, compute_i, i_layer, i_index
+        compute_i += 1
 
-        i_output += 1
-
-    return cursor * number_size, i_output, i_index
+    return cursor * number_size, compute_i, i_layer, i_index
 
 
 class EventWriter:
-    def __init__(self, files_out, output_item_index, len_sample):
+    def __init__(self, files_out, nodes_array, output_array, losses, loss_indexes, computes, len_sample):
         self.files_out = files_out
-        self.output_item_index = output_item_index
-        self.nb_output_items = len(output_item_index)
+        self.nodes_array = nodes_array
+        self.losses = losses
+        self.loss_indexes = loss_indexes
+        self.computes = computes
+        self.output_array = output_array
+        self.nb_output_items = output_array.shape[0]
 
-        self.len_sample = len_sample # all normal sidx plus the extra value plus 1 (index 0)
-        self.loss_shape_1 = len_sample + EXTRA_VALUES
-        self.nb_values = min((2 * (len_sample + EXTRA_VALUES)) * self.nb_output_items, nb_number)
-        #nb_values = (2 * (len_sample + EXTRA_VALUES + 1)) * len(output_item_index)  # (event_id + item_id + len_sample) * number of items
+        self.len_sample = len_sample
+        self.loss_shape_1 = len_sample + EXTRA_VALUES # all normal sidx plus the extra values
 
-        self.mv = memoryview(bytearray(self.nb_values * number_size))
+        self.mv = memoryview(bytearray(nb_number * number_size))
 
-        self.as_int = np.ndarray(self.nb_values, buffer=self.mv, dtype=np.int32)
-        self.as_float = np.ndarray(self.nb_values, buffer=self.mv, dtype=np.float32)
+        self.event_agg = np.ndarray(nb_number, buffer=self.mv, dtype=event_agg_dtype)
+        self.sidx_loss = np.ndarray(nb_number, buffer=self.mv, dtype=sidx_loss_dtype)
 
     def __enter__(self):
         if self.files_out is None:
@@ -262,49 +213,26 @@ class EventWriter:
         if self.files_out:
             self.stream_out.close()
 
-    def write(self, event):
-        event_id, loss, index = event
-        if self.loss_shape_1 != loss.shape[1]:
-            raise ValueError(f"event {event_id} has a different sample len {loss.shape[1]}")
-        #print(event_id, len([x for x in index if x != null_index]))
-        i_output = 0
+    def write(self, event_id, compute_i):
         i_index= 0
+        i_layer = 0
         stream_out = [self.stream_out]
-        while i_output < self.nb_output_items:
-            cursor, i_output, i_index = load_event(self.as_int, self.as_float, event_id, self.output_item_index, loss,
-                                                    index, i_output, i_index, self.nb_values)
-            # print(cursor, i_output, i_index)
-            # print(self.as_int[:2])
-            # print(self.as_int[cursor//4-2:cursor//4])
-            # #print(self.as_float[cursor//4:cursor//4])
+        while self.computes[compute_i]:
+            cursor, compute_i, i_layer, i_index = load_event(self.event_agg,
+                                                              self.sidx_loss,
+                                                              event_id,
+                                                              self.nodes_array,
+                                                              self.losses,
+                                                              self.loss_indexes,
+                                                              self.computes,
+                                                              self.output_array,
+                                                              compute_i,
+                                                              i_layer,
+                                                              i_index, nb_number)
+
             _, writable, exceptional = select([], stream_out, stream_out)
             if exceptional:
                 raise IOError(f'error with input stream, {exceptional}')
             writable[0].write(self.mv[:cursor])
-        #self.stream_out.write(self.mv[:cursor])
 
-
-def queue_event_writer(event_queue, files_out, output_item_index, sentinel):
-    try:
-        event = event_queue.get()
-        if event != sentinel:
-            event_id, loss, not_null = event
-            len_sample = loss.shape[1] - EXTRA_VALUES - 1
-
-            with EventWriter(files_out, output_item_index, len_sample) as event_writer_handler:
-                logger.debug(f"writing {event[0]}")
-                event_writer_handler.write(event)
-                logger.debug(f"writen {event[0]}")
-
-                while True:
-                    event = event_queue.get()
-                    if event == sentinel:
-                        break
-
-                    logger.debug(f"writing {event[0]}")
-                    event_writer_handler.write(event)
-                    logger.debug(f"writen {event[0]}")
-        logger.info(f"writing done")
-    except Exception:
-        event_queue.terminate = True
-        raise
+        return compute_i

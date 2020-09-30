@@ -1,235 +1,206 @@
-from .financial_structure import TEMP_STORAGE, OUTPUT_STORAGE, TOP_UP, STORE_LOSS_SUM_OPTION,\
-    PROFILE, PROFILE_INPUT, IL_PER_GUL, IL_PER_SUB_IL, PROPORTION, COPY
 from .policy import calc
 from .common import float_equal_precision, np_oasis_float, null_index
-from .queue import QueueTerminated
 
-from numba import njit, boolean
+from numba import njit
 import numpy as np
+import os
 import logging
 logger = logging.getLogger(__name__)
 
 
 @njit(cache=True, fastmath=True, error_model="numpy")
-def compute_event(compute_queue, dependencies, input_loss, input_index, profile,
-                  temp_loss, temp_index, losses_sum, deductibles, over_limit, under_limit,
-                  output_loss, output_index):
-    temp_index.fill(null_index)
-    output_index.fill(null_index)
+def back_allocate(node, children, nodes_array, losses, loss_indexes, loss_i, computes, next_compute_i):
+    len_children = children[node['children']]
+    if len_children > 1:
+        for layer in range(node['layer_len']):
+            proportion = np.empty_like(losses[0])
+            ba_loss = losses[loss_indexes[node['ba'] + layer]]
+            sum_loss = losses[loss_indexes[node['loss'] + layer]]
+            for i in range(proportion.shape[0]):
+                if ba_loss[i] < float_equal_precision:
+                    proportion[i] = 0
+                else:
+                    proportion[i] = ba_loss[i] / sum_loss[i]
+            for c in range(node['children'] + 1, node['children'] + len_children + 1):
+                child = nodes_array[children[c]]
+                losses[loss_i] = proportion * losses[loss_indexes[child['il'] + layer]]
+                loss_indexes[child['ba'] + layer], loss_i = loss_i, loss_i + 1
 
-    losses = [input_loss,
-              temp_loss,
-              output_loss
-              ]
+        for c in range(node['children'] + 1, node['children'] + len_children + 1):
+            computes[next_compute_i], next_compute_i = children[c], next_compute_i + 1
 
-    index = [input_index,
-             temp_index,
-             output_index
-             ]
-    index_new = np.zeros(3, dtype=np.uint32)
-
-    for node in compute_queue:
-        if node['computation_id'] == PROFILE_INPUT:
-            if input_index[dependencies[node['dependencies_index_start']]['index']] == null_index:
-                continue
-
-            node_index = index_new[node['storage']]
-            index_new[TEMP_STORAGE] += 1
-            temp_index[node['index']] = node_index
-
-            deductibles[node_index].fill(0)
-            over_limit[node_index].fill(0)
-            under_limit[node_index].fill(0)
-
-            calc(profile[node['profile']],
-                 temp_loss[node_index],
-                 input_loss[dependencies[node['dependencies_index_start']]['index']],
-                 deductibles[node_index],
-                 over_limit[node_index],
-                 under_limit[node_index])
-
-        elif node['computation_id'] == PROFILE:
-
-            for i in range(node['dependencies_index_start'], node['dependencies_index_end']):
-                if index[dependencies[i]['storage']][dependencies[i]['index']] != null_index:
-                    break
-            else:
-                continue
-
-            node_index = index_new[node['storage']]
-            index_new[node['storage']] += 1
-            index[node['storage']][node['index']] = node_index
-
-            loss_sum = losses_sum[node_index]
-            loss_sum.fill(0)
-            deductibles[node_index].fill(0)
-            over_limit[node_index].fill(0)
-            under_limit[node_index].fill(0)
-
-            for i in range(node['dependencies_index_start'], node['dependencies_index_end']):
-                dependency_index = index[dependencies[i]['storage']][dependencies[i]['index']]
-                if dependency_index != null_index:
-                    loss_sum += losses[dependencies[i]['storage']][dependency_index]
-                    if dependencies[i]['storage'] == TEMP_STORAGE:
-                        deductibles[node['index']] += deductibles[dependency_index]
-                        over_limit[node['index']] += over_limit[dependency_index]
-                        under_limit[node['index']] += under_limit[dependency_index]
-
-            calc(profile[node['profile']],
-                 losses[node['storage']][node_index],
-                 loss_sum,
-                 deductibles[node_index],
-                 over_limit[node_index],
-                 under_limit[node_index])
-
-        elif node['computation_id'] == IL_PER_GUL:
-            top_node = dependencies[node['dependencies_index_start']]
-            if index[top_node['storage']][top_node['index']] != null_index:
-                node_index = index_new[node['storage']]
-                index_new[node['storage']] += 1
-                index[node['storage']][node['index']] = node_index
-                node_loss = losses[node['storage']][node_index]
-
-                top_loss = losses[top_node['storage']][index[top_node['storage']][top_node['index']]]
-                for i in range(node['dependencies_index_start'] + 1, node['dependencies_index_end']):
-                    dependency_index = index[dependencies[i]['storage']][dependencies[i]['index']]
-                    if dependency_index != null_index:
-                        node_loss += losses[dependencies[i]['storage']][dependency_index]
-
-                for i in range(top_loss.shape[0]):
-                    if top_loss[i] < float_equal_precision:
-                        node_loss[i] = 0
-                    else:
-                        node_loss[i] = top_loss[i] / node_loss[i]
-
-        elif node['computation_id'] == IL_PER_SUB_IL:
-            ba_node = dependencies[node['dependencies_index_start']]
-            if temp_index[ba_node['index']] != null_index:
-                il_node = dependencies[node['dependencies_index_start'] + 1]
-                node_index = index_new[node['storage']]
-                index_new[TEMP_STORAGE] += 1
-                temp_index[node['index']] = node_index
-                node_loss = temp_loss[node_index]
-
-                ba_loss = temp_loss[temp_index[ba_node['index']]]
-                il_loss = losses_sum[temp_index[il_node['index']]]
-
-                for i in range(node_loss.shape[0]):
-                    if ba_loss[i] < float_equal_precision:
-                        node_loss[i] = 0
-                    else:
-                        node_loss[i] = ba_loss[i] / il_loss[i]
-
-        elif node['computation_id'] == PROPORTION:
-            top_node = dependencies[node['dependencies_index_start']]
-            il_node = dependencies[node['dependencies_index_start'] + 1]
-
-            top_index = temp_index[top_node['index']]
-            il_index = temp_index[il_node['index']]
-            if il_index != null_index and top_index != null_index:
-                node_index = index_new[node['storage']]
-                index_new[node['storage']] += 1
-                index[node['storage']][node['index']] = node_index
-                losses[node['storage']][node_index] = losses[top_node['storage']][top_index] * losses[il_node['storage']][il_index]
-
-        elif node['computation_id'] == COPY:
-            copy_node = dependencies[node['dependencies_index_start']]
-            if index[copy_node['storage']][copy_node['index']] != null_index:
-                node_index = index_new[node['storage']]
-                index_new[node['storage']] += 1
-                index[node['storage']][node['index']] = node_index
-                losses[node['storage']][node_index] = losses[copy_node['storage']][copy_node['index']]
-
-#@njit(cache=True)
-import os
-def init_intermediary_variable(storage_to_len, len_sample, options, temp_dir):
-    temp_loss = np.memmap(os.path.join(temp_dir, "temp_loss.bin"), mode='w+', shape=(storage_to_len[TEMP_STORAGE], len_sample), dtype=np_oasis_float)
-    temp_index = np.empty((storage_to_len[TEMP_STORAGE],), dtype=np.uint32)
-
-    if options[STORE_LOSS_SUM_OPTION]:
-        losses_sum = np.memmap(os.path.join(temp_dir, "losses_sum.bin"), mode='w+', shape=(storage_to_len[TOP_UP], len_sample), dtype=np_oasis_float)
     else:
-        losses_sum = temp_loss
+        computes[next_compute_i], next_compute_i = children[node['children'] + 1], next_compute_i + 1
+        child = nodes_array[children[node['children'] + 1]]
+        loss_indexes[child['ba']: child['ba'] + node['layer_len']] = loss_indexes[node['ba']: node['ba'] + node['layer_len']]
 
-    deductibles = np.memmap(os.path.join(temp_dir, "deductibles.bin"), mode='w+', shape=(storage_to_len[TOP_UP], len_sample), dtype=np_oasis_float)
-    over_limit = np.memmap(os.path.join(temp_dir, "over_limit.bin"), mode='w+', shape=(storage_to_len[TOP_UP], len_sample), dtype=np_oasis_float)
-    under_limit = np.memmap(os.path.join(temp_dir, "under_limit.bin"), mode='w+', shape=(storage_to_len[TOP_UP], len_sample), dtype=np_oasis_float)
-
-    return temp_loss, temp_index, losses_sum, deductibles, over_limit, under_limit
+    return loss_i, next_compute_i
 
 
-#@njit(cache=True)
-def init_loss_variable(storage_to_len, storage, len_sample, temp_dir):
-    loss = np.memmap(os.path.join(temp_dir, f"loss_{storage}.bin"), mode='w+', shape=(storage_to_len[storage], len_sample), dtype=np_oasis_float)
-    index = np.empty((storage_to_len[storage],), dtype=np.uint32)
-    return loss, index
+@njit(cache=True, fastmath=True)
+def compute_event(compute_info,
+                   nodes_array,
+                   node_parents_array,
+                   node_profiles_array,
+                   losses,
+                   loss_indexes,
+                   extras,
+                   extra_indexes,
+                   children,
+                   computes,
+                   next_compute_i,
+                   fm_profile):
+
+    loss_i = next_compute_i
+    extra_i = 0
+    compute_i = 0
+    for level in range(compute_info['start_level'], compute_info['max_level'] + 1):#perform the bottom up loss computation
+        # print(level, next_compute_i, compute_i, next_compute_i-compute_i, computes[compute_i:compute_i+2], computes[next_compute_i-2: next_compute_i+1])
+        next_compute_i += 1 # next_compute_i will stay at 0 wich will stop the while loop and start the next level
+        while computes[compute_i]:
+            node, compute_i = nodes_array[computes[compute_i]], compute_i + 1
+
+            #compute loss sums and extra sum
+            len_children = children[node['children']]
+            if len_children:#if no children and in compute then layer 1 loss is already set
+                if len_children > 1:
+                    for p in range(node['profile_len']):
+                        node_loss = losses[loss_i]
+                        loss_indexes[node['loss'] + p], loss_i = loss_i, loss_i + 1
+                        node_extra = extras[extra_i]
+                        extra_indexes[node['extra'] + p], extra_i = extra_i, extra_i + 1
+
+                        node_loss.fill(0)
+                        node_extra.fill(0)
+                        for c in range(node['children'] + 1, node['children'] + len_children + 1):
+                            child = nodes_array[children[c]]
+                            node_loss += losses[loss_indexes[child['il'] + p]]
+                            node_extra += extras[extra_indexes[child['extra'] + p]]
+                    #fill up all layer if necessary
+                    for layer in range(node['profile_len'], node['layer_len']):
+                        loss_indexes[node['loss'] + layer] = loss_indexes[node['loss']]
+                        extra_indexes[node['extra'] + layer] = extra_indexes[node['extra']]
+                else:
+                    child = nodes_array[children[node['children'] + 1]]
+                    loss_indexes[node['loss']:node['loss'] + node['layer_len']] = loss_indexes[child['il']:child['il'] + node['layer_len']]
+
+                    for p in range(node['profile_len']):
+                        extras[extra_i][:] = extras[extra_indexes[child['extra'] + p]]
+                        extra_indexes[node['extra'] + p], extra_i = extra_i, extra_i + 1
+
+                    #fill up all layer if necessary
+                    for layer in range(node['profile_len'], node['layer_len']):
+                        extra_indexes[node['extra'] + layer] = extra_indexes[node['extra']]
+
+            else:
+                for p in range(node['profile_len']):
+                    extras[extra_i].fill(0)
+                    extra_indexes[node['extra'] + p], extra_i = extra_i, extra_i + 1
+
+                #fill up all layer if necessary
+                for layer in range(node['profile_len'], node['layer_len']):
+                    extra_indexes[node['extra'] + layer] = extra_indexes[node['extra']]
 
 
-def event_computer(queue_in, queue_out, compute_queue, dependencies, storage_to_len, options, profile, sentinel):
-    try:
-        while True:
-            event_in = queue_in.get()
-            if event_in == sentinel:
-                break
+            #compute il
+            for p in range(node['profile_len']):
+                profile_index = node_profiles_array[node['profiles']+p]
 
-            event_id, input_loss, input_not_null = event_in
-            input_loss = np.array(input_loss)
-            input_not_null = np.array(input_not_null)
-            logger.debug(f"computing {event_id}")
+                if profile_index != null_index:
+                    extra = extras[extra_indexes[node['extra']+p]]
+                    calc(fm_profile[profile_index],
+                         losses[loss_i],
+                         losses[loss_indexes[node['loss'] + p]],
+                         extra[0],
+                         extra[1],
+                         extra[2])
+                    loss_indexes[node['il'] + p], loss_i = loss_i, loss_i + 1
+                else:
+                    loss_indexes[node['il'] + p] = loss_indexes[node['loss'] + p]
 
-            try:
-                output_loss, output_not_null = init_loss_variable(storage_to_len, OUTPUT_STORAGE, len_sample)
-                compute_event(compute_queue, dependencies, input_loss, input_not_null, profile,
-                              temp_loss, temp_not_null, losses_sum,deductibles, over_limit, under_limit,
-                              output_loss, output_not_null)
-            except UnboundLocalError: # initialize variable
-                len_sample = input_loss.shape[1]
+            for layer in range(node['profile_len'], node['layer_len']):
+                loss_indexes[node['il'] + layer] = loss_indexes[node['il']]
 
-                temp_loss, temp_not_null, losses_sum, deductibles, over_limit, under_limit = init_intermediary_variable(storage_to_len, len_sample, options)
-                output_loss, output_not_null = init_loss_variable(storage_to_len, OUTPUT_STORAGE, len_sample)
+            if level == compute_info['max_level']:
+                loss_indexes[node['ba']:node['ba'] + node['layer_len']] = loss_indexes[node['il']:node['il'] + node['layer_len']]
+                if node['parent_len']:# for allocation 1 we set only the parent in computes
+                    parent_id = node_parents_array[node['parent']]
+                    computes[next_compute_i], next_compute_i = parent_id, next_compute_i + 1
+                else:
+                    computes[next_compute_i], next_compute_i = computes[compute_i - 1], next_compute_i + 1
+            else:
+                # set parent children and next computation
+                for pa in range(node['parent_len']):
+                    parent_id = node_parents_array[node['parent']+pa]
+                    parent = nodes_array[parent_id]
+                    parent_children_len = children[parent['children']] + 1
+                    if parent_children_len == 1 and not pa:#only parent 0 is a real parent, parent 2 is only used on alloc 1
+                        computes[next_compute_i], next_compute_i = parent_id, next_compute_i + 1
+                    children[parent['children']] = parent_children_len
+                    children[parent['children'] + parent_children_len] = computes[compute_i - 1]
+        compute_i += 1
 
-                compute_event(compute_queue, dependencies, input_loss, input_not_null, profile,
-                              temp_loss, temp_not_null, losses_sum,deductibles, over_limit, under_limit,
-                              output_loss, output_not_null)
+    if compute_info['allocation_rule'] == 0:
+        pass
+    elif compute_info['allocation_rule'] == 1:
+        next_compute_i += 1
 
-            logger.debug(f"computed {event_id}")
+        while computes[compute_i]:
+            node, compute_i = nodes_array[computes[compute_i]], compute_i + 1
+            len_children = children[node['children']]
+            if len_children > 1:
+                # we are summing the input loss of level 0 or 1 so there is no layer to take into account
+                node_loss = losses[loss_i]
+                loss_indexes[node['loss'] + 1], loss_i = loss_i, loss_i + 1
 
-            try:
-                queue_out.put((event_id, output_loss, output_not_null))
-            except QueueTerminated:
-                logger.warning(f"stopped because exception was raised")
-                break
+                node_loss.fill(0)
+                for c in range(node['children'] + 1, node['children'] + len_children + 1):
+                    child = nodes_array[children[c]]
+                    node_loss += losses[loss_indexes[child['loss'] + 1]]
 
-        logger.info(f"compute done")
-    except Exception:
-        logger.exception(f"Exception in compute")
-        logger.error(input_loss)
-        queue_in.terminated = True
-        queue_out.terminated = True
-        raise
+                for layer in range(node['profile_len'], node['layer_len']):
+                    loss_indexes[node['loss'] + layer] = loss_indexes[node['loss']]
+
+            loss_i, next_compute_i = back_allocate(node, children, nodes_array, losses, loss_indexes, loss_i, computes, next_compute_i)
+        compute_i += 1
+    else:
+        for level in range(compute_info['max_level'] - compute_info['start_level']):# perform back allocation 2
+            # print(level, next_compute_i, compute_i, next_compute_i-compute_i, computes[compute_i:compute_i + 2], computes[next_compute_i - 1: next_compute_i + 1])
+            next_compute_i += 1
+            while computes[compute_i]:
+                node, compute_i = nodes_array[computes[compute_i]], compute_i + 1
+                loss_i, next_compute_i = back_allocate(node,
+                                                       children,
+                                                       nodes_array,
+                                                       losses,
+                                                       loss_indexes,
+                                                       loss_i,
+                                                       computes,
+                                                       next_compute_i)
+            compute_i += 1
+    # print(compute_info['max_level'], next_compute_i, compute_i, next_compute_i-compute_i, computes[compute_i:compute_i + 2], computes[next_compute_i - 1: next_compute_i + 1])
+    return compute_i, loss_i, extra_i
 
 
-try:
-    import ray
-except ImportError:
-    pass
-else:
-    from numba.typed import List, Dict
+def init_variable(compute_info, len_sample, temp_dir, low_memory):
+    if low_memory:
+        losses = np.memmap(os.path.join(temp_dir, "temp_loss.bin"), mode='w+',
+                           shape=(compute_info['loss_len'], len_sample), dtype=np_oasis_float)
+        extras = np.memmap(os.path.join(temp_dir, "extras.bin"), mode='w+',
+                           shape=(compute_info['extra_len'], 3, len_sample), dtype=np_oasis_float)
+    else:
+        losses = np.zeros((compute_info['loss_len'], len_sample), dtype=np_oasis_float)
+        extras = np.zeros((compute_info['loss_len'], 3, len_sample), dtype=np_oasis_float)
+
+    loss_indexes = np.zeros(compute_info['loss_len'], dtype=np.uint32)
+    extra_indexes = np.zeros(compute_info['extra_len'], dtype=np.uint32)
+    children = np.zeros(compute_info['children_len'], dtype=np.uint32)
+    computes = np.zeros(compute_info['compute_len'], dtype=np.uint32)
+
+    return losses, loss_indexes, extras, extra_indexes, children, computes
 
 
-    def numba_to_python(nb_options):
-        return dict(nb_options)
-
-
-    def python_to_numba(py_options):
-        nb_options = Dict()
-        for key, val in py_options.items():
-            nb_options[key] = val
-
-        return nb_options
-
-    @ray.remote
-    def ray_event_computer(queue_in, queue_out, compute_queue, dependencies, storage_to_len, options, profile, sentinel):
-        options = python_to_numba(options)
-        event_computer(queue_in, queue_out, compute_queue, dependencies, storage_to_len, options, profile, sentinel)
-        return
+@njit(cache=True)
+def reset_variabe(children, compute_i, computes):
+    computes[:compute_i].fill(0)
+    children.fill(0)
