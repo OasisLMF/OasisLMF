@@ -35,15 +35,26 @@ def prepare_input_files_directory(
         if not os.path.exists(target_dir):
             Path(target_dir).mkdir(parents=True, exist_ok=True)
 
+        # Copy preserving original filenames 
         paths = [
             (p, os.path.join(target_dir, os.path.basename(p))) for p in (
                 exposure_profile_fp, accounts_profile_fp,
                 fm_aggregation_profile_fp, lookup_config_fp, model_version_fp,
-                complex_lookup_config_fp, keys_fp, keys_errors_fp
+                keys_fp, keys_errors_fp
             ) if p
         ]
 
-        for fp, key in ((exposure_fp, "loc"), (accounts_fp, "acc"), (ri_info_fp, "info"), (ri_scope_fp, "scope")):
+        # Copy and rename to default set in 
+        # oasislmf.utils.defaults.SOURCE_FILENAMES
+        paths_rename = (
+            (exposure_fp, "loc"), 
+            (accounts_fp, "acc"), 
+            (ri_info_fp, "info"), 
+            (ri_scope_fp, "scope"),
+            (complex_lookup_config_fp, "complex_lookup")
+        )    
+
+        for fp, key in paths_rename:
             if fp:
                 # check if exposure pre-analysis has run:
                 if not os.path.exists(os.path.join(target_dir, f'epa_{store_exposure_fp(fp, key)}')):

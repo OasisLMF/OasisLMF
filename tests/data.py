@@ -88,6 +88,8 @@ fm_terms = tuple(k for k in FM_TERMS)
 fm_profile_types = ('acc', 'loc',)
 
 keys_status_flags = tuple(v['id'] for v in OASIS_KEYS_STATUS.values())
+keys_status_flags = tuple([s for s in keys_status_flags if s != 'noreturn']) # Workaround filter out no-return
+
 
 perils = tuple(v['id'] for v in PERILS.values())
 
@@ -193,6 +195,97 @@ def source_accounts(
         max_size=(size if size is not None else max_size)
     ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
 
+def min_source_exposure(
+    from_location_perils_covered=sampled_from(perils),
+    from_location_perils=sampled_from(perils),
+    from_location_currencies=text(alphabet=string.ascii_letters, min_size=3, max_size=3),
+    from_building_tivs=floats(min_value=0.0, allow_infinity=False),
+    from_other_tivs=floats(min_value=0.0, allow_infinity=False),
+    from_contents_tivs=floats(min_value=0.0, allow_infinity=False),
+    from_bi_tivs=floats(min_value=0.0, allow_infinity=False),
+    size=None,
+    min_size=0,
+    max_size=10
+):
+    def _sequence(li):
+        for i, r in enumerate(li):
+            r['locnumber'] = r['locname'] = '{}'.format(i + 1)
+
+        return li
+
+    return lists(
+        fixed_dictionaries(
+            {
+                'buildingtiv': from_building_tivs,
+                'othertiv': from_other_tivs,
+                'contentstiv': from_contents_tivs,
+                'bitiv': from_bi_tivs,
+                'locperilscovered': from_location_perils_covered,
+                'locperil': from_location_perils,
+
+                # Fixed values (Don't care)
+                'accnumber': just('1'),
+                'portnumber': just('1'),
+                'countrycode': just('UK'),
+                'loccurrency': just('GBP'),
+                'areacode': just('A'),
+                'condnumber': just(1),
+                'condpriority': just(1),
+                'locded1building': just(0),
+                'locded2other': just(0),
+                'locded3contents': just(0),
+                'locded4bi': just(0),
+                'locded5pd': just(0),
+                'locded6all': just(0),
+                'locdedcode1building': just(0),
+                'locdedcode2other': just(0),
+                'locdedcode3contents': just(0),
+                'locdedcode4bi': just(0),
+                'locdedcode5pd': just(0),
+                'locdedcode6all': just(0),
+                'locdedtype1building': just(0),
+                'locdedtype2other': just(0),
+                'locdedtype3contents': just(0),
+                'locdedtype4bi': just(0),
+                'locdedtype5pd': just(0),
+                'locdedtype6all': just(0),
+                'locgroup': just('A'),
+                'loclimit1building': just(0),
+                'loclimit2other': just(0),
+                'loclimit3contents': just(0),
+                'loclimit4bi': just(0),
+                'loclimit5pd': just(0),
+                'loclimit6all': just(0),
+                'loclimitcode1building': just(0),
+                'loclimitcode2other': just(0),
+                'loclimitcode3contents': just(0),
+                'loclimitcode4bi': just(0),
+                'loclimitcode5pd': just(0),
+                'loclimitcode6all': just(0),
+                'loclimittype15pd': just(0),
+                'loclimittype1building': just(0),
+                'loclimittype2other': just(0),
+                'loclimittype3contents': just(0),
+                'loclimittype4bi': just(0),
+                'loclimittype6all': just(0),
+                'locmaxded1building': just(0),
+                'locmaxded2other': just(0),
+                'locmaxded3contents': just(0),
+                'locmaxded4bi':just(0),
+                'locmaxded5pd': just(0),
+                'locmaxded6all': just(0),
+                'locminded1building': just(0),
+                'locminded2other':just(0),
+                'locminded3contents': just(0),
+                'locminded4bi': just(0),
+                'locminded5pd': just(0),
+                'locminded6all': just(0),
+
+            }
+        ),
+        min_size=(size if size is not None else min_size),
+        max_size=(size if size is not None else max_size)
+    ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
 
 def source_exposure(
     from_account_ids=text(alphabet=(string.ascii_letters + string.digits), min_size=1, max_size=40),
@@ -351,6 +444,7 @@ def source_exposure(
     ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
 
 
+
 def keys(
     from_peril_ids=sampled_from(perils),
     from_coverage_type_ids=sampled_from(supp_cov_types),
@@ -364,7 +458,7 @@ def keys(
 ):
     def _sequence(li):
         for i, data in enumerate(li):
-            data['loc_id'] = i
+            data['loc_id'] = i + 1
             data['locnumber'] = '{}'.format(i + 1)
 
         return li
@@ -373,7 +467,7 @@ def keys(
         fixed_dictionaries(
             {
                 'peril_id': from_peril_ids,
-                'coverage_type': from_coverage_type_ids,
+                'coverage_type_id': from_coverage_type_ids,
                 'area_peril_id': from_area_peril_ids,
                 'vulnerability_id': from_vulnerability_ids,
                 'status': from_statuses,
@@ -383,7 +477,6 @@ def keys(
         min_size=(size if size is not None else min_size),
         max_size=(size if size is not None else max_size)
     ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
-
 
 def write_source_files(
     exposure=None,
@@ -519,7 +612,7 @@ def write_keys_files(
     heading_row = OrderedDict([
         ('locnumber', 'LocID'),
         ('peril_id', 'PerilID'),
-        ('coverage_type', 'CoverageTypeID'),
+        ('coverage_type_id', 'CoverageTypeID'),
         ('area_peril_id', 'AreaPerilID'),
         ('vulnerability_id', 'VulnerabilityID')
     ])
@@ -534,11 +627,11 @@ def write_keys_files(
         header=False
     )
 
-    if keys_errors and keys_errors_file_path:
+    if keys_errors_file_path:
         heading_row = OrderedDict([
             ('locnumber', 'LocID'),
             ('peril_id', 'PerilID'),
-            ('coverage_type', 'CoverageTypeID'),
+            ('coverage_type_id', 'CoverageTypeID'),
             ('message', 'Message'),
             ('status', 'Status'),
         ])

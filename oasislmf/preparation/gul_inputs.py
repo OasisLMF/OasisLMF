@@ -28,6 +28,7 @@ from ..utils.data import (
 from ..utils.defaults import (
     get_default_exposure_profile,
     GROUP_ID_COLS,
+    CORRELATION_GROUP_ID,
     OASIS_FILES_PREFIXES,
 )
 from ..utils.exceptions import OasisException
@@ -51,18 +52,18 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 @oasis_log
 def get_gul_input_items(
     exposure_df,
-    keys_fp,
+    keys_df,
     exposure_profile=get_default_exposure_profile(),
     group_id_cols=['loc_id']
 ):
     """
     Generates and returns a Pandas dataframe of GUL input items.
 
-    :param exposure_fp: Exposure file
-    :type exposure_fp: str
+    :param exposure_df: Exposure dataframe
+    :type exposure_df: pandas.DataFrame
 
-    :param keys_fp: Keys file path
-    :type keys_fp: str
+    :param keys_df: Keys dataframe
+    :type keys_df: pandas.DataFrame
 
     :param exposure_profile: Exposure profile
     :type exposure_profile: dict
@@ -148,27 +149,6 @@ def get_gul_input_items(
         logger.debug('Dropped location rows: \n{}'.format(exposure_df.iloc[index_dups]))
         exposure_df.drop(index=index_dups, inplace=True)
 
-    # Set data types for the keys dataframe
-    dtypes = {
-        'locid': 'str',
-        'perilid': 'str',
-        'coveragetypeid': 'uint8',
-        'areaperilid': 'uint64',
-        'vulnerabilityid': 'uint32',
-        'modeldata': 'str'
-    }
-
-    keys_error_fp = os.path.join(os.path.dirname(keys_fp), 'keys-errors.csv') if keys_fp else 'Missing'
-    missing_keys_msg = 'No successful lookup results found in the keys file - '
-    missing_keys_msg += 'Check the `keys-errors.csv` file for details. \n File path: {}'.format(keys_error_fp)
-
-    keys_df = get_dataframe(
-        src_fp=keys_fp,
-        col_dtypes=dtypes,
-        empty_data_error_msg=missing_keys_msg,
-        memory_map=True
-    )
-
     # Rename the main keys dataframe columns - this is due to the fact that the
     # keys file headers use camel case, and don't use underscored names, which
     # is the convention used for the GUL and IL inputs dataframes in the MDK
@@ -220,6 +200,16 @@ def get_gul_input_items(
         missing_group_id_cols = [col for col in group_id_cols if col not in exposure_df_gul_inputs_cols]
         exposure_df_gul_inputs_cols += missing_group_id_cols
 
+        # Check if correlation group field used to drive group id
+        # and test that it's present and poulated with integers
+        correlation_group_id = list(map(lambda col: col.lower(), CORRELATION_GROUP_ID))
+        correlation_field = correlation_group_id[0]
+        correlation_check = False
+        if group_id_cols == correlation_group_id:
+            if correlation_field in exposure_df.columns:
+                if exposure_df[correlation_field].astype('uint32').isnull().sum() == 0:
+                    correlation_check = True
+
         query_nonzero_tiv = " | ".join(f"({tiv_col} != 0)" for tiv_col in tiv_cols)
         exposure_df.loc[:, tiv_cols] = exposure_df.loc[:, tiv_cols].fillna(0.0)
         exposure_df.query(query_nonzero_tiv, inplace=True, engine='numexpr')
@@ -231,18 +221,18 @@ def get_gul_input_items(
             how='inner'
         )
 
-        # Free memory after merge, before memory-intensive restructuring of data
-        del keys_df
-
         if gul_inputs_df.empty:
             raise OasisException(
-                'Inner merge of the exposure file dataframe ({}) '
+                'Inner merge of the exposure file dataframe '
                 'and the keys file dataframe on loc. number/loc. ID '
                 'is empty - '
                 'please check that the loc. number and loc. ID columns '
                 'in the exposure and keys files respectively have a non-empty '
-                'intersection'.format(keys_fp)
+                'intersection'
             )
+
+        # Free memory after merge, before memory-intensive restructuring of data
+        del keys_df
 
         gul_inputs_df[cond_num].fillna(0, inplace=True)
         gul_inputs_df[cond_num] = gul_inputs_df[cond_num].astype('uint32')
@@ -308,16 +298,21 @@ def get_gul_input_items(
             )
 
         # Set the group ID
-        if len(group_id_cols) > 1:
-            gul_inputs_df['group_id'] = factorize_ndarray(
-                gul_inputs_df.loc[:, group_id_cols].values,
-                col_idxs=range(len(group_id_cols)),
-                sort_opt=True
-            )[0]
+        # If the group id is set according to the correlation group field then map this field
+        # directly, otherwise create an index of the group id fields
+        if correlation_check == True:
+            gul_inputs_df['group_id'] = gul_inputs_df[correlation_group_id]
         else:
-            gul_inputs_df['group_id'] = factorize_array(
-                gul_inputs_df[group_id_cols[0]].values
-            )[0]
+            if len(group_id_cols) > 1:
+                gul_inputs_df['group_id'] = factorize_ndarray(
+                    gul_inputs_df.loc[:, group_id_cols].values,
+                    col_idxs=range(len(group_id_cols)),
+                    sort_opt=True
+                )[0]
+            else:
+                gul_inputs_df['group_id'] = factorize_array(
+                    gul_inputs_df[group_id_cols[0]].values
+                )[0]
         gul_inputs_df['group_id'] = gul_inputs_df['group_id'].astype('uint32')
 
         # Set the item IDs and coverage IDs, and defaults and data types for

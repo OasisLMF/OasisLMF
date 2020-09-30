@@ -18,7 +18,7 @@ from ...utils.data import (
 )
 
 from ...utils.path import empty_dir
-
+from ...utils.defaults import store_exposure_fp
 
 class RunModel(ComputationStep):
     """
@@ -36,6 +36,19 @@ class RunModel(ComputationStep):
         GenerateOasisFiles,
         ExposurePreAnalysis,
     ]
+
+
+    def pre_analysis_kwargs(self):
+        updated_inputs = {}
+        input_dir = self.kwargs['oasis_files_dir']
+
+        for input_name in ('oed_location_csv', 'oed_accounts_csv', 'oed_info_csv', 'oed_scope_csv'):
+            if self.kwargs[input_name]:
+                updated_inputs[input_name] = os.path.join(
+                    input_dir,
+                    store_exposure_fp(self.kwargs[input_name], input_name)
+                )
+        return {**self.kwargs, **updated_inputs}
 
 
     def run(self):
@@ -70,13 +83,13 @@ class RunModel(ComputationStep):
 
         # Run chain
         if self.exposure_pre_analysis_module:
-            cmds = [ExposurePreAnalysis(**self.kwargs), GenerateOasisFiles(**self.kwargs), GenerateLosses(**self.kwargs)]
+            cmds = [(ExposurePreAnalysis, self.kwargs), (GenerateOasisFiles, self.pre_analysis_kwargs()), (GenerateLosses, self.kwargs)]
         else:
-            cmds = [GenerateOasisFiles(**self.kwargs), GenerateLosses(**self.kwargs)]
+            cmds = [(GenerateOasisFiles, self.kwargs), (GenerateLosses, self.kwargs)]
 
         with tqdm(total=len(cmds)) as pbar:
             for cmd in cmds:
-                cmd.run()
+                cmd[0](**cmd[1]).run()
                 pbar.update(1)
 
         self.logger.info('\nModel run completed successfully in {}'.format(self.model_run_dir))
