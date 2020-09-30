@@ -800,6 +800,7 @@ class ReinsuranceLayer(object):
         layer_id = 1        # Current layer ID
         overlay_loop = 0    # Overlays multiple rules in same layer
         prev_reins_number = -1
+        fac_contracts_layer = []
         for _, ri_info_row in self.ri_info_df.iterrows():
             overlay_loop += 1
             scope_rows = self.ri_scope_df[
@@ -807,11 +808,27 @@ class ReinsuranceLayer(object):
                 (self.ri_scope_df.RiskLevel == self.risk_level)
             ]
 
-            # If FAC, don't increment the layer number
+            # If FAC, don't increment the layer number unless duplicate
             # Else, only increment inline with the reins_number
-            if ri_info_row.ReinsType in ['FAC']:
-                pass
-            if prev_reins_number == -1:
+            if ri_info_row.ReinsType == oed.REINS_TYPE_FAC:
+                if prev_reins_number < ri_info_row.ReinsNumber:
+                    prev_reins_number = ri_info_row.ReinsNumber
+                nodes_risk_level_all = anytree.search.findall(
+                    program_node,
+                    filter_=lambda node: node.level_id == self._get_risk_level_id()
+                )
+                fac_contracts = []
+                for _, ri_scope_row in scope_rows.iterrows():
+                    fac_contracts += [
+                        x.name for x in self._risk_level_filter(
+                            nodes_risk_level_all, ri_scope_row, exact=True
+                        )
+                    ]
+                if any(element in fac_contracts for element in fac_contracts_layer):
+                    layer_id += 1
+                    fac_contracts_layer = []
+                fac_contracts_layer += fac_contracts
+            elif prev_reins_number == -1:
                 prev_reins_number = ri_info_row.ReinsNumber
             elif prev_reins_number < ri_info_row.ReinsNumber:
                 layer_id += 1
