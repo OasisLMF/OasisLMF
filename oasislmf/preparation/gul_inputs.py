@@ -28,6 +28,7 @@ from ..utils.data import (
 from ..utils.defaults import (
     get_default_exposure_profile,
     GROUP_ID_COLS,
+    CORRELATION_GROUP_ID,
     OASIS_FILES_PREFIXES,
 )
 from ..utils.exceptions import OasisException
@@ -199,6 +200,16 @@ def get_gul_input_items(
         missing_group_id_cols = [col for col in group_id_cols if col not in exposure_df_gul_inputs_cols]
         exposure_df_gul_inputs_cols += missing_group_id_cols
 
+        # Check if correlation group field used to drive group id
+        # and test that it's present and poulated with integers
+        correlation_group_id = list(map(lambda col: col.lower(), CORRELATION_GROUP_ID))
+        correlation_field = correlation_group_id[0]
+        correlation_check = False
+        if group_id_cols == correlation_group_id:
+            if correlation_field in exposure_df.columns:
+                if exposure_df[correlation_field].astype('uint32').isnull().sum() == 0:
+                    correlation_check = True
+
         query_nonzero_tiv = " | ".join(f"({tiv_col} != 0)" for tiv_col in tiv_cols)
         exposure_df.loc[:, tiv_cols] = exposure_df.loc[:, tiv_cols].fillna(0.0)
         exposure_df.query(query_nonzero_tiv, inplace=True, engine='numexpr')
@@ -287,16 +298,21 @@ def get_gul_input_items(
             )
 
         # Set the group ID
-        if len(group_id_cols) > 1:
-            gul_inputs_df['group_id'] = factorize_ndarray(
-                gul_inputs_df.loc[:, group_id_cols].values,
-                col_idxs=range(len(group_id_cols)),
-                sort_opt=True
-            )[0]
+        # If the group id is set according to the correlation group field then map this field
+        # directly, otherwise create an index of the group id fields
+        if correlation_check == True:
+            gul_inputs_df['group_id'] = gul_inputs_df[correlation_group_id]
         else:
-            gul_inputs_df['group_id'] = factorize_array(
-                gul_inputs_df[group_id_cols[0]].values
-            )[0]
+            if len(group_id_cols) > 1:
+                gul_inputs_df['group_id'] = factorize_ndarray(
+                    gul_inputs_df.loc[:, group_id_cols].values,
+                    col_idxs=range(len(group_id_cols)),
+                    sort_opt=True
+                )[0]
+            else:
+                gul_inputs_df['group_id'] = factorize_array(
+                    gul_inputs_df[group_id_cols[0]].values
+                )[0]
         gul_inputs_df['group_id'] = gul_inputs_df['group_id'].astype('uint32')
 
         # Set the item IDs and coverage IDs, and defaults and data types for
