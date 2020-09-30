@@ -11,8 +11,6 @@ from ..generate.files import GenerateOasisFiles
 from ..generate.losses import GenerateLosses
 from ..hooks.pre_analysis import ExposurePreAnalysis
 
-from collections import OrderedDict
-
 from ...utils.exceptions import OasisException
 from ...utils.data import (
     get_analysis_settings,
@@ -20,7 +18,7 @@ from ...utils.data import (
 )
 
 from ...utils.path import empty_dir
-from ...utils.defaults import SOURCE_FILENAMES
+from ...utils.defaults import store_exposure_fp
 
 class RunModel(ComputationStep):
     """
@@ -40,15 +38,15 @@ class RunModel(ComputationStep):
     ]
 
 
-    def update_kwargs(self):
-        oed_filenames = OrderedDict([f for f in SOURCE_FILENAMES.items() if f[0].startswith('oed_')])
-        updated_inputs = dict()
+    def pre_analysis_kwargs(self):
+        updated_inputs = {}
+        input_dir = self.kwargs['oasis_files_dir']
 
-        for f in oed_filenames:
-            if self.kwargs[f]:
-                updated_inputs[f] = os.path.join(
-                    self.kwargs['oasis_files_dir'],
-                    oed_filenames[f]
+        for input_name in ('oed_location_csv', 'oed_accounts_csv', 'oed_info_csv', 'oed_scope_csv'):
+            if self.kwargs[input_name]:
+                updated_inputs[input_name] = os.path.join(
+                    input_dir,
+                    store_exposure_fp(self.kwargs[input_name], input_name)
                 )
         return {**self.kwargs, **updated_inputs}
 
@@ -85,9 +83,7 @@ class RunModel(ComputationStep):
 
         # Run chain
         if self.exposure_pre_analysis_module:
-            PreAnalysis_kwargs = self.update_kwargs()
-
-            cmds = [(ExposurePreAnalysis, self.kwargs), (GenerateOasisFiles, PreAnalysis_kwargs), (GenerateLosses, self.kwargs)]
+            cmds = [(ExposurePreAnalysis, self.kwargs), (GenerateOasisFiles, self.pre_analysis_kwargs()), (GenerateLosses, self.kwargs)]
         else:
             cmds = [(GenerateOasisFiles, self.kwargs), (GenerateLosses, self.kwargs)]
 
