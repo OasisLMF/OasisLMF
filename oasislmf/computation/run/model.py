@@ -11,6 +11,8 @@ from ..generate.files import GenerateOasisFiles
 from ..generate.losses import GenerateLosses
 from ..hooks.pre_analysis import ExposurePreAnalysis
 
+from collections import OrderedDict
+
 from ...utils.exceptions import OasisException
 from ...utils.data import (
     get_analysis_settings,
@@ -18,7 +20,7 @@ from ...utils.data import (
 )
 
 from ...utils.path import empty_dir
-
+from ...utils.defaults import SOURCE_FILENAMES
 
 class RunModel(ComputationStep):
     """
@@ -36,6 +38,19 @@ class RunModel(ComputationStep):
         GenerateOasisFiles,
         ExposurePreAnalysis,
     ]
+
+
+    def update_kwargs(self):
+        oed_filenames = OrderedDict([f for f in SOURCE_FILENAMES.items() if f[0].startswith('oed_')])
+        updated_inputs = dict()
+
+        for f in oed_filenames:
+            if self.kwargs[f]:
+                updated_inputs[f] = os.path.join(
+                    self.kwargs['oasis_files_dir'],
+                    oed_filenames[f]
+                )
+        return {**self.kwargs, **updated_inputs}
 
 
     def run(self):
@@ -70,13 +85,15 @@ class RunModel(ComputationStep):
 
         # Run chain
         if self.exposure_pre_analysis_module:
-            cmds = [ExposurePreAnalysis(**self.kwargs), GenerateOasisFiles(**self.kwargs), GenerateLosses(**self.kwargs)]
+            PreAnalysis_kwargs = self.update_kwargs()
+
+            cmds = [(ExposurePreAnalysis, self.kwargs), (GenerateOasisFiles, PreAnalysis_kwargs), (GenerateLosses, self.kwargs)]
         else:
-            cmds = [GenerateOasisFiles(**self.kwargs), GenerateLosses(**self.kwargs)]
+            cmds = [(GenerateOasisFiles, self.kwargs), (GenerateLosses, self.kwargs)]
 
         with tqdm(total=len(cmds)) as pbar:
             for cmd in cmds:
-                cmd.run()
+                cmd[0](**cmd[1]).run()
                 pbar.update(1)
 
         self.logger.info('\nModel run completed successfully in {}'.format(self.model_run_dir))
