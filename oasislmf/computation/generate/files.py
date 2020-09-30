@@ -18,6 +18,7 @@ from ...utils.exceptions import OasisException
 from ...utils.data import (
     get_model_settings,
     get_location_df,
+    get_dataframe,
     get_json,
     get_utctimestamp,
 )
@@ -158,6 +159,26 @@ class GenerateOasisFiles(ComputationStep):
                 _keys_errors_fp = os.path.join(target_dir, os.path.basename(self.keys_errors_csv))
 
 
+        # Load keys file  **** WARNING - REFACTOR THIS ****
+        dtypes = {
+            'locid': 'str',
+            'perilid': 'str',
+            'coveragetypeid': 'uint8',
+            'areaperilid': 'uint64',
+            'vulnerabilityid': 'uint32',
+            'modeldata': 'str'
+        }
+        keys_error_fp = os.path.join(os.path.dirname(_keys_fp), 'keys-errors.csv') if _keys_fp else 'Missing'
+        missing_keys_msg = 'No successful lookup results found in the keys file - '
+        missing_keys_msg += 'Check the `keys-errors.csv` file for details. \n File path: {}'.format(keys_error_fp)
+        keys_df = get_dataframe(
+            src_fp=_keys_fp,
+            col_dtypes=dtypes,
+            empty_data_error_msg=missing_keys_msg,
+            memory_map=True
+        )
+        # ************************************************
+
 
         # Columns from loc file to assign group_id
         model_group_fields = None
@@ -176,7 +197,7 @@ class GenerateOasisFiles(ComputationStep):
         # Get the GUL input items and exposure dataframes
         gul_inputs_df = get_gul_input_items(
             location_df,
-            _keys_fp,
+            keys_df,
             exposure_profile=location_profile,
             group_id_cols=group_id_cols
         )
@@ -185,11 +206,10 @@ class GenerateOasisFiles(ComputationStep):
         if summarise_exposure:
             write_exposure_summary(
                 target_dir,
-                gul_inputs_df,
                 location_df,
+                keys_fp=_keys_fp,
                 keys_errors_fp=_keys_errors_fp,
-                exposure_profile=location_profile,
-                oed_hierarchy=oed_hierarchy
+                exposure_profile=location_profile
             )
 
         # If exposure summary set, write valid columns for summary levels to file
