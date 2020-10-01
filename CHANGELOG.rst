@@ -1,11 +1,26 @@
 OasisLMF Changelog
 ==================
 
-`1.10.2`_
+
+`1.11.0`_
 ---------
 .. start_latest_release
-* [8fdc512](https://github.com/OasisLMF/OasisLMF/pull/644) - Fix issue with introduction of erroneous duplicate rows when calculating aggregated TIVs
+* [#598](https://github.com/OasisLMF/OasisLMF/issues/598) - Fac Contracts being applied as multiple layers in RI file generation
+* [#648](https://github.com/OasisLMF/OasisLMF/issues/648) - Correlation Group OED field to drive group_id directly 
+* [#458](https://github.com/OasisLMF/OasisLMF/issues/458) - Keys lookup response clean up 
+* [#575](https://github.com/OasisLMF/OasisLMF/issues/575) - Add option to test multi-peril in oasislmf exposure run and oasislmf test fm
+* [#606](https://github.com/OasisLMF/OasisLMF/issues/606) - missing combination of terms in calcrules to add - part 2
+* [#568](https://github.com/OasisLMF/OasisLMF/issues/568) - Min/max deductible not working when prior level locations are partially limited in OED input
+* [#640](https://github.com/OasisLMF/OasisLMF/issues/640) - Use categorical dtype to reduce the memory usage of files generation
+* [PR 651](https://github.com/OasisLMF/OasisLMF/pull/651) - Fixing typo in Probabilistic and usage of historical vs historic
+* [PR 654](https://github.com/OasisLMF/OasisLMF/pull/654) - add check if epa when copying file for file generation
+* [PR 652](https://github.com/OasisLMF/OasisLMF/pull/652) - If a path parameter is an empty string, load default value
+* [PR 660](https://github.com/OasisLMF/OasisLMF/pull/660) - Fix pre Analysis input file paths for `oasislmf model run`
 .. end_latest_release
+
+`1.10.2`_
+---------
+* [8fdc512](https://github.com/OasisLMF/OasisLMF/pull/644) - Fix issue with introduction of erroneous duplicate rows when calculating aggregated TIVs
 
 `1.10.1`_
 ---------
@@ -446,6 +461,10 @@ OasisLMF Changelog
 
 * Add console logging
 
+.. _`1.11.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.20.2...1.11.0
+.. _`1.10.2`:  https://github.com/OasisLMF/OasisLMF/compare/1.10.1...1.10.2
+.. _`1.10.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.10.0...1.10.1
+.. _`1.10.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.9.1...1.10.0
 .. _`1.9.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.9.0...1.9.1
 .. _`1.9.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.8.3...1.9.0
 .. _`1.8.3`:  https://github.com/OasisLMF/OasisLMF/compare/1.8.2...1.8.3
