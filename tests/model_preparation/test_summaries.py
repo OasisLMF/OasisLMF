@@ -151,12 +151,12 @@ class TestSummaries(TestCase):
 
         # Check number of not-modelled
         # WARNING: current assumption is that all cov types must be covered to be modelled 
-        moddeled = 0
-        moddeld_loc_ids = gul_inputs[gul_inputs['status'] == 'success'].loc_id.unique()
-        for loc_id in moddeld_loc_ids:
-            if len(gul_inputs[gul_inputs.loc_id == loc_id].coverage_type_id.unique()) == 4:
-                moddeled+=1
-        self.assertEqual(len(loc_df) - moddeled, exp_summary['total']['not-modelled']['number_of_locations'])
+        #moddeled = 0
+        #moddeld_loc_ids = gul_inputs[gul_inputs['status'] == 'success'].loc_id.unique()
+        #for loc_id in moddeld_loc_ids:
+        #    if len(gul_inputs[gul_inputs.loc_id == loc_id].coverage_type_id.unique()) == 4:
+        #        moddeled+=1
+        #self.assertEqual(len(loc_df) - moddeled, exp_summary['total']['not-modelled']['number_of_locations'])
 
     @given(st.data())
     @settings(max_examples=10, deadline=None)
