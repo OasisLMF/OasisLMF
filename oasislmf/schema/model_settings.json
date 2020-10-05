@@ -163,6 +163,12 @@
                                "description": "UI description for selection",
                                "minLength": 1
                            },
+                           "used_for": {
+                               "type": "string",
+                               "title": "Where the setting is applied",
+                               "description": "Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
+                               "enum": ["generation", "losses"]
+                           },    
                            "tooltip": {
                                "type": "string",
                                "title": "UI tooltip",
@@ -200,6 +206,12 @@
                                "description": "UI description for selection",
                                "minLength": 1
                            },
+                           "used_for": {
+                               "type": "string",
+                               "title": "Where the setting is applied",
+                               "description": "Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
+                               "enum": ["generation", "losses"]
+                           },    
                            "tooltip": {
                                "type": "string",
                                "title": "UI tooltip",
@@ -240,6 +252,12 @@
                                "description": "UI description for selection",
                                "minLength": 1
                            },
+                           "used_for": {
+                               "type": "string",
+                               "title": "Where the setting is applied",
+                               "description": "Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
+                               "enum": ["generation", "losses"]
+                           },    
                            "tooltip": {
                                "type": "string",
                                "title": "UI tooltip",
@@ -277,6 +295,12 @@
                                "description": "UI description for selection",
                                "minLength": 1
                            },
+                           "used_for": {
+                               "type": "string",
+                               "title": "Where the setting is applied",
+                               "description": "Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
+                               "enum": ["generation", "losses"]
+                           },    
                            "tooltip": {
                                "type": "string",
                                "title": "UI tooltip",
@@ -314,6 +338,12 @@
                                "description": "UI description for selection",
                                "minLength": 1
                            },
+                           "used_for": {
+                               "type": "string",
+                               "title": "Where the setting is applied",
+                               "description": "Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
+                               "enum": ["generation", "losses"]
+                           },    
                            "tooltip": {
                                "type": "string",
                                "title": "UI tooltip",
@@ -361,6 +391,12 @@
                                "description": "UI description for selection",
                                "minLength": 1
                            },
+                           "used_for": {
+                               "type": "string",
+                               "title": "Where the setting is applied",
+                               "description": "Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
+                               "enum": ["generation", "losses"]
+                           },    
                            "tooltip": {
                                "type": "string",
                                "title": "UI tooltip",
@@ -398,6 +434,12 @@
                                "description": "UI description for selection",
                                "minLength": 1
                            },
+                           "used_for": {
+                               "type": "string",
+                               "title": "Where the setting is applied",
+                               "description": "Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
+                               "enum": ["generation", "losses"]
+                           },    
                            "tooltip": {
                                "type": "string",
                                "title": "UI tooltip",
@@ -466,6 +508,12 @@
                                "description": "UI description for selection",
                                "minLength": 1
                            },
+                           "used_for": {
+                               "type": "string",
+                               "title": "Where the setting is applied",
+                               "description": "Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
+                               "enum": ["generation", "losses"]
+                           },    
                            "tooltip": {
                                "type": "string",
                                "title": "UI tooltip",
@@ -503,6 +551,12 @@
                               "description": "UI description for selection",
                               "minLength": 1
                           },
+                           "used_for": {
+                               "type": "string",
+                               "title": "Where the setting is applied",
+                               "description": "Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
+                               "enum": ["generation", "losses"]
+                           },    
                           "tooltip": {
                               "type": "string",
                               "title": "UI tooltip",
