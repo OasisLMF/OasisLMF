@@ -13,7 +13,7 @@ import pandas as pd
 
 from ..base import ComputationStep
 from ..generate.keys import GenerateKeysDeterministic
-from ..generate.files import GenerateOasisFiles
+from ..generate.files import GenerateFiles
 from ..generate.losses import GenerateLossesDeterministic
 
 
@@ -115,7 +115,7 @@ class RunExposure(ComputationStep):
         ).run()
 
         # 2. Start Oasis files generation
-        GenerateOasisFiles(
+        GenerateFiles(
            oasis_files_dir=run_dir,
             oed_location_csv=location_fp,
             oed_accounts_csv=accounts_fp,

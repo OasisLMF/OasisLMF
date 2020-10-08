@@ -1,5 +1,5 @@
 __all__ = [
-    'GenerateOasisFiles'
+    'GenerateFiles'
 ]
 
 import io
@@ -49,7 +49,7 @@ from ...preparation.summaries import (
 
 
 
-class GenerateOasisFiles(ComputationStep):
+class GenerateFiles(ComputationStep):
     """
     Generates the standard Oasis GUL input files + optionally the IL/FM input
     files and the RI input files.
