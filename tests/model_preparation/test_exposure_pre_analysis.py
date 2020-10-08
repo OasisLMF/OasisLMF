@@ -58,9 +58,9 @@ def write_exposure_pre_analysis_setting_json(exposure_pre_analysis_setting_json)
 
 def test_exposure_pre_analysis_simple_example():
     with TemporaryDirectory() as d:
-        kwargs = {'model_run_dir': d,
+        kwargs = {'oasis_files_dir': d,
                   'exposure_pre_analysis_module': os.path.join(d, 'exposure_pre_analysis_simple.py'),
-                  'oed_location_csv': os.path.join(d, SOURCE_FILENAMES['oed_location_csv']),
+                  'oed_location_csv': os.path.join(d, 'input_{}'.format(SOURCE_FILENAMES['oed_location_csv'])),
                   'exposure_pre_analysis_setting_json': os.path.join(d, 'exposure_pre_analysis_setting.json'),}
 
         write_simple_epa_module(kwargs['exposure_pre_analysis_module'])
@@ -69,17 +69,17 @@ def test_exposure_pre_analysis_simple_example():
 
         OasisManager().exposure_pre_analysis(**kwargs)
 
-        with open(os.path.join(d, 'input', SOURCE_FILENAMES['oed_location_csv'])) as new_oed_location_csv:
+        with open(os.path.join(d, SOURCE_FILENAMES['oed_location_csv'])) as new_oed_location_csv:
             new_oed_location_csv_data = new_oed_location_csv.read()
             assert new_oed_location_csv_data == output_oed_location
 
 
 def test_exposure_pre_analysis_class_name():
     with TemporaryDirectory() as d:
-        kwargs = {'model_run_dir': d,
+        kwargs = {'oasis_files_dir': d,
                   'exposure_pre_analysis_class_name': 'foobar',
                   'exposure_pre_analysis_module': os.path.join(d, 'exposure_pre_analysis_simple_foobar.py'),
-                  'oed_location_csv': os.path.join(d, SOURCE_FILENAMES['oed_location_csv']),
+                  'oed_location_csv': os.path.join(d, 'input_{}'.format(SOURCE_FILENAMES['oed_location_csv'])),
                   'exposure_pre_analysis_setting_json': os.path.join(d, 'exposure_pre_analysis_setting.json'), }
 
         write_simple_epa_module(kwargs['exposure_pre_analysis_module'], kwargs['exposure_pre_analysis_class_name'])
@@ -88,7 +88,7 @@ def test_exposure_pre_analysis_class_name():
 
         OasisManager().exposure_pre_analysis(**kwargs)
 
-        with open(os.path.join(d, 'input', SOURCE_FILENAMES['oed_location_csv'])) as new_oed_location_csv:
+        with open(os.path.join(d, SOURCE_FILENAMES['oed_location_csv'])) as new_oed_location_csv:
             new_oed_location_csv_data = new_oed_location_csv.read()
             assert new_oed_location_csv_data == output_oed_location
 
@@ -100,10 +100,10 @@ def test_missing_module():
 
 def test_wrong_class():
     with TemporaryDirectory() as d:
-        kwargs = {'model_run_dir': d,
+        kwargs = {'oasis_files_dir': d,
                   'exposure_pre_analysis_class_name': 'foobar',
                   'exposure_pre_analysis_module': os.path.join(d, 'exposure_pre_analysis_simple.py'),
-                  'oed_location_csv': os.path.join(d, SOURCE_FILENAMES['oed_location_csv']),
+                  'oed_location_csv': os.path.join(d, 'input_{}'.format(SOURCE_FILENAMES['oed_location_csv'])),
                   'exposure_pre_analysis_setting_json': os.path.join(d, 'exposure_pre_analysis_setting.json'), }
 
         write_simple_epa_module(kwargs['exposure_pre_analysis_module'])
