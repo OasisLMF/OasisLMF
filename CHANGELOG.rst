@@ -1,10 +1,14 @@
 OasisLMF Changelog
 ==================
 
+`1.11.1`_
+---------
+.. start_latest_release
+* [#653](https://github.com/OasisLMF/OasisLMF/issues/653) - Fix pre-analysis exposure modification for generate-oasis-files command 
+.. end_latest_release
 
 `1.11.0`_
 ---------
-.. start_latest_release
 * [#598](https://github.com/OasisLMF/OasisLMF/issues/598) - Fac Contracts being applied as multiple layers in RI file generation
 * [#648](https://github.com/OasisLMF/OasisLMF/issues/648) - Correlation Group OED field to drive group_id directly 
 * [#458](https://github.com/OasisLMF/OasisLMF/issues/458) - Keys lookup response clean up 
@@ -16,7 +20,6 @@ OasisLMF Changelog
 * [PR 654](https://github.com/OasisLMF/OasisLMF/pull/654) - add check if epa when copying file for file generation
 * [PR 652](https://github.com/OasisLMF/OasisLMF/pull/652) - If a path parameter is an empty string, load default value
 * [PR 660](https://github.com/OasisLMF/OasisLMF/pull/660) - Fix pre Analysis input file paths for `oasislmf model run`
-.. end_latest_release
 
 `1.10.2`_
 ---------
@@ -461,7 +464,8 @@ OasisLMF Changelog
 
 * Add console logging
 
-.. _`1.11.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.20.2...1.11.0
+.. _`1.11.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.11.0...1.11.1
+.. _`1.11.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.10.2...1.11.0
 .. _`1.10.2`:  https://github.com/OasisLMF/OasisLMF/compare/1.10.1...1.10.2
 .. _`1.10.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.10.0...1.10.1
 .. _`1.10.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.9.1...1.10.0
