@@ -47,10 +47,8 @@ class GenerateOasisFiles(ComputationStep):
         if not self.oasis_files_dir:
             self.oasis_files_dir = GenerateFiles._get_output_dir(self)
 
-        # Clear or create input dir
-        if os.path.exists(self.oasis_files_dir):
-            empty_dir(self.oasis_files_dir)
-        else:
+        # create input dir
+        if not os.path.exists(self.oasis_files_dir):
             os.makedirs(self.oasis_files_dir)
 
         # Run chain
