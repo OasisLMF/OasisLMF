@@ -7,6 +7,7 @@ import logging
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-a', '--allocation-rule', help='back-allocation rule', default=0, type=int)
+parser.add_argument('-n', '--net-loss', help='output the net value instead of the gross value', action='store_true')
 parser.add_argument('-p', '--static-path', help='path to the folder containing the static files', default='input')
 parser.add_argument('-i', '--files-in', help='names of the input file_path', nargs='+')
 parser.add_argument('-o', '--files-out', help='names of the output file_path', nargs='+')

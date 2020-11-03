@@ -7,7 +7,7 @@ __all__ = [
 
 from .common import nb_oasis_int, np_oasis_int, np_oasis_float, almost_equal, null_index, need_tiv_policy
 from .common import fm_programme_dtype, fm_policytc_dtype, fm_profile_dtype, fm_profile_step_dtype, fm_xref_dtype,\
-    items_dtype, coverages_dtype
+    items_dtype, coverages_dtype, allowed_allocation_rule
 
 from numba import njit, types, from_dtype
 from numba.typed import List, Dict
@@ -81,16 +81,21 @@ def load_static(static_path):
     policytc = load_file('fm_policytc', fm_policytc_dtype)
     profile = load_file('fm_profile', fm_profile_dtype)
     xref = load_file('fm_xref', fm_xref_dtype)
-    items = load_file('items', items_dtype)[['item_id', 'coverage_id']]
 
-    # coverage has a different structure whether it comes for the csv or the bin file
-    fp = os.path.join(static_path, 'coverages.bin')
-    if os.path.isfile(fp):
-        coverages = np.fromfile(fp, dtype=np_oasis_float)
-    else:
-        fp = os.path.join(static_path, 'coverages.csv')
-        with open(fp) as file_in:
-            coverages = np.loadtxt(file_in, dtype=np_oasis_float, delimiter=',', skiprows=1, usecols=1)
+    try:  # try to load items and coverage if present for TIV base policies (not used in re-insurance)
+        items = load_file('items', items_dtype)[['item_id', 'coverage_id']]
+
+        # coverage has a different structure whether it comes for the csv or the bin file
+        fp = os.path.join(static_path, 'coverages.bin')
+        if os.path.isfile(fp):
+            coverages = np.fromfile(fp, dtype=np_oasis_float)
+        else:
+            fp = os.path.join(static_path, 'coverages.csv')
+            with open(fp) as file_in:
+                coverages = np.loadtxt(file_in, dtype=np_oasis_float, delimiter=',', skiprows=1, usecols=1)
+    except FileNotFoundError:
+        items = np.empty(0, dtype=items_dtype)
+        coverages = np.empty(0, dtype=np_oasis_float)
 
     return programme, policytc, profile, xref, items, coverages
 
@@ -312,7 +317,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
 
         compute_len = node_level_start[-1] + steps + level_node_len[-1] +1
 
-    elif allocation_rule == 2:
+    elif allocation_rule == 2 :
         node_level_start = np.zeros(level_node_len.shape[0] + 1, np_oasis_int)
         for i in range(start_level, max_level + 1):
             node_level_start[i+1]= node_level_start[i] + level_node_len[i]
@@ -455,6 +460,12 @@ def create_financial_structure(allocation_rule, static_path):
         node_profile : map node to profile
         output_item_index : list of item_id, index to put in the output
     """
+
+    if allocation_rule not in allowed_allocation_rule:
+        raise ValueError(f"allocation_rule must be in {allowed_allocation_rule}, found {allocation_rule}")
+    if allocation_rule == 3:
+        allocation_rule = 2
+
     fm_programme, fm_policytc, fm_profile, fm_xref, items, coverages = load_static(static_path)
     financial_structure = extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_profile,
                                                       fm_xref, items, coverages)

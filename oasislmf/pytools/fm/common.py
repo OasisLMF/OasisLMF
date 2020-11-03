@@ -2,6 +2,8 @@ import numba as nb
 import numpy as np
 import numba as nb
 
+allowed_allocation_rule = [0, 1, 2, 3]
+
 np_oasis_int = np.int32
 nb_oasis_int = nb.int32
 np_oasis_float = np.float32

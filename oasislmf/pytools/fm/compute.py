@@ -39,6 +39,7 @@ def back_allocate(node, children, nodes_array, losses, loss_indexes, loss_i, com
 
 @njit(cache=True, fastmath=True)
 def compute_event(compute_info,
+                   net_loss,
                    nodes_array,
                    node_parents_array,
                    node_profiles_array,
@@ -178,6 +179,18 @@ def compute_event(compute_info,
                                                        computes,
                                                        next_compute_i)
             compute_i += 1
+    if net_loss:
+        # we go through the last level node and replace the gross loss by net loss, then reset compute_i to its value
+        out_compute_i = compute_i
+        while computes[compute_i]:
+            node_i, compute_i= computes[compute_i], compute_i + 1
+            node = nodes_array[node_i]
+            for layer in range(node['layer_len']):
+                losses[loss_indexes[node['ba'] + layer]] = (losses[loss_indexes[node['loss'] + layer]]
+                                                            - losses[loss_indexes[node['ba'] + layer]])
+
+        compute_i = out_compute_i
+
     # print(compute_info['max_level'], next_compute_i, compute_i, next_compute_i-compute_i, computes[compute_i:compute_i + 2], computes[next_compute_i - 1: next_compute_i + 1])
     return compute_i, loss_i, extra_i
 
