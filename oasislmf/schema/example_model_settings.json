@@ -1,4 +1,11 @@
 {
+   "name": "MyModelName",
+   "description": "Longer model description",
+   "supplier_id": "OasisLMF",
+   "model_id": "piwind",
+   "model_version_id": "1",
+   "model_configurable": true,
+
    "model_settings":{
       "event_set":{
          "name":"Event Set",
@@ -135,25 +142,39 @@
       ]
    },
    "data_settings":{
-      "datafile_selectors":[
-          {
-            "name": "model_data_file_option_1",
-            "desc": "Additional model data file for foo",
-            "model_id": 4,
-            "allow_multiple": true,
-            "search_filters": [
-                {
-                    "user": "admin",
-                    "filename": "file_model_data.txt",
-                    "filename__contains": "txt",
-                    "file_description": "File for XYZ",
-                    "file_description__contains": "YX",
-                    "content_type": "text/plain",
-                    "content_type__contains": "text"
-                }
-            ]
-          }
-      ]
+        "model_data_version": "1.0.0",
+        "keys_data_version": "1.0.0",
+        "worker_image": "coreoasis/model_worker",
+        "worker_version":"1.12.0",
+        "uses_model_files": true,
+        "countries": ["UK", "US"],
+        "mandatory_fields": ["AreaName", "PostalCode", "OccupancyCode"],
+        "additional_assets": [
+            {    
+               "name": "catresponsedata",
+               "version": "1.0",
+               "path": "model_data/catresponse/"
+            }
+        ],
+        "datafile_selectors":[
+             {
+               "name": "model_data_file_option_1",
+               "desc": "Additional model data file for foo",
+               "model_id": 4,
+               "allow_multiple": true,
+               "search_filters": [
+                   {
+                       "user": "admin",
+                       "filename": "file_model_data.txt",
+                       "filename__contains": "txt",
+                       "file_description": "File for XYZ",
+                       "file_description__contains": "YX",
+                       "content_type": "text/plain",
+                       "content_type__contains": "text"
+                   }
+               ]
+            }
+        ]
    },
    "lookup_settings":{
       "supported_perils":[
