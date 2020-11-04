@@ -43,8 +43,8 @@ class ExposurePreAnalysis(ComputationStep):
                     'help': 'Reinsurance info. CSV file path'},
                    {'name': 'oed_scope_csv', 'is_path': True, 'pre_exist': True,
                     'help': 'Reinsurance scope CSV file path'},
-                   {'name': 'model_run_dir', 'is_path': True, 'pre_exist': False,
-                    'help': 'Model run directory path'},
+                   {'name': 'oasis_files_dir', 'flag': '-o', 'is_path': True, 'pre_exist': False,
+                    'help': 'Path to the directory in which to generate the Oasis files'},
                    ]
 
     run_dir_key = 'pre-analysis'
@@ -53,11 +53,13 @@ class ExposurePreAnalysis(ComputationStep):
         """
         import exposure_pre_analysis_module and call the run method
         """
-        if self.model_run_dir is None:
-            self.model_run_dir = self.get_default_run_dir()
 
-        input_dir = os.path.join(self.model_run_dir, 'input')
-        pathlib.Path(input_dir).mkdir(parents=True, exist_ok=True)
+        # If given a value for 'oasis_files_dir' then use that directly
+        if self.oasis_files_dir:
+            input_dir = self.oasis_files_dir
+        else:
+            input_dir = self.get_default_run_dir()
+            pathlib.Path(input_dir).mkdir(parents=True, exist_ok=True)
 
         kwargs = {}
         for input_name in ('oed_location_csv', 'oed_accounts_csv', 'oed_info_csv', 'oed_scope_csv'):
@@ -83,4 +85,10 @@ class ExposurePreAnalysis(ComputationStep):
             raise OasisException(f"class {self.exposure_pre_analysis_class_name} "
                                  f"is not defined in module {self.exposure_pre_analysis_module}") from e.__cause__
 
+        self.logger.info('\nPre-analysis modified files: {}'.format(
+            json.dumps({k:v for (k,v) in kwargs.items() if k.startswith('oed')}, indent=4))
+        )
+        self.logger.info('\nPre-analysis original files: {}'.format(
+            json.dumps({k:v for (k,v) in kwargs.items() if k.startswith('raw')}, indent=4))
+        )
         return _class(**kwargs).run()

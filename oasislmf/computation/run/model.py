@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 from ..base import ComputationStep
 
-from ..generate.files import GenerateOasisFiles
+from ..generate.files import GenerateFiles
 from ..generate.losses import GenerateLosses
 from ..hooks.pre_analysis import ExposurePreAnalysis
 
@@ -33,7 +33,7 @@ class RunModel(ComputationStep):
     # Add params from each sub command not in 'step_params'
     chained_commands = [
         GenerateLosses,
-        GenerateOasisFiles,
+        GenerateFiles,
         ExposurePreAnalysis,
     ]
 
@@ -83,9 +83,9 @@ class RunModel(ComputationStep):
 
         # Run chain
         if self.exposure_pre_analysis_module:
-            cmds = [(ExposurePreAnalysis, self.kwargs), (GenerateOasisFiles, self.pre_analysis_kwargs()), (GenerateLosses, self.kwargs)]
+            cmds = [(ExposurePreAnalysis, self.kwargs), (GenerateFiles, self.pre_analysis_kwargs()), (GenerateLosses, self.kwargs)]
         else:
-            cmds = [(GenerateOasisFiles, self.kwargs), (GenerateLosses, self.kwargs)]
+            cmds = [(GenerateFiles, self.kwargs), (GenerateLosses, self.kwargs)]
 
         with tqdm(total=len(cmds)) as pbar:
             for cmd in cmds:
