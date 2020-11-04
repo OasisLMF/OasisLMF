@@ -94,6 +94,16 @@ exec 19> log/bash.log
 export BASH_XTRACEFD="19" """
 
 
+def get_fmcmd(fmpy, fmpy_low_memory):
+    if fmpy:
+        if fmpy_low_memory:
+            return 'fmpy -l'
+        else:
+            return 'fmpy'
+    else:
+        return 'fmcalc'
+
+
 def print_command(command_file, cmd):
     """
     Writes the supplied command to the end of the generated script
@@ -681,7 +691,9 @@ def get_main_cmd_ri_stream(
     num_reinsurance_iterations,
     fifo_dir='fifo/',
     stderr_guard=True,
-    from_file=False
+    from_file=False,
+    fmpy=False,
+    fmpy_low_memory=False,
 ):
     """
     Gets the fmcalc ktools command reinsurance stream
@@ -704,18 +716,16 @@ def get_main_cmd_ri_stream(
     :param from_file: must be true if cmd is a file and false if it can be piped
     :type from_file: bool
     """
-
     if from_file:
-        fm_cmd = 'fmcalc -a{1} < {0}'
+        main_cmd = f'{get_fmcmd(fmpy, fmpy_low_memory)} -a{il_alloc_rule} < {cmd}'
     else:
-        fm_cmd = '{0} | fmcalc -a{1}'
-    main_cmd = fm_cmd.format(cmd, il_alloc_rule)
+        main_cmd = f'{cmd} | {get_fmcmd(fmpy, fmpy_low_memory)} -a{il_alloc_rule}'
 
     if il_output:
         main_cmd += f" | tee {get_fifo_name(fifo_dir, RUNTYPE_INSURED_LOSS, process_id)}"
 
     for i in range(1, num_reinsurance_iterations + 1):
-        main_cmd += f" | fmcalc -a{ri_alloc_rule} -n -p RI_{i}"
+        main_cmd += f" | {get_fmcmd(fmpy, fmpy_low_memory)} -a{ri_alloc_rule} -n -p RI_{i}"
 
     ri_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_LOSS, process_id)
     main_cmd += f" > {ri_fifo_name}"
@@ -731,6 +741,8 @@ def get_main_cmd_il_stream(
     fifo_dir='fifo/',
     stderr_guard=True,
     from_file=False,
+    fmpy=False,
+    fmpy_low_memory=False,
 ):
     """
     Gets the fmcalc ktools command insured losses stream
@@ -750,10 +762,11 @@ def get_main_cmd_il_stream(
     """
 
     il_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_INSURED_LOSS, process_id)
+
     if from_file:
-        main_cmd = f'fmcalc -a{il_alloc_rule} < {cmd} > {il_fifo_name}'
+        main_cmd = f'{get_fmcmd(fmpy, fmpy_low_memory)} -a{il_alloc_rule} < {cmd} > {il_fifo_name}'
     else:
-        main_cmd = f'{cmd} | fmcalc -a{il_alloc_rule} > {il_fifo_name} '#need extra space at the end to pass test
+        main_cmd = f'{cmd} | {get_fmcmd(fmpy, fmpy_low_memory)} -a{il_alloc_rule} > {il_fifo_name} '#need extra space at the end to pass test
 
     main_cmd = f'( {main_cmd} ) 2>> log/stderror.err &' if stderr_guard else f'{main_cmd} &'
 
@@ -842,7 +855,9 @@ def genbash(
     bash_trace=False,
     filename='run_kools.sh',
     _get_getmodel_cmd=None,
-    custom_args={}
+    custom_args={},
+    fmpy=False,
+    fmpy_low_memory=False,
 ):
     """
     Generates a bash script containing ktools calculation instructions for an
@@ -982,6 +997,13 @@ def genbash(
             filename, 'mkdir {}'.format(work_full_correlation_kat_dir)
         )
     print_command(filename, '')
+
+    if fmpy:
+        print_command(
+            filename, f'fmpy -a{il_alloc_rule} --create-financial-structure-files'
+        )
+        for i in range(1, num_reinsurance_iterations + 1):
+            print_command(filename, f'fmpy -a{ri_alloc_rule} --create-financial-structure-files -p RI_{i}')
 
     # Create FIFOS under /tmp/* (Windows support)
     if fifo_tmp_dir:
@@ -1230,7 +1252,9 @@ def genbash(
                     num_reinsurance_iterations,
                     fifo_dir,
                     stderr_guard,
-                    from_file
+                    from_file,
+                    fmpy,
+                    fmpy_low_memory,
                 )
                 print_command(filename, main_cmd)
 
@@ -1238,7 +1262,9 @@ def genbash(
                 main_cmd = get_main_cmd_il_stream(
                     getmodel_cmd, process_id, il_alloc_rule, fifo_dir,
                     stderr_guard,
-                    from_file
+                    from_file,
+                    fmpy,
+                    fmpy_low_memory,
                 )
                 print_command(filename, main_cmd)
 
