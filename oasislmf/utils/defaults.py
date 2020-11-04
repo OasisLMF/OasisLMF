@@ -24,7 +24,7 @@ __all__ = [
     'KTOOLS_ALLOC_FM_MAX',
     'KTOOLS_FIFO_RELATIVE',
     'KTOOLS_DEBUG',
-    'KTOOLS_ERR_GUARD',
+    'KTOOLS_DISABLE_ERR_GUARD',
     'KTOOLS_NUM_PROCESSES',
     'KTOOLS_GUL_LEGACY_STREAM',
     'OASIS_FILES_PREFIXES',
@@ -313,7 +313,7 @@ def get_default_deterministic_analysis_settings(path=False):
 # Defaults for Ktools runtime parameters
 KTOOLS_NUM_PROCESSES = -1
 KTOOLS_FIFO_RELATIVE = False
-KTOOLS_ERR_GUARD = True
+KTOOLS_DISABLE_ERR_GUARD = False
 KTOOLS_GUL_LEGACY_STREAM = False
 # ktools gul alloc rules:
 # 2 = total loss is maximum subperil loss

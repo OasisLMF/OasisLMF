@@ -9,7 +9,7 @@ import logging
 
 from ..utils.defaults import get_config_profile
 from ..utils.exceptions import OasisException
-
+from argparse import ArgumentTypeError
 
 class InputValues(object):
     """
@@ -32,10 +32,7 @@ class InputValues(object):
             self.config_dir = os.path.dirname(self.config_fp)
 
         self.obsolete_keys = set(self.config) & set(self.config_mapping)
-    
-        ##! Not sure why this is needed?
-        #self.logger.warning(str(self.config))
-    
+
         self.list_obsolete_keys()
         if update_keys:
             self.update_config_keys()
@@ -118,9 +115,9 @@ class InputValues(object):
 
         :return: The found value or the default
         """
-
         value = getattr(self.args, name, None)
         source = 'arg'
+
         if value is None:
             value = self.config.get(name)
             source = 'config'
@@ -139,3 +136,29 @@ class InputValues(object):
                 value = os.path.abspath(value)
 
         return value
+
+
+def str2bool(v):
+    """ Func type for loading strings to boolean values using argparse
+        https://stackoverflow.com/a/43357954
+
+        step_params:
+            use: `'default': False, 'type': str2bool, 'const':True, 'nargs':'?', ...`
+
+        CLI:
+            oasislmf --some-flag
+            oasislmf --some-flag <bool>
+
+        oasislmf.json
+        {"some_flag": true, ...}
+    """
+    if v is None:
+        return v
+    elif isinstance(v, bool):
+        return v
+    elif v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise ArgumentTypeError('Boolean value expected.')
