@@ -213,9 +213,9 @@ class GenerateLosses(ComputationStep):
                         num_gul_per_lb=self.ktools_num_gul_per_lb,
                         num_fm_per_lb=self.ktools_num_fm_per_lb,
                         run_debug=self.verbose,
-                        stderr_guard= not self.ktools_disable_guard,
+                        stderr_guard=not self.ktools_disable_guard,
                         gul_legacy_stream=self.ktools_legacy_stream,
-                        fifo_tmp_dir=self.ktools_fifo_relative,
+                        fifo_tmp_dir=not self.ktools_fifo_relative,
                         custom_gulcalc_cmd=self.model_custom_gulcalc,
                     )
                 except TypeError:
@@ -230,9 +230,9 @@ class GenerateLosses(ComputationStep):
                         set_alloc_rule_il=self.ktools_alloc_rule_il,
                         set_alloc_rule_ri=self.ktools_alloc_rule_ri,
                         run_debug=self.verbose,
-                        stderr_guard= not self.ktools_disable_guard,
+                        stderr_guard=not self.ktools_disable_guard,
                         gul_legacy_stream=self.ktools_legacy_stream,
-                        fifo_tmp_dir=self.ktools_fifo_relative,
+                        fifo_tmp_dir=not self.ktools_fifo_relative,
                         custom_gulcalc_cmd=self.model_custom_gulcalc,
                     )
             except CalledProcessError as e:
