@@ -33,7 +33,7 @@
                            "title": "Where the setting is applied",
                            "description": "Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
                            "enum": ["generation", "losses"]
-                       },    
+                       },
                        "tooltip": {
                            "type": "string",
                            "title": "UI tooltip",
@@ -65,6 +65,15 @@
                                        "title": "Event set description",
                                        "description": "UI description for selection",
                                        "minLength": 1
+                                   },
+                                   "valid_occurrence_ids": {
+                                       "type": "array",
+                                       "title": "Supported occurrence files",
+                                       "description": "An optional list of viable occurrence file ids to use with this event set",
+                                       "items":{
+                                           "type": "string",
+                                           "minLength": 1
+                                       }
                                    },
                                    "tooltip": {
                                        "type": "string",
@@ -101,7 +110,7 @@
                            "title": "Where the setting is applied",
                            "description": "Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
                            "enum": ["generation", "losses"]
-                       },    
+                       },
                        "tooltip": {
                            "type": "string",
                            "title": "UI tooltip",
@@ -180,7 +189,7 @@
                                "title": "Where the setting is applied",
                                "description": "Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
                                "enum": ["generation", "losses"]
-                           },    
+                           },
                            "tooltip": {
                                "type": "string",
                                "title": "UI tooltip",
@@ -223,7 +232,7 @@
                                "title": "Where the setting is applied",
                                "description": "Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
                                "enum": ["generation", "losses"]
-                           },    
+                           },
                            "tooltip": {
                                "type": "string",
                                "title": "UI tooltip",
@@ -269,7 +278,7 @@
                                "title": "Where the setting is applied",
                                "description": "Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
                                "enum": ["generation", "losses"]
-                           },    
+                           },
                            "tooltip": {
                                "type": "string",
                                "title": "UI tooltip",
@@ -312,7 +321,7 @@
                                "title": "Where the setting is applied",
                                "description": "Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
                                "enum": ["generation", "losses"]
-                           },    
+                           },
                            "tooltip": {
                                "type": "string",
                                "title": "UI tooltip",
@@ -355,7 +364,7 @@
                                "title": "Where the setting is applied",
                                "description": "Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
                                "enum": ["generation", "losses"]
-                           },    
+                           },
                            "tooltip": {
                                "type": "string",
                                "title": "UI tooltip",
@@ -408,7 +417,7 @@
                                "title": "Where the setting is applied",
                                "description": "Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
                                "enum": ["generation", "losses"]
-                           },    
+                           },
                            "tooltip": {
                                "type": "string",
                                "title": "UI tooltip",
@@ -451,7 +460,7 @@
                                "title": "Where the setting is applied",
                                "description": "Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
                                "enum": ["generation", "losses"]
-                           },    
+                           },
                            "tooltip": {
                                "type": "string",
                                "title": "UI tooltip",
@@ -525,7 +534,7 @@
                                "title": "Where the setting is applied",
                                "description": "Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
                                "enum": ["generation", "losses"]
-                           },    
+                           },
                            "tooltip": {
                                "type": "string",
                                "title": "UI tooltip",
@@ -568,7 +577,7 @@
                                "title": "Where the setting is applied",
                                "description": "Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
                                "enum": ["generation", "losses"]
-                          },    
+                          },
                           "tooltip": {
                               "type": "string",
                               "title": "UI tooltip",

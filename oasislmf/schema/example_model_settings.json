@@ -7,7 +7,8 @@
          "options":[
             {
                "id":"P",
-               "desc":"Probabilistic"
+               "desc":"Probabilistic",
+               "valid_occurrence_ids":["1"]
             },
             {
                "id":"H",
