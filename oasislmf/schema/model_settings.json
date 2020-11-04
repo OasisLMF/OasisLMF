@@ -1,691 +1,987 @@
 {
-    "type": "object",
-    "title": "Model settings",
-    "description": "Specifies the model resource schema",
-    "properties": {
-        "model_settings":{
-           "type": "object",
-           "uniqueItems": false,
-           "title": "Model setting options",
-           "description": "Runtime settings available to a model",
-           "additionalProperties": false,
-           "properties": {
-               "event_set":{
-                   "title": "Event set selector",
-                   "description": "The 'id' field from options is used as a file suffix' events_<id>.bin",
-                   "type": "object",
-                   "uniqueItems": false,
-                   "additionalProperties": false,
-                   "properties":{
-                       "name": {
-                           "type": "string",
-                           "title": "UI Option",
-                           "description": "UI name for selection",
-                           "minLength": 1
-                       },
-                       "desc": {
-                           "type": "string",
-                           "title": "Short description",
-                           "description": "UI description for selection"
-                       },
-                       "tooltip": {
-                           "type": "string",
-                           "title": "UI tooltip",
-                           "description": "Long description (optional)"
-                       },
-                       "default":{
-                           "type": "string",
-                           "title": "Default Event set",
-                           "description": "Initial setting for event set"
-                       },
-                       "options":{
-                           "type": "array",
-                           "title": "Selection options for events",
-                           "description": "Array of possible event sets",
-                           "items": {
-                               "type": "object",
-                               "title": "Selection option element",
-                               "description": "Event sets option",
-                               "additionalProperties": false,
-                               "properties": {
-                                   "id": {
-                                       "type": "string",
-                                       "title": "event set suffix",
-                                       "description": "String value used to select an event set",
-                                       "minLength": 1
-                                   },
-                                   "desc": {
-                                       "type": "string",
-                                       "title": "Event set description",
-                                       "description": "UI description for selection",
-                                       "minLength": 1
-                                   },
-                                   "tooltip": {
-                                       "type": "string",
-                                       "title": "UI tooltip",
-                                       "description": "Long description (optional)"
-                                   }
-                               },
-                               "required": ["id", "desc"]
-                           }
-                       }
-                   },
-                   "required": ["name", "desc", "default", "options"]
-               },
-               "event_occurrence_id":{
-                   "title": "Occurrence set selector",
-                   "description": "The 'id' from options is used as a file suffix' occurrence_<id>.bin",
-                   "type": "object",
-                   "uniqueItems": false,
-                   "additionalProperties": false,
-                   "properties":{
-                       "name": {
-                           "type": "string",
-                           "title": "UI Option",
-                           "description": "UI name for selection",
-                           "minLength": 1
-                       },
-                       "desc": {
-                           "type": "string",
-                           "title": "Short description",
-                           "description": "UI description for selection"
-                       },
-                       "tooltip": {
-                           "type": "string",
-                           "title": "UI tooltip",
-                           "description": "Long description (optional)"
-                       },
-                       "default":{
-                           "type": "string",
-                           "title": "Default occurrence file",
-                           "description": "Initial setting for occurrence"
-                       },
-                       "options":{
-                           "type": "array",
-                           "title": "Selection options for occurrence" ,
-                           "description": "Array of possible occurrence sets",
-                           "items": {
-                               "type": "object",
-                               "title": "Selection option element",
-                               "description": "Occurrence set options",
-                               "additionalProperties": false,
-                               "properties": {
-                                   "id": {
-                                       "type": "string",
-                                       "title": "occurrence set suffix",
-                                       "description": "String value used to select an occurrence set",
-                                       "minLength": 1
-                                   },
-                                   "desc": {
-                                       "type": "string",
-                                       "title": "Occurrence set description",
-                                       "description": "UI description for selection",
-                                       "minLength": 1
-                                   },
-                                   "tooltip": {
-                                       "type": "string",
-                                       "title": "UI tooltip",
-                                       "description": "Long description (optional)"
-                                   },
-                                   "max_periods": {
-                                       "type": "integer",
-                                       "title": "Max periods",
-                                       "description": "Maximum periods for this occurrence set",
-                                       "minimum": 1
-                                   }
-                               },
-                               "required": ["id", "desc"]
-                           }
-                       }
-                   },
-                   "required": ["name", "desc", "default", "options"]
-               },
-               "string_parameters": {
-                   "title": "Single string paramters",
-                   "type":  "array",
-                   "uniqueItems": true,
-                   "items": {
-                       "type": "object",
-                       "uniqueItems": false,
-                       "title": "String options",
-                       "description": "User selected string value",
-                       "additionalProperties": false,
-                       "properties":{
-                           "name": {
-                               "type": "string",
-                               "title": "UI Option",
-                               "description": "UI name for selection",
-                               "minLength": 1
+   "type":"object",
+   "title":"Model settings",
+   "description":"Specifies the model resource schema",
+   "additionalProperties":false,
+   "properties":{
+      "name": {
+         "type":"string",
+         "title":"Model Name",
+         "description":"Name of the model associated with this settings file (optional)",
+         "minLength":1
+      },
+      "description": {
+         "type":"string",
+         "title":"Model Description",
+         "description":"Short Description of the catastrophe model (optional)",
+         "minLength":1
+      },
+      "supplier_id": {
+         "type":"string",
+         "title":"Supplier ID",
+         "description":"The supplier ID for the model. (optional)",
+         "minLength":1
+      },
+      "model_id": {
+         "type":"string",
+         "title":"Model ID",
+         "description":"The model ID for the model. (optional)",
+         "minLength":1
+      },
+      "model_version_id": {
+         "type":"string",
+         "title":"Version ID",
+         "description":"The version ID for the model. (optional)",
+         "minLength":1
+      },
+      "model_configurable": {
+         "type":"boolean",
+         "title":"Model configurable",
+         "description":"Marks this model as a 'complex model' with configuration options at the input file generation stage. (optional)"
+      },
+      "model_settings":{
+         "type":"object",
+         "uniqueItems":false,
+         "title":"Model setting options",
+         "description":"Runtime settings available to a model",
+         "additionalProperties":false,
+         "properties":{
+            "event_set":{
+               "title":"Event set selector",
+               "description":"The 'id' field from options is used as a file suffix' events_<id>.bin",
+               "type":"object",
+               "uniqueItems":false,
+               "additionalProperties":false,
+               "properties":{
+                  "name":{
+                     "type":"string",
+                     "title":"UI Option",
+                     "description":"UI name for selection",
+                     "minLength":1
+                  },
+                  "desc":{
+                     "type":"string",
+                     "title":"Short description",
+                     "description":"UI description for selection"
+                  },
+                  "used_for":{
+                     "type":"string",
+                     "title":"Where the setting is applied",
+                     "description":"Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
+                     "enum":[
+                        "generation",
+                        "losses"
+                     ]
+                  },
+                  "tooltip":{
+                     "type":"string",
+                     "title":"UI tooltip",
+                     "description":"Long description (optional)"
+                  },
+                  "default":{
+                     "type":"string",
+                     "title":"Default Event set",
+                     "description":"Initial setting for event set"
+                  },
+                  "options":{
+                     "type":"array",
+                     "title":"Selection options for events",
+                     "description":"Array of possible event sets",
+                     "items":{
+                        "type":"object",
+                        "title":"Selection option element",
+                        "description":"Event sets option",
+                        "additionalProperties":false,
+                        "properties":{
+                           "id":{
+                              "type":"string",
+                              "title":"event set suffix",
+                              "description":"String value used to select an event set",
+                              "minLength":1
                            },
-                           "desc": {
-                               "type": "string",
-                               "title": "Short description",
-                               "description": "UI description for selection",
-                               "minLength": 1
+                           "desc":{
+                              "type":"string",
+                              "title":"Event set description",
+                              "description":"UI description for selection",
+                              "minLength":1
                            },
-                           "tooltip": {
-                               "type": "string",
-                               "title": "UI tooltip",
-                               "description": "Long description (optional)"
-                           },
-                           "default":{
-                               "type": "string",
-                               "title": "Initial string",
-                               "description": "Default 'string' for variable"
-                           }
-                       },
-                       "required": ["name", "desc", "default"]
-                   }
-               },
-               "list_parameters": {
-                   "title": "List of strings parameters",
-                   "type":  "array",
-                   "uniqueItems": true,
-                   "items": {
-                       "type": "object",
-                       "uniqueItems": false,
-                       "title": "List options",
-                       "description": "User selected list values",
-                       "additionalProperties": false,
-                       "properties":{
-                           "name": {
-                               "type": "string",
-                               "title": "UI Option",
-                               "description": "UI name for selection",
-                               "minLength": 1
-                           },
-                           "desc": {
-                               "type": "string",
-                               "title": "Short description",
-                               "description": "UI description for selection",
-                               "minLength": 1
-                           },
-                           "tooltip": {
-                               "type": "string",
-                               "title": "UI tooltip",
-                               "description": "Long description (optional)"
-                           },
-                           "default":{
-                               "type": "array",
-                               "title": "Default List value",
-                               "description": "Default 'list' set for variable",
-                               "items":{
-                                   "type": "string"
-                               }
-                           }
-                       },
-                       "required": ["name", "desc", "default"]
-                   }
-               },
-               "dictionary_parameters": {
-                   "title": "Generic dictionary parameters",
-                   "type":  "array",
-                   "uniqueItems": true,
-                   "items": {
-                       "type": "object",
-                       "uniqueItems": false,
-                       "title": "Dictionary option",
-                       "description": "User selected dictionarys",
-                       "additionalProperties": false,
-                       "properties":{
-                           "name": {
-                               "type": "string",
-                               "title": "UI Option",
-                               "description": "UI name for selection",
-                               "minLength": 1
-                           },
-                           "desc": {
-                               "type": "string",
-                               "title": "Short description",
-                               "description": "UI description for selection",
-                               "minLength": 1
-                           },
-                           "tooltip": {
-                               "type": "string",
-                               "title": "UI tooltip",
-                               "description": "Long description (optional)"
-                           },
-                           "default":{
-                               "type": "object",
-                               "title": "Default dictionary",
-                               "description": "Defaults set for variable"
-                           }
-                       },
-                       "required": ["name", "desc", "default"]
-                   }
-               },
-               "boolean_parameters": {
-                   "title": "Boolean parameters",
-                   "type":  "array",
-                   "uniqueItems": true,
-                   "items": {
-                       "type": "object",
-                       "uniqueItems": false,
-                       "title": "Boolean option",
-                       "description": "User selected boolean option",
-                       "additionalProperties": false,
-                       "properties":{
-                           "name": {
-                               "type": "string",
-                               "title": "UI Option",
-                               "description": "UI name for selection",
-                               "minLength": 1
-                           },
-                           "desc": {
-                               "type": "string",
-                               "title": "Short description",
-                               "description": "UI description for selection",
-                               "minLength": 1
-                           },
-                           "tooltip": {
-                               "type": "string",
-                               "title": "UI tooltip",
-                               "description": "Long description (optional)"
-                           },
-                           "default":{
-                               "type": "boolean",
-                               "title": "Initial value",
-                               "description": "Default 'value' set for variable"
-                           }
-                       },
-                       "required": ["name", "desc", "default"]
-                   }
-               },
-               "float_parameters": {
-                   "title": "Bounded float paramters",
-                   "type":  "array",
-                   "uniqueItems": true,
-                   "items": {
-                       "type": "object",
-                       "uniqueItems": false,
-                       "title": "Float option",
-                       "description": "Select float value",
-                       "additionalProperties": false,
-                       "properties":{
-                           "name": {
-                               "type": "string",
-                               "title": "UI Option",
-                               "description": "UI name for selection",
-                               "minLength": 1
-                           },
-                           "desc": {
-                               "type": "string",
-                               "title": "Short description",
-                               "description": "UI description for selection",
-                               "minLength": 1
-                           },
-                           "tooltip": {
-                               "type": "string",
-                               "title": "UI tooltip",
-                               "description": "Long description (optional)"
-                           },
-                           "default":{
-                               "type": "number",
-                               "title": "Initial value",
-                               "description": "Default 'value' set for float variable"
-                           },
-                           "max":{
-                               "type": "number",
-                               "title": "Maximum value",
-                               "description": "Maximum Value for float variable"
-                           },
-                           "min":{
-                               "type": "number",
-                               "title": "Minimum value",
-                               "description": "Minimum Value for float variable"
-                           }
-                       },
-                       "required": ["name", "desc", "default", "max", "min"]
-                   }
-               },
-               "numeric_parameters": {
-                   "title": "unbounded numeric paramters",
-                   "type":  "array",
-                   "uniqueItems": true,
-                   "items": {
-                       "type": "object",
-                       "uniqueItems": false,
-                       "title": "Numeric option",
-                       "description": "Select float value",
-                       "additionalProperties": false,
-                       "properties":{
-                           "name": {
-                               "type": "string",
-                               "title": "UI Option",
-                               "description": "UI name for selection",
-                               "minLength": 1
-                           },
-                           "desc": {
-                               "type": "string",
-                               "title": "Short description",
-                               "description": "UI description for selection",
-                               "minLength": 1
-                           },
-                           "tooltip": {
-                               "type": "string",
-                               "title": "UI tooltip",
-                               "description": "Long description (optional)"
-                           },
-                           "default":{
-                               "type": "number",
-                               "title": "Initial value, integer or float",
-                               "description": "Default integer or float 'value' set for variable"
-                           }
-                       },
-                       "required": ["name", "desc", "default"]
-                   }
-               },
-               "dropdown_parameters": {
-                   "title": "Generic dropdown paramters",
-                   "type":  "array",
-                   "uniqueItems": true,
-                   "items": {
-                       "title": "dropdown option selector",
-                       "description": "The 'id' field is mapped into the analysis settings as 'paramter_name': '<id-selected>'",
-                       "type": "object",
-                       "uniqueItems": false,
-                       "additionalProperties": false,
-                       "properties":{
-                           "name": {
-                               "type": "string",
-                               "title": "UI Option",
-                               "description": "UI name for selection",
-                               "minLength": 1
-                           },
-                           "desc": {
-                               "type": "string",
-                               "title": "Short description",
-                               "description": "UI description for selection",
-                               "minLength": 1
-                           },
-                           "tooltip": {
-                               "type": "string",
-                               "title": "UI tooltip",
-                               "description": "Long description (optional)"
-                           },
-                           "default":{
-                               "type": "string",
-                               "title": "Default Event set",
-                               "description": "Initial setting for dropdown option"
-                           },
-                           "options":{
-                               "type": "array",
-                               "title": "Selection options",
-                               "description": "Array of possible event sets",
-                               "items": {
-                                   "type": "object",
-                                   "title": "Option element",
-                                   "description": "Dropdown option",
-                                   "additionalProperties": false,
-                                   "properties": {
-                                       "id": {
-                                           "type": "string",
-                                           "title": "event set suffix",
-                                           "description": "String value used to select an event set",
-                                           "minLength": 1
-                                       },
-                                       "desc": {
-                                           "type": "string",
-                                           "title": "Short description",
-                                           "description": "UI description for selection",
-                                           "minLength": 1
-                                       },
-                                       "tooltip": {
-                                           "type": "string",
-                                           "title": "UI tooltip",
-                                           "description": "Long description (optional)"
-                                       }
-                                   },
-                                   "required": ["id", "desc"]
-                               }
-                           }
-                       },
-                       "required": ["name", "desc", "default", "options"]
-                   }
-               },
-               "multi_parameter_options": {
-                   "title": "Multiple Parameter option",
-                   "description": "Sets of parameters with pre-assigned values",
-                   "type":  "array",
-                   "uniqueItems": true,
-                   "items": {
-                       "type": "object",
-                       "uniqueItems": false,
-                       "title": "Parameter group option",
-                       "additionalProperties": false,
-                       "properties":{
-                           "name": {
-                               "type": "string",
-                               "title": "UI Option",
-                               "description": "UI name for selection",
-                               "minLength": 1
-                           },
-                           "desc": {
-                               "type": "string",
-                               "title": "Short group description",
-                               "description": "UI description for selection",
-                               "minLength": 1
-                           },
-                           "tooltip": {
-                               "type": "string",
-                               "title": "UI tooltip",
-                               "description": "Long description (optional)"
-                           },
-                           "config":{
-                               "type": "object",
-                               "title": "Parameter Group configuration",
-                               "description": "JSON object holding <parameter_name>:<value> pairs"
-                           }
-                       },
-                       "required": ["name", "desc", "config"]
-                   }
-               },
-               "parameter_groups": {
-                   "title": "Parameter Groups",
-                   "type":  "array",
-                   "uniqueItems": true,
-                   "items": {
-                      "title": "Grouping element",
-                      "description": "Defines which parameter are related",
-                      "type": "object",
-                      "uniqueItems": false,
-                      "additionalProperties": false,
-                      "properties":{
-                          "name": {
-                              "type": "string",
-                              "title": "Group name",
-                              "description": "Reference for the group element",
-                              "minLength": 1
-                          },
-                          "desc": {
-                              "type": "string",
-                              "title": "Short description",
-                              "description": "UI description for selection",
-                              "minLength": 1
-                          },
-                          "tooltip": {
-                              "type": "string",
-                              "title": "UI tooltip",
-                              "description": "Long description (optional)"
-                          },
-                          "priority_id":{
-                              "type": "integer",
-                              "title": "Display priority",
-                              "description": "Set which parameter groups to display first"
-                          },
-                          "presentation_order":{
-                              "type": "array",
-                              "title": "presentation of grouped parameters",
-                              "description": "List of parameters reference by their 'name' property",
+                           "valid_occurrence_ids":{
+                              "type":"array",
+                              "title":"Supported occurrence files",
+                              "description":"An optional list of viable occurrence file ids to use with this event set",
                               "items":{
-                                  "type": "string",
-                                  "minItems": 1
+                                 "type":"string",
+                                 "minLength":1
                               }
                            },
-                           "collapsible":{
-                               "title": "Collapsible option for UI",
-                               "description": "Boolean to mark if this parameter group is collapsible",
-                               "type": "boolean"
-                           },
-                           "default_collapsed": {
-                               "title": "Default Collapsed State",
-                               "description": "Boolean to mark if parameter group starts collapsed",
-                               "type": "boolean"
+                           "tooltip":{
+                              "type":"string",
+                              "title":"UI tooltip",
+                              "description":"Long description (optional)"
                            }
-                       },
-                       "required": ["name", "desc", "priority_id", "presentation_order"]
-                   }
+                        },
+                        "required":[
+                           "id",
+                           "desc"
+                        ]
+                     }
+                  }
+               },
+               "required":[
+                  "name",
+                  "desc",
+                  "default",
+                  "options"
+               ]
+            },
+            "event_occurrence_id":{
+               "title":"Occurrence set selector",
+               "description":"The 'id' from options is used as a file suffix' occurrence_<id>.bin",
+               "type":"object",
+               "uniqueItems":false,
+               "additionalProperties":false,
+               "properties":{
+                  "name":{
+                     "type":"string",
+                     "title":"UI Option",
+                     "description":"UI name for selection",
+                     "minLength":1
+                  },
+                  "desc":{
+                     "type":"string",
+                     "title":"Short description",
+                     "description":"UI description for selection"
+                  },
+                  "used_for":{
+                     "type":"string",
+                     "title":"Where the setting is applied",
+                     "description":"Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
+                     "enum":[
+                        "generation",
+                        "losses"
+                     ]
+                  },
+                  "tooltip":{
+                     "type":"string",
+                     "title":"UI tooltip",
+                     "description":"Long description (optional)"
+                  },
+                  "default":{
+                     "type":"string",
+                     "title":"Default occurrence file",
+                     "description":"Initial setting for occurrence"
+                  },
+                  "options":{
+                     "type":"array",
+                     "title":"Selection options for occurrence",
+                     "description":"Array of possible occurrence sets",
+                     "items":{
+                        "type":"object",
+                        "title":"Selection option element",
+                        "description":"Occurrence set options",
+                        "additionalProperties":false,
+                        "properties":{
+                           "id":{
+                              "type":"string",
+                              "title":"occurrence set suffix",
+                              "description":"String value used to select an occurrence set",
+                              "minLength":1
+                           },
+                           "desc":{
+                              "type":"string",
+                              "title":"Occurrence set description",
+                              "description":"UI description for selection",
+                              "minLength":1
+                           },
+                           "tooltip":{
+                              "type":"string",
+                              "title":"UI tooltip",
+                              "description":"Long description (optional)"
+                           },
+                           "max_periods":{
+                              "type":"integer",
+                              "title":"Max periods",
+                              "description":"Maximum periods for this occurrence set",
+                              "minimum":1
+                           }
+                        },
+                        "required":[
+                           "id",
+                           "desc"
+                        ]
+                     }
+                  }
+               },
+               "required":[
+                  "name",
+                  "desc",
+                  "default",
+                  "options"
+               ]
+            },
+            "string_parameters":{
+               "title":"Single string paramters",
+               "type":"array",
+               "uniqueItems":true,
+               "items":{
+                  "type":"object",
+                  "uniqueItems":false,
+                  "title":"String options",
+                  "description":"User selected string value",
+                  "additionalProperties":false,
+                  "properties":{
+                     "name":{
+                        "type":"string",
+                        "title":"UI Option",
+                        "description":"UI name for selection",
+                        "minLength":1
+                     },
+                     "desc":{
+                        "type":"string",
+                        "title":"Short description",
+                        "description":"UI description for selection",
+                        "minLength":1
+                     },
+                     "used_for":{
+                        "type":"string",
+                        "title":"Where the setting is applied",
+                        "description":"Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
+                        "enum":[
+                           "generation",
+                           "losses"
+                        ]
+                     },
+                     "tooltip":{
+                        "type":"string",
+                        "title":"UI tooltip",
+                        "description":"Long description (optional)"
+                     },
+                     "default":{
+                        "type":"string",
+                        "title":"Initial string",
+                        "description":"Default 'string' for variable"
+                     }
+                  },
+                  "required":[
+                     "name",
+                     "desc",
+                     "default"
+                  ]
                }
-           }
-       },
-       "lookup_settings":{
-           "type": "object",
-           "title": "Model Lookup options",
-           "description": "Model lookup section",
-           "properties": {
-                "supported_perils": {
-                    "type": "array",
-                    "title": "Supported OED perils",
-                    "description": "Valid Peril codes for this model",
-                    "additionalProperties": false,
-                    "minProperties": 1,
-                    "items": {
-                        "type": "object",
-                        "title": "Selection Item",
-                        "description": "",
-                        "additionalProperties": false,
-                        "properties": {
-                            "id": {
-                                "type": "string",
-                                "title": "OED peril",
-                                "description": "OED three letter peril code",
-                                "minLength": 3,
-                                "maxLength": 3
-                            },
-                            "desc": {
-                                "type": "string",
-                                "title": "OED peril description",
-                                "description": "Short string describing the peril",
-                                "minLength": 1
-                            }
-                        },
-                        "required": ["id", "desc"]
-                    }
-                }
-            }
-        },
-        "data_settings":{
-            "type": "object",
-            "title": "Model data settings",
-            "description": "Additional data options for a model",
-            "properties": {
-	       "group_fields": {
-		   "title": "Group OED fields",
-		   "description": "List of OED fields from location file to form groups",
-		   "type": "array",
-		   "items": {
-		       "type": "string"
-		   }
-	       },
-                "datafile_selectors": {
-                    "type": "array",
-                    "title": "`Data_files  Selector",
-                    "description": "Select file_ids from the API endpoint `/v1/data_files/` to connect with an analyses run",
-                    "additionalProperties": false,
-                    "items": {
-                        "type": "object",
-                        "title": "File Selection Parameter",
-                        "description": "",
-                        "additionalProperties": false,
-                        "properties": {
-                            "name": {
-                                "type": "string",
-                                "title": "Name reference",
-                                "description": "name used store the selection under",
-                                "minLength": 1
-                            },
-                           "desc": {
-                               "type": "string",
-                               "title": "Short description",
-                               "description": "UI description for selection"
+            },
+            "list_parameters":{
+               "title":"List of strings parameters",
+               "type":"array",
+               "uniqueItems":true,
+               "items":{
+                  "type":"object",
+                  "uniqueItems":false,
+                  "title":"List options",
+                  "description":"User selected list values",
+                  "additionalProperties":false,
+                  "properties":{
+                     "name":{
+                        "type":"string",
+                        "title":"UI Option",
+                        "description":"UI name for selection",
+                        "minLength":1
+                     },
+                     "desc":{
+                        "type":"string",
+                        "title":"Short description",
+                        "description":"UI description for selection",
+                        "minLength":1
+                     },
+                     "used_for":{
+                        "type":"string",
+                        "title":"Where the setting is applied",
+                        "description":"Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
+                        "enum":[
+                           "generation",
+                           "losses"
+                        ]
+                     },
+                     "tooltip":{
+                        "type":"string",
+                        "title":"UI tooltip",
+                        "description":"Long description (optional)"
+                     },
+                     "default":{
+                        "type":"array",
+                        "title":"Default List value",
+                        "description":"Default 'list' set for variable",
+                        "items":{
+                           "type":"string"
+                        }
+                     }
+                  },
+                  "required":[
+                     "name",
+                     "desc",
+                     "default"
+                  ]
+               }
+            },
+            "dictionary_parameters":{
+               "title":"Generic dictionary parameters",
+               "type":"array",
+               "uniqueItems":true,
+               "items":{
+                  "type":"object",
+                  "uniqueItems":false,
+                  "title":"Dictionary option",
+                  "description":"User selected dictionarys",
+                  "additionalProperties":false,
+                  "properties":{
+                     "name":{
+                        "type":"string",
+                        "title":"UI Option",
+                        "description":"UI name for selection",
+                        "minLength":1
+                     },
+                     "desc":{
+                        "type":"string",
+                        "title":"Short description",
+                        "description":"UI description for selection",
+                        "minLength":1
+                     },
+                     "used_for":{
+                        "type":"string",
+                        "title":"Where the setting is applied",
+                        "description":"Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
+                        "enum":[
+                           "generation",
+                           "losses"
+                        ]
+                     },
+                     "tooltip":{
+                        "type":"string",
+                        "title":"UI tooltip",
+                        "description":"Long description (optional)"
+                     },
+                     "default":{
+                        "type":"object",
+                        "title":"Default dictionary",
+                        "description":"Defaults set for variable"
+                     }
+                  },
+                  "required":[
+                     "name",
+                     "desc",
+                     "default"
+                  ]
+               }
+            },
+            "boolean_parameters":{
+               "title":"Boolean parameters",
+               "type":"array",
+               "uniqueItems":true,
+               "items":{
+                  "type":"object",
+                  "uniqueItems":false,
+                  "title":"Boolean option",
+                  "description":"User selected boolean option",
+                  "additionalProperties":false,
+                  "properties":{
+                     "name":{
+                        "type":"string",
+                        "title":"UI Option",
+                        "description":"UI name for selection",
+                        "minLength":1
+                     },
+                     "desc":{
+                        "type":"string",
+                        "title":"Short description",
+                        "description":"UI description for selection",
+                        "minLength":1
+                     },
+                     "used_for":{
+                        "type":"string",
+                        "title":"Where the setting is applied",
+                        "description":"Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
+                        "enum":[
+                           "generation",
+                           "losses"
+                        ]
+                     },
+                     "tooltip":{
+                        "type":"string",
+                        "title":"UI tooltip",
+                        "description":"Long description (optional)"
+                     },
+                     "default":{
+                        "type":"boolean",
+                        "title":"Initial value",
+                        "description":"Default 'value' set for variable"
+                     }
+                  },
+                  "required":[
+                     "name",
+                     "desc",
+                     "default"
+                  ]
+               }
+            },
+            "float_parameters":{
+               "title":"Bounded float paramters",
+               "type":"array",
+               "uniqueItems":true,
+               "items":{
+                  "type":"object",
+                  "uniqueItems":false,
+                  "title":"Float option",
+                  "description":"Select float value",
+                  "additionalProperties":false,
+                  "properties":{
+                     "name":{
+                        "type":"string",
+                        "title":"UI Option",
+                        "description":"UI name for selection",
+                        "minLength":1
+                     },
+                     "desc":{
+                        "type":"string",
+                        "title":"Short description",
+                        "description":"UI description for selection",
+                        "minLength":1
+                     },
+                     "used_for":{
+                        "type":"string",
+                        "title":"Where the setting is applied",
+                        "description":"Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
+                        "enum":[
+                           "generation",
+                           "losses"
+                        ]
+                     },
+                     "tooltip":{
+                        "type":"string",
+                        "title":"UI tooltip",
+                        "description":"Long description (optional)"
+                     },
+                     "default":{
+                        "type":"number",
+                        "title":"Initial value",
+                        "description":"Default 'value' set for float variable"
+                     },
+                     "max":{
+                        "type":"number",
+                        "title":"Maximum value",
+                        "description":"Maximum Value for float variable"
+                     },
+                     "min":{
+                        "type":"number",
+                        "title":"Minimum value",
+                        "description":"Minimum Value for float variable"
+                     }
+                  },
+                  "required":[
+                     "name",
+                     "desc",
+                     "default",
+                     "max",
+                     "min"
+                  ]
+               }
+            },
+            "numeric_parameters":{
+               "title":"unbounded numeric paramters",
+               "type":"array",
+               "uniqueItems":true,
+               "items":{
+                  "type":"object",
+                  "uniqueItems":false,
+                  "title":"Numeric option",
+                  "description":"Select float value",
+                  "additionalProperties":false,
+                  "properties":{
+                     "name":{
+                        "type":"string",
+                        "title":"UI Option",
+                        "description":"UI name for selection",
+                        "minLength":1
+                     },
+                     "desc":{
+                        "type":"string",
+                        "title":"Short description",
+                        "description":"UI description for selection",
+                        "minLength":1
+                     },
+                     "used_for":{
+                        "type":"string",
+                        "title":"Where the setting is applied",
+                        "description":"Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
+                        "enum":[
+                           "generation",
+                           "losses"
+                        ]
+                     },
+                     "tooltip":{
+                        "type":"string",
+                        "title":"UI tooltip",
+                        "description":"Long description (optional)"
+                     },
+                     "default":{
+                        "type":"number",
+                        "title":"Initial value, integer or float",
+                        "description":"Default integer or float 'value' set for variable"
+                     }
+                  },
+                  "required":[
+                     "name",
+                     "desc",
+                     "default"
+                  ]
+               }
+            },
+            "dropdown_parameters":{
+               "title":"Generic dropdown paramters",
+               "type":"array",
+               "uniqueItems":true,
+               "items":{
+                  "title":"dropdown option selector",
+                  "description":"The 'id' field is mapped into the analysis settings as 'paramter_name': '<id-selected>'",
+                  "type":"object",
+                  "uniqueItems":false,
+                  "additionalProperties":false,
+                  "properties":{
+                     "name":{
+                        "type":"string",
+                        "title":"UI Option",
+                        "description":"UI name for selection",
+                        "minLength":1
+                     },
+                     "desc":{
+                        "type":"string",
+                        "title":"Short description",
+                        "description":"UI description for selection",
+                        "minLength":1
+                     },
+                     "used_for":{
+                        "type":"string",
+                        "title":"Where the setting is applied",
+                        "description":"Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
+                        "enum":[
+                           "generation",
+                           "losses"
+                        ]
+                     },
+                     "tooltip":{
+                        "type":"string",
+                        "title":"UI tooltip",
+                        "description":"Long description (optional)"
+                     },
+                     "default":{
+                        "type":"string",
+                        "title":"Default Event set",
+                        "description":"Initial setting for dropdown option"
+                     },
+                     "options":{
+                        "type":"array",
+                        "title":"Selection options",
+                        "description":"Array of possible event sets",
+                        "items":{
+                           "type":"object",
+                           "title":"Option element",
+                           "description":"Dropdown option",
+                           "additionalProperties":false,
+                           "properties":{
+                              "id":{
+                                 "type":"string",
+                                 "title":"event set suffix",
+                                 "description":"String value used to select an event set",
+                                 "minLength":1
+                              },
+                              "desc":{
+                                 "type":"string",
+                                 "title":"Short description",
+                                 "description":"UI description for selection",
+                                 "minLength":1
+                              },
+                              "tooltip":{
+                                 "type":"string",
+                                 "title":"UI tooltip",
+                                 "description":"Long description (optional)"
+                              }
                            },
-                           "tooltip": {
-                               "type": "string",
-                               "title": "UI tooltip",
-                               "description": "Long description (optional)"
-                           },
-                            "model_id":{
-                                "type": "integer",
-                                "title": "API Model_id reference",
-                                "description": "call to `/v1/models/{id}/data_files/` to filter files by model association"
-                            },
-                            "allow_multiple":{
-                                "type": "boolean",
-                                "title": "Multiple Files option",
-                                "description": "Allow the user to link multiple files to an analyses."
-                            },
-                            "search_filters":{
-                                "type": "array",
-                                "title": "File options filter",
-                                "description": "",
-                                "additionalProperties": false,
-                                "items": {
-                                    "type": "object",
-                                    "title": "File Filters values",
-                                    "description": "Build a query string from the following fields",
-                                    "additionalProperties": false,
-                                    "properties": {
-                                        "user": {
-                                            "type": "string",
-                                            "title": "User filter",
-                                            "description": "File was uploaded by 'user'",
-                                            "minLength": 1
-                                        },
-                                        "filename": {
-                                            "type": "string",
-                                            "title": "Filename filter",
-                                            "description": "Filename exactly matches 'value'",
-                                            "minLength": 1
-                                        },
-                                        "filename__contains": {
-                                            "type": "string",
-                                            "title": "Filename contains filter",
-                                            "description": "'value' is a substring of filename",
-                                            "minLength": 1
-                                        },
-                                        "file_description": {
-                                            "type": "string",
-                                            "title": "File description filter",
-                                            "description": "File description matches 'value' exactly",
-                                            "minLength": 1
-                                        },
-                                        "file_description__contains": {
-                                            "type": "string",
-                                            "title": "File description contains filter",
-                                            "description": "'value' is a substring of a File's description'",
-                                            "minLength": 1
-                                        },
-                                        "content_type": {
-                                            "type": "string",
-                                            "title": "content type filter",
-                                            "description": "file exactly matches a MIME type",
-                                            "minLength": 1
-                                        },
-                                        "content_type__contains": {
-                                            "type": "string",
-                                            "title": "Content type contains filter",
-                                            "description": "A files MIME type contains 'value'",
-                                            "minLength": 1
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        "required": ["name", "desc", "allow_multiple"]
-                    }
-                }
+                           "required":[
+                              "id",
+                              "desc"
+                           ]
+                        }
+                     }
+                  },
+                  "required":[
+                     "name",
+                     "desc",
+                     "default",
+                     "options"
+                  ]
+               }
+            },
+            "multi_parameter_options":{
+               "title":"Multiple Parameter option",
+               "description":"Sets of parameters with pre-assigned values",
+               "type":"array",
+               "uniqueItems":true,
+               "items":{
+                  "type":"object",
+                  "uniqueItems":false,
+                  "title":"Parameter group option",
+                  "additionalProperties":false,
+                  "properties":{
+                     "name":{
+                        "type":"string",
+                        "title":"UI Option",
+                        "description":"UI name for selection",
+                        "minLength":1
+                     },
+                     "desc":{
+                        "type":"string",
+                        "title":"Short group description",
+                        "description":"UI description for selection",
+                        "minLength":1
+                     },
+                     "used_for":{
+                        "type":"string",
+                        "title":"Where the setting is applied",
+                        "description":"Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
+                        "enum":[
+                           "generation",
+                           "losses"
+                        ]
+                     },
+                     "tooltip":{
+                        "type":"string",
+                        "title":"UI tooltip",
+                        "description":"Long description (optional)"
+                     },
+                     "config":{
+                        "type":"object",
+                        "title":"Parameter Group configuration",
+                        "description":"JSON object holding <parameter_name>:<value> pairs"
+                     }
+                  },
+                  "required":[
+                     "name",
+                     "desc",
+                     "config"
+                  ]
+               }
+            },
+            "parameter_groups":{
+               "title":"Parameter Groups",
+               "type":"array",
+               "uniqueItems":true,
+               "items":{
+                  "title":"Grouping element",
+                  "description":"Defines which parameter are related",
+                  "type":"object",
+                  "uniqueItems":false,
+                  "additionalProperties":false,
+                  "properties":{
+                     "name":{
+                        "type":"string",
+                        "title":"Group name",
+                        "description":"Reference for the group element",
+                        "minLength":1
+                     },
+                     "desc":{
+                        "type":"string",
+                        "title":"Short description",
+                        "description":"UI description for selection",
+                        "minLength":1
+                     },
+                     "used_for":{
+                        "type":"string",
+                        "title":"Where the setting is applied",
+                        "description":"Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
+                        "enum":[
+                           "generation",
+                           "losses"
+                        ]
+                     },
+                     "tooltip":{
+                        "type":"string",
+                        "title":"UI tooltip",
+                        "description":"Long description (optional)"
+                     },
+                     "priority_id":{
+                        "type":"integer",
+                        "title":"Display priority",
+                        "description":"Set which parameter groups to display first"
+                     },
+                     "presentation_order":{
+                        "type":"array",
+                        "title":"presentation of grouped parameters",
+                        "description":"List of parameters reference by their 'name' property",
+                        "items":{
+                           "type":"string",
+                           "minItems":1
+                        }
+                     },
+                     "collapsible":{
+                        "title":"Collapsible option for UI",
+                        "description":"Boolean to mark if this parameter group is collapsible",
+                        "type":"boolean"
+                     },
+                     "default_collapsed":{
+                        "title":"Default Collapsed State",
+                        "description":"Boolean to mark if parameter group starts collapsed",
+                        "type":"boolean"
+                     }
+                  },
+                  "required":[
+                     "name",
+                     "desc",
+                     "priority_id",
+                     "presentation_order"
+                  ]
+               }
             }
-        }
-    },
-    "required": ["model_settings", "lookup_settings"]
+         }
+      },
+      "lookup_settings":{
+         "type":"object",
+         "title":"Model Lookup options",
+         "description":"Model lookup section",
+         "properties":{
+            "supported_perils":{
+               "type":"array",
+               "title":"Supported OED perils",
+               "description":"Valid Peril codes for this model",
+               "additionalProperties":false,
+               "minProperties":1,
+               "items":{
+                  "type":"object",
+                  "title":"Selection Item",
+                  "description":"",
+                  "additionalProperties":false,
+                  "properties":{
+                     "id":{
+                        "type":"string",
+                        "title":"OED peril",
+                        "description":"OED three letter peril code",
+                        "minLength":3,
+                        "maxLength":3
+                     },
+                     "desc":{
+                        "type":"string",
+                        "title":"OED peril description",
+                        "description":"Short string describing the peril",
+                        "minLength":1
+                     }
+                  },
+                  "required":[
+                     "id",
+                     "desc"
+                  ]
+               }
+            }
+         }
+      },
+      "data_settings":{
+         "type":"object",
+         "title":"Model data settings",
+         "description":"Additional data options for a model",
+         "additionalProperties":false,
+         "properties":{
+            "uses_model_files": {
+               "type":"boolean",
+               "title":"Requires Model Data",
+               "description":"Marks the model as requiring external model data."
+            },
+            "model_data_version": {
+               "type":"string",
+               "title":"Model data version",
+               "description":"Version ID of the Model data.",
+               "minLength":1
+            },
+            "keys_data_version": {
+               "type":"string",
+               "title":"Keys data version",
+               "description":"Version ID of the lookup keys data.",
+               "minLength":1
+            },
+            "worker_image": {
+               "type":"string",
+               "title":"Worker docker image",
+               "description":"The model worker's docker image name",
+               "minLength":1
+            },
+            "worker_version": {
+               "type":"string",
+               "title":"Worker image version",
+               "description":"The model worker's version ID",
+               "minLength":1
+            },
+            "countries":{
+               "title":"Supported countries",
+               "description":"A list of country codes that this model covers.",
+               "type":"array",
+               "items":{
+                  "type":"string",
+                  "minLength":1
+               }
+            },
+            "mandatory_fields":{
+               "title":"Mandatory OED fields",
+               "description":"List of OED fields that the model requires.",
+               "type":"array",
+               "items":{
+                  "type":"string",
+                  "minLength":1
+               }
+            },
+            "additional_assets":{
+               "type":"array",
+               "title":"Additional Assets",
+               "description":"Data assets available to the model",
+               "additionalProperties":false,
+               "items":{
+                  "type":"object",
+                  "title":"Assets Details",
+                  "description":"Name, version and location of data",
+                  "additionalProperties":false,
+                  "properties":{
+                     "name":{
+                        "type":"string",
+                        "title":"Asset Name",
+                        "description":"Name of the Asset file",
+                        "minLength":1
+                     },
+                     "version":{
+                        "type":"string",
+                        "title":"Asset version",
+                        "description":"Version of Asset",
+                        "minLength":1
+                     },
+                     "path":{
+                        "type":"string",
+                        "title":"Asset path",
+                        "description":"Filesystem path to the asset",
+                        "minLength":1
+                     }
+                  },
+                  "required":[
+                     "name"
+                  ]
+               }
+            },   
+            "group_fields":{
+               "title":"Group OED fields",
+               "description":"List of OED fields from location file to form groups",
+               "type":"array",
+               "items":{
+                  "type":"string"
+               }
+            },
+            "datafile_selectors":{
+               "type":"array",
+               "title":"Data_files  Selector",
+               "description":"Select file_ids from the API endpoint `/v1/data_files/` to connect with an analyses run",
+               "additionalProperties":false,
+               "items":{
+                  "type":"object",
+                  "title":"File Selection Parameter",
+                  "description":"",
+                  "additionalProperties":false,
+                  "properties":{
+                     "name":{
+                        "type":"string",
+                        "title":"Name reference",
+                        "description":"name used store the selection under",
+                        "minLength":1
+                     },
+                     "desc":{
+                        "type":"string",
+                        "title":"Short description",
+                        "description":"UI description for selection"
+                     },
+                     "tooltip":{
+                        "type":"string",
+                        "title":"UI tooltip",
+                        "description":"Long description (optional)"
+                     },
+                     "model_id":{
+                        "type":"integer",
+                        "title":"API Model_id reference",
+                        "description":"call to `/v1/models/{id}/data_files/` to filter files by model association"
+                     },
+                     "allow_multiple":{
+                        "type":"boolean",
+                        "title":"Multiple Files option",
+                        "description":"Allow the user to link multiple files to an analyses."
+                     },
+                     "search_filters":{
+                        "type":"array",
+                        "title":"File options filter",
+                        "description":"",
+                        "additionalProperties":false,
+                        "items":{
+                           "type":"object",
+                           "title":"File Filters values",
+                           "description":"Build a query string from the following fields",
+                           "additionalProperties":false,
+                           "properties":{
+                              "user":{
+                                 "type":"string",
+                                 "title":"User filter",
+                                 "description":"File was uploaded by 'user'",
+                                 "minLength":1
+                              },
+                              "filename":{
+                                 "type":"string",
+                                 "title":"Filename filter",
+                                 "description":"Filename exactly matches 'value'",
+                                 "minLength":1
+                              },
+                              "filename__contains":{
+                                 "type":"string",
+                                 "title":"Filename contains filter",
+                                 "description":"'value' is a substring of filename",
+                                 "minLength":1
+                              },
+                              "file_description":{
+                                 "type":"string",
+                                 "title":"File description filter",
+                                 "description":"File description matches 'value' exactly",
+                                 "minLength":1
+                              },
+                              "file_description__contains":{
+                                 "type":"string",
+                                 "title":"File description contains filter",
+                                 "description":"'value' is a substring of a File's description'",
+                                 "minLength":1
+                              },
+                              "content_type":{
+                                 "type":"string",
+                                 "title":"content type filter",
+                                 "description":"file exactly matches a MIME type",
+                                 "minLength":1
+                              },
+                              "content_type__contains":{
+                                 "type":"string",
+                                 "title":"Content type contains filter",
+                                 "description":"A files MIME type contains 'value'",
+                                 "minLength":1
+                              }
+                           }
+                        }
+                     }
+                  },
+                  "required":[
+                     "name",
+                     "desc",
+                     "allow_multiple"
+                  ]
+               }
+            }
+         }
+      }
+   },
+   "required":[
+      "model_settings",
+      "lookup_settings"
+   ]
 }
