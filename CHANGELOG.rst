@@ -7,7 +7,6 @@ OasisLMF Changelog
 * [#413](https://github.com/OasisLMF/OasisLMF/issues/413) - Peril Handling in Input Generation
 * [#661](https://github.com/OasisLMF/OasisLMF/issues/661) - Added experimental financial module written in Python 'fmpy'
 * [#662](https://github.com/OasisLMF/OasisLMF/issues/662) - Define relationships between event and occurrence in model_settings
-* [#400](https://github.com/OasisLMF/OasisPlatform/issues/400) - Extend model_settings.json with optional metadata
 * [#671](https://github.com/OasisLMF/OasisLMF/issues/671) - Fix issue with loading booleans in oasislmf.json and corrected the 'ktools-fifo-relative' flag 
 * [#666](https://github.com/OasisLMF/OasisLMF/pull/666) - Fix files created to generate-oasis-files, being cleared 
 .. end_latest_release
