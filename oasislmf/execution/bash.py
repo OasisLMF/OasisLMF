@@ -719,15 +719,15 @@ def get_main_cmd_ri_stream(
     :type from_file: bool
     """
     if from_file:
-        main_cmd = f'{get_fmcmd(fmpy, fmpy_low_memory)} -a{il_alloc_rule} {step_flag} < {cmd}'
+        main_cmd = f'{get_fmcmd(fmpy, fmpy_low_memory)} -a{il_alloc_rule}{step_flag} < {cmd}'
     else:
-        main_cmd = f'{cmd} | {get_fmcmd(fmpy, fmpy_low_memory)} -a{il_alloc_rule} {step_flag}'
+        main_cmd = f'{cmd} | {get_fmcmd(fmpy, fmpy_low_memory)} -a{il_alloc_rule}{step_flag}'
 
     if il_output:
         main_cmd += f" | tee {get_fifo_name(fifo_dir, RUNTYPE_INSURED_LOSS, process_id)}"
 
     for i in range(1, num_reinsurance_iterations + 1):
-        main_cmd += f" | {get_fmcmd(fmpy, fmpy_low_memory)} -a{ri_alloc_rule} {step_flag} -n -p RI_{i}"
+        main_cmd += f" | {get_fmcmd(fmpy, fmpy_low_memory)} -a{ri_alloc_rule}{step_flag} -n -p RI_{i}"
 
     ri_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_LOSS, process_id)
     main_cmd += f" > {ri_fifo_name}"
@@ -767,9 +767,9 @@ def get_main_cmd_il_stream(
     il_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_INSURED_LOSS, process_id)
 
     if from_file:
-        main_cmd = f'{get_fmcmd(fmpy, fmpy_low_memory)} -a{il_alloc_rule} {step_flag} < {cmd} > {il_fifo_name}'
+        main_cmd = f'{get_fmcmd(fmpy, fmpy_low_memory)} -a{il_alloc_rule}{step_flag} < {cmd} > {il_fifo_name}'
     else:
-        main_cmd = f'{cmd} | {get_fmcmd(fmpy, fmpy_low_memory)} -a{il_alloc_rule} {step_flag} > {il_fifo_name} '#need extra space at the end to pass test
+        main_cmd = f'{cmd} | {get_fmcmd(fmpy, fmpy_low_memory)} -a{il_alloc_rule}{step_flag} > {il_fifo_name} '#need extra space at the end to pass test
 
     main_cmd = f'( {main_cmd} ) 2>> log/stderror.err &' if stderr_guard else f'{main_cmd} &'
 
@@ -1250,7 +1250,7 @@ def genbash(
     except (OSError, FileNotFoundError, KeyError):
         pass
     else:
-        step_flag = '-S'
+        step_flag = ' -S'
 
     for fifo_dir, gul_streams in get_gul_stream_cmds.items():
         for i, (getmodel_cmd, from_file) in enumerate(gul_streams):
