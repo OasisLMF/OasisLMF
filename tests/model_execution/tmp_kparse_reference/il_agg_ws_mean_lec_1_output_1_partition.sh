@@ -32,7 +32,7 @@ tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1 work/il_S1_summaryleccalc/P1.bin > /
 
 summarycalc -f  -1 /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1 < /tmp/%FIFO_DIR%/fifo/il_P1 &
 
-eve 1 1 | getmodel | gulcalc -S100 -L100 -r -a1 -i - | fmcalc -a2 > /tmp/%FIFO_DIR%/fifo/il_P1  &
+eve 1 1 | getmodel | gulcalc -S100 -L100 -r -a1 -i - | fmcalc -a2  > /tmp/%FIFO_DIR%/fifo/il_P1  &
 
 wait $pid1
 

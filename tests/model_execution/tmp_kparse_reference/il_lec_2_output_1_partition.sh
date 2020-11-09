@@ -49,7 +49,7 @@ tee < /tmp/%FIFO_DIR%/fifo/il_S2_summary_P1 /tmp/%FIFO_DIR%/fifo/il_S2_eltcalc_P
 
 summarycalc -f  -1 /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1 -2 /tmp/%FIFO_DIR%/fifo/il_S2_summary_P1 < /tmp/%FIFO_DIR%/fifo/il_P1 &
 
-eve 1 1 | getmodel | gulcalc -S0 -L0 -r -a1 -i - | fmcalc -a2 > /tmp/%FIFO_DIR%/fifo/il_P1  &
+eve 1 1 | getmodel | gulcalc -S0 -L0 -r -a1 -i - | fmcalc -a2  > /tmp/%FIFO_DIR%/fifo/il_P1  &
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8
 
