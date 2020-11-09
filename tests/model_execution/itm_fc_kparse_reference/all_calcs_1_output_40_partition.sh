@@ -1856,86 +1856,86 @@ summarycalc -i  -1 fifo/full_correlation/gul_S1_summary_P38 < fifo/full_correlat
 summarycalc -i  -1 fifo/full_correlation/gul_S1_summary_P39 < fifo/full_correlation/gul_P39 &
 summarycalc -i  -1 fifo/full_correlation/gul_S1_summary_P40 < fifo/full_correlation/gul_P40 &
 
-tee < fifo/full_correlation/gul_fc_P1 fifo/full_correlation/gul_P1  | fmcalc -a2  > fifo/full_correlation/il_P1  &
-tee < fifo/full_correlation/gul_fc_P2 fifo/full_correlation/gul_P2  | fmcalc -a2  > fifo/full_correlation/il_P2  &
-tee < fifo/full_correlation/gul_fc_P3 fifo/full_correlation/gul_P3  | fmcalc -a2  > fifo/full_correlation/il_P3  &
-tee < fifo/full_correlation/gul_fc_P4 fifo/full_correlation/gul_P4  | fmcalc -a2  > fifo/full_correlation/il_P4  &
-tee < fifo/full_correlation/gul_fc_P5 fifo/full_correlation/gul_P5  | fmcalc -a2  > fifo/full_correlation/il_P5  &
-tee < fifo/full_correlation/gul_fc_P6 fifo/full_correlation/gul_P6  | fmcalc -a2  > fifo/full_correlation/il_P6  &
-tee < fifo/full_correlation/gul_fc_P7 fifo/full_correlation/gul_P7  | fmcalc -a2  > fifo/full_correlation/il_P7  &
-tee < fifo/full_correlation/gul_fc_P8 fifo/full_correlation/gul_P8  | fmcalc -a2  > fifo/full_correlation/il_P8  &
-tee < fifo/full_correlation/gul_fc_P9 fifo/full_correlation/gul_P9  | fmcalc -a2  > fifo/full_correlation/il_P9  &
-tee < fifo/full_correlation/gul_fc_P10 fifo/full_correlation/gul_P10  | fmcalc -a2  > fifo/full_correlation/il_P10  &
-tee < fifo/full_correlation/gul_fc_P11 fifo/full_correlation/gul_P11  | fmcalc -a2  > fifo/full_correlation/il_P11  &
-tee < fifo/full_correlation/gul_fc_P12 fifo/full_correlation/gul_P12  | fmcalc -a2  > fifo/full_correlation/il_P12  &
-tee < fifo/full_correlation/gul_fc_P13 fifo/full_correlation/gul_P13  | fmcalc -a2  > fifo/full_correlation/il_P13  &
-tee < fifo/full_correlation/gul_fc_P14 fifo/full_correlation/gul_P14  | fmcalc -a2  > fifo/full_correlation/il_P14  &
-tee < fifo/full_correlation/gul_fc_P15 fifo/full_correlation/gul_P15  | fmcalc -a2  > fifo/full_correlation/il_P15  &
-tee < fifo/full_correlation/gul_fc_P16 fifo/full_correlation/gul_P16  | fmcalc -a2  > fifo/full_correlation/il_P16  &
-tee < fifo/full_correlation/gul_fc_P17 fifo/full_correlation/gul_P17  | fmcalc -a2  > fifo/full_correlation/il_P17  &
-tee < fifo/full_correlation/gul_fc_P18 fifo/full_correlation/gul_P18  | fmcalc -a2  > fifo/full_correlation/il_P18  &
-tee < fifo/full_correlation/gul_fc_P19 fifo/full_correlation/gul_P19  | fmcalc -a2  > fifo/full_correlation/il_P19  &
-tee < fifo/full_correlation/gul_fc_P20 fifo/full_correlation/gul_P20  | fmcalc -a2  > fifo/full_correlation/il_P20  &
-tee < fifo/full_correlation/gul_fc_P21 fifo/full_correlation/gul_P21  | fmcalc -a2  > fifo/full_correlation/il_P21  &
-tee < fifo/full_correlation/gul_fc_P22 fifo/full_correlation/gul_P22  | fmcalc -a2  > fifo/full_correlation/il_P22  &
-tee < fifo/full_correlation/gul_fc_P23 fifo/full_correlation/gul_P23  | fmcalc -a2  > fifo/full_correlation/il_P23  &
-tee < fifo/full_correlation/gul_fc_P24 fifo/full_correlation/gul_P24  | fmcalc -a2  > fifo/full_correlation/il_P24  &
-tee < fifo/full_correlation/gul_fc_P25 fifo/full_correlation/gul_P25  | fmcalc -a2  > fifo/full_correlation/il_P25  &
-tee < fifo/full_correlation/gul_fc_P26 fifo/full_correlation/gul_P26  | fmcalc -a2  > fifo/full_correlation/il_P26  &
-tee < fifo/full_correlation/gul_fc_P27 fifo/full_correlation/gul_P27  | fmcalc -a2  > fifo/full_correlation/il_P27  &
-tee < fifo/full_correlation/gul_fc_P28 fifo/full_correlation/gul_P28  | fmcalc -a2  > fifo/full_correlation/il_P28  &
-tee < fifo/full_correlation/gul_fc_P29 fifo/full_correlation/gul_P29  | fmcalc -a2  > fifo/full_correlation/il_P29  &
-tee < fifo/full_correlation/gul_fc_P30 fifo/full_correlation/gul_P30  | fmcalc -a2  > fifo/full_correlation/il_P30  &
-tee < fifo/full_correlation/gul_fc_P31 fifo/full_correlation/gul_P31  | fmcalc -a2  > fifo/full_correlation/il_P31  &
-tee < fifo/full_correlation/gul_fc_P32 fifo/full_correlation/gul_P32  | fmcalc -a2  > fifo/full_correlation/il_P32  &
-tee < fifo/full_correlation/gul_fc_P33 fifo/full_correlation/gul_P33  | fmcalc -a2  > fifo/full_correlation/il_P33  &
-tee < fifo/full_correlation/gul_fc_P34 fifo/full_correlation/gul_P34  | fmcalc -a2  > fifo/full_correlation/il_P34  &
-tee < fifo/full_correlation/gul_fc_P35 fifo/full_correlation/gul_P35  | fmcalc -a2  > fifo/full_correlation/il_P35  &
-tee < fifo/full_correlation/gul_fc_P36 fifo/full_correlation/gul_P36  | fmcalc -a2  > fifo/full_correlation/il_P36  &
-tee < fifo/full_correlation/gul_fc_P37 fifo/full_correlation/gul_P37  | fmcalc -a2  > fifo/full_correlation/il_P37  &
-tee < fifo/full_correlation/gul_fc_P38 fifo/full_correlation/gul_P38  | fmcalc -a2  > fifo/full_correlation/il_P38  &
-tee < fifo/full_correlation/gul_fc_P39 fifo/full_correlation/gul_P39  | fmcalc -a2  > fifo/full_correlation/il_P39  &
-tee < fifo/full_correlation/gul_fc_P40 fifo/full_correlation/gul_P40  | fmcalc -a2  > fifo/full_correlation/il_P40  &
-eve 1 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P1 -a1 -i - | tee fifo/gul_P1 | fmcalc -a2  > fifo/il_P1  &
-eve 2 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P2 -a1 -i - | tee fifo/gul_P2 | fmcalc -a2  > fifo/il_P2  &
-eve 3 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P3 -a1 -i - | tee fifo/gul_P3 | fmcalc -a2  > fifo/il_P3  &
-eve 4 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P4 -a1 -i - | tee fifo/gul_P4 | fmcalc -a2  > fifo/il_P4  &
-eve 5 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P5 -a1 -i - | tee fifo/gul_P5 | fmcalc -a2  > fifo/il_P5  &
-eve 6 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P6 -a1 -i - | tee fifo/gul_P6 | fmcalc -a2  > fifo/il_P6  &
-eve 7 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P7 -a1 -i - | tee fifo/gul_P7 | fmcalc -a2  > fifo/il_P7  &
-eve 8 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P8 -a1 -i - | tee fifo/gul_P8 | fmcalc -a2  > fifo/il_P8  &
-eve 9 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P9 -a1 -i - | tee fifo/gul_P9 | fmcalc -a2  > fifo/il_P9  &
-eve 10 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P10 -a1 -i - | tee fifo/gul_P10 | fmcalc -a2  > fifo/il_P10  &
-eve 11 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P11 -a1 -i - | tee fifo/gul_P11 | fmcalc -a2  > fifo/il_P11  &
-eve 12 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P12 -a1 -i - | tee fifo/gul_P12 | fmcalc -a2  > fifo/il_P12  &
-eve 13 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P13 -a1 -i - | tee fifo/gul_P13 | fmcalc -a2  > fifo/il_P13  &
-eve 14 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P14 -a1 -i - | tee fifo/gul_P14 | fmcalc -a2  > fifo/il_P14  &
-eve 15 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P15 -a1 -i - | tee fifo/gul_P15 | fmcalc -a2  > fifo/il_P15  &
-eve 16 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P16 -a1 -i - | tee fifo/gul_P16 | fmcalc -a2  > fifo/il_P16  &
-eve 17 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P17 -a1 -i - | tee fifo/gul_P17 | fmcalc -a2  > fifo/il_P17  &
-eve 18 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P18 -a1 -i - | tee fifo/gul_P18 | fmcalc -a2  > fifo/il_P18  &
-eve 19 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P19 -a1 -i - | tee fifo/gul_P19 | fmcalc -a2  > fifo/il_P19  &
-eve 20 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P20 -a1 -i - | tee fifo/gul_P20 | fmcalc -a2  > fifo/il_P20  &
-eve 21 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P21 -a1 -i - | tee fifo/gul_P21 | fmcalc -a2  > fifo/il_P21  &
-eve 22 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P22 -a1 -i - | tee fifo/gul_P22 | fmcalc -a2  > fifo/il_P22  &
-eve 23 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P23 -a1 -i - | tee fifo/gul_P23 | fmcalc -a2  > fifo/il_P23  &
-eve 24 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P24 -a1 -i - | tee fifo/gul_P24 | fmcalc -a2  > fifo/il_P24  &
-eve 25 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P25 -a1 -i - | tee fifo/gul_P25 | fmcalc -a2  > fifo/il_P25  &
-eve 26 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P26 -a1 -i - | tee fifo/gul_P26 | fmcalc -a2  > fifo/il_P26  &
-eve 27 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P27 -a1 -i - | tee fifo/gul_P27 | fmcalc -a2  > fifo/il_P27  &
-eve 28 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P28 -a1 -i - | tee fifo/gul_P28 | fmcalc -a2  > fifo/il_P28  &
-eve 29 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P29 -a1 -i - | tee fifo/gul_P29 | fmcalc -a2  > fifo/il_P29  &
-eve 30 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P30 -a1 -i - | tee fifo/gul_P30 | fmcalc -a2  > fifo/il_P30  &
-eve 31 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P31 -a1 -i - | tee fifo/gul_P31 | fmcalc -a2  > fifo/il_P31  &
-eve 32 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P32 -a1 -i - | tee fifo/gul_P32 | fmcalc -a2  > fifo/il_P32  &
-eve 33 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P33 -a1 -i - | tee fifo/gul_P33 | fmcalc -a2  > fifo/il_P33  &
-eve 34 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P34 -a1 -i - | tee fifo/gul_P34 | fmcalc -a2  > fifo/il_P34  &
-eve 35 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P35 -a1 -i - | tee fifo/gul_P35 | fmcalc -a2  > fifo/il_P35  &
-eve 36 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P36 -a1 -i - | tee fifo/gul_P36 | fmcalc -a2  > fifo/il_P36  &
-eve 37 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P37 -a1 -i - | tee fifo/gul_P37 | fmcalc -a2  > fifo/il_P37  &
-eve 38 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P38 -a1 -i - | tee fifo/gul_P38 | fmcalc -a2  > fifo/il_P38  &
-eve 39 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P39 -a1 -i - | tee fifo/gul_P39 | fmcalc -a2  > fifo/il_P39  &
-eve 40 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P40 -a1 -i - | tee fifo/gul_P40 | fmcalc -a2  > fifo/il_P40  &
+tee < fifo/full_correlation/gul_fc_P1 fifo/full_correlation/gul_P1  | fmcalc -a2 > fifo/full_correlation/il_P1  &
+tee < fifo/full_correlation/gul_fc_P2 fifo/full_correlation/gul_P2  | fmcalc -a2 > fifo/full_correlation/il_P2  &
+tee < fifo/full_correlation/gul_fc_P3 fifo/full_correlation/gul_P3  | fmcalc -a2 > fifo/full_correlation/il_P3  &
+tee < fifo/full_correlation/gul_fc_P4 fifo/full_correlation/gul_P4  | fmcalc -a2 > fifo/full_correlation/il_P4  &
+tee < fifo/full_correlation/gul_fc_P5 fifo/full_correlation/gul_P5  | fmcalc -a2 > fifo/full_correlation/il_P5  &
+tee < fifo/full_correlation/gul_fc_P6 fifo/full_correlation/gul_P6  | fmcalc -a2 > fifo/full_correlation/il_P6  &
+tee < fifo/full_correlation/gul_fc_P7 fifo/full_correlation/gul_P7  | fmcalc -a2 > fifo/full_correlation/il_P7  &
+tee < fifo/full_correlation/gul_fc_P8 fifo/full_correlation/gul_P8  | fmcalc -a2 > fifo/full_correlation/il_P8  &
+tee < fifo/full_correlation/gul_fc_P9 fifo/full_correlation/gul_P9  | fmcalc -a2 > fifo/full_correlation/il_P9  &
+tee < fifo/full_correlation/gul_fc_P10 fifo/full_correlation/gul_P10  | fmcalc -a2 > fifo/full_correlation/il_P10  &
+tee < fifo/full_correlation/gul_fc_P11 fifo/full_correlation/gul_P11  | fmcalc -a2 > fifo/full_correlation/il_P11  &
+tee < fifo/full_correlation/gul_fc_P12 fifo/full_correlation/gul_P12  | fmcalc -a2 > fifo/full_correlation/il_P12  &
+tee < fifo/full_correlation/gul_fc_P13 fifo/full_correlation/gul_P13  | fmcalc -a2 > fifo/full_correlation/il_P13  &
+tee < fifo/full_correlation/gul_fc_P14 fifo/full_correlation/gul_P14  | fmcalc -a2 > fifo/full_correlation/il_P14  &
+tee < fifo/full_correlation/gul_fc_P15 fifo/full_correlation/gul_P15  | fmcalc -a2 > fifo/full_correlation/il_P15  &
+tee < fifo/full_correlation/gul_fc_P16 fifo/full_correlation/gul_P16  | fmcalc -a2 > fifo/full_correlation/il_P16  &
+tee < fifo/full_correlation/gul_fc_P17 fifo/full_correlation/gul_P17  | fmcalc -a2 > fifo/full_correlation/il_P17  &
+tee < fifo/full_correlation/gul_fc_P18 fifo/full_correlation/gul_P18  | fmcalc -a2 > fifo/full_correlation/il_P18  &
+tee < fifo/full_correlation/gul_fc_P19 fifo/full_correlation/gul_P19  | fmcalc -a2 > fifo/full_correlation/il_P19  &
+tee < fifo/full_correlation/gul_fc_P20 fifo/full_correlation/gul_P20  | fmcalc -a2 > fifo/full_correlation/il_P20  &
+tee < fifo/full_correlation/gul_fc_P21 fifo/full_correlation/gul_P21  | fmcalc -a2 > fifo/full_correlation/il_P21  &
+tee < fifo/full_correlation/gul_fc_P22 fifo/full_correlation/gul_P22  | fmcalc -a2 > fifo/full_correlation/il_P22  &
+tee < fifo/full_correlation/gul_fc_P23 fifo/full_correlation/gul_P23  | fmcalc -a2 > fifo/full_correlation/il_P23  &
+tee < fifo/full_correlation/gul_fc_P24 fifo/full_correlation/gul_P24  | fmcalc -a2 > fifo/full_correlation/il_P24  &
+tee < fifo/full_correlation/gul_fc_P25 fifo/full_correlation/gul_P25  | fmcalc -a2 > fifo/full_correlation/il_P25  &
+tee < fifo/full_correlation/gul_fc_P26 fifo/full_correlation/gul_P26  | fmcalc -a2 > fifo/full_correlation/il_P26  &
+tee < fifo/full_correlation/gul_fc_P27 fifo/full_correlation/gul_P27  | fmcalc -a2 > fifo/full_correlation/il_P27  &
+tee < fifo/full_correlation/gul_fc_P28 fifo/full_correlation/gul_P28  | fmcalc -a2 > fifo/full_correlation/il_P28  &
+tee < fifo/full_correlation/gul_fc_P29 fifo/full_correlation/gul_P29  | fmcalc -a2 > fifo/full_correlation/il_P29  &
+tee < fifo/full_correlation/gul_fc_P30 fifo/full_correlation/gul_P30  | fmcalc -a2 > fifo/full_correlation/il_P30  &
+tee < fifo/full_correlation/gul_fc_P31 fifo/full_correlation/gul_P31  | fmcalc -a2 > fifo/full_correlation/il_P31  &
+tee < fifo/full_correlation/gul_fc_P32 fifo/full_correlation/gul_P32  | fmcalc -a2 > fifo/full_correlation/il_P32  &
+tee < fifo/full_correlation/gul_fc_P33 fifo/full_correlation/gul_P33  | fmcalc -a2 > fifo/full_correlation/il_P33  &
+tee < fifo/full_correlation/gul_fc_P34 fifo/full_correlation/gul_P34  | fmcalc -a2 > fifo/full_correlation/il_P34  &
+tee < fifo/full_correlation/gul_fc_P35 fifo/full_correlation/gul_P35  | fmcalc -a2 > fifo/full_correlation/il_P35  &
+tee < fifo/full_correlation/gul_fc_P36 fifo/full_correlation/gul_P36  | fmcalc -a2 > fifo/full_correlation/il_P36  &
+tee < fifo/full_correlation/gul_fc_P37 fifo/full_correlation/gul_P37  | fmcalc -a2 > fifo/full_correlation/il_P37  &
+tee < fifo/full_correlation/gul_fc_P38 fifo/full_correlation/gul_P38  | fmcalc -a2 > fifo/full_correlation/il_P38  &
+tee < fifo/full_correlation/gul_fc_P39 fifo/full_correlation/gul_P39  | fmcalc -a2 > fifo/full_correlation/il_P39  &
+tee < fifo/full_correlation/gul_fc_P40 fifo/full_correlation/gul_P40  | fmcalc -a2 > fifo/full_correlation/il_P40  &
+eve 1 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P1 -a1 -i - | tee fifo/gul_P1 | fmcalc -a2 > fifo/il_P1  &
+eve 2 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P2 -a1 -i - | tee fifo/gul_P2 | fmcalc -a2 > fifo/il_P2  &
+eve 3 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P3 -a1 -i - | tee fifo/gul_P3 | fmcalc -a2 > fifo/il_P3  &
+eve 4 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P4 -a1 -i - | tee fifo/gul_P4 | fmcalc -a2 > fifo/il_P4  &
+eve 5 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P5 -a1 -i - | tee fifo/gul_P5 | fmcalc -a2 > fifo/il_P5  &
+eve 6 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P6 -a1 -i - | tee fifo/gul_P6 | fmcalc -a2 > fifo/il_P6  &
+eve 7 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P7 -a1 -i - | tee fifo/gul_P7 | fmcalc -a2 > fifo/il_P7  &
+eve 8 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P8 -a1 -i - | tee fifo/gul_P8 | fmcalc -a2 > fifo/il_P8  &
+eve 9 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P9 -a1 -i - | tee fifo/gul_P9 | fmcalc -a2 > fifo/il_P9  &
+eve 10 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P10 -a1 -i - | tee fifo/gul_P10 | fmcalc -a2 > fifo/il_P10  &
+eve 11 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P11 -a1 -i - | tee fifo/gul_P11 | fmcalc -a2 > fifo/il_P11  &
+eve 12 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P12 -a1 -i - | tee fifo/gul_P12 | fmcalc -a2 > fifo/il_P12  &
+eve 13 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P13 -a1 -i - | tee fifo/gul_P13 | fmcalc -a2 > fifo/il_P13  &
+eve 14 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P14 -a1 -i - | tee fifo/gul_P14 | fmcalc -a2 > fifo/il_P14  &
+eve 15 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P15 -a1 -i - | tee fifo/gul_P15 | fmcalc -a2 > fifo/il_P15  &
+eve 16 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P16 -a1 -i - | tee fifo/gul_P16 | fmcalc -a2 > fifo/il_P16  &
+eve 17 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P17 -a1 -i - | tee fifo/gul_P17 | fmcalc -a2 > fifo/il_P17  &
+eve 18 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P18 -a1 -i - | tee fifo/gul_P18 | fmcalc -a2 > fifo/il_P18  &
+eve 19 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P19 -a1 -i - | tee fifo/gul_P19 | fmcalc -a2 > fifo/il_P19  &
+eve 20 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P20 -a1 -i - | tee fifo/gul_P20 | fmcalc -a2 > fifo/il_P20  &
+eve 21 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P21 -a1 -i - | tee fifo/gul_P21 | fmcalc -a2 > fifo/il_P21  &
+eve 22 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P22 -a1 -i - | tee fifo/gul_P22 | fmcalc -a2 > fifo/il_P22  &
+eve 23 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P23 -a1 -i - | tee fifo/gul_P23 | fmcalc -a2 > fifo/il_P23  &
+eve 24 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P24 -a1 -i - | tee fifo/gul_P24 | fmcalc -a2 > fifo/il_P24  &
+eve 25 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P25 -a1 -i - | tee fifo/gul_P25 | fmcalc -a2 > fifo/il_P25  &
+eve 26 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P26 -a1 -i - | tee fifo/gul_P26 | fmcalc -a2 > fifo/il_P26  &
+eve 27 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P27 -a1 -i - | tee fifo/gul_P27 | fmcalc -a2 > fifo/il_P27  &
+eve 28 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P28 -a1 -i - | tee fifo/gul_P28 | fmcalc -a2 > fifo/il_P28  &
+eve 29 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P29 -a1 -i - | tee fifo/gul_P29 | fmcalc -a2 > fifo/il_P29  &
+eve 30 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P30 -a1 -i - | tee fifo/gul_P30 | fmcalc -a2 > fifo/il_P30  &
+eve 31 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P31 -a1 -i - | tee fifo/gul_P31 | fmcalc -a2 > fifo/il_P31  &
+eve 32 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P32 -a1 -i - | tee fifo/gul_P32 | fmcalc -a2 > fifo/il_P32  &
+eve 33 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P33 -a1 -i - | tee fifo/gul_P33 | fmcalc -a2 > fifo/il_P33  &
+eve 34 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P34 -a1 -i - | tee fifo/gul_P34 | fmcalc -a2 > fifo/il_P34  &
+eve 35 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P35 -a1 -i - | tee fifo/gul_P35 | fmcalc -a2 > fifo/il_P35  &
+eve 36 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P36 -a1 -i - | tee fifo/gul_P36 | fmcalc -a2 > fifo/il_P36  &
+eve 37 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P37 -a1 -i - | tee fifo/gul_P37 | fmcalc -a2 > fifo/il_P37  &
+eve 38 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P38 -a1 -i - | tee fifo/gul_P38 | fmcalc -a2 > fifo/il_P38  &
+eve 39 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P39 -a1 -i - | tee fifo/gul_P39 | fmcalc -a2 > fifo/il_P39  &
+eve 40 40 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P40 -a1 -i - | tee fifo/gul_P40 | fmcalc -a2 > fifo/il_P40  &
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22 $pid23 $pid24 $pid25 $pid26 $pid27 $pid28 $pid29 $pid30 $pid31 $pid32 $pid33 $pid34 $pid35 $pid36 $pid37 $pid38 $pid39 $pid40 $pid41 $pid42 $pid43 $pid44 $pid45 $pid46 $pid47 $pid48 $pid49 $pid50 $pid51 $pid52 $pid53 $pid54 $pid55 $pid56 $pid57 $pid58 $pid59 $pid60 $pid61 $pid62 $pid63 $pid64 $pid65 $pid66 $pid67 $pid68 $pid69 $pid70 $pid71 $pid72 $pid73 $pid74 $pid75 $pid76 $pid77 $pid78 $pid79 $pid80 $pid81 $pid82 $pid83 $pid84 $pid85 $pid86 $pid87 $pid88 $pid89 $pid90 $pid91 $pid92 $pid93 $pid94 $pid95 $pid96 $pid97 $pid98 $pid99 $pid100 $pid101 $pid102 $pid103 $pid104 $pid105 $pid106 $pid107 $pid108 $pid109 $pid110 $pid111 $pid112 $pid113 $pid114 $pid115 $pid116 $pid117 $pid118 $pid119 $pid120 $pid121 $pid122 $pid123 $pid124 $pid125 $pid126 $pid127 $pid128 $pid129 $pid130 $pid131 $pid132 $pid133 $pid134 $pid135 $pid136 $pid137 $pid138 $pid139 $pid140 $pid141 $pid142 $pid143 $pid144 $pid145 $pid146 $pid147 $pid148 $pid149 $pid150 $pid151 $pid152 $pid153 $pid154 $pid155 $pid156 $pid157 $pid158 $pid159 $pid160 $pid161 $pid162 $pid163 $pid164 $pid165 $pid166 $pid167 $pid168 $pid169 $pid170 $pid171 $pid172 $pid173 $pid174 $pid175 $pid176 $pid177 $pid178 $pid179 $pid180 $pid181 $pid182 $pid183 $pid184 $pid185 $pid186 $pid187 $pid188 $pid189 $pid190 $pid191 $pid192 $pid193 $pid194 $pid195 $pid196 $pid197 $pid198 $pid199 $pid200 $pid201 $pid202 $pid203 $pid204 $pid205 $pid206 $pid207 $pid208 $pid209 $pid210 $pid211 $pid212 $pid213 $pid214 $pid215 $pid216 $pid217 $pid218 $pid219 $pid220 $pid221 $pid222 $pid223 $pid224 $pid225 $pid226 $pid227 $pid228 $pid229 $pid230 $pid231 $pid232 $pid233 $pid234 $pid235 $pid236 $pid237 $pid238 $pid239 $pid240 $pid241 $pid242 $pid243 $pid244 $pid245 $pid246 $pid247 $pid248 $pid249 $pid250 $pid251 $pid252 $pid253 $pid254 $pid255 $pid256 $pid257 $pid258 $pid259 $pid260 $pid261 $pid262 $pid263 $pid264 $pid265 $pid266 $pid267 $pid268 $pid269 $pid270 $pid271 $pid272 $pid273 $pid274 $pid275 $pid276 $pid277 $pid278 $pid279 $pid280 $pid281 $pid282 $pid283 $pid284 $pid285 $pid286 $pid287 $pid288 $pid289 $pid290 $pid291 $pid292 $pid293 $pid294 $pid295 $pid296 $pid297 $pid298 $pid299 $pid300 $pid301 $pid302 $pid303 $pid304 $pid305 $pid306 $pid307 $pid308 $pid309 $pid310 $pid311 $pid312 $pid313 $pid314 $pid315 $pid316 $pid317 $pid318 $pid319 $pid320 $pid321 $pid322 $pid323 $pid324 $pid325 $pid326 $pid327 $pid328 $pid329 $pid330 $pid331 $pid332 $pid333 $pid334 $pid335 $pid336 $pid337 $pid338 $pid339 $pid340 $pid341 $pid342 $pid343 $pid344 $pid345 $pid346 $pid347 $pid348 $pid349 $pid350 $pid351 $pid352 $pid353 $pid354 $pid355 $pid356 $pid357 $pid358 $pid359 $pid360 $pid361 $pid362 $pid363 $pid364 $pid365 $pid366 $pid367 $pid368 $pid369 $pid370 $pid371 $pid372 $pid373 $pid374 $pid375 $pid376 $pid377 $pid378 $pid379 $pid380 $pid381 $pid382 $pid383 $pid384 $pid385 $pid386 $pid387 $pid388 $pid389 $pid390 $pid391 $pid392 $pid393 $pid394 $pid395 $pid396 $pid397 $pid398 $pid399 $pid400 $pid401 $pid402 $pid403 $pid404 $pid405 $pid406 $pid407 $pid408 $pid409 $pid410 $pid411 $pid412 $pid413 $pid414 $pid415 $pid416 $pid417 $pid418 $pid419 $pid420 $pid421 $pid422 $pid423 $pid424 $pid425 $pid426 $pid427 $pid428 $pid429 $pid430 $pid431 $pid432 $pid433 $pid434 $pid435 $pid436 $pid437 $pid438 $pid439 $pid440 $pid441 $pid442 $pid443 $pid444 $pid445 $pid446 $pid447 $pid448 $pid449 $pid450 $pid451 $pid452 $pid453 $pid454 $pid455 $pid456 $pid457 $pid458 $pid459 $pid460 $pid461 $pid462 $pid463 $pid464 $pid465 $pid466 $pid467 $pid468 $pid469 $pid470 $pid471 $pid472 $pid473 $pid474 $pid475 $pid476 $pid477 $pid478 $pid479 $pid480 $pid481 $pid482 $pid483 $pid484 $pid485 $pid486 $pid487 $pid488 $pid489 $pid490 $pid491 $pid492 $pid493 $pid494 $pid495 $pid496 $pid497 $pid498 $pid499 $pid500 $pid501 $pid502 $pid503 $pid504 $pid505 $pid506 $pid507 $pid508 $pid509 $pid510 $pid511 $pid512 $pid513 $pid514 $pid515 $pid516 $pid517 $pid518 $pid519 $pid520 $pid521 $pid522 $pid523 $pid524 $pid525 $pid526 $pid527 $pid528 $pid529 $pid530 $pid531 $pid532 $pid533 $pid534 $pid535 $pid536 $pid537 $pid538 $pid539 $pid540 $pid541 $pid542 $pid543 $pid544 $pid545 $pid546 $pid547 $pid548 $pid549 $pid550 $pid551 $pid552 $pid553 $pid554 $pid555 $pid556 $pid557 $pid558 $pid559 $pid560 $pid561 $pid562 $pid563 $pid564 $pid565 $pid566 $pid567 $pid568 $pid569 $pid570 $pid571 $pid572 $pid573 $pid574 $pid575 $pid576 $pid577 $pid578 $pid579 $pid580 $pid581 $pid582 $pid583 $pid584 $pid585 $pid586 $pid587 $pid588 $pid589 $pid590 $pid591 $pid592 $pid593 $pid594 $pid595 $pid596 $pid597 $pid598 $pid599 $pid600 $pid601 $pid602 $pid603 $pid604 $pid605 $pid606 $pid607 $pid608 $pid609 $pid610 $pid611 $pid612 $pid613 $pid614 $pid615 $pid616 $pid617 $pid618 $pid619 $pid620 $pid621 $pid622 $pid623 $pid624 $pid625 $pid626 $pid627 $pid628 $pid629 $pid630 $pid631 $pid632 $pid633 $pid634 $pid635 $pid636 $pid637 $pid638 $pid639 $pid640
 
