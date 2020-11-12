@@ -727,7 +727,7 @@ def get_main_cmd_ri_stream(
         main_cmd += f" | tee {get_fifo_name(fifo_dir, RUNTYPE_INSURED_LOSS, process_id)}"
 
     for i in range(1, num_reinsurance_iterations + 1):
-        main_cmd += f" | {get_fmcmd(fmpy, fmpy_low_memory)} -a{ri_alloc_rule}{step_flag} -n -p RI_{i}"
+        main_cmd += f" | {get_fmcmd(fmpy, fmpy_low_memory)} -a{ri_alloc_rule} -n -p RI_{i}"
 
     ri_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_LOSS, process_id)
     main_cmd += f" > {ri_fifo_name}"
