@@ -347,7 +347,7 @@ class GenerateLossesDeterministic(ComputationStep):
         guls.to_csv(guls_fp, index=False)
 
         ils_fp = os.path.join(output_dir, 'raw_ils.csv')
-        cmd = 'gultobin -S {} < {} | fmcalc -p {} -a {} {} | tee ils.bin | fmtocsv > {}'.format(
+        cmd = 'gultobin -S {} -t1 < {} | fmcalc -p {} -a {} {} | tee ils.bin | fmtocsv > {}'.format(
             len(self.loss_factor), guls_fp, output_dir, self.ktools_alloc_rule_il, step_flag, ils_fp
         )
         try:
@@ -393,7 +393,7 @@ class GenerateLossesDeterministic(ComputationStep):
                 else:
                     def run_ri_layer(layer):
                         layer_inputs_fp = os.path.join(output_dir, 'RI_{}'.format(layer))
-                        _input = 'gultobin -S 1 < {} | fmcalc -p {} -a {} {} | tee ils.bin |'.format(
+                        _input = 'gultobin -S 1 -t1 < {} | fmcalc -p {} -a {} {} | tee ils.bin |'.format(
                             guls_fp, output_dir, self.ktools_alloc_rule_il, step_flag
                         ) if layer == 1 else ''
                         pipe_in_previous_layer = '< ri{}.bin'.format(layer - 1) if layer > 1 else ''
