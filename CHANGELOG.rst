@@ -1,15 +1,19 @@
 OasisLMF Changelog
 ==================
 
-`1.12.0`_
+`1.12.1`_
 ---------
 .. start_latest_release
+* [#674](https://github.com/OasisLMF/OasisLMF/pull/674) - Introduce check for step policies in genbash
+.. end_latest_release
+
+`1.12.0`_
+---------
 * [#413](https://github.com/OasisLMF/OasisLMF/issues/413) - Peril Handling in Input Generation
 * [#661](https://github.com/OasisLMF/OasisLMF/issues/661) - Added experimental financial module written in Python 'fmpy'
 * [#662](https://github.com/OasisLMF/OasisLMF/issues/662) - Define relationships between event and occurrence in model_settings
 * [#671](https://github.com/OasisLMF/OasisLMF/issues/671) - Fix issue with loading booleans in oasislmf.json and corrected the 'ktools-fifo-relative' flag 
 * [#666](https://github.com/OasisLMF/OasisLMF/pull/666) - Fix files created to generate-oasis-files, being cleared 
-.. end_latest_release
 
 `1.11.1`_
 ---------
