@@ -212,7 +212,7 @@ node {
         }
 
         // Run merge back if publish
-         if (params.PUBLISH && params.AUTO_MERGE){ 
+         if (params.PUBLISH && params.AUTO_MERGE && ! hasFailed){ 
             dir(source_workspace) {
                 sshagent (credentials: [git_creds]) {
                     sh "git stash"
