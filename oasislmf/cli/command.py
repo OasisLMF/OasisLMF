@@ -120,7 +120,7 @@ class OasisComputationCommand(OasisBaseCommand):
         inputs = InputValues(args)
 
         _kwargs = {
-            param['name']: inputs.get(param['name'], required=param.get('required'), is_path=param.get('is_path')) for
+            param['name']: inputs.get(param['name'], required=param.get('required'), is_path=param.get('is_path'), dtype=param.get('type')) for
             param in om.computations_params[self.computation_name]}
 
         manager_method = getattr(om(), om.computation_name_to_method(self.computation_name))
