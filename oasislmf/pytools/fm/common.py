@@ -17,7 +17,7 @@ def almost_equal(a, b):
 
 
 null_index = np_oasis_int(-1)
-need_tiv_policy = (4, 6, 18, 27, 28, 29, 30, 31)
+need_tiv_policy = (4, 6, 18, 27, 28, 29, 30, 31, 32)
 
 # financial structure static input dtypes
 fm_programme_dtype = np.dtype([('from_agg_id', 'i4'), ('level_id', 'i4'), ('to_agg_id', 'i4')])

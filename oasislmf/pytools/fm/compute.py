@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 @njit(cache=True, fastmath=True, error_model="numpy")
-def back_allocate(node, children, nodes_array, losses, loss_indexes, loss_i, computes, next_compute_i):
+def back_allocate(node, children, nodes_array, losses, loss_indexes, loss_i, computes, next_compute_i, child_loss_pointer):
     len_children = children[node['children']]
     if len_children > 1:
         for layer in range(node['layer_len']):
@@ -23,7 +23,7 @@ def back_allocate(node, children, nodes_array, losses, loss_indexes, loss_i, com
                     proportion[i] = ba_loss[i] / sum_loss[i]
             for c in range(node['children'] + 1, node['children'] + len_children + 1):
                 child = nodes_array[children[c]]
-                losses[loss_i] = proportion * losses[loss_indexes[child['il'] + layer]]
+                losses[loss_i] = proportion * losses[loss_indexes[child[child_loss_pointer] + layer]]
                 loss_indexes[child['ba'] + layer], loss_i = loss_i, loss_i + 1
 
         for c in range(node['children'] + 1, node['children'] + len_children + 1):
@@ -39,18 +39,19 @@ def back_allocate(node, children, nodes_array, losses, loss_indexes, loss_i, com
 
 @njit(cache=True, fastmath=True)
 def compute_event(compute_info,
-                   net_loss,
-                   nodes_array,
-                   node_parents_array,
-                   node_profiles_array,
-                   losses,
-                   loss_indexes,
-                   extras,
-                   extra_indexes,
-                   children,
-                   computes,
-                   next_compute_i,
-                   fm_profile):
+                  net_loss,
+                  nodes_array,
+                  node_parents_array,
+                  node_profiles_array,
+                  losses,
+                  loss_indexes,
+                  extras,
+                  extra_indexes,
+                  children,
+                  computes,
+                  next_compute_i,
+                  fm_profile,
+                  stepped):
 
     loss_i = next_compute_i
     extra_i = 0
@@ -102,19 +103,20 @@ def compute_event(compute_info,
                 for layer in range(node['profile_len'], node['layer_len']):
                     extra_indexes[node['extra'] + layer] = extra_indexes[node['extra']]
 
-
             #compute il
             for p in range(node['profile_len']):
-                profile_index = node_profiles_array[node['profiles']+p]
-
-                if profile_index != null_index:
-                    extra = extras[extra_indexes[node['extra']+p]]
-                    calc(fm_profile[profile_index],
-                         losses[loss_i],
-                         losses[loss_indexes[node['loss'] + p]],
-                         extra[0],
-                         extra[1],
-                         extra[2])
+                node_profile = node_profiles_array[node['profiles']+p]
+                if node_profile['i_start'] < node_profile['i_end']:
+                    extra = extras[extra_indexes[node['extra'] + p]]
+                    loss_in = losses[loss_indexes[node['loss'] + p]]
+                    for profile_index in range(node_profile['i_start'], node_profile['i_end']):
+                        calc(fm_profile[profile_index],
+                             losses[loss_i],
+                             loss_in,
+                             extra[0],
+                             extra[1],
+                             extra[2],
+                             stepped)
                     loss_indexes[node['il'] + p], loss_i = loss_i, loss_i + 1
                 else:
                     loss_indexes[node['il'] + p] = loss_indexes[node['loss'] + p]
@@ -145,24 +147,21 @@ def compute_event(compute_info,
         pass
     elif compute_info['allocation_rule'] == 1:
         next_compute_i += 1
-
         while computes[compute_i]:
             node, compute_i = nodes_array[computes[compute_i]], compute_i + 1
             len_children = children[node['children']]
             if len_children > 1:
                 # we are summing the input loss of level 0 or 1 so there is no layer to take into account
                 node_loss = losses[loss_i]
-                loss_indexes[node['loss'] + 1], loss_i = loss_i, loss_i + 1
+                loss_indexes[node['loss']], loss_i = loss_i, loss_i + 1
 
                 node_loss.fill(0)
                 for c in range(node['children'] + 1, node['children'] + len_children + 1):
                     child = nodes_array[children[c]]
-                    node_loss += losses[loss_indexes[child['loss'] + 1]]
-
-                for layer in range(node['profile_len'], node['layer_len']):
+                    node_loss += losses[loss_indexes[child['loss']]]
+                for layer in range(1, node['layer_len']):
                     loss_indexes[node['loss'] + layer] = loss_indexes[node['loss']]
-
-            loss_i, next_compute_i = back_allocate(node, children, nodes_array, losses, loss_indexes, loss_i, computes, next_compute_i)
+            loss_i, next_compute_i = back_allocate(node, children, nodes_array, losses, loss_indexes, loss_i, computes, next_compute_i, 'loss')
         compute_i += 1
     else:
         for level in range(compute_info['max_level'] - compute_info['start_level']):# perform back allocation 2
@@ -177,7 +176,8 @@ def compute_event(compute_info,
                                                        loss_indexes,
                                                        loss_i,
                                                        computes,
-                                                       next_compute_i)
+                                                       next_compute_i,
+                                                       'il')
             compute_i += 1
     if net_loss:
         # we go through the last level node and replace the gross loss by net loss, then reset compute_i to its value
