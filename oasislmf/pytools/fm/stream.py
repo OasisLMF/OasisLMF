@@ -22,6 +22,7 @@ from .common import float_equal_precision
 import sys
 from numba import njit
 import numpy as np
+import selectors
 from select import select
 import logging
 logger = logging.getLogger(__name__)
@@ -91,51 +92,112 @@ def read_stream_header(stream_obj):
     return stream_type, len_sample
 
 
-def read_event(stream_in, nodes_array, losses, index, computes):
-
-    buf = bytearray(buff_size)
-    mv = memoryview(buf)
-
-    event_agg = np.ndarray(nb_number, buffer=mv, dtype=event_agg_dtype)
-    sidx_loss = np.ndarray(nb_number, buffer=mv, dtype=sidx_loss_dtype)
-
-    cursor = 0
+def read_event(stream, nodes_array, losses, index, computes, main_selector,
+               stream_selector, mv, event_agg, sidx_loss, cursor, valid_buf):
     event_id = 0
     agg_id = 0
     loss_index = 0
-    read_cursor = 0
 
     while True:
-        readable, _, exceptional = select([stream_in], [], [stream_in])
-        if exceptional:
-            raise IOError(f'error with input stream, {exceptional}')
-        len_read = readable[0].readinto1(mv[read_cursor:])
-        valid_buf = len_read + read_cursor
+        if valid_buf < buff_size:
+            len_read = stream.readinto1(mv[valid_buf:])
+            valid_buf += len_read
 
-        if len_read == 0:
-            break
+            if len_read == 0:
+                stream_selector.close()
+                main_selector.unregister(stream)
+                if event_id:
+                    if agg_id:
+                        loss_index += 1
+                    return event_id, loss_index, cursor, valid_buf
 
-        while True:
-            cursor, event_id, agg_id, loss_index, yield_event = stream_to_loss_table(event_agg, sidx_loss, valid_buf, cursor,
-                                                                                     event_id, agg_id, loss_index,
-                                                                                     nodes_array, losses, index, computes)
-            if yield_event:
-                logger.debug(f'event_id: {event_id}, loss_index :{loss_index}')
-                yield event_id, loss_index
-                event_id = 0
-                loss_index=0
-            else:
-                read_cursor = valid_buf - number_size * cursor
-                mv[:read_cursor] = mv[number_size * cursor: valid_buf]
-                cursor = 0
                 break
+        cursor, event_id, agg_id, loss_index, yield_event = stream_to_loss_table(event_agg, sidx_loss, valid_buf,
+                                                                                 cursor,
+                                                                                 event_id, agg_id, loss_index,
+                                                                                 nodes_array, losses, index, computes)
 
-    if event_id:
-        if agg_id:
-            loss_index += 1
-        logger.debug(f'event_id: {event_id}, loss_index :{loss_index}')
-        yield event_id, loss_index
+        if yield_event:
+            if number_size * cursor == valid_buf:
+                valid_buf = 0
+            return event_id, loss_index, cursor, valid_buf
+        else:
+            cursor_buf = number_size * cursor
+            mv[:valid_buf - cursor_buf] = mv[cursor_buf: valid_buf]
+            valid_buf -= cursor_buf
+            cursor = 0
+            stream_selector.select()
 
+
+def register_streams_in(selector_class, streams_in):
+    """
+    Data from input process is generally sent by event block, meaning once a stream receive data, the complete event is
+    going to be sent in a short amount of time.
+    Therefore, we can focus on each stream one by one using their specific selector 'stream_selector'.
+
+    """
+    main_selector = selector_class()
+    stream_data = []
+    for stream_in in streams_in:
+        mv = memoryview(bytearray(buff_size))
+
+        event_agg = np.ndarray(nb_number, buffer=mv, dtype=event_agg_dtype)
+        sidx_loss = np.ndarray(nb_number, buffer=mv, dtype=sidx_loss_dtype)
+
+        stream_selector = selector_class()
+        stream_selector.register(stream_in, selectors.EVENT_READ)
+        data = {'mv': mv,
+                'event_agg': event_agg,
+                'sidx_loss': sidx_loss,
+                'cursor': 0,
+                'valid_buf': 0,
+                'stream_selector': stream_selector
+               }
+        stream_data.append(data)
+        main_selector.register(stream_in, selectors.EVENT_READ, data)
+    return main_selector, stream_data
+
+
+def read_streams(streams_in, nodes_array, losses, index, computes):
+    try:
+        main_selector, stream_data = register_streams_in(selectors.DefaultSelector, streams_in)
+        logger.debug("Streams read with DefaultSelector")
+    except PermissionError: # Fall back option if stream_in contain regular files
+        main_selector, stream_data = register_streams_in(selectors.SelectSelector, streams_in)
+        logger.debug("Streams read with SelectSelector")
+    try:
+        while main_selector.get_map():
+            for sKey, _ in main_selector.select():
+                event = read_event(sKey.fileobj, nodes_array, losses, index, computes, main_selector, **sKey.data)
+                if event:
+                    event_id, loss_index, cursor, valid_buf = event
+                    sKey.data['cursor'] = cursor
+                    sKey.data['valid_buf'] = valid_buf
+                    logger.debug(f'event_id: {event_id}, loss_index :{loss_index}')
+                    yield event_id, loss_index
+
+        # All stream are read, we need to check if there is remaining event to be parsed
+        for data in stream_data:
+            if data['cursor'] < data['valid_buf']:
+                event_agg = data['event_agg']
+                sidx_loss = data['sidx_loss']
+                cursor = data['cursor']
+                valid_buf = data['valid_buf']
+                yield_event = True
+                while yield_event:
+                    cursor, event_id, agg_id, loss_index, yield_event = stream_to_loss_table(event_agg,
+                                                                                             sidx_loss,
+                                                                                             valid_buf,
+                                                                                             cursor,
+                                                                                             0, 0,
+                                                                                             0,
+                                                                                             nodes_array, losses, index,
+                                                                                             computes)
+                    if event_id:
+                        yield event_id, loss_index
+
+    finally:
+        main_selector.close()
 
 @njit(cache=True)
 def load_event(event_agg, sidx_loss, event_id, nodes_array, losses, loss_indexes, computes, output_array, compute_i, i_layer, i_index, nb_values):

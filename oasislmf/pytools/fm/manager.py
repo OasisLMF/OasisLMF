@@ -1,5 +1,5 @@
 from .financial_structure import create_financial_structure, load_financial_structure
-from .stream import read_stream_header, read_event, EventWriter, EXTRA_VALUES
+from .stream import read_stream_header, read_streams, EventWriter, EXTRA_VALUES
 from .compute import compute_event, init_variable, reset_variabe
 from .common import allowed_allocation_rule
 
@@ -27,37 +27,40 @@ def run_synchronous(allocation_rule, static_path, files_in, files_out, low_memor
         allocation_rule, static_path)
 
     compute_info = compute_info[0]
-    if files_in is None:
-        stream_in = sys.stdin.buffer
-    else:
-        stream_in = open(files_in[0], 'rb')
-
     if files_out is not None:
         files_out = files_out[0]
 
-    stream_type, len_sample = read_stream_header(stream_in)
-    len_array = len_sample + EXTRA_VALUES
+    if files_in is None:
+        streams_in = [sys.stdin.buffer]
+    else:
+        streams_in = [open(file_in, 'rb') for file_in in files_in]
 
-    with tempfile.TemporaryDirectory() as tempdir:
-        losses, loss_indexes, extras, extra_indexes, children, computes = init_variable(compute_info, len_array, tempdir, low_memory)
+    try:
+        for stream_in in streams_in:
+            stream_type, len_sample = read_stream_header(stream_in)
+        len_array = len_sample + EXTRA_VALUES
 
-        with EventWriter(files_out, nodes_array, output_array, losses, loss_indexes, computes, len_sample) as event_writer:
-            for event_id, compute_i in read_event(stream_in, nodes_array, losses, loss_indexes, computes):
-                compute_i, loss_i, extra_i = compute_event(compute_info,
-                                                           net_loss,
-                                                           nodes_array,
-                                                           node_parents_array,
-                                                           node_profiles_array,
-                                                           losses,
-                                                           loss_indexes,
-                                                           extras,
-                                                           extra_indexes,
-                                                           children,
-                                                           computes,
-                                                           compute_i,
-                                                           fm_profile)
-                compute_i = event_writer.write(event_id, compute_i)
-                reset_variabe(children, compute_i, computes)
+        with tempfile.TemporaryDirectory() as tempdir:
+            losses, loss_indexes, extras, extra_indexes, children, computes = init_variable(compute_info, len_array, tempdir, low_memory)
 
-
-
+            with EventWriter(files_out, nodes_array, output_array, losses, loss_indexes, computes, len_sample) as event_writer:
+                for event_id, compute_i in read_streams(streams_in, nodes_array, losses, loss_indexes, computes):
+                    compute_i, loss_i, extra_i = compute_event(compute_info,
+                                                               net_loss,
+                                                               nodes_array,
+                                                               node_parents_array,
+                                                               node_profiles_array,
+                                                               losses,
+                                                               loss_indexes,
+                                                               extras,
+                                                               extra_indexes,
+                                                               children,
+                                                               computes,
+                                                               compute_i,
+                                                               fm_profile)
+                    compute_i = event_writer.write(event_id, compute_i)
+                    reset_variabe(children, compute_i, computes)
+    finally:
+        if files_in is not None:
+            for stream_in in streams_in:
+                stream_in.close()
