@@ -80,6 +80,7 @@ class GenerateFiles(ComputationStep):
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'lookup_config'},
         {'name': 'lookup_complex_config'},
+        {'name': 'verbose',                       'default': False},
         {'name': 'write_chunksize', 'type':int,   'default': WRITE_CHUNKSIZE},
         {'name': 'oasis_files_prefixes',          'default': OASIS_FILES_PREFIXES},
         {'name': 'profile_loc',                   'default': get_default_exposure_profile()},
