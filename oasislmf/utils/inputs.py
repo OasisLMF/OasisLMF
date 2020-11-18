@@ -87,12 +87,14 @@ class InputValues(object):
             self.logger.error('\nexiting.')
 
     def get_env(self, name, dtype=None, default=None):
-        prefix = 'OASIS'
-        env_var = os.getenv(f'{prefix}_{name.upper()}', default=default)
+        env_var = os.getenv(f'OASIS_{name.upper()}', default=default)
         if dtype and env_var:
             return dtype(env_var)
         else:
             return env_var
+
+    def has_env(self, name):
+        return f'OASIS_{name.upper()}' in os.environ
 
     def get(self, name, default=None, required=False, is_path=False, dtype=None):
         """
@@ -132,7 +134,7 @@ class InputValues(object):
         value = getattr(self.args, name, None)
 
         # Load order 1: ENV override (intended for worker images)
-        if str2bool(os.getenv('OASIS_ENV_OVERRIDE', default=False)) and name != 'config':
+        if str2bool(os.getenv('OASIS_ENV_OVERRIDE', default=False)) and self.has_env(name):
             source = 'env_override'
             value = self.get_env(name, dtype)
 
