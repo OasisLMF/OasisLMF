@@ -56,15 +56,20 @@ class GenerateKeys(ComputationStep):
 
     step_params = [
         {'name': 'oed_location_csv',           'flag':'-x', 'is_path': True, 'pre_exist': True,  'help': 'Source location CSV file path', 'required': True},
-        {'name': 'keys_data_csv',              'flag':'-k', 'is_path': True, 'pre_exist': False,  'help': 'Generated keys CSV output path'},
-        {'name': 'keys_errors_csv',            'flag':'-e', 'is_path': True, 'pre_exist': False,  'help': 'Generated keys errors CSV output path'},
+        {'name': 'keys_data_csv',              'flag':'-k', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys CSV output path'},
+        {'name': 'keys_errors_csv',            'flag':'-e', 'is_path': True, 'pre_exist': False, 'help': 'Generated keys errors CSV output path'},
         {'name': 'keys_format',                'flag':'-f',  'help': 'Keys files output format', 'choices':['oasis', 'json'], 'default':'oasis'},
         {'name': 'lookup_config_json',         'flag':'-g', 'is_path': True, 'pre_exist': False, 'help': 'Lookup config JSON file path'},
         {'name': 'lookup_data_dir',            'flag':'-d', 'is_path': True, 'pre_exist': True,  'help': 'Model lookup/keys data directory path'},
         {'name': 'lookup_module_path',         'flag':'-l', 'is_path': True, 'pre_exist': False, 'help': 'Model lookup module path'},
         {'name': 'lookup_complex_config_json', 'flag':'-L', 'is_path': True, 'pre_exist': False, 'help': 'Complex lookup config JSON file path'},
+        {'name': 'lookup_num_processes',       'type':int,  'default': -1,                       'help': 'Number of workers in multiprocess pools'},
+        {'name': 'lookup_num_chunks',          'type':int,  'default': -1,                       'help': 'Number of chunks to split the location file into for multiprocessing'},
         {'name': 'model_version_csv',          'flag':'-v', 'is_path': True, 'pre_exist': False, 'help': 'Model version CSV file path'},
         {'name': 'user_data_dir',              'flag':'-D', 'is_path': True, 'pre_exist': False, 'help': 'Directory containing additional model data files which varies between analysis runs'},
+
+        # Manager only options
+        {'name': 'lookup_multiprocessing', 'default': True},            # Enable/disable multiprocessing
     ]
 
 
@@ -111,7 +116,10 @@ class GenerateKeys(ComputationStep):
             successes_fp=keys_fp,
             errors_fp=keys_errors_fp,
             format=self.keys_format,
-            keys_success_msg=keys_success_msg
+            keys_success_msg=keys_success_msg,
+            multiproc_enabled=self.lookup_multiprocessing,
+            multiproc_num_cores=self.lookup_num_processes,
+            multiproc_num_partitions=self.lookup_num_chunks,
         )
         self.logger.info('\nKeys successful: {} generated with {} items'.format(f1, n1))
         self.logger.info('Keys errors: {} generated with {} items'.format(f2, n2))

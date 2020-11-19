@@ -284,8 +284,8 @@ class OasisLookupFactory(object):
         lookup,
         loc_df,
         success_only=False,
-        num_cores=None,
-        num_partitions=None
+        num_cores=-1,
+        num_partitions=-1
     ):
         """
         Used for CPU bound lookup operations, Depends on a method
@@ -295,8 +295,8 @@ class OasisLookupFactory(object):
         where single_row is a pandas series from a location Pandas DataFrame
         and returns a list of dicts holding the lookup results for that single row
         """
-        pool_count = num_cores if num_cores else cpu_count()
-        part_count = num_partitions if num_partitions else min(pool_count * 2, len(loc_df))
+        pool_count = num_cores if num_cores > 0 else cpu_count()
+        part_count = num_partitions if num_partitions > 0 else min(pool_count * 2, len(loc_df))
         locations = np.array_split(loc_df, part_count)
 
         pool = Pool(pool_count)
@@ -371,9 +371,12 @@ class OasisLookupFactory(object):
         location_df,
         successes_fp=None,
         errors_fp=None,
-        multiprocessing=True,
         format='oasis',
-        keys_success_msg=False
+        keys_success_msg=False,
+        multiproc_enabled=True,
+        multiproc_num_cores=-1,
+        multiproc_num_partitions=-1,
+
     ):
         """
         Writes a keys file, and optionally a keys error file, for the keys
@@ -401,18 +404,20 @@ class OasisLookupFactory(object):
         """
         sfp = as_path(successes_fp, 'successes_fp', preexists=False)
         efp = as_path(errors_fp, 'errors_fp', preexists=False)
-
-        if (multiprocessing and hasattr(lookup, 'process_locations_multiproc')):
-            # Multi-Process
-            keys_generator = cls.get_keys_multiproc
-        else:
-            # Fall back to Single process
-            keys_generator = cls.get_keys_builtin if hasattr(lookup, 'config') else (cls.get_keys_base)
         kwargs = {
             "lookup": lookup,
             "loc_df": location_df,
             "success_only": (False if efp else True)
         }
+
+        if (multiproc_enabled and hasattr(lookup, 'process_locations_multiproc')):
+            # Multi-Process
+            keys_generator = cls.get_keys_multiproc
+            kwargs['num_cores'] = multiproc_num_cores
+            kwargs['num_partitions'] = multiproc_num_partitions
+        else:
+            # Fall back to Single process
+            keys_generator = cls.get_keys_builtin if hasattr(lookup, 'config') else (cls.get_keys_base)
 
         results = keys_generator(**kwargs)
         successes = []
