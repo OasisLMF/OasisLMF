@@ -26,6 +26,7 @@ import shutil
 import shutilwhich
 import subprocess
 import tarfile
+import pandas as pd 
 
 from itertools import chain
 
@@ -188,6 +189,21 @@ def prepare_run_directory(
         raise OasisException("Error preparing the 'run' directory: {}".format(e))
 
 
+def _create_return_period_bin(run_dir, return_periods):
+    csv_fp = os.path.join(run_dir, 'input', 'returnperiods.csv')
+    bin_fp = os.path.join(run_dir, 'input', 'returnperiods.bin')
+    pd.DataFrame(
+        return_periods, 
+        columns =['return_period']).sort_values(ascending=False, by=['return_period']
+    ).to_csv(csv_fp, index=False)
+
+    try:
+        cmd_str = "returnperiodtobin < \"{}\" > \"{}\"".format(csv_fp, bin_fp)
+        subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
+    except subprocess.CalledProcessError as e:
+        raise OasisException("Error while converting returnperiods.csv to ktools binary format: {}".format(e))
+    
+
 def _prepare_input_bin(run_dir, bin_name, model_settings, setting_key=None, ri=False):
     bin_fp = os.path.join(run_dir, 'input', '{}.bin'.format(bin_name))
     if not os.path.exists(bin_fp):
@@ -247,7 +263,13 @@ def prepare_run_inputs(analysis_settings, run_dir, ri=False):
 
         # Prepare occurrence / returnperiod depending on output calcs selected
         if _calc_selected(analysis_settings, 'lec_output'):
-            _prepare_input_bin(run_dir, 'returnperiods', model_settings, ri=ri)
+            if 'return_periods' in analysis_settings:
+                # Create return periods from user input
+                _create_return_period_bin(run_dir, analysis_settings.get('return_periods'))
+            else:    
+                # copy return periods from static
+                _prepare_input_bin(run_dir, 'returnperiods', model_settings)
+
             _prepare_input_bin(run_dir, 'occurrence', model_settings, setting_key='event_occurrence_id', ri=ri)
         elif _calc_selected(analysis_settings, 'pltcalc') or _calc_selected(analysis_settings, 'aalcalc'):
             _prepare_input_bin(run_dir, 'occurrence', model_settings, setting_key='event_occurrence_id', ri=ri)
