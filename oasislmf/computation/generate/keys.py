@@ -69,6 +69,7 @@ class GenerateKeys(ComputationStep):
         {'name': 'user_data_dir',              'flag':'-D', 'is_path': True, 'pre_exist': False, 'help': 'Directory containing additional model data files which varies between analysis runs'},
 
         # Manager only options
+        {'name': 'verbose',                'default': False},
         {'name': 'lookup_multiprocessing', 'default': True},            # Enable/disable multiprocessing
     ]
 
