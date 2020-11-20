@@ -19,7 +19,10 @@ logger = logging.getLogger(__name__)
 
 # temp dictionary types
 node_type = types.UniTuple(nb_oasis_int, 2)
-layer_type = types.UniTuple(nb_oasis_int, 2)
+output_type = types.UniTuple(nb_oasis_int, 2)
+layer_type = types.UniTuple(nb_oasis_int, 3)
+
+fm_profile_step_ntype = from_dtype(fm_profile_step_dtype)
 
 # finacial structure processed array
 nodes_array_dtype = from_dtype(np.dtype([('level_id', np_oasis_int),
@@ -47,8 +50,11 @@ compute_info_dtype = from_dtype(np.dtype([('allocation_rule', np_oasis_int),
                                           ('extra_len', np_oasis_int),
                                           ('compute_len', np_oasis_int),
                                           ('start_level', np_oasis_int),
+                                          ('stepped', np.bool),
                                          ]))
-
+profile_index_dtype = from_dtype(np.dtype([('i_start', np_oasis_int),
+                                           ('i_end', np_oasis_int),
+                                          ]))
 
 def load_static(static_path):
     """
@@ -79,7 +85,12 @@ def load_static(static_path):
 
     programme = load_file('fm_programme', fm_programme_dtype)
     policytc = load_file('fm_policytc', fm_policytc_dtype)
-    profile = load_file('fm_profile', fm_profile_dtype)
+    profile = load_file('fm_profile_step', fm_profile_step_dtype, False)
+    if profile is None:
+        profile = load_file('fm_profile', fm_profile_dtype)
+        stepped = None
+    else:
+        stepped = True
     xref = load_file('fm_xref', fm_xref_dtype)
 
     try:  # try to load items and coverage if present for TIV base policies (not used in re-insurance)
@@ -97,7 +108,7 @@ def load_static(static_path):
         items = np.empty(0, dtype=items_dtype)
         coverages = np.empty(0, dtype=np_oasis_float)
 
-    return programme, policytc, profile, xref, items, coverages
+    return programme, policytc, profile, stepped, xref, items, coverages
 
 
 @njit(cache=True)
@@ -160,7 +171,97 @@ def get_tiv(children, items, coverages):
 
 
 @njit(cache=True)
-def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_profile, fm_xref, items, coverages):
+def prepare_profile_simple(profile, tiv):
+    # if use TIV convert calcrule to fix deductible
+    if profile['calcrule_id'] == 4:
+        profile['calcrule_id'] = 1
+        profile['deductible_1'] *= tiv
+
+    elif profile['calcrule_id'] == 6:
+        profile['calcrule_id'] = 12
+        profile['deductible_1'] *= tiv
+
+    elif profile['calcrule_id'] == 18:
+        profile['calcrule_id'] = 2
+        profile['deductible_1'] *= tiv
+
+    elif profile['calcrule_id'] == 21:
+        profile['calcrule_id'] = 13
+        profile['deductible_1'] *= tiv
+
+    elif profile['calcrule_id'] == 9:
+        profile['calcrule_id'] = 1
+        profile['deductible_1'] *= profile['limit_1']
+    elif profile['calcrule_id'] == 15:
+        if profile['limit_1'] >= 1:
+            profile['calcrule_id'] = 12
+
+
+@njit(cache=True)
+def prepare_profile_stepped(profile, tiv):
+    # if use TIV convert calcrule to fix deductible
+    if profile['calcrule_id'] == 27:
+        profile['trigger_start'] *= tiv
+        if profile['trigger_end'] == 1:
+            profile['trigger_end'] = np.inf
+        else:
+            profile['trigger_end'] *= tiv
+        loss = min(max(profile['payout_start'] * tiv - profile['deductible_1'], 0), profile['limit_1'])
+        cond_loss = min(loss * profile['scale_2'], profile['limit_2'])
+        profile['payout_start'] = (loss + cond_loss) * (1 + profile['scale_1'])
+
+    elif profile['calcrule_id'] == 28:
+        profile['trigger_start'] *= tiv
+        if profile['trigger_end'] == 1:
+            profile['trigger_end'] = np.inf
+        else:
+            profile['trigger_end'] *= tiv
+        profile['scale_1'] += 1
+        # special case to calculate only the conditional coverage loss (extra expenses) based on full input loss
+        if profile['payout_start'] == 0:
+            profile['calcrule_id'] = 281
+
+    elif profile['calcrule_id'] == 29:
+        profile['calcrule_id'] = 27
+        profile['trigger_start'] *= tiv
+        if profile['trigger_end'] == 1:
+            profile['trigger_end'] = np.inf
+        else:
+            profile['trigger_end'] *= tiv
+        loss = max(profile['payout_start'] * tiv - profile['deductible_1'], 0)
+        cond_loss = min(loss * profile['scale_2'], profile['limit_2'])
+        profile['payout_start'] = (loss + cond_loss) * (1 + profile['scale_1'])
+
+    elif profile['calcrule_id'] == 30:
+        profile['calcrule_id'] = 27
+        profile['trigger_start'] *= tiv
+        if profile['trigger_end'] == 1:
+            profile['trigger_end'] = np.inf
+        else:
+            profile['trigger_end'] *= tiv
+        loss = max(profile['payout_start'] * profile['limit_1'] - profile['deductible_1'], 0)
+        cond_loss = min(loss * profile['scale_2'], profile['limit_2'])
+        profile['payout_start'] = (loss + cond_loss) * (1 + profile['scale_1'])
+
+    elif profile['calcrule_id'] == 31:
+        profile['calcrule_id'] = 27
+        profile['trigger_start'] *= tiv
+        if profile['trigger_end'] == 1:
+            profile['trigger_end'] = np.inf
+        else:
+            profile['trigger_end'] *= tiv
+        loss = max(profile['payout_start'] - profile['deductible_1'], 0)
+        cond_loss = min(loss * profile['scale_2'], profile['limit_2'])
+        profile['payout_start'] = (loss + cond_loss) * (1 + profile['scale_1'])
+
+    elif profile['calcrule_id'] == 32:
+        profile['scale_1'] += 1
+    else:
+        prepare_profile_simple(profile, tiv)
+
+
+@njit(cache=True)
+def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_profile, stepped, fm_xref, items, coverages):
     """
     :param allocation_rule:
         option to indicate out the loss are allocated to the output
@@ -181,9 +282,13 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     """
     # policytc_id_to_profile_index
     max_policytc_id = np.max(fm_profile['policytc_id'])
-    policytc_id_to_profile_index = np.empty(max_policytc_id + 1, dtype=np_oasis_int)
+    policytc_id_to_profile_index = np.empty(max_policytc_id + 1, dtype=profile_index_dtype)
+    last_policytc_id = 0  # real policytc_id start at 1
     for i in range(fm_profile.shape[0]):
-        policytc_id_to_profile_index[fm_profile[i]['policytc_id']] = i
+        policytc_id_to_profile_index[fm_profile[i]['policytc_id']]['i_end'] = i + 1
+        if last_policytc_id != fm_profile[i]['policytc_id']:
+            policytc_id_to_profile_index[fm_profile[i]['policytc_id']]['i_start'] = i
+            last_policytc_id = fm_profile[i]['policytc_id']
 
     # in fm_programme check if multi-peril and get size of each levels
     max_level = np.max(fm_programme['level_id'])
@@ -205,7 +310,9 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     for i in range(fm_policytc.shape[0]):
         policytc = fm_policytc[i]
         programme_node = (np_oasis_int(policytc['level_id']), np_oasis_int(policytc['agg_id']))
-        layer = (np_oasis_int(policytc['layer_id']), policytc_id_to_profile_index[np_oasis_int(policytc['policytc_id'])])
+        i_start = policytc_id_to_profile_index[np_oasis_int(policytc['policytc_id'])]['i_start']
+        i_end = policytc_id_to_profile_index[np_oasis_int(policytc['policytc_id'])]['i_end']
+        layer = (np_oasis_int(policytc['layer_id']), i_start, i_end)
 
         if programme_node not in programme_node_to_layers:
             _list = List.empty_list(layer_type)
@@ -229,7 +336,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     else:
         out_level = start_level
 
-    node_to_output_id = Dict.empty(node_type, List.empty_list(layer_type))
+    node_to_output_id = Dict.empty(node_type, List.empty_list(output_type))
     # node_to_output_id = {}
 
     for i in range(fm_xref.shape[0]):
@@ -238,7 +345,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
         if programme_node in node_to_output_id:
             node_to_output_id[programme_node].append((np_oasis_int(xref['layer_id']), np_oasis_int(xref['output_id'])))
         else:
-            _list = List.empty_list(layer_type)
+            _list = List.empty_list(output_type)
             _list.append((np_oasis_int(xref['layer_id']), np_oasis_int(xref['output_id'])))
             node_to_output_id[programme_node] = _list
             # node_to_output_id[programme_node] = [(np_oasis_int(xref['layer_id']), nb_oasis_int(xref['output_id']))]
@@ -327,17 +434,16 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
 
     nodes_array = np.empty(node_level_start[-1] + 1, dtype=nodes_array_dtype)
     node_parents_array = np.empty(parents_len, dtype=np_oasis_int)
-    node_profiles_array = np.empty(fm_policytc.shape[0] + 1, dtype=np_oasis_int)
+    node_profiles_array = np.zeros(fm_policytc.shape[0] + 1, dtype=profile_index_dtype)
     output_array = np.empty(fm_xref.shape[0], dtype=np_oasis_int)
 
     node_i = 1
     children_i = 1
     parents_i = 0
-    profile_i = 0
+    profile_i = 1
     loss_i = 0
     extra_i = 0
     output_i = 0
-    node_profiles_array[profile_i], profile_i = null_index, np_oasis_int(profile_i + 1)
     for level in range(start_level, max_level+1):
         for agg_id in range(1, level_node_len[level] + 1):
             node_programme = (np_oasis_int(level), np_oasis_int(agg_id))
@@ -372,41 +478,34 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
 
             # profiles
             if node_programme in programme_node_to_layers:
+
                 profiles = programme_node_to_layers[node_programme]
                 node['profile_len'] = len(profiles)
                 node['profiles'] = profile_i
-                for layer, profile_index in profiles:
-                    profile = fm_profile[profile_index]
-                    # if use TIV convert calcrule to fix deductible
-                    if profile['calcrule_id'] in need_tiv_policy:
-                        all_children = get_all_children(parent_to_children, node_programme)
-                        tiv = get_tiv(all_children, items, coverages)
-                        if profile['calcrule_id'] == 4:
-                            profile['calcrule_id'] = 1
-                            profile['deductible_1'] *= tiv
+                for layer_id, i_start, i_end in sorted(profiles):
+                    node_profile, profile_i = node_profiles_array[profile_i], profile_i + 1
+                    node_profile['i_start'] = i_start
+                    node_profile['i_end'] = i_end
 
-                        elif profile['calcrule_id'] == 6:
-                            profile['calcrule_id'] = 12
-                            profile['deductible_1'] *= tiv
-
-                        elif profile['calcrule_id'] == 18:
-                            profile['calcrule_id'] = 2
-                            profile['deductible_1'] *= tiv
-
-                        elif profile['calcrule_id'] == 21:
-                            profile['calcrule_id'] = 13
-                            profile['deductible_1'] *= tiv
-                    elif profile['calcrule_id'] == 9:
-                        profile['calcrule_id'] = 1
-                        profile['deductible_1'] *= profile['limit_1']
-                    elif profile['calcrule_id'] == 15:
-                        if profile['limit_1'] >= 1:
-                            profile['calcrule_id'] = 12
-
-                    if does_nothing(profile):
-                        node_profiles_array[profile_i], profile_i = null_index, np_oasis_int(profile_i + 1)
+                    # if use TIV we compute it and precompute % TIV values
+                    for profile_index in range(i_start, i_end):
+                        if fm_profile[profile_index]['calcrule_id'] in need_tiv_policy:
+                            all_children = get_all_children(parent_to_children, node_programme)
+                            tiv = get_tiv(all_children, items, coverages)
+                            break
                     else:
-                        node_profiles_array[profile_i], profile_i = profile_index, np_oasis_int(profile_i + 1)
+                        tiv = 0
+
+                    for profile_index in range(i_start, i_end):
+                        profile = fm_profile[profile_index]
+                        if stepped is None:
+                            prepare_profile_simple(profile, tiv)
+                        else:
+                            prepare_profile_stepped(profile, tiv)
+                        if does_nothing(profile):
+                            # only non step policy can "does_nothing" so this is safe
+                            node_profile['i_end'] = node_profile['i_start']
+
             else: # item level has no profile
                 node['profile_len'] = 1
                 node['profiles'] = 0
@@ -443,6 +542,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     compute_info['extra_len'] = extra_i
     compute_info['compute_len'] = compute_len
     compute_info['start_level'] = start_level
+    compute_info['stepped'] = stepped is not None
 
     return compute_infos, nodes_array, node_parents_array, node_profiles_array, output_array, fm_profile
 
@@ -466,11 +566,10 @@ def create_financial_structure(allocation_rule, static_path):
     if allocation_rule == 3:
         allocation_rule = 2
 
-    fm_programme, fm_policytc, fm_profile, fm_xref, items, coverages = load_static(static_path)
+    fm_programme, fm_policytc, fm_profile, stepped, fm_xref, items, coverages = load_static(static_path)
     financial_structure = extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_profile,
-                                                      fm_xref, items, coverages)
+                                                      stepped, fm_xref, items, coverages)
     compute_info, nodes_array, node_parents_array, node_profiles_array, output_array, fm_profile = financial_structure
-
     logger.info(f'nodes_array has {len(nodes_array)} elements')
     logger.info(f'compute_info : {dict(zip(compute_info.dtype.names, compute_info[0]))}')
 

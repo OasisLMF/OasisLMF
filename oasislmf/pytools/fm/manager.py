@@ -27,6 +27,7 @@ def run_synchronous(allocation_rule, static_path, files_in, files_out, low_memor
         allocation_rule, static_path)
 
     compute_info = compute_info[0]
+    stepped = True if compute_info['stepped'] else None  # https://github.com/numba/numba/issues/4108
     if files_out is not None:
         files_out = files_out[0]
 
@@ -57,7 +58,8 @@ def run_synchronous(allocation_rule, static_path, files_in, files_out, low_memor
                                                                children,
                                                                computes,
                                                                compute_i,
-                                                               fm_profile)
+                                                               fm_profile,
+                                                               stepped)
                     compute_i = event_writer.write(event_id, compute_i)
                     reset_variabe(children, compute_i, computes)
     finally:

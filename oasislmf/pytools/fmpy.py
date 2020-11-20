@@ -15,6 +15,7 @@ parser.add_argument('-l', '--low-memory', help='in low memory mode, loss arrays 
 parser.add_argument('--create-financial-structure-files', help='create financial structure', action='store_true')
 parser.add_argument('-v', '--logging-level', help='logging level (debug:10, info:20, warning:30, error:40, critical:50)',
                     default=30, type=int)
+parser.add_argument('-S', '--step-policies', help='not use, kept for backward compatibility with fmcalc', action='store_true')
 
 
 def main():
