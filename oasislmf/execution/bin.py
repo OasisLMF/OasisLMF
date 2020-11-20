@@ -263,7 +263,7 @@ def prepare_run_inputs(analysis_settings, run_dir, ri=False):
 
         # Prepare occurrence / returnperiod depending on output calcs selected
         if _calc_selected(analysis_settings, 'lec_output'):
-            if 'return_periods' in analysis_settings:
+            if analysis_settings.get('return_periods'):
                 # Create return periods from user input
                 _create_return_period_bin(run_dir, analysis_settings.get('return_periods'))
             else:    
