@@ -9,6 +9,7 @@ import logging
 
 from ..utils.defaults import get_config_profile
 from ..utils.exceptions import OasisException
+from argparse import ArgumentTypeError
 
 
 class InputValues(object):
@@ -32,10 +33,7 @@ class InputValues(object):
             self.config_dir = os.path.dirname(self.config_fp)
 
         self.obsolete_keys = set(self.config) & set(self.config_mapping)
-    
-        ##! Not sure why this is needed?
-        #self.logger.warning(str(self.config))
-    
+
         self.list_obsolete_keys()
         if update_keys:
             self.update_config_keys()
@@ -88,7 +86,17 @@ class InputValues(object):
         except KeyboardInterrupt:
             self.logger.error('\nexiting.')
 
-    def get(self, name, default=None, required=False, is_path=False):
+    def get_env(self, name, dtype=None, default=None):
+        env_var = os.getenv(f'OASIS_{name.upper()}', default=default)
+        if dtype and env_var:
+            return dtype(env_var)
+        else:
+            return env_var
+
+    def has_env(self, name):
+        return f'OASIS_{name.upper()}' in os.environ
+
+    def get(self, name, default=None, required=False, is_path=False, dtype=None):
         """
         Gets the name parameter until found from:
           - the command line arguments.
@@ -113,24 +121,42 @@ class InputValues(object):
             use config_dir as base dir if value comes from the config
         :type is_path: bool
 
+        :param dtype: the class <type> of the value, if 'None' load as string by default
+        :type: class
+
         :raise OasisException: If the value is not found and ``required``
             is True
 
         :return: The found value or the default
         """
-
-        value = getattr(self.args, name, None)
+        # Load order 0:  Get from CLI flag
         source = 'arg'
+        value = getattr(self.args, name, None)
+
+        # Load order 1: ENV override (intended for worker images)
+        if str2bool(os.getenv('OASIS_ENV_OVERRIDE', default=False)) and self.has_env(name):
+            source = 'env_override'
+            value = self.get_env(name, dtype)
+
+        # Load order 2: Get from config JSON
         if value is None:
-            value = self.config.get(name)
             source = 'config'
+            value = self.config.get(name)
+
+        # Load order 3: Get from environment variable
+        if value is None:
+            source = 'env'
+            value = self.get_env(name, dtype)
+
         if value is None and required:
             raise OasisException(
                 'Required argument {} could not be found in the command args or the MDK config. file'.format(name)
             )
+
+        # Load order 4: Get default value
         if value is None:
-            value = default
             source = 'default'
+            value = default
 
         if is_path and value not in [None, ""] and not os.path.isabs(value):
             if source == 'config':
@@ -138,4 +164,34 @@ class InputValues(object):
             else:
                 value = os.path.abspath(value)
 
+        # Warn user of environment variable load
+        if source == 'env_override':
+            self.logger.warn(f'Warning - environment variable override: OASIS_{name.upper()}={value}')
+
         return value
+
+
+def str2bool(v):
+    """ Func type for loading strings to boolean values using argparse
+        https://stackoverflow.com/a/43357954
+
+        step_params:
+            use: `'default': False, 'type': str2bool, 'const':True, 'nargs':'?', ...`
+
+        CLI:
+            oasislmf --some-flag
+            oasislmf --some-flag <bool>
+
+        oasislmf.json
+        {"some_flag": true, ...}
+    """
+    if v is None:
+        return v
+    elif isinstance(v, bool):
+        return v
+    elif v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise ArgumentTypeError('Boolean value expected.')

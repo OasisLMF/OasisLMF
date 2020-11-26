@@ -14,6 +14,7 @@ from ...preparation.oed import load_oed_dfs
 from ...preparation.dir_inputs import prepare_input_files_directory
 from ...preparation.reinsurance_layer import write_files_for_reinsurance
 from ...utils.exceptions import OasisException
+from ...utils.inputs import str2bool
 
 from ...utils.data import (
     get_model_settings,
@@ -73,12 +74,13 @@ class GenerateFiles(ComputationStep):
         {'name': 'oed_accounts_csv',           'flag':'-y', 'is_path': True, 'pre_exist': True,  'help': 'Source accounts CSV file path'},
         {'name': 'oed_info_csv',               'flag':'-i', 'is_path': True, 'pre_exist': True,  'help': 'Reinsurance info. CSV file path'},
         {'name': 'oed_scope_csv',              'flag':'-s', 'is_path': True, 'pre_exist': True,  'help': 'Reinsurance scope CSV file path'},
-        {'name': 'disable_summarise_exposure', 'flag':'-S', 'action':'store_true',               'help': 'Disables creation of an exposure summary report'},
+        {'name': 'disable_summarise_exposure', 'flag':'-S', 'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Disables creation of an exposure summary report'},
         {'name': 'group_id_cols',              'flag':'-G', 'nargs':'+',                         'help': 'Columns from loc file to set group_id', 'default': GROUP_ID_COLS},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'lookup_config'},
         {'name': 'lookup_complex_config'},
+        {'name': 'verbose',                       'default': False},
         {'name': 'write_chunksize', 'type':int,   'default': WRITE_CHUNKSIZE},
         {'name': 'oasis_files_prefixes',          'default': OASIS_FILES_PREFIXES},
         {'name': 'profile_loc',                   'default': get_default_exposure_profile()},

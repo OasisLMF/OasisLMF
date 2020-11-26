@@ -10,7 +10,7 @@ import sys
 from argparsetree import BaseCommand
 
 from ..utils.path import PathCleaner
-from ..utils.inputs import InputValues
+from ..utils.inputs import InputValues, str2bool
 
 from ..manager import OasisManager as om
 
@@ -116,12 +116,16 @@ class OasisComputationCommand(OasisBaseCommand):
         :param args: The arguments from the command line
         :type args: Namespace
         """
-        self.logger.info(f'\nProcessing arguments - {self.computation_name}')
         inputs = InputValues(args)
 
         _kwargs = {
-            param['name']: inputs.get(param['name'], required=param.get('required'), is_path=param.get('is_path')) for
+            param['name']: inputs.get(param['name'], required=param.get('required'), is_path=param.get('is_path'), dtype=param.get('type')) for
             param in om.computations_params[self.computation_name]}
 
+        # Override logger setup from kwargs
+        if 'verbose' in _kwargs:
+            self.logger.level = logging.DEBUG if str2bool(_kwargs.get('verbose')) else logging.INFO
+
+        self.logger.info(f'\nStating oasislmf command - {self.computation_name}')
         manager_method = getattr(om(), om.computation_name_to_method(self.computation_name))
         manager_method(**_kwargs)

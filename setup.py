@@ -25,7 +25,7 @@ except ImportError:
     from urllib2 import urlopen, URLError
 
 
-KTOOLS_VERSION = '3.3.7'
+KTOOLS_VERSION = '3.4.0'
 
 SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -350,6 +350,7 @@ setup(
             'complex_itemtobin=oasislmf.execution.complex_items_to_bin:main',
             'complex_itemtocsv=oasislmf.execution.complex_items_to_csv:main',
             'load_balancer=oasislmf.execution.load_balancer:main',
+            'fmpy=oasislmf.pytools.fmpy:main',
         ]
     },
     license='BSD 3-Clause',

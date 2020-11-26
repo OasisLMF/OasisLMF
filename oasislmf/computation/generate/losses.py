@@ -28,6 +28,7 @@ from ...execution.bin import (
 from ...preparation.summaries import generate_summaryxref_files
 from ...utils.exceptions import OasisException
 from ...utils.path import setcwd
+from ...utils.inputs import str2bool
 
 from ...utils.data import (
     fast_zip_dataframe_columns,
@@ -44,7 +45,7 @@ from ...utils.defaults import (
     KTOOLS_ALLOC_IL_DEFAULT,
     KTOOLS_ALLOC_RI_DEFAULT,
     KTOOLS_DEBUG,
-    KTOOLS_ERR_GUARD,
+    KTOOLS_DISABLE_ERR_GUARD,
     KTOOLS_FIFO_RELATIVE,
     KTOOLS_GUL_LEGACY_STREAM,
     KTOOLS_MEAN_SAMPLE_IDX,
@@ -102,8 +103,10 @@ class GenerateLosses(ComputationStep):
         {'name': 'ktools_alloc_rule_ri',   'default': KTOOLS_ALLOC_RI_DEFAULT,  'type':int, 'help': 'Set the fmcalc allocation rule used in reinsurance'},
         {'name': 'ktools_num_gul_per_lb',  'default': KTOOL_N_GUL_PER_LB,       'type':int, 'help': 'Number of gul per load balancer (0 means no load balancer)'},
         {'name': 'ktools_num_fm_per_lb',   'default': KTOOL_N_FM_PER_LB,        'type':int, 'help': 'Number of fm per load balancer (0 means no load balancer)'},
-        {'name': 'ktools_disable_guard',   'default': not KTOOLS_ERR_GUARD, 'action': 'store_true', 'help': 'Disables error handling in the ktools run script (abort on non-zero exitcode or output on stderr)'},
-        {'name': 'ktools_fifo_relative',   'default': KTOOLS_FIFO_RELATIVE, 'action': 'store_true', 'help': 'Create ktools fifo queues under the ./fifo dir'},
+        {'name': 'ktools_disable_guard',   'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Disables error handling in the ktools run script (abort on non-zero exitcode or output on stderr)'},
+        {'name': 'ktools_fifo_relative',   'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Create ktools fifo queues under the ./fifo dir'},
+        {'name': 'fmpy',                   'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use fmcalc python version instead of c++ version'},
+        {'name': 'fmpy_low_memory',        'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'verbose',              'default': KTOOLS_DEBUG},
@@ -213,10 +216,12 @@ class GenerateLosses(ComputationStep):
                         num_gul_per_lb=self.ktools_num_gul_per_lb,
                         num_fm_per_lb=self.ktools_num_fm_per_lb,
                         run_debug=self.verbose,
-                        stderr_guard= not self.ktools_disable_guard,
+                        stderr_guard=not self.ktools_disable_guard,
                         gul_legacy_stream=self.ktools_legacy_stream,
-                        fifo_tmp_dir=self.ktools_fifo_relative,
+                        fifo_tmp_dir=not self.ktools_fifo_relative,
                         custom_gulcalc_cmd=self.model_custom_gulcalc,
+                        fmpy=self.fmpy,
+                        fmpy_low_memory=self.fmpy_low_memory,
                     )
                 except TypeError:
                     warnings.simplefilter("always")
@@ -230,15 +235,15 @@ class GenerateLosses(ComputationStep):
                         set_alloc_rule_il=self.ktools_alloc_rule_il,
                         set_alloc_rule_ri=self.ktools_alloc_rule_ri,
                         run_debug=self.verbose,
-                        stderr_guard= not self.ktools_disable_guard,
+                        stderr_guard=not self.ktools_disable_guard,
                         gul_legacy_stream=self.ktools_legacy_stream,
-                        fifo_tmp_dir=self.ktools_fifo_relative,
+                        fifo_tmp_dir=not self.ktools_fifo_relative,
                         custom_gulcalc_cmd=self.model_custom_gulcalc,
                     )
             except CalledProcessError as e:
                 bash_trace_fp = os.path.join(model_run_fp, 'log', 'bash.log')
                 if os.path.isfile(bash_trace_fp):
-                    with io.open(bash_trace_fp, 'r', encoding='utf-8') as f:
+                   with io.open(bash_trace_fp, 'r', encoding='utf-8') as f:
                         self.logger.info('\nBASH_TRACE:\n' + "".join(f.readlines()))
 
                 stderror_fp = os.path.join(model_run_fp, 'log', 'stderror.err')
@@ -342,7 +347,7 @@ class GenerateLossesDeterministic(ComputationStep):
         guls.to_csv(guls_fp, index=False)
 
         ils_fp = os.path.join(output_dir, 'raw_ils.csv')
-        cmd = 'gultobin -S {} < {} | fmcalc -p {} -a {} {} | tee ils.bin | fmtocsv > {}'.format(
+        cmd = 'gultobin -S {} -t1 < {} | fmcalc -p {} -a {} {} | tee ils.bin | fmtocsv > {}'.format(
             len(self.loss_factor), guls_fp, output_dir, self.ktools_alloc_rule_il, step_flag, ils_fp
         )
         try:
@@ -388,7 +393,7 @@ class GenerateLossesDeterministic(ComputationStep):
                 else:
                     def run_ri_layer(layer):
                         layer_inputs_fp = os.path.join(output_dir, 'RI_{}'.format(layer))
-                        _input = 'gultobin -S 1 < {} | fmcalc -p {} -a {} {} | tee ils.bin |'.format(
+                        _input = 'gultobin -S 1 -t1 < {} | fmcalc -p {} -a {} {} | tee ils.bin |'.format(
                             guls_fp, output_dir, self.ktools_alloc_rule_il, step_flag
                         ) if layer == 1 else ''
                         pipe_in_previous_layer = '< ri{}.bin'.format(layer - 1) if layer > 1 else ''
