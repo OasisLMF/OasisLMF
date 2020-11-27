@@ -120,7 +120,6 @@
                               "description":"If set, this event set only supports the given output perspectives. 'gul': ground up losses, 'il': insured losses, 'ri': reinsurance losses.",
                               "items":{
                                  "type":"string",
-                                 "minLength":1,
                                  "enum":[
                                     "gul",
                                     "il",
@@ -134,7 +133,6 @@
                               "description":"If set, this event set only supports the given output metrics, matches the output types set in the summaries section on an `analysis_settings.json` file. Example: 'valid_metrics':['ptl','elt'] means that only valid summary outputs are 'eltcalc' and 'pltcalc'.",
                               "items":{
                                  "type":"string",
-                                 "minLength":1,
                                  "enum":[
                                     "aal", 
                                     "elt", 

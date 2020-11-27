@@ -15,7 +15,9 @@
             {
                "id":"P",
                "desc":"Probabilistic",
-               "valid_occurrence_ids":["1"]
+               "valid_occurrence_ids":["1"],
+               "valid_perspectives": ["gul", "il"],
+               "valid_metrics": ["plt", "elt"]
             },
             {
                "id":"H",
