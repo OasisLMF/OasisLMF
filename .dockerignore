@@ -1,5 +1,9 @@
 .*
 *.egg-info
 *.pyc
+*.hypothesis
+*.__pycache__
+.tox
+.git
 Dockerfile
 tests/model_execution/kparse_output/
