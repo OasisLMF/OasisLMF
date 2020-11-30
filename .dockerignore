@@ -2,7 +2,7 @@
 *.egg-info
 *.pyc
 *.hypothesis
-*.__pycache__
+__pycache__
 .tox
 .git
 Dockerfile
