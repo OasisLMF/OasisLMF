@@ -114,6 +114,44 @@
                                  "minLength":1
                               }
                            },
+                           "valid_perspectives":{
+                              "type":"array",
+                              "title":"Supported loss perspectives ",
+                              "description":"If set, this event set only supports the given output perspectives. 'gul': ground up losses, 'il': insured losses, 'ri': reinsurance losses.",
+                              "items":{
+                                 "type":"string",
+                                 "enum":[
+                                    "gul",
+                                    "il",
+                                    "ri"
+                                 ]
+                              }
+                           },
+                           "valid_metrics":{
+                              "type":"array",
+                              "title":"Supported output metrics",
+                              "description":"If set, this event set only supports the given output metrics, matches the output types set in the summaries section on an `analysis_settings.json` file. Example: 'valid_metrics':['ptl','elt'] means that only valid summary outputs are 'eltcalc' and 'pltcalc'.",
+                              "items":{
+                                 "type":"string",
+                                 "enum":[
+                                    "aal", 
+                                    "elt", 
+                                    "plt",
+                                    "lec",
+                                    "aep",
+                                    "oep",
+                                    "summarycalc",
+                                    "full_uncertainty_aep",
+                                    "full_uncertainty_oep",
+                                    "sample_mean_aep",
+                                    "sample_mean_oep",
+                                    "wheatsheaf_aep",
+                                    "wheatsheaf_mean_aep",
+                                    "wheatsheaf_mean_oep",
+                                    "wheatsheaf_oep"
+                                 ]
+                              }
+                           },
                            "tooltip":{
                               "type":"string",
                               "title":"UI tooltip",
@@ -867,7 +905,7 @@
                      "name"
                   ]
                }
-            },   
+            },
             "group_fields":{
                "title":"Group OED fields",
                "description":"List of OED fields from location file to form groups",
