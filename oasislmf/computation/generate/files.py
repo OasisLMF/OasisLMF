@@ -64,6 +64,8 @@ class GenerateFiles(ComputationStep):
         {'name': 'lookup_data_dir',            'flag':'-k', 'is_path': True, 'pre_exist': True,  'help': 'Model lookup/keys data directory path'},
         {'name': 'lookup_module_path',         'flag':'-l', 'is_path': True, 'pre_exist': False, 'help': 'Model lookup module path'},
         {'name': 'lookup_complex_config_json', 'flag':'-L', 'is_path': True, 'pre_exist': False, 'help': 'Complex lookup config JSON file path'},
+        {'name': 'lookup_num_processes',       'type':int,  'default': -1,                       'help': 'Number of workers in multiprocess pools'},
+        {'name': 'lookup_num_chunks',          'type':int,  'default': -1,                       'help': 'Number of chunks to split the location file into for multiprocessing'},
         {'name': 'model_version_csv',          'flag':'-v', 'is_path': True, 'pre_exist': False, 'help': 'Model version CSV file path'},
         {'name': 'model_settings_json',        'flag':'-M', 'is_path': True, 'pre_exist': True,  'help': 'Model settings JSON file path'},
         {'name': 'user_data_dir',              'flag':'-D', 'is_path': True, 'pre_exist': False, 'help': 'Directory containing additional model data files which varies between analysis runs'},
@@ -80,6 +82,7 @@ class GenerateFiles(ComputationStep):
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'lookup_config'},
         {'name': 'lookup_complex_config'},
+        {'name': 'lookup_multiprocessing',        'default': True},
         {'name': 'verbose',                       'default': False},
         {'name': 'write_chunksize', 'type':int,   'default': WRITE_CHUNKSIZE},
         {'name': 'oasis_files_prefixes',          'default': OASIS_FILES_PREFIXES},
