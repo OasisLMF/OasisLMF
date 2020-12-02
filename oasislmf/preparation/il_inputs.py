@@ -318,7 +318,7 @@ def get_step_policytc_ids(
         'limit1', 'step_id', 'trigger_start', 'trigger_end', 'payout_start',
         'payout_end', 'limit2', 'scale1', 'scale2'
     ]
-    fm_policytc_df = il_inputs_df.loc[:, ['item_id'] + idx_cols + ['coverage_id', 'steptriggertype', 'assign_step_calcrule'] + policytc_cols[:4] + step_trigger_type_cols].drop_duplicates()
+    fm_policytc_df = il_inputs_df.reindex(columns=['item_id'] + idx_cols + ['coverage_id', 'steptriggertype', 'assign_step_calcrule'] + policytc_cols[:4] + step_trigger_type_cols).drop_duplicates()
 
     for col in policytc_cols[4:]:
         fm_policytc_df[col] = fm_policytc_df.apply(lambda x: x[get_step_policies_oed_mapping(x['steptriggertype'])[col]] if get_step_policies_oed_mapping(x['steptriggertype']).get(col) is not None and x['assign_step_calcrule'] == True else 0, axis=1)
@@ -1038,7 +1038,11 @@ def write_fm_profile_file(il_inputs_df, fm_profile_fp, chunksize=100000):
                 'share1': 'share'
             }
             for col in cols:
-                fm_profile_df[col] = il_inputs_df.apply(lambda x: x[get_step_policies_oed_mapping(x['steptriggertype'])[col]] if x['steptriggertype'] > 0 and get_step_policies_oed_mapping(x['steptriggertype']).get(col) is not None and x['assign_step_calcrule'] == True else 0, axis=1)
+                try:
+                    fm_profile_df[col] = il_inputs_df.apply(lambda x: x[get_step_policies_oed_mapping(x['steptriggertype'])[col]] if x['steptriggertype'] > 0 and get_step_policies_oed_mapping(x['steptriggertype']).get(col) is not None and x['assign_step_calcrule'] == True else 0, axis=1)
+                    fm_profile_df[col].fillna(0, inplace=True)
+                except KeyError:
+                    fm_profile_df[col] = 0
             for col in non_step_cols_map.keys():
                 fm_profile_df.loc[
                     ~(il_inputs_df['steptriggertype'] > 0), col

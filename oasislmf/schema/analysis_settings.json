@@ -164,6 +164,16 @@
             "description": "The threshold at which groun-up losses will be capped.",
             "default": 0
         },
+        "return_periods": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "integer",
+                "minimum": 1
+            },
+            "title": "User set return periods",
+            "description": "List of return periods as integers '[10, 100, 1000 .. etc]'"
+        },    
         "model_settings": {
             "type": "object",
             "title": "Model settings",
