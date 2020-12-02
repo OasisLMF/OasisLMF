@@ -140,6 +140,7 @@
                                     "lec",
                                     "aep",
                                     "oep",
+                                    "summarycalc",
                                     "full_uncertainty_aep",
                                     "full_uncertainty_oep",
                                     "sample_mean_aep",
