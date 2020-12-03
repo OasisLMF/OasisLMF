@@ -1,11 +1,22 @@
 OasisLMF Changelog
 ==================
 
-`1.12.1`_
+`1.13.0`_
 ---------
 .. start_latest_release
-* [#674](https://github.com/OasisLMF/OasisLMF/pull/674) - Introduce check for step policies in genbash
+* [#694](https://github.com/OasisLMF/OasisLMF/pull/694) - Schema update, restrict output options by eventset
+* [#670](https://github.com/OasisLMF/OasisLMF/issues/670) - Add CLI flags for lookup multiprocessing options
+* [#695](https://github.com/OasisLMF/OasisLMF/issues/695) - Set default value of optional OED step policy fields to 0
+* [#686](https://github.com/OasisLMF/OasisLMF/issues/686) - Fixed fmpy numerical issues when using allocrule 1
+* [#681](https://github.com/OasisLMF/OasisLMF/issues/681) - Added fmpy support for stepped policies
+* [#680](https://github.com/OasisLMF/OasisLMF/issues/680) - Added user defined return periods option to `analysis_settings.json` 
+* [#677](https://github.com/OasisLMF/OasisLMF/pull/677) - Enabled Fmpy to handle multiple input streams
+* [#678](https://github.com/OasisLMF/OasisLMF/issues/678) - Fixed environment variable loading
 .. end_latest_release
+
+`1.12.1`_
+---------
+* [#674](https://github.com/OasisLMF/OasisLMF/pull/674) - Introduce check for step policies in genbash
 
 `1.12.0`_
 ---------
@@ -476,6 +487,8 @@ OasisLMF Changelog
 
 * Add console logging
 
+.. _`1.13.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.12.1...1.13.0
+.. _`1.12.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.12.0...1.12.1
 .. _`1.12.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.11.1...1.12.0
 .. _`1.11.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.11.0...1.11.1
 .. _`1.11.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.10.2...1.11.0
