@@ -1,0 +1,11 @@
+version: '3'
+services:
+  fm_testing_notebook:
+    build:
+      context: ..
+      dockerfile: ./fm_testing_tool/Dockerfile.FmTestingNotebook
+    network_mode: "host"
+    environment:
+      - JUPYTER_PASS=pass
+    volumes:
+      - ./:/home/run/

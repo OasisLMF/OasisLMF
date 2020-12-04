@@ -1,0 +1,16 @@
+jupyter
+
+# from RTT (needs trimming / updates)
+anytree
+hypothesis
+ipdb
+ipython
+ipywidgets
+fileupload
+matplotlib
+pandas-datareader
+parameterized
+pathlib
+pytest
+qgrid
+tabulate
