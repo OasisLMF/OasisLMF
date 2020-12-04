@@ -24,7 +24,7 @@ from ...utils.data import (
     get_dataframe,
     print_dataframe,
 )
-
+from ...utils.inputs import str2bool
 from ...utils.defaults import (
     KTOOLS_ALLOC_IL_DEFAULT,
     KTOOLS_ALLOC_RI_DEFAULT,
@@ -46,6 +46,8 @@ class RunExposure(ComputationStep):
         {'name': 'ktools_alloc_rule_ri', 'flag':'-A', 'default': KTOOLS_ALLOC_RI_DEFAULT,  'type':int, 'help': 'Set the fmcalc allocation rule used in reinsurance'},
         {'name': 'output_level',         'flag':'-o', 'help': 'Keys files output format', 'choices':['item', 'loc', 'pol', 'acc', 'port'], 'default': 'item'},
         {'name': 'num_subperils',        'flag':'-p', 'default': 1,  'type':int,          'help': 'Set the number of subperils returned by deterministic key generator'},
+        {'name': 'fmpy',                 'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use fmcalc python version instead of c++ version'},
+        {'name': 'fmpy_low_memory',      'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
 
         {'name': 'net_ri', 'default': True},
         {'name': 'include_loss_factor', 'default': True},
@@ -133,7 +135,9 @@ class RunExposure(ComputationStep):
             num_subperils=self.num_subperils,
             net_ri=self.net_ri,
             ktools_alloc_rule_il=self.ktools_alloc_rule_il,
-            ktools_alloc_rule_ri=self.ktools_alloc_rule_ri
+            ktools_alloc_rule_ri=self.ktools_alloc_rule_ri,
+            fmpy=self.fmpy,
+            fmpy_low_memory=self.fmpy_low_memory,
         ).run()
 
         guls_df = losses['gul']

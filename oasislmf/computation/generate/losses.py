@@ -25,6 +25,7 @@ from ...execution.bin import (
     prepare_run_directory,
     prepare_run_inputs,
 )
+from ...execution.bash import get_fmcmd
 from ...preparation.summaries import generate_summaryxref_files
 from ...utils.exceptions import OasisException
 from ...utils.path import setcwd
@@ -278,7 +279,9 @@ class GenerateLossesDeterministic(ComputationStep):
         {'name': 'net_ri',               'default': False},
         {'name': 'ktools_alloc_rule_il', 'default': KTOOLS_ALLOC_IL_DEFAULT},
         {'name': 'ktools_alloc_rule_ri', 'default': KTOOLS_ALLOC_RI_DEFAULT},
-        {'name': 'num_subperils',        'default': 1}
+        {'name': 'num_subperils',        'default': 1},
+        {'name': 'fmpy',                 'default': False},
+        {'name': 'fmpy_low_memory',      'default': False},
     ]
 
     def run(self):
@@ -347,9 +350,10 @@ class GenerateLossesDeterministic(ComputationStep):
         guls.to_csv(guls_fp, index=False)
 
         ils_fp = os.path.join(output_dir, 'raw_ils.csv')
-        cmd = 'gultobin -S {} -t1 < {} | fmcalc -p {} -a {} {} | tee ils.bin | fmtocsv > {}'.format(
-            len(self.loss_factor), guls_fp, output_dir, self.ktools_alloc_rule_il, step_flag, ils_fp
+        cmd = 'gultobin -S {} -t1 < {} | {} -p {} -a {} {} | tee ils.bin | fmtocsv > {}'.format(
+            len(self.loss_factor), guls_fp, get_fmcmd(self.fmpy, self.fmpy_low_memory), output_dir, self.ktools_alloc_rule_il, step_flag, ils_fp
         )
+        
         try:
             self.logger.debug("RUN: " + cmd)
             check_call(cmd, shell=True)
@@ -399,8 +403,9 @@ class GenerateLossesDeterministic(ComputationStep):
                         pipe_in_previous_layer = '< ri{}.bin'.format(layer - 1) if layer > 1 else ''
                         ri_layer_fp = os.path.join(output_dir, 'ri{}.csv'.format(layer))
                         net_flag = "-n" if self.net_ri else ""
-                        cmd = '{} fmcalc -p {} {} -a {} {} {} | tee ri{}.bin | fmtocsv > {}'.format(
+                        cmd = '{} {} -p {} {} -a {} {} {} | tee ri{}.bin | fmtocsv > {}'.format(
                             _input,
+                            get_fmcmd(self.fmpy, self.fmpy_low_memory),
                             layer_inputs_fp,
                             net_flag,
                             self.ktools_alloc_rule_ri,
