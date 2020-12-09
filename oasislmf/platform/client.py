@@ -88,7 +88,7 @@ class JsonEndpoint(object):
                 error_message = 'Local file alreday exists: {}'.format(abs_fp)
                 raise IOError(error_message)
 
-        with io.open(abs_fp, 'w', encoding='utf-8') as f:                                                                                                                                                                                                                                  
+        with io.open(abs_fp, 'w', encoding='utf-8') as f:
             r = self.get(ID)
             f.write(json.dumps(r.json(), ensure_ascii=False, indent=4))
         return r
@@ -199,7 +199,7 @@ class API_models(ApiEndpoint):
         return self.session.get('{}{}/data_files'.format(self.url_endpoint, ID))
 
     def search(self, metadata):
-        search_string = None
+        search_string = ""
         for key in metadata:
             if not search_string:
                 search_string = '?{}={}'.format(key, metadata[key])
@@ -246,7 +246,7 @@ class API_portfolios(ApiEndpoint):
         self.reinsurance_scope_file = FileEndpoint(self.session, self.url_endpoint, 'reinsurance_scope_file/')
 
     def search(self, metadata):
-        search_string = None
+        search_string = ""
         for key in metadata:
             if not search_string:
                 search_string = '?{}={}'.format(key, metadata[key])
@@ -277,7 +277,7 @@ class API_datafiles(ApiEndpoint):
         self.content = FileEndpoint(self.session, self.url_endpoint, 'content/')
 
     def search(self, metadata):
-        search_string = None
+        search_string = ""
         for key in metadata:
             if not search_string:
                 search_string = '?{}={}'.format(key, metadata[key])
@@ -311,7 +311,7 @@ class API_analyses(ApiEndpoint):
         self.settings = JsonEndpoint(self.session, self.url_endpoint, 'settings/')
 
     def search(self, metadata):
-        search_string = None
+        search_string = ""
         for key in metadata:
             if not search_string:
                 search_string = '?{}={}'.format(key, metadata[key])
