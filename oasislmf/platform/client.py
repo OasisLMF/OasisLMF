@@ -46,7 +46,7 @@ class ApiEndpoint(object):
     def delete(self, ID):
         return self.session.delete('{}{}/'.format(self.url_endpoint, ID))
 
-    def search(self, metadata):
+    def search(self, metadata={}):
         search_string = ""
         for key in metadata:
             if not search_string:
