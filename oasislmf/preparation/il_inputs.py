@@ -930,6 +930,13 @@ def get_il_input_items(
         il_inputs_df['limit']
     )
 
+    # Before assigning calc. rule IDs and policy TC IDs, the steptriggertype
+    # should be split into its sub-types in cases where the associated
+    # coverages are covered separately
+    # For example, steptriggertype = 5 covers buildings and contents separately
+    if step_policies_present:
+        il_inputs_df['steptriggertype'] = il_inputs_df.apply(lambda x: STEP_TRIGGER_TYPES[x['steptriggertype']]['sub_step_trigger_types'][x['coverage_type_id']] if STEP_TRIGGER_TYPES[x['steptriggertype']].get('sub_step_trigger_types') is not None and STEP_TRIGGER_TYPES[x['steptriggertype']].get('sub_step_trigger_types').get(x['coverage_type_id']) is not None else x['steptriggertype'], axis=1)
+    
     # Set the calc. rule IDs
     if 'cov_agg_id' in il_inputs_df:
         il_inputs_df.loc[
