@@ -225,17 +225,9 @@ def get_step_calc_rule_ids(il_inputs_df, step_trigger_type_cols):
     il_inputs_calc_rules_df = il_inputs_df.reindex(columns=calc_mapping_cols)
 
     # Fill columns used to determine values for terms indicators and types
-    # Columns used depend on step trigger type or sub step trigger type if
-    # applicable
     # Set terms indicators and types to 0 if calc. rule should not be assigned
     def assign_terms_indicators_and_types(term, row):
         step_trigger_type = row['steptriggertype']
-        # Reassign step trigger type if sub step trigger types exist
-        if STEP_TRIGGER_TYPES[step_trigger_type].get('sub_step_trigger_types'):
-            sub_trigger_types = STEP_TRIGGER_TYPES[step_trigger_type]['sub_step_trigger_types']
-            if row['coverage_type_id'] in sub_trigger_types.keys():
-                step_trigger_type = sub_trigger_types[row['coverage_type_id']]
-
         if get_step_policies_oed_mapping(step_trigger_type).get(term) and row['assign_step_calcrule'] != False:
             return row[get_step_policies_oed_mapping(step_trigger_type)[term]]
         else:
