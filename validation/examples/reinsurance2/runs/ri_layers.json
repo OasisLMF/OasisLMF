@@ -1,0 +1,67 @@
+{
+    "1": {
+        "inuring_priority": 1,
+        "risk_level": "LOC",
+        "directory": "/home/joh/dev/OasisLMF_branch/validation/examples/reinsurance/runs/RI_1"
+    },
+    "2": {
+        "inuring_priority": 1,
+        "risk_level": "POL",
+        "directory": "/home/joh/dev/OasisLMF_branch/validation/examples/reinsurance/runs/RI_2"
+    },
+    "3": {
+        "inuring_priority": 1,
+        "risk_level": "ACC",
+        "directory": "/home/joh/dev/OasisLMF_branch/validation/examples/reinsurance/runs/RI_3"
+    },
+    "4": {
+        "inuring_priority": 1,
+        "risk_level": "SEL",
+        "directory": "/home/joh/dev/OasisLMF_branch/validation/examples/reinsurance/runs/RI_4"
+    },
+    "5": {
+        "inuring_priority": 2,
+        "risk_level": "LOC",
+        "directory": "/home/joh/dev/OasisLMF_branch/validation/examples/reinsurance/runs/RI_5"
+    },
+    "6": {
+        "inuring_priority": 2,
+        "risk_level": "POL",
+        "directory": "/home/joh/dev/OasisLMF_branch/validation/examples/reinsurance/runs/RI_6"
+    },
+    "7": {
+        "inuring_priority": 2,
+        "risk_level": "ACC",
+        "directory": "/home/joh/dev/OasisLMF_branch/validation/examples/reinsurance/runs/RI_7"
+    },
+    "8": {
+        "inuring_priority": 3,
+        "risk_level": "LOC",
+        "directory": "/home/joh/dev/OasisLMF_branch/validation/examples/reinsurance/runs/RI_8"
+    },
+    "9": {
+        "inuring_priority": 3,
+        "risk_level": "POL",
+        "directory": "/home/joh/dev/OasisLMF_branch/validation/examples/reinsurance/runs/RI_9"
+    },
+    "10": {
+        "inuring_priority": 3,
+        "risk_level": "ACC",
+        "directory": "/home/joh/dev/OasisLMF_branch/validation/examples/reinsurance/runs/RI_10"
+    },
+    "11": {
+        "inuring_priority": 4,
+        "risk_level": "LOC",
+        "directory": "/home/joh/dev/OasisLMF_branch/validation/examples/reinsurance/runs/RI_11"
+    },
+    "12": {
+        "inuring_priority": 4,
+        "risk_level": "POL",
+        "directory": "/home/joh/dev/OasisLMF_branch/validation/examples/reinsurance/runs/RI_12"
+    },
+    "13": {
+        "inuring_priority": 4,
+        "risk_level": "ACC",
+        "directory": "/home/joh/dev/OasisLMF_branch/validation/examples/reinsurance/runs/RI_13"
+    }
+}

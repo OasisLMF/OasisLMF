@@ -1,0 +1,54 @@
+{
+    "GUL": {
+        "available": {
+            "accnumber": "Account number",
+            "areacode": "Code representing typically the largest sub-division in a country (e.g. State code).",
+            "bitiv": "Business Interruption (BI) Total Insured Value",
+            "buildingtiv": "Building Total Insured Value",
+            "constructioncode": "OED construction code",
+            "contentstiv": "Contents Total Insured Value",
+            "countrycode": "Country code (based on ISO3166 alpha-2 codes)",
+            "coverage_id": "Oasis coverage identifier",
+            "coverage_type_id": "Oasis coverage type",
+            "latitude": "Latitude in degrees (-90.0 to +90.0)",
+            "loccurrency": "Location currency",
+            "locded6all": "Location site deductible",
+            "locgroup": "Location group name",
+            "locnumber": "Location number",
+            "locperil": "Perils for location financial terms",
+            "locperilscovered": "Location perils covered",
+            "longitude": "Longitude in degrees (-180.0 to +180.0)",
+            "numberofbuildings": "Number of buildings",
+            "occupancycode": "OED occupancy code",
+            "peril_id": "OED peril code",
+            "portnumber": "Portfolio number",
+            "postalcode": "Postcode: the highest resolution postcode most often used."
+        }
+    },
+    "IL": {
+        "available": {
+            "accnumber": "Account number",
+            "areacode": "Code representing typically the largest sub-division in a country (e.g. State code).",
+            "bitiv": "Business Interruption (BI) Total Insured Value",
+            "buildingtiv": "Building Total Insured Value",
+            "constructioncode": "OED construction code",
+            "contentstiv": "Contents Total Insured Value",
+            "countrycode": "Country code (based on ISO3166 alpha-2 codes)",
+            "coverage_id": "Oasis coverage identifier",
+            "coverage_type_id": "Oasis coverage type",
+            "latitude": "Latitude in degrees (-90.0 to +90.0)",
+            "loccurrency": "Location currency",
+            "locded6all": "Location site deductible",
+            "locgroup": "Location group name",
+            "locnumber": "Location number",
+            "locperil": "Perils for location financial terms",
+            "locperilscovered": "Location perils covered",
+            "longitude": "Longitude in degrees (-180.0 to +180.0)",
+            "numberofbuildings": "Number of buildings",
+            "occupancycode": "OED occupancy code",
+            "peril_id": "OED peril code",
+            "portnumber": "Portfolio number",
+            "postalcode": "Postcode: the highest resolution postcode most often used."
+        }
+    }
+}
