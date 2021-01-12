@@ -36,6 +36,7 @@ from ...preparation.gul_inputs import (
     write_gul_input_files,
 )
 from ...preparation.il_inputs import (
+    get_account_df,
     get_il_input_items,
     get_oed_hierarchy,
     write_il_input_files,
@@ -239,11 +240,13 @@ class GenerateFiles(ComputationStep):
             self.logger.info('\nOasis files generated: {}'.format(json.dumps(gul_input_files, indent=4)))
             return gul_input_files
 
+        account_df = get_account_df(self.oed_accounts_csv, accounts_profile)
+
         # Get the IL input items
-        il_inputs_df, _ = get_il_input_items(
+        il_inputs_df = get_il_input_items(
             location_df,
             gul_inputs_df,
-            accounts_fp=self.oed_accounts_csv,
+            account_df,
             exposure_profile=location_profile,
             accounts_profile=accounts_profile,
             fm_aggregation_profile=fm_aggregation_profile

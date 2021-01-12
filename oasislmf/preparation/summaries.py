@@ -4,6 +4,7 @@ __all__ = [
     'merge_oed_to_mapping',
     'write_exposure_summary',
     'get_exposure_summary',
+    'get_xref_df',
     'write_summary_levels',
     'write_mapping_file',
 ]
@@ -41,7 +42,33 @@ from ..utils.log import oasis_log
 from ..utils.path import as_path
 from ..utils.peril import PERILS, PERIL_GROUPS
 from ..utils.status import OASIS_KEYS_STATUS, OASIS_KEYS_STATUS_MODELLED
-from .gul_inputs import get_gul_input_items
+
+
+def get_usefull_summary_cols(oed_hierarchy):
+    return [
+        oed_hierarchy['accnum']['ProfileElementName'].lower(),
+        oed_hierarchy['locnum']['ProfileElementName'].lower(),
+        'loc_id',
+        oed_hierarchy['polnum']['ProfileElementName'].lower(),
+        oed_hierarchy['portnum']['ProfileElementName'].lower(),
+        SOURCE_IDX['loc'],
+        SOURCE_IDX['acc'],
+        'item_id',
+        'layer_id',
+        'coverage_id',
+        'peril_id',
+        'agg_id',
+        'output_id',
+        'coverage_type_id',
+        'tiv'
+    ]
+
+
+def get_xref_df(il_inputs_df):
+    top_level_layers_df = il_inputs_df.loc[il_inputs_df['level_id'] == il_inputs_df['level_id'].max(), ['top_agg_id', 'layer_id']]
+    bottom_level_layers_df = il_inputs_df[il_inputs_df['level_id'] == 1]
+    bottom_level_layers_df.drop(columns = ['layer_id'], inplace=True)
+    return merge_dataframes(bottom_level_layers_df, top_level_layers_df, join_on=['top_agg_id'])
 
 
 @oasis_log
@@ -59,47 +86,29 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
     :return: Subset of columns from gul_inputs_df / il_inputs_df
     :rtype: pandas.DataFrame
     """
-    acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
-    loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
-    policy_num = oed_hierarchy['polnum']['ProfileElementName'].lower()
-    portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
-
     # Case GUL+FM (based on il_inputs_df)
     if is_fm_summary:
-        summary_mapping = inputs_df[inputs_df['level_id'] == inputs_df['level_id'].max()].drop_duplicates(subset=['gul_input_id', 'layer_id'], keep='first')
+        summary_mapping = get_xref_df(inputs_df)
         summary_mapping['agg_id'] = summary_mapping['gul_input_id']
         summary_mapping['output_id'] = factorize_ndarray(
             summary_mapping.loc[:, ['gul_input_id', 'layer_id']].values,
             col_idxs=range(2)
         )[0]
-        summary_mapping.drop('item_id', axis=1, inplace=True)
     # GUL Only
     else:
         summary_mapping = inputs_df.copy(deep=True)
 
-    usecols = [
-        acc_num,
-        loc_num,
-        'loc_id',
-        policy_num,
-        portfolio_num,
-        SOURCE_IDX['loc'],
-        SOURCE_IDX['acc'],
-        'item_id',
-        'layer_id',
-        'coverage_id',
-        'peril_id',
-        'agg_id',
-        'output_id',
-        'coverage_type_id',
-        'tiv'
-    ]
-
     summary_mapping.drop(
-        [c for c in summary_mapping.columns if c not in usecols],
+        [c for c in summary_mapping.columns if c not in get_usefull_summary_cols(oed_hierarchy)],
         axis=1,
         inplace=True
     )
+
+    acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
+    loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
+    policy_num = oed_hierarchy['polnum']['ProfileElementName'].lower()
+    portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
+
     dtypes = {
         **{t: 'str' for t in [portfolio_num, policy_num, acc_num, loc_num, 'peril_id']},
         **{t: 'uint8' for t in ['coverage_type_id']},
