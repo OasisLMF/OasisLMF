@@ -8,4 +8,4 @@ services:
     environment:
       - JUPYTER_PASS=pass
     volumes:
-      - ./:/home/run/
+      - ../:/home/run/

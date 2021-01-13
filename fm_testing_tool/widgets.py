@@ -33,13 +33,13 @@ def show_df(df):
 
 def file_uploader(upload_dir='examples/uploaded', button_label='Upload .CSV file'):
     _upload_widget = fileupload.FileUploadWidget(label=button_label)
-    if not os.path.exists(upload_dir):                                                                                                                                                                                                                                                                  
+    if not os.path.exists(upload_dir):
         os.makedirs(upload_dir)
 
     def _cb(change):
         decoded = io.StringIO(change['owner'].data.decode('utf-8'))
         filename = change['owner'].filename
-        fpath = os.path.join(upload_dir,filename) 
+        fpath = os.path.join(upload_dir,filename)
         print('Uploaded `{}` ({:.2f} kB)'.format(
             fpath, len(decoded.read()) / 2 **10))
         with io.open(fpath, 'w') as fd:
@@ -50,20 +50,7 @@ def file_uploader(upload_dir='examples/uploaded', button_label='Upload .CSV file
     display(_upload_widget)
 
 
-#def select_source_dir(path_dict):
-#    e = 'examples'
-#    option_list = [os.path.join(e, o) for o in os.listdir(e) if os.path.isdir(os.path.join(e,o))]
-#    option_list.sort()
-#    path_dict['source_dir'] = 'examples/uploaded'
-#    def dropdown_eventhandler(change):
-#        path_dict['source_dir'] = 'examples/uploaded'
-#
-#    dropdown = Dropdown(description="Choose one:", options=option_list)
-#    dropdown.observe(dropdown_eventhandler, names='value')
-#    display(dropdown)
-
-
-def select_source_dir(path_dict):
+def select_source_dir(path_dict, examples_dir=None):
     # Function for the button to select user input
     # Add apply selection to pass by ref 'path_dict'
     def get_user_selection(a): # A default arg is needed here, I am guessing to pass self
@@ -71,7 +58,7 @@ def select_source_dir(path_dict):
         path_dict['source_dir'] = dropbox.value
         #clear_output()
         display(path_dict['source_dir'])
-        set_file_paths(dropbox.value) 
+        set_file_paths(dropbox.value)
         display(path_dict)
 
         # Execulte jump to next cell
@@ -85,19 +72,19 @@ def select_source_dir(path_dict):
             path_dict[f'{f}_path'] = path if os.path.isfile(path) else None
 
     # Load default value and build examples list
-    e = 'examples'
+    e = os.path.abspath(examples_dir)
     option_list = [os.path.join(e, o) for o in os.listdir(e) if os.path.isdir(os.path.join(e,o))]
     option_list.sort()
-    path_dict['source_dir'] = 'examples/uploaded'
-    set_file_paths(path_dict['source_dir']) 
+    path_dict['source_dir'] = os.path.join(e, 'uploaded')
+    set_file_paths(path_dict['source_dir'])
 
-    # creation of a widget dropdown object for directory selection 
+    # creation of a widget dropdown object for directory selection
     dropbox = widgets.Dropdown(
         options=option_list, # Object to iterate over
-        description='Select:', # User defined 
+        description='Select:', # User defined
         value=option_list[0], # Default value selection
         rows=10, # The number of rows to display when showing the box
-        interactive=True, # This makes the box interactive, 
+        interactive=True, # This makes the box interactive,
     );
 
     # Button to click
@@ -114,4 +101,3 @@ def select_source_dir(path_dict):
     display(ui)
     display("Default value: {}".format(path_dict['source_dir']))
     display(path_dict)
-
