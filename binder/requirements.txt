@@ -14,4 +14,4 @@ pathlib
 pytest
 qgrid
 tabulate
-git+git://github.com/OasisLMF/OasisLMF.git@$feature/692-fm-testing-tool#egg=oasislmf
+git+git://github.com/OasisLMF/OasisLMF.git@feature/692-fm-testing-tool#egg=oasislmf
