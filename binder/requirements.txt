@@ -1,0 +1,17 @@
+jupyter
+
+# from RTT (needs trimming / updates)
+anytree
+hypothesis
+ipdb
+ipython
+ipywidgets
+fileupload
+matplotlib
+pandas-datareader
+parameterized
+pathlib
+pytest
+qgrid
+tabulate
+git+git://github.com/OasisLMF/OasisLMF.git@$feature/692-fm-testing-tool#egg=oasislmf
