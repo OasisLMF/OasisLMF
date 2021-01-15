@@ -1,38 +1,38 @@
 {
     "total": {
         "modelled": {
-            "tiv": 88400000000.0,
-            "number_of_locations": 884
+            "tiv": 29000000000.0,
+            "number_of_locations": 290
         },
         "not-modelled": {
             "tiv": 0.0,
             "number_of_locations": 0
         },
         "portfolio": {
-            "tiv": 88400000000.0,
-            "number_of_locations": 884
+            "tiv": 29000000000.0,
+            "number_of_locations": 290
         }
     },
     "1": {
         "all": {
-            "tiv": 88400000000.0,
+            "tiv": 29000000000.0,
             "tiv_by_coverage": {
-                "buildings": 66300000000.0,
+                "buildings": 21750000000.0,
                 "other": 0.0,
-                "contents": 10608000000.0,
-                "bi": 11492000000.0
+                "contents": 3480000000.0,
+                "bi": 3770000000.0
             },
-            "number_of_locations": 884
+            "number_of_locations": 290
         },
         "success": {
-            "tiv": 88400000000.0,
+            "tiv": 29000000000.0,
             "tiv_by_coverage": {
-                "buildings": 66300000000.0,
+                "buildings": 21750000000.0,
                 "other": 0.0,
-                "contents": 10608000000.0,
-                "bi": 11492000000.0
+                "contents": 3480000000.0,
+                "bi": 3770000000.0
             },
-            "number_of_locations": 884
+            "number_of_locations": 290
         },
         "fail": {
             "tiv": 0.0,
