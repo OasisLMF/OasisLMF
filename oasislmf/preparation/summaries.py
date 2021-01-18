@@ -65,9 +65,10 @@ def get_usefull_summary_cols(oed_hierarchy):
 
 
 def get_xref_df(il_inputs_df):
-    top_level_layers_df = il_inputs_df.loc[il_inputs_df['level_id'] == il_inputs_df['level_id'].max(), ['top_agg_id', 'layer_id']]
+    top_level_cols = ['layer_id', SOURCE_IDX['acc'], 'polnumber']
+    top_level_layers_df = il_inputs_df.loc[il_inputs_df['level_id'] == il_inputs_df['level_id'].max(), ['top_agg_id'] + top_level_cols]
     bottom_level_layers_df = il_inputs_df[il_inputs_df['level_id'] == 1]
-    bottom_level_layers_df.drop(columns = ['layer_id'], inplace=True)
+    bottom_level_layers_df.drop(columns = top_level_cols, inplace=True)
     return merge_dataframes(bottom_level_layers_df, top_level_layers_df, join_on=['top_agg_id'])
 
 
@@ -88,22 +89,25 @@ def get_summary_mapping(inputs_df, oed_hierarchy, is_fm_summary=False):
     """
     # Case GUL+FM (based on il_inputs_df)
     if is_fm_summary:
-        summary_mapping = get_xref_df(inputs_df)
+        summary_mapping = get_xref_df(inputs_df).drop_duplicates(subset=['gul_input_id', 'layer_id'], keep='first')
         summary_mapping['agg_id'] = summary_mapping['gul_input_id']
+        summary_mapping = summary_mapping.reindex(sorted(summary_mapping.columns), axis=1)
         summary_mapping['output_id'] = factorize_ndarray(
             summary_mapping.loc[:, ['gul_input_id', 'layer_id']].values,
             col_idxs=range(2)
         )[0]
+
     # GUL Only
     else:
         summary_mapping = inputs_df.copy(deep=True)
+        summary_mapping['layer_id']=1
+        summary_mapping['agg_id'] = summary_mapping['item_id']
 
     summary_mapping.drop(
         [c for c in summary_mapping.columns if c not in get_usefull_summary_cols(oed_hierarchy)],
         axis=1,
         inplace=True
     )
-
     acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
     loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
     policy_num = oed_hierarchy['polnum']['ProfileElementName'].lower()

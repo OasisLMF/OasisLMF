@@ -4,7 +4,8 @@ __all__ = [
     'get_grouped_fm_profile_by_level_and_term_group',
     'get_grouped_fm_terms_by_level_and_term_group',
     'get_oed_hierarchy',
-    'get_step_policies_oed_mapping'
+    'get_step_policies_oed_mapping',
+    'get_default_step_policies_profile',
 ]
 
 
