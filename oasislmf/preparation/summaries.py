@@ -891,7 +891,7 @@ def write_gul_errors_map(
         )
     gul_inputs_errors_df['tiv'] = gul_inputs_errors_df['tiv'].fillna(0.0)
 
-    gul_inputs_errors_df[cols].to_csv(gul_error_map_fp)
+    gul_inputs_errors_df[cols].to_csv(gul_error_map_fp,index=False)
 
 @oasis_log
 def write_exposure_summary(
