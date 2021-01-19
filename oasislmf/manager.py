@@ -8,7 +8,11 @@ from .utils.log import oasis_log
 
 from .computation.data.rtree import GenerateRtreeIndexData
 from .computation.hooks.pre_analysis import ExposurePreAnalysis
-from .computation.generate.files import GenerateFiles
+from .computation.generate.files import (
+    GenerateFiles,
+    GenerateDummyModelFiles,
+    GenerateDummyOasisFiles
+)
 from .computation.generate.keys import GenerateKeys, GenerateKeysDeterministic
 from .computation.generate.losses import GenerateLosses, GenerateLossesDeterministic
 from .computation.helper.autocomplete import HelperTabComplete
@@ -28,12 +32,14 @@ class OasisManager(object):
     computation_classes = [
         ExposurePreAnalysis,
         GenerateFiles,
-        GenerateOasisFiles, 
+        GenerateOasisFiles,
         GenerateKeys,
         GenerateKeysDeterministic,
         GenerateLosses,
         GenerateLossesDeterministic,
         GenerateRtreeIndexData,
+        GenerateDummyModelFiles,
+        GenerateDummyOasisFiles,
         RunModel,
         RunExposure,
         RunFmTest,
