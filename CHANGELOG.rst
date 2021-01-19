@@ -1,9 +1,14 @@
 OasisLMF Changelog
 ==================
 
-`1.13.0`_
+`1.13.1`_
 ---------
 .. start_latest_release
+* [#709](https://github.com/OasisLMF/OasisLMF/issues/709) - Fix issue with generation of profile IDs for step policies that include separate coverages
+.. end_latest_release
+
+`1.13.0`_
+---------
 * [#694](https://github.com/OasisLMF/OasisLMF/pull/694) - Schema update, restrict output options by eventset
 * [#670](https://github.com/OasisLMF/OasisLMF/issues/670) - Add CLI flags for lookup multiprocessing options
 * [#695](https://github.com/OasisLMF/OasisLMF/issues/695) - Set default value of optional OED step policy fields to 0
@@ -12,7 +17,6 @@ OasisLMF Changelog
 * [#680](https://github.com/OasisLMF/OasisLMF/issues/680) - Added user defined return periods option to `analysis_settings.json` 
 * [#677](https://github.com/OasisLMF/OasisLMF/pull/677) - Enabled Fmpy to handle multiple input streams
 * [#678](https://github.com/OasisLMF/OasisLMF/issues/678) - Fixed environment variable loading
-.. end_latest_release
 
 `1.12.1`_
 ---------

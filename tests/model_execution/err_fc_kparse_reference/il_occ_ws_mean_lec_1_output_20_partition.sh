@@ -20,7 +20,7 @@ exit_handler(){
    else
        echo 'Run Completed'
    fi
-   
+
    set +x
    group_pid=$(ps -p $$ -o pgid --no-headers)
    sess_pid=$(ps -p $$ -o sess --no-headers)
@@ -354,8 +354,8 @@ wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 
 # --- Do insured loss kats for fully correlated output ---
 
 
-leccalc -r -Kil_S1_summaryleccalc -m output/il_S1_leccalc_wheatsheaf_mean_oep.csv & lpid1=$!
-leccalc -r -Kfull_correlation/il_S1_summaryleccalc -m output/full_correlation/il_S1_leccalc_wheatsheaf_mean_oep.csv & lpid2=$!
+( leccalc -r -Kil_S1_summaryleccalc -m output/il_S1_leccalc_wheatsheaf_mean_oep.csv ) 2>> log/stderror.err & lpid1=$!
+( leccalc -r -Kfull_correlation/il_S1_summaryleccalc -m output/full_correlation/il_S1_leccalc_wheatsheaf_mean_oep.csv ) 2>> log/stderror.err & lpid2=$!
 wait $lpid1 $lpid2
 
 rm -R -f work/*

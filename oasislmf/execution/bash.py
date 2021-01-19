@@ -52,7 +52,7 @@ exit_handler(){
    else
        echo 'Run Completed'
    fi
-   
+
    set +x
    group_pid=$(ps -p $$ -o pgid --no-headers)
    sess_pid=$(ps -p $$ -o sess --no-headers)
@@ -142,7 +142,8 @@ def do_post_wait_processing(
     filename,
     process_counter,
     work_sub_dir='',
-    output_dir='output/'
+    output_dir='output/',
+    stderr_guard=True
 ):
     if '{}_summaries'.format(runtype) not in analysis_settings:
         return
@@ -161,7 +162,10 @@ def do_post_wait_processing(
                 cmd = '{} > {}{}_S{}_aalcalc.csv'.format(
                     cmd, output_dir, runtype, summary_set
                 )
-                cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+                if stderr_guard:
+                    cmd = '( {} ) 2>> log/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+                else:
+                    cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 print_command(filename, cmd)
 
             if summary.get('lec_output'):
@@ -187,7 +191,10 @@ def do_post_wait_processing(
                                 option
                             )
 
-                    cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+                    if stderr_guard:
+                        cmd = '( {} ) 2>> log/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+                    else:
+                        cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                     print_command(filename, cmd)
 
 
@@ -425,7 +432,7 @@ def do_tees_fc_sumcalc_fmcalc(process_id, filename, correlated_output_stems):
     )
     cmd = '{0} {1}{3} {2}{3} > /dev/null &'.format(
         cmd,
-        correlated_output_stems['sumcalc_input'], 
+        correlated_output_stems['sumcalc_input'],
         correlated_output_stems['fmcalc_input'],
         process_id
     )
@@ -449,7 +456,7 @@ def get_correlated_output_stems(fifo_dir):
     return correlated_output_stems
 
 
-def do_any(runtype, analysis_settings, process_id, filename, process_counter, fifo_dir='fifo/', work_dir='work/'):
+def do_any(runtype, analysis_settings, process_id, filename, process_counter, fifo_dir='fifo/', work_dir='work/', stderr_guard=True):
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
@@ -474,14 +481,17 @@ def do_any(runtype, analysis_settings, process_id, filename, process_counter, fi
                     process_counter['pid_monitor_count'] += 1
                     fifo_in_name = get_fifo_name(fifo_dir, runtype, process_id, f'S{summary_set}_{summary_type}')
                     fifo_out_name = get_fifo_name(f'{work_dir}kat/', runtype, process_id, f'S{summary_set}_{summary_type}')
-                    print_command(
-                        filename,
-                        f'{cmd} < {fifo_in_name} > {fifo_out_name} & pid{process_counter["pid_monitor_count"]}=$!'
-                    )
+                    cmd = f'{cmd} < {fifo_in_name} > {fifo_out_name}'
+                    if stderr_guard:
+                        cmd = f'( {cmd} ) 2>> log/stderror.err & pid{process_counter["pid_monitor_count"]}=$!'
+                    else:
+                        cmd = f'{cmd} & pid{process_counter["pid_monitor_count"]}=$!'
+
+                    print_command(filename, cmd)
 
 def ri(analysis_settings, max_process_id, filename, process_counter, num_reinsurance_iterations, fifo_dir='fifo/', work_dir='work/', stderr_guard=True):
     for process_id in range(1, max_process_id + 1):
-        do_any(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir)
+        do_any(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
 
     for process_id in range(1, max_process_id + 1):
         do_tees(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir)
@@ -500,7 +510,7 @@ def ri(analysis_settings, max_process_id, filename, process_counter, num_reinsur
 
 def il(analysis_settings, max_process_id, filename, process_counter, fifo_dir='fifo/', work_dir='work/', stderr_guard=True):
     for process_id in range(1, max_process_id + 1):
-        do_any(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir)
+        do_any(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
 
     for process_id in range(1, max_process_id + 1):
         do_tees(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir)
@@ -528,7 +538,7 @@ def do_gul(
 ):
 
     for process_id in range(1, max_process_id + 1):
-        do_any(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir)
+        do_any(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
 
     for process_id in range(1, max_process_id + 1):
         do_tees(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir)
@@ -1363,35 +1373,35 @@ def genbash(
     if ri_output:
         do_post_wait_processing(
             RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename, process_counter,
-            '', output_dir
+            '', output_dir, stderr_guard
         )
     if il_output:
         do_post_wait_processing(
             RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter, '',
-            output_dir
+            output_dir, stderr_guard
         )
     if gul_output:
         do_post_wait_processing(
             RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter, '',
-            output_dir
+            output_dir, stderr_guard
         )
 
     if full_correlation:
         work_sub_dir = re.sub('^work/', '', work_full_correlation_dir)
         if ri_output:
             do_post_wait_processing(
-                RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename,
-                process_counter, work_sub_dir, output_full_correlation_dir
+                RUNTYPE_REINSURANCE_LOSS, analysis_settings, filename, process_counter,
+                work_sub_dir, output_full_correlation_dir, stderr_guard
             )
         if il_output:
             do_post_wait_processing(
                 RUNTYPE_INSURED_LOSS, analysis_settings, filename, process_counter,
-                work_sub_dir, output_full_correlation_dir
+                work_sub_dir, output_full_correlation_dir, stderr_guard
             )
         if gul_output:
             do_post_wait_processing(
                 RUNTYPE_GROUNDUP_LOSS, analysis_settings, filename, process_counter,
-                work_sub_dir, output_full_correlation_dir
+                work_sub_dir, output_full_correlation_dir, stderr_guard
             )
 
     do_awaits(filename, process_counter)  # waits for aalcalc
