@@ -20,7 +20,7 @@ exit_handler(){
    else
        echo 'Run Completed'
    fi
-   
+
    set +x
    group_pid=$(ps -p $$ -o pgid --no-headers)
    sess_pid=$(ps -p $$ -o sess --no-headers)
@@ -72,7 +72,7 @@ mkfifo fifo/gul_S1_summarycalc_P1
 
 # --- Do ground up loss computes ---
 
-summarycalctocsv < fifo/gul_S1_summarycalc_P1 > work/kat/gul_S1_summarycalc_P1 & pid1=$!
+( summarycalctocsv < fifo/gul_S1_summarycalc_P1 > work/kat/gul_S1_summarycalc_P1 ) 2>> log/stderror.err & pid1=$!
 
 tee < fifo/gul_S1_summary_P1 fifo/gul_S1_summarycalc_P1 > /dev/null & pid2=$!
 
