@@ -510,10 +510,13 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                 node['profile_len'] = 1
                 node['profiles'] = 0
 
-            if node_programme in node_to_output_id:
-                node['output_ids'], output_i = output_i, output_i + node['layer_len']
-                for layer, output_id in node_to_output_id[node_programme]:
-                    output_array[node['output_ids'] + layer - 1] = output_id
+            if level == out_level:
+                if node_programme in node_to_output_id:
+                    node['output_ids'], output_i = output_i, output_i + node['layer_len']
+                    for layer, output_id in node_to_output_id[node_programme]:
+                        output_array[node['output_ids'] + layer - 1] = output_id
+                else:
+                    raise KeyError("Some output nodes are missing output_ids")
 
     if allocation_rule == 1:
         for agg_id in range(1, level_node_len[max_level] + 1):
