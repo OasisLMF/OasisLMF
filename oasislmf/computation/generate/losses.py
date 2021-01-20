@@ -349,11 +349,18 @@ class GenerateLossesDeterministic(ComputationStep):
         guls_fp = os.path.join(output_dir, "raw_guls.csv")
         guls.to_csv(guls_fp, index=False)
 
+        il_stream_type = 2 if self.fmpy else 1
         ils_fp = os.path.join(output_dir, 'raw_ils.csv')
-        cmd = 'gultobin -S {} -t1 < {} | {} -p {} -a {} {} | tee ils.bin | fmtocsv > {}'.format(
-            len(self.loss_factor), guls_fp, get_fmcmd(self.fmpy, self.fmpy_low_memory), output_dir, self.ktools_alloc_rule_il, step_flag, ils_fp
+        cmd = 'gultobin -S {} -t {} < {} | {} -p {} -a {} {} | tee ils.bin | fmtocsv > {}'.format(
+            len(self.loss_factor),
+            il_stream_type,
+            guls_fp,
+            get_fmcmd(self.fmpy, self.fmpy_low_memory),
+            output_dir,
+            self.ktools_alloc_rule_il,
+            step_flag, ils_fp
         )
-        
+
         try:
             self.logger.debug("RUN: " + cmd)
             check_call(cmd, shell=True)
@@ -397,8 +404,13 @@ class GenerateLossesDeterministic(ComputationStep):
                 else:
                     def run_ri_layer(layer):
                         layer_inputs_fp = os.path.join(output_dir, 'RI_{}'.format(layer))
-                        _input = 'gultobin -S 1 -t1 < {} | fmcalc -p {} -a {} {} | tee ils.bin |'.format(
-                            guls_fp, output_dir, self.ktools_alloc_rule_il, step_flag
+                        _input = 'gultobin -S 1 -t {} < {} | {} -p {} -a {} {} | tee ils.bin |'.format(
+                            il_stream_type,
+                            guls_fp,
+                            get_fmcmd(self.fmpy, self.fmpy_low_memory),
+                            output_dir,
+                            self.ktools_alloc_rule_il,
+                            step_flag
                         ) if layer == 1 else ''
                         pipe_in_previous_layer = '< ri{}.bin'.format(layer - 1) if layer > 1 else ''
                         ri_layer_fp = os.path.join(output_dir, 'ri{}.csv'.format(layer))
