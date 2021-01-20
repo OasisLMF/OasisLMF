@@ -40,9 +40,9 @@ def prepare_input_files_directory(
     try:
         # Prepare the target directory and copy the source files, profiles and
         # model version file into it
-        target_dir = as_path(target_dir, 'target Oasis files directory', is_dir=True, preexists=False)
-        if not os.path.exists(target_dir):
-            Path(target_dir).mkdir(parents=True, exist_ok=True)
+        target_dir = create_target_directory(
+            target_dir, 'target Oasis files directory'
+        )
 
         # Copy preserving original filenames 
         paths = [
