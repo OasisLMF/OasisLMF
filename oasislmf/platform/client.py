@@ -46,6 +46,15 @@ class ApiEndpoint(object):
     def delete(self, ID):
         return self.session.delete('{}{}/'.format(self.url_endpoint, ID))
 
+    def search(self, metadata={}):
+        search_string = ""
+        for key in metadata:
+            if not search_string:
+                search_string = '?{}={}'.format(key, metadata[key])
+            else:
+                search_string += '&{}={}'.format(key, metadata[key])
+        return self.session.get('{}{}'.format(self.url_endpoint, search_string))
+
 
 class JsonEndpoint(object):
     """
@@ -88,7 +97,7 @@ class JsonEndpoint(object):
                 error_message = 'Local file alreday exists: {}'.format(abs_fp)
                 raise IOError(error_message)
 
-        with io.open(abs_fp, 'w', encoding='utf-8') as f:                                                                                                                                                                                                                                  
+        with io.open(abs_fp, 'w', encoding='utf-8') as f:
             r = self.get(ID)
             f.write(json.dumps(r.json(), ensure_ascii=False, indent=4))
         return r
@@ -198,15 +207,6 @@ class API_models(ApiEndpoint):
     def data_files(self, ID):
         return self.session.get('{}{}/data_files'.format(self.url_endpoint, ID))
 
-    def search(self, metadata):
-        search_string = None
-        for key in metadata:
-            if not search_string:
-                search_string = '?{}={}'.format(key, metadata[key])
-            else:
-                search_string += '&{}={}'.format(key, metadata[key])
-        return self.session.get('{}{}'.format(self.url_endpoint, search_string))
-
     def create(self, supplier_id, model_id, version_id, data_files=[]):
         if isinstance(data_files, list):
             df_ids = data_files
@@ -245,15 +245,6 @@ class API_portfolios(ApiEndpoint):
         self.reinsurance_info_file = FileEndpoint(self.session, self.url_endpoint, 'reinsurance_info_file/')
         self.reinsurance_scope_file = FileEndpoint(self.session, self.url_endpoint, 'reinsurance_scope_file/')
 
-    def search(self, metadata):
-        search_string = None
-        for key in metadata:
-            if not search_string:
-                search_string = '?{}={}'.format(key, metadata[key])
-            else:
-                search_string += '&{}={}'.format(key, metadata[key])
-        return self.session.get('{}{}'.format(self.url_endpoint, search_string))
-
     def create(self, name):
         data = {"name": name}
         return self.session.post(self.url_endpoint, json=data)
@@ -275,15 +266,6 @@ class API_datafiles(ApiEndpoint):
     def __init__(self, session, url_endpoint):
         super(API_datafiles, self).__init__(session, url_endpoint)
         self.content = FileEndpoint(self.session, self.url_endpoint, 'content/')
-
-    def search(self, metadata):
-        search_string = None
-        for key in metadata:
-            if not search_string:
-                search_string = '?{}={}'.format(key, metadata[key])
-            else:
-                search_string += '&{}={}'.format(key, metadata[key])
-        return self.session.get('{}{}'.format(self.url_endpoint, search_string))
 
     def create(self, file_description, linked_models=[]):
         data = {"file_description": file_description}
@@ -309,15 +291,6 @@ class API_analyses(ApiEndpoint):
         self.run_log_file = FileEndpoint(self.session, self.url_endpoint, 'run_log_file/')
         self.settings_file = FileEndpoint(self.session, self.url_endpoint, 'settings_file/')
         self.settings = JsonEndpoint(self.session, self.url_endpoint, 'settings/')
-
-    def search(self, metadata):
-        search_string = None
-        for key in metadata:
-            if not search_string:
-                search_string = '?{}={}'.format(key, metadata[key])
-            else:
-                search_string += '&{}={}'.format(key, metadata[key])
-        return self.session.get('{}{}'.format(self.url_endpoint, search_string))
 
     def create(self, name, portfolio_id, model_id, data_files=[]):
         if isinstance(data_files, list):
