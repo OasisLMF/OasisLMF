@@ -294,7 +294,7 @@ def do_kats(
             if summary.get('eltcalc'):
                 anykats = True
 
-                cmd = 'kat'
+                cmd = 'kat -s'   # Sort ELTs
                 for process_id in range(1, max_process_id + 1):
                     cmd = '{} {}{}_S{}_eltcalc_P{}'.format(
                         cmd, work_dir, runtype, summary_set, process_id
