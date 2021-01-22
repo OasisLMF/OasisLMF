@@ -20,8 +20,6 @@ import sys
 import warnings
 
 import pandas as pd
-# TODO: remove option when done
-pd.set_option('display.max_rows', 100)
 import numpy as np
 
 from ast import literal_eval
@@ -322,11 +320,28 @@ def get_step_policytc_ids(
     return factorize_array(fm_policytc_df['policytc_id'])[0] + offset
 
 
-def __level_has_fm_terms(df, fm_column_name):
-    return df.loc[:, set(fm_column_name).intersection(df.columns)].any().any()
+def __level_has_fm_terms(df, fm_column_names):
+    """Check if a df has non null values for a list of column name
+    :param df: dataframe
+    :type df: pandas.DataFrame
+
+    :param fm_column_names: column names used
+    :type fm_column_names: list
+
+    :return: True is any column has at least one non null value
+    :rtype: bool
+    """
+    return df.loc[:, set(fm_column_names).intersection(df.columns)].any().any()
 
 
 def __get_bi_tiv_col_name(profile):
+    """get the name of the bi tiv column
+    :param profile: profile containing all the terms
+    :type profile: dict
+
+    :return: the name of the bi tiv column
+    :rtype: str
+    """
     cov_level_id = SUPPORTED_FM_LEVELS['site coverage']['id']
     bi_cov_id = SUPPORTED_COVERAGE_TYPES['bi']['id']
     return profile[cov_level_id][bi_cov_id]['tiv']['ProfileElementName'].lower()
@@ -349,7 +364,15 @@ def get_programme_ids(il_inputs_df, level):
 
 def get_account_df(accounts_fp, accounts_profile):
     """
-    Get the accounts frame either directly or from a file path if provided
+    Get the accounts frame from a file path
+    :param accounts_fp: Source accounts file path
+    :type accounts_fp: str
+
+    :param accounts_profile: Source accounts profile
+    :type accounts_profile: dict
+
+    :return: the accounts dataframe
+    :rtype: pandas.DataFrame
     """
     acc_num = accounts_profile['AccNumber']['ProfileElementName'].lower()
     policy_num = accounts_profile['PolNumber']['ProfileElementName'].lower()
@@ -457,7 +480,28 @@ def get_account_df(accounts_fp, accounts_profile):
 
 
 def __merge_exposure_and_gul(exposure_df, gul_inputs_df, fm_terms, profile, oed_hierarchy):
-    """merge the exposure df and the gul df"""
+    """merge the exposure df and the gul df
+
+    :param exposure_df: exposure dataframe
+    :type exposure_df: pandas.DataFrame
+
+    :param gul_inputs_df: gul dataframe
+    :type gul_inputs_df: pandas.DataFrame
+
+    :param fm_terms: fm terms to use
+    :type fm_terms: dict
+
+    :param profile: Source profile
+    :type profile: dict
+
+    :param oed_hierarchy: oed_hierarchy
+    :type oed_hierarchy: dict
+
+    :return: merge dataframe between exposure_df and gul_inputs_df
+    :rtype: pandas.DataFrame
+
+
+    """
     cond_num = oed_hierarchy['condnum']['ProfileElementName'].lower()
 
     # get usefull term columns from exposure_df
@@ -540,6 +584,11 @@ def __merge_gul_and_account(gul_inputs_df, accounts_df, fm_terms, oed_hierarchy)
 
 
 def __update_level(group, min_level, groups):
+    """
+    update the sub levels of all the parents of a group
+    the sublevel is increased by 1 to match the depth of the childs of the parent group
+    """
+
     while True:
         if group['level'] < min_level:
             group['level'] = min_level
@@ -554,6 +603,10 @@ def __update_level(group, min_level, groups):
 
 
 def __extract_level_location_to_agg_cond_dict(account_groups, base_level, max_level):
+    """
+    from the groups of account_groups, create a dictionary that will give the mapping between
+    (ptf, account, level_id, layer_id, location) => (agg_id, condition)
+    """
     level_location_to_agg_cond_dict = {}
     level_grouping = {}
     agg_dict = {level_id: 1 for level_id in range(base_level, max_level + 1)}
@@ -592,6 +645,27 @@ def __extract_level_location_to_agg_cond_dict(account_groups, base_level, max_le
 
 
 def __get_cond_grouping_hierarchy(column_base_il_df, portfolio_num, acc_num, cond_num, loc_num, base_level):
+    """create group of locations based on the condition number and condition hierarchy found in column_base_il_df
+
+    simplified logic
+    go through each record in column_base_il_df:
+    if location is new:
+        if condition is new:
+            create a new group at base level
+        if the condition group is already created:
+             add the location to the group
+    if the location is already part of a group:
+        if condition is new:
+            if layer is already in the location group:
+               if new condition priority is smaller:
+                   a new group is created and the location is move to it
+                   the old location group is set as parent of the new group
+            if new condition priority is bigger:
+                a new group is created with the location and the condition of the old group
+                the old group is set as parent of he new group
+        if the condition group is already created:
+            we add the condition if it correspond to a new layer
+    """
     if 'condpriority' not in column_base_il_df.columns:
         column_base_il_df['condpriority'] = 0
     column_base_il_df['condpriority'].fillna(0)
@@ -599,7 +673,6 @@ def __get_cond_grouping_hierarchy(column_base_il_df, portfolio_num, acc_num, con
     cond_hierachy = {}
     for rec in column_base_il_df[[portfolio_num, acc_num, 'layer_id', cond_num, 'condpriority']].to_dict(orient="records"):
         cond_hierachy[(rec[portfolio_num], rec[acc_num], rec[cond_num])] = (rec['layer_id'], rec['condpriority'])
-
 
     loc_to_group = {}
     cond_to_group = {}
@@ -677,6 +750,8 @@ def __get_cond_grouping_hierarchy(column_base_il_df, portfolio_num, acc_num, con
 
 
 def __get_level_location_to_agg_cond(column_base_il_df, oed_hierarchy):
+    """create a dataframe with the computed agg id base on the condition and condition priority
+    """
     acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
     loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
     portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
@@ -697,6 +772,7 @@ def __get_level_location_to_agg_cond(column_base_il_df, oed_hierarchy):
 
 
 def compute_agg_tiv(tiv_df, agg_key, bi_tiv_col, loc_num):
+    """ compute the agg tiv depending on the agg_key"""
     agg_tiv_df = (tiv_df.drop_duplicates(agg_key + [loc_num], keep='first')[list(set(agg_key + ['tiv', 'tiv_sum', bi_tiv_col]))]
           .groupby(agg_key,  observed=True).sum().reset_index())
     if 'is_bi_coverage' in agg_key:
@@ -708,18 +784,34 @@ def compute_agg_tiv(tiv_df, agg_key, bi_tiv_col, loc_num):
     return agg_tiv_df[agg_key + ['agg_tiv']]
 
 
-def __nullify_unsuported_coverage(level_df, profile_info, column):
-    # TODO: remove if not use
-    if column in level_df.columns:
-        level_df[column] = np.where(
-            level_df['coverage_type_id'].isin(
-                (profile_info.get(column) or {}).get('CoverageTypeID') or supp_cov_types),
-            level_df[column],
-            0
-        )
+def __get_level_terms(column_base_il_df, column_mapper):
+    """
+    get the column to term dictionary base on a level column mapper (created from profile)
+    """
+    level_terms = {}
+    for ProfileElementName, term_info in column_mapper.items():
+        if (ProfileElementName in column_base_il_df.columns
+                and column_base_il_df[ProfileElementName].any()):
+            level_terms[ProfileElementName] = term_info['FMTermType'].lower()
+    return level_terms
 
 
-def process_standard_level_df(column_base_il_df,
+def __drop_duplicated_row(prev_level_df, level_df, level_terms, agg_key, sub_agg_key):
+    """drop duplicated row base on the agg_key, sub_agg_key and layer_id"""
+    sub_level_layer_needed = level_df['agg_id'].isin(prev_level_df.loc[prev_level_df["layer_id"] == 2]['to_agg_id'])
+
+    level_value_count = level_df[['agg_id'] + list(level_terms.values())].drop_duplicates()['agg_id'].value_counts()
+    this_level_layer_needed = level_df['agg_id'].isin(level_value_count[level_value_count > 1].index.values)
+    if 'share' in level_df.columns:
+        this_level_layer_needed |= ~level_df['share'].isin({0, 1})
+
+    level_df['layer_id'] = np.where(sub_level_layer_needed | this_level_layer_needed,
+                                    level_df['layer_id'],
+                                    1)
+    level_df.drop_duplicates(subset=agg_key + sub_agg_key + ['layer_id'], inplace=True)
+
+
+def __process_standard_level_df(column_base_il_df,
                               prev_level_df,
                               tiv_df,
                               il_inputs_df_list,
@@ -736,11 +828,7 @@ def process_standard_level_df(column_base_il_df,
     loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
 
     # identify fm columns for this level
-    level_terms = {}
-    for ProfileElementName, term_info in level_column_mapper[level_id].items():
-        if (ProfileElementName in column_base_il_df.columns
-                and column_base_il_df[ProfileElementName].any()):
-            level_terms[ProfileElementName] = term_info['FMTermType'].lower()
+    level_terms = __get_level_terms(column_base_il_df, level_column_mapper[level_id])
 
     if level_terms: # if there is fm terms we create a new level and complete the previous level info
         level_df = column_base_il_df[set(present_cols).union(set(level_terms))]
@@ -763,20 +851,22 @@ def process_standard_level_df(column_base_il_df,
 
         level_df['agg_id'] = factorize_ndarray(level_df.loc[:, agg_key].values, col_idxs=range(len(agg_key)))[0]
         prev_level_df['to_agg_id'] = factorize_ndarray(prev_level_df.loc[:, agg_key].values, col_idxs=range(len(agg_key)))[0]
-        level_df.drop_duplicates(subset=agg_key + sub_agg_key, inplace=True)
+        il_inputs_df_list.append(prev_level_df)
+
+        __drop_duplicated_row(prev_level_df, level_df, level_terms, agg_key, sub_agg_key)
 
         # compute the aggregated tiv
         agg_tiv_df = compute_agg_tiv(tiv_df, agg_key, bi_tiv_col, loc_num)
         level_df = merge_dataframes(level_df, agg_tiv_df, on=agg_key, how='left')
 
         level_df = level_df[level_cols.union(set(level_terms.values()))]
-        il_inputs_df_list.append(prev_level_df)
+
         return level_df
     else:
         return prev_level_df
 
 
-def process_condition_level_df(column_base_il_df,
+def __process_condition_level_df(column_base_il_df,
                                prev_level_df,
                                tiv_df,
                                il_inputs_df_list,
@@ -796,11 +886,7 @@ def process_condition_level_df(column_base_il_df,
     level_location_to_agg_cond_df, cond_inter_level = __get_level_location_to_agg_cond(column_base_il_df, oed_hierarchy)
 
     # identify fm columns for this level
-    level_terms = {}
-    for ProfileElementName, term_info in level_column_mapper[level_id].items():
-        if (ProfileElementName in column_base_il_df.columns
-                and column_base_il_df[ProfileElementName].any()):
-            level_terms[ProfileElementName] = term_info['FMTermType'].lower()
+    level_terms = __get_level_terms(column_base_il_df, level_column_mapper[level_id])
 
     if level_terms: # if there is fm terms we create a new level and complete the previous level info
         agg_key = [v['field'].lower() for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
@@ -817,12 +903,11 @@ def process_condition_level_df(column_base_il_df,
 
             this_level_location_to_agg_cond_df = level_location_to_agg_cond_df[level_location_to_agg_cond_df['level_id'] == inter_level]
             this_level_location_to_agg_cond_df.drop(columns=['level_id'], inplace=True)
-
             level_df = merge_dataframes(
                 level_df,
                 this_level_location_to_agg_cond_df,
                 on=[portfolio_num, acc_num, 'layer_id', loc_num],
-                how='left',
+                how='inner',
                 drop_duplicates=False
             )
             level_df.loc[level_df[cond_num] == 0, set(level_terms.values())] = 0
@@ -834,11 +919,11 @@ def process_condition_level_df(column_base_il_df,
                 prev_level_df,
                 this_level_location_to_agg_cond_df,
                 on=[portfolio_num, acc_num, 'layer_id', loc_num],
-                how='left',
+                how='inner',
                 drop_duplicates=False
             )
 
-            level_df.drop_duplicates(subset=agg_key + sub_agg_key, inplace=True)
+            __drop_duplicated_row(prev_level_df, level_df, level_terms, agg_key, sub_agg_key)
 
             # compute the aggregated tiv
             agg_tiv_df = compute_agg_tiv(tiv_df, agg_key, bi_tiv_col, loc_num)
@@ -991,7 +1076,6 @@ def get_il_input_items(
 
         column_base_il_df['assign_step_calcrule'] = column_base_il_df.apply(lambda row: assign_calcrule_flag(row), axis=1)
 
-
         fm_aggregation_profile[SUPPORTED_FM_LEVELS['policy layer']['id']]['FMAggKey']['cov_agg_id'] = {
                 "src": "FM",
                 "field": "cov_agg_id",
@@ -1038,9 +1122,9 @@ def get_il_input_items(
     # create level for each SUPPORTED_FM_LEVELS
     for level, level_info in list(SUPPORTED_FM_LEVELS.items())[1:]:
         if level == 'cond all': # special treatment for condition level
-            process_level_df = process_condition_level_df
+            process_level_df = __process_condition_level_df
         else:
-            process_level_df = process_standard_level_df
+            process_level_df = __process_standard_level_df
 
         prev_level_df = process_level_df(column_base_il_df,
                                          prev_level_df,
@@ -1061,7 +1145,8 @@ def get_il_input_items(
     agg_key = [v['field'].lower() for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
     sub_agg_key = [v['field'].lower() for v in fm_aggregation_profile[level_id].get('FMSubAggKey', {}).values()
                    if v['field'].lower() in prev_level_df.columns]
-    need_account_aggregation = prev_level_df[agg_key + sub_agg_key].value_counts().max() > 1
+    need_account_aggregation = prev_level_df[agg_key + sub_agg_key + ['layer_id']].value_counts().max() > 1
+
     if need_account_aggregation:
         level_df = column_base_il_df[set(present_cols)]
         level_df['orig_level_id'] = level_id
@@ -1069,7 +1154,7 @@ def get_il_input_items(
         level_df['agg_id'] = factorize_ndarray(level_df.loc[:, agg_key].values, col_idxs=range(len(agg_key)))[0]
         prev_level_df['to_agg_id'] = factorize_ndarray(prev_level_df.loc[:, agg_key].values, col_idxs=range(len(agg_key)))[0]
 
-        level_df.drop_duplicates(subset=agg_key + sub_agg_key, inplace=True)
+        level_df.drop_duplicates(subset=agg_key + sub_agg_key + ['layer_id'], inplace=True)
         il_inputs_df_list.append(prev_level_df)
         prev_level_df = level_df
 
