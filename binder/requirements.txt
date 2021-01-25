@@ -15,4 +15,5 @@ pathlib
 pytest
 qgrid
 tabulate
+graphviz
 git+git://github.com/OasisLMF/OasisLMF.git@feature/692-fm-testing-tool#egg=oasislmf

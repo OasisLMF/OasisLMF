@@ -15,3 +15,4 @@ pathlib
 pytest
 qgrid
 tabulate
+graphviz

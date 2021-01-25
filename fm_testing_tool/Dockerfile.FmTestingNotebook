@@ -12,7 +12,7 @@ COPY ./fm_testing_tool/set_jupyter_password.py /usr/local/bin/
 COPY ./fm_testing_tool/startup.sh /usr/local/bin/
 
 # Build Notebook
-# RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends graphviz && rm -rf /var/lib/apt/lists/*
 RUN pip3 install -r requirements.txt
 RUN ./postBuild
 RUN rm requirements.txt
