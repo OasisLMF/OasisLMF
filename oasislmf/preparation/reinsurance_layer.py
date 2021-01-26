@@ -121,8 +121,9 @@ def write_files_for_reinsurance(
 
         # store dot file for FM tree
         if store_tree:
-            DotExporter(ri_input.ri_inputs.fm_tree).to_dotfile(
-                os.path.join(ri_output_dir, "fm_tree.dot"))
+            dot_data = DotExporter(ri_input.ri_inputs.fm_tree)
+            dot_data.to_picture(os.path.join(ri_output_dir, 'fm_tree.png'))
+            dot_data.to_dotfile(os.path.join(ri_output_dir, "fm_tree.dot"))
 
         fm_xref_df = get_dataframe(fm_xref_fp)
         fm_xref_df['agg_id'] = range(1, 1 + len(fm_xref_df))
@@ -261,7 +262,7 @@ class ReinsuranceLayer(object):
     def _add_filter_level_node(
             self, level_id, agg_id, xref_description, parent):
         return self._add_node(
-            "Portfolio_number:{} Account_number:{} Policy_number:{} Location_number:{}".format(
+            "Portfolio_number:{} \nAccount_number:{} \nPolicy_number:{} \nLocation_number:{}".format(
                 xref_description.portnumber,
                 xref_description.accnumber,
                 xref_description.polnumber,
@@ -278,7 +279,7 @@ class ReinsuranceLayer(object):
     def _add_location_node(
             self, level_id, agg_id, xref_description, parent):
         return self._add_node(
-            "Portfolio_number:{} Account_number:{} Location_number:{}".format(
+            "Portfolio_number:{} \nAccount_number:{} \nLocation_number:{}".format(
                 xref_description.portnumber,
                 xref_description.accnumber,
                 xref_description.locnumber),
@@ -302,7 +303,7 @@ class ReinsuranceLayer(object):
     def _add_policy_node(
             self, level_id, agg_id, xref_description, parent):
         return self._add_node(
-            "Portfolio number:{} Account_number:{} Policy_number:{}".format(
+            "Portfolio number:{} \nAccount_number:{} \nPolicy_number:{}".format(
                 xref_description.portnumber, xref_description.accnumber, xref_description.polnumber),
             parent=parent,
             level_id=level_id,
@@ -314,7 +315,7 @@ class ReinsuranceLayer(object):
     def _add_account_node(
             self, agg_id, level_id, xref_description, parent):
         return self._add_node(
-            "Portfolio number:{} Account_number:{}".format(
+            "Portfolio number:{} \nAccount_number:{}".format(
                 xref_description.portnumber, xref_description.accnumber),
             parent=parent,
             level_id=level_id,
