@@ -83,6 +83,7 @@ class GenerateFiles(ComputationStep):
         {'name': 'lookup_config'},
         {'name': 'lookup_complex_config'},
         {'name': 'lookup_multiprocessing',        'default': True},
+        {'name': 'write_ri_tree',                 'default': False},
         {'name': 'verbose',                       'default': False},
         {'name': 'write_chunksize', 'type':int,   'default': WRITE_CHUNKSIZE},
         {'name': 'oasis_files_prefixes',          'default': OASIS_FILES_PREFIXES},
@@ -286,7 +287,8 @@ class GenerateFiles(ComputationStep):
             ri_info_df,
             ri_scope_df,
             oasis_files['fm_xref'],
-            target_dir
+            target_dir,
+            self.write_ri_tree
         )
 
         with io.open(os.path.join(target_dir, 'ri_layers.json'), 'w', encoding='utf-8') as f:

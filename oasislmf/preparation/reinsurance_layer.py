@@ -14,6 +14,7 @@ import anytree
 import numbers
 import pandas as pd
 
+from anytree.exporter.dotexporter import DotExporter
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from . import oed
@@ -33,7 +34,7 @@ RiInputs = namedtuple(
 
 RiLayerInputs = namedtuple(
     'RiLayerInputs',
-    'fm_programme fm_profile fm_policytc'
+    'fm_programme fm_profile fm_policytc fm_tree'
 )
 
 
@@ -86,7 +87,8 @@ def write_files_for_reinsurance(
         ri_info_df,
         ri_scope_df,
         fm_xref_fp,
-        output_dir):
+        output_dir,
+        store_tree=False):
     """
     Generate files for reinsurance.
     """
@@ -116,6 +118,11 @@ def write_files_for_reinsurance(
             os.path.join(ri_output_dir, "fm_profile.csv"), index=False)
         ri_input.ri_inputs.fm_policytc.to_csv(
             os.path.join(ri_output_dir, "fm_policytc.csv"), index=False)
+
+        # store dot file for FM tree
+        if store_tree:
+            DotExporter(ri_input.ri_inputs.fm_tree).to_dotfile(
+                os.path.join(ri_output_dir, "fm_tree.dot"))
 
         fm_xref_df = get_dataframe(fm_xref_fp)
         fm_xref_df['agg_id'] = range(1, 1 + len(fm_xref_df))
@@ -174,7 +181,8 @@ def _generate_inputs_for_reinsurance_risk_level(
     return RiLayerInputs(
         fm_programme=reinsurance_layer.fmprogrammes_df,
         fm_profile=reinsurance_layer.fmprofiles_df,
-        fm_policytc=reinsurance_layer.fm_policytcs_df
+        fm_policytc=reinsurance_layer.fm_policytcs_df,
+        fm_tree=reinsurance_layer.fm_tree,
     )
 
 
@@ -910,7 +918,7 @@ class ReinsuranceLayer(object):
         self.fmprogrammes_df = pd.DataFrame(fmprogrammes_list)
         self.fmprofiles_df = pd.DataFrame(fmprofiles_list)
         self.fm_policytcs_df = pd.DataFrame(fm_policytcs_list)
-
+        self.fm_tree = add_profiles_args.program_node
         self._log_reinsurance_structure(add_profiles_args)
 
     def write_oasis_files(self, directory=None):
