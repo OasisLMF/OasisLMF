@@ -89,8 +89,6 @@ def create_fm_tree(fm_programme_df, fm_policytc_df, fm_profile_df, fm_summary_df
                 node_name = "cov term {}".format(node_info.to_agg_id)
 
             for policy in policy_list:
-                print(policy)
-                print(policy.calc_rules)
                 if len(policy.calc_rules) == 1:
                     node_name += "\n\nlayer_id: {} \npolicytc_id: {} \ncalc_rule: {}".format(
                         policy.layer_id,
