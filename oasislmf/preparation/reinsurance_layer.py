@@ -262,7 +262,8 @@ class ReinsuranceLayer(object):
     def _add_filter_level_node(
             self, level_id, agg_id, xref_description, parent):
         return self._add_node(
-            "Portfolio_number:{} \nAccount_number:{} \nPolicy_number:{} \nLocation_number:{}".format(
+            "filter_node {} \n\nPortfolio_number:{} \nAccount_number:{} \nPolicy_number:{} \nLocation_number:{}".format(
+                agg_id,
                 xref_description.portnumber,
                 xref_description.accnumber,
                 xref_description.polnumber,
@@ -279,7 +280,8 @@ class ReinsuranceLayer(object):
     def _add_location_node(
             self, level_id, agg_id, xref_description, parent):
         return self._add_node(
-            "Portfolio_number:{} \nAccount_number:{} \nLocation_number:{}".format(
+            "location_node: {} \n\nPortfolio_number:{} \nAccount_number:{} \nLocation_number:{}".format(
+                agg_id,
                 xref_description.portnumber,
                 xref_description.accnumber,
                 xref_description.locnumber),
@@ -294,7 +296,7 @@ class ReinsuranceLayer(object):
     def _add_location_group_node(
             self, level_id, agg_id, xref_description, parent):
         return self._add_node(
-            "Location_group:{}".format(xref_description.locgroup),
+            "loc_group_node: {} \n\nLocation_group:{}".format(agg_id, xref_description.locgroup),
             parent=parent,
             level_id=level_id,
             agg_id=agg_id,
@@ -303,8 +305,8 @@ class ReinsuranceLayer(object):
     def _add_policy_node(
             self, level_id, agg_id, xref_description, parent):
         return self._add_node(
-            "Portfolio number:{} \nAccount_number:{} \nPolicy_number:{}".format(
-                xref_description.portnumber, xref_description.accnumber, xref_description.polnumber),
+            "policy_node: {} \n\nPortfolio number:{} \nAccount_number:{} \nPolicy_number:{}".format(
+                agg_id, xref_description.portnumber, xref_description.accnumber, xref_description.polnumber),
             parent=parent,
             level_id=level_id,
             agg_id=agg_id,
@@ -315,8 +317,8 @@ class ReinsuranceLayer(object):
     def _add_account_node(
             self, agg_id, level_id, xref_description, parent):
         return self._add_node(
-            "Portfolio number:{} \nAccount_number:{}".format(
-                xref_description.portnumber, xref_description.accnumber),
+            "account_node: {} \n\nPortfolio number:{} \nAccount_number:{}".format(
+                agg_id, xref_description.portnumber, xref_description.accnumber),
             parent=parent,
             level_id=level_id,
             agg_id=agg_id,
@@ -326,7 +328,7 @@ class ReinsuranceLayer(object):
     def _add_portfolio_node(
             self, agg_id, level_id, xref_description, parent):
         return self._add_node(
-            "Portfolio number:{}".format(xref_description.portnumber),
+            "portfolio_node: {} \n\nPortfolio number:{}".format(agg_id, xref_description.portnumber),
             parent=parent,
             level_id=level_id,
             agg_id=agg_id,

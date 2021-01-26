@@ -5,9 +5,11 @@ import fileupload
 import os
 from ipywidgets import Dropdown
 import ipywidgets as widgets
+from pandas.core.frame import DataFrame
 
-
-def show_df(df):
+def show_df(df=None):
+    if not isinstance(df, DataFrame):
+        return None
     grid_options = {
         'fullWidthRows': True,
         'syncColumnCellResize': True,
