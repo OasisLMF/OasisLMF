@@ -101,3 +101,5 @@ def select_source_dir(path_dict, examples_dir=None):
     display(ui)
     display("Default value: {}".format(path_dict['source_dir']))
     display(path_dict)
+
+
