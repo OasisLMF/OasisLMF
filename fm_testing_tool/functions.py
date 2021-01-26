@@ -6,6 +6,8 @@ from anytree.search import find
 from anytree.exporter import DotExporter
 import collections
 
+PolicyTuple = collections.namedtuple('PolicyTuple','layer_id agg_id calc_rules')
+CalcRuleTuple = collections.namedtuple('CalcRuleTuple', 'policytc_id calcrule_id is_step trig_start trig_end')
 
 def load_df(path, required_file=None):
     if path:
@@ -19,33 +21,43 @@ def load_df(path, required_file=None):
 def create_fm_tree(fm_programme_df, fm_policytc_df, fm_profile_df, fm_summary_df):
 
     def get_policy_tc(agg_id, level_id):
-        PolicyTuple = collections.namedtuple('PolicyTuple','layer_id policytc_id agg_id calc_rule')
         policytc = fm_policytc_df.loc[
             (fm_policytc_df['agg_id'] == agg_id) & (fm_policytc_df['level_id'] == level_id)
         ]
 
         policy_list = []
         for _, policy in policytc.iterrows():
-            if hasattr(policy, 'profile_id'):
-                # RI fm files use the older 'profile_id'
-                policy_list.append(
-                    PolicyTuple(
-                        layer_id=policy.layer_id,
-                        policytc_id=policy.profile_id,
-                        agg_id=policy.agg_id,
-                        calc_rule=fm_profile_df.loc[fm_profile_df.profile_id == policy.profile_id].calcrule_id.item()
-                    )
-                )
+
+            # Find calc_rule
+            profile = fm_profile_df.loc[fm_profile_df.policytc_id == policy.policytc_id]
+            if len(profile) == 1:
+                # Non-Step policy rule
+                calc_rules = [CalcRuleTuple(
+                    policytc_id=policy.policytc_id,
+                    calcrule_id=profile.calcrule_id.item(),
+                    is_step=False,
+                    trig_start=None,
+                    trig_end=None,
+                )]
             else:
-                # FM files use 'policytc_id'
-                policy_list.append(
-                    PolicyTuple(
-                        layer_id=policy.layer_id,
+                # If there are multiple then either error or step pol
+                calc_rules = []
+                for _, step in profile.iterrows():
+                    calc_rules.append(CalcRuleTuple(
                         policytc_id=policy.policytc_id,
-                        agg_id=policy.agg_id,
-                        calc_rule=fm_profile_df.loc[fm_profile_df.policytc_id == policy.policytc_id].calcrule_id.item()
-                    )
+                        calcrule_id=step.calcrule_id,
+                        is_step=True,
+                        trig_start=step.trigger_start,
+                        trig_end=step.trigger_end
+                    ))
+
+            policy_list.append(
+                PolicyTuple(
+                    layer_id=policy.layer_id,
+                    agg_id=policy.agg_id,
+                    calc_rules=calc_rules,
                 )
+            )
         return len(policytc), policy_list
 
     level_ids = sorted(list(fm_programme_df.level_id.unique()), reverse=True)
@@ -75,12 +87,26 @@ def create_fm_tree(fm_programme_df, fm_policytc_df, fm_profile_df, fm_summary_df
                 node_name = "loc term {} ".format(node_info.to_agg_id)
             else:
                 node_name = "cov term {}".format(node_info.to_agg_id)
+
             for policy in policy_list:
-                node_name += "\n\nlayer_id: {} \n policytc_id: {} \ncalc_rule: {}".format(
-                    policy.layer_id,
-                    policy.policytc_id,
-                    policy.calc_rule,
-                )
+                print(policy)
+                print(policy.calc_rules)
+                if len(policy.calc_rules) == 1:
+                    node_name += "\n\nlayer_id: {} \npolicytc_id: {} \ncalc_rule: {}".format(
+                        policy.layer_id,
+                        policy.calc_rules[0].policytc_id,
+                        policy.calc_rules[0].calcrule_id,
+                    )
+                else:
+                    # sub list for step policy
+                    node_name += "\n\nlayer_id: {}".format(policy.layer_id)
+                    for rule in policy.calc_rules:
+                        node_name += "\n   step_pol_id {}: rule: {}, start: {} end: {}".format(
+                            rule.policytc_id,
+                            rule.calcrule_id,
+                            rule.trig_start,
+                            rule.trig_end
+                        )
 
             # Create Node in FM tree
             node = anytree.Node(
