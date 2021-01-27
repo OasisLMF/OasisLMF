@@ -30,31 +30,24 @@ def create_fm_tree(fm_programme_df, fm_policytc_df, fm_profile_df, fm_summary_df
 
             # Find calc_rule
             profile = fm_profile_df.loc[fm_profile_df.policytc_id == policy.policytc_id]
-            if len(profile) == 1:
-                # Non-Step policy rule
-                calc_rules = [CalcRuleTuple(
-                    policytc_id=policy.policytc_id,
-                    calcrule_id=profile.calcrule_id.item(),
-                    is_step=False,
-                    trig_start=None,
-                    trig_end=None,
-                )]
-            else:
-                # If there are multiple then either error or step pol
-                calc_rules = []
-                for _, step in profile.iterrows():
-                    calc_rules.append(CalcRuleTuple(
-                        policytc_id=policy.policytc_id,
-                        calcrule_id=step.calcrule_id,
-                        is_step=True,
-                        trig_start=step.trigger_start,
-                        trig_end=step.trigger_end
-                    ))
+            calc_rules = []
+            for _, step in profile.iterrows():
+                trig_start = step.trigger_start if hasattr(step, 'trigger_start') else 0
+                trig_end = step.trigger_end if hasattr(step, 'trigger_end') else 0
+                is_step_rule = (trig_end > 0 or trig_start > 0)
+
+                calc_rules.append(CalcRuleTuple(
+                    policytc_id=int(policy.policytc_id),
+                    calcrule_id=int(step.calcrule_id),
+                    is_step=is_step_rule,
+                    trig_start=trig_start,
+                    trig_end=trig_end,
+                ))
 
             policy_list.append(
                 PolicyTuple(
-                    layer_id=policy.layer_id,
-                    agg_id=policy.agg_id,
+                    layer_id=int(policy.layer_id),
+                    agg_id=int(policy.agg_id),
                     calc_rules=calc_rules,
                 )
             )
@@ -89,21 +82,19 @@ def create_fm_tree(fm_programme_df, fm_policytc_df, fm_profile_df, fm_summary_df
                 node_name = "cov term {}".format(node_info.to_agg_id)
 
             for policy in policy_list:
-                if len(policy.calc_rules) == 1:
-                    node_name += "\n\nlayer_id: {} \npolicytc_id: {} \ncalc_rule: {}".format(
-                        policy.layer_id,
-                        policy.calc_rules[0].policytc_id,
-                        policy.calc_rules[0].calcrule_id,
-                    )
-                else:
-                    # sub list for step policy
-                    node_name += "\n\nlayer_id: {}".format(policy.layer_id)
-                    for rule in policy.calc_rules:
-                        node_name += "\n   step_pol_id {}: rule: {}, start: {} end: {}".format(
+                node_name += "\n\nlayer_id: {}".format(policy.layer_id)
+                for rule in policy.calc_rules:
+                    if rule.is_step:
+                        node_name += "\n   policytc_id {}: step_rule:{}, start:{} end:{}".format(
                             rule.policytc_id,
                             rule.calcrule_id,
                             rule.trig_start,
                             rule.trig_end
+                        )
+                    else:
+                        node_name += "\npolicytc_id: {} \ncalc_rule: {}".format(
+                            rule.policytc_id,
+                            rule.calcrule_id,
                         )
 
             # Create Node in FM tree
@@ -120,7 +111,8 @@ def create_fm_tree(fm_programme_df, fm_policytc_df, fm_profile_df, fm_summary_df
     item_agg_idx = list(fm_summary_df[['agg_id']].drop_duplicates().index)
     for item in item_agg_idx:
         item_info = fm_summary_df.iloc[item]
-        parent_node = find(root, filter_=lambda node: node.level_id == 1 and node.agg_id == item_info.agg_id)
+        matched_id = fm_programme_df.loc[(fm_programme_df.level_id == 1) & (fm_programme_df.from_agg_id == item_info.agg_id)].to_agg_id.item()
+        parent_node = find(root, filter_=lambda node: node.level_id == 1 and node.agg_id == matched_id)
 
         node_name = "\n".join([
            "item {}\n".format(int(item_info.agg_id)),
