@@ -194,6 +194,9 @@ def read_streams(streams_in, nodes_array, losses, index, computes):
                                                                                              nodes_array, losses, index,
                                                                                              computes)
                     if event_id:
+                        if not yield_event:
+                            loss_index += 1
+                        logger.debug(f'event_id: {event_id}, loss_index :{loss_index}')
                         yield event_id, loss_index
 
     finally:
