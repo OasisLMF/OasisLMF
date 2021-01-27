@@ -16,6 +16,7 @@ import pandas as pd
 
 from .base import OasisBaseLookup
 from .rtree import RTreeLookup
+from .interface import OasisLookupInterface
 
 from ..utils.exceptions import OasisException
 from ..utils.status import OASIS_KEYS_STATUS
@@ -410,20 +411,29 @@ class OasisLookupFactory(object):
             "success_only": (False if efp else True)
         }
 
+        # Return the multiproccessed generated (both lookup classes have this method)
         if (multiproc_enabled and hasattr(lookup, 'process_locations_multiproc')):
-            # Multi-Process
             keys_generator = cls.get_keys_multiproc
             kwargs['num_cores'] = multiproc_num_cores
             kwargs['num_partitions'] = multiproc_num_partitions
+        # Return Rtree based method
+        elif isinstance(lookup, (RTreeLookup, OasisBaseLookup)):
+            keys_generator = cls.get_keys_builtin
+        # Return Interface method, same as 'OasisBaseKeysLookup' before refactor
+        elif isinstance(lookup, OasisLookupInterface):
+            keys_generator = cls.get_keys_base
+        # Fallback to trying 'get_keys_base', if that fails raise a error
         else:
-            # Fall back to Single process
-            keys_generator = cls.get_keys_builtin if hasattr(lookup, 'config') else (cls.get_keys_base)
+            try:
+                keys_generator = cls.get_keys_base
+            except AttributeError:
+                raise OasisException('Unknown lookup class {}, missing default method "cls.get_keys_base"'.format(type(lookup)))
 
         results = keys_generator(**kwargs)
         successes = []
         nonsuccesses = []
 
-        # ToDO: Move the inside the keys_generators?  and return a tuple of (successes, nonsuccesses)
+        # Todo: Move the inside the keys_generators?  and return a tuple of (successes, nonsuccesses)
         for r in results:
             successes.append(r) if r['status'] == OASIS_KEYS_STATUS['success']['id'] else nonsuccesses.append(r)
 
