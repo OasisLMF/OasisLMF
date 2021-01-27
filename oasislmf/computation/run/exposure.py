@@ -25,6 +25,7 @@ from ...utils.data import (
     print_dataframe,
 )
 from ...utils.inputs import str2bool
+from ...utils.coverages import SUPPORTED_COVERAGE_TYPES
 from ...utils.defaults import (
     KTOOLS_ALLOC_IL_DEFAULT,
     KTOOLS_ALLOC_RI_DEFAULT,
@@ -46,6 +47,7 @@ class RunExposure(ComputationStep):
         {'name': 'ktools_alloc_rule_ri', 'flag':'-A', 'default': KTOOLS_ALLOC_RI_DEFAULT,  'type':int, 'help': 'Set the fmcalc allocation rule used in reinsurance'},
         {'name': 'output_level',         'flag':'-o', 'help': 'Keys files output format', 'choices':['item', 'loc', 'pol', 'acc', 'port'], 'default': 'item'},
         {'name': 'num_subperils',        'flag':'-p', 'default': 1,  'type':int,          'help': 'Set the number of subperils returned by deterministic key generator'},
+        {'name': 'coverage_types',       'type' :int, 'nargs':'+', 'default': list(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()), 'help': 'Select List of supported coverage_types [1, .. ,4]'}, 
         {'name': 'fmpy',                 'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory',      'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
 
@@ -114,6 +116,7 @@ class RunExposure(ComputationStep):
             oed_location_csv=location_fp,
             keys_data_csv=keys_fp,
             num_subperils=self.num_subperils,
+            supported_oed_coverage_types=self.coverage_types,
         ).run()
 
         # 2. Start Oasis files generation
@@ -132,7 +135,7 @@ class RunExposure(ComputationStep):
             output_dir=os.path.join(run_dir, 'output'),
             include_loss_factor=include_loss_factor,
             loss_factor=self.loss_factor,
-            num_subperils=self.num_subperils,
+            #num_subperils=self.num_subperils,
             net_ri=self.net_ri,
             ktools_alloc_rule_il=self.ktools_alloc_rule_il,
             ktools_alloc_rule_ri=self.ktools_alloc_rule_ri,
