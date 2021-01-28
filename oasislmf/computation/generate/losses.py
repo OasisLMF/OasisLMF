@@ -1,6 +1,7 @@
 __all__ = [
     'GenerateLosses',
-    'GenerateLossesDeterministic'
+    'GenerateLossesDeterministic',
+    'GenerateLossesDummyModel'
 ]
 
 import importlib
@@ -9,6 +10,7 @@ import json
 import os
 import pandas as pd
 import re
+import subprocess
 import sys
 import warnings
 
@@ -18,8 +20,9 @@ from json import JSONDecodeError
 from pathlib2 import Path
 from subprocess import CalledProcessError, check_call
 
+from .files import GenerateDummyModelFiles, GenerateDummyOasisFiles
 from ..base import ComputationStep
-from ...execution import runner
+from ...execution import runner, bash
 from ...execution.bin import (
     csv_to_bin,
     prepare_run_directory,
@@ -432,3 +435,126 @@ class GenerateLossesDeterministic(ComputationStep):
                             losses['ri'] = rils
 
         return losses
+
+
+class GenerateLossesDummyModel(GenerateDummyOasisFiles):
+
+    step_params = [
+        {'name': 'analysis_settings_json', 'flag': '-z', 'is_path': True, 'pre_exist': True, 'required': True, 'help': 'Analysis settings JSON file path'}
+    ]
+    chained_commands = [GenerateDummyModelFiles, GenerateDummyOasisFiles]
+
+    def _validate_analysis_settings(self):
+        warnings.simplefilter('always')
+
+        # RI output is unsupported
+        if self.analysis_settings.get('ri_output'):
+            warnings.warn('Generating reinsurance losses with dummy model not currently supported. Ignoring ri_output in analysis settings JSON.')
+            self.analysis_settings['ri_output'] = False
+
+        # No loc or acc files so grouping losses based on OED fields is
+        # unsupported
+        # No generation of return periods file so currently unsupported
+        loss_types = [False, False]
+        loss_params = [
+            {
+                'loss': 'GUL', 'output': 'gul_output',
+                'summary': 'gul_summaries', 'num_summaries': 0
+            }, {
+                'loss': 'IL', 'output': 'il_output',
+                'summary': 'il_summaries', 'num_summaries': 0
+            }
+        ]
+        for idx, param in enumerate(loss_params):
+            if self.analysis_settings.get(param['output']):
+                param['num_summaries'] = len(self.analysis_settings[param['summary']])
+                self.analysis_settings[param['summary']][:] = [x for x in self.analysis_settings[param['summary']] if not x.get('oed_fields')]
+                num_dropped_summaries = param['num_summaries'] - len(self.analysis_settings[param['summary']])
+                if num_dropped_summaries == param['num_summaries']:
+                    warnings.warn(f'Grouping losses based on OED fields is unsupported. No valid {param["loss"]} output. Please change {param["loss"]} settings in analysis settings JSON.')
+                    self.analysis_settings[param['output']] = False
+                elif num_dropped_summaries > 0:
+                    warnings.warn(f'Grouping losses based on OED fields is unsupported. {num_dropped_summaries} groups ignored in {param["loss"]} output.')
+                if param['num_summaries'] > 1:   # Get first summary only
+                    self.analysis_settings[param['summary']] = [self.analysis_settings[param['summary']][0]]
+                if self.analysis_settings[param['output']]:
+                    # We should only have one summary now
+                    self.analysis_settings[param['summary']][0]['id'] = 1
+                    if self.analysis_settings[param['summary']][0]['leccalc']['return_period_file']:
+                        warnings.warn(f'Return period file is not generated. Please use "return_periods" field in analysis settings JSON.')
+                        self.analysis_settings[param['summary']][0]['leccalc']['return_period_file'] = False
+                    loss_types[idx] = True
+        (self.gul, self.il) = loss_types        
+
+        # Check for valid outputs
+        if not any([self.gul, self.il]):
+            raise OasisException('No valid output settings. Please check analysis settings JSON.')
+        if not self.gul:
+            raise OasisException('Valid GUL output required. Please check analysis settings JSON.')
+
+    def _prepare_run_directory(self):
+        self.input_dir = os.path.join(self.target_dir, 'input')
+        self.static_dir = os.path.join(self.target_dir, 'static')
+        self.output_dir = os.path.join(self.target_dir, 'output')
+        self.work_dir = os.path.join(self.target_dir, 'work')
+        directories = [
+            self.input_dir, self.static_dir, self.output_dir, self.work_dir
+        ]
+        for directory in directories:
+            if not os.path.exists(directory):
+                Path(directory).mkdir(parents=True, exist_ok=True)
+
+        # Write new analysis_settings.json to target directory
+        analysis_settings_fp = os.path.join(
+            self.target_dir, 'analysis_settings.json'
+        )
+        with open(analysis_settings_fp, 'w') as f:
+            json.dump(self.analysis_settings, f, indent=4, ensure_ascii=False)
+
+    def _write_summary_info_files(self):
+        summary_info_df = pd.DataFrame(
+            {'summary_id': [1], '_not_set_': ['All-Risks']}
+        )
+        summary_info_fp = [
+            os.path.join(self.output_dir, 'gul_S1_summary-info.csv'),
+            os.path.join(self.output_dir, 'il_S1_summary-info.csv')
+        ]
+        for fp, loss_type in zip(summary_info_fp, [self.gul, self.il]):
+            if loss_type:
+                summary_info_df.to_csv(
+                    path_or_buf=fp, encoding='utf-8', index=False
+                )
+
+    def run(self):
+        self.logger.info('\nProcessing arguments - Creating Model & Test Oasis Files')
+
+        self._validate_input_arguments()
+        self.analysis_settings = get_analysis_settings(
+            self.analysis_settings_json
+        )
+        self._validate_analysis_settings()
+        self._create_target_directory(label='losses')
+        self._prepare_run_directory()
+        self._get_model_file_objects()
+        self._get_gul_file_objects()
+
+        self.il = False
+        if self.analysis_settings.get('il_output'):
+            self.il = True
+            self._get_fm_file_objects()
+        else:
+            self.fm_files = []
+
+        output_files = self.model_files + self.gul_files + self.fm_files
+        for output_file in output_files:
+            output_file.write_file()
+
+        self.logger.info(f'\nGenerating losses (GUL=True, IL={self.il})')
+
+        self._write_summary_info_files()
+        script_fp = os.path.join(self.target_dir, 'run_ktools.sh')
+        bash.genbash(max_process_id=1, analysis_settings=self.analysis_settings, filename=script_fp)
+        bash_trace = subprocess.check_output(['bash', script_fp])
+        self.logger.info(bash_trace.decode('utf-8'))
+
+        self.logger.info(f'\nDummy Model run completed successfully in {self.target_dir}')

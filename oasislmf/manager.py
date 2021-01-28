@@ -14,7 +14,11 @@ from .computation.generate.files import (
     GenerateDummyOasisFiles
 )
 from .computation.generate.keys import GenerateKeys, GenerateKeysDeterministic
-from .computation.generate.losses import GenerateLosses, GenerateLossesDeterministic
+from .computation.generate.losses import (
+    GenerateLosses,
+    GenerateLossesDeterministic,
+    GenerateLossesDummyModel
+)
 from .computation.helper.autocomplete import HelperTabComplete
 from .computation.helper.cookiecutter import CreateModelRepo, CreateComplexModelRepo
 from .computation.run.generate_files import GenerateOasisFiles
@@ -37,6 +41,7 @@ class OasisManager(object):
         GenerateKeysDeterministic,
         GenerateLosses,
         GenerateLossesDeterministic,
+        GenerateLossesDummyModel,
         GenerateRtreeIndexData,
         GenerateDummyModelFiles,
         GenerateDummyOasisFiles,

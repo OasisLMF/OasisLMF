@@ -68,6 +68,12 @@ class GenerateDummyOasisFilesCmd(OasisComputationCommand):
     computation_name = 'GenerateDummyOasisFiles'
 
 
+class GenerateLossesDummyModelCmd(OasisComputationCommand):
+
+    formatter_class = RawDescriptionHelpFormatter
+    computation_name = 'GenerateLossesDummyModel'
+
+
 class TestModelCmd(BaseCommand):
     """
     Present sub-commands for creating test models
@@ -75,7 +81,8 @@ class TestModelCmd(BaseCommand):
 
     sub_commands = {
         'generate-model-files': GenerateDummyModelFilesCmd,
-        'generate-oasis-files': GenerateDummyOasisFilesCmd
+        'generate-oasis-files': GenerateDummyOasisFilesCmd,
+        'run': GenerateLossesDummyModelCmd
     }
 
 
