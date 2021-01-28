@@ -20,7 +20,7 @@ exit_handler(){
    else
        echo 'Run Completed'
    fi
-   
+
    set +x
    group_pid=$(ps -p $$ -o pgid --no-headers)
    sess_pid=$(ps -p $$ -o sess --no-headers)
@@ -107,8 +107,8 @@ wait $pid1 $pid2
 # --- Do insured loss kats for fully correlated output ---
 
 
-aalcalc -Kil_S1_summaryaalcalc > output/il_S1_aalcalc.csv & lpid1=$!
-aalcalc -Kfull_correlation/il_S1_summaryaalcalc > output/full_correlation/il_S1_aalcalc.csv & lpid2=$!
+( aalcalc -Kil_S1_summaryaalcalc > output/il_S1_aalcalc.csv ) 2>> log/stderror.err & lpid1=$!
+( aalcalc -Kfull_correlation/il_S1_summaryaalcalc > output/full_correlation/il_S1_aalcalc.csv ) 2>> log/stderror.err & lpid2=$!
 wait $lpid1 $lpid2
 
 rm -R -f work/*

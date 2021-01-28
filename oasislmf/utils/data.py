@@ -496,7 +496,9 @@ def get_dataframe(
                 keep_default_na=False,
                 na_values=na_values,
                 dtype=col_dtypes,
-                encoding=use_encoding
+                encoding=use_encoding,
+                quotechar='"',
+                skipinitialspace = True,
             )
         elif src_buf and src_type == 'csv':
             df = pd.read_csv(
@@ -505,7 +507,9 @@ def get_dataframe(
                 memory_map=memory_map,
                 keep_default_na=False,
                 na_values=na_values,
-                encoding=use_encoding
+                encoding=use_encoding,
+                quotechar='"',
+                skipinitialspace = True,
             )
         elif src_fp and src_type == 'json':
             df = pd.read_json(
