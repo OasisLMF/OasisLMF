@@ -20,7 +20,7 @@ RUN mkdir -p /root/.jupyter/
 RUN touch /root/.jupyter/jupyter_notebook_config.json
 
 # Install Develop Oasislmf 
-ARG oasis_ver=feature/692-fm-testing-tool
+ARG oasis_ver=develop
 RUN pip3 install git+git://github.com/OasisLMF/OasisLMF.git@$oasis_ver#egg=oasislmf
 
 # Copy test cases 
