@@ -338,7 +338,7 @@ class GenerateDummyModelFiles(ComputationStep):
         {'name': 'intensity_sparseness',     'flag': '-S', 'required': False, 'type': float,    'default': 1.0,         'help': 'Percentage of bins impacted for an event and areaperil'},
         {'name': 'no_intensity_uncertainty', 'flag': '-u', 'required': False, 'default': False, 'action': 'store_true', 'help': 'No intensity uncertainty flag'},
         {'name': 'num_periods',              'flag': '-p', 'required': True,  'type': int,                              'help': 'Number of periods'},
-        {'name': 'num_randoms',              'flag': '-r', 'required': False, 'type': int,      'deafult': 0,           'help': 'Number of random numbers'},
+        {'name': 'num_randoms',              'flag': '-r', 'required': False, 'type': int,      'default': 0,           'help': 'Number of random numbers'},
         {'name': 'random_seed',              'flag': '-R', 'required': False, 'type': int,      'default': -1,          'help': 'Random seed (-1 for 1234 (default), 0 for current system time'}
     ]
 
