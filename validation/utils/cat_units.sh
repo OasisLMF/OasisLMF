@@ -1,9 +1,6 @@
 #!/bin/bash
 # Script to concatenate oed files within subdirectories listed in list.txt
-DIR = $1
-cd $DIR
-
-filename='list.txt'
+filename='include.txt'
 rm location.csv
 rm account.csv
 rm ri_info.csv
