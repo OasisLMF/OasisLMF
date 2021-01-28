@@ -1,6 +1,6 @@
 #!/bin/bash
 # Script to concatenate loc_summary.csv across subdirectories listed in list.txt
-filename='list.txt'
+filename='include.txt'
 rm loc_summary.csv
 touch loc_summary.csv
 n=1

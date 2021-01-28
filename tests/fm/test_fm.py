@@ -36,6 +36,9 @@ class FmAcceptanceTests(TestCase):
 
         self.assertTrue(result)
 
+    def test_insurance(self):
+        self.run_test('insurance')
+
     def test_reinsurance1(self):
         self.run_test('reinsurance1')
 
