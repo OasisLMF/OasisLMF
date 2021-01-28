@@ -360,8 +360,10 @@ class GenerateDummyModelFiles(ComputationStep):
         self.target_dir = create_target_directory(
             target_dir, 'target test model files directory'
         )
+        self.input_dir = self.target_dir
+        self.static_dir = self.target_dir
 
-    def _set_footprint_files_inputs(self, static_dir):
+    def _set_footprint_files_inputs(self):
         self.footprint_files_inputs = {
             'num_events': self.num_events,
             'num_areaperils': self.num_areaperils,
@@ -369,37 +371,34 @@ class GenerateDummyModelFiles(ComputationStep):
             'num_intensity_bins': self.num_intensity_bins,
             'intensity_sparseness': self.intensity_sparseness,
             'no_intensity_uncertainty': self.no_intensity_uncertainty,
-            'directory': static_dir
+            'directory': self.static_dir
         }
 
-    def _get_model_file_objects(self, input_dir=None, static_dir=None):
-        if input_dir is None:
-            input_dir = self.target_dir
-        if static_dir is None:
-            static_dir = self.target_dir
+    def _get_model_file_objects(self):
 
         # vulnerability.bin, events.bin, footprint.bin, footprint.idx,
         # damage_bin_dict.bin and occurrence.bin
-        self._set_footprint_files_inputs(static_dir)
+        self._set_footprint_files_inputs()
         self.model_files = [
             VulnerabilityFile(
                 self.num_vulnerabilities, self.num_intensity_bins,
                 self.num_damage_bins, self.vulnerability_sparseness,
-                self.random_seed, static_dir
+                self.random_seed, self.static_dir
             ),
-            EventsFile(self.num_events, input_dir),
+            EventsFile(self.num_events, self.input_dir),
             FootprintBinFile(
                 **self.footprint_files_inputs, random_seed=self.random_seed
             ),
             FootprintIdxFile(**self.footprint_files_inputs),
-            DamageBinDictFile(self.num_damage_bins, static_dir),
+            DamageBinDictFile(self.num_damage_bins, self.static_dir),
             OccurrenceFile(
-                self.num_events, self.num_periods, self.random_seed, input_dir
+                self.num_events, self.num_periods, self.random_seed,
+                self.input_dir
             )
         ]
         if self.num_randoms > 0:
             self.model_files += [
-                RandomFile(self.num_randoms, self.random_seed, static_dir)
+                RandomFile(self.num_randoms, self.random_seed, self.static_dir)
             ]
 
 
@@ -412,6 +411,8 @@ class GenerateDummyModelFiles(ComputationStep):
 
         for model_file in self.model_files:
             model_file.write_file()
+
+        self.logger.info(f'\nDummy Model files generated in {self.target_dir}')
 
 
 class GenerateDummyOasisFiles(GenerateDummyModelFiles):
@@ -432,48 +433,44 @@ class GenerateDummyOasisFiles(GenerateDummyModelFiles):
         if self.coverages_per_location > 4 or self.coverages_per_location < 1:
             raise OasisException('Number of supported coverage types is 1 to 4')
 
-    def _get_gul_file_objects(self, input_dir=None):
-        if input_dir is None:
-            input_dir = self.target_dir
+    def _get_gul_file_objects(self):
 
         # coverages.bin, items.bin and gulsummaryxref.bin
         self.gul_files = [
             CoveragesFile(
                 self.num_locations, self.coverages_per_location,
-                self.random_seed, input_dir
+                self.random_seed, self.input_dir
             ),
             ItemsFile(
                 self.num_locations, self.coverages_per_location,
                 self.num_areaperils, self.num_vulnerabilities,
-                self.random_seed, input_dir
+                self.random_seed, self.input_dir
             ),
             GULSummaryXrefFile(
-                self.num_locations, self.coverages_per_location, input_dir
+                self.num_locations, self.coverages_per_location, self.input_dir
             )
         ]
 
-    def _get_fm_file_objects(self, input_dir=None):
-        if input_dir is None:
-            input_dir = self.target_dir
+    def _get_fm_file_objects(self):
 
         # fm_programme.bin, fm_policytc.bin, fm_profile.bin, fm_xref.bin and
         # fmsummaryxref.bin
         self.fm_files = [
             FMProgrammeFile(
-                self.num_locations, self.coverages_per_location, input_dir
+                self.num_locations, self.coverages_per_location, self.input_dir
             ),
             FMPolicyTCFile(
                 self.num_locations, self.coverages_per_location,
-                self.num_layers, input_dir
+                self.num_layers, self.input_dir
             ),
-            FMProfileFile(self.num_layers, input_dir),
+            FMProfileFile(self.num_layers, self.input_dir),
             FMXrefFile(
                 self.num_locations, self.coverages_per_location,
-                self.num_layers, input_dir
+                self.num_layers, self.input_dir
             ),
             FMSummaryXrefFile(
                 self.num_locations, self.coverages_per_location,
-                self.num_layers, input_dir
+                self.num_layers, self.input_dir
             )
         ]
 
@@ -494,3 +491,5 @@ class GenerateDummyOasisFiles(GenerateDummyModelFiles):
         output_files = self.model_files + self.gul_files + self.fm_files
         for output_file in output_files:
             output_file.write_file()
+
+        self.logger.info(f'\nDummy Model and Oasis files generated in {self.target_dir}')
