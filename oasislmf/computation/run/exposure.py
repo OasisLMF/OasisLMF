@@ -313,6 +313,8 @@ class RunFmTest(ComputationStep):
         {'name': 'test_case_dir', 'flag': '-t', 'help': 'Test directory - should contain test directories containing OED files and expected results'},
         {'name': 'list_tests', 'flag': '-l', 'action': 'store_true', 'help': 'List the valid test cases in the test directory rather than running'},
         {'name': 'run_dir', 'flag': '-r', 'help': 'Run directory - where files should be generated. If not sst, no files will be saved.'},
+        {'name': 'fmpy',            'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use fmcalc python version instead of c++ version'},
+        {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'update_expected', 'default': False},
     ]
 
@@ -406,7 +408,9 @@ class RunFmTest(ComputationStep):
             loss_factor=loss_factor,
             output_level=output_level,
             output_file=output_file,
-            include_loss_factor=include_loss_factor
+            include_loss_factor=include_loss_factor,
+            fmpy=self.fmpy,
+            fmpy_low_memory=self.fmpy_low_memory,
         ).run()
 
         expected_data_dir = os.path.join(test_dir, 'expected')
