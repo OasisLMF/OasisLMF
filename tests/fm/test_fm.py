@@ -14,7 +14,7 @@ class FmAcceptanceTests(TestCase):
         self.test_cases_fp = os.path.join(sys.path[0], 'validation', 'examples')
 
     def run_test(self, test_case, fmpy=False):
-        update_expected = True
+        update_expected = False
         with tempfile.TemporaryDirectory() as tmp_run_dir:
             result = OasisManager().run_fm_test(
                 test_case_dir=self.test_cases_fp,
