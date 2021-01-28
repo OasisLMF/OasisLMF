@@ -797,9 +797,10 @@ class ReinsuranceLayer(object):
         #
         # Step 2 - Overlay the reinsurance structure. Each reinsurance contact is a seperate layer.
         #
-        layer_id = 1        # Current layer ID
+        layer_id = 0        # Initialise layer ID
         overlay_loop = 0    # Overlays multiple rules in same layer
         prev_reins_number = -1
+        prev_reins_type = None
         fac_contracts_layer = []
         for _, ri_info_row in self.ri_info_df.iterrows():
             overlay_loop += 1
@@ -811,6 +812,9 @@ class ReinsuranceLayer(object):
             # If FAC, don't increment the layer number unless duplicate
             # Else, only increment inline with the reins_number
             if ri_info_row.ReinsType == oed.REINS_TYPE_FAC:
+                if prev_reins_type != oed.REINS_TYPE_FAC:
+                    layer_id += 1
+                    prev_reins_type = ri_info_row.ReinsType
                 if prev_reins_number < ri_info_row.ReinsNumber:
                     prev_reins_number = ri_info_row.ReinsNumber
                 nodes_risk_level_all = anytree.search.findall(
@@ -828,11 +832,10 @@ class ReinsuranceLayer(object):
                     layer_id += 1
                     fac_contracts_layer = []
                 fac_contracts_layer += fac_contracts
-            elif prev_reins_number == -1:
-                prev_reins_number = ri_info_row.ReinsNumber
             elif prev_reins_number < ri_info_row.ReinsNumber:
                 layer_id += 1
                 prev_reins_number = ri_info_row.ReinsNumber
+                prev_reins_type = ri_info_row.ReinsType
 
             if self.logger:
                 pd.set_option('display.width', 1000)
