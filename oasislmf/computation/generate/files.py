@@ -352,9 +352,9 @@ class GenerateDummyModelFiles(ComputationStep):
         if self.random_seed < -1:
             raise OasisException('Invalid random seed')
 
-    def _create_target_directory(self):
+    def _create_target_directory(self, label):
         utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
-        target_dir =  os.path.join(os.getcwd(), 'runs', 'test-files-{}'.format(utcnow))
+        target_dir =  os.path.join(os.getcwd(), 'runs', f'test-{label}-{utcnow}')
         self.target_dir = create_target_directory(
             target_dir, 'target test model files directory'
         )
@@ -401,7 +401,7 @@ class GenerateDummyModelFiles(ComputationStep):
         self.logger.info('\nProcessing arguments - Creating Dummy Model Files')
 
         self._validate_input_arguments()
-        self._create_target_directory()
+        self._create_target_directory(label='files')
         self._get_model_file_objects()
 
         for model_file in self.model_files:
@@ -475,7 +475,7 @@ class GenerateDummyOasisFiles(GenerateDummyModelFiles):
         self.logger.info('\nProcessing arguments - Creating Model & Test Oasis Files')
 
         self._validate_input_arguments()
-        self._create_target_directory()
+        self._create_target_directory(label='files')
         self._get_model_file_objects()
         self._get_gul_file_objects()
 
