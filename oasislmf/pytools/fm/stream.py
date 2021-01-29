@@ -211,36 +211,37 @@ def load_event(event_agg, sidx_loss, event_id, nodes_array, losses, loss_indexes
         node = nodes_array[computes[compute_i]]
         for layer in range(i_layer, node['layer_len']):
             output_id = output_array[node['output_ids']+layer]
-            loss_index = loss_indexes[node['ba']+layer]
-            #print(computes[compute_i], output_id, loss_index, losses[loss_index])
-            while cursor < nb_values:
-                if i_index == 0:
-                    event_agg[cursor]['event_id'], event_agg[cursor]['agg_id'] = event_id, output_id
-                    cursor += 1
-                    i_index = -3
-
-                elif i_index == -3:
-                    sidx_loss[cursor]['sidx'], sidx_loss[cursor]['loss'] = -3, losses[loss_index, 0]
-                    cursor += 1
-                    i_index = -1
-                elif i_index == -1:
-                    sidx_loss[cursor]['sidx'], sidx_loss[cursor]['loss'] = -1, losses[loss_index, -1]
-                    cursor += 1
-                    i_index = 1
-
-                elif i_index == top_sidx_range:
-                    sidx_loss[cursor]['sidx'], sidx_loss[cursor]['loss'] = 0, 0
-                    cursor += 1
-                    i_index = 0
-                    break
-
-                else:
-                    if losses[loss_index, i_index] > float_equal_precision:
-                        sidx_loss[cursor]['sidx'], sidx_loss[cursor]['loss'] = i_index, losses[loss_index, i_index]
+            if output_id:  # if output is not in xref output_id is 0
+                loss_index = loss_indexes[node['ba']+layer]
+                #print(computes[compute_i], output_id, loss_index, losses[loss_index])
+                while cursor < nb_values:
+                    if i_index == 0:
+                        event_agg[cursor]['event_id'], event_agg[cursor]['agg_id'] = event_id, output_id
                         cursor += 1
-                    i_index += 1
-            else:
-                return cursor * number_size, compute_i, i_layer, i_index
+                        i_index = -3
+
+                    elif i_index == -3:
+                        sidx_loss[cursor]['sidx'], sidx_loss[cursor]['loss'] = -3, losses[loss_index, 0]
+                        cursor += 1
+                        i_index = -1
+                    elif i_index == -1:
+                        sidx_loss[cursor]['sidx'], sidx_loss[cursor]['loss'] = -1, losses[loss_index, -1]
+                        cursor += 1
+                        i_index = 1
+
+                    elif i_index == top_sidx_range:
+                        sidx_loss[cursor]['sidx'], sidx_loss[cursor]['loss'] = 0, 0
+                        cursor += 1
+                        i_index = 0
+                        break
+
+                    else:
+                        if losses[loss_index, i_index] > float_equal_precision:
+                            sidx_loss[cursor]['sidx'], sidx_loss[cursor]['loss'] = i_index, losses[loss_index, i_index]
+                            cursor += 1
+                        i_index += 1
+                else:
+                    return cursor * number_size, compute_i, i_layer, i_index
         compute_i += 1
 
     return cursor * number_size, compute_i, i_layer, i_index

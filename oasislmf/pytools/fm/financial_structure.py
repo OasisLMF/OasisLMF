@@ -454,10 +454,15 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
         steps = 2 * (max_level + (1 - start_level)) - 1
         compute_len = 2 * node_level_start[-1] + steps + 1
 
+    output_array_size = 0
+    for node, layer_size in node_layers.items():
+        if node[0] == out_level:
+            output_array_size += layer_size
+
     nodes_array = np.empty(node_level_start[-1] + 1, dtype=nodes_array_dtype)
     node_parents_array = np.empty(parents_len, dtype=np_oasis_int)
     node_profiles_array = np.zeros(fm_policytc.shape[0] + 1, dtype=profile_index_dtype)
-    output_array = np.empty(fm_xref.shape[0], dtype=np_oasis_int)
+    output_array = np.zeros(output_array_size, dtype=np_oasis_int)
 
     node_i = 1
     children_i = 1
