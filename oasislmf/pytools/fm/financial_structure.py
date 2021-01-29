@@ -5,9 +5,9 @@ __all__ = [
     'load_static',
 ]
 
-from .common import nb_oasis_int, np_oasis_int, np_oasis_float, almost_equal, null_index, need_tiv_policy
+from .common import nb_oasis_int, np_oasis_int, np_oasis_float, almost_equal, need_tiv_policy
 from .common import fm_programme_dtype, fm_policytc_dtype, fm_profile_dtype, fm_profile_step_dtype, fm_xref_dtype,\
-    items_dtype, coverages_dtype, allowed_allocation_rule
+    items_dtype, allowed_allocation_rule
 
 from numba import njit, types, from_dtype
 from numba.typed import List, Dict
@@ -21,8 +21,6 @@ logger = logging.getLogger(__name__)
 node_type = types.UniTuple(nb_oasis_int, 2)
 output_type = types.UniTuple(nb_oasis_int, 2)
 layer_type = types.UniTuple(nb_oasis_int, 3)
-
-fm_profile_step_ntype = from_dtype(fm_profile_step_dtype)
 
 # finacial structure processed array
 nodes_array_dtype = from_dtype(np.dtype([('level_id', np_oasis_int),
@@ -454,10 +452,15 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
         steps = 2 * (max_level + (1 - start_level)) - 1
         compute_len = 2 * node_level_start[-1] + steps + 1
 
+    output_array_size = 0
+    for node, layer_size in node_layers.items():
+        if node[0] == out_level:
+            output_array_size += layer_size
+
     nodes_array = np.empty(node_level_start[-1] + 1, dtype=nodes_array_dtype)
     node_parents_array = np.empty(parents_len, dtype=np_oasis_int)
     node_profiles_array = np.zeros(fm_policytc.shape[0] + 1, dtype=profile_index_dtype)
-    output_array = np.empty(fm_xref.shape[0], dtype=np_oasis_int)
+    output_array = np.zeros(output_array_size, dtype=np_oasis_int)
 
     node_i = 1
     children_i = 1
