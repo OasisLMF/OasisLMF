@@ -283,8 +283,11 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     # policytc_id_to_profile_index
     max_policytc_id = np.max(fm_profile['policytc_id'])
     policytc_id_to_profile_index = np.empty(max_policytc_id + 1, dtype=profile_index_dtype)
+    has_tiv_policy = Dict.empty(np_oasis_int, np_oasis_int)
     last_policytc_id = 0  # real policytc_id start at 1
     for i in range(fm_profile.shape[0]):
+        if fm_profile[i]['calcrule_id'] in need_tiv_policy:
+            has_tiv_policy[fm_profile[i]['policytc_id']] = np_oasis_int(0)
         policytc_id_to_profile_index[fm_profile[i]['policytc_id']]['i_end'] = i + 1
         if last_policytc_id != fm_profile[i]['policytc_id']:
             policytc_id_to_profile_index[fm_profile[i]['policytc_id']]['i_start'] = i
@@ -306,13 +309,25 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
 
     # fm_policytc
     programme_node_to_layers = Dict.empty(node_type, List.empty_list(layer_type))
+    i_new_fm_profile = fm_profile.shape[0]
+    new_fm_profile_list = List.empty_list(np.int64)
     # programme_node_to_layers = {}
     for i in range(fm_policytc.shape[0]):
         policytc = fm_policytc[i]
         programme_node = (np_oasis_int(policytc['level_id']), np_oasis_int(policytc['agg_id']))
         i_start = policytc_id_to_profile_index[np_oasis_int(policytc['policytc_id'])]['i_start']
         i_end = policytc_id_to_profile_index[np_oasis_int(policytc['policytc_id'])]['i_end']
-        layer = (np_oasis_int(policytc['layer_id']), i_start, i_end)
+
+        if policytc['policytc_id'] in has_tiv_policy:
+            if has_tiv_policy[policytc['policytc_id']]:
+                for j in range(i_start, i_end):
+                    new_fm_profile_list.append(j)
+                i_start, i_end = i_new_fm_profile, i_new_fm_profile + i_end - i_start
+                i_new_fm_profile = i_end
+            else:
+                has_tiv_policy[policytc['policytc_id']] = np_oasis_int(1)
+
+        layer = (np_oasis_int(policytc['layer_id']), np_oasis_int(i_start), np_oasis_int(i_end))
 
         if programme_node not in programme_node_to_layers:
             _list = List.empty_list(layer_type)
@@ -321,6 +336,13 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
             # programme_node_to_layers[programme_node] = [layer]
         else:
             programme_node_to_layers[programme_node].append(layer)
+
+    if i_new_fm_profile - fm_profile.shape[0]:
+        new_fm_profile = np.empty(i_new_fm_profile, dtype=fm_profile.dtype)
+        new_fm_profile[:fm_profile.shape[0]] = fm_profile[:]
+        for i in range(i_new_fm_profile - fm_profile.shape[0]):
+            new_fm_profile[fm_profile.shape[0] + i] = fm_profile[new_fm_profile_list[i]]
+        fm_profile = new_fm_profile
 
     #fm_xref
     if multi_peril:  # if single peril we can skip item level computation (level 0)
@@ -444,6 +466,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     loss_i = 0
     extra_i = 0
     output_i = 0
+
     for level in range(start_level, max_level+1):
         for agg_id in range(1, level_node_len[level] + 1):
             node_programme = (np_oasis_int(level), np_oasis_int(agg_id))
