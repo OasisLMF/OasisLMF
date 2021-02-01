@@ -7,7 +7,7 @@ import io
 import json
 
 from collections import OrderedDict
-
+from contextlib import ExitStack
 from multiprocessing import cpu_count
 from billiard import Pool
 
@@ -15,8 +15,9 @@ import numpy as np
 import pandas as pd
 
 from .base import OasisBaseLookup
-from .rtree import RTreeLookup
+from .keys_output import JSONKeysOutputStrategy, CSVKeysOutputStrategy
 from .interface import OasisLookupInterface
+from .rtree import RTreeLookup
 
 from ..utils.exceptions import OasisException
 from ..utils.status import OASIS_KEYS_STATUS
@@ -343,27 +344,27 @@ class OasisLookupFactory(object):
         _keys_file_path = as_path(keys_file_path, 'keys_file_path', preexists=False)
         _keys_errors_file_path = as_path(keys_errors_file_path, 'keys_errors_file_path', preexists=False)
 
-        successes = []
-        nonsuccesses = []
-        for k in keys_data:
-            successes.append(k) if k['status'] == OASIS_KEYS_STATUS['success']['id'] else nonsuccesses.append(k)
-
         if keys_format == 'json':
-            if _keys_errors_file_path:
-                fp1, n1 = cls.write_json_keys_file(successes, _keys_file_path)
-                fp2, n2 = cls.write_json_keys_file(nonsuccesses, _keys_errors_file_path)
-
-                return fp1, n1, fp2, n2
-            return cls.write_json_keys_file(successes, _keys_file_path)
+            output_class = JSONKeysOutputStrategy
         elif keys_format == 'oasis':
-            if _keys_errors_file_path:
-                fp1, n1 = cls.write_oasis_keys_file(successes, _keys_file_path, keys_success_msg)
-                fp2, n2 = cls.write_oasis_keys_errors_file(nonsuccesses, _keys_errors_file_path)
-
-                return fp1, n1, fp2, n2
-            return cls.write_oasis_keys_file(successes, _keys_file_path, keys_success_msg)
+            output_class = CSVKeysOutputStrategy
         else:
             raise OasisException("Unrecognised keys file output format - valid formats are 'oasis' or 'json'")
+
+        with ExitStack() as exit_stack:
+            keys_file = exit_stack.enter_context(open(_keys_file_path, "w"))
+            if _keys_errors_file_path:
+                keys_errors_file = exit_stack.enter_context(open(_keys_errors_file_path, "w"))
+            else:
+                keys_errors_file = None
+
+            output_writer = output_class(keys_file, keys_errors_file=keys_errors_file)
+            n_successes, n_nonsuccesses = output_writer.write(keys_data)
+
+        if not _keys_errors_file_path:
+            return _keys_file_path, n_successes
+
+        return _keys_file_path, n_successes, _keys_errors_file_path, n_nonsuccesses
 
     @classmethod
     def save_results(
