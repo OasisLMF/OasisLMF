@@ -440,9 +440,23 @@ class GenerateLossesDeterministic(ComputationStep):
 class GenerateLossesDummyModel(GenerateDummyOasisFiles):
 
     step_params = [
-        {'name': 'analysis_settings_json', 'flag': '-z', 'is_path': True, 'pre_exist': True, 'required': True, 'help': 'Analysis settings JSON file path'}
+        {'name': 'analysis_settings_json', 'flag': '-z', 'is_path': True, 'pre_exist': True,                   'required': True,  'help': 'Analysis settings JSON file path'},
+        {'name': 'ktools_num_processes',   'flag': '-n', 'type': int,     'default': KTOOLS_NUM_PROCESSES,     'required': False, 'help': 'Number of ktools calculation processes to use'},
+        {'name': 'ktools_alloc_rule_gul',                'type': int,     'default': KTOOLS_ALLOC_GUL_DEFAULT, 'required': False, 'help': 'Set the allocation rule used in gulcalc'},
+        {'name': 'ktools_alloc_rule_il',                 'type': int,     'default': KTOOLS_ALLOC_IL_DEFAULT,  'required': False, 'help': 'Set the fmcalc allocation rule used in direct insured loss'}
     ]
     chained_commands = [GenerateDummyModelFiles, GenerateDummyOasisFiles]
+
+    def _validate_input_arguments(self):
+        super()._validate_input_arguments()
+        alloc_ranges = {
+            'ktools_alloc_rule_gul': KTOOLS_ALLOC_GUL_MAX,
+            'ktools_alloc_rule_il': KTOOLS_ALLOC_FM_MAX
+        }
+        for rule in alloc_ranges:
+            alloc_val = getattr(self, rule)
+            if alloc_val < 0 or alloc_val > alloc_ranges[rule]:
+                raise OasisException(f'Error: {rule}={alloc_val} - Not within valid range [0..{alloc_ranges[rule]}]')
 
     def _validate_analysis_settings(self):
         warnings.simplefilter('always')
@@ -553,7 +567,11 @@ class GenerateLossesDummyModel(GenerateDummyOasisFiles):
 
         self._write_summary_info_files()
         script_fp = os.path.join(self.target_dir, 'run_ktools.sh')
-        bash.genbash(max_process_id=1, analysis_settings=self.analysis_settings, filename=script_fp)
+        bash.genbash(
+            max_process_id=1, analysis_settings=self.analysis_settings,
+            gul_alloc_rule=self.ktools_alloc_rule_gul,
+            il_alloc_rule=self.ktools_alloc_rule_il, filename=script_fp
+        )
         bash_trace = subprocess.check_output(['bash', script_fp])
         self.logger.info(bash_trace.decode('utf-8'))
 
