@@ -7,6 +7,7 @@ __all__ = [
 import importlib
 import io
 import json
+import multiprocessing
 import os
 import pandas as pd
 import re
@@ -566,11 +567,15 @@ class GenerateLossesDummyModel(GenerateDummyOasisFiles):
         self.logger.info(f'\nGenerating losses (GUL=True, IL={self.il})')
 
         self._write_summary_info_files()
+        if self.ktools_num_processes == KTOOLS_NUM_PROCESSES:
+            self.ktools_num_processes = multiprocessing.cpu_count()
         script_fp = os.path.join(self.target_dir, 'run_ktools.sh')
         bash.genbash(
-            max_process_id=1, analysis_settings=self.analysis_settings,
+            max_process_id=self.ktools_num_processes,
+            analysis_settings=self.analysis_settings,
             gul_alloc_rule=self.ktools_alloc_rule_gul,
-            il_alloc_rule=self.ktools_alloc_rule_il, filename=script_fp
+            il_alloc_rule=self.ktools_alloc_rule_il,
+            filename=script_fp
         )
         bash_trace = subprocess.check_output(['bash', script_fp])
         self.logger.info(bash_trace.decode('utf-8'))
