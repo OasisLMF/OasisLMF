@@ -499,13 +499,19 @@ class GenerateLossesDummyModel(GenerateDummyOasisFiles):
                         warnings.warn(f'Return period file is not generated. Please use "return_periods" field in analysis settings JSON.')
                         self.analysis_settings[param['summary']][0]['leccalc']['return_period_file'] = False
                     loss_types[idx] = True
-        (self.gul, self.il) = loss_types        
+        (self.gul, self.il) = loss_types
 
         # Check for valid outputs
         if not any([self.gul, self.il]):
             raise OasisException('No valid output settings. Please check analysis settings JSON.')
         if not self.gul:
             raise OasisException('Valid GUL output required. Please check analysis settings JSON.')
+
+        # Determine whether random number file will exist
+        if self.analysis_settings.get('model_settings').get('use_random_number_file'):
+            if self.num_randoms == 0:
+                warnings.warn('Ignoring use random number file option in analysis settings JSON as no random number file will be generated.')
+                self.analysis_settings['model_settings']['use_random_number_file'] = False
 
     def _prepare_run_directory(self):
         self.input_dir = os.path.join(self.target_dir, 'input')
