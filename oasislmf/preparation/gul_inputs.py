@@ -97,7 +97,6 @@ def get_gul_input_items(
     loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
     acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
     portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
-    cond_num = oed_hierarchy['condnum']['ProfileElementName'].lower()
 
     # The (site) coverage FM level ID (# 1 in the OED FM levels hierarchy)
     cov_level_id = SUPPORTED_FM_LEVELS['site coverage']['id']
@@ -134,20 +133,49 @@ def get_gul_input_items(
     )
     term_cols = term_cols_floats + term_cols_ints
 
-    # Handle duplicate location `loc_id` rows, this needs be replaced with logic to collapse
-    # Duplicated rows into a Function of the FM which applies multiple terms to a single location
-    # Until implemented: A warning message is sent to the user
-    # and `all` rows with duplicated `loc_id` keys are removed from the File generation logic
-    if not exposure_df.set_index('loc_id').index.is_unique:
-        index_dups = exposure_df[exposure_df.duplicated(subset=['loc_id'], keep=False)].index
-        logger = logging.getLogger()
-        logger.warn('\n'.join([
-            'WARNING: Duplicate keys {} detected in location file'.format([portfolio_num, acc_num, loc_num]),
-            "\t oasislmf doesn't currently support multiple terms for a single location"
-            '\n\t dropping the following location row(s): {}'.format(index_dups.to_list())
-        ]))
-        logger.debug('Dropped location rows: \n{}'.format(exposure_df.iloc[index_dups]))
-        exposure_df.drop(index=index_dups, inplace=True)
+    # Create the basic GUL inputs dataframe from merging the exposure and
+    # keys dataframes on loc. number/loc. ID; filter out any rows with
+    # zeros for TIVs for all coverage types, and replace any nulls in the
+    # cond.num. and TIV columns with zeros
+
+    # Select only the columns required. This reduces memory use significantly for portfolios
+    # that include many OED columns.
+    exposure_df_gul_inputs_cols = ['loc_id', portfolio_num, acc_num, loc_num] + term_cols + tiv_cols
+    if SOURCE_IDX['loc'] in exposure_df:
+        exposure_df_gul_inputs_cols += [SOURCE_IDX['loc']]
+    # Remove any duplicate column names used to assign group_id
+    group_id_cols = list(set(group_id_cols))
+    # Ignore any column names used to assign group_id that are missing from
+    # loc file
+    for col in group_id_cols:
+        if col not in exposure_df:
+            warnings.warn('Column {} not found in loc file, ignoring'.format(col))
+            group_id_cols.remove(col)
+    # Should list of column names used to group_id be empty, revert to
+    # default
+    if len(group_id_cols) == 0:
+        group_id_cols = GROUP_ID_COLS
+    missing_group_id_cols = [col for col in group_id_cols if col not in exposure_df_gul_inputs_cols]
+    exposure_df_gul_inputs_cols += missing_group_id_cols
+
+    # Check if correlation group field used to drive group id
+    # and test that it's present and poulated with integers
+    correlation_group_id = list(map(lambda col: col.lower(), CORRELATION_GROUP_ID))
+    correlation_field = correlation_group_id[0]
+    correlation_check = False
+    if group_id_cols == correlation_group_id:
+        if correlation_field in exposure_df.columns:
+            if exposure_df[correlation_field].astype('uint32').isnull().sum() == 0:
+                correlation_check = True
+
+    query_nonzero_tiv = " | ".join(f"({tiv_col} != 0)" for tiv_col in tiv_cols)
+    exposure_df.loc[:, tiv_cols] = exposure_df.loc[:, tiv_cols].fillna(0.0)
+    exposure_df.query(query_nonzero_tiv, inplace=True, engine='numexpr')
+
+    gul_inputs_df = exposure_df[exposure_df_gul_inputs_cols]
+    gul_inputs_df.drop_duplicates('loc_id', inplace=True, ignore_index=True)
+
+    gul_inputs_df[SOURCE_IDX['loc']] = gul_inputs_df.index
 
     # Rename the main keys dataframe columns - this is due to the fact that the
     # keys file headers use camel case, and don't use underscored names, which
@@ -171,180 +199,131 @@ def get_gul_input_items(
     if 'model_data' in keys_df:
         keys_df['areaperil_id'] = keys_df['vulnerability_id'] = -1
 
-    try:
-        # Create the basic GUL inputs dataframe from merging the exposure and
-        # keys dataframes on loc. number/loc. ID; filter out any rows with
-        # zeros for TIVs for all coverage types, and replace any nulls in the
-        # cond.num. and TIV columns with zeros
-        exposure_df[SOURCE_IDX['loc']] = exposure_df.index
+    gul_inputs_df = merge_dataframes(
+        gul_inputs_df,
+        keys_df,
+        join_on='loc_id',
+        how='inner'
+    )
 
-        # Select only the columns required. This reduces memory use significantly for portfolios
-        # that include many OED columns.
-        exposure_df_gul_inputs_cols = [
-            'loc_id', portfolio_num, acc_num, loc_num, cond_num
-        ] + term_cols + tiv_cols
-        if SOURCE_IDX['loc'] in exposure_df:
-            exposure_df_gul_inputs_cols += [SOURCE_IDX['loc']]
-        # Remove any duplicate column names used to assign group_id
-        group_id_cols = list(set(group_id_cols))
-        # Ignore any column names used to assign group_id that are missing from
-        # loc file
-        for col in group_id_cols:
-            if col not in exposure_df:
-                warnings.warn('Column {} not found in loc file, ignoring'.format(col))
-                group_id_cols.remove(col)
-        # Should list of column names used to group_id be empty, revert to
-        # default
-        if len(group_id_cols) == 0:
-            group_id_cols = GROUP_ID_COLS
-        missing_group_id_cols = [col for col in group_id_cols if col not in exposure_df_gul_inputs_cols]
-        exposure_df_gul_inputs_cols += missing_group_id_cols
-
-        # Check if correlation group field used to drive group id
-        # and test that it's present and poulated with integers
-        correlation_group_id = list(map(lambda col: col.lower(), CORRELATION_GROUP_ID))
-        correlation_field = correlation_group_id[0]
-        correlation_check = False
-        if group_id_cols == correlation_group_id:
-            if correlation_field in exposure_df.columns:
-                if exposure_df[correlation_field].astype('uint32').isnull().sum() == 0:
-                    correlation_check = True
-
-        query_nonzero_tiv = " | ".join(f"({tiv_col} != 0)" for tiv_col in tiv_cols)
-        exposure_df.loc[:, tiv_cols] = exposure_df.loc[:, tiv_cols].fillna(0.0)
-        exposure_df.query(query_nonzero_tiv, inplace=True, engine='numexpr')
-
-        gul_inputs_df = merge_dataframes(
-            exposure_df[exposure_df_gul_inputs_cols],
-            keys_df,
-            join_on='loc_id',
-            how='inner'
+    if gul_inputs_df.empty:
+        raise OasisException(
+            'Inner merge of the exposure file dataframe '
+            'and the keys file dataframe on loc. number/loc. ID '
+            'is empty - '
+            'please check that the loc. number and loc. ID columns '
+            'in the exposure and keys files respectively have a non-empty '
+            'intersection'
         )
 
-        if gul_inputs_df.empty:
-            raise OasisException(
-                'Inner merge of the exposure file dataframe '
-                'and the keys file dataframe on loc. number/loc. ID '
-                'is empty - '
-                'please check that the loc. number and loc. ID columns '
-                'in the exposure and keys files respectively have a non-empty '
-                'intersection'
-            )
+    # Free memory after merge, before memory-intensive restructuring of data
+    del keys_df
 
-        # Free memory after merge, before memory-intensive restructuring of data
-        del keys_df
+    gul_inputs_df[tiv_terms.values()].fillna(0, inplace=True)
 
-        gul_inputs_df[cond_num].fillna(0, inplace=True)
-        gul_inputs_df[cond_num] = gul_inputs_df[cond_num].astype('uint32')
-        gul_inputs_df[tiv_terms.values()].fillna(0, inplace=True)
+    # Group the rows in the GUL inputs table by coverage type, and set the
+    # IL terms (and BI coverage boolean) in each group and update the
+    # corresponding frame section in the GUL inputs table
+    gul_inputs_reformatted_chunks = []
+    for cov_type, cov_type_group in gul_inputs_df.groupby(by=['coverage_type_id'], sort=True):
+        tiv_col = tiv_terms[cov_type]
 
-        # Group the rows in the GUL inputs table by coverage type, and set the
-        # IL terms (and BI coverage boolean) in each group and update the
-        # corresponding frame section in the GUL inputs table
-        gul_inputs_reformatted_chunks = []
-        for cov_type, cov_type_group in gul_inputs_df.groupby(by=['coverage_type_id'], sort=True):
-            tiv_col = tiv_terms[cov_type]
+        # Remove rows with null/0 TIV
+        cov_type_group.query(f"{tiv_col} > 0.0", inplace=True)
 
-            # Remove rows with null/0 TIV
-            cov_type_group.query(f"{tiv_col} > 0.0", inplace=True)
+        # Drop columns corresponding to other cov types
+        other_cov_types = [v['id'] for v in SUPPORTED_COVERAGE_TYPES.values() if v['id'] != cov_type]
+        other_cov_type_term_cols = (
+            [v for k, v in tiv_terms.items() if k != cov_type] +
+            get_fm_terms_oed_columns(fm_terms=fm_terms, levels=['site coverage'], term_group_ids=other_cov_types, terms=terms)
+        )
+        other_tiv_cols = list(set(tiv_terms.values()) - {tiv_col})
+        cov_type_group.drop(
+            columns=other_cov_type_term_cols + other_tiv_cols,
+            errors="ignore",  # Ignore if any of these cols don't exist
+            inplace=True
+        )
 
-            # Drop columns corresponding to other cov types
-            other_cov_types = [v['id'] for v in SUPPORTED_COVERAGE_TYPES.values() if v['id'] != cov_type]
-            other_cov_type_term_cols = (
-                [v for k, v in tiv_terms.items() if k != cov_type] +
-                get_fm_terms_oed_columns(fm_terms=fm_terms, levels=['site coverage'], term_group_ids=other_cov_types, terms=terms)
-            )
-            other_tiv_cols = list(set(tiv_terms.values()) - {tiv_col})
-            cov_type_group.drop(
-                columns=other_cov_type_term_cols + other_tiv_cols,
-                errors="ignore",  # Ignore if any of these cols don't exist
-                inplace=True
-            )
+        cov_type_group['is_bi_coverage'] = cov_type == SUPPORTED_COVERAGE_TYPES['bi']['id']
 
-            cov_type_group['is_bi_coverage'] = cov_type == SUPPORTED_COVERAGE_TYPES['bi']['id']
-
-            # Convert null T&C values to 0
-            # Move all T&C values from coverage-specific columns to generic columns
-            # One row with four coverages is being transformed to four rows, one per coverage,
-            # in this loop
-            cov_type_terms = [t for t in terms if fm_terms[cov_level_id][cov_type].get(t)]
-            cov_type_term_cols = get_fm_terms_oed_columns(fm_terms, levels=['site coverage'], term_group_ids=[cov_type], terms=cov_type_terms)
-            column_mapping_dict = {
-                generic_col: cov_col
-                for generic_col, cov_col in zip(cov_type_term_cols, cov_type_terms)
-            }
-            column_mapping_dict[tiv_col] = 'tiv'
-            cov_type_group.rename(columns=column_mapping_dict, inplace=True, copy=False)
-            cov_type_group.loc[:, ['tiv'] + cov_type_terms].fillna(0.0, inplace=True)
-
-            cov_type_group['coverage_type_id'] = cov_type
-
-            gul_inputs_reformatted_chunks.append(cov_type_group)
-
-        # Concatenate chunks. Sort by index to preserve item_id order in generated outputs compared
-        # to original code.
-        gul_inputs_df = pd.concat(gul_inputs_reformatted_chunks).sort_index().reset_index()
-        # Set default values and data types for BI coverage boolean, TIV, deductibles and limit
-        dtypes = {
-            **{t: 'uint8' for t in term_cols_ints + terms_ints},
-            **{'is_bi_coverage': 'bool'}
+        # Convert null T&C values to 0
+        # Move all T&C values from coverage-specific columns to generic columns
+        # One row with four coverages is being transformed to four rows, one per coverage,
+        # in this loop
+        cov_type_terms = [t for t in terms if fm_terms[cov_level_id][cov_type].get(t)]
+        cov_type_term_cols = get_fm_terms_oed_columns(fm_terms, levels=['site coverage'], term_group_ids=[cov_type], terms=cov_type_terms)
+        column_mapping_dict = {
+            generic_col: cov_col
+            for generic_col, cov_col in zip(cov_type_term_cols, cov_type_terms)
         }
-        gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, dtypes)
+        column_mapping_dict[tiv_col] = 'tiv'
+        cov_type_group.rename(columns=column_mapping_dict, inplace=True, copy=False)
+        cov_type_group.loc[:, ['tiv'] + cov_type_terms].fillna(0.0, inplace=True)
 
-        if gul_inputs_df.empty:
-            raise OasisException(
-                'Empry gul_inputs_df dataframe after dropping rows with zero for tiv, '
-                'please check the exposure input files'
-            )
+        cov_type_group['coverage_type_id'] = cov_type
 
-        # Set the group ID
-        # If the group id is set according to the correlation group field then map this field
-        # directly, otherwise create an index of the group id fields
-        if correlation_check == True:
-            gul_inputs_df['group_id'] = gul_inputs_df[correlation_group_id]
+        gul_inputs_reformatted_chunks.append(cov_type_group)
+
+    # Concatenate chunks. Sort by index to preserve item_id order in generated outputs compared
+    # to original code.
+    gul_inputs_df = pd.concat(gul_inputs_reformatted_chunks).sort_index().reset_index()
+    # Set default values and data types for BI coverage boolean, TIV, deductibles and limit
+    dtypes = {
+        **{t: 'uint8' for t in term_cols_ints + terms_ints},
+        **{'is_bi_coverage': 'bool'}
+    }
+    gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, dtypes)
+
+    if gul_inputs_df.empty:
+        raise OasisException(
+            'Empry gul_inputs_df dataframe after dropping rows with zero for tiv, '
+            'please check the exposure input files'
+        )
+
+    # Set the group ID
+    # If the group id is set according to the correlation group field then map this field
+    # directly, otherwise create an index of the group id fields
+    if correlation_check == True:
+        gul_inputs_df['group_id'] = gul_inputs_df[correlation_group_id]
+    else:
+        if len(group_id_cols) > 1:
+            gul_inputs_df['group_id'] = factorize_ndarray(
+                gul_inputs_df.loc[:, group_id_cols].values,
+                col_idxs=range(len(group_id_cols)),
+                sort_opt=True
+            )[0]
         else:
-            if len(group_id_cols) > 1:
-                gul_inputs_df['group_id'] = factorize_ndarray(
-                    gul_inputs_df.loc[:, group_id_cols].values,
-                    col_idxs=range(len(group_id_cols)),
-                    sort_opt=True
-                )[0]
-            else:
-                gul_inputs_df['group_id'] = factorize_array(
-                    gul_inputs_df[group_id_cols[0]].values
-                )[0]
-        gul_inputs_df['group_id'] = gul_inputs_df['group_id'].astype('uint32')
+            gul_inputs_df['group_id'] = factorize_array(
+                gul_inputs_df[group_id_cols[0]].values
+            )[0]
+    gul_inputs_df['group_id'] = gul_inputs_df['group_id'].astype('uint32')
 
-        # Set the item IDs and coverage IDs, and defaults and data types for
-        # layer IDs and agg. IDs
-        item_ids = gul_inputs_df.index + 1
-        gul_inputs_df['coverage_id'] = factorize_ndarray(
-            gul_inputs_df.loc[:, ['loc_id', 'coverage_type_id']].values, col_idxs=range(2))[0]
-        gul_inputs_df = gul_inputs_df.assign(
-            item_id=item_ids,
-            layer_id=1,
-            agg_id=item_ids
-        )
-        dtypes = {
-            **{t: 'uint32' for t in ['item_id', 'coverage_id', 'layer_id', 'agg_id']},
-            **{t: 'uint8' for t in terms_ints}
-        }
-        gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, dtypes)
+    # Set the item IDs and coverage IDs, and defaults and data types for
+    # layer IDs and agg. IDs
+    item_ids = gul_inputs_df.index + 1
+    gul_inputs_df['coverage_id'] = factorize_ndarray(
+        gul_inputs_df.loc[:, ['loc_id', 'coverage_type_id']].values, col_idxs=range(2))[0]
+    gul_inputs_df = gul_inputs_df.assign(
+        item_id=item_ids,
+    )
+    dtypes = {
+        **{t: 'uint32' for t in ['item_id', 'coverage_id']},
+        **{t: 'uint8' for t in terms_ints}
+    }
+    gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, dtypes)
 
-        # Select only required columns
-        # Order here matches test output expectations
-        usecols = (
-            ['loc_id', portfolio_num, acc_num, loc_num, cond_num] +
-            ([SOURCE_IDX['loc']] if SOURCE_IDX['loc'] in gul_inputs_df else []) +
-            ['peril_id', 'coverage_type_id', 'tiv', 'areaperil_id', 'vulnerability_id'] +
-            terms +
-            (['model_data'] if 'model_data' in gul_inputs_df else []) +
-            ['is_bi_coverage', 'group_id', 'coverage_id', 'item_id', 'layer_id', 'agg_id', 'status']
-        )
-        usecols = [col for col in usecols if col in gul_inputs_df]
-        gul_inputs_df = gul_inputs_df[usecols]
-    except (AttributeError, KeyError, IndexError, TypeError, ValueError) as e:
-        raise OasisException("Exception raised in 'get_gul_input_items'", e)
+    # Select only required columns
+    # Order here matches test output expectations
+    usecols = (
+        ['loc_id', portfolio_num, acc_num, loc_num] +
+        ([SOURCE_IDX['loc']] if SOURCE_IDX['loc'] in gul_inputs_df else []) +
+        ['peril_id', 'coverage_type_id', 'tiv', 'areaperil_id', 'vulnerability_id'] +
+        terms +
+        (['model_data'] if 'model_data' in gul_inputs_df else []) +
+        ['is_bi_coverage', 'group_id', 'coverage_id', 'item_id', 'status']
+    )
+    usecols = [col for col in usecols if col in gul_inputs_df]
+    gul_inputs_df = gul_inputs_df[usecols]
 
     return gul_inputs_df
 
@@ -483,7 +462,6 @@ def write_gul_input_files(
         fn: os.path.join(target_dir, '{}.csv'.format(oasis_files_prefixes[fn]))
         for fn in oasis_files_prefixes
     }
-
     this_module = sys.modules[__name__]
     # Write the files serially
     for fn in gul_input_files:
