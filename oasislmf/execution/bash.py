@@ -657,7 +657,7 @@ def get_getmodel_itm_cmd(
     :type eve_shuffle_flag: str
     :return: The generated getmodel command
     """
-    cmd = 'eve {0} {1} {2} | getmodel | gulcalc -S{3} -L{4}'.format(
+    cmd = 'eve {0}{1} {2} | getmodel | gulcalc -S{3} -L{4}'.format(
         eve_shuffle_flag,
         process_id, max_process_id,
         number_of_samples, gul_threshold)
@@ -691,7 +691,7 @@ def get_getmodel_cov_cmd(
     :return: The generated getmodel command
     """
 
-    cmd = 'eve {0} {1} {2} | getmodel | gulcalc -S{3} -L{4}'.format(
+    cmd = 'eve {0}{1} {2} | getmodel | gulcalc -S{3} -L{4}'.format(
         eve_shuffle_flag,
         process_id, max_process_id,
         number_of_samples, gul_threshold)
@@ -949,16 +949,16 @@ def genbash(
     # Set event shuffle options:
     if event_shuffle == EVE_NO_SHUFFLE:
         kat_sort_by_event = False
-        eve_shuffle_flag = '-n'
+        eve_shuffle_flag = '-n '
     elif event_shuffle == EVE_ROUND_ROBIN:     
         kat_sort_by_event = True
         eve_shuffle_flag = ''
     elif event_shuffle == EVE_FISHER_YATES:
         kat_sort_by_event = False
-        eve_shuffle_flag = '-r'    
+        eve_shuffle_flag = '-r '    
     elif event_shuffle == EVE_STD_SHUFFLE:
         kat_sort_by_event = False
-        eve_shuffle_flag = '-R'    
+        eve_shuffle_flag = '-R '    
     else:
         # code path shouldn't make it here (hopefully)
         raise OasisException(f'Error: Unknown event shuffle rule "{event_shuffle}" expected value between [0..{EVE_STD_SHUFFLE}]')
