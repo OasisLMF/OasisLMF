@@ -14,6 +14,7 @@ import json
 import os
 import warnings
 
+import numpy as np
 import pandas as pd
 
 from ..utils.coverages import SUPPORTED_COVERAGE_TYPES
@@ -251,7 +252,10 @@ def write_summary_levels(exposure_df, accounts_fp, target_dir):
     }
 
     # GUL perspective (loc columns only)
-    l_col_list = exposure_df.loc[:, exposure_df.any()].columns.to_list()
+    #l_col_list = exposure_df.loc[:, exposure_df.any()].columns.to_list()
+    # NOTE: work around for pandas==1.2.0, any() not returning return the 'category' field types 
+    l_col_list = exposure_df.replace(0, pd.np.nan).dropna(how='any', axis=1).columns.to_list()
+
     l_col_info = get_loc_dtypes()
     for k in list(l_col_info.keys()):
         l_col_info[k.lower()] = l_col_info[k]
@@ -667,7 +671,7 @@ def get_exposure_summary_by_status(df, exposure_summary, peril_id, status):
     :return: populated exposure_summary dictionary
     :rtype: dict
     """
-    # Separate TIVs by coverage type and acquire sum
+    # Separate TIVs and number of distinct locations by coverage type and acquire sum
     for coverage_type in SUPPORTED_COVERAGE_TYPES:
         tiv_sum = df.loc[
             (df['peril_id'] == peril_id) &
@@ -677,6 +681,14 @@ def get_exposure_summary_by_status(df, exposure_summary, peril_id, status):
         tiv_sum = float(tiv_sum)
         exposure_summary[peril_id][status]['tiv_by_coverage'][coverage_type] = tiv_sum
         exposure_summary[peril_id][status]['tiv'] += tiv_sum
+
+        loc_count = df.loc[
+            (df['peril_id'] == peril_id) &
+            (df['coverage_type_id'] == SUPPORTED_COVERAGE_TYPES[coverage_type]['id']),
+            'loc_id'
+        ].drop_duplicates().count()
+        loc_count = int(loc_count)
+        exposure_summary[peril_id][status]['number_of_locations_by_coverage'][coverage_type] = loc_count
 
     # Find number of locations
     loc_count = df.loc[df['peril_id'] == peril_id, 'loc_id'].drop_duplicates().count()
@@ -703,7 +715,7 @@ def get_exposure_summary_all(df, exposure_summary, peril_id):
     :rtype: dict
     """
 
-    # Separate TIVs by coverage type and acquire sum
+    # Separate TIVs and number of distinct locations by coverage type and acquire sum
     for coverage_type in SUPPORTED_COVERAGE_TYPES:
         tiv_sum = df.loc[
             (df['peril_id'] == peril_id) &
@@ -714,10 +726,20 @@ def get_exposure_summary_all(df, exposure_summary, peril_id):
         exposure_summary[peril_id]['all']['tiv_by_coverage'][coverage_type] = tiv_sum
         exposure_summary[peril_id]['all']['tiv'] += tiv_sum
 
-    # Find number of locations
+        loc_count = df.loc[
+            (df['peril_id'] == peril_id) &
+            (df['coverage_type_id'] == SUPPORTED_COVERAGE_TYPES[coverage_type]['id']),
+            'loc_id'
+        ].drop_duplicates().count()
+        loc_count = int(loc_count)
+        exposure_summary[peril_id]['all']['number_of_locations_by_coverage'][coverage_type] = loc_count
+
+    # Find number of locations total
     loc_count = df.loc[df['peril_id'] == peril_id, 'loc_id'].drop_duplicates().count()
     loc_count = int(loc_count)
     exposure_summary[peril_id]['all']['number_of_locations'] = loc_count
+
+    # Find number of locations by coverage type
 
     return exposure_summary
 
@@ -826,6 +848,7 @@ def get_exposure_summary(
             exposure_summary[peril_id][status]['tiv'] = 0.0
             exposure_summary[peril_id][status]['tiv_by_coverage'] = {}
             exposure_summary[peril_id][status]['number_of_locations'] = 0
+            exposure_summary[peril_id][status]['number_of_locations_by_coverage'] = {}
             # Fill exposure summary dictionary
             if status == 'all':
                 exposure_summary = get_exposure_summary_all(
@@ -843,6 +866,48 @@ def get_exposure_summary(
 
     return exposure_summary
 
+
+@oasis_log
+def write_gul_errors_map(
+    target_dir,
+    exposure_df,
+    keys_errors_df
+):
+    """
+    Create csv file to help map keys errors back to original exposures.
+
+    :param target_dir: directory on disk to write csv file
+    :type target_dir: str
+
+    :param exposure_df: source exposure dataframe
+    :type exposure df: pandas.DataFrame
+
+    :param keys_errors_df: keys errors dataframe
+    :type keys_errors_df: pandas.DataFrame
+    """
+
+    cols = ['loc_id','portnumber','accnumber','locnumber','peril_id','coverage_type_id','tiv','status','message']
+    gul_error_map_fp = os.path.join(target_dir, 'gul_errors_map.csv')
+
+    exposure_id_cols = ['loc_id','portnumber','accnumber','locnumber']
+    keys_error_cols = ['loc_id','peril_id','coverage_type_id','status','message']
+    tiv_maps = {1:'buildingtiv',2:'othertiv',3:'contentstiv',4:'bitiv'}
+    exposure_cols = exposure_id_cols + list(tiv_maps.values()) 
+
+    keys_errors_df.columns = keys_error_cols
+
+    gul_inputs_errors_df = exposure_df[exposure_cols].merge(keys_errors_df[keys_error_cols],on=['loc_id'])
+    gul_inputs_errors_df['tiv']=0.0
+    for cov_type in tiv_maps:
+        tiv_field = tiv_maps[cov_type]
+        gul_inputs_errors_df['tiv']=np.where(
+            gul_inputs_errors_df['coverage_type_id']==cov_type,
+            gul_inputs_errors_df[tiv_field],
+            gul_inputs_errors_df['tiv']
+        )
+    gul_inputs_errors_df['tiv'] = gul_inputs_errors_df['tiv'].fillna(0.0)
+
+    gul_inputs_errors_df[cols].to_csv(gul_error_map_fp,index=False)
 
 @oasis_log
 def write_exposure_summary(
@@ -885,14 +950,16 @@ def write_exposure_summary(
 
     #get keys errors
     if keys_errors_fp:
-        keys_errors_df = pd.read_csv(keys_errors_fp)[['LocID', 'PerilID', 'CoverageTypeID', 'Status']]
-        keys_errors_df.columns = ['loc_id','peril_id','coverage_type_id','status']
+        keys_errors_df = pd.read_csv(keys_errors_fp)[['LocID', 'PerilID', 'CoverageTypeID', 'Status', 'Message']]
+        keys_errors_df.columns = ['loc_id','peril_id','coverage_type_id','status','message']
+        if not keys_errors_df.empty:
+            write_gul_errors_map(target_dir,exposure_df,keys_errors_df)
 
     #concatinate keys responses & run
     df_keys = pd.concat([keys_success_df,keys_errors_df])
     exposure_summary = get_exposure_summary(exposure_df, df_keys, exposure_profile)
 
-    # Write exposure summary as json fileV
+    #write exposure summary as json fileV
     fp = os.path.join(target_dir, 'exposure_summary_report.json')
     with io.open(fp, 'w', encoding='utf-8') as f:
         f.write(json.dumps(exposure_summary, ensure_ascii=False, indent=4))

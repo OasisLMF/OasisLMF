@@ -20,7 +20,7 @@ exit_handler(){
    else
        echo 'Run Completed'
    fi
-   
+
    set +x
    group_pid=$(ps -p $$ -o pgid --no-headers)
    sess_pid=$(ps -p $$ -o sess --no-headers)
@@ -199,7 +199,7 @@ wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 
 # --- Do ground up loss kats ---
 
 
-leccalc -r -Kgul_S1_summaryleccalc -F output/gul_S1_leccalc_full_uncertainty_aep.csv & lpid1=$!
+( leccalc -r -Kgul_S1_summaryleccalc -F output/gul_S1_leccalc_full_uncertainty_aep.csv ) 2>> log/stderror.err & lpid1=$!
 wait $lpid1
 
 rm -R -f work/*
