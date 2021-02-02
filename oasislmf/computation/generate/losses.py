@@ -138,7 +138,7 @@ class GenerateLosses(ComputationStep):
         for rule in rule_ranges:
             rule_val = getattr(self, rule)
             if (rule_val < 0) or (rule_val > rule_ranges[rule]):
-                raise OasisException(f'Error: {rule}={rule_val} - Not withing valid range [0..{rule_ranges[rule]}]')
+                raise OasisException(f'Error: {rule}={rule_val} - Not within valid ranges [0..{rule_ranges[rule]}]')
 
 
     def run(self):
