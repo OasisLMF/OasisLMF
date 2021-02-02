@@ -961,7 +961,7 @@ def genbash(
         eve_shuffle_flag = '-R'    
     else:
         # code path shouldn't make it here (hopefully)
-        raise OasisException(f'Error: Unknown event shuffle rule "{event_shuffle}" expected value between [0..4]')
+        raise OasisException(f'Error: Unknown event shuffle rule "{event_shuffle}" expected value between [0..{EVE_STD_SHUFFLE}]')
 
     # remove the file if it already exists
     if os.path.exists(filename):
