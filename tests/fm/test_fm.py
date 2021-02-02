@@ -13,17 +13,28 @@ class FmAcceptanceTests(TestCase):
     def setUp(self):
         self.test_cases_fp = os.path.join(sys.path[0], 'validation', 'examples')
 
-    def run_test(self, test_case):
+    def run_test(self, test_case, fmpy=False):
         update_expected = False
         with tempfile.TemporaryDirectory() as tmp_run_dir:
             result = OasisManager().run_fm_test(
                 test_case_dir=self.test_cases_fp,
                 test_case_name=test_case,
                 run_dir=tmp_run_dir,
-                update_expected=update_expected
+                update_expected=update_expected,
+                fmpy=fmpy,
             )
 
         self.assertTrue(result)
+
+    # example run using fmpy
+    # WARNING: running fmpy in unittest will pass but fail code covrage with 
+    #          'INTERNALERROR> coverage.misc.CoverageException: Can't combine line data with arc data'
+    #  
+    #  Needs a fix so multiple core arn't writing to the same cov file: 
+    #  https://github.com/pytest-dev/pytest-cov/issues/237
+    #
+    #def test_fm3_fmpy(self):
+    #    self.run_test('fm3', fmpy=True)
 
     def test_fm3(self):
         self.run_test('fm3')

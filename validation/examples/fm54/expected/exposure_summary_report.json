@@ -1,0 +1,98 @@
+{
+    "total": {
+        "modelled": {
+            "tiv": 3600000.0,
+            "number_of_locations": 2
+        },
+        "not-modelled": {
+            "tiv": 0.0,
+            "number_of_locations": 0
+        },
+        "portfolio": {
+            "tiv": 3600000.0,
+            "number_of_locations": 2
+        }
+    },
+    "1": {
+        "all": {
+            "tiv": 3600000.0,
+            "tiv_by_coverage": {
+                "buildings": 600000.0,
+                "other": 800000.0,
+                "contents": 1000000.0,
+                "bi": 1200000.0
+            },
+            "number_of_locations": 2
+        },
+        "success": {
+            "tiv": 3600000.0,
+            "tiv_by_coverage": {
+                "buildings": 600000.0,
+                "other": 800000.0,
+                "contents": 1000000.0,
+                "bi": 1200000.0
+            },
+            "number_of_locations": 2
+        },
+        "fail": {
+            "tiv": 0.0,
+            "tiv_by_coverage": {
+                "buildings": 0.0,
+                "other": 0.0,
+                "contents": 0.0,
+                "bi": 0.0
+            },
+            "number_of_locations": 0
+        },
+        "nomatch": {
+            "tiv": 0.0,
+            "tiv_by_coverage": {
+                "buildings": 0.0,
+                "other": 0.0,
+                "contents": 0.0,
+                "bi": 0.0
+            },
+            "number_of_locations": 0
+        },
+        "fail_ap": {
+            "tiv": 0.0,
+            "tiv_by_coverage": {
+                "buildings": 0.0,
+                "other": 0.0,
+                "contents": 0.0,
+                "bi": 0.0
+            },
+            "number_of_locations": 0
+        },
+        "fail_v": {
+            "tiv": 0.0,
+            "tiv_by_coverage": {
+                "buildings": 0.0,
+                "other": 0.0,
+                "contents": 0.0,
+                "bi": 0.0
+            },
+            "number_of_locations": 0
+        },
+        "notatrisk": {
+            "tiv": 0.0,
+            "tiv_by_coverage": {
+                "buildings": 0.0,
+                "other": 0.0,
+                "contents": 0.0,
+                "bi": 0.0
+            },
+            "number_of_locations": 0
+        },
+        "noreturn": {
+            "tiv": 0.0,
+            "tiv_by_coverage": {
+                "buildings": 0.0,
+                "other": 0.0,
+                "contents": 0.0,
+                "bi": 0.0
+            },
+            "number_of_locations": 0
+        }
+    }
+}
