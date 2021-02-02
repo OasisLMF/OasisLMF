@@ -9,7 +9,7 @@ ipywidgets
 fileupload
 matplotlib
 pandas-datareader
-pandas==1.20.0
+pandas==1.2.0
 parameterized
 pathlib
 pytest
