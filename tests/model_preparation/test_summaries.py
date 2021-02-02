@@ -10,6 +10,7 @@ import pandas as pd
 from hypothesis import (
     given,
     settings,
+    HealthCheck,
 )
 import hypothesis.strategies as st
 from hypothesis.strategies import (
@@ -150,7 +151,7 @@ class TestSummaries(TestCase):
         self.assertEqual(len(gul_inputs.loc_id.unique()), exp_summary['total']['modelled']['number_of_locations'])
 
         # Check number of not-modelled
-        # WARNING: current assumption is that all cov types must be covered to be modelled 
+        # WARNING: current assumption is that all cov types must be covered to be modelled
         #moddeled = 0
         #moddeld_loc_ids = gul_inputs[gul_inputs['status'] == 'success'].loc_id.unique()
         #for loc_id in moddeld_loc_ids:
@@ -205,7 +206,7 @@ class TestSummaries(TestCase):
         )
 
     @given(st.data())
-    @settings(max_examples=20, deadline=None)
+    @settings(max_examples=10, deadline=None, suppress_health_check=HealthCheck.all())
     def test_multi_perils__multi_covarage(self, data):
         loc_size = data.draw(integers(10, 20))
         supported_cov = data.draw(st.lists(integers(1,4), unique=True, min_size=1, max_size=4))
