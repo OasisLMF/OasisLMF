@@ -131,6 +131,11 @@ class CSVKeysOutputStrategy(BaseKeysOutputStrategy):
         ('message', 'Message'),
     ])
 
+    def __init__(self, keys_file, keys_errors_file=None):
+        super().__init__(keys_file, keys_errors_file=keys_errors_file)
+        self.keys_success_mapping = OrderedDict()
+        self.keys_nonsuccess_mapping = OrderedDict()
+
     def write(self, results):
         """Write keys results to file in JSON format.
 
@@ -163,7 +168,7 @@ class CSVKeysOutputStrategy(BaseKeysOutputStrategy):
 
         return n_successes, n_nonsuccesses
 
-    def _write_csv_row(self, csv_writer, row):
+    def _write_csv_row(self, csv_writer, key_mapping, row):
         """Write a keys result to file.
 
         If csv_writer is None, no action is taken. This is used when a keys-errors file is not
@@ -171,6 +176,8 @@ class CSVKeysOutputStrategy(BaseKeysOutputStrategy):
 
         Args:
             csv_writer (csv.DictWriter): CSV output writer.
+            key_mapping (dict): Dictionary mapping row keys to the keys being written to the CSV
+                file.
             row (dict): Keys result row to write.
 
         """
@@ -178,7 +185,7 @@ class CSVKeysOutputStrategy(BaseKeysOutputStrategy):
             return
 
         row_mapped = {
-            new_key: row[old_key] for new_key, old_key in self.KEYS_NAME_MAPPING.items()
+            new_key: row[old_key] for old_key, new_key in key_mapping.items()
             if old_key in row
         }
 
@@ -202,7 +209,15 @@ class CSVKeysOutputStrategy(BaseKeysOutputStrategy):
 
         self._success_writer = DictWriter(self.keys_file, fieldnames=success_header_row)
         self._success_writer.writeheader()
-        write_success = partial(self._write_csv_row, self._success_writer)
+        self._populate_keys_mapping_dict(
+            self.keys_success_mapping,
+            success_header_row,
+        )
+        write_success = partial(
+            self._write_csv_row,
+            self._success_writer,
+            self.keys_success_mapping,
+        )
 
         if self.do_nonsuccess_output:
             self._nonsuccess_writer = DictWriter(
@@ -210,8 +225,23 @@ class CSVKeysOutputStrategy(BaseKeysOutputStrategy):
                 fieldnames=self.KEYS_ERRORS_FIELD_NAMES,
             )
             self._nonsuccess_writer.writeheader()
-            write_nonsuccess = partial(self._write_csv_row, self._nonsuccess_writer)
+            self._populate_keys_mapping_dict(
+                self.keys_nonsuccess_mapping,
+                self.KEYS_ERRORS_FIELD_NAMES,
+            )
+            write_nonsuccess = partial(
+                self._write_csv_row,
+                self._nonsuccess_writer,
+                self.keys_nonsuccess_mapping,
+            )
+
         else:
             write_nonsuccess = None
 
         return write_success, write_nonsuccess
+
+    def _populate_keys_mapping_dict(self, dict_to_populate, fields_to_use):
+        for old_key, new_key in self.KEYS_NAME_MAPPING.items():
+            if new_key not in fields_to_use:
+                continue
+            dict_to_populate[old_key] = new_key

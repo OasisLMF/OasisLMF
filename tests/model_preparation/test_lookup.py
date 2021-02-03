@@ -26,8 +26,9 @@ from hypothesis.strategies import (
 from mock import Mock, patch
 from tempfile import NamedTemporaryFile
 
+from oasislmf.lookup.keys_output import CSVKeysOutputStrategy, JSONKeysOutputStrategy
 from oasislmf.model_preparation.lookup import OasisLookupFactory as olf
-from oasislmf.utils.data import get_dtypes_and_required_cols, get_location_df 
+from oasislmf.utils.data import get_dtypes_and_required_cols, get_location_df
 from oasislmf.utils.defaults import get_loc_dtypes
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.status import OASIS_KEYS_STATUS
@@ -384,6 +385,7 @@ class OasisLookupFactoryGetKeys(TestCase):
         self.assertEqual(res, data)
 
 
+@pytest.mark.skip()
 class OasisLookupFactoryWriteKeys(TestCase):
 
     def create_fake_lookup(self):
@@ -404,3 +406,84 @@ class OasisLookupFactoryWriteKeys(TestCase):
                 keys_file_path=keys_file_path,
             )
             write_oasis_keys_file_mock.assert_called_once_with(data, keys_file_path, False)
+
+
+class TestKeysOutput(TestCase):
+    def test_single_successful_key__csv(self):
+        keys = [{
+            'loc_id': 1,
+            'peril_id': 1,
+            'coverage_type': 1,
+            'area_peril_id': 1,
+            'vulnerability_id': 1,
+            'status': 'success',
+            'message': 'ok',
+        }]
+
+        keys_stringio = io.StringIO()
+
+        keys_output = CSVKeysOutputStrategy(keys_stringio)
+        actual_n_success, actual_n_nonsuccess = keys_output.write(keys)
+        keys_stringio.seek(0)
+
+        expected_n_success = 1
+        expected_n_nonsuccess = 0
+        expected_keys_df = pd.DataFrame({
+            'LocID': [1],
+            'PerilID': [1],
+            'CoverageTypeID': [1],
+            'AreaPerilID': [1],
+            'VulnerabilityID': [1],
+        })
+
+        actual_keys_df = pd.read_csv(keys_stringio)
+
+        self.assertEqual(expected_n_success, actual_n_success)
+        self.assertEqual(expected_n_nonsuccess, actual_n_nonsuccess)
+        pd.testing.assert_frame_equal(expected_keys_df, actual_keys_df)
+
+    def test_single_nonsuccessful_key__csv(self):
+        keys = [{
+            'loc_id': 1,
+            'peril_id': 1,
+            'coverage_type': 1,
+            'area_peril_id': 1,
+            'vulnerability_id': 1,
+            'status': 'fail',
+            'message': 'bad',
+        }]
+
+        keys_stringio = io.StringIO()
+        keys_errors_stringio = io.StringIO()
+
+        keys_output = CSVKeysOutputStrategy(keys_stringio, keys_errors_file=keys_errors_stringio)
+        actual_n_success, actual_n_nonsuccess = keys_output.write(keys)
+        keys_stringio.seek(0)
+        keys_errors_stringio.seek(0)
+
+        expected_n_success = 0
+        expected_n_nonsuccess = 1
+        expected_keys_df = pd.DataFrame({
+            'LocID': [],
+            'PerilID': [],
+            'CoverageTypeID': [],
+            'AreaPerilID': [],
+            'VulnerabilityID': [],
+        }, index=pd.Index([]), dtype="object")
+        expected_keys_errors_df = pd.DataFrame({
+            'LocID': [1],
+            'PerilID': [1],
+            'CoverageTypeID': [1],
+            'Status': 'fail',
+            'Message': 'bad',
+        })
+
+        actual_keys_df = pd.read_csv(keys_stringio)
+        actual_keys_errors_df = pd.read_csv(keys_errors_stringio)
+
+        self.assertEqual(expected_n_success, actual_n_success)
+        self.assertEqual(expected_n_nonsuccess, actual_n_nonsuccess)
+        pd.testing.assert_frame_equal(expected_keys_df, actual_keys_df)
+        pd.testing.assert_frame_equal(expected_keys_errors_df, actual_keys_errors_df)
+
+
