@@ -4,13 +4,15 @@ __all__ = [
     'get_grouped_fm_profile_by_level_and_term_group',
     'get_grouped_fm_terms_by_level_and_term_group',
     'get_oed_hierarchy',
-    'get_step_policies_oed_mapping'
+    'get_step_policies_oed_mapping',
+    'get_default_step_policies_profile',
 ]
 
 
 from collections import OrderedDict
 from itertools import groupby
 
+from ..utils.exceptions import OasisException
 from .defaults import (
     get_default_exposure_profile,
     get_default_accounts_profile,
@@ -42,6 +44,15 @@ def get_grouped_fm_profile_by_level_and_term_group(
     accounts_profile=get_default_accounts_profile(),
     grouped_profile_by_level=None
 ):
+    """
+    Get the grouped exposure + accounts profile - this describes the
+    financial terms found in the source exposure and accounts files,
+    which are for the following FM levels: site coverage (# 1),
+    site pd (# 2), site all (# 3), cond. all (# 6), policy all (# 9),
+    policy layer (# 10).  It also describes the OED hierarchy terms
+    present in the exposure and accounts files, namely portfolio num.,
+    acc. num., loc. num., and cond. num.
+    """
     grouped = grouped_profile_by_level or get_grouped_fm_profile_by_level(exposure_profile, accounts_profile)
 
     grouped_fm_term_types = OrderedDict({
@@ -55,14 +66,23 @@ def get_grouped_fm_profile_by_level_and_term_group(
         'limittype': FM_TERMS['limit type']['id'],
         'share': FM_TERMS['share']['id']
     })
-
-    return OrderedDict({
-        k: OrderedDict({
-            _k: OrderedDict({
-                (grouped_fm_term_types.get(v['FMTermType'].lower()) or v['FMTermType'].lower()): v for v in g
-            }) for _k, g in groupby(sorted(grouped[k].values(), key=lambda v: v['FMTermGroupID']), key=lambda v: v['FMTermGroupID'])
-        }) for k in sorted(grouped)
+    profile =  OrderedDict({
+        level: OrderedDict({
+            FMTermGroupID: OrderedDict({
+                (grouped_fm_term_types.get(term['FMTermType'].lower()) or term['FMTermType'].lower()): term for term in TermGroup
+            }) for FMTermGroupID, TermGroup in groupby(sorted(grouped[level].values(),
+                                                              key=lambda term: term['FMTermGroupID']),
+                                                       key=lambda term: term['FMTermGroupID'])
+        }) for level in sorted(grouped)
     })
+
+    if not profile:
+        raise OasisException(
+            'Unable to get a unified FM profile by level and term group. '
+            'Canonical loc. and/or acc. profiles are possibly missing FM term information: '
+            'FM term definitions for TIV, deductibles, limit, and/or share.'
+        )
+    return profile
 
 
 def get_grouped_fm_terms_by_level_and_term_group(
@@ -72,6 +92,10 @@ def get_grouped_fm_terms_by_level_and_term_group(
     grouped_profile_by_level_and_term_group=None,
     lowercase=True
 ):
+    """
+    Get the FM terms profile (this is a simplfied view of the main grouped
+    profile, containing only information about the financial terms)
+    """
     grouped = (
         grouped_profile_by_level_and_term_group or
         get_grouped_fm_profile_by_level_and_term_group(exposure_profile, accounts_profile, grouped_profile_by_level)
@@ -112,7 +136,6 @@ def get_fm_terms_oed_columns(
         for tgid in term_group_ids
         for term in terms
     ]
-
     return cols if not remove_nulls else [col for col in cols if col]
 
 
