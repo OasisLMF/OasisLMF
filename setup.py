@@ -240,7 +240,7 @@ class PostDevelopKtools(InstallKtoolsMixin, develop):
             bin_install_kwargs = self.try_get_bin_install_kwargs()
             if bin_install_kwargs:
                 print('Fallback - installing precompiled ktools binary')
-                self.install_ktools_source()
+                self.install_ktools_bin(**bin_install_kwargs)
             else:
                 raise
 
