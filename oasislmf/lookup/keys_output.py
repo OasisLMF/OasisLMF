@@ -6,6 +6,7 @@ from collections import OrderedDict
 from contextlib import ExitStack
 from csv import DictWriter
 from functools import partial
+from os import write
 
 from ..utils.status import OASIS_KEYS_STATUS
 
@@ -16,13 +17,16 @@ class BaseKeysOutputStrategy(ABC):
     Inheriting classes will implement the detail of individual file formats.
     """
 
-    def __init__(self, keys_file, keys_errors_file=None):
+    def __init__(self, keys_file, keys_errors_file=None, write_success_msg=False):
         """Initialise BaseKeysOutputStrategy class.
 
         Args:
             keys_file (file-like): File object to write successful results to.
             keys_errors_file (file-like, optional): File object to write non-successful results to.
                 If None or not specified, non-successful results are not written.
+            write_success_msg (bool, optional): If True, forces the writing of the 'message' field
+                for successful keys results. Some Output Strategies may output the message in all
+                circumstances.
 
         Raises:
             TypeError: A file path is passed, rather than a file object.
@@ -30,6 +34,7 @@ class BaseKeysOutputStrategy(ABC):
         """
         self.keys_file = keys_file
         self.keys_errors_file = keys_errors_file
+        self.write_success_msg = write_success_msg
 
         if isinstance(self.keys_file, str):
             raise TypeError("keys_file must be a file object")
@@ -131,8 +136,8 @@ class CSVKeysOutputStrategy(BaseKeysOutputStrategy):
         ('message', 'Message'),
     ])
 
-    def __init__(self, keys_file, keys_errors_file=None):
-        super().__init__(keys_file, keys_errors_file=keys_errors_file)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.keys_success_mapping = OrderedDict()
         self.keys_nonsuccess_mapping = OrderedDict()
 
@@ -206,6 +211,9 @@ class CSVKeysOutputStrategy(BaseKeysOutputStrategy):
             success_header_row = self.KEYS_FIELD_NAMES__CUSTOM_MODEL
         else:
             success_header_row = self.KEYS_FIELD_NAMES__STANDARD_MODEL
+
+        if self.write_success_msg:
+            success_header_row = list(success_header_row) + ['Message']
 
         self._success_writer = DictWriter(self.keys_file, fieldnames=success_header_row)
         self._success_writer.writeheader()

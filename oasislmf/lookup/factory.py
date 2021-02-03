@@ -4,15 +4,12 @@ __all__ = [
 
 import csv
 import io
-import json
 
-from collections import OrderedDict
 from contextlib import ExitStack
 from multiprocessing import cpu_count
 from billiard import Pool
 
 import numpy as np
-import pandas as pd
 
 from .base import OasisBaseLookup
 from .keys_output import JSONKeysOutputStrategy, CSVKeysOutputStrategy
@@ -84,77 +81,6 @@ class OasisLookupFactory(object):
             )
 
     @classmethod
-    def write_oasis_keys_file(cls, records, output_file_path, output_success_msg=False):
-        """
-        Writes an Oasis keys file from an iterable of keys records.
-        """
-
-        if len(records) > 0 and 'model_data' in records[0]:
-            heading_row = OrderedDict([
-                ('loc_id', 'LocID'),
-                ('peril_id', 'PerilID'),
-                ('coverage_type', 'CoverageTypeID'),
-                ('model_data', 'ModelData'),
-            ])
-        else:
-            heading_row = OrderedDict([
-                ('loc_id', 'LocID'),
-                ('peril_id', 'PerilID'),
-                ('coverage_type', 'CoverageTypeID'),
-                ('area_peril_id', 'AreaPerilID'),
-                ('vulnerability_id', 'VulnerabilityID'),
-            ])
-            if output_success_msg:
-                heading_row.update({'message': 'Message'})
-
-        pd.DataFrame(
-            columns=heading_row.keys(),
-            data=[heading_row] + records,
-        ).to_csv(
-            output_file_path,
-            index=False,
-            encoding='utf-8',
-            header=False,
-        )
-
-        return output_file_path, len(records)
-
-    @classmethod
-    def write_oasis_keys_errors_file(cls, records, output_file_path):
-        """
-        Writes an Oasis keys errors file from an iterable of keys records.
-        """
-        heading_row = OrderedDict([
-            ('loc_id', 'LocID'),
-            ('peril_id', 'PerilID'),
-            ('coverage_type', 'CoverageTypeID'),
-            ('status', 'Status'),
-            ('message', 'Message'),
-        ])
-
-        pd.DataFrame(
-            columns=heading_row.keys(),
-            data=[heading_row] + records,
-        ).to_csv(
-            output_file_path,
-            index=False,
-            encoding='utf-8',
-            header=False,
-        )
-
-        return output_file_path, len(records)
-
-    @classmethod
-    def write_json_keys_file(cls, records, output_file_path):
-        """
-        Writes the keys records as a simple list to file.
-        """
-        with io.open(output_file_path, 'w', encoding='utf-8') as f:
-            f.write(u'{}'.format(json.dumps(records, sort_keys=True, indent=4, ensure_ascii=False)))
-
-            return output_file_path, len(records)
-
-    @classmethod
     def create(
         cls,
         model_keys_data_path=None,
@@ -187,7 +113,7 @@ class OasisLookupFactory(object):
             )
             model_info = lookup.config.get('model')
             if builtin_lookup_type == 'base':
-                lookup = OasisBuiltinBaseLookup(
+                lookup = OasisBaseLookup(
                     config=lookup_config,
                     config_json=lookup_config_json,
                     config_fp=lookup_config_fp
@@ -261,7 +187,7 @@ class OasisLookupFactory(object):
         success_only=False
     ):
         """
-        Used when lookup is an instances of `OasisBuiltinBaseLookup(object)`
+        Used when lookup is an instances of `OasisBaseLookup(object)`
 
         Generates lookup results (dicts) for the given model and supplier -
         requires a lookup instance (which can be created using the `create2`
@@ -344,27 +270,7 @@ class OasisLookupFactory(object):
         _keys_file_path = as_path(keys_file_path, 'keys_file_path', preexists=False)
         _keys_errors_file_path = as_path(keys_errors_file_path, 'keys_errors_file_path', preexists=False)
 
-        if keys_format == 'json':
-            output_class = JSONKeysOutputStrategy
-        elif keys_format == 'oasis':
-            output_class = CSVKeysOutputStrategy
-        else:
-            raise OasisException("Unrecognised keys file output format - valid formats are 'oasis' or 'json'")
 
-        with ExitStack() as exit_stack:
-            keys_file = exit_stack.enter_context(open(_keys_file_path, "w"))
-            if _keys_errors_file_path:
-                keys_errors_file = exit_stack.enter_context(open(_keys_errors_file_path, "w"))
-            else:
-                keys_errors_file = None
-
-            output_writer = output_class(keys_file, keys_errors_file=keys_errors_file)
-            n_successes, n_nonsuccesses = output_writer.write(keys_data)
-
-        if not _keys_errors_file_path:
-            return _keys_file_path, n_successes
-
-        return _keys_file_path, n_successes, _keys_errors_file_path, n_nonsuccesses
 
     @classmethod
     def save_results(
@@ -431,24 +337,29 @@ class OasisLookupFactory(object):
                 raise OasisException('Unknown lookup class {}, missing default method "cls.get_keys_base"'.format(type(lookup)))
 
         results = keys_generator(**kwargs)
-        successes = []
-        nonsuccesses = []
-
-        # Todo: Move the inside the keys_generators?  and return a tuple of (successes, nonsuccesses)
-        for r in results:
-            successes.append(r) if r['status'] == OASIS_KEYS_STATUS['success']['id'] else nonsuccesses.append(r)
 
         if format == 'json':
-            if efp:
-                fp1, n1 = cls.write_json_keys_file(successes, sfp)
-                fp2, n2 = cls.write_json_keys_file(nonsuccesses, efp)
-                return fp1, n1, fp2, n2
-            return cls.write_json_keys_file(successes, sfp)
+            output_class = JSONKeysOutputStrategy
         elif format == 'oasis':
-            if efp:
-                fp1, n1 = cls.write_oasis_keys_file(successes, sfp, keys_success_msg)
-                fp2, n2 = cls.write_oasis_keys_errors_file(nonsuccesses, efp)
-                return fp1, n1, fp2, n2
-            return cls.write_oasis_keys_file(successes, sfp, keys_success_msg)
+            output_class = CSVKeysOutputStrategy
         else:
-            raise OasisException("Unrecognised lookup file output format - valid formats are 'oasis' or 'json'")
+            raise OasisException("Unrecognised keys file output format - valid formats are 'oasis' or 'json'")
+
+        with ExitStack() as exit_stack:
+            keys_file = exit_stack.enter_context(open(sfp, "w"))
+            if efp:
+                keys_errors_file = exit_stack.enter_context(open(efp, "w"))
+            else:
+                keys_errors_file = None
+
+            output_writer = output_class(
+                keys_file,
+                keys_errors_file=keys_errors_file,
+                write_success_msg=keys_success_msg
+            )
+            n_successes, n_nonsuccesses = output_writer.write(results)
+
+        if not efp:
+            return sfp, n_successes
+
+        return sfp, n_successes, efp, n_nonsuccesses

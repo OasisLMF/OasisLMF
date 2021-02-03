@@ -478,6 +478,32 @@ class TestKeysOutput(TestCase):
         self.assertEqual(expected_n_nonsuccess, actual_n_nonsuccess)
         pd.testing.assert_frame_equal(expected_keys_df, actual_keys_df)
 
+    def test_single_successful_key__csv__write_success_msg(self):
+        keys = [self.KEY_SUCCESS_1]
+
+        keys_stringio = io.StringIO()
+
+        keys_output = CSVKeysOutputStrategy(keys_stringio, write_success_msg=True)
+        actual_n_success, actual_n_nonsuccess = keys_output.write(keys)
+        keys_stringio.seek(0)
+
+        expected_n_success = 1
+        expected_n_nonsuccess = 0
+        expected_keys_df = pd.DataFrame({
+            'LocID': [1],
+            'PerilID': [1],
+            'CoverageTypeID': [1],
+            'AreaPerilID': [1],
+            'VulnerabilityID': [1],
+            'Message': ['ok'],
+        })
+
+        actual_keys_df = pd.read_csv(keys_stringio)
+
+        self.assertEqual(expected_n_success, actual_n_success)
+        self.assertEqual(expected_n_nonsuccess, actual_n_nonsuccess)
+        pd.testing.assert_frame_equal(expected_keys_df, actual_keys_df)
+
     def test_single_successful_key__custom_model__csv(self):
         keys = [self.KEY_CUSTOM_MODEL_SUCCESS_1]
 
