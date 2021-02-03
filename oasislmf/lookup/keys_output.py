@@ -236,7 +236,12 @@ class CSVKeysOutputStrategy(BaseKeysOutputStrategy):
             )
 
         else:
-            write_nonsuccess = None
+            # Function will exit on seeing None as the CSV writer.
+            write_nonsuccess = write_nonsuccess = partial(
+                self._write_csv_row,
+                None,
+                None,
+            )
 
         return write_success, write_nonsuccess
 
