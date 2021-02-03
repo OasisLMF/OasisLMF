@@ -149,18 +149,17 @@ class CSVKeysOutputStrategy(BaseKeysOutputStrategy):
 
         success_status = OASIS_KEYS_STATUS['success']['id']
         is_first_row = True
-        with ExitStack() as exit_stack:
-            for r in results:
-                if is_first_row:
-                    write_success, write_nonsuccess = self._set_up_output(r, exit_stack)
-                    is_first_row = False
+        for r in results:
+            if is_first_row:
+                write_success, write_nonsuccess = self._set_up_output(r)
+                is_first_row = False
 
-                if r['status'] == success_status:
-                    n_successes += 1
-                    write_success(r)
-                else:
-                    n_nonsuccesses += 1
-                    write_nonsuccess(r)
+            if r['status'] == success_status:
+                n_successes += 1
+                write_success(r)
+            else:
+                n_nonsuccesses += 1
+                write_nonsuccess(r)
 
         return n_successes, n_nonsuccesses
 
@@ -179,7 +178,7 @@ class CSVKeysOutputStrategy(BaseKeysOutputStrategy):
             return
 
         row_mapped = {
-            new_key: row[old_key] for new_key, old_key in self.KEYS_NAME_MAPPING
+            new_key: row[old_key] for new_key, old_key in self.KEYS_NAME_MAPPING.items()
             if old_key in row
         }
 
@@ -203,7 +202,7 @@ class CSVKeysOutputStrategy(BaseKeysOutputStrategy):
 
         self._success_writer = DictWriter(self.keys_file, fieldnames=success_header_row)
         self._success_writer.writeheader()
-        write_success = partial(self._write_csv_record, self._success_writer)
+        write_success = partial(self._write_csv_row, self._success_writer)
 
         if self.do_nonsuccess_output:
             self._nonsuccess_writer = DictWriter(
@@ -211,7 +210,7 @@ class CSVKeysOutputStrategy(BaseKeysOutputStrategy):
                 fieldnames=self.KEYS_ERRORS_FIELD_NAMES,
             )
             self._nonsuccess_writer.writeheader()
-            write_nonsuccess = partial(self._write_csv_record, self._nonsuccess_writer)
+            write_nonsuccess = partial(self._write_csv_row, self._nonsuccess_writer)
         else:
             write_nonsuccess = None
 
