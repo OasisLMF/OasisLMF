@@ -1,0 +1,5 @@
+#!/bin/bash
+
+jupyter nbextension install --user --py fileupload
+jupyter nbextension enable --py --sys-prefix fileupload
+jupyter nbextension enable --py --sys-prefix qgrid

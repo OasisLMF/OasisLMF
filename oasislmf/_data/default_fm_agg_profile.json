@@ -108,6 +108,12 @@
                 "field": "accnumber",
                 "name": "Account num."
             }
+        },
+        "FMSubAggKey": {
+            "step_id": {
+                "name": "Step id",
+                "field": "step_id"
+            }
         }
     }
 }

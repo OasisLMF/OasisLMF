@@ -25,13 +25,15 @@ class FmAcceptanceTests(TestCase):
             shutil.copytree(tmp_run_dir, output_dir)
             print(f'Generated Output stored in: {output_dir}')
 
-    def run_test(self, test_case):
+    def run_test(self, test_case, fmpy=False):
         with tempfile.TemporaryDirectory() as tmp_run_dir:
             result = OasisManager().run_fm_test(
                 test_case_dir=self.test_cases_fp,
                 test_case_name=test_case,
                 run_dir=tmp_run_dir,
-                update_expected=self.update_expected)
+                update_expected=self.update_expected,
+                fmpy=fmpy,
+            )
             self._store_output(test_case, tmp_run_dir)
 
         self.assertTrue(result)
@@ -44,6 +46,16 @@ class FmAcceptanceTests(TestCase):
 
     def test_reinsurance1(self):
         self.run_test('reinsurance1')
+
+    # example run using fmpy
+    # WARNING: running fmpy in unittest will pass but fail code covrage with
+    #          'INTERNALERROR> coverage.misc.CoverageException: Can't combine line data with arc data'
+    #
+    #  Needs a fix so multiple core arn't writing to the same cov file:
+    #  https://github.com/pytest-dev/pytest-cov/issues/237
+
+    #def test_fm3_fmpy(self):
+    #    self.run_test('fm3', fmpy=True)
 
     # def test_fm3(self):
     #     self.run_test('fm3')
@@ -382,7 +394,7 @@ class FmAcceptanceTests(TestCase):
 #     def test_xxAcc4(self):
 #         self.run_test('xxAcc4')
 
-# #To do 
+# #To do
 #     def test_fm24(self):
 #         self.run_test('fm24')
 

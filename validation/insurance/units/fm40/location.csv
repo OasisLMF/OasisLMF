@@ -1,7 +1,7 @@
-PortNumber,AccNumber,CondNumber,LocNumber,CountryCode,LocPerilsCovered,BuildingTIV,OtherTIV,ContentsTIV,BITIV,LocCurrency,LocDedType1Building,LocDed1Building,LocLimit1Building,LocDed2Other,LocLimit2Other,LocDed3Contents,LocLimit3Contents,LocDed4BI,LocLimit4BI
-1,1,0,1,US,QQ1;WW1,1000000,0,0,0,0,0,10000,0,0,0,0,0,0,0
-1,1,0,2,US,QQ1;WW1,1000000,0,0,0,0,2,0.01,0,0,0,0,0,0,0
-1,1,0,3,US,QQ1;WW1,1000000,0,0,0,0,1,0.05,0,0,0,0,0,0,0
-1,1,0,4,US,QQ1;WW1,2000000,0,0,0,0,0,15000,0,0,0,0,0,0,0
-1,1,0,5,US,QQ1;WW1,2000000,0,0,0,0,0,10000,0,0,0,0,0,0,0
-1,1,0,6,US,QQ1;WW1,2000000,0,0,0,0,2,0.1,0,0,0,0,0,0,0
+PortNumber,AccNumber,LocNumber,CountryCode,LocPerilsCovered,LocCurrency,BuildingTIV,OtherTIV,ContentsTIV,BITIV,LocDedType1Building,LocDed1Building
+1,1,1,US,QQ1;WW1,USD,1000000,0,0,0,0,10000
+1,1,2,US,QQ1;WW1,USD,1000000,0,0,0,2,0.01
+1,1,3,US,QQ1;WW1,USD,1000000,0,0,0,1,0.05
+1,1,4,US,QQ1;WW1,USD,2000000,0,0,0,0,15000
+1,1,5,US,QQ1;WW1,USD,2000000,0,0,0,0,10000
+1,1,6,US,QQ1;WW1,USD,2000000,0,0,0,2,0.1

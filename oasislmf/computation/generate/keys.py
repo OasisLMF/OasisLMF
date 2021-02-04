@@ -132,8 +132,8 @@ class GenerateKeysDeterministic(ComputationStep):
     step_params = [
         {'name': 'oed_location_csv',           'flag':'-x', 'is_path': True, 'pre_exist': True,  'help': 'Source location CSV file path', 'required': True},
         {'name': 'keys_data_csv',              'flag':'-k', 'is_path': True, 'pre_exist': False,  'help': 'Generated keys CSV output path'},
-        {'name': 'supported_oed_coverage_types',  'default': tuple(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values())},
         {'name': 'num_subperils',               'flag':'-p', 'default': 1,  'type':int,          'help': 'Set the number of subperils returned by deterministic key generator'},
+        {'name': 'supported_oed_coverage_types', 'type' :int, 'nargs':'+', 'default': list(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()), 'help': 'Select List of supported coverage_types [1, .. ,4]'},
     ]
 
     def _get_output_dir(self):
@@ -152,5 +152,4 @@ class GenerateKeysDeterministic(ComputationStep):
             {'loc_id': _loc_id, 'peril_id': peril, 'coverage_type': cov_type, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
             for i, (_loc_id, peril, cov_type) in enumerate(product(loc_ids, range(1, 1 + self.num_subperils), self.supported_oed_coverage_types))
         ]
-
         return  olf.write_oasis_keys_file(keys, keys_fp)
