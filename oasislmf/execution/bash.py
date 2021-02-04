@@ -42,6 +42,13 @@ WAIT_PROCESSING_SWITCHES = {
     'wheatsheaf_mean_oep': '-m',
 }
 
+EVE_SHUFFLE_OPTIONS = {
+    EVE_NO_SHUFFLE: {'eve': '-n ', 'kat_sorting': False},
+    EVE_ROUND_ROBIN: {'eve': '', 'kat_sorting': True},
+    EVE_FISHER_YATES: {'eve': '-r ', 'kat_sorting': False},
+    EVE_STD_SHUFFLE: {'eve': '-R ', 'kat_sorting': False}
+}
+
 SUMMARY_TYPES = ['eltcalc', 'summarycalc', 'pltcalc']
 
 
@@ -946,19 +953,10 @@ def genbash(
     num_fm_per_lb = num_fm_per_lb if isinstance(num_fm_per_lb, int) else KTOOL_N_FM_PER_LB
     event_shuffle = event_shuffle if isinstance(event_shuffle, int) else EVE_DEFAULT_SHUFFLE
 
-    # Set event shuffle options:
-    if event_shuffle == EVE_NO_SHUFFLE:
-        kat_sort_by_event = False
-        eve_shuffle_flag = '-n '
-    elif event_shuffle == EVE_ROUND_ROBIN:     
-        kat_sort_by_event = True
-        eve_shuffle_flag = ''
-    elif event_shuffle == EVE_FISHER_YATES:
-        kat_sort_by_event = False
-        eve_shuffle_flag = '-r '    
-    elif event_shuffle == EVE_STD_SHUFFLE:
-        kat_sort_by_event = False
-        eve_shuffle_flag = '-R '    
+    # Get event shuffle flags 
+    if event_shuffle in EVE_SHUFFLE_OPTIONS:
+        eve_shuffle_flag = EVE_SHUFFLE_OPTIONS[event_shuffle]['eve']
+        kat_sort_by_event = EVE_SHUFFLE_OPTIONS[event_shuffle]['kat_sorting']
     else:
         # code path shouldn't make it here (hopefully)
         raise OasisException(f'Error: Unknown event shuffle rule "{event_shuffle}" expected value between [0..{EVE_STD_SHUFFLE}]')
