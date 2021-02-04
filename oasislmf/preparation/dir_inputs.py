@@ -1,4 +1,5 @@
 __all__ = [
+    'create_target_directory',
     'prepare_input_files_directory'
 ]
 
@@ -11,6 +12,14 @@ from pathlib2 import Path
 from ..utils.exceptions import OasisException
 from ..utils.path import as_path
 from ..utils.defaults import store_exposure_fp
+
+
+def create_target_directory(target_dir, label):
+    target_dir = as_path(target_dir, label, is_dir=True, preexists=False)
+    if not os.path.exists(target_dir):
+        Path(target_dir).mkdir(parents=True, exist_ok=True)
+
+    return target_dir
 
 
 def prepare_input_files_directory(
@@ -31,9 +40,9 @@ def prepare_input_files_directory(
     try:
         # Prepare the target directory and copy the source files, profiles and
         # model version file into it
-        target_dir = as_path(target_dir, 'target Oasis files directory', is_dir=True, preexists=False)
-        if not os.path.exists(target_dir):
-            Path(target_dir).mkdir(parents=True, exist_ok=True)
+        target_dir = create_target_directory(
+            target_dir, 'target Oasis files directory'
+        )
 
         # Copy preserving original filenames 
         paths = [
