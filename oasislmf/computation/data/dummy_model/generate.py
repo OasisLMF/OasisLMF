@@ -1,4 +1,21 @@
-import argparse
+__all__ = [
+    'VulnerabilityFile',
+    'Eventsfile',
+    'FootprintBinFile',
+    'FootprintIdxFile',
+    'DamageBinDictFile',
+    'OccurrenceFile',
+    'RandomFile',
+    'CoveragesFile',
+    'ItemsFile',
+    'FMProgrammeFile',
+    'FMPolicyTCFile',
+    'FMProfileFile',
+    'FMXrefFile',
+    'GULSummaryXrefFile',
+    'FMSummaryXrefFile'
+]
+
 from collections import OrderedDict
 import numpy as np
 import os
@@ -6,6 +23,9 @@ import struct
 
 
 class ModelFile:
+    """
+    Base class for all dummy model files.
+    """
     def __init__(self):
         pass
 
@@ -22,6 +42,9 @@ class ModelFile:
             np.random.seed((self.random_seed + salt) % 0xFFFFFFFF)
 
     def write_file(self):
+        """
+        Convert data to binary format and writing to file.
+        """
         with open(self.file_name, 'wb') as f:
             if self.start_stats:
                 for stat in self.start_stats:
@@ -32,9 +55,10 @@ class ModelFile:
                 *(x for y in self.generate_data() for x in y)
             ))
 
-    # Method for debugging file output
-    # Prints csv output to screen
     def debug_write_file(self):
+        """
+        Print csv output to screen. Used for debugging file output.
+        """
         if self.start_stats:
             for stat in self.start_stats:
                 print('{} = {}'.format(stat['desc'], stat['value']))
@@ -246,8 +270,8 @@ class DamageBinDictFile(ModelFile):
             fields[i] = np.insert(field, 0, 0)
             fields[i] = np.append(fields[i], 1)
         bin_from_values, bin_to_values, interpolations = fields
-        # Set interval type for all bins to 1201
-        interval_type = 1201
+        # Set interval type for all bins to 0 (unused)
+        interval_type = 0
 
         for bin_id, bin_from, bin_to, interpolation in zip(
             bin_indexes, bin_from_values, bin_to_values, interpolations
@@ -527,191 +551,3 @@ class FMSummaryXrefFile(FMFile):
             self.num_locations * self.coverages_per_location * self.num_layers
         ):
             yield output_id+1, summary_id, summaryset_id
-
-
-def parse_arguments():
-    """
-    Read arguments from command line and check validity.
-
-    :return: arguments
-    :dtype: namespace object
-    """
-
-    parser = argparse.ArgumentParser(description='Generate model files.')
-    parser.add_argument(
-        '-v', '--num-vulnerabilities',  required=True, type=int,
-        help='Number of vulnerabilities'
-    )
-    parser.add_argument(
-        '-i', '--num-intensity-bins', required=True, type=int,
-        help='Number of intensity bins'
-    )
-    parser.add_argument(
-        '-d', '--num-damage-bins', required=True, type=int,
-        help='Number of damage bins'
-    )
-    parser.add_argument(
-        '-s', '--vulnerability-sparseness', required=False, type=float,
-        default=1.0,
-        help='Percentage of bins impacted for a vulnerability at an intensity level'
-    )
-    parser.add_argument(
-        '-e', '--num-events', required=True, type=int, help='Number of events'
-    )
-    parser.add_argument(
-        '-a', '--num-areaperils', required=True, type=int,
-        help='Number of areaperils'
-    )
-    parser.add_argument(
-        '-A', '--areaperils-per-event', required=False, type=int,
-        default=None, help='Number of areaperils impacted per event'
-    )
-    parser.add_argument(
-        '-S', '--intensity-sparseness', required=False, type=float, default=1.0,
-        help='Percentage of bins impacted for an event and areaperil'
-    )
-    parser.add_argument(
-        '-u', '--no-intensity-uncertainty', required=False, default=False,
-        action='store_true', help='No intensity uncertainty flag'
-    )
-    parser.add_argument(
-        '-p', '--num-periods', required=True, type=int, help='Number of periods'
-    )
-    parser.add_argument(
-        '-r', '--num-randoms', required=False, type=int, default=0,
-        help='Number of random numbers'
-    )
-    parser.add_argument(
-        '-R', '--random-seed', required=False, type=int, default=-1,
-        help='Random seed (-1 for 1234 (default), 0 for current system time)'
-    )
-    parser.add_argument(
-        '-l', '--num-locations', required=True, type=int,
-        help='Number of locations'
-    )
-    parser.add_argument(
-        '-c', '--coverages-per-location', required=True, type=int,
-        help='Number of coverage types per location'
-    )
-    parser.add_argument(
-        '-L', '--num-layers', required=False, type=int, default=1,
-        help='Number of layers'
-    )
-
-    args = parser.parse_args()
-
-    # Validate input arguments
-    if args.vulnerability_sparseness > 1.0 or args.vulnerability_sparseness < 0.0:
-        raise Exception('Invalid value for --vulnerability-sparseness')
-    if args.intensity_sparseness > 1.0 or args.intensity_sparseness < 0.0:
-        raise Exception('Invalid value for --intensity-sparseness')
-    if not args.areaperils_per_event:
-        args.areaperils_per_event = args.num_areaperils
-    if args.areaperils_per_event > args.num_areaperils:
-        raise Exception('Number of areaperils per event exceeds total number of areaperils')
-    if args.coverages_per_location > 4 or args.coverages_per_location < 1:
-        raise Exception('Number of supported coverage types is 1 to 4')
-    if args.random_seed < -1:
-        raise Exception('Invalid random seed')
-
-    return args
-
-
-def main():
-
-    # Parse arguments from command line
-    args = parse_arguments()
-
-    input_dir = 'input'
-    if not os.path.exists(input_dir):
-        os.makedirs(input_dir)
-    static_dir = 'static'
-    if not os.path.exists(static_dir):
-        os.makedirs(static_dir)
-
-    # Model files
-    vulnerability_file = VulnerabilityFile(
-        args.num_vulnerabilities, args.num_intensity_bins, args.num_damage_bins,
-        args.vulnerability_sparseness, args.random_seed, static_dir
-    )
-    vulnerability_file.write_file()
-
-    events_file = EventsFile(args.num_events, input_dir)
-    events_file.write_file()
-
-    footprint_files_inputs = {
-        'num_events': args.num_events, 'num_areaperils': args.num_areaperils,
-        'areaperils_per_event': args.areaperils_per_event,
-        'num_intensity_bins': args.num_intensity_bins,
-        'intensity_sparseness': args.intensity_sparseness,
-        'no_intensity_uncertainty': args.no_intensity_uncertainty,
-        'directory': static_dir
-    }
-    footprint_bin_file = FootprintBinFile(
-        **footprint_files_inputs, random_seed=args.random_seed
-    )
-    footprint_bin_file.write_file()
-    footprint_idx_file = FootprintIdxFile(**footprint_files_inputs)
-    footprint_idx_file.write_file()
-
-    damage_bin_dict_file = DamageBinDictFile(args.num_damage_bins, static_dir)
-    damage_bin_dict_file.write_file()
-
-    occurrence_file = OccurrenceFile(
-        args.num_events, args.num_periods, args.random_seed, input_dir
-    )
-    occurrence_file.write_file()
-
-    if args.num_randoms > 0:
-        random_file = RandomFile(args.num_randoms, args.random_seed, static_dir)
-        random_file.write_file()
-
-    # GUL files
-    coverages_file = CoveragesFile(
-        args.num_locations, args.coverages_per_location, args.random_seed,
-        input_dir
-    )
-    coverages_file.write_file()
-
-    items_file = ItemsFile(
-        args.num_locations, args.coverages_per_location, args.num_areaperils,
-        args.num_vulnerabilities, args.random_seed, input_dir
-    )
-    items_file.write_file()
-
-    # FM files
-    fm_programme_file = FMProgrammeFile(
-        args.num_locations, args.coverages_per_location, input_dir
-    )
-    fm_programme_file.write_file()
-
-    fm_policytc_file = FMPolicyTCFile(
-        args.num_locations, args.coverages_per_location, args.num_layers,
-        input_dir
-    )
-    fm_policytc_file.write_file()
-
-    fm_profile_file = FMProfileFile(args.num_layers, input_dir)
-    fm_profile_file.write_file()
-
-    fm_xref_file = FMXrefFile(
-        args.num_locations, args.coverages_per_location, args.num_layers,
-        input_dir
-    )
-    fm_xref_file.write_file()
-
-    # Summary files
-    gulsummaryxref_file = GULSummaryXrefFile(
-        args.num_locations, args.coverages_per_location, input_dir
-    )
-    gulsummaryxref_file.write_file()
-
-    fmsummaryxref_file = FMSummaryXrefFile(
-        args.num_locations, args.coverages_per_location, args.num_layers,
-        input_dir
-    )
-    fmsummaryxref_file.write_file()
-
-
-if __name__ == "__main__":
-    main()
