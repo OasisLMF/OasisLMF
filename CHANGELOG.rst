@@ -13,7 +13,7 @@ OasisLMF Changelog
 * [#665](https://github.com/OasisLMF/OasisLMF/issues/665) - Provide CL arguments for generating dummy model files
 * [#744](https://github.com/OasisLMF/OasisLMF/pull/744) - Compatibility fix for older pandas versions
 * [#708](https://github.com/OasisLMF/OasisLMF/issues/708) - Check for case sensitive event/occ sets with a fallback to lowercase names
-* [#737](https://github.com/OasisLMF/OasisLMF/issues/737) - Added flag `--ktools-event-shuffle` to support ktools feature [Issue #119]
+* [#737](https://github.com/OasisLMF/OasisLMF/issues/737) - Added flag `--ktools-event-shuffle` to support ktools feature [Issue 119](https://github.com/OasisLMF/ktools/issues/119)
 .. end_latest_release
 
 `1.13.2`_
