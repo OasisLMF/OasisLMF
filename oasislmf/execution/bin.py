@@ -26,7 +26,7 @@ import shutil
 import shutilwhich
 import subprocess
 import tarfile
-import pandas as pd 
+import pandas as pd
 
 from itertools import chain
 
@@ -161,16 +161,16 @@ def prepare_run_directory(
         except OSError as e:
             if not (e.errno == errno.EEXIST and os.path.islink(destfile) and os.name != 'nt'):
                 raise e
-            else:    
+            else:
                 # If the link already exists, check files are different replace it
                 if os.readlink(destfile) != os.path.abspath(sourcefile):
                     os.symlink(sourcefile, destfile + ".tmp")
                     os.replace(destfile + ".tmp", destfile)
-            
+
         if user_data_dir and os.path.exists(user_data_dir):
             for sourcefile in glob.glob(os.path.join(user_data_dir, '*')):
                 destfile = os.path.join(model_data_dst_fp, os.path.basename(sourcefile))
-                
+
                 try:
                     if os.name == 'nt':
                         shutil.copy(sourcefile, destfile)
@@ -179,7 +179,7 @@ def prepare_run_directory(
                 except OSError as e:
                     if not (e.errno == errno.EEXIST and os.path.islink(destfile) and os.name != 'nt'):
                         raise e
-                    else:    
+                    else:
                         # If the link already exists, check files are different replace it
                         if os.readlink(destfile) != os.path.abspath(sourcefile):
                             os.symlink(sourcefile, destfile + ".tmp")
@@ -193,7 +193,7 @@ def _create_return_period_bin(run_dir, return_periods):
     csv_fp = os.path.join(run_dir, 'input', 'returnperiods.csv')
     bin_fp = os.path.join(run_dir, 'input', 'returnperiods.bin')
     pd.DataFrame(
-        return_periods, 
+        return_periods,
         columns =['return_period']).sort_values(ascending=False, by=['return_period']
     ).to_csv(csv_fp, index=False)
 
@@ -202,7 +202,7 @@ def _create_return_period_bin(run_dir, return_periods):
         subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
     except subprocess.CalledProcessError as e:
         raise OasisException("Error while converting returnperiods.csv to ktools binary format: {}".format(e))
-    
+
 
 def _prepare_input_bin(run_dir, bin_name, model_settings, setting_key=None, ri=False):
     bin_fp = os.path.join(run_dir, 'input', '{}.bin'.format(bin_name))
@@ -212,9 +212,12 @@ def _prepare_input_bin(run_dir, bin_name, model_settings, setting_key=None, ri=F
         if not setting_val:
             model_data_bin_fp = os.path.join(run_dir, 'static', '{}.bin'.format(bin_name))
         else:
-            # Format for data file names
-            setting_val = str(setting_val).replace(' ', '_').lower()
-            model_data_bin_fp = os.path.join(run_dir, 'static', '{}_{}.bin'.format(bin_name, setting_val))
+            # 'verbatim' -  Try setting value as given
+            model_data_bin_fp = os.path.join(run_dir, 'static', '{}_{}.bin'.format(bin_name, str(setting_val)))
+            if not os.path.isfile(model_data_bin_fp):
+                # 'compatibility' - Fallback name formating to keep existing conversion
+                setting_val = str(setting_val).replace(' ', '_').lower()
+                model_data_bin_fp = os.path.join(run_dir, 'static', '{}_{}.bin'.format(bin_name, setting_val))
 
         if not os.path.exists(model_data_bin_fp):
             raise OasisException('Could not find {} data file: {}'.format(bin_name, model_data_bin_fp))
@@ -238,11 +241,11 @@ def _calc_selected(analysis_settings, calc_type):
     ri_section = analysis_settings.get('ri_summaries')
 
     if gul_section:
-        is_in_gul = any(gul_summary.get(calc_type, None) for gul_summary in gul_section) 
+        is_in_gul = any(gul_summary.get(calc_type, None) for gul_summary in gul_section)
     if il_section:
-        is_in_il = any(il_summary.get(calc_type, None) for il_summary in il_section) 
+        is_in_il = any(il_summary.get(calc_type, None) for il_summary in il_section)
     if ri_section:
-        is_in_ri = any(ri_summary.get(calc_type, None) for ri_summary in ri_section) 
+        is_in_ri = any(ri_summary.get(calc_type, None) for ri_summary in ri_section)
 
     return any([is_in_gul, is_in_il, is_in_ri])
 
@@ -266,7 +269,7 @@ def prepare_run_inputs(analysis_settings, run_dir, ri=False):
             if analysis_settings.get('return_periods'):
                 # Create return periods from user input
                 _create_return_period_bin(run_dir, analysis_settings.get('return_periods'))
-            else:    
+            else:
                 # copy return periods from static
                 _prepare_input_bin(run_dir, 'returnperiods', model_settings)
 
@@ -391,7 +394,7 @@ def _csv_to_bin(csv_directory, bin_directory, il=False):
             output_file_path = os.path.join(
                 bin_directory, '{}{}.bin'.format(input_file['name'], '_step')
             )
-            
+
             cmd_str = "{} {} < \"{}\" > \"{}\"".format(conversion_tool, step_flag, input_file_path, output_file_path)
         else:
             cmd_str = "{} < \"{}\" > \"{}\"".format(conversion_tool, input_file_path, output_file_path)
