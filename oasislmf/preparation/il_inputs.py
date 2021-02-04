@@ -1116,7 +1116,8 @@ def get_il_input_items(
     prev_level_df['orig_level_id'] = level_id
     prev_level_df['layer_id'] = 1
     prev_level_df['agg_tiv'] = prev_level_df['tiv']
-    prev_level_df[['attachment', 'share']] = 0
+    prev_level_df['attachment'] = 0
+    prev_level_df['share'] = 0
     il_inputs_df_list = []
 
     # create level for each SUPPORTED_FM_LEVELS
@@ -1145,7 +1146,7 @@ def get_il_input_items(
     agg_key = [v['field'].lower() for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
     sub_agg_key = [v['field'].lower() for v in fm_aggregation_profile[level_id].get('FMSubAggKey', {}).values()
                    if v['field'].lower() in prev_level_df.columns]
-    need_account_aggregation = prev_level_df[agg_key + sub_agg_key + ['layer_id']].value_counts().max() > 1
+    need_account_aggregation = prev_level_df[agg_key + sub_agg_key + ['layer_id']].groupby(agg_key + sub_agg_key + ['layer_id']).size().max() > 1
 
     if need_account_aggregation:
         level_df = column_base_il_df[set(present_cols)]
