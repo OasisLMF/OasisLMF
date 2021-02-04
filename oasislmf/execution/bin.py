@@ -208,7 +208,6 @@ def _prepare_input_bin(run_dir, bin_name, model_settings, setting_key=None, ri=F
     bin_fp = os.path.join(run_dir, 'input', '{}.bin'.format(bin_name))
     if not os.path.exists(bin_fp):
         setting_val = model_settings.get(setting_key)
-        import ipdb; ipdb.set_trace()
 
         if not setting_val:
             model_data_bin_fp = os.path.join(run_dir, 'static', '{}.bin'.format(bin_name))
