@@ -28,6 +28,7 @@ class Genbash(TestCase):
         cls.ri_alloc_rule    = 2
         cls.num_gul_per_lb   = 0
         cls.num_fm_per_lb    = 0
+        cls.event_shuffle    = 1
         cls.fifo_tmp_dir     = False
         cls.bash_trace       = False
         cls.stderr_guard     = False
@@ -87,6 +88,7 @@ class Genbash(TestCase):
             ri_alloc_rule=(ri_alloc_rule or self.ri_alloc_rule),
             num_gul_per_lb=self.num_gul_per_lb,
             num_fm_per_lb=self.num_fm_per_lb,
+            event_shuffle=self.event_shuffle,
             bash_trace=(bash_trace or self.bash_trace),
             gul_legacy_stream=(gul_legacy_stream or self.gul_legacy_stream),
         )
@@ -594,3 +596,30 @@ class Genbash_LoadBanlancer(Genbash):
         if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
             shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
         os.makedirs(cls.KPARSE_OUTPUT_FOLDER)
+
+
+class Genbash_EventShuffle(Genbash):
+    @classmethod
+    def setUpClass(cls):
+        # test dirs
+        cls.KPARSE_INPUT_FOLDER = os.path.join(TEST_DIRECTORY, "kparse_input")
+        cls.KPARSE_OUTPUT_FOLDER = os.path.join(TEST_DIRECTORY, "eve_kparse_output")
+        cls.KPARSE_REFERENCE_FOLDER = os.path.join(TEST_DIRECTORY, "eve_kparse_reference")
+
+        # defaults
+        cls.ri_iterations    = 0
+        cls.gul_alloc_rule   = 0
+        cls.il_alloc_rule    = 2
+        cls.ri_alloc_rule    = 2
+        cls.num_gul_per_lb   = 2
+        cls.num_fm_per_lb    = 2
+        cls.event_shuffle    = 3
+        cls.fifo_tmp_dir     = False
+        cls.bash_trace       = False
+        cls.stderr_guard     = False
+        cls.gul_legacy_stream = False
+
+        if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
+            shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
+        os.makedirs(cls.KPARSE_OUTPUT_FOLDER)
+
