@@ -568,6 +568,11 @@ def __merge_gul_and_account(gul_inputs_df, accounts_df, fm_terms, oed_hierarchy)
         drop_duplicates=True
     )
 
+    missing_account_row = column_base_il_df.loc[column_base_il_df['layer_id'].isna()]
+    if not missing_account_row.empty:
+        raise OasisException(f"locations {missing_account_row['loc_id'].unique()}" +
+                             " have policies, accounts combination not present in the account file")
+
     # If the merge is empty raise an exception - this will happen usually
     # if there are no common acc. numbers between the GUL input items and
     # the accounts listed in the accounts file
