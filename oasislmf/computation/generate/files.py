@@ -1,5 +1,7 @@
 __all__ = [
-    'GenerateFiles'
+    'GenerateFiles',
+    'GenerateDummyModelFiles',
+    'GenerateDummyOasisFiles'
 ]
 
 import io
@@ -11,7 +13,10 @@ from ..base import ComputationStep
 
 #from ...utils.coverages import SUPPORTED_COVERAGE_TYPES
 from ...preparation.oed import load_oed_dfs
-from ...preparation.dir_inputs import prepare_input_files_directory
+from ...preparation.dir_inputs import (
+    create_target_directory,
+    prepare_input_files_directory
+)
 from ...preparation.reinsurance_layer import write_files_for_reinsurance
 from ...utils.exceptions import OasisException
 from ...utils.inputs import str2bool
@@ -49,6 +54,23 @@ from ...preparation.summaries import (
     write_summary_levels,
 )
 
+from ..data.dummy_model.generate import (
+    VulnerabilityFile,
+    EventsFile,
+    FootprintBinFile,
+    FootprintIdxFile,
+    DamageBinDictFile,
+    OccurrenceFile,
+    RandomFile,
+    CoveragesFile,
+    ItemsFile,
+    FMProgrammeFile,
+    FMPolicyTCFile,
+    FMProfileFile,
+    FMXrefFile,
+    GULSummaryXrefFile,
+    FMSummaryXrefFile
+)
 
 
 class GenerateFiles(ComputationStep):
@@ -302,3 +324,177 @@ class GenerateFiles(ComputationStep):
 
         self.logger.info('\nOasis files generated: {}'.format(json.dumps(oasis_files, indent=4)))
         return oasis_files
+
+
+class GenerateDummyModelFiles(ComputationStep):
+    """
+    Generates dummy model files.
+    """
+
+    # Command line options
+    step_params = [
+        {'name': 'num_vulnerabilities',      'flag': '-v', 'required': True,  'type': int,                              'help': 'Number of vulnerabilities'},
+        {'name': 'num_intensity_bins',       'flag': '-i', 'required': True,  'type': int,                              'help': 'Number of intensity bins'},
+        {'name': 'num_damage_bins',          'flag': '-d', 'required': True,  'type': int,                              'help': 'Number of damage bins'},
+        {'name': 'vulnerability_sparseness', 'flag': '-s', 'required': False, 'type': float,    'default': 1.0,         'help': 'Percentage of bins normalised to range [0,1] impacted for a vulnerability at an intensity level'},
+        {'name': 'num_events',               'flag': '-e', 'required': True,  'type': int,                              'help': 'Number of events'},
+        {'name': 'num_areaperils',           'flag': '-a', 'required': True,  'type': int,                              'help': 'Number of areaperils'},
+        {'name': 'areaperils_per_event',     'flag': '-A', 'required': False, 'type': int,      'default': None,        'help': 'Number of areaperils impacted per event'},
+        {'name': 'intensity_sparseness',     'flag': '-S', 'required': False, 'type': float,    'default': 1.0,         'help': 'Percentage of bins normalised to range [0,1] impacted for an event and areaperil'},
+        {'name': 'no_intensity_uncertainty', 'flag': '-u', 'required': False, 'default': False, 'action': 'store_true', 'help': 'No intensity uncertainty flag'},
+        {'name': 'num_periods',              'flag': '-p', 'required': True,  'type': int,                              'help': 'Number of periods'},
+        {'name': 'num_randoms',              'flag': '-r', 'required': False, 'type': int,      'default': 0,           'help': 'Number of random numbers'},
+        {'name': 'random_seed',              'flag': '-R', 'required': False, 'type': int,      'default': -1,          'help': 'Random seed (-1 for 1234 (default), 0 for current system time'}
+    ]
+
+    def _validate_input_arguments(self):
+        if self.vulnerability_sparseness > 1.0 or self.vulnerability_sparseness < 0.0:
+            raise OasisException('Invalid value for --vulnerability-sparseness')
+        if self.intensity_sparseness > 1.0 or self.intensity_sparseness < 0.0:
+            raise OasisException('Invlid value for --intensity-sparseness')
+        if not self.areaperils_per_event:
+            self.areaperils_per_event = self.num_areaperils
+        if self.areaperils_per_event > self.num_areaperils:
+            raise OasisException('Number of areaperils per event exceeds total number of areaperils')
+        if self.random_seed < -1:
+            raise OasisException('Invalid random seed')
+
+    def _create_target_directory(self, label):
+        utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
+        target_dir =  os.path.join(os.getcwd(), 'runs', f'test-{label}-{utcnow}')
+        self.target_dir = create_target_directory(
+            target_dir, 'target test model files directory'
+        )
+        self.input_dir = self.target_dir
+        self.static_dir = self.target_dir
+
+    def _set_footprint_files_inputs(self):
+        self.footprint_files_inputs = {
+            'num_events': self.num_events,
+            'num_areaperils': self.num_areaperils,
+            'areaperils_per_event': self.areaperils_per_event,
+            'num_intensity_bins': self.num_intensity_bins,
+            'intensity_sparseness': self.intensity_sparseness,
+            'no_intensity_uncertainty': self.no_intensity_uncertainty,
+            'directory': self.static_dir
+        }
+
+    def _get_model_file_objects(self):
+
+        # vulnerability.bin, events.bin, footprint.bin, footprint.idx,
+        # damage_bin_dict.bin and occurrence.bin
+        self._set_footprint_files_inputs()
+        self.model_files = [
+            VulnerabilityFile(
+                self.num_vulnerabilities, self.num_intensity_bins,
+                self.num_damage_bins, self.vulnerability_sparseness,
+                self.random_seed, self.static_dir
+            ),
+            EventsFile(self.num_events, self.input_dir),
+            FootprintBinFile(
+                **self.footprint_files_inputs, random_seed=self.random_seed
+            ),
+            FootprintIdxFile(**self.footprint_files_inputs),
+            DamageBinDictFile(self.num_damage_bins, self.static_dir),
+            OccurrenceFile(
+                self.num_events, self.num_periods, self.random_seed,
+                self.input_dir
+            )
+        ]
+        if self.num_randoms > 0:
+            self.model_files += [
+                RandomFile(self.num_randoms, self.random_seed, self.static_dir)
+            ]
+
+
+    def run(self):
+        self.logger.info('\nProcessing arguments - Creating Dummy Model Files')
+
+        self._validate_input_arguments()
+        self._create_target_directory(label='files')
+        self._get_model_file_objects()
+
+        for model_file in self.model_files:
+            model_file.write_file()
+
+        self.logger.info(f'\nDummy Model files generated in {self.target_dir}')
+
+
+class GenerateDummyOasisFiles(GenerateDummyModelFiles):
+    """
+    Generates dummy model and Oasis GUL input files + optionally the IL/FM
+    input files.
+    """
+
+    step_params = [
+        {'name': 'num_locations',          'flag': '-l', 'required': True,  'type': int,               'help': 'Number of locations'},
+        {'name': 'coverages_per_location', 'flag': '-c', 'required': True,  'type': int,               'help': 'Number of coverage types per location'},
+        {'name': 'num_layers',             'flag': '-L', 'required': False, 'type': int, 'default': 1, 'help': 'Number of layers'}
+    ]
+    chained_commands = [GenerateDummyModelFiles]
+
+    def _validate_input_arguments(self):
+        super()._validate_input_arguments()
+        if self.coverages_per_location > 4 or self.coverages_per_location < 1:
+            raise OasisException('Number of supported coverage types is 1 to 4')
+
+    def _get_gul_file_objects(self):
+
+        # coverages.bin, items.bin and gulsummaryxref.bin
+        self.gul_files = [
+            CoveragesFile(
+                self.num_locations, self.coverages_per_location,
+                self.random_seed, self.input_dir
+            ),
+            ItemsFile(
+                self.num_locations, self.coverages_per_location,
+                self.num_areaperils, self.num_vulnerabilities,
+                self.random_seed, self.input_dir
+            ),
+            GULSummaryXrefFile(
+                self.num_locations, self.coverages_per_location, self.input_dir
+            )
+        ]
+
+    def _get_fm_file_objects(self):
+
+        # fm_programme.bin, fm_policytc.bin, fm_profile.bin, fm_xref.bin and
+        # fmsummaryxref.bin
+        self.fm_files = [
+            FMProgrammeFile(
+                self.num_locations, self.coverages_per_location, self.input_dir
+            ),
+            FMPolicyTCFile(
+                self.num_locations, self.coverages_per_location,
+                self.num_layers, self.input_dir
+            ),
+            FMProfileFile(self.num_layers, self.input_dir),
+            FMXrefFile(
+                self.num_locations, self.coverages_per_location,
+                self.num_layers, self.input_dir
+            ),
+            FMSummaryXrefFile(
+                self.num_locations, self.coverages_per_location,
+                self.num_layers, self.input_dir
+            )
+        ]
+
+    def run(self):
+        self.logger.info('\nProcessing arguments - Creating Model & Test Oasis Files')
+
+        self._validate_input_arguments()
+        self._create_target_directory(label='files')
+        self._get_model_file_objects()
+        self._get_gul_file_objects()
+
+        il = True   # Assume that FM files should be generated too
+        if il is True:
+            self._get_fm_file_objects()
+        else:
+            self.fm_files = []
+
+        output_files = self.model_files + self.gul_files + self.fm_files
+        for output_file in output_files:
+            output_file.write_file()
+
+        self.logger.info(f'\nDummy Model and Oasis files generated in {self.target_dir}')

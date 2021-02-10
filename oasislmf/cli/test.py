@@ -56,6 +56,36 @@ class FmValidationCmd(OasisComputationCommand):
     computation_name = 'RunFmTest'
 
 
+class GenerateDummyModelFilesCmd(OasisComputationCommand):
+    
+    formatter_class = RawDescriptionHelpFormatter
+    computation_name = 'GenerateDummyModelFiles'
+
+
+class GenerateDummyOasisFilesCmd(OasisComputationCommand):
+
+    formatter_class = RawDescriptionHelpFormatter
+    computation_name = 'GenerateDummyOasisFiles'
+
+
+class GenerateLossesDummyModelCmd(OasisComputationCommand):
+
+    formatter_class = RawDescriptionHelpFormatter
+    computation_name = 'GenerateLossesDummyModel'
+
+
+class TestModelCmd(BaseCommand):
+    """
+    Present sub-commands for creating test models
+    """
+
+    sub_commands = {
+        'generate-model-files': GenerateDummyModelFilesCmd,
+        'generate-oasis-files': GenerateDummyOasisFilesCmd,
+        'run': GenerateLossesDummyModelCmd
+    }
+
+
 class TestCmd(BaseCommand):
     """
     Test models and keys servers
@@ -63,5 +93,6 @@ class TestCmd(BaseCommand):
 
     sub_commands = {
         'model-validation': ModelValidationCmd,
-        'fm': FmValidationCmd
+        'fm': FmValidationCmd,
+        'model': TestModelCmd
     }

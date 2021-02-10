@@ -38,7 +38,7 @@ __all__ = [
 import os
 import io
 import glob
-import json 
+import json
 
 from collections import OrderedDict
 from itertools import chain
@@ -330,5 +330,12 @@ KTOOLS_STD_DEV_SAMPLE_IDX = -2
 KTOOLS_TIV_SAMPLE_IDX = -3
 KTOOL_N_GUL_PER_LB = 0
 KTOOL_N_FM_PER_LB = 0
+
+# Values for event shuffle rules
+EVE_NO_SHUFFLE = 0
+EVE_ROUND_ROBIN = 1
+EVE_FISHER_YATES = 2
+EVE_STD_SHUFFLE = 3
+EVE_DEFAULT_SHUFFLE = EVE_ROUND_ROBIN
 
 KTOOLS_DEBUG = False
