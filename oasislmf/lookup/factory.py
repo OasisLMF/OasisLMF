@@ -361,7 +361,7 @@ class OasisLookupFactory(object):
                 raise OasisException('Unknown lookup class {}, missing default method "cls.get_keys_base"'.format(type(lookup)))
 
         results = keys_generator(**kwargs)
-        cls.save_keys(
+        return cls.save_keys(
             results,
             keys_file_path=sfp,
             keys_errors_file_path=efp,
