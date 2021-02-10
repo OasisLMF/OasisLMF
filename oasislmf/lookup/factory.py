@@ -434,20 +434,24 @@ class OasisLookupFactory(object):
         nonsuccesses = []
 
         # Todo: Move the inside the keys_generators?  and return a tuple of (successes, nonsuccesses)
-        for r in results:
-            successes.append(r) if r['status'] == OASIS_KEYS_STATUS['success']['id'] else nonsuccesses.append(r)
+        if len (results) > 0 :
+            for r in results:
+                successes.append(r) if r['status'] == OASIS_KEYS_STATUS['success']['id'] else nonsuccesses.append(r)
 
-        if format == 'json':
-            if efp:
-                fp1, n1 = cls.write_json_keys_file(successes, sfp)
-                fp2, n2 = cls.write_json_keys_file(nonsuccesses, efp)
-                return fp1, n1, fp2, n2
-            return cls.write_json_keys_file(successes, sfp)
-        elif format == 'oasis':
-            if efp:
-                fp1, n1 = cls.write_oasis_keys_file(successes, sfp, keys_success_msg)
-                fp2, n2 = cls.write_oasis_keys_errors_file(nonsuccesses, efp)
-                return fp1, n1, fp2, n2
-            return cls.write_oasis_keys_file(successes, sfp, keys_success_msg)
-        else:
-            raise OasisException("Unrecognised lookup file output format - valid formats are 'oasis' or 'json'")
+            if format == 'json':
+                if efp:
+                    fp1, n1 = cls.write_json_keys_file(successes, sfp)
+                    fp2, n2 = cls.write_json_keys_file(nonsuccesses, efp)
+                    return fp1, n1, fp2, n2
+                return cls.write_json_keys_file(successes, sfp)
+            elif format == 'oasis':
+                if efp:
+                    fp1, n1 = cls.write_oasis_keys_file(successes, sfp, keys_success_msg)
+                    fp2, n2 = cls.write_oasis_keys_errors_file(nonsuccesses, efp)
+                    return fp1, n1, fp2, n2
+                return cls.write_oasis_keys_file(successes, sfp, keys_success_msg)
+            else:
+                raise OasisException("Unrecognised lookup file output format - valid formats are 'oasis' or 'json'")
+        else: 
+            raise OasisException("No data returned from keys service")
+                    
