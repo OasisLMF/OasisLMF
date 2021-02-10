@@ -1,5 +1,4 @@
 import io
-import json
 import os
 import string
 
@@ -277,83 +276,6 @@ class OasisLookupFactoryGetSourceExposure(TestCase):
     def test_no_file_or_exposure_are_provided___oasis_exception_is_raised(self):
         with self.assertRaises(OasisException):
             get_location_df(exposure_fp=None)
-
-
-class OasisLookupFactoryWriteOasisKeysFiles(TestCase):
-
-    @settings(suppress_health_check=[HealthCheck.too_slow])
-    @given(
-        successes=keys(from_statuses=just(OASIS_KEYS_STATUS['success']['id']), size=5),
-        nonsuccesses=keys(
-            from_statuses=sampled_from([OASIS_KEYS_STATUS['fail']['id'], OASIS_KEYS_STATUS['nomatch']['id']]), size=5)
-    )
-    def test_records_are_given___records_are_written_to_oasis_keys_files_correctly(self, successes, nonsuccesses):
-        oasis_keys_file_to_record_metadict = {
-            'LocID': 'id',
-            'PerilID': 'peril_id',
-            'CoverageTypeID': 'coverage_type',
-            'AreaPerilID': 'area_peril_id',
-            'VulnerabilityID': 'vulnerability_id'
-        }
-        oasis_keys_errors_file_to_record_metadict = {
-            'LocID': 'id',
-            'PerilID': 'peril_id',
-            'CoverageTypeID': 'coverage_type',
-            'Status': 'status',
-            'Message': 'message'
-        }
-
-        with TemporaryDirectory() as d:
-            keys_file_path = os.path.join(d, 'keys.csv')
-            keys_errors_file_path = os.path.join(d, 'keys-errors.csv')
-
-            _, successes_count = olf.write_oasis_keys_file(successes, keys_file_path)
-            _, nonsuccesses_count = olf.write_oasis_keys_errors_file(nonsuccesses, keys_errors_file_path)
-
-            with io.open(keys_file_path, 'r', encoding='utf-8') as f1, io.open(keys_errors_file_path, 'r',
-                                                                               encoding='utf-8') as f2:
-                written_successes = [dict((oasis_keys_file_to_record_metadict[k], r[k]) for k in r) for r in
-                                     pd.read_csv(f1).T.to_dict().values()]
-                written_nonsuccesses = [dict((oasis_keys_errors_file_to_record_metadict[k], r[k]) for k in r) for r in
-                                        pd.read_csv(f2).T.to_dict().values()]
-
-            success_matches = list(filter(lambda r: (r['id'] == ws['id'] for ws in written_successes), successes))
-            nonsuccess_matches = list(
-                filter(lambda r: (r['id'] == ws['id'] for ws in written_nonsuccesses), nonsuccesses))
-
-            self.assertEqual(successes_count, len(successes))
-            self.assertEqual(success_matches, successes)
-
-            self.assertEqual(nonsuccesses_count, len(nonsuccesses))
-            self.assertEqual(nonsuccess_matches, nonsuccesses)
-
-
-class OasisLookupFactoryWriteJsonFiles(TestCase):
-
-    @settings(suppress_health_check=[HealthCheck.too_slow])
-    @given(
-        successes=keys(from_statuses=just(OASIS_KEYS_STATUS['success']['id']), size=5),
-        nonsuccesses=keys(
-            from_statuses=sampled_from([OASIS_KEYS_STATUS['fail']['id'], OASIS_KEYS_STATUS['nomatch']['id']]), size=5)
-    )
-    def test_records_are_given___records_are_written_to_json_keys_files_correctly(self, successes, nonsuccesses):
-        with TemporaryDirectory() as d:
-            keys_file_path = os.path.join(d, 'keys.json')
-            keys_errors_file_path = os.path.join(d, 'keys-errors.json')
-
-            _, successes_count = olf.write_json_keys_file(successes, keys_file_path)
-            _, nonsuccesses_count = olf.write_json_keys_file(nonsuccesses, keys_errors_file_path)
-
-            with io.open(keys_file_path, 'r', encoding='utf-8') as f1, io.open(keys_errors_file_path, 'r',
-                                                                               encoding='utf-8') as f2:
-                written_successes = json.load(f1)
-                written_nonsuccesses = json.load(f2)
-
-            self.assertEqual(successes_count, len(successes))
-            self.assertEqual(written_successes, successes)
-
-            self.assertEqual(nonsuccesses_count, len(nonsuccesses))
-            self.assertEqual(written_nonsuccesses, nonsuccesses)
 
 
 class OasisLookupFactoryGetKeys(TestCase):

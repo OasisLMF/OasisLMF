@@ -13,11 +13,11 @@ from ..base import ComputationStep
 from ...lookup.factory import OasisLookupFactory as olf
 from ...utils.exceptions import OasisException
 from ...utils.coverages import SUPPORTED_COVERAGE_TYPES
-
 from ...utils.data import (
     get_location_df,
     get_utctimestamp,
 )
+from ...utils.status import OASIS_KEYS_STATUS
 
 
 class GenerateKeys(ComputationStep):
@@ -133,7 +133,7 @@ class GenerateKeysDeterministic(ComputationStep):
         {'name': 'oed_location_csv',           'flag':'-x', 'is_path': True, 'pre_exist': True,  'help': 'Source location CSV file path', 'required': True},
         {'name': 'keys_data_csv',              'flag':'-k', 'is_path': True, 'pre_exist': False,  'help': 'Generated keys CSV output path'},
         {'name': 'num_subperils',               'flag':'-p', 'default': 1,  'type':int,          'help': 'Set the number of subperils returned by deterministic key generator'},
-        {'name': 'supported_oed_coverage_types', 'type' :int, 'nargs':'+', 'default': list(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()), 'help': 'Select List of supported coverage_types [1, .. ,4]'},
+        {'name': 'supported_oed_coverage_types', 'type':int, 'nargs':'+', 'default': list(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()), 'help': 'Select List of supported coverage_types [1, .. ,4]'},
     ]
 
     def _get_output_dir(self):
@@ -149,7 +149,17 @@ class GenerateKeysDeterministic(ComputationStep):
 
         loc_ids = (loc_it['loc_id'] for _, loc_it in location_df.loc[:, ['loc_id']].sort_values('loc_id').iterrows())
         keys = [
-            {'loc_id': _loc_id, 'peril_id': peril, 'coverage_type': cov_type, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
-            for i, (_loc_id, peril, cov_type) in enumerate(product(loc_ids, range(1, 1 + self.num_subperils), self.supported_oed_coverage_types))
+            {
+                'loc_id': _loc_id,
+                'peril_id': peril,
+                'coverage_type': cov_type,
+                'area_peril_id': i + 1,
+                'vulnerability_id': i + 1,
+                'status': OASIS_KEYS_STATUS['success']['id']
+            } for i, (_loc_id, peril, cov_type) in enumerate(product(
+                loc_ids,
+                range(1, 1 + self.num_subperils),
+                self.supported_oed_coverage_types,
+            ))
         ]
-        return  olf.write_oasis_keys_file(keys, keys_fp)
+        return olf.save_keys(keys, keys_file_path=keys_fp)

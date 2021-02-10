@@ -270,7 +270,31 @@ class OasisLookupFactory(object):
         _keys_file_path = as_path(keys_file_path, 'keys_file_path', preexists=False)
         _keys_errors_file_path = as_path(keys_errors_file_path, 'keys_errors_file_path', preexists=False)
 
+        if keys_format == 'json':
+            output_class = JSONKeysOutputStrategy
+        elif keys_format == 'oasis':
+            output_class = CSVKeysOutputStrategy
+        else:
+            raise OasisException("Unrecognised keys file output format - valid formats are 'oasis' or 'json'")
 
+        with ExitStack() as exit_stack:
+            keys_file = exit_stack.enter_context(open(_keys_file_path, "w"))
+            if _keys_errors_file_path:
+                keys_errors_file = exit_stack.enter_context(open(_keys_errors_file_path, "w"))
+            else:
+                keys_errors_file = None
+
+            output_writer = output_class(
+                keys_file,
+                keys_errors_file=keys_errors_file,
+                write_success_msg=keys_success_msg
+            )
+            n_successes, n_nonsuccesses = output_writer.write(keys_data)
+
+        if not _keys_errors_file_path:
+            return _keys_file_path, n_successes
+
+        return _keys_file_path, n_successes, _keys_errors_file_path, n_nonsuccesses
 
     @classmethod
     def save_results(
@@ -337,29 +361,10 @@ class OasisLookupFactory(object):
                 raise OasisException('Unknown lookup class {}, missing default method "cls.get_keys_base"'.format(type(lookup)))
 
         results = keys_generator(**kwargs)
-
-        if format == 'json':
-            output_class = JSONKeysOutputStrategy
-        elif format == 'oasis':
-            output_class = CSVKeysOutputStrategy
-        else:
-            raise OasisException("Unrecognised keys file output format - valid formats are 'oasis' or 'json'")
-
-        with ExitStack() as exit_stack:
-            keys_file = exit_stack.enter_context(open(sfp, "w"))
-            if efp:
-                keys_errors_file = exit_stack.enter_context(open(efp, "w"))
-            else:
-                keys_errors_file = None
-
-            output_writer = output_class(
-                keys_file,
-                keys_errors_file=keys_errors_file,
-                write_success_msg=keys_success_msg
-            )
-            n_successes, n_nonsuccesses = output_writer.write(results)
-
-        if not efp:
-            return sfp, n_successes
-
-        return sfp, n_successes, efp, n_nonsuccesses
+        cls.save_keys(
+            results,
+            keys_file_path=sfp,
+            keys_errors_file_path=efp,
+            keys_format=format,
+            keys_success_msg=keys_success_msg,
+        )

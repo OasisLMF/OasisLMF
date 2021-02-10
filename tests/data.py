@@ -444,7 +444,6 @@ def source_exposure(
     ).map(_sequence) if (size is not None and size > 0) or (max_size is not None and max_size > 0) else lists(nothing())
 
 
-
 def keys(
     from_peril_ids=sampled_from(perils),
     from_coverage_type_ids=sampled_from(supp_cov_types),
