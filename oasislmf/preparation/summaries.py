@@ -207,8 +207,9 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
     fill_na_with_categoricals(summary_group_df, 0)
     summary_group_df.sort_values(by=[sort_by], inplace=True)
     summary_ids = factorize_dataframe(summary_group_df, by_col_labels=oed_cols)
+    summary_tiv = summary_map_df.groupby(oed_col_group).sum('tiv')['tiv']
 
-    return summary_ids[0], summary_ids[1]
+    return summary_ids[0], summary_ids[1], summary_tiv
 
 
 def write_summary_levels(exposure_df, accounts_fp, target_dir):
@@ -253,7 +254,7 @@ def write_summary_levels(exposure_df, accounts_fp, target_dir):
 
     # GUL perspective (loc columns only)
     #l_col_list = exposure_df.loc[:, exposure_df.any()].columns.to_list()
-    # NOTE: work around for pandas==1.2.0, any() not returning return the 'category' field types 
+    # NOTE: work around for pandas==1.2.0, any() not returning return the 'category' field types
     l_col_list = exposure_df.replace(0, pd.np.nan).dropna(how='any', axis=1).columns.to_list()
 
     l_col_info = get_loc_dtypes()
@@ -497,16 +498,20 @@ def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, s
             summary_set_df['summary_id'] = 1
             summary_desc[desc_key] = pd.DataFrame(data=['All-Risks'], columns=['_not_set_'])
             summary_desc[desc_key].insert(loc=0, column='summary_id', value=1)
+            summary_desc[desc_key].insert(loc=len(summary_desc[desc_key].columns), column='tiv', value=map_df['tiv'].sum())
 
         else:
             (
                 summary_set_df['summary_id'],
-                set_values
+                set_values,
+                tiv_values
             ) = group_by_oed(cols_group_by, map_df, exposure_df, id_set_index, accounts_df)
 
             # Build description file
-            summary_desc[desc_key] = pd.DataFrame(data=list(set_values), columns=cols_group_by)
-            summary_desc[desc_key].insert(loc=0, column='summary_id', value=range(1, len(set_values) + 1))
+            summary_desc_df = pd.DataFrame(data=list(set_values), columns=cols_group_by)
+            summary_desc_df.insert(loc=0, column='summary_id', value=range(1, len(set_values) + 1))
+            summary_desc[desc_key] = pd.merge(summary_desc_df, tiv_values, left_on=cols_group_by, right_on=cols_group_by)
+
 
         # Appends summary set to '__summaryxref.csv'
         summary_set_df['summaryset_id'] = summary_set['id']
@@ -892,7 +897,7 @@ def write_gul_errors_map(
     exposure_id_cols = ['loc_id','portnumber','accnumber','locnumber']
     keys_error_cols = ['loc_id','peril_id','coverage_type_id','status','message']
     tiv_maps = {1:'buildingtiv',2:'othertiv',3:'contentstiv',4:'bitiv'}
-    exposure_cols = exposure_id_cols + list(tiv_maps.values()) 
+    exposure_cols = exposure_id_cols + list(tiv_maps.values())
 
     keys_errors_df.columns = keys_error_cols
 
