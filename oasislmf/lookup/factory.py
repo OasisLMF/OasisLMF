@@ -291,6 +291,9 @@ class OasisLookupFactory(object):
             )
             n_successes, n_nonsuccesses = output_writer.write(keys_data)
 
+        if n_successes + n_nonsuccesses == 0:
+            raise OasisException("No data returned from keys service")
+
         if not _keys_errors_file_path:
             return _keys_file_path, n_successes
 
@@ -361,6 +364,7 @@ class OasisLookupFactory(object):
                 raise OasisException('Unknown lookup class {}, missing default method "cls.get_keys_base"'.format(type(lookup)))
 
         results = keys_generator(**kwargs)
+
         return cls.save_keys(
             results,
             keys_file_path=sfp,
