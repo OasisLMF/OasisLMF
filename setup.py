@@ -25,7 +25,7 @@ except ImportError:
     from urllib2 import urlopen, URLError
 
 
-KTOOLS_VERSION = '3.4.3'
+KTOOLS_VERSION = '3.5.0'
 
 SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -61,6 +61,24 @@ readme = get_readme()
 
 
 class InstallKtoolsMixin(object):
+    def __init__(self):
+        self.ktools_components = []
+
+    def install_ktools(self):
+        '''
+        If system arch matches Ktools static build try to install from pre-build
+        with a fallback of compile ktools from source
+        '''
+        bin_install_kwargs = self.try_get_bin_install_kwargs()
+        if bin_install_kwargs:
+            try:
+                self.install_ktools_bin(**bin_install_kwargs)
+            except:
+                print('Fallback - building ktools from source')
+                self.install_ktools_source()
+        else:
+            self.install_ktools_source()
+
     def fetch_ktools_tar(self, location, url, attempts=3, timeout=15, cooldown=1):
         last_error = None
         proxy_config = urlrequest.getproxies()
@@ -122,7 +140,7 @@ class InstallKtoolsMixin(object):
         build_dir = os.path.join(extract_location, 'ktools-{}'.format(KTOOLS_VERSION))
 
         exit_code = os.system('cd {build_dir} && ./autogen.sh && ./configure && make && make check'.format(build_dir=build_dir))
-        if(exit_code is not 0):
+        if(exit_code != 0):
             print('Ktools build failed.\n')
             sys.exit(1)
         return build_dir
@@ -197,24 +215,10 @@ class PostInstallKtools(InstallKtoolsMixin, install):
     boolean_options = install.boolean_options + ['ktools']
 
     def __init__(self, *args, **kwargs):
-        self.ktools_components = []
         install.__init__(self, *args, **kwargs)
 
     def run(self):
-        '''
-        If system arch matches Ktools static build try to install from pre-build
-        with a fallback of compile ktools from source
-        '''
-        bin_install_kwargs = self.try_get_bin_install_kwargs()
-        if bin_install_kwargs:
-            try:
-                self.install_ktools_bin(**bin_install_kwargs)
-            except:
-                print('Fallback - building ktools from source')
-                self.install_ktools_source()
-        else:
-            self.install_ktools_source()
-
+        self.install_ktools()
         install.run(self)
 
     def get_outputs(self):
@@ -230,20 +234,10 @@ class PostDevelopKtools(InstallKtoolsMixin, develop):
     boolean_options = develop.boolean_options
 
     def __init__(self, *args, **kwargs):
-        self.ktools_components = []
         develop.__init__(self, *args, **kwargs)
 
     def run(self):
-        try:
-            self.install_ktools_source()
-        except:
-            bin_install_kwargs = self.try_get_bin_install_kwargs()
-            if bin_install_kwargs:
-                print('Fallback - installing precompiled ktools binary')
-                self.install_ktools_source()
-            else:
-                raise
-
+        self.install_ktools()
         develop.run(self)
 
     def get_outputs(self):
