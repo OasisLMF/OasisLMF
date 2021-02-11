@@ -220,7 +220,7 @@ class GenerateFiles(ComputationStep):
                 self.logger.warn('WARNING: Failed to load {} - {}'.format(self.model_settings_json, e))
 
 
-        group_id_cols = model_group_fields or self.group_id_cols
+        group_id_cols = self.group_id_cols or model_group_fields
         group_id_cols = list(map(lambda col: col.lower(), group_id_cols))
 
         # Get the GUL input items and exposure dataframes
