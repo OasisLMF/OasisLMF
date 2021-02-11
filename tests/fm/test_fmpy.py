@@ -33,6 +33,7 @@ class FmAcceptanceTests(TestCase):
                 run_dir=tmp_run_dir,
                 update_expected=self.update_expected,
                 fmpy=fmpy,
+                test_tolerance=0.0001
             ) 
             self._store_output(test_case, tmp_run_dir)
 
