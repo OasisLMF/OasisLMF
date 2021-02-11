@@ -207,7 +207,7 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
     fill_na_with_categoricals(summary_group_df, 0)
     summary_group_df.sort_values(by=[sort_by], inplace=True)
     summary_ids = factorize_dataframe(summary_group_df, by_col_labels=oed_cols)
-    summary_tiv = summary_map_df.groupby(oed_col_group).sum('tiv')['tiv']
+    summary_tiv = summary_map_df[summary_map_df.layer_id == 1].groupby(oed_col_group).sum('tiv')['tiv']
 
     return summary_ids[0], summary_ids[1], summary_tiv
 
@@ -498,7 +498,7 @@ def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, s
             summary_set_df['summary_id'] = 1
             summary_desc[desc_key] = pd.DataFrame(data=['All-Risks'], columns=['_not_set_'])
             summary_desc[desc_key].insert(loc=0, column='summary_id', value=1)
-            summary_desc[desc_key].insert(loc=len(summary_desc[desc_key].columns), column='tiv', value=map_df['tiv'].sum())
+            summary_desc[desc_key].insert(loc=len(summary_desc[desc_key].columns), column='tiv', value=map_df[map_df.layer_id == 1].tiv.sum())
 
         else:
             (
