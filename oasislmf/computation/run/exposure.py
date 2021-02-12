@@ -47,9 +47,10 @@ class RunExposure(ComputationStep):
         {'name': 'ktools_alloc_rule_ri', 'flag':'-A', 'default': KTOOLS_ALLOC_RI_DEFAULT,  'type':int, 'help': 'Set the fmcalc allocation rule used in reinsurance'},
         {'name': 'output_level',         'flag':'-o', 'help': 'Keys files output format', 'choices':['item', 'loc', 'pol', 'acc', 'port'], 'default': 'item'},
         {'name': 'num_subperils',        'flag':'-p', 'default': 1,  'type':int,          'help': 'Set the number of subperils returned by deterministic key generator'},
-        {'name': 'coverage_types',       'type' :int, 'nargs':'+', 'default': list(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()), 'help': 'Select List of supported coverage_types [1, .. ,4]'}, 
+        {'name': 'coverage_types',       'type' :int, 'nargs':'+', 'default': list(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()), 'help': 'Select List of supported coverage_types [1, .. ,4]'},
         {'name': 'fmpy',                 'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory',      'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
+        {'name': 'stream_type',          'flag':'-t', 'default': 2,  'type':int,  'help': 'Set the IL input stream type, 2 = default loss stream, 1 = deprecated cov/item stream'},
 
         {'name': 'net_ri', 'default': True},
         {'name': 'include_loss_factor', 'default': True},
@@ -141,6 +142,7 @@ class RunExposure(ComputationStep):
             ktools_alloc_rule_ri=self.ktools_alloc_rule_ri,
             fmpy=self.fmpy,
             fmpy_low_memory=self.fmpy_low_memory,
+            il_stream_type=self.stream_type,
         ).run()
 
         guls_df = losses['gul']
