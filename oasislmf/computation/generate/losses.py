@@ -317,7 +317,7 @@ class GenerateLossesDeterministic(ComputationStep):
         dtypes = {t: ('uint32' if t != 'tiv' else 'float32') for t in items.columns}
         items = set_dataframe_column_dtypes(items, dtypes)
 
-        ## Change order of steam depending on rule type
+        ## Change order of stream depending on rule type
         #   Stream_type 1
         #     event_id, item_id, sidx, loss
         #     1,1,-1,0
@@ -340,7 +340,7 @@ class GenerateLossesDeterministic(ComputationStep):
                 [KTOOLS_MEAN_SAMPLE_IDX, KTOOLS_STD_DEV_SAMPLE_IDX, KTOOLS_TIV_SAMPLE_IDX] + \
                 list(range(1, len(self.loss_factor) + 1))
         else:
-            OasisException("Unknown il steam type: {}".format(self.il_stream_type))
+            OasisException("Unknown il stream type: {}".format(self.il_stream_type))
 
 
         # Set damage percentages corresponing to the special indexes.
