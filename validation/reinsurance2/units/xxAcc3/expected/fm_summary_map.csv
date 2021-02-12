@@ -1,0 +1,4 @@
+acc_idx,accnumber,agg_id,coverage_id,coverage_type_id,layer_id,loc_id,loc_idx,locnumber,peril_id,polnumber,portnumber,tiv,output_id
+0,11611,1,1,1,1,1,0,33679,1,11611,E,76927701.0,1
+0,11611,2,2,3,1,1,0,33679,1,11611,E,100000.0,2
+0,11611,3,3,4,1,1,0,33679,1,11611,E,22705000.0,3
