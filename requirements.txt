@@ -21,8 +21,6 @@ babel==2.8.0
     # via sphinx
 backcall==0.1.0
     # via ipython
-billiard==3.6.0.0
-    # via -r ./requirements-package.in
 binaryornot==0.4.4
     # via cookiecutter
 certifi==2019.11.28
@@ -221,6 +219,8 @@ sphinxcontrib-qthelp==1.0.2
 sphinxcontrib-serializinghtml==1.1.3
     # via sphinx
 tabulate==0.8.6
+    # via -r ./requirements-package.in
+tblib==1.7.0
     # via -r ./requirements-package.in
 toml==0.10.0
     # via tox

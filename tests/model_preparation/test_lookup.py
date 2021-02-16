@@ -26,7 +26,7 @@ from hypothesis.strategies import (
 from mock import Mock, patch
 from tempfile import NamedTemporaryFile
 
-from oasislmf.model_preparation.lookup import OasisLookupFactory as olf
+from oasislmf.lookup.factory import KeyServerFactory, BasicKeyServer
 from oasislmf.utils.data import get_dtypes_and_required_cols, get_location_df 
 from oasislmf.utils.defaults import get_loc_dtypes
 from oasislmf.utils.exceptions import OasisException
@@ -63,7 +63,7 @@ class OasisLookupFactoryCreate(TestCase):
     @staticmethod
     def write_complex_config_file(data, path):
         with io.open(path, "w", encoding='utf-8') as f:
-            f.write(data)
+            f.write(f'{{"data": "{data}"}}')
 
     @given(
         supplier=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
@@ -82,12 +82,17 @@ class OasisLookupFactoryCreate(TestCase):
             module_path = os.path.join(d, '{}_lookup.py'.format(model))
             self.write_py_module(model, module_path)
 
-            _, instance = olf.create(
+            _, key_server = KeyServerFactory.create(
                 model_keys_data_path=keys_path,
                 model_version_file_path=version_path,
                 lookup_module_path=module_path
             )
-
+            instance = key_server.create_lookup(key_server.lookup_cls,
+                                                key_server.config,
+                                                key_server.config_dir,
+                                                key_server.user_data_dir,
+                                                key_server.output_dir,
+                                                lookup_id=None)
             self.assertEqual(type(instance).__name__, '{}KeysLookup'.format(model))
             self.assertEqual(instance.supplier, supplier)
             self.assertEqual(instance.model_name, model)
@@ -109,10 +114,16 @@ class OasisLookupFactoryCreate(TestCase):
             module_path = os.path.join(d, '{}_lookup.py'.format(model))
             self.write_py_module(model, module_path)
 
-            _, instance = olf.create(
+            _, key_server = KeyServerFactory.create(
                 model_version_file_path=version_path,
                 lookup_module_path=module_path
             )
+            instance = key_server.create_lookup(key_server.lookup_cls,
+                                                key_server.config,
+                                                key_server.config_dir,
+                                                key_server.user_data_dir,
+                                                key_server.output_dir,
+                                                lookup_id=None)
 
             self.assertEqual(type(instance).__name__, '{}KeysLookup'.format(model))
             self.assertEqual(instance.supplier, supplier)
@@ -146,13 +157,19 @@ class OasisLookupFactoryCreate(TestCase):
             output_directory = os.path.join(d, 'output')
             os.mkdir(output_directory)
 
-            _, instance = olf.create(
+            _, key_server = KeyServerFactory.create(
                 model_keys_data_path=keys_path,
                 model_version_file_path=version_path,
                 lookup_module_path=module_path,
                 complex_lookup_config_fp=complex_lookup_config_path,
                 output_directory=output_directory
             )
+            instance = key_server.create_lookup(key_server.lookup_cls,
+                                                key_server.config,
+                                                key_server.complex_lookup_config_fp,
+                                                key_server.user_data_dir,
+                                                key_server.output_dir,
+                                                lookup_id=None)
 
             self.assertEqual(type(instance).__name__, '{}KeysLookup'.format(model))
             self.assertEqual(instance.supplier, supplier)
@@ -178,7 +195,7 @@ class OasisLookupFactoryCreate(TestCase):
             with self.assertRaisesRegex(OasisException,
                                         r"The path .*/version.csv \(model_version_file_path\) is indicated as preexisting"
                                         r" but does not exist"):
-                _, instance = olf.create(
+                _, instance = KeyServerFactory.create(
                     model_keys_data_path=keys_path,
                     model_version_file_path=version_path,
                     lookup_module_path=module_path
@@ -202,7 +219,7 @@ class OasisLookupFactoryCreate(TestCase):
             with self.assertRaisesRegex(OasisException,
                                         r"The path .*_lookup\.py \(lookup_module_path\) is indicated as preexisting"
                                         r" but does not exist"):
-                _, instance = olf.create(
+                _, instance = KeyServerFactory.create(
                     model_keys_data_path=keys_path,
                     model_version_file_path=version_path,
                     lookup_module_path=module_path
@@ -226,50 +243,10 @@ class OasisLookupFactoryCreate(TestCase):
             with self.assertRaisesRegex(OasisException,
                                         r"The path .*/keys \(model_keys_data_path\) is indicated as preexisting"
                                         r" but does not exist"):
-                _, instance = olf.create(
+                _, instance = KeyServerFactory.create(
                     model_version_file_path=version_path,
                     lookup_module_path=module_path,
                     model_keys_data_path=keys_path
-                )
-
-    @given(
-        supplier=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
-        model=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
-        version=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
-    )
-    def test_lookup_module_path_not_supplied___correct_exception_raised(self, supplier, model, version):
-        with TemporaryDirectory() as d:
-            keys_path = os.path.join(d, 'keys')
-            os.mkdir(keys_path)
-
-            version_path = os.path.join(d, 'version.csv')
-            self.write_version_file(supplier, model, version, version_path)
-
-            with self.assertRaisesRegex(OasisException,
-                                        r"The path None \(lookup_module_path\) is indicated as preexisting"
-                                        r" but is not a valid path"):
-                _, instance = olf.create(
-                    model_version_file_path=version_path,
-                    model_keys_data_path = keys_path
-                )
-
-    @given(
-        model=text(min_size=1, max_size=10, alphabet=string.ascii_letters),
-    )
-    def test_model_version_file_path_not_supplied___correct_exception_raised(self, model):
-        with TemporaryDirectory() as d:
-            keys_path = os.path.join(d, 'keys')
-            os.mkdir(keys_path)
-
-            module_path = os.path.join(d, '{}_lookup.py'.format(model))
-            self.write_py_module(model, module_path)
-
-            with self.assertRaisesRegex(OasisException,
-                                        r"The path None \(model_version_file_path\) is indicated as preexisting"
-                                        r" but is not a valid path"):
-                _, instance = olf.create(
-                    model_keys_data_path=keys_path,
-                    lookup_module_path=module_path
                 )
 
 
@@ -278,6 +255,7 @@ class OasisLookupFactoryGetSourceExposure(TestCase):
     def test_no_file_or_exposure_are_provided___oasis_exception_is_raised(self):
         with self.assertRaises(OasisException):
             get_location_df(exposure_fp=None)
+
 
 class OasisLookupFactoryWriteOasisKeysFiles(TestCase):
 
@@ -307,8 +285,14 @@ class OasisLookupFactoryWriteOasisKeysFiles(TestCase):
             keys_file_path = os.path.join(d, 'keys.csv')
             keys_errors_file_path = os.path.join(d, 'keys-errors.csv')
 
-            _, successes_count = olf.write_oasis_keys_file(successes, keys_file_path)
-            _, nonsuccesses_count = olf.write_oasis_keys_errors_file(nonsuccesses, keys_errors_file_path)
+            result = pd.DataFrame(successes + nonsuccesses)
+            result.rename(columns={'coverage_type_id':'coverage_type'}, inplace=True)
+            key_server = BasicKeyServer({})
+            _, successes_count, _, nonsuccesses_count = key_server.write_keys_file([result],
+                                                                                   successes_fp=keys_file_path,
+                                                                                   errors_fp=keys_errors_file_path,
+                                                                                   output_format='oasis',
+                                                                                   keys_success_msg=False)
 
             with io.open(keys_file_path, 'r', encoding='utf-8') as f1, io.open(keys_errors_file_path, 'r',
                                                                                encoding='utf-8') as f2:
@@ -329,7 +313,6 @@ class OasisLookupFactoryWriteOasisKeysFiles(TestCase):
 
 
 class OasisLookupFactoryWriteJsonFiles(TestCase):
-
     @settings(suppress_health_check=[HealthCheck.too_slow])
     @given(
         successes=keys(from_statuses=just(OASIS_KEYS_STATUS['success']['id']), size=5),
@@ -340,9 +323,14 @@ class OasisLookupFactoryWriteJsonFiles(TestCase):
         with TemporaryDirectory() as d:
             keys_file_path = os.path.join(d, 'keys.json')
             keys_errors_file_path = os.path.join(d, 'keys-errors.json')
+            result = pd.DataFrame(successes + nonsuccesses)
 
-            _, successes_count = olf.write_json_keys_file(successes, keys_file_path)
-            _, nonsuccesses_count = olf.write_json_keys_file(nonsuccesses, keys_errors_file_path)
+            key_server = BasicKeyServer({})
+            _, successes_count, _, nonsuccesses_count = key_server.write_keys_file([result],
+                                                                                   successes_fp=keys_file_path,
+                                                                                   errors_fp=keys_errors_file_path,
+                                                                                   output_format='json',
+                                                                                   keys_success_msg=False)
 
             with io.open(keys_file_path, 'r', encoding='utf-8') as f1, io.open(keys_errors_file_path, 'r',
                                                                                encoding='utf-8') as f2:
@@ -354,53 +342,3 @@ class OasisLookupFactoryWriteJsonFiles(TestCase):
 
             self.assertEqual(nonsuccesses_count, len(nonsuccesses))
             self.assertEqual(written_nonsuccesses, nonsuccesses)
-
-
-class OasisLookupFactoryGetKeys(TestCase):
-
-    def create_fake_lookup(self, return_value=None):
-        self.lookup_instance = Mock()
-        self.lookup_instance.process_locations = Mock(return_value=return_value or [])
-        return self.lookup_instance
-
-    @given(lists(fixed_dictionaries({
-        'id': integers(),
-        'status': sampled_from(['success', 'failure'])
-    })))
-    def test_entries_are_dictionaries_success_only_is_true___only_successes_are_included(self, data):
-        self.create_fake_lookup(return_value=data)
-        mock_df = pd.DataFrame.from_dict(data)
-        res = list(olf.get_keys_base(lookup=self.lookup_instance, loc_df=mock_df, success_only=True))
-        self.assertEqual(res, [d for d in data if d['status'] == 'success'])
-
-    @given(lists(fixed_dictionaries({
-        'id': integers(),
-        'status': sampled_from(['success', 'failure'])
-    })))
-    def test_entries_are_dictionaries_success_only_is_false___all_entries_are_included(self, data):
-        self.create_fake_lookup(return_value=data)
-        mock_df = pd.DataFrame.from_dict(data)
-        res = list(olf.get_keys_base(lookup=self.lookup_instance, loc_df=mock_df, success_only=False))
-        self.assertEqual(res, data)
-
-
-class OasisLookupFactoryWriteKeys(TestCase):
-
-    def create_fake_lookup(self):
-        self.lookup_instance = Mock()
-        return self.lookup_instance
-
-    @settings(suppress_health_check=[HealthCheck.too_slow])
-    @given(
-        data=keys(from_statuses=just(OASIS_KEYS_STATUS['success']['id']), size=10)
-    )
-    def test_produced_keys_are_passed_to_write_oasis_keys_file(self, data):
-        write_oasis_keys_file_path = 'oasislmf.model_preparation.lookup.OasisLookupFactory.write_oasis_keys_file'
-        with TemporaryDirectory() as d, patch(write_oasis_keys_file_path) as write_oasis_keys_file_mock:
-            keys_file_path = os.path.join(d, 'piwind-keys.csv')
-
-            olf.save_keys(
-                keys_data=data,
-                keys_file_path=keys_file_path,
-            )
-            write_oasis_keys_file_mock.assert_called_once_with(data, keys_file_path, False)
