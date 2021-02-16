@@ -41,11 +41,15 @@ class FmAcceptanceTests(TestCase):
     def test_insurance(self):
         self.run_test('insurance')
 
+    def test_insurance_fm(self):
+        self.run_test('insurance_fm')
+
     def test_insurance_step(self):
         self.run_test('insurance_step')
 
     def test_reinsurance1(self):
         self.run_test('reinsurance1')
+
 
     # example run using fmpy
     # WARNING: running fmpy in unittest will pass but fail code covrage with

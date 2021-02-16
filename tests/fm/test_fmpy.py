@@ -41,13 +41,16 @@ class FmAcceptanceTests(TestCase):
 
 
     def test_insurance_py(self):
-        self.run_test('insurance',fmpy=True)
+        self.run_test('insurance',fmpy=True) # remove case Q4 56
+
+    def test_insurance_fm_py(self):
+        self.run_test('insurance_fm',fmpy=True) # investigate - should match
 
     def test_insurance_step_py(self):
         self.run_test('insurance_step',fmpy=True)
 
     def test_reinsurance1_py(self):
-        self.run_test('reinsurance1',fmpy=True)
+        self.run_test('reinsurance1',fmpy=True) # waiting for #752
 
     # def test_fm3(self):
     #     self.run_test('fm3')
