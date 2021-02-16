@@ -61,10 +61,19 @@ def select_source_dir(path_dict, examples_dir=None):
         #clear_output()
         display(path_dict['source_dir'])
         set_file_paths(dropbox.value)
+        set_file_paths(dropbox.value)
         display(path_dict)
 
         # Execulte jump to next cell
         display(Javascript("var i = Jupyter.notebook.get_selected_index(); Jupyter.notebook.select(i+1);"))
+
+    def is_valid_example(dir_value):
+        file_list = ['location', 'account']
+        for f in file_list:
+            path = os.path.join(dir_value, f'{f}.csv')
+            if not os.path.isfile(path):
+                return False
+        return True        
 
     # Function to search and load files with standard names
     def set_file_paths(dir_value):
@@ -77,14 +86,18 @@ def select_source_dir(path_dict, examples_dir=None):
     e = os.path.abspath(examples_dir)
     option_list = [os.path.join(e, o) for o in os.listdir(e) if os.path.isdir(os.path.join(e,o))]
     option_list.sort()
-    path_dict['source_dir'] = os.path.join(e, 'uploaded')
+
+    # if 'examples_dir' is an example dir load it by default 
+    if is_valid_example(e):
+        path_dict['source_dir'] = e
+    else:    
+        path_dict['source_dir'] = os.path.join(e, 'uploaded')
     set_file_paths(path_dict['source_dir'])
 
     # creation of a widget dropdown object for directory selection
     dropbox = widgets.Dropdown(
         options=option_list, # Object to iterate over
         description='Select:', # User defined
-        value=option_list[0], # Default value selection
         rows=10, # The number of rows to display when showing the box
         interactive=True, # This makes the box interactive,
     );
