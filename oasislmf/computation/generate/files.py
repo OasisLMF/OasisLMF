@@ -176,7 +176,7 @@ class GenerateFiles(ComputationStep):
         # If a pre-generated keys file path has not been provided,
         # then it is asssumed some model lookup assets have been provided, so
         # as to allow the lookup to be instantiated and called to generated
-        # the keys file. 
+        # the keys file.
         _keys_fp = _keys_errors_fp = None
         if not self.keys_data_csv:
             _keys_fp = self.kwargs['keys_data_csv'] = os.path.join(target_dir, 'keys.csv')
@@ -219,8 +219,12 @@ class GenerateFiles(ComputationStep):
             except (KeyError, AttributeError, OasisException) as e:
                 self.logger.warn('WARNING: Failed to load {} - {}'.format(self.model_settings_json, e))
 
-
-        group_id_cols = self.group_id_cols or model_group_fields
+        # load group columns from model_settings.json if not set in kwargs (CLI)
+        if model_group_fields and not self.kwargs.get('group_id_cols'):
+            group_id_cols = model_group_fields
+        # otherwise load group cols from args
+        else:
+            group_id_cols = self.group_id_cols
         group_id_cols = list(map(lambda col: col.lower(), group_id_cols))
 
         # Get the GUL input items and exposure dataframes
