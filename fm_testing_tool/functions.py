@@ -67,8 +67,11 @@ def create_fm_tree(fm_programme_df, fm_policytc_df, fm_profile_df, fm_summary_df
             if level == max(level_ids):
                 parent_node = root
             else:
-                matched_id = fm_programme_df.loc[(fm_programme_df.level_id == level+1) & (fm_programme_df.from_agg_id == node_info.to_agg_id)].to_agg_id.item()
-                parent_node = find(root, filter_=lambda node: node.level_id == level+1 and node.agg_id == matched_id)
+                try:
+                    matched_id = fm_programme_df.loc[(fm_programme_df.level_id == level+1) & (fm_programme_df.from_agg_id == node_info.to_agg_id)].to_agg_id.item()
+                    parent_node = find(root, filter_=lambda node: node.level_id == level+1 and node.agg_id == matched_id)
+                except ValueError:
+                    print('Missing node link: agg_id={}, level_id={}'.format(node_info.to_agg_id,level+1)) 
 
             # Set node names based on attrs in FM files
             if level >= 3:
