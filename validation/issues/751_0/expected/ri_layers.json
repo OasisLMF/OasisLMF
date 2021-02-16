@@ -2,16 +2,6 @@
     "1": {
         "inuring_priority": 1,
         "risk_level": "LOC",
-        "directory": "/home/joh/OasisLMF/validation/examples/xx_32/run/RI_1"
-    },
-    "2": {
-        "inuring_priority": 2,
-        "risk_level": "LOC",
-        "directory": "/home/joh/OasisLMF/validation/examples/xx_32/run/RI_2"
-    },
-    "3": {
-        "inuring_priority": 3,
-        "risk_level": "LOC",
-        "directory": "/home/joh/OasisLMF/validation/examples/xx_32/run/RI_3"
+        "directory": "/home/joh/dev/OasisLMF_branch/validation/issues/751_0/runs/RI_1"
     }
 }
