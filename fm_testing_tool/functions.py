@@ -19,6 +19,7 @@ def load_df(path, required_file=None):
             return None
 
 def create_fm_tree(fm_programme_df, fm_policytc_df, fm_profile_df, fm_summary_df):
+    missing_node_link = False 
 
     def get_policy_tc(agg_id, level_id):
         policytc = fm_policytc_df.loc[
@@ -71,6 +72,7 @@ def create_fm_tree(fm_programme_df, fm_policytc_df, fm_profile_df, fm_summary_df
                     matched_id = fm_programme_df.loc[(fm_programme_df.level_id == level+1) & (fm_programme_df.from_agg_id == node_info.to_agg_id)].to_agg_id.item()
                     parent_node = find(root, filter_=lambda node: node.level_id == level+1 and node.agg_id == matched_id)
                 except ValueError:
+                    missing_node_link = True
                     print('Missing node link: agg_id={}, level_id={}'.format(node_info.to_agg_id,level+1)) 
 
             # Set node names based on attrs in FM files
@@ -142,7 +144,7 @@ def create_fm_tree(fm_programme_df, fm_policytc_df, fm_profile_df, fm_summary_df
             coverage_type=item_info.coverage_type_id,
             peril_id=item_info.peril_id,
         )
-    return root
+    return root, missing_node_link
 
 
 def render_fm_tree(root_node, filename='tree.png'):
