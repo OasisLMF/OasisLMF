@@ -539,6 +539,7 @@ def __merge_gul_and_account(gul_inputs_df, accounts_df, fm_terms, oed_hierarchy)
     acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
     portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
     cond_num = oed_hierarchy['condnum']['ProfileElementName'].lower()
+    loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
 
     ###### prepare accounts_df #####
     # create account line without condition
@@ -570,8 +571,8 @@ def __merge_gul_and_account(gul_inputs_df, accounts_df, fm_terms, oed_hierarchy)
 
     missing_account_row = column_base_il_df.loc[column_base_il_df['layer_id'].isna()]
     if not missing_account_row.empty:
-        raise OasisException(f"locations {missing_account_row['loc_id'].unique()}" +
-                             " have policies, accounts combination not present in the account file")
+        raise OasisException("locations have policies, accounts combination not present in the account file \n" +
+                             missing_account_row[[loc_num, portfolio_num, acc_num, cond_num]].drop_duplicates().to_string(index=False))
 
     # If the merge is empty raise an exception - this will happen usually
     # if there are no common acc. numbers between the GUL input items and
