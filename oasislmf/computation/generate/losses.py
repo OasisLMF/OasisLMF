@@ -365,7 +365,7 @@ class GenerateLossesDeterministic(ComputationStep):
         # Create IL fmpy financial structures
         if self.fmpy:
              with setcwd(self.oasis_files_dir):
-                check_call(f"fmpy -a {self.ktools_alloc_rule_il} --create-financial-structure-files -p {output_dir}" , shell=True)
+                check_call(f"{get_fmcmd(self.fmpy, False)} -a {self.ktools_alloc_rule_il} --create-financial-structure-files -p {output_dir}" , shell=True)
 
         cmd = 'gultobin -S {} -t {} < {} | {} -p {} -a {} {} | tee ils.bin | fmtocsv > {}'.format(
             len(self.loss_factor),
@@ -423,7 +423,7 @@ class GenerateLossesDeterministic(ComputationStep):
                         # Create RI fmpy financial structures
                         if self.fmpy:
                              with setcwd(self.oasis_files_dir):
-                                check_call(f"fmpy -a {self.ktools_alloc_rule_ri} --create-financial-structure-files -p {layer_inputs_fp}" , shell=True)
+                                check_call(f"{get_fmcmd(self.fmpy, False)} -a {self.ktools_alloc_rule_ri} --create-financial-structure-files -p {layer_inputs_fp}" , shell=True)
 
                         _input = 'gultobin -S 1 -t {} < {} | {} -p {} -a {} {} | tee ils.bin |'.format(
                             il_stream_type,
