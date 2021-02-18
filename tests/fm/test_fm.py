@@ -38,6 +38,9 @@ class FmAcceptanceTests(TestCase):
 
         self.assertTrue(result)
 
+    def test_insurance_combined(self):
+        self.run_test('insurance_combined')
+
     def test_insurance(self):
         self.run_test('insurance')
 

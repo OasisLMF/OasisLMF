@@ -1,8 +1,0 @@
-ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsTag,CededPercent,RiskLevel
-1,E,11611,,,33679,,,,,,,LOC
-2,E,11611,,,33679,,,,,,0.24,LOC
-3,E,11611,,,33679,,,,,,0.53,LOC
-4,E,,,,,,,,,,,LOC
-5,E,,,,,,,,,,,LOC
-6,E,,,,,,,,,,,LOC
-7,E,,,,,,,,,,,LOC

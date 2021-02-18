@@ -1,0 +1,3 @@
+PortNumber,AccNumber,PolNumber,PolPerilsCovered,AccCurrency,LayerParticipation,LayerLimit,LayerAttachment,PolLimit6All,PolDed6All
+1,1,1,QQ1;WW1,USD,0.1,1500000,0,0,50000
+1,1,2,QQ1;WW1,USD,0.5,3500000,1500000,0,50000

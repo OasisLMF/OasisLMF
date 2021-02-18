@@ -1,0 +1,4 @@
+PortNumber,AccNumber,AccCurrency,PolNumber,PolPerilsCovered,LayerParticipation,LayerLimit,LayerAttachment,PolDedType6All,PolDed6All,PolMinDed6All,PolPeril,CondNumber,CondName,CondDed6All,CondDedType6All,CondMinDed6All,CondMaxDed6All,CondLimit6All,CondLimitType6All,CondPeril
+1,10,USD,A,AA1,0.5," 5,000,000 ", -   ,0,0," 100,000 ",AA1,331826,EXCLUDE CA EQ,0,0,0,0,0,0,AA1
+1,10,USD,B,AA1,0.1418," 25,000,000 "," 25,000,000 ",0,0," 100,000 ",AA1,331828,EXCLUDE CA EQ,0,0,0,0,0,0,AA1
+,,,,,,,,,,,,,,,,,,,,

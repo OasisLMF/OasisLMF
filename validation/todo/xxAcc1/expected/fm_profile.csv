@@ -1,4 +1,0 @@
-policytc_id,calcrule_id,deductible1,deductible2,deductible3,attachment1,limit1,share1,share2,share3
-1,100,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
-2,12,25000.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
-3,2,0.0,0.0,0.0,0.0,80000000.0,1.0,0.0,0.0
