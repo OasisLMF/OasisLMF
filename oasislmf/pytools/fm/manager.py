@@ -1,5 +1,5 @@
 from .financial_structure import create_financial_structure, load_financial_structure
-from .stream import read_stream_header, read_streams, EventWriter, EXTRA_VALUES
+from .stream import read_stream_header, read_streams, EventWriter, EventWriterOrderedOutput, EXTRA_VALUES
 from .compute import compute_event, init_variable, reset_variabe
 from .common import allowed_allocation_rule
 
@@ -17,7 +17,7 @@ def run(create_financial_structure_files, **kwargs):
         return run_synchronous(**kwargs)
 
 
-def run_synchronous(allocation_rule, static_path, files_in, files_out, low_memory, net_loss, **kwargs):
+def run_synchronous(allocation_rule, static_path, files_in, files_out, low_memory, net_loss, sort_output, **kwargs):
     if allocation_rule == 3:
         allocation_rule = 2
     elif allocation_rule == 0 and net_loss:
@@ -36,6 +36,11 @@ def run_synchronous(allocation_rule, static_path, files_in, files_out, low_memor
     else:
         streams_in = [open(file_in, 'rb') for file_in in files_in]
 
+    if sort_output:
+        event_writer_cls = EventWriterOrderedOutput
+    else:
+        event_writer_cls = EventWriter
+
     try:
         for stream_in in streams_in:
             stream_type, len_sample = read_stream_header(stream_in)
@@ -44,7 +49,7 @@ def run_synchronous(allocation_rule, static_path, files_in, files_out, low_memor
         with tempfile.TemporaryDirectory() as tempdir:
             losses, loss_indexes, extras, extra_indexes, children, computes = init_variable(compute_info, len_array, tempdir, low_memory)
 
-            with EventWriter(files_out, nodes_array, output_array, losses, loss_indexes, computes, len_sample) as event_writer:
+            with event_writer_cls(files_out, nodes_array, output_array, losses, loss_indexes, computes, len_sample) as event_writer:
                 for event_id, compute_i in read_streams(streams_in, nodes_array, losses, loss_indexes, computes):
                     compute_i, loss_i, extra_i = compute_event(compute_info,
                                                                net_loss,

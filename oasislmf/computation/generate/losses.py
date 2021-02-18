@@ -55,6 +55,8 @@ from ...utils.defaults import (
     KTOOLS_GUL_LEGACY_STREAM,
     KTOOLS_MEAN_SAMPLE_IDX,
     KTOOLS_NUM_PROCESSES,
+    EVE_DEFAULT_SHUFFLE,
+    EVE_STD_SHUFFLE,
     KTOOL_N_GUL_PER_LB,
     KTOOL_N_FM_PER_LB,
     KTOOLS_STD_DEV_SAMPLE_IDX,
@@ -103,6 +105,7 @@ class GenerateLosses(ComputationStep):
         {'name': 'model_run_dir',          'flag':'-r', 'is_path': True, 'pre_exist': False, 'help': 'Model run directory path'},
         {'name': 'model_package_dir',      'flag':'-p', 'is_path': True, 'pre_exist': False, 'help': 'Path containing model specific package'},
         {'name': 'ktools_num_processes',   'flag':'-n', 'type':int,   'default': KTOOLS_NUM_PROCESSES, 'help': 'Number of ktools calculation processes to use'},
+        {'name': 'ktools_event_shuffle',   'default': EVE_DEFAULT_SHUFFLE,      'type':int, 'help': 'Set rule for event shuffling between eve partions, 0 - No shuffle, 1 - round robin (output elts sorted), 2 - Fisher-Yates shuffle, 3 - std::shuffle (previous default in oasislmf<1.14.0) '},
         {'name': 'ktools_alloc_rule_gul',  'default': KTOOLS_ALLOC_GUL_DEFAULT, 'type':int, 'help': 'Set the allocation used in gulcalc'},
         {'name': 'ktools_alloc_rule_il',   'default': KTOOLS_ALLOC_IL_DEFAULT,  'type':int, 'help': 'Set the fmcalc allocation rule used in direct insured loss'},
         {'name': 'ktools_alloc_rule_ri',   'default': KTOOLS_ALLOC_RI_DEFAULT,  'type':int, 'help': 'Set the fmcalc allocation rule used in reinsurance'},
@@ -112,6 +115,7 @@ class GenerateLosses(ComputationStep):
         {'name': 'ktools_fifo_relative',   'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Create ktools fifo queues under the ./fifo dir'},
         {'name': 'fmpy',                   'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory',        'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
+        {'name': 'fmpy_sort_output',       'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'order fmpy output by item_id'},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'verbose',              'default': KTOOLS_DEBUG},
@@ -131,15 +135,17 @@ class GenerateLosses(ComputationStep):
             Path(run_dir).mkdir(parents=True, exist_ok=True)
         return run_dir
 
-    def _check_alloc_rules(self):
-        alloc_ranges = {
+    def _check_ktool_rules(self):
+        rule_ranges = {
             'ktools_alloc_rule_gul': KTOOLS_ALLOC_GUL_MAX,
             'ktools_alloc_rule_il': KTOOLS_ALLOC_FM_MAX,
-            'ktools_alloc_rule_ri': KTOOLS_ALLOC_FM_MAX}
-        for rule in alloc_ranges:
-            alloc_val = getattr(self, rule)
-            if (alloc_val < 0) or (alloc_val > alloc_ranges[rule]):
-                raise OasisException(f'Error: {rule}={alloc_val} - Not withing valid range [0..{alloc_ranges[rule]}]')
+            'ktools_alloc_rule_ri': KTOOLS_ALLOC_FM_MAX,
+            'ktools_event_shuffle': EVE_STD_SHUFFLE}
+        for rule in rule_ranges:
+            rule_val = getattr(self, rule)
+            if (rule_val < 0) or (rule_val > rule_ranges[rule]):
+                raise OasisException(f'Error: {rule}={rule_val} - Not within valid ranges [0..{rule_ranges[rule]}]')
+
 
     def run(self):
         model_run_fp = self._get_output_dir()
@@ -149,7 +155,7 @@ class GenerateLosses(ComputationStep):
         gul_item_stream = (not self.ktools_legacy_stream)
         self.logger.info('\nGenerating losses (GUL=True, IL={}, RIL={})'.format(il, ri))
 
-        self._check_alloc_rules()
+        self._check_ktool_rules()
         analysis_settings = get_analysis_settings(self.analysis_settings_json)
 
         prepare_run_directory(
@@ -227,6 +233,8 @@ class GenerateLosses(ComputationStep):
                         custom_gulcalc_cmd=self.model_custom_gulcalc,
                         fmpy=self.fmpy,
                         fmpy_low_memory=self.fmpy_low_memory,
+                        fmpy_sort_output=self.fmpy_sort_output,
+                        event_shuffle=self.ktools_event_shuffle,
                     )
                 except TypeError:
                     warnings.simplefilter("always")
@@ -286,7 +294,8 @@ class GenerateLossesDeterministic(ComputationStep):
         {'name': 'num_subperils',        'default': 1},
         {'name': 'fmpy',                 'default': False},
         {'name': 'fmpy_low_memory',      'default': False},
-        {'name': 'il_stream_type',       'default': 2},
+        {'name': 'fmpy_sort_output', 'default': False},
+        {'name': 'il_stream_type', 'default': 2},
     ]
 
     def run(self):
@@ -382,13 +391,13 @@ class GenerateLossesDeterministic(ComputationStep):
         # Create IL fmpy financial structures
         if self.fmpy:
              with setcwd(self.oasis_files_dir):
-                check_call(f"fmpy -a {self.ktools_alloc_rule_il} --create-financial-structure-files -p {output_dir}" , shell=True)
+                 check_call(f"{get_fmcmd(self.fmpy)} -a {self.ktools_alloc_rule_il} --create-financial-structure-files -p {output_dir}" , shell=True)
 
         cmd = 'gultobin -S {} -t {} < {} | {} -p {} -a {} {} | tee ils.bin | fmtocsv > {}'.format(
             len(self.loss_factor),
             self.il_stream_type,
             guls_fp,
-            get_fmcmd(self.fmpy, self.fmpy_low_memory),
+            get_fmcmd(self.fmpy, self.fmpy_low_memory, self.fmpy_sort_output),
             output_dir,
             self.ktools_alloc_rule_il,
             step_flag, ils_fp
@@ -440,12 +449,12 @@ class GenerateLossesDeterministic(ComputationStep):
                         # Create RI fmpy financial structures
                         if self.fmpy:
                              with setcwd(self.oasis_files_dir):
-                                check_call(f"fmpy -a {self.ktools_alloc_rule_ri} --create-financial-structure-files -p {layer_inputs_fp}" , shell=True)
+                                check_call(f"{get_fmcmd(self.fmpy)} -a {self.ktools_alloc_rule_ri} --create-financial-structure-files -p {layer_inputs_fp}" , shell=True)
 
                         _input = 'gultobin -S 1 -t {} < {} | {} -p {} -a {} {} | tee ils.bin |'.format(
                             self.il_stream_type,
                             guls_fp,
-                            get_fmcmd(self.fmpy, self.fmpy_low_memory),
+                            get_fmcmd(self.fmpy, self.fmpy_low_memory, self.fmpy_sort_output),
                             output_dir,
                             self.ktools_alloc_rule_il,
                             step_flag
@@ -455,7 +464,7 @@ class GenerateLossesDeterministic(ComputationStep):
                         net_flag = "-n" if self.net_ri else ""
                         cmd = '{} {} -p {} {} -a {} {} {} | tee ri{}.bin | fmtocsv > {}'.format(
                             _input,
-                            get_fmcmd(self.fmpy, self.fmpy_low_memory),
+                            get_fmcmd(self.fmpy, self.fmpy_low_memory, self.fmpy_sort_output),
                             layer_inputs_fp,
                             net_flag,
                             self.ktools_alloc_rule_ri,

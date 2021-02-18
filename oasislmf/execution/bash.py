@@ -18,6 +18,11 @@ from ..utils.defaults import (
     KTOOLS_ALLOC_RI_DEFAULT,
     KTOOL_N_GUL_PER_LB,
     KTOOL_N_FM_PER_LB,
+    EVE_DEFAULT_SHUFFLE,
+    EVE_NO_SHUFFLE,
+    EVE_ROUND_ROBIN,
+    EVE_FISHER_YATES,
+    EVE_STD_SHUFFLE,
 )
 
 RUNTYPE_GROUNDUP_LOSS = 'gul'
@@ -35,6 +40,13 @@ WAIT_PROCESSING_SWITCHES = {
     'sample_mean_oep': '-s',
     'wheatsheaf_mean_aep': '-M',
     'wheatsheaf_mean_oep': '-m',
+}
+
+EVE_SHUFFLE_OPTIONS = {
+    EVE_NO_SHUFFLE: {'eve': '-n ', 'kat_sorting': False},
+    EVE_ROUND_ROBIN: {'eve': '', 'kat_sorting': True},
+    EVE_FISHER_YATES: {'eve': '-r ', 'kat_sorting': False},
+    EVE_STD_SHUFFLE: {'eve': '-R ', 'kat_sorting': False}
 }
 
 SUMMARY_TYPES = ['eltcalc', 'summarycalc', 'pltcalc']
@@ -95,12 +107,14 @@ exec 19> log/bash.log
 export BASH_XTRACEFD="19" """
 
 
-def get_fmcmd(fmpy, fmpy_low_memory):
+def get_fmcmd(fmpy, fmpy_low_memory=False, fmpy_sort_output=False):
     if fmpy:
+        cmd = 'fmpy'
         if fmpy_low_memory:
-            return 'fmpy -l'
-        else:
-            return 'fmpy'
+            cmd += ' -l'
+        if fmpy_sort_output:
+            cmd += ' --sort-output'
+        return cmd
     else:
         return 'fmcalc'
 
@@ -280,7 +294,8 @@ def do_kats(
     filename,
     process_counter,
     work_dir='work/kat/',
-    output_dir='output/'
+    output_dir='output/',
+    sort_by_event=False,
 ):
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
@@ -293,8 +308,8 @@ def do_kats(
 
             if summary.get('eltcalc'):
                 anykats = True
-
-                cmd = 'kat'
+                
+                cmd = 'kat -s' if sort_by_event else 'kat'
                 for process_id in range(1, max_process_id + 1):
                     cmd = '{} {}{}_S{}_eltcalc_P{}'.format(
                         cmd, work_dir, runtype, summary_set, process_id
@@ -634,7 +649,7 @@ def do_kwaits(filename, process_counter):
 def get_getmodel_itm_cmd(
         number_of_samples, gul_threshold, use_random_number_file,
         gul_alloc_rule, item_output,
-        process_id, max_process_id, correlated_output, **kwargs):
+        process_id, max_process_id, correlated_output, eve_shuffle_flag,  **kwargs):
     """
     Gets the getmodel ktools command (3.1.0+) Gulcalc item stream
     :param number_of_samples: The number of samples to run
@@ -647,9 +662,12 @@ def get_getmodel_itm_cmd(
     :type gul_alloc_rule: int
     :param item_output: The item output
     :type item_output: str
+    :param eve_shuffle_flag: The event shuffling rule
+    :type eve_shuffle_flag: str
     :return: The generated getmodel command
     """
-    cmd = 'eve {0} {1} | getmodel | gulcalc -S{2} -L{3}'.format(
+    cmd = 'eve {0}{1} {2} | getmodel | gulcalc -S{3} -L{4}'.format(
+        eve_shuffle_flag,
         process_id, max_process_id,
         number_of_samples, gul_threshold)
 
@@ -664,7 +682,7 @@ def get_getmodel_itm_cmd(
 def get_getmodel_cov_cmd(
         number_of_samples, gul_threshold, use_random_number_file,
         coverage_output, item_output,
-        process_id, max_process_id, **kwargs):
+        process_id, max_process_id, eve_shuffle_flag, **kwargs):
     """
     Gets the getmodel ktools command (version < 3.0.8) gulcalc coverage stream
     :param number_of_samples: The number of samples to run
@@ -677,10 +695,13 @@ def get_getmodel_cov_cmd(
     :type coverage_output: str
     :param item_output: The item output
     :type item_output: str
+    :param eve_shuffle_flag: The event shuffling rule
+    :type  eve_shuffle_flag: str
     :return: The generated getmodel command
     """
 
-    cmd = 'eve {0} {1} | getmodel | gulcalc -S{2} -L{3}'.format(
+    cmd = 'eve {0}{1} {2} | getmodel | gulcalc -S{3} -L{4}'.format(
+        eve_shuffle_flag,
         process_id, max_process_id,
         number_of_samples, gul_threshold)
 
@@ -705,6 +726,7 @@ def get_main_cmd_ri_stream(
     from_file=False,
     fmpy=False,
     fmpy_low_memory=False,
+    fmpy_sort_output=False,
     step_flag=''
 ):
     """
@@ -729,15 +751,15 @@ def get_main_cmd_ri_stream(
     :type from_file: bool
     """
     if from_file:
-        main_cmd = f'{get_fmcmd(fmpy, fmpy_low_memory)} -a{il_alloc_rule}{step_flag} < {cmd}'
+        main_cmd = f'{get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{il_alloc_rule}{step_flag} < {cmd}'
     else:
-        main_cmd = f'{cmd} | {get_fmcmd(fmpy, fmpy_low_memory)} -a{il_alloc_rule}{step_flag}'
+        main_cmd = f'{cmd} | {get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{il_alloc_rule}{step_flag}'
 
     if il_output:
         main_cmd += f" | tee {get_fifo_name(fifo_dir, RUNTYPE_INSURED_LOSS, process_id)}"
 
     for i in range(1, num_reinsurance_iterations + 1):
-        main_cmd += f" | {get_fmcmd(fmpy, fmpy_low_memory)} -a{ri_alloc_rule} -n -p RI_{i}"
+        main_cmd += f" | {get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{ri_alloc_rule} -n -p RI_{i}"
 
     ri_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_LOSS, process_id)
     main_cmd += f" > {ri_fifo_name}"
@@ -755,6 +777,7 @@ def get_main_cmd_il_stream(
     from_file=False,
     fmpy=False,
     fmpy_low_memory=False,
+    fmpy_sort_output=False,
     step_flag=''
 ):
     """
@@ -777,9 +800,9 @@ def get_main_cmd_il_stream(
     il_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_INSURED_LOSS, process_id)
 
     if from_file:
-        main_cmd = f'{get_fmcmd(fmpy, fmpy_low_memory)} -a{il_alloc_rule}{step_flag} < {cmd} > {il_fifo_name}'
+        main_cmd = f'{get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{il_alloc_rule}{step_flag} < {cmd} > {il_fifo_name}'
     else:
-        main_cmd = f'{cmd} | {get_fmcmd(fmpy, fmpy_low_memory)} -a{il_alloc_rule}{step_flag} > {il_fifo_name} '#need extra space at the end to pass test
+        main_cmd = f'{cmd} | {get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{il_alloc_rule}{step_flag} > {il_fifo_name} '#need extra space at the end to pass test
 
     main_cmd = f'( {main_cmd} ) 2>> log/stderror.err &' if stderr_guard else f'{main_cmd} &'
 
@@ -871,6 +894,8 @@ def genbash(
     custom_args={},
     fmpy=False,
     fmpy_low_memory=False,
+    fmpy_sort_output=False,
+    event_shuffle=None,
 ):
     """
     Generates a bash script containing ktools calculation instructions for an
@@ -925,12 +950,21 @@ def genbash(
     output_dir = 'output/'
     output_full_correlation_dir = 'output/full_correlation/'
 
-    # Set default alloc rules if missing
+    # Set default alloc/shuffle rules if missing
     gul_alloc_rule = gul_alloc_rule if isinstance(gul_alloc_rule, int) else KTOOLS_ALLOC_GUL_DEFAULT
     il_alloc_rule = il_alloc_rule if isinstance(il_alloc_rule, int) else KTOOLS_ALLOC_IL_DEFAULT
     ri_alloc_rule = ri_alloc_rule if isinstance(ri_alloc_rule, int) else KTOOLS_ALLOC_RI_DEFAULT
     num_gul_per_lb = num_gul_per_lb if isinstance(num_gul_per_lb, int) else KTOOL_N_GUL_PER_LB
     num_fm_per_lb = num_fm_per_lb if isinstance(num_fm_per_lb, int) else KTOOL_N_FM_PER_LB
+    event_shuffle = event_shuffle if isinstance(event_shuffle, int) else EVE_DEFAULT_SHUFFLE
+
+    # Get event shuffle flags 
+    if event_shuffle in EVE_SHUFFLE_OPTIONS:
+        eve_shuffle_flag = EVE_SHUFFLE_OPTIONS[event_shuffle]['eve']
+        kat_sort_by_event = EVE_SHUFFLE_OPTIONS[event_shuffle]['kat_sorting']
+    else:
+        # code path shouldn't make it here (hopefully)
+        raise OasisException(f'Error: Unknown event shuffle rule "{event_shuffle}" expected value between [0..{EVE_STD_SHUFFLE}]')
 
     # remove the file if it already exists
     if os.path.exists(filename):
@@ -1013,10 +1047,10 @@ def genbash(
 
     if fmpy:
         print_command(
-            filename, f'fmpy -a{il_alloc_rule} --create-financial-structure-files'
+            filename, f'{get_fmcmd(fmpy)} -a{il_alloc_rule} --create-financial-structure-files'
         )
         for i in range(1, num_reinsurance_iterations + 1):
-            print_command(filename, f'fmpy -a{ri_alloc_rule} --create-financial-structure-files -p RI_{i}')
+            print_command(filename, f'{get_fmcmd(fmpy)} -a{ri_alloc_rule} --create-financial-structure-files -p RI_{i}')
 
     # Create FIFOS under /tmp/* (Windows support)
     if fifo_tmp_dir:
@@ -1164,7 +1198,8 @@ def genbash(
             'gul_legacy_stream': gul_legacy_stream,
             'process_id': gul_id,
             'max_process_id': num_gul_output,
-            'stderr_guard': stderr_guard
+            'stderr_guard': stderr_guard,
+            'eve_shuffle_flag': eve_shuffle_flag,
         }
 
         # GUL coverage & item stream (Older)
@@ -1279,6 +1314,7 @@ def genbash(
                     from_file,
                     fmpy,
                     fmpy_low_memory,
+                    fmpy_sort_output,
                     step_flag
                 )
                 print_command(filename, main_cmd)
@@ -1290,6 +1326,7 @@ def genbash(
                     from_file,
                     fmpy,
                     fmpy_low_memory,
+                    fmpy_sort_output,
                     step_flag
                 )
                 print_command(filename, main_cmd)
@@ -1310,7 +1347,7 @@ def genbash(
         print_command(filename, '')
         do_kats(
             RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
-            filename, process_counter, work_kat_dir, output_dir
+            filename, process_counter, work_kat_dir, output_dir, kat_sort_by_event
         )
         if full_correlation:
             print_command(filename, '')
@@ -1322,7 +1359,7 @@ def genbash(
             do_kats(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
                 filename, process_counter, work_full_correlation_kat_dir,
-                output_full_correlation_dir
+                output_full_correlation_dir, kat_sort_by_event
             )
 
     if il_output:
@@ -1331,7 +1368,7 @@ def genbash(
         print_command(filename, '')
         do_kats(
             RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output, filename,
-            process_counter, work_kat_dir, output_dir
+            process_counter, work_kat_dir, output_dir, kat_sort_by_event
         )
         if full_correlation:
             print_command(filename, '')
@@ -1343,7 +1380,7 @@ def genbash(
             do_kats(
                 RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output,
                 filename, process_counter, work_full_correlation_kat_dir,
-                output_full_correlation_dir
+                output_full_correlation_dir, kat_sort_by_event
             )
 
     if gul_output:
@@ -1352,7 +1389,7 @@ def genbash(
         print_command(filename, '')
         do_kats(
             RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output, filename,
-            process_counter, work_kat_dir, output_dir
+            process_counter, work_kat_dir, output_dir, kat_sort_by_event
         )
         if full_correlation:
             print_command(filename, '')
@@ -1364,7 +1401,7 @@ def genbash(
             do_kats(
                 RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output,
                 filename, process_counter, work_full_correlation_kat_dir,
-                output_full_correlation_dir
+                output_full_correlation_dir, kat_sort_by_event
             )
 
     do_kwaits(filename, process_counter)

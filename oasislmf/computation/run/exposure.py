@@ -33,6 +33,7 @@ from ...utils.defaults import (
     OASIS_FILES_PREFIXES,
 )
 
+
 class RunExposure(ComputationStep):
     """
     Generates insured losses from preexisting Oasis files with specified
@@ -50,8 +51,8 @@ class RunExposure(ComputationStep):
         {'name': 'coverage_types',       'type' :int, 'nargs':'+', 'default': list(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()), 'help': 'Select List of supported coverage_types [1, .. ,4]'},
         {'name': 'fmpy',                 'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory',      'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
+        {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'stream_type',          'flag':'-t', 'default': 2,  'type':int,  'help': 'Set the IL input stream type, 2 = default loss stream, 1 = deprecated cov/item stream'},
-
         {'name': 'net_ri', 'default': True},
         {'name': 'include_loss_factor', 'default': True},
         {'name': 'print_summary', 'default': True},
@@ -142,6 +143,7 @@ class RunExposure(ComputationStep):
             ktools_alloc_rule_ri=self.ktools_alloc_rule_ri,
             fmpy=self.fmpy,
             fmpy_low_memory=self.fmpy_low_memory,
+            fmpy_sort_output=self.fmpy_sort_output,
             il_stream_type=self.stream_type,
         ).run()
 
@@ -299,8 +301,6 @@ class RunExposure(ComputationStep):
         return (il, ril)
 
 
-
-
 class RunFmTest(ComputationStep):
     """
     Runs an FM test case and validates generated
@@ -316,11 +316,11 @@ class RunFmTest(ComputationStep):
         {'name': 'list_tests', 'flag': '-l', 'action': 'store_true', 'help': 'List the valid test cases in the test directory rather than running'},
         {'name': 'run_dir', 'flag': '-r', 'help': 'Run directory - where files should be generated. If not sst, no files will be saved.'},
         {'name': 'test_tolerance',   'type' :float, 'help': 'Relative tolerance between expected values and results, default is "1e-4" or 0.0001%', 'default': 1e-4},
-        {'name': 'fmpy',            'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use fmcalc python version instead of c++ version'},
-        {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
+        {'name': 'fmpy',            'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
+        {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
+        {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'update_expected', 'default': False},
     ]
-
 
     def search_test_cases(self):
         case_names = []
@@ -331,7 +331,6 @@ class RunFmTest(ComputationStep):
                 case_names.append(test_case)
         case_names.sort()
         return case_names, len(case_names)
-
 
     def run(self):
 
@@ -371,11 +370,6 @@ class RunFmTest(ComputationStep):
             [self.logger.info(n) for n in failed_tests]
         exit(exit_status)
 
-
-
-
-
-
     def execute_test_case(self, test_case):
         if self.run_dir:
             tmp_dir = None
@@ -414,6 +408,7 @@ class RunFmTest(ComputationStep):
             include_loss_factor=include_loss_factor,
             fmpy=self.fmpy,
             fmpy_low_memory=self.fmpy_low_memory,
+            fmpy_sort_output=self.fmpy_sort_output
         ).run()
 
         expected_data_dir = os.path.join(test_dir, 'expected')
