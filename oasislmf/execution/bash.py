@@ -107,12 +107,14 @@ exec 19> log/bash.log
 export BASH_XTRACEFD="19" """
 
 
-def get_fmcmd(fmpy, fmpy_low_memory):
+def get_fmcmd(fmpy, fmpy_low_memory=False, fmpy_sort_output=False):
     if fmpy:
+        cmd = 'fmpy'
         if fmpy_low_memory:
-            return 'fmpy -l'
-        else:
-            return 'fmpy'
+            cmd += ' -l'
+        if fmpy_sort_output:
+            cmd += ' --sort-output'
+        return cmd
     else:
         return 'fmcalc'
 
@@ -724,6 +726,7 @@ def get_main_cmd_ri_stream(
     from_file=False,
     fmpy=False,
     fmpy_low_memory=False,
+    fmpy_sort_output=False,
     step_flag=''
 ):
     """
@@ -748,15 +751,15 @@ def get_main_cmd_ri_stream(
     :type from_file: bool
     """
     if from_file:
-        main_cmd = f'{get_fmcmd(fmpy, fmpy_low_memory)} -a{il_alloc_rule}{step_flag} < {cmd}'
+        main_cmd = f'{get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{il_alloc_rule}{step_flag} < {cmd}'
     else:
-        main_cmd = f'{cmd} | {get_fmcmd(fmpy, fmpy_low_memory)} -a{il_alloc_rule}{step_flag}'
+        main_cmd = f'{cmd} | {get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{il_alloc_rule}{step_flag}'
 
     if il_output:
         main_cmd += f" | tee {get_fifo_name(fifo_dir, RUNTYPE_INSURED_LOSS, process_id)}"
 
     for i in range(1, num_reinsurance_iterations + 1):
-        main_cmd += f" | {get_fmcmd(fmpy, fmpy_low_memory)} -a{ri_alloc_rule} -n -p RI_{i}"
+        main_cmd += f" | {get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{ri_alloc_rule} -n -p RI_{i}"
 
     ri_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_REINSURANCE_LOSS, process_id)
     main_cmd += f" > {ri_fifo_name}"
@@ -774,6 +777,7 @@ def get_main_cmd_il_stream(
     from_file=False,
     fmpy=False,
     fmpy_low_memory=False,
+    fmpy_sort_output=False,
     step_flag=''
 ):
     """
@@ -796,9 +800,9 @@ def get_main_cmd_il_stream(
     il_fifo_name = get_fifo_name(fifo_dir, RUNTYPE_INSURED_LOSS, process_id)
 
     if from_file:
-        main_cmd = f'{get_fmcmd(fmpy, fmpy_low_memory)} -a{il_alloc_rule}{step_flag} < {cmd} > {il_fifo_name}'
+        main_cmd = f'{get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{il_alloc_rule}{step_flag} < {cmd} > {il_fifo_name}'
     else:
-        main_cmd = f'{cmd} | {get_fmcmd(fmpy, fmpy_low_memory)} -a{il_alloc_rule}{step_flag} > {il_fifo_name} '#need extra space at the end to pass test
+        main_cmd = f'{cmd} | {get_fmcmd(fmpy, fmpy_low_memory, fmpy_sort_output)} -a{il_alloc_rule}{step_flag} > {il_fifo_name} '#need extra space at the end to pass test
 
     main_cmd = f'( {main_cmd} ) 2>> log/stderror.err &' if stderr_guard else f'{main_cmd} &'
 
@@ -890,6 +894,7 @@ def genbash(
     custom_args={},
     fmpy=False,
     fmpy_low_memory=False,
+    fmpy_sort_output=False,
     event_shuffle=None,
 ):
     """
@@ -1042,10 +1047,10 @@ def genbash(
 
     if fmpy:
         print_command(
-            filename, f'fmpy -a{il_alloc_rule} --create-financial-structure-files'
+            filename, f'{get_fmcmd(fmpy)} -a{il_alloc_rule} --create-financial-structure-files'
         )
         for i in range(1, num_reinsurance_iterations + 1):
-            print_command(filename, f'fmpy -a{ri_alloc_rule} --create-financial-structure-files -p RI_{i}')
+            print_command(filename, f'{get_fmcmd(fmpy)} -a{ri_alloc_rule} --create-financial-structure-files -p RI_{i}')
 
     # Create FIFOS under /tmp/* (Windows support)
     if fifo_tmp_dir:
@@ -1309,6 +1314,7 @@ def genbash(
                     from_file,
                     fmpy,
                     fmpy_low_memory,
+                    fmpy_sort_output,
                     step_flag
                 )
                 print_command(filename, main_cmd)
@@ -1320,6 +1326,7 @@ def genbash(
                     from_file,
                     fmpy,
                     fmpy_low_memory,
+                    fmpy_sort_output,
                     step_flag
                 )
                 print_command(filename, main_cmd)

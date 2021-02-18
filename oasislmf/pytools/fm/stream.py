@@ -202,6 +202,7 @@ def read_streams(streams_in, nodes_array, losses, index, computes):
     finally:
         main_selector.close()
 
+
 @njit(cache=True)
 def load_event(event_agg, sidx_loss, event_id, nodes_array, losses, loss_indexes, computes, output_array, compute_i, i_layer, i_index, nb_values):
     cursor = 0
@@ -302,3 +303,17 @@ class EventWriter:
             writable[0].write(self.mv[:cursor])
 
         return compute_i
+
+
+@njit(cache=True)
+def get_compute_end(computes, compute_i):
+    while computes[compute_i]:
+        compute_i += 1
+    return compute_i
+
+
+class EventWriterOrderedOutput(EventWriter):
+    def write(self, event_id, compute_i):
+        compute_end = get_compute_end(self.computes, compute_i)
+        self.computes[compute_i: compute_end] = np.sort(self.computes[compute_i: compute_end])
+        super().write(event_id, compute_i)
