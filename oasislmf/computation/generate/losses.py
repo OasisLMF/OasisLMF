@@ -115,6 +115,7 @@ class GenerateLosses(ComputationStep):
         {'name': 'ktools_fifo_relative',   'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Create ktools fifo queues under the ./fifo dir'},
         {'name': 'fmpy',                   'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory',        'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
+        {'name': 'fmpy_sort_output',       'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'order fmpy output by item_id'},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'verbose',              'default': KTOOLS_DEBUG},
@@ -232,6 +233,7 @@ class GenerateLosses(ComputationStep):
                         custom_gulcalc_cmd=self.model_custom_gulcalc,
                         fmpy=self.fmpy,
                         fmpy_low_memory=self.fmpy_low_memory,
+                        fmpy_sort_output=self.fmpy_sort_output,
                         event_shuffle=self.ktools_event_shuffle,
                     )
                 except TypeError:
@@ -292,6 +294,7 @@ class GenerateLossesDeterministic(ComputationStep):
         {'name': 'num_subperils',        'default': 1},
         {'name': 'fmpy',                 'default': False},
         {'name': 'fmpy_low_memory',      'default': False},
+        {'name': 'fmpy_sort_output', 'default': False},
     ]
 
     def run(self):
@@ -365,13 +368,13 @@ class GenerateLossesDeterministic(ComputationStep):
         # Create IL fmpy financial structures
         if self.fmpy:
              with setcwd(self.oasis_files_dir):
-                check_call(f"{get_fmcmd(self.fmpy, False)} -a {self.ktools_alloc_rule_il} --create-financial-structure-files -p {output_dir}" , shell=True)
+                 check_call(f"{get_fmcmd(self.fmpy)} -a {self.ktools_alloc_rule_il} --create-financial-structure-files -p {output_dir}" , shell=True)
 
         cmd = 'gultobin -S {} -t {} < {} | {} -p {} -a {} {} | tee ils.bin | fmtocsv > {}'.format(
             len(self.loss_factor),
             il_stream_type,
             guls_fp,
-            get_fmcmd(self.fmpy, self.fmpy_low_memory),
+            get_fmcmd(self.fmpy, self.fmpy_low_memory, self.fmpy_sort_output),
             output_dir,
             self.ktools_alloc_rule_il,
             step_flag, ils_fp
@@ -423,12 +426,12 @@ class GenerateLossesDeterministic(ComputationStep):
                         # Create RI fmpy financial structures
                         if self.fmpy:
                              with setcwd(self.oasis_files_dir):
-                                check_call(f"{get_fmcmd(self.fmpy, False)} -a {self.ktools_alloc_rule_ri} --create-financial-structure-files -p {layer_inputs_fp}" , shell=True)
+                                check_call(f"{get_fmcmd(self.fmpy)} -a {self.ktools_alloc_rule_ri} --create-financial-structure-files -p {layer_inputs_fp}" , shell=True)
 
                         _input = 'gultobin -S 1 -t {} < {} | {} -p {} -a {} {} | tee ils.bin |'.format(
                             il_stream_type,
                             guls_fp,
-                            get_fmcmd(self.fmpy, self.fmpy_low_memory),
+                            get_fmcmd(self.fmpy, self.fmpy_low_memory, self.fmpy_sort_output),
                             output_dir,
                             self.ktools_alloc_rule_il,
                             step_flag
@@ -438,7 +441,7 @@ class GenerateLossesDeterministic(ComputationStep):
                         net_flag = "-n" if self.net_ri else ""
                         cmd = '{} {} -p {} {} -a {} {} {} | tee ri{}.bin | fmtocsv > {}'.format(
                             _input,
-                            get_fmcmd(self.fmpy, self.fmpy_low_memory),
+                            get_fmcmd(self.fmpy, self.fmpy_low_memory, self.fmpy_sort_output),
                             layer_inputs_fp,
                             net_flag,
                             self.ktools_alloc_rule_ri,
