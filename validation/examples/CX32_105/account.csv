@@ -1,4 +1,0 @@
-PortNumber,AccNumber,PolNumber,PolPerilsCovered,AccCurrency,LayerNumber,LayerParticipation,LayerLimit,LayerAttachment,PolPeril,PolDed6All,PolMinDed6All,PolMaxDed6All,PolLimit6All,CondPeril,CondNumber,CondMinDed6All,CondLimit6All
-OEDTest,CX32_01,CX32_01_1,OO1,CAD,1,1.00,.00,.00,OO1,.00,.00,.00,.00,,,,
-OEDTest,CX32_02,CX32_02_1,OO1,CAD,1,.50,.00,.00,OO1,.00,.00,.00,.00,,,,
-OEDTest,SS01_04,SS01_04_1,OO1,CAD,1,1.00,.00,.00,OO1,.00,.00,.00,.00,,,,

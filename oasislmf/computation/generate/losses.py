@@ -295,6 +295,7 @@ class GenerateLossesDeterministic(ComputationStep):
         {'name': 'fmpy',                 'default': False},
         {'name': 'fmpy_low_memory',      'default': False},
         {'name': 'fmpy_sort_output', 'default': False},
+        {'name': 'il_stream_type', 'default': 2},
     ]
 
     def run(self):
@@ -325,9 +326,31 @@ class GenerateLossesDeterministic(ComputationStep):
         dtypes = {t: ('uint32' if t != 'tiv' else 'float32') for t in items.columns}
         items = set_dataframe_column_dtypes(items, dtypes)
 
-        gulcalc_sidxs = \
-            [KTOOLS_MEAN_SAMPLE_IDX, KTOOLS_STD_DEV_SAMPLE_IDX, KTOOLS_TIV_SAMPLE_IDX] + \
-            list(range(1, len(self.loss_factor) + 1))
+        ## Change order of stream depending on rule type
+        #   Stream_type 1
+        #     event_id, item_id, sidx, loss
+        #     1,1,-1,0
+        #     1,1,-2,0
+        #     1,1,-3,10000
+        #     1,1,1,10000
+        #
+        #   Stream_type 2
+        #     event_id, item_id, sidx, loss
+        #     1,1,-3,10000
+        #     1,1,-2,0
+        #     1,1,-1,0
+        #     1,1,1,10000
+        if self.il_stream_type == 2:
+            gulcalc_sidxs = \
+                [KTOOLS_TIV_SAMPLE_IDX, KTOOLS_STD_DEV_SAMPLE_IDX, KTOOLS_MEAN_SAMPLE_IDX] + \
+                list(range(1, len(self.loss_factor) + 1))
+        elif self.il_stream_type == 1:
+            gulcalc_sidxs = \
+                [KTOOLS_MEAN_SAMPLE_IDX, KTOOLS_STD_DEV_SAMPLE_IDX, KTOOLS_TIV_SAMPLE_IDX] + \
+                list(range(1, len(self.loss_factor) + 1))
+        else:
+            OasisException("Unknown il stream type: {}".format(self.il_stream_type))
+
 
         # Set damage percentages corresponing to the special indexes.
         # We don't care about mean and std_dev, but
@@ -362,7 +385,7 @@ class GenerateLossesDeterministic(ComputationStep):
         guls_fp = os.path.join(output_dir, "raw_guls.csv")
         guls.to_csv(guls_fp, index=False)
 
-        il_stream_type = 2 if self.fmpy else 1
+        #il_stream_type = 2 if self.fmpy else 1
         ils_fp = os.path.join(output_dir, 'raw_ils.csv')
 
         # Create IL fmpy financial structures
@@ -372,7 +395,7 @@ class GenerateLossesDeterministic(ComputationStep):
 
         cmd = 'gultobin -S {} -t {} < {} | {} -p {} -a {} {} | tee ils.bin | fmtocsv > {}'.format(
             len(self.loss_factor),
-            il_stream_type,
+            self.il_stream_type,
             guls_fp,
             get_fmcmd(self.fmpy, self.fmpy_low_memory, self.fmpy_sort_output),
             output_dir,
@@ -429,7 +452,7 @@ class GenerateLossesDeterministic(ComputationStep):
                                 check_call(f"{get_fmcmd(self.fmpy)} -a {self.ktools_alloc_rule_ri} --create-financial-structure-files -p {layer_inputs_fp}" , shell=True)
 
                         _input = 'gultobin -S 1 -t {} < {} | {} -p {} -a {} {} | tee ils.bin |'.format(
-                            il_stream_type,
+                            self.il_stream_type,
                             guls_fp,
                             get_fmcmd(self.fmpy, self.fmpy_low_memory, self.fmpy_sort_output),
                             output_dir,
