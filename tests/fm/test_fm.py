@@ -20,7 +20,7 @@ class FmAcceptanceTests(TestCase):
         if self.keep_output:
             utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
             output_dir = os.path.join(
-                self.test_cases_fp, 'runs', 'test-{}-{}'.format(test_case,utcnow)
+                self.test_cases_fp, 'runs', 'test-fm-{}-{}'.format(test_case,utcnow)
             )
             shutil.copytree(tmp_run_dir, output_dir)
             print(f'Generated Output stored in: {output_dir}')

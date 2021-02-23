@@ -20,8 +20,8 @@ class FmAcceptanceTests(TestCase):
         if self.keep_output:
             utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
             output_dir = os.path.join(
-                self.test_cases_fp, 'runs', 'test-{}-{}'.format(test_case,utcnow)
-            ) 
+                self.test_cases_fp, 'runs', 'test-fmpy-{}-{}'.format(test_case,utcnow)
+            )
             shutil.copytree(tmp_run_dir, output_dir)
             print(f'Generated Output stored in: {output_dir}')
 
@@ -35,22 +35,22 @@ class FmAcceptanceTests(TestCase):
                 fmpy=fmpy,
                 fmpy_sort_output=True,
                 test_tolerance=0.0001 # one location has -0.0001% error in insurance_fm
-            ) 
+            )
             self._store_output(test_case, tmp_run_dir)
 
         self.assertTrue(result)
 
     def test_insurance(self):
-        self.run_test('insurance',fmpy=True) 
+        self.run_test('insurance',fmpy=True)
 
     def test_insurance_step(self):
         self.run_test('insurance_step',fmpy=True)
 
     def test_reinsurance1(self):
-        self.run_test('reinsurance1',fmpy=True) 
+        self.run_test('reinsurance1',fmpy=True)
 
     def test_reinsurance2(self):
-        self.run_test('reinsurance2',fmpy=True) 
+        self.run_test('reinsurance2',fmpy=True)
 
 
 
