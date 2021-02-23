@@ -38,14 +38,8 @@ class FmAcceptanceTests(TestCase):
 
         self.assertTrue(result)
 
-    def test_insurance_combined(self):
-        self.run_test('insurance_combined')
-
     def test_insurance(self):
         self.run_test('insurance')
-
-    def test_insurance_fm(self):
-        self.run_test('insurance_fm')
 
     def test_insurance_step(self):
         self.run_test('insurance_step')
@@ -53,7 +47,8 @@ class FmAcceptanceTests(TestCase):
     def test_reinsurance1(self):
         self.run_test('reinsurance1')
 
-
+    def test_reinsurance2(self):
+        self.run_test('reinsurance2')
     # example run using fmpy
     # WARNING: running fmpy in unittest will pass but fail code covrage with
     #          'INTERNALERROR> coverage.misc.CoverageException: Can't combine line data with arc data'

@@ -1,49 +1,49 @@
 {
     "total": {
         "modelled": {
-            "tiv": 55147800000.0,
-            "number_of_locations": 580
+            "tiv": 55369221493.1,
+            "number_of_locations": 634
         },
         "not-modelled": {
             "tiv": 0.0,
             "number_of_locations": 0
         },
         "portfolio": {
-            "tiv": 55147800000.0,
-            "number_of_locations": 580
+            "tiv": 55369221493.1,
+            "number_of_locations": 634
         }
     },
     "1": {
         "all": {
-            "tiv": 55147800000.0,
+            "tiv": 55369221493.1,
             "tiv_by_coverage": {
-                "buildings": 38315000000.0,
-                "other": 0.0,
-                "contents": 12293000000.0,
-                "bi": 4539800000.0
+                "buildings": 38430586816.0,
+                "other": 2880000.0,
+                "contents": 12364471958.0,
+                "bi": 4571282719.1
             },
-            "number_of_locations": 580,
+            "number_of_locations": 634,
             "number_of_locations_by_coverage": {
-                "buildings": 580,
-                "other": 580,
-                "contents": 580,
-                "bi": 580
+                "buildings": 634,
+                "other": 634,
+                "contents": 634,
+                "bi": 634
             }
         },
         "success": {
-            "tiv": 55147800000.0,
+            "tiv": 55369221493.1,
             "tiv_by_coverage": {
-                "buildings": 38315000000.0,
-                "other": 0.0,
-                "contents": 12293000000.0,
-                "bi": 4539800000.0
+                "buildings": 38430586816.0,
+                "other": 2880000.0,
+                "contents": 12364471958.0,
+                "bi": 4571282719.1
             },
-            "number_of_locations": 580,
+            "number_of_locations": 634,
             "number_of_locations_by_coverage": {
-                "buildings": 580,
-                "other": 580,
-                "contents": 580,
-                "bi": 580
+                "buildings": 634,
+                "other": 634,
+                "contents": 634,
+                "bi": 634
             }
         },
         "fail": {
