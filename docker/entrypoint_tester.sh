@@ -8,6 +8,9 @@ LOG_COV=$LOG_DIR'coverage_oasislmf.log'
 
 BUILD_OUTPUT_DIR='/tmp/output/'
 
+# Add debug info for coverage generation
+export COVERAGE_DEBUG=process,config,dataio
+
 # Clear prev wheels & tars
     find ./dist/ -name "oasislmf-${VER_PKG}*" -exec rm -rf {} \;    
 
@@ -24,7 +27,7 @@ BUILD_OUTPUT_DIR='/tmp/output/'
     pip install --verbose $WHL_PKG
 
     # Create OSX wheel
-    python setup.py bdist_wheel --plat-name Darwin_x86_64
+    # python setup.py bdist_wheel --plat-name Darwin_x86_64
 
 # Unit testing
     find /home/ -name __pycache__ | xargs -r rm -rfv

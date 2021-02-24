@@ -539,6 +539,7 @@ def __merge_gul_and_account(gul_inputs_df, accounts_df, fm_terms, oed_hierarchy)
     acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
     portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
     cond_num = oed_hierarchy['condnum']['ProfileElementName'].lower()
+    loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
 
     ###### prepare accounts_df #####
     # create account line without condition
@@ -567,6 +568,11 @@ def __merge_gul_and_account(gul_inputs_df, accounts_df, fm_terms, oed_hierarchy)
         how='left',
         drop_duplicates=True
     )
+
+    missing_account_row = column_base_il_df.loc[column_base_il_df['layer_id'].isna()]
+    if not missing_account_row.empty:
+        raise OasisException("locations have policies, accounts combination not present in the account file \n" +
+                             missing_account_row[[loc_num, portfolio_num, acc_num, cond_num]].drop_duplicates().to_string(index=False))
 
     # If the merge is empty raise an exception - this will happen usually
     # if there are no common acc. numbers between the GUL input items and
@@ -679,15 +685,16 @@ def __get_cond_grouping_hierarchy(column_base_il_df, portfolio_num, acc_num, con
     account_groups = {}
     last_group_id = 1
     max_level = base_level
-    for rec in column_base_il_df.to_dict(orient="records"):
+    for rec in column_base_il_df[[portfolio_num, acc_num, cond_num, loc_num, 'layer_id', 'condpriority']].drop_duplicates().to_dict(orient="records"):
         groups = account_groups.setdefault((rec[portfolio_num], rec[acc_num]), {})
         cond_key = (rec[portfolio_num], rec[acc_num], rec[cond_num])
         loc_key = (rec[portfolio_num], rec[acc_num], rec[loc_num])
         if loc_key not in loc_to_group:
             if cond_key not in cond_to_group:
-                # first time condition, first time location
+                # print("first time condition, first time location")
                 group = {'locations': {loc_key},
                          'layers': {rec['layer_id']: (cond_key, rec['condpriority'])},
+                         'needed': {rec['layer_id']: set()},
                          'level': base_level}
                 groups[last_group_id] = group
                 loc_to_group[loc_key] = last_group_id
@@ -695,23 +702,35 @@ def __get_cond_grouping_hierarchy(column_base_il_df, portfolio_num, acc_num, con
                 last_group_id += 1
 
             else:
-                # first time location, already condition
+                # print("first time location, already condition")
                 group_id = cond_to_group[cond_key]
                 group = groups[group_id]
                 group['locations'].add(loc_key)
                 loc_to_group[loc_key] = group_id
+
+                # update the location needed for correct condition logic
+                for layer, needed in group['needed'].items():
+                    if layer != rec['layer_id']:
+                        needed.add(loc_key)
+                parent_group_id = group.get("parent")
+                while parent_group_id:
+                    parent_group = groups[parent_group_id]
+                    for layer, needed in parent_group['needed'].items():
+                        needed.add(loc_key)
+                    parent_group_id = parent_group.get("parent")
         else:
             if cond_key not in cond_to_group:
-                # first time condition, already location
+                # print("first time condition, already location")
                 prev_group_id = loc_to_group[loc_key]
                 prev_group = groups[prev_group_id]
                 if rec['layer_id'] in prev_group['layers']:
                     prev_cond_key, prev_CondPriority = prev_group['layers'][rec['layer_id']]
                     if rec['condpriority'] == prev_CondPriority:
-                        raise Exception('condition of the same priority and policy')
+                        raise OasisException(f'condition of the same priority and policy {cond_key} {prev_cond_key}')
                     elif rec['condpriority'] < prev_CondPriority:
                         group = {'locations': {loc_key},
                                  'layers': {rec['layer_id']: (cond_key, rec['condpriority'])},
+                                 'needed': {rec['layer_id']: set()},
                                  'parent': prev_group_id,
                                  'level': base_level}
                         groups[last_group_id] = group
@@ -725,7 +744,8 @@ def __get_cond_grouping_hierarchy(column_base_il_df, portfolio_num, acc_num, con
                     else: # CondPriority > prev_CondPriority
                         group = {'locations': {loc_key},
                                  'layers': {rec['layer_id']: (prev_cond_key, prev_CondPriority)},
-                                 'parent': last_group_id,
+                                 'needed': {rec['layer_id']: set()},
+                                 'parent': prev_group_id,
                                  'level': base_level}
                         groups[last_group_id] = group
                         loc_to_group[loc_key] = last_group_id
@@ -740,11 +760,43 @@ def __get_cond_grouping_hierarchy(column_base_il_df, portfolio_num, acc_num, con
                 else:
                     group['layers'][rec['layer_id']] = (cond_key, rec['condpriority'])
                     cond_to_group[cond_key] = prev_group_id
+
+                    # update the location needed for correct condition logic
+                    group['needed'][rec['layer_id']] = set(group['locations']) - set([loc_key])
+                    parent_group_id = group.get("parent")
+                    while parent_group_id:
+                        parent_group = groups[parent_group_id]
+                        if rec['layer_id'] not in parent_group['needed']:
+                            parent_group['needed'][rec['layer_id']] = set(parent_group['locations'])
+                        parent_group_id = group.get("parent")
             else:
-                # already condition, already location"
+                # print("already condition, already location")
                 group = groups[loc_to_group[loc_key]]
                 if rec['layer_id'] not in group['layers']:
                     group['layers'][rec['layer_id']] = (cond_key, rec['condpriority'])
+
+                    # update the location needed for correct condition logic
+                    group['needed'][rec['layer_id']] = set(group['locations']) - set([loc_key])
+                    parent_group_id = group.get("parent")
+                    while parent_group_id:
+                        parent_group = groups[parent_group_id]
+                        if rec['layer_id'] not in prev_group['needed']:
+                            parent_group['needed'][rec['layer_id']] = set(parent_group['locations'])
+                        parent_group_id = group.get("parent")
+
+                else:
+                    group['needed'][rec['layer_id']].discard(loc_key)
+
+    missing_conditions = []
+    for account, groups in account_groups.items():
+        for group_id, group in groups.items():
+            for layer_id, loc_keys in group['needed'].items():
+                for loc_key in loc_keys:
+                    missing_conditions.append(loc_key+(layer_id,))
+
+    if missing_conditions:
+        missing_conditions_df = pd.DataFrame(missing_conditions, columns=[portfolio_num, acc_num, loc_num, 'layer_id'])
+        raise OasisException(f"missing conditions for :\n{missing_conditions_df.to_string(index=False)}")
 
     return account_groups, max_level
 

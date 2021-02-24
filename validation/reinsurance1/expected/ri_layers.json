@@ -1,0 +1,22 @@
+{
+    "1": {
+        "inuring_priority": 1,
+        "risk_level": "LOC",
+        "directory": "/home/joh/dev/OasisLMF_branch/validation/reinsurance1/runs/RI_1"
+    },
+    "2": {
+        "inuring_priority": 1,
+        "risk_level": "POL",
+        "directory": "/home/joh/dev/OasisLMF_branch/validation/reinsurance1/runs/RI_2"
+    },
+    "3": {
+        "inuring_priority": 1,
+        "risk_level": "ACC",
+        "directory": "/home/joh/dev/OasisLMF_branch/validation/reinsurance1/runs/RI_3"
+    },
+    "4": {
+        "inuring_priority": 1,
+        "risk_level": "SEL",
+        "directory": "/home/joh/dev/OasisLMF_branch/validation/reinsurance1/runs/RI_4"
+    }
+}

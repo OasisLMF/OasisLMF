@@ -1,0 +1,4 @@
+PortNumber,AccNumber,AccCurrency,PolNumber,PolPerilsCovered,LayerParticipation,LayerLimit,LayerAttachment,PolDedType6All,PolDed6All,PolMinDed6All,PolPeril,CondNumber,CondName,CondDed6All,CondDedType6All,CondMinDed6All,CondMaxDed6All,CondLimit6All,CondLimitType6All,CondPeril,CondPriority
+1,17,USD,A,AA1,0.45,50000000,0,0,0,0,AA1,577328,ROW,0,0,0,0,0,5000000,AA1,2
+1,17,USD,A,AA1,0.45,50000000,0,0,0,0,AA1,577329,"FR,GB,IE",50000,0,0,0,0,0,AA1,1
+1,17,USD,A,AA1,0.45,50000000,0,0,0,0,AA1,577330,US CAL,200000,0,0,0,0,25000000,AA1,1

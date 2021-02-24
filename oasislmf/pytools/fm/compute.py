@@ -1,5 +1,5 @@
 from .policy import calc
-from .common import float_equal_precision, np_oasis_float, null_index
+from .common import float_equal_precision, np_oasis_float
 
 from numba import njit
 import numpy as np
@@ -199,9 +199,12 @@ def compute_event(compute_info,
         while computes[compute_i]:
             node_i, compute_i= computes[compute_i], compute_i + 1
             node = nodes_array[node_i]
-            for layer in range(node['layer_len']):
-                losses[loss_indexes[node['ba'] + layer]] = (losses[loss_indexes[node['loss'] + layer]]
-                                                            - losses[loss_indexes[node['ba'] + layer]])
+            # net loss layer i is initial loss - sum of all layer up to i
+            losses[loss_indexes[node['ba']]] = np.maximum(losses[loss_indexes[node['loss']]] - losses[loss_indexes[node['ba']]], 0)
+            for layer in range(1, node['layer_len']):
+                losses[loss_indexes[node['ba'] + layer]] = np.maximum((losses[loss_indexes[node['ba'] + layer - 1 ]]
+                                                                       - losses[loss_indexes[node['ba'] + layer]]),
+                                                                      0)
 
         compute_i = out_compute_i
 

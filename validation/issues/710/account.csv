@@ -1,0 +1,3 @@
+PortNumber,AccNumber,PolNumber,PolPerilsCovered,LayerNumber,LayerLimit,LayerParticipation,AccCurrency
+1,A11111,Layer1,WW1,1,5000000,0,GBP
+1,A11111,Layer2,WW1,2,100000000,0,GBP
