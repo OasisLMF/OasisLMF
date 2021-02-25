@@ -33,6 +33,7 @@ class Genbash(TestCase):
         cls.bash_trace       = False
         cls.stderr_guard     = False
         cls.gul_legacy_stream = True
+        cls.fmpy = False
 
         if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
             shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
@@ -63,7 +64,8 @@ class Genbash(TestCase):
                 il_alloc_rule=None,
                 ri_alloc_rule=None,
                 bash_trace=None,
-                gul_legacy_stream=None):
+                gul_legacy_stream=None,
+                fmpy=None):
 
         input_filename = os.path.join(self.KPARSE_INPUT_FOLDER, "{}.json".format(name))
         if not num_reinsurance_iterations:
@@ -91,6 +93,7 @@ class Genbash(TestCase):
             event_shuffle=self.event_shuffle,
             bash_trace=(bash_trace or self.bash_trace),
             gul_legacy_stream=(gul_legacy_stream or self.gul_legacy_stream),
+            fmpy=(fmpy or self.fmpy),
         )
 
     def check(self, name, reference_filename=None):
@@ -573,7 +576,7 @@ class Genbash_FullCorrTempDir(Genbash):
         os.makedirs(cls.KPARSE_OUTPUT_FOLDER)
 
 
-class Genbash_LoadBanlancer(Genbash):
+class Genbash_LoadBanlancerFmpy(Genbash):
     @classmethod
     def setUpClass(cls):
         # test dirs
@@ -592,6 +595,7 @@ class Genbash_LoadBanlancer(Genbash):
         cls.bash_trace       = False
         cls.stderr_guard     = False
         cls.gul_legacy_stream = False
+        cls.fmpy = True
 
         if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
             shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
@@ -622,4 +626,3 @@ class Genbash_EventShuffle(Genbash):
         if os.path.exists(cls.KPARSE_OUTPUT_FOLDER):
             shutil.rmtree(cls.KPARSE_OUTPUT_FOLDER)
         os.makedirs(cls.KPARSE_OUTPUT_FOLDER)
-

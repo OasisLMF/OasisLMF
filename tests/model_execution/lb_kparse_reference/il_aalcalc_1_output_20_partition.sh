@@ -16,6 +16,7 @@ rm -R -f fifo/*
 rm -R -f work/*
 mkdir work/kat/
 
+fmpy -a2 --create-financial-structure-files
 mkdir work/il_S1_summaryaalcalc
 
 mkfifo fifo/il_P1
@@ -113,16 +114,16 @@ load_balancer -i fifo/gul_lb_P3 fifo/gul_lb_P4 -o fifo/lb_il_P3 fifo/lb_il_P4 &
 load_balancer -i fifo/gul_lb_P5 fifo/gul_lb_P6 -o fifo/lb_il_P5 fifo/lb_il_P6 &
 load_balancer -i fifo/gul_lb_P7 fifo/gul_lb_P8 -o fifo/lb_il_P7 fifo/lb_il_P8 &
 load_balancer -i fifo/gul_lb_P9 fifo/gul_lb_P10 -o fifo/lb_il_P9 fifo/lb_il_P10 &
-fmcalc -a2 < fifo/lb_il_P1 > fifo/il_P1 &
-fmcalc -a2 < fifo/lb_il_P2 > fifo/il_P2 &
-fmcalc -a2 < fifo/lb_il_P3 > fifo/il_P3 &
-fmcalc -a2 < fifo/lb_il_P4 > fifo/il_P4 &
-fmcalc -a2 < fifo/lb_il_P5 > fifo/il_P5 &
-fmcalc -a2 < fifo/lb_il_P6 > fifo/il_P6 &
-fmcalc -a2 < fifo/lb_il_P7 > fifo/il_P7 &
-fmcalc -a2 < fifo/lb_il_P8 > fifo/il_P8 &
-fmcalc -a2 < fifo/lb_il_P9 > fifo/il_P9 &
-fmcalc -a2 < fifo/lb_il_P10 > fifo/il_P10 &
+fmpy -a2 < fifo/lb_il_P1 > fifo/il_P1 &
+fmpy -a2 < fifo/lb_il_P2 > fifo/il_P2 &
+fmpy -a2 < fifo/lb_il_P3 > fifo/il_P3 &
+fmpy -a2 < fifo/lb_il_P4 > fifo/il_P4 &
+fmpy -a2 < fifo/lb_il_P5 > fifo/il_P5 &
+fmpy -a2 < fifo/lb_il_P6 > fifo/il_P6 &
+fmpy -a2 < fifo/lb_il_P7 > fifo/il_P7 &
+fmpy -a2 < fifo/lb_il_P8 > fifo/il_P8 &
+fmpy -a2 < fifo/lb_il_P9 > fifo/il_P9 &
+fmpy -a2 < fifo/lb_il_P10 > fifo/il_P10 &
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10
 

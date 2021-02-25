@@ -724,7 +724,7 @@ def get_main_cmd_ri_stream(
     fifo_dir='fifo/',
     stderr_guard=True,
     from_file=False,
-    fmpy=False,
+    fmpy=True,
     fmpy_low_memory=False,
     fmpy_sort_output=False,
     step_flag=''
@@ -775,7 +775,7 @@ def get_main_cmd_il_stream(
     fifo_dir='fifo/',
     stderr_guard=True,
     from_file=False,
-    fmpy=False,
+    fmpy=True,
     fmpy_low_memory=False,
     fmpy_sort_output=False,
     step_flag=''
@@ -892,7 +892,7 @@ def genbash(
     filename='run_kools.sh',
     _get_getmodel_cmd=None,
     custom_args={},
-    fmpy=False,
+    fmpy=True,
     fmpy_low_memory=False,
     fmpy_sort_output=False,
     event_shuffle=None,
