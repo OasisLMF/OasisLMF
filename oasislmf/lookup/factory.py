@@ -5,6 +5,7 @@ __all__ = [
 import csv
 import io
 import json
+import itertools
 
 from collections import OrderedDict
 
@@ -366,6 +367,26 @@ class OasisLookupFactory(object):
             raise OasisException("Unrecognised keys file output format - valid formats are 'oasis' or 'json'")
 
     @classmethod
+    def check_results(
+        cls,
+        key_results
+    ):
+        """
+        checks that the keys return data is populated
+        """
+        if isinstance(key_results, list):
+            if len(key_results) == 0:
+                return True, None
+            else:
+                return False, key_results
+        else:
+            try:
+                first = next(key_results)
+            except StopIteration:
+                return True, None
+            return False, itertools.chain([first], key_results)
+
+    @classmethod
     def save_results(
         cls,
         lookup,
@@ -429,12 +450,12 @@ class OasisLookupFactory(object):
             except AttributeError:
                 raise OasisException('Unknown lookup class {}, missing default method "cls.get_keys_base"'.format(type(lookup)))
 
-        results = keys_generator(**kwargs)
+        results_empty, results = cls.check_results(keys_generator(**kwargs))
         successes = []
         nonsuccesses = []
 
         # Todo: Move the inside the keys_generators?  and return a tuple of (successes, nonsuccesses)
-        if len ([results]) > 0 :
+        if results_empty == False:
             for r in results:
                 successes.append(r) if r['status'] == OASIS_KEYS_STATUS['success']['id'] else nonsuccesses.append(r)
 
