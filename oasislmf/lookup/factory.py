@@ -434,7 +434,7 @@ class OasisLookupFactory(object):
         nonsuccesses = []
 
         # Todo: Move the inside the keys_generators?  and return a tuple of (successes, nonsuccesses)
-        if len (results) > 0 :
+        if len ([results]) > 0 :
             for r in results:
                 successes.append(r) if r['status'] == OASIS_KEYS_STATUS['success']['id'] else nonsuccesses.append(r)
 
