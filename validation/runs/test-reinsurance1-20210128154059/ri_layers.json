@@ -1,0 +1,22 @@
+{
+    "1": {
+        "inuring_priority": 1,
+        "risk_level": "LOC",
+        "directory": "/tmp/tmpmu9rk2ik/RI_1"
+    },
+    "2": {
+        "inuring_priority": 1,
+        "risk_level": "POL",
+        "directory": "/tmp/tmpmu9rk2ik/RI_2"
+    },
+    "3": {
+        "inuring_priority": 1,
+        "risk_level": "ACC",
+        "directory": "/tmp/tmpmu9rk2ik/RI_3"
+    },
+    "4": {
+        "inuring_priority": 1,
+        "risk_level": "SEL",
+        "directory": "/tmp/tmpmu9rk2ik/RI_4"
+    }
+}

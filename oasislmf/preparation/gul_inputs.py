@@ -145,17 +145,34 @@ def get_gul_input_items(
         exposure_df_gul_inputs_cols += [SOURCE_IDX['loc']]
     # Remove any duplicate column names used to assign group_id
     group_id_cols = list(set(group_id_cols))
-    # Ignore any column names used to assign group_id that are missing from
-    # loc file
+
+    # Ignore any column names used to assign group_id that are missing or not supported
+    # Valid group id columns can be either 
+    # 1. exist in the location file
+    # 2. be listed as a useful internal col
+    valid_oasis_group_cols = [
+        'item_id',
+        'peril_id', 
+        'coverage_id',
+        'coverage_type_id',
+    ]
     for col in group_id_cols:
-        if col not in exposure_df:
-            warnings.warn('Column {} not found in loc file, ignoring'.format(col))
+        if col not in list(exposure_df.columns) + valid_oasis_group_cols:
+            warnings.warn('Column {} not found in loc file, or a valid internal oasis column'.format(col))
             group_id_cols.remove(col)
+
     # Should list of column names used to group_id be empty, revert to
     # default
     if len(group_id_cols) == 0:
         group_id_cols = GROUP_ID_COLS
-    missing_group_id_cols = [col for col in group_id_cols if col not in exposure_df_gul_inputs_cols]
+
+    # Only add group col if not internal oasis col
+    missing_group_id_cols = []
+    for col in group_id_cols:
+        if col in valid_oasis_group_cols:
+            pass
+        elif col not in exposure_df_gul_inputs_cols:
+            missing_group_id_cols.append(col)
     exposure_df_gul_inputs_cols += missing_group_id_cols
 
     # Check if correlation group field used to drive group id
@@ -172,6 +189,7 @@ def get_gul_input_items(
     exposure_df.loc[:, tiv_cols] = exposure_df.loc[:, tiv_cols].fillna(0.0)
     exposure_df.query(query_nonzero_tiv, inplace=True, engine='numexpr')
 
+    
     gul_inputs_df = exposure_df[exposure_df_gul_inputs_cols]
     gul_inputs_df.drop_duplicates('loc_id', inplace=True, ignore_index=True)
 
@@ -280,6 +298,21 @@ def get_gul_input_items(
             'please check the exposure input files'
         )
 
+    # Set the item IDs and coverage IDs, and defaults and data types for
+    # layer IDs and agg. IDs
+    item_ids = gul_inputs_df.index + 1
+    gul_inputs_df['coverage_id'] = factorize_ndarray(
+        gul_inputs_df.loc[:, ['loc_id', 'coverage_type_id']].values, col_idxs=range(2))[0]
+    gul_inputs_df = gul_inputs_df.assign(
+        item_id=item_ids,
+    )
+    dtypes = {
+        **{t: 'uint32' for t in ['item_id', 'coverage_id']},
+        **{t: 'uint8' for t in terms_ints}
+    }
+    gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, dtypes)
+
+
     # Set the group ID
     # If the group id is set according to the correlation group field then map this field
     # directly, otherwise create an index of the group id fields
@@ -298,19 +331,7 @@ def get_gul_input_items(
             )[0]
     gul_inputs_df['group_id'] = gul_inputs_df['group_id'].astype('uint32')
 
-    # Set the item IDs and coverage IDs, and defaults and data types for
-    # layer IDs and agg. IDs
-    item_ids = gul_inputs_df.index + 1
-    gul_inputs_df['coverage_id'] = factorize_ndarray(
-        gul_inputs_df.loc[:, ['loc_id', 'coverage_type_id']].values, col_idxs=range(2))[0]
-    gul_inputs_df = gul_inputs_df.assign(
-        item_id=item_ids,
-    )
-    dtypes = {
-        **{t: 'uint32' for t in ['item_id', 'coverage_id']},
-        **{t: 'uint8' for t in terms_ints}
-    }
-    gul_inputs_df = set_dataframe_column_dtypes(gul_inputs_df, dtypes)
+
 
     # Select only required columns
     # Order here matches test output expectations

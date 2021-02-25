@@ -1,0 +1,10 @@
+ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsTag,CededPercent,RiskLevel
+116,OEDTest,CX34_08,,,CX34_08_1,,,,,,,
+116,OEDTest,CX34_08,,,CX34_08_2,,,,,,,
+116,OEDTest,CX34_09,,,,,,,,,,
+120,OEDTest,CX35_08,,,CX35_08_1,,,,,,,
+120,OEDTest,CX35_08,,,CX35_08_2,,,,,,,
+120,OEDTest,CX35_09,,,,,,,,,,
+124,OEDTest,CX36_08,,,CX36_08_1,,,,,,,
+124,OEDTest,CX36_08,,,CX36_08_2,,,,,,,
+124,OEDTest,CX36_09,,,,,,,,,,

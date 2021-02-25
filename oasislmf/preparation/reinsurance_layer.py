@@ -810,7 +810,6 @@ class ReinsuranceLayer(object):
         #
         layer_id = 0        # Initialise layer ID
         overlay_loop = 0    # Overlays multiple rules in same layer
-        prev_reins_number = -1
         prev_reins_type = None
         fac_contracts_layer = []
         for _, ri_info_row in self.ri_info_df.iterrows():
@@ -826,8 +825,6 @@ class ReinsuranceLayer(object):
                 if prev_reins_type != oed.REINS_TYPE_FAC:
                     layer_id += 1
                     prev_reins_type = ri_info_row.ReinsType
-                if prev_reins_number < ri_info_row.ReinsNumber:
-                    prev_reins_number = ri_info_row.ReinsNumber
                 nodes_risk_level_all = anytree.search.findall(
                     program_node,
                     filter_=lambda node: node.level_id == self._get_risk_level_id()
@@ -843,9 +840,8 @@ class ReinsuranceLayer(object):
                     layer_id += 1
                     fac_contracts_layer = []
                 fac_contracts_layer += fac_contracts
-            elif prev_reins_number < ri_info_row.ReinsNumber:
+            else:
                 layer_id += 1
-                prev_reins_number = ri_info_row.ReinsNumber
                 prev_reins_type = ri_info_row.ReinsType
 
             if self.logger:

@@ -115,6 +115,7 @@ class GenerateLosses(ComputationStep):
         {'name': 'ktools_fifo_relative',   'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Create ktools fifo queues under the ./fifo dir'},
         {'name': 'fmpy',                   'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory',        'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
+        {'name': 'fmpy_sort_output',       'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'order fmpy output by item_id'},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'verbose',              'default': KTOOLS_DEBUG},
@@ -232,6 +233,7 @@ class GenerateLosses(ComputationStep):
                         custom_gulcalc_cmd=self.model_custom_gulcalc,
                         fmpy=self.fmpy,
                         fmpy_low_memory=self.fmpy_low_memory,
+                        fmpy_sort_output=self.fmpy_sort_output,
                         event_shuffle=self.ktools_event_shuffle,
                     )
                 except TypeError:
@@ -292,6 +294,8 @@ class GenerateLossesDeterministic(ComputationStep):
         {'name': 'num_subperils',        'default': 1},
         {'name': 'fmpy',                 'default': False},
         {'name': 'fmpy_low_memory',      'default': False},
+        {'name': 'fmpy_sort_output', 'default': False},
+        {'name': 'il_stream_type', 'default': 2},
     ]
 
     def run(self):
@@ -322,9 +326,31 @@ class GenerateLossesDeterministic(ComputationStep):
         dtypes = {t: ('uint32' if t != 'tiv' else 'float32') for t in items.columns}
         items = set_dataframe_column_dtypes(items, dtypes)
 
-        gulcalc_sidxs = \
-            [KTOOLS_MEAN_SAMPLE_IDX, KTOOLS_STD_DEV_SAMPLE_IDX, KTOOLS_TIV_SAMPLE_IDX] + \
-            list(range(1, len(self.loss_factor) + 1))
+        ## Change order of stream depending on rule type
+        #   Stream_type 1
+        #     event_id, item_id, sidx, loss
+        #     1,1,-1,0
+        #     1,1,-2,0
+        #     1,1,-3,10000
+        #     1,1,1,10000
+        #
+        #   Stream_type 2
+        #     event_id, item_id, sidx, loss
+        #     1,1,-3,10000
+        #     1,1,-2,0
+        #     1,1,-1,0
+        #     1,1,1,10000
+        if self.il_stream_type == 2:
+            gulcalc_sidxs = \
+                [KTOOLS_TIV_SAMPLE_IDX, KTOOLS_STD_DEV_SAMPLE_IDX, KTOOLS_MEAN_SAMPLE_IDX] + \
+                list(range(1, len(self.loss_factor) + 1))
+        elif self.il_stream_type == 1:
+            gulcalc_sidxs = \
+                [KTOOLS_MEAN_SAMPLE_IDX, KTOOLS_STD_DEV_SAMPLE_IDX, KTOOLS_TIV_SAMPLE_IDX] + \
+                list(range(1, len(self.loss_factor) + 1))
+        else:
+            OasisException("Unknown il stream type: {}".format(self.il_stream_type))
+
 
         # Set damage percentages corresponing to the special indexes.
         # We don't care about mean and std_dev, but
@@ -359,19 +385,19 @@ class GenerateLossesDeterministic(ComputationStep):
         guls_fp = os.path.join(output_dir, "raw_guls.csv")
         guls.to_csv(guls_fp, index=False)
 
-        il_stream_type = 2 if self.fmpy else 1
+        #il_stream_type = 2 if self.fmpy else 1
         ils_fp = os.path.join(output_dir, 'raw_ils.csv')
 
         # Create IL fmpy financial structures
         if self.fmpy:
              with setcwd(self.oasis_files_dir):
-                check_call(f"fmpy -a {self.ktools_alloc_rule_il} --create-financial-structure-files -p {output_dir}" , shell=True)
+                 check_call(f"{get_fmcmd(self.fmpy)} -a {self.ktools_alloc_rule_il} --create-financial-structure-files -p {output_dir}" , shell=True)
 
         cmd = 'gultobin -S {} -t {} < {} | {} -p {} -a {} {} | tee ils.bin | fmtocsv > {}'.format(
             len(self.loss_factor),
-            il_stream_type,
+            self.il_stream_type,
             guls_fp,
-            get_fmcmd(self.fmpy, self.fmpy_low_memory),
+            get_fmcmd(self.fmpy, self.fmpy_low_memory, self.fmpy_sort_output),
             output_dir,
             self.ktools_alloc_rule_il,
             step_flag, ils_fp
@@ -423,12 +449,12 @@ class GenerateLossesDeterministic(ComputationStep):
                         # Create RI fmpy financial structures
                         if self.fmpy:
                              with setcwd(self.oasis_files_dir):
-                                check_call(f"fmpy -a {self.ktools_alloc_rule_ri} --create-financial-structure-files -p {layer_inputs_fp}" , shell=True)
+                                check_call(f"{get_fmcmd(self.fmpy)} -a {self.ktools_alloc_rule_ri} --create-financial-structure-files -p {layer_inputs_fp}" , shell=True)
 
                         _input = 'gultobin -S 1 -t {} < {} | {} -p {} -a {} {} | tee ils.bin |'.format(
-                            il_stream_type,
+                            self.il_stream_type,
                             guls_fp,
-                            get_fmcmd(self.fmpy, self.fmpy_low_memory),
+                            get_fmcmd(self.fmpy, self.fmpy_low_memory, self.fmpy_sort_output),
                             output_dir,
                             self.ktools_alloc_rule_il,
                             step_flag
@@ -438,7 +464,7 @@ class GenerateLossesDeterministic(ComputationStep):
                         net_flag = "-n" if self.net_ri else ""
                         cmd = '{} {} -p {} {} -a {} {} {} | tee ri{}.bin | fmtocsv > {}'.format(
                             _input,
-                            get_fmcmd(self.fmpy, self.fmpy_low_memory),
+                            get_fmcmd(self.fmpy, self.fmpy_low_memory, self.fmpy_sort_output),
                             layer_inputs_fp,
                             net_flag,
                             self.ktools_alloc_rule_ri,
