@@ -1,9 +1,25 @@
 OasisLMF Changelog
 ==================
 
-`1.14.0`_
+`1.15.0`_
 ---------
 .. start_latest_release
+* [#755](https://github.com/OasisLMF/OasisLMF/pull/755) - Added updates fixes to fm testing tool
+* [#759](https://github.com/OasisLMF/OasisLMF/issues/759) - Switched fmpy to the default financial module
+* [#688](https://github.com/OasisLMF/OasisLMF/issues/688) - Added TIV reporting to summary info files
+* [#623](https://github.com/OasisLMF/OasisLMF/issues/623) - Added check to raise an error if a locations file references account numbers missing from the account file.
+* [#749](https://github.com/OasisLMF/OasisLMF/pull/749) - The Group ids can now be set by the following internal oasis fields 'item_id', 'peril_id', 'coverage_id', and 'coverage_type_id'
+* [#760](https://github.com/OasisLMF/OasisLMF/pull/760) - Upgraded test harness for financial module and added numerical tests for fmpy.
+* [#754](https://github.com/OasisLMF/OasisLMF/issues/754) - Added validation for unsupported special conditions
+* [#752](https://github.com/OasisLMF/OasisLMF/issues/752) - Fixed issue with fmpy - not calculating net loss across all layers correctly.
+* [#751](https://github.com/OasisLMF/OasisLMF/issues/751) - Remove dependence on ReinsNumber order when assigning layer ID
+* [#763](https://github.com/OasisLMF/OasisLMF/issues/763) - Dropped binary wheel package for Mac OSX
+* [#750](https://github.com/OasisLMF/OasisLMF/issues/750) - Switched oasislmf `exposure run` to use gul stream type 2 by default 
+* [#391](https://github.com/OasisLMF/OasisLMF/issues/391) - Added fix so error is raise when no data is returned from keys server.
+.. end_latest_release
+
+`1.14.0`_
+---------
 * [#724](https://github.com/OasisLMF/OasisLMF/issues/724) - fm file generation issues with fac when combined with other types of reinsurance
 * [#735](https://github.com/OasisLMF/OasisLMF/pull/735) - Bug fixes for python FM module 
 * [#731](https://github.com/OasisLMF/OasisLMF/issues/731) - Fix health check on exposure summary unittest
@@ -14,7 +30,6 @@ OasisLMF Changelog
 * [#744](https://github.com/OasisLMF/OasisLMF/pull/744) - Compatibility fix for older pandas versions
 * [#708](https://github.com/OasisLMF/OasisLMF/issues/708) - Check for case sensitive event/occ sets with a fallback to lowercase names
 * [#737](https://github.com/OasisLMF/OasisLMF/issues/737) - Added flag `--ktools-event-shuffle` to support ktools feature [Issue 119](https://github.com/OasisLMF/ktools/issues/119)
-.. end_latest_release
 
 `1.13.2`_
 ---------
@@ -516,6 +531,7 @@ OasisLMF Changelog
 
 * Add console logging
 
+.. _`1.15.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.14.0...1.15.0
 .. _`1.14.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.13.2...1.14.0
 .. _`1.13.2`:  https://github.com/OasisLMF/OasisLMF/compare/1.13.1...1.13.2
 .. _`1.13.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.13.0...1.13.1
