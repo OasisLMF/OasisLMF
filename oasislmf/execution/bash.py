@@ -1046,7 +1046,7 @@ def genbash(
     print_command(filename, '')
 
     if fmpy:
-        if il_output:
+        if il_output or ri_output:
             print_command(
                 filename, f'{get_fmcmd(fmpy)} -a{il_alloc_rule} --create-financial-structure-files'
             )
