@@ -16,7 +16,6 @@ rm -R -f fifo/*
 rm -R -f work/*
 mkdir work/kat/
 
-fmpy -a2 --create-financial-structure-files
 mkdir work/gul_S1_summaryleccalc
 mkdir work/gul_S1_summaryaalcalc
 
