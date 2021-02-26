@@ -16,7 +16,6 @@ rm -R -f fifo/*
 rm -R -f work/*
 mkdir work/kat/
 
-fmpy -a2 --create-financial-structure-files
 
 mkfifo fifo/gul_P1
 
