@@ -4,6 +4,8 @@ OasisLMF Changelog
 `1.15.0`_
 ---------
 .. start_latest_release
+* [#765](https://github.com/OasisLMF/OasisLMF/pull/765) - Add a first pass of FM python documentation
+* [#770](https://github.com/OasisLMF/OasisLMF/pull/770) - Fix issue in lookup factory no results check 
 * [#755](https://github.com/OasisLMF/OasisLMF/pull/755) - Added updates fixes to fm testing tool
 * [#759](https://github.com/OasisLMF/OasisLMF/issues/759) - Switched fmpy to the default financial module
 * [#688](https://github.com/OasisLMF/OasisLMF/issues/688) - Added TIV reporting to summary info files
