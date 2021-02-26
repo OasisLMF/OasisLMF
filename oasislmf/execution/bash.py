@@ -308,7 +308,7 @@ def do_kats(
 
             if summary.get('eltcalc'):
                 anykats = True
-                
+
                 cmd = 'kat -s' if sort_by_event else 'kat'
                 for process_id in range(1, max_process_id + 1):
                     cmd = '{} {}{}_S{}_eltcalc_P{}'.format(
@@ -958,7 +958,7 @@ def genbash(
     num_fm_per_lb = num_fm_per_lb if isinstance(num_fm_per_lb, int) else KTOOL_N_FM_PER_LB
     event_shuffle = event_shuffle if isinstance(event_shuffle, int) else EVE_DEFAULT_SHUFFLE
 
-    # Get event shuffle flags 
+    # Get event shuffle flags
     if event_shuffle in EVE_SHUFFLE_OPTIONS:
         eve_shuffle_flag = EVE_SHUFFLE_OPTIONS[event_shuffle]['eve']
         kat_sort_by_event = EVE_SHUFFLE_OPTIONS[event_shuffle]['kat_sorting']
@@ -1046,11 +1046,13 @@ def genbash(
     print_command(filename, '')
 
     if fmpy:
-        print_command(
-            filename, f'{get_fmcmd(fmpy)} -a{il_alloc_rule} --create-financial-structure-files'
-        )
-        for i in range(1, num_reinsurance_iterations + 1):
-            print_command(filename, f'{get_fmcmd(fmpy)} -a{ri_alloc_rule} --create-financial-structure-files -p RI_{i}')
+        if il_output:
+            print_command(
+                filename, f'{get_fmcmd(fmpy)} -a{il_alloc_rule} --create-financial-structure-files'
+            )
+        if ri_output:
+            for i in range(1, num_reinsurance_iterations + 1):
+                print_command(filename, f'{get_fmcmd(fmpy)} -a{ri_alloc_rule} --create-financial-structure-files -p RI_{i}')
 
     # Create FIFOS under /tmp/* (Windows support)
     if fifo_tmp_dir:
