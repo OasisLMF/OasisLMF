@@ -4,9 +4,6 @@
 #
 #    pip-compile
 #
---extra-index-url http://phabricator.jbarisk.com:8080
---trusted-host phabricator.jbarisk.com
-
 alabaster==0.7.12         # via sphinx
 anytree==2.8.0            # via -r ./requirements-package.in
 argparsetree==0.0.6       # via -r ./requirements-package.in
@@ -36,7 +33,6 @@ future==0.18.2            # via -r ./requirements-package.in, -r requirements.in
 hypothesis==5.1.5         # via -r requirements.in
 idna==2.8                 # via requests
 imagesize==1.2.0          # via sphinx
-importlib-metadata==1.4.0  # via jsonschema, pluggy, pytest, tox
 ipdb==0.12.3              # via -r requirements.in
 ipython-genutils==0.2.0   # via traitlets
 ipython==7.11.1           # via ipdb
@@ -44,15 +40,17 @@ jedi==0.15.2              # via ipython
 jinja2-time==0.2.0        # via cookiecutter
 jinja2==2.10.3            # via cookiecutter, jinja2-time, sphinx
 jsonschema==3.2.0         # via -r ./requirements-package.in
+llvmlite==0.35.0          # via numba
 markupsafe==1.1.1         # via jinja2
 mccabe==0.6.1             # via flake8
 mock==3.0.5               # via -r requirements.in
-more-itertools==8.1.0     # via pytest, zipp
+more-itertools==8.1.0     # via pytest
 msgpack==1.0.0            # via -r ./requirements-package.in
+numba==0.52.0             # via -r ./requirements-package.in
 numexpr==2.7.1            # via -r ./requirements-package.in
-numpy==1.18.1             # via numexpr, pandas
+numpy==1.18.1             # via numba, numexpr, pandas
 packaging==20.0           # via pytest, sphinx, tox
-pandas==0.25.3            # via -r ./requirements-package.in
+pandas==1.2.3             # via -r ./requirements-package.in
 parameterized==0.7.1      # via -r requirements.in
 parso==0.5.2              # via jedi
 pathlib2==2.3.5           # via -r ./requirements-package.in
@@ -99,7 +97,6 @@ urllib3==1.25.7           # via requests
 virtualenv==16.7.9        # via tox
 wcwidth==0.1.8            # via prompt-toolkit, pytest
 whichcraft==0.6.1         # via cookiecutter
-zipp==1.0.0               # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools
