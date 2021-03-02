@@ -410,7 +410,7 @@ def write_df_to_file(df, target_dir, filename):
 
 
 @oasis_log
-def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, summaries_type, gul_items=False):
+def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, summaries_type, id_set_index='output_id'):
     """
     Create a Dataframe for either gul / il / ri  based on a section
     from the analysis settings
@@ -467,17 +467,8 @@ def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, s
     if isinstance(accounts_df, pd.DataFrame):
         all_cols.update(accounts_df.columns.to_list())
 
-    # Extract the summary id index column depending on summary grouping type
-    if 'output_id' in map_df:
-        id_set_index = 'output_id'
-        ids_set_df = map_df.loc[:, [id_set_index]].rename(columns={id_set_index: "output"})
-    elif gul_items:
-        id_set_index = 'item_id'
-        ids_set_df = map_df.loc[:, [id_set_index]]
-    else:
-        id_set_index = 'coverage_id'
-        ids_set_df = map_df.loc[:, [id_set_index]]
-
+    # Extract the summary id index column depending on id_set_index
+    ids_set_df = map_df.loc[:, [id_set_index]].rename(columns={'output_id': "output"})
 
     # For each granularity build a set grouping
     for summary_set in summaries_info_dict:
@@ -499,7 +490,6 @@ def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, s
             summary_desc[desc_key] = pd.DataFrame(data=['All-Risks'], columns=['_not_set_'])
             summary_desc[desc_key].insert(loc=0, column='summary_id', value=1)
             summary_desc[desc_key].insert(loc=len(summary_desc[desc_key].columns), column='tiv', value=map_df.drop_duplicates(['loc_id', 'coverage_type_id'], keep='first').tiv.sum())
-
         else:
             (
                 summary_set_df['summary_id'],
@@ -512,10 +502,9 @@ def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, s
             summary_desc_df.insert(loc=0, column='summary_id', value=range(1, len(set_values) + 1))
             summary_desc[desc_key] = pd.merge(summary_desc_df, tiv_values, left_on=cols_group_by, right_on=cols_group_by)
 
-
         # Appends summary set to '__summaryxref.csv'
         summary_set_df['summaryset_id'] = summary_set['id']
-        summaryxref_df = pd.concat([summaryxref_df, summary_set_df], sort=True, ignore_index=True)
+        summaryxref_df = pd.concat([summaryxref_df, summary_set_df.drop_duplicates()], sort=True, ignore_index=True)
 
     dtypes = {
         t: 'uint32' for t in ['coverage_id', 'summary_id', 'summaryset_id']
@@ -549,17 +538,17 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
 
     # Boolean checks for summary generation types (gul / il / ri)
     gul_summaries = all([
-        analysis_settings['gul_output'] if 'gul_output' in analysis_settings else False,
-        analysis_settings['gul_summaries'] if 'gul_summaries' in analysis_settings else False,
+        analysis_settings.get('gul_output'),
+        analysis_settings.get('gul_summaries'),
     ])
     il_summaries = all([
-        analysis_settings['il_output'] if 'il_output' in analysis_settings else False,
-        analysis_settings['il_summaries'] if 'il_summaries' in analysis_settings else False,
+        analysis_settings.get('il_output'),
+        analysis_settings.get('il_summaries'),
         il,
     ])
     ri_summaries = all([
-        analysis_settings['ri_output'] if 'ri_output' in analysis_settings else False,
-        analysis_settings['ri_summaries'] if 'ri_summaries' in analysis_settings else False,
+        analysis_settings.get('ri_output'),
+        analysis_settings.get('ri_summaries'),
         ri,
     ])
 
@@ -574,8 +563,8 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
         required_cols=loc_required_cols)
     exposure_df[SOURCE_IDX['loc']] = exposure_df.index
 
-    # Load accounts file for IL OED fields
-    if (il_summaries or ri_summaries):
+    # Load accounts file and the more complete il_map if present
+    try:
         accounts_fp = find_exposure_fp(input_dir, 'acc')
         acc_dtypes, acc_required_cols = get_dtypes_and_required_cols(get_acc_dtypes)
         accounts_df = get_dataframe(
@@ -585,20 +574,35 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
             required_cols=acc_required_cols)
         accounts_df[SOURCE_IDX['acc']] = accounts_df.index
 
+        il_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['fm_map_fn'])
+        il_map_df = get_dataframe(
+            src_fp=il_map_fp,
+            empty_data_error_msg='No summary map file found.'
+        )
+        if gul_summaries:
+            gul_map_df = il_map_df
+            gul_map_df['item_id'] = gul_map_df['agg_id']
+    except Exception:
+        if not (il_summaries or ri_summaries): # accounts is not compulsory
+            accounts_df = None
+            if gul_summaries:
+                gul_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['gul_map_fn'])
+                gul_map_df = get_dataframe(
+                    src_fp=gul_map_fp,
+                    empty_data_error_msg='No summary map file found.')
+        else:
+            raise
+
     if gul_summaries:
         # Load GUL summary map
-        gul_map_fp = os.path.join(model_run_fp, 'input', SUMMARY_MAPPING['gul_map_fn'])
-        gul_map_df = get_dataframe(
-            src_fp=gul_map_fp,
-            empty_data_error_msg='No summary map file found.')
-
+        id_set_index = 'item_id' if gul_item_stream else 'coverage_id'
         gul_summaryxref_df, gul_summary_desc = get_summary_xref_df(
             gul_map_df,
             exposure_df,
-            None,
+            accounts_df,
             analysis_settings['gul_summaries'],
             'gul',
-            gul_item_stream
+            id_set_index
         )
         # Write Xref file
         write_df_to_file(gul_summaryxref_df, os.path.join(model_run_fp, 'input'), SUMMARY_OUTPUT['gul'])
