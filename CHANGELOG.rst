@@ -1,11 +1,19 @@
 OasisLMF Changelog
 ==================
 
+`1.15.2`_
+---------
+.. start_latest_release
+* [#777](https://github.com/OasisLMF/OasisLMF/issues/777) - Summarise ground up only runs using Insured loss fields 
+* [#776](https://github.com/OasisLMF/OasisLMF/pull/776) - Fix tiv summary info feature, Pandas compatibility & column select issue 
+.. end_latest_release
 
 `1.15.1`_
 ---------
-.. start_latest_release
 * [#771 - Hotfix](https://github.com/OasisLMF/OasisLMF/issues/771) - Fix running GUL only analyses with fmpy
+
+`1.15.0`_
+---------
 * [#765](https://github.com/OasisLMF/OasisLMF/pull/765) - Add a first pass of FM python documentation
 * [#770](https://github.com/OasisLMF/OasisLMF/pull/770) - Fix issue in lookup factory no results check 
 * [#755](https://github.com/OasisLMF/OasisLMF/pull/755) - Added updates fixes to fm testing tool
@@ -20,11 +28,6 @@ OasisLMF Changelog
 * [#763](https://github.com/OasisLMF/OasisLMF/issues/763) - Dropped binary wheel package for Mac OSX
 * [#750](https://github.com/OasisLMF/OasisLMF/issues/750) - Switched oasislmf `exposure run` to use gul stream type 2 by default 
 * [#391](https://github.com/OasisLMF/OasisLMF/issues/391) - Added fix so error is raise when no data is returned from keys server.
-.. end_latest_release
-
-`1.15.0`_
----------
-* see changelog `1.15.1`
 
 `1.14.0`_
 ---------
@@ -539,6 +542,7 @@ OasisLMF Changelog
 
 * Add console logging
 
+.. _`1.15.2`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.1...1.15.2
 .. _`1.15.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.0...1.15.1
 .. _`1.15.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.14.0...1.15.0
 .. _`1.14.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.13.2...1.14.0
