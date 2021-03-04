@@ -1,12 +1,16 @@
 OasisLMF Changelog
 ==================
 
-`1.15.2`_
+`1.15.3`_
 ---------
 .. start_latest_release
+* [#780](https://github.com/OasisLMF/OasisLMF/pull/780) - Fix for fmpy, last event missing when using event terminator 0,0
+.. end_latest_release
+
+`1.15.2`_
+---------
 * [#777](https://github.com/OasisLMF/OasisLMF/issues/777) - Summarise ground up only runs using Insured loss fields 
 * [#776](https://github.com/OasisLMF/OasisLMF/pull/776) - Fix tiv summary info feature, Pandas compatibility & column select issue 
-.. end_latest_release
 
 `1.15.1`_
 ---------
