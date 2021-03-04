@@ -176,7 +176,7 @@ def read_streams(streams_in, nodes_array, losses, index, computes):
                     logger.debug(f'event_id: {event_id}, loss_index :{loss_index}')
                     yield event_id, loss_index
 
-        # All stream are read, we need to check if there is remaining event to be parsed
+        # Stream is read, we need to check if there is remaining event to be parsed
         for data in stream_data:
             if data['cursor'] < data['valid_buf']:
                 event_agg = data['event_agg']
@@ -193,8 +193,9 @@ def read_streams(streams_in, nodes_array, losses, index, computes):
                                                                                              0,
                                                                                              nodes_array, losses, index,
                                                                                              computes)
+
                     if event_id:
-                        if not yield_event:
+                        if not yield_event and agg_id:
                             loss_index += 1
                         logger.debug(f'event_id: {event_id}, loss_index :{loss_index}')
                         yield event_id, loss_index
@@ -301,7 +302,6 @@ class EventWriter:
             if exceptional:
                 raise IOError(f'error with input stream, {exceptional}')
             writable[0].write(self.mv[:cursor])
-
         return compute_i
 
 
@@ -316,4 +316,4 @@ class EventWriterOrderedOutput(EventWriter):
     def write(self, event_id, compute_i):
         compute_end = get_compute_end(self.computes, compute_i)
         self.computes[compute_i: compute_end] = np.sort(self.computes[compute_i: compute_end])
-        super().write(event_id, compute_i)
+        return super().write(event_id, compute_i)
