@@ -1024,7 +1024,7 @@ def genbash(
 
     print_command(filename, '# --- Setup run dirs ---')
     print_command(filename, '')
-    print_command(filename, "find output -name '*summary-info*' -exec rm -R -f {} +")
+    print_command(filename, "find output -type f -not -name '*summary-info*' -exec rm -R -f {} +")
     if full_correlation:
         print_command(filename, 'mkdir {}'.format(output_full_correlation_dir))
     print_command(filename, '')

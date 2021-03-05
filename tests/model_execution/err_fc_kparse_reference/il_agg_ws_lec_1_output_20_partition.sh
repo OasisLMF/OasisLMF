@@ -56,7 +56,7 @@ check_complete(){
 }
 # --- Setup run dirs ---
 
-find output/* ! -name '*summary-info*' -exec rm -R -f {} +
+find output -type f -not -name '*summary-info*' -exec rm -R -f {} +
 mkdir output/full_correlation/
 
 rm -R -f fifo/*
