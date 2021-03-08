@@ -7,7 +7,7 @@ import filecmp
 import os
 import shutil
 
-from pathlib2 import Path
+from pathlib import Path
 
 from ..utils.exceptions import OasisException
 from ..utils.path import as_path

@@ -26,9 +26,7 @@ billiard==3.6.0.0
 binaryornot==0.4.4
     # via cookiecutter
 certifi==2019.11.28
-    # via
-    #   -r ./requirements-package.in
-    #   requests
+    # via requests
 chainmap==1.0.3
     # via -r ./requirements-package.in
 chardet==3.0.4
@@ -124,8 +122,6 @@ parameterized==0.7.1
     # via -r requirements.in
 parso==0.5.2
     # via jedi
-pathlib2==2.3.5
-    # via -r ./requirements-package.in
 pexpect==4.7.0
     # via ipython
 pickleshare==0.7.5
@@ -201,7 +197,6 @@ six==1.14.0
     #   jsonschema
     #   mock
     #   packaging
-    #   pathlib2
     #   pip-tools
     #   pyrsistent
     #   python-dateutil

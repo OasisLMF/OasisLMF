@@ -18,7 +18,7 @@ import warnings
 from collections import OrderedDict
 from itertools import product
 from json import JSONDecodeError
-from pathlib2 import Path
+from pathlib import Path
 from subprocess import CalledProcessError, check_call
 
 from .files import GenerateDummyModelFiles, GenerateDummyOasisFiles

@@ -20,7 +20,7 @@ from hypothesis import (
 )
 from hypothesis.strategies import sampled_from, lists
 from mock import patch, Mock
-from pathlib2 import Path
+from pathlib import Path
 
 from oasislmf.model_execution.files import GUL_INPUT_FILES, IL_INPUT_FILES, TAR_FILE, INPUT_FILES
 from oasislmf.model_execution.bin import (

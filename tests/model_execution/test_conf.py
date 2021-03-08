@@ -8,7 +8,7 @@ import io
 from tempfile import TemporaryDirectory
 from hypothesis import given
 from hypothesis.strategies import sampled_from
-from pathlib2 import Path
+from pathlib import Path
 
 from oasislmf.model_execution.conf import create_analysis_settings_json
 from oasislmf.model_execution.files import GENERAL_SETTINGS_FILE, MODEL_SETTINGS_FILE, GUL_SUMMARIES_FILE, \

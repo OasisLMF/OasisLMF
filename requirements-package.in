@@ -10,7 +10,6 @@ msgpack
 numba>=0.50.1
 numexpr
 pandas>=1.0.3,!=1.1.0,!=1.1.1
-pathlib2
 pytz
 requests>=2.20.0
 rtree>=0.8.3
