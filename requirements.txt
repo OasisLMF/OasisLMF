@@ -118,7 +118,7 @@ packaging==20.0
     #   pytest
     #   sphinx
     #   tox
-pandas==1.0.5
+pandas==1.1.0
     # via -r ./requirements-package.in
 parameterized==0.7.1
     # via -r requirements.in
