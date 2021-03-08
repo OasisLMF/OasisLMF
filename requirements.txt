@@ -64,7 +64,6 @@ freezegun==0.3.13
     # via -r requirements.in
 future==0.18.2
     # via
-    #   -r ./requirements-package.in
     #   -r requirements.in
     #   cookiecutter
 hypothesis==5.1.5

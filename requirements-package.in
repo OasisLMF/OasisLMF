@@ -4,7 +4,6 @@ billiard>=3.6.0.0
 chainmap
 chardet
 cookiecutter>=1.6.0
-future
 jsonschema
 msgpack
 numba>=0.50.1
