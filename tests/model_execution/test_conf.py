@@ -5,7 +5,7 @@ from unittest import TestCase
 import os
 import io
 
-from backports.tempfile import TemporaryDirectory
+from tempfile import TemporaryDirectory
 from hypothesis import given
 from hypothesis.strategies import sampled_from
 from pathlib2 import Path

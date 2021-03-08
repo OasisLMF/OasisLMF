@@ -6,7 +6,7 @@ import subprocess
 import tarfile
 
 from itertools import chain
-from backports.tempfile import TemporaryDirectory
+from tempfile import TemporaryDirectory
 from copy import copy, deepcopy
 from tempfile import NamedTemporaryFile
 from unittest import TestCase

@@ -4,7 +4,7 @@ import time
 import unittest
 import hypothesis
 
-from backports.tempfile import TemporaryDirectory
+from tempfile import TemporaryDirectory
 from collections import OrderedDict
 
 import pandas as pd
