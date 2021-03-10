@@ -1,9 +1,13 @@
 OasisLMF Changelog
 ==================
 
+`1.14.1`_
+---------
+* [#464 - Hotfix](https://github.com/OasisLMF/OasisPlatform/issues/464) - Worker stuck idle on some bash errors                                  
+* [#785 - Hotfix](https://github.com/OasisLMF/OasisLMF/issues/785) - fmsummaryxref.csv not copied into top level RI directory 
+
 `1.14.0`_
 ---------
-.. start_latest_release
 * [#724](https://github.com/OasisLMF/OasisLMF/issues/724) - fm file generation issues with fac when combined with other types of reinsurance
 * [#735](https://github.com/OasisLMF/OasisLMF/pull/735) - Bug fixes for python FM module 
 * [#731](https://github.com/OasisLMF/OasisLMF/issues/731) - Fix health check on exposure summary unittest
@@ -14,7 +18,6 @@ OasisLMF Changelog
 * [#744](https://github.com/OasisLMF/OasisLMF/pull/744) - Compatibility fix for older pandas versions
 * [#708](https://github.com/OasisLMF/OasisLMF/issues/708) - Check for case sensitive event/occ sets with a fallback to lowercase names
 * [#737](https://github.com/OasisLMF/OasisLMF/issues/737) - Added flag `--ktools-event-shuffle` to support ktools feature [Issue 119](https://github.com/OasisLMF/ktools/issues/119)
-.. end_latest_release
 
 `1.13.2`_
 ---------
@@ -516,6 +519,7 @@ OasisLMF Changelog
 
 * Add console logging
 
+.. _`1.14.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.14.0...1.14.1
 .. _`1.14.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.13.2...1.14.0
 .. _`1.13.2`:  https://github.com/OasisLMF/OasisLMF/compare/1.13.1...1.13.2
 .. _`1.13.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.13.0...1.13.1
