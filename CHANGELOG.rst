@@ -1,9 +1,13 @@
 OasisLMF Changelog
 ==================
 
+`1.13.3`_
+---------
+* [#464 - Hotfix](https://github.com/OasisLMF/OasisPlatform/issues/464) - Worker stuck idle on some bash errors
+* [#785 - Hotfix](https://github.com/OasisLMF/OasisLMF/issues/785) - fmsummaryxref.csv not copied into top level RI directory 
+
 `1.13.2`_
 ---------
-.. start_latest_release
 * [#690](https://github.com/OasisLMF/OasisLMF/pull/690) - Raise error is output node is missing its output_id
 * [#700](https://github.com/OasisLMF/OasisLMF/issues/700) - Update error guard to cover all ktools binaries
 * [#701](https://github.com/OasisLMF/OasisLMF/issues/701) - Fixed api search crash when metadata is empty
@@ -13,7 +17,6 @@ OasisLMF Changelog
 * [#712](https://github.com/OasisLMF/OasisLMF/issues/712) - Fix missing gul_errors_map.csv file
 * [#713](https://github.com/OasisLMF/OasisLMF/issues/713) - Fix for gul_errors_map containing duplicate columns
 * [#722](https://github.com/OasisLMF/OasisLMF/issues/722) - Fixed error creating summary levels in Pandas 1.2.0
-.. end_latest_release
 
 `1.13.1`_
 ---------
@@ -503,6 +506,7 @@ OasisLMF Changelog
 
 * Add console logging
 
+.. _`1.13.3`:  https://github.com/OasisLMF/OasisLMF/compare/1.13.2...1.13.3
 .. _`1.13.2`:  https://github.com/OasisLMF/OasisLMF/compare/1.13.1...1.13.2
 .. _`1.13.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.13.0...1.13.1
 .. _`1.13.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.12.1...1.13.0
