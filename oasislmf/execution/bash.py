@@ -65,7 +65,7 @@ exit_handler(){
    kill -9 $(echo "$PIDS_KILL" | awk \'BEGIN { FS = "[ \\t\\n]+" }{ print $1 }\') 2>/dev/null
    exit $exit_code
 }
-trap exit_handler QUIT HUP INT KILL TERM ERR"""
+trap exit_handler QUIT HUP INT KILL TERM ERR EXIT"""
 
 CHECK_FUNC = """
 check_complete(){
