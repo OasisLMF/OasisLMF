@@ -626,7 +626,7 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
 
     if ri_summaries:
         ri_layers = get_ri_settings(model_run_fp)
-        max_layer = max(ri_layers)
+        max_layer = str(max([int(x) for x in ri_layers]))
         summary_ri_fp = os.path.join(
             model_run_fp, os.path.basename(ri_layers[max_layer]['directory']))
 
