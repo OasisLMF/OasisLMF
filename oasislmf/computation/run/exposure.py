@@ -137,7 +137,7 @@ class RunExposure(ComputationStep):
             output_dir=os.path.join(run_dir, 'output'),
             include_loss_factor=include_loss_factor,
             loss_factor=self.loss_factor,
-            #num_subperils=self.num_subperils,
+            num_subperils=self.num_subperils,
             net_ri=self.net_ri,
             ktools_alloc_rule_il=self.ktools_alloc_rule_il,
             ktools_alloc_rule_ri=self.ktools_alloc_rule_ri,
