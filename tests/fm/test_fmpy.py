@@ -2,9 +2,9 @@ import os.path
 import sys
 import tempfile
 import shutil
+import datetime
 
 from oasislmf.manager import OasisManager
-from oasislmf.utils.data import get_utctimestamp
 from unittest import TestCase
 
 import pytest
@@ -18,7 +18,7 @@ class FmAcceptanceTests(TestCase):
 
     def _store_output(self, test_case, tmp_run_dir):
         if self.keep_output:
-            utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
+            utcnow = '{:%Y%m%d%H%M%S}'.format(datetime.datetime.now())
             output_dir = os.path.join(
                 self.test_cases_fp, 'runs', 'test-fmpy-{}-{}'.format(test_case,utcnow)
             )

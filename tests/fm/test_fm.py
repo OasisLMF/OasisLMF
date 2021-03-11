@@ -2,9 +2,9 @@ import os.path
 import sys
 import tempfile
 import shutil
+import datetime
 
 from oasislmf.manager import OasisManager
-from oasislmf.utils.data import get_utctimestamp
 from unittest import TestCase
 
 import pytest
@@ -18,14 +18,14 @@ class FmAcceptanceTests(TestCase):
 
     def _store_output(self, test_case, tmp_run_dir):
         if self.keep_output:
-            utcnow = get_utctimestamp(fmt='%Y%m%d%H%M%S')
+            utcnow = '{:%Y%m%d%H%M%S}'.format(datetime.datetime.now())
             output_dir = os.path.join(
                 self.test_cases_fp, 'runs', 'test-fm-{}-{}'.format(test_case,utcnow)
             )
             shutil.copytree(tmp_run_dir, output_dir)
             print(f'Generated Output stored in: {output_dir}')
 
-    def run_test(self, test_case, fmpy=False, subperils=1):
+    def run_test(self, test_case, fmpy=False, subperils=1, expected_dir="expected"):
         with tempfile.TemporaryDirectory() as tmp_run_dir:
             result = OasisManager().run_fm_test(
                 test_case_dir=self.test_cases_fp,
@@ -34,7 +34,8 @@ class FmAcceptanceTests(TestCase):
                 update_expected=self.update_expected,
                 fmpy=fmpy,
                 num_subperils=subperils,
-                test_tolerance=0.001
+                test_tolerance=0.001,
+                expected_output_dir=expected_dir,
             )
             self._store_output(test_case, tmp_run_dir)
 
@@ -55,14 +56,14 @@ class FmAcceptanceTests(TestCase):
 
     # multiperil tests 
     def test_insurance_2_subperils(self):
-        self.run_test('insurance', subperils=2)
+        self.run_test('insurance', subperils=2, expected_dir="expected_subperils")
 
     def test_insurance_step_2_subperils(self):
-        self.run_test('insurance_step', subperils=2)
+        self.run_test('insurance_step', subperils=2, expected_dir="expected_subperils")
 
     def test_reinsurance1_2_subperils(self):
-        self.run_test('reinsurance1', subperils=2)
+        self.run_test('reinsurance1', subperils=2, expected_dir="expected_subperils")
 
     def test_reinsurance2_2_subperils(self):
-        self.run_test('reinsurance2', subperils=2)
+        self.run_test('reinsurance2', subperils=2, expected_dir="expected_subperils")
     

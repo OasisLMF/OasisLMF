@@ -321,19 +321,24 @@ class RunFmTest(ComputationStep):
         {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'update_expected', 'default': False},
+        {'name': 'expected_output_dir', 'default': "expected"},
     ]
 
     def search_test_cases(self):
         case_names = []
         for test_case in os.listdir(path=self.test_case_dir):
             if os.path.exists(
-                os.path.join(self.test_case_dir, test_case, "expected")
+                os.path.join(self.test_case_dir, test_case, self.expected_output_dir)
             ):
                 case_names.append(test_case)
         case_names.sort()
         return case_names, len(case_names)
 
     def run(self):
+
+        # Run selected test case
+        if self.test_case_name:
+            return self.execute_test_case(self.test_case_name)
 
         # Setup and search test case dir
         if not self.test_case_dir:
@@ -345,13 +350,6 @@ class RunFmTest(ComputationStep):
             for name in case_names:
                 self.logger.info(name)
             exit(0)
-
-        # Check selected test case exisits
-        if self.test_case_name:
-            if self.test_case_name not in case_names:
-                raise OasisException(f'Error: case "{self.test_case_name}" not found in "{self.test_case_dir}"')
-
-            return self.execute_test_case(self.test_case_name)
 
         # If test_case not selected run all cases
         self.logger.info(f"Running: All tests in '{self.test_case_dir}'")
@@ -413,7 +411,7 @@ class RunFmTest(ComputationStep):
             fmpy_sort_output=self.fmpy_sort_output
         ).run()
 
-        expected_data_dir = os.path.join(test_dir, 'expected')
+        expected_data_dir = os.path.join(test_dir, self.expected_output_dir)
         if not os.path.exists(expected_data_dir):
             raise OasisException(
                 'No subfolder named `expected` found in the input directory - '
@@ -439,6 +437,8 @@ class RunFmTest(ComputationStep):
             expected = os.path.join(expected_data_dir, f)
 
             if not os.path.exists(expected):
+                if self.update_expected:
+                    shutil.copyfile(generated, expected)
                 continue
 
             try:
