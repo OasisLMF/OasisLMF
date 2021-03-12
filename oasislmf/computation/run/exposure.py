@@ -137,7 +137,7 @@ class RunExposure(ComputationStep):
             output_dir=os.path.join(run_dir, 'output'),
             include_loss_factor=include_loss_factor,
             loss_factor=self.loss_factor,
-            #num_subperils=self.num_subperils,
+            num_subperils=self.num_subperils,
             net_ri=self.net_ri,
             ktools_alloc_rule_il=self.ktools_alloc_rule_il,
             ktools_alloc_rule_ri=self.ktools_alloc_rule_ri,
@@ -315,24 +315,30 @@ class RunFmTest(ComputationStep):
         {'name': 'test_case_dir', 'flag': '-t', 'help': 'Test directory - should contain test directories containing OED files and expected results'},
         {'name': 'list_tests', 'flag': '-l', 'action': 'store_true', 'help': 'List the valid test cases in the test directory rather than running'},
         {'name': 'run_dir', 'flag': '-r', 'help': 'Run directory - where files should be generated. If not sst, no files will be saved.'},
-        {'name': 'test_tolerance',   'type' :float, 'help': 'Relative tolerance between expected values and results, default is "1e-4" or 0.0001%', 'default': 1e-4},
-        {'name': 'fmpy',            'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
+        {'name': 'num_subperils', 'flag':'-p', 'default': 1,  'type':int, 'help': 'Set the number of subperils returned by deterministic key generator'},
+        {'name': 'test_tolerance', 'type' :float, 'help': 'Relative tolerance between expected values and results, default is "1e-4" or 0.0001%', 'default': 1e-4},
+        {'name': 'fmpy', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'update_expected', 'default': False},
+        {'name': 'expected_output_dir', 'default': "expected"},
     ]
 
     def search_test_cases(self):
         case_names = []
         for test_case in os.listdir(path=self.test_case_dir):
             if os.path.exists(
-                os.path.join(self.test_case_dir, test_case, "expected")
+                os.path.join(self.test_case_dir, test_case, self.expected_output_dir)
             ):
                 case_names.append(test_case)
         case_names.sort()
         return case_names, len(case_names)
 
     def run(self):
+
+        # Run selected test case
+        if self.test_case_name:
+            return self.execute_test_case(self.test_case_name)
 
         # Setup and search test case dir
         if not self.test_case_dir:
@@ -344,13 +350,6 @@ class RunFmTest(ComputationStep):
             for name in case_names:
                 self.logger.info(name)
             exit(0)
-
-        # Check selected test case exisits
-        if self.test_case_name:
-            if self.test_case_name not in case_names:
-                raise OasisException(f'Error: case "{self.test_case_name}" not found in "{self.test_case_dir}"')
-
-            return self.execute_test_case(self.test_case_name)
 
         # If test_case not selected run all cases
         self.logger.info(f"Running: All tests in '{self.test_case_dir}'")
@@ -406,12 +405,13 @@ class RunFmTest(ComputationStep):
             output_level=output_level,
             output_file=output_file,
             include_loss_factor=include_loss_factor,
+            num_subperils=self.num_subperils,
             fmpy=self.fmpy,
             fmpy_low_memory=self.fmpy_low_memory,
             fmpy_sort_output=self.fmpy_sort_output
         ).run()
 
-        expected_data_dir = os.path.join(test_dir, 'expected')
+        expected_data_dir = os.path.join(test_dir, self.expected_output_dir)
         if not os.path.exists(expected_data_dir):
             raise OasisException(
                 'No subfolder named `expected` found in the input directory - '
@@ -437,6 +437,8 @@ class RunFmTest(ComputationStep):
             expected = os.path.join(expected_data_dir, f)
 
             if not os.path.exists(expected):
+                if self.update_expected:
+                    shutil.copyfile(generated, expected)
                 continue
 
             try:
