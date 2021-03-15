@@ -30,7 +30,7 @@ import pandas as pd
 
 from itertools import chain
 
-from pathlib2 import Path
+from pathlib import Path
 
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
