@@ -1,7 +1,7 @@
 import os
 import pytest
 
-from backports.tempfile import TemporaryDirectory
+from tempfile import TemporaryDirectory
 
 from oasislmf.manager import OasisManager
 from oasislmf.utils.defaults import SOURCE_FILENAMES
