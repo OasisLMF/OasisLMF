@@ -325,7 +325,7 @@ class GenerateLossesDeterministic(ComputationStep):
 
         dtypes = {t: ('uint32' if t != 'tiv' else 'float32') for t in items.columns}
         items = set_dataframe_column_dtypes(items, dtypes)
-
+        items.tiv = items.tiv / self.num_subperils
         ## Change order of stream depending on rule type
         #   Stream_type 1
         #     event_id, item_id, sidx, loss
@@ -367,14 +367,14 @@ class GenerateLossesDeterministic(ComputationStep):
                 'item_id': item_id,
                 'sidx': sidx,
                 'loss':
-                (tiv * special_loss_factors[sidx]) / self.num_subperils if sidx < 0
-                else (tiv * self.loss_factor[sidx - 1]) / self.num_subperils
+                (tiv * special_loss_factors[sidx]) if sidx < 0
+                else (tiv * self.loss_factor[sidx - 1])
             })
             for (item_id, tiv), sidx in product(
                 fast_zip_dataframe_columns(items, ['item_id', 'tiv']), gulcalc_sidxs
             )
         ]
-
+        
         guls = get_dataframe(
             src_data=guls_items,
             col_dtypes={
