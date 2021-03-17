@@ -16,7 +16,7 @@ export COVERAGE_DEBUG=process,config,dataio
 
 # Install requirements && build
     set -exu
-    pip install pip-tools
+    pip install pip-tools importlib-metadata
     pip-compile && pip-sync
     python setup.py sdist
 
