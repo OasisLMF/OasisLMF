@@ -76,75 +76,123 @@ This new implementation will be available as an option in production for experie
 # Architecture Design 
 
 Manager is the high level entry point to run an FM computation. It orchestrate the different modules together in order to process the events coming in.
-Each event is read one at a time from the input stream, we then compute the result and write it to the output stream.
-
-* run_synchronous: processing one event at a time
-* run_threaded: threaded mode using queue as synchronization tools.
-* run_ray: mode using ray to load balance events
+Each event is read one at a time from available input streams, we then compute the result and write it to the output stream.
 
 ![FM data flow](FM_data_flow.png)
 
+The basic idea of the architecture of fm is that, in each event, we only compute nodes that need it.
+when an event is read we start by adding the node_id corresponding to each item in a "computes" queue.
+During the bottom up part, where losses are aggregated to higher levels,
+we compute the loss of a node and then add its parent node in the queue.
+we also add the node to the list of active children for the parent node.
+This way the parent node only aggregate the loss of active children.  
+During the back-allocation, the process is repeated but this time
+its parent node that add its children to the compute queue.
+
+Overall the fm computation is done in two steps:
+1. creation of the shared static financial structure files.
+2. event computation
+
+
 ## Financial Structure
 
-The purpose of this module is to parse the static input financial structure and consolidate the information into simple object ready to be use by the compute function. The idea is to factorise all the computation and logic that can be done at this step and prepare everything possible to have a generic way to handle the computation for each item.
+The purpose of this module is to parse the static input financial structure and consolidate the information
+into simple objects ready to be use by the compute function.
+The idea is to factorise all the computation and logic that can be done at this step
+and prepare everything possible to have a generic way to handle the computation for each item.
 
-During the computation, computation data (loss, deductible, over limit, not null ...) will separated into 3 buckets (input, temp, output). Each computation node will then be assigned a bucket and an index and the values for this node will then be store (during the computation) into a big matrix where the row will correspond to their index.
+the object created during the financial structure step are all numpy ndarray.
+this present many advantages.
 
-A computation node then consist of a node id (layer, level, agg) and a computation id that determine what will be done. In addition to that several dictionaries(map), can provide additional information needed for the computation step such as dependencies or profile
+* numpy provide an easy way to have them stored
+* They can be loaded as a shared memory object for all the compute processes which greatly reduce memory usage.
+* they are very fast and compact.
 
-![computation data structure](FM_computation_data_structure.png)
+In particular, those are prefered to the numba dictionary and list even when it would be simpler to use
+because they are way faster at the moment (early 2021).
+This means that all the reference from an objet to other ones need to be done via a pointer like logic.
+For example, the node ids of the parents of a node is reference in node_array with a length (parent_len) and
+the index of the first parent id in node_parent_array.
 
-this structure present a number of advantage:
-
-* the separation into 3 buckets minimize the data transfer at the interface of the computation. only inputs are needed in only outputs are passed out.
-* input and output format are just numpy array that are well supported and could be passed or retrieved by other processes.
-* access to any node result is done with a O(1) complexity
-* aggregation that are just intermediary in the program tree structure with no computation can take the index of their unique child dependency and cost no computation.
-* new type of computation can be simply added to the generic compute structure. A computation node is simply a functional step with some input and some output.
-* data are stored as np.arrays that perform well with the most common operation we do sums and multiplications
-* in case of bug or error, all the intermediary result could easily be stored for investigation.
 
 ### inputs
 
-the necessary static input for the Financial Module are expected to be in the same folder and are:
+the necessary static input for the Financial Module are expected to be in the same folder
+with the extantion '.bin' for binaries and '.cvs' for text files:
 
-* fm_programme.bin: the basic hierarchy of nodes organized by level and aggregation id
-* fm_policytc.bin: the policy id to apply to each node and layer described in the programme
-* fm_profile.bin (or fm_profile_step.bin not implemented yet): the profile (detailed values) of each policy id
-* fm_xref.bin: the mapping between result items and the output ID
+* fm_programme: the basic hierarchy of nodes organized by level and aggregation id
+* fm_policytc: the policy id to apply to each node and layer described in the programme
+* fm_profile or fm_profile_step: the profile (detailed values) of each policy id
+* fm_xref: the mapping between result items and the output ID
 
-Inputs are read directly using numpy.fromfile, with named dtype specific to each fine name. This allow to access each value in a row like a dictionary and also provide a compatible interface for the two profile options
+Additionally if %tiv policies are present, those two extra files will be needed
+* items: link between item_id and coverage_id 
+* coverage: link between coverage_id and TIV
+
+Inputs are read directly using numpy.fromfile, with named dtype specific to each fine name.
+This allow to access each value in a row like a dictionary
+and also provide a compatible interface for the two profile options
 We make a realistic assumption that the input and output data will fit in memory.
 
 ### outputs
 The transform static information that will be needed to build and execute the computation for each event
 
-* compute_queue: list of all the computation step to execute to compute an event (ex: profile aggregation step, back-allocation)
-* node_to_index: node to (bucket, index) mapping for each node needed to perform the computation. in this context an item in program can correspond to several nodes in the mapping, one node will be for the profile step others for the back allocation for example.
-* node_to_dependencies: map to list of node that are needed for this step computation.
-* node_to_profile: node to profile mapping
-* output_item_index: output id to np array index mapping. needed to associate output id to the computation result
-* storage_to_len: dictionary of the size needed for each bucket
-* options: computation option (is deductible computation needed, do we need to store intermediary sum ...)
-* profile: numpy ndarray of fm_profile.bin
+- **compute_info**:  
+  contain the general information on the financial structure such as
+  the allocation rule, the number of levels and whether there is stepped policy 
+  it also contains the length of all the other ndarray  
+- **nodes_array**:  
+  all the static information about a node such as level_id, agg_id, number of layers and number of policy.
+  Reference to its parents, children, profiles and different loss array 
+- **node_parents_array**:  
+  contain the index of parent node in node_array. 
+- **node_profiles_array**:  
+  contain the index of the node profile in fm_profile
+- **output_array**:  
+  contains the item_id of the output losses of each layer of a node (generated from xref) 
+- **fm_profile**:
+  contain the final version of all the policies in the original fm_profile
+  (for example we compute the real tiv in order replace all %tiv policy value)
 
 ## Computation
-Computation module implement the actual computation of each event. It create all the numpy array necessary for the computation and execute one by one all the step present in the computation queue. each step is treated generically as a simple step to perform using the node computation id without pre-supposition of what has been done before. The correct ordering of the computation step are performed once, before the computation by the financial structure step.
+The computation of the loss itself can only be done after the financial structure creation step.
 
-so far there is far type of step:
-* PROFILE: sum all sub-node array if present (loss, deductibles, over_limit, underlimit) then apply the calcrule inplace.
-* IL_PER_GUL: take the final IL and divide it by the sum of all input gul.
-* IL_PER_SUB_IL: take the a item back-allocated IL and divide it by the stored sum of IL computed before calc rule was applied. (this will serve as common basis for the back allocation of all sub-items)
-* PROPORTION: multiply the array loss (il) by the factor computed in IL_PER_GUL or IL_PER_SUB_IL
-* COPY: use to copy a vector from an index to an other (copy to output bucket in a0 ba rule for example)
+The manager module will then first load this shared structure and then create all the dynamic arrays
+* **losses** and **loss_indexes**: arrays to reference and store all losses
+* **extras** and **extra_indexes**: arrays to reference and store the extra values
+  such as deductible, under_limit and over_limit
+* **children**: array of active children for each parant node
+* **computes**: contains the index of all the nodes to compute
 
-event_computer is a callable that takes event input from input queue, compute the output and put it in the output queue.
+One thing to node with this architecture is that a node doesn't really 'own' its different losses.
+It only has a reference to it via loss_indexes. This is very important as it allows us to share the array between nodes
+if they happen to be the same. As we only copy the reference,
+this drastically reduce the amount of data copy to be made in several cases.
+* when a parent node has only one active child then the aggregation of losses is not needed,
+   the parent node sum_loss will simply point to its children il_loss.
+* when a node has a pass through profile (id 100), it's il_loss will point to its sum_loss
+* during the back allocation if a parent has only one child,
+   the ba_loss of the child will simply point to the ba_loss of the parent
+
+once those structures are created, the manager will orchestrate the prossess event by event.
+1. an event is read, all the item of the event are place in the compute queue.
+2. an incremental pointer to computes 'compute_i' tracts which node need to be computed.  
+   the computation itself starts with the bottom up step.  
+   for each node, we aggregate the sub loss, apply the profile and put the parent node in the queue.  
+   if the value it points to is 0 we are at the end of the level and can go to the next one.  
+   then depending on rule we continue the same logic for the back allocation,
+   only this time it goes from parent to children
+3. the stream writer read the last level of 'computes' and write each active item and its loss to the output stream
 
 ### Policies
-he policy module contains all the function associated to the supported policy they all take the same numpy array as input and act directly on them (inplace).
+The policy module contains all the function associated to the supported policy.
+They all take the same numpy array as input and act directly on them (inplace).
 
-signature: `calc(policy, loss_out, loss_in, deductible, over_limit, under_limit)` loss is present in two array because in some case we want to keep the sum value before the calc rule is applied. (if it is not the case the array are in fact the same object)
+signature: `calcrule_i(policy, loss_out, loss_in, deductible, over_limit, under_limit)`
+loss is present in two array because in some case we want to keep the sum value before the calc rule is applied.
+(if it is not the case the array are in fact the same object)
 
 
 ### Stream
-the stream module is responsible for the parsing and writing of gul and fm stream. the gul stream in parse and transformed into the numpy input array. the fm stream is written from the numpy output array. In the threaded mode reader and writer work in combination with the event_computer using Queues.
+the stream module is responsible for the parsing and writing of gul and fm stream.
+the Stream reader is able to read from multiple stream using the selector module of python.
