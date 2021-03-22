@@ -109,7 +109,7 @@ class ComputationStep:
 
             exec('def func_sig({}): pass'.format(", ".join(params)))
             return inspect.signature(locals()['func_sig'])
-        except:
+        except Exception:
             # ignore any errors in signature creation and return blank
             return None
 

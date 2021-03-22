@@ -1217,7 +1217,7 @@ def get_il_input_items(
     for col in il_inputs_df.columns:
         try:
             il_inputs_df[col].fillna(0, inplace=True)
-        except:
+        except Exception:
             pass
 
     # set top agg_id for later xref computation
