@@ -189,7 +189,7 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
     tiv_cols = ['tiv', 'loc_id', 'coverage_type_id']
 
     # Extract mapped_cols from summary_map_df
-    summary_group_df = summary_map_df.loc[:, mapped_cols + tiv_cols]
+    summary_group_df = summary_map_df.loc[:, set(mapped_cols).union(tiv_cols)]
 
     # Search Loc / Acc files and merge in remaing
     if unmapped_cols is not []:
