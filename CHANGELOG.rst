@@ -1,11 +1,20 @@
 OasisLMF Changelog
 ==================
 
+`1.15.5`_
+---------
+* [#798 - Hotfix](https://github.com/OasisLMF/OasisLMF/issues/798) - Fix process cleanup on ktools script exit 
+* [#799 - Hotfix](https://github.com/OasisLMF/OasisLMF/issues/799) - Fix fmpy, multilayer stream writer for RI 
+* [#794 - Hotfix](https://github.com/OasisLMF/OasisLMF/issues/794) - Fix column duplication when using "tiv, loc_id, coverage_type_id" in oed_field
+
+`1.15.4`_
+---------
+* [#464 - Hotfix](https://github.com/OasisLMF/OasisPlatform/issues/464) - Worker stuck idle on some bash errors                                  
+* [#785 - Hotfix](https://github.com/OasisLMF/OasisLMF/issues/785) - fmsummaryxref.csv not copied into top level RI directory 
+
 `1.15.3`_
 ---------
-.. start_latest_release
 * [#780](https://github.com/OasisLMF/OasisLMF/pull/780) - Fix for fmpy, last event missing when using event terminator 0,0
-.. end_latest_release
 
 `1.15.2`_
 ---------
@@ -546,6 +555,9 @@ OasisLMF Changelog
 
 * Add console logging
 
+.. _`1.15.5`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.4...1.15.5
+.. _`1.15.4`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.3...1.15.4
+.. _`1.15.3`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.2...1.15.3
 .. _`1.15.2`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.1...1.15.2
 .. _`1.15.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.0...1.15.1
 .. _`1.15.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.14.0...1.15.0
