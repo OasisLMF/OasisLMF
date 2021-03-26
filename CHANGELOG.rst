@@ -1,6 +1,12 @@
 OasisLMF Changelog
 ==================
 
+`1.15.5`_
+---------
+* [#798 - Hotfix](https://github.com/OasisLMF/OasisPlatform/issues/464) - Fix process cleanup on ktools script exit 
+* [#799 - Hotfix](https://github.com/OasisLMF/OasisPlatform/issues/464) - Fix fmpy, multilayer stream writer for RI 
+* [#794 - Hotfix](https://github.com/OasisLMF/OasisPlatform/issues/464) - Fix column duplication when using "tiv, loc_id, coverage_type_id" in oed_field
+
 `1.15.4`_
 ---------
 * [#464 - Hotfix](https://github.com/OasisLMF/OasisPlatform/issues/464) - Worker stuck idle on some bash errors                                  
@@ -549,6 +555,7 @@ OasisLMF Changelog
 
 * Add console logging
 
+.. _`1.15.5`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.4...1.15.5
 .. _`1.15.4`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.3...1.15.4
 .. _`1.15.3`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.2...1.15.3
 .. _`1.15.2`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.1...1.15.2
