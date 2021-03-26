@@ -235,6 +235,7 @@ def load_event(event_agg, sidx_loss, event_id, nodes_array, losses, loss_indexes
                         sidx_loss[cursor]['sidx'], sidx_loss[cursor]['loss'] = 0, 0
                         cursor += 1
                         i_index = 0
+                        i_layer = 0
                         break
 
                     else:
@@ -243,10 +244,10 @@ def load_event(event_agg, sidx_loss, event_id, nodes_array, losses, loss_indexes
                             cursor += 1
                         i_index += 1
                 else:
-                    return cursor * number_size, compute_i, i_layer, i_index
+                    return cursor * number_size, compute_i, layer, i_index
         compute_i += 1
 
-    return cursor * number_size, compute_i, i_layer, i_index
+    return cursor * number_size, compute_i, 0, i_index
 
 
 class EventWriter:
