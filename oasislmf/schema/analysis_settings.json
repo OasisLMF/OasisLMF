@@ -186,7 +186,7 @@
                             },
                             "ept_mean_sample_oep": {
                                 "type": "boolean",
-                                "title": ""EPT - Mean Sample OEP",
+                                "title": "EPT - Mean Sample OEP",
                                 "description": "Exceedance Probability Table (option), when enable this metric is added to the EPT file",
                                 "default": false
                             },
