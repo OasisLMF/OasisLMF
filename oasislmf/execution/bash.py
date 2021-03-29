@@ -42,6 +42,31 @@ WAIT_PROCESSING_SWITCHES = {
     'wheatsheaf_mean_oep': '-m',
 }
 
+ORD_EPT_OUTPUT_SWITCHES = {
+    "ept_full_uncertainty_aep": '-F',
+    "ept_full_uncertainty_oep": '-f',
+    "ept_mean_sample_aep": '-S',
+    "ept_mean_sample_oep": '-s',
+    "ept_per_sample_mean_aep": '-M',
+    "ept_per_sample_mean_oep": '-m',
+}
+
+ORD_PSEPT_OUTPUT_SWITCHES = {
+    "psept_aep": '-W',
+    "psept_oep": '-w',
+}
+
+# placeholder warning for upcomming ORD ouputs
+ORD_NOT_IMPLEMENTED = [
+    "elt_sample",
+    "elt_quantile",
+    "elt_moment",
+    "plt_sample",
+    "plt_quantile",
+    "plt_moment",
+    "alt_period",
+]
+
 EVE_SHUFFLE_OPTIONS = {
     EVE_NO_SHUFFLE: {'eve': '-n ', 'kat_sorting': False},
     EVE_ROUND_ROBIN: {'eve': '', 'kat_sorting': True},
@@ -82,7 +107,7 @@ trap exit_handler QUIT HUP INT KILL TERM ERR EXIT"""
 CHECK_FUNC = """
 check_complete(){
     set +e
-    proc_list="eve getmodel gulcalc fmcalc summarycalc eltcalc aalcalc leccalc pltcalc"
+    proc_list="eve getmodel gulcalc fmcalc summarycalc eltcalc aalcalc leccalc pltcalc ordleccalc"
     has_error=0
     for p in $proc_list; do
         started=$(find log -name "$p*.log" | wc -l)
@@ -130,24 +155,78 @@ def print_command(command_file, cmd):
         myfile.writelines(cmd + "\n")
 
 
-def leccalc_enabled(lec_options):
+def leccalc_enabled(summary_options):
     """
-    Checks if leccalc is enabled in the leccalc options
+    Checks if leccalc is enabled in a summaries section
 
-    :param lec_options: The leccalc options from the analysis settings
-    :type lec_options: dict
+    :param summary_options: Summaies section from an analysis_settings file
+    :type summary_options: dict
+
+    Example:
+    {
+        "aalcalc": true,
+        "eltcalc": true,
+        "id": 1,
+        "lec_output": true,
+        "leccalc": {
+            "full_uncertainty_aep": true,
+            "full_uncertainty_oep": true,
+            "return_period_file": true
+        }
+    }
+    :return: True is leccalc is enables, False otherwise.
+    """
+
+    lec_options = summary_options.get('leccalc', {})
+    lec_boolean = summary_options.get('lec_output', False)
+
+    # Disabled if leccalc flag is missing or false
+    if not lec_boolean:
+        return False
+
+    # Backwards compatibility for nested "outputs" keys in lec_options
+    if "outputs" in lec_options:
+        lec_options = lec_options["outputs"]
+
+    # Enabled if at least one option is selected
+    for ouput_opt in lec_options:
+        if ouput_opt in WAIT_PROCESSING_SWITCHES and lec_options[ouput_opt]:
+            return True
+    return False
+
+
+def ord_leccalc_enabled(summary_options):
+    """
+    Checks if ORD leccalc is enabled in a summaries section
+
+    :param summary_options: Summaies section from an analysis_settings file
+    :type summary_options: dict
+
+    Example:
+    {
+        "id": 1,
+        "ord_output": {
+            "ept_full_uncertainty_aep": true,
+            "ept_full_uncertainty_oep": true,
+            "ept_mean_sample_aep": true,
+            "ept_mean_sample_oep": true,
+            "ept_per_sample_mean_aep": true,
+            "ept_per_sample_mean_oep": true,
+            "psept_aep": true,
+            "psept_oep": true,
+            "return_period_file": true
+        }
+    }
 
     :return: True is leccalc is enables, False otherwise.
     """
 
-    # Note: Backwards compatibility of "outputs" in lec_options
-    if "outputs" in lec_options:
-        lec_options = lec_options["outputs"]
-
-    for option in lec_options:
-        if option in WAIT_PROCESSING_SWITCHES and lec_options[option]:
+    ord_options = summary_options.get('ord_output', {})
+    for ouput_opt in ord_options:
+        if ouput_opt in {**ORD_EPT_OUTPUT_SWITCHES, **ORD_PSEPT_OUTPUT_SWITCHES} and ord_options[ouput_opt]:
             return True
     return False
+
 
 
 def do_post_wait_processing(
@@ -182,34 +261,81 @@ def do_post_wait_processing(
                     cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 print_command(filename, cmd)
 
-            if summary.get('lec_output'):
+            # Add ORD options:
+            if ord_leccalc_enabled(summary):
+
+                ord_outputs = summary.get('ord_output', {})
+                ept_output = False
+                psept_output = False
+
+                cmd = 'ordleccalc {} -K{}{}_S{}_summaryleccalc'.format(
+                    '-r' if ord_outputs.get('return_period_file') else '',
+                    work_sub_dir,
+                    runtype,
+                    summary_set
+                )
+
+                process_counter['lpid_monitor_count'] += 1
+                for option, active in sorted(ord_outputs.items()):
+                    # Add EPT switches
+                    if active and option in ORD_EPT_OUTPUT_SWITCHES:
+                        switch = ORD_EPT_OUTPUT_SWITCHES.get(option, '')
+                        cmd = '{} {}'.format(cmd, switch)
+                        if not ept_output:
+                            ept_output = True
+
+                    # Add PSEPT switches
+                    if active and option in ORD_PSEPT_OUTPUT_SWITCHES:
+                        switch = ORD_PSEPT_OUTPUT_SWITCHES.get(option, '')
+                        cmd = '{} {}'.format(cmd, switch)
+                        if not psept_output:
+                            psept_output = True
+
+                if ept_output:
+                    cmd = '{} -O {}{}_S{}_ept.csv'.format(
+                        cmd, output_dir, runtype, summary_set,
+                        option)
+
+                if psept_output:
+                    cmd = '{} -o {}{}_S{}_psept.csv'.format(
+                        cmd, output_dir, runtype, summary_set,
+                        option)
+
+                if stderr_guard:
+                    cmd = '( {} ) 2>> log/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+                else:
+                    cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+                print_command(filename, cmd)
+
+
+
+            if leccalc_enabled(summary):
                 leccalc = summary.get('leccalc', {})
-                if leccalc and leccalc_enabled(leccalc):
-                    cmd = 'leccalc {} -K{}{}_S{}_summaryleccalc'.format(
-                        '-r' if leccalc.get('return_period_file') else '',
-                        work_sub_dir,
-                        runtype,
-                        summary_set
-                    )
+                cmd = 'leccalc {} -K{}{}_S{}_summaryleccalc'.format(
+                    '-r' if leccalc.get('return_period_file') else '',
+                    work_sub_dir,
+                    runtype,
+                    summary_set
+                )
 
-                    # Note: Backwards compatibility of "outputs" in lec_options
-                    if "outputs" in leccalc:
-                        leccalc = leccalc["outputs"]
+                # Note: Backwards compatibility of "outputs" in lec_options
+                if "outputs" in leccalc:
+                    leccalc = leccalc["outputs"]
 
-                    process_counter['lpid_monitor_count'] += 1
-                    for option, active in sorted(leccalc.items()):
-                        if active and option in WAIT_PROCESSING_SWITCHES:
-                            switch = WAIT_PROCESSING_SWITCHES.get(option, '')
-                            cmd = '{} {} {}{}_S{}_leccalc_{}.csv'.format(
-                                cmd, switch, output_dir, runtype, summary_set,
-                                option
-                            )
+                process_counter['lpid_monitor_count'] += 1
+                for option, active in sorted(leccalc.items()):
+                    if active and option in WAIT_PROCESSING_SWITCHES:
+                        switch = WAIT_PROCESSING_SWITCHES.get(option, '')
+                        cmd = '{} {} {}{}_S{}_leccalc_{}.csv'.format(
+                            cmd, switch, output_dir, runtype, summary_set,
+                            option
+                        )
 
-                    if stderr_guard:
-                        cmd = '( {} ) 2>> log/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
-                    else:
-                        cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
-                    print_command(filename, cmd)
+                if stderr_guard:
+                    cmd = '( {} ) 2>> log/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+                else:
+                    cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+                print_command(filename, cmd)
 
 
 def get_fifo_name(fifo_dir, producer, producer_id, consumer=''):
@@ -273,12 +399,14 @@ def create_workfolders(runtype, analysis_settings, filename, work_dir='work/'):
     for summary in summaries:
         if 'id' in summary:
             summary_set = summary['id']
-            if summary.get('lec_output'):
-                if leccalc_enabled(summary['leccalc']):
-                    print_command(
-                        filename,
-                        'mkdir {}{}_S{}_summaryleccalc'.format(work_dir, runtype, summary_set)
-                    )
+
+            # EDIT: leccalc and ordleccalc share the same summarycalc binary data
+            # only create the workfolders once if either option is selected
+            if leccalc_enabled(summary) or ord_leccalc_enabled(summary):
+                print_command(
+                    filename,
+                    'mkdir {}{}_S{}_summaryleccalc'.format(work_dir, runtype, summary_set)
+                )
 
             if summary.get('aalcalc'):
                 print_command(
@@ -430,7 +558,9 @@ def do_tees(runtype, analysis_settings, process_id, filename, process_counter, f
             if summary.get('aalcalc'):
                 cmd = '{} {}{}_S{}_summaryaalcalc/P{}.bin'.format(cmd, work_dir, runtype, summary_set, process_id)
 
-            if summary.get('lec_output') and leccalc_enabled(summary['leccalc']):
+            # leccalc and ordleccalc share the same summarycalc binary data
+            # only create the workfolders once if either option is selected
+            if leccalc_enabled(summary) or ord_leccalc_enabled(summary):
                 cmd = '{} {}{}_S{}_summaryleccalc/P{}.bin'.format(cmd, work_dir, runtype, summary_set, process_id)
 
             cmd = '{} > /dev/null & pid{}=$!'.format(cmd, process_counter['pid_monitor_count'])
