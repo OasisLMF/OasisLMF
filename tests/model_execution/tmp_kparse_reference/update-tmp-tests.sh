@@ -84,6 +84,13 @@ all_files=(
     il_pltcalc_1_output_20_partition.sh
     il_summarycalc_1_output_1_partition.sh
     il_summarycalc_1_output_20_partition.sh
+    analysis_settings_5_1_reins_layer_1_partition.sh
+	gul_il_ord_ept_psept_2_output_10_partition.sh
+	gul_il_ord_psept_lec_1_output_10_partition.sh
+	gul_ord_ept_1_output_1_partition.sh
+	gul_ord_ept_1_output_20_partition.sh
+	gul_ord_ept_psept_lec_2_output_10_partition.sh
+	gul_ord_psept_2_output_10_partition.sh
 )
 
 for f in "${all_files[@]}"; do 
