@@ -1,0 +1,58 @@
+{
+  "analysis_settings": {
+    "source_tag": "test_source",
+    "analysis_tag": "test_analysis",
+    "module_supplier_id": "OasisIM",
+    "model_version_id": "1",
+    "number_of_samples": 0,
+    "gul_threshold": 0,
+    "model_settings": {
+      "use_random_number_file": true,
+      "event_occurrence_file_id": 1
+    },
+    "gul_output": true,
+    "gul_summaries": [
+      {
+        "id": 1,
+        "summarycalc": true,
+        "eltcalc": true,
+        "aalcalc": true,
+        "pltcalc": true
+      }
+    ],
+    "il_output": true,    
+    "il_summaries": [
+      {
+        "id": 1,
+        "ord_output": {
+          "ept_full_uncertainty_aep": true,
+          "ept_full_uncertainty_oep": false,
+          "ept_mean_sample_aep": true,
+          "ept_mean_sample_oep": true,
+          "ept_per_sample_mean_aep": true,
+          "ept_per_sample_mean_oep": true,
+          "psept_aep": false,
+          "psept_oep": false,
+          "return_period_file": false
+        }
+      }
+    ],
+    "ri_output": true,    
+    "ri_summaries": [
+      {
+        "id": 1,
+        "ord_output": {
+          "ept_full_uncertainty_aep": true,
+          "ept_full_uncertainty_oep": true,
+          "ept_mean_sample_aep": true,
+          "ept_mean_sample_oep": true,
+          "ept_per_sample_mean_aep": true,
+          "ept_per_sample_mean_oep": true,
+          "psept_aep": true,
+          "psept_oep": true,
+          "return_period_file": true
+        }
+      }
+    ]
+  }
+}
