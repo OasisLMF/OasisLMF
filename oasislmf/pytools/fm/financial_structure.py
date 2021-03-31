@@ -6,12 +6,13 @@ __all__ = [
 ]
 
 from .common import nb_oasis_int, np_oasis_int, np_oasis_float, almost_equal, need_tiv_policy
-from .common import fm_programme_dtype, fm_policytc_dtype, fm_profile_dtype, fm_profile_step_dtype, fm_xref_dtype,\
-    items_dtype, allowed_allocation_rule
+from .common import fm_programme_dtype, fm_policytc_dtype, fm_profile_dtype, fm_profile_step_dtype,\
+    fm_profile_csv_col_map, fm_xref_dtype, fm_xref_csv_col_map, items_dtype, allowed_allocation_rule
 
 from numba import njit, types, from_dtype
 from numba.typed import List, Dict
 import numpy as np
+import pandas as pd
 import numpy.lib.recfunctions as rfn
 import os
 import logging
@@ -74,22 +75,31 @@ def load_static(static_path):
     :raise:
         FileNotFoundError if one of the static is missing
     """
-    def load_file(name, dtype, must_exist=True):
+    def load_file(name, _dtype, must_exist=True, col_map=None):
         if os.path.isfile(os.path.join(static_path, name + '.bin')):
-            return np.fromfile(os.path.join(static_path, name + '.bin'), dtype=dtype)
+            return np.fromfile(os.path.join(static_path, name + '.bin'), dtype=_dtype)
         elif must_exist or os.path.isfile(os.path.join(static_path, name + '.csv')):
+            # in csv column cam be out of order and have different name,
+            # we load with pandas and write each column to the ndarray
+            if col_map is None:
+                col_map = {}
             with open(os.path.join(static_path, name + '.csv')) as file_in:
-                return np.loadtxt(file_in, dtype=dtype, delimiter=',', skiprows=1)
+                cvs_dtype = {col_map.get(key, key): col_dtype for key, (col_dtype, _) in _dtype.fields.items()}
+                df =pd.read_csv(file_in, delimiter=',', dtype=cvs_dtype)
+                res = np.empty(df.shape[0], dtype=_dtype)
+                for name in _dtype.names:
+                    res[name] = df[col_map.get(name, name)]
+                return res
 
     programme = load_file('fm_programme', fm_programme_dtype)
     policytc = load_file('fm_policytc', fm_policytc_dtype)
-    profile = load_file('fm_profile_step', fm_profile_step_dtype, False)
+    profile = load_file('fm_profile_step', fm_profile_step_dtype, False, col_map=fm_profile_csv_col_map)
     if profile is None:
-        profile = load_file('fm_profile', fm_profile_dtype)
+        profile = load_file('fm_profile', fm_profile_dtype, col_map=fm_profile_csv_col_map)
         stepped = None
     else:
         stepped = True
-    xref = load_file('fm_xref', fm_xref_dtype)
+    xref = load_file('fm_xref', fm_xref_dtype, col_map=fm_xref_csv_col_map)
 
     try:  # try to load items and coverage if present for TIV base policies (not used in re-insurance)
         items = load_file('items', items_dtype)[['item_id', 'coverage_id']]

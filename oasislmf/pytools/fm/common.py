@@ -51,7 +51,21 @@ fm_profile_step_dtype = np.dtype([('policytc_id', 'i4'),
                                   ('scale_1', 'f4'),
                                   ('scale_2', 'f4'),
                                   ])
+fm_profile_csv_col_map = {
+                         'deductible_1': 'deductible1',
+                         'deductible_2': 'deductible2',
+                         'deductible_3': 'deductible3',
+                         'attachment_1': 'attachment1',
+                         'limit_1': 'limit1',
+                         'share_1': 'share1',
+                         'share_2': 'share2',
+                         'share_3': 'share3',
+                         'limit_2':' limit2',
+                         'scale_1':'scale1',
+                         'scale_2': 'scale2',
+                        }
 fm_xref_dtype = np.dtype([('output_id', 'i4'), ('agg_id', 'i4'), ('layer_id', 'i4')])
+fm_xref_csv_col_map = {'output_id':'output'}
 
 coverages_dtype = np.dtype([('coverage_id', 'i4'), ('tiv', 'f4')])
 
