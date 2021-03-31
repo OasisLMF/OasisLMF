@@ -1,4 +1,5 @@
 __all__ = [
+    'DeterministicLookup',
     'RTreeLookup',
     'RTreePerilLookup',
     'RTreeVulnerabilityLookup',
@@ -14,7 +15,7 @@ __all__ = [
 # 'OasisPerilLookup' -> RTreePerilLookup
 # 'OasisVulnerabilityLookup' -> 'RTreeVulnerabilityLookup'
 
-from .base import OasisBaseLookup
+from .base import OasisBaseLookup, AbstractBasicKeyLookup
 
 import copy
 import re
@@ -24,6 +25,7 @@ import itertools
 import os
 import uuid
 import pickle
+import pandas as pd
 
 from collections import OrderedDict
 
@@ -52,6 +54,20 @@ if shapely_speedups.available:
     shapely_speedups.enable()
 
 
+class DeterministicLookup(AbstractBasicKeyLookup):
+    multiproc_enabled = False
+
+    def process_locations(self, locations):
+        loc_ids = (loc_it['loc_id'] for _, loc_it in locations.loc[:, ['loc_id']].sort_values('loc_id').iterrows())
+        success_status= OASIS_KEYS_STATUS['success']['id']
+        return pd.DataFrame.from_records((
+            {'loc_id': _loc_id, 'peril_id': peril, 'coverage_type': cov_type, 'area_peril_id': i + 1,
+             'vulnerability_id': i + 1, 'status': success_status}
+            for i, (_loc_id, peril, cov_type) in enumerate(itertools.product(loc_ids, range(1, 1 + self.config['num_subperils']),
+                                                                             self.config['supported_oed_coverage_types']))
+        ))
+
+
 # ---- RTree Lookup classes ---------------------------------------------------
 
 
@@ -71,13 +87,17 @@ class RTreeLookup(OasisBaseLookup):
         peril_areas_index=None,
         peril_areas_index_props=None,
         loc_to_global_areas_boundary_min_distance=0,
-        vulnerabilities=None
+        vulnerabilities=None,
+        user_data_dir=None,
+        output_dir=None
     ):
         super(self.__class__, self).__init__(
             config=config,
             config_json=config_json,
             config_fp=config_fp,
             config_dir=config_dir,
+            user_data_dir=user_data_dir,
+            output_dir=output_dir
         )
 
         self.peril_lookup = RTreePerilLookup(
@@ -99,6 +119,49 @@ class RTreeLookup(OasisBaseLookup):
             config_dir=self.config_dir,
             vulnerabilities=vulnerabilities
         )
+
+    def __new__(cls,
+                config=None,
+                config_json=None,
+                config_fp=None,
+                config_dir=None,
+                areas=None,
+                peril_areas=None,
+                peril_areas_index=None,
+                peril_areas_index_props=None,
+                loc_to_global_areas_boundary_min_distance=0,
+                vulnerabilities=None,
+                user_data_dir=None,
+                output_dir=None):
+        if config:
+            builtin_lookup_type = config.get('builtin_lookup_type', 'combined')
+        else:
+            builtin_lookup_type = 'combined'
+
+        if builtin_lookup_type == 'combined':
+            return super().__new__(cls)
+        elif builtin_lookup_type == 'peril':
+            return RTreePerilLookup(config=config,
+                                    config_json=config_json,
+                                    config_fp=config_fp,
+                                    config_dir=config_dir,
+                                    areas=areas,
+                                    peril_areas=peril_areas,
+                                    peril_areas_index=peril_areas_index,
+                                    peril_areas_index_props=peril_areas_index_props,
+                                    loc_to_global_areas_boundary_min_distance=loc_to_global_areas_boundary_min_distance,
+                                    user_data_dir=user_data_dir,
+                                    output_dir=output_dir)
+        elif builtin_lookup_type == 'vulnerability':
+            return RTreeVulnerabilityLookup(config=config,
+                                            config_json=config_json,
+                                            config_fp=config_fp,
+                                            config_dir=config_dir,
+                                            vulnerabilities=vulnerabilities,
+                                            user_data_dir=user_data_dir,
+                                            output_dir=output_dir)
+        else:
+            raise OasisException(f'Unknown builtin_lookup_type: {builtin_lookup_type}')
 
     def lookup(self, loc, peril_id, coverage_type, **kwargs):
 
@@ -178,9 +241,18 @@ class RTreePerilLookup(OasisBaseLookup):
         peril_areas=None,
         peril_areas_index=None,
         peril_areas_index_fp=None,
-        peril_areas_index_props=None
+        peril_areas_index_props=None,
+        user_data_dir=None,
+        output_dir=None
     ):
-        super(self.__class__, self).__init__(config=config, config_json=config_json, config_fp=config_fp, config_dir=config_dir)
+        super(self.__class__, self).__init__(
+            config=config,
+            config_json=config_json,
+            config_fp=config_fp,
+            config_dir=config_dir,
+            user_data_dir=user_data_dir,
+            output_dir=output_dir
+        )
 
         peril_config = self.config.get('peril') or {}
 
@@ -348,9 +420,18 @@ class RTreeVulnerabilityLookup(OasisBaseLookup):
         config_json=None,
         config_fp=None,
         config_dir=None,
-        vulnerabilities=None
+        vulnerabilities=None,
+        user_data_dir=None,
+        output_dir=None
     ):
-        super(self.__class__, self).__init__(config=config, config_json=config_json, config_fp=config_fp, config_dir=config_dir)
+        super(self.__class__, self).__init__(
+            config=config,
+            config_json=config_json,
+            config_fp=config_fp,
+            config_dir=config_dir,
+            user_data_dir=user_data_dir,
+            output_dir=output_dir
+        )
 
         if vulnerabilities or self.config.get('vulnerability'):
             self.col_dtypes, self.key_cols, self.vuln_id_col, self.vulnerabilities = self.get_vulnerabilities(vulnerabilities=vulnerabilities)

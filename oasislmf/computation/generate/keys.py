@@ -5,19 +5,12 @@ __all__ = [
 
 import os
 
-from itertools import (
-    product,
-)
-
 from ..base import ComputationStep
-from ...lookup.factory import OasisLookupFactory as olf
+from ...lookup.factory import KeyServerFactory
 from ...utils.exceptions import OasisException
 from ...utils.coverages import SUPPORTED_COVERAGE_TYPES
 
-from ...utils.data import (
-    get_location_df,
-    get_utctimestamp,
-)
+from ...utils.data import get_utctimestamp
 
 
 class GenerateKeys(ComputationStep):
@@ -73,7 +66,6 @@ class GenerateKeys(ComputationStep):
         {'name': 'lookup_multiprocessing', 'default': True},            # Enable/disable multiprocessing
     ]
 
-
     def _get_output_dir(self):
         if self.keys_data_csv:
             return os.path.dirname(self.keys_data_csv)
@@ -93,7 +85,6 @@ class GenerateKeys(ComputationStep):
 
         output_dir = self._get_output_dir()
         output_type = 'json' if self.keys_format.lower() == 'json' else 'csv'
-        location_df = get_location_df(self.oed_location_csv)
 
         keys_fp = self.keys_data_csv or os.path.join(output_dir, f'keys.{output_type}')
         keys_errors_fp = self.keys_errors_csv or os.path.join(output_dir, f'keys-errors.{output_type}')
@@ -101,7 +92,7 @@ class GenerateKeys(ComputationStep):
         os.makedirs(os.path.dirname(keys_errors_fp), exist_ok=True)
         keys_success_msg = True if self.lookup_complex_config_json else False
 
-        model_info, lookup = olf.create(
+        model_info, key_server = KeyServerFactory.create(
             lookup_config_fp=self.lookup_config_json,
             model_keys_data_path=self.lookup_data_dir,
             model_version_file_path=self.model_version_csv,
@@ -111,9 +102,8 @@ class GenerateKeys(ComputationStep):
             output_directory=output_dir
         )
 
-        f1, n1, f2, n2 = olf.save_results(
-            lookup,
-            location_df=location_df,
+        res = key_server.generate_key_files(
+            location_fp=self.oed_location_csv,
             successes_fp=keys_fp,
             errors_fp=keys_errors_fp,
             format=self.keys_format,
@@ -122,9 +112,12 @@ class GenerateKeys(ComputationStep):
             multiproc_num_cores=self.lookup_num_processes,
             multiproc_num_partitions=self.lookup_num_chunks,
         )
-        self.logger.info('\nKeys successful: {} generated with {} items'.format(f1, n1))
-        self.logger.info('Keys errors: {} generated with {} items'.format(f2, n2))
-        return (f1, n1, f2, n2)
+
+        self.logger.debug(f"key generated used model {model_info}")
+        self.logger.info('\nKeys successful: {} generated with {} items'.format(res[0], res[1]))
+        if len(res) == 4:
+            self.logger.info('Keys errors: {} generated with {} items'.format(res[2], res[3]))
+        return res
 
 
 class GenerateKeysDeterministic(ComputationStep):
@@ -145,11 +138,20 @@ class GenerateKeysDeterministic(ComputationStep):
     def run(self):
         output_dir = self._get_output_dir()
         keys_fp = self.keys_data_csv or os.path.join(output_dir, 'keys.csv')
-        location_df = get_location_df(self.oed_location_csv)
 
-        loc_ids = (loc_it['loc_id'] for _, loc_it in location_df.loc[:, ['loc_id']].sort_values('loc_id').iterrows())
-        keys = [
-            {'loc_id': _loc_id, 'peril_id': peril, 'coverage_type': cov_type, 'area_peril_id': i + 1, 'vulnerability_id': i + 1}
-            for i, (_loc_id, peril, cov_type) in enumerate(product(loc_ids, range(1, 1 + self.num_subperils), self.supported_oed_coverage_types))
-        ]
-        return  olf.write_oasis_keys_file(keys, keys_fp)
+        config = {'builtin_lookup_type': 'deterministic',
+                  'model': {"supplier_id": "OasisLMF",
+                            "model_id": "Deterministic",
+                            "model_version": "1"},
+                  'num_subperils': self.num_subperils,
+                  'supported_oed_coverage_types': self.supported_oed_coverage_types}
+
+        model_info, lookup = KeyServerFactory.create(
+            lookup_config=config,
+            output_directory=output_dir
+        )
+        return lookup.generate_key_files(
+            location_fp=self.oed_location_csv,
+            successes_fp=keys_fp,
+            format='oasis',
+        )
