@@ -29,6 +29,9 @@ def back_allocate(node, children, nodes_array, losses, loss_indexes, loss_i, com
                         use_loss[i] = 1
                         for c in range(node['children'] + 1, node['children'] + len_children + 1):
                             sum_loss[i] += losses[loss_indexes[nodes_array[children[c]]['loss'] + layer]][i]
+                        if sum_loss[i] < float_equal_precision:
+                            proportion[i] = 0
+                            continue
                     proportion[i] = ba_loss[i] / sum_loss[i]
 
             for c in range(node['children'] + 1, node['children'] + len_children + 1):
