@@ -62,7 +62,7 @@ node {
     sh 'env'
 
     if (! params.PRE_RELEASE) {  
-        if (params.PUBLISH && ! ( source_branch.matches("release/(.*)") || source_branch.matches("hotfix/(.*)")) ){
+        if (params.PUBLISH && ! ( source_branch.matches("release/(.*)") || source_branch.matches("hotfix/(.*)") || source_branch.matches("backports/(.*)")) ){
             // fail fast, only branches named `release/*` are valid for publish
             sh "echo `Publish Only allowed on a release/* branch`"
             sh "exit 1"
@@ -164,9 +164,9 @@ node {
                         sh PIPELINE + " commit_vers_oasislmf ${vers_pypi}"
                     }
                     // Publish package
-                    //withCredentials([usernamePassword(credentialsId: twine_account, usernameVariable: 'TWINE_USERNAME', passwordVariable: 'TWINE_PASSWORD')]) {
-                    //    sh PIPELINE + ' push_oasislmf'
-                    //}
+                    withCredentials([usernamePassword(credentialsId: twine_account, usernameVariable: 'TWINE_USERNAME', passwordVariable: 'TWINE_PASSWORD')]) {
+                        sh PIPELINE + ' push_oasislmf'
+                    }
                 }
             }
 
@@ -195,9 +195,9 @@ node {
                     sh 'curl -XPOST -H "Authorization:token ' + gh_token + "\" --data @gh_request.json https://api.github.com/repos/$repo/releases > gh_response.json"
 
                    // Create milestone
-                   // dir(source_workspace) {
-                   //     sh PIPELINE + " create_milestone ${gh_token} ${repo} ${vers_pypi} CHANGELOG.rst"
-                   // }
+                   dir(source_workspace) {
+                       sh PIPELINE + " create_milestone ${gh_token} ${repo} ${vers_pypi} CHANGELOG.rst"
+                   }
                 }
             }
         }

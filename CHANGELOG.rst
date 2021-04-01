@@ -10,6 +10,9 @@ OasisLMF Changelog
 * [#753](https://github.com/OasisLMF/OasisLMF/pull/800) - Added ORD output options for ept/psept and updated json schema
 .. end_latest_release
 
+`1.15.6`_
+---------
+* [#803 - Hotfix](https://github.com/OasisLMF/OasisLMF/pull/802) - Partial fix for Max Ded back allocation in fmpy
 
 `1.15.5`_
 ---------
@@ -565,7 +568,8 @@ OasisLMF Changelog
 
 * Add console logging
 
-.. _`1.16.0rc1`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.5...1.16.0rc1
+.. _`1.16.0rc1`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.6...1.16.0rc1
+.. _`1.15.6`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.5...1.15.6
 .. _`1.15.5`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.4...1.15.5
 .. _`1.15.4`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.3...1.15.4
 .. _`1.15.3`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.2...1.15.3
