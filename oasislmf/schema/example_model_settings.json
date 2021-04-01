@@ -10,7 +10,7 @@
       "event_set":{
          "name":"Event Set",
          "default":"P",
-		 "desc": "Lists of event sets",
+         "desc": "Lists of event sets",
          "options":[
             {
                "id":"P",
@@ -37,6 +37,8 @@
             }
          ]
       },
+      "valid_output_perspectives": ["gul", "il"],
+      "valid_output_metrics": ["ept", "psept"],
       "string_parameters":[
         {
             "name": "option_str",
@@ -51,7 +53,7 @@
             "default": ["str1", "str2"]
         }
       ],
-      "dictionary_parameters":[ 
+      "dictionary_parameters":[
         {
             "name": "dictionary_option",
             "desc": "this Stores .. for ... etc",
@@ -102,8 +104,8 @@
                 "parameter_name_b": ["B_value"],
                 "parameter_name_c": true,
                 "parameter_name_n": {"K1": "V1"}
-            }    
-        },    
+            }
+        },
         {
             "name": "location_dependent_config_option_2",
             "desc": "param group option 2",
@@ -112,8 +114,8 @@
                 "parameter_name_b": ["B_value_2"],
                 "parameter_name_c": false,
                 "parameter_name_n": {"K2": "V2"}
-            }    
-        }    
+            }
+        }
       ],
       "parameter_groups":[
         {
@@ -152,7 +154,7 @@
         "countries": ["UK", "US"],
         "mandatory_fields": ["AreaName", "PostalCode", "OccupancyCode"],
         "additional_assets": [
-            {    
+            {
                "name": "catresponsedata",
                "version": "1.0",
                "path": "model_data/catresponse/"

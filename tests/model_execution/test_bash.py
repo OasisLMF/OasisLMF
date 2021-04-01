@@ -97,12 +97,13 @@ class Genbash(TestCase):
         )
 
     def check(self, name, reference_filename=None):
+        pass
         output_filename = os.path.join(self.KPARSE_OUTPUT_FOLDER, "{}.sh".format(name))
         if not reference_filename:
             reference_filename = os.path.join(self.KPARSE_REFERENCE_FOLDER, "{}.sh".format(name))
 
         if self.fifo_tmp_dir:
-            # Create temp Ref file   
+            # Create temp Ref file
             ref_template = reference_filename
             ref_tmp_file = NamedTemporaryFile("w+", delete=False)
             with io.open(output_filename, 'r') as f:
@@ -118,7 +119,7 @@ class Genbash(TestCase):
             ref_tmp_file.write(ktools_script)
             ref_tmp_file.close()
             reference_filename = ref_tmp_file.name
-        
+
         d = diff.unified_diff(reference_filename, output_filename, as_string=True)
         if d:
             self.fail(d)
@@ -427,6 +428,7 @@ class Genbash(TestCase):
         self.genbash("gul_il_lec_2_output", 10)
         self.check("gul_il_lec_2_output_10_partition")
 
+    # RI checks
     def test_analysis_settings_1(self):
         self.genbash("analysis_settings_1", 1)
         self.check("analysis_settings_1_1_partition")
@@ -442,6 +444,35 @@ class Genbash(TestCase):
     def test_analysis_settings_4_0_reins_iters(self):
         self.genbash("analysis_settings_4", 1, 1)
         self.check("analysis_settings_4_1_reins_layer_1_partition")
+
+    def test_analysis_settings_5_0_reins_iters(self):
+        self.genbash("analysis_settings_5", 1, 1)
+        self.check("analysis_settings_5_1_reins_layer_1_partition")
+
+    # ORD checks
+    def test_gul_ord_ept_1_output_1_partitions(self):
+        self.genbash("gul_ord_ept_1_output", 1)
+        self.check("gul_ord_ept_1_output_1_partition")
+
+    def test_gul_ord_ept_1_output_20_partitions(self):
+        self.genbash("gul_ord_ept_1_output", 20)
+        self.check("gul_ord_ept_1_output_20_partition")
+
+    def test_gul_ord_psept_2_output_10_partitions(self):
+        self.genbash("gul_ord_psept_2_output", 10)
+        self.check("gul_ord_psept_2_output_10_partition")
+
+    def test_gul_ord_ept_psept_lec_2_output_10_partitions(self):
+        self.genbash("gul_ord_ept_psept_lec_2_output", 10)
+        self.check("gul_ord_ept_psept_lec_2_output_10_partition")
+
+    def test_gul_il_ord_ept_psept_2_output_10_partitions(self):
+        self.genbash("gul_il_ord_ept_psept_2_output", 10)
+        self.check("gul_il_ord_ept_psept_2_output_10_partition")
+
+    def test_gul_il_ord_psept_lec_1_output_10_partitions(self):
+        self.genbash("gul_il_ord_psept_lec_1_output", 10)
+        self.check("gul_il_ord_psept_lec_1_output_10_partition")
 
 
 class Genbash_GulItemStream(Genbash):

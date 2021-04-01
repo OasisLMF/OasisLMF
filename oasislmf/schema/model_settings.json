@@ -134,8 +134,8 @@
                               "items":{
                                  "type":"string",
                                  "enum":[
-                                    "aal", 
-                                    "elt", 
+                                    "aal",
+                                    "elt",
                                     "plt",
                                     "lec",
                                     "aep",
@@ -148,7 +148,26 @@
                                     "wheatsheaf_aep",
                                     "wheatsheaf_mean_aep",
                                     "wheatsheaf_mean_oep",
-                                    "wheatsheaf_oep"
+                                    "wheatsheaf_oep",
+
+                                    "ord_output",
+                                    "elt_sample",
+                                    "elt_quantile",
+                                    "elt_moment",   
+                                    "plt_sample",   
+                                    "plt_quantile",   
+                                    "plt_moment",   
+                                    "alt_period",   
+                                    "ept",
+                                    "ept_full_uncertainty_aep",
+                                    "ept_full_uncertainty_oep",
+                                    "ept_mean_sample_aep",
+                                    "ept_mean_sample_oep",
+                                    "ept_per_sample_mean_aep",
+                                    "ept_per_sample_mean_oep",
+                                    "psept",
+                                    "psept_aep",
+                                    "psept_oep"
                                  ]
                               }
                            },
@@ -256,6 +275,63 @@
                   "default",
                   "options"
                ]
+            },
+            "valid_output_perspectives":{
+               "type":"array",
+               "title":"Globally supported loss perspectives",
+               "description":"If set, the model only supports the given output perspectives. This can be overridden per event set using the 'valid_perspectives' field. 'gul': ground up losses, 'il': insured losses, 'ri': reinsurance losses.",
+               "items":{
+                  "type":"string",
+                  "enum":[
+                     "gul",
+                     "il",
+                     "ri"
+                  ]
+               }
+            },
+            "valid_output_metrics":{
+               "type":"array",
+               "title":"Globally supported output metrics",
+               "description":"If set, the model only supports the given output metrics. This can be overridden per event set using the 'valid_metrics' field. Values must match the output options in the summaries section from the `analysis_settings.json` file. Example: 'valid_output_metrics':['ptl','elt'].",
+               "items":{
+                  "type":"string",
+                  "enum":[
+                     "aal",
+                     "elt",
+                     "plt",
+                     "lec",
+                     "aep",
+                     "oep",
+                     "summarycalc",
+                     "full_uncertainty_aep",
+                     "full_uncertainty_oep",
+                     "sample_mean_aep",
+                     "sample_mean_oep",
+                     "wheatsheaf_aep",
+                     "wheatsheaf_mean_aep",
+                     "wheatsheaf_mean_oep",
+                     "wheatsheaf_oep",
+
+                     "ord_output",
+                     "elt_sample",
+                     "elt_quantile",
+                     "elt_moment",   
+                     "plt_sample",   
+                     "plt_quantile",   
+                     "plt_moment",   
+                     "alt_period",   
+                     "ept",
+                     "ept_full_uncertainty_aep",
+                     "ept_full_uncertainty_oep",
+                     "ept_mean_sample_aep",
+                     "ept_mean_sample_oep",
+                     "ept_per_sample_mean_aep",
+                     "ept_per_sample_mean_oep",
+                     "psept",
+                     "psept_aep",
+                     "psept_oep"
+                  ]
+               }
             },
             "string_parameters":{
                "title":"Single string paramters",

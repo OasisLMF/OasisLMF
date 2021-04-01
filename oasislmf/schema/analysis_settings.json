@@ -118,6 +118,109 @@
                                 "default": false
                             }
                         }
+                    },
+                    "ord_output": {
+                        "type": "object",
+                        "title": "ORD output settings",
+                        "description": "",
+                        "properties": {
+                            "elt_sample": {
+                                "type": "boolean",
+                                "title": "SELT",
+                                "description": "Sample Event Loss Table (ORD Output flag)",
+                                "default": false
+                            },
+                            "elt_quantile": {
+                                "type": "boolean",
+                                "title": "QELT",
+                                "description": "Quantile Event Loss Table (ORD Output flag)",
+                                "default": false
+                            },
+                            "elt_moment": {
+                                "type": "boolean",
+                                "title": "MELT",
+                                "description": "Moment Event Loss Table (ORD Output flag)",
+                                "default": false
+                            },
+                            "plt_sample": {
+                                "type": "boolean",
+                                "title": "SPLT",
+                                "description": "Sample Period Loss Table (ORD Output flag)",
+                                "default": false
+                            },
+                            "plt_quantile": {
+                                "type": "boolean",
+                                "title": "QPLT",
+                                "description": "Quantile Period Loss Table (ORD Output flag)",
+                                "default": false
+                            },
+                            "plt_moment": {
+                                "type": "boolean",
+                                "title": "MPLT",
+                                "description": "Moment Period Loss Table (ORD Output flag)",
+                                "default": false
+                            },
+                            "alt_period": {
+                                "type": "boolean",
+                                "title": "PALT",
+                                "description": "Period Average Loss Table (ORD Output flag)",
+                                "default": false
+                            },
+                            "ept_full_uncertainty_aep": {
+                                "type": "boolean",
+                                "title": "EPT - Full Uncertainty AEP",
+                                "description": "Exceedance Probability Table (option), when enable this metric is added to the EPT file",
+                                "default": false
+                            },
+                            "ept_full_uncertainty_oep": {
+                                "type": "boolean",
+                                "title": "EPT - Full Uncertainty OEP",
+                                "description": "Exceedance Probability Table (option), when enable this metric is added to the EPT file",
+                                "default": false
+                            },
+                            "ept_mean_sample_aep": {
+                                "type": "boolean",
+                                "title": "EPT - Mean Sample AEP",
+                                "description": "Exceedance Probability Table (option), when enable this metric is added to the EPT file",
+                                "default": false
+                            },
+                            "ept_mean_sample_oep": {
+                                "type": "boolean",
+                                "title": "EPT - Mean Sample OEP",
+                                "description": "Exceedance Probability Table (option), when enable this metric is added to the EPT file",
+                                "default": false
+                            },
+                            "ept_per_sample_mean_aep": {
+                                "type": "boolean",
+                                "title": "EPT - Per Sample Mean AEP",
+                                "description": "Exceedance Probability Table (option), when enable this metric is added to the EPT file",
+                                "default": false
+                            },
+                            "ept_per_sample_mean_oep": {
+                                "type": "boolean",
+                                "title": "EPT - Per Sample Mean OEP",
+                                "description": "Exceedance Probability Table (option), when enable this metric is added to the EPT file",
+                                "default": false
+                            },
+                            "psept_aep": {
+                                "type": "boolean",
+                                "title": "PSEPT - Aggregate Loss",
+                                "description": "Per Sample Exceedance Probability Table, (option) when enable this metric is added to the PSEPT file",
+                                "default": false
+                            },
+                            "psept_oep": {
+                                "type": "boolean",
+                                "title": "PSEPT - Occurrence Loss",
+                                "description": "Per Sample Exceedance Probability Table (option), when enable this metric is added to the PSEPT file",
+                                "default": false
+                            },
+                            "return_period_file": {
+                                "type": "boolean",
+                                "title": "ORD Return period file flag",
+                                "description": "If true, a file listing the return periods will be used for EPT and PSEPT files. If false, a default set will be used.",
+                                "default": false
+                            }
+                        }
                     }
                 },
                 "required": [
@@ -173,7 +276,7 @@
             },
             "title": "User set return periods",
             "description": "List of return periods as integers '[10, 100, 1000 .. etc]'"
-        },    
+        },
         "model_settings": {
             "type": "object",
             "title": "Model settings",
