@@ -164,9 +164,9 @@ node {
                         sh PIPELINE + " commit_vers_oasislmf ${vers_pypi}"
                     }
                     // Publish package
-                    //withCredentials([usernamePassword(credentialsId: twine_account, usernameVariable: 'TWINE_USERNAME', passwordVariable: 'TWINE_PASSWORD')]) {
-                    //    sh PIPELINE + ' push_oasislmf'
-                    //}
+                    withCredentials([usernamePassword(credentialsId: twine_account, usernameVariable: 'TWINE_USERNAME', passwordVariable: 'TWINE_PASSWORD')]) {
+                        sh PIPELINE + ' push_oasislmf'
+                    }
                 }
             }
 
@@ -195,9 +195,9 @@ node {
                     sh 'curl -XPOST -H "Authorization:token ' + gh_token + "\" --data @gh_request.json https://api.github.com/repos/$repo/releases > gh_response.json"
 
                    // Create milestone
-                   // dir(source_workspace) {
-                   //     sh PIPELINE + " create_milestone ${gh_token} ${repo} ${vers_pypi} CHANGELOG.rst"
-                   // }
+                    dir(source_workspace) {
+                        sh PIPELINE + " create_milestone ${gh_token} ${repo} ${vers_pypi} CHANGELOG.rst"
+                    }
                 }
             }
         }
