@@ -61,10 +61,12 @@ node {
     env.PIPELINE_LOAD =  script_dir + source_sh             // required for pipeline.sh calls
     sh 'env'
 
-    if (params.PUBLISH && ! ( source_branch.matches("release/(.*)") || source_branch.matches("hotfix/(.*)")) ){
-        // fail fast, only branches named `release/*` are valid for publish
-        sh "echo `Publish Only allowed on a release/* branch`"
-        sh "exit 1"
+    if (! params.PRE_RELEASE) {  
+        if (params.PUBLISH && ! ( source_branch.matches("release/(.*)") || source_branch.matches("hotfix/(.*)")) ){
+            // fail fast, only branches named `release/*` are valid for publish
+            sh "echo `Publish Only allowed on a release/* branch`"
+            sh "exit 1"
+        }
     }
 
     //make sure release candidate versions are tagged correctly 
