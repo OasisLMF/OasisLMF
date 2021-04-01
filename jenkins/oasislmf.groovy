@@ -21,6 +21,7 @@ node {
         [$class: 'StringParameterDefinition',  name: 'TWINE_ACCOUNT', defaultValue: 'sams_twine_account'],
         [$class: 'BooleanParameterDefinition', name: 'PURGE', defaultValue: Boolean.valueOf(false)],
         [$class: 'BooleanParameterDefinition', name: 'PUBLISH', defaultValue: Boolean.valueOf(false)],
+        [$class: 'BooleanParameterDefinition', name: 'PRE_RELEASE', defaultValue: Boolean.valueOf(true)],
         [$class: 'BooleanParameterDefinition', name: 'AUTO_MERGE', defaultValue: Boolean.valueOf(true)],
         [$class: 'BooleanParameterDefinition', name: 'SLACK_MESSAGE', defaultValue: Boolean.valueOf(false)]
       ])
@@ -60,11 +61,19 @@ node {
     env.PIPELINE_LOAD =  script_dir + source_sh             // required for pipeline.sh calls
     sh 'env'
 
-    if (params.PUBLISH && ! ( source_branch.matches("release/(.*)") || source_branch.matches("hotfix/(.*)")) ){
-        // fail fast, only branches named `release/*` are valid for publish
-        sh "echo `Publish Only allowed on a release/* branch`"
-        sh "exit 1"
+    if (! params.PRE_RELEASE) {  
+        if (params.PUBLISH && ! ( source_branch.matches("release/(.*)") || source_branch.matches("hotfix/(.*)")) ){
+            // fail fast, only branches named `release/*` are valid for publish
+            sh "echo `Publish Only allowed on a release/* branch`"
+            sh "exit 1"
+        }
     }
+
+    //make sure release candidate versions are tagged correctly 
+    if (params.PUBLISH && params.PRE_RELEASE && ! vers_pypi.matches('^(\\d+\\.)(\\d+\\.)(\\*|\\d+)rc(\\d+)$')) {
+        sh "echo release candidates must be tagged {version}rc{N}, example: 1.0.0rc1"
+        sh "exit 1"
+    }    
 
     try {
         parallel(
@@ -155,9 +164,9 @@ node {
                         sh PIPELINE + " commit_vers_oasislmf ${vers_pypi}"
                     }
                     // Publish package
-                    withCredentials([usernamePassword(credentialsId: twine_account, usernameVariable: 'TWINE_USERNAME', passwordVariable: 'TWINE_PASSWORD')]) {
-                        sh PIPELINE + ' push_oasislmf'
-                    }
+                    //withCredentials([usernamePassword(credentialsId: twine_account, usernameVariable: 'TWINE_USERNAME', passwordVariable: 'TWINE_PASSWORD')]) {
+                    //    sh PIPELINE + ' push_oasislmf'
+                    //}
                 }
             }
 
@@ -181,14 +190,14 @@ node {
                     json_request['name'] = vers_pypi
                     json_request['body'] = ""
                     json_request['draft'] = false
-                    json_request['prerelease'] = false
+                    json_request['prerelease'] = params.PRE_RELEASE
                     writeJSON file: 'gh_request.json', json: json_request
                     sh 'curl -XPOST -H "Authorization:token ' + gh_token + "\" --data @gh_request.json https://api.github.com/repos/$repo/releases > gh_response.json"
 
                    // Create milestone
-                    dir(source_workspace) {
-                        sh PIPELINE + " create_milestone ${gh_token} ${repo} ${vers_pypi} CHANGELOG.rst"
-                    }
+                   // dir(source_workspace) {
+                   //     sh PIPELINE + " create_milestone ${gh_token} ${repo} ${vers_pypi} CHANGELOG.rst"
+                   // }
                 }
             }
         }
