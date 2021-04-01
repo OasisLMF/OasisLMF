@@ -3,7 +3,7 @@ OasisLMF Changelog
 
 `1.15.6`_
 ---------
-* [#803 - Hotfix](https://github.com/OasisLMF/OasisLMF/issues/803) - Partial fix for Max Ded back allocation in fmpy
+* [#803 - Hotfix](https://github.com/OasisLMF/OasisLMF/pull/802) - Partial fix for Max Ded back allocation in fmpy
 
 `1.15.5`_
 ---------
