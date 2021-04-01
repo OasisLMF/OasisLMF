@@ -224,11 +224,19 @@ node {
          if (params.PUBLISH && params.AUTO_MERGE && ! hasFailed){ 
             dir(source_workspace) {
                 sshagent (credentials: [git_creds]) {
-                    sh "git stash"
-                    sh "git checkout master && git pull"
-                    sh "git merge ${source_branch} && git push"
-                    sh "git checkout develop && git pull"
-                    sh "git merge master && git push"
+                    if (! params.PRE_RELEASE) {
+                        // Release merge back into master
+                        sh "git stash"
+                        sh "git checkout master && git pull"
+                        sh "git merge ${source_branch} && git push"
+                        sh "git checkout develop && git pull"
+                        sh "git merge master && git push"
+                    } else {
+                        // pre_pelease merge back into develop
+                        sh "git stash"
+                        sh "git checkout develop && git pull"
+                        sh "git merge ${source_branch} && git push"
+                    }
                 }   
             }   
         }   
