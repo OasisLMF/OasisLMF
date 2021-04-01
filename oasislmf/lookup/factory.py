@@ -135,9 +135,12 @@ class KeyServerFactory(object):
         else: # no config
             config_dir, config = '.', {}
 
-        config_dir, config = cls.update_deprecated_args(config_dir, config,
-                                                        complex_lookup_config_fp, model_keys_data_path,
-                                                        model_version_file_path, lookup_module_path)
+        if not config:
+            config_dir, config = cls.update_deprecated_args(config_dir, config,
+                                                            complex_lookup_config_fp, model_keys_data_path,
+                                                            model_version_file_path, lookup_module_path)
+        else: # reproduce lookup_config overwrite complex_lookup_config_fp
+            complex_lookup_config_fp = None
 
         if config.get('key_server_module_path'):
             _KeyServer = get_custom_module(config.get('key_server_module_path'), 'key_server_module_path')
