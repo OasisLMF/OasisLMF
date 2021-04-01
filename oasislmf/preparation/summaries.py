@@ -256,7 +256,7 @@ def write_summary_levels(exposure_df, accounts_fp, target_dir):
     # GUL perspective (loc columns only)
     #l_col_list = exposure_df.loc[:, exposure_df.any()].columns.to_list()
     # NOTE: work around for pandas==1.2.0, any() not returning return the 'category' field types
-    l_col_list = exposure_df.replace(0, pd.np.nan).dropna(how='any', axis=1).columns.to_list()
+    l_col_list = exposure_df.replace(0, np.nan).dropna(how='any', axis=1).columns.to_list()
 
     l_col_info = get_loc_dtypes()
     for k in list(l_col_info.keys()):

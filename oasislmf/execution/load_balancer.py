@@ -151,7 +151,7 @@ def consumer(out_stream, pipeline, write_size, sentinel, stopper):
                 s_tot += tw-ts
                 try:
                     out_stream.write(data)
-                except:
+                except Exception:
                     stopper[0] = True
                     raise
                 w_tot += time.time() - tw

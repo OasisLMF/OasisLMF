@@ -1,11 +1,13 @@
 __all__ = [
+    'AbstractBasicKeyLookup',
+    'MultiprocLookupMixin',
     'OasisBaseLookup',
 ]
 
 
 # 'OasisBuiltinBaseLookup' -> 'OasisBaseLookup'
 
-import io
+import abc
 import itertools
 import json
 import os
@@ -13,52 +15,95 @@ import types
 
 import pandas as pd
 
-from ..utils.log import oasis_log
 from ..utils.path import as_path
+from ..utils.exceptions import OasisException
 
 UNKNOWN_ID = -1
 
 
-''' Interface class for developing built in lookup code (Rtree)
+''' Basic abstract classes that facilitate the implementation of KeyLookupInterface  
 '''
 
 
-class OasisBaseLookup(object):
+class AbstractBasicKeyLookup:
+    """Basic abstract class for KeyLookup"""
 
-    @oasis_log()
-    def __init__(self, config=None, config_json=None, config_fp=None, config_dir=None):
+    interface_version = "1"
+
+    def __init__(self, config, config_dir=None, user_data_dir=None, output_dir=None):
+        self.config = config
+        self.config_dir = config_dir or '.'
+        self.user_data_dir = user_data_dir
+        self.output_dir = output_dir
+
+    @abc.abstractmethod
+    def process_locations(self, locations):
+        """
+        Process location rows - passed in as a pandas dataframe.
+        Results can be list, tuple, generator or a pandas dataframe.
+        """
+        raise NotImplementedError
+
+
+class MultiprocLookupMixin:
+    """
+    Simple mixin class for multiprocessing
+
+    implement the process_locations_multiproc by transforming the result of process_locations into a pandas DataFrame
+    """
+
+    def process_locations_multiproc(self, loc_df_part):
+        result = self.process_locations(loc_df_part)
+        if isinstance(result, list) or isinstance(result, tuple):
+            return pd.DataFrame(result)
+        elif isinstance(result, types.GeneratorType):
+            return pd.DataFrame.from_records(result)
+        elif isinstance(result, pd.DataFrame):
+            return result
+        else:
+            raise OasisException("Unrecognised type for results: {type(results)}. expected ")
+
+
+class OasisBaseLookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
+    """
+    Abstract class that help with the implementation of the KeyServerInterface.
+    require lookup method to be implemented.
+    Lookup will be call to create a key for each peril id and coverage type
+    """
+    multiproc_enabled = True
+
+    def __init__(self, config=None, config_json=None, config_fp=None, config_dir=None, user_data_dir=None, output_dir=None):
         if config:
-            self._config = config
-            self.config_dir = config_dir or '.'
+            config_dir = config_dir or '.'
         elif config_json:
-            self._config = json.loads(config_json)
-            self.config_dir = config_dir or '.'
+            config = json.loads(config_json)
+            config_dir = config_dir or '.'
         elif config_fp:
-            self.config_dir = config_dir or os.path.dirname(config_fp)
+            config_dir = config_dir or os.path.dirname(config_fp)
             _config_fp = as_path(config_fp, 'config_fp')
-            with io.open(_config_fp, 'r', encoding='utf-8') as f:
-                self._config = json.load(f)
+            with open(_config_fp, 'r', encoding='utf-8') as f:
+                config = json.load(f)
 
-        keys_data_path = self._config.get('keys_data_path')
-        keys_data_path = os.path.join(self.config_dir, keys_data_path) if keys_data_path else ''
+        keys_data_path = config.get('keys_data_path')
+        keys_data_path = os.path.join(config_dir, keys_data_path) if keys_data_path else ''
 
-        self._config['keys_data_path'] = as_path(keys_data_path, 'keys_data_path', preexists=(True if keys_data_path else False))
+        config['keys_data_path'] = as_path(keys_data_path, 'keys_data_path', preexists=(True if keys_data_path else False))
 
-        peril_config = self._config.get('peril') or {}
+        super().__init__(config, config_dir=config_dir, user_data_dir=user_data_dir, output_dir=output_dir)
 
-        self._peril_ids = tuple(peril_config.get('peril_ids') or ())
+        peril_config = self.config.get('peril') or {}
 
-        self._peril_id_col = peril_config.get('peril_id_col') or 'peril_id'
+        self.peril_ids = tuple(peril_config.get('peril_ids') or ())
 
-        coverage_config = self._config.get('coverage') or {}
+        self.peril_id_col = peril_config.get('peril_id_col') or 'peril_id'
 
-        self._coverage_types = tuple(coverage_config.get('coverage_types') or ())
+        coverage_config = self.config.get('coverage') or {}
 
-        self._coverage_type_col = peril_config.get('coverage_type_col') or 'coverage_type'
+        self.coverage_types = tuple(coverage_config.get('coverage_types') or ())
 
-        self._config.setdefault('exposure', self._config.get('exposure') or self._config.get('locations') or {})
+        self.coverage_type_col = peril_config.get('coverage_type_col') or 'coverage_type'
 
-        self.__tweak_config_data__()
+        self.config.setdefault('exposure', self.config.get('exposure') or self.config.get('locations') or {})
 
     def __tweak_config_data__(self):
         for section in ('exposure', 'peril', 'vulnerability',):
@@ -82,44 +127,14 @@ class OasisBaseLookup(object):
         self._config = c
         self.__tweak_config_data__()
 
-    @property
-    def peril_ids(self):
-        return self._peril_ids
-
-    @property
-    def peril_id_col(self):
-        return self._peril_id_col
-
-    @property
-    def coverage_types(self):
-        return self._coverage_types
-
-    @property
-    def coverage_type_col(self):
-        return self._coverage_type_col
-
     def lookup(self, loc, peril_id, coverage_type, **kwargs):
         """
         Lookup for an individual location item, which could be a dict or a
         Pandas series object.
         """
-        pass
+        raise NotImplementedError
 
-    def process_locations_multiproc(self, loc_df):
-        """
-        Process and return the lookup results a location row
-        Used in multiprocessing based query
-
-        location_row is of type <class 'pandas.core.series.Series'>
-
-        """
-        locs_seq = (loc for _, loc in loc_df.iterrows())
-        return [self.lookup(loc, peril_id, coverage_type) for
-                loc, peril_id, coverage_type in
-                itertools.product(locs_seq, self.peril_ids, self.coverage_types)]
-
-    @oasis_log()
-    def bulk_lookup(self, locs, **kwargs):
+    def process_locations(self, locs):
         """
         Bulk vulnerability lookup for a list, tuple, generator, pandas data
         frame or dict of location items, which can be dicts or Pandas series
@@ -129,11 +144,11 @@ class OasisBaseLookup(object):
         """
         locs_seq = None
 
-        if (isinstance(locs, list) or isinstance(locs, tuple)):
+        if isinstance(locs, list) or isinstance(locs, tuple):
             locs_seq = (loc for loc in locs)
         elif isinstance(locs, types.GeneratorType):
             locs_seq = locs
-        elif (isinstance(locs, dict)):
+        elif isinstance(locs, dict):
             locs_seq = locs.values()
         elif isinstance(locs, pd.DataFrame):
             locs_seq = (loc for _, loc in locs.iterrows())
