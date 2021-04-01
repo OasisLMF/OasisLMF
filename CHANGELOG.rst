@@ -1,6 +1,10 @@
 OasisLMF Changelog
 ==================
 
+`1.15.6`_
+---------
+* [#803 - Hotfix](https://github.com/OasisLMF/OasisLMF/issues/803) - Partial fix for Max Ded back allocation in fmpy
+
 `1.15.5`_
 ---------
 * [#798 - Hotfix](https://github.com/OasisLMF/OasisLMF/issues/798) - Fix process cleanup on ktools script exit 
@@ -555,6 +559,7 @@ OasisLMF Changelog
 
 * Add console logging
 
+.. _`1.15.6`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.5...1.15.6
 .. _`1.15.5`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.4...1.15.5
 .. _`1.15.4`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.3...1.15.4
 .. _`1.15.3`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.2...1.15.3
