@@ -1,16 +1,26 @@
 OasisLMF Changelog
 ==================
 
+`1.16.0rc1`_
+---------
+.. start_latest_release
+* [#669](https://github.com/OasisLMF/OasisLMF/pull/792) - Revamp of the Key service for improved performance (PR-792)
+* [#802](https://github.com/OasisLMF/OasisLMF/pull/802) - Fix for null loss in max deductible case 
+* [#766](https://github.com/OasisLMF/OasisLMF/issues/766) - Updated FM python documentation 
+* [#753](https://github.com/OasisLMF/OasisLMF/pull/800) - Added ORD output options for ept/psept and updated json schema
+.. end_latest_release
+
+
 `1.15.5`_
 ---------
-* [#798 - Hotfix](https://github.com/OasisLMF/OasisLMF/issues/798) - Fix process cleanup on ktools script exit 
-* [#799 - Hotfix](https://github.com/OasisLMF/OasisLMF/issues/799) - Fix fmpy, multilayer stream writer for RI 
+* [#798 - Hotfix](https://github.com/OasisLMF/OasisLMF/issues/798) - Fix process cleanup on ktools script exit
+* [#799 - Hotfix](https://github.com/OasisLMF/OasisLMF/issues/799) - Fix fmpy, multilayer stream writer for RI
 * [#794 - Hotfix](https://github.com/OasisLMF/OasisLMF/issues/794) - Fix column duplication when using "tiv, loc_id, coverage_type_id" in oed_field
 
 `1.15.4`_
 ---------
-* [#464 - Hotfix](https://github.com/OasisLMF/OasisPlatform/issues/464) - Worker stuck idle on some bash errors                                  
-* [#785 - Hotfix](https://github.com/OasisLMF/OasisLMF/issues/785) - fmsummaryxref.csv not copied into top level RI directory 
+* [#464 - Hotfix](https://github.com/OasisLMF/OasisPlatform/issues/464) - Worker stuck idle on some bash errors
+* [#785 - Hotfix](https://github.com/OasisLMF/OasisLMF/issues/785) - fmsummaryxref.csv not copied into top level RI directory
 
 `1.15.3`_
 ---------
@@ -18,8 +28,8 @@ OasisLMF Changelog
 
 `1.15.2`_
 ---------
-* [#777](https://github.com/OasisLMF/OasisLMF/issues/777) - Summarise ground up only runs using Insured loss fields 
-* [#776](https://github.com/OasisLMF/OasisLMF/pull/776) - Fix tiv summary info feature, Pandas compatibility & column select issue 
+* [#777](https://github.com/OasisLMF/OasisLMF/issues/777) - Summarise ground up only runs using Insured loss fields
+* [#776](https://github.com/OasisLMF/OasisLMF/pull/776) - Fix tiv summary info feature, Pandas compatibility & column select issue
 
 `1.15.1`_
 ---------
@@ -28,7 +38,7 @@ OasisLMF Changelog
 `1.15.0`_
 ---------
 * [#765](https://github.com/OasisLMF/OasisLMF/pull/765) - Add a first pass of FM python documentation
-* [#770](https://github.com/OasisLMF/OasisLMF/pull/770) - Fix issue in lookup factory no results check 
+* [#770](https://github.com/OasisLMF/OasisLMF/pull/770) - Fix issue in lookup factory no results check
 * [#755](https://github.com/OasisLMF/OasisLMF/pull/755) - Added updates fixes to fm testing tool
 * [#759](https://github.com/OasisLMF/OasisLMF/issues/759) - Switched fmpy to the default financial module
 * [#688](https://github.com/OasisLMF/OasisLMF/issues/688) - Added TIV reporting to summary info files
@@ -39,13 +49,13 @@ OasisLMF Changelog
 * [#752](https://github.com/OasisLMF/OasisLMF/issues/752) - Fixed issue with fmpy - not calculating net loss across all layers correctly.
 * [#751](https://github.com/OasisLMF/OasisLMF/issues/751) - Remove dependence on ReinsNumber order when assigning layer ID
 * [#763](https://github.com/OasisLMF/OasisLMF/issues/763) - Dropped binary wheel package for Mac OSX
-* [#750](https://github.com/OasisLMF/OasisLMF/issues/750) - Switched oasislmf `exposure run` to use gul stream type 2 by default 
+* [#750](https://github.com/OasisLMF/OasisLMF/issues/750) - Switched oasislmf `exposure run` to use gul stream type 2 by default
 * [#391](https://github.com/OasisLMF/OasisLMF/issues/391) - Added fix so error is raise when no data is returned from keys server.
 
 `1.14.0`_
 ---------
 * [#724](https://github.com/OasisLMF/OasisLMF/issues/724) - fm file generation issues with fac when combined with other types of reinsurance
-* [#735](https://github.com/OasisLMF/OasisLMF/pull/735) - Bug fixes for python FM module 
+* [#735](https://github.com/OasisLMF/OasisLMF/pull/735) - Bug fixes for python FM module
 * [#731](https://github.com/OasisLMF/OasisLMF/issues/731) - Fix health check on exposure summary unittest
 * [#692](https://github.com/OasisLMF/OasisLMF/issues/692) - Added FM testing jupyter notebook [binder link](https://mybinder.org/v2/gh/OasisLMF/OasisLMF/develop?filepath=FmTesting.ipynb)
 * [#658](https://github.com/OasisLMF/OasisLMF/issues/658) - Changes in input file generation to extend special conditions functionality (requires testing)
@@ -78,7 +88,7 @@ OasisLMF Changelog
 * [#695](https://github.com/OasisLMF/OasisLMF/issues/695) - Set default value of optional OED step policy fields to 0
 * [#686](https://github.com/OasisLMF/OasisLMF/issues/686) - Fixed fmpy numerical issues when using allocrule 1
 * [#681](https://github.com/OasisLMF/OasisLMF/issues/681) - Added fmpy support for stepped policies
-* [#680](https://github.com/OasisLMF/OasisLMF/issues/680) - Added user defined return periods option to `analysis_settings.json` 
+* [#680](https://github.com/OasisLMF/OasisLMF/issues/680) - Added user defined return periods option to `analysis_settings.json`
 * [#677](https://github.com/OasisLMF/OasisLMF/pull/677) - Enabled Fmpy to handle multiple input streams
 * [#678](https://github.com/OasisLMF/OasisLMF/issues/678) - Fixed environment variable loading
 
@@ -91,18 +101,18 @@ OasisLMF Changelog
 * [#413](https://github.com/OasisLMF/OasisLMF/issues/413) - Peril Handling in Input Generation
 * [#661](https://github.com/OasisLMF/OasisLMF/issues/661) - Added experimental financial module written in Python 'fmpy'
 * [#662](https://github.com/OasisLMF/OasisLMF/issues/662) - Define relationships between event and occurrence in model_settings
-* [#671](https://github.com/OasisLMF/OasisLMF/issues/671) - Fix issue with loading booleans in oasislmf.json and corrected the 'ktools-fifo-relative' flag 
-* [#666](https://github.com/OasisLMF/OasisLMF/pull/666) - Fix files created to generate-oasis-files, being cleared 
+* [#671](https://github.com/OasisLMF/OasisLMF/issues/671) - Fix issue with loading booleans in oasislmf.json and corrected the 'ktools-fifo-relative' flag
+* [#666](https://github.com/OasisLMF/OasisLMF/pull/666) - Fix files created to generate-oasis-files, being cleared
 
 `1.11.1`_
 ---------
-* [#653](https://github.com/OasisLMF/OasisLMF/issues/653) - Fix pre-analysis exposure modification for generate-oasis-files command 
+* [#653](https://github.com/OasisLMF/OasisLMF/issues/653) - Fix pre-analysis exposure modification for generate-oasis-files command
 
 `1.11.0`_
 ---------
 * [#598](https://github.com/OasisLMF/OasisLMF/issues/598) - Fac Contracts being applied as multiple layers in RI file generation
-* [#648](https://github.com/OasisLMF/OasisLMF/issues/648) - Correlation Group OED field to drive group_id directly 
-* [#458](https://github.com/OasisLMF/OasisLMF/issues/458) - Keys lookup response clean up 
+* [#648](https://github.com/OasisLMF/OasisLMF/issues/648) - Correlation Group OED field to drive group_id directly
+* [#458](https://github.com/OasisLMF/OasisLMF/issues/458) - Keys lookup response clean up
 * [#575](https://github.com/OasisLMF/OasisLMF/issues/575) - Add option to test multi-peril in oasislmf exposure run and oasislmf test fm
 * [#606](https://github.com/OasisLMF/OasisLMF/issues/606) - missing combination of terms in calcrules to add - part 2
 * [#568](https://github.com/OasisLMF/OasisLMF/issues/568) - Min/max deductible not working when prior level locations are partially limited in OED input
@@ -138,7 +148,7 @@ OasisLMF Changelog
 `1.9.0`_
 --------
 * [#566](https://github.com/OasisLMF/OasisLMF/issues/566) - Handle unlimited LayerLimit without large default value
-* [#574](https://github.com/OasisLMF/OasisLMF/issues/574) - Use LayerNumber to identify unique policy layers in gross fm file generation 
+* [#574](https://github.com/OasisLMF/OasisLMF/issues/574) - Use LayerNumber to identify unique policy layers in gross fm file generation
 * [#578](https://github.com/OasisLMF/OasisLMF/issues/578) - Added missing combination of terms in calcrules
 * [#603](https://github.com/OasisLMF/OasisLMF/issues/603) - Add type 2 financial terms tests for multi-peril to regression test
 * [PR 600](https://github.com/OasisLMF/OasisLMF/pull/600) - Added Scripts for generated example model data for testing.
@@ -555,6 +565,7 @@ OasisLMF Changelog
 
 * Add console logging
 
+.. _`1.16.0rc1`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.5...1.16.0rc1
 .. _`1.15.5`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.4...1.15.5
 .. _`1.15.4`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.3...1.15.4
 .. _`1.15.3`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.2...1.15.3
