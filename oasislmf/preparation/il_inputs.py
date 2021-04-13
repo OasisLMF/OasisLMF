@@ -452,7 +452,7 @@ def get_account_df(accounts_fp, accounts_profile):
     if step_policies_present:
         layers_cols += ['stepnumber']
     accounts_df['layer_id'] = get_ids(
-        accounts_df[layers_cols + [policy_num, layer_num]].drop_duplicates(keep='first'),
+        accounts_df[layers_cols + [policy_num, layer_num]].drop_duplicates(layers_cols + [layer_num], keep='first'),
         layers_cols + [policy_num, layer_num], group_by=layers_cols,
     ).reindex(range(len(accounts_df))).fillna(method='ffill').astype('uint32')
 
