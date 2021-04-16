@@ -1,7 +1,7 @@
 OasisLMF Changelog
 ==================
 
-`1.16.0rc1`_
+`1.16.0rc2`_
 ---------
 .. start_latest_release
 * [#669](https://github.com/OasisLMF/OasisLMF/pull/792) - Revamp of the Key service for improved performance (PR-792)
