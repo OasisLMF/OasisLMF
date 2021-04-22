@@ -237,6 +237,7 @@ def init_variable(compute_info, len_sample, temp_dir, low_memory):
 
 
 @njit(cache=True)
-def reset_variabe(children, compute_i, computes):
+def reset_variabe(children, compute_i, computes, loss_i, losses):
     computes[:compute_i].fill(0)
+    losses[:loss_i].fill(0)
     children.fill(0)
