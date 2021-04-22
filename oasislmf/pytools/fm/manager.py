@@ -66,7 +66,7 @@ def run_synchronous(allocation_rule, static_path, files_in, files_out, low_memor
                                                                fm_profile,
                                                                stepped)
                     compute_i = event_writer.write(event_id, compute_i)
-                    reset_variabe(children, compute_i, computes)
+                    reset_variabe(children, compute_i, computes, loss_i, losses)
     finally:
         if files_in is not None:
             for stream_in in streams_in:
