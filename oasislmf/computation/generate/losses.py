@@ -146,6 +146,12 @@ class GenerateLosses(ComputationStep):
             if (rule_val < 0) or (rule_val > rule_ranges[rule]):
                 raise OasisException(f'Error: {rule}={rule_val} - Not within valid ranges [0..{rule_ranges[rule]}]')
 
+    def _store_run_settings(self, analysis_settings, target_dir):
+        """ Write the analysis settings file to the `target_dir` path
+        """
+        with io.open(os.path.join(target_dir, 'analysis_settings.json'), 'w', encoding='utf-8') as f:
+            f.write(json.dumps(analysis_settings, ensure_ascii=False, indent=4))
+
 
     def run(self):
         model_run_fp = self._get_output_dir()
@@ -196,6 +202,7 @@ class GenerateLosses(ComputationStep):
 
         prepare_run_inputs(analysis_settings, model_run_fp, ri=ri)
         script_fp = os.path.join(os.path.abspath(model_run_fp), 'run_ktools.sh')
+        self._store_run_settings(analysis_settings, os.path.join(model_run_fp, 'output'))
 
         if self.model_package_dir and os.path.exists(os.path.join(self.model_package_dir, 'supplier_model_runner.py')):
             path, package_name = os.path.split(self.model_package_dir)
@@ -374,7 +381,7 @@ class GenerateLossesDeterministic(ComputationStep):
                 fast_zip_dataframe_columns(items, ['item_id', 'tiv']), gulcalc_sidxs
             )
         ]
-        
+
         guls = get_dataframe(
             src_data=guls_items,
             col_dtypes={
