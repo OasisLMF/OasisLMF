@@ -1,13 +1,16 @@
 OasisLMF Changelog
 ==================
 
-`1.16.0rc2`_
+`1.16.0`_
 ---------
 .. start_latest_release
 * [#669](https://github.com/OasisLMF/OasisLMF/pull/792) - Revamp of the Key service for improved performance (PR-792)
 * [#802](https://github.com/OasisLMF/OasisLMF/pull/802) - Fix for null loss in max deductible case 
 * [#766](https://github.com/OasisLMF/OasisLMF/issues/766) - Updated FM python documentation 
 * [#753](https://github.com/OasisLMF/OasisLMF/pull/800) - Added ORD output options for ept/psept and updated json schema
+* [#814](https://github.com/OasisLMF/OasisLMF/pull/814) - Fix back allocation child loss loop
+* [#815](https://github.com/OasisLMF/OasisLMF/pull/815) - Update requirements and set tests to Python3.8
+* [#806](https://github.com/OasisLMF/OasisLMF/issues/806) - Store analysis run settings to outputs via the MDK 
 .. end_latest_release
 
 `1.15.6`_
@@ -568,7 +571,7 @@ OasisLMF Changelog
 
 * Add console logging
 
-.. _`1.16.0rc1`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.6...1.16.0rc1
+.. _`1.16.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.6...1.16.0
 .. _`1.15.6`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.5...1.15.6
 .. _`1.15.5`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.4...1.15.5
 .. _`1.15.4`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.3...1.15.4
