@@ -11,6 +11,7 @@ OasisLMF Changelog
 * [#814](https://github.com/OasisLMF/OasisLMF/pull/814) - Fix back allocation child loss loop
 * [#815](https://github.com/OasisLMF/OasisLMF/pull/815) - Update requirements and set tests to Python3.8
 * [#806](https://github.com/OasisLMF/OasisLMF/issues/806) - Store analysis run settings to outputs via the MDK 
+* [#807](https://github.com/OasisLMF/OasisLMF/issues/807) - Fixed fmpy numerical errors for step policies producing gross > ground up
 .. end_latest_release
 
 `1.15.6`_
