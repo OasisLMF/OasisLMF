@@ -36,11 +36,14 @@ def back_allocate(node, children, nodes_array, losses, loss_indexes, loss_i, com
 
             for c in range(node['children'] + 1, node['children'] + len_children + 1):
                 child = nodes_array[children[c]]
+                child_ba = losses[loss_i]
+                child_loss = losses[loss_indexes[child['loss'] + layer]]
+                child_il = losses[loss_indexes[child[child_loss_pointer] + layer]]
                 for i in range(proportion.shape[0]):
                     if use_loss[i]:
-                        losses[loss_i] = proportion * losses[loss_indexes[child['loss'] + layer]]
+                        child_ba[i] = proportion[i] * child_loss[i]
                     else:
-                        losses[loss_i] = proportion * losses[loss_indexes[child[child_loss_pointer] + layer]]
+                        child_ba[i] = proportion[i] * child_il[i]
                 loss_indexes[child['ba'] + layer], loss_i = loss_i, loss_i + 1
 
         for c in range(node['children'] + 1, node['children'] + len_children + 1):
