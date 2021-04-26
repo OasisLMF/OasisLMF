@@ -34,7 +34,7 @@ class InputValues(object):
                 self.config_dir = os.path.dirname(self.config_fp)
                 self.list_unknown_keys()
             except JSONDecodeError as e:
-                raise OasisException('Error: Invalid configuration file "{}"'.format(self.config_fp), e)
+                raise OasisException(f"Configuration file {self.config_fp} is not a valid json file", e)
 
         self.obsolete_keys = set(self.config) & set(self.config_mapping)
         self.list_obsolete_keys()
@@ -81,7 +81,7 @@ class InputValues(object):
     def load_config_file(self):
         try:
             with io.open(self.config_fp, 'r', encoding='utf-8') as f:
-                return dict((k.lower(), v) for k, v in json.load(f).items())
+                return {k.lower(): v for k,v in json.load(f).items()}
         except FileNotFoundError:
             raise OasisException('MDK config. file path {} provided does not exist'.format(self.config_fp))
 
