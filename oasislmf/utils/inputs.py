@@ -9,6 +9,7 @@ import logging
 
 from ..utils.defaults import get_config_profile
 from ..utils.exceptions import OasisException
+from json.decoder import JSONDecodeError
 from argparse import ArgumentTypeError
 
 
@@ -22,25 +23,42 @@ class InputValues(object):
     """
     def __init__(self, args, update_keys=True):
         self.logger = logging.getLogger()
-
         self.args = args
         self.config = {}
         self.config_fp = self.get('config', is_path=True)
         self.config_mapping = get_config_profile()
 
         if self.config_fp is not None:
-            self.config = self.load_config_file()
-            self.config_dir = os.path.dirname(self.config_fp)
+            try:
+                self.config = self.load_config_file()
+                self.config_dir = os.path.dirname(self.config_fp)
+                self.list_unknown_keys()
+            except JSONDecodeError:
+                raise OasisException('Error: The package configuration file is not valid JSON. "{}"'.format(self.config_fp))
 
         self.obsolete_keys = set(self.config) & set(self.config_mapping)
-
         self.list_obsolete_keys()
         if update_keys:
             self.update_config_keys()
 
+    def list_unknown_keys(self):
+        """
+        List all Unknown keys set in the 'oasislmf.json' file
+        """
+        valid_arg_names = set(arg[0] for arg in self.args._get_kwargs())
+        config_arg_names = set(self.config.keys())
+        unknown_args = config_arg_names - valid_arg_names - set(self.config_mapping.keys())
+        if unknown_args:
+            self.logger.warning('Warning: Unknown options(s) set in MDK config:')
+            for k in unknown_args:
+                self.logger.warning('   {} : {}'.format(
+                    k,
+                    self.config[k]
+                ))
+
     def list_obsolete_keys(self, fix_warning=True):
         if self.obsolete_keys:
-            self.logger.warning('Depricated key(s) in MDK config:')
+            self.logger.warning('Deprecated key(s) in MDK config:')
             for k in self.obsolete_keys:
                 self.logger.warning('   {} : {}'.format(
                     k,
