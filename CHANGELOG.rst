@@ -1,6 +1,13 @@
 OasisLMF Changelog
 ==================
 
+`1.15.8`_
+---------
+.. start_latest_release
+* [#814](https://github.com/OasisLMF/OasisLMF/pull/814) - Fix back allocation child loss loop
+* [#807](https://github.com/OasisLMF/OasisLMF/issues/807) - Fixed fmpy numerical errors for step policies producing gross > ground up
+.. end_latest_release
+
 `1.15.6`_
 ---------
 * [#803 - Hotfix](https://github.com/OasisLMF/OasisLMF/pull/802) - Partial fix for Max Ded back allocation in fmpy
@@ -559,6 +566,7 @@ OasisLMF Changelog
 
 * Add console logging
 
+.. _`1.15.8`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.6...1.15.8
 .. _`1.15.6`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.5...1.15.6
 .. _`1.15.5`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.4...1.15.5
 .. _`1.15.4`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.3...1.15.4
