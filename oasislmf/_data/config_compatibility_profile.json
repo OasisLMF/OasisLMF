@@ -148,5 +148,15 @@
         "from_ver": "1.9.1",
         "deleted": false,
         "updated_to": "test_case_dir"
+    },
+    "oed_locations_csv":{
+        "from_ver": "1.17.0",
+        "deleted": false,
+        "updated_to": "oed_location_csv"
+    },
+    "oed_account_csv":{
+        "from_ver": "1.17.0",
+        "deleted": false,
+        "updated_to": "oed_accounts_csv"
     }
 }
