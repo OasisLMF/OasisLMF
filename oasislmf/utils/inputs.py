@@ -48,6 +48,7 @@ class InputValues(object):
         valid_arg_names = set(arg[0] for arg in self.args._get_kwargs())
         config_arg_names = set(self.config.keys())
         unknown_args = config_arg_names - valid_arg_names - set(self.config_mapping.keys())
+
         if unknown_args:
             self.logger.warning('Warning: Unknown options(s) set in MDK config:')
             for k in unknown_args:
@@ -80,7 +81,7 @@ class InputValues(object):
     def load_config_file(self):
         try:
             with io.open(self.config_fp, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                return dict((k.lower(), v) for k, v in json.load(f).items())
         except FileNotFoundError:
             raise OasisException('MDK config. file path {} provided does not exist'.format(self.config_fp))
 
