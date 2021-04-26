@@ -3,10 +3,8 @@ OasisLMF Changelog
 
 `1.15.8`_
 ---------
-.. start_latest_release
 * [#814](https://github.com/OasisLMF/OasisLMF/pull/814) - Fix back allocation child loss loop
 * [#807](https://github.com/OasisLMF/OasisLMF/issues/807) - Fixed fmpy numerical errors for step policies producing gross > ground up
-.. end_latest_release
 
 `1.15.6`_
 ---------
