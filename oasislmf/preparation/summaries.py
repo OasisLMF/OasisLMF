@@ -469,6 +469,7 @@ def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, s
         all_cols.update(accounts_df.columns.to_list())
 
     # Extract the summary id index column depending on id_set_index
+    map_df.sort_values(id_set_index, inplace=True)
     ids_set_df = map_df.loc[:, [id_set_index]].rename(columns={'output_id': "output"})
 
     # For each granularity build a set grouping
