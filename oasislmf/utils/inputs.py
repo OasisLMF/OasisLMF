@@ -33,8 +33,8 @@ class InputValues(object):
                 self.config = self.load_config_file()
                 self.config_dir = os.path.dirname(self.config_fp)
                 self.list_unknown_keys()
-            except JSONDecodeError:
-                raise OasisException('Error: The package configuration file is not valid JSON. "{}"'.format(self.config_fp))
+            except JSONDecodeError as e:
+                raise OasisException('Error: Invalid configuration file "{}"'.format(self.config_fp), e)
 
         self.obsolete_keys = set(self.config) & set(self.config_mapping)
         self.list_obsolete_keys()
