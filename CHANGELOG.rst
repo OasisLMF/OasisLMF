@@ -3,7 +3,7 @@ OasisLMF Changelog
 
 `1.15.8`_
 ---------
-* [#774](https://github.com/OasisLMF/OasisLMF/issue/774) - Fix ordering of item_id column for gulsummaryxref
+* [#816](https://github.com/OasisLMF/OasisLMF/pull/817) - Fix ordering of item_id column for gulsummaryxref
 * [#814](https://github.com/OasisLMF/OasisLMF/pull/814) - Fix back allocation child loss loop
 * [#807](https://github.com/OasisLMF/OasisLMF/issues/807) - Fixed fmpy numerical errors for step policies producing gross > ground up
 
