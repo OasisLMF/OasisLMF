@@ -839,7 +839,7 @@
                "type":"string",
                "title":"Keys data version",
                "description":"Version ID of the lookup keys data.",
-               "minLength":1
+               "minLength":0
             },
             "worker_image": {
                "type":"string",
@@ -851,6 +851,18 @@
                "type":"string",
                "title":"Worker image version",
                "description":"The model worker's version ID",
+               "minLength":1
+            },
+            "docs_version": {
+               "type":"string",
+               "title":"Documents version",
+               "description":"Version ID of the model documents",
+               "minLength":1
+            },
+            "test_files_version": {
+               "type":"string",
+               "title":"Test files version",
+               "description":"Version ID of the test files",
                "minLength":1
             },
             "countries":{
@@ -898,6 +910,12 @@
                         "type":"string",
                         "title":"Asset path",
                         "description":"Filesystem path to the asset",
+                        "minLength":1
+                     },
+                     "deploy":{
+                        "type":"string",
+                        "title":"Deployment target",
+                        "description":"Target for deploying this additional asset",
                         "minLength":1
                      }
                   },
