@@ -35,6 +35,8 @@ from pathlib import Path
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from .files import TAR_FILE, INPUT_FILES, GUL_INPUT_FILES, IL_INPUT_FILES
+from .bash import leccalc_enabled, ord_leccalc_enabled
+
 
 
 @oasis_log
@@ -215,7 +217,7 @@ def _prepare_input_bin(run_dir, bin_name, model_settings, setting_key=None, ri=F
             # 'verbatim' -  Try setting value as given
             model_data_bin_fp = os.path.join(run_dir, 'static', '{}_{}.bin'.format(bin_name, str(setting_val)))
             if not os.path.isfile(model_data_bin_fp):
-                # 'compatibility' - Fallback name formating to keep existing conversion
+                # 'compatibility' - Fallback name formatting to keep existing conversion
                 setting_val = str(setting_val).replace(' ', '_').lower()
                 model_data_bin_fp = os.path.join(run_dir, 'static', '{}_{}.bin'.format(bin_name, setting_val))
 
@@ -227,7 +229,7 @@ def _prepare_input_bin(run_dir, bin_name, model_settings, setting_key=None, ri=F
 
 def _calc_selected(analysis_settings, calc_type):
     """
-    Return True, if "calc_type" is set in the anaylysis settings file
+    Return True, if "calc_type" is set in the analysis settings file
 
     :param calc_type: one of `eltcalc`, `lec_output`, `aalcalc` or `pltcalc`
     :type calc_type: str
@@ -249,6 +251,28 @@ def _calc_selected(analysis_settings, calc_type):
 
     return any([is_in_gul, is_in_il, is_in_ri])
 
+
+def _leccalc_selected(analysis_settings):
+    """ return True if either 'leccalc' or 'ordleccalc' is referenced in the analysis settings file
+    """
+    is_in_gul = False
+    is_in_il = False
+    is_in_ri = False
+
+    gul_section = analysis_settings.get('gul_summaries')
+    il_section = analysis_settings.get('il_summaries')
+    ri_section = analysis_settings.get('ri_summaries')
+
+    if gul_section:
+        is_in_gul = any(leccalc_enabled(gul_summary) or ord_leccalc_enabled(gul_summary) for gul_summary in gul_section)
+    if il_section:
+        is_in_il = any(leccalc_enabled(il_summary) or ord_leccalc_enabled(il_summary) for il_summary in il_section)
+    if ri_section:
+        is_in_ri = any(leccalc_enabled(ri_summary) or ord_leccalc_enabled(ri_summary) for ri_summary in ri_section)
+
+    return any([is_in_gul, is_in_il, is_in_ri])
+
+
 @oasis_log
 def prepare_run_inputs(analysis_settings, run_dir, ri=False):
     """
@@ -265,7 +289,7 @@ def prepare_run_inputs(analysis_settings, run_dir, ri=False):
         _prepare_input_bin(run_dir, 'events', model_settings, setting_key='event_set', ri=ri)
 
         # Prepare occurrence / returnperiod depending on output calcs selected
-        if _calc_selected(analysis_settings, 'lec_output'):
+        if _leccalc_selected(analysis_settings):
             if analysis_settings.get('return_periods'):
                 # Create return periods from user input
                 _create_return_period_bin(run_dir, analysis_settings.get('return_periods'))
