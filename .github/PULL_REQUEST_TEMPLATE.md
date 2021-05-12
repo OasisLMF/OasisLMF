@@ -1,4 +1,4 @@
-**IMPORTANT: Please attach or create an issue before submitting a Pull Request.
+**IMPORTANT: Please attach or create an issue after submitting a Pull Request.
 
 <!--start_release_notes-->
 ### Release notes feature title 
