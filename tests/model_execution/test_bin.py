@@ -673,7 +673,24 @@ class PrepareRunInputs(TestCase):
                 returnperiods_file.flush()
 
                 settings = {"gul_summaries":[{
-                    "lec_output": True
+                    "lec_output": True,
+                    "leccalc": {"full_uncertainty_aep": True},
+                }]}
+                prepare_run_inputs(settings, d)
+
+            with io.open(os.path.join(d, 'input', 'returnperiods.bin'), 'r', encoding='utf-8') as new_returnperiods_file:
+                self.assertEqual('returnperiods bin', new_returnperiods_file.read())
+
+    def test_ord_returnperiods_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
+        with TemporaryDirectory() as d:
+            self.make_fake_bins(d)
+
+            with io.open(os.path.join(d, 'static', 'returnperiods.bin'), 'w', encoding='utf-8') as returnperiods_file:
+                returnperiods_file.write('returnperiods bin')
+                returnperiods_file.flush()
+
+                settings = {"gul_summaries":[{
+                    "ord_output": {"psept_oep": True},
                 }]}
                 prepare_run_inputs(settings, d)
 
@@ -687,7 +704,19 @@ class PrepareRunInputs(TestCase):
 
             with self.assertRaises(OasisException):
                 settings = {"gul_summaries":[{
-                    "lec_output": True
+                    "lec_output": True,
+                    "leccalc": {"full_uncertainty_aep": True},
+                }]}
+                prepare_run_inputs(settings, d)
+
+    def test_ord_no_returnperiods_bin_exists___oasis_exception_is_raised(self):
+        with TemporaryDirectory() as d:
+            self.make_fake_bins(d)
+            os.remove(os.path.join(d, 'static', 'returnperiods.bin'))
+
+            with self.assertRaises(OasisException):
+                settings = {"gul_summaries":[{
+                    "ord_output": {"ept_full_uncertainty_aep": True},
                 }]}
                 prepare_run_inputs(settings, d)
 
@@ -713,7 +742,24 @@ class PrepareRunInputs(TestCase):
                 occurrence_file.flush()
 
                 settings = {"gul_summaries":[{
-                    "lec_output": True
+                    "lec_output": True,
+                    "leccalc": {"full_uncertainty_aep": True},
+                }]}
+                prepare_run_inputs(settings, d)
+
+            with io.open(os.path.join(d, 'input', 'occurrence.bin'), 'r', encoding='utf-8') as new_occurrence_file:
+                self.assertEqual('occurrence bin', new_occurrence_file.read())
+
+    def test_ord_occurrence_bin_doesnt_not_exist_event_set_isnt_specified___bin_is_copied_from_static(self):
+        with TemporaryDirectory() as d:
+            self.make_fake_bins(d)
+
+            with io.open(os.path.join(d, 'static', 'occurrence.bin'), 'w', encoding='utf-8') as occurrence_file:
+                occurrence_file.write('occurrence bin')
+                occurrence_file.flush()
+
+                settings = {"gul_summaries":[{
+                    "ord_output": {"ept_per_sample_mean_aep": True},
                 }]}
                 prepare_run_inputs(settings, d)
 
@@ -729,7 +775,29 @@ class PrepareRunInputs(TestCase):
                 occurrence_file.flush()
 
                 settings = {
-                    "gul_summaries":[{ "lec_output": True}],
+                    "gul_summaries":[{
+                        "lec_output": True,
+                        "leccalc": {"full_uncertainty_aep": True},
+                    }],
+                    'model_settings': {'event_occurrence_id': 'occurrence id'}
+                }
+                prepare_run_inputs(settings, d)
+
+            with io.open(os.path.join(d, 'input', 'occurrence.bin'), 'r', encoding='utf-8') as new_occurrence_file:
+                self.assertEqual('occurrence occurrence id bin', new_occurrence_file.read())
+
+    def test_ord_occurrence_bin_doesnt_not_exist_event_set_is_specified___event_occurrence_id_specific_bin_is_copied_from_static(self):
+        with TemporaryDirectory() as d:
+            self.make_fake_bins(d)
+
+            with io.open(os.path.join(d, 'static', 'occurrence_occurrence_id.bin'), 'w', encoding='utf-8') as occurrence_file:
+                occurrence_file.write('occurrence occurrence id bin')
+                occurrence_file.flush()
+
+                settings = {
+                    "gul_summaries":[{
+                        "ord_output": {"psept_oep": True},
+                    }],
                     'model_settings': {'event_occurrence_id': 'occurrence id'}
                 }
                 prepare_run_inputs(settings, d)
