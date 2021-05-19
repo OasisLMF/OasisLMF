@@ -17,7 +17,7 @@ Within the release candidate testing week a pre-release version of oasislmf can 
 
 ### Long(er) term support release
 Starting from Oasis version `1.15.x` Oasis will backport fixes to the (Long Term support) LTS version of Oasis. This is a single version of oasis that will be updated along with the main release cycle. 
-The LTS release with switch to track a newer version of monthly release as high priority feature milestones are met. We expect that to happen, approximately, quarterly. 
+The LTS release with switch to track a newer version of monthly release as high priority feature milestones are met. We expect that to happen on a quarterly basis. 
 
 
 ## Features
