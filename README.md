@@ -16,7 +16,7 @@ Release candidates are published on the last Thursday of each month, and tagged 
 Within the release candidate testing week a pre-release version of oasislmf can be installed using `pip install oasislmf --pre`
 
 ### Long(er) term support release
-Starting from Oasis version `1.15.x` Oasis will backport fixes to the (Long Term support) LTS version of Oasis. This is a single version of oasis that will be updated at the along with the main release cycle. 
+Starting from Oasis version `1.15.x` Oasis will backport fixes to the (Long Term support) LTS version of Oasis. This is a single version of oasis that will be updated along with the main release cycle. 
 The LTS release with switch to track a newer version of monthly release as high priority feature milestones are met. We expect that to happen, approximately, quarterly. 
 
 
