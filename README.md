@@ -7,6 +7,19 @@
 
 The `oasislmf` Python package, loosely called the *model development kit (MDK)* or the *MDK package*, provides a command line toolkit for developing, testing and running Oasis models end-to-end locally, or remotely via the Oasis API. It can generate ground-up losses (GUL), direct/insured losses (IL) and reinsurance losses (RIL). It can also generate deterministic losses at all these levels.
 
+
+## Releases and maintenance 
+Releases are published on a monthly cadence which tracks our team's development cycle. The planned fixes, enhancements and features can be seen on the [project development board](https://github.com/orgs/OasisLMF/projects/35) before each release. 
+
+### Release Cycle 
+Release candidates are published on the last Thursday of each month, and tagged as `<version>rc<candidate-version>`, if no changes are required a candidate release is switched from `pre-release` to a `montly release` on the following Thursday (First Thursday of the next month)
+Within the release candidate testing week a pre-release version of oasislmf can be installed using `pip install oasislmf --pre`
+
+### Long(er) term support release
+Starting from Oasis version `1.15.x` Oasis will backport fixes to the (Long Term support) LTS version of Oasis. This is a single version of oasis that will be updated at the along with the main release cycle. 
+The LTS release with switch to track a newer version of monthly release as high priority feature milestones are met. We expect that to happen, approximately, quarterly. 
+
+
 ## Features
 
 For running models locally the CLI provides a `model` subcommand with the following options:
