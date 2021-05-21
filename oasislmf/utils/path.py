@@ -57,7 +57,7 @@ def as_path(path, label, is_dir=False, preexists=True, null_is_valid=True):
     if is_dir and preexists and not os.path.isdir(path):
         raise OasisException(f'The path {path} ({label}) is indicated as a preexisting directory but is not actually a directory')
 
-    return path
+    return os.path.normpath(path)
 
 
 def empty_dir(dir_fp):
