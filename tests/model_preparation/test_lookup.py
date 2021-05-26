@@ -259,7 +259,7 @@ class OasisLookupFactoryGetSourceExposure(TestCase):
 
 class OasisLookupFactoryWriteOasisKeysFiles(TestCase):
 
-    @settings(suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=HealthCheck.all())
     @given(
         successes=keys(from_statuses=just(OASIS_KEYS_STATUS['success']['id']), size=5),
         nonsuccesses=keys(
@@ -313,7 +313,7 @@ class OasisLookupFactoryWriteOasisKeysFiles(TestCase):
 
 
 class OasisLookupFactoryWriteJsonFiles(TestCase):
-    @settings(suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=HealthCheck.all())
     @given(
         successes=keys(from_statuses=just(OASIS_KEYS_STATUS['success']['id']), size=5),
         nonsuccesses=keys(
