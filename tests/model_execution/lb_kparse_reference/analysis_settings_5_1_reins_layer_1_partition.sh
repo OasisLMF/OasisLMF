@@ -39,15 +39,19 @@ mkfifo fifo/il_P1
 mkfifo fifo/il_P2
 
 mkfifo fifo/il_S1_summary_P1
+mkfifo fifo/il_S1_summary_P1.idx
 
 mkfifo fifo/il_S1_summary_P2
+mkfifo fifo/il_S1_summary_P2.idx
 
 mkfifo fifo/ri_P1
 mkfifo fifo/ri_P2
 
 mkfifo fifo/ri_S1_summary_P1
+mkfifo fifo/ri_S1_summary_P1.idx
 
 mkfifo fifo/ri_S1_summary_P2
+mkfifo fifo/ri_S1_summary_P2.idx
 
 mkfifo fifo/gul_lb_P1
 mkfifo fifo/gul_lb_P2
@@ -61,34 +65,38 @@ mkfifo fifo/lb_il_P2
 
 
 tee < fifo/ri_S1_summary_P1 work/ri_S1_summaryleccalc/P1.bin > /dev/null & pid1=$!
-tee < fifo/ri_S1_summary_P2 work/ri_S1_summaryleccalc/P2.bin > /dev/null & pid2=$!
+tee < fifo/ri_S1_summary_P1.idx work/ri_S1_summaryleccalc/P1.idx > /dev/null & pid2=$!
+tee < fifo/ri_S1_summary_P2 work/ri_S1_summaryleccalc/P2.bin > /dev/null & pid3=$!
+tee < fifo/ri_S1_summary_P2.idx work/ri_S1_summaryleccalc/P2.idx > /dev/null & pid4=$!
 
-summarycalc -f -p RI_1 -1 fifo/ri_S1_summary_P1 < fifo/ri_P1 &
-summarycalc -f -p RI_1 -1 fifo/ri_S1_summary_P2 < fifo/ri_P2 &
+summarycalc -m -f -p RI_1 -1 fifo/ri_S1_summary_P1 < fifo/ri_P1 &
+summarycalc -m -f -p RI_1 -1 fifo/ri_S1_summary_P2 < fifo/ri_P2 &
 
 # --- Do insured loss computes ---
 
 
-tee < fifo/il_S1_summary_P1 work/il_S1_summaryleccalc/P1.bin > /dev/null & pid3=$!
-tee < fifo/il_S1_summary_P2 work/il_S1_summaryleccalc/P2.bin > /dev/null & pid4=$!
+tee < fifo/il_S1_summary_P1 work/il_S1_summaryleccalc/P1.bin > /dev/null & pid5=$!
+tee < fifo/il_S1_summary_P1.idx work/il_S1_summaryleccalc/P1.idx > /dev/null & pid6=$!
+tee < fifo/il_S1_summary_P2 work/il_S1_summaryleccalc/P2.bin > /dev/null & pid7=$!
+tee < fifo/il_S1_summary_P2.idx work/il_S1_summaryleccalc/P2.idx > /dev/null & pid8=$!
 
-summarycalc -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
-summarycalc -f  -1 fifo/il_S1_summary_P2 < fifo/il_P2 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P2 < fifo/il_P2 &
 
 # --- Do ground up loss computes ---
 
-eltcalc < fifo/gul_S1_eltcalc_P1 > work/kat/gul_S1_eltcalc_P1 & pid5=$!
-summarycalctocsv < fifo/gul_S1_summarycalc_P1 > work/kat/gul_S1_summarycalc_P1 & pid6=$!
-pltcalc < fifo/gul_S1_pltcalc_P1 > work/kat/gul_S1_pltcalc_P1 & pid7=$!
-eltcalc -s < fifo/gul_S1_eltcalc_P2 > work/kat/gul_S1_eltcalc_P2 & pid8=$!
-summarycalctocsv -s < fifo/gul_S1_summarycalc_P2 > work/kat/gul_S1_summarycalc_P2 & pid9=$!
-pltcalc -s < fifo/gul_S1_pltcalc_P2 > work/kat/gul_S1_pltcalc_P2 & pid10=$!
+eltcalc < fifo/gul_S1_eltcalc_P1 > work/kat/gul_S1_eltcalc_P1 & pid9=$!
+summarycalctocsv < fifo/gul_S1_summarycalc_P1 > work/kat/gul_S1_summarycalc_P1 & pid10=$!
+pltcalc < fifo/gul_S1_pltcalc_P1 > work/kat/gul_S1_pltcalc_P1 & pid11=$!
+eltcalc -s < fifo/gul_S1_eltcalc_P2 > work/kat/gul_S1_eltcalc_P2 & pid12=$!
+summarycalctocsv -s < fifo/gul_S1_summarycalc_P2 > work/kat/gul_S1_summarycalc_P2 & pid13=$!
+pltcalc -s < fifo/gul_S1_pltcalc_P2 > work/kat/gul_S1_pltcalc_P2 & pid14=$!
 
-tee < fifo/gul_S1_summary_P1 fifo/gul_S1_eltcalc_P1 fifo/gul_S1_summarycalc_P1 fifo/gul_S1_pltcalc_P1 work/gul_S1_summaryaalcalc/P1.bin > /dev/null & pid11=$!
-tee < fifo/gul_S1_summary_P2 fifo/gul_S1_eltcalc_P2 fifo/gul_S1_summarycalc_P2 fifo/gul_S1_pltcalc_P2 work/gul_S1_summaryaalcalc/P2.bin > /dev/null & pid12=$!
+tee < fifo/gul_S1_summary_P1 fifo/gul_S1_eltcalc_P1 fifo/gul_S1_summarycalc_P1 fifo/gul_S1_pltcalc_P1 work/gul_S1_summaryaalcalc/P1.bin > /dev/null & pid15=$!
+tee < fifo/gul_S1_summary_P2 fifo/gul_S1_eltcalc_P2 fifo/gul_S1_summarycalc_P2 fifo/gul_S1_pltcalc_P2 work/gul_S1_summaryaalcalc/P2.bin > /dev/null & pid16=$!
 
-summarycalc -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
-summarycalc -i  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 &
+summarycalc -m -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
+summarycalc -m -i  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 &
 
 eve 1 2 | getmodel | gulcalc -S0 -L0 -r -a0 -i - | tee fifo/gul_P1 > fifo/gul_lb_P1  &
 eve 2 2 | getmodel | gulcalc -S0 -L0 -r -a0 -i - | tee fifo/gul_P2 > fifo/gul_lb_P2  &
@@ -96,7 +104,7 @@ load_balancer -i fifo/gul_lb_P1 fifo/gul_lb_P2 -o fifo/lb_il_P1 fifo/lb_il_P2 &
 fmpy -a2 < fifo/lb_il_P1 | tee fifo/il_P1 | fmpy -a2 -n -p RI_1 > fifo/ri_P1 &
 fmpy -a2 < fifo/lb_il_P2 | tee fifo/il_P2 | fmpy -a2 -n -p RI_1 > fifo/ri_P2 &
 
-wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12
+wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16
 
 
 # --- Do reinsurance loss kats ---

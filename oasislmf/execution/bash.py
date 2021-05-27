@@ -383,6 +383,10 @@ def do_fifos_calc(runtype, analysis_settings, max_process_id,
             if 'id' in summary:
                 summary_set = summary['id']
                 do_fifo_exec(runtype, process_id, filename, fifo_dir, action, f'S{summary_set}_summary')
+                if leccalc_enabled(summary) or ord_leccalc_enabled(summary):
+                    idx_fifo = get_fifo_name(fifo_dir, runtype, process_id, f'S{summary_set}_summary')
+                    idx_fifo += '.idx'
+                    print_command(filename, f'mkfifo {idx_fifo}')
 
                 for summary_type in SUMMARY_TYPES:
                     if summary.get(summary_type):
@@ -522,7 +526,9 @@ def do_summarycalcs(
     if gul_full_correlation:
         input_filename_component = '_sumcalc'
 
-    cmd = 'summarycalc {} {}'.format(summarycalc_switch, summarycalc_directory_switch)
+    # Use -m flag to create summary index files
+    # This is likely to become default in future ktools releases
+    cmd = 'summarycalc -m {} {}'.format(summarycalc_switch, summarycalc_directory_switch)
     for summary in summaries:
         if 'id' in summary:
             summary_set = summary['id']
@@ -550,6 +556,8 @@ def do_tees(runtype, analysis_settings, process_id, filename, process_counter, f
 
 
             cmd = f'tee < {get_fifo_name(fifo_dir, runtype, process_id, f"S{summary_set}_summary")}'
+            if leccalc_enabled(summary) or ord_leccalc_enabled(summary):
+                cmd_idx = cmd + '.idx'
 
             for summary_type in SUMMARY_TYPES:
                 if summary.get(summary_type):
@@ -561,10 +569,16 @@ def do_tees(runtype, analysis_settings, process_id, filename, process_counter, f
             # leccalc and ordleccalc share the same summarycalc binary data
             # only create the workfolders once if either option is selected
             if leccalc_enabled(summary) or ord_leccalc_enabled(summary):
-                cmd = '{} {}{}_S{}_summaryleccalc/P{}.bin'.format(cmd, work_dir, runtype, summary_set, process_id)
+                leccalc_out = f'{work_dir}{runtype}_S{summary_set}_summaryleccalc/P{process_id}'
+                cmd = f'{cmd} {leccalc_out}.bin'
+                cmd_idx = f'{cmd_idx} {leccalc_out}.idx'
 
             cmd = '{} > /dev/null & pid{}=$!'.format(cmd, process_counter['pid_monitor_count'])
             print_command(filename, cmd)
+            if leccalc_enabled(summary) or ord_leccalc_enabled(summary):
+                process_counter['pid_monitor_count'] += 1
+                cmd_idx = '{} > /dev/null & pid{}=$!'.format(cmd_idx, process_counter['pid_monitor_count'])
+                print_command(filename, cmd_idx)
 
 
 def do_tees_fc_sumcalc_fmcalc(process_id, filename, correlated_output_stems):
