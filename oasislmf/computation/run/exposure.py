@@ -316,7 +316,7 @@ class RunFmTest(ComputationStep):
         {'name': 'list_tests', 'flag': '-l', 'action': 'store_true', 'help': 'List the valid test cases in the test directory rather than running'},
         {'name': 'run_dir', 'flag': '-r', 'help': 'Run directory - where files should be generated. If not sst, no files will be saved.'},
         {'name': 'num_subperils', 'flag':'-p', 'default': 1,  'type':int, 'help': 'Set the number of subperils returned by deterministic key generator'},
-        {'name': 'test_tolerance', 'type' :float, 'help': 'Relative tolerance between expected values and results, default is "1e-4" or 0.0001%', 'default': 1e-4},
+        {'name': 'test_tolerance', 'type' :float, 'help': 'Relative tolerance between expected values and results, default is "1e-4" or 0.0001', 'default': 1e-4},
         {'name': 'fmpy', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
