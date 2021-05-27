@@ -383,6 +383,10 @@ def do_fifos_calc(runtype, analysis_settings, max_process_id,
             if 'id' in summary:
                 summary_set = summary['id']
                 do_fifo_exec(runtype, process_id, filename, fifo_dir, action, f'S{summary_set}_summary')
+                if leccalc_enabled(summary) or ord_leccalc_enabled(summary):
+                    idx_fifo = get_fifo_name(fifo_dir, runtype, process_id, f'S{summary_set}_summary')
+                    idx_fifo += '.idx'
+                    print_command(filename, f'mkfifo {idx_fifo}')
 
                 for summary_type in SUMMARY_TYPES:
                     if summary.get(summary_type):
