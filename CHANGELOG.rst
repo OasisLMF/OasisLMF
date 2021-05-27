@@ -1,6 +1,15 @@
 OasisLMF Changelog
 ==================
 
+`1.15.9`_
+ ---------
+* [#833](https://github.com/OasisLMF/OasisLMF/pull/834) - Minor issue - error parsing fm CLI help text 
+* [#831](https://github.com/OasisLMF/OasisLMF/pull/835) - Add timestamps to logger
+* [#840](https://github.com/OasisLMF/OasisLMF/pull/841) - Fix flaky tests in model_preparation/test_lookup.py
+* [#821](https://github.com/OasisLMF/OasisLMF/pull/821) - Add missing items to data settings
+* [#826](https://github.com/OasisLMF/OasisLMF/pull/826) - Automate Change logs and release notes
+.. _`1.15.9`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.8...1.15.9
+
 `1.15.8`_
 ---------
 * [#816](https://github.com/OasisLMF/OasisLMF/pull/817) - Fix ordering of item_id column for gulsummaryxref
