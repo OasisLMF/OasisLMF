@@ -10,13 +10,12 @@ rm -R -f log/*
 
 # --- Setup run dirs ---
 
-find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
+find output/* ! -name '*summary-info*' -exec rm -R -f {} +
 
 rm -R -f fifo/*
 rm -R -f work/*
 mkdir work/kat/
 
-fmpy -a2 --create-financial-structure-files
 mkdir work/gul_S1_summaryleccalc
 mkdir work/gul_S1_summaryaalcalc
 mkdir work/il_S1_summaryleccalc
@@ -293,29 +292,29 @@ load_balancer -i fifo/gul_lb_P3 fifo/gul_lb_P4 -o fifo/lb_il_P3 fifo/lb_il_P4 &
 load_balancer -i fifo/gul_lb_P5 fifo/gul_lb_P6 -o fifo/lb_il_P5 fifo/lb_il_P6 &
 load_balancer -i fifo/gul_lb_P7 fifo/gul_lb_P8 -o fifo/lb_il_P7 fifo/lb_il_P8 &
 load_balancer -i fifo/gul_lb_P9 fifo/gul_lb_P10 -o fifo/lb_il_P9 fifo/lb_il_P10 &
-fmpy -a2 < fifo/lb_il_P1 > fifo/il_P1 &
-fmpy -a2 < fifo/lb_il_P2 > fifo/il_P2 &
-fmpy -a2 < fifo/lb_il_P3 > fifo/il_P3 &
-fmpy -a2 < fifo/lb_il_P4 > fifo/il_P4 &
-fmpy -a2 < fifo/lb_il_P5 > fifo/il_P5 &
-fmpy -a2 < fifo/lb_il_P6 > fifo/il_P6 &
-fmpy -a2 < fifo/lb_il_P7 > fifo/il_P7 &
-fmpy -a2 < fifo/lb_il_P8 > fifo/il_P8 &
-fmpy -a2 < fifo/lb_il_P9 > fifo/il_P9 &
-fmpy -a2 < fifo/lb_il_P10 > fifo/il_P10 &
+fmcalc -a2 < fifo/lb_il_P1 > fifo/il_P1 &
+fmcalc -a2 < fifo/lb_il_P2 > fifo/il_P2 &
+fmcalc -a2 < fifo/lb_il_P3 > fifo/il_P3 &
+fmcalc -a2 < fifo/lb_il_P4 > fifo/il_P4 &
+fmcalc -a2 < fifo/lb_il_P5 > fifo/il_P5 &
+fmcalc -a2 < fifo/lb_il_P6 > fifo/il_P6 &
+fmcalc -a2 < fifo/lb_il_P7 > fifo/il_P7 &
+fmcalc -a2 < fifo/lb_il_P8 > fifo/il_P8 &
+fmcalc -a2 < fifo/lb_il_P9 > fifo/il_P9 &
+fmcalc -a2 < fifo/lb_il_P10 > fifo/il_P10 &
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22 $pid23 $pid24 $pid25 $pid26 $pid27 $pid28 $pid29 $pid30 $pid31 $pid32 $pid33 $pid34 $pid35 $pid36 $pid37 $pid38 $pid39 $pid40 $pid41 $pid42 $pid43 $pid44 $pid45 $pid46 $pid47 $pid48 $pid49 $pid50 $pid51 $pid52 $pid53 $pid54 $pid55 $pid56 $pid57 $pid58 $pid59 $pid60 $pid61 $pid62 $pid63 $pid64 $pid65 $pid66 $pid67 $pid68 $pid69 $pid70 $pid71 $pid72 $pid73 $pid74 $pid75 $pid76 $pid77 $pid78 $pid79 $pid80
 
 
 # --- Do insured loss kats ---
 
-kat -s work/kat/il_S1_eltcalc_P1 work/kat/il_S1_eltcalc_P2 work/kat/il_S1_eltcalc_P3 work/kat/il_S1_eltcalc_P4 work/kat/il_S1_eltcalc_P5 work/kat/il_S1_eltcalc_P6 work/kat/il_S1_eltcalc_P7 work/kat/il_S1_eltcalc_P8 work/kat/il_S1_eltcalc_P9 work/kat/il_S1_eltcalc_P10 > output/il_S1_eltcalc.csv & kpid1=$!
+kat work/kat/il_S1_eltcalc_P1 work/kat/il_S1_eltcalc_P2 work/kat/il_S1_eltcalc_P3 work/kat/il_S1_eltcalc_P4 work/kat/il_S1_eltcalc_P5 work/kat/il_S1_eltcalc_P6 work/kat/il_S1_eltcalc_P7 work/kat/il_S1_eltcalc_P8 work/kat/il_S1_eltcalc_P9 work/kat/il_S1_eltcalc_P10 > output/il_S1_eltcalc.csv & kpid1=$!
 kat work/kat/il_S1_pltcalc_P1 work/kat/il_S1_pltcalc_P2 work/kat/il_S1_pltcalc_P3 work/kat/il_S1_pltcalc_P4 work/kat/il_S1_pltcalc_P5 work/kat/il_S1_pltcalc_P6 work/kat/il_S1_pltcalc_P7 work/kat/il_S1_pltcalc_P8 work/kat/il_S1_pltcalc_P9 work/kat/il_S1_pltcalc_P10 > output/il_S1_pltcalc.csv & kpid2=$!
 kat work/kat/il_S1_summarycalc_P1 work/kat/il_S1_summarycalc_P2 work/kat/il_S1_summarycalc_P3 work/kat/il_S1_summarycalc_P4 work/kat/il_S1_summarycalc_P5 work/kat/il_S1_summarycalc_P6 work/kat/il_S1_summarycalc_P7 work/kat/il_S1_summarycalc_P8 work/kat/il_S1_summarycalc_P9 work/kat/il_S1_summarycalc_P10 > output/il_S1_summarycalc.csv & kpid3=$!
 
 # --- Do ground up loss kats ---
 
-kat -s work/kat/gul_S1_eltcalc_P1 work/kat/gul_S1_eltcalc_P2 work/kat/gul_S1_eltcalc_P3 work/kat/gul_S1_eltcalc_P4 work/kat/gul_S1_eltcalc_P5 work/kat/gul_S1_eltcalc_P6 work/kat/gul_S1_eltcalc_P7 work/kat/gul_S1_eltcalc_P8 work/kat/gul_S1_eltcalc_P9 work/kat/gul_S1_eltcalc_P10 > output/gul_S1_eltcalc.csv & kpid4=$!
+kat work/kat/gul_S1_eltcalc_P1 work/kat/gul_S1_eltcalc_P2 work/kat/gul_S1_eltcalc_P3 work/kat/gul_S1_eltcalc_P4 work/kat/gul_S1_eltcalc_P5 work/kat/gul_S1_eltcalc_P6 work/kat/gul_S1_eltcalc_P7 work/kat/gul_S1_eltcalc_P8 work/kat/gul_S1_eltcalc_P9 work/kat/gul_S1_eltcalc_P10 > output/gul_S1_eltcalc.csv & kpid4=$!
 kat work/kat/gul_S1_pltcalc_P1 work/kat/gul_S1_pltcalc_P2 work/kat/gul_S1_pltcalc_P3 work/kat/gul_S1_pltcalc_P4 work/kat/gul_S1_pltcalc_P5 work/kat/gul_S1_pltcalc_P6 work/kat/gul_S1_pltcalc_P7 work/kat/gul_S1_pltcalc_P8 work/kat/gul_S1_pltcalc_P9 work/kat/gul_S1_pltcalc_P10 > output/gul_S1_pltcalc.csv & kpid5=$!
 kat work/kat/gul_S1_summarycalc_P1 work/kat/gul_S1_summarycalc_P2 work/kat/gul_S1_summarycalc_P3 work/kat/gul_S1_summarycalc_P4 work/kat/gul_S1_summarycalc_P5 work/kat/gul_S1_summarycalc_P6 work/kat/gul_S1_summarycalc_P7 work/kat/gul_S1_summarycalc_P8 work/kat/gul_S1_summarycalc_P9 work/kat/gul_S1_summarycalc_P10 > output/gul_S1_summarycalc.csv & kpid6=$!
 wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6

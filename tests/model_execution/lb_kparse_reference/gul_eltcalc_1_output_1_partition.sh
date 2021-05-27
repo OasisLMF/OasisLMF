@@ -10,7 +10,7 @@ rm -R -f log/*
 
 # --- Setup run dirs ---
 
-find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
+find output/* ! -name '*summary-info*' -exec rm -R -f {} +
 
 rm -R -f fifo/*
 rm -R -f work/*
@@ -39,7 +39,7 @@ wait $pid1 $pid2
 
 # --- Do ground up loss kats ---
 
-kat -s work/kat/gul_S1_eltcalc_P1 > output/gul_S1_eltcalc.csv & kpid1=$!
+kat work/kat/gul_S1_eltcalc_P1 > output/gul_S1_eltcalc.csv & kpid1=$!
 wait $kpid1
 
 

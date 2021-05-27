@@ -10,7 +10,7 @@ rm -R -f log/*
 
 # --- Setup run dirs ---
 
-find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
+find output/* ! -name '*summary-info*' -exec rm -R -f {} +
 
 rm -R -f work/*
 mkdir work/kat/
@@ -40,7 +40,7 @@ wait $pid1 $pid2
 
 # --- Do insured loss kats ---
 
-kat -s work/kat/il_S1_eltcalc_P1 > output/il_S1_eltcalc.csv & kpid1=$!
+kat work/kat/il_S1_eltcalc_P1 > output/il_S1_eltcalc.csv & kpid1=$!
 wait $kpid1
 
 

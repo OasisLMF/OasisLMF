@@ -10,7 +10,7 @@ rm -R -f log/*
 
 # --- Setup run dirs ---
 
-find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
+find output/* ! -name '*summary-info*' -exec rm -R -f {} +
 
 rm -R -f work/*
 mkdir work/kat/

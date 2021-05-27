@@ -10,14 +10,12 @@ rm -R -f log/*
 
 # --- Setup run dirs ---
 
-find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
+find output/* ! -name '*summary-info*' -exec rm -R -f {} +
 
 rm -R -f fifo/*
 rm -R -f work/*
 mkdir work/kat/
 
-fmpy -a2 --create-financial-structure-files
-fmpy -a2 --create-financial-structure-files -p RI_1
 mkdir work/gul_S1_summaryaalcalc
 mkdir work/il_S1_summaryaalcalc
 mkdir work/ri_S1_summaryleccalc
@@ -118,27 +116,27 @@ summarycalc -i  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 &
 eve 1 2 | getmodel | gulcalc -S0 -L0 -r -a0 -i - | tee fifo/gul_P1 > fifo/gul_lb_P1  &
 eve 2 2 | getmodel | gulcalc -S0 -L0 -r -a0 -i - | tee fifo/gul_P2 > fifo/gul_lb_P2  &
 load_balancer -i fifo/gul_lb_P1 fifo/gul_lb_P2 -o fifo/lb_il_P1 fifo/lb_il_P2 &
-fmpy -a2 < fifo/lb_il_P1 | tee fifo/il_P1 | fmpy -a2 -n -p RI_1 > fifo/ri_P1 &
-fmpy -a2 < fifo/lb_il_P2 | tee fifo/il_P2 | fmpy -a2 -n -p RI_1 > fifo/ri_P2 &
+fmcalc -a2 < fifo/lb_il_P1 | tee fifo/il_P1 | fmcalc -a2 -n -p RI_1 > fifo/ri_P1 &
+fmcalc -a2 < fifo/lb_il_P2 | tee fifo/il_P2 | fmcalc -a2 -n -p RI_1 > fifo/ri_P2 &
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20 $pid21 $pid22 $pid23 $pid24
 
 
 # --- Do reinsurance loss kats ---
 
-kat -s work/kat/ri_S1_eltcalc_P1 work/kat/ri_S1_eltcalc_P2 > output/ri_S1_eltcalc.csv & kpid1=$!
+kat work/kat/ri_S1_eltcalc_P1 work/kat/ri_S1_eltcalc_P2 > output/ri_S1_eltcalc.csv & kpid1=$!
 kat work/kat/ri_S1_pltcalc_P1 work/kat/ri_S1_pltcalc_P2 > output/ri_S1_pltcalc.csv & kpid2=$!
 kat work/kat/ri_S1_summarycalc_P1 work/kat/ri_S1_summarycalc_P2 > output/ri_S1_summarycalc.csv & kpid3=$!
 
 # --- Do insured loss kats ---
 
-kat -s work/kat/il_S1_eltcalc_P1 work/kat/il_S1_eltcalc_P2 > output/il_S1_eltcalc.csv & kpid4=$!
+kat work/kat/il_S1_eltcalc_P1 work/kat/il_S1_eltcalc_P2 > output/il_S1_eltcalc.csv & kpid4=$!
 kat work/kat/il_S1_pltcalc_P1 work/kat/il_S1_pltcalc_P2 > output/il_S1_pltcalc.csv & kpid5=$!
 kat work/kat/il_S1_summarycalc_P1 work/kat/il_S1_summarycalc_P2 > output/il_S1_summarycalc.csv & kpid6=$!
 
 # --- Do ground up loss kats ---
 
-kat -s work/kat/gul_S1_eltcalc_P1 work/kat/gul_S1_eltcalc_P2 > output/gul_S1_eltcalc.csv & kpid7=$!
+kat work/kat/gul_S1_eltcalc_P1 work/kat/gul_S1_eltcalc_P2 > output/gul_S1_eltcalc.csv & kpid7=$!
 kat work/kat/gul_S1_pltcalc_P1 work/kat/gul_S1_pltcalc_P2 > output/gul_S1_pltcalc.csv & kpid8=$!
 kat work/kat/gul_S1_summarycalc_P1 work/kat/gul_S1_summarycalc_P2 > output/gul_S1_summarycalc.csv & kpid9=$!
 wait $kpid1 $kpid2 $kpid3 $kpid4 $kpid5 $kpid6 $kpid7 $kpid8 $kpid9
