@@ -213,6 +213,7 @@ def group_by_oed(oed_col_group, summary_map_df, exposure_df, sort_by, accounts_d
     return summary_ids[0], summary_ids[1], summary_tiv
 
 
+@oasis_log
 def write_summary_levels(exposure_df, accounts_fp, target_dir):
     '''
     Json file with list Available / Recommended columns for use in the summary reporting
@@ -379,7 +380,6 @@ def get_ri_settings(run_dir):
     return get_json(src_fp=os.path.join(run_dir, 'ri_layers.json'))
 
 
-@oasis_log
 def write_df_to_file(df, target_dir, filename):
     """
     Write a generated summary xref dataframe to disk
@@ -410,7 +410,6 @@ def write_df_to_file(df, target_dir, filename):
     return csv_fp
 
 
-@oasis_log
 def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, summaries_type, id_set_index='output_id'):
     """
     Create a Dataframe for either gul / il / ri  based on a section
@@ -469,6 +468,7 @@ def get_summary_xref_df(map_df, exposure_df, accounts_df, summaries_info_dict, s
         all_cols.update(accounts_df.columns.to_list())
 
     # Extract the summary id index column depending on id_set_index
+    map_df.sort_values(id_set_index, inplace=True)
     ids_set_df = map_df.loc[:, [id_set_index]].rename(columns={'output_id': "output"})
 
     # For each granularity build a set grouping
@@ -663,7 +663,6 @@ def generate_summaryxref_files(model_run_fp, analysis_settings, il=False, ri=Fal
             write_df_to_file(ri_summary_desc[desc_key], os.path.join(model_run_fp, 'output'), desc_key)
 
 
-@oasis_log
 def get_exposure_summary_by_status(df, exposure_summary, peril_id, status):
     """
     Populate dictionary of TIV and number of locations, grouped by peril and
@@ -707,7 +706,6 @@ def get_exposure_summary_by_status(df, exposure_summary, peril_id, status):
 
     return exposure_summary
 
-@oasis_log
 def get_exposure_summary_all(df, exposure_summary, peril_id):
     """
     Populate dictionary of TIV and number of locations, grouped by peril
@@ -794,6 +792,7 @@ def get_exposure_totals(df):
 
 
 
+@oasis_log
 def get_exposure_summary(
     exposure_df,
     keys_df,

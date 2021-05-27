@@ -192,26 +192,26 @@ tee < fifo/il_S1_summary_P18 work/il_S1_summaryaalcalc/P18.bin > /dev/null & pid
 tee < fifo/il_S1_summary_P19 work/il_S1_summaryaalcalc/P19.bin > /dev/null & pid19=$!
 tee < fifo/il_S1_summary_P20 work/il_S1_summaryaalcalc/P20.bin > /dev/null & pid20=$!
 
-summarycalc -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
-summarycalc -f  -1 fifo/il_S1_summary_P2 < fifo/il_P2 &
-summarycalc -f  -1 fifo/il_S1_summary_P3 < fifo/il_P3 &
-summarycalc -f  -1 fifo/il_S1_summary_P4 < fifo/il_P4 &
-summarycalc -f  -1 fifo/il_S1_summary_P5 < fifo/il_P5 &
-summarycalc -f  -1 fifo/il_S1_summary_P6 < fifo/il_P6 &
-summarycalc -f  -1 fifo/il_S1_summary_P7 < fifo/il_P7 &
-summarycalc -f  -1 fifo/il_S1_summary_P8 < fifo/il_P8 &
-summarycalc -f  -1 fifo/il_S1_summary_P9 < fifo/il_P9 &
-summarycalc -f  -1 fifo/il_S1_summary_P10 < fifo/il_P10 &
-summarycalc -f  -1 fifo/il_S1_summary_P11 < fifo/il_P11 &
-summarycalc -f  -1 fifo/il_S1_summary_P12 < fifo/il_P12 &
-summarycalc -f  -1 fifo/il_S1_summary_P13 < fifo/il_P13 &
-summarycalc -f  -1 fifo/il_S1_summary_P14 < fifo/il_P14 &
-summarycalc -f  -1 fifo/il_S1_summary_P15 < fifo/il_P15 &
-summarycalc -f  -1 fifo/il_S1_summary_P16 < fifo/il_P16 &
-summarycalc -f  -1 fifo/il_S1_summary_P17 < fifo/il_P17 &
-summarycalc -f  -1 fifo/il_S1_summary_P18 < fifo/il_P18 &
-summarycalc -f  -1 fifo/il_S1_summary_P19 < fifo/il_P19 &
-summarycalc -f  -1 fifo/il_S1_summary_P20 < fifo/il_P20 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P2 < fifo/il_P2 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P3 < fifo/il_P3 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P4 < fifo/il_P4 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P5 < fifo/il_P5 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P6 < fifo/il_P6 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P7 < fifo/il_P7 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P8 < fifo/il_P8 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P9 < fifo/il_P9 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P10 < fifo/il_P10 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P11 < fifo/il_P11 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P12 < fifo/il_P12 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P13 < fifo/il_P13 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P14 < fifo/il_P14 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P15 < fifo/il_P15 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P16 < fifo/il_P16 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P17 < fifo/il_P17 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P18 < fifo/il_P18 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P19 < fifo/il_P19 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P20 < fifo/il_P20 &
 
 # --- Do insured loss computes ---
 
@@ -237,26 +237,26 @@ tee < fifo/full_correlation/il_S1_summary_P18 work/full_correlation/il_S1_summar
 tee < fifo/full_correlation/il_S1_summary_P19 work/full_correlation/il_S1_summaryaalcalc/P19.bin > /dev/null & pid39=$!
 tee < fifo/full_correlation/il_S1_summary_P20 work/full_correlation/il_S1_summaryaalcalc/P20.bin > /dev/null & pid40=$!
 
-summarycalc -f  -1 fifo/full_correlation/il_S1_summary_P1 < fifo/full_correlation/il_P1 &
-summarycalc -f  -1 fifo/full_correlation/il_S1_summary_P2 < fifo/full_correlation/il_P2 &
-summarycalc -f  -1 fifo/full_correlation/il_S1_summary_P3 < fifo/full_correlation/il_P3 &
-summarycalc -f  -1 fifo/full_correlation/il_S1_summary_P4 < fifo/full_correlation/il_P4 &
-summarycalc -f  -1 fifo/full_correlation/il_S1_summary_P5 < fifo/full_correlation/il_P5 &
-summarycalc -f  -1 fifo/full_correlation/il_S1_summary_P6 < fifo/full_correlation/il_P6 &
-summarycalc -f  -1 fifo/full_correlation/il_S1_summary_P7 < fifo/full_correlation/il_P7 &
-summarycalc -f  -1 fifo/full_correlation/il_S1_summary_P8 < fifo/full_correlation/il_P8 &
-summarycalc -f  -1 fifo/full_correlation/il_S1_summary_P9 < fifo/full_correlation/il_P9 &
-summarycalc -f  -1 fifo/full_correlation/il_S1_summary_P10 < fifo/full_correlation/il_P10 &
-summarycalc -f  -1 fifo/full_correlation/il_S1_summary_P11 < fifo/full_correlation/il_P11 &
-summarycalc -f  -1 fifo/full_correlation/il_S1_summary_P12 < fifo/full_correlation/il_P12 &
-summarycalc -f  -1 fifo/full_correlation/il_S1_summary_P13 < fifo/full_correlation/il_P13 &
-summarycalc -f  -1 fifo/full_correlation/il_S1_summary_P14 < fifo/full_correlation/il_P14 &
-summarycalc -f  -1 fifo/full_correlation/il_S1_summary_P15 < fifo/full_correlation/il_P15 &
-summarycalc -f  -1 fifo/full_correlation/il_S1_summary_P16 < fifo/full_correlation/il_P16 &
-summarycalc -f  -1 fifo/full_correlation/il_S1_summary_P17 < fifo/full_correlation/il_P17 &
-summarycalc -f  -1 fifo/full_correlation/il_S1_summary_P18 < fifo/full_correlation/il_P18 &
-summarycalc -f  -1 fifo/full_correlation/il_S1_summary_P19 < fifo/full_correlation/il_P19 &
-summarycalc -f  -1 fifo/full_correlation/il_S1_summary_P20 < fifo/full_correlation/il_P20 &
+summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P1 < fifo/full_correlation/il_P1 &
+summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P2 < fifo/full_correlation/il_P2 &
+summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P3 < fifo/full_correlation/il_P3 &
+summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P4 < fifo/full_correlation/il_P4 &
+summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P5 < fifo/full_correlation/il_P5 &
+summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P6 < fifo/full_correlation/il_P6 &
+summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P7 < fifo/full_correlation/il_P7 &
+summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P8 < fifo/full_correlation/il_P8 &
+summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P9 < fifo/full_correlation/il_P9 &
+summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P10 < fifo/full_correlation/il_P10 &
+summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P11 < fifo/full_correlation/il_P11 &
+summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P12 < fifo/full_correlation/il_P12 &
+summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P13 < fifo/full_correlation/il_P13 &
+summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P14 < fifo/full_correlation/il_P14 &
+summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P15 < fifo/full_correlation/il_P15 &
+summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P16 < fifo/full_correlation/il_P16 &
+summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P17 < fifo/full_correlation/il_P17 &
+summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P18 < fifo/full_correlation/il_P18 &
+summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P19 < fifo/full_correlation/il_P19 &
+summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P20 < fifo/full_correlation/il_P20 &
 
 fmcalc -a2 < fifo/full_correlation/gul_fc_P1 > fifo/full_correlation/il_P1 &
 fmcalc -a2 < fifo/full_correlation/gul_fc_P2 > fifo/full_correlation/il_P2 &
