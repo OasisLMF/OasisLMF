@@ -10,7 +10,7 @@ rm -R -f log/*
 
 # --- Setup run dirs ---
 
-find output/* ! -name '*summary-info*' -exec rm -R -f {} +
+find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
 
 rm -R -f fifo/*
 rm -R -f work/*
@@ -21,6 +21,7 @@ mkdir work/gul_S1_summaryleccalc
 mkfifo fifo/gul_P1
 
 mkfifo fifo/gul_S1_summary_P1
+mkfifo fifo/gul_S1_summary_P1.idx
 
 
 
@@ -28,12 +29,13 @@ mkfifo fifo/gul_S1_summary_P1
 
 
 tee < fifo/gul_S1_summary_P1 work/gul_S1_summaryleccalc/P1.bin > /dev/null & pid1=$!
+tee < fifo/gul_S1_summary_P1.idx work/gul_S1_summaryleccalc/P1.idx > /dev/null & pid2=$!
 
-summarycalc -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
+summarycalc -m -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
 
 eve 1 1 | getmodel | gulcalc -S100 -L100 -r -a0 -i - > fifo/gul_P1  &
 
-wait $pid1
+wait $pid1 $pid2
 
 
 # --- Do ground up loss kats ---

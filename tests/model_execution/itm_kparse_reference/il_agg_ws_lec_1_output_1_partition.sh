@@ -10,7 +10,7 @@ rm -R -f log/*
 
 # --- Setup run dirs ---
 
-find output/* ! -name '*summary-info*' -exec rm -R -f {} +
+find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
 
 rm -R -f fifo/*
 rm -R -f work/*
@@ -21,6 +21,7 @@ mkdir work/il_S1_summaryleccalc
 mkfifo fifo/il_P1
 
 mkfifo fifo/il_S1_summary_P1
+mkfifo fifo/il_S1_summary_P1.idx
 
 
 
@@ -28,12 +29,13 @@ mkfifo fifo/il_S1_summary_P1
 
 
 tee < fifo/il_S1_summary_P1 work/il_S1_summaryleccalc/P1.bin > /dev/null & pid1=$!
+tee < fifo/il_S1_summary_P1.idx work/il_S1_summaryleccalc/P1.idx > /dev/null & pid2=$!
 
-summarycalc -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
 
 eve 1 1 | getmodel | gulcalc -S100 -L100 -r -a1 -i - | fmcalc -a2 > fifo/il_P1  &
 
-wait $pid1
+wait $pid1 $pid2
 
 
 # --- Do insured loss kats ---

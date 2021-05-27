@@ -10,7 +10,7 @@ rm -R -f log/*
 
 # --- Setup run dirs ---
 
-find output/* ! -name '*summary-info*' -exec rm -R -f {} +
+find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
 
 rm -R -f fifo/*
 rm -R -f work/*
@@ -144,26 +144,26 @@ tee < fifo/il_S1_summary_P18 fifo/il_S1_eltcalc_P18 > /dev/null & pid38=$!
 tee < fifo/il_S1_summary_P19 fifo/il_S1_eltcalc_P19 > /dev/null & pid39=$!
 tee < fifo/il_S1_summary_P20 fifo/il_S1_eltcalc_P20 > /dev/null & pid40=$!
 
-summarycalc -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
-summarycalc -f  -1 fifo/il_S1_summary_P2 < fifo/il_P2 &
-summarycalc -f  -1 fifo/il_S1_summary_P3 < fifo/il_P3 &
-summarycalc -f  -1 fifo/il_S1_summary_P4 < fifo/il_P4 &
-summarycalc -f  -1 fifo/il_S1_summary_P5 < fifo/il_P5 &
-summarycalc -f  -1 fifo/il_S1_summary_P6 < fifo/il_P6 &
-summarycalc -f  -1 fifo/il_S1_summary_P7 < fifo/il_P7 &
-summarycalc -f  -1 fifo/il_S1_summary_P8 < fifo/il_P8 &
-summarycalc -f  -1 fifo/il_S1_summary_P9 < fifo/il_P9 &
-summarycalc -f  -1 fifo/il_S1_summary_P10 < fifo/il_P10 &
-summarycalc -f  -1 fifo/il_S1_summary_P11 < fifo/il_P11 &
-summarycalc -f  -1 fifo/il_S1_summary_P12 < fifo/il_P12 &
-summarycalc -f  -1 fifo/il_S1_summary_P13 < fifo/il_P13 &
-summarycalc -f  -1 fifo/il_S1_summary_P14 < fifo/il_P14 &
-summarycalc -f  -1 fifo/il_S1_summary_P15 < fifo/il_P15 &
-summarycalc -f  -1 fifo/il_S1_summary_P16 < fifo/il_P16 &
-summarycalc -f  -1 fifo/il_S1_summary_P17 < fifo/il_P17 &
-summarycalc -f  -1 fifo/il_S1_summary_P18 < fifo/il_P18 &
-summarycalc -f  -1 fifo/il_S1_summary_P19 < fifo/il_P19 &
-summarycalc -f  -1 fifo/il_S1_summary_P20 < fifo/il_P20 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P2 < fifo/il_P2 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P3 < fifo/il_P3 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P4 < fifo/il_P4 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P5 < fifo/il_P5 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P6 < fifo/il_P6 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P7 < fifo/il_P7 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P8 < fifo/il_P8 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P9 < fifo/il_P9 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P10 < fifo/il_P10 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P11 < fifo/il_P11 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P12 < fifo/il_P12 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P13 < fifo/il_P13 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P14 < fifo/il_P14 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P15 < fifo/il_P15 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P16 < fifo/il_P16 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P17 < fifo/il_P17 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P18 < fifo/il_P18 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P19 < fifo/il_P19 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P20 < fifo/il_P20 &
 
 eve 1 20 | getmodel | gulcalc -S100 -L100 -r -a1 -i - | fmcalc -a2 > fifo/il_P1  &
 eve 2 20 | getmodel | gulcalc -S100 -L100 -r -a1 -i - | fmcalc -a2 > fifo/il_P2  &
@@ -191,7 +191,7 @@ wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 
 
 # --- Do insured loss kats ---
 
-kat work/kat/il_S1_eltcalc_P1 work/kat/il_S1_eltcalc_P2 work/kat/il_S1_eltcalc_P3 work/kat/il_S1_eltcalc_P4 work/kat/il_S1_eltcalc_P5 work/kat/il_S1_eltcalc_P6 work/kat/il_S1_eltcalc_P7 work/kat/il_S1_eltcalc_P8 work/kat/il_S1_eltcalc_P9 work/kat/il_S1_eltcalc_P10 work/kat/il_S1_eltcalc_P11 work/kat/il_S1_eltcalc_P12 work/kat/il_S1_eltcalc_P13 work/kat/il_S1_eltcalc_P14 work/kat/il_S1_eltcalc_P15 work/kat/il_S1_eltcalc_P16 work/kat/il_S1_eltcalc_P17 work/kat/il_S1_eltcalc_P18 work/kat/il_S1_eltcalc_P19 work/kat/il_S1_eltcalc_P20 > output/il_S1_eltcalc.csv & kpid1=$!
+kat -s work/kat/il_S1_eltcalc_P1 work/kat/il_S1_eltcalc_P2 work/kat/il_S1_eltcalc_P3 work/kat/il_S1_eltcalc_P4 work/kat/il_S1_eltcalc_P5 work/kat/il_S1_eltcalc_P6 work/kat/il_S1_eltcalc_P7 work/kat/il_S1_eltcalc_P8 work/kat/il_S1_eltcalc_P9 work/kat/il_S1_eltcalc_P10 work/kat/il_S1_eltcalc_P11 work/kat/il_S1_eltcalc_P12 work/kat/il_S1_eltcalc_P13 work/kat/il_S1_eltcalc_P14 work/kat/il_S1_eltcalc_P15 work/kat/il_S1_eltcalc_P16 work/kat/il_S1_eltcalc_P17 work/kat/il_S1_eltcalc_P18 work/kat/il_S1_eltcalc_P19 work/kat/il_S1_eltcalc_P20 > output/il_S1_eltcalc.csv & kpid1=$!
 wait $kpid1
 
 

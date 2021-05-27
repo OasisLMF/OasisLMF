@@ -10,12 +10,13 @@ rm -R -f log/*
 
 # --- Setup run dirs ---
 
-find output/* ! -name '*summary-info*' -exec rm -R -f {} +
+find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
 
 rm -R -f fifo/*
 rm -R -f work/*
 mkdir work/kat/
 
+fmpy -a2 --create-financial-structure-files
 mkdir work/il_S1_summaryaalcalc
 
 mkfifo fifo/il_P1
@@ -51,21 +52,21 @@ pltcalc -s < fifo/il_S1_pltcalc_P2 > work/kat/il_S1_pltcalc_P2 & pid6=$!
 tee < fifo/il_S1_summary_P1 fifo/il_S1_eltcalc_P1 fifo/il_S1_summarycalc_P1 fifo/il_S1_pltcalc_P1 work/il_S1_summaryaalcalc/P1.bin > /dev/null & pid7=$!
 tee < fifo/il_S1_summary_P2 fifo/il_S1_eltcalc_P2 fifo/il_S1_summarycalc_P2 fifo/il_S1_pltcalc_P2 work/il_S1_summaryaalcalc/P2.bin > /dev/null & pid8=$!
 
-summarycalc -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
-summarycalc -f  -1 fifo/il_S1_summary_P2 < fifo/il_P2 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P2 < fifo/il_P2 &
 
 eve 1 2 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_lb_P1  &
 eve 2 2 | getmodel | gulcalc -S0 -L0 -r -a0 -i - > fifo/gul_lb_P2  &
 load_balancer -i fifo/gul_lb_P1 fifo/gul_lb_P2 -o fifo/lb_il_P1 fifo/lb_il_P2 &
-fmcalc -a2 < fifo/lb_il_P1 > fifo/il_P1 &
-fmcalc -a2 < fifo/lb_il_P2 > fifo/il_P2 &
+fmpy -a2 < fifo/lb_il_P1 > fifo/il_P1 &
+fmpy -a2 < fifo/lb_il_P2 > fifo/il_P2 &
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8
 
 
 # --- Do insured loss kats ---
 
-kat work/kat/il_S1_eltcalc_P1 work/kat/il_S1_eltcalc_P2 > output/il_S1_eltcalc.csv & kpid1=$!
+kat -s work/kat/il_S1_eltcalc_P1 work/kat/il_S1_eltcalc_P2 > output/il_S1_eltcalc.csv & kpid1=$!
 kat work/kat/il_S1_pltcalc_P1 work/kat/il_S1_pltcalc_P2 > output/il_S1_pltcalc.csv & kpid2=$!
 kat work/kat/il_S1_summarycalc_P1 work/kat/il_S1_summarycalc_P2 > output/il_S1_summarycalc.csv & kpid3=$!
 wait $kpid1 $kpid2 $kpid3

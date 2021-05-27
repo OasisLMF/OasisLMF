@@ -10,7 +10,7 @@ rm -R -f log/*
 
 # --- Setup run dirs ---
 
-find output/* ! -name '*summary-info*' -exec rm -R -f {} +
+find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
 mkdir output/full_correlation/
 
 rm -R -f fifo/*
@@ -171,26 +171,26 @@ tee < fifo/gul_S1_summary_P18 work/gul_S1_summaryaalcalc/P18.bin > /dev/null & p
 tee < fifo/gul_S1_summary_P19 work/gul_S1_summaryaalcalc/P19.bin > /dev/null & pid19=$!
 tee < fifo/gul_S1_summary_P20 work/gul_S1_summaryaalcalc/P20.bin > /dev/null & pid20=$!
 
-summarycalc -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
-summarycalc -i  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 &
-summarycalc -i  -1 fifo/gul_S1_summary_P3 < fifo/gul_P3 &
-summarycalc -i  -1 fifo/gul_S1_summary_P4 < fifo/gul_P4 &
-summarycalc -i  -1 fifo/gul_S1_summary_P5 < fifo/gul_P5 &
-summarycalc -i  -1 fifo/gul_S1_summary_P6 < fifo/gul_P6 &
-summarycalc -i  -1 fifo/gul_S1_summary_P7 < fifo/gul_P7 &
-summarycalc -i  -1 fifo/gul_S1_summary_P8 < fifo/gul_P8 &
-summarycalc -i  -1 fifo/gul_S1_summary_P9 < fifo/gul_P9 &
-summarycalc -i  -1 fifo/gul_S1_summary_P10 < fifo/gul_P10 &
-summarycalc -i  -1 fifo/gul_S1_summary_P11 < fifo/gul_P11 &
-summarycalc -i  -1 fifo/gul_S1_summary_P12 < fifo/gul_P12 &
-summarycalc -i  -1 fifo/gul_S1_summary_P13 < fifo/gul_P13 &
-summarycalc -i  -1 fifo/gul_S1_summary_P14 < fifo/gul_P14 &
-summarycalc -i  -1 fifo/gul_S1_summary_P15 < fifo/gul_P15 &
-summarycalc -i  -1 fifo/gul_S1_summary_P16 < fifo/gul_P16 &
-summarycalc -i  -1 fifo/gul_S1_summary_P17 < fifo/gul_P17 &
-summarycalc -i  -1 fifo/gul_S1_summary_P18 < fifo/gul_P18 &
-summarycalc -i  -1 fifo/gul_S1_summary_P19 < fifo/gul_P19 &
-summarycalc -i  -1 fifo/gul_S1_summary_P20 < fifo/gul_P20 &
+summarycalc -m -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
+summarycalc -m -i  -1 fifo/gul_S1_summary_P2 < fifo/gul_P2 &
+summarycalc -m -i  -1 fifo/gul_S1_summary_P3 < fifo/gul_P3 &
+summarycalc -m -i  -1 fifo/gul_S1_summary_P4 < fifo/gul_P4 &
+summarycalc -m -i  -1 fifo/gul_S1_summary_P5 < fifo/gul_P5 &
+summarycalc -m -i  -1 fifo/gul_S1_summary_P6 < fifo/gul_P6 &
+summarycalc -m -i  -1 fifo/gul_S1_summary_P7 < fifo/gul_P7 &
+summarycalc -m -i  -1 fifo/gul_S1_summary_P8 < fifo/gul_P8 &
+summarycalc -m -i  -1 fifo/gul_S1_summary_P9 < fifo/gul_P9 &
+summarycalc -m -i  -1 fifo/gul_S1_summary_P10 < fifo/gul_P10 &
+summarycalc -m -i  -1 fifo/gul_S1_summary_P11 < fifo/gul_P11 &
+summarycalc -m -i  -1 fifo/gul_S1_summary_P12 < fifo/gul_P12 &
+summarycalc -m -i  -1 fifo/gul_S1_summary_P13 < fifo/gul_P13 &
+summarycalc -m -i  -1 fifo/gul_S1_summary_P14 < fifo/gul_P14 &
+summarycalc -m -i  -1 fifo/gul_S1_summary_P15 < fifo/gul_P15 &
+summarycalc -m -i  -1 fifo/gul_S1_summary_P16 < fifo/gul_P16 &
+summarycalc -m -i  -1 fifo/gul_S1_summary_P17 < fifo/gul_P17 &
+summarycalc -m -i  -1 fifo/gul_S1_summary_P18 < fifo/gul_P18 &
+summarycalc -m -i  -1 fifo/gul_S1_summary_P19 < fifo/gul_P19 &
+summarycalc -m -i  -1 fifo/gul_S1_summary_P20 < fifo/gul_P20 &
 
 # --- Do ground up loss computes ---
 
@@ -216,26 +216,26 @@ tee < fifo/full_correlation/gul_S1_summary_P18 work/full_correlation/gul_S1_summ
 tee < fifo/full_correlation/gul_S1_summary_P19 work/full_correlation/gul_S1_summaryaalcalc/P19.bin > /dev/null & pid39=$!
 tee < fifo/full_correlation/gul_S1_summary_P20 work/full_correlation/gul_S1_summaryaalcalc/P20.bin > /dev/null & pid40=$!
 
-summarycalc -i  -1 fifo/full_correlation/gul_S1_summary_P1 < fifo/full_correlation/gul_P1 &
-summarycalc -i  -1 fifo/full_correlation/gul_S1_summary_P2 < fifo/full_correlation/gul_P2 &
-summarycalc -i  -1 fifo/full_correlation/gul_S1_summary_P3 < fifo/full_correlation/gul_P3 &
-summarycalc -i  -1 fifo/full_correlation/gul_S1_summary_P4 < fifo/full_correlation/gul_P4 &
-summarycalc -i  -1 fifo/full_correlation/gul_S1_summary_P5 < fifo/full_correlation/gul_P5 &
-summarycalc -i  -1 fifo/full_correlation/gul_S1_summary_P6 < fifo/full_correlation/gul_P6 &
-summarycalc -i  -1 fifo/full_correlation/gul_S1_summary_P7 < fifo/full_correlation/gul_P7 &
-summarycalc -i  -1 fifo/full_correlation/gul_S1_summary_P8 < fifo/full_correlation/gul_P8 &
-summarycalc -i  -1 fifo/full_correlation/gul_S1_summary_P9 < fifo/full_correlation/gul_P9 &
-summarycalc -i  -1 fifo/full_correlation/gul_S1_summary_P10 < fifo/full_correlation/gul_P10 &
-summarycalc -i  -1 fifo/full_correlation/gul_S1_summary_P11 < fifo/full_correlation/gul_P11 &
-summarycalc -i  -1 fifo/full_correlation/gul_S1_summary_P12 < fifo/full_correlation/gul_P12 &
-summarycalc -i  -1 fifo/full_correlation/gul_S1_summary_P13 < fifo/full_correlation/gul_P13 &
-summarycalc -i  -1 fifo/full_correlation/gul_S1_summary_P14 < fifo/full_correlation/gul_P14 &
-summarycalc -i  -1 fifo/full_correlation/gul_S1_summary_P15 < fifo/full_correlation/gul_P15 &
-summarycalc -i  -1 fifo/full_correlation/gul_S1_summary_P16 < fifo/full_correlation/gul_P16 &
-summarycalc -i  -1 fifo/full_correlation/gul_S1_summary_P17 < fifo/full_correlation/gul_P17 &
-summarycalc -i  -1 fifo/full_correlation/gul_S1_summary_P18 < fifo/full_correlation/gul_P18 &
-summarycalc -i  -1 fifo/full_correlation/gul_S1_summary_P19 < fifo/full_correlation/gul_P19 &
-summarycalc -i  -1 fifo/full_correlation/gul_S1_summary_P20 < fifo/full_correlation/gul_P20 &
+summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P1 < fifo/full_correlation/gul_P1 &
+summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P2 < fifo/full_correlation/gul_P2 &
+summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P3 < fifo/full_correlation/gul_P3 &
+summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P4 < fifo/full_correlation/gul_P4 &
+summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P5 < fifo/full_correlation/gul_P5 &
+summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P6 < fifo/full_correlation/gul_P6 &
+summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P7 < fifo/full_correlation/gul_P7 &
+summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P8 < fifo/full_correlation/gul_P8 &
+summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P9 < fifo/full_correlation/gul_P9 &
+summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P10 < fifo/full_correlation/gul_P10 &
+summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P11 < fifo/full_correlation/gul_P11 &
+summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P12 < fifo/full_correlation/gul_P12 &
+summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P13 < fifo/full_correlation/gul_P13 &
+summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P14 < fifo/full_correlation/gul_P14 &
+summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P15 < fifo/full_correlation/gul_P15 &
+summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P16 < fifo/full_correlation/gul_P16 &
+summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P17 < fifo/full_correlation/gul_P17 &
+summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P18 < fifo/full_correlation/gul_P18 &
+summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P19 < fifo/full_correlation/gul_P19 &
+summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P20 < fifo/full_correlation/gul_P20 &
 
 eve 1 20 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_P1 -a1 -i - > fifo/gul_P1  &
 eve 2 20 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_P2 -a1 -i - > fifo/gul_P2  &

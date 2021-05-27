@@ -10,12 +10,13 @@ rm -R -f log/*
 
 # --- Setup run dirs ---
 
-find output/* ! -name '*summary-info*' -exec rm -R -f {} +
+find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +
 
 rm -R -f fifo/*
 rm -R -f work/*
 mkdir work/kat/
 
+fmpy -a2 --create-financial-structure-files
 mkdir work/il_S1_summaryaalcalc
 
 mkfifo fifo/il_P1
@@ -87,16 +88,16 @@ tee < fifo/il_S1_summary_P8 work/il_S1_summaryaalcalc/P8.bin > /dev/null & pid8=
 tee < fifo/il_S1_summary_P9 work/il_S1_summaryaalcalc/P9.bin > /dev/null & pid9=$!
 tee < fifo/il_S1_summary_P10 work/il_S1_summaryaalcalc/P10.bin > /dev/null & pid10=$!
 
-summarycalc -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
-summarycalc -f  -1 fifo/il_S1_summary_P2 < fifo/il_P2 &
-summarycalc -f  -1 fifo/il_S1_summary_P3 < fifo/il_P3 &
-summarycalc -f  -1 fifo/il_S1_summary_P4 < fifo/il_P4 &
-summarycalc -f  -1 fifo/il_S1_summary_P5 < fifo/il_P5 &
-summarycalc -f  -1 fifo/il_S1_summary_P6 < fifo/il_P6 &
-summarycalc -f  -1 fifo/il_S1_summary_P7 < fifo/il_P7 &
-summarycalc -f  -1 fifo/il_S1_summary_P8 < fifo/il_P8 &
-summarycalc -f  -1 fifo/il_S1_summary_P9 < fifo/il_P9 &
-summarycalc -f  -1 fifo/il_S1_summary_P10 < fifo/il_P10 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P2 < fifo/il_P2 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P3 < fifo/il_P3 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P4 < fifo/il_P4 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P5 < fifo/il_P5 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P6 < fifo/il_P6 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P7 < fifo/il_P7 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P8 < fifo/il_P8 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P9 < fifo/il_P9 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P10 < fifo/il_P10 &
 
 eve 1 10 | getmodel | gulcalc -S100 -L100 -r -a0 -i - > fifo/gul_lb_P1  &
 eve 2 10 | getmodel | gulcalc -S100 -L100 -r -a0 -i - > fifo/gul_lb_P2  &
@@ -113,16 +114,16 @@ load_balancer -i fifo/gul_lb_P3 fifo/gul_lb_P4 -o fifo/lb_il_P3 fifo/lb_il_P4 &
 load_balancer -i fifo/gul_lb_P5 fifo/gul_lb_P6 -o fifo/lb_il_P5 fifo/lb_il_P6 &
 load_balancer -i fifo/gul_lb_P7 fifo/gul_lb_P8 -o fifo/lb_il_P7 fifo/lb_il_P8 &
 load_balancer -i fifo/gul_lb_P9 fifo/gul_lb_P10 -o fifo/lb_il_P9 fifo/lb_il_P10 &
-fmcalc -a2 < fifo/lb_il_P1 > fifo/il_P1 &
-fmcalc -a2 < fifo/lb_il_P2 > fifo/il_P2 &
-fmcalc -a2 < fifo/lb_il_P3 > fifo/il_P3 &
-fmcalc -a2 < fifo/lb_il_P4 > fifo/il_P4 &
-fmcalc -a2 < fifo/lb_il_P5 > fifo/il_P5 &
-fmcalc -a2 < fifo/lb_il_P6 > fifo/il_P6 &
-fmcalc -a2 < fifo/lb_il_P7 > fifo/il_P7 &
-fmcalc -a2 < fifo/lb_il_P8 > fifo/il_P8 &
-fmcalc -a2 < fifo/lb_il_P9 > fifo/il_P9 &
-fmcalc -a2 < fifo/lb_il_P10 > fifo/il_P10 &
+fmpy -a2 < fifo/lb_il_P1 > fifo/il_P1 &
+fmpy -a2 < fifo/lb_il_P2 > fifo/il_P2 &
+fmpy -a2 < fifo/lb_il_P3 > fifo/il_P3 &
+fmpy -a2 < fifo/lb_il_P4 > fifo/il_P4 &
+fmpy -a2 < fifo/lb_il_P5 > fifo/il_P5 &
+fmpy -a2 < fifo/lb_il_P6 > fifo/il_P6 &
+fmpy -a2 < fifo/lb_il_P7 > fifo/il_P7 &
+fmpy -a2 < fifo/lb_il_P8 > fifo/il_P8 &
+fmpy -a2 < fifo/lb_il_P9 > fifo/il_P9 &
+fmpy -a2 < fifo/lb_il_P10 > fifo/il_P10 &
 
 wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10
 
