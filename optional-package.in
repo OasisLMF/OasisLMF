@@ -2,3 +2,4 @@ shapely
 geopandas
 sklearn
 pyarrow
+rtree 
