@@ -33,8 +33,8 @@ def get_readme():
         return readme.read()
 
 
-def get_install_requirements():
-    with io.open(os.path.join(SCRIPT_DIR, 'requirements-package.in'), encoding='utf-8') as reqs:
+def get_install_requirements(requ_filename='requirements-package.in'):
+    with io.open(os.path.join(SCRIPT_DIR, requ_filename), encoding='utf-8') as reqs:
         return reqs.readlines()
 
 
@@ -54,7 +54,8 @@ def temp_dir():
 
 
 version = get_version()
-reqs = get_install_requirements()
+reqs = get_install_requirements('requirements-package.in')
+reqs_extra = get_install_requirements('optional-package.in')
 readme = get_readme()
 
 
@@ -355,6 +356,7 @@ setup(
     keywords='oasis lmf loss modeling framework',
     python_requires='>=3.6',
     install_requires=reqs,
+    extras_require=reqs_extra,
     classifiers=[
         'Development Status :: 4 - Beta',
         'License :: OSI Approved :: BSD License',

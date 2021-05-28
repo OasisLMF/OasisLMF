@@ -1,0 +1,4 @@
+shapely
+geopandas
+sklearn
+pyarrow
