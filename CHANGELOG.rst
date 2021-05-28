@@ -1,6 +1,12 @@
 OasisLMF Changelog
 ==================
 
+`1.15.10`_
+ ---------
+* [#822](https://github.com/OasisLMF/OasisLMF/pull/827) - Ktools exit handler killing off bash logging on exit
+* [#843](https://github.com/OasisLMF/OasisLMF/pull/843) - Fix CI pipeline error, double tagging release causes script to fail
+.. _`1.15.10`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.9...1.15.10
+
 `1.15.9`_
  ---------
 * [#833](https://github.com/OasisLMF/OasisLMF/pull/834) - Minor issue - error parsing fm CLI help text 
