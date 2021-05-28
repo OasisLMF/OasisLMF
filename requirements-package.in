@@ -2,7 +2,6 @@ anytree>=2.4.3
 argparsetree>=0.0.5
 chainmap
 chardet
-cookiecutter>=1.6.0
 jsonschema
 msgpack
 numba>=0.50.1
