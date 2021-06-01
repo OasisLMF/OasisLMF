@@ -24,7 +24,7 @@ from ..utils.log import oasis_log
 from ..utils.path import get_custom_module, as_path
 from ..utils.status import OASIS_KEYS_STATUS
 
-from .rtree import RTreeLookup, DeterministicLookup
+from .builtin import DeterministicLookup
 from .builtin import Lookup as NewLookup
 
 from multiprocessing import cpu_count,  Queue, Process
@@ -231,7 +231,7 @@ class BasicKeyServer:
             elif self.config.get('builtin_lookup_type')  == 'new_lookup':
                 lookup_cls = NewLookup
             else:
-                lookup_cls = RTreeLookup
+                raise OasisException(f"Unrecognised lookup config file, or config file is from deprecated built in lookup module 'oasislmf<=1.16.0' ")
 
         return lookup_cls
 

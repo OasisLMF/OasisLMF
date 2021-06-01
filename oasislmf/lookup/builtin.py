@@ -22,6 +22,7 @@ except ImportError:
 
 import math
 import re
+import itertools
 
 from ..utils.exceptions import OasisException
 from ..utils.status import OASIS_KEYS_STATUS, OASIS_UNKNOWN_ID
@@ -92,6 +93,21 @@ def nearest_neighbor(left_gdf, right_gdf, return_dist=False):
 
 
 key_columns= ['loc_id', 'peril_id', 'coverage_type', 'area_peril_id', 'vulnerability_id', 'status', 'message']
+
+
+
+class DeterministicLookup(AbstractBasicKeyLookup):
+    multiproc_enabled = False
+
+    def process_locations(self, locations):
+        loc_ids = (loc_it['loc_id'] for _, loc_it in locations.loc[:, ['loc_id']].sort_values('loc_id').iterrows())
+        success_status= OASIS_KEYS_STATUS['success']['id']
+        return pd.DataFrame.from_records((
+            {'loc_id': _loc_id, 'peril_id': peril, 'coverage_type': cov_type, 'area_peril_id': i + 1,
+             'vulnerability_id': i + 1, 'status': success_status}
+            for i, (_loc_id, peril, cov_type) in enumerate(itertools.product(loc_ids, range(1, 1 + self.config['num_subperils']),
+                                                                             self.config['supported_oed_coverage_types']))
+        ))
 
 
 class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
