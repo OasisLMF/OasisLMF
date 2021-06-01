@@ -41,7 +41,6 @@ class OasisManager(object):
         GenerateLosses,
         GenerateLossesDeterministic,
         GenerateLossesDummyModel,
-        GenerateRtreeIndexData,
         GenerateDummyModelFiles,
         GenerateDummyOasisFiles,
         RunModel,
