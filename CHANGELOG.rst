@@ -1,6 +1,23 @@
 OasisLMF Changelog
 ==================
 
+`1.17.0`_
+ ---------
+* [#833](https://github.com/OasisLMF/OasisLMF/pull/834) - Minor issue - error parsing fm CLI help text 
+* [#831](https://github.com/OasisLMF/OasisLMF/pull/835) - Add timestamps to logger
+* [#844](https://github.com/OasisLMF/OasisLMF/pull/836) - Built-in Lookup revamp
+* [#840](https://github.com/OasisLMF/OasisLMF/pull/841) - Fix flaky tests in model_preparation/test_lookup.py
+* [#843](https://github.com/OasisLMF/OasisLMF/pull/843) - Fix CI pipeline error, double tagging release causes script to fail
+* [#842](https://github.com/OasisLMF/OasisLMF/pull/845) - Produce summary index files by default to reduce memory use of ktools output components
+* [#816](https://github.com/OasisLMF/OasisLMF/pull/817) - Issue in coverage_type_id grouping of ground up loss results for multi-peril
+* [#809](https://github.com/OasisLMF/OasisLMF/pull/818) - Error handling for invalid oasislmf.json config files 
+* [#849](https://github.com/OasisLMF/OasisLMF/pull/849) - Fix CVE-2021-33503
+* [#821](https://github.com/OasisLMF/OasisLMF/pull/821) - Add missing items to data settings
+* [#824](https://github.com/OasisLMF/OasisLMF/pull/825) - Inputs directory preparation issue when ORD is enabled
+* [#826](https://github.com/OasisLMF/OasisLMF/pull/826) - Automate Change logs and release notes
+* [#822](https://github.com/OasisLMF/OasisLMF/pull/827) - Ktools exit handler killing off bash logging on exit
+.. _`1.17.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.16.0...1.17.0
+
 `1.17.0rc1`_
  ---------
 * [#833](https://github.com/OasisLMF/OasisLMF/pull/834) - Minor issue - error parsing fm CLI help text 
