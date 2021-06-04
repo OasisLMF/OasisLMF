@@ -81,7 +81,7 @@ pltcalc < fifo/ri_S1_pltcalc_P1 > work/kat/ri_S1_pltcalc_P1 & pid3=$!
 
 tee < fifo/ri_S1_summary_P1 fifo/ri_S1_eltcalc_P1 fifo/ri_S1_summarycalc_P1 fifo/ri_S1_pltcalc_P1 work/ri_S1_summaryaalcalc/P1.bin > /dev/null & pid4=$!
 
-summarycalc -f -p RI_1 -1 fifo/ri_S1_summary_P1 < fifo/ri_P1 &
+summarycalc -m -f -p RI_1 -1 fifo/ri_S1_summary_P1 < fifo/ri_P1 &
 
 # --- Do insured loss computes ---
 
@@ -91,7 +91,7 @@ pltcalc < fifo/il_S1_pltcalc_P1 > work/kat/il_S1_pltcalc_P1 & pid7=$!
 
 tee < fifo/il_S1_summary_P1 fifo/il_S1_eltcalc_P1 fifo/il_S1_summarycalc_P1 fifo/il_S1_pltcalc_P1 work/il_S1_summaryaalcalc/P1.bin > /dev/null & pid8=$!
 
-summarycalc -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
 
 # --- Do ground up loss computes ---
 
@@ -101,7 +101,7 @@ pltcalc < fifo/gul_S1_pltcalc_P1 > work/kat/gul_S1_pltcalc_P1 & pid11=$!
 
 tee < fifo/gul_S1_summary_P1 fifo/gul_S1_eltcalc_P1 fifo/gul_S1_summarycalc_P1 fifo/gul_S1_pltcalc_P1 work/gul_S1_summaryaalcalc/P1.bin > /dev/null & pid12=$!
 
-summarycalc -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
+summarycalc -m -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
 
 # --- Do reinsurance loss computes ---
 
@@ -111,7 +111,7 @@ pltcalc < fifo/full_correlation/ri_S1_pltcalc_P1 > work/full_correlation/kat/ri_
 
 tee < fifo/full_correlation/ri_S1_summary_P1 fifo/full_correlation/ri_S1_eltcalc_P1 fifo/full_correlation/ri_S1_summarycalc_P1 fifo/full_correlation/ri_S1_pltcalc_P1 work/full_correlation/ri_S1_summaryaalcalc/P1.bin > /dev/null & pid16=$!
 
-summarycalc -f -p RI_1 -1 fifo/full_correlation/ri_S1_summary_P1 < fifo/full_correlation/ri_P1 &
+summarycalc -m -f -p RI_1 -1 fifo/full_correlation/ri_S1_summary_P1 < fifo/full_correlation/ri_P1 &
 
 # --- Do insured loss computes ---
 
@@ -121,7 +121,7 @@ pltcalc < fifo/full_correlation/il_S1_pltcalc_P1 > work/full_correlation/kat/il_
 
 tee < fifo/full_correlation/il_S1_summary_P1 fifo/full_correlation/il_S1_eltcalc_P1 fifo/full_correlation/il_S1_summarycalc_P1 fifo/full_correlation/il_S1_pltcalc_P1 work/full_correlation/il_S1_summaryaalcalc/P1.bin > /dev/null & pid20=$!
 
-summarycalc -f  -1 fifo/full_correlation/il_S1_summary_P1 < fifo/full_correlation/il_P1 &
+summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P1 < fifo/full_correlation/il_P1 &
 
 # --- Do ground up loss computes ---
 
@@ -131,7 +131,7 @@ pltcalc < fifo/full_correlation/gul_S1_pltcalc_P1 > work/full_correlation/kat/gu
 
 tee < fifo/full_correlation/gul_S1_summary_P1 fifo/full_correlation/gul_S1_eltcalc_P1 fifo/full_correlation/gul_S1_summarycalc_P1 fifo/full_correlation/gul_S1_pltcalc_P1 work/full_correlation/gul_S1_summaryaalcalc/P1.bin > /dev/null & pid24=$!
 
-summarycalc -i  -1 fifo/full_correlation/gul_S1_summary_P1 < fifo/full_correlation/gul_P1 &
+summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P1 < fifo/full_correlation/gul_P1 &
 
 tee < fifo/full_correlation/gul_fc_P1 fifo/full_correlation/gul_P1  | fmcalc -a2 | tee fifo/full_correlation/il_P1 | fmcalc -a3 -n -p RI_1 > fifo/full_correlation/ri_P1 &
 eve 1 1 | getmodel | gulcalc -S0 -L0 -r -j fifo/full_correlation/gul_fc_P1 -a1 -i - | tee fifo/gul_P1 | fmcalc -a2 | tee fifo/il_P1 | fmcalc -a3 -n -p RI_1 > fifo/ri_P1 &

@@ -29,7 +29,7 @@ exit_handler(){
 " $script_pid $group_pid $sess_pid >> log/killout.txt
 
    ps f -g $sess_pid > log/subprocess_list
-   PIDS_KILL=$(pgrep -a --pgroup $group_pid | awk 'BEGIN { FS = "[ \t\n]+" }{ if ($1 >= '$script_pid') print}' | grep -v celery | grep -v *.sh)
+   PIDS_KILL=$(pgrep -a --pgroup $group_pid | awk 'BEGIN { FS = "[ \t\n]+" }{ if ($1 >= '$script_pid') print}' | grep -v celery | egrep -v *\\.log$  | egrep -v *\\.sh$)
    echo "$PIDS_KILL" >> log/killout.txt
    kill -9 $(echo "$PIDS_KILL" | awk 'BEGIN { FS = "[ \t\n]+" }{ print $1 }') 2>/dev/null
    exit $exit_code
@@ -68,6 +68,7 @@ mkdir work/il_S1_summaryaalcalc
 mkfifo fifo/il_P1
 
 mkfifo fifo/il_S1_summary_P1
+mkfifo fifo/il_S1_summary_P1.idx
 mkfifo fifo/il_S1_eltcalc_P1
 mkfifo fifo/il_S1_summarycalc_P1
 mkfifo fifo/il_S1_pltcalc_P1
@@ -81,12 +82,13 @@ mkfifo fifo/il_S1_pltcalc_P1
 ( pltcalc < fifo/il_S1_pltcalc_P1 > work/kat/il_S1_pltcalc_P1 ) 2>> log/stderror.err & pid3=$!
 
 tee < fifo/il_S1_summary_P1 fifo/il_S1_eltcalc_P1 fifo/il_S1_summarycalc_P1 fifo/il_S1_pltcalc_P1 work/il_S1_summaryaalcalc/P1.bin work/il_S1_summaryleccalc/P1.bin > /dev/null & pid4=$!
+tee < fifo/il_S1_summary_P1.idx work/il_S1_summaryleccalc/P1.idx > /dev/null & pid5=$!
 
-( summarycalc -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 ) 2>> log/stderror.err  &
+( summarycalc -m -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 ) 2>> log/stderror.err  &
 
 ( eve 1 1 | getmodel | gulcalc -S0 -L0 -r -a1 -i - | fmcalc -a2 > fifo/il_P1  ) 2>> log/stderror.err &
 
-wait $pid1 $pid2 $pid3 $pid4
+wait $pid1 $pid2 $pid3 $pid4 $pid5
 
 
 # --- Do insured loss kats ---

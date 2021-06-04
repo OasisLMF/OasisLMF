@@ -36,6 +36,10 @@ class AbstractBasicKeyLookup:
         self.user_data_dir = user_data_dir
         self.output_dir = output_dir
 
+        keys_data_path = config.get('keys_data_path')
+        keys_data_path = os.path.join(config_dir, keys_data_path) if keys_data_path else ''
+        config['keys_data_path'] = as_path(keys_data_path, 'keys_data_path', preexists=(True if keys_data_path else False))
+
     @abc.abstractmethod
     def process_locations(self, locations):
         """
@@ -83,11 +87,6 @@ class OasisBaseLookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             _config_fp = as_path(config_fp, 'config_fp')
             with open(_config_fp, 'r', encoding='utf-8') as f:
                 config = json.load(f)
-
-        keys_data_path = config.get('keys_data_path')
-        keys_data_path = os.path.join(config_dir, keys_data_path) if keys_data_path else ''
-
-        config['keys_data_path'] = as_path(keys_data_path, 'keys_data_path', preexists=(True if keys_data_path else False))
 
         super().__init__(config, config_dir=config_dir, user_data_dir=user_data_dir, output_dir=output_dir)
 

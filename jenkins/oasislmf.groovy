@@ -202,13 +202,6 @@ node {
 
             // Create GitHub release
             stage("Create Release: GitHub") {
-                // Tag repo
-                sshagent (credentials: [git_creds]) {
-                    dir(source_workspace) {
-                        sh "git tag ${vers_pypi}"
-                        sh "git push origin ${vers_pypi}"
-                    }
-                }
                 // Create GH release
                 withCredentials([string(credentialsId: 'github-api-token', variable: 'gh_token')]) {
                     String repo = "OasisLMF/OasisLMF"

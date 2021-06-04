@@ -41,7 +41,7 @@ summarycalctocsv < fifo/il_S1_summarycalc_P1 > work/kat/il_S1_summarycalc_P1 & p
 
 tee < fifo/il_S1_summary_P1 fifo/il_S1_summarycalc_P1 > /dev/null & pid2=$!
 
-summarycalc -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
+summarycalc -m -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
 
 # --- Do insured loss computes ---
 
@@ -49,7 +49,7 @@ summarycalctocsv < fifo/full_correlation/il_S1_summarycalc_P1 > work/full_correl
 
 tee < fifo/full_correlation/il_S1_summary_P1 fifo/full_correlation/il_S1_summarycalc_P1 > /dev/null & pid4=$!
 
-summarycalc -f  -1 fifo/full_correlation/il_S1_summary_P1 < fifo/full_correlation/il_P1 &
+summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P1 < fifo/full_correlation/il_P1 &
 
 fmcalc -a2 < fifo/full_correlation/gul_fc_P1 > fifo/full_correlation/il_P1 &
 eve 1 1 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P1 -a1 -i - | fmcalc -a2 > fifo/il_P1  &

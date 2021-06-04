@@ -29,7 +29,7 @@ exit_handler(){
 " $script_pid $group_pid $sess_pid >> log/killout.txt
 
    ps f -g $sess_pid > log/subprocess_list
-   PIDS_KILL=$(pgrep -a --pgroup $group_pid | awk 'BEGIN { FS = "[ \t\n]+" }{ if ($1 >= '$script_pid') print}' | grep -v celery | grep -v *.sh)
+   PIDS_KILL=$(pgrep -a --pgroup $group_pid | awk 'BEGIN { FS = "[ \t\n]+" }{ if ($1 >= '$script_pid') print}' | grep -v celery | egrep -v *\\.log$  | egrep -v *\\.sh$)
    echo "$PIDS_KILL" >> log/killout.txt
    kill -9 $(echo "$PIDS_KILL" | awk 'BEGIN { FS = "[ \t\n]+" }{ print $1 }') 2>/dev/null
    exit $exit_code
@@ -74,10 +74,12 @@ mkfifo fifo/full_correlation/gul_fc_P1
 mkfifo fifo/il_P1
 
 mkfifo fifo/il_S1_summary_P1
+mkfifo fifo/il_S1_summary_P1.idx
 
 mkfifo fifo/full_correlation/il_P1
 
 mkfifo fifo/full_correlation/il_S1_summary_P1
+mkfifo fifo/full_correlation/il_S1_summary_P1.idx
 
 
 
@@ -85,20 +87,22 @@ mkfifo fifo/full_correlation/il_S1_summary_P1
 
 
 tee < fifo/il_S1_summary_P1 work/il_S1_summaryleccalc/P1.bin > /dev/null & pid1=$!
+tee < fifo/il_S1_summary_P1.idx work/il_S1_summaryleccalc/P1.idx > /dev/null & pid2=$!
 
-( summarycalc -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 ) 2>> log/stderror.err  &
+( summarycalc -m -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 ) 2>> log/stderror.err  &
 
 # --- Do insured loss computes ---
 
 
-tee < fifo/full_correlation/il_S1_summary_P1 work/full_correlation/il_S1_summaryleccalc/P1.bin > /dev/null & pid2=$!
+tee < fifo/full_correlation/il_S1_summary_P1 work/full_correlation/il_S1_summaryleccalc/P1.bin > /dev/null & pid3=$!
+tee < fifo/full_correlation/il_S1_summary_P1.idx work/full_correlation/il_S1_summaryleccalc/P1.idx > /dev/null & pid4=$!
 
-( summarycalc -f  -1 fifo/full_correlation/il_S1_summary_P1 < fifo/full_correlation/il_P1 ) 2>> log/stderror.err  &
+( summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P1 < fifo/full_correlation/il_P1 ) 2>> log/stderror.err  &
 
 ( fmcalc -a2 < fifo/full_correlation/gul_fc_P1 > fifo/full_correlation/il_P1 ) 2>> log/stderror.err &
 ( eve 1 1 | getmodel | gulcalc -S100 -L100 -r -j fifo/full_correlation/gul_fc_P1 -a1 -i - | fmcalc -a2 > fifo/il_P1  ) 2>> log/stderror.err &
 
-wait $pid1 $pid2
+wait $pid1 $pid2 $pid3 $pid4
 
 
 # --- Do insured loss kats ---

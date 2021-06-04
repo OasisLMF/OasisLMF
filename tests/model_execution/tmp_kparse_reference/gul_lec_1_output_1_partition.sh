@@ -23,6 +23,7 @@ mkdir work/gul_S1_summaryaalcalc
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_P1
 
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1
+mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1.idx
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_summarycalc_P1
 mkfifo /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P1
@@ -36,12 +37,13 @@ summarycalctocsv < /tmp/%FIFO_DIR%/fifo/gul_S1_summarycalc_P1 > work/kat/gul_S1_
 pltcalc < /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P1 > work/kat/gul_S1_pltcalc_P1 & pid3=$!
 
 tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1 /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P1 /tmp/%FIFO_DIR%/fifo/gul_S1_summarycalc_P1 /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P1 work/gul_S1_summaryaalcalc/P1.bin work/gul_S1_summaryleccalc/P1.bin > /dev/null & pid4=$!
+tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1.idx work/gul_S1_summaryleccalc/P1.idx > /dev/null & pid5=$!
 
-summarycalc -i  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1 < /tmp/%FIFO_DIR%/fifo/gul_P1 &
+summarycalc -m -i  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1 < /tmp/%FIFO_DIR%/fifo/gul_P1 &
 
 eve 1 1 | getmodel | gulcalc -S0 -L0 -r -a1 -i - > /tmp/%FIFO_DIR%/fifo/gul_P1  &
 
-wait $pid1 $pid2 $pid3 $pid4
+wait $pid1 $pid2 $pid3 $pid4 $pid5
 
 
 # --- Do ground up loss kats ---
