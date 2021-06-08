@@ -23,6 +23,8 @@ OASIS_KEYS_STATUS = {
     'noreturn': {'id': OASIS_KEYS_XX, 'desc': 'No key returned from lookup'}
 }
 
+OASIS_UNKNOWN_ID = -1
+
 # list of statuses classed as "modelled"
 OASIS_KEYS_STATUS_MODELLED = [OASIS_KEYS_SC,OASIS_KEYS_NR]
 

@@ -85,11 +85,11 @@ def oasis_log(*args, **kwargs):
         def wrapper(*args, **kwargs):
             func_name = func.__name__
             caller_module_name = func.__globals__.get('__name__')
-            
+
             if func_name == '__init__':
                 logger.debug("RUNNING: {}.{}".format(
                     caller_module_name, func_name))
-            else:    
+            else:
                 logger.info("RUNNING: {}.{}".format(
                     caller_module_name, func_name))
 
@@ -110,9 +110,16 @@ def oasis_log(*args, **kwargs):
             start = time.time()
             result = func(*args, **kwargs)
             end = time.time()
-            logger.debug(
-                "COMPLETED: {}.{} in {}s".format(
-                    caller_module_name, func_name, round(end - start, 2)))
+
+            # Only log timestamps on functions which took longer than 10ms
+            if (end-start) > 0.01:
+                logger.info(
+                    "COMPLETED: {}.{} in {}s".format(
+                        caller_module_name, func_name, round(end - start, 2)))
+            else:
+                logger.debug(
+                    "COMPLETED: {}.{} in {}s".format(
+                        caller_module_name, func_name, round(end - start, 2)))
             return result
         return wrapper
 

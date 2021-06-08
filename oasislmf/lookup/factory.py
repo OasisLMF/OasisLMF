@@ -25,6 +25,7 @@ from ..utils.path import get_custom_module, as_path
 from ..utils.status import OASIS_KEYS_STATUS
 
 from .rtree import RTreeLookup, DeterministicLookup
+from .builtin import Lookup as NewLookup
 
 from multiprocessing import cpu_count,  Queue, Process
 from queue import Empty, Full
@@ -227,6 +228,8 @@ class BasicKeyServer:
         else: # built-in lookup
             if self.config.get('builtin_lookup_type') == 'deterministic':
                 lookup_cls = DeterministicLookup
+            elif self.config.get('builtin_lookup_type')  == 'new_lookup':
+                lookup_cls = NewLookup
             else:
                 lookup_cls = RTreeLookup
 
