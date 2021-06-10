@@ -222,8 +222,11 @@ class BasicKeyServer:
         self.lookup_cls = self.get_lookup_cls()
 
     def get_lookup_cls(self):
-        if self.config.get('lookup_module_path'): # custom lookup
-            lookup_module = get_custom_module(self.config.get('lookup_module_path'), 'lookup_module_path')
+        lookup_module_path = self.config.get('lookup_module_path')
+        if lookup_module_path: # custom lookup
+            if not os.path.isabs(lookup_module_path):
+                lookup_module_path = os.path.join(self.config_dir, lookup_module_path)
+            lookup_module = get_custom_module(lookup_module_path, 'lookup_module_path')
             lookup_cls = getattr(lookup_module, '{}KeysLookup'.format(self.config['model']['model_id']))
         else: # built-in lookup
             if self.config.get('builtin_lookup_type') == 'deterministic':
