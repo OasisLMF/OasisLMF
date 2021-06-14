@@ -2,6 +2,7 @@ __all__ = [
     'GenerateExposurePreAnalysisCmd',
     'GenerateKeysCmd',
     'GenerateLossesCmd',
+    'GenerateLossesPartialCmd',
     'GenerateOasisFilesCmd',
     'ModelCmd',
     'RunCmd'
@@ -46,6 +47,22 @@ class GenerateLossesCmd(OasisComputationCommand):
     computation_name = 'GenerateLosses'
 
 
+class GenerateLossesPartialCmd(OasisComputationCommand):
+    """
+    Distributed Oasis CMD: desc todo
+    """
+    formatter_class = RawDescriptionHelpFormatter
+    computation_name = 'GenerateLossesPartial'
+
+
+class GenerateLossesOutputCmd(OasisComputationCommand):
+    """
+    Distributed Oasis CMD: desc todo
+    """
+    formatter_class = RawDescriptionHelpFormatter
+    computation_name = 'GenerateLossesOutput'
+
+
 class RunCmd(OasisComputationCommand):
     """
     Run models end to end.
@@ -72,5 +89,7 @@ class ModelCmd(OasisBaseCommand):
         'generate-keys': GenerateKeysCmd,
         'generate-oasis-files': GenerateOasisFilesCmd,
         'generate-losses': GenerateLossesCmd,
+        'generate-losses-chunk': GenerateLossesPartialCmd,
+        'generate-losses-output': GenerateLossesOutputCmd,
         'run': RunCmd
     }

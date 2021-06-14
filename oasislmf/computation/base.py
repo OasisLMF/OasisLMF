@@ -88,6 +88,19 @@ class ComputationStep:
 
         return params
 
+    @classmethod 
+    def get_arguments(cls, **kwargs):
+        """
+        Return a list of default arguments values for the functions parameters 
+        If given arg values in 'kwargs' these will override the defaults 
+        """
+        func_args = {el['name']: el.get('default', None) for el in cls.get_params()}
+        for param in kwargs: 
+            if param in func_args:
+                func_args[param] = kwargs[param]
+        return func_args
+
+
     @classmethod
     def get_signature(cls):
         """ Create a function signature based on the 'get_params()' return
