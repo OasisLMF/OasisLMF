@@ -2,6 +2,7 @@ __all__ = [
     'as_path',
     'empty_dir',
     'PathCleaner',
+    'import_from_string',
     'get_custom_module',
     'setcwd'
 ]
@@ -91,6 +92,26 @@ class PathCleaner(object):
 
     def __call__(self, path):
         return as_path(path, self.label, preexists=self.preexists)
+
+
+def import_from_string(name):
+    """
+    return the object or module from the path given
+    >>> import os.path
+    >>> mod = import_from_string('os.path')
+    >>> os.path is mod
+    True
+
+    >>> from os.path import isabs
+    >>> cls = import_from_string('os.path.isabs')
+    >>> isabs is cls
+    True
+    """
+    components = name.split('.')
+    res = __import__(components[0])
+    for comp in components[1:]:
+        res = getattr(res, comp)
+    return res
 
 
 def get_custom_module(custom_module_path, label):
