@@ -116,7 +116,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
     Built-in Lookup class that implement the OasisLookupInterface
     The aim of this class is to provide a data driven lookup capability that will be both flexible and efficient.
 
-    it provide several generic function factory that can be define in the config under the "mapper" key (ex:)
+    it provide several generic function factory that can be define in the config under the "step_definition" key (ex:)
     "step_definition": {
         "split_loc_perils_covered":{
             "type": "split_loc_perils_covered" ,
