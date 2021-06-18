@@ -1,0 +1,6 @@
+shapely
+geopandas
+sklearn
+pyarrow
+rtree 
+cookiecutter>=1.6.0

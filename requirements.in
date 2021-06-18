@@ -1,4 +1,5 @@
 -r ./requirements-package.in
+-r ./optional-package.in
 
 configparser>=3.5.0
 coverage
