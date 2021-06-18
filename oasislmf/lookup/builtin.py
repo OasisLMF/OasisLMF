@@ -30,6 +30,7 @@ from ..utils.peril import PERILS, PERIL_GROUPS
 
 from .base import AbstractBasicKeyLookup, MultiprocLookupMixin
 
+OPT_INSTALL_MESSAGE = "install oasislmf with extra packages by running 'pip install oasislmf[extra]'"
 
 def get_nearest(src_points, candidates, k_neighbors=1):
     """Find nearest neighbors for all source points from a set of candidate points"""
@@ -199,7 +200,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             step_config = self.config['step_definition'][step_name]
             needed_column = set(step_config.get("columns", []))
             if not needed_column.issubset(locations.columns):
-                raise OasisException(f"Key Server Issue: missing columns {needed_column.difference(locations.columns)} for step {step_name}")
+                raise OasisException(f"Key Server Issue: missing columns {needed_column.difference(locations.columns)} for step {step_name}, {OPT_INSTALL_MESSAGE}")
             if hasattr(self, step_name):
                 step_function = getattr(self, step_name)
             else :
@@ -328,7 +329,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         """
         if Point is None:
-            raise OasisException("shapely and geopandas modules are needed for rtree")
+            raise OasisException(f"shapely and geopandas modules are needed for rtree, {OPT_INSTALL_MESSAGE}")
 
         if hasattr(gpd, f"read_{file_type}"):
             gdf_area_peril = getattr(gpd, f"read_{file_type}")(self.to_abs_filepath(file_path))
@@ -337,7 +338,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
 
         if nearest_neighbor_min_distance > 0:
             if BallTree is None:
-                raise OasisException("sklearn modules are needed for rtree with nearest_neighbor_min_distance")
+                raise OasisException(f"sklearn modules are needed for rtree with nearest_neighbor_min_distance, {OPT_INSTALL_MESSAGE}")
             gdf_area_peril['center'] = gdf_area_peril.centroid
             base_geometry_name = gdf_area_peril.geometry.name
 
