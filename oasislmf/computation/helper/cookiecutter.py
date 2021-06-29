@@ -9,6 +9,13 @@ from subprocess import (
 )
 
 from ..base import ComputationStep
+from ...utils.exceptions import OasisException
+
+try:
+    import cookiecutter
+    cookiecutter_ver = cookiecutter.__version__
+except ImportError:
+    cookiecutter_ver = None
 
 
 class CreateModelBase(ComputationStep):
@@ -28,6 +35,10 @@ class CreateModelBase(ComputationStep):
     ]
 
     def run(self):
+
+        if cookiecutter_ver is None:
+            raise OasisException("Optional package 'cookiecutter' is not installed, to install oasislmf with extra packages run 'pip install oasislmf[extra]'")
+
         cmd_str = 'cookiecutter'
         if not self.cookiecutter_version:
             cmd_str += ''.join([

@@ -14,6 +14,3 @@ __all__ = [
 from ..lookup.factory import KeyServerFactory as OasisLookupFactory
 from ..lookup.base import OasisBaseLookup as OasisBuiltinBaseLookup
 from ..lookup.interface import OasisLookupInterface as OasisBaseKeysLookup 
-from ..lookup.rtree import RTreeLookup as OasisLookup
-from ..lookup.rtree import RTreePerilLookup as OasisPerilLookup
-from ..lookup.rtree import RTreeVulnerabilityLookup as OasisVulnerabilityLookup

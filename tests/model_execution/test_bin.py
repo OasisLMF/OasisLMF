@@ -54,7 +54,7 @@ class CsvToBin(TestCase):
             self.assertEqual(0, len(glob.glob(os.path.join(csv_dir, '*.bin'))))
 
     @given(standard_input_files(min_size=1), il_input_files(min_size=1))
-    @settings(deadline=1000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     def test_contains_il_and_standard_files_but_il_is_false___il_files_are_excluded(self, standard, il):
         with patch('oasislmf.model_execution.bin.INPUT_FILES', ECHO_CONVERSION_INPUT_FILES), TemporaryDirectory() as csv_dir, TemporaryDirectory() as bin_dir:
             for target in chain(standard, il):
@@ -159,6 +159,7 @@ class CreateBinaryTarFile(TestCase):
                 self.assertEqual(0, len(tar.getnames()))
 
     @given(tar_file_targets(min_size=1))
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     def test_directory_contains_some_target_files___target_files_are_included(self, targets):
         with TemporaryDirectory() as d:
             for target in targets:
@@ -172,6 +173,7 @@ class CreateBinaryTarFile(TestCase):
                 self.assertEqual(set(targets), set(tar.getnames()))
 
     @given(tar_file_targets(min_size=1))
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     def test_with_single_reinsurance_subfolder(self, targets):
         with TemporaryDirectory() as d:
             os.mkdir(os.path.join(d, 'RI_1'))
@@ -193,6 +195,7 @@ class CreateBinaryTarFile(TestCase):
                 self.assertEqual(set(all_targets), set(tar.getnames()))
 
     @given(tar_file_targets(min_size=1))
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     def test_with_multiple_reinsurance_subfolders(self, targets):
         with TemporaryDirectory() as d:
             os.mkdir(os.path.join(d, 'RI_1'))
@@ -283,6 +286,7 @@ class CheckInputsDirectory(TestCase):
             with self.assertRaises(OasisException):
                 check_inputs_directory(d, False)
 
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(il_input_files())
     def test_il_is_false_non_il_input_files_are_missing__exception_is_raised(self, il_files):
         with TemporaryDirectory() as d:
@@ -895,6 +899,7 @@ class CheckBinTarFile(TestCase):
     @given(
         lists(sampled_from([f['name'] for f in chain(GUL_INPUT_FILES.values(), IL_INPUT_FILES.values())]), min_size=1, unique=True)
     )
+    @settings(deadline=None, suppress_health_check=[HealthCheck.too_slow])
     def test_some_files_are_missing_check_il_is_true___error_is_raised(self, missing):
         with TemporaryDirectory() as d:
             tar_file_name = os.path.join(d, 'exposures.tar')
