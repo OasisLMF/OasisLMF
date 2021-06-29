@@ -238,7 +238,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
         """
         for col in id_columns:
             df.loc[df[col].isna(), col] = OASIS_UNKNOWN_ID
-            df[col] = df[col].astype(np.int32)
+            df[col] = df[col].astype(np.int64)
         return df
 
     @staticmethod
@@ -421,7 +421,7 @@ class Lookup(AbstractBasicKeyLookup, MultiprocLookupMixin):
             return locations
         return geo_grid_lookup
 
-    def build_merge(self, file_path, id_columns):
+    def build_merge(self, file_path, id_columns=[]):
         """
         this method will merge the locations Dataframe with the Dataframe present in file_path
         All non match column present in id_columns will be set to -1
