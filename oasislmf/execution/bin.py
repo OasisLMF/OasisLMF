@@ -227,29 +227,29 @@ def _prepare_input_bin(run_dir, bin_name, model_settings, setting_key=None, ri=F
         shutil.copyfile(model_data_bin_fp, bin_fp)
 
 
-def _calc_selected(analysis_settings, calc_type):
+def _calc_selected(analysis_settings, calc_type_list):
     """
-    Return True, if "calc_type" is set in the analysis settings file
+    Return True, if any options in "calc_type_list" are set in the analysis settings file
 
-    :param calc_type: one of `eltcalc`, `lec_output`, `aalcalc` or `pltcalc`
-    :type calc_type: str
+    :param calc_type_list: List of string values or ktools outputs, e.g. `eltcalc`, `lec_output`, `aalcalc` or `pltcalc`
+    :type  calc_type_list: list
     """
-    is_in_gul = False
-    is_in_il = False
-    is_in_ri = False
-
     gul_section = analysis_settings.get('gul_summaries')
     il_section = analysis_settings.get('il_summaries')
     ri_section = analysis_settings.get('ri_summaries')
+    
+    for calc_type in calc_type_list:
 
-    if gul_section:
-        is_in_gul = any(gul_summary.get(calc_type, None) for gul_summary in gul_section)
-    if il_section:
-        is_in_il = any(il_summary.get(calc_type, None) for il_summary in il_section)
-    if ri_section:
-        is_in_ri = any(ri_summary.get(calc_type, None) for ri_summary in ri_section)
-
-    return any([is_in_gul, is_in_il, is_in_ri])
+        if gul_section:
+            if any(gul_summary.get(calc_type, None) or gul_summary.get('ord_output', {}).get(calc_type) for gul_summary in gul_section):
+                return True 
+        if il_section:
+            if any(il_summary.get(calc_type, None) or il_summary.get('ord_output', {}).get(calc_type) for il_summary in il_section):
+                return True
+        if ri_section:
+            if any(ri_summary.get(calc_type, None) or ri_summary.get('ord_output', {}).get(calc_type) for ri_summary in ri_section):
+                return True 
+    return False 
 
 
 def _leccalc_selected(analysis_settings):
@@ -298,7 +298,7 @@ def prepare_run_inputs(analysis_settings, run_dir, ri=False):
                 _prepare_input_bin(run_dir, 'returnperiods', model_settings)
 
             _prepare_input_bin(run_dir, 'occurrence', model_settings, setting_key='event_occurrence_id', ri=ri)
-        elif _calc_selected(analysis_settings, 'pltcalc') or _calc_selected(analysis_settings, 'aalcalc'):
+        elif _calc_selected(analysis_settings, ['pltcalc', 'aalcalc', 'alt_period']):
             _prepare_input_bin(run_dir, 'occurrence', model_settings, setting_key='event_occurrence_id', ri=ri)
 
         if os.path.exists(os.path.join(run_dir, 'static', 'periods.bin')):

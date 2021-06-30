@@ -208,7 +208,7 @@ def ord_enabled(summary_options, ORD_SWITCHES):
     :param summary_options: Summaies section from an analysis_settings file
     :type summary_options: dict
 
-    :param ORD_SWITCHES: Options from the analysis_settings 'Summaies' section to search 
+    :param ORD_SWITCHES: Options from the analysis_settings 'Summaies' section to search
     :type  ORD_SWITCHES: dict
 
     Example:
@@ -275,7 +275,7 @@ def do_post_wait_processing(
 
             # ORD - PALT
             if ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
-                cmd = 'aalcalc -K{}{}_S{}_summaryaalcalc {}'.format(
+                cmd = 'aalcalc -K{}{}_S{}_summary_palt {}'.format(
                     work_sub_dir,
                     runtype,
                     summary_set,
@@ -448,6 +448,12 @@ def create_workfolders(runtype, analysis_settings, filename, work_dir='work/'):
                     'mkdir {}{}_S{}_summaryaalcalc'.format(work_dir, runtype, summary_set)
                 )
 
+            if summary.get('ord_output', {}).get('alt_period'):
+                print_command(
+                    filename,
+                    'mkdir {}{}_S{}_summary_palt'.format(work_dir, runtype, summary_set)
+                )
+
 
 def do_kats(
     runtype,
@@ -595,6 +601,10 @@ def do_tees(runtype, analysis_settings, process_id, filename, process_counter, f
 
             if summary.get('aalcalc'):
                 cmd = '{} {}{}_S{}_summaryaalcalc/P{}.bin'.format(cmd, work_dir, runtype, summary_set, process_id)
+
+            if summary.get('ord_output', {}).get('alt_period'):
+                cmd = '{} {}{}_S{}_summary_palt/P{}.bin'.format(cmd, work_dir, runtype, summary_set, process_id)
+
 
             # leccalc and ordleccalc share the same summarycalc binary data
             # only create the workfolders once if either option is selected
