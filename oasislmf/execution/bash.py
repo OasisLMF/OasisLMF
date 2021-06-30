@@ -58,7 +58,7 @@ ORD_PSEPT_OUTPUT_SWITCHES = {
 
 ORD_LECCALC = {**ORD_EPT_OUTPUT_SWITCHES, **ORD_PSEPT_OUTPUT_SWITCHES}
 
-ORD_ALT_T_OUTPUT_SWITCHES = {
+ORD_ALT_OUTPUT_SWITCHES = {
     "alt_period": '-o'
 }
 
@@ -253,6 +253,8 @@ def do_post_wait_processing(
     for summary in analysis_settings['{}_summaries'.format(runtype)]:
         if "id" in summary:
             summary_set = summary['id']
+
+            # ktools ORIG - aalcalc
             if summary.get('aalcalc'):
                 cmd = 'aalcalc -K{}{}_S{}_summaryaalcalc'.format(
                     work_sub_dir,
@@ -270,7 +272,27 @@ def do_post_wait_processing(
                     cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 print_command(filename, cmd)
 
-            # Add ORD  options:
+
+            # ORD - PALT
+            if ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
+                cmd = 'aalcalc -K{}{}_S{}_summaryaalcalc {}'.format(
+                    work_sub_dir,
+                    runtype,
+                    summary_set,
+                    ORD_ALT_OUTPUT_SWITCHES.get("alt_period", "")
+                )
+
+                process_counter['lpid_monitor_count'] += 1
+                cmd = '{} > {}{}_S{}_palt.csv'.format(
+                    cmd, output_dir, runtype, summary_set
+                )
+                if stderr_guard:
+                    cmd = '( {} ) 2>> log/stderror.err & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+                else:
+                    cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
+                print_command(filename, cmd)
+
+            # ORD - PSEPT,EPT
             if ord_enabled(summary, ORD_LECCALC):
 
                 ord_outputs = summary.get('ord_output', {})
@@ -316,8 +338,7 @@ def do_post_wait_processing(
                     cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 print_command(filename, cmd)
 
-
-
+            # ktools ORIG - Leccalc
             if leccalc_enabled(summary):
                 leccalc = summary.get('leccalc', {})
                 cmd = 'leccalc {} -K{}{}_S{}_summaryleccalc'.format(
