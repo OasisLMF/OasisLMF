@@ -56,6 +56,12 @@ ORD_PSEPT_OUTPUT_SWITCHES = {
     "psept_oep": '-w',
 }
 
+ORD_LECCALC = {**ORD_EPT_OUTPUT_SWITCHES, **ORD_PSEPT_OUTPUT_SWITCHES}
+
+ORD_ALT_T_OUTPUT_SWITCHES = {
+    "alt_period": '-o'
+}
+
 # placeholder warning for upcomming ORD ouputs
 ORD_NOT_IMPLEMENTED = [
     "elt_sample",
@@ -64,7 +70,7 @@ ORD_NOT_IMPLEMENTED = [
     "plt_sample",
     "plt_quantile",
     "plt_moment",
-    "alt_period",
+#    "alt_period",
 ]
 
 EVE_SHUFFLE_OPTIONS = {
@@ -195,12 +201,15 @@ def leccalc_enabled(summary_options):
     return False
 
 
-def ord_leccalc_enabled(summary_options):
+def ord_enabled(summary_options, ORD_SWITCHES):
     """
     Checks if ORD leccalc is enabled in a summaries section
 
     :param summary_options: Summaies section from an analysis_settings file
     :type summary_options: dict
+
+    :param ORD_SWITCHES: Options from the analysis_settings 'Summaies' section to search 
+    :type  ORD_SWITCHES: dict
 
     Example:
     {
@@ -223,7 +232,7 @@ def ord_leccalc_enabled(summary_options):
 
     ord_options = summary_options.get('ord_output', {})
     for ouput_opt in ord_options:
-        if ouput_opt in {**ORD_EPT_OUTPUT_SWITCHES, **ORD_PSEPT_OUTPUT_SWITCHES} and ord_options[ouput_opt]:
+        if ouput_opt in ORD_SWITCHES and ord_options[ouput_opt]:
             return True
     return False
 
@@ -261,8 +270,8 @@ def do_post_wait_processing(
                     cmd = '{} & lpid{}=$!'.format(cmd, process_counter['lpid_monitor_count'])
                 print_command(filename, cmd)
 
-            # Add ORD options:
-            if ord_leccalc_enabled(summary):
+            # Add ORD  options:
+            if ord_enabled(summary, ORD_LECCALC):
 
                 ord_outputs = summary.get('ord_output', {})
                 ept_output = False
@@ -383,7 +392,7 @@ def do_fifos_calc(runtype, analysis_settings, max_process_id,
             if 'id' in summary:
                 summary_set = summary['id']
                 do_fifo_exec(runtype, process_id, filename, fifo_dir, action, f'S{summary_set}_summary')
-                if leccalc_enabled(summary) or ord_leccalc_enabled(summary):
+                if leccalc_enabled(summary) or ord_enabled(summary, ORD_LECCALC):
                     idx_fifo = get_fifo_name(fifo_dir, runtype, process_id, f'S{summary_set}_summary')
                     idx_fifo += '.idx'
                     print_command(filename, f'mkfifo {idx_fifo}')
@@ -406,7 +415,7 @@ def create_workfolders(runtype, analysis_settings, filename, work_dir='work/'):
 
             # EDIT: leccalc and ordleccalc share the same summarycalc binary data
             # only create the workfolders once if either option is selected
-            if leccalc_enabled(summary) or ord_leccalc_enabled(summary):
+            if leccalc_enabled(summary) or ord_enabled(summary, ORD_LECCALC):
                 print_command(
                     filename,
                     'mkdir {}{}_S{}_summaryleccalc'.format(work_dir, runtype, summary_set)
@@ -556,7 +565,7 @@ def do_tees(runtype, analysis_settings, process_id, filename, process_counter, f
 
 
             cmd = f'tee < {get_fifo_name(fifo_dir, runtype, process_id, f"S{summary_set}_summary")}'
-            if leccalc_enabled(summary) or ord_leccalc_enabled(summary):
+            if leccalc_enabled(summary) or ord_enabled(summary, ORD_LECCALC):
                 cmd_idx = cmd + '.idx'
 
             for summary_type in SUMMARY_TYPES:
@@ -568,14 +577,14 @@ def do_tees(runtype, analysis_settings, process_id, filename, process_counter, f
 
             # leccalc and ordleccalc share the same summarycalc binary data
             # only create the workfolders once if either option is selected
-            if leccalc_enabled(summary) or ord_leccalc_enabled(summary):
+            if leccalc_enabled(summary) or ord_enabled(summary, ORD_LECCALC):
                 leccalc_out = f'{work_dir}{runtype}_S{summary_set}_summaryleccalc/P{process_id}'
                 cmd = f'{cmd} {leccalc_out}.bin'
                 cmd_idx = f'{cmd_idx} {leccalc_out}.idx'
 
             cmd = '{} > /dev/null & pid{}=$!'.format(cmd, process_counter['pid_monitor_count'])
             print_command(filename, cmd)
-            if leccalc_enabled(summary) or ord_leccalc_enabled(summary):
+            if leccalc_enabled(summary) or ord_enabled(summary, ORD_LECCALC):
                 process_counter['pid_monitor_count'] += 1
                 cmd_idx = '{} > /dev/null & pid{}=$!'.format(cmd_idx, process_counter['pid_monitor_count'])
                 print_command(filename, cmd_idx)
