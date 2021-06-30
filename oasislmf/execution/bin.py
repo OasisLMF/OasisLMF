@@ -35,7 +35,7 @@ from pathlib import Path
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from .files import TAR_FILE, INPUT_FILES, GUL_INPUT_FILES, IL_INPUT_FILES
-from .bash import leccalc_enabled, ord_leccalc_enabled
+from .bash import leccalc_enabled, ord_enabled, ORD_LECCALC
 
 
 
@@ -264,11 +264,11 @@ def _leccalc_selected(analysis_settings):
     ri_section = analysis_settings.get('ri_summaries')
 
     if gul_section:
-        is_in_gul = any(leccalc_enabled(gul_summary) or ord_leccalc_enabled(gul_summary) for gul_summary in gul_section)
+        is_in_gul = any(leccalc_enabled(gul_summary) or ord_enabled(gul_summary, ORD_LECCALC) for gul_summary in gul_section)
     if il_section:
-        is_in_il = any(leccalc_enabled(il_summary) or ord_leccalc_enabled(il_summary) for il_summary in il_section)
+        is_in_il = any(leccalc_enabled(il_summary) or ord_enabled(il_summary, ORD_LECCALC) for il_summary in il_section)
     if ri_section:
-        is_in_ri = any(leccalc_enabled(ri_summary) or ord_leccalc_enabled(ri_summary) for ri_summary in ri_section)
+        is_in_ri = any(leccalc_enabled(ri_summary) or ord_enabled(ri_summary, ORD_LECCALC) for ri_summary in ri_section)
 
     return any([is_in_gul, is_in_il, is_in_ri])
 
