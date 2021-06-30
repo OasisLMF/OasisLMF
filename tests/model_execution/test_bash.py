@@ -474,6 +474,13 @@ class Genbash(TestCase):
         self.genbash("gul_il_ord_psept_lec_1_output", 10)
         self.check("gul_il_ord_psept_lec_1_output_10_partition")
 
+    def test_gul_ord_palt_output_10_partitions(self):
+        self.genbash("gul_ord_palt_output", 10)
+        self.check("gul_ord_palt_output_10_partition")
+
+    def test_gul_il_ord_palt_output_10_partitions(self):
+        self.genbash("gul_il_ord_palt_output", 10)
+        self.check("gul_il_ord_palt_output_10_partition")
 
 class Genbash_GulItemStream(Genbash):
     @classmethod
