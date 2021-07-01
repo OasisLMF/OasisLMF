@@ -1,3 +1,3 @@
 PortNumber,AccNumber,PolNumber,PolPerilsCovered,AccCurrency,LayerNumber,LayerParticipation,LayerLimit,LayerAttachment,PolPeril,PolDed6All,PolMinDed6All,PolMaxDed6All,PolLimit6All
-OEDTest,QS12_02,QS12_02_1,OO1,CAD,1,0.5,0,0,OO1,0,0,0,0
 OEDTest,QS12_01,QS12_01_1,OO1,CAD,1,1.0,0,0,OO1,0,0,0,0
+OEDTest,QS12_02,QS12_02_1,OO1,CAD,1,0.5,0,0,OO1,0,0,0,0

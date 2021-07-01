@@ -35,7 +35,7 @@ class FmAcceptanceTests(TestCase):
                 fmpy=fmpy,
                 fmpy_sort_output=True,
                 num_subperils=subperils,
-                test_tolerance=0.0001,
+                test_tolerance=0.001,
                 expected_output_dir=expected_dir,
             )
         self.assertTrue(result)
