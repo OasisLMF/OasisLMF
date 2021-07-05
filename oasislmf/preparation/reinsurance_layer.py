@@ -268,7 +268,7 @@ class ReinsuranceLayer(object):
 
         return df_['profile_id'].to_list()
 
-    def _test_match_portfolio(self, df_, ri_df_):
+    def _match_portfolio(self, df_, ri_df_):
 
         fields = self._get_reins_type_fields(oed.REINS_RISK_LEVEL_PORTFOLIO)
         valid_fields = self._get_valid_fields(fields)
@@ -284,7 +284,7 @@ class ReinsuranceLayer(object):
 
         return df_['profile_id'].to_list()
 
-    def _test_match_account(self, df_, ri_df_):
+    def _match_account(self, df_, ri_df_):
 
         fields = self._get_reins_type_fields(oed.REINS_RISK_LEVEL_ACCOUNT)
         valid_fields = self._get_valid_fields(fields)
@@ -295,13 +295,13 @@ class ReinsuranceLayer(object):
             fields=fields
         )
 
-        df_['profile_id'] = self._test_match_portfolio(
+        df_['profile_id'] = self._match_portfolio(
             df_=df_, ri_df_=ri_df_[ri_df_[valid_fields[1]] == False]
         )
 
         return df_['profile_id'].to_list()
 
-    def _test_match_policy_or_location(self, df_, ri_df_):
+    def _match_policy_or_location(self, df_, ri_df_):
 
         fields = self._get_reins_type_fields()
         valid_fields = self._get_valid_fields(fields)
@@ -312,13 +312,13 @@ class ReinsuranceLayer(object):
             fields=fields
         )
 
-        df_['profile_id'] = self._test_match_account(
+        df_['profile_id'] = self._match_account(
             df_=df_, ri_df_=ri_df_[ri_df_[valid_fields[2]] == False]
         )
 
         return df_['profile_id'].to_list()
 
-    def _test_match_location_group(self, df_, ri_df_):
+    def _match_location_group(self, df_, ri_df_):
 
         fields = self._get_reins_type_fields()
         valid_fields = self._get_valid_fields(fields)
@@ -330,7 +330,7 @@ class ReinsuranceLayer(object):
 
         return df_['profile_id'].to_list()
 
-    def _test_match_row(self, row):
+    def _match_row(self, row):
         match = True
         if match and row['portnumber_valid']:
             match = row['portnumber_x'] == row['portnumber_y']
@@ -356,15 +356,15 @@ class ReinsuranceLayer(object):
                 fields=self._get_reins_type_fields()
             )
         elif self.risk_level == oed.REINS_RISK_LEVEL_PORTFOLIO:
-            profile_ids = self._test_match_portfolio(df_, ri_df_)
+            profile_ids = self._match_portfolio(df_, ri_df_)
         elif self.risk_level == oed.REINS_RISK_LEVEL_ACCOUNT:
-            profile_ids = self._test_match_account(df_, ri_df_)
+            profile_ids = self._match_account(df_, ri_df_)
         elif self.risk_level == oed.REINS_RISK_LEVEL_POLICY:
-            profile_ids = self._test_match_policy_or_location(df_, ri_df_)
+            profile_ids = self._match_policy_or_location(df_, ri_df_)
         elif self.risk_level == oed.REINS_RISK_LEVEL_LOCATION:
-            profile_ids = self._test_match_policy_or_location(df_, ri_df_)
+            profile_ids = self._match_policy_or_location(df_, ri_df_)
         elif self.risk_level == oed.REINS_RISK_LEVEL_LOCATION_GROUP:
-            profile_ids = self._test_match_location_group(df_, ri_df_)
+            profile_ids = self._match_location_group(df_, ri_df_)
         else:
             raise OasisException(f"Unknown risk level: {self.risk_level}")
 
@@ -377,7 +377,7 @@ class ReinsuranceLayer(object):
 
         df_['idx'] = df_.index
         df_ = df_.merge(ri_df_, how='inner', on='layer_id')
-        df_['match'] = df_.apply(lambda row: self._test_match_row(row), axis=1)
+        df_['match'] = df_.apply(lambda row: self._match_row(row), axis=1)
         filter_idx = df_[df_['match'] == True]['idx'].drop_duplicates().to_list()
 
         return filter_idx
