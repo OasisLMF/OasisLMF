@@ -50,7 +50,25 @@ class ModelValidationCmd(OasisBaseCommand):
 
 class FmValidationCmd(OasisComputationCommand):
     """
-    Runs a set of FM tests.
+    Run FM acceptance tests from "oasisLMF/validation/*"
+
+    Example use: 
+    1. Run all test cases: "oasisLMF/validation$ oasislmf test fm"
+        Stating oasislmf command - RunFmTest
+        RUNNING: oasislmf.manager.interface
+        Running: 4 Tests from '/home/sam/repos/core/oasisLMF/validation'
+        Test names: ['insurance', 'insurance_step', 'reinsurance1', 'reinsurance2']
+         ...
+
+    2. Run Directly from a acceptance test Directory: "oasisLMF/validation/reinsurance1$ oasislmf test fm"
+        Stating oasislmf command - RunFmTest
+        RUNNING: oasislmf.manager.interface
+         ... 
+
+    3. Select test case sub-directory: "oasisLMF/validation$ oasislmf test fm --test-case-name reinsurance1"
+        Stating oasislmf command - RunFmTest
+        RUNNING: oasislmf.manager.interface
+         ...
     """
     formatter_class = RawDescriptionHelpFormatter
     computation_name = 'RunFmTest'
