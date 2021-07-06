@@ -1,4 +1,6 @@
-import numpy as np 
+#!/usr/bin/env python3
+
+import numpy as np
 import pandas as pd
 import os
 import json
@@ -23,7 +25,7 @@ accountfile = pd.read_csv('account.csv')
 split_location = locationfile.groupby('FlexiLocUnit')
 split_account = accountfile.groupby('FlexiAccUnit')
 
-newpath = 'units' 
+newpath = 'units'
 if not os.path.exists(newpath):
     os.makedirs(newpath)
 
@@ -33,7 +35,7 @@ for name, group in split_location:
 
 names = sorted([str(item[0]) for item in split_location])
 
-#Function to sort fm string in Ascedning order 
+#Function to sort fm string in Ascedning order
 import re
 
 def ascedning(text):
@@ -51,7 +53,7 @@ units_dir=os.path.join(cwd,'units')
 
 if not os.path.exists(units_dir):
     os.mkdir(units_dir)
-    
+
 with open(os.path.join(units_dir,'units.txt'), "w") as txt_file:
     names, groups = map(list, zip(*split_location))
     names.sort(key=natural_keys)
@@ -62,7 +64,7 @@ with open(os.path.join(units_dir,'units.txt'), "w") as txt_file:
 # get directories
 with open(os.path.join(units_dir,'units.txt'), "r") as txt_file:
     fms = txt_file.read().split('\n')
-    
+
 dirs = []
 for fm in fms:
     if fm!='':
@@ -85,7 +87,7 @@ for i in range(1,len(dirs)):
     df_loc_tmp['FlexiLocUnit']=fm_next
     # concat files
     df_loc = pd.concat([df_loc,df_loc_tmp])
-    
+
 df_loc.to_csv('location_concat.csv',index=False)
 
 
@@ -105,11 +107,5 @@ for i in range(1,len(dirs)):
     df_loc_tmp2['FlexiAccUnit']=fm2_next
     # concat files
     df_loc2 = pd.concat([df_loc2,df_loc_tmp2])
-    
+
 df_loc2.to_csv('account_concat.csv',index=False)
-
-
-
-
-
- 
