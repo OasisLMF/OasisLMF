@@ -1,3 +1,0 @@
-PortNumber,AccNumber,LocNumber,LocName,CountryCode,AreaCode,LocPerilsCovered,BuildingTIV,OtherTIV,ContentsTIV,BITIV,LocCurrency,CondNumber
-1,11,12088,12088,US,TX,AA1,75000000,0,0,0,USD,366450
-1,11,12089,12089,US,LA,AA1,75000000,0,0,0,USD,
