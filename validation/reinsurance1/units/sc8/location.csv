@@ -1,4 +1,0 @@
-PortNumber,AccNumber,LocNumber,LocName,CountryCode,AreaCode,LocPerilsCovered,BuildingTIV,OtherTIV,ContentsTIV,BITIV,LocCurrency,CondNumber
-1,10,11979,11979,US,CA,AA1,75000000,0,0,0,USD,
-1,10,11980,11980,US,MT,AA1,75000000,0,0,0,USD,331826
-1,10,11980,11980,US,MT,AA1,75000000,0,0,0,USD,331828
