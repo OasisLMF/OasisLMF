@@ -3,18 +3,15 @@ __all__ = [
     'write_files_for_reinsurance'
 ]
 
-import json
 import logging
 import os
 import shutil
 
 from collections import namedtuple
 
-import anytree
 import numbers
 import pandas as pd
 
-from anytree.exporter.dotexporter import DotExporter
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from . import oed
@@ -412,6 +409,16 @@ class ReinsuranceLayer(object):
     LOCATION_RISK_LEVEL = 2
 
     def _get_xref_df(self):
+        """
+        Build the cross-reference dataframe, which serves as a representation
+        of the insurance programme depending on the reinsurance risk level.
+        Dataframes for programme, risk, filter and items levels are created.
+        The fields agg_id, level_id and to_agg_id (agg_id_to), which are used
+        to construct the FM Programmes structure, are assigned. The
+        aforementioned dataframes are concatenated to form a single dataframe
+        called xref_df, which is returned. The returned dataframe features the
+        fields necessary for the assignment of profile IDs.
+        """
         risk_level_id = self.LOCATION_RISK_LEVEL + 1
         program_node_level_id = risk_level_id + 1
 
@@ -540,13 +547,19 @@ class ReinsuranceLayer(object):
 
     def generate_oasis_structures(self):
         '''
-        Create the Oasis structures - FM Programmes, FM Profiles and FM Policy TCs -
-        that represent the reinsurance structure.
+        Create the Oasis structures - FM Programmes, FM Profiles and FM Policy
+        TCs - that represent the reinsurance structure.
 
-        The algorithm to create the stucture has three steps:
-        Step 1 - Build a tree representation of the insurance program, depending on the reinsurance risk level.
-        Step 2 - Overlay the reinsurance structure. Each reinsurance contact is a seperate layer.
-        Step 3 - Iterate over the tree and write out the Oasis structure.
+        The cross-reference dataframe, which serves as a representation of the
+        insurance programme depending on the reinsurance risk level, is built.
+        With the exception of facultative contracts, each contract is a
+        separate layer. Profile IDs for the risk and filter levels are created
+        using the merged reinsurance scope and info dataframes. These profile
+        IDs are assigned according to some combination of the fields
+        portnumber, accnumber, polnumber, locgroup and locnumber, dependent on
+        reinsurance risk level. Individual programme level profile IDs are
+        assigned for each row of the reinsurance info dataframe. Finally, the
+        Oasis structure is written out.
         '''
 
         fmprofiles_list = list()
@@ -567,6 +580,7 @@ class ReinsuranceLayer(object):
         self.logger.debug(fmprofiles_list)
 
         # Get cross-reference dataframe which shall be used to build profile map
+        # FM Programmes fields agg_id, level_id and to_agg_id are assigned here
         xref_df = self._get_xref_df()
 
         # Assign default profile IDs
