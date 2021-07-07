@@ -1,4 +1,0 @@
-ReinsNumber,ReinsPeril,ReinsCurrency,CededPercent,RiskLimit,RiskAttachment,OccLimit,OccAttachment,PlacedPercent,InuringPriority,ReinsType,ReinsName
-116,OO1,CAD,1,0,0,0,1000000,0.2,1,CXL,T34 CX Sel
-120,OO1,CAD,1,0,0,1000000,0,0.2,1,CXL,T35 CX sel
-124,OO1,CAD,1,0,0,1500000,1000000,0.2,1,CXL,T36 CX Sel

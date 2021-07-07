@@ -91,6 +91,8 @@ all_files=(
 	gul_ord_ept_1_output_20_partition.sh
 	gul_ord_ept_psept_lec_2_output_10_partition.sh
 	gul_ord_psept_2_output_10_partition.sh
+    gul_ord_palt_output_10_partition.sh
+    gul_il_ord_palt_output_10_partition.sh
 )
 
 for f in "${all_files[@]}"; do 

@@ -1,3 +1,0 @@
-PortNumber,AccNumber,LocNumber,LocName,CountryCode,LocPerilsCovered,BuildingTIV,OtherTIV,ContentsTIV,BITIV,LocCurrency
-TestStepPolicies,B1,B1,Flood Policy product B1,JP,OO1,100000,200000,300000,400000,JPY
-TestStepPolicies,B2,B2,No terms,JP,OO1,500000,600000,700000,800000,JPY
