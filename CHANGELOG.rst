@@ -1,6 +1,23 @@
 OasisLMF Changelog
 ==================
 
+`1.18.0`_
+ ---------
+* [#865](https://github.com/OasisLMF/OasisLMF/pull/865) - correction for PolDed6All fields
+* [#861](https://github.com/OasisLMF/OasisLMF/pull/866) - Add PALT to genbash 
+* [#820](https://github.com/OasisLMF/OasisLMF/pull/868) - Pol Fac Contracts
+* [#837](https://github.com/OasisLMF/OasisLMF/pull/837) - added new doc
+* [#869](https://github.com/OasisLMF/OasisLMF/pull/869) - Feature/761 fm tests
+* [#862](https://github.com/OasisLMF/OasisLMF/pull/871) - oasislmf test fm doesn't work and there is no documentation
+* [#828](https://github.com/OasisLMF/OasisLMF/pull/872) - RI FM File Generation issue when locations have zero TIV
+* [#850](https://github.com/OasisLMF/OasisLMF/pull/870) - Improve exit handler's process cleanup 
+* [#874](https://github.com/OasisLMF/OasisLMF/pull/875) - Check and set minimum versions for optional packages 
+* [#846](https://github.com/OasisLMF/OasisLMF/pull/847) - Update package dependencies for flexible lookup code 
+* [#852](https://github.com/OasisLMF/OasisLMF/pull/854) - Issue with custom lookup_module_path relative path
+* [#826](https://github.com/OasisLMF/OasisLMF/pull/826) - Automate Change logs and release notes
+* [#860](https://github.com/OasisLMF/OasisLMF/pull/860) - slight interface changes for key server functions
+.. _`1.18.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.17.0...1.18.0
+
 `1.17.0`_
  ---------
 * [#833](https://github.com/OasisLMF/OasisLMF/pull/834) - Minor issue - error parsing fm CLI help text 
