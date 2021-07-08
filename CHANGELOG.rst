@@ -1,6 +1,13 @@
 OasisLMF Changelog
 ==================
 
+`1.15.13`_
+ ---------
+* [#828](https://github.com/OasisLMF/OasisLMF/pull/872) - RI FM File Generation issue when locations have zero TIV
+* [#850](https://github.com/OasisLMF/OasisLMF/pull/870) - Improve exit handler's process cleanup 
+* [#820](https://github.com/OasisLMF/OasisLMF/pull/868) - Pol Fac Contracts
+.. _`1.15.13`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.10...1.15.13
+
 `1.15.10`_
  ---------
 * [#822](https://github.com/OasisLMF/OasisLMF/pull/827) - Ktools exit handler killing off bash logging on exit
