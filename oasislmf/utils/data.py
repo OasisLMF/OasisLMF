@@ -61,6 +61,7 @@ from ..utils.profiles import (
 from ..utils.defaults import (
     get_default_exposure_profile,
     get_loc_dtypes,
+    SOURCE_IDX,
 )
 
 pd.options.mode.chained_assignment = None
@@ -920,6 +921,9 @@ def get_location_df(
     # Set interal location id index
     if 'loc_id' not in exposure_df.columns:
         exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
+
+    # Add file Index column to extract OED columns for summary grouping 
+    exposure_df[SOURCE_IDX['loc']] = exposure_df.index
 
     return exposure_df
 

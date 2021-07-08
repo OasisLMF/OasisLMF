@@ -1,0 +1,2 @@
+ReinsNumber,ReinsName,ReinsLayerNumber,ReinsPeril,ReinsInceptionDate,ReinsExpiryDate,CededPercent,RiskLimit,RiskAttachment,OccLimit,OccAttachment,OccFranchiseDed,OccReverseFranchise,AggLimit,AggAttachment,AggPeriod,PlacedPercent,ReinsCurrency,InuringPriority,ReinsType
+1,FAC,1,AA1,,,,,,1000000,1000,,,,,,0.6,GBP,1,FAC
