@@ -132,7 +132,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='LOC',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1   ],
@@ -202,7 +201,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='POL',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1, 1,  1,  1,  1,  1,  1    ],
                     'level_id':     [   3, 2,  2,  1,  1,  1,  1    ],
@@ -272,7 +270,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='ACC',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  1,  1,  1,  1   ],
@@ -343,7 +340,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='LGR',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1, 1,  1,  1,  1,  1,  1    ],
                     'level_id':     [   3, 2,  2,  1,  1,  1,  1    ],
@@ -414,24 +410,23 @@ class TestReinsurance(unittest.TestCase):
                 risk_level='LOC',
                 inuring_priority=1,
                 ri_inputs=reinsurance_layer.RiLayerInputs(
-                    fm_tree = None,
                     fm_policytc=pd.DataFrame.from_dict({
                         'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1,  1   ],
                         'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1   ],
                         'agg_id':       [   1,  1,  2,  3,  4,  1,  2,  3,  4   ],
-                        'profile_id':   [   2,  3,  4,  1,  1,  2,  2,  2,  2   ]
+                        'profile_id':   [   2,  3,  3,  1,  1,  2,  2,  2,  2   ]
                     }),
                     fm_profile=pd.DataFrame.from_dict({
-                        'profile_id':  [    1,      2,      3,      4       ],
-                        'calcrule_id': [    14,     12,     24,     24      ],
-                        'deductible1': [    0.0,    0.0,    0.0,    0.0     ],
-                        'deductible2': [    0.0,    0.0,    0.0,    0.0     ],
-                        'deductible3': [    0.0,    0.0,    0.0,    0.0     ],
-                        'attachment':  [    0.0,    0.0,    0.0,    0.0     ],
-                        'limit':       [    0.0,    0.0,    10.0,   10.0    ],
-                        'share1':      [    0.0,    0.0,    1.0,    1.0     ],
-                        'share2':      [    0.0,    0.0,    1.0,    1.0     ],
-                        'share3':      [    0.0,    0.0,    1.0,    1.0     ]
+                        'profile_id':  [    1,      2,      3,      ],
+                        'calcrule_id': [    14,     12,     24,     ],
+                        'deductible1': [    0.0,    0.0,    0.0,    ],
+                        'deductible2': [    0.0,    0.0,    0.0,    ],
+                        'deductible3': [    0.0,    0.0,    0.0,    ],
+                        'attachment':  [    0.0,    0.0,    0.0,    ],
+                        'limit':       [    0.0,    0.0,    10.0,   ],
+                        'share1':      [    0.0,    0.0,    1.0,    ],
+                        'share2':      [    0.0,    0.0,    1.0,    ],
+                        'share3':      [    0.0,    0.0,    1.0,    ]
                     }),
                     fm_programme=pd.DataFrame.from_dict({
                         'from_agg_id': [    1,  2,  3,  4,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
@@ -444,7 +439,6 @@ class TestReinsurance(unittest.TestCase):
                 risk_level='POL',
                 inuring_priority=1,
                 ri_inputs=reinsurance_layer.RiLayerInputs(
-                    fm_tree = None,
                     fm_policytc=pd.DataFrame.from_dict({
                         'layer_id':     [   1,  1,   1,  1,  1,  1,  1   ],
                         'level_id':     [   3,  2,   2,  1,  1,  1,  1   ],
@@ -474,7 +468,6 @@ class TestReinsurance(unittest.TestCase):
                 risk_level='ACC',
                 inuring_priority=1,
                 ri_inputs=reinsurance_layer.RiLayerInputs(
-                    fm_tree = None,
                     fm_policytc=pd.DataFrame.from_dict({
                         'layer_id':     [   1, 1,  1,  1,  1,  1,  1    ],
                         'level_id':     [   3, 2,  2,  1,  1,  1,  1    ],
@@ -545,7 +538,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='LOC',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1   ],
@@ -615,7 +607,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='LGR',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  1,  1,  1,  1   ],
@@ -685,7 +676,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='POL',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  1,  1,  1,  1   ],
@@ -755,7 +745,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='ACC',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  1,  1,  1,  1   ],
@@ -825,24 +814,23 @@ class TestReinsurance(unittest.TestCase):
             risk_level='LOC',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1   ],
                     'agg_id':       [   1,  1,  2,  3,  4,  1,  2,  3,  4   ],
-                    'profile_id':   [   7,  3,  4,  1,  1,  2,  2,  2,  2   ]
+                    'profile_id':   [   4,  3,  3,  1,  1,  2,  2,  2,  2   ]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'profile_id':   [   1,      2,      3,                  4,                  5,                  6,                  7               ],
-                    'calcrule_id':  [   14,     12,     24,                 24,                 24,                 24,                 23              ],
-                    'deductible1':  [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0             ],
-                    'deductible2':  [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0             ],
-                    'deductible3':  [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0             ],
-                    'attachment':   [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0             ],
-                    'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0,    9999999999999.0,    9999999999999.0,    9999999999999.0 ],
-                    'share1':       [   0.0,    0.0,    0.1,                0.1,                0.1,                0.1,                0.0             ],
-                    'share2':       [   0.0,    0.0,    1.0,                1.0,                1.0,                1.0,                1.0             ],
-                    'share3':       [   0.0,    0.0,    1.0,                1.0,                1.0,                1.0,                1.0             ]
+                    'profile_id':   [   1,      2,      3,                  4               ],
+                    'calcrule_id':  [   14,     12,     24,                 23              ],
+                    'deductible1':  [   0.0,    0.0,    0.0,                0.0             ],
+                    'deductible2':  [   0.0,    0.0,    0.0,                0.0             ],
+                    'deductible3':  [   0.0,    0.0,    0.0,                0.0             ],
+                    'attachment':   [   0.0,    0.0,    0.0,                0.0             ],
+                    'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0 ],
+                    'share1':       [   0.0,    0.0,    0.1,                0.0             ],
+                    'share2':       [   0.0,    0.0,    1.0,                1.0             ],
+                    'share3':       [   0.0,    0.0,    1.0,                1.0             ]
                 }),
                 fm_programme=pd.DataFrame.from_dict({
                     'from_agg_id':  [   1,  2,  3,  4,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
@@ -896,24 +884,23 @@ class TestReinsurance(unittest.TestCase):
             risk_level='LOC',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1   ],
                     'agg_id':       [   1,  1,  2,  3,  4,  1,  2,  3,  4   ],
-                    'profile_id':   [   7,  3,  4,  1,  1,  2,  2,  2,  2   ]
+                    'profile_id':   [   4,  3,  3,  1,  1,  2,  2,  2,  2   ]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'profile_id':   [   1,      2,      3,                  4,                  5,                  6,                  7               ],
-                    'calcrule_id':  [   14,     12,     24,                 24,                 24,                 24,                 23              ],
-                    'deductible1':  [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0             ],
-                    'deductible2':  [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0             ],
-                    'deductible3':  [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0             ],
-                    'attachment':   [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0             ],
-                    'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0,    9999999999999.0,    9999999999999.0,    9999999999999.0 ],
-                    'share1':       [   0.0,    0.0,    0.1,                0.1,                0.1,                0.1,                0.0             ],
-                    'share2':       [   0.0,    0.0,    1.0,                1.0,                1.0,                1.0,                1.0             ],
-                    'share3':       [   0.0,    0.0,    1.0,                1.0,                1.0,                1.0,                1.0             ]
+                    'profile_id':   [   1,      2,      3,                  4               ],
+                    'calcrule_id':  [   14,     12,     24,                 23              ],
+                    'deductible1':  [   0.0,    0.0,    0.0,                0.0             ],
+                    'deductible2':  [   0.0,    0.0,    0.0,                0.0             ],
+                    'deductible3':  [   0.0,    0.0,    0.0,                0.0             ],
+                    'attachment':   [   0.0,    0.0,    0.0,                0.0             ],
+                    'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0 ],
+                    'share1':       [   0.0,    0.0,    0.1,                0.0             ],
+                    'share2':       [   0.0,    0.0,    1.0,                1.0             ],
+                    'share3':       [   0.0,    0.0,    1.0,                1.0             ]
                 }),
                 fm_programme=pd.DataFrame.from_dict({
                     'from_agg_id':  [   1,  2,  3,  4,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
@@ -967,24 +954,23 @@ class TestReinsurance(unittest.TestCase):
             risk_level='POL',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  1,  1,  1,  1   ],
                     'agg_id':       [   1,  1,  2,  1,  2,  3,  4   ],
-                    'profile_id':   [   5,  3,  1,  2,  2,  2,  2   ]
+                    'profile_id':   [   4,  3,  1,  2,  2,  2,  2   ]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'profile_id':   [   1,      2,      3,                  4,                  5                   ],
-                    'calcrule_id':  [   14,     12,     24,                 24,                 23                  ],
-                    'deductible1':  [   0.0,    0.0,    0.0,                0.0,                0.0                 ],
-                    'deductible2':  [   0.0,    0.0,    0.0,                0.0,                0.0                 ],
-                    'deductible3':  [   0.0,    0.0,    0.0,                0.0,                0.0                 ],
-                    'attachment':   [   0.0,    0.0,    0.0,                0.0,                0.0                 ],
-                    'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0,    9999999999999.0     ],
-                    'share1':       [   0.0,    0.0,    0.1,                0.1,                0.0                 ],
-                    'share2':       [   0.0,    0.0,    1.0,                1.0,                1.0                 ],
-                    'share3':       [   0.0,    0.0,    1.0,                1.0,                1.0                 ]
+                    'profile_id':   [   1,      2,      3,                  4                   ],
+                    'calcrule_id':  [   14,     12,     24,                 23                  ],
+                    'deductible1':  [   0.0,    0.0,    0.0,                0.0                 ],
+                    'deductible2':  [   0.0,    0.0,    0.0,                0.0                 ],
+                    'deductible3':  [   0.0,    0.0,    0.0,                0.0                 ],
+                    'attachment':   [   0.0,    0.0,    0.0,                0.0                 ],
+                    'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0     ],
+                    'share1':       [   0.0,    0.0,    0.1,                0.0                 ],
+                    'share2':       [   0.0,    0.0,    1.0,                1.0                 ],
+                    'share3':       [   0.0,    0.0,    1.0,                1.0                 ]
                 }),
                 fm_programme=pd.DataFrame.from_dict({
                     'from_agg_id':  [   1,  2,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
@@ -1038,24 +1024,23 @@ class TestReinsurance(unittest.TestCase):
             risk_level='ACC',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  1,  1,  1,  1   ],
                     'agg_id':       [   1,  1,  2,  1,  2,  3,  4   ],
-                    'profile_id':   [   5,  3,  4,  2,  2,  2,  2   ]
+                    'profile_id':   [   4,  3,  3,  2,  2,  2,  2   ]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'profile_id':   [   1,      2,      3,                  4,                  5                   ],
-                    'calcrule_id':  [   14,     12,     24,                 24,                 23                  ],
-                    'deductible1':  [   0.0,    0.0,    0.0,                0.0,                0.0                 ],
-                    'deductible2':  [   0.0,    0.0,    0.0,                0.0,                0.0                 ],
-                    'deductible3':  [   0.0,    0.0,    0.0,                0.0,                0.0                 ],
-                    'attachment':   [   0.0,    0.0,    0.0,                0.0,                0.0                 ],
-                    'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0,    9999999999999.0     ],
-                    'share1':       [   0.0,    0.0,    0.1,                0.1,                0.0                 ],
-                    'share2':       [   0.0,    0.0,    1.0,                1.0,                1.0                 ],
-                    'share3':       [   0.0,    0.0,    1.0,                1.0,                1.0                 ]
+                    'profile_id':   [   1,      2,      3,                  4                   ],
+                    'calcrule_id':  [   14,     12,     24,                 23                  ],
+                    'deductible1':  [   0.0,    0.0,    0.0,                0.0                 ],
+                    'deductible2':  [   0.0,    0.0,    0.0,                0.0                 ],
+                    'deductible3':  [   0.0,    0.0,    0.0,                0.0                 ],
+                    'attachment':   [   0.0,    0.0,    0.0,                0.0                 ],
+                    'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0     ],
+                    'share1':       [   0.0,    0.0,    0.1,                0.0                 ],
+                    'share2':       [   0.0,    0.0,    1.0,                1.0                 ],
+                    'share3':       [   0.0,    0.0,    1.0,                1.0                 ]
                 }),
                 fm_programme=pd.DataFrame.from_dict({
                     'from_agg_id':  [   1,  2,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
@@ -1109,7 +1094,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='ACC',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  1,  1,  1,  1   ],
@@ -1180,7 +1164,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='ACC',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  1,  1,  1,  1   ],
@@ -1237,7 +1220,7 @@ class TestReinsurance(unittest.TestCase):
             'CountryCode':  [   '',     '',     '',     ''      ],
             'ReinsTag':     [   '',     '',     '',     ''      ],
             'RiskLevel':    [   'LOC',  'LOC',  'LOC',  'LOC'   ],
-            'CededPercent': [   0.1,    0.1,    0.1,    0.1     ]
+            'CededPercent': [   0.1,    0.2,    0.3,    0.4     ]
         })
 
         ri_inputs = reinsurance_layer._get_ri_inputs(
@@ -1251,7 +1234,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='LOC',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1   ],
@@ -1266,7 +1248,7 @@ class TestReinsurance(unittest.TestCase):
                     'deductible3':  [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0                 ],
                     'attachment':   [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0                 ],
                     'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0,    9999999999999.0,    9999999999999.0,    9999999999999.0     ],
-                    'share1':       [   0.0,    0.0,    0.1,                0.1,                0.1,                0.1,                0.0                 ],
+                    'share1':       [   0.0,    0.0,    0.1,                0.2,                0.3,                0.4,                0.0                 ],
                     'share2':       [   0.0,    0.0,    1.0,                1.0,                1.0,                1.0,                0.8                 ],
                     'share3':       [   0.0,    0.0,    1.0,                1.0,                1.0,                1.0,                1.0                 ]
                 }),
@@ -1308,7 +1290,7 @@ class TestReinsurance(unittest.TestCase):
             'CountryCode':  [   '',     ''      ],
             'ReinsTag':     [   '',     ''      ],
             'RiskLevel':    [   'POL',  'POL'   ],
-            'CededPercent': [   0.1,    0.1     ]
+            'CededPercent': [   0.1,    0.2     ]
         })
 
         ri_inputs = reinsurance_layer._get_ri_inputs(
@@ -1322,7 +1304,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='POL',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  1,  1,  1,  1   ],
@@ -1337,7 +1318,7 @@ class TestReinsurance(unittest.TestCase):
                     'deductible3':  [   0.0,    0.0,    0.0,                0.0,                0.0                 ],
                     'attachment':   [   0.0,    0.0,    0.0,                0.0,                0.0                 ],
                     'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0,    9999999999999.0     ],
-                    'share1':       [   0.0,    0.0,    0.1,                0.1,                0.0                 ],
+                    'share1':       [   0.0,    0.0,    0.1,                0.2,                0.0                 ],
                     'share2':       [   0.0,    0.0,    1.0,                1.0,                0.8                 ],
                     'share3':       [   0.0,    0.0,    1.0,                1.0,                1.0                 ]
                 }),
@@ -1379,7 +1360,7 @@ class TestReinsurance(unittest.TestCase):
             'CountryCode':  [   '',     ''      ],
             'ReinsTag':     [   '',     ''      ],
             'RiskLevel':    [   'POL',  'POL'   ],
-            'CededPercent': [   0.1,    0.1     ]
+            'CededPercent': [   0.1,    0.2     ]
         })
 
         ri_inputs = reinsurance_layer._get_ri_inputs(
@@ -1393,7 +1374,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='POL',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  1,  1,  1,  1   ],
@@ -1464,7 +1444,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='ACC',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  1,  1,  1,  1   ],
@@ -1535,7 +1514,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='SEL',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  1,  1,  1,  1   ],
@@ -1606,7 +1584,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='SEL',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  1,  1,  1,  1   ],
@@ -1677,7 +1654,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='POL',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  1,  1,  1,  1   ],
@@ -1748,7 +1724,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='LOC',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1   ],
@@ -1819,7 +1794,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='ACC',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  1,  1,  1,  1   ],
@@ -1890,7 +1864,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='LOC',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  2,  1,  1,  1   ],
@@ -1961,7 +1934,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='LOC',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  2,  1,  1,  1   ],
@@ -2032,7 +2004,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='LOC',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  2,  1,  1,  1   ],
@@ -2102,7 +2073,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='SEL',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  1,  1,  1,  1,  1   ],
@@ -2172,7 +2142,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='SEL',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  1,  1,  1,  1,  1   ],
@@ -2242,7 +2211,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='SEL',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  1,  1,  1,  1,  1   ],
@@ -2312,7 +2280,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='SEL',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  1,  1,  1,  1,  1   ],
@@ -2382,7 +2349,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='SEL',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  1,  1,  1,  1,  1   ],
@@ -2452,7 +2418,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='SEL',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  1,  1,  1,  1,  1   ],
@@ -2522,7 +2487,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='SEL',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1   ],
                     'level_id':     [   3,  2,  2,  1,  1,  1,  1,  1   ],
@@ -2592,24 +2556,23 @@ class TestReinsurance(unittest.TestCase):
             risk_level='LOC',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                     'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1,  1,  2,  2,  2,  2,  2,  2,  2,  2,  2   ],
                     'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1,  3,  2,  2,  2,  2,  1,  1,  1,  1   ],
                     'agg_id':       [   1,  1,  2,  3,  4,  1,  2,  3,  4,  1,  1,  2,  3,  4,  1,  2,  3,  4   ],
-                    'profile_id':   [   5,  3,  4,  1,  1,  2,  2,  2,  2,  8,  1,  1,  6,  7,  2,  2,  2,  2   ]
+                    'profile_id':   [   4,  3,  3,  1,  1,  2,  2,  2,  2,  5,  1,  1,  3,  3,  2,  2,  2,  2   ]
                 }),
                 fm_profile=pd.DataFrame.from_dict({
-                    'profile_id':   [   1,      2,      3,                  4,                  5,                  6,                  7,                  8                   ],
-                    'calcrule_id':  [   14,     12,     24,                 24,                 23,                 24,                 24,                 23                  ],
-                    'deductible1':  [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0,                0.0                 ],
-                    'deductible2':  [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0,                0.0                 ],
-                    'deductible3':  [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0,                0.0                 ],
-                    'attachment':   [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0,                0.0,                0.0                 ],
-                    'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0,    9999999999999.0,    9999999999999.0,    9999999999999.0,    9999999999999.0     ],
-                    'share1':       [   0.0,    0.0,    0.1,                0.1,                0.0,                0.1,                0.1,                0.0                 ],
-                    'share2':       [   0.0,    0.0,    1.0,                1.0,                1.0,                1.0,                1.0,                1.0                 ],
-                    'share3':       [   0.0,    0.0,    1.0,                1.0,                1.0,                1.0,                1.0,                1.0                 ]
+                    'profile_id':   [   1,      2,      3,                  4,                  5                   ],
+                    'calcrule_id':  [   14,     12,     24,                 23,                 23                  ],
+                    'deductible1':  [   0.0,    0.0,    0.0,                0.0,                0.0                 ],
+                    'deductible2':  [   0.0,    0.0,    0.0,                0.0,                0.0                 ],
+                    'deductible3':  [   0.0,    0.0,    0.0,                0.0,                0.0                 ],
+                    'attachment':   [   0.0,    0.0,    0.0,                0.0,                0.0                 ],
+                    'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0,    9999999999999.0     ],
+                    'share1':       [   0.0,    0.0,    0.1,                0.0,                0.0                 ],
+                    'share2':       [   0.0,    0.0,    1.0,                1.0,                1.0                 ],
+                    'share3':       [   0.0,    0.0,    1.0,                1.0,                1.0                 ]
                 }),
                 fm_programme=pd.DataFrame.from_dict({
                     'from_agg_id':  [   1,  2,  3,  4,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
@@ -2663,24 +2626,23 @@ class TestReinsurance(unittest.TestCase):
                 risk_level='LOC',
                 inuring_priority=1,
                 ri_inputs=reinsurance_layer.RiLayerInputs(
-                    fm_tree = None,
                     fm_policytc=pd.DataFrame.from_dict({
                         'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1,  1   ],
                         'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1   ],
                         'agg_id':       [   1,  1,  2,  3,  4,  1,  2,  3,  4   ],
-                        'profile_id':   [   5,  3,  4,  1,  1,  2,  2,  2,  2   ]
+                        'profile_id':   [   4,  3,  3,  1,  1,  2,  2,  2,  2   ]
                     }),
                     fm_profile=pd.DataFrame.from_dict({
-                        'profile_id':   [   1,      2,      3,                  4,                  5                  ],
-                        'calcrule_id':  [   14,     12,     24,                 24,                 23                 ],
-                        'deductible1':  [   0.0,    0.0,    0.0,                0.0,                0.0                ],
-                        'deductible2':  [   0.0,    0.0,    0.0,                0.0,                0.0                ],
-                        'deductible3':  [   0.0,    0.0,    0.0,                0.0,                0.0                ],
-                        'attachment':   [   0.0,    0.0,    0.0,                0.0,                0.0                ],
-                        'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0,    9999999999999.0    ],
-                        'share1':       [   0.0,    0.0,    0.1,                0.1,                0.0                ],
-                        'share2':       [   0.0,    0.0,    1.0,                1.0,                1.0                ],
-                        'share3':       [   0.0,    0.0,    1.0,                1.0,                1.0                ]
+                        'profile_id':   [   1,      2,      3,                  4                  ],
+                        'calcrule_id':  [   14,     12,     24,                 23                 ],
+                        'deductible1':  [   0.0,    0.0,    0.0,                0.0                ],
+                        'deductible2':  [   0.0,    0.0,    0.0,                0.0                ],
+                        'deductible3':  [   0.0,    0.0,    0.0,                0.0                ],
+                        'attachment':   [   0.0,    0.0,    0.0,                0.0                ],
+                        'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0    ],
+                        'share1':       [   0.0,    0.0,    0.1,                0.0                ],
+                        'share2':       [   0.0,    0.0,    1.0,                1.0                ],
+                        'share3':       [   0.0,    0.0,    1.0,                1.0                ]
                     }),
                     fm_programme=pd.DataFrame.from_dict({
                         'from_agg_id':  [   1,  2,  3,  4,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
@@ -2692,24 +2654,23 @@ class TestReinsurance(unittest.TestCase):
                 risk_level='LOC',
                 inuring_priority=2,
                 ri_inputs=reinsurance_layer.RiLayerInputs(
-                    fm_tree = None,
                     fm_policytc=pd.DataFrame.from_dict({
                         'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1,  1   ],
                         'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1,  1   ],
                         'agg_id':       [   1,  1,  2,  3,  4,  1,  2,  3,  4   ],
-                        'profile_id':   [   5,  3,  1,  1,  4,  2,  2,  2,  2   ]
+                        'profile_id':   [   4,  3,  1,  1,  3,  2,  2,  2,  2   ]
                     }),
                     fm_profile=pd.DataFrame.from_dict({
-                        'profile_id':   [   1,      2,      3,                  4,                  5                  ],
-                        'calcrule_id':  [   14,     12,     24,                 24,                 23                 ],
-                        'deductible1':  [   0.0,    0.0,    0.0,                0.0,                0.0                ],
-                        'deductible2':  [   0.0,    0.0,    0.0,                0.0,                0.0                ],
-                        'deductible3':  [   0.0,    0.0,    0.0,                0.0,                0.0                ],
-                        'attachment':   [   0.0,    0.0,    0.0,                0.0,                0.0                ],
-                        'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0,    9999999999999.0    ],
-                        'share1':       [   0.0,    0.0,    0.1,                0.1,                0.0                ],
-                        'share2':       [   0.0,    0.0,    1.0,                1.0,                1.0                ],
-                        'share3':       [   0.0,    0.0,    1.0,                1.0,                1.0                ]
+                        'profile_id':   [   1,      2,      3,                  4                  ],
+                        'calcrule_id':  [   14,     12,     24,                 23                 ],
+                        'deductible1':  [   0.0,    0.0,    0.0,                0.0                ],
+                        'deductible2':  [   0.0,    0.0,    0.0,                0.0                ],
+                        'deductible3':  [   0.0,    0.0,    0.0,                0.0                ],
+                        'attachment':   [   0.0,    0.0,    0.0,                0.0                ],
+                        'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0    ],
+                        'share1':       [   0.0,    0.0,    0.1,                0.0                ],
+                        'share2':       [   0.0,    0.0,    1.0,                1.0                ],
+                        'share3':       [   0.0,    0.0,    1.0,                1.0                ]
                     }),
                     fm_programme=pd.DataFrame.from_dict({
                         'from_agg_id':  [   1,  2,  3,  4,  1,  2,  3,  4,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12  ],
@@ -2762,22 +2723,21 @@ class TestReinsurance(unittest.TestCase):
             risk_level='SEL',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                         'layer_id':     [   1,  1,  1,  1,  1,  1,  2,  2,  2,  2,  2,  2   ],
                         'level_id':     [   3,  2,  1,  1,  1 , 1,  3,  2,  1,  1,  1 , 1   ],
                         'agg_id':       [   1,  1,  1,  2,  3,  4,  1,  1,  1,  2,  3,  4   ],
-                        'profile_id':   [   4,  3,  2,  2,  2,  2,  6,  5,  2,  2,  2,  2   ]
+                        'profile_id':   [   5,  3,  2,  2,  2,  2,  6,  4,  2,  2,  2,  2   ]
                     }),
                     fm_profile=pd.DataFrame.from_dict({
                         'profile_id':   [   1,      2,      3,                  4,                  5,                  6                   ],
-                        'calcrule_id':  [   14,     12,     24,                 23,                 24,                 23                  ],
+                        'calcrule_id':  [   14,     12,     24,                 24,                 23,                 23                  ],
                         'deductible1':  [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0                 ],
                         'deductible2':  [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0                 ],
                         'deductible3':  [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0                 ],
                         'attachment':   [   0.0,    0.0,    0.0,                0.0,                0.0,                0.0                 ],
                         'limit':        [   0.0,    0.0,    9999999999999.0,    9999999999999.0,    9999999999999.0,    9999999999999.0     ],
-                        'share1':       [   0.0,    0.0,    0.2,                0.0,                0.3,                0.0                 ],
+                        'share1':       [   0.0,    0.0,    0.2,                0.3,                0.0,                0.0                 ],
                         'share2':       [   0.0,    0.0,    1.0,                1.0,                1.0,                1.0                 ],
                         'share3':       [   0.0,    0.0,    1.0,                1.0,                1.0,                1.0                 ]
                     }),
@@ -2833,7 +2793,6 @@ class TestReinsurance(unittest.TestCase):
                 risk_level='SEL',
                 inuring_priority=1,
                 ri_inputs=reinsurance_layer.RiLayerInputs(
-                    fm_tree = None,
                     fm_policytc=pd.DataFrame.from_dict({
                             'layer_id':     [   1,  1,  1,  1,  1,  1   ],
                             'level_id':     [   3,  2,  1,  1,  1 , 1   ],
@@ -2862,7 +2821,6 @@ class TestReinsurance(unittest.TestCase):
                 risk_level='SEL',
                 inuring_priority=2,
                 ri_inputs=reinsurance_layer.RiLayerInputs(
-                    fm_tree = None,
                     fm_policytc=pd.DataFrame.from_dict({
                             'layer_id':     [   1,  1,  1,  1,  1,  1   ],
                             'level_id':     [   3,  2,  1,  1,  1 , 1   ],
@@ -2932,7 +2890,6 @@ class TestReinsurance(unittest.TestCase):
             risk_level='SEL',
             inuring_priority=1,
             ri_inputs=reinsurance_layer.RiLayerInputs(
-                fm_tree = None,
                 fm_policytc=pd.DataFrame.from_dict({
                         'layer_id':     [   1,  1,  1,  1,  1,  1,  2,  2,  2,  2,  2,  2   ],
                         'level_id':     [   3,  2,  1,  1,  1 , 1,  3,  2,  1,  1,  1 , 1   ],
@@ -3003,7 +2960,6 @@ class TestReinsurance(unittest.TestCase):
                 risk_level='SEL',
                 inuring_priority=1,
                 ri_inputs=reinsurance_layer.RiLayerInputs(
-                    fm_tree = None,
                     fm_policytc=pd.DataFrame.from_dict({
                             'layer_id':     [   1,  1,  1,  1,  1,  1   ],
                             'level_id':     [   3,  2,  1,  1,  1 , 1   ],
@@ -3033,7 +2989,6 @@ class TestReinsurance(unittest.TestCase):
                 risk_level='SEL',
                 inuring_priority=2,
                 ri_inputs=reinsurance_layer.RiLayerInputs(
-                    fm_tree = None,
                     fm_policytc=pd.DataFrame.from_dict({
                             'layer_id':     [   1,  1,  1,  1,  1,  1   ],
                             'level_id':     [   3,  2,  1,  1,  1 , 1   ],
@@ -3141,7 +3096,6 @@ class TestReinsurance(unittest.TestCase):
                 risk_level='LOC',
                 inuring_priority=1,
                 ri_inputs=reinsurance_layer.RiLayerInputs(
-                    fm_tree = None,
                     fm_policytc=pd.DataFrame.from_dict({
                             'layer_id':     [   1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1   ],
                             'level_id':     [   3,  2,  2,  2,  2,  1,  1,  1 , 1,  1,  1   ],
