@@ -193,8 +193,6 @@ def get_gul_input_items(
     gul_inputs_df = exposure_df[exposure_df_gul_inputs_cols]
     gul_inputs_df.drop_duplicates('loc_id', inplace=True, ignore_index=True)
 
-    gul_inputs_df[SOURCE_IDX['loc']] = gul_inputs_df.index
-
     # Rename the main keys dataframe columns - this is due to the fact that the
     # keys file headers use camel case, and don't use underscored names, which
     # is the convention used for the GUL and IL inputs dataframes in the MDK

@@ -3,7 +3,7 @@
 if [ ! -d "../tmp_fc_kparse_output" ]; then
     echo 'no output in "tmp_fc_kparse_output" to update - exit'
     exit 1
-else 
+else
     cp ../tmp_fc_kparse_output/* .
 fi
 
@@ -91,9 +91,11 @@ all_files=(
 	gul_ord_ept_1_output_20_partition.sh
 	gul_ord_ept_psept_lec_2_output_10_partition.sh
 	gul_ord_psept_2_output_10_partition.sh
+    gul_ord_palt_output_10_partition.sh
+    gul_il_ord_palt_output_10_partition.sh
 )
 
-for f in "${all_files[@]}"; do 
+for f in "${all_files[@]}"; do
     echo $f
     sed -i 's|/tmp/[a-zA-Z0-9]*/|/tmp/%FIFO_DIR%/|g' $f
-done 
+done

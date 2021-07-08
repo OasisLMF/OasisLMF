@@ -85,7 +85,7 @@ class RunExposure(ComputationStep):
 
         if 'location.csv' not in src_contents:
             raise OasisException(
-                'No location/exposure file found in source directory - '
+                f'No location/exposure file found in source directory "{src_dir}" - '
                 'a file named `location.csv` is expected'
             )
 
@@ -311,16 +311,16 @@ class RunFmTest(ComputationStep):
     """
 
     step_params = [
-        {'name': 'test_case_name', 'flag': '-c', 'type': str, 'help': 'Test case name - runs a specific test in the test directory. Otherwise run all tests.'},
-        {'name': 'test_case_dir', 'flag': '-t', 'help': 'Test directory - should contain test directories containing OED files and expected results'},
-        {'name': 'list_tests', 'flag': '-l', 'action': 'store_true', 'help': 'List the valid test cases in the test directory rather than running'},
-        {'name': 'run_dir', 'flag': '-r', 'help': 'Run directory - where files should be generated. If not sst, no files will be saved.'},
-        {'name': 'num_subperils', 'flag':'-p', 'default': 1,  'type':int, 'help': 'Set the number of subperils returned by deterministic key generator'},
-        {'name': 'test_tolerance', 'type' :float, 'help': 'Relative tolerance between expected values and results, default is "1e-4" or 0.0001', 'default': 1e-4},
-        {'name': 'fmpy', 'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
-        {'name': 'fmpy_low_memory', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
-        {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
-        {'name': 'update_expected', 'default': False},
+        {'name': 'test_case_name',      'flag': '-c',       'type': str, 'help': 'Runs a specific test sub-directory from "test_case_dir". If not set then run all tests found.'},
+        {'name': 'list_tests',          'flag': '-l',       'action': 'store_true', 'help': 'List the valid test cases in the test directory rather than running'},
+        {'name': 'test_case_dir',       'flag': '-t',       'default': os.getcwd(), 'is_path': True, 'pre_exist': True, 'help': 'Test directory - should contain test directories containing OED files and expected results'},
+        {'name': 'run_dir',             'flag': '-r',       'help': 'Run directory - where files should be generated. If not set temporary files will not be saved.'},
+        {'name': 'num_subperils',       'flag': '-p',       'default': 1,  'type':int, 'help': 'Set the number of subperils returned by deterministic key generator'},
+        {'name': 'test_tolerance',      'type': float,      'help': 'Relative tolerance between expected values and results, default is "1e-4" or 0.0001', 'default': 1e-4},
+        {'name': 'fmpy',                'default': True,    'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
+        {'name': 'fmpy_low_memory',     'default': False,   'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
+        {'name': 'fmpy_sort_output',    'default': False,   'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
+        {'name': 'update_expected',     'default': False},
         {'name': 'expected_output_dir', 'default': "expected"},
     ]
 
@@ -334,40 +334,49 @@ class RunFmTest(ComputationStep):
         case_names.sort()
         return case_names, len(case_names)
 
-    def run(self):
+    def _case_dir_is_valid_test(self):
+        src_contents = [fn.lower() for fn in os.listdir(self.test_case_dir)]
+        return 'location.csv' and 'account.csv' and 'expected' in src_contents
 
-        # Run selected test case
+    def run(self):
+        # Run test case given on CLI 
         if self.test_case_name:
             return self.execute_test_case(self.test_case_name)
 
-        # Setup and search test case dir
-        if not self.test_case_dir:
-            self.test_case_dir = os.getcwd()
+        # If 'test_case_dir' is a valid test run that dir directly
+        if self._case_dir_is_valid_test():
+            return self.execute_test_case('')    
+            
+        # Search for valid cases in sub-dirs and run all found 
         case_names, case_num = self.search_test_cases()
 
-        # If enabled, list found test cases and exit
+        # If '--list-tests' is selected print found cases and exit
         if self.list_tests:
             for name in case_names:
                 self.logger.info(name)
             exit(0)
 
-        # If test_case not selected run all cases
-        self.logger.info(f"Running: All tests in '{self.test_case_dir}'")
-        failed_tests = []
-        exit_status = 0
-        for case in case_names:
-            test_result = self.execute_test_case(case)
-
-            if not test_result:
-                failed_tests.append(case)
-                exit_status = 1
-
-        if len(failed_tests) == 0:
-            self.logger.info("All tests passed")
+        if case_num < 1: 
+            raise OasisException(f'No vaild FM test cases found in "{self.test_case_dir}"')
         else:
-            self.logger.info("{} test failed: ".format(len(failed_tests)))
-            [self.logger.info(n) for n in failed_tests]
-        exit(exit_status)
+            # If test_case not selected run all cases
+            self.logger.info(f"Running: {case_num} Tests from '{self.test_case_dir}'")
+            self.logger.info(f'Test names: {case_names}')
+            failed_tests = []
+            exit_status = 0
+            for case in case_names:
+                test_result = self.execute_test_case(case)
+
+                if not test_result:
+                    failed_tests.append(case)
+                    exit_status = 1
+
+            if len(failed_tests) == 0:
+                self.logger.info("All tests passed")
+            else:
+                self.logger.info("{} test failed: ".format(len(failed_tests)))
+                [self.logger.info(n) for n in failed_tests]
+            exit(exit_status)
 
     def execute_test_case(self, test_case):
         if self.run_dir:

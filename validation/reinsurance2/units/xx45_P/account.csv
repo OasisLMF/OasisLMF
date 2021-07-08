@@ -1,5 +1,5 @@
-PortNumber,AccNumber,PolNumber,PolPerilsCovered,AccCurrency,LayerNumber,LayerParticipation,LayerLimit,LayerAttachment,PolPeril,PolDedType6All,PolDed6All,PolMinDed6All,PolMaxDed6All,PolLimitType6All,PolLimit6All,CondPeril,CondNumber,CondName,CondPriority,CondMinDed6All,CondLimitType6All,CondLimit6All
-OEDTest,SS01_04,SS01_04_1,OO1,CAD,1,1.00,.00,.00,OO1,0,.00,.00,.00,0,.00,,,,,,,
-OEDTest,xx45_03,xx45_03_1,OO1,CAD,1,.20,10000000.00,1000000.00,OO1,0,.00,.00,.00,0,.00,,,,,,,
-OEDTest,xx45_03,xx45_03_2,OO1,CAD,2,.30,15000000.00,20000000.00,OO1,0,.00,.00,.00,0,.00,,,,,,,
-OEDTest,xx45_07,xx45_07_1,OO1,CAD,1,1.00,.00,.00,OO1,0,.00,.00,.00,0,.00,,,,,,,
+PortNumber,AccNumber,PolNumber,PolPerilsCovered,AccCurrency,LayerNumber,LayerParticipation,LayerLimit,LayerAttachment,PolPeril,PolDed6All,PolMinDed6All,PolMaxDed6All,PolLimit6All
+xx45_P,SS01_04,SS01_04_1,OO1,CAD,1,1.0,0,0,OO1,0,0,0,0
+xx45_P,xx45_03,xx45_03_1,OO1,CAD,1,0.2,10000000,1000000,OO1,0,0,0,0
+xx45_P,xx45_03,xx45_03_2,OO1,CAD,2,0.3,15000000,20000000,OO1,0,0,0,0
+xx45_P,xx45_07,xx45_07_1,OO1,CAD,1,1.0,0,0,OO1,0,0,0,0
