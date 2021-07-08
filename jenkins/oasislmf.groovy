@@ -4,16 +4,11 @@ node {
     sh 'sudo /var/lib/jenkins/jenkins-chown'
     deleteDir() // wipe out the workspace
 
-    set_piwind_branch='develop'
-    if (BRANCH_NAME.matches("master") || BRANCH_NAME.matches("hotfix/(.*)") || BRANCH_NAME.matches("release/(.*)")){
-        set_piwind_branch='master'
-    }
-
     properties([
       parameters([
         [$class: 'StringParameterDefinition',  description: "Oasis Build scripts branch",        name: 'BUILD_BRANCH', defaultValue: 'master'],
         [$class: 'StringParameterDefinition',  description: "OasisLMF repo branch",              name: 'SOURCE_BRANCH', defaultValue: BRANCH_NAME],
-        [$class: 'StringParameterDefinition',  description: "Test against piwind branch",        name: 'PIWIND_BRANCH', defaultValue: set_piwind_branch],
+        [$class: 'StringParameterDefinition',  description: "Test against piwind branch",        name: 'PIWIND_BRANCH', defaultValue: 'backports/1.15.x'],
         [$class: 'StringParameterDefinition',  description: "Release Version",                   name: 'PUBLISH_VERSION', defaultValue: ''],
         [$class: 'StringParameterDefinition',  description: "Last released version",             name: 'PREV_VERSION', defaultValue: ''],
         [$class: 'StringParameterDefinition',  description: "Ktools version to install",         name: 'KTOOLS_VERSION', defaultValue: ''],
