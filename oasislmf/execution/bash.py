@@ -102,8 +102,8 @@ exit_handler(){
    script_pid=$$
    printf "Script PID:%d, GPID:%s, SPID:%d\n" $script_pid $group_pid $sess_pid >> log/killout.txt
 
-   ps f -g $sess_pid > log/subprocess_list
-   PIDS_KILL=$(pgrep -a --pgroup $group_pid | awk \'BEGIN { FS = "[ \\t\\n]+" }{ if ($1 >= \'$script_pid\') print}\' | grep -v celery | egrep -v *\\\.log$  | egrep -v *\\\.sh$)
+   ps -jf f -g $sess_pid > log/subprocess_list
+   PIDS_KILL=$(pgrep -a --pgroup $group_pid | awk \'BEGIN { FS = "[ \\t\\n]+" }{ if ($1 >= \'$script_pid\') print}\' | grep -v celery | egrep -v *\\\.log$  | egrep -v *\\\.sh$ | sort -n -r)
    echo "$PIDS_KILL" >> log/killout.txt
    kill -9 $(echo "$PIDS_KILL" | awk \'BEGIN { FS = "[ \\t\\n]+" }{ print $1 }\') 2>/dev/null
    exit $exit_code
@@ -1185,14 +1185,12 @@ def genbash(
 
     need_summary_fifo_for_gul = gul_output and (il_output or ri_output)
 
-    print_command(filename, '#!/bin/bash')
+    print_command(filename, '#!/usr/bin/env -S bash -euET -o pipefail -O inherit_errexit')
     print_command(filename, 'SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")')
     print_command(filename, '')
 
     print_command(filename, '# --- Script Init ---')
     print_command(filename, '')
-    print_command(filename, 'set -e')
-    print_command(filename, 'set -o pipefail')
 
     print_command(filename, 'mkdir -p log')
     print_command(filename, 'rm -R -f log/*')
