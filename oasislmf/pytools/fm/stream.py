@@ -41,6 +41,157 @@ nb_number = buff_size // number_size
 EXTRA_VALUES = 2
 
 
+### stream as sparse array
+
+@njit(cache=True)
+def add_new_loss(sidx, loss, loss_index, indptr_array, sidx_array, loss_array):
+    if ((indptr_array[loss_index - 1] == indptr_array[loss_index])
+            or (sidx_array[indptr_array[loss_index]-1] < sidx)):
+        insert_i = indptr_array[loss_index]
+    else:
+        insert_i = np.searchsorted(sidx_array[indptr_array[loss_index - 1]: indptr_array[loss_index]], sidx) + \
+                   indptr_array[loss_index - 1]
+        if sidx_array[insert_i] == sidx:
+            raise ValueError("duplicated sidx in input stream")
+        sidx_array[insert_i + 1: indptr_array[loss_index] + 1] = sidx_array[insert_i: indptr_array[loss_index]]
+        loss_array[insert_i + 1: indptr_array[loss_index] + 1] = loss_array[insert_i: indptr_array[loss_index]]
+    sidx_array[insert_i] = sidx
+    loss_array[insert_i] = 0 if np.isnan(loss) else loss
+    indptr_array[loss_index] += 1
+
+
+@njit(cache=True)
+def stream_to_loss_sparse(event_agg, sidx_loss, valid_buf, cursor, event_id, agg_id, loss_index,
+                          indptr_array, sidx_array, loss_array, computes):
+    """
+    we use a slithly modified version of the CSR sparse matrix where
+    the column indices for row i are stored in indices[indptr[i]:indptr[i+1]]
+    and their corresponding values are stored in data[indptr[i]:indptr[i+1]].
+
+    nodes_array: array containing all the static information on the nodes
+    indptr_array: array containing the indexes of the beginning and end of samples of an item
+    sidx_array: array containing the sidx of the samples
+    loss_array: array containing the loss of the samples
+    """
+
+    valid_len = valid_buf // number_size
+
+    if agg_id:
+        last_event_id = event_id
+        computes[loss_index] = agg_id
+    else:
+        last_event_id = event_id
+
+    while cursor < valid_len:
+        if agg_id:# we set agg_id to 0 if we expect a new set of event and agg
+            sidx, loss = sidx_loss[cursor]['sidx'], sidx_loss[cursor]['loss']
+            cursor += 1
+            if sidx:
+                add_new_loss(sidx, loss, loss_index, indptr_array, sidx_array, loss_array)
+            else:
+                agg_id = 0
+                loss_index += 1
+
+        else:
+            event_id, agg_id = event_agg[cursor]['event_id'], event_agg[cursor]['agg_id']
+            cursor += 1
+
+            if event_id != last_event_id:
+                if last_event_id:
+                    return cursor - 1, last_event_id, 0, loss_index, 1
+                else:
+                    last_event_id = event_id
+
+            indptr_array[loss_index] = indptr_array[loss_index - 1]
+            computes[loss_index] = agg_id
+
+    return cursor, event_id, agg_id, loss_index, 0
+
+
+def read_event_sparse(stream, indptr_array, sidx_array, loss_array, computes, main_selector,
+                      stream_selector, mv, event_agg, sidx_loss, cursor, valid_buf):
+    event_id = 0
+    agg_id = 0
+    loss_index = 0
+
+    while True:
+        if valid_buf < buff_size:
+            len_read = stream.readinto1(mv[valid_buf:])
+            valid_buf += len_read
+
+            if len_read == 0:
+                stream_selector.close()
+                main_selector.unregister(stream)
+                if event_id:
+                    if agg_id:
+                        loss_index += 1
+                    return event_id, loss_index, cursor, valid_buf
+
+                break
+
+        cursor, event_id, agg_id, loss_index, yield_event = stream_to_loss_sparse(event_agg, sidx_loss, valid_buf, cursor,
+                                                                                  event_id, agg_id, loss_index,
+                                                                                  indptr_array, sidx_array, loss_array, computes)
+
+        if yield_event:
+            if number_size * cursor == valid_buf:
+                valid_buf = 0
+            return event_id, loss_index, cursor, valid_buf
+        else:
+            cursor_buf = number_size * cursor
+            mv[:valid_buf - cursor_buf] = mv[cursor_buf: valid_buf]
+            valid_buf -= cursor_buf
+            cursor = 0
+            stream_selector.select()
+
+
+def read_streams_sparse(streams_in, in_indptr_array, sidx_array, loss_array, computes):
+    try:
+        main_selector, stream_data = register_streams_in(selectors.DefaultSelector, streams_in)
+        logger.debug("Streams read with DefaultSelector")
+    except PermissionError: # Fall back option if stream_in contain regular files
+        main_selector, stream_data = register_streams_in(selectors.SelectSelector, streams_in)
+        logger.debug("Streams read with SelectSelector")
+    try:
+        while main_selector.get_map():
+            for sKey, _ in main_selector.select():
+                event = read_event_sparse(sKey.fileobj, in_indptr_array, sidx_array, loss_array, computes, main_selector, **sKey.data)
+                if event:
+                    event_id, loss_index, cursor, valid_buf = event
+                    sKey.data['cursor'] = cursor
+                    sKey.data['valid_buf'] = valid_buf
+                    logger.debug(f'event_id: {event_id}, loss_index :{loss_index}')
+                    yield event_id, loss_index
+
+        # Stream is read, we need to check if there is remaining event to be parsed
+        for data in stream_data:
+            if data['cursor'] < data['valid_buf']:
+                event_agg = data['event_agg']
+                sidx_loss = data['sidx_loss']
+                cursor = data['cursor']
+                valid_buf = data['valid_buf']
+                yield_event = True
+                while yield_event:
+                    cursor, event_id, agg_id, loss_index, yield_event = stream_to_loss_table(event_agg,
+                                                                                             sidx_loss,
+                                                                                             valid_buf,
+                                                                                             cursor,
+                                                                                             0, 0,
+                                                                                             0,
+                                                                                             in_indptr_array, sidx_array, loss_array,
+                                                                                             computes)
+
+                    if event_id:
+                        if not yield_event and agg_id:
+                            loss_index += 1
+                        logger.debug(f'event_id: {event_id}, loss_index :{loss_index}')
+                        yield event_id, loss_index
+
+    finally:
+        main_selector.close()
+
+### stream as loss table
+
 @njit(cache=True)
 def stream_to_loss_table(event_agg, sidx_loss, valid_buf, cursor, event_id, agg_id, loss_index, nodes_array, losses, index, computes):
     """valid len must be divisible par 2*4 bytes
@@ -258,7 +409,6 @@ class EventWriter:
         self.loss_indexes = loss_indexes
         self.computes = computes
         self.output_array = output_array
-        self.nb_output_items = output_array.shape[0]
 
         self.len_sample = len_sample
         self.loss_shape_1 = len_sample + EXTRA_VALUES # all normal sidx plus the extra values
@@ -318,3 +468,59 @@ class EventWriterOrderedOutput(EventWriter):
         compute_end = get_compute_end(self.computes, compute_i)
         self.computes[compute_i: compute_end] = np.sort(self.computes[compute_i: compute_end])
         return super().write(event_id, compute_i)
+
+
+class EventWriterSparse(EventWriter):
+    def __init__(self, files_out, nodes_array, output_array, output_count, output_id_array, out_sidx, out_loss, len_sample):
+        self.files_out = files_out
+        self.nodes_array = nodes_array
+        self.output_count = output_count
+        self.output_id_array = output_id_array
+        self.out_sidx = out_sidx
+        self.out_loss = out_loss
+        self.output_array = output_array
+        self.nb_output_items = output_count.shape[0]
+
+        self.len_sample = len_sample
+
+        # we set mv size to be able to contain a completelly full event
+        # so for each ouput_id we have (event_id + output_id + (len_sample + extra_value -1)(sidx + loss)) + (0, 0)
+        self.output_max_nb_number = (len_sample + EXTRA_VALUES + 1) * self.nb_output_items
+        self.mv = memoryview(bytearray(self.output_max_nb_number * number_size))
+
+        self.event_agg = np.ndarray(self.output_max_nb_number, buffer=self.mv, dtype=event_agg_dtype)
+        self.sidx_loss = np.ndarray(self.output_max_nb_number, buffer=self.mv, dtype=sidx_loss_dtype)
+
+    @staticmethod
+    @njit(cache=True)
+    def set_output_index(output_count, event_id, event_agg, sidx_loss):
+        stream_output_index = 0
+        for output_id in range(1, output_count.shape[0]):
+            if output_count[output_id]:
+                event_agg[stream_output_index]['event_id'] = event_id
+                event_agg[stream_output_index]['agg_id'] = output_id
+                sidx_loss[stream_output_index + 1 + output_count[output_id]]['sidx'] = 0
+                sidx_loss[stream_output_index + 1 + output_count[output_id]]['loss'] = 0.
+
+                new_stream_output_index = stream_output_index + 2 + output_count[output_id]
+                output_count[output_id] = stream_output_index + 1 #+2 because we already wrote the ouput_id header
+                stream_output_index = new_stream_output_index
+        return stream_output_index * number_size
+
+    @staticmethod
+    @njit(cache=True)
+    def load_event(output_id_count, output_id_array, out_sidx, out_loss, output_count, sidx_loss):
+        for output_id_i in range(output_id_count):
+            sidx_loss[output_count[output_id_array[output_id_i]]]['sidx'] = out_sidx[output_id_i]
+            sidx_loss[output_count[output_id_array[output_id_i]]]['loss'] = out_loss[output_id_i]
+            output_count[output_id_array[output_id_i]] += 1
+
+    def write(self, event_id, output_id_count):
+        cursor = self.set_output_index(self.output_count, event_id, self.event_agg, self.sidx_loss)
+        self.load_event(output_id_count, self.output_id_array, self.out_sidx, self.out_loss,
+                        self.output_count, self.sidx_loss)
+        self.stream_out.write(self.mv[:cursor])
+
+
+
+
