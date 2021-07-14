@@ -53,6 +53,9 @@ class FmAcceptanceTests(TestCase):
     def test_reinsurance2(self):
         self.run_test('reinsurance2')
 
+    def test_issues(self):
+        self.run_test('issues')
+
     # multiperil tests 
     def test_insurance_2_subperils(self):
         self.run_test('insurance', subperils=2, expected_dir="expected_subperils")
@@ -67,3 +70,5 @@ class FmAcceptanceTests(TestCase):
     def test_reinsurance2_2_subperils(self):
         self.run_test('reinsurance2', subperils=2, expected_dir="expected_subperils")
     
+    def test_issues_2_subperils(self):
+        self.run_test('issues', subperils=2, expected_dir="expected_subperils")

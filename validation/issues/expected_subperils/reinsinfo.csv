@@ -1,0 +1,2 @@
+ReinsNumber,ReinsPeril,ReinsCurrency,CededPercent,RiskLimit,RiskAttachment,OccLimit,OccAttachment,PlacedPercent,InuringPriority,ReinsType,ReinsName
+1,AA1,GBP,,,,1000000,1000,0.6,1,FAC,FAC
