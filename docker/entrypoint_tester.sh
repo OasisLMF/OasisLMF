@@ -24,7 +24,7 @@ export COVERAGE_DEBUG=process,config,dataio
     VER_PKG=$(cat ./oasislmf/__init__.py | grep  __version__ | awk -F"'" ' {print $2} ')
     python setup.py bdist_wheel --verbose > >(tee -a $LOG_BUILD) 2> >(tee -a ${LOG_BUILD} >&2)
     WHL_PKG=$(find ./dist/ -name "oasislmf-${VER_PKG}*.whl")
-    pip install --verbose $WHL_PKG
+    pip install --verbose $WHL_PKG[extra]
 
     # Create OSX wheel
     # python setup.py bdist_wheel --plat-name Darwin_x86_64

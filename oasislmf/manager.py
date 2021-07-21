@@ -6,7 +6,6 @@ import re
 
 from .utils.log import oasis_log
 
-from .computation.data.rtree import GenerateRtreeIndexData
 from .computation.hooks.pre_analysis import ExposurePreAnalysis
 from .computation.generate.files import (
     GenerateFiles,
@@ -42,7 +41,6 @@ class OasisManager(object):
         GenerateLosses,
         GenerateLossesDeterministic,
         GenerateLossesDummyModel,
-        GenerateRtreeIndexData,
         GenerateDummyModelFiles,
         GenerateDummyOasisFiles,
         RunModel,

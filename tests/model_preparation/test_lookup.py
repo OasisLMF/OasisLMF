@@ -27,7 +27,7 @@ from mock import Mock, patch
 from tempfile import NamedTemporaryFile
 
 from oasislmf.lookup.factory import KeyServerFactory, BasicKeyServer
-from oasislmf.utils.data import get_dtypes_and_required_cols, get_location_df 
+from oasislmf.utils.data import get_dtypes_and_required_cols, get_location_df
 from oasislmf.utils.defaults import get_loc_dtypes
 from oasislmf.utils.exceptions import OasisException
 from oasislmf.utils.status import OASIS_KEYS_STATUS
@@ -287,7 +287,7 @@ class OasisLookupFactoryWriteOasisKeysFiles(TestCase):
 
             result = pd.DataFrame(successes + nonsuccesses)
             result.rename(columns={'coverage_type_id':'coverage_type'}, inplace=True)
-            key_server = BasicKeyServer({})
+            key_server = BasicKeyServer({'builtin_lookup_type': 'deterministic'})
             _, successes_count, _, nonsuccesses_count = key_server.write_keys_file([result],
                                                                                    successes_fp=keys_file_path,
                                                                                    errors_fp=keys_errors_file_path,
@@ -325,7 +325,7 @@ class OasisLookupFactoryWriteJsonFiles(TestCase):
             keys_errors_file_path = os.path.join(d, 'keys-errors.json')
             result = pd.DataFrame(successes + nonsuccesses)
 
-            key_server = BasicKeyServer({})
+            key_server = BasicKeyServer({'builtin_lookup_type': 'deterministic'})
             _, successes_count, _, nonsuccesses_count = key_server.write_keys_file([result],
                                                                                    successes_fp=keys_file_path,
                                                                                    errors_fp=keys_errors_file_path,

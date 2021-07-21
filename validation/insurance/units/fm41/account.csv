@@ -1,2 +1,2 @@
-PortNumber,AccNumber,PolNumber,PolPerilsCovered,AccCurrency,PolPeril,PolLimit6All,LayerParticipation,LayerLimit,LayerAttachment,CondNumber,CondName,CondPriority,CondPeril,CondMinDed6All,CondLimit6All
-1,1,1,QQ1;WW1,USD,QQ1;WW1,1500000,1,0,0,1,1,1,WW1,50000,250000
+FlexiAccTestCase,PortNumber,AccNumber,PolNumber,PolPerilsCovered,AccCurrency,LayerParticipation,LayerLimit,LayerAttachment,PolPeril,PolDed6All,PolDedType6All,PolMinDed6All,PolMaxDed6All,PolLimit6All,PolLimitType6All,CondPeril,CondName,CondNumber,CondDed6All,CondDedType6All,CondMinDed6All,CondMaxDed6All,CondLimit6All,CondLimitType6All,CondPriority
+fm41,fm41,1,1,OO1,EUR,1.0,0.0,0.0,OO1,0.0,0,0,0,1500000.0,0,OO1,1,1,0,0,50000,0,250000.0,0,1
