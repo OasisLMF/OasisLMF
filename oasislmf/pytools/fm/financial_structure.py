@@ -24,7 +24,8 @@ output_type = types.UniTuple(nb_oasis_int, 2)
 layer_type = types.UniTuple(nb_oasis_int, 3)
 
 # finacial structure processed array
-nodes_array_dtype = from_dtype(np.dtype([('level_id', np_oasis_int),
+nodes_array_dtype = from_dtype(np.dtype([('node_id', np.uint64),
+                                         ('level_id', np_oasis_int),
                                          ('agg_id', np_oasis_int),
                                          ('layer_len', np_oasis_int),
                                          ('profile_len', np_oasis_int),
@@ -490,6 +491,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
         for agg_id in range(1, level_node_len[level] + 1):
             node_programme = (np_oasis_int(level), np_oasis_int(agg_id))
             node = nodes_array[node_i]
+            node['node_id'] = node_i
             node_i += 1
             node['level_id'] = level
             node['agg_id'] = agg_id
@@ -565,6 +567,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
             node_programme = (np_oasis_int(max_level + 1), np_oasis_int(agg_id))
             top_node = nodes_array[node_level_start[max_level] + agg_id]
             node, node_i = nodes_array[node_i], node_i + 1
+            node['node_id'] = top_node['node_id']
             node['layer_len'] = top_node['layer_len']
             node['profile_len'] = 1
             node['loss'], loss_i = loss_i, loss_i + node['layer_len']
