@@ -113,3 +113,6 @@ tests/model_execution/tmp_kparse_output/
 tests/model_execution/err_fc_kparse_output/
 tests/model_execution/itm_fc_kparse_output/
 tests/model_execution/tmp_fc_kparse_output/
+
+.idea/
+data/
