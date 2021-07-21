@@ -3,7 +3,6 @@ __all__ = [
     'GenerateKeysCmd',
     'GenerateLossesCmd',
     'GenerateOasisFilesCmd',
-    'GeneratePerilAreasRtreeFileIndexCmd',
     'ModelCmd',
     'RunCmd'
 ]
@@ -11,15 +10,6 @@ __all__ = [
 from argparse import RawDescriptionHelpFormatter
 
 from .command import OasisBaseCommand, OasisComputationCommand
-
-
-class GeneratePerilAreasRtreeFileIndexCmd(OasisComputationCommand):
-    """
-    Generates and writes an Rtree file index of peril area IDs (area peril IDs)
-    and area polygon bounds from a peril areas (area peril) file.
-    """
-    formatter_class = RawDescriptionHelpFormatter
-    computation_name = 'GenerateRtreeIndexData'
 
 
 class GenerateExposurePreAnalysisCmd(OasisComputationCommand):
@@ -71,7 +61,6 @@ class ModelCmd(OasisBaseCommand):
     """
     Model subcommands::
 
-        * generating an Rtree spatial index for the area peril lookup component of the built-in lookup framework
         * generating keys files from model lookups
         * generating Oasis input CSV files (GUL [+ IL, RI])
         * generating losses from a preexisting set of Oasis input CSV files
@@ -79,7 +68,6 @@ class ModelCmd(OasisBaseCommand):
         * running a model end-to-end
     """
     sub_commands = {
-        'generate-peril-areas-rtree-file-index': GeneratePerilAreasRtreeFileIndexCmd,
         'generate-exposure-pre-analysis': GenerateExposurePreAnalysisCmd,
         'generate-keys': GenerateKeysCmd,
         'generate-oasis-files': GenerateOasisFilesCmd,

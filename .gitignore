@@ -49,6 +49,7 @@ coverage.xml
 *.cover
 .hypothesis/
 .pytest_cache
+validation/runs
 
 # Translations
 *.mo
@@ -114,5 +115,6 @@ tests/model_execution/err_fc_kparse_output/
 tests/model_execution/itm_fc_kparse_output/
 tests/model_execution/tmp_fc_kparse_output/
 
+# pycharm
 .idea/
 data/

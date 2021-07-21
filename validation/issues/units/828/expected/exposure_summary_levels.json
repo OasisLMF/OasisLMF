@@ -1,0 +1,46 @@
+{
+    "GUL": {
+        "available": {
+            "accnumber": "Account number",
+            "buildingid": "Unique building identification number",
+            "buildingtiv": "Building Total Insured Value",
+            "constructioncode": "OED construction code",
+            "countrycode": "Country code (based on ISO3166 alpha-2 codes)",
+            "coverage_id": "Oasis coverage identifier",
+            "coverage_type_id": "Oasis coverage type",
+            "istenant": "Whether property is occupied by a tenant or not",
+            "latitude": "Latitude in degrees (-90.0 to +90.0)",
+            "loccurrency": "Location currency",
+            "locnumber": "Location number",
+            "locperilscovered": "Location perils covered",
+            "longitude": "Longitude in degrees (-180.0 to +180.0)",
+            "occupancycode": "OED occupancy code",
+            "peril_id": "OED peril code",
+            "portnumber": "Portfolio number",
+            "postalcode": "Postcode: the highest resolution postcode most often used.",
+            "streetaddress": "Street address including house number "
+        }
+    },
+    "IL": {
+        "available": {
+            "accnumber": "Account number",
+            "buildingid": "Unique building identification number",
+            "buildingtiv": "Building Total Insured Value",
+            "constructioncode": "OED construction code",
+            "countrycode": "Country code (based on ISO3166 alpha-2 codes)",
+            "coverage_id": "Oasis coverage identifier",
+            "coverage_type_id": "Oasis coverage type",
+            "istenant": "Whether property is occupied by a tenant or not",
+            "latitude": "Latitude in degrees (-90.0 to +90.0)",
+            "loccurrency": "Location currency",
+            "locnumber": "Location number",
+            "locperilscovered": "Location perils covered",
+            "longitude": "Longitude in degrees (-180.0 to +180.0)",
+            "occupancycode": "OED occupancy code",
+            "peril_id": "OED peril code",
+            "portnumber": "Portfolio number",
+            "postalcode": "Postcode: the highest resolution postcode most often used.",
+            "streetaddress": "Street address including house number "
+        }
+    }
+}

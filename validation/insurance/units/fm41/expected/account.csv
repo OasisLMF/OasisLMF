@@ -1,2 +1,0 @@
-PortNumber,AccNumber,PolNumber,PolPerilsCovered,AccCurrency,PolPeril,PolLimit6All,LayerParticipation,LayerLimit,LayerAttachment,CondNumber,CondName,CondPriority,CondPeril,CondMinDed6All,CondLimit6All
-1,1,1,QQ1;WW1,USD,QQ1;WW1,1500000,1,0,0,1,1,1,WW1,50000,250000

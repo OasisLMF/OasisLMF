@@ -21,10 +21,10 @@ import pandas as pd
 from ..utils.data import get_json, get_location_df
 from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
-from ..utils.path import get_custom_module, as_path
+from ..utils.path import import_from_string, get_custom_module, as_path
 from ..utils.status import OASIS_KEYS_STATUS
 
-from .rtree import RTreeLookup, DeterministicLookup
+from .builtin import DeterministicLookup
 from .builtin import Lookup as NewLookup
 
 from multiprocessing import cpu_count,  Queue, Process
@@ -222,16 +222,26 @@ class BasicKeyServer:
         self.lookup_cls = self.get_lookup_cls()
 
     def get_lookup_cls(self):
-        if self.config.get('lookup_module_path'): # custom lookup
-            lookup_module = get_custom_module(self.config.get('lookup_module_path'), 'lookup_module_path')
+        if self.config.get('lookup_class'):
+            lookup_cls = import_from_string(self.config.get('lookup_class'))
+
+        elif self.config.get('lookup_module'):
+            lookup_module = import_from_string(self.config.get('lookup_module'))
+            lookup_cls = getattr(lookup_module, '{}KeysLookup'.format(self.config['model']['model_id']))
+
+        elif self.config.get('lookup_module_path'):
+            lookup_module_path = self.config.get('lookup_module_path')
+            if not os.path.isabs(lookup_module_path):
+                lookup_module_path = os.path.join(self.config_dir, lookup_module_path)
+            lookup_module = get_custom_module(lookup_module_path, 'lookup_module_path')
             lookup_cls = getattr(lookup_module, '{}KeysLookup'.format(self.config['model']['model_id']))
         else: # built-in lookup
             if self.config.get('builtin_lookup_type') == 'deterministic':
                 lookup_cls = DeterministicLookup
-            elif self.config.get('builtin_lookup_type')  == 'new_lookup':
+            elif self.config.get('builtin_lookup_type') == 'new_lookup':
                 lookup_cls = NewLookup
             else:
-                lookup_cls = RTreeLookup
+                raise OasisException(f"Unrecognised lookup config file, or config file is from deprecated built in lookup module 'oasislmf<=1.16.0' ")
 
         return lookup_cls
 

@@ -1,7 +1,0 @@
-PortNumber,AccNumber,AccCurrency,PolNumber,PolPerilsCovered,LayerParticipation,LayerLimit,LayerAttachment,PolDedType6All,PolDed6All,PolMinDed6All,PolPeril,CondNumber,CondName,CondDed6All,CondDedType6All,CondMinDed6All,CondMaxDed6All,CondLimit6All,CondLimitType6All,CondPeril
-1,11,USD,A,AA1,1,2500000,0,0,0,0,AA1,366450,EXCL NM LOCS,0,0,0,0,0,0,AA1
-,,,,,,,,,,,,,,,,,,,,
-,,,,,,,,,,,,,,,,,,,,
-,,,,,,,,,,,,,,,,,,,,
-,,,,,,,,,,,,,,,,,,,,
-,,,,,,,,,,,,,,,,,,,,

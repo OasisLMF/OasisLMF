@@ -23,7 +23,7 @@ except ImportError:
     from urllib2 import urlopen, URLError
 
 
-KTOOLS_VERSION = '3.6.1'
+KTOOLS_VERSION = '3.6.2'
 
 SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -37,6 +37,9 @@ def get_install_requirements():
     with io.open(os.path.join(SCRIPT_DIR, 'requirements-package.in'), encoding='utf-8') as reqs:
         return reqs.readlines()
 
+def get_optional_requirements():
+    with io.open(os.path.join(SCRIPT_DIR, 'optional-package.in'), encoding='utf-8') as reqs:
+        return {"extra": reqs.readlines()}
 
 def get_version():
     """
@@ -55,6 +58,7 @@ def temp_dir():
 
 version = get_version()
 reqs = get_install_requirements()
+reqs_extra = get_optional_requirements()
 readme = get_readme()
 
 
@@ -356,6 +360,7 @@ setup(
     keywords='oasis lmf loss modeling framework',
     python_requires='>=3.6',
     install_requires=reqs,
+    extras_require=reqs_extra,
     classifiers=[
         'Development Status :: 4 - Beta',
         'License :: OSI Approved :: BSD License',
