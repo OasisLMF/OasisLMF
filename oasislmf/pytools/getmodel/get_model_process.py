@@ -1,4 +1,5 @@
 from typing import Optional, Tuple
+import struct
 
 import numpy as np
 from pandas import DataFrame, merge
@@ -140,3 +141,24 @@ class GetModelProcess(ModelLoaderMixin):
     @property
     def result(self) -> Tuple[DataFrame, DataFrame, DataFrame]:
         return self.model, DataFrame(), self.damage_bin.value
+
+    def stream(self) -> None:
+        """
+        Loops through the self.model converting it into binary data and printing it out after the loop to serve as
+        an stout.
+
+        Returns: None
+        """
+        buffer = []
+        for i in  list(self.model.T.to_dict().values()):
+            s = struct.Struct('IIIIff')
+            values = (
+                int(i["event_id"]),
+                int(i["areaperil_id"]),
+                int(i["vulnerability_id"]),
+                int(i["bin_index"]),
+                float(i["prob_to"]),
+                float(i["bin_mean"])
+            )
+            buffer.append(s.pack(*values))
+        print(buffer)
