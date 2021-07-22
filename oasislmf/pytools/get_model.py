@@ -22,7 +22,7 @@ def _process_input_data() -> Optional[DataFrame]:
 
 def main():
     print("the get model is firing")
-    data_path: str = str(os.getcwd())
+    data_path: str = str(os.getcwd() + "/static/")
     process: GetModelProcess = GetModelProcess(data_path=data_path)
     process.run()
     print(process.stream)

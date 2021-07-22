@@ -14,7 +14,7 @@ class ModelLoaderMixin:
         "vulnerabilities": "vulnerability.csv",
         "footprint": "footprint.csv",
         "damage_bin": "damage_bin_dict.csv",
-        "events": "events.bin"
+        "events": "events.csv"
     }
 
     @staticmethod
