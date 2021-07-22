@@ -11,9 +11,9 @@ class ModelLoaderMixin:
     This Mixin class is responsible for loading data for the get model.
     """
     FILE_MAP: Dict[str, str] = {
-        "vulnerabilities": "vulnerability.bin",
-        "footprint": "footprint.bin",
-        "damage_bin": "damage_bin_dict.bin",
+        "vulnerabilities": "vulnerability.csv",
+        "footprint": "footprint.csv",
+        "damage_bin": "damage_bin_dict.csv",
         "events": "events.bin"
     }
 
@@ -95,6 +95,6 @@ class ModelLoaderMixin:
         if value is not None:
             placeholder = FileLoader(file_path=self.data_path + f"/{self.FILE_MAP['events']}",
                                      label="events")
-            placeholder.value = DataFrame(value)
+            placeholder.value = value
             value = placeholder
         self._events = value
