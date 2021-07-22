@@ -9,7 +9,8 @@ def main():
     # takes in stream for events
     data_path: str = str(os.getcwd())
     data = sys.stdin.buffer.read()
-    print(f"\n\n\n\nhere is the data: {type(data.decode())}\n\n\n\n\n")
+    print("")
+    print(f"\n\n\n\nhere is the data: {data.decode()}\n\n\n\n\n")
     process: GetModelProcess = GetModelProcess(data_path=data_path)
     process.run()
     print(process.stream)
