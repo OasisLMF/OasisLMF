@@ -23,7 +23,7 @@ def _process_input_data() -> Optional[DataFrame]:
 def main():
     print("the get model is firing")
     data_path: str = str(os.getcwd())
-    process: GetModelProcess = GetModelProcess(data_path=data_path)
+    process: GetModelProcess = GetModelProcess(data_path=data_path, events=_process_input_data())
     process.run()
     print(process.stream)
 
