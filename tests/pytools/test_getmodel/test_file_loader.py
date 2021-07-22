@@ -24,10 +24,14 @@ class TestFileLoader(TestCase):
     def test_read(self):
         test = FileLoader(file_path="./test.csv", label="vulnerabilities")
         self.assertEqual(DataFrame, type(test.value))
-        self.assertEqual(['Unnamed: 0', 'one', 'two'], list(test.value.columns))
+        self.assertEqual(self.data, list(test.value.T.to_dict().values()))
 
         test.clear_cache()
         self.assertEqual(None, test._value)
+
+    def test_value_set(self):
+        self.test.value = "something"
+        self.assertEqual("something", self.test.value)
 
 
 if __name__ == "__main__":
