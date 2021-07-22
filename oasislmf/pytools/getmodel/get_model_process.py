@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List, Any, Union
 import struct
 
 import numpy as np
@@ -20,7 +20,7 @@ class GetModelProcess(ModelLoaderMixin):
 
     NOTE: This class uses the ModelLoaderMixin so it's data attributes are defined there
     """
-    def __init__(self, data_path: str) -> None:
+    def __init__(self, data_path: str, events: Optional[Any] = None) -> None:
         """
         The constructor for the GetModelProcess class.
 
@@ -33,6 +33,7 @@ class GetModelProcess(ModelLoaderMixin):
         self._damage_bin: Optional[FileLoader] = None
         self._events: Optional[FileLoader] = None
         self.model: Optional[DataFrame] = None
+        self.events = events
 
     def merge_complex_items(self) -> None:
         pass
@@ -142,15 +143,15 @@ class GetModelProcess(ModelLoaderMixin):
     def result(self) -> Tuple[DataFrame, DataFrame, DataFrame]:
         return self.model, DataFrame(), self.damage_bin.value
 
-    def stream(self) -> None:
+    @property
+    def stream(self) -> List[bytes]:
         """
-        Loops through the self.model converting it into binary data and printing it out after the loop to serve as
-        an stout.
+        Loops through the self.model converting it into binary data.
 
-        Returns: None
+        Returns: (List[bytes]) self.model in binary form
         """
         buffer = []
-        for i in  list(self.model.T.to_dict().values()):
+        for i in list(self.model.T.to_dict().values()):
             s = struct.Struct('IIIIff')
             values = (
                 int(i["event_id"]),
@@ -161,4 +162,4 @@ class GetModelProcess(ModelLoaderMixin):
                 float(i["bin_mean"])
             )
             buffer.append(s.pack(*values))
-        print(buffer)
+        return buffer

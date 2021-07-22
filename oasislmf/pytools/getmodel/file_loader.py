@@ -1,5 +1,7 @@
+import _io
 from os import path
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, List
+import struct
 
 from pandas import DataFrame, read_csv
 
@@ -18,7 +20,7 @@ class FileLoader:
     """
     READ_MAP: Dict[str, Any] = {
         FileTypeEnum.CSV.value: (read_csv, "to_csv"),
-        FileTypeEnum.BIN.value: (read_csv, "to_csv")
+        FileTypeEnum.BIN.value: (open, "to_csv")
     }
 
     def __init__(self, file_path: str, label: str) -> None:
@@ -34,6 +36,16 @@ class FileLoader:
         self.extension: str = file_path.split(".")[-1]
         self._read_function: Any = self.get_read_function()
         self._value: Optional[DataFrame] = None
+
+    def _process_bytes(self, data: List[bytes]) -> list:
+        encoding_map: Dict[str, struct.Struct] = {
+            "vulnerabilities": struct.Struct(""),
+            "footprint": struct.Struct("IIIf"),
+            "damage_bin": struct.Struct(""),
+            "events": struct.Struct("")
+        }
+        # return [encoding_map[self.label].unpack(i) for i in data]
+        return [i.decode("UTF-8") for i in data]
 
     def get_read_function(self) -> Any:
         """
@@ -74,4 +86,20 @@ class FileLoader:
         """
         if self._value is None:
             self._value = self.read()
+            if isinstance(self._value, _io.TextIOWrapper):
+                with open(self.path, 'rb') as file:
+                    data = file.readlines()
+                print("")
+                for i in data:
+                    print(i)
+                print(self._process_bytes(data=data))
+                buffer = []
+                # print(self._value.readline())
+                # for i in list(self._value.readline()):
+                #     print(i)
+                    # s = struct.Struct('IIIIff')
         return self._value
+
+    @value.setter
+    def value(self, value) -> None:
+        self._value = value

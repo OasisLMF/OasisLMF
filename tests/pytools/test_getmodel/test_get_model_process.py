@@ -1,3 +1,4 @@
+import _io
 from unittest import TestCase, main
 from unittest.mock import patch, PropertyMock
 
@@ -17,13 +18,21 @@ class TestGetModelProcess(TestCase):
         merge_vulnerabilities
         merge_damage_bin_dict
         """
-        self.test = GetModelProcess(data_path=".")
+        self.test = GetModelProcess(data_path="./static/")
 
     def test__data_loading(self):
-        self.assertEqual(DataFrame, type(self.test.damage_bin.value))
-        self.assertEqual(DataFrame, type(self.test.footprint.value))
-        self.assertEqual(DataFrame, type(self.test.vulnerabilities.value))
-        self.test.run()
+        # self.assertEqual(DataFrame, type(self.test.damage_bin.value))
+        print(self.test.footprint.value)
+        self.assertEqual(_io.TextIOWrapper, type(self.test.footprint.value))
+        # self.assertEqual(DataFrame, type(self.test.footprint.value))
+        # self.assertEqual(DataFrame, type(self.test.vulnerabilities.value))
+        # self.test.run()
+
+    def test_stream_events(self):
+        test = GetModelProcess(data_path="./static/", events=[{"one": 1, "two": 2}, {"one": 1, "two": 2}])
+
+        self.assertEqual(DataFrame, type(test.events.value))
+        self.assertEqual([{'one': 1, 'two': 2}, {'one': 1, 'two': 2}], list(test.events.value.T.to_dict().values()))
 
     @patch("oasislmf.pytools.getmodel.get_model_process.GetModelProcess.footprint", new_callable=PropertyMock)
     @patch("oasislmf.pytools.getmodel.get_model_process.GetModelProcess.events", new_callable=PropertyMock)

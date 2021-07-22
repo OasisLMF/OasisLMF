@@ -1,7 +1,7 @@
 import os
 from typing import Dict
 
-from pandas import read_csv
+from pandas import read_csv, DataFrame
 
 from .file_loader import FileLoader
 
@@ -11,10 +11,10 @@ class ModelLoaderMixin:
     This Mixin class is responsible for loading data for the get model.
     """
     FILE_MAP: Dict[str, str] = {
-        "vulnerabilities": "vulnerability.csv",
-        "footprint": "footprint.csv",
-        "damage_bin": "damage_bin_dict.csv",
-        "events": "events.csv"
+        "vulnerabilities": "vulnerability.bin",
+        "footprint": "footprint.bin",
+        "damage_bin": "damage_bin_dict.bin",
+        "events": "events.bin"
     }
 
     @staticmethod
@@ -92,4 +92,9 @@ class ModelLoaderMixin:
 
     @events.setter
     def events(self, value) -> None:
+        if value is not None:
+            placeholder = FileLoader(file_path=self.data_path + f"/{self.FILE_MAP['events']}",
+                                     label="events")
+            placeholder.value = DataFrame(value)
+            value = placeholder
         self._events = value
