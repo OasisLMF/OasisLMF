@@ -205,7 +205,7 @@ class GenerateLossesDir(GenerateLossesBase):
             'fm_programme.csv',
             'fm_xref.csv'])
 
-        ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(self.oasis_files_dir)) + os.listdir(self.oasis_files_dir))
+        ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(self.oasis_files_dir)) + os.listdir(self.model_run_dir))
         gul_item_stream = (not self.ktools_legacy_stream)
         self.logger.info('\nPreparing loss Generation (GUL=True, IL={}, RIL={})'.format(il, ri))
         analysis_settings = get_analysis_settings(self.analysis_settings_json)
@@ -277,8 +277,8 @@ class GenerateLossesPartial(GenerateLossesDir):
     ]
     def run(self):
         GenerateLossesDir._check_ktool_rules(self)
-        analysis_settings = GenerateLossesDir.run(self)
         model_run_fp = GenerateLossesDir._get_output_dir(self)
+        analysis_settings = GenerateLossesDir.run(self)
         ri_layers = self._get_num_ri_layers(analysis_settings, model_run_fp)
         model_runner_module, _ = self._get_model_runner()
 
@@ -286,14 +286,17 @@ class GenerateLossesPartial(GenerateLossesDir):
             script_name = 'run_analysis.sh' if not self.process_number else f'{self.process_number}.run_analysis.sh'
             self.script_fp = os.path.join(os.path.abspath(model_run_fp), script_name)
 
+        if os.path.isfile(self.script_fp):
+            os.remove(self.script_fp) 
+
         bash_params = model_runner_module.bash_params(
             analysis_settings,
             number_of_processes=self.ktools_num_processes,
             filename=self.script_fp,
             num_reinsurance_iterations=ri_layers,
-            set_alloc_rule_gul=self.ktools_alloc_rule_gul,
-            set_alloc_rule_il=self.ktools_alloc_rule_il,
-            set_alloc_rule_ri=self.ktools_alloc_rule_ri,
+            gul_alloc_rule=self.ktools_alloc_rule_gul,
+            il_alloc_rule=self.ktools_alloc_rule_il,
+            ri_alloc_rule=self.ktools_alloc_rule_ri,
             num_gul_per_lb=self.ktools_num_gul_per_lb,
             num_fm_per_lb=self.ktools_num_fm_per_lb,
             run_debug=self.verbose,
@@ -336,19 +339,24 @@ class GenerateLossesOutput(GenerateLossesDir):
 
         # New vars for chunked loss generation
         {'name': 'script_fp', 'default': None},
-        {'name': 'remove_working_file', 'default': False},
+        {'name': 'remove_working_file', 'default': False, 'help': 'Delete files in the "work/" dir onces outputs have completed'},
     ]
     def run(self):
-        analysis_settings = GenerateLossesDir.run(self)
         model_run_fp = GenerateLossesDir._get_output_dir(self)
-        model_runner_module = self._get_model_runner()
+        analysis_settings = GenerateLossesDir.run(self)
+        model_runner_module, _ = self._get_model_runner()
+        ri_layers = self._get_num_ri_layers(analysis_settings, model_run_fp)
 
         if not self.script_fp:
             self.script_fp = os.path.join(os.path.abspath(model_run_fp), 'run_outputs.sh')
 
+        if os.path.isfile(self.script_fp):
+            os.remove(self.script_fp) 
+
         bash_params = model_runner_module.bash_params(
             analysis_settings,
             number_of_processes=self.ktools_num_processes,
+            num_reinsurance_iterations=ri_layers,
             filename=self.script_fp,
             run_debug=self.verbose,
             stderr_guard=not self.ktools_disable_guard,
@@ -416,8 +424,8 @@ class GenerateLosses(GenerateLossesDir):
     def run(self):
         # prep losses run dir / Setup
         GenerateLossesDir._check_ktool_rules(self)
-        analysis_settings = GenerateLossesDir.run(self)
         model_run_fp = GenerateLossesDir._get_output_dir(self)
+        analysis_settings = GenerateLossesDir.run(self)
         script_fp = os.path.join(os.path.abspath(model_run_fp), 'run_ktools.sh')
         ri_layers = self._get_num_ri_layers(analysis_settings, model_run_fp)
         model_runner_module, package_name = self._get_model_runner()
