@@ -1,10 +1,8 @@
-#!/bin/bash
+#!/usr/bin/env -S bash -euET -o pipefail -O inherit_errexit
 SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")
 
 # --- Script Init ---
 
-set -e
-set -o pipefail
 mkdir -p log
 rm -R -f log/*
 
