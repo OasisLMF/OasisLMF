@@ -12,7 +12,7 @@ def _process_input_data() -> Optional[DataFrame]:
     """
     Gets the input from the STDin and converts it to
 
-    Returns:
+    Returns: (Optional[DataFrame])
     """
     data = sys.stdin.buffer.read()
     if data == "":
@@ -21,9 +21,9 @@ def _process_input_data() -> Optional[DataFrame]:
 
 
 def main():
-    print("the get model is firing")
     data_path: str = str(os.getcwd())
     process: GetModelProcess = GetModelProcess(data_path=data_path, events=_process_input_data())
     process.run()
-    print(process.stream)
+    for i in process.stream:
+        print(i, end="")
 
