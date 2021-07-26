@@ -272,8 +272,8 @@ class GenerateLossesPartial(GenerateLossesDir):
 
         # New vars for chunked loss generation
         {'name': 'script_fp', 'default': None},
-        {'name': 'process_number', 'default': None, 'help': 'Partition number to run, if not set then run all in a single script'},
-        {'name': 'max_process_id', 'default': -1,   'help': 'Max number of loss chunks, defaults to `ktools_num_processes` if not set'},
+        {'name': 'process_number', 'default': None, 'type':int, 'help': 'Partition number to run, if not set then run all in a single script'},
+        {'name': 'max_process_id', 'default': -1,   'type':int, 'help': 'Max number of loss chunks, defaults to `ktools_num_processes` if not set'},
     ]
     def run(self):
         GenerateLossesDir._check_ktool_rules(self)
