@@ -24,7 +24,7 @@ def main() -> None:
     data_path: str = str(os.getcwd())
     process: GetModelProcess = GetModelProcess(data_path=data_path, events=_process_input_data())
     process.run()
-    
+
     for i in process.stream:
         sys.stdout.buffer.write(i)
 

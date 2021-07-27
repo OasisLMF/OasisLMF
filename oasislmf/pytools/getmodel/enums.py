@@ -7,6 +7,7 @@ class FileTypeEnum(Enum):
     """
     CSV = "csv"
     BIN = "bin"
+    PARQUET = "parquet"
 
 
 class LoadingTypes(Enum):

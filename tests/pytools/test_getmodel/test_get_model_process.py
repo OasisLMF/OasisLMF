@@ -306,10 +306,15 @@ class TestGetModelProcess(TestCase):
         """
         The commented out code block below writes the dataframes defined in this function to files.
         """
-        # mock_footprint.return_value.value.to_csv("./footprint.csv", index=False)
+        # mock_footprint.return_value.value.to_csv("./footprint.parquet", index=False)
         # mock_events.return_value.value.to_csv("./events.csv", index=False)
-        # mock_vulnerabilities.return_value.value.to_csv("./vulnerability.csv", index=False)
-        # mock_damage_bin.return_value.value.to_csv("./damage_bin_dict.csv", index=False)
+        # mock_vulnerabilities.return_value.value.to_csv("./vulnerability.parquet", index=False)
+        # mock_damage_bin.return_value.value.to_csv("./damage_bin_dict.parquet", index=False)
+
+        # mock_footprint.return_value.value.to_parquet("./footprint.parquet", index=False)
+        # mock_events.return_value.value.to_parquet("./events.csv", index=False)
+        # mock_vulnerabilities.return_value.value.to_parquet("./vulnerability.parquet", index=False)
+        # mock_damage_bin.return_value.value.to_parquet("./damage_bin_dict.parquet", index=False)
 
         self.test.run()
 

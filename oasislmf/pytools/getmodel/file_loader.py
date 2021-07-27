@@ -3,7 +3,7 @@ from os import path
 from typing import Optional, Any, Dict, List
 import struct
 
-from pandas import DataFrame, read_csv
+from pandas import DataFrame, read_csv, read_parquet
 
 from .enums import FileTypeEnum
 from .errors import NotSupportedError
@@ -20,7 +20,8 @@ class FileLoader:
     """
     READ_MAP: Dict[str, Any] = {
         FileTypeEnum.CSV.value: (read_csv, "to_csv"),
-        FileTypeEnum.BIN.value: (open, "to_csv")
+        FileTypeEnum.BIN.value: (open, "to_csv"),
+        FileTypeEnum.PARQUET.value: (read_parquet, "to_parquet")
     }
 
     def __init__(self, file_path: str, label: str) -> None:
