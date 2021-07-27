@@ -20,10 +20,11 @@ def _process_input_data() -> Optional[DataFrame]:
     return read_csv(StringIO(data.decode()), sep=",")
 
 
-def main():
+def main() -> None:
     data_path: str = str(os.getcwd())
     process: GetModelProcess = GetModelProcess(data_path=data_path, events=_process_input_data())
     process.run()
+    
     for i in process.stream:
-        print(i, end="")
+        sys.stdout.buffer.write(i)
 

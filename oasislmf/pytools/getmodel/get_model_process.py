@@ -5,6 +5,7 @@ import numpy as np
 from pandas import DataFrame, merge
 
 from .loader_mixin import ModelLoaderMixin, FileLoader
+from .descriptors import HeaderTypeDescriptor
 
 
 class GetModelProcess(ModelLoaderMixin):
@@ -14,18 +15,23 @@ class GetModelProcess(ModelLoaderMixin):
     Attributes:
         data_path (str): the path to the data files needed to construct the model
         model (Optional[DataFrame]): the model for K-tools
+        events (Optional[DataFrame]): events preloaded (if None, will load from a file)
+        stream_type (int): the type of stream that will be loaded into the header of the stream
 
     Properties:
         result (Tuple[DataFrame, DataFrame, DataFrame]): the constructed model, empty DataFrame, and damage_bin
 
     NOTE: This class uses the ModelLoaderMixin so it's data attributes are defined there
     """
-    def __init__(self, data_path: str, events: Optional[Any] = None) -> None:
+    STREAM_HEADER: HeaderTypeDescriptor = HeaderTypeDescriptor()
+
+    def __init__(self, data_path: str, events: Optional[DataFrame] = None) -> None:
         """
         The constructor for the GetModelProcess class.
 
         Args:
             data_path: (str) the path to the data files needed to construct the model
+            events (Optional[DataFrame]): events preloaded (if None, will load from a file)
         """
         self.data_path: str = data_path
         self._vulnerabilities: Optional[FileLoader] = None
@@ -33,7 +39,8 @@ class GetModelProcess(ModelLoaderMixin):
         self._damage_bin: Optional[FileLoader] = None
         self._events: Optional[FileLoader] = None
         self.model: Optional[DataFrame] = None
-        self.events = events
+        self.events: Optional[Any] = events
+        self.stream_type: int = 1
 
     def merge_complex_items(self) -> None:
         pass
@@ -150,7 +157,8 @@ class GetModelProcess(ModelLoaderMixin):
 
         Returns: (List[bytes]) self.model in binary form
         """
-        buffer = []
+        buffer = [self.STREAM_HEADER]
+
         for i in list(self.model.T.to_dict().values()):
             s = struct.Struct('IIIIff')
             values = (
