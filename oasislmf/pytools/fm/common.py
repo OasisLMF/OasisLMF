@@ -6,6 +6,7 @@ allowed_allocation_rule = [0, 1, 2, 3]
 np_oasis_int = np.int32
 nb_oasis_int = nb.int32
 np_oasis_float = np.float32
+nb_oasis_float = nb.float32
 
 float_equal_precision = np.finfo(np_oasis_float).eps
 
@@ -75,3 +76,4 @@ items_dtype = np.dtype([('item_id', 'i4'),
                         ('vulnerability_id', 'i4'),
                         ('group_id', 'i4')])
 
+EXTRA_VALUES = 2
