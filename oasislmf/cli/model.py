@@ -3,6 +3,7 @@ __all__ = [
     'GenerateKeysCmd',
     'GenerateLossesCmd',
     'GenerateLossesPartialCmd',
+    'GenerateLossesOutputCmd',
     'GenerateOasisFilesCmd',
     'ModelCmd',
     'RunCmd'
