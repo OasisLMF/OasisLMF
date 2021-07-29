@@ -1,6 +1,14 @@
 OasisLMF Changelog
 ==================
 
+`1.19.0rc1`_
+ ---------
+* [#856](https://github.com/OasisLMF/OasisLMF/pull/880) - improve memory usage of fmpy
+* [#883](https://github.com/OasisLMF/OasisLMF/pull/883) - Fix ri file detection
+* [#877](https://github.com/OasisLMF/OasisLMF/pull/877) - Feature/873 automated issues tests
+* [#832](https://github.com/OasisLMF/OasisLMF/pull/879) - Consolidate Arch2020 work
+.. _`1.19.0rc1`:  https://github.com/OasisLMF/OasisLMF/compare/1.18.0...1.19.0rc1
+
 `1.18.0`_
  ---------
 * [#865](https://github.com/OasisLMF/OasisLMF/pull/865) - correction for PolDed6All fields
