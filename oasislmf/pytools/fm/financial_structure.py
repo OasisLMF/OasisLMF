@@ -23,7 +23,8 @@ output_type = types.UniTuple(nb_oasis_int, 2)
 layer_type = types.UniTuple(nb_oasis_int, 3)
 
 # finacial structure processed array
-nodes_array_dtype = from_dtype(np.dtype([('level_id', np_oasis_int),
+nodes_array_dtype = from_dtype(np.dtype([('node_id', np.uint64),
+                                         ('level_id', np_oasis_int),
                                          ('agg_id', np_oasis_int),
                                          ('layer_len', np_oasis_int),
                                          ('profile_len', np_oasis_int),
@@ -48,6 +49,8 @@ compute_info_dtype = from_dtype(np.dtype([('allocation_rule', np_oasis_int),
                                           ('extra_len', np_oasis_int),
                                           ('compute_len', np_oasis_int),
                                           ('start_level', np_oasis_int),
+                                          ('items_len', np_oasis_int),
+                                          ('output_len', np_oasis_int),
                                           ('stepped', np.bool),
                                          ]))
 profile_index_dtype = from_dtype(np.dtype([('i_start', np_oasis_int),
@@ -359,9 +362,13 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     node_to_output_id = Dict.empty(node_type, List.empty_list(output_type))
     # node_to_output_id = {}
 
+    output_len = 0
     for i in range(fm_xref.shape[0]):
         xref = fm_xref[i]
         programme_node = (out_level, xref['agg_id'])
+        if output_len < xref['output_id']:
+            output_len = np_oasis_int(xref['output_id'])
+
         if programme_node in node_to_output_id:
             node_to_output_id[programme_node].append((np_oasis_int(xref['layer_id']), np_oasis_int(xref['output_id'])))
         else:
@@ -474,6 +481,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
         for agg_id in range(1, level_node_len[level] + 1):
             node_programme = (np_oasis_int(level), np_oasis_int(agg_id))
             node = nodes_array[node_i]
+            node['node_id'] = node_i
             node_i += 1
             node['level_id'] = level
             node['agg_id'] = agg_id
@@ -549,6 +557,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
             node_programme = (np_oasis_int(max_level + 1), np_oasis_int(agg_id))
             top_node = nodes_array[node_level_start[max_level] + agg_id]
             node, node_i = nodes_array[node_i], node_i + 1
+            node['node_id'] = top_node['node_id']
             node['layer_len'] = top_node['layer_len']
             node['profile_len'] = 1
             node['loss'], loss_i = loss_i, loss_i + node['layer_len']
@@ -571,6 +580,8 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
     compute_info['extra_len'] = extra_i
     compute_info['compute_len'] = compute_len
     compute_info['start_level'] = start_level
+    compute_info['items_len'] = level_node_len[0]
+    compute_info['output_len'] = output_len
     compute_info['stepped'] = stepped is not None
 
     return compute_infos, nodes_array, node_parents_array, node_profiles_array, output_array, fm_profile
