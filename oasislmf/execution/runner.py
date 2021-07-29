@@ -9,6 +9,8 @@ from ..utils.exceptions import OasisException
 from ..utils.log import oasis_log
 from .bash import genbash
 
+## NEW IMPORTS
+from .bash import create_bash_outputs, create_bash_analysis, bash_params, bash_wrapper
 
 @oasis_log()
 def run(analysis_settings,
@@ -22,12 +24,14 @@ def run(analysis_settings,
         filename='run_ktools.sh',
         **kwargs
 ):
-    # TODO: need clearer responsibility between runner.py and manager.py
-    #  ie: why is cpu count and custom_gulcalc_cmd checks here and not in manager
-    #      as manager does a lot of alike env check.
-    if number_of_processes == -1:
-        number_of_processes = multiprocessing.cpu_count()
 
+    ## MOVED into bash_params #########################################
+    #  keep here for the moment and refactor after testing
+    #
+    #  Example:
+    #  from .bash import get_complex_model_cmd
+    #  <var> = get_complex_model_cmd(custom_gulcalc_cmd, analysis_settings)
+    #
     # If `given_gulcalc_cmd` is set then always run as a complex model
     # and raise an exception when not found in PATH
     if custom_gulcalc_cmd:
@@ -65,7 +69,7 @@ def run(analysis_settings,
                 max_process_id,
                 os.path.abspath("analysis_settings.json"),
                 "input")
-            if gul_legacy_stream and coverage_output != '':    
+            if gul_legacy_stream and coverage_output != '':
                 cmd = '{} -c {}'.format(cmd, coverage_output)
             if item_output != '':
                 cmd = '{} -i {}'.format(cmd, item_output)
@@ -76,6 +80,9 @@ def run(analysis_settings,
     else:
         custom_get_getmodel_cmd = None
 
+    ###########################################################
+
+    # Calls run_analysis + run_outputs in a single script
     genbash(
         number_of_processes,
         analysis_settings,
@@ -88,6 +95,24 @@ def run(analysis_settings,
         _get_getmodel_cmd=custom_get_getmodel_cmd,
         **kwargs,
     )
-
     bash_trace = subprocess.check_output(['bash', filename])
     logging.info(bash_trace.decode('utf-8'))
+
+
+@oasis_log()
+def run_analysis(**params):
+    with bash_wrapper(params['filename'], params['bash_trace'], params['stderr_guard']):
+        create_bash_analysis(**params)
+
+    bash_trace = subprocess.check_output(['bash', params['filename']]).decode('utf-8')
+    logging.info(bash_trace)
+    return params['fifo_queue_dir'], bash_trace
+
+
+@oasis_log()
+def run_outputs(**params):
+    with bash_wrapper(params['filename'], params['bash_trace'], params['stderr_guard']):
+        create_bash_outputs(**params)
+    bash_trace = subprocess.check_output(['bash', params['filename']]).decode('utf-8')
+    logging.info(bash_trace)
+    return bash_trace

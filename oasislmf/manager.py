@@ -15,6 +15,9 @@ from .computation.generate.files import (
 from .computation.generate.keys import GenerateKeys, GenerateKeysDeterministic
 from .computation.generate.losses import (
     GenerateLosses,
+    GenerateLossesDir,
+    GenerateLossesPartial,
+    GenerateLossesOutput,
     GenerateLossesDeterministic,
     GenerateLossesDummyModel
 )
@@ -38,7 +41,12 @@ class OasisManager(object):
         GenerateOasisFiles,
         GenerateKeys,
         GenerateKeysDeterministic,
+
         GenerateLosses,
+        GenerateLossesDir,
+        GenerateLossesPartial,
+        GenerateLossesOutput,
+
         GenerateLossesDeterministic,
         GenerateLossesDummyModel,
         GenerateDummyModelFiles,
@@ -91,8 +99,13 @@ def __interface_factory(computation_cls):
 
 
 for computation_cls in OasisManager.computation_classes:
+    # set run() computation_cls functions as attributes 
     setattr(OasisManager, OasisManager.computation_name_to_method(computation_cls.__name__),
             __interface_factory(computation_cls))
+
+    # set get_arguments() computation_cls funcs as attributes
+    setattr(OasisManager, '_params_' + OasisManager.computation_name_to_method(computation_cls.__name__),
+        computation_cls.get_arguments)
 
 if __name__ == "__main__":
     import doctest
