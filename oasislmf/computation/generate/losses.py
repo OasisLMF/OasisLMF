@@ -205,7 +205,7 @@ class GenerateLossesDir(GenerateLossesBase):
             'fm_programme.csv',
             'fm_xref.csv'])
 
-        ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(os.path.dirname(self.oasis_files_dir)) + os.listdir(self.model_run_dir))
+        ri = any(re.match(r'RI_\d+$', fn) for fn in os.listdir(self.oasis_files_dir) + os.listdir(self.model_run_dir))
         gul_item_stream = (not self.ktools_legacy_stream)
         self.logger.info('\nPreparing loss Generation (GUL=True, IL={}, RIL={})'.format(il, ri))
         analysis_settings = get_analysis_settings(self.analysis_settings_json)
