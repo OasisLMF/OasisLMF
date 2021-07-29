@@ -1,8 +1,8 @@
 import os
 import sys
+from io import StringIO
 from typing import Optional
 
-from io import StringIO
 from pandas import read_csv, DataFrame
 
 from .getmodel.get_model_process import GetModelProcess
@@ -21,10 +21,12 @@ def _process_input_data() -> Optional[DataFrame]:
 
 
 def main() -> None:
+    """
+    Entry point of the 'new-model' command building the module and then piping it out as bytes.
+
+    Returns: None
+    """
     data_path: str = str(os.getcwd())
     process: GetModelProcess = GetModelProcess(data_path=data_path, events=_process_input_data())
     process.run()
-
-    for i in process.stream:
-        sys.stdout.buffer.write(i)
-
+    process.print_stream()

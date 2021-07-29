@@ -1,11 +1,12 @@
-from typing import Optional, Tuple, List, Any, Union
 import struct
+import sys
+from typing import Optional, Tuple, List, Any
 
 import numpy as np
 from pandas import DataFrame, merge
 
-from .loader_mixin import ModelLoaderMixin, FileLoader
 from .descriptors import HeaderTypeDescriptor
+from .loader_mixin import ModelLoaderMixin, FileLoader
 
 
 class GetModelProcess(ModelLoaderMixin):
@@ -158,16 +159,35 @@ class GetModelProcess(ModelLoaderMixin):
         Returns: (List[bytes]) self.model in binary form
         """
         buffer = [self.STREAM_HEADER]
+        number_of_rows: int = len(self.model.index)
 
         for i in list(self.model.T.to_dict().values()):
-            s = struct.Struct('IIIIff')
+            s = struct.Struct('IIIIf')
             values = (
                 int(i["event_id"]),
                 int(i["areaperil_id"]),
                 int(i["vulnerability_id"]),
-                int(i["bin_index"]),
-                float(i["prob_to"]),
-                float(i["bin_mean"])
+                int(number_of_rows),
+                float(i["prob_to"])
             )
             buffer.append(s.pack(*values))
         return buffer
+
+    def print_stream(self) -> None:
+        """
+        Prints out the stream for cdftocsv.
+
+        Returns: None
+        """
+        number_of_rows: int = len(self.model.index)
+        sys.stdout.buffer.write(self.STREAM_HEADER)
+
+        for i in list(self.model.T.to_dict().values()):
+            sys.stdout.buffer.write(struct.Struct('I').pack(int(i["event_id"])))
+            sys.stdout.buffer.write(struct.Struct('I').pack(int(i["areaperil_id"])))
+            sys.stdout.buffer.write(struct.Struct('I').pack(int(i["vulnerability_id"])))
+            sys.stdout.buffer.write(struct.Struct('I').pack(int(number_of_rows)))
+
+            for i in list(self.model.T.to_dict().values()):
+                sys.stdout.buffer.write(struct.Struct('f').pack(float(i["prob_to"])))
+                sys.stdout.buffer.write(struct.Struct('f').pack(float(i["bin_mean"])))
