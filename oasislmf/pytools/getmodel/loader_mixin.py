@@ -11,10 +11,10 @@ class ModelLoaderMixin:
     This Mixin class is responsible for loading data for the get model.
     """
     FILE_MAP: Dict[str, str] = {
-        "vulnerabilities": "vulnerability.parquet",
-        "footprint": "footprint.parquet",
-        "damage_bin": "damage_bin_dict.parquet",
-        "events": "events.parquet"
+        "vulnerabilities": "vulnerability.csv",
+        "footprint": "footprint.csv",
+        "damage_bin": "damage_bin_dict.csv",
+        "events": "events.csv"
     }
 
     @staticmethod
