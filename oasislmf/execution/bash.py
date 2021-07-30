@@ -1,9 +1,11 @@
 import copy
+import contextlib
 import io
 import os
 import pandas as pd
 import random
 import re
+import multiprocessing
 import string
 import logging
 from functools import partial
@@ -136,6 +138,24 @@ exec   > >(tee -ia log/bash.log)
 exec  2> >(tee -ia log/bash.log >& 2)
 exec 19> log/bash.log
 export BASH_XTRACEFD="19" """
+
+
+def process_range(max_process_id, process_number=None):
+    """
+    Creates an iterable for all the process ids, if process number is set
+    then an iterable containing only that number is returned.
+
+    This allows for the loss generation to be ran in different processes
+    rather than accross multiple cores.
+
+    :param max_process_id: The largest process number
+    :param process_number: If set iterable only containing this number is returned
+    :return: iterable containing all the process numbers to process
+    """
+    if process_number is not None:
+        return [process_number]
+    else:
+        return range(1, max_process_id + 1)
 
 
 def get_fmcmd(fmpy, fmpy_low_memory=False, fmpy_sort_output=False):
@@ -380,35 +400,33 @@ def do_fifo_exec(producer, producer_id, filename, fifo_dir, action='mkfifo', con
     print_command(filename, f'{action} {get_fifo_name(fifo_dir, producer, producer_id, consumer)}')
 
 
-def do_fifos_exec(runtype, max_process_id, filename, fifo_dir, action='mkfifo', consumer=''):
-    for process_id in range(1, max_process_id + 1):
+def do_fifos_exec(runtype, max_process_id, filename, fifo_dir, process_number=None, action='mkfifo', consumer=''):
+    for process_id in process_range(max_process_id, process_number):
         do_fifo_exec(runtype, process_id, filename, fifo_dir, action, consumer)
     print_command(filename, '')
 
 
 def do_fifos_exec_full_correlation(
-    runtype, max_process_id, filename, fifo_dir, action='mkfifo'
-):
-    for process_id in range(1, max_process_id + 1):
+    runtype, max_process_id, filename, fifo_dir, process_number=None, action='mkfifo'):
+    for process_id in process_range(max_process_id, process_number):
         print_command(filename, '{} {}{}_sumcalc_P{}'.format(
             action, fifo_dir, runtype, process_id
         ))
     print_command(filename, '')
-    for process_id in range(1, max_process_id + 1):
+    for process_id in process_range(max_process_id, process_number):
         print_command(filename, '{} {}{}_fmcalc_P{}'.format(
             action, fifo_dir, runtype, process_id
         ))
     print_command(filename, '')
 
 
-def do_fifos_calc(runtype, analysis_settings, max_process_id,
-                  filename, fifo_dir='fifo/', action='mkfifo'):
+def do_fifos_calc(runtype, analysis_settings, max_process_id, filename, fifo_dir='fifo/', process_number=None, action='mkfifo'):
 
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
         return
 
-    for process_id in range(1, max_process_id + 1):
+    for process_id in process_range(max_process_id, process_number):
         for summary in summaries:
             if 'id' in summary:
                 summary_set = summary['id']
@@ -464,6 +482,7 @@ def do_kats(
     work_dir='work/kat/',
     output_dir='output/',
     sort_by_event=False,
+    process_number=None,
 ):
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
@@ -478,7 +497,8 @@ def do_kats(
                 anykats = True
 
                 cmd = 'kat -s' if sort_by_event else 'kat'
-                for process_id in range(1, max_process_id + 1):
+                for process_id in process_range(max_process_id, process_number):
+
                     cmd = '{} {}{}_S{}_eltcalc_P{}'.format(
                         cmd, work_dir, runtype, summary_set, process_id
                     )
@@ -494,7 +514,7 @@ def do_kats(
                 anykats = True
 
                 cmd = 'kat'
-                for process_id in range(1, max_process_id + 1):
+                for process_id in process_range(max_process_id, process_number):
                     cmd = '{} {}{}_S{}_pltcalc_P{}'.format(
                         cmd, work_dir, runtype, summary_set, process_id
                     )
@@ -510,7 +530,7 @@ def do_kats(
                 anykats = True
 
                 cmd = 'kat'
-                for process_id in range(1, max_process_id + 1):
+                for process_id in process_range(max_process_id, process_number):
                     cmd = '{} {}{}_S{}_summarycalc_P{}'.format(
                         cmd, work_dir, runtype, summary_set, process_id
                     )
@@ -688,14 +708,14 @@ def do_any(runtype, analysis_settings, process_id, filename, process_counter, fi
 
                     print_command(filename, cmd)
 
-def ri(analysis_settings, max_process_id, filename, process_counter, num_reinsurance_iterations, fifo_dir='fifo/', work_dir='work/', stderr_guard=True):
-    for process_id in range(1, max_process_id + 1):
+def ri(analysis_settings, max_process_id, filename, process_counter, num_reinsurance_iterations, fifo_dir='fifo/', work_dir='work/', stderr_guard=True, process_number=None):
+    for process_id in process_range(max_process_id, process_number):
         do_any(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
 
-    for process_id in range(1, max_process_id + 1):
+    for process_id in process_range(max_process_id, process_number):
         do_tees(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir)
 
-    for process_id in range(1, max_process_id + 1):
+    for process_id in process_range(max_process_id, process_number):
         do_summarycalcs(
             runtype=RUNTYPE_REINSURANCE_LOSS,
             analysis_settings=analysis_settings,
@@ -707,14 +727,14 @@ def ri(analysis_settings, max_process_id, filename, process_counter, num_reinsur
         )
 
 
-def il(analysis_settings, max_process_id, filename, process_counter, fifo_dir='fifo/', work_dir='work/', stderr_guard=True):
-    for process_id in range(1, max_process_id + 1):
+def il(analysis_settings, max_process_id, filename, process_counter, fifo_dir='fifo/', work_dir='work/', stderr_guard=True, process_number=None):
+    for process_id in process_range(max_process_id, process_number):
         do_any(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
 
-    for process_id in range(1, max_process_id + 1):
+    for process_id in process_range(max_process_id, process_number):
         do_tees(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir)
 
-    for process_id in range(1, max_process_id + 1):
+    for process_id in process_range(max_process_id, process_number):
         do_summarycalcs(
             runtype=RUNTYPE_INSURED_LOSS,
             analysis_settings=analysis_settings,
@@ -733,16 +753,17 @@ def do_gul(
     fifo_dir='fifo/',
     work_dir='work/',
     gul_legacy_stream=None,
-    stderr_guard=True
+    stderr_guard=True,
+    process_number=None,
 ):
 
-    for process_id in range(1, max_process_id + 1):
+    for process_id in process_range(max_process_id, process_number):
         do_any(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
 
-    for process_id in range(1, max_process_id + 1):
+    for process_id in process_range(max_process_id, process_number):
         do_tees(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir)
 
-    for process_id in range(1, max_process_id + 1):
+    for process_id in process_range(max_process_id, process_number):
         do_summarycalcs(
             runtype=RUNTYPE_GROUNDUP_LOSS,
             analysis_settings=analysis_settings,
@@ -762,16 +783,17 @@ def do_gul_full_correlation(
     fifo_dir='fifo/full_correlation/',
     work_dir='work/full_correlation/',
     gul_legacy_stream=None,
-    stderr_guard=None
+    stderr_guard=None,
+    process_number=None,
 ):
 
-    for process_id in range(1, max_process_id + 1):
+    for process_id in process_range(max_process_id, process_number):
         do_any(
             RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename,
             process_counter, fifo_dir, work_dir
         )
 
-    for process_id in range(1, max_process_id + 1):
+    for process_id in process_range(max_process_id, process_number):
         do_tees(
             RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename,
             process_counter, fifo_dir, work_dir
@@ -1022,6 +1044,55 @@ def get_main_cmd_gul_stream(
     return main_cmd
 
 
+def get_complex_model_cmd(custom_gulcalc_cmd, analysis_settings):
+    # If `given_gulcalc_cmd` is set then always run as a complex model
+    # and raise an exception when not found in PATH
+    if custom_gulcalc_cmd:
+        if not shutil.which(custom_gulcalc_cmd):
+            raise OasisException(
+                'Run error: Custom Gulcalc command "{}" explicitly set but not found in path.'.format(custom_gulcalc_cmd)
+            )
+    # when not set then fallback to previous behaviour:
+    # Check if a custom binary `<supplier>_<model>_gulcalc` exists in PATH
+    else:
+        inferred_gulcalc_cmd = "{}_{}_gulcalc".format(
+            analysis_settings.get('module_supplier_id'),
+            analysis_settings.get('model_version_id'))
+        if shutil.which(inferred_gulcalc_cmd):
+            custom_gulcalc_cmd = inferred_gulcalc_cmd
+
+    if custom_gulcalc_cmd:
+        def custom_get_getmodel_cmd(
+            number_of_samples,
+            gul_threshold,
+            use_random_number_file,
+            coverage_output,
+            item_output,
+            process_id,
+            max_process_id,
+            gul_alloc_rule,
+            stderr_guard,
+            **kwargs
+        ):
+            cmd = "{} -e {} {} -a {} -p {}".format(
+                custom_gulcalc_cmd,
+                process_id,
+                max_process_id,
+                os.path.abspath("analysis_settings.json"),
+                "input")
+            if gul_legacy_stream and coverage_output != '':
+                cmd = '{} -c {}'.format(cmd, coverage_output)
+            if item_output != '':
+                cmd = '{} -i {}'.format(cmd, item_output)
+            if stderr_guard:
+                cmd = '({}) 2>> log/gul_stderror.err'.format(cmd)
+
+            return cmd
+    else:
+        custom_get_getmodel_cmd = None
+    return custom_get_getmodel_cmd
+
+
 def do_computes(outputs):
 
     if len(outputs) == 0:
@@ -1060,9 +1131,13 @@ def get_main_cmd_lb(num_lb, num_in_per_lb, num_out_per_lb, get_input_stream_name
         yield lb_main_cmd
 
 
-def genbash(
-    max_process_id,
+
+
+
+def bash_params(
     analysis_settings,
+    max_process_id=-1,
+    number_of_processes=-1,
     num_reinsurance_iterations=0,
     fifo_tmp_dir=True,
     gul_alloc_rule=None,
@@ -1075,94 +1150,90 @@ def genbash(
     bash_trace=False,
     filename='run_kools.sh',
     _get_getmodel_cmd=None,
+    custom_gulcalc_cmd=None,
     custom_args={},
     fmpy=True,
     fmpy_low_memory=False,
     fmpy_sort_output=False,
     event_shuffle=None,
+
+    ## new options
+    process_number=None,
+    remove_working_files=True,
+    model_run_dir='',
+    **kwargs
 ):
-    """
-    Generates a bash script containing ktools calculation instructions for an
-    Oasis model.
 
-    :param max_process_id: The number of processes to create
-    :type max_process_id: int
+    bash_params = {}
+    bash_params['max_process_id'] = max_process_id if max_process_id > 0 else multiprocessing.cpu_count()
+    bash_params['number_of_processes'] = number_of_processes if number_of_processes > 0 else multiprocessing.cpu_count()
+    bash_params['process_counter'] = Counter()
+    bash_params['num_reinsurance_iterations'] = num_reinsurance_iterations
+    bash_params['fifo_tmp_dir'] = fifo_tmp_dir
+    bash_params['gul_legacy_stream'] = gul_legacy_stream
+    bash_params['bash_trace'] = bash_trace
+    bash_params['filename'] = filename
+    bash_params['custom_args'] = custom_args
+    bash_params['fmpy'] = fmpy
+    bash_params['fmpy_low_memory'] = fmpy_low_memory
+    bash_params['fmpy_sort_output'] = fmpy_sort_output
+    bash_params['process_number'] = process_number
+    bash_params['remove_working_files'] = remove_working_files
+    bash_params['model_run_dir'] = model_run_dir
+    bash_params['gul_threshold'] = analysis_settings.get('gul_threshold', 0)
+    bash_params['number_of_samples'] = analysis_settings.get('number_of_samples', 0)
 
-    :param analysis_settings: The analysis settings
-    :type analysis_settings: dict
+    # set complex model gulcalc command
+    if not _get_getmodel_cmd and custom_gulcalc_cmd:
+        bash_params['_get_getmodel_cmd'] = get_complex_model_cmd(custom_gulcalc_cmd, analysis_settings)
+    else:
+        bash_params['_get_getmodel_cmd'] = _get_getmodel_cmd
 
-    :param filename: The output file name
-    :type filename: string
+    ## Set fifo dirs
+    if fifo_tmp_dir:
+        bash_params['fifo_queue_dir'] = '/tmp/{}/fifo/'.format(''.join(random.choice(string.ascii_letters + string.digits) for _ in range(10)))
+    else:
+        bash_params['fifo_queue_dir'] = os.path.join(model_run_dir, 'fifo/')
 
-    :param num_reinsurance_iterations: The number of reinsurance iterations
-    :type num_reinsurance_iterations: int
-
-    :param fifo_tmp_dir: When set to True, Create and use FIFO quese in `/tmp/[A-Z,0-9]/fifo`, if False run in './fifo'
-    :type fifo_tmp_dir: boolean
-
-    :param gul_alloc_rule: Allocation rule (None or 1) for gulcalc, if not set default to coverage stream
-    :type gul_alloc_rule: Int
-
-    :param il_alloc_rule: Allocation rule (0, 1 or 2) for fmcalc
-    :type il_alloc_rule: Int
-
-    :param ri_alloc_rule: Allocation rule (0, 1 or 2) for fmcalc
-    :type ri_alloc_rule: Int
-
-    :param num_gul_in_calc_block: number of gul in calc block
-    :type num_gul_in_calc_block: Int
-
-    :param num_fm_in_calc_block: number of gul in calc block
-    :type num_fm_in_calc_block: Int
-
-    :param get_getmodel_cmd: Method for getting the getmodel command, by default
-        ``GenerateLossesCmd.get_getmodel_cmd`` is used.
-    :type get_getmodel_cmd: callable
-    """
-    process_counter = Counter()
-
-    use_random_number_file = False
-    stderr_guard = stderr_guard
-    gul_item_stream = not gul_legacy_stream
-    full_correlation = False
-    fifo_queue_dir = ""
-    fifo_full_correlation_dir = ""
-    work_dir = 'work/'
-    work_kat_dir = 'work/kat/'
-    work_full_correlation_dir = 'work/full_correlation/'
-    work_full_correlation_kat_dir = 'work/full_correlation/kat/'
-    output_dir = 'output/'
-    output_full_correlation_dir = 'output/full_correlation/'
+    ## set dirs
+    bash_params['stderr_guard'] = stderr_guard
+    bash_params['gul_item_stream'] = not gul_legacy_stream
+    bash_params['work_dir'] = os.path.join(model_run_dir, 'work/')
+    bash_params['work_kat_dir'] = os.path.join(model_run_dir, 'work/kat/')
+    bash_params['work_full_correlation_dir'] = os.path.join(model_run_dir, 'work/full_correlation/')
+    bash_params['work_full_correlation_kat_dir'] = os.path.join(model_run_dir, 'work/full_correlation/kat/')
+    bash_params['output_dir'] = os.path.join(model_run_dir, 'output/')
+    bash_params['output_full_correlation_dir'] = os.path.join(model_run_dir, 'output/full_correlation/')
+    bash_params['fifo_full_correlation_dir'] = os.path.join(bash_params['fifo_queue_dir'], 'full_correlation/')
 
     # Set default alloc/shuffle rules if missing
-    gul_alloc_rule = gul_alloc_rule if isinstance(gul_alloc_rule, int) else KTOOLS_ALLOC_GUL_DEFAULT
-    il_alloc_rule = il_alloc_rule if isinstance(il_alloc_rule, int) else KTOOLS_ALLOC_IL_DEFAULT
-    ri_alloc_rule = ri_alloc_rule if isinstance(ri_alloc_rule, int) else KTOOLS_ALLOC_RI_DEFAULT
-    num_gul_per_lb = num_gul_per_lb if isinstance(num_gul_per_lb, int) else KTOOL_N_GUL_PER_LB
-    num_fm_per_lb = num_fm_per_lb if isinstance(num_fm_per_lb, int) else KTOOL_N_FM_PER_LB
-    event_shuffle = event_shuffle if isinstance(event_shuffle, int) else EVE_DEFAULT_SHUFFLE
+    bash_params['gul_alloc_rule'] = gul_alloc_rule if isinstance(gul_alloc_rule, int) else KTOOLS_ALLOC_GUL_DEFAULT
+    bash_params['il_alloc_rule'] = il_alloc_rule if isinstance(il_alloc_rule, int) else KTOOLS_ALLOC_IL_DEFAULT
+    bash_params['ri_alloc_rule'] = ri_alloc_rule if isinstance(ri_alloc_rule, int) else KTOOLS_ALLOC_RI_DEFAULT
+    bash_params['num_gul_per_lb'] = num_gul_per_lb if isinstance(num_gul_per_lb, int) else KTOOL_N_GUL_PER_LB
+    bash_params['num_fm_per_lb'] = num_fm_per_lb if isinstance(num_fm_per_lb, int) else KTOOL_N_FM_PER_LB
 
     # Get event shuffle flags
-    if event_shuffle in EVE_SHUFFLE_OPTIONS:
-        eve_shuffle_flag = EVE_SHUFFLE_OPTIONS[event_shuffle]['eve']
-        kat_sort_by_event = EVE_SHUFFLE_OPTIONS[event_shuffle]['kat_sorting']
+    event_shuffle_rule = event_shuffle if isinstance(event_shuffle, int) else EVE_DEFAULT_SHUFFLE
+    bash_params['event_shuffle'] = event_shuffle_rule
+    if event_shuffle_rule in EVE_SHUFFLE_OPTIONS:
+        bash_params['eve_shuffle_flag'] = EVE_SHUFFLE_OPTIONS[event_shuffle_rule]['eve']
+        bash_params['kat_sort_by_event'] = EVE_SHUFFLE_OPTIONS[event_shuffle_rule]['kat_sorting']
     else:
-        # code path shouldn't make it here (hopefully)
         raise OasisException(f'Error: Unknown event shuffle rule "{event_shuffle}" expected value between [0..{EVE_STD_SHUFFLE}]')
 
-    # remove the file if it already exists
-    if os.path.exists(filename):
-        os.remove(filename)
-
-    gul_threshold = analysis_settings.get('gul_threshold', 0)
-    number_of_samples = analysis_settings.get('number_of_samples', 0)
-
+    # set random num file option
+    use_random_number_file = False
     if 'model_settings' in analysis_settings and analysis_settings['model_settings'].get('use_random_number_file'):
         use_random_number_file = True
+    bash_params['use_random_number_file'] = use_random_number_file
 
+    # set full_correlation option
+    full_correlation = False
     if 'full_correlation' in analysis_settings:
-        if _get_getmodel_cmd is None and gul_item_stream:
+        if _get_getmodel_cmd is None and bash_params['gul_item_stream']:
             full_correlation = analysis_settings['full_correlation']
+    bash_params['full_correlation'] = full_correlation
 
     # Output depends on being enabled AND having at least one summaries section
     # checking output settings coherence
@@ -1179,23 +1250,31 @@ def genbash(
     if not any(analysis_settings.get(f'{mod}_output') for mod in ['gul', 'il', 'ri']):
         raise OasisException('No valid output settings')
 
-    gul_output = analysis_settings.get('gul_output', False)
-    il_output = analysis_settings.get('il_output', False)
-    ri_output = analysis_settings.get('ri_output', False)
+    ## Get perfecting values from 'analysis_settings' settings)
+    bash_params['analysis_settings'] = analysis_settings
+    bash_params['gul_output'] = analysis_settings.get('gul_output', False)
+    bash_params['il_output'] = analysis_settings.get('il_output', False)
+    bash_params['ri_output'] = analysis_settings.get('ri_output', False)
+    bash_params['need_summary_fifo_for_gul'] = bash_params['gul_output'] and (
+        bash_params['il_output'] or bash_params['ri_output']
+    )
 
-    need_summary_fifo_for_gul = gul_output and (il_output or ri_output)
+    return bash_params
 
+
+@contextlib.contextmanager
+def bash_wrapper(filename, bash_trace, stderr_guard):
+    # Header
     print_command(filename, '#!/usr/bin/env -S bash -euET -o pipefail -O inherit_errexit')
     print_command(filename, 'SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")')
     print_command(filename, '')
-
     print_command(filename, '# --- Script Init ---')
     print_command(filename, '')
-
     print_command(filename, 'mkdir -p log')
     print_command(filename, 'rm -R -f log/*')
     print_command(filename, '')
 
+    # Trap func and logging
     if bash_trace:
         print_command(filename, BASH_TRACE)
     if stderr_guard:
@@ -1204,20 +1283,83 @@ def genbash(
     if bash_trace:
         print_command(filename, 'set -x')
 
+    # Script content
+    yield
+
+    # Script footer
+    if stderr_guard:
+        print_command(filename, '')
+        print_command(filename, 'check_complete')
+        print_command(filename, 'exit_handler')
+
+
+def create_bash_analysis(
+    process_counter,
+    max_process_id,
+    num_reinsurance_iterations,
+    fifo_tmp_dir,
+    gul_legacy_stream,
+    bash_trace,
+    filename,
+    _get_getmodel_cmd,
+    custom_args,
+    fmpy,
+    fmpy_low_memory,
+    fmpy_sort_output,
+    process_number,
+    remove_working_files,
+    model_run_dir,
+    fifo_queue_dir,
+    fifo_full_correlation_dir,
+    stderr_guard,
+    gul_item_stream,
+    work_dir,
+    work_kat_dir,
+    work_full_correlation_dir,
+    work_full_correlation_kat_dir,
+    output_dir,
+    output_full_correlation_dir,
+    gul_alloc_rule,
+    il_alloc_rule,
+    ri_alloc_rule,
+    num_gul_per_lb,
+    num_fm_per_lb,
+    event_shuffle,
+    eve_shuffle_flag,
+    kat_sort_by_event,
+    gul_threshold,
+    number_of_samples,
+    use_random_number_file,
+    full_correlation,
+    gul_output,
+    il_output,
+    ri_output,
+    need_summary_fifo_for_gul,
+    analysis_settings,
+    **kwargs
+):
+
+    process_counter = process_counter or Counter()
+    custom_args = custom_args or {}
+
+    # WORKAROUND: Disable load balancer if chunk number is set
+    # remove this limit when fixed -- need to support the load balancer + analysis chunks
+    if process_number is not None:
+        num_gul_per_lb = 0
+        num_fm_per_lb = 0
+
     print_command(filename, '# --- Setup run dirs ---')
     print_command(filename, '')
     print_command(filename, "find output -type f -not -name '*summary-info*' -not -name '*.json' -exec rm -R -f {} +")
     if full_correlation:
         print_command(filename, 'mkdir {}'.format(output_full_correlation_dir))
+
     print_command(filename, '')
     if not fifo_tmp_dir:
-        fifo_queue_dir = 'fifo/'
         print_command(filename, 'rm -R -f {}*'.format(fifo_queue_dir))
         if full_correlation:
-            fifo_full_correlation_dir = fifo_queue_dir + 'full_correlation/'
-            print_command(
-                filename, 'mkdir {}'.format(fifo_full_correlation_dir)
-            )
+            print_command( filename, 'mkdir {}'.format(fifo_full_correlation_dir))
+
     print_command(filename, 'rm -R -f {}*'.format(work_dir))
     print_command(filename, 'mkdir {}'.format(work_kat_dir))
     if full_correlation:
@@ -1238,17 +1380,16 @@ def genbash(
 
     # Create FIFOS under /tmp/* (Windows support)
     if fifo_tmp_dir:
-        fifo_queue_dir = '/tmp/{}/'.format(
-            ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(10))
-        )
-        print_command(filename, 'rm -R -f {}'.format(fifo_queue_dir))
-        fifo_queue_dir = fifo_queue_dir + 'fifo/'
+
+        ## workaround to match bash tests
+        if fifo_queue_dir.endswith('fifo/'):
+            print_command(filename, 'rm -R -f {}'.format(fifo_queue_dir[:-5]))
+        else:
+            print_command(filename, 'rm -R -f {}'.format(fifo_queue_dir))
+
         print_command(filename, 'mkdir -p {}'.format(fifo_queue_dir))
         if full_correlation:
-            fifo_full_correlation_dir = fifo_queue_dir + 'full_correlation/'
-            print_command(
-                filename, 'mkdir {}'.format(fifo_full_correlation_dir)
-            )
+            print_command(filename, 'mkdir {}'.format(fifo_full_correlation_dir))
 
     # Create workfolders
     if gul_output:
@@ -1291,24 +1432,24 @@ def genbash(
         fifo_dirs.append(fifo_full_correlation_dir)
         if (il_output or ri_output) and (gul_output or not num_lb):
             #create fifo for il or ri full correlation compute
-            do_fifos_exec(RUNTYPE_GROUNDUP_LOSS, num_gul_output, filename, fifo_full_correlation_dir, consumer=RUNTYPE_FULL_CORRELATION)
+            do_fifos_exec(RUNTYPE_GROUNDUP_LOSS, num_gul_output, filename, fifo_full_correlation_dir, process_number, consumer=RUNTYPE_FULL_CORRELATION)
 
     for fifo_dir in fifo_dirs:
         # create fifos for Summarycalc
         if gul_output:
-            do_fifos_exec(RUNTYPE_GROUNDUP_LOSS, num_gul_output, filename, fifo_dir)
-            do_fifos_calc(RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output, filename, fifo_dir)
+            do_fifos_exec(RUNTYPE_GROUNDUP_LOSS, num_gul_output, filename, fifo_dir, process_number)
+            do_fifos_calc(RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output, filename, fifo_dir, process_number)
         if il_output:
-            do_fifos_exec(RUNTYPE_INSURED_LOSS, num_fm_output, filename, fifo_dir)
-            do_fifos_calc(RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output, filename, fifo_dir)
+            do_fifos_exec(RUNTYPE_INSURED_LOSS, num_fm_output, filename, fifo_dir, process_number)
+            do_fifos_calc(RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output, filename, fifo_dir, process_number)
         if ri_output:
-            do_fifos_exec(RUNTYPE_REINSURANCE_LOSS, num_fm_output, filename, fifo_dir)
-            do_fifos_calc(RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output, filename, fifo_dir)
+            do_fifos_exec(RUNTYPE_REINSURANCE_LOSS, num_fm_output, filename, fifo_dir, process_number)
+            do_fifos_calc(RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output, filename, fifo_dir, process_number)
 
         # create fifos for Load balancer
         if num_lb:
-            do_fifos_exec(RUNTYPE_GROUNDUP_LOSS, num_gul_output, filename, fifo_dir, consumer=RUNTYPE_LOAD_BALANCED_LOSS)
-            do_fifos_exec(RUNTYPE_LOAD_BALANCED_LOSS, num_fm_output, filename, fifo_dir, consumer=RUNTYPE_INSURED_LOSS)
+            do_fifos_exec(RUNTYPE_GROUNDUP_LOSS, num_gul_output, filename, fifo_dir, process_number, consumer=RUNTYPE_LOAD_BALANCED_LOSS)
+            do_fifos_exec(RUNTYPE_LOAD_BALANCED_LOSS, num_fm_output, filename, fifo_dir, process_number, consumer=RUNTYPE_INSURED_LOSS)
 
     print_command(filename, '')
     dirs = [(fifo_queue_dir, work_dir)]
@@ -1329,7 +1470,8 @@ def genbash(
                     'num_reinsurance_iterations': num_reinsurance_iterations,
                     'fifo_dir': _fifo_dir,
                     'work_dir': _work_dir,
-                    'stderr_guard': stderr_guard
+                    'stderr_guard': stderr_guard,
+                    'process_number': process_number
                 }
             }
             compute_outputs.append(ri_computes)
@@ -1345,7 +1487,8 @@ def genbash(
                     'process_counter': process_counter,
                     'fifo_dir': _fifo_dir,
                     'work_dir': _work_dir,
-                    'stderr_guard': stderr_guard
+                    'stderr_guard': stderr_guard,
+                    'process_number': process_number
                 }
             }
             compute_outputs.append(il_computes)
@@ -1362,7 +1505,8 @@ def genbash(
                     'fifo_dir': _fifo_dir,
                     'work_dir': _work_dir,
                     'gul_legacy_stream': gul_legacy_stream,
-                    'stderr_guard': stderr_guard
+                    'stderr_guard': stderr_guard,
+                    'process_number': process_number
                 }
             }
             compute_outputs.append(gul_computes)
@@ -1373,7 +1517,10 @@ def genbash(
 
     # create all gul streams
     get_gul_stream_cmds = {}
-    for gul_id in range(1, num_gul_output + 1):
+
+    # WARNING: this probably wont work well with the load balancer (needs guard/ edit)
+    #for gul_id in range(1, num_gul_output + 1):
+    for gul_id in process_range(num_gul_output, process_number):
         getmodel_args = {
             'number_of_samples': number_of_samples,
             'gul_threshold': gul_threshold,
@@ -1481,9 +1628,17 @@ def genbash(
     else:
         step_flag = ' -S'
 
+
     for fifo_dir, gul_streams in get_gul_stream_cmds.items():
         for i, (getmodel_cmd, from_file) in enumerate(gul_streams):
-            process_id = i + 1
+
+            ## THIS NEEDS EDIT - temp workaround for dist work chunk
+            if process_number is not None:
+                process_id = process_number
+            else:
+                process_id = i + 1
+            #######################################################
+
 
             if ri_output:
                 main_cmd = get_main_cmd_ri_stream(
@@ -1531,7 +1686,8 @@ def genbash(
         print_command(filename, '')
         do_kats(
             RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
-            filename, process_counter, work_kat_dir, output_dir, kat_sort_by_event
+            filename, process_counter, work_kat_dir, output_dir, kat_sort_by_event,
+            process_number=process_number
         )
         if full_correlation:
             print_command(filename, '')
@@ -1543,7 +1699,8 @@ def genbash(
             do_kats(
                 RUNTYPE_REINSURANCE_LOSS, analysis_settings, num_fm_output,
                 filename, process_counter, work_full_correlation_kat_dir,
-                output_full_correlation_dir, kat_sort_by_event
+                output_full_correlation_dir, kat_sort_by_event,
+                process_number=process_number
             )
 
     if il_output:
@@ -1552,7 +1709,8 @@ def genbash(
         print_command(filename, '')
         do_kats(
             RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output, filename,
-            process_counter, work_kat_dir, output_dir, kat_sort_by_event
+            process_counter, work_kat_dir, output_dir, kat_sort_by_event,
+            process_number=process_number
         )
         if full_correlation:
             print_command(filename, '')
@@ -1564,7 +1722,8 @@ def genbash(
             do_kats(
                 RUNTYPE_INSURED_LOSS, analysis_settings, num_fm_output,
                 filename, process_counter, work_full_correlation_kat_dir,
-                output_full_correlation_dir, kat_sort_by_event
+                output_full_correlation_dir, kat_sort_by_event,
+                process_number=process_number
             )
 
     if gul_output:
@@ -1573,7 +1732,8 @@ def genbash(
         print_command(filename, '')
         do_kats(
             RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output, filename,
-            process_counter, work_kat_dir, output_dir, kat_sort_by_event
+            process_counter, work_kat_dir, output_dir, kat_sort_by_event,
+            process_number=process_number
         )
         if full_correlation:
             print_command(filename, '')
@@ -1585,10 +1745,32 @@ def genbash(
             do_kats(
                 RUNTYPE_GROUNDUP_LOSS, analysis_settings, num_gul_output,
                 filename, process_counter, work_full_correlation_kat_dir,
-                output_full_correlation_dir, kat_sort_by_event
+                output_full_correlation_dir, kat_sort_by_event,
+                process_number=process_number
             )
 
     do_kwaits(filename, process_counter)
+
+
+def create_bash_outputs(
+    process_counter,
+    fifo_tmp_dir,
+    filename,
+    remove_working_files,
+    fifo_queue_dir,
+    stderr_guard,
+    work_dir,
+    work_full_correlation_dir,
+    output_dir,
+    output_full_correlation_dir,
+    full_correlation,
+    gul_output,
+    il_output,
+    ri_output,
+    analysis_settings,
+    **kwargs
+):
+
 
     print_command(filename, '')
     if ri_output:
@@ -1628,15 +1810,112 @@ def genbash(
     do_awaits(filename, process_counter)  # waits for aalcalc
     do_lwaits(filename, process_counter)  # waits for leccalc
 
-    print_command(filename, 'rm -R -f work/*')
-    if fifo_tmp_dir:
-        print_command(
-            filename, 'rm -R -f {}'.format(re.sub('fifo/$', '', fifo_queue_dir))
-        )
-    else:
-        print_command(filename, 'rm -R -f fifo/*')
 
-    if stderr_guard:
-        print_command(filename, '')
-        print_command(filename, 'check_complete')
-        print_command(filename, 'exit_handler')
+    if remove_working_files:
+        print_command(filename, 'rm -R -f {}'.format(os.path.join(work_dir, '*')))
+
+        if fifo_tmp_dir:
+            ## workaround to match bash tests
+            if fifo_queue_dir.endswith('fifo/'):
+                print_command(filename, 'rm -R -f {}'.format(fifo_queue_dir[:-5]))
+            else:
+                print_command(filename, 'rm -R -f {}'.format(fifo_queue_dir))
+        else:
+            print_command(filename, 'rm -R -f {}'.format(os.path.join(fifo_queue_dir, '*')))
+
+
+
+# ========================================================================== #
+# COMPATIBILITY ONLY - used to support older model runners
+# ========================================================================== #
+
+def genbash(
+    max_process_id,
+    analysis_settings,
+    num_reinsurance_iterations=0,
+    fifo_tmp_dir=True,
+    gul_alloc_rule=None,
+    il_alloc_rule=None,
+    ri_alloc_rule=None,
+    num_gul_per_lb=None,
+    num_fm_per_lb=None,
+    stderr_guard=True,
+    gul_legacy_stream=False,
+    bash_trace=False,
+    filename='run_kools.sh',
+    _get_getmodel_cmd=None,
+    custom_args={},
+    fmpy=True,
+    fmpy_low_memory=False,
+    fmpy_sort_output=False,
+    event_shuffle=None,
+):
+    """
+    Generates a bash script containing ktools calculation instructions for an
+    Oasis model.
+
+    :param max_process_id: The number of processes to create
+    :type max_process_id: int
+
+    :param analysis_settings: The analysis settings
+    :type analysis_settings: dict
+
+    :param filename: The output file name
+    :type filename: string
+
+    :param num_reinsurance_iterations: The number of reinsurance iterations
+    :type num_reinsurance_iterations: int
+
+    :param fifo_tmp_dir: When set to True, Create and use FIFO quese in `/tmp/[A-Z,0-9]/fifo`, if False run in './fifo'
+    :type fifo_tmp_dir: boolean
+
+    :param gul_alloc_rule: Allocation rule (None or 1) for gulcalc, if not set default to coverage stream
+    :type gul_alloc_rule: Int
+
+    :param il_alloc_rule: Allocation rule (0, 1 or 2) for fmcalc
+    :type il_alloc_rule: Int
+
+    :param ri_alloc_rule: Allocation rule (0, 1 or 2) for fmcalc
+    :type ri_alloc_rule: Int
+
+    :param num_gul_in_calc_block: number of gul in calc block
+    :type num_gul_in_calc_block: Int
+
+    :param num_fm_in_calc_block: number of gul in calc block
+    :type num_fm_in_calc_block: Int
+
+    :param get_getmodel_cmd: Method for getting the getmodel command, by default
+        ``GenerateLossesCmd.get_getmodel_cmd`` is used.
+    :type get_getmodel_cmd: callable
+    """
+
+
+    params = bash_params(
+        max_process_id=max_process_id,
+        analysis_settings=analysis_settings,
+        num_reinsurance_iterations=num_reinsurance_iterations,
+        fifo_tmp_dir=fifo_tmp_dir,
+        gul_alloc_rule=gul_alloc_rule,
+        il_alloc_rule=il_alloc_rule,
+        ri_alloc_rule=ri_alloc_rule,
+        num_gul_per_lb=num_gul_per_lb,
+        num_fm_per_lb=num_fm_per_lb,
+        stderr_guard=stderr_guard,
+        gul_legacy_stream=gul_legacy_stream,
+        bash_trace=bash_trace,
+        filename=filename,
+        _get_getmodel_cmd=_get_getmodel_cmd,
+        custom_args=custom_args,
+        fmpy=fmpy,
+        fmpy_low_memory=fmpy_low_memory,
+        fmpy_sort_output=fmpy_sort_output,
+        event_shuffle=event_shuffle,
+    )
+
+    # remove the file if it already exists
+    if os.path.exists(filename):
+        os.remove(filename)
+
+    with bash_wrapper(filename, bash_trace, stderr_guard):
+        create_bash_analysis(**params)
+        create_bash_outputs(**params)

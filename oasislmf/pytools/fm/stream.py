@@ -17,7 +17,7 @@ in the loss array:
 
 """
 
-from .common import float_equal_precision
+from .common import float_equal_precision, EXTRA_VALUES
 
 import sys
 from numba import njit
@@ -37,8 +37,6 @@ event_agg_dtype = np.dtype([('event_id', 'i4'), ('agg_id', 'i4')])
 sidx_loss_dtype = np.dtype([('sidx', 'i4'), ('loss', 'f4')])
 number_size = 8
 nb_number = buff_size // number_size
-
-EXTRA_VALUES = 2
 
 
 @njit(cache=True)
@@ -258,7 +256,6 @@ class EventWriter:
         self.loss_indexes = loss_indexes
         self.computes = computes
         self.output_array = output_array
-        self.nb_output_items = output_array.shape[0]
 
         self.len_sample = len_sample
         self.loss_shape_1 = len_sample + EXTRA_VALUES # all normal sidx plus the extra values
