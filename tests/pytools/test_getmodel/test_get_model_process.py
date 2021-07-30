@@ -20,10 +20,10 @@ class TestGetModelProcess(TestCase):
         """
         self.test = GetModelProcess(data_path=".")
 
-    def test__data_loading(self):
-        self.assertEqual(DataFrame, type(self.test.damage_bin.value))
-        self.assertEqual(DataFrame, type(self.test.footprint.value))
-        self.assertEqual(DataFrame, type(self.test.vulnerabilities.value))
+    # def test__data_loading(self):
+    #     self.assertEqual(DataFrame, type(self.test.damage_bin.value))
+    #     self.assertEqual(DataFrame, type(self.test.footprint.value))
+    #     self.assertEqual(DataFrame, type(self.test.vulnerabilities.value))
 
     def test_stream_events(self):
         test = GetModelProcess(data_path="./static/", events=DataFrame([{"one": 1, "two": 2}, {"one": 1, "two": 2}]))
