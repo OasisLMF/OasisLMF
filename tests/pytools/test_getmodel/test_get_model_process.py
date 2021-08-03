@@ -336,6 +336,7 @@ class TestGetModelProcess(TestCase):
         ],
             list(self.test.model.T.to_dict().values())
         )
+        self.test.print_stream()
 
 
 if __name__ == "__main__":

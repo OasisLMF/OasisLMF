@@ -177,17 +177,22 @@ class GetModelProcess(ModelLoaderMixin):
         """
         Prints out the stream for cdftocsv.
 
-        Returns: None
+        Returns: Nonehttps://www.nhs.uk/conditions/coronavirus-covid-19/
         """
         number_of_rows: int = len(self.model.index)
         sys.stdout.buffer.write(self.STREAM_HEADER)
 
-        for i in list(self.model.T.to_dict().values()):
-            sys.stdout.buffer.write(struct.Struct('I').pack(int(i["event_id"])))
-            sys.stdout.buffer.write(struct.Struct('I').pack(int(i["areaperil_id"])))
-            sys.stdout.buffer.write(struct.Struct('I').pack(int(i["vulnerability_id"])))
+        ordered_data = list(self.model.T.to_dict().values())
+
+        for i in range(0, number_of_rows):
+            sys.stdout.buffer.write(struct.Struct('I').pack(int(ordered_data[i]["event_id"])))
+            sys.stdout.buffer.write(struct.Struct('I').pack(int(ordered_data[i]["areaperil_id"])))
+            sys.stdout.buffer.write(struct.Struct('I').pack(int(ordered_data[i]["vulnerability_id"])))
             sys.stdout.buffer.write(struct.Struct('I').pack(int(number_of_rows)))
 
-            for i in list(self.model.T.to_dict().values()):
-                sys.stdout.buffer.write(struct.Struct('f').pack(float(i["prob_to"])))
-                sys.stdout.buffer.write(struct.Struct('f').pack(float(i["bin_mean"])))
+            for x in range(i, number_of_rows):
+                if ordered_data[x]["vulnerability_id"] == ordered_data[i]["vulnerability_id"]:
+                    sys.stdout.buffer.write(struct.Struct('f').pack(float(ordered_data[x]["prob_to"])))
+                    sys.stdout.buffer.write(struct.Struct('f').pack(float(ordered_data[x]["bin_mean"])))
+                else:
+                    break
