@@ -201,6 +201,6 @@ class GetModelProcess(ModelLoaderMixin):
                 else:
                     break
             sys.stdout.buffer.write(struct.Struct('I').pack(int(len(buffer))))
-            
+
             for y in buffer:
                 sys.stdout.buffer.write(y)
