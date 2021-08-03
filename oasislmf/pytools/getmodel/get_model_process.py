@@ -179,6 +179,7 @@ class GetModelProcess(ModelLoaderMixin):
 
         Returns: Nonehttps://www.nhs.uk/conditions/coronavirus-covid-19/
         """
+        self.model.sort_values(by=['vulnerability_id'])
         number_of_rows: int = len(self.model.index)
         sys.stdout.buffer.write(self.STREAM_HEADER)
 
@@ -190,9 +191,16 @@ class GetModelProcess(ModelLoaderMixin):
             sys.stdout.buffer.write(struct.Struct('I').pack(int(ordered_data[i]["vulnerability_id"])))
             sys.stdout.buffer.write(struct.Struct('I').pack(int(number_of_rows)))
 
+            buffer = []
             for x in range(i, number_of_rows):
                 if ordered_data[x]["vulnerability_id"] == ordered_data[i]["vulnerability_id"]:
-                    sys.stdout.buffer.write(struct.Struct('f').pack(float(ordered_data[x]["prob_to"])))
-                    sys.stdout.buffer.write(struct.Struct('f').pack(float(ordered_data[x]["bin_mean"])))
+                    buffer.append(struct.Struct('f').pack(float(ordered_data[x]["prob_to"])))
+                    buffer.append(struct.Struct('f').pack(float(ordered_data[x]["bin_mean"])))
+                    # sys.stdout.buffer.write(struct.Struct('f').pack(float(ordered_data[x]["prob_to"])))
+                    # sys.stdout.buffer.write(struct.Struct('f').pack(float(ordered_data[x]["bin_mean"])))
                 else:
                     break
+            sys.stdout.buffer.write(struct.Struct('I').pack(int(len(buffer))))
+            
+            for y in buffer:
+                sys.stdout.buffer.write(y)
