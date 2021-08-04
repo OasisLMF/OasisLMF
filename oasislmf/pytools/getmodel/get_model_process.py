@@ -186,10 +186,11 @@ class GetModelProcess(ModelLoaderMixin):
         ordered_data = list(self.model.T.to_dict().values())
 
         for i in range(0, number_of_rows):
-            sys.stdout.buffer.write(struct.Struct('I').pack(int(ordered_data[i]["event_id"])))
-            sys.stdout.buffer.write(struct.Struct('I').pack(int(ordered_data[i]["areaperil_id"])))
-            sys.stdout.buffer.write(struct.Struct('I').pack(int(ordered_data[i]["vulnerability_id"])))
-            sys.stdout.buffer.write(struct.Struct('I').pack(int(number_of_rows)))
+            sys.stdout.buffer.write(struct.Struct('i').pack(int(ordered_data[i]["event_id"])))
+            sys.stdout.buffer.write(struct.Struct('i').pack(int(ordered_data[i]["areaperil_id"])))
+            sys.stdout.buffer.write(struct.Struct('i').pack(int(ordered_data[i]["vulnerability_id"])))
+            # logger.info(f"here is the number of rows: {number_of_rows}")
+            # sys.stdout.buffer.write(struct.Struct('I').pack(int(number_of_rows)))
 
             buffer = []
             for x in range(i, number_of_rows):
@@ -200,7 +201,8 @@ class GetModelProcess(ModelLoaderMixin):
                     # sys.stdout.buffer.write(struct.Struct('f').pack(float(ordered_data[x]["bin_mean"])))
                 else:
                     break
-            sys.stdout.buffer.write(struct.Struct('I').pack(int(len(buffer))))
+
+            sys.stdout.buffer.write(struct.Struct('i').pack(int(len(buffer) / 2)))
 
             for y in buffer:
                 sys.stdout.buffer.write(y)
