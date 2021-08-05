@@ -1,6 +1,8 @@
 OasisLMF Changelog
 ==================
 
+`1.15.14`_
+ ---------
 * [#856](https://github.com/OasisLMF/OasisLMF/pull/880) - improve memory usage of fmpy
 .. _`1.15.14`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.13...1.15.14
 
