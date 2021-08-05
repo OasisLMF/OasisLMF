@@ -26,6 +26,7 @@ def main() -> None:
 
     Returns: None
     """
+    # add in argumments that accept the type of file that is being run (CSV, bin, parquet)
     data_path: str = str(os.getcwd())
     process: GetModelProcess = GetModelProcess(data_path=data_path, events=_process_input_data())
     process.run()

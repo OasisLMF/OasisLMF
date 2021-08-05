@@ -14,7 +14,8 @@ class ModelLoaderMixin:
         "vulnerabilities": "vulnerability.csv",
         "footprint": "footprint.csv",
         "damage_bin": "damage_bin_dict.csv",
-        "events": "events.csv"
+        "events": "events.csv",
+        "items": "items.csv"
     }
 
     @staticmethod
@@ -59,6 +60,11 @@ class ModelLoaderMixin:
             setattr(self, f"_{name}", file_handler)
 
     @property
+    def items(self) -> FileLoader:
+        self.load_data_if_none(name="items")
+        return self._items
+
+    @property
     def vulnerabilities(self) -> FileLoader:
         self.load_data_if_none(name="vulnerabilities")
         return self._vulnerabilities
@@ -77,6 +83,10 @@ class ModelLoaderMixin:
     def events(self) -> FileLoader:
         self.load_data_if_none(name="events")
         return self._events
+
+    @items.setter
+    def items(self, value) -> None:
+        self._items = value
 
     @vulnerabilities.setter
     def vulnerabilities(self, value) -> None:
