@@ -160,7 +160,7 @@ class GetModelProcess(ModelLoaderMixin):
         self.merge_model_with_footprint()
         self.merge_complex_items()
         self.merge_vulnerabilities()
-        # self.filter_footprint()
+        self.filter_footprint()
         self.merge_damage_bin_dict()
         self.calculate_probability_of_damage()
         self.define_columns_for_saving()
