@@ -203,26 +203,34 @@ class GetModelProcess(ModelLoaderMixin):
         sys.stdout.buffer.write(self.STREAM_HEADER)
 
         ordered_data = list(self.model.T.to_dict().values())
+        cached_hash: str = ""
 
         for i in range(0, number_of_rows):
-            sys.stdout.buffer.write(struct.Struct('i').pack(int(ordered_data[i]["event_id"])))
-            sys.stdout.buffer.write(struct.Struct('i').pack(int(ordered_data[i]["areaperil_id"])))
-            sys.stdout.buffer.write(struct.Struct('i').pack(int(ordered_data[i]["vulnerability_id"])))
-            # logger.info(f"here is the number of rows: {number_of_rows}")
-            # sys.stdout.buffer.write(struct.Struct('I').pack(int(number_of_rows)))
+            current_hash: str = ordered_data[i]["event_id"] + \
+                                ordered_data[i]["areaperil_id"] + \
+                                ordered_data[i]["areaperil_id"]
 
-            buffer = []
-            for x in range(i, number_of_rows):
-                if ordered_data[x]["vulnerability_id"] == ordered_data[i]["vulnerability_id"]:
-                    if ordered_data[x]["filter_code"] == ordered_data[i]["filter_code"]:
+            if current_hash != cached_hash:
+                sys.stdout.buffer.write(struct.Struct('i').pack(int(ordered_data[i]["event_id"])))
+                sys.stdout.buffer.write(struct.Struct('i').pack(int(ordered_data[i]["areaperil_id"])))
+                sys.stdout.buffer.write(struct.Struct('i').pack(int(ordered_data[i]["areaperil_id"])))
+                # logger.info(f"here is the number of rows: {number_of_rows}")
+                # sys.stdout.buffer.write(struct.Struct('I').pack(int(number_of_rows)))
+
+                buffer = []
+
+                for x in range(i, number_of_rows):
+                    if ordered_data[x]["vulnerability_id"] == ordered_data[i]["vulnerability_id"]:
                         buffer.append(struct.Struct('f').pack(float(ordered_data[x]["prob_to"])))
                         buffer.append(struct.Struct('f').pack(float(ordered_data[x]["bin_mean"])))
-                    # sys.stdout.buffer.write(struct.Struct('f').pack(float(ordered_data[x]["prob_to"])))
-                    # sys.stdout.buffer.write(struct.Struct('f').pack(float(ordered_data[x]["bin_mean"])))
-                else:
-                    break
+                        # sys.stdout.buffer.write(struct.Struct('f').pack(float(ordered_data[x]["prob_to"])))
+                        # sys.stdout.buffer.write(struct.Struct('f').pack(float(ordered_data[x]["bin_mean"])))
+                    else:
+                        break
 
-            sys.stdout.buffer.write(struct.Struct('i').pack(int(len(buffer) / 2)))
+                sys.stdout.buffer.write(struct.Struct('i').pack(int(len(buffer) / 2)))
 
-            for y in buffer:
-                sys.stdout.buffer.write(y)
+                for y in buffer:
+                    sys.stdout.buffer.write(y)
+
+                cached_hash = current_hash
