@@ -56,7 +56,7 @@ class GetModelProcess(ModelLoaderMixin):
         filter_buffer = [str(i["areaperil_id"]) + str(i["vulnerability_id"]) for i in list(self.items.value.T.to_dict().values())]
         self.model["filter_code"] = self.model["area_peril_id"].astype(str) + self.model["vulnerability_id"].astype(str)
         self.model = self.model[self.model["filter_code"].isin(filter_buffer)]
-        del self.model['filter_code']
+        # del self.model['filter_code']
 
     def merge_vulnerabilities(self) -> None:
         """
@@ -127,6 +127,11 @@ class GetModelProcess(ModelLoaderMixin):
         """
         self.model["prob_to"] = self.model["footprint_probability"] * self.model["vulnerability_probability"]
 
+    def calculate_cumulative_probability(self) -> None:
+        self.model.value['prob_to'] = self.model.value.groupby(
+            ['vulnerability_id', 'intensity_bin_id']
+        ).cumsum()['prob_to']
+
     def define_columns_for_saving(self) -> None:
         """
         Trims the self.model DataFrame removing columns that are not needed and rename columns required for later
@@ -155,7 +160,7 @@ class GetModelProcess(ModelLoaderMixin):
         self.merge_model_with_footprint()
         self.merge_complex_items()
         self.merge_vulnerabilities()
-        self.filter_footprint()
+        # self.filter_footprint()
         self.merge_damage_bin_dict()
         self.calculate_probability_of_damage()
         self.define_columns_for_saving()
@@ -208,8 +213,9 @@ class GetModelProcess(ModelLoaderMixin):
             buffer = []
             for x in range(i, number_of_rows):
                 if ordered_data[x]["vulnerability_id"] == ordered_data[i]["vulnerability_id"]:
-                    buffer.append(struct.Struct('f').pack(float(ordered_data[x]["prob_to"])))
-                    buffer.append(struct.Struct('f').pack(float(ordered_data[x]["bin_mean"])))
+                    if ordered_data[x]["filter_code"] == ordered_data[i]["filter_code"]:
+                        buffer.append(struct.Struct('f').pack(float(ordered_data[x]["prob_to"])))
+                        buffer.append(struct.Struct('f').pack(float(ordered_data[x]["bin_mean"])))
                     # sys.stdout.buffer.write(struct.Struct('f').pack(float(ordered_data[x]["prob_to"])))
                     # sys.stdout.buffer.write(struct.Struct('f').pack(float(ordered_data[x]["bin_mean"])))
                 else:
