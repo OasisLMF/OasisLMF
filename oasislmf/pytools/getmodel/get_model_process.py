@@ -148,7 +148,8 @@ class GetModelProcess(ModelLoaderMixin):
             "vulnerability_id": "vulnerability_id",
             "damage_bin_id": "bin_index",
             "prob_to": "prob_to",
-            "interpolation": "bin_mean"
+            "interpolation": "bin_mean",
+            "filter_code": "filter_code"
         }, inplace=True)
 
     def run(self) -> None:
