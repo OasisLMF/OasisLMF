@@ -179,10 +179,12 @@ class GetModelProcess(ModelLoaderMixin):
                 # sys.stdout.buffer.write(struct.Struct('I').pack(int(number_of_rows)))
 
                 buffer = []
+                net_probability = 0
 
                 for x in range(i, number_of_rows):
                     if ordered_data[x]["vulnerability_id"] == ordered_data[i]["vulnerability_id"]:
-                        buffer.append(struct.Struct('f').pack(float(ordered_data[x]["prob_to"])))
+                        net_probability += ordered_data[x]["prob_to"]
+                        buffer.append(struct.Struct('f').pack(float(net_probability)))
                         buffer.append(struct.Struct('f').pack(float(ordered_data[x]["bin_mean"])))
                         # sys.stdout.buffer.write(struct.Struct('f').pack(float(ordered_data[x]["prob_to"])))
                         # sys.stdout.buffer.write(struct.Struct('f').pack(float(ordered_data[x]["bin_mean"])))
