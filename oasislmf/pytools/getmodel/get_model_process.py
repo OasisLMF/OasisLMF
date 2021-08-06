@@ -140,7 +140,7 @@ class GetModelProcess(ModelLoaderMixin):
         Returns: None
         """
         self.model = self.model[["event_id", "area_peril_id", "vulnerability_id", "damage_bin_id", "prob_to",
-                                 "interpolation"]]
+                                 "interpolation", "filter_code"]]
 
         self.model.rename(columns={
             "event_id": "event_id",
