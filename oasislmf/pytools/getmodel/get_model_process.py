@@ -64,11 +64,17 @@ class GetModelProcess(ModelLoaderMixin):
 
         Returns: None
         """
-        
+
         # ---- DEBUG TESTING ------------------------------------------------ #
         from oasislmf.utils.data import merge_dataframes
         import pandas as pd
-        import sys 
+        import sys
+
+        # RUN BREAKPOINT (Drop into a debugger when running new-model)
+        #lines = sys.stdin.readlines()
+        #sys.stdin = open("/dev/tty")
+        #import ipdb; ipdb.set_trace()
+
 
         # find that MAX damage_bin_id for each row in the vulnerability file
         vun_max = self.vulnerabilities.value.groupby(
@@ -83,7 +89,7 @@ class GetModelProcess(ModelLoaderMixin):
                 'intensity_bin_id': row.intensity_bin_id,
                 'damage_bin_id': range(1,row.damage_bin_max+1),
                 'probability': 0.0,
-            })) 
+            }))
         vun_fill_empty = pd.concat(vun_list)
         vun_fill_empty.reset_index(drop=True, inplace=True)
 
@@ -98,10 +104,6 @@ class GetModelProcess(ModelLoaderMixin):
         # override 'self.vulnerabilities.value' with the merge dataframe
         self.vulnerabilities.value = vulnerabilities_no_gap
 
-        # RUN BREAKPOINT (Drop into a debugger when running new-model)
-        #lines = sys.stdin.readlines()
-        #sys.stdin = open("/dev/tty")
-        #import ipdb; ipdb.set_trace()
         # ---- END DEBUG ----------------------------------------------------- #
 
 
@@ -197,47 +199,31 @@ class GetModelProcess(ModelLoaderMixin):
         """
         Prints out the stream for cdftocsv.
 
-        Returns: Nonehttps://www.nhs.uk/conditions/coronavirus-covid-19/
+        Returns: None
         """
         self.model.sort_values(by=['vulnerability_id'])
-        # self.model["hash"] = self.model["event_id"] + self.model["areaperil_id"] + self.model[""]
-        number_of_rows: int = len(self.model.index)
         sys.stdout.buffer.write(self.STREAM_HEADER)
 
-        ordered_data = list(self.model.T.to_dict().values())
-        cached_hash: str = ""
+        for _, row in self.model[["event_id", "areaperil_id", "vulnerability_id"]].drop_duplicates().iterrows():
+            sys.stdout.buffer.write(struct.Struct('i').pack(int(row.event_id)))
+            sys.stdout.buffer.write(struct.Struct('i').pack(int(row.areaperil_id)))
+            sys.stdout.buffer.write(struct.Struct('i').pack(int(row.vulnerability_id)))
 
-        for i in range(0, number_of_rows):
-            current_hash: str = ordered_data[i]["event_id"] + \
-                                ordered_data[i]["areaperil_id"] + \
-                                ordered_data[i]["vulnerability_id"]
+            buffer = []
+            net_probability = 0
+            model_rows = self.model.loc[
+                (self.model['event_id'] == row.event_id) &
+                (self.model['areaperil_id'] == row.areaperil_id) &
+                (self.model['vulnerability_id'] == row.vulnerability_id)
+            ]
+            for _, row in model_rows.iterrows():
+                net_probability += row.prob_to
+                buffer.append(struct.Struct('f').pack(float(net_probability)))
+                buffer.append(struct.Struct('f').pack(float(row.bin_mean)))
 
-            if current_hash != cached_hash:
-                sys.stdout.buffer.write(struct.Struct('i').pack(int(ordered_data[i]["event_id"])))
-                sys.stdout.buffer.write(struct.Struct('i').pack(int(ordered_data[i]["areaperil_id"])))
-                sys.stdout.buffer.write(struct.Struct('i').pack(int(ordered_data[i]["vulnerability_id"])))
-                # logger.info(f"here is the number of rows: {number_of_rows}")
-                # sys.stdout.buffer.write(struct.Struct('I').pack(int(number_of_rows)))
-
-                buffer = []
-                net_probability = 0
-
-                for x in range(i, number_of_rows):
-                    if ordered_data[x]["vulnerability_id"] == ordered_data[i]["vulnerability_id"]:
-                        net_probability += ordered_data[x]["prob_to"]
-                        buffer.append(struct.Struct('f').pack(float(net_probability)))
-                        buffer.append(struct.Struct('f').pack(float(ordered_data[x]["bin_mean"])))
-                        # sys.stdout.buffer.write(struct.Struct('f').pack(float(ordered_data[x]["prob_to"])))
-                        # sys.stdout.buffer.write(struct.Struct('f').pack(float(ordered_data[x]["bin_mean"])))
-                    else:
-                        break
-
-                sys.stdout.buffer.write(struct.Struct('i').pack(int(len(buffer) / 2)))
-
-                for y in buffer:
-                    sys.stdout.buffer.write(y)
-
-                cached_hash = current_hash
+            sys.stdout.buffer.write(struct.Struct('i').pack(int(len(buffer) / 2)))
+            for y in buffer:
+                sys.stdout.buffer.write(y)
 
     def run(self) -> None:
         """
