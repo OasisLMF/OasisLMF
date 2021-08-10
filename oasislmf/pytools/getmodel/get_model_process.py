@@ -64,6 +64,45 @@ class GetModelProcess(ModelLoaderMixin):
 
         Returns: None
         """
+        
+        # ---- DEBUG TESTING ------------------------------------------------ #
+        from oasislmf.utils.data import merge_dataframes
+        import pandas as pd
+        import sys 
+
+        # find that MAX damage_bin_id for each row in the vulnerability file
+        vun_max = self.vulnerabilities.value.groupby(['vulnerability_id', 'intensity_bin_id'])['damage_bin_id'].max().reset_index().rename(co
+
+        # Build a new 'empty' data frame with the same structure (every row has probability==0.0)
+        vun_list = []
+        for index, row in vun_max.iterrows():
+            vun_list.append(pd.DataFrame({
+                'vulnerability_id': row.vulnerability_id,
+                'intensity_bin_id': row.intensity_bin_id,
+                'damage_bin_id': range(1,row.damage_bin_max+1),
+                'probability': 0.0,
+            })) 
+        vun_fill_empty = pd.concat(vun_list)
+        vun_fill_empty.reset_index(drop=True, inplace=True)
+
+        # merge the two DataFrames so 'damage_bin_id' is sequential, [1 ... row.damage_bin_max]
+        # where the 'probability' has a valid value use that otherwise fill the missing 'damage_bin_id' entries with 0.0
+        vulnerabilities_no_gap = merge_dataframes(
+            self.vulnerabilities.value,
+            vun_fill_empty,
+            ['vulnerability_id', 'intensity_bin_id', 'damage_bin_id'],
+            how='right').fillna(0.0)
+
+        # override 'self.vulnerabilities.value' with the merge dataframe
+        self.vulnerabilities.value = vulnerabilities_no_gap
+
+        # RUN BREAKPOINT (Drop into a debugger when running new-model)
+        #lines = sys.stdin.readlines()
+        #sys.stdin = open("/dev/tty")
+        #import ipdb; ipdb.set_trace()
+        # ---- END DEBUG ----------------------------------------------------- #
+
+
         # Calculate cummulative probability
         self.vulnerabilities.value['cum_prob'] = self.vulnerabilities.value.groupby(
             ['vulnerability_id', 'intensity_bin_id']
