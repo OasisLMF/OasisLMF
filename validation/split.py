@@ -29,18 +29,18 @@ if not os.path.exists(newpath):
 
 cwd = os.getcwd()
 for name, group in split_location:
-    sub_dir = os.path.join(newpath,name)
+    sub_dir = os.path.join(newpath,(str)(name))
 
 #loop through the groups and save to directories based on unique values
 for name, group in split_location:
-    sub_dir = os.path.join(newpath,name)
+    sub_dir = os.path.join(newpath,(str)(name))
     if not os.path.exists(sub_dir):
         os.mkdir(sub_dir)
     group = group.drop(['FlexiLocUnit'], axis=1)
     group.to_csv(sub_dir + "/location.csv", index=0)
 
 for name, group in split_account:
-    sub_dir = os.path.join(newpath,name)
+    sub_dir = os.path.join(newpath,(str)(name))
     if not os.path.exists(sub_dir):
         os.mkdir(sub_dir)
     group = group.drop(['FlexiAccUnit'], axis=1)
@@ -69,6 +69,5 @@ if not os.path.exists(units_dir):
 
 with open(os.path.join(units_dir,'units.txt'), "w") as txt_file:
     names, groups = map(list, zip(*split_location))
-    names.sort(key=natural_keys)
     for name in names:
         txt_file.write(str(name) + '\n')
