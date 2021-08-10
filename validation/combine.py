@@ -31,7 +31,7 @@ if not os.path.exists(newpath):
 
 cwd = os.getcwd()
 for name, group in split_location:
-    sub_dir = os.path.join(newpath,(str)(name))
+    sub_dir = os.path.join(newpath,name)
 
 names = sorted([str(item[0]) for item in split_location])
 
@@ -56,6 +56,7 @@ if not os.path.exists(units_dir):
 
 with open(os.path.join(units_dir,'units.txt'), "w") as txt_file:
     names, groups = map(list, zip(*split_location))
+    names.sort(key=natural_keys)
     for name in names:
         txt_file.write(str(name) + '\n')
 
