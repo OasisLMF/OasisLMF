@@ -71,7 +71,9 @@ class GetModelProcess(ModelLoaderMixin):
         import sys 
 
         # find that MAX damage_bin_id for each row in the vulnerability file
-        vun_max = self.vulnerabilities.value.groupby(['vulnerability_id', 'intensity_bin_id'])['damage_bin_id'].max().reset_index().rename(co
+        vun_max = self.vulnerabilities.value.groupby(
+            ['vulnerability_id', 'intensity_bin_id']
+        )['damage_bin_id'].max().reset_index().rename(columns={"damage_bin_id": "damage_bin_max"})
 
         # Build a new 'empty' data frame with the same structure (every row has probability==0.0)
         vun_list = []
