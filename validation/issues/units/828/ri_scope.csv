@@ -1,2 +1,10 @@
 ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsTag,CededPercent,RiskLevel
-1,1,A11111,,,10002082046,,,,,,,LOC
+1,828,A11111,,,10002082046,,,,,,,LOC
+2,751_1,6380,,,22180,,,,,,,LOC
+3,751_2,xx32_1,,,1,,,,,,,LOC
+3,751_2,xx32_1,,,2,,,,,,,LOC
+4,751_2,,,,,,,,,,,LOC
+5,724,CX30_01,,,CX30_01_1,,,,,,,LOC
+5,724,CX30_02,,,CX30_02_2,,,,,,,LOC
+6,724,FA37_01,,,FA37_01_1,,,,,,,LOC
+6,724,FA37_02,,,FA37_02_2,,,,,,,LOC
