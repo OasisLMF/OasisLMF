@@ -1,0 +1,146 @@
+{
+    "total": {
+        "modelled": {
+            "tiv": 2360624445.0,
+            "number_of_locations": 115
+        },
+        "not-modelled": {
+            "tiv": 0.0,
+            "number_of_locations": 0
+        },
+        "portfolio": {
+            "tiv": 2360624445.0,
+            "number_of_locations": 115
+        }
+    },
+    "1": {
+        "all": {
+            "tiv": 2960624445.0,
+            "tiv_by_coverage": {
+                "buildings": 2279135929.0,
+                "other": 0.0,
+                "contents": 325198516.0,
+                "bi": 356290000.0
+            },
+            "number_of_locations": 115,
+            "number_of_locations_by_coverage": {
+                "buildings": 115,
+                "other": 115,
+                "contents": 115,
+                "bi": 115
+            }
+        },
+        "success": {
+            "tiv": 2960624445.0,
+            "tiv_by_coverage": {
+                "buildings": 2279135929.0,
+                "other": 0.0,
+                "contents": 325198516.0,
+                "bi": 356290000.0
+            },
+            "number_of_locations": 115,
+            "number_of_locations_by_coverage": {
+                "buildings": 115,
+                "other": 115,
+                "contents": 115,
+                "bi": 115
+            }
+        },
+        "fail": {
+            "tiv": 0.0,
+            "tiv_by_coverage": {
+                "buildings": 0.0,
+                "other": 0.0,
+                "contents": 0.0,
+                "bi": 0.0
+            },
+            "number_of_locations": 0,
+            "number_of_locations_by_coverage": {
+                "buildings": 0,
+                "other": 0,
+                "contents": 0,
+                "bi": 0
+            }
+        },
+        "nomatch": {
+            "tiv": 0.0,
+            "tiv_by_coverage": {
+                "buildings": 0.0,
+                "other": 0.0,
+                "contents": 0.0,
+                "bi": 0.0
+            },
+            "number_of_locations": 0,
+            "number_of_locations_by_coverage": {
+                "buildings": 0,
+                "other": 0,
+                "contents": 0,
+                "bi": 0
+            }
+        },
+        "fail_ap": {
+            "tiv": 0.0,
+            "tiv_by_coverage": {
+                "buildings": 0.0,
+                "other": 0.0,
+                "contents": 0.0,
+                "bi": 0.0
+            },
+            "number_of_locations": 0,
+            "number_of_locations_by_coverage": {
+                "buildings": 0,
+                "other": 0,
+                "contents": 0,
+                "bi": 0
+            }
+        },
+        "fail_v": {
+            "tiv": 0.0,
+            "tiv_by_coverage": {
+                "buildings": 0.0,
+                "other": 0.0,
+                "contents": 0.0,
+                "bi": 0.0
+            },
+            "number_of_locations": 0,
+            "number_of_locations_by_coverage": {
+                "buildings": 0,
+                "other": 0,
+                "contents": 0,
+                "bi": 0
+            }
+        },
+        "notatrisk": {
+            "tiv": 0.0,
+            "tiv_by_coverage": {
+                "buildings": 0.0,
+                "other": 0.0,
+                "contents": 0.0,
+                "bi": 0.0
+            },
+            "number_of_locations": 0,
+            "number_of_locations_by_coverage": {
+                "buildings": 0,
+                "other": 0,
+                "contents": 0,
+                "bi": 0
+            }
+        },
+        "noreturn": {
+            "tiv": 0.0,
+            "tiv_by_coverage": {
+                "buildings": 0.0,
+                "other": 0.0,
+                "contents": 0.0,
+                "bi": 0.0
+            },
+            "number_of_locations": 0,
+            "number_of_locations_by_coverage": {
+                "buildings": 0,
+                "other": 0,
+                "contents": 0,
+                "bi": 0
+            }
+        }
+    }
+}

@@ -1,0 +1,3 @@
+FlexiAccTestCase,PortNumber,AccNumber,PolNumber,PolPerilsCovered,AccCurrency,LayerParticipation,LayerLimit,LayerAttachment,PolPeril,PolDed6All,PolDedType6All,PolMinDed6All,PolMaxDed6All,PolLimit6All,PolLimitType6All,CondPeril,CondName,CondNumber,CondDed6All,CondDedType6All,CondMinDed6All,CondMaxDed6All,CondLimit6All,CondLimitType6All,CondPriority
+828,828,A11111,Layer1,WW1,GBP,0.3,5000000,500000,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+828,828,A11111,Layer2,WW1,GBP,0.3,100000000,5500000,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0

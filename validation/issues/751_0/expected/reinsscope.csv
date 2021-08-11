@@ -1,4 +1,0 @@
-ReinsNumber,PortNumber,AccNumber,PolNumber,LocGroup,LocNumber,CedantName,ProducerName,LOB,CountryCode,ReinsTag,CededPercent,RiskLevel
-1,OEDTest,1,,,1,,,,,,,LOC
-1,OEDTest,1,,,2,,,,,,,LOC
-2,OEDTest,,,,,,,,,,,LOC

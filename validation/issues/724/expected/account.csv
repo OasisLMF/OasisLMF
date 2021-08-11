@@ -1,7 +1,0 @@
-FlexiAccUnit,PortNumber,AccNumber,PolNumber,PolPerilsCovered,AccCurrency,LayerNumber,LayerParticipation,LayerLimit,LayerAttachment,PolPeril,PolDed6All,PolMinDed6All,PolMaxDed6All,PolLimit6All,CondPeril,CondNumber,CondMinDed6All,CondLimit6All
-CX30_97,OEDTest,CX30_01,CX30_01_1,OO1,CAD,1,1,0,0,OO1,0,0,0,0,,,,
-CX30_97,OEDTest,CX30_02,CX30_02_1,OO1,CAD,1,0.5,0,0,OO1,0,0,0,0,,,,
-CX30_97,OEDTest,SS01_04,SS01_04_1,OO1,CAD,1,1,0,0,OO1,0,0,0,0,,,,
-FA37_125,OEDTest,FA37_01,FA37_01_1,OO1,CAD,1,1,0,0,OO1,0,0,0,0,,,,
-FA37_125,OEDTest,FA37_02,FA37_02_1,OO1,CAD,1,0.5,0,0,OO1,0,0,0,0,,,,
-FA37_125,OEDTest,SS01_04,SS01_04_1,OO1,CAD,1,1,0,0,OO1,0,0,0,0,,,,
