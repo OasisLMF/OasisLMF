@@ -14,7 +14,7 @@ class FmAcceptanceTests(TestCase):
     def setUp(self):
         self.test_cases_fp = os.path.join(sys.path[0], 'validation')
         self.update_expected = False
-        self.keep_output = True
+        self.keep_output = False
 
     def run_test(self, test_case, fmpy=False, subperils=1, expected_dir="expected"):
         with tempfile.TemporaryDirectory() as tmp_run_dir:
@@ -53,6 +53,9 @@ class FmAcceptanceTests(TestCase):
     def test_reinsurance2(self):
         self.run_test('reinsurance2')
 
+    def test_issues(self):
+        self.run_test('issues')
+
     # multiperil tests 
     def test_insurance_2_subperils(self):
         self.run_test('insurance', subperils=2, expected_dir="expected_subperils")
@@ -67,3 +70,5 @@ class FmAcceptanceTests(TestCase):
     def test_reinsurance2_2_subperils(self):
         self.run_test('reinsurance2', subperils=2, expected_dir="expected_subperils")
     
+    def test_issues_2_subperils(self):
+        self.run_test('issues', subperils=2, expected_dir="expected_subperils")
