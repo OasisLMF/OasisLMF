@@ -7,6 +7,7 @@ from pandas import DataFrame, merge, concat
 
 from oasislmf.utils.data import merge_dataframes
 from .descriptors import HeaderTypeDescriptor
+from .enums import FileTypeEnum
 from .loader_mixin import ModelLoaderMixin, FileLoader
 
 
@@ -27,14 +28,17 @@ class GetModelProcess(ModelLoaderMixin):
     """
     STREAM_HEADER: HeaderTypeDescriptor = HeaderTypeDescriptor()
 
-    def __init__(self, data_path: str, events: Optional[DataFrame] = None) -> None:
+    def __init__(self, data_path: str,
+                 events: Optional[DataFrame] = None, file_type: FileTypeEnum = FileTypeEnum.CSV) -> None:
         """
         The constructor for the GetModelProcess class.
 
         Args:
             data_path: (str) the path to the data files needed to construct the model
             events (Optional[DataFrame]): events preloaded (if None, will load from a file)
+            file_type (FileTypeEnum): the file type that the get model loads data from
         """
+        super().__init__(extension=file_type)
         self.data_path: str = data_path
         self._vulnerabilities: Optional[FileLoader] = None
         self._footprint: Optional[FileLoader] = None

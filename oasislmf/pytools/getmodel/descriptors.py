@@ -1,3 +1,5 @@
+from typing import Dict
+
 from .errors import HeaderTypeDescriptorError
 
 
@@ -32,3 +34,27 @@ class HeaderTypeDescriptor:
         Returns: None
         """
         raise HeaderTypeDescriptorError(message="")
+
+
+class FileMapDescriptor:
+    """
+    This class is responsible for defining the file type based off the extension.
+    """
+    def __get__(self, instance, owner) -> Dict[str, str]:
+        """
+        Gets the file map based of of the extension of the instance attribute.
+
+        Args:
+            instance: (Any) the class instance that is currently calling the descriptor
+            owner: (Any) the class that the instance belongs to
+
+        Returns: (Dict[str, str]) the file map mapping the file name to the data type
+        """
+        return {
+            "vulnerabilities": f"vulnerability.{instance.extension.value}",
+            "footprint": f"footprint.{instance.extension.value}",
+            "damage_bin": f"damage_bin_dict.{instance.extension.value}",
+            "events": f"events.{instance.extension.value}",
+            "items": f"items.{instance.extension.value}"
+        }
+

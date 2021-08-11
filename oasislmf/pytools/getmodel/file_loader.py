@@ -90,15 +90,7 @@ class FileLoader:
             if isinstance(self._value, _io.TextIOWrapper):
                 with open(self.path, 'rb') as file:
                     data = file.readlines()
-                print("")
-                for i in data:
-                    print(i)
-                print(self._process_bytes(data=data))
-                buffer = []
-                # print(self._value.readline())
-                # for i in list(self._value.readline()):
-                #     print(i)
-                    # s = struct.Struct('IIIIff')
+                self._value = self._process_bytes(data=data)
         return self._value
 
     @value.setter

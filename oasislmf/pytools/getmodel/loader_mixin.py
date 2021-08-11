@@ -1,8 +1,5 @@
-import os
-from typing import Dict
-
-from pandas import read_csv, DataFrame
-
+from .descriptors import FileMapDescriptor
+from .enums import FileTypeEnum
 from .file_loader import FileLoader
 
 
@@ -10,39 +7,16 @@ class ModelLoaderMixin:
     """
     This Mixin class is responsible for loading data for the get model.
     """
-    FILE_MAP: Dict[str, str] = {
-        "vulnerabilities": "vulnerability.csv",
-        "footprint": "footprint.csv",
-        "damage_bin": "damage_bin_dict.csv",
-        "events": "events.csv",
-        "items": "items.csv"
-    }
+    FILE_MAP = FileMapDescriptor()
 
-    @staticmethod
-    def check_bin_file_exists_and_read_it(file_desc, input_fp, conversion_tool):
+    def __init__(self, extension: FileTypeEnum = FileTypeEnum.CSV) -> None:
         """
-        Check model data or complex items binary file exists, convert to csv using
-        ktools executables and return file contents as dataframe
-        :param file_desc: brief description of file to be opened
-        :dtype file_desc: str
-        :param input_fp: file path to binary file
-        :dtype input_fp: str
-        :param conversion_tool: ktools binary to csv conversion tool executable
-        :dtype: str
-        :return: data from binary file
-        :dtype: pandas.DataFrame
+        The constructor for the ModelLoaderMixin class.
+
+        Args:
+            extension: (FileTypeEnum) type of extension to be used
         """
-
-        if not os.path.exists(input_fp):
-            raise Exception(
-                f'{file_desc} file {os.path.abspath(input_fp)} does not exist.'
-            )
-        with os.popen(f'{conversion_tool} < {input_fp}') as p:
-            input_df = read_csv(p)
-        input_df.columns = input_df.columns.str.replace(' ', '')
-        input_df.columns = input_df.columns.str.replace('"', '')
-
-        return input_df
+        self.extension: FileTypeEnum = extension
 
     def load_data_if_none(self, name: str) -> None:
         """
