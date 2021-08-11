@@ -1,10 +1,11 @@
 import struct
 import sys
-from typing import Optional, Tuple, List, Any
+from typing import Optional, Tuple, Any
 
 import numpy as np
-from pandas import DataFrame, merge
+from pandas import DataFrame, merge, concat
 
+from oasislmf.utils.data import merge_dataframes
 from .descriptors import HeaderTypeDescriptor
 from .loader_mixin import ModelLoaderMixin, FileLoader
 
@@ -49,14 +50,15 @@ class GetModelProcess(ModelLoaderMixin):
 
     def filter_footprint(self) -> None:
         """
+        Filters out rows from the self.model that do not have the combination of "areaperil_id" and "vulnerability_id"
+        from the self.items.
 
-
-        Returns:
+        Returns: None
         """
-        filter_buffer = [str(i["areaperil_id"]) + str(i["vulnerability_id"]) for i in list(self.items.value.T.to_dict().values())]
+        filter_buffer = [str(int(i["areaperil_id"])) + str(int(i["vulnerability_id"])) for i in list(self.items.value.T.to_dict().values())]
         self.model["filter_code"] = self.model["area_peril_id"].astype(str) + self.model["vulnerability_id"].astype(str)
         self.model = self.model[self.model["filter_code"].isin(filter_buffer)]
-        # del self.model['filter_code']
+        del self.model['filter_code']
 
     def merge_vulnerabilities(self) -> None:
         """
@@ -64,18 +66,6 @@ class GetModelProcess(ModelLoaderMixin):
 
         Returns: None
         """
-
-        # ---- DEBUG TESTING ------------------------------------------------ #
-        from oasislmf.utils.data import merge_dataframes
-        import pandas as pd
-        import sys
-
-        # RUN BREAKPOINT (Drop into a debugger when running new-model)
-        #lines = sys.stdin.readlines()
-        #sys.stdin = open("/dev/tty")
-        #import ipdb; ipdb.set_trace()
-
-
         # find that MAX damage_bin_id for each row in the vulnerability file
         vun_max = self.vulnerabilities.value.groupby(
             ['vulnerability_id', 'intensity_bin_id']
@@ -84,13 +74,13 @@ class GetModelProcess(ModelLoaderMixin):
         # Build a new 'empty' data frame with the same structure (every row has probability==0.0)
         vun_list = []
         for index, row in vun_max.iterrows():
-            vun_list.append(pd.DataFrame({
+            vun_list.append(DataFrame({
                 'vulnerability_id': row.vulnerability_id,
                 'intensity_bin_id': row.intensity_bin_id,
                 'damage_bin_id': range(1,row.damage_bin_max+1),
                 'probability': 0.0,
             }))
-        vun_fill_empty = pd.concat(vun_list)
+        vun_fill_empty = concat(vun_list)
         vun_fill_empty.reset_index(drop=True, inplace=True)
 
         # merge the two DataFrames so 'damage_bin_id' is sequential, [1 ... row.damage_bin_max]
@@ -104,19 +94,9 @@ class GetModelProcess(ModelLoaderMixin):
         # override 'self.vulnerabilities.value' with the merge dataframe
         self.vulnerabilities.value = vulnerabilities_no_gap
 
-        # ---- END DEBUG ----------------------------------------------------- #
-
-
-        # Calculate cummulative probability
-        self.vulnerabilities.value['cum_prob'] = self.vulnerabilities.value.groupby(
-            ['vulnerability_id', 'intensity_bin_id']
-        ).cumsum()['probability']
-
-        # we need to add vulnerability_id to the self.model (THIS IS WHERE THE PROBLEM IS, IT'S SUPPOSED TO BE:
-        # on=['vulnerability_id', 'intensity_bin_id'])
-
         self.model = merge(self.model, self.vulnerabilities.value, how='inner',
                            on=['intensity_bin_id', 'intensity_bin_id'])
+
         # Drop unrequired columns and dataframe to free memory
         self.model.rename(columns={"probability": "vulnerability_probability"}, inplace=True)
         self.model.drop(['intensity_bin_id'], axis=1, inplace=True)
@@ -152,12 +132,14 @@ class GetModelProcess(ModelLoaderMixin):
         event_ids: np.ndarray = self.events.value["event_id"].to_numpy()  # add in chunking and stream load
         self.model = DataFrame({"event_id": event_ids})
         self.model["order"] = self.model.index
-        # self.footprint.value.drop('probability', axis=1, inplace=True)
 
         self.footprint.value.rename(columns={'areaperil_id': 'area_peril_id', "probability": "footprint_probability"},
                                     inplace=True)
-        # self.footprint.value.drop('footprint_probability', axis=1, inplace=True)
+
         self.model = merge(self.model, self.footprint.value, how='inner', on='event_id')
+
+        for col in ["event_id", "order", "area_peril_id", "intensity_bin_id"]:
+            self.model[col].astype(int)
 
         self.footprint.clear_cache()
 
@@ -170,11 +152,6 @@ class GetModelProcess(ModelLoaderMixin):
         """
         self.model["prob_to"] = self.model["footprint_probability"] * self.model["vulnerability_probability"]
 
-    def calculate_cumulative_probability(self) -> None:
-        self.model.value['prob_to'] = self.model.value.groupby(
-            ['vulnerability_id', 'intensity_bin_id']
-        ).cumsum()['prob_to']
-
     def define_columns_for_saving(self) -> None:
         """
         Trims the self.model DataFrame removing columns that are not needed and rename columns required for later
@@ -183,7 +160,7 @@ class GetModelProcess(ModelLoaderMixin):
         Returns: None
         """
         self.model = self.model[["event_id", "area_peril_id", "vulnerability_id", "damage_bin_id", "prob_to",
-                                 "interpolation", "filter_code"]]
+                                 "interpolation"]]
 
         self.model.rename(columns={
             "event_id": "event_id",
@@ -191,8 +168,7 @@ class GetModelProcess(ModelLoaderMixin):
             "vulnerability_id": "vulnerability_id",
             "damage_bin_id": "bin_index",
             "prob_to": "prob_to",
-            "interpolation": "bin_mean",
-            "filter_code": "filter_code"
+            "interpolation": "bin_mean"
         }, inplace=True)
 
     def print_stream(self) -> None:
@@ -242,25 +218,3 @@ class GetModelProcess(ModelLoaderMixin):
     @property
     def result(self) -> Tuple[DataFrame, DataFrame, DataFrame]:
         return self.model, DataFrame(), self.damage_bin.value
-
-    @property
-    def stream(self) -> List[bytes]:
-        """
-        Loops through the self.model converting it into binary data.
-
-        Returns: (List[bytes]) self.model in binary form
-        """
-        buffer = [self.STREAM_HEADER]
-        number_of_rows: int = len(self.model.index)
-
-        for i in list(self.model.T.to_dict().values()):
-            s = struct.Struct('IIIIf')
-            values = (
-                int(i["event_id"]),
-                int(i["areaperil_id"]),
-                int(i["vulnerability_id"]),
-                int(number_of_rows),
-                float(i["prob_to"])
-            )
-            buffer.append(s.pack(*values))
-        return buffer
