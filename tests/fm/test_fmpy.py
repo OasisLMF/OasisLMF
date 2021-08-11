@@ -68,5 +68,5 @@ class FmAcceptanceTests(TestCase):
     def test_reinsurance2_2_subperils(self):
         self.run_test('reinsurance2', fmpy=True, subperils=2, expected_dir="expected_subperils")
 
-    def test_issues(self):
-        self.run_test('issues',fmpy=True, subperils=2, expected_dir="expected_subperils")
+    def test_issues_2_subperils(self):
+        self.run_test('issues', fmpy=True, subperils=2, expected_dir="expected_subperils")
