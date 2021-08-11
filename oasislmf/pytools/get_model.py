@@ -38,7 +38,9 @@ def _process_file_type(file_type: str) -> FileTypeEnum:
 
     file_type_value: Optional[FileTypeEnum] = enum_map.get(file_type)
     if file_type_value is None:
-        raise ValueError(f"{file_type} is not supported, please pick from {[i.value for i in FileTypeEnum]}")
+        raise ValueError(
+            f"file type '{file_type}' is not supported, please pick from {[i.value for i in FileTypeEnum]}"
+        )
     return file_type_value
 
 
@@ -50,11 +52,12 @@ def main() -> None:
     """
     # add in argumments that accept the type of file that is being run (CSV, bin, parquet)
     parser = argparse.ArgumentParser(description="Arguments for the get model")
-    parser.add_argument("-ft", action="store", type=str, default="csv")
-    parser.parse_args()
+    parser.add_argument("-f", "--file_type", type=str, default="csv")
+    args = parser.parse_args()
 
     data_path: str = str(os.getcwd())
+
     process: GetModelProcess = GetModelProcess(data_path=data_path, events=_process_input_data(),
-                                               file_type=_process_file_type(file_type=parser.ft))
+                                               file_type=_process_file_type(file_type=args.file_type))
     process.run()
     process.print_stream()
