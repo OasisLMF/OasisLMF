@@ -23,7 +23,7 @@ class TestFileLoader(TestCase):
 
     def test_read(self):
         df = DataFrame(self.data)
-        df.to_csv("./test.csv")
+        df.to_csv("./test.csv", index=False)
         test = FileLoader(file_path="./test.csv", label="vulnerabilities")
         self.assertEqual(DataFrame, type(test.value))
         self.assertEqual(self.data, list(test.value.T.to_dict().values()))
