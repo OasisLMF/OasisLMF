@@ -1,4 +1,3 @@
-import _io
 from unittest import TestCase, main
 from unittest.mock import patch, PropertyMock
 

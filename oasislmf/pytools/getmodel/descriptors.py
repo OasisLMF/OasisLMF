@@ -51,10 +51,10 @@ class FileMapDescriptor:
         Returns: (Dict[str, str]) the file map mapping the file name to the data type
         """
         return {
-            "vulnerabilities": f"vulnerability.{instance.extension.value}",
-            "footprint": f"footprint.{instance.extension.value}",
-            "damage_bin": f"damage_bin_dict.{instance.extension.value}",
-            "events": f"events.{instance.extension.value}",
-            "items": f"items.{instance.extension.value}"
+            "vulnerabilities": f"/static/vulnerability.{instance.extension.value}",
+            "footprint": f"/static/footprint.{instance.extension.value}",
+            "damage_bin": f"/static/damage_bin_dict.{instance.extension.value}",
+            "events": f"/input/events.{instance.extension.value}",
+            "items": f"/input/items.{instance.extension.value}"
         }
 

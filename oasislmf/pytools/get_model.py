@@ -24,7 +24,7 @@ def _process_input_data() -> Optional[DataFrame]:
 
 def _process_file_type(file_type: str) -> FileTypeEnum:
     """
-    Extracts the type from the Enum type.
+    Extracts the FileTypeEnum type based off of the string.
 
     Args:
         file_type: (str) the file type to be found
