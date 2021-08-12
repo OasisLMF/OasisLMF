@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import os
 import json
+
 import argparse
 
 parser = argparse.ArgumentParser()
@@ -17,6 +18,7 @@ subdir = params.subdirectory
 
 os.chdir(subdir)
 
+
 locationfile = pd.read_csv('location.csv')
 accountfile = pd.read_csv('account.csv')
 
@@ -29,22 +31,7 @@ if not os.path.exists(newpath):
 
 cwd = os.getcwd()
 for name, group in split_location:
-    sub_dir = os.path.join(newpath,name)
-
-#loop through the groups and save to directories based on unique values
-for name, group in split_location:
-    sub_dir = os.path.join(newpath,name)
-    if not os.path.exists(sub_dir):
-        os.mkdir(sub_dir)
-    group = group.drop(['FlexiLocUnit'], axis=1)
-    group.to_csv(sub_dir + "/location.csv", index=0)
-
-for name, group in split_account:
-    sub_dir = os.path.join(newpath,name)
-    if not os.path.exists(sub_dir):
-        os.mkdir(sub_dir)
-    group = group.drop(['FlexiAccUnit'], axis=1)
-    group.to_csv(sub_dir + "/account.csv", index=0)
+    sub_dir = os.path.join(newpath,(str)(name))
 
 names = sorted([str(item[0]) for item in split_location])
 
@@ -69,6 +56,55 @@ if not os.path.exists(units_dir):
 
 with open(os.path.join(units_dir,'units.txt'), "w") as txt_file:
     names, groups = map(list, zip(*split_location))
-    names.sort(key=natural_keys)
     for name in names:
         txt_file.write(str(name) + '\n')
+
+
+# get directories
+with open(os.path.join(units_dir,'units.txt'), "r") as txt_file:
+    fms = txt_file.read().split('\n')
+
+dirs = []
+for fm in fms:
+    if fm!='':
+        dirs.append(fm)
+
+# combine dataframes
+
+# start with first one
+fm_first = dirs[0]
+fm_first_filepath = os.path.join(newpath,fm_first,'location.csv')
+
+df_loc = pd.read_csv(fm_first_filepath)
+df_loc['FlexiLocUnit']=fm_first
+
+# add in remaining fm files, iterating through remainder
+for i in range(1,len(dirs)):
+    fm_next = dirs[i]
+    fm_next_filepath = os.path.join(newpath,fm_next,'location.csv')
+    df_loc_tmp = pd.read_csv(fm_next_filepath)
+    df_loc_tmp['FlexiLocUnit']=fm_next
+    # concat files
+    df_loc = pd.concat([df_loc,df_loc_tmp])
+
+df_loc.to_csv('location_concat.csv',index=False)
+
+
+#Account concat
+
+fm2_first = dirs[0]
+fm2_first_filepath = os.path.join(newpath,fm2_first,'account.csv')
+
+df_loc2 = pd.read_csv(fm2_first_filepath)
+df_loc2['FlexiAccUnit']=fm2_first
+
+# add in remaining fm files, iterating through remainder
+for i in range(1,len(dirs)):
+    fm2_next = dirs[i]
+    fm2_next_filepath = os.path.join(newpath,fm2_next,'account.csv')
+    df_loc_tmp2 = pd.read_csv(fm2_next_filepath)
+    df_loc_tmp2['FlexiAccUnit']=fm2_next
+    # concat files
+    df_loc2 = pd.concat([df_loc2,df_loc_tmp2])
+
+df_loc2.to_csv('account_concat.csv',index=False)

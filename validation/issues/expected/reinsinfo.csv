@@ -1,2 +1,7 @@
 ReinsNumber,ReinsPeril,ReinsCurrency,CededPercent,RiskLimit,RiskAttachment,OccLimit,OccAttachment,PlacedPercent,InuringPriority,ReinsType,ReinsName
-1,AA1,GBP,,,,1000000,1000,0.6,1,FAC,FAC
+1,AA1,GBP,1,,,1000000,1000,0.6,1,FAC,FAC
+2,OO1,CAD,1,4076500,60000000,,,1,1,FAC,xxAcc1_FAC_1
+3,OO1,CAD,1,100000000,,,,0.8,1,FAC,xx32_FAC_1
+4,OO1,CAD,1,2000,1000,6000,,1,1,PR,xx32_PR_1
+5,OO1,CAD,0.2,,,,1000000,1,1,CXL,T30 CX Loc
+6,OO1,CAD,0.2,,,,,1,1,FAC,T37 FA Loc
