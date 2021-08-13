@@ -1,5 +1,6 @@
 import argparse
 import os
+import struct
 import sys
 from io import StringIO
 from typing import Optional
@@ -12,14 +13,25 @@ from .getmodel.get_model_process import GetModelProcess
 
 def _process_input_data() -> Optional[DataFrame]:
     """
-    Gets the input from the STDin and converts it to
+    Gets the input from the STDin and converts it to a DataFrame if present.
 
-    Returns: (Optional[DataFrame])
+    Returns: (Optional[DataFrame]) containing event IDs
     """
     data = sys.stdin.buffer.read()
+
     if data == "":
         return None
-    return read_csv(StringIO(data.decode()), sep=",")
+
+    try:
+        # data from the evetocsv
+        eve_to_csv_data = data.decode()
+        return read_csv(StringIO(eve_to_csv_data), sep=",")
+    except UnicodeDecodeError:
+        pass
+
+    # data directly from eve
+    eve_raw_data = [data[i:i + 4] for i in range(0, len(data), 4)]
+    eve_buffer = [struct.unpack("i", i)[0] for i in eve_raw_data]
 
 
 def _process_file_type(file_type: str) -> FileTypeEnum:

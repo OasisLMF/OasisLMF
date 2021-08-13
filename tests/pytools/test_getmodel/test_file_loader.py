@@ -31,6 +31,10 @@ class TestFileLoader(TestCase):
         test.clear_cache()
         self.assertEqual(None, test._value)
 
+    def test_read_bytes(self):
+        test = FileLoader(file_path="./new_model.bin", label="vulnerabilities")
+        print(test.value)
+
     def test_value_set(self):
         self.test.value = "something"
         self.assertEqual("something", self.test.value)

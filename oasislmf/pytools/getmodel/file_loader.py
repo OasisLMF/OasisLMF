@@ -89,8 +89,15 @@ class FileLoader:
             self._value = self.read()
             if isinstance(self._value, _io.TextIOWrapper):
                 with open(self.path, 'rb') as file:
-                    data = file.readlines()
-                self._value = self._process_bytes(data=data)
+                    byte = file.read(1)
+                    while byte:
+                        try:
+                            print(byte.decode("utf-8"))
+                        except UnicodeDecodeError:
+                            pass
+                        byte = file.read(1)
+                self._value = "test"
+                # self._value = self._process_bytes(data=data)
         return self._value
 
     @value.setter
