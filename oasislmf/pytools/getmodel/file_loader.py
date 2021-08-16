@@ -1,6 +1,6 @@
 import _io
 from os import path
-from typing import Optional, Any, Dict, List
+from typing import Optional, Any, Dict, List, Tuple, Union
 import struct
 
 from pandas import DataFrame, read_csv, read_parquet
@@ -35,18 +35,54 @@ class FileLoader:
         self.path: str = file_path
         self.label: str = label
         self.extension: str = file_path.split(".")[-1]
+        self.file_name: str = file_path.split(".")[-2].split("/")[-1]
         self._read_function: Any = self.get_read_function()
         self._value: Optional[DataFrame] = None
 
-    def _process_bytes(self, data: List[bytes]) -> list:
-        encoding_map: Dict[str, struct.Struct] = {
-            "vulnerabilities": struct.Struct(""),
-            "footprint": struct.Struct("IIIf"),
-            "damage_bin": struct.Struct(""),
-            "events": struct.Struct("")
+    def _process_bytes(self, data: bytes) -> DataFrame:
+        """
+        Takes in bytes, processes them, and returns them as a DataFrame based on the profiles for the bin files. The
+        file profile is selected using the self.file_name.
+
+        Args:
+            data: (bytes) data to be processed, usually from a .bin file. Please refer to the encoding_map to see
+                          what files are supported, the keys in the encoding_map are the names of the files supported.
+
+        Returns: (DataFrame) with data from the bin file.
+        """
+        encoding_map = {
+            "vulnerability": {
+                "struct": struct.Struct("iiif"),
+                "byte chunk": 16,
+                "columns": ["vulnerability_id", "intensity_bin_index", "damage_bin_index", "prob"]
+            },
+            "footprint": {
+                "struct": struct.Struct("iiif"),
+                "byte chunk": 16,
+                "columns": ["event_id", "areaperil_id", "intensity_bin_index", "prob"]
+            },
+            "damage_bin_dict": {
+                "struct": struct.Struct("ifff"),
+                "byte chunk": 16,
+                "columns": ["bin_index", "bin_from", "bin_to", "interpolation"]
+            },
+            "events": {
+                "struct": struct.Struct("i"),
+                "byte chunk": 4,
+                "columns": ["event_id"]
+            }
         }
-        # return [encoding_map[self.label].unpack(i) for i in data]
-        return [i.decode("UTF-8") for i in data]
+        chunk: int = encoding_map[self.file_name]["byte chunk"]
+        unpack_struct: struct.Struct = encoding_map[self.file_name]["struct"]
+        raw_data: List[bytes] = [data[i:i + chunk] for i in range(0, len(data), chunk)]
+
+        buffer = []
+        for i in range(0, len(raw_data)):
+            try:
+                buffer.append(unpack_struct.unpack(raw_data[i]))
+            except struct.error:
+                break
+        return DataFrame(buffer, columns=encoding_map[self.file_name]["columns"])
 
     def get_read_function(self) -> Any:
         """
@@ -89,15 +125,8 @@ class FileLoader:
             self._value = self.read()
             if isinstance(self._value, _io.TextIOWrapper):
                 with open(self.path, 'rb') as file:
-                    byte = file.read(1)
-                    while byte:
-                        try:
-                            print(byte.decode("utf-8"))
-                        except UnicodeDecodeError:
-                            pass
-                        byte = file.read(1)
-                self._value = "test"
-                # self._value = self._process_bytes(data=data)
+                    bytes_data = file.read()
+                self._value = self._process_bytes(data=bytes_data)
         return self._value
 
     @value.setter

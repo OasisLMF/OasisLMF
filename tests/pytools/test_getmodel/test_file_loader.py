@@ -32,7 +32,7 @@ class TestFileLoader(TestCase):
         self.assertEqual(None, test._value)
 
     def test_read_bytes(self):
-        test = FileLoader(file_path="./new_model.bin", label="vulnerabilities")
+        test = FileLoader(file_path="./footprint.bin", label="footprint")
         print(test.value)
 
     def test_value_set(self):

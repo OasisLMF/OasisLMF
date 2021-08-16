@@ -32,6 +32,8 @@ def _process_input_data() -> Optional[DataFrame]:
     # data directly from eve
     eve_raw_data = [data[i:i + 4] for i in range(0, len(data), 4)]
     eve_buffer = [struct.unpack("i", i)[0] for i in eve_raw_data]
+    
+    return DataFrame(eve_buffer, columns=["event_id"])
 
 
 def _process_file_type(file_type: str) -> FileTypeEnum:
