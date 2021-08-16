@@ -17,6 +17,7 @@ class FileLoader:
         path (str): path to the file that we are either reading or writing to
         label (str): description of what type of data is being processed for error raising
         extension (str): the file extension that belongs to the file (used for mapping functions in the self.READ_MAP)
+        file_name (str): the name of the file being loaded
     """
     READ_MAP: Dict[str, Any] = {
         FileTypeEnum.CSV.value: (read_csv, "to_csv"),
