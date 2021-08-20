@@ -19,6 +19,7 @@ class TestGetModelProcess(TestCase):
         """
         self.test = GetModelProcess(data_path=".")
 
+
     # def test__data_loading(self):
     #     self.assertEqual(DataFrame, type(self.test.damage_bin.value))
     #     self.assertEqual(DataFrame, type(self.test.footprint.value))
@@ -112,30 +113,11 @@ class TestGetModelProcess(TestCase):
         self.test.merge_vulnerabilities()
 
         self.assertEqual([
-            {'event_id': 1, 'order': 0, 'area_peril_id': 10, 'footprint_probability': 0.47, 'vulnerability_id': 1, 'damage_bin_id': 1, 'vulnerability_probability': 0.45},
-            {'event_id': 1, 'order': 0, 'area_peril_id': 10, 'footprint_probability': 0.47, 'vulnerability_id': 3, 'damage_bin_id': 1, 'vulnerability_probability': 0.89},
-            {'event_id': 2, 'order': 1, 'area_peril_id': 20, 'footprint_probability': 0.3, 'vulnerability_id': 1, 'damage_bin_id': 1, 'vulnerability_probability': 0.45},
-            {'event_id': 2, 'order': 1, 'area_peril_id': 20, 'footprint_probability': 0.3, 'vulnerability_id': 3, 'damage_bin_id': 1, 'vulnerability_probability': 0.89},
-            {'event_id': 1, 'order': 0, 'area_peril_id': 10, 'footprint_probability': 0.53, 'vulnerability_id': 1, 'damage_bin_id': 1, 'vulnerability_probability': 0.0},
-            {'event_id': 1, 'order': 0, 'area_peril_id': 10, 'footprint_probability': 0.53, 'vulnerability_id': 1, 'damage_bin_id': 2, 'vulnerability_probability': 0.65},
-            {'event_id': 1, 'order': 0, 'area_peril_id': 10, 'footprint_probability': 0.53, 'vulnerability_id': 4, 'damage_bin_id': 1, 'vulnerability_probability': 0.35},
-            {'event_id': 2, 'order': 1, 'area_peril_id': 20, 'footprint_probability': 0.7, 'vulnerability_id': 1, 'damage_bin_id': 1, 'vulnerability_probability': 0.0},
-            {'event_id': 2, 'order': 1, 'area_peril_id': 20, 'footprint_probability': 0.7, 'vulnerability_id': 1, 'damage_bin_id': 2, 'vulnerability_probability': 0.65},
-            {'event_id': 2, 'order': 1, 'area_peril_id': 20, 'footprint_probability': 0.7, 'vulnerability_id': 4, 'damage_bin_id': 1, 'vulnerability_probability': 0.35},
-            {'event_id': 3, 'order': 2, 'area_peril_id': 30, 'footprint_probability': 0.28, 'vulnerability_id': 2, 'damage_bin_id': 1, 'vulnerability_probability': 0.78},
-            {'event_id': 3, 'order': 2, 'area_peril_id': 30, 'footprint_probability': 0.72, 'vulnerability_id': 2, 'damage_bin_id': 1, 'vulnerability_probability': 0.0},
-            {'event_id': 3, 'order': 2, 'area_peril_id': 30, 'footprint_probability': 0.72, 'vulnerability_id': 2, 'damage_bin_id': 2, 'vulnerability_probability': 0.22},
-            {'event_id': 3, 'order': 2, 'area_peril_id': 30, 'footprint_probability': 0.72, 'vulnerability_id': 3, 'damage_bin_id': 1, 'vulnerability_probability': 0.0},
-            {'event_id': 3, 'order': 2, 'area_peril_id': 30, 'footprint_probability': 0.72, 'vulnerability_id': 3, 'damage_bin_id': 2, 'vulnerability_probability': 0.0},
-            {'event_id': 3, 'order': 2, 'area_peril_id': 30, 'footprint_probability': 0.72, 'vulnerability_id': 3, 'damage_bin_id': 3, 'vulnerability_probability': 0.11},
-            {'event_id': 4, 'order': 3, 'area_peril_id': 40, 'footprint_probability': 0.81, 'vulnerability_id': 2, 'damage_bin_id': 1, 'vulnerability_probability': 0.0},
-            {'event_id': 4, 'order': 3, 'area_peril_id': 40, 'footprint_probability': 0.81, 'vulnerability_id': 2, 'damage_bin_id': 2, 'vulnerability_probability': 0.22},
-            {'event_id': 4, 'order': 3, 'area_peril_id': 40, 'footprint_probability': 0.81, 'vulnerability_id': 3, 'damage_bin_id': 1, 'vulnerability_probability': 0.0},
-            {'event_id': 4, 'order': 3, 'area_peril_id': 40, 'footprint_probability': 0.81, 'vulnerability_id': 3, 'damage_bin_id': 2, 'vulnerability_probability': 0.0},
-            {'event_id': 4, 'order': 3, 'area_peril_id': 40, 'footprint_probability': 0.81, 'vulnerability_id': 3, 'damage_bin_id': 3, 'vulnerability_probability': 0.11},
-            {'event_id': 4, 'order': 3, 'area_peril_id': 40, 'footprint_probability': 0.19, 'vulnerability_id': 4, 'damage_bin_id': 1, 'vulnerability_probability': 0.0},
-            {'event_id': 4, 'order': 3, 'area_peril_id': 40, 'footprint_probability': 0.19, 'vulnerability_id': 4, 'damage_bin_id': 2, 'vulnerability_probability': 0.0},
-            {'event_id': 4, 'order': 3, 'area_peril_id': 40, 'footprint_probability': 0.19, 'vulnerability_id': 4, 'damage_bin_id': 3, 'vulnerability_probability': 0.65}
+            {'event_id': 2.0, 'order': 1.0, 'area_peril_id': 20.0, 'footprint_probability': 0.3, 'vulnerability_id': 3.0, 'damage_bin_id': 1.0, 'vulnerability_probability': 0.89},
+            {'event_id': 2.0, 'order': 1.0, 'area_peril_id': 20.0, 'footprint_probability': 0.7, 'vulnerability_id': 4.0, 'damage_bin_id': 1.0, 'vulnerability_probability': 0.35},
+            {'event_id': 3.0, 'order': 2.0, 'area_peril_id': 30.0, 'footprint_probability': 0.28, 'vulnerability_id': 2.0, 'damage_bin_id': 1.0, 'vulnerability_probability': 0.78},
+            {'event_id': 4.0, 'order': 3.0, 'area_peril_id': 40.0, 'footprint_probability': 0.81, 'vulnerability_id': 3.0, 'damage_bin_id': 3.0, 'vulnerability_probability': 0.11},
+            {'event_id': 4.0, 'order': 3.0, 'area_peril_id': 40.0, 'footprint_probability': 0.19, 'vulnerability_id': 4.0, 'damage_bin_id': 3.0, 'vulnerability_probability': 0.65}
         ],
             list(self.test.model.T.to_dict().values())
         )
@@ -178,15 +160,15 @@ class TestGetModelProcess(TestCase):
         self.test.filter_footprint()
 
         self.assertEqual([
-            {'event_id': 1, 'order': 0, 'area_peril_id': 10, 'footprint_probability': 0.47, 'vulnerability_id': 1, 'damage_bin_id': 1, 'vulnerability_probability': 0.45},
-            {'event_id': 1, 'order': 0, 'area_peril_id': 10, 'footprint_probability': 0.53, 'vulnerability_id': 1, 'damage_bin_id': 1, 'vulnerability_probability': 0.0},
-            {'event_id': 1, 'order': 0, 'area_peril_id': 10, 'footprint_probability': 0.53, 'vulnerability_id': 1, 'damage_bin_id': 2, 'vulnerability_probability': 0.65},
-            {'event_id': 3, 'order': 2, 'area_peril_id': 30, 'footprint_probability': 0.72, 'vulnerability_id': 3, 'damage_bin_id': 1, 'vulnerability_probability': 0.0},
-            {'event_id': 3, 'order': 2, 'area_peril_id': 30, 'footprint_probability': 0.72, 'vulnerability_id': 3, 'damage_bin_id': 2, 'vulnerability_probability': 0.0},
-            {'event_id': 3, 'order': 2, 'area_peril_id': 30, 'footprint_probability': 0.72, 'vulnerability_id': 3, 'damage_bin_id': 3, 'vulnerability_probability': 0.11},
-            {'event_id': 4, 'order': 3, 'area_peril_id': 40, 'footprint_probability': 0.19, 'vulnerability_id': 4, 'damage_bin_id': 1, 'vulnerability_probability': 0.0},
-            {'event_id': 4, 'order': 3, 'area_peril_id': 40, 'footprint_probability': 0.19, 'vulnerability_id': 4, 'damage_bin_id': 2, 'vulnerability_probability': 0.0},
-            {'event_id': 4, 'order': 3, 'area_peril_id': 40, 'footprint_probability': 0.19, 'vulnerability_id': 4, 'damage_bin_id': 3, 'vulnerability_probability': 0.65}
+            {'event_id': 1, 'order': 0.0, 'area_peril_id': 10, 'footprint_probability': 0.47, 'vulnerability_id': 1, 'damage_bin_id': 1, 'vulnerability_probability': 0.45},
+            {'event_id': 1, 'order': 0.0, 'area_peril_id': 10, 'footprint_probability': 0.53, 'vulnerability_id': 1, 'damage_bin_id': 1, 'vulnerability_probability': 0.0},
+            {'event_id': 1, 'order': 0.0, 'area_peril_id': 10, 'footprint_probability': 0.53, 'vulnerability_id': 1, 'damage_bin_id': 2, 'vulnerability_probability': 0.65},
+            {'event_id': 3, 'order': 2.0, 'area_peril_id': 30, 'footprint_probability': 0.72, 'vulnerability_id': 3, 'damage_bin_id': 1, 'vulnerability_probability': 0.0},
+            {'event_id': 3, 'order': 2.0, 'area_peril_id': 30, 'footprint_probability': 0.72, 'vulnerability_id': 3, 'damage_bin_id': 2, 'vulnerability_probability': 0.0},
+            {'event_id': 3, 'order': 2.0, 'area_peril_id': 30, 'footprint_probability': 0.72, 'vulnerability_id': 3, 'damage_bin_id': 3, 'vulnerability_probability': 0.11},
+            {'event_id': 4, 'order': 3.0, 'area_peril_id': 40, 'footprint_probability': 0.19, 'vulnerability_id': 4, 'damage_bin_id': 1, 'vulnerability_probability': 0.0},
+            {'event_id': 4, 'order': 3.0, 'area_peril_id': 40, 'footprint_probability': 0.19, 'vulnerability_id': 4, 'damage_bin_id': 2, 'vulnerability_probability': 0.0},
+            {'event_id': 4, 'order': 3.0, 'area_peril_id': 40, 'footprint_probability': 0.19, 'vulnerability_id': 4, 'damage_bin_id': 3, 'vulnerability_probability': 0.65}
         ],
             list(self.test.model.T.to_dict().values())
         )

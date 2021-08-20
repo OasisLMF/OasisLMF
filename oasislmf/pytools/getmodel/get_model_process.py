@@ -3,12 +3,31 @@ import sys
 from typing import Optional, Tuple, Any
 
 import numpy as np
-from pandas import DataFrame, merge, concat
+from numba import jit, int64
+from pandas import DataFrame, merge
 
 from oasislmf.utils.data import merge_dataframes
 from .descriptors import HeaderTypeDescriptor
 from .enums import FileTypeEnum
 from .loader_mixin import ModelLoaderMixin, FileLoader
+
+
+@jit((int64[:], int64[:], int64[:]), nopython=True)
+def define_data_series(vul_ids, inten_ids, damage_bin_maxs):
+    vun_list = []
+
+    for i in range(len(vul_ids)):
+        vul_id = vul_ids[i]
+        inten_id = inten_ids[i]
+
+        for x in range(1, damage_bin_maxs[i] + 1):
+            vun_list.append((
+                vul_id,
+                inten_id,
+                x,
+                0.0,
+            ))
+    return vun_list
 
 
 class GetModelProcess(ModelLoaderMixin):
@@ -59,9 +78,16 @@ class GetModelProcess(ModelLoaderMixin):
 
         Returns: None
         """
-        filter_buffer = [str(int(i["areaperil_id"])) + str(int(i["vulnerability_id"])) for i in list(self.items.value.T.to_dict().values())]
-        self.model["filter_code"] = self.model["area_peril_id"].astype(str) + self.model["vulnerability_id"].astype(str)
-        self.model = self.model[self.model["filter_code"].isin(filter_buffer)]
+        coefficient = np.max(self.items.value["vulnerability_id"])
+        self.items.value["filter_code"] = self.items.value["vulnerability_id"] + self.items.value["areaperil_id"] * (
+                coefficient + 1
+        )
+        self.items.value.drop_duplicates(subset='filter_code', inplace=True)
+
+        self.model["filter_code"] = self.model["vulnerability_id"] + self.model["area_peril_id"] * (
+                coefficient + 1
+        )
+        self.model = self.model[self.model["filter_code"].isin(self.items.value["filter_code"].to_list())]
         del self.model['filter_code']
 
     def merge_vulnerabilities(self) -> None:
@@ -71,21 +97,27 @@ class GetModelProcess(ModelLoaderMixin):
         Returns: None
         """
         # find that MAX damage_bin_id for each row in the vulnerability file
+        # cut the vulnerabilities that are not represented in the items
+        vun_filter = list(self.items.value.drop_duplicates(subset=['vulnerability_id'])["vulnerability_id"])
+        self.vulnerabilities.value = self.vulnerabilities.value[
+            self.vulnerabilities.value["vulnerability_id"].isin(vun_filter)]
+
+        # find that MAX damage_bin_id for each row in the vulnerability file
         vun_max = self.vulnerabilities.value.groupby(
             ['vulnerability_id', 'intensity_bin_id']
         )['damage_bin_id'].max().reset_index().rename(columns={"damage_bin_id": "damage_bin_max"})
 
-        # Build a new 'empty' data frame with the same structure (every row has probability==0.0)
-        vun_list = []
-        for index, row in vun_max.iterrows():
-            vun_list.append(DataFrame({
-                'vulnerability_id': row.vulnerability_id,
-                'intensity_bin_id': row.intensity_bin_id,
-                'damage_bin_id': range(1,row.damage_bin_max+1),
-                'probability': 0.0,
-            }))
-        vun_fill_empty = concat(vun_list)
+        vun_list = define_data_series(vul_ids=vun_max["vulnerability_id"].values,
+                                      inten_ids=vun_max["intensity_bin_id"].values,
+                                      damage_bin_maxs=vun_max["damage_bin_max"].values)
+
+        vun_fill_empty = DataFrame(vun_list,
+                                   columns=["vulnerability_id", "intensity_bin_id", "damage_bin_id", "probability"])
         vun_fill_empty.reset_index(drop=True, inplace=True)
+
+        # filter model by area peril ID
+        area_filter = list(self.items.value.drop_duplicates(subset=['areaperil_id'])["areaperil_id"])
+        self.model = self.model[self.model["area_peril_id"].isin(area_filter)]
 
         # merge the two DataFrames so 'damage_bin_id' is sequential, [1 ... row.damage_bin_max]
         # where the 'probability' has a valid value use that otherwise fill the missing 'damage_bin_id' entries with 0.0
@@ -95,16 +127,13 @@ class GetModelProcess(ModelLoaderMixin):
             ['vulnerability_id', 'intensity_bin_id', 'damage_bin_id'],
             how='right').fillna(0.0)
 
-        # override 'self.vulnerabilities.value' with the merge dataframe
-        self.vulnerabilities.value = vulnerabilities_no_gap
+        # merge the
+        self.model.set_index("intensity_bin_id", inplace=True)
+        vulnerabilities_no_gap.set_index("intensity_bin_id", inplace=True)
+        self.model = self.model.join(vulnerabilities_no_gap, how="left")
 
-        self.model = merge(self.model, self.vulnerabilities.value, how='inner',
-                           on=['intensity_bin_id', 'intensity_bin_id'])
-
-        # Drop unrequired columns and dataframe to free memory
         self.model.rename(columns={"probability": "vulnerability_probability"}, inplace=True)
-        self.model.drop(['intensity_bin_id'], axis=1, inplace=True)
-        self.vulnerabilities.clear_cache()
+        # self.vulnerabilities.clear_cache()
 
     def merge_damage_bin_dict(self) -> None:
         """
@@ -117,7 +146,8 @@ class GetModelProcess(ModelLoaderMixin):
             how='inner', left_on='damage_bin_id', right_on='bin_index'
         )
         # Drop unrequired column to free memory
-        self.model.drop('bin_index', axis=1, inplace=True)
+        del self.model["bin_index"]
+        # self.model.drop('bin_index', axis=1, inplace=True)
 
         # Restore initial order and drop unrequired order column
         self.model.sort_values(
@@ -125,7 +155,8 @@ class GetModelProcess(ModelLoaderMixin):
             ascending=True, inplace=True
         )
 
-        self.model.drop('order', axis=1, inplace=True)
+        del self.model["order"]
+        self.damage_bin.clear_cache()
 
     def merge_model_with_footprint(self) -> None:
         """
@@ -141,9 +172,6 @@ class GetModelProcess(ModelLoaderMixin):
                                     inplace=True)
 
         self.model = merge(self.model, self.footprint.value, how='inner', on='event_id')
-
-        for col in ["event_id", "order", "area_peril_id", "intensity_bin_id"]:
-            self.model[col].astype(int)
 
         self.footprint.clear_cache()
 
