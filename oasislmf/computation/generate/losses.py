@@ -318,7 +318,6 @@ class GenerateLossesPartial(GenerateLossesDir):
 
         with setcwd(model_run_fp):
             try:
-                model_runner_module.run_analysis(**bash_params)
                 if self.process_number:
                     self.logger.info('Generated loss Chunk {} of {} in, {}'.format(
                         bash_params['process_number'],
@@ -327,6 +326,9 @@ class GenerateLossesPartial(GenerateLossesDir):
                     ))
                 else:
                     self.logger.info('All {} Loss chunks generated in {}'.format(bash_params['max_process_id'] ,model_run_fp))
+
+
+                return model_runner_module.run_analysis(**bash_params)
             except CalledProcessError as e:
                 self._print_error_logs(model_run_fp, e)
         return model_run_fp
@@ -370,8 +372,8 @@ class GenerateLossesOutput(GenerateLossesDir):
         )
         with setcwd(model_run_fp):
             try:
-                model_runner_module.run_outputs(**bash_params)
-                self.logger.info('Loss outputs generated in {}'.format(model_run_fp))
+                self.logger.info('Generating Loss outputs in {}'.format(model_run_fp))
+                return model_runner_module.run_outputs(**bash_params)
             except CalledProcessError as e:
                 self._print_error_logs(model_run_fp, e)
         return model_run_fp
