@@ -274,6 +274,7 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'script_fp', 'default': None},
         {'name': 'process_number', 'default': None, 'type':int, 'help': 'Partition number to run, if not set then run all in a single script'},
         {'name': 'max_process_id', 'default': -1,   'type':int, 'help': 'Max number of loss chunks, defaults to `ktools_num_processes` if not set'},
+        {'name': 'ktools_fifo_queue_dir', 'default': None, 'is_path': True, 'help': 'Override the path used for fifo processing'},
     ]
     def run(self):
         GenerateLossesDir._check_ktool_rules(self)
@@ -311,6 +312,10 @@ class GenerateLossesPartial(GenerateLossesDir):
             process_number=self.process_number,
             max_process_id=self.max_process_id,
         )
+        ## Workaround test -- needs adding into bash_params
+        if self.ktools_fifo_queue_dir:
+            bash_params['fifo_queue_dir'] = self.ktools_fifo_queue_dir
+
         with setcwd(model_run_fp):
             try:
                 model_runner_module.run_analysis(**bash_params)
