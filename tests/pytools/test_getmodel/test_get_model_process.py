@@ -328,7 +328,6 @@ class TestGetModelProcess(TestCase):
 
         """
         The commented out code block below writes the dataframes defined in this function to files.
-        Parquet and CSV is supported bepending on the block you uncomment
         """
         # mock_footprint.return_value.value.to_csv("./footprint.parquet", index=False)
         # mock_events.return_value.value.to_csv("./events.csv", index=False)
