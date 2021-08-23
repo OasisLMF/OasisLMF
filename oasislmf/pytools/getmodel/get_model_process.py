@@ -212,26 +212,22 @@ class GetModelProcess(ModelLoaderMixin):
         self.model.sort_values(by=['vulnerability_id'])
         sys.stdout.buffer.write(self.STREAM_HEADER)
 
-        for _, row in self.model[["event_id", "areaperil_id", "vulnerability_id"]].drop_duplicates().iterrows():
-            sys.stdout.buffer.write(struct.Struct('i').pack(int(row.event_id)))
-            sys.stdout.buffer.write(struct.Struct('i').pack(int(row.areaperil_id)))
-            sys.stdout.buffer.write(struct.Struct('i').pack(int(row.vulnerability_id)))
+        for i in self.model.groupby(["event_id", "areaperil_id", "vulnerability_id"]):
 
-            buffer = []
+            df = i[1]
+            header_row = df.iloc[0]
+
             net_probability = 0
-            model_rows = self.model.loc[
-                (self.model['event_id'] == row.event_id) &
-                (self.model['areaperil_id'] == row.areaperil_id) &
-                (self.model['vulnerability_id'] == row.vulnerability_id)
-            ]
-            for _, row in model_rows.iterrows():
-                net_probability += row.prob_to
-                buffer.append(struct.Struct('f').pack(float(net_probability)))
-                buffer.append(struct.Struct('f').pack(float(row.bin_mean)))
+            sys.stdout.buffer.write(struct.pack("i", int(header_row.event_id)))
+            sys.stdout.buffer.write(struct.pack("i", int(header_row.areaperil_id)))
+            sys.stdout.buffer.write(struct.pack("i", int(header_row.vulnerability_id)))
 
-            sys.stdout.buffer.write(struct.Struct('i').pack(int(len(buffer) / 2)))
-            for y in buffer:
-                sys.stdout.buffer.write(y)
+            sys.stdout.buffer.write(struct.Struct('i').pack(int(len(df.index))))
+
+            for _, row in df.iterrows():
+                net_probability += row.prob_to
+                sys.stdout.buffer.write(struct.pack("f", float(net_probability)))
+                sys.stdout.buffer.write(struct.pack("f", float(row.bin_mean)))
 
     def run(self) -> None:
         """
