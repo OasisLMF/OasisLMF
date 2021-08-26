@@ -147,12 +147,12 @@ def get_gul_input_items(
     group_id_cols = list(set(group_id_cols))
 
     # Ignore any column names used to assign group_id that are missing or not supported
-    # Valid group id columns can be either 
+    # Valid group id columns can be either
     # 1. exist in the location file
     # 2. be listed as a useful internal col
     valid_oasis_group_cols = [
         'item_id',
-        'peril_id', 
+        'peril_id',
         'coverage_id',
         'coverage_type_id',
     ]
@@ -189,7 +189,7 @@ def get_gul_input_items(
     exposure_df.loc[:, tiv_cols] = exposure_df.loc[:, tiv_cols].fillna(0.0)
     exposure_df.query(query_nonzero_tiv, inplace=True, engine='numexpr')
 
-    
+
     gul_inputs_df = exposure_df[exposure_df_gul_inputs_cols]
     gul_inputs_df.drop_duplicates('loc_id', inplace=True, ignore_index=True)
 
@@ -324,20 +324,6 @@ def get_gul_input_items(
                 col_idxs=range(len(group_id_cols)),
                 sort_opt=True
             )[0]
-    #        group_ids, group_id_tuples = factorize_ndarray(
-    #            gul_inputs_df.loc[:, group_id_cols].values,
-    #            col_idxs=range(len(group_id_cols)),
-    #            sort_opt=True)
-
-    #        gul_inputs_df['group_id'] = group_ids
-    #        import ipdb; ipdb.set_trace()
-
-    #        ## check_row_consistancy (DEBUG testing)
-    #        #import ipdb; ipdb.set_trace()
-    #        gul_rows = [r for r in gul_inputs_df[group_id_cols].drop_duplicates().itertuples(index=False, name=None)]
-    #        assert(group_id_tuples.tolist() == gul_rows)
-    #        del gul_rows, group_id_tuples
-    #        ## ----- Remove before merge --------- # 
         else:
             gul_inputs_df['group_id'] = factorize_array(
                 gul_inputs_df[group_id_cols[0]].values
