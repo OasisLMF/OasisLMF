@@ -314,21 +314,30 @@ def get_gul_input_items(
     # Set the group ID
     # If the group id is set according to the correlation group field then map this field
     # directly, otherwise create an index of the group id fields
+    group_id_cols.sort()
     if correlation_check == True:
         gul_inputs_df['group_id'] = gul_inputs_df[correlation_group_id]
     else:
         if len(group_id_cols) > 1:
-            group_ids, group_id_tuples = factorize_ndarray(
+            gul_inputs_df['group_id'] = factorize_ndarray(
                 gul_inputs_df.loc[:, group_id_cols].values,
-                col_idxs=range(len(group_id_cols)))
-            gul_inputs_df['group_id'] = group_ids
+                col_idxs=range(len(group_id_cols)),
+                sort_opt=True
+            )[0]
+    #        group_ids, group_id_tuples = factorize_ndarray(
+    #            gul_inputs_df.loc[:, group_id_cols].values,
+    #            col_idxs=range(len(group_id_cols)),
+    #            sort_opt=True)
 
-            ## check_row_consistancy (DEBUG testing)
-            #import ipdb; ipdb.set_trace()
-            gul_rows = [r for r in gul_inputs_df[group_id_cols].drop_duplicates().itertuples(index=False, name=None)]
-            assert(group_id_tuples.tolist() == gul_rows)
-            del gul_rows, group_id_tuples
-            ## ----- Remove before merge --------- # 
+    #        gul_inputs_df['group_id'] = group_ids
+    #        import ipdb; ipdb.set_trace()
+
+    #        ## check_row_consistancy (DEBUG testing)
+    #        #import ipdb; ipdb.set_trace()
+    #        gul_rows = [r for r in gul_inputs_df[group_id_cols].drop_duplicates().itertuples(index=False, name=None)]
+    #        assert(group_id_tuples.tolist() == gul_rows)
+    #        del gul_rows, group_id_tuples
+    #        ## ----- Remove before merge --------- # 
         else:
             gul_inputs_df['group_id'] = factorize_array(
                 gul_inputs_df[group_id_cols[0]].values
