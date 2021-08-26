@@ -60,7 +60,7 @@ def _process_file_type(file_type: str) -> FileTypeEnum:
 
 def main() -> None:
     """
-    Entry point of the 'new-model' command building the module and then piping it out as bytes.
+    Entry point of the 'getpymodel' command building the module and then piping it out as bytes.
 
     Returns: None
     """

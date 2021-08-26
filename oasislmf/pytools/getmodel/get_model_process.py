@@ -4,7 +4,7 @@ from typing import Optional, Tuple, Any
 
 import numpy as np
 from numba import jit, int64
-from pandas import DataFrame, merge
+from pandas import DataFrame, merge, concat
 
 from oasislmf.utils.data import merge_dataframes
 from .descriptors import HeaderTypeDescriptor
@@ -203,6 +203,23 @@ class GetModelProcess(ModelLoaderMixin):
             "interpolation": "bin_mean"
         }, inplace=True)
 
+    def calculate_cum_sum(self) -> None:
+        """
+        Calculates the cumulative probability based on the event_id, areaperil_id, and vulnerability_id and assigns
+        it to teh "prob_to" column.
+
+        Returns: None
+        """
+        self.model.sort_values(by=['vulnerability_id'])
+
+        buffer = []
+        for i in self.model.groupby(["event_id", "areaperil_id", "vulnerability_id"]):
+            df = i[1]
+            df["prob_to"] = df["prob_to"].cumsum()
+            buffer.append(df)
+
+        self.model = concat(buffer)
+
     def print_stream(self) -> None:
         """
         Prints out the stream for cdftocsv.
@@ -217,7 +234,6 @@ class GetModelProcess(ModelLoaderMixin):
             df = i[1]
             header_row = df.iloc[0]
 
-            net_probability = 0
             sys.stdout.buffer.write(struct.pack("i", int(header_row.event_id)))
             sys.stdout.buffer.write(struct.pack("i", int(header_row.areaperil_id)))
             sys.stdout.buffer.write(struct.pack("i", int(header_row.vulnerability_id)))
@@ -225,8 +241,7 @@ class GetModelProcess(ModelLoaderMixin):
             sys.stdout.buffer.write(struct.Struct('i').pack(int(len(df.index))))
 
             for _, row in df.iterrows():
-                net_probability += row.prob_to
-                sys.stdout.buffer.write(struct.pack("f", float(net_probability)))
+                sys.stdout.buffer.write(struct.pack("f", float(row.prob_to)))
                 sys.stdout.buffer.write(struct.pack("f", float(row.bin_mean)))
 
     def run(self) -> None:
@@ -242,6 +257,7 @@ class GetModelProcess(ModelLoaderMixin):
         self.merge_damage_bin_dict()
         self.calculate_probability_of_damage()
         self.define_columns_for_saving()
+        self.calculate_cum_sum()
 
     @property
     def result(self) -> Tuple[DataFrame, DataFrame, DataFrame]:
