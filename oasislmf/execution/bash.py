@@ -458,6 +458,7 @@ def do_fifos_calc(runtype, analysis_settings, max_process_id, filename, fifo_dir
                     for ord_table in output_switch.keys():
                         if summary.get('ord_output', {}).get(ord_table):
                             do_fifo_exec(runtype, process_id, filename, fifo_dir, action, f'S{summary_set}_{ord_type}')
+                            break
 
         print_command(filename, '')
 
@@ -572,7 +573,7 @@ def do_kats(
 
                         process_counter['kpid_monitor_count'] += 1
                         cmd = f'{cmd} > {output_dir}{runtype}_S{summary_set}_{v["table_name"]}.csv'
-                        cmd = f'{cmd} & kpid{process_counter["kpid_monitor_count"]}'
+                        cmd = f'{cmd} & kpid{process_counter["kpid_monitor_count"]}=$!'
                         print_command(filename, cmd)
 
 
@@ -657,6 +658,7 @@ def do_tees(runtype, analysis_settings, process_id, filename, process_counter, f
                 for ord_table in output_switch.keys():
                     if summary.get('ord_output', {}).get(ord_table):
                         cmd = f'{cmd} {get_fifo_name(fifo_dir, runtype, process_id, f"S{summary_set}_{ord_type}")}'
+                        break
 
             if summary.get('aalcalc'):
                 cmd = '{} {}{}_S{}_summaryaalcalc/P{}.bin'.format(cmd, work_dir, runtype, summary_set, process_id)
@@ -742,7 +744,7 @@ def do_ord(runtype, analysis_settings, process_id, filename, process_counter, fi
 
                 if cmd:
                     fifo_in_name = get_fifo_name(fifo_dir, runtype, process_id, f'S{summary_set}_{ord_type}')
-                    cmd += ' < {fifo_in_name}'
+                    cmd = f'{cmd} < {fifo_in_name}'
                     process_counter['pid_monitor_count'] += 1
                     cmd = f'{flag_proc["ktools_exe"]}{cmd}'
                     if stderr_guard:
