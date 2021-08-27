@@ -14,3 +14,4 @@ shutilwhich
 tabulate>=0.8.2
 tblib
 tqdm
+fastparquet>=0.3.1
