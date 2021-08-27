@@ -158,6 +158,13 @@ def process_range(max_process_id, process_number=None):
         return range(1, max_process_id + 1)
 
 
+def get_modelcmd(getmodelpy):
+    if getmodelpy:
+        return 'getpymodel'
+    else:
+        return 'getmodel'
+
+
 def get_fmcmd(fmpy, fmpy_low_memory=False, fmpy_sort_output=False):
     if fmpy:
         cmd = 'fmpy'
@@ -853,9 +860,17 @@ def do_kwaits(filename, process_counter):
 
 
 def get_getmodel_itm_cmd(
-        number_of_samples, gul_threshold, use_random_number_file,
-        gul_alloc_rule, item_output,
-        process_id, max_process_id, correlated_output, eve_shuffle_flag,  **kwargs):
+        number_of_samples, 
+        gul_threshold, 
+        use_random_number_file,
+        gul_alloc_rule, 
+        item_output,
+        process_id, 
+        max_process_id, 
+        correlated_output, 
+        eve_shuffle_flag,  
+        getmodelpy=False,
+        **kwargs):
     """
     Gets the getmodel ktools command (3.1.0+) Gulcalc item stream
     :param number_of_samples: The number of samples to run
@@ -872,10 +887,7 @@ def get_getmodel_itm_cmd(
     :type eve_shuffle_flag: str
     :return: The generated getmodel command
     """
-    cmd = 'eve {0}{1} {2} | getmodel | gulcalc -S{3} -L{4}'.format(
-        eve_shuffle_flag,
-        process_id, max_process_id,
-        number_of_samples, gul_threshold)
+    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(getmodelpy)} | gulcalc -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
         cmd = '{} -r'.format(cmd)
@@ -886,9 +898,16 @@ def get_getmodel_itm_cmd(
 
 
 def get_getmodel_cov_cmd(
-        number_of_samples, gul_threshold, use_random_number_file,
-        coverage_output, item_output,
-        process_id, max_process_id, eve_shuffle_flag, **kwargs):
+        number_of_samples, 
+        gul_threshold, 
+        use_random_number_file,
+        coverage_output, 
+        item_output,
+        process_id, 
+        max_process_id, 
+        eve_shuffle_flag, 
+        getmodelpy=False,
+        **kwargs):
     """
     Gets the getmodel ktools command (version < 3.0.8) gulcalc coverage stream
     :param number_of_samples: The number of samples to run
@@ -906,10 +925,7 @@ def get_getmodel_cov_cmd(
     :return: The generated getmodel command
     """
 
-    cmd = 'eve {0}{1} {2} | getmodel | gulcalc -S{3} -L{4}'.format(
-        eve_shuffle_flag,
-        process_id, max_process_id,
-        number_of_samples, gul_threshold)
+    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(getmodelpy)} | gulcalc -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
         cmd = '{} -r'.format(cmd)
@@ -1156,6 +1172,7 @@ def bash_params(
     fmpy_low_memory=False,
     fmpy_sort_output=False,
     event_shuffle=None,
+    getmodelpy=False,
 
     ## new options
     process_number=None,
@@ -1174,6 +1191,7 @@ def bash_params(
     bash_params['bash_trace'] = bash_trace
     bash_params['filename'] = filename
     bash_params['custom_args'] = custom_args
+    bash_params['getmodelpy'] = getmodelpy
     bash_params['fmpy'] = fmpy
     bash_params['fmpy_low_memory'] = fmpy_low_memory
     bash_params['fmpy_sort_output'] = fmpy_sort_output
@@ -1336,6 +1354,7 @@ def create_bash_analysis(
     ri_output,
     need_summary_fifo_for_gul,
     analysis_settings,
+    getmodelpy,
     **kwargs
 ):
 
@@ -1531,6 +1550,7 @@ def create_bash_analysis(
             'max_process_id': num_gul_output,
             'stderr_guard': stderr_guard,
             'eve_shuffle_flag': eve_shuffle_flag,
+            'getmodelpy': getmodelpy,
         }
 
         # GUL coverage & item stream (Older)
@@ -1849,6 +1869,7 @@ def genbash(
     fmpy_low_memory=False,
     fmpy_sort_output=False,
     event_shuffle=None,
+    getmodelpy=False,
 ):
     """
     Generates a bash script containing ktools calculation instructions for an
@@ -1910,6 +1931,7 @@ def genbash(
         fmpy_low_memory=fmpy_low_memory,
         fmpy_sort_output=fmpy_sort_output,
         event_shuffle=event_shuffle,
+        getmodelpy=getmodelpy,
     )
 
     # remove the file if it already exists
