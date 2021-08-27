@@ -64,14 +64,28 @@ ORD_ALT_OUTPUT_SWITCHES = {
     "alt_period": '-o'
 }
 
+ORD_PLT_OUTPUT_SWITCHES = {
+    "plt_sample": { 'flag': '-S', 'ktools_exe': 'pltcalc', 'table_name': 'splt' },
+    "plt_moment": { 'flag': '-M', 'ktools_exe': 'pltcalc', 'table_name': 'mplt' }
+}
+
+ORD_ELT_OUTPUT_SWITCHES = {
+    "elt_moment": { 'flag': '-M', 'ktools_exe': 'eltcalc', 'table_name': 'melt' }
+}
+
+OUTPUT_SWITCHES = {
+    "plt_ord": ORD_PLT_OUTPUT_SWITCHES,
+    "elt_ord": ORD_ELT_OUTPUT_SWITCHES
+}
+
 # placeholder warning for upcomming ORD ouputs
 ORD_NOT_IMPLEMENTED = [
     "elt_sample",
     "elt_quantile",
-    "elt_moment",
-    "plt_sample",
+#    "elt_moment",
+#    "plt_sample",
     "plt_quantile",
-    "plt_moment",
+#    "plt_moment",
 #    "alt_period",
 ]
 
@@ -440,6 +454,11 @@ def do_fifos_calc(runtype, analysis_settings, max_process_id, filename, fifo_dir
                     if summary.get(summary_type):
                         do_fifo_exec(runtype, process_id, filename, fifo_dir, action, f'S{summary_set}_{summary_type}')
 
+                for ord_type, output_switch in OUTPUT_SWITCHES.items():
+                    for ord_table in output_switch.keys():
+                        if summary.get('ord_output', {}).get(ord_table):
+                            do_fifo_exec(runtype, process_id, filename, fifo_dir, action, f'S{summary_set}_{ord_type}')
+
         print_command(filename, '')
 
 
@@ -542,6 +561,21 @@ def do_kats(
                 )
                 print_command(filename, cmd)
 
+            for ord_type, output_switch in OUTPUT_SWITCHES.items():
+                for ord_table, v in output_switch.items():
+                    if summary.get('ord_output', {}).get(ord_table):
+                        anykas = True
+
+                        cmd = 'kat'
+                        for process_id in process_range(max_process_id, process_number):
+                            cmd = f'{cmd} {work_dir}{runtype}_S{summary_set}_{ord_table}_P{process_id}'
+
+                        process_counter['kpid_monitor_count'] += 1
+                        cmd = f'{cmd} > {output_dir}{runtype}_S{summary_set}_{v["table_name"]}.csv'
+                        cmd = f'{cmd} & kpid{process_counter["kpid_monitor_count"]}'
+                        print_command(filename, cmd)
+
+
     return anykats
 
 
@@ -619,6 +653,11 @@ def do_tees(runtype, analysis_settings, process_id, filename, process_counter, f
                 if summary.get(summary_type):
                     cmd = f'{cmd} {get_fifo_name(fifo_dir, runtype, process_id, f"S{summary_set}_{summary_type}")}'
 
+            for ord_type, output_switch in OUTPUT_SWITCHES.items():
+                for ord_table in output_switch.keys():
+                    if summary.get('ord_output', {}).get(ord_table):
+                        cmd = f'{cmd} {get_fifo_name(fifo_dir, runtype, process_id, f"S{summary_set}_{ord_type}")}'
+
             if summary.get('aalcalc'):
                 cmd = '{} {}{}_S{}_summaryaalcalc/P{}.bin'.format(cmd, work_dir, runtype, summary_set, process_id)
 
@@ -675,6 +714,45 @@ def get_correlated_output_stems(fifo_dir):
     return correlated_output_stems
 
 
+def do_ord(runtype, analysis_settings, process_id, filename, process_counter, fifo_dir='fifo/', work_dir='work/', stderr_guard=True):
+    summaries = analysis_settings.get('{}_summaries'.format(runtype))
+    if not summaries:
+        return
+
+    if process_id == 1:
+        print_command(filename, '')
+
+    for summary in summaries:
+        if 'id' in summary:
+            summary_set = summary['id']
+            for ord_type, output_switch in OUTPUT_SWITCHES.items():
+                cmd = ''
+                skip_line = True
+                for ord_table, flag_proc in output_switch.items():
+                    if summary.get('ord_output', {}).get(ord_table):
+
+                        if process_id != 1 and skip_line:
+                            cmd += ' -s'
+                            skip_line = False
+
+                        cmd += f' {flag_proc["flag"]}'
+
+                        fifo_out_name = get_fifo_name(f'{work_dir}kat/', runtype, process_id, f'S{summary_set}_{ord_table}')
+                        cmd = f'{cmd} {fifo_out_name}'
+
+                if cmd:
+                    fifo_in_name = get_fifo_name(fifo_dir, runtype, process_id, f'S{summary_set}_{ord_type}')
+                    cmd += ' < {fifo_in_name}'
+                    process_counter['pid_monitor_count'] += 1
+                    cmd = f'{flag_proc["ktools_exe"]}{cmd}'
+                    if stderr_guard:
+                        cmd = f'( {cmd} ) 2>> log/stderror.err & pid{process_counter["pid_monitor_count"]}=$!'
+                    else:
+                        cmd = f'{cmd} & pid{process_counter["pid_monitor_count"]}=$!'
+
+                    print_command(filename, cmd)
+
+
 def do_any(runtype, analysis_settings, process_id, filename, process_counter, fifo_dir='fifo/', work_dir='work/', stderr_guard=True):
     summaries = analysis_settings.get('{}_summaries'.format(runtype))
     if not summaries:
@@ -698,9 +776,11 @@ def do_any(runtype, analysis_settings, process_id, filename, process_counter, fi
                         cmd += ' -s'
 
                     process_counter['pid_monitor_count'] += 1
+
                     fifo_in_name = get_fifo_name(fifo_dir, runtype, process_id, f'S{summary_set}_{summary_type}')
                     fifo_out_name = get_fifo_name(f'{work_dir}kat/', runtype, process_id, f'S{summary_set}_{summary_type}')
                     cmd = f'{cmd} < {fifo_in_name} > {fifo_out_name}'
+
                     if stderr_guard:
                         cmd = f'( {cmd} ) 2>> log/stderror.err & pid{process_counter["pid_monitor_count"]}=$!'
                     else:
@@ -708,9 +788,13 @@ def do_any(runtype, analysis_settings, process_id, filename, process_counter, fi
 
                     print_command(filename, cmd)
 
+
 def ri(analysis_settings, max_process_id, filename, process_counter, num_reinsurance_iterations, fifo_dir='fifo/', work_dir='work/', stderr_guard=True, process_number=None):
     for process_id in process_range(max_process_id, process_number):
         do_any(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
+
+    for process_id in process_range(max_process_id, process_number):
+        do_ord(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
 
     for process_id in process_range(max_process_id, process_number):
         do_tees(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir)
@@ -730,6 +814,9 @@ def ri(analysis_settings, max_process_id, filename, process_counter, num_reinsur
 def il(analysis_settings, max_process_id, filename, process_counter, fifo_dir='fifo/', work_dir='work/', stderr_guard=True, process_number=None):
     for process_id in process_range(max_process_id, process_number):
         do_any(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
+
+    for process_id in process_range(max_process_id, process_number):
+        do_ord(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
 
     for process_id in process_range(max_process_id, process_number):
         do_tees(RUNTYPE_INSURED_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir)
@@ -759,6 +846,9 @@ def do_gul(
 
     for process_id in process_range(max_process_id, process_number):
         do_any(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
+
+    for process_id in process_range(max_process_id, process_number):
+        do_ord(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir, stderr_guard)
 
     for process_id in process_range(max_process_id, process_number):
         do_tees(RUNTYPE_GROUNDUP_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir)
