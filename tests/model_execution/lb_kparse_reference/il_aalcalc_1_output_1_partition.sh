@@ -35,6 +35,7 @@ mkfifo fifo/lb_il_P2
 # --- Do insured loss computes ---
 
 
+
 tee < fifo/il_S1_summary_P1 work/il_S1_summaryaalcalc/P1.bin > /dev/null & pid1=$!
 tee < fifo/il_S1_summary_P2 work/il_S1_summaryaalcalc/P2.bin > /dev/null & pid2=$!
 

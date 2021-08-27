@@ -25,6 +25,7 @@ mkfifo fifo/gul_S1_summary_P1
 # --- Do ground up loss computes ---
 
 
+
 tee < fifo/gul_S1_summary_P1 work/gul_S1_summaryaalcalc/P1.bin > /dev/null & pid1=$!
 
 summarycalc -m -g  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &

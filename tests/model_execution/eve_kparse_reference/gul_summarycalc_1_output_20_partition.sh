@@ -121,6 +121,7 @@ summarycalctocsv -s < fifo/gul_S1_summarycalc_P18 > work/kat/gul_S1_summarycalc_
 summarycalctocsv -s < fifo/gul_S1_summarycalc_P19 > work/kat/gul_S1_summarycalc_P19 & pid19=$!
 summarycalctocsv -s < fifo/gul_S1_summarycalc_P20 > work/kat/gul_S1_summarycalc_P20 & pid20=$!
 
+
 tee < fifo/gul_S1_summary_P1 fifo/gul_S1_summarycalc_P1 > /dev/null & pid21=$!
 tee < fifo/gul_S1_summary_P2 fifo/gul_S1_summarycalc_P2 > /dev/null & pid22=$!
 tee < fifo/gul_S1_summary_P3 fifo/gul_S1_summarycalc_P3 > /dev/null & pid23=$!

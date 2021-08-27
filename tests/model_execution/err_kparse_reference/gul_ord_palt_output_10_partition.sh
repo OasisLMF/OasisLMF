@@ -109,6 +109,7 @@ mkfifo fifo/gul_S2_summary_P10
 # --- Do ground up loss computes ---
 
 
+
 tee < fifo/gul_S1_summary_P1 work/gul_S1_summary_palt/P1.bin > /dev/null & pid1=$!
 tee < fifo/gul_S2_summary_P1 work/gul_S2_summary_palt/P1.bin > /dev/null & pid2=$!
 tee < fifo/gul_S1_summary_P2 work/gul_S1_summary_palt/P2.bin > /dev/null & pid3=$!
