@@ -265,6 +265,7 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'ktools_num_fm_per_lb',   'default': KTOOL_N_FM_PER_LB,        'type':int, 'help': 'Number of fm per load balancer (0 means no load balancer)'},
         {'name': 'ktools_disable_guard',   'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Disables error handling in the ktools run script (abort on non-zero exitcode or output on stderr)'},
         {'name': 'ktools_fifo_relative',   'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Create ktools fifo queues under the ./fifo dir'},
+        {'name': 'getmodelpy',             'default': True, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use getmodel python version instead of c++ version'},
         {'name': 'fmpy',                   'default': True, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory',        'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output',       'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'order fmpy output by item_id'},
@@ -274,6 +275,7 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'script_fp', 'default': None},
         {'name': 'process_number', 'default': None, 'type':int, 'help': 'Partition number to run, if not set then run all in a single script'},
         {'name': 'max_process_id', 'default': -1,   'type':int, 'help': 'Max number of loss chunks, defaults to `ktools_num_processes` if not set'},
+        {'name': 'ktools_fifo_queue_dir', 'default': None, 'is_path': True, 'help': 'Override the path used for fifo processing'},
     ]
     def run(self):
         GenerateLossesDir._check_ktool_rules(self)
@@ -310,10 +312,14 @@ class GenerateLossesPartial(GenerateLossesDir):
             event_shuffle=self.ktools_event_shuffle,
             process_number=self.process_number,
             max_process_id=self.max_process_id,
+            getmodelpy=self.getmodelpy,
         )
+        ## Workaround test -- needs adding into bash_params
+        if self.ktools_fifo_queue_dir:
+            bash_params['fifo_queue_dir'] = self.ktools_fifo_queue_dir
+
         with setcwd(model_run_fp):
             try:
-                model_runner_module.run_analysis(**bash_params)
                 if self.process_number:
                     self.logger.info('Generated loss Chunk {} of {} in, {}'.format(
                         bash_params['process_number'],
@@ -322,6 +328,9 @@ class GenerateLossesPartial(GenerateLossesDir):
                     ))
                 else:
                     self.logger.info('All {} Loss chunks generated in {}'.format(bash_params['max_process_id'] ,model_run_fp))
+
+
+                return model_runner_module.run_analysis(**bash_params)
             except CalledProcessError as e:
                 self._print_error_logs(model_run_fp, e)
         return model_run_fp
@@ -365,8 +374,8 @@ class GenerateLossesOutput(GenerateLossesDir):
         )
         with setcwd(model_run_fp):
             try:
-                model_runner_module.run_outputs(**bash_params)
-                self.logger.info('Loss outputs generated in {}'.format(model_run_fp))
+                self.logger.info('Generating Loss outputs in {}'.format(model_run_fp))
+                return model_runner_module.run_outputs(**bash_params)
             except CalledProcessError as e:
                 self._print_error_logs(model_run_fp, e)
         return model_run_fp
@@ -414,6 +423,7 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'ktools_num_fm_per_lb',   'default': KTOOL_N_FM_PER_LB,        'type':int, 'help': 'Number of fm per load balancer (0 means no load balancer)'},
         {'name': 'ktools_disable_guard',   'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Disables error handling in the ktools run script (abort on non-zero exitcode or output on stderr)'},
         {'name': 'ktools_fifo_relative',   'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Create ktools fifo queues under the ./fifo dir'},
+        {'name': 'getmodelpy',             'default': True, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use getmodel python version instead of c++ version'},
         {'name': 'fmpy',                   'default': True, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory',        'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output',       'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'order fmpy output by item_id'},
@@ -452,6 +462,7 @@ class GenerateLosses(GenerateLossesDir):
                         fmpy_low_memory=self.fmpy_low_memory,
                         fmpy_sort_output=self.fmpy_sort_output,
                         event_shuffle=self.ktools_event_shuffle,
+                        getmodelpy=self.getmodelpy,
                     )
                 except TypeError:
                     warnings.simplefilter("always")
