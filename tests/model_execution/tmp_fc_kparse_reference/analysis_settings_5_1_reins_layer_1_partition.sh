@@ -67,12 +67,14 @@ mkfifo /tmp/%FIFO_DIR%/fifo/full_correlation/ri_S1_summary_P1.idx
 # --- Do reinsurance loss computes ---
 
 
+
 tee < /tmp/%FIFO_DIR%/fifo/ri_S1_summary_P1 work/ri_S1_summaryleccalc/P1.bin > /dev/null & pid1=$!
 tee < /tmp/%FIFO_DIR%/fifo/ri_S1_summary_P1.idx work/ri_S1_summaryleccalc/P1.idx > /dev/null & pid2=$!
 
 summarycalc -m -f -p RI_1 -1 /tmp/%FIFO_DIR%/fifo/ri_S1_summary_P1 < /tmp/%FIFO_DIR%/fifo/ri_P1 &
 
 # --- Do insured loss computes ---
+
 
 
 tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P1 work/il_S1_summaryleccalc/P1.bin > /dev/null & pid3=$!
@@ -86,11 +88,13 @@ eltcalc < /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P1 > work/kat/gul_S1_eltcalc_P1 & 
 summarycalctocsv < /tmp/%FIFO_DIR%/fifo/gul_S1_summarycalc_P1 > work/kat/gul_S1_summarycalc_P1 & pid6=$!
 pltcalc < /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P1 > work/kat/gul_S1_pltcalc_P1 & pid7=$!
 
+
 tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1 /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P1 /tmp/%FIFO_DIR%/fifo/gul_S1_summarycalc_P1 /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P1 work/gul_S1_summaryaalcalc/P1.bin > /dev/null & pid8=$!
 
 summarycalc -m -i  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P1 < /tmp/%FIFO_DIR%/fifo/gul_P1 &
 
 # --- Do reinsurance loss computes ---
+
 
 
 tee < /tmp/%FIFO_DIR%/fifo/full_correlation/ri_S1_summary_P1 work/full_correlation/ri_S1_summaryleccalc/P1.bin > /dev/null & pid9=$!
@@ -99,6 +103,7 @@ tee < /tmp/%FIFO_DIR%/fifo/full_correlation/ri_S1_summary_P1.idx work/full_corre
 summarycalc -m -f -p RI_1 -1 /tmp/%FIFO_DIR%/fifo/full_correlation/ri_S1_summary_P1 < /tmp/%FIFO_DIR%/fifo/full_correlation/ri_P1 &
 
 # --- Do insured loss computes ---
+
 
 
 tee < /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summary_P1 work/full_correlation/il_S1_summaryleccalc/P1.bin > /dev/null & pid11=$!
@@ -111,6 +116,7 @@ summarycalc -m -f  -1 /tmp/%FIFO_DIR%/fifo/full_correlation/il_S1_summary_P1 < /
 eltcalc < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_eltcalc_P1 > work/full_correlation/kat/gul_S1_eltcalc_P1 & pid13=$!
 summarycalctocsv < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summarycalc_P1 > work/full_correlation/kat/gul_S1_summarycalc_P1 & pid14=$!
 pltcalc < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_pltcalc_P1 > work/full_correlation/kat/gul_S1_pltcalc_P1 & pid15=$!
+
 
 tee < /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summary_P1 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_eltcalc_P1 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_summarycalc_P1 /tmp/%FIFO_DIR%/fifo/full_correlation/gul_S1_pltcalc_P1 work/full_correlation/gul_S1_summaryaalcalc/P1.bin > /dev/null & pid16=$!
 

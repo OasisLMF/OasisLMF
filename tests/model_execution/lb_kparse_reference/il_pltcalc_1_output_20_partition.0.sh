@@ -27,6 +27,7 @@ mkfifo fifo/il_S1_pltcalc_P1
 
 pltcalc < fifo/il_S1_pltcalc_P1 > work/kat/il_S1_pltcalc_P1 & pid1=$!
 
+
 tee < fifo/il_S1_summary_P1 fifo/il_S1_pltcalc_P1 > /dev/null & pid2=$!
 
 summarycalc -m -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 &

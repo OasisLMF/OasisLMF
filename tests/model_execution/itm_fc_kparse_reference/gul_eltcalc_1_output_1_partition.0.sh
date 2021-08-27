@@ -35,6 +35,7 @@ mkfifo fifo/full_correlation/gul_S1_eltcalc_P1
 
 eltcalc < fifo/gul_S1_eltcalc_P1 > work/kat/gul_S1_eltcalc_P1 & pid1=$!
 
+
 tee < fifo/gul_S1_summary_P1 fifo/gul_S1_eltcalc_P1 > /dev/null & pid2=$!
 
 summarycalc -m -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
@@ -42,6 +43,7 @@ summarycalc -m -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
 # --- Do ground up loss computes ---
 
 eltcalc < fifo/full_correlation/gul_S1_eltcalc_P1 > work/full_correlation/kat/gul_S1_eltcalc_P1 & pid3=$!
+
 
 tee < fifo/full_correlation/gul_S1_summary_P1 fifo/full_correlation/gul_S1_eltcalc_P1 > /dev/null & pid4=$!
 
