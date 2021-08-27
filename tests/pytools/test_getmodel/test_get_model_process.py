@@ -1,3 +1,4 @@
+import os 
 from unittest import TestCase, main
 from unittest.mock import patch, PropertyMock
 
@@ -18,6 +19,8 @@ class TestGetModelProcess(TestCase):
         merge_damage_bin_dict
         """
         self.test = GetModelProcess(data_path=".")
+        script_dir =  os.path.dirname(os.path.realpath(__file__))
+        os.chdir(script_dir)
 
 
     # def test__data_loading(self):
