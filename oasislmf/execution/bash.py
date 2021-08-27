@@ -65,22 +65,35 @@ ORD_ALT_OUTPUT_SWITCHES = {
 }
 
 ORD_PLT_OUTPUT_SWITCHES = {
-    "plt_sample": { 'flag': '-S', 'ktools_exe': 'pltcalc', 'table_name': 'splt' },
-    "plt_moment": { 'flag': '-M', 'ktools_exe': 'pltcalc', 'table_name': 'mplt' }
+    "plt_sample": {
+        'flag': '-S', 'ktools_exe': 'pltcalc', 'table_name': 'splt'
+    },
+    "plt_moment": {
+        'flag': '-M', 'ktools_exe': 'pltcalc', 'table_name': 'mplt'
+    }
 }
 
 ORD_ELT_OUTPUT_SWITCHES = {
-    "elt_moment": { 'flag': '-M', 'ktools_exe': 'eltcalc', 'table_name': 'melt' }
+    "elt_moment": {
+        'flag': '-M', 'ktools_exe': 'eltcalc', 'table_name': 'melt'
+    }
+}
+
+ORD_SELT_OUTPUT_SWITCH = {
+    "elt_sample": {
+        'flag': '-o', 'ktools_exe': 'summarycalctocsv', 'table_name': 'selt'
+    }
 }
 
 OUTPUT_SWITCHES = {
     "plt_ord": ORD_PLT_OUTPUT_SWITCHES,
-    "elt_ord": ORD_ELT_OUTPUT_SWITCHES
+    "elt_ord": ORD_ELT_OUTPUT_SWITCHES,
+    "selt_ord": ORD_SELT_OUTPUT_SWITCH
 }
 
 # placeholder warning for upcomming ORD ouputs
 ORD_NOT_IMPLEMENTED = [
-    "elt_sample",
+#    "elt_sample",
     "elt_quantile",
 #    "elt_moment",
 #    "plt_sample",
@@ -729,6 +742,7 @@ def do_ord(runtype, analysis_settings, process_id, filename, process_counter, fi
             summary_set = summary['id']
             for ord_type, output_switch in OUTPUT_SWITCHES.items():
                 cmd = ''
+                fifo_out_name = ''
                 skip_line = True
                 for ord_table, flag_proc in output_switch.items():
                     if summary.get('ord_output', {}).get(ord_table):
@@ -740,11 +754,14 @@ def do_ord(runtype, analysis_settings, process_id, filename, process_counter, fi
                         cmd += f' {flag_proc["flag"]}'
 
                         fifo_out_name = get_fifo_name(f'{work_dir}kat/', runtype, process_id, f'S{summary_set}_{ord_table}')
-                        cmd = f'{cmd} {fifo_out_name}'
+                        if ord_type != 'selt_ord':
+                            cmd = f'{cmd} {fifo_out_name}'
 
                 if cmd:
                     fifo_in_name = get_fifo_name(fifo_dir, runtype, process_id, f'S{summary_set}_{ord_type}')
                     cmd = f'{cmd} < {fifo_in_name}'
+                    if ord_type == 'selt_ord':
+                        cmd = f'{cmd} > {fifo_out_name}'
                     process_counter['pid_monitor_count'] += 1
                     cmd = f'{flag_proc["ktools_exe"]}{cmd}'
                     if stderr_guard:
