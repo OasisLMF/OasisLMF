@@ -147,12 +147,12 @@ def get_gul_input_items(
     group_id_cols = list(set(group_id_cols))
 
     # Ignore any column names used to assign group_id that are missing or not supported
-    # Valid group id columns can be either 
+    # Valid group id columns can be either
     # 1. exist in the location file
     # 2. be listed as a useful internal col
     valid_oasis_group_cols = [
         'item_id',
-        'peril_id', 
+        'peril_id',
         'coverage_id',
         'coverage_type_id',
     ]
@@ -189,7 +189,7 @@ def get_gul_input_items(
     exposure_df.loc[:, tiv_cols] = exposure_df.loc[:, tiv_cols].fillna(0.0)
     exposure_df.query(query_nonzero_tiv, inplace=True, engine='numexpr')
 
-    
+
     gul_inputs_df = exposure_df[exposure_df_gul_inputs_cols]
     gul_inputs_df.drop_duplicates('loc_id', inplace=True, ignore_index=True)
 
@@ -314,6 +314,7 @@ def get_gul_input_items(
     # Set the group ID
     # If the group id is set according to the correlation group field then map this field
     # directly, otherwise create an index of the group id fields
+    group_id_cols.sort()
     if correlation_check == True:
         gul_inputs_df['group_id'] = gul_inputs_df[correlation_group_id]
     else:
