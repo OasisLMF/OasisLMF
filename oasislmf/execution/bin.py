@@ -298,7 +298,7 @@ def prepare_run_inputs(analysis_settings, run_dir, ri=False):
                 _prepare_input_bin(run_dir, 'returnperiods', model_settings)
 
             _prepare_input_bin(run_dir, 'occurrence', model_settings, setting_key='event_occurrence_id', ri=ri)
-        elif _calc_selected(analysis_settings, ['pltcalc', 'aalcalc', 'alt_period']):
+        elif _calc_selected(analysis_settings, ['pltcalc', 'aalcalc', 'alt_period', 'elt_moment', 'elt_sample', 'plt_moment', 'plt_sample']):
             _prepare_input_bin(run_dir, 'occurrence', model_settings, setting_key='event_occurrence_id', ri=ri)
 
         if os.path.exists(os.path.join(run_dir, 'static', 'periods.bin')):
