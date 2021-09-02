@@ -24,7 +24,7 @@ def run(create_financial_structure_files, **kwargs):
         return run_synchronous(**kwargs)
 
 
-def run_synchronous(allocation_rule, files_in, files_out, net_loss,  **kwargs):
+def run_synchronous(allocation_rule, files_in, files_out, net_loss,  storage_method, **kwargs):
     if allocation_rule == 3:
         allocation_rule = 2
     elif allocation_rule == 0 and net_loss:
@@ -42,7 +42,7 @@ def run_synchronous(allocation_rule, files_in, files_out, net_loss,  **kwargs):
         for stream_in in streams_in:
             stream_type, max_sidx_val = read_stream_header(stream_in)
 
-        if max_sidx_val > 14:# is max sidx val is 14 or less, in dense mode we have arrays of 16 cells or less
+        if storage_method == "sparse":
             run_synchronous_sparse(max_sidx_val, allocation_rule, streams_in=streams_in, files_out = files_out, net_loss=net_loss, **kwargs)
         else:
             run_synchronous_dense(max_sidx_val, allocation_rule, streams_in=streams_in, files_out = files_out, net_loss=net_loss, **kwargs)
@@ -96,8 +96,6 @@ def run_synchronous_sparse(max_sidx_val, allocation_rule, static_path, streams_i
 
     compute_info = compute_info[0]
     stepped = True if compute_info['stepped'] else None  # https://github.com/numba/numba/issues/4108
-    if files_out is not None:
-        files_out = files_out[0]
 
     if sort_output:
         event_writer_cls = EventWriterOrderedOutputSparse

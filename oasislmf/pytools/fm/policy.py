@@ -34,7 +34,8 @@ def deductible_over_max(i, loss_out, loss_in, deductible, over_limit, under_limi
     if loss_delta > under_limit[i]:
         loss_out[i] = loss_in[i] + under_limit[i]
         over_limit[i] += loss_delta - under_limit[i]
-        deductible[i] = max_deductible
+        deductible[i] -= under_limit[i]
+        under_limit[i] = 0
     elif loss_in[i] >= -loss_delta :
         loss_out[i] = loss_in[i] + loss_delta
         under_limit[i] -= loss_delta

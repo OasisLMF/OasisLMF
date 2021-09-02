@@ -113,9 +113,9 @@ def test_calcrule_7():
     calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, None)
 
     loss_expected = np.array([10., 13., 20., 20., 25., 30., 0., 15., 30])
-    deductible_expected = np.array([10., 10., 10., 20., 20., 20., 17., 15., 15])
+    deductible_expected = np.array([10., 10., 10., 30., 25., 20., 17., 15., 15])
     over_limit_expected = np.array([0., 0., 5., 20., 15., 0., 0., 10., 35])
-    under_limit_expected = np.array([5., 12., 10., 0., 5., 0., 1., 15., 0.])
+    under_limit_expected = np.array([5., 12., 10., 0., 0., 0., 1., 15., 0.])
 
     assert_array_almost_equal(loss_out, loss_expected)
     assert_array_almost_equal(deductible, deductible_expected)
@@ -153,9 +153,9 @@ def test_calcrule_10():
     calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, None)
 
     loss_expected = np.array([15., 15., 15., 20., 25., 30., 0., 15., 55])
-    deductible_expected = np.array([5., 5., 5., 20., 20., 20., 17., 15., 15])
+    deductible_expected = np.array([5., 5., 5., 30., 25., 20., 17., 15., 15])
     over_limit_expected = np.array([0., 3., 10., 20., 15., 0., 0., 10., 10])
-    under_limit_expected = np.array([5., 15., 15., 0., 5., 5., 1., 15., 15.])
+    under_limit_expected = np.array([5., 15., 15., 0., 0., 5., 1., 15., 15.])
 
     assert_array_almost_equal(loss_out, loss_expected)
     assert_array_almost_equal(deductible, deductible_expected)
@@ -213,9 +213,9 @@ def test_calcrule_13():
     calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, None)
 
     loss_expected = np.array([10., 13., 20., 20., 25., 30., 0., 15., 55])
-    deductible_expected = np.array([10., 10., 10., 20., 20., 20., 17., 15., 15])
+    deductible_expected = np.array([10., 10., 10., 30., 25., 20., 17., 15., 15])
     over_limit_expected = np.array([0., 0., 5., 20., 15., 0., 0., 10., 10])
-    under_limit_expected = np.array([5., 12., 10., 0., 5., 5., 1., 15., 15.])
+    under_limit_expected = np.array([5., 12., 10., 0., 0., 5., 1., 15., 15.])
 
     assert_array_almost_equal(loss_out, loss_expected)
     assert_array_almost_equal(deductible, deductible_expected)
@@ -313,9 +313,9 @@ def test_calcrule_19():
     calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, None)
 
     loss_expected = np.array([10., 13., 20., 20., 25., 30., 0.75, 15., 50])
-    deductible_expected = np.array([10., 10., 10., 20., 20., 20., 16.25, 15., 20])
+    deductible_expected = np.array([10., 10., 10., 30., 25., 20., 16.25, 15., 20])
     over_limit_expected = np.array([0., 0., 0.25, 20., 15., 0., 0., 10., 10])
-    under_limit_expected = np.array([9.75, 16.75, 10., 0., 5., 5., 0.25, 15., 20.])
+    under_limit_expected = np.array([9.75, 16.75, 10., 0., 0., 5., 0.25, 15., 20.])
 
     assert_array_almost_equal(loss_out, loss_expected)
     assert_array_almost_equal(deductible, deductible_expected)
@@ -427,9 +427,9 @@ def test_calcrule_26():
     calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, None)
 
     loss_expected = np.array([10., 13., 20., 20., 25., 30., 0.75, 15., 30])
-    deductible_expected = np.array([10., 10., 10., 20., 20., 20., 16.25, 15., 20])
+    deductible_expected = np.array([10., 10., 10., 30., 25., 20., 16.25, 15., 20])
     over_limit_expected = np.array([0., 0., 5., 20., 15., 0., 0., 10., 30])
-    under_limit_expected = np.array([5., 12., 10., 0., 5., 0., 0.25, 15., 0.])
+    under_limit_expected = np.array([5., 12., 10., 0., 0., 0., 0.25, 15., 0.])
 
     assert_array_almost_equal(loss_out, loss_expected)
     assert_array_almost_equal(deductible, deductible_expected)
@@ -488,7 +488,7 @@ def test_calcrule_35():
     calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, None)
 
     loss_expected = np.array([10., 13., 16., 16., 16., 16., 0.75, 15., 48])
-    deductible_expected = np.array([10., 10., 10., 20., 20., 20., 16.25, 15., 20])
+    deductible_expected = np.array([10., 10., 10., 30., 25., 20., 16.25, 15., 20])
     over_limit_expected = np.array([0., 0., 9., 24., 24., 14., 0., 10., 12])
     under_limit_expected = np.array([5., 3., 0., 0., 0., 0., 0.05, 1., 0.])
 
@@ -508,7 +508,7 @@ def test_calcrule_36():
     calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, None)
 
     loss_expected = np.array([10., 13., 16., 16., 16., 16., 0., 15., 48])
-    deductible_expected = np.array([10., 10., 10., 20., 20., 20., 17, 15., 15])
+    deductible_expected = np.array([10., 10., 10., 30., 25., 20., 17, 15., 15])
     over_limit_expected = np.array([0., 0., 9., 24., 24., 14., 0., 10., 17])
     under_limit_expected = np.array([5., 3., 0., 0., 0., 0., 0.8, 1., 0.])
 
