@@ -1,6 +1,12 @@
 OasisLMF Changelog
 ==================
 
+`1.15.15`_
+ ---------
+* [#896](https://github.com/OasisLMF/OasisLMF/pull/896) - Set ktools to version v3.6.4
+* [#892](https://github.com/OasisLMF/OasisLMF/pull/893) - inconsistent assignment of group_id in items file leads to non-repeatable results for the same input
+.. _`1.15.15`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.14...1.15.15
+
 `1.15.14`_
  ---------
 * [#856](https://github.com/OasisLMF/OasisLMF/pull/880) - improve memory usage of fmpy
