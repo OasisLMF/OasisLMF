@@ -1,5 +1,6 @@
 from .policy import calc
-from .common import np_oasis_float, np_oasis_int, EXTRA_VALUES
+from .policy_extras import calc as calc_extra
+from .common import np_oasis_float, np_oasis_int, EXTRA_VALUES, null_index
 
 from numba import njit
 import numpy as np
@@ -8,61 +9,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-@njit(cache=True)
-def merge_2_sorted_array(storage_array_a, ptr_a, end_a, storage_array_b, ptr_b, end_b, storage_array_res, ptr_res):
-    while ptr_a < end_a and ptr_b < end_b:
-        if storage_array_a[ptr_a] == storage_array_b[ptr_b]:
-            storage_array_res[ptr_res] = storage_array_a[ptr_a]
-            ptr_a += 1
-            ptr_b += 1
-
-        elif storage_array_a[ptr_a] < storage_array_b[ptr_b]:
-            storage_array_res[ptr_res] = storage_array_a[ptr_a]
-            ptr_a += 1
-
-        else:
-            storage_array_res[ptr_res] = storage_array_b[ptr_b]
-            ptr_b += 1
-        ptr_res += 1
-
-    while ptr_a < end_a:
-        storage_array_res[ptr_res] = storage_array_a[ptr_a]
-        ptr_a += 1
-        ptr_res += 1
-
-    while ptr_b < end_b:
-        storage_array_res[ptr_res] = storage_array_b[ptr_b]
-        ptr_b += 1
-        ptr_res += 1
-    return ptr_res
-
-
-@njit(cache=True)
-def single_array_to_sparse(sidx, sidx_ptr_i, sidx_val, temp_node_sidx,
-                           loss_ptr_i, loss_val, temp_node_loss,
-                           extras_ptr_i, extras_val, temp_node_extras):
-    """
-    sidx: values to put in the sparse array
-    sidx_ptr_i: index of the next sparse sidx value
-    sidx_val: sparse array to store the sidx
-    temp_node_sidx: dense array of sidx
-        """
-    sidx_val[sidx_ptr_i] = sidx
-    temp_node_sidx[sidx] = False
-
-    loss_val[loss_ptr_i] = temp_node_loss[sidx]
-    temp_node_loss[sidx] = 0
-
-    extras_val[extras_ptr_i] = temp_node_extras[sidx]
-    temp_node_extras[sidx] = 0
-    return sidx_ptr_i + 1, loss_ptr_i + 1, extras_ptr_i + 1,
-
-
 @njit(cache=True, fastmath=True, error_model="numpy")
 def back_allocate(node, children, nodes_array, sidx_indexes, sidx_indptr, sidx_val,
                   loss_indptr, loss_val, loss_ptr_i,
                   extras_indptr, extras_val,
-                  computes, next_compute_i, child_loss_pointer, temp_proportion):
+                  computes, next_compute_i, child_loss_pointer, temp_proportion, temp_realloc):
     len_children = children[node['children']]
 
     if len_children > 1:
@@ -70,55 +21,77 @@ def back_allocate(node, children, nodes_array, sidx_indexes, sidx_indptr, sidx_v
         node_sidx_end = sidx_indptr[sidx_indexes[node['node_id']] + 1]
 
         for layer in range(node['layer_len']):
-            node_ba_loss_cur = loss_indptr[node['ba'] + layer]
-            node_sum_loss_cur = loss_indptr[node['loss'] + layer]
-            node_extra_cur = extras_indptr[node['extra'] + layer]
-            # print(node['node_id'], 'node_ba_loss_cur', (node_sidx_end - node_sidx_start), loss_val[node_ba_loss_cur:node_ba_loss_cur + node_sidx_end - node_sidx_start])
-            for node_sidx_cur in range(node_sidx_start, node_sidx_end):
-                sidx = sidx_val[node_sidx_cur]
-                if loss_val[node_ba_loss_cur]:
-                    if loss_val[node_ba_loss_cur] > loss_val[node_sum_loss_cur]:
-                        node_extras_sum = np.zeros_like(extras_val[node_extra_cur])
-                        for c in range(node['children'] + 1, node['children'] + len_children + 1):
-                            child = nodes_array[children[c]]
-                            child_sidx_i = np.searchsorted(sidx_val[sidx_indptr[sidx_indexes[child['node_id']]]:sidx_indptr[sidx_indexes[child['node_id']] + 1]], sidx)
-                            if sidx == sidx_val[sidx_indptr[sidx_indexes[child['node_id']]] + child_sidx_i]:
-                                node_extras_sum += extras_val[extras_indptr[child['extra'] + layer] + child_sidx_i]
+            if node['realloc'] != null_index:
+                node_sum_loss_cur = loss_indptr[node['loss'] + layer]
+                node_ba_loss_cur = loss_indptr[node['ba'] + layer]
+                node_under_limit_sum_cur = loss_indptr[node['under_limit_sum'] + layer]
+                node_realloc_loss_cur = loss_indptr[node['realloc'] + layer]
 
-                        if node_extras_sum[0] >  extras_val[node_extra_cur, 0]:
-                            temp_proportion[sidx] = (loss_val[node_sum_loss_cur] - loss_val[node_ba_loss_cur]) / node_extras_sum[2]
+                for node_sidx_cur in range(node_sidx_start, node_sidx_end):
+                    sidx = sidx_val[node_sidx_cur]
+                    if loss_val[node_ba_loss_cur]:
+                        if loss_val[node_realloc_loss_cur] and loss_val[node_under_limit_sum_cur]:
+                            temp_proportion[sidx] = loss_val[node_ba_loss_cur] / (loss_val[node_sum_loss_cur] + loss_val[node_realloc_loss_cur])
+                            temp_realloc[sidx] = loss_val[node_realloc_loss_cur] / loss_val[node_under_limit_sum_cur]
                         else:
                             temp_proportion[sidx] = loss_val[node_ba_loss_cur] / loss_val[node_sum_loss_cur]
+                            temp_realloc[sidx] = 0
                     else:
+                        temp_proportion[sidx] = 0
+                        temp_realloc[sidx] = 0
+
+                    node_sum_loss_cur += 1
+                    node_ba_loss_cur += 1
+                    node_under_limit_sum_cur += 1
+                    node_realloc_loss_cur += 1
+
+                for c in range(node['children'] + 1, node['children'] + len_children + 1):
+                    child = nodes_array[children[c]]
+                    child_sidx_start = sidx_indptr[sidx_indexes[child['node_id']]]
+                    child_sidx_end = sidx_indptr[sidx_indexes[child['node_id']] + 1]
+                    child_il_cur = loss_indptr[child[child_loss_pointer] + layer]
+                    child_realloc_cur = loss_indptr[child['realloc'] + layer]
+                    child_extra_cur = extras_indptr[child['extra'] + layer]
+                    loss_indptr[child['ba'] + layer] = loss_ptr_i
+                    for child_sidx_cur in range(child_sidx_start, child_sidx_end):
+                        sidx = sidx_val[child_sidx_cur]
+                        if temp_proportion[sidx]:
+                            if temp_realloc[sidx]:
+                                realloc = extras_val[child_extra_cur, 2] * temp_realloc[sidx]
+                                loss_val[loss_ptr_i] = (loss_val[child_il_cur] + realloc) * temp_proportion[sidx]
+                                loss_val[child_realloc_cur] += realloc
+                            else:
+                                loss_val[loss_ptr_i] = loss_val[child_il_cur] * temp_proportion[sidx]
+                        else:
+                            loss_val[loss_ptr_i] = 0
+
+                        child_il_cur += 1
+                        child_realloc_cur += 1
+                        child_extra_cur += 1
+                        loss_ptr_i += 1
+            else:
+                node_sum_loss_cur = loss_indptr[node['loss'] + layer]
+                node_ba_loss_cur = loss_indptr[node['ba'] + layer]
+                for node_sidx_cur in range(node_sidx_start, node_sidx_end):
+                    sidx = sidx_val[node_sidx_cur]
+                    if loss_val[node_ba_loss_cur]:
                         temp_proportion[sidx] = loss_val[node_ba_loss_cur] / loss_val[node_sum_loss_cur]
-
-                else:
-                    temp_proportion[sidx] = 0
-                node_ba_loss_cur += 1
-                node_sum_loss_cur += 1
-                node_extra_cur += 1
-
-            for c in range(node['children'] + 1, node['children'] + len_children + 1):
-                child = nodes_array[children[c]]
-                child_sidx_start = sidx_indptr[sidx_indexes[child['node_id']]]
-                child_sidx_end = sidx_indptr[sidx_indexes[child['node_id']] + 1]
-                child_il_cur = loss_indptr[child[child_loss_pointer] + layer]
-                child_extra_cur = extras_indptr[child['extra'] + layer]
-                loss_indptr[child['ba'] + layer] = loss_ptr_i
-                for child_sidx_cur in range(child_sidx_start, child_sidx_end):
-                    proportion = temp_proportion[sidx_val[child_sidx_cur]]
-                    if proportion > 0:
-                        loss_val[loss_ptr_i] = loss_val[child_il_cur] * proportion
-                    elif proportion == 0:
-                        loss_val[loss_ptr_i] = 0
                     else:
-                        realloc = extras_val[child_extra_cur, 2] * proportion
-                        loss_val[loss_ptr_i] = loss_val[child_il_cur] - realloc
-                        extras_val[child_extra_cur, 0] += realloc
+                        temp_proportion[sidx] = 0
+                    node_sum_loss_cur += 1
+                    node_ba_loss_cur += 1
 
-                    child_il_cur += 1
-                    child_extra_cur += 1
-                    loss_ptr_i += 1
+                for c in range(node['children'] + 1, node['children'] + len_children + 1):
+                    child = nodes_array[children[c]]
+                    child_sidx_start = sidx_indptr[sidx_indexes[child['node_id']]]
+                    child_sidx_end = sidx_indptr[sidx_indexes[child['node_id']] + 1]
+                    child_il_cur = loss_indptr[child[child_loss_pointer] + layer]
+                    loss_indptr[child['ba'] + layer] = loss_ptr_i
+                    for child_sidx_cur in range(child_sidx_start, child_sidx_end):
+                        sidx = sidx_val[child_sidx_cur]
+                        loss_val[loss_ptr_i] = loss_val[child_il_cur] * temp_proportion[sidx]
+                        child_il_cur += 1
+                        loss_ptr_i += 1
 
         for c in range(node['children'] + 1, node['children'] + len_children + 1):
             computes[next_compute_i], next_compute_i = children[c], next_compute_i + 1
@@ -127,8 +100,123 @@ def back_allocate(node, children, nodes_array, sidx_indexes, sidx_indptr, sidx_v
         computes[next_compute_i], next_compute_i = children[node['children'] + 1], next_compute_i + 1
         child = nodes_array[children[node['children'] + 1]]
         loss_indptr[child['ba']: child['ba'] + node['layer_len']] = loss_indptr[node['ba']: node['ba'] + node['layer_len']]
+        if node['realloc'] != null_index:
+            loss_indptr[child['realloc']: child['realloc'] + node['layer_len']] += loss_indptr[node['realloc']: node['realloc'] + node['layer_len']]
 
     return loss_ptr_i, next_compute_i
+
+
+@njit(cache=True, fastmath=True)
+def aggregate_children_extras(node, len_children, nodes_array, children,
+                              temp_node_sidx, sidx_indexes, sidx_indptr, sidx_val, sidx_ptr_i, sidx_i, all_sidx,
+                              temp_node_loss, loss_indptr, loss_val, loss_ptr_i,
+                              temp_node_extras, extras_indptr, extras_val, extras_ptr_i):
+    sidx_created = False
+    node_sidx_start = sidx_ptr_i
+    node_sidx_end = 0
+    sidx_indexes[node['node_id']], sidx_i = sidx_i, sidx_i + 1
+
+    for p in range(node['profile_len']):
+        loss_indptr[node['loss'] + p] = loss_ptr_i
+        extras_indptr[node['extra'] + p] = extras_ptr_i
+
+        for c in range(node['children'] + 1, node['children'] + len_children + 1):
+            child = nodes_array[children[c]]
+            child_sidx_index = sidx_indexes[child['node_id']]
+            child_sidx_start = sidx_indptr[child_sidx_index]
+            child_sidx_end = sidx_indptr[child_sidx_index + 1]
+            child_loss_start = loss_indptr[child['il'] + p]
+            child_extra_start = extras_indptr[child['extra'] + p]
+
+            for indptr in range(child_sidx_end - child_sidx_start):
+                temp_node_sidx[sidx_val[child_sidx_start + indptr]] = True
+                temp_node_loss[sidx_val[child_sidx_start + indptr]] += loss_val[child_loss_start + indptr]
+                temp_node_extras[sidx_val[child_sidx_start + indptr]] += extras_val[child_extra_start + indptr]
+        if sidx_created:
+            for node_sidx_cur in range(node_sidx_start, node_sidx_end):
+                loss_val[loss_ptr_i] = temp_node_loss[sidx_val[node_sidx_cur]]
+                temp_node_loss[sidx_val[node_sidx_cur]] = 0
+                loss_ptr_i += 1
+                extras_val[extras_ptr_i] = temp_node_extras[sidx_val[node_sidx_cur]]
+                temp_node_extras[sidx_val[node_sidx_cur]] = 0
+                extras_ptr_i += 1
+
+        else:
+            for sidx in all_sidx:
+                if temp_node_sidx[sidx]:
+                    sidx_val[sidx_ptr_i] = sidx
+                    sidx_ptr_i +=1
+                    temp_node_sidx[sidx] = False
+
+                    loss_val[loss_ptr_i] = temp_node_loss[sidx]
+                    loss_ptr_i += 1
+                    temp_node_loss[sidx] = 0
+
+                    extras_val[extras_ptr_i] = temp_node_extras[sidx]
+                    extras_ptr_i += 1
+                    temp_node_extras[sidx] = 0
+
+            node_sidx_end = sidx_ptr_i
+            node_val_len = node_sidx_end - node_sidx_start
+            sidx_indptr[sidx_i] = sidx_ptr_i
+            sidx_created = True
+
+    # fill up all layer if necessary
+    for layer in range(node['profile_len'], node['layer_len']):
+        loss_indptr[node['loss'] + layer] = loss_indptr[node['loss']]
+        extras_indptr[node['extra'] + layer] = extras_indptr[node['extra']]
+
+    return node_val_len, sidx_i, sidx_ptr_i, loss_ptr_i, extras_ptr_i
+
+
+@njit(cache=True, fastmath=True)
+def aggregate_children(node, len_children, nodes_array, children,
+                       temp_node_sidx, sidx_indexes, sidx_indptr, sidx_val, sidx_ptr_i, sidx_i, all_sidx,
+                       temp_node_loss, loss_indptr, loss_val, loss_ptr_i):
+    sidx_created = False
+    node_sidx_start = sidx_ptr_i
+    node_sidx_end = 0
+    sidx_indexes[node['node_id']], sidx_i = sidx_i, sidx_i + 1
+    for p in range(node['profile_len']):
+        loss_indptr[node['loss'] + p] = loss_ptr_i
+
+        for c in range(node['children'] + 1, node['children'] + len_children + 1):
+            child = nodes_array[children[c]]
+            child_sidx_index = sidx_indexes[child['node_id']]
+            child_sidx_start = sidx_indptr[child_sidx_index]
+            child_sidx_end = sidx_indptr[child_sidx_index + 1]
+            child_loss_start = loss_indptr[child['il'] + p]
+
+            for indptr in range(child_sidx_end - child_sidx_start):
+                temp_node_sidx[sidx_val[child_sidx_start + indptr]] = True
+                temp_node_loss[sidx_val[child_sidx_start + indptr]] += loss_val[child_loss_start + indptr]
+        if sidx_created:
+            for node_sidx_cur in range(node_sidx_start, node_sidx_end):
+                loss_val[loss_ptr_i] = temp_node_loss[sidx_val[node_sidx_cur]]
+                temp_node_loss[sidx_val[node_sidx_cur]] = 0
+                loss_ptr_i += 1
+
+        else:
+            for sidx in all_sidx:
+                if temp_node_sidx[sidx]:
+                    sidx_val[sidx_ptr_i] = sidx
+                    sidx_ptr_i +=1
+                    temp_node_sidx[sidx] = False
+
+                    loss_val[loss_ptr_i] = temp_node_loss[sidx]
+                    loss_ptr_i += 1
+                    temp_node_loss[sidx] = 0
+
+            node_sidx_end = sidx_ptr_i
+            node_val_len = node_sidx_end - node_sidx_start
+            sidx_indptr[sidx_i] = sidx_ptr_i
+            sidx_created = True
+
+    # fill up all layer if necessary
+    for layer in range(node['profile_len'], node['layer_len']):
+        loss_indptr[node['loss'] + layer] = loss_indptr[node['loss']]
+
+    return node_val_len, sidx_i, sidx_ptr_i, loss_ptr_i
 
 
 @njit(cache=True, fastmath=True)
@@ -152,79 +240,52 @@ def compute_event(compute_info,
     # loss_val = computation_structure.loss_val
     # extras_indptr = computation_structure.extras_indptr
     # extras_val = computation_structure.extras_val
-    # at this point we have as many loss as sidx as there is only 1 layer and 1 loss type 'loss'
+
     sidx_ptr_i = sidx_indptr[next_compute_i]
     loss_ptr_i = sidx_ptr_i
     extras_ptr_i = 0
     sidx_i = next_compute_i
     compute_i = 0
 
-    temp_node_sidx = np.zeros(len_array, dtype=np.uint8)
+    temp_node_sidx = np.zeros(len_array, dtype=np_oasis_int)
     temp_node_loss = np.zeros(len_array, dtype=np_oasis_float)
+    temp_node_realloc = np.zeros(len_array, dtype=np_oasis_float)
     temp_node_extras = np.zeros((len_array, 3), dtype=np_oasis_float)
+
+    # create all sidx array
+    all_sidx = np.empty(max_sidx_val + EXTRA_VALUES,  dtype=np_oasis_int)
+    all_sidx[0] = -3
+    all_sidx[1] = -1
+    all_sidx[2:] = np.arange(1, max_sidx_val + 1)
 
     for level in range(compute_info['start_level'], compute_info['max_level'] + 1):#perform the bottom up loss computation
         # print(level, next_compute_i, compute_i, next_compute_i-compute_i, computes[compute_i:compute_i+2], computes[next_compute_i-2: next_compute_i+1])
         next_compute_i += 1 # next_compute_i will stay at 0 wich will stop the while loop and start the next level
         while computes[compute_i]:
-            node, compute_i = nodes_array[computes[compute_i]], compute_i + 1\
+            node, compute_i = nodes_array[computes[compute_i]], compute_i + 1
 
             #compute loss sums and extra sum
             len_children = children[node['children']]
             if len_children:#if no children and in compute then layer 1 loss is already set
                 if len_children > 1:
-                    # we need a new sidx array
-                    sidx_created = False
-                    node_sidx_start = sidx_ptr_i
-                    node_sidx_end = 0
-                    sidx_indexes[node['node_id']], sidx_i = sidx_i, sidx_i + 1
-                    for p in range(node['profile_len']):
-                        loss_indptr[node['loss'] + p] = loss_ptr_i
-                        extras_indptr[node['extra'] + p] = extras_ptr_i
-
-                        for c in range(node['children'] + 1, node['children'] + len_children + 1):
-                            child = nodes_array[children[c]]
-                            child_sidx_index = sidx_indexes[child['node_id']]
-                            child_sidx_start = sidx_indptr[child_sidx_index]
-                            child_sidx_end =  sidx_indptr[child_sidx_index + 1]
-                            child_loss_start = loss_indptr[child['il'] + p]
-                            child_extra_start = extras_indptr[child['extra'] + p]
-
-                            for indptr in range(child_sidx_end - child_sidx_start):
-                                temp_node_sidx[sidx_val[child_sidx_start + indptr]] = True
-                                temp_node_loss[sidx_val[child_sidx_start + indptr]] += loss_val[child_loss_start + indptr]
-                                temp_node_extras[sidx_val[child_sidx_start + indptr]] += extras_val[child_extra_start + indptr]
-                        if sidx_created:
-                            for node_sidx_cur in range(node_sidx_start, node_sidx_end):
-                                loss_val[loss_ptr_i] = temp_node_loss[sidx_val[node_sidx_cur]]
-                                temp_node_loss[sidx_val[node_sidx_cur]] = 0
-                                loss_ptr_i += 1
-                                extras_val[extras_ptr_i] = temp_node_extras[sidx_val[node_sidx_cur]]
-                                temp_node_extras[sidx_val[node_sidx_cur]] = 0
-                                extras_ptr_i += 1
-
-                        else:
-                            for sidx in [-3, -1]:
-                                if temp_node_sidx[sidx]:
-                                    sidx_ptr_i, loss_ptr_i, extras_ptr_i = single_array_to_sparse(sidx, sidx_ptr_i, sidx_val, temp_node_sidx,
-                                                                                                   loss_ptr_i, loss_val, temp_node_loss,
-                                                                                                   extras_ptr_i, extras_val, temp_node_extras)
-
-                            for sidx in range(1, max_sidx_val+1):
-                                if temp_node_sidx[sidx]:
-                                    # print('res', node['node_id'], sidx, temp_node_loss[sidx], temp_node_extras[sidx])
-                                    sidx_ptr_i, loss_ptr_i, extras_ptr_i = single_array_to_sparse(sidx, sidx_ptr_i, sidx_val, temp_node_sidx,
-                                                                                                   loss_ptr_i, loss_val, temp_node_loss,
-                                                                                                   extras_ptr_i, extras_val, temp_node_extras)
-                            node_sidx_end = sidx_ptr_i
-                            node_val_len = node_sidx_end - node_sidx_start
-                            sidx_indptr[sidx_i] = sidx_ptr_i
-                            sidx_created = True
-
-                    #fill up all layer if necessary
-                    for layer in range(node['profile_len'], node['layer_len']):
-                        loss_indptr[node['loss'] + layer] = loss_indptr[node['loss']]
-                        extras_indptr[node['extra'] + layer] = extras_indptr[node['extra']]
+                    if node['extra'] == null_index:
+                        (node_val_len,
+                         sidx_i,
+                         sidx_ptr_i,
+                         loss_ptr_i) = aggregate_children(node, len_children, nodes_array, children,
+                                                          temp_node_sidx, sidx_indexes, sidx_indptr, sidx_val, sidx_ptr_i,
+                                                          sidx_i, all_sidx,
+                                                          temp_node_loss, loss_indptr, loss_val, loss_ptr_i)
+                    else:
+                        (node_val_len,
+                         sidx_i,
+                         sidx_ptr_i,
+                         loss_ptr_i,
+                         extras_ptr_i) = aggregate_children_extras(node, len_children, nodes_array, children,
+                                                                   temp_node_sidx, sidx_indexes, sidx_indptr, sidx_val, sidx_ptr_i,
+                                                                   sidx_i, all_sidx,
+                                                                   temp_node_loss, loss_indptr, loss_val, loss_ptr_i,
+                                                                   temp_node_extras, extras_indptr, extras_val, extras_ptr_i)
 
                 else:
                     child = nodes_array[children[node['children'] + 1]]
@@ -234,29 +295,31 @@ def compute_event(compute_info,
                     node_sidx_end = sidx_indptr[sidx_indexes[node['node_id']] + 1]
                     node_val_len = node_sidx_end - node_sidx_start
 
-                    for p in range(node['profile_len']):
-                        extras_indptr[node['extra'] + p] = extras_ptr_i
-                        child_indptr = extras_indptr[child['extra'] + p]
-                        extras_val[extras_ptr_i: extras_ptr_i + node_val_len] = extras_val[child_indptr: child_indptr + node_val_len]
-                        extras_ptr_i += node_val_len
+                    if node['extra'] != null_index:
+                        for p in range(node['profile_len']):
+                            extras_indptr[node['extra'] + p] = extras_ptr_i
+                            child_indptr = extras_indptr[child['extra'] + p]
+                            extras_val[extras_ptr_i: extras_ptr_i + node_val_len] = extras_val[child_indptr: child_indptr + node_val_len]
+                            extras_ptr_i += node_val_len
 
-                    #fill up all layer if necessary
-                    for layer in range(node['profile_len'], node['layer_len']):
-                        extras_indptr[node['extra'] + layer] = extras_indptr[node['extra']]
+                        #fill up all layer if necessary
+                        for layer in range(node['profile_len'], node['layer_len']):
+                            extras_indptr[node['extra'] + layer] = extras_indptr[node['extra']]
 
             else:
                 node_sidx_start = sidx_indptr[sidx_indexes[node['node_id']]]
                 node_sidx_end = sidx_indptr[sidx_indexes[node['node_id']] + 1]
                 node_val_len = node_sidx_end - node_sidx_start
 
-                for p in range(node['profile_len']):
-                    extras_indptr[node['extra'] + p] = extras_ptr_i
-                    extras_val[extras_ptr_i: extras_ptr_i + node_val_len].fill(0)
-                    extras_ptr_i += node_val_len
+                if node['extra'] != null_index:
+                    for p in range(node['profile_len']):
+                        extras_indptr[node['extra'] + p] = extras_ptr_i
+                        extras_val[extras_ptr_i: extras_ptr_i + node_val_len].fill(0)
+                        extras_ptr_i += node_val_len
 
-                #fill up all layer if necessary
-                for layer in range(node['profile_len'], node['layer_len']):
-                    extras_indptr[node['extra'] + layer] = extras_indptr[node['extra']]
+                    #fill up all layer if necessary
+                    for layer in range(node['profile_len'], node['layer_len']):
+                        extras_indptr[node['extra'] + layer] = extras_indptr[node['extra']]
 
             #compute il
             for p in range(node['profile_len']):
@@ -264,29 +327,69 @@ def compute_event(compute_info,
 
                 if node_profile['i_start'] < node_profile['i_end']:
                     loss_indptr_start =  loss_indptr[node['loss'] + p]
-                    extra_indptr_start =  extras_indptr[node['extra'] + p]
-
                     loss_in = loss_val[loss_indptr_start: loss_indptr_start + node_val_len]
-                    extra = extras_val[extra_indptr_start: extra_indptr_start + node_val_len]
+
                     loss_indptr[node['il'] + p] = loss_ptr_i
                     loss_ptr_i += node_val_len
                     loss_out = loss_val[loss_indptr[node['il'] + p]: loss_ptr_i]
 
-                    for profile_index in range(node_profile['i_start'], node_profile['i_end']):
-                        calc(fm_profile[profile_index],
-                             loss_out,
-                             loss_in,
-                             extra[:, 0],
-                             extra[:, 1],
-                             extra[:, 2],
-                             stepped)
-                        # print(node['node_id'], p, fm_profile[profile_index]['calcrule_id'], loss_indptr[node['loss'] + p], loss_in, '=>', loss_out)
+                    if node['extra'] != null_index:
+                        extra_indptr_start =  extras_indptr[node['extra'] + p]
+                        extra = extras_val[extra_indptr_start: extra_indptr_start + node_val_len]
+                        if node['under_limit_sum'] != null_index:
+                            # we copy the under_limit sum for back allocation
+                            loss_indptr[node['under_limit_sum'] + p] = loss_ptr_i
+                            loss_val[loss_ptr_i: loss_ptr_i + node_val_len] = extra[:, 2]
+                            loss_ptr_i += node_val_len
+
+                        for profile_index in range(node_profile['i_start'], node_profile['i_end']):
+                            calc_extra(fm_profile[profile_index],
+                                       loss_out,
+                                       loss_in,
+                                       extra[:, 0],
+                                       extra[:, 1],
+                                       extra[:, 2],
+                                       stepped)
+                            # print(node['node_id'], node['extra'], p, fm_profile[profile_index]['calcrule_id'],
+                            #       loss_indptr[node['loss'] + p], loss_in, '=>', loss_out)
+                        if node['realloc'] != null_index:
+                            loss_indptr[node['realloc'] + p] = loss_ptr_i
+                            if node['is_reallocating']:
+                                loss_val[loss_ptr_i: loss_ptr_i + node_val_len] = np.maximum(loss_out - loss_in, 0)
+                            else:
+                                loss_val[loss_ptr_i: loss_ptr_i + node_val_len] = 0
+                            loss_ptr_i += node_val_len
+
+                    else:
+                        for profile_index in range(node_profile['i_start'], node_profile['i_end']):
+                            calc(fm_profile[profile_index],
+                                 loss_out,
+                                 loss_in,
+                                 stepped)
+                            # print(node['node_id'], node['extra'], p, fm_profile[profile_index]['calcrule_id'],
+                            # loss_indptr[node['loss'] + p], loss_in, '=>', loss_out)
 
                 else:
                     loss_indptr[node['il'] + p] = loss_indptr[node['loss'] + p]
+                    if node['under_limit_sum'] != null_index:
+                        # we copy the under_limit sum for back allocation
+                        loss_indptr[node['under_limit_sum'] + p] = loss_ptr_i
+                        extra_indptr_start = extras_indptr[node['extra'] + p]
+                        loss_val[loss_ptr_i: loss_ptr_i + node_val_len] = extras_val[extra_indptr_start: extra_indptr_start + node_val_len, 2]
+                        loss_ptr_i += node_val_len
+
+                        loss_indptr[node['realloc'] + p] = loss_ptr_i
+                        loss_val[loss_ptr_i: loss_ptr_i + node_val_len] = 0
+                        loss_ptr_i += node_val_len
 
             for layer in range(node['profile_len'], node['layer_len']):
                 loss_indptr[node['il'] + layer] = loss_indptr[node['il']]
+                if node['realloc'] != null_index:
+                    loss_indptr[node['realloc'] + layer] = loss_ptr_i
+                    loss_val[loss_ptr_i: loss_ptr_i + node_val_len] = loss_val[loss_indptr[node['realloc']]: loss_indptr[node['realloc']] + node_val_len]
+                    loss_ptr_i += node_val_len
+
+                    loss_indptr[node['under_limit_sum'] + layer] = loss_indptr[node['under_limit_sum']]
 
             if level == compute_info['max_level']:
                 loss_indptr[node['ba']:node['ba'] + node['layer_len']] = loss_indptr[node['il']:node['il'] + node['layer_len']]
@@ -337,7 +440,7 @@ def compute_event(compute_info,
             loss_ptr_i, next_compute_i = back_allocate(node, children, nodes_array, sidx_indexes, sidx_indptr, sidx_val,
                                                        loss_indptr, loss_val, loss_ptr_i,
                                                        extras_indptr, extras_val,
-                                                       computes, next_compute_i, 'loss', temp_node_loss)
+                                                       computes, next_compute_i, 'loss', temp_node_loss, temp_node_realloc)
         compute_i += 1
     else:
         for level in range(compute_info['max_level'] - compute_info['start_level']):# perform back allocation 2
@@ -353,7 +456,7 @@ def compute_event(compute_info,
                                                            extras_indptr, extras_val,
                                                            computes, next_compute_i,
                                                            'il',
-                                                           temp_node_loss)
+                                                           temp_node_loss, temp_node_realloc)
             compute_i += 1
     if net_loss:
         # we go through the last level node and replace the gross loss by net loss, then reset compute_i to its value

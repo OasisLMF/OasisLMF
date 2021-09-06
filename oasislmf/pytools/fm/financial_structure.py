@@ -5,7 +5,7 @@ __all__ = [
     'load_static',
 ]
 
-from .common import nb_oasis_int, np_oasis_int, np_oasis_float, almost_equal, need_tiv_policy
+from .common import nb_oasis_int, np_oasis_int, np_oasis_float, almost_equal, need_tiv_policy, need_extras, null_index
 from .common import fm_programme_dtype, fm_policytc_dtype, fm_profile_dtype, fm_profile_step_dtype,\
     fm_profile_csv_col_map, fm_xref_dtype, fm_xref_csv_col_map, items_dtype, allowed_allocation_rule
 
@@ -34,6 +34,9 @@ nodes_array_dtype = from_dtype(np.dtype([('node_id', np.uint64),
                                          ('il', np_oasis_int),
                                          ('extra', np_oasis_int),
                                          ('ba', np_oasis_int),
+                                         ('realloc', np_oasis_int),
+                                         ('is_reallocating', np.uint8),
+                                         ('under_limit_sum', np_oasis_int),
                                          ('parent_len', np_oasis_int),
                                          ('parent', np_oasis_int),
                                          ('children', np_oasis_int),
@@ -143,7 +146,7 @@ def does_nothing(profile):
 
 
 @njit(cache=True)
-def get_all_children(node_to_dependencies, node):
+def get_all_children(node_to_dependencies, node, items_only):
     children = List()
     temp = List()
     temp.append(node)
@@ -153,6 +156,8 @@ def get_all_children(node_to_dependencies, node):
     while temp:
         parent = temp.pop()
         if parent in node_to_dependencies:
+            if not items_only:
+                children.append(parent)
             temp.extend(node_to_dependencies[parent])
         else:
             children.append(parent)
@@ -173,8 +178,8 @@ def is_multi_peril(fm_programme):
 def get_tiv(children, items, coverages):
     used_cov = np.zeros_like(coverages, dtype=np.uint8)
     tiv = 0
-    for child in children:
-        coverage_i = items[child[1]-1]['coverage_id']-1
+    for child_programme in children:
+        coverage_i = items[child_programme[1]-1]['coverage_id']-1
         if not used_cov[coverage_i]:
             used_cov[coverage_i] = 1
             tiv += coverages[coverage_i]
@@ -406,24 +411,24 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
         for programme in fm_programme:
             if programme['level_id'] == level:
                 parent = (np_oasis_int(programme['level_id']), np_oasis_int(programme['to_agg_id']))
-                child = (np_oasis_int(programme['level_id'] - 1), np_oasis_int(programme['from_agg_id']))
+                child_programme = (np_oasis_int(programme['level_id'] - 1), np_oasis_int(programme['from_agg_id']))
 
                 if parent not in parent_to_children:
                     children_len += 2
                     _list = List.empty_list(node_type)
-                    _list.append(child)
+                    _list.append(child_programme)
                     parent_to_children[parent] = _list
-                    # parent_to_children[parent] = [child]
+                    # parent_to_children[parent] = [child_programme]
                 else:
                     children_len += 1
-                    parent_to_children[parent].append(child)
+                    parent_to_children[parent].append(child_programme)
 
                 parents_len += 1
                 _list = List.empty_list(node_type)
                 _list.append(parent)
-                child_to_parents[child] = _list
-                # child_to_parents[child] = [parent]
-                node_layers[child] = node_layers[parent]
+                child_to_parents[child_programme] = _list
+                # child_to_parents[child_programme] = [parent]
+                node_layers[child_programme] = node_layers[parent]
 
     if allocation_rule == 0:
         node_level_start = np.zeros(level_node_len.shape[0] + 1, np_oasis_int)
@@ -445,7 +450,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
         for agg_id in range(1, level_node_len[max_level] + 1):
             parent = (np_oasis_int(max_level + 1), np_oasis_int(agg_id))
             top_node = (np_oasis_int(max_level), np_oasis_int(agg_id))
-            children = get_all_children(parent_to_children, top_node)
+            children = get_all_children(parent_to_children, top_node, True)
             children_len += len(children) + 1
             parent_to_children[parent] = children
 
@@ -455,9 +460,9 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
             child_to_parents[top_node] = _list
             # child_to_parents[top_node] = [parent]
             node_layers[parent] = node_layers[top_node]
-            for child in children:
+            for child_programme in children:
                 parents_len += 1
-                child_to_parents[child].append(parent)
+                child_to_parents[child_programme].append(parent)
 
         compute_len = node_level_start[-1] + steps + level_node_len[-1] +1
 
@@ -501,7 +506,11 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
             node['loss'], loss_i = loss_i, loss_i + node['layer_len']
             node['il'], loss_i = loss_i, loss_i + node['layer_len']
             node['ba'], loss_i = loss_i, loss_i + node['layer_len']
-            node['extra'], extra_i = extra_i, extra_i + node['layer_len']
+
+            node['extra'] = null_index
+            node['realloc'] = null_index
+            node['under_limit_sum'] = null_index
+            node['is_reallocating'] = 0
 
             # children
             if node_programme in parent_to_children:
@@ -526,6 +535,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                 profiles = programme_node_to_layers[node_programme]
                 node['profile_len'] = len(profiles)
                 node['profiles'] = profile_i
+
                 for layer_id, i_start, i_end in sorted(profiles):
                     node_profile, profile_i = node_profiles_array[profile_i], profile_i + 1
                     node_profile['i_start'] = i_start
@@ -534,7 +544,7 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                     # if use TIV we compute it and precompute % TIV values
                     for profile_index in range(i_start, i_end):
                         if fm_profile[profile_index]['calcrule_id'] in need_tiv_policy:
-                            all_children = get_all_children(parent_to_children, node_programme)
+                            all_children = get_all_children(parent_to_children, node_programme, True)
                             tiv = get_tiv(all_children, items, coverages)
                             break
                     else:
@@ -549,6 +559,22 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
                         if does_nothing(profile):
                             # only non step policy can "does_nothing" so this is safe
                             node_profile['i_end'] = node_profile['i_start']
+
+                    # check if we need to compute extras (min and max ded policies)
+                    for profile_index in range(i_start, i_end):
+                        if fm_profile[profile_index]['calcrule_id'] in need_extras:
+                            node['is_reallocating'] = allocation_rule == 2 and fm_profile[profile_index]['calcrule_id'] != 27
+
+                            all_children = get_all_children(parent_to_children, node_programme, False)
+                            for child_programme in all_children: # include current node
+                                child = nodes_array[node_level_start[child_programme[0]] + child_programme[1]]
+                                if child['extra'] == null_index:
+                                    child['extra'], extra_i = extra_i, extra_i + node['layer_len']
+                                    if allocation_rule == 2 and fm_profile[profile_index]['calcrule_id'] != 27:
+                                        child['under_limit_sum'], loss_i = loss_i, loss_i + node['layer_len']
+                                        child['realloc'], loss_i = loss_i, loss_i + node['layer_len']
+
+                            break
 
             else: # item level has no profile
                 node['profile_len'] = 1
@@ -574,7 +600,8 @@ def extract_financial_structure(allocation_rule, fm_programme, fm_policytc, fm_p
             node['il'] = node['loss']
             node['ba'] = top_node['ba']
             node['extra'] = top_node['extra']
-
+            node['realloc'] = top_node['realloc']
+            node['under_limit_sum'] = top_node['under_limit_sum']
             # children
             node['children'], children_i = children_i, children_i + 1 + len(parent_to_children[node_programme])
 

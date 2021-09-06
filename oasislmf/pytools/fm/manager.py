@@ -45,6 +45,7 @@ def run_synchronous(allocation_rule, files_in, files_out, net_loss,  storage_met
         if storage_method == "sparse":
             run_synchronous_sparse(max_sidx_val, allocation_rule, streams_in=streams_in, files_out = files_out, net_loss=net_loss, **kwargs)
         else:
+            raise ValueError(f"storage_method {storage_method} is not supported for this version")
             run_synchronous_dense(max_sidx_val, allocation_rule, streams_in=streams_in, files_out = files_out, net_loss=net_loss, **kwargs)
 
     finally:
