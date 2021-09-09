@@ -9,39 +9,39 @@ logger = logging.getLogger(__name__)
 
 
 @njit(cache=True, fastmath=True, error_model="numpy")
-def back_allocate(node, children, nodes_array, losses, loss_indexes, loss_i, computes, next_compute_i, child_loss_pointer):
+def back_allocate(node, children, nodes_array, losses, loss_indexes, loss_i,
+                  extras, extra_indexes,
+                  computes, next_compute_i, child_loss_pointer):
     len_children = children[node['children']]
     if len_children > 1:
         for layer in range(node['layer_len']):
             proportion = np.empty_like(losses[0])
-            use_loss = np.zeros_like(losses[0], dtype=np.uint8)
             ba_loss = losses[loss_indexes[node['ba'] + layer]]
             sum_loss = losses[loss_indexes[node['loss'] + layer]]
             for i in range(proportion.shape[0]):
                 if ba_loss[i] < float_equal_precision:
                     proportion[i] = 0
+                elif sum_loss[i] < ba_loss[i]:
+                    node_extras_sum = np.zeros_like(extras[extra_indexes[node['extra'] + layer], :, i])
+                    for c in range(node['children'] + 1, node['children'] + len_children + 1):
+                        node_extras_sum += extras[extra_indexes[nodes_array[children[c]]['extra'] + layer], :, i]
+                    if node_extras_sum[0] > extras[extra_indexes[node['extra'] + layer], 0, i]:
+                        proportion[i] = (sum_loss[i] - ba_loss[i]) / node_extras_sum[2]
+                    else:
+                        proportion[i] = ba_loss[i] / sum_loss[i]
                 else:
-                    # in case of max deductible sum_loss can be 0 while ba_loss > 0
-                    # the historical hack is to then use the original loss of the child instead of the il
-                    # TODO: this need to be reworked to avoid loss inconsistencies at the limit sum loss = 0
-                    #       when max deductible is triggered (loss reallocated proportionally to children's under_limit)
-                    if sum_loss[i] < float_equal_precision:
-                        use_loss[i] = 1
-                        for c in range(node['children'] + 1, node['children'] + len_children + 1):
-                            sum_loss[i] += losses[loss_indexes[nodes_array[children[c]]['loss'] + layer]][i]
-                        if sum_loss[i] < float_equal_precision:
-                            proportion[i] = 0
-                            continue
                     proportion[i] = ba_loss[i] / sum_loss[i]
 
             for c in range(node['children'] + 1, node['children'] + len_children + 1):
                 child = nodes_array[children[c]]
                 child_ba = losses[loss_i]
-                child_loss = losses[loss_indexes[child['loss'] + layer]]
+                child_extras = extras[extra_indexes[child['extra'] + layer]]
                 child_il = losses[loss_indexes[child[child_loss_pointer] + layer]]
                 for i in range(proportion.shape[0]):
-                    if use_loss[i]:
-                        child_ba[i] = proportion[i] * child_loss[i]
+                    if proportion[i] < 0:
+                        realloc = child_extras[2, i] * proportion[i]
+                        child_ba[i] = child_il[i] - realloc
+                        child_extras[0, i] += realloc
                     else:
                         child_ba[i] = proportion[i] * child_il[i]
                 loss_indexes[child['ba'] + layer], loss_i = loss_i, loss_i + 1
@@ -181,7 +181,10 @@ def compute_event(compute_info,
                     node_loss += losses[loss_indexes[child['loss']]]
                 for layer in range(1, node['layer_len']):
                     loss_indexes[node['loss'] + layer] = loss_indexes[node['loss']]
-            loss_i, next_compute_i = back_allocate(node, children, nodes_array, losses, loss_indexes, loss_i, computes, next_compute_i, 'loss')
+            loss_i, next_compute_i = back_allocate(node, children, nodes_array,
+                                                   losses, loss_indexes, loss_i,
+                                                   extras, extra_indexes,
+                                                   computes, next_compute_i, 'loss')
         compute_i += 1
     else:
         for level in range(compute_info['max_level'] - compute_info['start_level']):# perform back allocation 2
@@ -195,6 +198,8 @@ def compute_event(compute_info,
                                                        losses,
                                                        loss_indexes,
                                                        loss_i,
+                                                       extras,
+                                                       extra_indexes,
                                                        computes,
                                                        next_compute_i,
                                                        'il')

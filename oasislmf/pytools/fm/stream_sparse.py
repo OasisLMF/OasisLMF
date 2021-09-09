@@ -21,9 +21,10 @@ def reset_empty_items(loss_index, sidx_indptr, sidx_val, loss_val, computes):
         else:
             return loss_index
     else:
-        sidx_val[sidx_indptr[loss_index]] = -3
-        loss_val[sidx_indptr[loss_index]] = 0
-        sidx_indptr[loss_index] += 1
+        if sidx_indptr[loss_index] == sidx_indptr[loss_index - 1]:
+            sidx_val[sidx_indptr[loss_index]] = -3
+            loss_val[sidx_indptr[loss_index]] = 0
+            sidx_indptr[loss_index] += 1
         return loss_index
 
 
