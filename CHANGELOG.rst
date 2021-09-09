@@ -1,6 +1,33 @@
 OasisLMF Changelog
 ==================
 
+`1.20.1`_
+ ---------
+* [#873, #885](https://github.com/OasisLMF/OasisLMF/pull/888) - Feature/873 issues testing update2
+* [#857](https://github.com/OasisLMF/OasisLMF/pull/889) - getmodel revamping
+* [#892](https://github.com/OasisLMF/OasisLMF/pull/893) - inconsistent assignment of group_id in items file leads to non-repeatable results for the same input
+* [#894](https://github.com/OasisLMF/OasisLMF/pull/894) - Fix/arch 2020 update
+* [#895](https://github.com/OasisLMF/OasisLMF/pull/895) - Generate Moment Event Loss Table (MELT), Sample Event Loss Table (SELT), Moment Period Loss Table (MPLT) and Sample Period Loss Table (SPLT)
+.. _`1.20.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.19.0...1.20.1
+
+`1.20.0`_
+ ---------
+* [#873, #885](https://github.com/OasisLMF/OasisLMF/pull/888) - Feature/873 issues testing update2
+* [#857](https://github.com/OasisLMF/OasisLMF/pull/889) - getmodel revamping
+* [#892](https://github.com/OasisLMF/OasisLMF/pull/893) - inconsistent assignment of group_id in items file leads to non-repeatable results for the same input
+* [#894](https://github.com/OasisLMF/OasisLMF/pull/894) - Fix/arch 2020 update
+* [#895](https://github.com/OasisLMF/OasisLMF/pull/895) - Generate Moment Event Loss Table (MELT), Sample Event Loss Table (SELT), Moment Period Loss Table (MPLT) and Sample Period Loss Table (SPLT)
+.. _`1.20.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.19.0...1.20.0
+
+`1.20.0rc1`_
+ ---------
+* [#873, #885](https://github.com/OasisLMF/OasisLMF/pull/888) - Feature/873 issues testing update2
+* [#857](https://github.com/OasisLMF/OasisLMF/pull/889) - getmodel revamping
+* [#892](https://github.com/OasisLMF/OasisLMF/pull/893) - inconsistent assignment of group_id in items file leads to non-repeatable results for the same input
+* [#894](https://github.com/OasisLMF/OasisLMF/pull/894) - Fix/arch 2020 update
+* [#895](https://github.com/OasisLMF/OasisLMF/pull/895) - Generate Moment Event Loss Table (MELT), Sample Event Loss Table (SELT), Moment Period Loss Table (MPLT) and Sample Period Loss Table (SPLT)
+.. _`1.20.0rc1`:  https://github.com/OasisLMF/OasisLMF/compare/1.19.0...1.20.0rc1
+
 `1.19.0`_
  ---------
 * [#856](https://github.com/OasisLMF/OasisLMF/pull/880) - improve memory usage of fmpy
