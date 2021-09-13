@@ -7,9 +7,10 @@ from numba import jit, int64
 from pandas import DataFrame, merge, concat
 
 from oasislmf.utils.data import merge_dataframes
+from .data_access_layers import FileDataAccessLayer
 from .descriptors import HeaderTypeDescriptor
 from .enums import FileTypeEnum
-from .loader_mixin import ModelLoaderMixin, FileLoader
+from .loader_mixin import FileLoader
 
 
 @jit((int64[:], int64[:], int64[:]), nopython=True)
@@ -30,7 +31,7 @@ def define_data_series(vul_ids, inten_ids, damage_bin_maxs):
     return vun_list
 
 
-class GetModelProcess(ModelLoaderMixin):
+class GetModelProcess:
     """
     This class is responsible for loading data from a range of sources and merging them to build a model.
 
@@ -57,7 +58,7 @@ class GetModelProcess(ModelLoaderMixin):
             events (Optional[DataFrame]): events preloaded (if None, will load from a file)
             file_type (FileTypeEnum): the file type that the get model loads data from
         """
-        super().__init__(extension=file_type)
+        self.fdal: FileDataAccessLayer = FileDataAccessLayer(extension=file_type)
         self.data_path: str = data_path
         self._vulnerabilities: Optional[FileLoader] = None
         self._footprint: Optional[FileLoader] = None
@@ -78,16 +79,16 @@ class GetModelProcess(ModelLoaderMixin):
 
         Returns: None
         """
-        coefficient = np.max(self.items.value["vulnerability_id"])
-        self.items.value["filter_code"] = self.items.value["vulnerability_id"] + self.items.value["areaperil_id"] * (
+        coefficient = np.max(self.fdal.items.value["vulnerability_id"])
+        self.fdal.items.value["filter_code"] = self.fdal.items.value["vulnerability_id"] + self.fdal.items.value["areaperil_id"] * (
                 coefficient + 1
         )
-        self.items.value.drop_duplicates(subset='filter_code', inplace=True)
+        self.fdal.items.value.drop_duplicates(subset='filter_code', inplace=True)
 
         self.model["filter_code"] = self.model["vulnerability_id"] + self.model["area_peril_id"] * (
                 coefficient + 1
         )
-        self.model = self.model[self.model["filter_code"].isin(self.items.value["filter_code"].to_list())]
+        self.model = self.model[self.model["filter_code"].isin(self.fdal.items.value["filter_code"].to_list())]
         del self.model['filter_code']
 
     def merge_vulnerabilities(self) -> None:
@@ -98,12 +99,12 @@ class GetModelProcess(ModelLoaderMixin):
         """
         # find that MAX damage_bin_id for each row in the vulnerability file
         # cut the vulnerabilities that are not represented in the items
-        vun_filter = list(self.items.value.drop_duplicates(subset=['vulnerability_id'])["vulnerability_id"])
-        self.vulnerabilities.value = self.vulnerabilities.value[
-            self.vulnerabilities.value["vulnerability_id"].isin(vun_filter)]
+        vun_filter = list(self.fdal.items.value.drop_duplicates(subset=['vulnerability_id'])["vulnerability_id"])
+        self.fdal.vulnerabilities.value = self.fdal.vulnerabilities.value[
+            self.fdal.vulnerabilities.value["vulnerability_id"].isin(vun_filter)]
 
         # find that MAX damage_bin_id for each row in the vulnerability file
-        vun_max = self.vulnerabilities.value.groupby(
+        vun_max = self.fdal.vulnerabilities.value.groupby(
             ['vulnerability_id', 'intensity_bin_id']
         )['damage_bin_id'].max().reset_index().rename(columns={"damage_bin_id": "damage_bin_max"})
 
@@ -116,13 +117,13 @@ class GetModelProcess(ModelLoaderMixin):
         vun_fill_empty.reset_index(drop=True, inplace=True)
 
         # filter model by area peril ID
-        area_filter = list(self.items.value.drop_duplicates(subset=['areaperil_id'])["areaperil_id"])
+        area_filter = list(self.fdal.items.value.drop_duplicates(subset=['areaperil_id'])["areaperil_id"])
         self.model = self.model[self.model["area_peril_id"].isin(area_filter)]
 
         # merge the two DataFrames so 'damage_bin_id' is sequential, [1 ... row.damage_bin_max]
         # where the 'probability' has a valid value use that otherwise fill the missing 'damage_bin_id' entries with 0.0
         vulnerabilities_no_gap = merge_dataframes(
-            self.vulnerabilities.value,
+            self.fdal.vulnerabilities.value,
             vun_fill_empty,
             ['vulnerability_id', 'intensity_bin_id', 'damage_bin_id'],
             how='right').fillna(0.0)
@@ -142,7 +143,7 @@ class GetModelProcess(ModelLoaderMixin):
         Returns: None
         """
         self.model = merge(
-            self.model, self.damage_bin.value[['bin_index', 'interpolation']],
+            self.model, self.fdal.damage_bin.value[['bin_index', 'interpolation']],
             how='inner', left_on='damage_bin_id', right_on='bin_index'
         )
         # Drop unrequired column to free memory
@@ -156,7 +157,7 @@ class GetModelProcess(ModelLoaderMixin):
         )
 
         del self.model["order"]
-        self.damage_bin.clear_cache()
+        self.fdal.damage_bin.clear_cache()
 
     def merge_model_with_footprint(self) -> None:
         """
@@ -164,16 +165,17 @@ class GetModelProcess(ModelLoaderMixin):
 
         Returns: None
         """
-        event_ids: np.ndarray = self.events.value["event_id"].to_numpy()  # add in chunking and stream load
+        event_ids: np.ndarray = self.fdal.events.value["event_id"].to_numpy()  # add in chunking and stream load
+        event_id = event_ids[0]
         self.model = DataFrame({"event_id": event_ids})
         self.model["order"] = self.model.index
 
-        self.footprint.value.rename(columns={'areaperil_id': 'area_peril_id', "probability": "footprint_probability"},
-                                    inplace=True)
+        self.fdal.footprint.value.rename(columns={'areaperil_id': 'area_peril_id', "probability": "footprint_probability"},
+                                         inplace=True)
 
-        self.model = merge(self.model, self.footprint.value, how='inner', on='event_id')
+        self.model = merge(self.model, self.fdal.footprint.value, how='inner', on='event_id')
 
-        self.footprint.clear_cache()
+        self.fdal.footprint.clear_cache()
 
     def calculate_probability_of_damage(self) -> None:
         """
@@ -261,4 +263,4 @@ class GetModelProcess(ModelLoaderMixin):
 
     @property
     def result(self) -> Tuple[DataFrame, DataFrame, DataFrame]:
-        return self.model, DataFrame(), self.damage_bin.value
+        return self.model, DataFrame(), self.fdal.damage_bin.value
