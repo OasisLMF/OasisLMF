@@ -71,7 +71,11 @@ def main() -> None:
 
     data_path: str = str(os.getcwd())
 
-    process: GetModelProcess = GetModelProcess(data_path=data_path, events=_process_input_data(),
-                                               file_type=_process_file_type(file_type=args.file_type))
-    process.run()
-    process.print_stream()
+    sys.stdout.buffer.write(b'\x01\x00\x00\x00')
+
+    for i in _process_input_data().groupby(["event_id"]):
+        process: GetModelProcess = GetModelProcess(data_path=data_path, events=i[1],
+                                                   file_type=_process_file_type(file_type=args.file_type))
+        process.run()
+        if len(process.model.index) > 0:
+            process.print_stream()
