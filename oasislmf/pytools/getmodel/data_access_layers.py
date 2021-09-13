@@ -34,4 +34,3 @@ class FileDataAccessLayer(ModelFileLoaderMixin, metaclass=Singleton):
         self.extension: FileTypeEnum = extension
         self.footprint_dict = make_footprint_index_dict(
             footprint_index=self.footprint.value["event_id"].to_numpy())
-        self._generate_footprint_dict()
