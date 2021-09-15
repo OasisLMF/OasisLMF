@@ -4,6 +4,7 @@ import io
 import re
 import shutil
 import sys
+import platform
 import tarfile
 from contextlib import contextmanager
 from distutils.log import INFO, WARN, ERROR
@@ -141,7 +142,7 @@ class InstallKtoolsMixin(object):
         print('Installing ktools from source')
         build_dir = os.path.join(extract_location, 'ktools-{}'.format(KTOOLS_VERSION))
 
-        system_os_flag = '--enable-osx ' if system_os == 'darwin' else ''
+        system_os_flag = '--enable-osx ' if system_os == 'Darwin' else ''
 
         exit_code = os.system(f'cd {build_dir} && ./autogen.sh && ./configure {system_os_flag}&& make && make check')
         if(exit_code != 0):
@@ -181,15 +182,20 @@ class InstallKtoolsMixin(object):
             PLATFORM = sys.argv[sys.argv.index('--plat-name') + 1]
             OS, ARCH = PLATFORM.split('_', 1)
         else:
-            ARCH = machine()
-            OS = system()
+            try:
+                uname = platform.uname()
+                ARCH = uname['machine']
+                OS = uname['system']
+            except Exception:
+                ARCH = None
+                OS = None
 
         if ARCH in ['x86_64'] and OS in ['Linux', 'Darwin']:
             return {"system_os": OS, "system_architecture": ARCH}
         else:
             return None
 
-    def install_ktools_source(self, system_os, system_architecture):
+    def install_ktools_source(self, system_os=None, system_architecture=None):
         with temp_dir() as d:
             local_tar_path = os.path.join(d, 'ktools.tar.gz')
             local_extract_path = os.path.join(d, 'extracted')
