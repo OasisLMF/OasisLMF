@@ -77,7 +77,7 @@ class InstallKtoolsMixin(object):
                 self.install_ktools_bin(**bin_install_kwargs)
             except:
                 print('Fallback - building ktools from source')
-                self.install_ktools_source()
+                self.install_ktools_source(bin_install_kwargs)
         else:
             self.install_ktools_source()
 
@@ -136,12 +136,14 @@ class InstallKtoolsMixin(object):
                 return False
         return True
 
-    def build_ktools(self, extract_location):
+    def build_ktools(self, extract_location, system_os):
         self.announce('Building ktools', INFO)
         print('Installing ktools from source')
         build_dir = os.path.join(extract_location, 'ktools-{}'.format(KTOOLS_VERSION))
 
-        exit_code = os.system('cd {build_dir} && ./autogen.sh && ./configure && make && make check'.format(build_dir=build_dir))
+        system_os_flag = '--enable-osx ' if system_os == 'darwin' else ''
+
+        exit_code = os.system(f'cd {build_dir} && ./autogen.sh && ./configure {system_os_flag}&& make && make check')
         if(exit_code != 0):
             print('Ktools build failed.\n')
             sys.exit(1)
@@ -187,7 +189,7 @@ class InstallKtoolsMixin(object):
         else:
             return None
 
-    def install_ktools_source(self):
+    def install_ktools_source(self, system_os, system_architecture):
         with temp_dir() as d:
             local_tar_path = os.path.join(d, 'ktools.tar.gz')
             local_extract_path = os.path.join(d, 'extracted')
@@ -195,7 +197,7 @@ class InstallKtoolsMixin(object):
 
             self.fetch_ktools_tar(local_tar_path, source_url)
             self.unpack_tar(local_tar_path, local_extract_path)
-            build_dir = self.build_ktools(local_extract_path)
+            build_dir = self.build_ktools(local_extract_path, system_os)
             self.ktools_components = list(self.add_ktools_build_to_path(build_dir))
 
     def install_ktools_bin(self, system_os, system_architecture):
