@@ -2,9 +2,11 @@ from .loader_mixin import ModelFileLoaderMixin
 from .enums import FileTypeEnum
 from typing import Dict, Optional
 import numba as nb
+from .file_loader import FileLoader
 
 
 class Singleton(type):
+
     _instances = {}
 
     def __call__(cls, *args, **kwargs):
@@ -29,8 +31,15 @@ def make_footprint_index_dict(footprint_index):
 
 class FileDataAccessLayer(ModelFileLoaderMixin, metaclass=Singleton):
 
-    def __init__(self, extension: FileTypeEnum = FileTypeEnum.CSV) -> None:
+    def __init__(self, data_path, extension: FileTypeEnum = FileTypeEnum.CSV) -> None:
         super().__init__(extension=extension)
+        self.data_path: str = data_path
+        self._vulnerabilities: Optional[FileLoader] = None
+        self._footprint: Optional[FileLoader] = None
+        self._damage_bin: Optional[FileLoader] = None
+        self._events: Optional[FileLoader] = None
+        self._items: Optional[FileLoader] = None
+        self.data_path = data_path
         self.extension: FileTypeEnum = extension
         self.footprint_dict = make_footprint_index_dict(
             footprint_index=self.footprint.value["event_id"].to_numpy())
