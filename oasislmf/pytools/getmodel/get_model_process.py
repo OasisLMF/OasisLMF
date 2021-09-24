@@ -66,7 +66,7 @@ class GetModelProcess:
     """
     STREAM_HEADER: HeaderTypeDescriptor = HeaderTypeDescriptor()
 
-    def __init__(self, data_path: str, footprint_index_dictionary: dict, vulnerability_start: int,
+    def __init__(self, data_path: str, footprint_index_dictionary: dict,
                  events: Optional[DataFrame] = None, file_type: FileTypeEnum = FileTypeEnum.CSV) -> None:
         """
         The constructor for the GetModelProcess class.
@@ -84,8 +84,6 @@ class GetModelProcess:
         self._events: Optional[FileLoader] = None
         self._items: Optional[FileLoader] = None
         self.model: Optional[DataFrame] = None
-        self._model = None
-        self.vulnerability_start: int = vulnerability_start
         self.events: Optional[Any] = events
         self.stream_type: int = 1
         self.footprint_index_dictionary: dict = footprint_index_dictionary
@@ -183,7 +181,6 @@ class GetModelProcess:
                                           'prob_to',
                                           'interpol'])
         self.model = df
-
 
     def print_stream(self) -> None:
         """

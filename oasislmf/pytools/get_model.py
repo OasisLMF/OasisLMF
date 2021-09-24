@@ -173,13 +173,13 @@ def main() -> None:
     _filter_vulnerabilities(file_type=file_type, data_path=data_path)
 
     sys.stdout.buffer.write(b'\x01\x00\x00\x00')
-    vulnerability_start = 0
 
     for i in _process_input_data().groupby(["event_id"]):
         process: GetModelProcess = GetModelProcess(data_path=data_path, events=i[1],
-                                                   file_type=file_type, vulnerability_start=vulnerability_start,
+                                                   file_type=file_type,
                                                    footprint_index_dictionary=footprint_index_dictionary)
         if process.should_run is True:
             process.run()
-            vulnerability_start = process.vulnerability_start
+
+        process.print_stream()
         # process.run()
