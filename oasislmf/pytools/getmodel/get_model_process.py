@@ -1,11 +1,10 @@
+import numba as nb
+import numpy as np
 import struct
 import sys
-from typing import Optional, Tuple, Any
-
-import numpy as np
-import numba as nb
 from numba import jit, int64
 from pandas import DataFrame, merge, concat
+from typing import Optional, Tuple, Any
 
 from oasislmf.utils.data import merge_dataframes
 from .data_access_layers import FileDataAccessLayer
@@ -92,7 +91,9 @@ class GetModelProcess:
     def filter_footprint(self):
         start, stop = self.footprint_index_dictionary[self.event_id]
         filtered_footprint = self.fdal.footprint.value.to_numpy()[start: stop]
-        self.fdal.items.value = self.fdal.items.value.to_numpy()
+
+        if isinstance(self.fdal.items.value, DataFrame):
+            self.fdal.items.value = self.fdal.items.value.to_numpy()
 
         highest_group_id = self.fdal.items.value[-1][4]
         number_of_vulnerability_ids = int(len(self.fdal.items.value) / highest_group_id)
@@ -103,14 +104,15 @@ class GetModelProcess:
         areaperil_id_end_pointer = len(item_area_peril_ids) - 1
 
         for i in range(0, len(filtered_footprint)):
-            if filtered_footprint[i][1] == item_area_peril_ids[areaperil_id_pointer]:
+            if filtered_footprint[i][1] in item_area_peril_ids:
                 item_position_map[item_area_peril_ids[areaperil_id_pointer]] = i
                 areaperil_id_pointer += 1
+
             if areaperil_id_pointer > areaperil_id_end_pointer:
                 break
 
         buffer = np.array([[0, 0, 0, 0]])
-        for i in item_position_map.keys():
+        for i in sorted(list(item_position_map.keys())):
             row = filtered_footprint[item_position_map[i]: item_position_map[i] + 1]
             buffer = np.concatenate((buffer, row))
 
@@ -118,39 +120,51 @@ class GetModelProcess:
 
     def merge_vulnerability_with_footprint(self):
         vulnerability_pointer = 0
+        end_pointer = len(self.fdal.vulnerabilities.value) - 1
 
         buffer = np.array([[0, 0, 0, 0, 0, 0, 0, 0]])
+
         for i in self.model:
             matched = False
             match_ended = False
             footprint_row = i
+            position_map = {}
+            cached_vulnerability_id: Optional[int] = None
 
-            cached_probability = 0
-            # merging on the intensity bin ID making the assumption that the intensity bin ID is ordered in ascending
+            # generating a dict for matching ascending bin index with vulnerability probabilities
             while match_ended is False:
                 vulnerability_row = self.fdal.vulnerabilities.value[vulnerability_pointer]
 
                 if matched is True and footprint_row[2] == vulnerability_row[1]:
-                    prob_to = vulnerability_row[3] * footprint_row[3]
-                    cached_probability += prob_to
-                    trimmed_vulnerability_row = np.array(
-                        [vulnerability_row[0], vulnerability_row[2], vulnerability_row[3], cached_probability])
-                    merged_row = np.concatenate((footprint_row, trimmed_vulnerability_row))
-                    buffer = np.concatenate((buffer, np.array([merged_row])))
+                    position_map[vulnerability_row[2]] = vulnerability_row[3]
 
                 elif matched is False and footprint_row[2] == vulnerability_row[1]:
-                    prob_to = vulnerability_row[3] * footprint_row[3]
-                    cached_probability += prob_to
-                    trimmed_vulnerability_row = np.array(
-                        [vulnerability_row[0], vulnerability_row[2], vulnerability_row[3], cached_probability])
-                    merged_row = np.concatenate((footprint_row, trimmed_vulnerability_row))
-                    buffer = np.concatenate((buffer, np.array([merged_row])))
+                    cached_vulnerability_id = vulnerability_row[0]
+                    position_map[vulnerability_row[2]] = vulnerability_row[3]
                     matched = True
 
                 elif matched is True and footprint_row[2] != vulnerability_row[1]:
+                    position_map[vulnerability_row[2]] = vulnerability_row[3]
+                    match_ended = True
+
+                if vulnerability_pointer == end_pointer:
                     match_ended = True
 
                 vulnerability_pointer += 1
+
+            cached_bin_index = 1
+            cached_probability = 0
+
+            while cached_bin_index <= max(position_map.keys()):
+                probability = position_map.get(cached_bin_index, 0.0)
+                prob_to = probability * footprint_row[3]
+                cached_probability += prob_to
+
+                trimmed_vulnerability_row = np.array(
+                    [cached_vulnerability_id, cached_bin_index, probability, cached_probability])
+                merged_row = np.concatenate((footprint_row, trimmed_vulnerability_row))
+                buffer = np.concatenate((buffer, np.array([merged_row])))
+                cached_bin_index += 1
 
         # event_id	areaperil_id	intensity_bin_id	footprint_probability	vulnerability_id
         # damage_bin_id	vulnerability_probability	prob_to

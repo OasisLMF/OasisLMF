@@ -1,14 +1,13 @@
 import argparse
+import numba as nb
+import numpy as np
 import os
 import struct
 import sys
 from io import StringIO
-from typing import Optional
-
 from pandas import read_csv, DataFrame
-import numba as nb
-import numpy as np
 from typing import List
+from typing import Optional
 
 from .getmodel.enums import FileTypeEnum
 from .getmodel.get_model_process import GetModelProcess, FileDataAccessLayer
@@ -35,7 +34,7 @@ def _process_input_data() -> Optional[DataFrame]:
     # data directly from eve
     eve_raw_data = [data[i:i + 4] for i in range(0, len(data), 4)]
     eve_buffer = [struct.unpack("i", i)[0] for i in eve_raw_data]
-    
+
     return DataFrame(eve_buffer, columns=["event_id"])
 
 
@@ -75,8 +74,8 @@ def make_footprint_index_dict(footprint_index, footprint_offset, event_size):
 
     for i in range(footprint_index.shape[0]):
         event_index = footprint_index[i]
-        res[event_index['event_id']] = ((event_index['offset'] - footprint_offset)//event_size,
-                                        (event_index['offset'] - footprint_offset + event_index['size'])//event_size)
+        res[event_index['event_id']] = ((event_index['offset'] - footprint_offset) // event_size,
+                                        (event_index['offset'] - footprint_offset + event_index['size']) // event_size)
 
     return res
 
@@ -110,7 +109,7 @@ def filter_vulnerabilities(items, vulnerabilities):
             break
 
     buffer = np.array([[0.0, 0.0, 0.0, 0.0]])
-    for key in position_map.keys():
+    for key in sorted(list(position_map.keys())):
         start = position_map[key][0]
         finish = position_map[key][1]
         buffer = np.concatenate((buffer, vulnerabilities[start: finish]))
@@ -138,11 +137,9 @@ def _generate_footprint_index_dict(file_type: FileTypeEnum, data_path: str) -> d
     footprint_offset = 8
     footprint_buffer: List[str] = fdal.footprint.path.split(".")
     footprint_buffer[-1] = "bin"
-    # footprint_path: str = ".".join(footprint_buffer)
     footprint_buffer[-1] = "idx"
     index_path: str = ".".join(footprint_buffer)
 
-    # footprint = np.memmap(footprint_path, dtype=event_struct, mode="r", offset=footprint_offset)
     footprint_index = np.memmap(index_path, dtype=event_index_struct, mode="r")
 
     return make_footprint_index_dict(footprint_index, footprint_offset, event_struct.size)
@@ -178,8 +175,7 @@ def main() -> None:
         process: GetModelProcess = GetModelProcess(data_path=data_path, events=i[1],
                                                    file_type=file_type,
                                                    footprint_index_dictionary=footprint_index_dictionary)
+
         if process.should_run is True:
             process.run()
-
-        process.print_stream()
-        # process.run()
+            process.print_stream()
