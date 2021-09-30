@@ -71,6 +71,11 @@ class FileLoader:
                 "struct": struct.Struct("i"),
                 "byte chunk": 4,
                 "columns": ["event_id"]
+            },
+            "items": {
+                "struct": struct.Struct("iiiii"),
+                "byte chunk": 20,
+                "columns": ["item_id", "coverage_id", "areaperil_id", "vulnerability_id", "group_id"]
             }
         }
         chunk: int = encoding_map[self.file_name]["byte chunk"]
