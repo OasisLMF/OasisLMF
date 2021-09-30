@@ -53,13 +53,13 @@ except ImportError:
 SOURCE_FILENAMES = OrderedDict({
     'loc': 'location.csv',
     'acc': 'account.csv',
-    'info': 'reinsinfo.csv',
-    'scope': 'reinsscope.csv',
+    'info': 'ri_info.csv',
+    'scope': 'ri_scope.csv',
     'complex_lookup': 'analysis_settings.json',
     'oed_location_csv': 'location.csv',
     'oed_accounts_csv': 'account.csv',
-    'oed_info_csv': 'reinsinfo.csv',
-    'oed_scope_csv': 'reinsscope.csv',
+    'oed_info_csv': 'ri_info.csv',
+    'oed_scope_csv': 'ri_scope.csv',
     'lookup_config_json': 'lookup.json',
     'profile_loc_json': 'profile_location.json',
     'keys_data_csv': 'keys.csv',
@@ -160,7 +160,6 @@ def find_exposure_fp(input_dir, exposure_type, required=True):
     fp = glob.glob(os.path.join(input_dir, SOURCE_FILENAMES[exposure_type].rsplit(".", 1)[0] + '*'))
     if required or fp:
         return fp.pop()
-
 
 
 def get_default_json(src_fp):

@@ -58,9 +58,9 @@
     "BuildingID": {
         "desc": "Unique building identification number",
         "require_field": "O",
-        "data_type": "int",
+        "data_type": "str",
         "default_value": "n/a",
-        "py_dtype": "int"
+        "py_dtype": "str"
     },
     "LocInceptionDate": {
         "desc": "Location inception date - DD/MM/YYYY format",

@@ -587,7 +587,6 @@ def get_dataframe(
         )
         sort_ascending = sort_ascending if sort_ascending is not None else True
         df.sort_values(_sort_cols, axis=0, ascending=sort_ascending, inplace=True)
-
     return df
 
 
@@ -911,7 +910,7 @@ def get_location_df(
 
     # Enforce OED int dtypes:  Loading int rows with NaN will fail on load, fill these NaN with '0' and then convert
     existing_cols = list(set(int_dtypes.keys()).intersection(exposure_df.columns))
-    exposure_df[existing_cols].fillna(0, inplace=True)
+    exposure_df[existing_cols] = exposure_df[existing_cols].fillna(0)
     exposure_df[existing_cols] = pd.to_numeric(exposure_df[existing_cols].stack(), errors='coerce', downcast='integer').unstack()
 
     # Set interal location id index
