@@ -270,8 +270,8 @@ def write_summary_levels(exposure_df, accounts_fp, target_dir):
     # IL perspective (join of acc + loc col with no dups)
     il_summary_lvl = {}
     if accounts_fp:
-        accounts_df = pd.read_csv(accounts_fp)
-        a_col_list = accounts_df.loc[:, accounts_df.any()].columns.to_list()
+        accounts_df = get_dataframe(accounts_fp, lowercase_cols=False)
+        a_col_list = accounts_df.loc[:, ~accounts_df.isnull().all()].columns.to_list()
         a_col_info = get_acc_dtypes()
         a_avail = set([c.lower() for c in a_col_list])
 
