@@ -94,7 +94,10 @@ class GetModelProcess:
 
     def filter_footprint(self):
         start, stop = self.footprint_index_dictionary[self.event_id]
+
+        self.fdal.footprint.value.insert(loc=0, column='event_id', value=self.event_id)
         filtered_footprint = self.fdal.footprint.value.to_numpy()[start: stop]
+        del self.fdal.footprint.value["event_id"]
 
         if isinstance(self.fdal.items.value, DataFrame):
             self.fdal.items.value = self.fdal.items.value.to_numpy()
@@ -118,8 +121,7 @@ class GetModelProcess:
         buffer = np.array([[0, 0, 0, 0]])
         for i in sorted(list(item_position_map.keys())):
             row = filtered_footprint[item_position_map[i]: item_position_map[i] + 1]
-            row = np.concatenate((np.array([self.event_id]), row[0]))
-            buffer = np.concatenate((buffer, np.array([row])))
+            buffer = np.concatenate((buffer, row))
 
         self.model = buffer[1:]
 
