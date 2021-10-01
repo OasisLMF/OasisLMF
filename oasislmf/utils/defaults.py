@@ -18,7 +18,6 @@ __all__ = [
     'GROUP_ID_COLS',
     'CORRELATION_GROUP_ID',
     'API_EXAMPLE_AUTH',
-    'KEY_NAME_TO_FILE_NAME',
     'DEFAULT_RTREE_INDEX_PROPS',
     'KTOOLS_ALLOC_GUL_MAX',
     'KTOOLS_ALLOC_FM_MAX',
@@ -54,13 +53,13 @@ except ImportError:
 SOURCE_FILENAMES = OrderedDict({
     'loc': 'location.csv',
     'acc': 'account.csv',
-    'info': 'reinsinfo.csv',
-    'scope': 'reinsscope.csv',
+    'info': 'ri_info.csv',
+    'scope': 'ri_scope.csv',
     'complex_lookup': 'analysis_settings.json',
     'oed_location_csv': 'location.csv',
     'oed_accounts_csv': 'account.csv',
-    'oed_info_csv': 'reinsinfo.csv',
-    'oed_scope_csv': 'reinsscope.csv',
+    'oed_info_csv': 'ri_info.csv',
+    'oed_scope_csv': 'ri_scope.csv',
     'lookup_config_json': 'lookup.json',
     'profile_loc_json': 'profile_location.json',
     'keys_data_csv': 'keys.csv',
@@ -145,7 +144,7 @@ def store_exposure_fp(fp, exposure_type):
 
                 New in version 0.18.1: support for ‘zip’ and ‘xz’ compression.
     """
-    compressed_ext = ('.gz', '.bz2', '.zip', '.xz')
+    compressed_ext = ('.gz', '.bz2', '.zip', '.xz', '.parquet')
     filename = SOURCE_FILENAMES[exposure_type]
     if fp.endswith(compressed_ext):
         return '.'.join([filename, fp.rsplit('.')[-1]])
@@ -153,13 +152,15 @@ def store_exposure_fp(fp, exposure_type):
         return filename
 
 
-def find_exposure_fp(input_dir, exposure_type):
+def find_exposure_fp(input_dir, exposure_type, required=True):
     """
     Find an OED exposure file stored in the oasis inputs dir
     while preserving the compressed ext
     """
-    fp = glob.glob(os.path.join(input_dir, SOURCE_FILENAMES[exposure_type] + '*'))
-    return fp.pop()
+    fp = glob.glob(os.path.join(input_dir, SOURCE_FILENAMES[exposure_type].rsplit(".", 1)[0] + '*'))
+    if required or fp:
+        return fp.pop()
+
 
 def get_default_json(src_fp):
     """
