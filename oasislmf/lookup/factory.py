@@ -517,6 +517,7 @@ class BasicKeyServer:
         multiproc_enabled=True,
         multiproc_num_cores=-1,
         multiproc_num_partitions=-1,
+        location_df=None,
         **kwargs
     ):
         """
@@ -528,7 +529,10 @@ class BasicKeyServer:
         successes_fp = as_path(successes_fp, 'successes_fp', preexists=False)
         errors_fp = as_path(errors_fp, 'errors_fp', preexists=False)
 
-        locations = self.get_locations(location_fp)
+        if location_df is not None:
+            locations = location_df
+        else:    
+            locations = self.get_locations(location_fp)
 
         if multiproc_enabled and hasattr(self.lookup_cls, 'process_locations_multiproc'):
             return self.generate_key_files_multiproc(locations,

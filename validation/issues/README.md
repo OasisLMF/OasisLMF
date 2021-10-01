@@ -23,5 +23,10 @@ oasislmf exposure run -s validation/issues/ -r validation/issues/runs -o loc -f 
 pytest
 10) Either manually update the expected results in validation/issues to include the results for the new test case, or change the self.update_expected flag to True and rerun the pytest until all tests pass.
 
+***Notes on entering data for test cases***
 
+* Enter the test case number in PortNumber fields, or alternatively prefix the PortNumber with the issue number. This is to make it unique across test cases. 
+* Always use PortNumber in ri_scope file (if there is reinsurance). This is to ensure reinsurance does not get applied across test cases.
+* Reinsurance data must be added to the ri_info.csv and ri_scope in issues/ and reinsurance for the combined test cases are contained in this one set of files.
+* ReinsNumber must not overlap across test cases. Therefore when adding a new test case with reinsurance, the ReinsNumber must be incremented based on the last used ReinsNumber.
 

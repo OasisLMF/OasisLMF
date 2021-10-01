@@ -298,11 +298,17 @@ def prepare_run_inputs(analysis_settings, run_dir, ri=False):
                 _prepare_input_bin(run_dir, 'returnperiods', model_settings)
 
             _prepare_input_bin(run_dir, 'occurrence', model_settings, setting_key='event_occurrence_id', ri=ri)
-        elif _calc_selected(analysis_settings, ['pltcalc', 'aalcalc', 'alt_period']):
+        elif _calc_selected(analysis_settings, [
+            'pltcalc', 'aalcalc', 'alt_period', 'elt_moment', 'elt_quantile',
+            'elt_sample', 'plt_moment', 'plt_quantile', 'plt_sample'
+        ]):
             _prepare_input_bin(run_dir, 'occurrence', model_settings, setting_key='event_occurrence_id', ri=ri)
 
         if os.path.exists(os.path.join(run_dir, 'static', 'periods.bin')):
             _prepare_input_bin(run_dir, 'periods', model_settings, ri=ri)
+
+        if os.path.exists(os.path.join(run_dir, 'static', 'quantile.bin')):
+            _prepare_input_bin(run_dir, 'quantile', model_settings, ri=ri)
     except (OSError, IOError) as e:
         raise OasisException("Error preparing the model 'inputs' directory: {}".format(e))
 

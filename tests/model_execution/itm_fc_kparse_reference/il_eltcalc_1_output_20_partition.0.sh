@@ -37,6 +37,7 @@ mkfifo fifo/full_correlation/il_S1_eltcalc_P1
 
 eltcalc < fifo/il_S1_eltcalc_P1 > work/kat/il_S1_eltcalc_P1 & pid1=$!
 
+
 tee < fifo/il_S1_summary_P1 fifo/il_S1_eltcalc_P1 > /dev/null & pid2=$!
 
 summarycalc -m -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
@@ -44,6 +45,7 @@ summarycalc -m -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
 # --- Do insured loss computes ---
 
 eltcalc < fifo/full_correlation/il_S1_eltcalc_P1 > work/full_correlation/kat/il_S1_eltcalc_P1 & pid3=$!
+
 
 tee < fifo/full_correlation/il_S1_summary_P1 fifo/full_correlation/il_S1_eltcalc_P1 > /dev/null & pid4=$!
 

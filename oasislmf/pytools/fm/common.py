@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import numba as nb
 
@@ -5,6 +6,9 @@ allowed_allocation_rule = [0, 1, 2, 3]
 
 np_oasis_int = np.int32
 nb_oasis_int = nb.int32
+
+areaperil_int = os.environ.get('AREAPERIL_TYPE', 'u4')
+
 np_oasis_float = np.float32
 nb_oasis_float = nb.float32
 
@@ -18,6 +22,7 @@ def almost_equal(a, b):
 
 null_index = np_oasis_int(-1)
 need_tiv_policy = (4, 6, 18, 27, 28, 29, 30, 31, 32)
+need_extras = (7, 8, 10, 11, 13, 19, 26, 27, 35, 36)
 
 # financial structure static input dtypes
 fm_programme_dtype = np.dtype([('from_agg_id', 'i4'), ('level_id', 'i4'), ('to_agg_id', 'i4')])
@@ -72,7 +77,7 @@ coverages_dtype = np.dtype([('coverage_id', 'i4'), ('tiv', 'f4')])
 
 items_dtype = np.dtype([('item_id', 'i4'),
                         ('coverage_id', 'i4'),
-                        ('areaperil_id', 'i4'),
+                        ('areaperil_id', areaperil_int),
                         ('vulnerability_id', 'i4'),
                         ('group_id', 'i4')])
 

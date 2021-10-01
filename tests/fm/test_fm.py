@@ -14,7 +14,7 @@ class FmAcceptanceTests(TestCase):
     def setUp(self):
         self.test_cases_fp = os.path.join(sys.path[0], 'validation')
         self.update_expected = False
-        self.keep_output = True
+        self.keep_output = False
 
     def run_test(self, test_case, fmpy=False, subperils=1, expected_dir="expected"):
         with tempfile.TemporaryDirectory() as tmp_run_dir:

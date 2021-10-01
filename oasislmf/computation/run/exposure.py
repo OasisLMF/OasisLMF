@@ -52,7 +52,7 @@ class RunExposure(ComputationStep):
         {'name': 'coverage_types',       'type' :int, 'nargs':'+', 'default': list(v['id'] for v in SUPPORTED_COVERAGE_TYPES.values()), 'help': 'Select List of supported coverage_types [1, .. ,4]'},
         {'name': 'fmpy',                 'default': True, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory',      'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
-        {'name': 'fmpy_sort_output', 'default': False, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
+        {'name': 'fmpy_sort_output',     'default': True, 'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'stream_type',          'flag':'-t', 'default': 2,  'type':int,  'help': 'Set the IL input stream type, 2 = default loss stream, 1 = deprecated cov/item stream'},
         {'name': 'net_ri', 'default': True},
         {'name': 'include_loss_factor', 'default': True},
@@ -310,7 +310,7 @@ class RunFmTest(ComputationStep):
         {'name': 'test_tolerance',      'type': float,      'help': 'Relative tolerance between expected values and results, default is "1e-4" or 0.0001', 'default': 1e-4},
         {'name': 'fmpy',                'default': True,    'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory',     'default': False,   'type': str2bool, 'const': True, 'nargs': '?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
-        {'name': 'fmpy_sort_output',    'default': False,   'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
+        {'name': 'fmpy_sort_output',    'default': True,    'type': str2bool, 'const': True, 'nargs': '?', 'help': 'order fmpy output by item_id'},
         {'name': 'update_expected',     'default': False},
         {'name': 'expected_output_dir', 'default': "expected"},
     ]
