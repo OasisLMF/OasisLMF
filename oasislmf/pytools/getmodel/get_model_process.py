@@ -118,7 +118,8 @@ class GetModelProcess:
         buffer = np.array([[0, 0, 0, 0]])
         for i in sorted(list(item_position_map.keys())):
             row = filtered_footprint[item_position_map[i]: item_position_map[i] + 1]
-            buffer = np.concatenate((buffer, row))
+            row = np.concatenate((np.array([self.event_id]), row[0]))
+            buffer = np.concatenate((buffer, np.array([row])))
 
         self.model = buffer[1:]
 
