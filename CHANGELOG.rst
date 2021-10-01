@@ -1,6 +1,15 @@
 OasisLMF Changelog
 ==================
 
+`1.21.0rc1`_
+ ---------
+* [#897](https://github.com/OasisLMF/OasisLMF/pull/897) - added test cases with account terms
+* [#803](https://github.com/OasisLMF/OasisLMF/pull/898) - Max Ded back allocation
+* [#901](https://github.com/OasisLMF/OasisLMF/pull/900) - fmpy: areaperil_id 8 bytes support
+* [#903](https://github.com/OasisLMF/OasisLMF/pull/903) - Generate Quantile Event Loss Table (QELT) and Quantile Period Loss Table (QPLT)
+* [#858](https://github.com/OasisLMF/OasisLMF/pull/890) - support parquet for OED
+.. _`1.21.0rc1`:  https://github.com/OasisLMF/OasisLMF/compare/1.20.0...1.21.0rc1
+
 `1.20.1`_
  ---------
 * [#873, #885](https://github.com/OasisLMF/OasisLMF/pull/888) - Feature/873 issues testing update2
