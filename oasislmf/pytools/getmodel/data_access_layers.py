@@ -1,8 +1,9 @@
-from .loader_mixin import ModelFileLoaderMixin
-from .enums import FileTypeEnum
-from typing import Dict, Optional
 import numba as nb
+from typing import Dict, Optional
+
+from .enums import FileTypeEnum
 from .file_loader import FileLoader
+from .loader_mixin import ModelFileLoaderMixin
 
 
 class Singleton(type):
@@ -41,5 +42,3 @@ class FileDataAccessLayer(ModelFileLoaderMixin, metaclass=Singleton):
         self._items: Optional[FileLoader] = None
         self.data_path = data_path
         self.extension: FileTypeEnum = extension
-        self.footprint_dict = make_footprint_index_dict(
-            footprint_index=self.footprint.value["event_id"].to_numpy())
