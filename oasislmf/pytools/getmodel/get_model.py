@@ -1,3 +1,12 @@
+"""
+TODO: check it works with csv input (get_mean_damage_bins need to have a csv option)
+TODO: work with zipped binary
+TODO: have multiple events computed in numba at a time
+TODO: use selector and select for output
+
+"""
+
+
 import argparse
 import logging
 from logging import NullHandler
@@ -18,7 +27,7 @@ buff_size = 65536
 
 areaperil_int = np.dtype(os.environ.get('AREAPERIL_TYPE', 'u4'))
 oasis_float = np.dtype(os.environ.get('OASIS_FLOAT', 'f4'))
-test = np.dtype('i4')
+oasis_int_dtype = np.dtype('i4')
 oasis_int = np.int32
 oasis_int_size = np.int32().itemsize
 buff_int_size = buff_size // oasis_int_size
@@ -270,7 +279,7 @@ def load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins):
 
 def get_vulns(static_path, vuln_dict, num_intensity_bins):
     input_files = set(os.listdir(static_path))
-    if "vulnerability.bin" in static_path:
+    if "vulnerability.bin" in input_files:
         with open(os.path.join(static_path, "vulnerability.bin"), 'rb') as f:
             header = np.frombuffer(f.read(8), 'i4')
             num_damage_bins = header[0]
@@ -301,7 +310,7 @@ def do_result(vulns_id, vuln_array, mean_damage_bins,
               intensities_min, intensities_max, intensities,
               event_id, areaperil_id, vuln_i, cursor):
         int32_mv[cursor], cursor = event_id, cursor + 1
-        int32_mv[cursor:cursor + areaperil_int_relative_size] = areaperil_id.view(test)
+        int32_mv[cursor:cursor + areaperil_int_relative_size] = areaperil_id.view(oasis_int_dtype)
         cursor += areaperil_int_relative_size
         int32_mv[cursor], cursor = vulns_id[vuln_i], cursor + 1
 
@@ -374,11 +383,12 @@ def doCdf(event_id,
                 intensities_min = num_intensity_bins
                 intensities_max = 0
         if has_vuln:
-            intensities[event_row['intensity_bin_id']] = event_row['probability']
-            if event_row['intensity_bin_id'] > intensities_max:
-                intensities_max = event_row['intensity_bin_id']
-            if event_row['intensity_bin_id'] < intensities_min:
-                intensities_min = event_row['intensity_bin_id']
+            if event_row['probability']>0:
+                intensities[event_row['intensity_bin_id']] = event_row['probability']
+                if event_row['intensity_bin_id'] > intensities_max:
+                    intensities_max = event_row['intensity_bin_id']
+                if event_row['intensity_bin_id'] < intensities_min:
+                    intensities_min = event_row['intensity_bin_id']
 
     yield cursor * oasis_int_size
 
