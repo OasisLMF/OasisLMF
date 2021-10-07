@@ -202,13 +202,13 @@ def load_items(items):
             vuln_idx += 1
         if item['areaperil_id'] not in areaperil_dict:
             area_vuln = Dict()
-            area_vuln[vuln_dict[item['vulnerability_id']]] = 0
+            area_vuln[item['vulnerability_id']] = 0
             areaperil_dict[item['areaperil_id']] = area_vuln
             areaperil_to_vulns_size += 1
         else:
-            if vuln_dict[item['vulnerability_id']] not in areaperil_dict[item['areaperil_id']]:
+            if item['vulnerability_id'] not in areaperil_dict[item['areaperil_id']]:
                 areaperil_to_vulns_size += 1
-                areaperil_dict[item['areaperil_id']][vuln_dict[item['vulnerability_id']]] = 0
+                areaperil_dict[item['areaperil_id']][item['vulnerability_id']] = 0
 
     areaperil_to_vulns_idx_dict = Dict()
     areaperil_to_vulns_idx_array = np.empty(len(areaperil_dict), dtype = Index_type)
@@ -222,8 +222,8 @@ def load_items(items):
     for areaperil_id, vulns in areaperil_dict.items():
         areaperil_to_vulns_idx_dict[areaperil_id] = areaperil_i
         areaperil_to_vulns_idx_array[areaperil_i]['start'] = vulnerability_i
-        for vuln_idx in vulns:
-            areaperil_to_vulns[vulnerability_i] = vuln_idx
+        for vuln_id in sorted(vulns):  # sorted is not necessary but doesn't impede the perf and align with cpp getmodel
+            areaperil_to_vulns[vulnerability_i] = vuln_dict[vuln_id]
             vulnerability_i +=1
         areaperil_to_vulns_idx_array[areaperil_i]['end'] = vulnerability_i
         areaperil_i+=1
@@ -305,6 +305,15 @@ def get_mean_damage_bins(static_path):
 
 
 @nb.jit(cache=True, fastmath=True)
+def damage_bin_prob(p, intensities_min, intensities_max, vulns, intensities):
+    i = intensities_min
+    while i < intensities_max:
+        p += vulns[i] * intensities[i]
+        i += 1
+    return p
+
+
+@nb.jit(cache=True, fastmath=True)
 def do_result(vulns_id, vuln_array, mean_damage_bins,
               int32_mv, num_damage_bins,
               intensities_min, intensities_max, intensities,
@@ -321,11 +330,9 @@ def do_result(vulns_id, vuln_array, mean_damage_bins,
         oasis_float_mv = int32_mv[cursor: cursor + num_damage_bins * results_relative_size].view(oasis_float)
         result_cursor = 0
         damage_bin_i = 0
-        intensities_max += 1
 
         while damage_bin_i < num_damage_bins:
-            p += np.sum(cur_vuln_mat[damage_bin_i][intensities_min:intensities_max] * intensities[
-                                                                                      intensities_min:intensities_max])
+            p = damage_bin_prob(p, intensities_min, intensities_max, cur_vuln_mat[damage_bin_i], intensities)
             oasis_float_mv[result_cursor], result_cursor = p, result_cursor + 1
             oasis_float_mv[result_cursor], result_cursor = mean_damage_bins[damage_bin_i], result_cursor + 1
             damage_bin_i += 1
@@ -362,8 +369,9 @@ def doCdf(event_id,
     for footprint_i in range(event_idx['start'], event_idx['end']):
         event_row = footprint[footprint_i]
         if areaperil_id[0] != event_row['areaperil_id']:
-            if has_vuln:
+            if has_vuln and intensities_min <= intensities_max:
                 areaperil_to_vulns_idx = areaperil_to_vulns_idx_array[areaperil_to_vulns_idx_dict[areaperil_id[0]]]
+                intensities_max += 1
                 for vuln_idx in range(areaperil_to_vulns_idx['start'], areaperil_to_vulns_idx['end']):
                     vuln_i = areaperil_to_vulns[vuln_idx]
                     if cursor + max_result_relative_size > buff_int_size:
@@ -389,6 +397,20 @@ def doCdf(event_id,
                     intensities_max = event_row['intensity_bin_id']
                 if event_row['intensity_bin_id'] < intensities_min:
                     intensities_min = event_row['intensity_bin_id']
+
+    if has_vuln and intensities_min <= intensities_max:
+        areaperil_to_vulns_idx = areaperil_to_vulns_idx_array[areaperil_to_vulns_idx_dict[areaperil_id[0]]]
+        intensities_max += 1
+        for vuln_idx in range(areaperil_to_vulns_idx['start'], areaperil_to_vulns_idx['end']):
+            vuln_i = areaperil_to_vulns[vuln_idx]
+            if cursor + max_result_relative_size > buff_int_size:
+                yield cursor * oasis_int_size
+                cursor = 0
+
+            cursor = do_result(vulns_id, vuln_array, mean_damage_bins,
+                      int32_mv, num_damage_bins,
+                      intensities_min, intensities_max, intensities,
+                      event_id, areaperil_id, vuln_i, cursor)
 
     yield cursor * oasis_int_size
 
