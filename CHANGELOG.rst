@@ -1,6 +1,9 @@
 OasisLMF Changelog
 ==================
 
+* [#901](https://github.com/OasisLMF/OasisLMF/pull/900) - fmpy: areaperil_id 8 bytes support
+.. _`1.15.16`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.15...1.15.16
+
 `1.15.15`_
  ---------
 * [#896](https://github.com/OasisLMF/OasisLMF/pull/896) - Set ktools to version v3.6.4
