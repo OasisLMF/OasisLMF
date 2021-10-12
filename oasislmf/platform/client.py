@@ -244,6 +244,7 @@ class API_portfolios(ApiEndpoint):
         self.location_file = FileEndpoint(self.session, self.url_endpoint, 'location_file/')
         self.reinsurance_info_file = FileEndpoint(self.session, self.url_endpoint, 'reinsurance_info_file/')
         self.reinsurance_scope_file = FileEndpoint(self.session, self.url_endpoint, 'reinsurance_scope_file/')
+        self.storage_links = JsonEndpoint(self.session, self.url_endpoint, 'storage_links/')
 
     def create(self, name):
         data = {"name": name}
@@ -329,7 +330,7 @@ class API_analyses(ApiEndpoint):
     def run(self, ID):
         return self.session.post('{}{}/run/'.format(self.url_endpoint, ID), json={})
 
-    def cancel_analysis_run(self, ID)
+    def cancel_analysis_run(self, ID):
         return self.session.post('{}{}/cancel_analysis_run/'.format(self.url_endpoint, ID), json={})
 
     def cancel_generate_inputs(self, ID):
@@ -626,7 +627,7 @@ class APIClient(object):
         Cancels a currently inputs generation. The analysis status must be `GENERATING_INPUTS`
         """
         try:
-            self.analyses.generate_cancel(analysis_id)
+            self.analyses.cancel_generate_inputs(analysis_id)
             self.logger.info('Cancelled Input generation: (Id={})'.format(analysis_id))
             return True
         except HTTPError as e:
@@ -639,7 +640,7 @@ class APIClient(object):
         statuses, `PENDING` or `STARTED`
         """
         try:
-            self.analyses.run_cancel(analysis_id)
+            self.analyses.cancel_analysis_run(analysis_id)
             self.logger.info('Cancelled analysis run: (Id={})'.format(analysis_id))
             return True
         except HTTPError as e:
