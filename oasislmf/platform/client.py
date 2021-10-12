@@ -326,13 +326,16 @@ class API_analyses(ApiEndpoint):
     def generate(self, ID):
         return self.session.post('{}{}/generate_inputs/'.format(self.url_endpoint, ID), json={})
 
-    def generate_cancel(self, ID):
-        return self.session.post('{}{}/cancel_generate_inputs/'.format(self.url_endpoint, ID), json={})
-
     def run(self, ID):
         return self.session.post('{}{}/run/'.format(self.url_endpoint, ID), json={})
 
-    def run_cancel(self, ID):
+    def cancel_analysis_run(self, ID)
+        return self.session.post('{}{}/cancel_analysis_run/'.format(self.url_endpoint, ID), json={})
+
+    def cancel_generate_inputs(self, ID):
+        return self.session.post('{}{}/cancel_generate_inputs/'.format(self.url_endpoint, ID), json={})
+
+    def cancel(self, ID):
         return self.session.post('{}{}/cancel/'.format(self.url_endpoint, ID), json={})
 
     def copy(self, ID):
@@ -340,6 +343,9 @@ class API_analyses(ApiEndpoint):
 
     def data_files(self, ID):
         return self.session.get('{}{}/data_files'.format(self.url_endpoint, ID))
+
+    def storage_links(self, ID):
+        return self.session.get('{}{}/storage_links'.format(self.url_endpoint, ID))
 
 # --- API Main Client ------------------------------------------------------- #
 
@@ -356,6 +362,12 @@ class APIClient(object):
 
     def oed_peril_codes(self):
         return self.api.get('{}oed_peril_codes/'.format(self.api.url_base))
+
+    def server_info(self):
+        return self.api.get('{}server_info/'.format(self.api.url_base))
+
+    def healthcheck(self):
+        return self.api.get('{}healthcheck/'.format(self.api.url_base))
 
     def upload_inputs(self, portfolio_name=None, portfolio_id=None,
                       location_fp=None, accounts_fp=None, ri_info_fp=None, ri_scope_fp=None):
