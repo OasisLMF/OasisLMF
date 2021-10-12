@@ -335,6 +335,9 @@ class API_analyses(ApiEndpoint):
     def run_cancel(self, ID):
         return self.session.post('{}{}/cancel/'.format(self.url_endpoint, ID), json={})
 
+    def copy(self, ID):
+        return self.session.post('{}{}/copy/'.format(self.url_endpoint, ID), json={})
+
     def data_files(self, ID):
         return self.session.get('{}{}/data_files'.format(self.url_endpoint, ID))
 
@@ -342,7 +345,7 @@ class API_analyses(ApiEndpoint):
 
 
 class APIClient(object):
-    def __init__(self, api_url, api_ver, username, password, timeout=25, logger=None, **kwargs):
+    def __init__(self, api_url='http://localhost:8000', api_ver='V1', username='admin', password='password', timeout=25, logger=None, **kwargs):
         self.logger = logger or logging.getLogger()
 
         self.api = APISession(api_url, username, password, timeout, **kwargs)
