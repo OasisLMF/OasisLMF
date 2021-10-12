@@ -204,6 +204,10 @@ class API_models(ApiEndpoint):
         self.settings = JsonEndpoint(self.session, self.url_endpoint, 'settings/')
         self.versions = JsonEndpoint(self.session, self.url_endpoint, 'versions/')
 
+        # Platform 2.0 only (Check might be needed here)
+        self.chunking_configuration = JsonEndpoint(self.session, self.url_endpoint, 'chunking_configuration/')
+        self.scaling_configuration = JsonEndpoint(self.session, self.url_endpoint, 'scaling_configuration/')
+
     def data_files(self, ID):
         return self.session.get('{}{}/data_files'.format(self.url_endpoint, ID))
 
