@@ -1,0 +1,15 @@
+{
+	"num_vulnerabilities": 50,
+	"num_intensity_bins": 50,
+	"num_damage_bins": 50,
+	"vulnerability_sparseness": 0.5,
+	"num_events": 10000,
+	"num_areaperils": 100,
+	"areaperils_per_event": 100,
+	"intensity_sparseness": 0.5,
+	"num_periods": 1000,
+	"num_locations": 1000,
+	"coverages_per_location": 3,
+	"num_layers": 1
+}
+
