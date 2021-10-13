@@ -62,6 +62,10 @@ damagebindictionary =  nb.from_dtype(np.dtype([('bin_index', np.int32),
                                     ('interval_type', np.int32),
                                   ]))
 
+damagebindictionaryCsv =  nb.from_dtype(np.dtype([('bin_index', np.int32),
+                                                  ('bin_from', oasis_float),
+                                                  ('bin_to', oasis_float),
+                                                  ('interpolation', oasis_float)]))
 
 EventCSV =  nb.from_dtype(np.dtype([('event_id', np.int32),
                                     ('areaperil_id', areaperil_int),
@@ -120,26 +124,39 @@ def get_footprint_idx_from_bin(footprint_idx_bin):
     #footprint_idx_dict = Dict.empty(oasis_int, oasis_int)
     footprint_idx_dict = np.full(np.max(footprint_idx_bin['event_id']) + 1, np.int32(-1))
     footprint_idx_array = np.empty(footprint_idx_bin.shape[0], dtype=Index_type)
+
     for i in range(footprint_idx_bin.shape[0]):
         event_idx_bin = footprint_idx_bin[i]
         footprint_idx_dict[event_idx_bin['event_id']] = i
         footprint_idx_array[i]['start'] = (event_idx_bin['offset'] - footprint_offset) // event_size
         footprint_idx_array[i]['end'] = (event_idx_bin['offset'] - footprint_offset + event_idx_bin['size']) // event_size
-
+        
+    print(footprint_idx_array[0])
+    print(footprint_idx_array[1])
+    print(footprint_idx_array[2])
+    print(footprint_idx_array[3])
     return footprint_idx_dict, footprint_idx_array
 
 
 @nb.jit(cache=True)
 def get_footprint_idx_from_csv(footprint_csv):
+    """
+    footprint_csv: (numpy.array[tuple]) => [(-1, 4294967295, -1, nan)
+                                            (1, 1, 1, 0.)
+                                            (1, 1, 2, 0.06224729) . . .]
+
+    """
     event_count = np.unique(footprint_csv['event_id'])
     num_intensity_bins = max(footprint_csv['intensity_bin_id'])
 
-    footprint_idx_dict = Dict.empty(np.int32, np.int32)
-    footprint_idx_array = np.empty(event_count, dtype=Index_type)
-    footprint = np.empty(footprint_csv.shape[0], dtype=Event)
-
+    # footprint_idx_dict = Dict.empty(np.int32, np.int32)
+    # footprint_idx_dict = Dict.empty(oasis_int, oasis_int)
+    footprint_idx_dict = Dict()
+    footprint_idx_array = np.empty(len(event_count), dtype=Index_type)
+    footprint = np.empty(len(footprint_csv), dtype=Event)
+    
     cur_event_id = footprint_csv[0]['event_id']
-    cur_areaperil_id = footprint_csv[0]['areaperil_id'] + 1 # make sure cur_areaperil_id is not areaperil_id
+    cur_areaperil_id = footprint_csv[0]['areaperil_id'] + 1 # make sure cur_areaperil_id is not areaperil_id 
     footprint_idx_dict[cur_event_id] = 0
     footprint_idx_array[0]['start'] = 0
 
@@ -147,15 +164,15 @@ def get_footprint_idx_from_csv(footprint_csv):
 
     has_intensity_uncertainty = False
 
-    for i in range(footprint_csv.shape[0]):
+    for i in range(1, len(footprint_csv)):
         event_csv = footprint_csv[i]
         if event_csv['event_id'] != cur_event_id:
-            footprint_idx_array[cur_event_idx]['end'] = i
+            footprint_idx_array[cur_event_idx]['end'] = i - 1 
 
             cur_event_id = event_csv['event_id']
             cur_event_idx += 1
             footprint_idx_dict[cur_event_id] = cur_event_idx
-            footprint_idx_array[cur_event_idx]['start'] = i
+            footprint_idx_array[cur_event_idx]['start'] = i - 1
         elif cur_areaperil_id == event_csv['areaperil_id']:
             has_intensity_uncertainty == True
         else:
@@ -164,18 +181,21 @@ def get_footprint_idx_from_csv(footprint_csv):
         footprint[i]['areaperil_id'] = event_csv['areaperil_id']
         footprint[i]['intensity_bin_id'] = event_csv['intensity_bin_id']
         footprint[i]['probability'] = event_csv['probability']
-
+    
+    footprint_idx_array = footprint_idx_array[1:]
     return num_intensity_bins, has_intensity_uncertainty, footprint_idx_dict, footprint_idx_array, footprint
 
 
 def get_footprint(static_path):
     """return the footprint and the dict of indexes"""
     static_files = set(os.listdir(static_path))
+
     if "footprint.bin" in static_files and "footprint.idx" in static_files:
         with open(os.path.join(static_path, "footprint.bin"), 'rb') as f:
             header = np.frombuffer(f.read(8), 'i4')
             num_intensity_bins = header[0]
             has_intensity_uncertainty = header[1]
+
         footprint = np.memmap(os.path.join(static_path, "footprint.bin"), dtype=Event, mode='r', offset=footprint_offset)
         footprint_idx_bin = np.memmap(os.path.join(static_path, "footprint.idx"), dtype = EventIndexBin, mode='r')
         footprint_idx_dict, footprint_idx_array = get_footprint_idx_from_bin(footprint_idx_bin)
@@ -197,9 +217,12 @@ def load_items(items):
     for i in range(items.shape[0]):
         item = items[i]
 
+        # insert the vulnerability index if not in there
         if item['vulnerability_id'] not in vuln_dict:
             vuln_dict[item['vulnerability_id']] = vuln_idx
             vuln_idx += 1
+
+        # insert an area dictionary into areaperil_dict under the key of areaperil ID
         if item['areaperil_id'] not in areaperil_dict:
             area_vuln = Dict()
             area_vuln[item['vulnerability_id']] = 0
@@ -214,14 +237,17 @@ def load_items(items):
     areaperil_to_vulns_idx_array = np.empty(len(areaperil_dict), dtype = Index_type)
     areaperil_to_vulns = np.empty(areaperil_to_vulns_size, dtype = np.int32)
     vulns_id = np.empty(len(vuln_dict), dtype = np.int32)
+
     for vuln_id, vuln_idx in vuln_dict.items():
         vulns_id[vuln_idx] = vuln_id
 
     areaperil_i = 0
     vulnerability_i = 0
+
     for areaperil_id, vulns in areaperil_dict.items():
         areaperil_to_vulns_idx_dict[areaperil_id] = areaperil_i
         areaperil_to_vulns_idx_array[areaperil_i]['start'] = vulnerability_i
+
         for vuln_id in sorted(vulns):  # sorted is not necessary but doesn't impede the perf and align with cpp getmodel
             areaperil_to_vulns[vulnerability_i] = vuln_dict[vuln_id]
             vulnerability_i +=1
@@ -301,6 +327,9 @@ def get_vulns(static_path, vuln_dict, num_intensity_bins):
 
 
 def get_mean_damage_bins(static_path):
+    file_path = os.path.join(static_path, "damage_bin_dict.bin")
+    if not os.path.isfile(str(file_path)):
+        return np.genfromtxt(os.path.join(static_path, "damage_bin_dict.csv"), dtype=damagebindictionaryCsv)['interpolation']
     return np.fromfile(os.path.join(static_path, "damage_bin_dict.bin"), dtype=damagebindictionary)['interpolation']
 
 
@@ -350,7 +379,7 @@ def doCdf(event_id,
           vuln_array, vulns_id, num_damage_bins, mean_damage_bins,
           int32_mv, max_result_relative_size):
 
-    if event_id > footprint_idx_dict.shape[0] - 1:
+    if event_id > len(footprint_idx_dict) - 1:
         event_idx_i = -1
     else:
         event_idx_i = footprint_idx_dict[event_id]
@@ -366,6 +395,7 @@ def doCdf(event_id,
     areaperil_id = np.zeros(1, dtype=areaperil_int)
     has_vuln = False
     cursor = 0
+
     for footprint_i in range(event_idx['start'], event_idx['end']):
         event_row = footprint[footprint_i]
         if areaperil_id[0] != event_row['areaperil_id']:
@@ -434,6 +464,7 @@ def run(run_dir, file_in, file_out):
         event_ids = np.ndarray(1, buffer=event_id_mv, dtype='i4')
 
         vuln_dict, vulns_id, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns = get_items(input_path)
+
         num_intensity_bins, has_intensity_uncertainty, footprint_idx_dict, footprint_idx_array, footprint = get_footprint(
             static_path)
 
