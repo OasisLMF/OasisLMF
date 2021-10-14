@@ -117,6 +117,14 @@ else:
 
 @nb.njit(cache=True)
 def get_footprint_idx_from_bin(footprint_idx_bin):
+    """
+    Gets the footprint index from the footprint binary file.
+
+    Args:
+        footprint_idx_bin: (List[EventIndexBin]) data from the footprint.idx file
+
+    Returns: (Tuple[List[int], List[Tuple[int, int]]]) footprint ID to index array. start and finish indexes for footprints
+    """
     footprint_idx_dict = np.full(np.max(footprint_idx_bin['event_id']) + 1, np.int32(-1))
     footprint_idx_array = np.empty(footprint_idx_bin.shape[0], dtype=Index_type)
 
@@ -125,18 +133,21 @@ def get_footprint_idx_from_bin(footprint_idx_bin):
         footprint_idx_dict[event_idx_bin['event_id']] = i
         footprint_idx_array[i]['start'] = (event_idx_bin['offset'] - footprint_offset) // event_size
         footprint_idx_array[i]['end'] = (event_idx_bin['offset'] - footprint_offset + event_idx_bin['size']) // event_size
-        
+
     return footprint_idx_dict, footprint_idx_array
 
 
 @nb.jit(cache=True)
 def get_footprint_idx_from_csv(footprint_csv):
     """
-    Gets the footprint from the CSV file.
+    Extracts the indexes from the footprint CSV.
 
-    footprint_csv: (numpy.array[tuple]) => [(-1, 4294967295, -1, nan)
-                                            (1, 1, 1, 0.)
-                                            (1, 1, 2, 0.06224729) . . .]
+    Args:
+        footprint_csv: (List[FootPrint]) data loaded from the footprint file.
+
+    Returns: (Tuple[int, bool, List[int], List[Tuple[int, int]], List[FootPrint]]) number of intensity bins,
+             if the intensity has uncertainty, footprint index map, start and finish of indexes for the footprints,
+             footprint data from the file
     """
     event_count = np.unique(footprint_csv['event_id'])
     num_intensity_bins = max(footprint_csv['intensity_bin_id'])
@@ -177,7 +188,17 @@ def get_footprint_idx_from_csv(footprint_csv):
 
 
 def get_footprint(static_path, file_type):
-    """return the footprint and the dict of indexes"""
+    """
+    Loads the footprint data from the footprint file and extras meta data around the footprint data.
+
+    Args:
+        static_path: (str) the path to the static file housing the footpint data
+        file_type: (str) the type of file the footprint file is
+
+    Returns: (Tuple[int, bool, List[int], List[Tuple[int, int]], List[FootPrint]]) number of intensity bins,
+             if the intensity has uncertainty, footprint index map, start and finish of indexes for the footprints,
+             footprint data from the file
+    """
     static_files = set(os.listdir(static_path))
 
     if "footprint.bin" in static_files and "footprint.idx" in static_files and file_type == "bin":
@@ -195,21 +216,22 @@ def get_footprint(static_path, file_type):
         num_intensity_bins, has_intensity_uncertainty, footprint_idx_dict, footprint_idx_array, footprint = get_footprint_idx_from_csv(footprint_csv)
     else:
         raise Exception(f"missing footprint file at {static_path}")
+
     return num_intensity_bins, has_intensity_uncertainty, footprint_idx_dict, footprint_idx_array, footprint
 
 
-# @nb.jit(cache=True)
+@nb.jit(cache=True)
 def load_items(items):
     """
-    Processes the Items loaded from the file 
+    Processes the Items loaded from the file extracting meta data around the vulnerability data.
 
     Args:
-        items: (List[Item])
+        items: (List[Item]) Data loaded from the vulnerability file
 
-    Returns:
+    Returns: (Tuple[Dict[int, int], List[int], Dict[int, int], List[Tuple[int, int]], List[int]])
+             vulnerability dictionary, vulnerability IDs, areaperil to vulnerability index dictionary,
+             areaperil ID to vulnerability index array, areaperil ID to vulnerability array
     """
-    print(items)
-    raise ValueError("breaking code")
     areaperil_to_vulns_size = 0
     areaperil_dict = Dict()
     vuln_dict = Dict()
@@ -276,11 +298,11 @@ def get_items(input_path, file_type):
     return load_items(items)
 
 
-# @nb.njit(cache=True)
+@nb.njit(cache=True)
 def load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
                                  num_damage_bins, num_intensity_bins):
     """
-
+    Not firing when testing so not able to inspect yet
 
     Args:
         vulns_bin:
@@ -305,7 +327,7 @@ def load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
     return vuln_array
 
 
-# @nb.njit(cache=True)
+@nb.njit(cache=True)
 def load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins):
     """
     Loads the vulnerability data grouped by the intensity and damage bins.
@@ -385,7 +407,7 @@ def get_mean_damage_bins(static_path, file_type):
     return np.fromfile(os.path.join(static_path, "damage_bin_dict.bin"), dtype=damagebindictionary)['interpolation']
 
 
-# @nb.jit(cache=True, fastmath=True)
+@nb.jit(cache=True, fastmath=True)
 def damage_bin_prob(p, intensities_min, intensities_max, vulns, intensities):
     """
     Calculate the probability of an event happening and then causing damage.
@@ -406,7 +428,7 @@ def damage_bin_prob(p, intensities_min, intensities_max, vulns, intensities):
     return p
 
 
-# @nb.jit(cache=True, fastmath=True)
+@nb.jit(cache=True, fastmath=True)
 def do_result(vulns_id, vuln_array, mean_damage_bins,
               int32_mv, num_damage_bins,
               intensities_min, intensities_max, intensities,
@@ -455,7 +477,7 @@ def do_result(vulns_id, vuln_array, mean_damage_bins,
     return cursor + (result_cursor * oasis_float_relative_size)
 
 
-# @nb.njit()
+@nb.njit()
 def doCdf(event_id,
           num_intensity_bins, footprint_idx_dict, footprint_idx_array, footprint,
           areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns,
