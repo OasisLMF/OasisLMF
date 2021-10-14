@@ -274,8 +274,19 @@ def load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
     return vuln_array
 
 
-@nb.njit(cache=True)
+# @nb.njit(cache=True)
 def load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins):
+    """
+    Loads the vulnerability data grouped by the intensity and damage bins.
+
+    Args:
+        vulns_bin: (List[Vulnerability]) vulnerability data from the vulnerability file
+        vuln_dict: (Dict[int, int]) maps the vulnerability ID with the index in the vulnerability array
+        num_damage_bins: (int) number of damage bins in the data
+        num_intensity_bins: (int) the number of intensity bins
+
+    Returns: (List[List[List[floats]]]) vulnerability data grouped by intensity bin and damage bin
+    """
     vuln_array = np.zeros((len(vuln_dict), num_damage_bins, num_intensity_bins+1), dtype=oasis_float)
     cur_vulnerability_id = -1
 
@@ -290,6 +301,8 @@ def load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins):
         if cur_vulnerability_id != -1:
             cur_vuln_array[vuln['damage_bin_id'] - 1, vuln['intensity_bin_id']] = vuln['probability']
 
+    print(vuln_array)
+    raise ValueError("breaking code")
     return vuln_array
 
 
@@ -299,14 +312,12 @@ def get_vulns(static_path, vuln_dict, num_intensity_bins, file_type):
 
     Args:
         static_path: (str) the path pointing to the static file where the data is
-        vuln_dict: (Dict[int, int])
-        num_intensity_bins:
-        file_type:
+        vuln_dict: (Dict[int, int]) maps the vulnerability ID with the index in the vulnerability array
+        num_intensity_bins: (int) the number of intensity bins 
+        file_type: (str) the type of file being loaded
 
-    Returns:
+    Returns: (Tuple[List[List[float]], int]) vulnerability data, number of damage bins
     """
-    print(vuln_dict)
-    raise ValueError("breaking code")
     input_files = set(os.listdir(static_path))
     if "vulnerability.bin" in input_files and file_type == "bin":
         with open(os.path.join(static_path, "vulnerability.bin"), 'rb') as f:
