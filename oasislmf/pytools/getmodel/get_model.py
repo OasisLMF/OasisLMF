@@ -198,8 +198,18 @@ def get_footprint(static_path, file_type):
     return num_intensity_bins, has_intensity_uncertainty, footprint_idx_dict, footprint_idx_array, footprint
 
 
-@nb.jit(cache=True)
+# @nb.jit(cache=True)
 def load_items(items):
+    """
+    Processes the Items loaded from the file 
+
+    Args:
+        items: (List[Item])
+
+    Returns:
+    """
+    print(items)
+    raise ValueError("breaking code")
     areaperil_to_vulns_size = 0
     areaperil_dict = Dict()
     vuln_dict = Dict()
@@ -248,6 +258,15 @@ def load_items(items):
 
 
 def get_items(input_path, file_type):
+    """
+    Loads the items from the items file.
+
+    Args:
+        input_path: (str) the path pointing to the file
+        file_type: (str) the type of file being loaded
+
+    Returns: (List[Item]) the Items loaded from the file
+    """
     input_files = set(os.listdir(input_path))
     if "items.bin" in input_files and file_type == "bin":
         items = np.memmap(os.path.join(input_path, "items.bin"), dtype=Item, mode='r')
@@ -257,9 +276,21 @@ def get_items(input_path, file_type):
     return load_items(items)
 
 
-@nb.njit(cache=True)
+# @nb.njit(cache=True)
 def load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
                                  num_damage_bins, num_intensity_bins):
+    """
+
+
+    Args:
+        vulns_bin:
+        vulns_idx_bin:
+        vuln_dict:
+        num_damage_bins:
+        num_intensity_bins:
+
+    Returns:
+    """
     vuln_array = np.zeros((len(vuln_dict), num_damage_bins, num_intensity_bins), dtype=oasis_float)
     for idx_i in range(vulns_idx_bin.shape[0]):
         vuln_idx = vulns_idx_bin[idx_i]
@@ -301,8 +332,6 @@ def load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins):
         if cur_vulnerability_id != -1:
             cur_vuln_array[vuln['damage_bin_id'] - 1, vuln['intensity_bin_id']] = vuln['probability']
 
-    print(vuln_array)
-    raise ValueError("breaking code")
     return vuln_array
 
 
