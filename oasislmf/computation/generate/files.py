@@ -419,7 +419,7 @@ class GenerateDummyModelFiles(ComputationStep):
         self._get_model_file_objects()
 
         for model_file in self.model_files:
-            self.logger.info(f'Writing {model_file.file_name}'}
+            self.logger.info(f'Writing {model_file.file_name}')
             model_file.write_file()
 
         self.logger.info(f'\nDummy Model files generated in {self.target_dir}')
