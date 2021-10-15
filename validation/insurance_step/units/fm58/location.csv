@@ -1,17 +1,17 @@
-PortNumber,AccNumber,LocNumber,LocName,CountryCode,LocPerilsCovered,BuildingTIV,OtherTIV,ContentsTIV,BITIV,LocCurrency,OEDVersion
-TestStepPolicies,PPT3_T1,PPT3_T1,Japan Earthquake Fire Expense Insurance,JP,QQ1,10000000,15000000,20000000,25000000,JPY,2.0.0
-TestStepPolicies,PPT3_T2,PPT3_T2,Japan Earthquake Fire Expense Insurance,JP,QQ1,10000000,15000000,20000000,25000000,JPY,2.0.0
-TestStepPolicies,PPT3_T3,PPT3_T3,Japan Earthquake Fire Expense Insurance,JP,QQ1,10000000,15000000,20000000,25000000,JPY,2.0.0
-TestStepPolicies,PPT3_T5,PPT3_T5,Japan Earthquake Fire Expense Insurance,JP,QQ1,10000000,15000000,20000000,25000000,JPY,2.0.0
-TestStepPolicies,PPT4_T1,PPT4_T1,Simple Step policy,JP,AA1,10000000,15000000,20000000,25000000,JPY,2.0.0
-TestStepPolicies,PPT4_T2,PPT4_T2,Simple Step policy,JP,AA1,10000000,15000000,20000000,25000000,JPY,2.0.0
-TestStepPolicies,PPT4_T3,PPT4_T3,Simple Step policy,JP,AA1,10000000,15000000,20000000,25000000,JPY,2.0.0
-TestStepPolicies,PPT4_T5,PPT4_T5,Simple Step policy,JP,AA1,10000000,15000000,20000000,25000000,JPY,2.0.0
-TestStepPolicies,PPT5_T1,PPT5_T1,Franchise-deductible in non-life clients Wind portfolios ,JP,AA1,10000000,15000000,20000000,25000000,JPY,2.0.0
-TestStepPolicies,PPT5_T2,PPT5_T2,Franchise-deductible in non-life clients Wind portfolios ,JP,AA1,10000000,15000000,20000000,25000000,JPY,2.0.0
-TestStepPolicies,PPT5_T3,PPT5_T3,Franchise-deductible in non-life clients Wind portfolios ,JP,AA1,10000000,15000000,20000000,25000000,JPY,2.0.0
-TestStepPolicies,PPT5_T5,PPT5_T5,Franchise-deductible in non-life clients Wind portfolios ,JP,AA1,10000000,15000000,20000000,25000000,JPY,2.0.0
-TestStepPolicies,PPT6_T1,PPT6_T1,Step condition in non-life clients Flood portfolios,JP,OO1,10000000,15000000,20000000,25000000,JPY,2.0.0
-TestStepPolicies,PPT6_T2,PPT6_T2,Step condition in non-life clients Flood portfolios,JP,OO1,10000000,15000000,20000000,25000000,JPY,2.0.0
-TestStepPolicies,PPT6_T3,PPT6_T3,Step condition in non-life clients Flood portfolios,JP,OO1,10000000,15000000,20000000,25000000,JPY,2.0.0
-TestStepPolicies,PPT6_T5,PPT6_T5,Step condition in non-life clients Flood portfolios,JP,OO1,10000000,15000000,20000000,25000000,JPY,2.0.0
+PortNumber,AccNumber,LocNumber,LocName,CountryCode,LocPerilsCovered,BuildingTIV,OtherTIV,ContentsTIV,BITIV,LocCurrency,CondTag,LocDedType1Building,LocDed1Building,LocDedType3Contents,LocDed3Contents,LocDedType4BI,LocDed4BI,LocDedType5PD,LocDed5PD,LocDedType6All,LocDed6All,OEDVersion
+TestStepPolicies,PPT3_T1,PPT3_T1,Japan Earthquake Fire Expense Insurance,JP,QQ1,10000000,15000000,20000000,25000000,JPY,,,,,,,,,,,,2.0.0
+TestStepPolicies,PPT3_T2,PPT3_T2,Japan Earthquake Fire Expense Insurance,JP,QQ1,10000000,15000000,20000000,25000000,JPY,,,,,,,,,,,,2.0.0
+TestStepPolicies,PPT3_T3,PPT3_T3,Japan Earthquake Fire Expense Insurance,JP,QQ1,10000000,15000000,20000000,25000000,JPY,,,,,,,,,,,,2.0.0
+TestStepPolicies,PPT3_T5,PPT3_T5,Japan Earthquake Fire Expense Insurance,JP,QQ1,10000000,15000000,20000000,25000000,JPY,,,,,,,,,,,,2.0.0
+TestStepPolicies,PPT4_T1,PPT4_T1,Simple Step policy,JP,AA1,10000000,15000000,20000000,25000000,JPY,,,,,,,,,,,,2.0.0
+TestStepPolicies,PPT4_T2,PPT4_T2,Simple Step policy,JP,AA1,10000000,15000000,20000000,25000000,JPY,,,,,,,,,,,,2.0.0
+TestStepPolicies,PPT4_T3,PPT4_T3,Simple Step policy,JP,AA1,10000000,15000000,20000000,25000000,JPY,,,,,,,,,,,,2.0.0
+TestStepPolicies,PPT4_T5,PPT4_T5,Simple Step policy,JP,AA1,10000000,15000000,20000000,25000000,JPY,,,,,,,,,,,,2.0.0
+TestStepPolicies,PPT5_T1,PPT5_T1,Franchise-deductible in non-life clients Wind portfolios ,JP,AA1,10000000,15000000,20000000,25000000,JPY,,,,,,,,,,,,2.0.0
+TestStepPolicies,PPT5_T2,PPT5_T2,Franchise-deductible in non-life clients Wind portfolios ,JP,AA1,10000000,15000000,20000000,25000000,JPY,,,,,,,,,,,,2.0.0
+TestStepPolicies,PPT5_T3,PPT5_T3,Franchise-deductible in non-life clients Wind portfolios ,JP,AA1,10000000,15000000,20000000,25000000,JPY,,,,,,,,,,,,2.0.0
+TestStepPolicies,PPT5_T5,PPT5_T5,Franchise-deductible in non-life clients Wind portfolios ,JP,AA1,10000000,15000000,20000000,25000000,JPY,,,,,,,,,,,,2.0.0
+TestStepPolicies,PPT6_T1,PPT6_T1,Step condition in non-life clients Flood portfolios,JP,OO1,10000000,15000000,20000000,25000000,JPY,,,,,,,,,,,,2.0.0
+TestStepPolicies,PPT6_T2,PPT6_T2,Step condition in non-life clients Flood portfolios,JP,OO1,10000000,15000000,20000000,25000000,JPY,,,,,,,,,,,,2.0.0
+TestStepPolicies,PPT6_T3,PPT6_T3,Step condition in non-life clients Flood portfolios,JP,OO1,10000000,15000000,20000000,25000000,JPY,,,,,,,,,,,,2.0.0
+TestStepPolicies,PPT6_T5,PPT6_T5,Step condition in non-life clients Flood portfolios,JP,OO1,10000000,15000000,20000000,25000000,JPY,,,,,,,,,,,,2.0.0

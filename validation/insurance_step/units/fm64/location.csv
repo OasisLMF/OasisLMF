@@ -1,3 +1,3 @@
 PortNumber,AccNumber,LocNumber,LocName,CountryCode,LocPerilsCovered,BuildingTIV,OtherTIV,ContentsTIV,BITIV,LocCurrency,CondTag,LocDedType1Building,LocDed1Building,LocDedType3Contents,LocDed3Contents,LocDedType4BI,LocDed4BI,LocDedType5PD,LocDed5PD,LocDedType6All,LocDed6All,OEDVersion
-TestStepPolicies,B1,B1,Flood Policy product B1,JP,OO1,100000,200000,300000,400000,JPY,,,,,,,,,,,,2.0.0
-TestStepPolicies,B2,B2,No terms,JP,OO1,500000,600000,700000,800000,JPY,,,,,,,,,,,,2.0.0
+fm64,B1,B1,Flood Policy product B1,JP,OO1,100000,200000,300000,400000,JPY,,,,,,,,,,,,2.0.0
+fm64,B2,B2,No terms,JP,OO1,500000,600000,700000,800000,JPY,1.0,2.0,0.01,2.0,0.01,2.0,0.01,2.0,0.02,2.0,0.03,2.0.0
