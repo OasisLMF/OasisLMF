@@ -451,10 +451,11 @@ def get_account_df(accounts_fp, accounts_profile):
     layers_cols = [portfolio_num, acc_num]
     if step_policies_present:
         layers_cols += ['stepnumber']
-    accounts_df['layer_id'] = get_ids(
-        accounts_df[layers_cols + [policy_num, layer_num]].drop_duplicates(keep='first'),
+    id_df = accounts_df[layers_cols + [policy_num, layer_num]].drop_duplicates(keep='first')
+    id_df['layer_id'] = get_ids(id_df,
         layers_cols + [policy_num, layer_num], group_by=layers_cols,
-    ).reindex(range(len(accounts_df))).fillna(method='ffill').astype('uint32')
+    ).astype('uint32')
+    accounts_df = merge_dataframes(accounts_df, id_df, join_on=layers_cols + [policy_num, layer_num])
 
     # Drop all columns from the accounts dataframe which are not either one of
     # portfolio num., acc. num., policy num., cond. numb., layer ID, or one of
