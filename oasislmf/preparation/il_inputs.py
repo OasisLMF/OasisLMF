@@ -452,6 +452,7 @@ def get_account_df(accounts_fp, accounts_profile):
     layers_cols = [portfolio_num, acc_num]
     if step_policies_present:
         layers_cols += ['stepnumber']
+        accounts_df['stepnumber'].fillna(0, inplace=True)
     id_df = accounts_df[layers_cols + [policy_num, layer_num]].drop_duplicates(keep='first')
     id_df['layer_id'] = get_ids(id_df,
         layers_cols + [policy_num, layer_num], group_by=layers_cols,
