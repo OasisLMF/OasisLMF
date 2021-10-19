@@ -448,6 +448,7 @@ def get_account_df(accounts_fp, accounts_profile):
     # If step policies are listed use `stepnumber` column in combination
     if layer_num not in accounts_df:
         accounts_df[layer_num] = 1
+    accounts_df[layer_num].fillna(1, inplace=True)
     layers_cols = [portfolio_num, acc_num]
     if step_policies_present:
         layers_cols += ['stepnumber']
