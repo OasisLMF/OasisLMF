@@ -347,6 +347,8 @@ class GenerateDummyModelFiles(ComputationStep):
         {'name': 'intensity_sparseness',     'flag': '-S', 'required': False, 'type': float,    'default': 1.0,         'help': 'Percentage of bins normalised to range [0,1] impacted for an event and areaperil'},
         {'name': 'no_intensity_uncertainty', 'flag': '-u', 'required': False, 'default': False, 'action': 'store_true', 'help': 'No intensity uncertainty flag'},
         {'name': 'num_periods',              'flag': '-p', 'required': True,  'type': int,                              'help': 'Number of periods'},
+        {'name': 'periods_per_event_mean',   'flag': '-P', 'required': False, 'type': int,      'default': 1,           'help': 'Mean of truncated normal distribution sampled to determine number of periods per event'},
+        {'name': 'periods_per_event_stddev', 'flag': '-Q', 'required': False, 'type': float,    'default': 0.0,         'help': 'Standard deviation of truncated normal distribution sampled to determine number of periods per event'},
         {'name': 'num_randoms',              'flag': '-r', 'required': False, 'type': int,      'default': 0,           'help': 'Number of random numbers'},
         {'name': 'random_seed',              'flag': '-R', 'required': False, 'type': int,      'default': -1,          'help': 'Random seed (-1 for 1234 (default), 0 for current system time'}
     ]
@@ -383,11 +385,18 @@ class GenerateDummyModelFiles(ComputationStep):
             'directory': self.static_dir
         }
 
+    def _set_periods_per_event_parameters(self):
+        self.periods_per_event_parameters = {
+            'mean': self.periods_per_event_mean,
+            'stddev': self.periods_per_event_stddev
+        }
+
     def _get_model_file_objects(self):
 
         # vulnerability.bin, events.bin, footprint.bin, footprint.idx,
         # damage_bin_dict.bin and occurrence.bin
         self._set_footprint_files_inputs()
+        self._set_periods_per_event_parameters()
         self.model_files = [
             VulnerabilityFile(
                 self.num_vulnerabilities, self.num_intensity_bins,
@@ -402,7 +411,7 @@ class GenerateDummyModelFiles(ComputationStep):
             DamageBinDictFile(self.num_damage_bins, self.static_dir),
             OccurrenceFile(
                 self.num_events, self.num_periods, self.random_seed,
-                self.input_dir
+                self.input_dir, **self.periods_per_event_parameters
             )
         ]
         if self.num_randoms > 0:
