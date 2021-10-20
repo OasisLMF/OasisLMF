@@ -190,7 +190,7 @@ class InstallKtoolsMixin(object):
                 ARCH = None
                 OS = None
 
-        if ARCH in ['x86_64'] and OS in ['Linux', 'Darwin']:
+        if ARCH in ['x86_64', 'arm64'] and OS in ['Linux', 'Darwin']:
             return {"system_os": OS, "system_architecture": ARCH}
         else:
             return None
