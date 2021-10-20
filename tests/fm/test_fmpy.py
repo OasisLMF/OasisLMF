@@ -40,11 +40,12 @@ class FmAcceptanceTests(TestCase):
             )
         self.assertTrue(result)
 
-    def test_insurance(self):
-        self.run_test('insurance',fmpy=True)
+    # combined into insurance_and_step test
+    #def test_insurance(self):
+    #    self.run_test('insurance',fmpy=True)
 
-    def test_insurance_step(self):
-        self.run_test('insurance_step',fmpy=True)
+    #def test_insurance_step(self):
+    #    self.run_test('insurance_step',fmpy=True)
 
     def test_reinsurance1(self):
         self.run_test('reinsurance1',fmpy=True)
@@ -55,12 +56,17 @@ class FmAcceptanceTests(TestCase):
     def test_issues(self):
         self.run_test('issues',fmpy=True)
 
-    # multiperil tests
-    def test_insurance_2_subperils(self):
-        self.run_test('insurance', fmpy=True, subperils=2, expected_dir="expected_subperils")
+    def test_insurance_and_step(self):
+        self.run_test('insurance_and_step',fmpy=True)
 
-    def test_insurance_step_2_subperils(self):
-        self.run_test('insurance_step', fmpy=True, subperils=2, expected_dir="expected_subperils")
+    # multiperil tests
+
+    # combined into insurance_and_step test
+    #def test_insurance_2_subperils(self):
+    #    self.run_test('insurance', fmpy=True, subperils=2, expected_dir="expected_subperils")
+
+    #def test_insurance_step_2_subperils(self):
+    #    self.run_test('insurance_step', fmpy=True, subperils=2, expected_dir="expected_subperils")
 
     def test_reinsurance1_2_subperils(self):
         self.run_test('reinsurance1', fmpy=True, subperils=2, expected_dir="expected_subperils")
@@ -70,3 +76,6 @@ class FmAcceptanceTests(TestCase):
 
     def test_issues_2_subperils(self):
         self.run_test('issues', fmpy=True, subperils=2, expected_dir="expected_subperils")
+
+    def test_insurance_and_step_2_subperils(self):
+        self.run_test('insurance_and_step',fmpy=True, subperils=2, expected_dir="expected_subperils")
