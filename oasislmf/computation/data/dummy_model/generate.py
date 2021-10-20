@@ -50,10 +50,8 @@ class ModelFile:
                 for stat in self.start_stats:
                     f.write(struct.pack(stat['dtype'], stat['value']))
             dtypes_list = ''.join(self.dtypes.values())
-            f.write(struct.pack(
-                '=' + dtypes_list * self.data_length,
-                *(x for y in self.generate_data() for x in y)
-            ))
+            for line in self.generate_data():
+                f.write(struct.pack('=' + dtypes_list, *(line)))
 
     def debug_write_file(self):
         """

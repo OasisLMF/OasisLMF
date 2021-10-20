@@ -419,6 +419,7 @@ class GenerateDummyModelFiles(ComputationStep):
         self._get_model_file_objects()
 
         for model_file in self.model_files:
+            self.logger.info(f'Writing {model_file.file_name}')
             model_file.write_file()
 
         self.logger.info(f'\nDummy Model files generated in {self.target_dir}')
@@ -499,6 +500,7 @@ class GenerateDummyOasisFiles(GenerateDummyModelFiles):
 
         output_files = self.model_files + self.gul_files + self.fm_files
         for output_file in output_files:
+            self.logger.info(f'Writing {output_file.file_name}')
             output_file.write_file()
 
         self.logger.info(f'\nDummy Model and Oasis files generated in {self.target_dir}')
