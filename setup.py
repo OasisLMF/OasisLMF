@@ -78,7 +78,7 @@ class InstallKtoolsMixin(object):
                 self.install_ktools_bin(**bin_install_kwargs)
             except:
                 print('Fallback - building ktools from source')
-                self.install_ktools_source(bin_install_kwargs)
+                self.install_ktools_source(**bin_install_kwargs)
         else:
             self.install_ktools_source()
 
@@ -140,11 +140,13 @@ class InstallKtoolsMixin(object):
     def build_ktools(self, extract_location, system_os):
         self.announce('Building ktools', INFO)
         print('Installing ktools from source')
+        print(f' :::::  system_os {system_os} :::::')
+
         build_dir = os.path.join(extract_location, 'ktools-{}'.format(KTOOLS_VERSION))
 
         system_os_flag = '--enable-osx ' if system_os == 'Darwin' else ''
 
-        exit_code = os.system(f'cd {build_dir} && ./autogen.sh && ./configure {system_os_flag}&& make && make check')
+        exit_code = os.system(f'cd {build_dir} && ./autogen.sh && ./configure {system_os_flag} && make && make check')
         if(exit_code != 0):
             print('Ktools build failed.\n')
             sys.exit(1)
@@ -183,17 +185,13 @@ class InstallKtoolsMixin(object):
             OS, ARCH = PLATFORM.split('_', 1)
         else:
             try:
-                uname = platform.uname()
-                ARCH = uname['machine']
-                OS = uname['system']
+                ARCH = platform.machine()
+                OS = platform.system()
             except Exception:
                 ARCH = None
                 OS = None
 
-        if ARCH in ['x86_64', 'arm64'] and OS in ['Linux', 'Darwin']:
-            return {"system_os": OS, "system_architecture": ARCH}
-        else:
-            return None
+        return {"system_os": OS, "system_architecture": ARCH}
 
     def install_ktools_source(self, system_os=None, system_architecture=None):
         with temp_dir() as d:
