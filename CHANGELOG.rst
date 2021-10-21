@@ -1,6 +1,9 @@
 OasisLMF Changelog
 ==================
 
+* [#920](https://github.com/OasisLMF/OasisLMF/pull/921) - conditions for multi-layer accounts file generation 
+.. _`1.15.17`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.16...1.15.17
+
 * [#901](https://github.com/OasisLMF/OasisLMF/pull/900) - fmpy: areaperil_id 8 bytes support
 .. _`1.15.16`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.15...1.15.16
 
