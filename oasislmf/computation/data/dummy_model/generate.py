@@ -310,7 +310,7 @@ class OccurrenceFile(ModelFile):
         # g(y) = (y - mean) / standard_deviation
         # Phi(g(y)) = 1/2 * (1 + erf(g(y) / sqrt(2)))
         # a = lower boundary = 0.5, b = upper boundary = infinity
-        #   therefore beta -> infinity ===> Phi(beta) -> 1
+        #   therefore g(b) -> infinity ===> Phi(g(b)) -> 1
         alpha = (0.5 - self.mean) / self.stddev
         phi_alpha = 0.5 * (1 + erf(alpha / np.sqrt(2)))
         rand_no = np.random.random()
