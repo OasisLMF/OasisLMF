@@ -7,6 +7,7 @@ __all__ = [
 import io
 import json
 import os
+from pathlib import Path
 
 from .keys import GenerateKeys, GenerateKeysDeterministic
 from ..base import ComputationStep
@@ -371,8 +372,16 @@ class GenerateDummyModelFiles(ComputationStep):
         self.target_dir = create_target_directory(
             target_dir, 'target test model files directory'
         )
-        self.input_dir = self.target_dir
-        self.static_dir = self.target_dir
+
+    def _prepare_run_directory(self):
+        self.input_dir = os.path.join(self.target_dir, 'input')
+        self.static_dir = os.path.join(self.target_dir, 'static')
+        directories = [
+            self.input_dir, self.static_dir
+        ]
+        for directory in directories:
+            if not os.path.exists(directory):
+                Path(directory).mkdir(parents=True, exist_ok=True)
 
     def _set_footprint_files_inputs(self):
         self.footprint_files_inputs = {
@@ -425,6 +434,7 @@ class GenerateDummyModelFiles(ComputationStep):
 
         self._validate_input_arguments()
         self._create_target_directory(label='files')
+        self._prepare_run_directory()
         self._get_model_file_objects()
 
         for model_file in self.model_files:
@@ -498,6 +508,7 @@ class GenerateDummyOasisFiles(GenerateDummyModelFiles):
 
         self._validate_input_arguments()
         self._create_target_directory(label='files')
+        self._prepare_run_directory()
         self._get_model_file_objects()
         self._get_gul_file_objects()
 
