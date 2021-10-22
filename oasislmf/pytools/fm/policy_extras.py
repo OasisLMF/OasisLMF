@@ -657,6 +657,32 @@ def calcrule_36(policy, loss_out, loss_in, deductible, over_limit, under_limit):
             under_limit[i] = min2(limit - loss_out[i], under_limit[i])
 
 
+@njit(cache=True, fastmath=True)
+def calcrule_37(policy, loss_out, loss_in, deductible, over_limit, under_limit):
+    """
+    % loss step payout
+    """
+    if policy['step_id'] == 1:
+        loss_out.fill(0)
+    for i in range(loss_in.shape[0]):
+        if policy['trigger_start'] <= loss_in[i] < policy['trigger_end']:
+            loss = min(max(policy['payout_start'] * loss_in[i] - policy['deductible_1'], 0), policy['limit_1'])
+            loss_out[i] = (loss + min(loss * policy['scale_2'], policy['limit_2'])) * policy['scale_1']
+
+
+@njit(cache=True, fastmath=True)
+def calcrule_38(policy, loss_out, loss_in, deductible, over_limit, under_limit):
+    """
+    conditional coverage
+    """
+    if policy['step_id'] == 1:
+        loss_out.fill(0)
+    for i in range(loss_in.shape[0]):
+        if policy['trigger_start'] <= loss_in[i] < policy['trigger_end']:
+            loss_out[i] += min(loss_out[i] * policy['scale_2'], policy['limit_2']) * policy['scale_1']
+
+
+
 @njit(cache=True)
 def calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, stepped):
     if policy['calcrule_id'] == 1:
@@ -721,10 +747,12 @@ def calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, stepped
             calcrule_27(policy, loss_out, loss_in, deductible, over_limit, under_limit)
         elif policy['calcrule_id'] == 28:
             calcrule_28(policy, loss_out, loss_in, deductible, over_limit, under_limit)
-        elif policy['calcrule_id'] == 281:
-            calcrule_281(policy, loss_out, loss_in, deductible, over_limit, under_limit)
         elif policy['calcrule_id'] == 32:
             calcrule_32(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+        elif policy['calcrule_id'] == 37:
+            calcrule_37(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+        elif policy['calcrule_id'] == 38:
+            calcrule_38(policy, loss_out, loss_in, deductible, over_limit, under_limit)
         else:
             raise UnknownCalcrule()
     else:
