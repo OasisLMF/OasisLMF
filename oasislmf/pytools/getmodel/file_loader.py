@@ -55,24 +55,35 @@ class FileLoader:
             "vulnerability": {
                 "struct": struct.Struct("iiif"),
                 "byte chunk": 16,
-                "columns": ["vulnerability_id", "intensity_bin_index", "damage_bin_index", "prob"]
+                "header": 4,
+                "columns": ["vulnerability_id", "intensity_bin_id", "damage_bin_id", "probability"]
             },
             "footprint": {
-                "struct": struct.Struct("iiif"),
-                "byte chunk": 16,
-                "columns": ["event_id", "areaperil_id", "intensity_bin_index", "prob"]
+                "struct": struct.Struct("iif"),
+                "byte chunk": 12,
+                "header": 8,
+                "columns": ["areaperil_id", "intensity_bin_id", "probability"]
             },
             "damage_bin_dict": {
-                "struct": struct.Struct("ifff"),
-                "byte chunk": 16,
-                "columns": ["bin_index", "bin_from", "bin_to", "interpolation"]
+                "struct": struct.Struct("ifffi"),
+                "byte chunk": 20,
+                "columns": ["bin_index", "bin_from", "bin_to", "interpolation", "interval_type"]
             },
             "events": {
                 "struct": struct.Struct("i"),
                 "byte chunk": 4,
                 "columns": ["event_id"]
+            },
+            "items": {
+                "struct": struct.Struct("iiiii"),
+                "byte chunk": 20,
+                "columns": ["item_id", "coverage_id", "areaperil_id", "vulnerability_id", "group_id"]
             }
         }
+        # trims the header off the data
+        if encoding_map[self.file_name].get("header") is not None:
+            data = data[encoding_map[self.file_name].get("header"):]
+
         chunk: int = encoding_map[self.file_name]["byte chunk"]
         unpack_struct: struct.Struct = encoding_map[self.file_name]["struct"]
         raw_data: List[bytes] = [data[i:i + chunk] for i in range(0, len(data), chunk)]

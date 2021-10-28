@@ -38,6 +38,8 @@ wheels/
 pip-log.txt
 pip-delete-this-directory.txt
 
+deveploment_environment/
+
 # Unit test / coverage reports
 htmlcov/
 .tox/
@@ -118,3 +120,5 @@ tests/model_execution/tmp_fc_kparse_output/
 # pycharm
 .idea/
 data/
+
+DS_Store/

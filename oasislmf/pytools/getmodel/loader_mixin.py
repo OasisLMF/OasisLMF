@@ -3,7 +3,7 @@ from .enums import FileTypeEnum
 from .file_loader import FileLoader
 
 
-class ModelLoaderMixin:
+class ModelFileLoaderMixin:
     """
     This Mixin class is responsible for loading data for the get model.
     """
