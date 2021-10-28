@@ -1274,6 +1274,13 @@ class TestGetDataframe(TestCase):
         finally:
             os.remove(fp.name)
 
+    def test_get_dataframe__from_non_utf8_csv_file(self):
+        fp = os.path.join(os.path.dirname(__file__), "bad_encoding_utf8.csv")
+        col_dtypes = {'FlexiLocZZZ': 'category'}
+
+        # can read df with no error
+        get_dataframe(src_fp=fp, col_dtypes=col_dtypes)
+
 
 class TestGetJson(TestCase):
 
