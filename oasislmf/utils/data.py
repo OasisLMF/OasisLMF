@@ -487,7 +487,7 @@ def get_dataframe(
             # Find flexible fields in loc file and set their data types to that of
             # FlexiLocZZZ
             if 'FlexiLocZZZ' in col_dtypes.keys():
-                headers = list(pd.read_csv(src_fp).head(0))
+                headers = list(pd.read_csv(src_fp, encoding=use_encoding).head(0))
                 for flexiloc_col in filter(re.compile('^FlexiLoc').match, headers):
                     col_dtypes[flexiloc_col] = col_dtypes['FlexiLocZZZ']
             df = pd.read_csv(
