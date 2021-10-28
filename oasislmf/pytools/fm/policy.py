@@ -320,6 +320,12 @@ def calc(policy, loss_out, loss_in, stepped):
         calcrule_24(policy, loss_out, loss_in)
     elif policy['calcrule_id'] == 25:
         calcrule_25(policy, loss_out, loss_in)
+    elif policy['calcrule_id'] == 33:
+        calcrule_33(policy, loss_out, loss_in)
+    elif policy['calcrule_id'] == 34:
+        calcrule_34(policy, loss_out, loss_in)
+    elif policy['calcrule_id'] == 100:
+        loss_out[:] = loss_in
     elif stepped is not None:
         if policy['calcrule_id'] == 28:
             calcrule_28(policy, loss_out, loss_in)
@@ -327,11 +333,7 @@ def calc(policy, loss_out, loss_in, stepped):
             calcrule_281(policy, loss_out, loss_in)
         elif policy['calcrule_id'] == 32:
             calcrule_32(policy, loss_out, loss_in)
-    elif policy['calcrule_id'] == 33:
-        calcrule_33(policy, loss_out, loss_in)
-    elif policy['calcrule_id'] == 34:
-        calcrule_34(policy, loss_out, loss_in)
-    elif policy['calcrule_id'] == 100:
-        loss_out[:] = loss_in
+        else:
+            raise UnknownCalcrule()
     else:
         raise UnknownCalcrule()
