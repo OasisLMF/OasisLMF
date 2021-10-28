@@ -13,10 +13,6 @@ from .enums import FileTypeEnum
 from .loader_mixin import FileLoader
 
 
-import line_profiler
-profile = line_profiler.LineProfiler()
-
-
 @jit((int64[:], int64[:], int64[:]), nopython=True)
 def define_data_series(vul_ids, inten_ids, damage_bin_maxs):
     vun_list = []
