@@ -1,6 +1,12 @@
 OasisLMF Changelog
 ==================
 
+`1.15.18`_
+ ---------
+* [#928](https://github.com/OasisLMF/OasisLMF/pull/928) - Fix/fmpy stream sparse empty item
+* [#924](https://github.com/OasisLMF/OasisLMF/pull/926) - Non UTF-8 portfolio causes model run to crash
+.. _`1.15.18`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.17...1.15.18
+
 * [#920](https://github.com/OasisLMF/OasisLMF/pull/921) - conditions for multi-layer accounts file generation 
 .. _`1.15.17`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.16...1.15.17
 
