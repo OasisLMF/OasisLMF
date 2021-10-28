@@ -353,7 +353,7 @@ setup(
             'complex_itemtocsv=oasislmf.execution.complex_items_to_csv:main',
             'load_balancer=oasislmf.execution.load_balancer:main',
             'fmpy=oasislmf.pytools.fmpy:main',
-            'getpymodel=oasislmf.pytools.get_model:main'
+            'getpymodel=oasislmf.pytools.getmodel.get_model:main'
         ]
     },
     license='BSD 3-Clause',
