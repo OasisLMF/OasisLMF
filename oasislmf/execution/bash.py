@@ -68,12 +68,18 @@ ORD_PLT_OUTPUT_SWITCHES = {
     "plt_sample": {
         'flag': '-S', 'ktools_exe': 'pltcalc', 'table_name': 'splt'
     },
+    "plt_quantile": {
+        'flag': '-Q', 'ktools_exe': 'pltcalc', 'table_name': 'qplt'
+    },
     "plt_moment": {
         'flag': '-M', 'ktools_exe': 'pltcalc', 'table_name': 'mplt'
     }
 }
 
 ORD_ELT_OUTPUT_SWITCHES = {
+    "elt_quantile": {
+        'flag': '-Q', 'ktools_exe': 'eltcalc', 'table_name': 'qelt'
+    },
     "elt_moment": {
         'flag': '-M', 'ktools_exe': 'eltcalc', 'table_name': 'melt'
     }
@@ -90,17 +96,6 @@ OUTPUT_SWITCHES = {
     "elt_ord": ORD_ELT_OUTPUT_SWITCHES,
     "selt_ord": ORD_SELT_OUTPUT_SWITCH
 }
-
-# placeholder warning for upcomming ORD ouputs
-ORD_NOT_IMPLEMENTED = [
-#    "elt_sample",
-    "elt_quantile",
-#    "elt_moment",
-#    "plt_sample",
-    "plt_quantile",
-#    "plt_moment",
-#    "alt_period",
-]
 
 EVE_SHUFFLE_OPTIONS = {
     EVE_NO_SHUFFLE: {'eve': '-n ', 'kat_sorting': False},

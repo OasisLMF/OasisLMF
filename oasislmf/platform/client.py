@@ -204,6 +204,10 @@ class API_models(ApiEndpoint):
         self.settings = JsonEndpoint(self.session, self.url_endpoint, 'settings/')
         self.versions = JsonEndpoint(self.session, self.url_endpoint, 'versions/')
 
+        # Platform 2.0 only (Check might be needed here)
+        self.chunking_configuration = JsonEndpoint(self.session, self.url_endpoint, 'chunking_configuration/')
+        self.scaling_configuration = JsonEndpoint(self.session, self.url_endpoint, 'scaling_configuration/')
+
     def data_files(self, ID):
         return self.session.get('{}{}/data_files'.format(self.url_endpoint, ID))
 
@@ -244,6 +248,7 @@ class API_portfolios(ApiEndpoint):
         self.location_file = FileEndpoint(self.session, self.url_endpoint, 'location_file/')
         self.reinsurance_info_file = FileEndpoint(self.session, self.url_endpoint, 'reinsurance_info_file/')
         self.reinsurance_scope_file = FileEndpoint(self.session, self.url_endpoint, 'reinsurance_scope_file/')
+        self.storage_links = JsonEndpoint(self.session, self.url_endpoint, 'storage_links/')
 
     def create(self, name):
         data = {"name": name}
@@ -326,23 +331,32 @@ class API_analyses(ApiEndpoint):
     def generate(self, ID):
         return self.session.post('{}{}/generate_inputs/'.format(self.url_endpoint, ID), json={})
 
-    def generate_cancel(self, ID):
-        return self.session.post('{}{}/cancel_generate_inputs/'.format(self.url_endpoint, ID), json={})
-
     def run(self, ID):
         return self.session.post('{}{}/run/'.format(self.url_endpoint, ID), json={})
 
-    def run_cancel(self, ID):
+    def cancel_analysis_run(self, ID):
+        return self.session.post('{}{}/cancel_analysis_run/'.format(self.url_endpoint, ID), json={})
+
+    def cancel_generate_inputs(self, ID):
+        return self.session.post('{}{}/cancel_generate_inputs/'.format(self.url_endpoint, ID), json={})
+
+    def cancel(self, ID):
         return self.session.post('{}{}/cancel/'.format(self.url_endpoint, ID), json={})
+
+    def copy(self, ID):
+        return self.session.post('{}{}/copy/'.format(self.url_endpoint, ID), json={})
 
     def data_files(self, ID):
         return self.session.get('{}{}/data_files'.format(self.url_endpoint, ID))
+
+    def storage_links(self, ID):
+        return self.session.get('{}{}/storage_links'.format(self.url_endpoint, ID))
 
 # --- API Main Client ------------------------------------------------------- #
 
 
 class APIClient(object):
-    def __init__(self, api_url, api_ver, username, password, timeout=25, logger=None, **kwargs):
+    def __init__(self, api_url='http://localhost:8000', api_ver='V1', username='admin', password='password', timeout=25, logger=None, **kwargs):
         self.logger = logger or logging.getLogger()
 
         self.api = APISession(api_url, username, password, timeout, **kwargs)
@@ -353,6 +367,12 @@ class APIClient(object):
 
     def oed_peril_codes(self):
         return self.api.get('{}oed_peril_codes/'.format(self.api.url_base))
+
+    def server_info(self):
+        return self.api.get('{}server_info/'.format(self.api.url_base))
+
+    def healthcheck(self):
+        return self.api.get('{}healthcheck/'.format(self.api.url_base))
 
     def upload_inputs(self, portfolio_name=None, portfolio_id=None,
                       location_fp=None, accounts_fp=None, ri_info_fp=None, ri_scope_fp=None):
@@ -611,7 +631,7 @@ class APIClient(object):
         Cancels a currently inputs generation. The analysis status must be `GENERATING_INPUTS`
         """
         try:
-            self.analyses.generate_cancel(analysis_id)
+            self.analyses.cancel_generate_inputs(analysis_id)
             self.logger.info('Cancelled Input generation: (Id={})'.format(analysis_id))
             return True
         except HTTPError as e:
@@ -624,7 +644,7 @@ class APIClient(object):
         statuses, `PENDING` or `STARTED`
         """
         try:
-            self.analyses.run_cancel(analysis_id)
+            self.analyses.cancel_analysis_run(analysis_id)
             self.logger.info('Cancelled analysis run: (Id={})'.format(analysis_id))
             return True
         except HTTPError as e:

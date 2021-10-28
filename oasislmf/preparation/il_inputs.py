@@ -448,13 +448,16 @@ def get_account_df(accounts_fp, accounts_profile):
     # If step policies are listed use `stepnumber` column in combination
     if layer_num not in accounts_df:
         accounts_df[layer_num] = 1
+    accounts_df[layer_num].fillna(1, inplace=True)
     layers_cols = [portfolio_num, acc_num]
     if step_policies_present:
         layers_cols += ['stepnumber']
-    accounts_df['layer_id'] = get_ids(
-        accounts_df[layers_cols + [policy_num, layer_num]].drop_duplicates(keep='first'),
+        accounts_df['stepnumber'].fillna(0, inplace=True)
+    id_df = accounts_df[layers_cols + [policy_num, layer_num]].drop_duplicates(keep='first')
+    id_df['layer_id'] = get_ids(id_df,
         layers_cols + [policy_num, layer_num], group_by=layers_cols,
-    ).reindex(range(len(accounts_df))).fillna(method='ffill').astype('uint32')
+    ).astype('uint32')
+    accounts_df = merge_dataframes(accounts_df, id_df, join_on=layers_cols + [policy_num, layer_num])
 
     # Drop all columns from the accounts dataframe which are not either one of
     # portfolio num., acc. num., policy num., cond. numb., layer ID, or one of
@@ -617,40 +620,42 @@ def __extract_level_location_to_agg_cond_dict(account_groups, base_level, max_le
     level_grouping = {}
     agg_dict = {level_id: 1 for level_id in range(base_level, max_level + 1)}
 
-    def set_agg_cond(ptf, account, group_id, group, level_id, layer_id, condition):
-        level_group_key = (ptf, account, group_id, level_id)
+    def set_agg_cond(main_key, group_id, group, level_id, layer_id, condition):
+        level_group_key = main_key + (group_id, level_id)
         if level_group_key not in level_grouping:
             level_grouping[level_group_key] = agg_dict[level_id]
             agg_dict[level_id] += 1
-        for _, _, location in group['locations']:
-            level_location_to_agg_cond_dict[(ptf, account, level_id, layer_id, location)] = (level_grouping[level_group_key], condition)
+        for loc_key in group['locations']:
+            location = loc_key[-1]
+            level_location_to_agg_cond_dict[main_key + (level_id, layer_id, location)] = (level_grouping[level_group_key], condition)
 
-    for (ptf, account), groups in account_groups.items():
+    for main_key, groups in account_groups.items():
         #first we iter through groups to create agg
         no_parent_not_top_groups = set(groups)
         for group_id, group in groups.items():
-            for layer_id, ((_, _, condition), _) in group['layers'].items():
+            for layer_id, (cond_key, _) in group['layers'].items():
+                condition = cond_key[-1]
                 for level_id in range(base_level, group['level']):
-                    set_agg_cond(ptf, account, group_id, group, level_id, layer_id, 0)
+                    set_agg_cond(main_key, group_id, group, level_id, layer_id, 0)
 
                 if group['level'] == max_level:
                     no_parent_not_top_groups.discard(group_id)
-                set_agg_cond(ptf, account, group_id, group, group['level'], layer_id, condition)
+                set_agg_cond(main_key, group_id, group, group['level'], layer_id, condition)
 
                 for child_group_id in group.get('childs', []):
                     no_parent_not_top_groups.discard(child_group_id)
-                    set_agg_cond(ptf, account, group_id, groups[child_group_id], group['level'], layer_id, condition)
+                    set_agg_cond(main_key, group_id, groups[child_group_id], group['level'], layer_id, condition)
 
         for group_id in no_parent_not_top_groups:
             for level_id in range(group['level'] + 1, max_level + 1):
                 group = groups[group_id]
                 for layer_id in group['layers']:
-                    set_agg_cond(ptf, account, group_id, group, level_id, layer_id, 0)
+                    set_agg_cond(main_key, group_id, group, level_id, layer_id, 0)
 
     return level_location_to_agg_cond_dict
 
 
-def __get_cond_grouping_hierarchy(column_base_il_df, portfolio_num, acc_num, cond_num, loc_num, base_level):
+def __get_cond_grouping_hierarchy(column_base_il_df, main_key, cond_num, loc_num, base_level):
     """create group of locations based on the condition number and condition hierarchy found in column_base_il_df
 
     simplified logic
@@ -677,18 +682,18 @@ def __get_cond_grouping_hierarchy(column_base_il_df, portfolio_num, acc_num, con
     column_base_il_df['condpriority'].fillna(0)
 
     cond_hierachy = {}
-    for rec in column_base_il_df[[portfolio_num, acc_num, 'layer_id', cond_num, 'condpriority']].to_dict(orient="records"):
-        cond_hierachy[(rec[portfolio_num], rec[acc_num], rec[cond_num])] = (rec['layer_id'], rec['condpriority'])
+    for rec in column_base_il_df[main_key + ['layer_id', cond_num, 'condpriority']].to_dict(orient="records"):
+        cond_hierachy[tuple(rec[name] for name in main_key + [cond_num])] = (rec['layer_id'], rec['condpriority'])
 
     loc_to_group = {}
     cond_to_group = {}
     account_groups = {}
     last_group_id = 1
     max_level = base_level
-    for rec in column_base_il_df[[portfolio_num, acc_num, cond_num, loc_num, 'layer_id', 'condpriority']].drop_duplicates().to_dict(orient="records"):
-        groups = account_groups.setdefault((rec[portfolio_num], rec[acc_num]), {})
-        cond_key = (rec[portfolio_num], rec[acc_num], rec[cond_num])
-        loc_key = (rec[portfolio_num], rec[acc_num], rec[loc_num])
+    for rec in column_base_il_df[main_key + [cond_num, loc_num, 'layer_id', 'condpriority']].drop_duplicates().to_dict(orient="records"):
+        groups = account_groups.setdefault(tuple(rec[name] for name in main_key), {})
+        cond_key = tuple(rec[name] for name in main_key + [cond_num])
+        loc_key = tuple(rec[name] for name in main_key + [loc_num])
         if loc_key not in loc_to_group:
             if cond_key not in cond_to_group:
                 # print("first time condition, first time location")
@@ -795,13 +800,13 @@ def __get_cond_grouping_hierarchy(column_base_il_df, portfolio_num, acc_num, con
                     missing_conditions.append(loc_key+(layer_id,))
 
     if missing_conditions:
-        missing_conditions_df = pd.DataFrame(missing_conditions, columns=[portfolio_num, acc_num, loc_num, 'layer_id'])
+        missing_conditions_df = pd.DataFrame(missing_conditions, columns=main_key + [loc_num, 'layer_id'])
         raise OasisException(f"missing conditions for :\n{missing_conditions_df.to_string(index=False)}")
 
     return account_groups, max_level
 
 
-def __get_level_location_to_agg_cond(column_base_il_df, oed_hierarchy):
+def __get_level_location_to_agg_cond(column_base_il_df, oed_hierarchy, main_key):
     """create a dataframe with the computed agg id base on the condition and condition priority
     """
     acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
@@ -810,14 +815,14 @@ def __get_level_location_to_agg_cond(column_base_il_df, oed_hierarchy):
     cond_num = oed_hierarchy['condnum']['ProfileElementName'].lower()
 
     base_level = 0
-    account_groups, max_level = __get_cond_grouping_hierarchy(column_base_il_df, portfolio_num, acc_num, cond_num, loc_num, base_level)
+    account_groups, max_level = __get_cond_grouping_hierarchy(column_base_il_df, main_key, cond_num, loc_num, base_level)
     level_location_to_agg_cond_dict = __extract_level_location_to_agg_cond_dict(account_groups, base_level, max_level)
 
     level_location_to_agg_cond = pd.DataFrame.from_records(
-        [(ptf, account, level_id, layer_id, location, agg_id, condition)
-         for (ptf, account, level_id, layer_id, location), (agg_id, condition)
+        [level_location + agg_cond
+         for level_location, agg_cond
          in level_location_to_agg_cond_dict.items()],
-        columns=[portfolio_num, acc_num, 'level_id', 'layer_id', loc_num, 'agg_id', cond_num]
+        columns=main_key + ['level_id', 'layer_id', loc_num, 'agg_id', cond_num]
     )
 
     return level_location_to_agg_cond, max_level
@@ -935,7 +940,13 @@ def __process_condition_level_df(column_base_il_df,
     portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
     cond_num = oed_hierarchy['condnum']['ProfileElementName'].lower()
     loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
-    level_location_to_agg_cond_df, cond_inter_level = __get_level_location_to_agg_cond(column_base_il_df, oed_hierarchy)
+
+    if "cov_agg_id" in column_base_il_df.columns:
+        main_key = [portfolio_num, acc_num, "cov_agg_id"]
+    else:
+        main_key = [portfolio_num, acc_num]
+
+    level_location_to_agg_cond_df, cond_inter_level = __get_level_location_to_agg_cond(column_base_il_df, oed_hierarchy, main_key)
 
     # identify fm columns for this level
     level_terms = __get_level_terms(column_base_il_df, level_column_mapper[level_id])
@@ -958,7 +969,7 @@ def __process_condition_level_df(column_base_il_df,
             level_df = merge_dataframes(
                 level_df,
                 this_level_location_to_agg_cond_df,
-                on=[portfolio_num, acc_num, 'layer_id', loc_num],
+                on=main_key + ['layer_id', loc_num],
                 how='inner',
                 drop_duplicates=False
             )
@@ -970,7 +981,7 @@ def __process_condition_level_df(column_base_il_df,
             prev_level_df = merge_dataframes(
                 prev_level_df,
                 this_level_location_to_agg_cond_df,
-                on=[portfolio_num, acc_num, 'layer_id', loc_num],
+                on=main_key + ['layer_id', loc_num],
                 how='inner',
                 drop_duplicates=False
             )
@@ -1089,9 +1100,9 @@ def get_il_input_items(
 
     # Determine whether step policies are listed, are not full of nans and step
     # numbers are greater than zero
-    step_policies_present = ('steptriggertype' in accounts_df and 'stepnumber' in accounts_df
-                             and accounts_df['steptriggertype'].notnull().any()
-                             and accounts_df[accounts_df['steptriggertype'].notnull()]['stepnumber'].gt(0).any())
+    step_policies_present = ('steptriggertype' in column_base_il_df and 'stepnumber' in column_base_il_df
+                             and column_base_il_df['steptriggertype'].notnull().any()
+                             and column_base_il_df[column_base_il_df['steptriggertype'].notnull()]['stepnumber'].gt(0).any())
 
     # If step policies listed, keep step trigger type and columns associated
     # with those step trigger types that are present
@@ -1128,11 +1139,12 @@ def get_il_input_items(
 
         column_base_il_df['assign_step_calcrule'] = column_base_il_df.apply(lambda row: assign_calcrule_flag(row), axis=1)
 
-        fm_aggregation_profile[SUPPORTED_FM_LEVELS['policy layer']['id']]['FMAggKey']['cov_agg_id'] = {
-                "src": "FM",
-                "field": "cov_agg_id",
-                "name": "coverage aggregation id"
-            }
+        for level_info in list(SUPPORTED_FM_LEVELS.values())[1:]:
+            fm_aggregation_profile[level_info['id']]['FMAggKey']['cov_agg_id'] = {
+                    "src": "FM",
+                    "field": "cov_agg_id",
+                    "name": "coverage aggregation id"
+                }
 
         all_steps = column_base_il_df['steptriggertype'].unique()
 

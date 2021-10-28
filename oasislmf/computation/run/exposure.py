@@ -31,6 +31,7 @@ from ...utils.defaults import (
     KTOOLS_ALLOC_RI_DEFAULT,
     KTOOLS_ALLOC_FM_MAX,
     OASIS_FILES_PREFIXES,
+    find_exposure_fp
 )
 
 
@@ -78,39 +79,29 @@ class RunExposure(ComputationStep):
             run_dir = tmp_dir.name
 
         include_loss_factor = not (len(self.loss_factor) == 1)
-        src_contents = [fn.lower() for fn in os.listdir(src_dir)]
 
         self._check_alloc_rules()
 
-
-        if 'location.csv' not in src_contents:
+        try:
+            location_fp = find_exposure_fp(src_dir, 'loc')
+            accounts_fp = find_exposure_fp(src_dir, 'acc')
+        except IndexError as e:
             raise OasisException(
-                f'No location/exposure file found in source directory "{src_dir}" - '
-                'a file named `location.csv` is expected'
+                f'No location/exposure and account found in source directory "{src_dir}" - '
+                'a file named `location.*` and `account.x` are expected', e
             )
 
-        il = ril = False
-        il = ('account.csv' in src_contents)
-        ril = il and ('ri_info.csv' in src_contents) and ('ri_scope.csv' in src_contents)
+        ri_info_fp = accounts_fp and find_exposure_fp(src_dir, 'info', required = False)
+        ri_scope_fp = ri_info_fp and find_exposure_fp(src_dir, 'scope', required=False)
+        if ri_scope_fp is None: ri_info_fp = None # Need both files for ri
+
+        il = bool(accounts_fp)
+        ril = bool(ri_scope_fp)
 
         self.logger.debug('\nRunning deterministic losses (GUL=True, IL={}, RIL={})\n'.format(il, ril))
 
         if not os.path.exists(run_dir):
             os.makedirs(run_dir)
-
-        contents = [fn.lower() for fn in os.listdir(src_dir)]
-        location_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'location.csv'][0]
-        accounts_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'account.csv'][0]
-        ri_info_fp = ri_scope_fp = None
-        try:
-            ri_info_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'ri_info.csv'][0]
-        except IndexError:
-            pass
-        else:
-            try:
-                ri_scope_fp = [os.path.join(src_dir, fn) for fn in contents if fn == 'ri_scope.csv'][0]
-            except IndexError:
-                ri_info_fp = None
 
         # 1. Create Deterministic keys file
         keys_fp = os.path.join(run_dir, 'keys.csv')

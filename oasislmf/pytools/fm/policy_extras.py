@@ -13,6 +13,7 @@ from numba import njit
 class UnknownCalcrule(Exception):
     pass
 
+
 @njit(cache=True)
 def min2(a, b):
     return a if a < b else b
@@ -697,15 +698,6 @@ def calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, stepped
         calcrule_25(policy, loss_out, loss_in, deductible, over_limit, under_limit)
     elif policy['calcrule_id'] == 26:
         calcrule_26(policy, loss_out, loss_in, deductible, over_limit, under_limit)
-    elif stepped is not None:
-        if policy['calcrule_id'] == 27:
-            calcrule_27(policy, loss_out, loss_in, deductible, over_limit, under_limit)
-        elif policy['calcrule_id'] == 28:
-            calcrule_28(policy, loss_out, loss_in, deductible, over_limit, under_limit)
-        elif policy['calcrule_id'] == 281:
-            calcrule_281(policy, loss_out, loss_in, deductible, over_limit, under_limit)
-        elif policy['calcrule_id'] == 32:
-            calcrule_32(policy, loss_out, loss_in, deductible, over_limit, under_limit)
     elif policy['calcrule_id'] == 33:
         calcrule_33(policy, loss_out, loss_in, deductible, over_limit, under_limit)
     elif policy['calcrule_id'] == 34:
@@ -716,5 +708,16 @@ def calc(policy, loss_out, loss_in, deductible, over_limit, under_limit, stepped
         calcrule_36(policy, loss_out, loss_in, deductible, over_limit, under_limit)
     elif policy['calcrule_id'] == 100:
         loss_out[:] = loss_in
+    elif stepped is not None:
+        if policy['calcrule_id'] == 27:
+            calcrule_27(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+        elif policy['calcrule_id'] == 28:
+            calcrule_28(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+        elif policy['calcrule_id'] == 281:
+            calcrule_281(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+        elif policy['calcrule_id'] == 32:
+            calcrule_32(policy, loss_out, loss_in, deductible, over_limit, under_limit)
+        else:
+            raise UnknownCalcrule()
     else:
         raise UnknownCalcrule()

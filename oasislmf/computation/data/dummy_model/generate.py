@@ -17,6 +17,7 @@ __all__ = [
 ]
 
 from collections import OrderedDict
+from math import erf
 import numpy as np
 import os
 import struct
@@ -50,10 +51,8 @@ class ModelFile:
                 for stat in self.start_stats:
                     f.write(struct.pack(stat['dtype'], stat['value']))
             dtypes_list = ''.join(self.dtypes.values())
-            f.write(struct.pack(
-                '=' + dtypes_list * self.data_length,
-                *(x for y in self.generate_data() for x in y)
-            ))
+            for line in self.generate_data():
+                f.write(struct.pack('=' + dtypes_list, *(line)))
 
     def debug_write_file(self):
         """
@@ -280,7 +279,9 @@ class DamageBinDictFile(ModelFile):
 
 
 class OccurrenceFile(ModelFile):
-    def __init__(self, num_events, num_periods, random_seed, directory):
+    def __init__(
+            self, num_events, num_periods, random_seed, directory, mean, stddev
+    ):
         self.num_events = num_events
         self.num_periods = num_periods
         self.dtypes = OrderedDict([
@@ -299,7 +300,34 @@ class OccurrenceFile(ModelFile):
         ]
         self.random_seed = random_seed
         self.data_length = num_events
+        self.mean = mean
+        self.stddev = stddev
         self.file_name = os.path.join(directory, 'occurrence.bin')
+
+    def get_num_periods_from_truncated_normal_cdf(self):
+        # Truncated Normal Cumulative Distribution Function:
+        # F(x) = [Phi(g(x)) - Phi(g(a))] / [Phi(g(b)) - Phi(g(a))]
+        # g(y) = (y - mean) / standard_deviation
+        # Phi(g(y)) = 1/2 * (1 + erf(g(y) / sqrt(2)))
+        # a = lower boundary = 0.5, b = upper boundary = infinity
+        #   therefore g(b) -> infinity ===> Phi(g(b)) -> 1
+        alpha = (0.5 - self.mean) / self.stddev
+        phi_alpha = 0.5 * (1 + erf(alpha / np.sqrt(2)))
+        rand_no = np.random.random()
+        bound_a = 0.5
+        while True:
+            xi = (bound_a - self.mean) / self.stddev
+            phi_xi = 0.5 * (1 + erf(xi / np.sqrt(2)))
+            if rand_no < ((phi_xi - phi_alpha) / (1 - phi_alpha)):
+                return int(bound_a)
+            bound_a += 1
+
+    def get_num_periods_per_event(self):
+        # Return mean if standard deviation is 0
+        if self.stddev == 0:
+            return self.mean
+        else:
+            return self.get_num_periods_from_truncated_normal_cdf()
 
     def set_occ_date_id(self, year, month, day):
         # Set date relative to epoch
@@ -314,12 +342,13 @@ class OccurrenceFile(ModelFile):
         months_weights = np.array(days_per_month, dtype=float)
         months_weights /= months_weights.sum()   # Normalise
         for event in range(self.num_events):
-            period_no = np.random.randint(1, self.num_periods+1)
-            occ_year = period_no   # Assume one period represents one year
-            occ_month = np.random.choice(months, p=months_weights)
-            occ_day = np.random.randint(1, days_per_month[occ_month-1])
-            occ_date = self.set_occ_date_id(occ_year, occ_month, occ_day)
-            yield event+1, period_no, occ_date
+            for _ in range(self.get_num_periods_per_event()):
+                period_no = np.random.randint(1, self.num_periods+1)
+                occ_year = period_no   # Assume one period represents one year
+                occ_month = np.random.choice(months, p=months_weights)
+                occ_day = np.random.randint(1, days_per_month[occ_month-1])
+                occ_date = self.set_occ_date_id(occ_year, occ_month, occ_day)
+                yield event+1, period_no, occ_date
 
 
 class RandomFile(ModelFile):

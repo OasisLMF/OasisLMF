@@ -67,6 +67,8 @@ from ..utils.defaults import (
 pd.options.mode.chained_assignment = None
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
+SUPPORTED_SRC_TYPE = ['parquet', 'csv', 'json']
+
 PANDAS_BASIC_DTYPES = {
     'int8': np.int8,
     'uint8': np.uint8,
@@ -384,7 +386,7 @@ def detect_encoding(filepath):
 
 def get_dataframe(
     src_fp=None,
-    src_type='csv',
+    src_type=None,
     src_buf=None,
     src_data=None,
     float_precision='high',
@@ -474,6 +476,14 @@ def get_dataframe(
             'appropriate data structure or Pandas DataFrame must be provided'
         )
 
+    if src_fp and src_type is None:
+        try:
+            src_type = src_fp.rsplit('.', 1)[1]
+            if src_type not in SUPPORTED_SRC_TYPE:
+                src_type = 'csv'
+        except IndexError:
+            src_type = 'csv'
+
     df = None
 
     # Use a custom list of null values without the string "`NA`" when using
@@ -483,47 +493,33 @@ def get_dataframe(
 
     try:
         use_encoding = encoding if encoding else 'utf-8'
-        if src_fp and src_type == 'csv':
-            # Find flexible fields in loc file and set their data types to that of
-            # FlexiLocZZZ
-            if 'FlexiLocZZZ' in col_dtypes.keys():
-                headers = list(pd.read_csv(src_fp).head(0))
-                for flexiloc_col in filter(re.compile('^FlexiLoc').match, headers):
-                    col_dtypes[flexiloc_col] = col_dtypes['FlexiLocZZZ']
-            df = pd.read_csv(
-                src_fp,
-                float_precision=float_precision,
-                memory_map=memory_map,
-                keep_default_na=False,
-                na_values=na_values,
-                dtype=col_dtypes,
-                encoding=use_encoding,
-                quotechar='"',
-                skipinitialspace = True,
-            )
-        elif src_buf and src_type == 'csv':
-            df = pd.read_csv(
-                io.StringIO(src_buf),
-                float_precision=float_precision,
-                memory_map=memory_map,
-                keep_default_na=False,
-                na_values=na_values,
-                encoding=use_encoding,
-                quotechar='"',
-                skipinitialspace = True,
-            )
-        elif src_fp and src_type == 'json':
-            df = pd.read_json(
-                src_fp,
-                precise_float=(True if float_precision == 'high' else False),
-                encoding=use_encoding
-            )
-        elif src_buf and src_type == 'json':
-            df = pd.read_json(
-                io.StringIO(src_buf),
-                precise_float=(True if float_precision == 'high' else False),
-                encoding=use_encoding
-            )
+        if src_fp or src_buf:
+            if src_type == 'csv':
+                # Find flexible fields in loc file and set their data types to that of
+                # FlexiLocZZZ
+                if 'FlexiLocZZZ' in col_dtypes.keys():
+                    headers = list(pd.read_csv(src_fp).head(0))
+                    for flexiloc_col in filter(re.compile('^FlexiLoc').match, headers):
+                        col_dtypes[flexiloc_col] = col_dtypes['FlexiLocZZZ']
+                df = pd.read_csv(
+                    src_fp or src_buf,
+                    float_precision=float_precision,
+                    memory_map=memory_map,
+                    keep_default_na=False,
+                    na_values=na_values,
+                    dtype=col_dtypes,
+                    encoding=use_encoding,
+                    quotechar='"',
+                    skipinitialspace = True,
+                )
+            elif src_type == 'parquet':
+                df = pd.read_parquet(src_fp or src_buf)
+            elif src_type == 'json':
+                df = pd.read_json(
+                    src_fp or src_buf,
+                    precise_float=(True if float_precision == 'high' else False),
+                    encoding=use_encoding
+                )
         elif isinstance(src_data, list) and src_data:
             df = pd.DataFrame(data=src_data)
         elif isinstance(src_data, pd.DataFrame):
@@ -531,8 +527,8 @@ def get_dataframe(
 
     # On DecodeError try to auto-detect the encoding and retry once
     except UnicodeDecodeError as e:
-        if encoding is None:
-            detected_encoding = detect_encoding(src_fp)['encoding']
+        detected_encoding = detect_encoding(src_fp)['encoding']
+        if encoding is None and detected_encoding:
             return get_dataframe(
                 src_fp=src_fp, src_type=src_type, src_buf=src_buf, src_data=src_data,
                 float_precision=float_precision, empty_data_error_msg=empty_data_error_msg,
@@ -591,7 +587,6 @@ def get_dataframe(
         )
         sort_ascending = sort_ascending if sort_ascending is not None else True
         df.sort_values(_sort_cols, axis=0, ascending=sort_ascending, inplace=True)
-
     return df
 
 
