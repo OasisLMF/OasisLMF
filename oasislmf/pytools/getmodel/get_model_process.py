@@ -189,14 +189,14 @@ class GetModelProcess:
 
     def deploy_final_model(self):
         df = DataFrame(self.model, columns=['event_id',
-                                          'areaperil_id',
-                                          'intensity_bin_id',
-                                          'footprint_probability',
-                                          'vulnerability_id',
-                                          'damage_bin_id',
-                                          'vulnerability_probability',
-                                          'prob_to',
-                                          'interpol'])
+                                            'areaperil_id',
+                                            'intensity_bin_id',
+                                            'footprint_probability',
+                                            'vulnerability_id',
+                                            'damage_bin_id',
+                                            'vulnerability_probability',
+                                            'prob_to',
+                                            'interpol'])
         self.model = df
 
     def print_stream(self) -> None:
