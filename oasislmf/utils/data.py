@@ -491,12 +491,11 @@ def get_dataframe(
     # which can appear in the `CountryCode` column in the loc. file
     na_values = list(PANDAS_DEFAULT_NULL_VALUES.difference(['NA']))
 
-    # memory map will causes encoding errors with non-standard formats
-    if encoding:
-        memory_map = encoding == 'utf-8'
-
     try:
+        # memory map causes encoding errors with non-standard formats
         use_encoding = encoding if encoding else 'utf-8'
+        memory_map = memory_map and (use_encoding == 'utf-8')
+
         if src_fp or src_buf:
             if src_type == 'csv':
                 # Find flexible fields in loc file and set their data types to that of
@@ -921,7 +920,7 @@ def get_location_df(
     if 'loc_id' not in exposure_df.columns:
         exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
 
-    # Add file Index column to extract OED columns for summary grouping 
+    # Add file Index column to extract OED columns for summary grouping
     exposure_df[SOURCE_IDX['loc']] = exposure_df.index
 
     return exposure_df
