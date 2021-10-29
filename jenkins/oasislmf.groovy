@@ -143,6 +143,30 @@ node {
                 }
             }
 
+            // Tag release
+            stage('Tag release'){
+                dir(source_workspace) {
+                    sshagent (credentials: [git_creds]) {
+                        sh "git tag ${vers_pypi}"
+                        sh "git push origin ${vers_pypi}"
+                    }
+                }
+            }
+            // Create release notes
+            stage('Create Changelog'){
+                dir(source_workspace) {
+                    withCredentials([string(credentialsId: 'github-api-token', variable: 'gh_token')]) {
+                        sh "docker run -v ${env.WORKSPACE}/${source_workspace}:/tmp release-builder build-changelog --repo OasisLMF --from-tag ${params.PREV_VERSION} --to-tag ${vers_pypi} --github-token ${gh_token} --local-repo-path ./ --output-path ./CHANGELOG.rst --apply-milestone"
+                        sh "docker run -v ${env.WORKSPACE}/${source_workspace}:/tmp release-builder build-release --repo OasisLMF --from-tag ${params.PREV_VERSION} --to-tag ${vers_pypi} --github-token ${gh_token} --local-repo-path ./ --output-path ./RELEASE.md"
+                    }
+                    sshagent (credentials: [git_creds]) {
+                        sh "git add ./CHANGELOG.rst"
+                        sh "git commit -m 'Update changelog ${vers_pypi}'"
+                        sh "git push"
+                    }
+                }
+            }
+
             // GPG sign pip package
             stage('Sign Package: ' + source_func) {
                 String gpg_dir='/var/lib/jenkins/.gnupg/'
@@ -168,29 +192,6 @@ node {
                     // Publish package
                     withCredentials([usernamePassword(credentialsId: twine_account, usernameVariable: 'TWINE_USERNAME', passwordVariable: 'TWINE_PASSWORD')]) {
                         sh PIPELINE + ' push_oasislmf'
-                    }
-                }
-            }
-            // Tag release
-            stage('Tag release'){
-                dir(source_workspace) {
-                    sshagent (credentials: [git_creds]) {
-                        sh "git tag ${vers_pypi}"
-                        sh "git push origin ${vers_pypi}"
-                    }
-                }
-            }
-            // Create release notes
-            stage('Create Changelog'){
-                dir(source_workspace) {
-                    withCredentials([string(credentialsId: 'github-api-token', variable: 'gh_token')]) {
-                        sh "docker run -v ${env.WORKSPACE}/${source_workspace}:/tmp release-builder build-changelog --repo OasisLMF --from-tag ${params.PREV_VERSION} --to-tag ${vers_pypi} --github-token ${gh_token} --local-repo-path ./ --output-path ./CHANGELOG.rst --apply-milestone"
-                        sh "docker run -v ${env.WORKSPACE}/${source_workspace}:/tmp release-builder build-release --repo OasisLMF --from-tag ${params.PREV_VERSION} --to-tag ${vers_pypi} --github-token ${gh_token} --local-repo-path ./ --output-path ./RELEASE.md"
-                    }
-                    sshagent (credentials: [git_creds]) {
-                        sh "git add ./CHANGELOG.rst"
-                        sh "git commit -m 'Update changelog ${vers_pypi}'"
-                        sh "git push"
                     }
                 }
             }
