@@ -1,12 +1,11 @@
-import numba as nb
-import numpy as np
 import struct
 import sys
-from numba import jit, int64
-from pandas import DataFrame, merge, concat
-from typing import Optional, Tuple, Any
+from typing import Optional, Any
 
-from oasislmf.utils.data import merge_dataframes
+import numpy as np
+from numba import jit, int64
+from pandas import DataFrame
+
 from .data_access_layers import FileDataAccessLayer
 from .descriptors import HeaderTypeDescriptor
 from .enums import FileTypeEnum

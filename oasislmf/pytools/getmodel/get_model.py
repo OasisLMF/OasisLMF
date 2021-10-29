@@ -208,7 +208,7 @@ def get_footprint(static_path, file_type):
             has_intensity_uncertainty = header[1]
 
         footprint = np.memmap(os.path.join(static_path, "footprint.bin"), dtype=Event, mode='r', offset=footprint_offset)
-        footprint_idx_bin = np.memmap(os.path.join(static_path, "footprint.idx"), dtype = EventIndexBin, mode='r')
+        footprint_idx_bin = np.memmap(os.path.join(static_path, "footprint.idx"), dtype=EventIndexBin, mode='r')
         footprint_idx_dict, footprint_idx_array = get_footprint_idx_from_bin(footprint_idx_bin)
 
     elif "footprint.csv" in static_files and file_type == "csv":
