@@ -491,6 +491,10 @@ def get_dataframe(
     # which can appear in the `CountryCode` column in the loc. file
     na_values = list(PANDAS_DEFAULT_NULL_VALUES.difference(['NA']))
 
+    # memory map will causes encoding errors with non-standard formats
+    if encoding:
+        memory_map = encoding == 'utf-8'
+
     try:
         use_encoding = encoding if encoding else 'utf-8'
         if src_fp or src_buf:
