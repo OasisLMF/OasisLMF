@@ -1,6 +1,7 @@
 import struct
 from enum import Enum
 from typing import List
+import zlib
 
 
 class Singleton(type):
@@ -177,6 +178,15 @@ class FootprintReader(metaclass=Singleton):
 
         return areaperil_id, intensity_bin_id, probability
 
+    @staticmethod
+    def process_compressed_data(data: bytes, uncompressed_size: int) -> tuple:
+        data = zlib.decompress(data, bufsize=uncompressed_size)
+        areaperil_id = int.from_bytes(data[:4], "little")
+        intensity_bin_id = int.from_bytes(data[4:8], "little")
+        probability = struct.unpack('f', data[8:12])[0]
+
+        return areaperil_id, intensity_bin_id, probability
+
     def read_slices(self) -> List[tuple]:
         """
         This is a generator that reads data for each event_id.
@@ -193,6 +203,23 @@ class FootprintReader(metaclass=Singleton):
                     break
                 chunks = [data[i:i + self.chunk_size] for i in range(0, len(data), self.chunk_size)]
                 yield [self.process_data(i) for i in chunks]
+
+    def read_compressed_slices(self) -> List[tuple]:
+        """
+        This is a generator that reads data for each event_id.
+        To activate the generator, you will have to send the size of the chunk into the generator.
+
+        Returns: (List[tuple]) processed data from the data slice
+        """
+        with open(self.path, "rb") as file:
+            data: bytes = file.read(8)
+            while data:
+                size = yield
+                data = file.read(size)
+                if data is None:
+                    break
+                chunks = [data[i:i + self.chunk_size] for i in range(0, len(data), self.chunk_size)]
+                yield [self.process_compressed_data(i, 60000) for i in chunks]
 
     def read(self) -> tuple:
         """
