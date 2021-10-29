@@ -180,7 +180,7 @@ class FootprintReader(metaclass=Singleton):
 
     @staticmethod
     def process_compressed_data(data: bytes, uncompressed_size: int) -> tuple:
-        data = zlib.decompress(data, bufsize=uncompressed_size)
+        data = zlib.decompress(data, wbits=zlib.MAX_WBITS)
         areaperil_id = int.from_bytes(data[:4], "little")
         intensity_bin_id = int.from_bytes(data[4:8], "little")
         probability = struct.unpack('f', data[8:12])[0]
