@@ -2,16 +2,13 @@ import struct
 from enum import Enum
 from typing import List
 import zlib
+import numpy as np
+import numba as nb
+import os
 
 
-class Singleton(type):
-
-    _instances = {}
-
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
-        return cls._instances[cls]
+oasis_float = np.dtype(os.environ.get('OASIS_FLOAT', 'f4'))
+areaperil_int = np.dtype(os.environ.get('AREAPERIL_TYPE', 'u4'))
 
 
 class CompressionEnum(Enum):
@@ -21,7 +18,7 @@ class CompressionEnum(Enum):
     INDEX_FILE_HAS_UNCOMPRESSED_SIZE_AND_THERE_IS_HAZARD_UNCERTAINTY = 3
 
 
-class FootprintIndexBinReader(metaclass=Singleton):
+class FootprintIndexBinReader:
     """
     This class is responsible for loading binary files for the footprint index.
 
@@ -69,6 +66,17 @@ class FootprintIndexBinReader(metaclass=Singleton):
     def read(self) -> tuple:
         """
         Generator reading the binary file.
+
+        You can expect the number of bytes for the size with the equation below:
+            number of intensity bins * number of areaperils * chunk size = number of bytes
+            
+            Example:
+                number of intensity bins = 50
+                number of areaperils = 100
+                chunk size = 12
+
+                result:
+                    50 * 100 * 12 = 60,000 bytes for an event ID
 
         Returns: (Tuple) compressed => event_id, offset, size, uncompressed_size
                          uncompressed => event_id, offset, size
@@ -130,7 +138,7 @@ class FootprintIndexBinReader(metaclass=Singleton):
         return False
 
 
-class FootprintReader(metaclass=Singleton):
+class FootprintReader:
     """
     This class is responsible reading the footprint file.
 
@@ -151,6 +159,12 @@ class FootprintReader(metaclass=Singleton):
             size = i[2]
             read_data = generator.send(size)
     """
+
+    FOOTPRINT_SCHEMA = nb.from_dtype(np.dtype([('areaperil_id', areaperil_int),
+                                               ('intensity_bin_id', np.int32),
+                                               ('probability', oasis_float)
+                                               ]))
+
     def __init__(self, path: str, chunk_size: int = 12) -> None:
         """
         The constructor of the FootprintReader class.

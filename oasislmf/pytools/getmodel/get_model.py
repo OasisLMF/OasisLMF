@@ -1,9 +1,7 @@
 """
-TODO: check it works with csv input (get_mean_damage_bins need to have a csv option)
 TODO: work with zipped binary
 TODO: have multiple events computed in numba at a time
 TODO: use selector and select for output
-
 """
 import argparse
 import logging
@@ -14,6 +12,7 @@ import sys
 from contextlib import ExitStack
 from logging import NullHandler
 from numba.typed import Dict
+from .binary_loading import FootprintReader, FootprintIndexBinReader
 
 logger = logging.getLogger(__name__)
 logger.addHandler(NullHandler())
@@ -94,6 +93,7 @@ VulnerabilityRow = nb.from_dtype(np.dtype([('intensity_bin_id', np.int32),
                                           ]))
 
 vuln_offset = 4
+
 
 @nb.jit(cache=True)
 def load_areaperil_id_u4(int32_mv, cursor, areaperil_id):
@@ -207,6 +207,7 @@ def get_footprint(static_path, file_type):
             num_intensity_bins = header[0]
             has_intensity_uncertainty = header[1]
 
+        # loads all of the data at the same time at this point
         footprint = np.memmap(os.path.join(static_path, "footprint.bin"), dtype=Event, mode='r', offset=footprint_offset)
         footprint_idx_bin = np.memmap(os.path.join(static_path, "footprint.idx"), dtype=EventIndexBin, mode='r')
         footprint_idx_dict, footprint_idx_array = get_footprint_idx_from_bin(footprint_idx_bin)
