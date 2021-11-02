@@ -234,6 +234,9 @@ def prepare_profile_stepped(profile, tiv):
             profile['trigger_end'] *= tiv
         profile['scale_1'] += 1
 
+        if profile['payout_start'] == 0:  # backward compatibility v1.22.x
+            profile['calcrule_id'] = 281
+
     elif profile['calcrule_id'] == 29:
         profile['calcrule_id'] = 27
         profile['trigger_start'] *= tiv

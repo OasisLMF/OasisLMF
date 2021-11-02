@@ -8,6 +8,8 @@ TODO: It seems that if a policy with share is used, subsequent policy using min 
 
 
 from numba import njit
+from .policy import (calcrule_28 as _calcrule_28, calcrule_32 as _calcrule_32, calcrule_34 as _calcrule_34,
+                     calcrule_37 as _calcrule_37, calcrule_38 as _calcrule_38)
 
 
 class UnknownCalcrule(Exception):
@@ -521,24 +523,7 @@ def calcrule_28(policy, loss_out, loss_in, deductible, over_limit, under_limit):
     """
     % loss step payout
     """
-    if policy['step_id'] == 1:
-        loss_out.fill(0)
-    for i in range(loss_in.shape[0]):
-        if policy['trigger_start'] <= loss_in[i] < policy['trigger_end']:
-            loss = max(policy['payout_start'] * loss_in[i] - policy['deductible_1'], 0)
-            loss_out[i] = (loss + min(loss * policy['scale_2'], policy['limit_2'])) * policy['scale_1']
-
-
-@njit(cache=True, fastmath=True)
-def calcrule_281(policy, loss_out, loss_in, deductible, over_limit, under_limit):
-    """
-    conditional coverage
-    """
-    if policy['step_id'] == 1:
-        loss_out.fill(0)
-    for i in range(loss_in.shape[0]):
-        if policy['trigger_start'] <= loss_in[i] < policy['trigger_end']:
-            loss_out[i] += min(loss_out[i] * policy['scale_2'], policy['limit_2']) * policy['scale_1']
+    _calcrule_28(policy, loss_out, loss_in)
 
 
 @njit(cache=True, fastmath=True)
@@ -546,12 +531,7 @@ def calcrule_32(policy, loss_out, loss_in, deductible, over_limit, under_limit):
     """
     monetary amount trigger and % loss step payout with limit
     """
-    if policy['step_id'] == 1:
-        loss_out.fill(0)
-    for i in range(loss_in.shape[0]):
-        if policy['trigger_start'] <= loss_in[i]:
-            loss = min(policy['payout_start'] * loss_in[i], policy['limit_1'])
-            loss_out[i] += (loss + min(loss * policy['scale_2'], policy['limit_2'])) * policy['scale_1']
+    _calcrule_32(policy, loss_out, loss_in)
 
 
 @njit(cache=True, fastmath=True)
@@ -584,12 +564,7 @@ def calcrule_34(policy, loss_out, loss_in, deductible, over_limit, under_limit):
 
     TODO: compare to the cpp, as there is shares, deductible won't be use later on so no need to compute it
     """
-    ded_att = policy['deductible_1'] + policy['attachment_1']
-    for i in range(loss_in.shape[0]):
-        if loss_in[i] <= ded_att:
-            loss_out[i] = 0
-        else:
-            loss_out[i] = (loss_in[i] - ded_att) * policy['share_1']
+    _calcrule_34(policy, loss_out, loss_in)
 
 
 @njit(cache=True, fastmath=True)
@@ -662,6 +637,7 @@ def calcrule_37(policy, loss_out, loss_in, deductible, over_limit, under_limit):
     """
     % loss step payout
     """
+    _calcrule_37(policy, loss_out, loss_in)
     if policy['step_id'] == 1:
         loss_out.fill(0)
     for i in range(loss_in.shape[0]):
@@ -675,12 +651,7 @@ def calcrule_38(policy, loss_out, loss_in, deductible, over_limit, under_limit):
     """
     conditional coverage
     """
-    if policy['step_id'] == 1:
-        loss_out.fill(0)
-    for i in range(loss_in.shape[0]):
-        if policy['trigger_start'] <= loss_in[i] < policy['trigger_end']:
-            loss_out[i] += min(loss_out[i] * policy['scale_2'], policy['limit_2']) * policy['scale_1']
-
+    _calcrule_38(policy, loss_out, loss_in)
 
 
 @njit(cache=True)

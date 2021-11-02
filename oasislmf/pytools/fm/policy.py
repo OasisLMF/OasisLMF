@@ -313,7 +313,7 @@ def calcrule_38(policy, loss_out, loss_in):
         loss_out.fill(0)
     for i in range(loss_in.shape[0]):
         if policy['trigger_start'] <= loss_in[i] < policy['trigger_end']:
-            loss_out[i] += min(loss_out[i] * policy['scale_2'], policy['limit_2']) * policy['scale_1']
+            loss_out[i] = (loss_out[i] + min(loss_out[i] * policy['scale_2'], policy['limit_2'])) * (policy['scale_1'])
 
 
 @njit(cache=True)
