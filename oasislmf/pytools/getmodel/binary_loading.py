@@ -69,7 +69,7 @@ class FootprintIndexBinReader:
 
         You can expect the number of bytes for the size with the equation below:
             number of intensity bins * number of areaperils * chunk size = number of bytes
-            
+
             Example:
                 number of intensity bins = 50
                 number of areaperils = 100
