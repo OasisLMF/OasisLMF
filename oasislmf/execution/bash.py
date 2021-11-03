@@ -964,15 +964,15 @@ def do_kwaits(filename, process_counter):
 
 
 def get_getmodel_itm_cmd(
-        number_of_samples, 
-        gul_threshold, 
+        number_of_samples,
+        gul_threshold,
         use_random_number_file,
-        gul_alloc_rule, 
+        gul_alloc_rule,
         item_output,
-        process_id, 
-        max_process_id, 
-        correlated_output, 
-        eve_shuffle_flag,  
+        process_id,
+        max_process_id,
+        correlated_output,
+        eve_shuffle_flag,
         getmodelpy=False,
         **kwargs):
     """
@@ -1002,14 +1002,14 @@ def get_getmodel_itm_cmd(
 
 
 def get_getmodel_cov_cmd(
-        number_of_samples, 
-        gul_threshold, 
+        number_of_samples,
+        gul_threshold,
         use_random_number_file,
-        coverage_output, 
+        coverage_output,
         item_output,
-        process_id, 
-        max_process_id, 
-        eve_shuffle_flag, 
+        process_id,
+        max_process_id,
+        eve_shuffle_flag,
         getmodelpy=False,
         **kwargs):
     """
@@ -1387,10 +1387,13 @@ def bash_params(
 @contextlib.contextmanager
 def bash_wrapper(filename, bash_trace, stderr_guard):
     # Header
-    print_command(filename, '#!/usr/bin/env -S bash -euET -o pipefail -O inherit_errexit')
+    print_command(filename, '#!/bin/bash')
     print_command(filename, 'SCRIPT=$(readlink -f "$0") && cd $(dirname "$SCRIPT")')
     print_command(filename, '')
     print_command(filename, '# --- Script Init ---')
+    print_command(filename, 'set -euET -o pipefail')
+    print_command(filename, 'shopt -s inherit_errexit 2>/dev/null || echo "WARNING: Unable to set inherit_errexit. Possibly unsupported by this shell, Subprocess failures may not be detected."')
+
     print_command(filename, '')
     print_command(filename, 'mkdir -p log')
     print_command(filename, 'rm -R -f log/*')
