@@ -95,7 +95,7 @@ def run(analysis_settings,
         _get_getmodel_cmd=custom_get_getmodel_cmd,
         **kwargs,
     )
-    bash_trace = subprocess.check_output(['bash', filename])
+    bash_trace = subprocess.check_output(['bash_4', filename])
     logging.info(bash_trace.decode('utf-8'))
 
 
