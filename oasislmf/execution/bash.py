@@ -179,7 +179,7 @@ if [ $(bash_logging_supported) == 1 ]; then
     export BASH_XTRACEFD="19"
     set -x
 else
-    echo "WARNING: logging disabled, bash version $BASH_VERSION is not supported."
+    echo "WARNING: logging disabled, bash version '$BASH_VERSION' is not supported, minimum requirement is bash v4.4"
 fi """
 
 
