@@ -115,22 +115,24 @@ exit_handler(){
    exit_code=$?
    kill -9 $pid0 2> /dev/null
    if [ "$exit_code" -gt 0 ]; then
+       # Error - run process clean up  
        echo 'Ktools Run Error - exitcode='$exit_code
+
+       set +x
+       group_pid=$(ps -p $$ -o pgid --no-headers)
+       sess_pid=$(ps -p $$ -o sess --no-headers)
+       script_pid=$$
+       printf "Script PID:%d, GPID:%s, SPID:%d\n" $script_pid $group_pid $sess_pid >> log/killout.txt
+
+       ps -jf f -g $sess_pid > log/subprocess_list
+       PIDS_KILL=$(pgrep -a --pgroup $group_pid | awk \'BEGIN { FS = "[ \\t\\n]+" }{ if ($1 >= \'$script_pid\') print}\' | grep -v celery | egrep -v *\\\.log$  | egrep -v *\\\.sh$ | sort -n -r)
+       echo "$PIDS_KILL" >> log/killout.txt
+       kill -9 $(echo "$PIDS_KILL" | awk \'BEGIN { FS = "[ \\t\\n]+" }{ print $1 }\') 2>/dev/null
+       exit $exit_code
    else
-       echo 'Run Completed'
+       # script successful 
+       exit 0
    fi
-
-   set +x
-   group_pid=$(ps -p $$ -o pgid --no-headers)
-   sess_pid=$(ps -p $$ -o sess --no-headers)
-   script_pid=$$
-   printf "Script PID:%d, GPID:%s, SPID:%d\n" $script_pid $group_pid $sess_pid >> log/killout.txt
-
-   ps -jf f -g $sess_pid > log/subprocess_list
-   PIDS_KILL=$(pgrep -a --pgroup $group_pid | awk \'BEGIN { FS = "[ \\t\\n]+" }{ if ($1 >= \'$script_pid\') print}\' | grep -v celery | egrep -v *\\\.log$  | egrep -v *\\\.sh$ | sort -n -r)
-   echo "$PIDS_KILL" >> log/killout.txt
-   kill -9 $(echo "$PIDS_KILL" | awk \'BEGIN { FS = "[ \\t\\n]+" }{ print $1 }\') 2>/dev/null
-   exit $exit_code
 }
 trap exit_handler QUIT HUP INT KILL TERM ERR EXIT"""
 
@@ -151,6 +153,8 @@ check_complete(){
     done
     if [ "$has_error" -ne 0 ]; then
         false # raise non-zero exit code
+    else    
+        echo 'Run Completed'
     fi
 }"""
 
