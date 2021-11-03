@@ -132,7 +132,7 @@ class FootprintReader:
     How to use:
         footprint_index = FootprintIndexBinReader("./static/footprint.bin", "./static/footprint.idx")
         footprint = FootprintReader("./footprint.bin", 12)
-        compressed = True or False
+        compressed: bool = footprint_index.zipped
 
         generator = footprint.read_slices()
         counter = 0
