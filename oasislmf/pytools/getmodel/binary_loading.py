@@ -1,17 +1,13 @@
 import struct
+import zlib
 from enum import Enum
 from typing import List
-import zlib
-import numpy as np
-import numba as nb
-import os
-
-
-oasis_float = np.dtype(os.environ.get('OASIS_FLOAT', 'f4'))
-areaperil_int = np.dtype(os.environ.get('AREAPERIL_TYPE', 'u4'))
 
 
 class CompressionEnum(Enum):
+    """
+    Enum for mapping the type of compression the data has from the header of the footprint index.
+    """
     NO_HAZARD_UNCERTAINTY = 0
     HAS_HAZARD_UNCERTAINTY = 1
     INDEX_FILE_HAS_UNCOMPRESSED_SIZE = 2
@@ -31,6 +27,7 @@ class FootprintIndexBinReader:
         number_of_intensity_bins (int): the number of intensity bins the data has
         compression_type (CompressionEnum): the type of compression the file has
     """
+
     def __init__(self, footprint_path: str, path: str) -> None:
         """
         The constructor for the FootprintIndexBinReader class.
@@ -67,17 +64,6 @@ class FootprintIndexBinReader:
         """
         Generator reading the binary file.
 
-        You can expect the number of bytes for the size with the equation below:
-            number of intensity bins * number of areaperils * chunk size = number of bytes
-
-            Example:
-                number of intensity bins = 50
-                number of areaperils = 100
-                chunk size = 12
-
-                result:
-                    50 * 100 * 12 = 60,000 bytes for an event ID
-
         Returns: (Tuple) compressed => event_id, offset, size, uncompressed_size
                          uncompressed => event_id, offset, size
         """
@@ -88,9 +74,6 @@ class FootprintIndexBinReader:
                 if data is None:
                     break
                 yield self.process_data(data)
-
-    def read_slice(self, number: int):
-        pass
 
     def process_data(self, data: bytes) -> tuple:
         """
@@ -149,6 +132,7 @@ class FootprintReader:
     How to use:
         footprint_index = FootprintIndexBinReader("./static/footprint.bin", "./static/footprint.idx")
         footprint = FootprintReader("./footprint.bin", 12)
+        compressed = True or False
 
         generator = footprint.read_slices()
         counter = 0
@@ -157,13 +141,8 @@ class FootprintReader:
             event_id = i[0]
             start = i[1]
             size = i[2]
-            read_data = generator.send(size)
+            read_data = generator.send(size, compressed)
     """
-
-    FOOTPRINT_SCHEMA = nb.from_dtype(np.dtype([('areaperil_id', areaperil_int),
-                                               ('intensity_bin_id', np.int32),
-                                               ('probability', oasis_float)
-                                               ]))
 
     def __init__(self, path: str, chunk_size: int = 12) -> None:
         """
@@ -182,19 +161,10 @@ class FootprintReader:
         Processes a chunk of bytes usually read from the file.
 
         Args:
-            data: (bytes) data read from the
+            data: (bytes) data read from the binary file. Data must be decompressed.
 
         Returns: (tuple) areaperil_id, intensity_bin_id, probability
         """
-        areaperil_id = int.from_bytes(data[:4], "little")
-        intensity_bin_id = int.from_bytes(data[4:8], "little")
-        probability = struct.unpack('f', data[8:12])[0]
-
-        return areaperil_id, intensity_bin_id, probability
-
-    @staticmethod
-    def process_compressed_data(data: bytes, uncompressed_size: int) -> tuple:
-        data = zlib.decompress(data, wbits=zlib.MAX_WBITS)
         areaperil_id = int.from_bytes(data[:4], "little")
         intensity_bin_id = int.from_bytes(data[4:8], "little")
         probability = struct.unpack('f', data[8:12])[0]
@@ -211,29 +181,14 @@ class FootprintReader:
         with open(self.path, "rb") as file:
             data: bytes = file.read(8)
             while data:
-                size = yield
+                size, compressed = yield
                 data = file.read(size)
+                if compressed is True:
+                    data = zlib.decompress(data)
                 if data is None:
                     break
                 chunks = [data[i:i + self.chunk_size] for i in range(0, len(data), self.chunk_size)]
                 yield [self.process_data(i) for i in chunks]
-
-    def read_compressed_slices(self) -> List[tuple]:
-        """
-        This is a generator that reads data for each event_id.
-        To activate the generator, you will have to send the size of the chunk into the generator.
-
-        Returns: (List[tuple]) processed data from the data slice
-        """
-        with open(self.path, "rb") as file:
-            data: bytes = file.read(8)
-            while data:
-                size = yield
-                data = file.read(size)
-                if data is None:
-                    break
-                chunks = [data[i:i + self.chunk_size] for i in range(0, len(data), self.chunk_size)]
-                yield [self.process_compressed_data(i, 60000) for i in chunks]
 
     def read(self) -> tuple:
         """
