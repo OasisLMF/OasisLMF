@@ -115,7 +115,7 @@ exit_handler(){
    exit_code=$?
    kill -9 $pid0 2> /dev/null
    if [ "$exit_code" -gt 0 ]; then
-       # Error - run process clean up  
+       # Error - run process clean up
        echo 'Ktools Run Error - exitcode='$exit_code
 
        set +x
@@ -130,7 +130,7 @@ exit_handler(){
        kill -9 $(echo "$PIDS_KILL" | awk \'BEGIN { FS = "[ \\t\\n]+" }{ print $1 }\') 2>/dev/null
        exit $exit_code
    else
-       # script successful 
+       # script successful
        exit 0
    fi
 }
@@ -153,17 +153,34 @@ check_complete(){
     done
     if [ "$has_error" -ne 0 ]; then
         false # raise non-zero exit code
-    else    
+    else
         echo 'Run Completed'
     fi
 }"""
 
 BASH_TRACE = """
 # --- Redirect Bash trace to file ---
-exec   > >(tee -ia log/bash.log)
-exec  2> >(tee -ia log/bash.log >& 2)
-exec 19> log/bash.log
-export BASH_XTRACEFD="19" """
+bash_logging_supported(){
+    local BASH_VER_MAJOR=${BASH_VERSION:0:1}
+    local BASH_VER_MINOR=${BASH_VERSION:2:1}
+
+    if [[ "$BASH_VER_MAJOR" -gt 4 ]]; then
+        echo 1; exit
+    fi
+    if [[ $BASH_VER_MAJOR -eq 4 ]] && [[ $BASH_VER_MINOR -gt 3 ]]; then
+        echo 1; exit
+    fi
+    echo 0
+}
+if [ $(bash_logging_supported) == 1 ]; then
+    exec   > >(tee -ia log/bash.log)
+    exec  2> >(tee -ia log/bash.log >& 2)
+    exec 19> log/bash.log
+    export BASH_XTRACEFD="19"
+    set -x
+else
+    echo "WARNING: logging disabled, bash version $BASH_VERSION is not supported."
+fi """
 
 
 def process_range(max_process_id, process_number=None):
@@ -1409,8 +1426,6 @@ def bash_wrapper(filename, bash_trace, stderr_guard):
     if stderr_guard:
         print_command(filename, TRAP_FUNC)
         print_command(filename, CHECK_FUNC)
-    if bash_trace:
-        print_command(filename, 'set -x')
 
     # Script content
     yield
