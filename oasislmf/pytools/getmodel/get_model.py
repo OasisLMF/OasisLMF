@@ -1,7 +1,5 @@
 """
 TODO: check it works with csv input (get_mean_damage_bins need to have a csv option)
-TODO: work with zipped binary
-TODO: have multiple events computed in numba at a time
 TODO: use selector and select for output
 
 """
@@ -12,17 +10,17 @@ import numpy as np
 import os
 import sys
 from contextlib import ExitStack
-from logging import NullHandler
 from numba.typed import Dict
 
+from .common import areaperil_int, oasis_float, Index_type
+from .footprint import Footprint
+
+
 logger = logging.getLogger(__name__)
-logger.addHandler(NullHandler())
+logger.addHandler(logging.NullHandler())
 
 buff_size = 65536
 
-
-areaperil_int = np.dtype(os.environ.get('AREAPERIL_TYPE', 'u4'))
-oasis_float = np.dtype(os.environ.get('OASIS_FLOAT', 'f4'))
 oasis_int_dtype = np.dtype('i4')
 oasis_int = np.int32
 oasis_int_size = np.int32().itemsize
@@ -32,24 +30,6 @@ areaperil_int_relative_size = areaperil_int.itemsize // oasis_int_size
 oasis_float_relative_size = oasis_float.itemsize // oasis_int_size
 results_relative_size = 2 * oasis_float_relative_size
 
-EventIndexBin = nb.from_dtype(np.dtype([('event_id', np.int32),
-                                      ('offset', np.int64),
-                                      ('size', np.int64)
-                                      ]))
-
-Index_type = nb.from_dtype(np.dtype([('start', np.int64),
-                                     ('end', np.int64)
-                                      ]))
-
-
-Event = nb.from_dtype(np.dtype([('areaperil_id', areaperil_int),
-                                ('intensity_bin_id', np.int32),
-                                ('probability', oasis_float)
-                              ]))
-
-event_size = Event.size
-
-footprint_offset = 8
 
 damagebindictionary =  nb.from_dtype(np.dtype([('bin_index', np.int32),
                                     ('bin_from', oasis_float),
@@ -113,111 +93,6 @@ elif areaperil_int == 'u8':
     load_areaperil_id = load_areaperil_id_u8
 else:
     raise Exception(f"AREAPERIL_TYPE {areaperil_int} is not implemented chose u4 or u8")
-
-
-@nb.njit(cache=True)
-def get_footprint_idx_from_bin(footprint_idx_bin):
-    """
-    Gets the footprint index from the footprint binary file.
-
-    Args:
-        footprint_idx_bin: (List[EventIndexBin]) data from the footprint.idx file
-
-    Returns: (Tuple[List[int], List[Tuple[int, int]]]) footprint ID to index array. start and finish indexes for footprints
-    """
-    footprint_idx_dict = np.full(np.max(footprint_idx_bin['event_id']) + 1, np.int32(-1))
-    footprint_idx_array = np.empty(footprint_idx_bin.shape[0], dtype=Index_type)
-
-    for i in range(footprint_idx_bin.shape[0]):
-        event_idx_bin = footprint_idx_bin[i]
-        footprint_idx_dict[event_idx_bin['event_id']] = i
-        footprint_idx_array[i]['start'] = (event_idx_bin['offset'] - footprint_offset) // event_size
-        footprint_idx_array[i]['end'] = (event_idx_bin['offset'] - footprint_offset + event_idx_bin['size']) // event_size
-
-    return footprint_idx_dict, footprint_idx_array
-
-
-@nb.jit(cache=True)
-def get_footprint_idx_from_csv(footprint_csv):
-    """
-    Extracts the indexes from the footprint CSV.
-
-    Args:
-        footprint_csv: (List[FootPrint]) data loaded from the footprint file.
-
-    Returns: (Tuple[int, bool, List[int], List[Tuple[int, int]], List[FootPrint]]) number of intensity bins,
-             if the intensity has uncertainty, footprint index map, start and finish of indexes for the footprints,
-             footprint data from the file
-    """
-    event_count = np.unique(footprint_csv['event_id'])
-    num_intensity_bins = max(footprint_csv['intensity_bin_id'])
-
-    footprint_idx_dict = Dict()
-    footprint_idx_array = np.empty(len(event_count), dtype=Index_type)
-    footprint = np.empty(len(footprint_csv), dtype=Event)
-    
-    cur_event_id = footprint_csv[0]['event_id']
-    cur_areaperil_id = footprint_csv[0]['areaperil_id'] + 1 # make sure cur_areaperil_id is not areaperil_id 
-    footprint_idx_dict[cur_event_id] = 0
-    footprint_idx_array[0]['start'] = 0
-
-    cur_event_idx = 0
-
-    has_intensity_uncertainty = False
-
-    for i in range(1, len(footprint_csv)):
-        event_csv = footprint_csv[i]
-        if event_csv['event_id'] != cur_event_id:
-            footprint_idx_array[cur_event_idx]['end'] = i - 1 
-
-            cur_event_id = event_csv['event_id']
-            cur_event_idx += 1
-            footprint_idx_dict[cur_event_id] = cur_event_idx
-            footprint_idx_array[cur_event_idx]['start'] = i - 1
-        elif cur_areaperil_id == event_csv['areaperil_id']:
-            has_intensity_uncertainty == True
-        else:
-            cur_areaperil_id = event_csv['areaperil_id']
-
-        footprint[i]['areaperil_id'] = event_csv['areaperil_id']
-        footprint[i]['intensity_bin_id'] = event_csv['intensity_bin_id']
-        footprint[i]['probability'] = event_csv['probability']
-    
-    footprint_idx_array = footprint_idx_array[1:]
-    return num_intensity_bins, has_intensity_uncertainty, footprint_idx_dict, footprint_idx_array, footprint
-
-
-def get_footprint(static_path, file_type):
-    """
-    Loads the footprint data from the footprint file and extras meta data around the footprint data.
-
-    Args:
-        static_path: (str) the path to the static file housing the footpint data
-        file_type: (str) the type of file the footprint file is
-
-    Returns: (Tuple[int, bool, List[int], List[Tuple[int, int]], List[FootPrint]]) number of intensity bins,
-             if the intensity has uncertainty, footprint index map, start and finish of indexes for the footprints,
-             footprint data from the file
-    """
-    static_files = set(os.listdir(static_path))
-
-    if "footprint.bin" in static_files and "footprint.idx" in static_files and file_type == "bin":
-        with open(os.path.join(static_path, "footprint.bin"), 'rb') as f:
-            header = np.frombuffer(f.read(8), 'i4')
-            num_intensity_bins = header[0]
-            has_intensity_uncertainty = header[1]
-
-        footprint = np.memmap(os.path.join(static_path, "footprint.bin"), dtype=Event, mode='r', offset=footprint_offset)
-        footprint_idx_bin = np.memmap(os.path.join(static_path, "footprint.idx"), dtype = EventIndexBin, mode='r')
-        footprint_idx_dict, footprint_idx_array = get_footprint_idx_from_bin(footprint_idx_bin)
-
-    elif "footprint.csv" in static_files and file_type == "csv":
-        footprint_csv = np.genfromtxt(os.path.join(static_path, "footprint.csv"), dtype=EventCSV, delimiter=",")
-        num_intensity_bins, has_intensity_uncertainty, footprint_idx_dict, footprint_idx_array, footprint = get_footprint_idx_from_csv(footprint_csv)
-    else:
-        raise Exception(f"missing footprint file at {static_path}")
-
-    return num_intensity_bins, has_intensity_uncertainty, footprint_idx_dict, footprint_idx_array, footprint
 
 
 @nb.jit(cache=True)
@@ -479,7 +354,7 @@ def do_result(vulns_id, vuln_array, mean_damage_bins,
 
 @nb.njit()
 def doCdf(event_id,
-          num_intensity_bins, footprint_idx_dict, footprint_idx_array, footprint,
+          num_intensity_bins, footprint,
           areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns,
           vuln_array, vulns_id, num_damage_bins, mean_damage_bins,
           int32_mv, max_result_relative_size):
@@ -489,9 +364,6 @@ def doCdf(event_id,
     Args:
         event_id: (int) the event ID the the CDF is being calculated to.
         num_intensity_bins: (int) the number of intensity bins for the CDF
-        footprint_idx_dict: (List[int]) maps the event index from the event_id
-        footprint_idx_array: (List[Tuple[int, int]]) the index where the event_id starts and the index where the
-                                                     event_id finishes
         footprint: (List[Tuple[int, int, float]]) information about the footprint with event_id, areaperil_id,
                                                   probability
         areaperil_to_vulns_idx_dict: (Dict[int, int]) maps the areaperil ID with the ENTER_HERE
@@ -506,15 +378,9 @@ def doCdf(event_id,
 
     Returns: (int)
     """
-    if event_id > len(footprint_idx_dict) - 1:
-        event_idx_i = -1
-    else:
-        event_idx_i = footprint_idx_dict[event_id]
-
-    if event_idx_i == -1:
+    if not footprint.shape[0]:
         return 0
 
-    event_idx = footprint_idx_array[event_idx_i]
     intensities_min = num_intensity_bins
     intensities_max = 0
     intensities = np.zeros(num_intensity_bins + 1, dtype=oasis_float)
@@ -523,7 +389,7 @@ def doCdf(event_id,
     has_vuln = False
     cursor = 0
 
-    for footprint_i in range(event_idx['start'], event_idx['end']):
+    for footprint_i in range(footprint.shape[0]):
         event_row = footprint[footprint_i]
         if areaperil_id[0] != event_row['areaperil_id']:
             if has_vuln and intensities_min <= intensities_max:
@@ -603,9 +469,8 @@ def run(run_dir, file_in, file_out, file_type):
 
         vuln_dict, vulns_id, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns = get_items(input_path, file_type)
 
-        num_intensity_bins, has_intensity_uncertainty, footprint_idx_dict, footprint_idx_array, footprint = get_footprint(
-            static_path, file_type)
-
+        footprint_obj = stack.enter_context(Footprint.load(static_path))
+        num_intensity_bins =  footprint_obj.num_intensity_bins
         vuln_array, num_damage_bins = get_vulns(static_path, vuln_dict, num_intensity_bins, file_type)
 
         mean_damage_bins = get_mean_damage_bins(static_path, file_type)
@@ -624,17 +489,18 @@ def run(run_dir, file_in, file_out, file_type):
             len_read = streams_in.readinto(event_id_mv)
             if len_read==0:
                 break
+            event_footprint = footprint_obj.get_event(event_ids[0])
+            if event_footprint is not None:
+                for cursor_bytes in doCdf(event_ids[0],
+                      num_intensity_bins, event_footprint,
+                      areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns,
+                      vuln_array, vulns_id, num_damage_bins, mean_damage_bins,
+                                          int32_mv, max_result_relative_size):
 
-            for cursor_bytes in doCdf(event_ids[0],
-                  num_intensity_bins, footprint_idx_dict, footprint_idx_array, footprint,
-                  areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns,
-                  vuln_array, vulns_id, num_damage_bins, mean_damage_bins,
-                                      int32_mv, max_result_relative_size):
-
-                if cursor_bytes:
-                    stream_out.write(mv[:cursor_bytes])
-                else:
-                    break
+                    if cursor_bytes:
+                        stream_out.write(mv[:cursor_bytes])
+                    else:
+                        break
 
 
 parser = argparse.ArgumentParser()

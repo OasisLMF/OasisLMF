@@ -354,6 +354,7 @@ setup(
             'load_balancer=oasislmf.execution.load_balancer:main',
             'fmpy=oasislmf.pytools.fmpy:main',
             'getpymodel=oasislmf.pytools.getmodel.get_model:main'
+            'footprintconvpy=oasislmf.pytools.footprintconv:footprintconvpy'
         ]
     },
     license='BSD 3-Clause',
