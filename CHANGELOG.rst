@@ -1,6 +1,12 @@
 OasisLMF Changelog
 ==================
 
+`1.15.19`_
+ ---------
+* [#936](https://github.com/OasisLMF/OasisLMF/pull/938) - Bash options overriden when running ktools in Subprrocess 
+* [#932](https://github.com/OasisLMF/OasisLMF/pull/932) - Fix encoding issues
+.. _`1.15.19`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.18...1.15.19
+
 `1.15.18`_
  ---------
 * [#928](https://github.com/OasisLMF/OasisLMF/pull/928) - Fix/fmpy stream sparse empty item
