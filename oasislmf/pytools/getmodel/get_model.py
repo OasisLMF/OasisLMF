@@ -197,7 +197,7 @@ def load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
             end = start + vuln_idx['size'] // VulnerabilityRow.itemsize
             for vuln_i in range(start, end):
                 vuln = vulns_bin[vuln_i]
-                cur_vuln_array[vuln['damage_bin_id'], vuln['intensity_bin_id']] = vuln['probability']
+                cur_vuln_array[vuln['damage_bin_id'] -1, vuln['intensity_bin_id'] - 1] = vuln['probability']
 
     return vuln_array
 
@@ -215,7 +215,7 @@ def load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins):
 
     Returns: (List[List[List[floats]]]) vulnerability data grouped by intensity bin and damage bin
     """
-    vuln_array = np.zeros((len(vuln_dict), num_damage_bins, num_intensity_bins+1), dtype=oasis_float)
+    vuln_array = np.zeros((len(vuln_dict), num_damage_bins, num_intensity_bins), dtype=oasis_float)
     cur_vulnerability_id = -1
 
     for vuln_i in range(vulns_bin.shape[0]):
@@ -227,7 +227,7 @@ def load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins):
             else:
                 cur_vulnerability_id = -1
         if cur_vulnerability_id != -1:
-            cur_vuln_array[vuln['damage_bin_id'] - 1, vuln['intensity_bin_id']] = vuln['probability']
+            cur_vuln_array[vuln['damage_bin_id'] - 1, vuln['intensity_bin_id'] - 1] = vuln['probability']
 
     return vuln_array
 
@@ -383,7 +383,7 @@ def doCdf(event_id,
 
     intensities_min = num_intensity_bins
     intensities_max = 0
-    intensities = np.zeros(num_intensity_bins + 1, dtype=oasis_float)
+    intensities = np.zeros(num_intensity_bins, dtype=oasis_float)
 
     areaperil_id = np.zeros(1, dtype=areaperil_int)
     has_vuln = False
@@ -415,11 +415,12 @@ def doCdf(event_id,
                 intensities_max = 0
         if has_vuln:
             if event_row['probability']>0:
-                intensities[event_row['intensity_bin_id']] = event_row['probability']
-                if event_row['intensity_bin_id'] > intensities_max:
-                    intensities_max = event_row['intensity_bin_id']
-                if event_row['intensity_bin_id'] < intensities_min:
-                    intensities_min = event_row['intensity_bin_id']
+                intensity_bin_i = event_row['intensity_bin_id'] - 1
+                intensities[intensity_bin_i] = event_row['probability']
+                if intensity_bin_i > intensities_max:
+                    intensities_max = intensity_bin_i
+                if intensity_bin_i < intensities_min:
+                    intensities_min = intensity_bin_i
 
     if has_vuln and intensities_min <= intensities_max:
         areaperil_to_vulns_idx = areaperil_to_vulns_idx_array[areaperil_to_vulns_idx_dict[areaperil_id[0]]]
@@ -467,12 +468,17 @@ def run(run_dir, file_in, file_out, file_type):
         event_id_mv = memoryview(bytearray(4))
         event_ids = np.ndarray(1, buffer=event_id_mv, dtype='i4')
 
+        logger.debug('init items')
         vuln_dict, vulns_id, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns = get_items(input_path, file_type)
 
+        logger.debug('init footprint')
         footprint_obj = stack.enter_context(Footprint.load(static_path))
         num_intensity_bins =  footprint_obj.num_intensity_bins
+
+        logger.debug('init vulnerability')
         vuln_array, num_damage_bins = get_vulns(static_path, vuln_dict, num_intensity_bins, file_type)
 
+        logger.debug('init mean_damage_bins')
         mean_damage_bins = get_mean_damage_bins(static_path, file_type)
 
         # even_id, areaperil_id, vulnerability_id, num_result, [oasis_float] * num_result
@@ -501,7 +507,7 @@ def run(run_dir, file_in, file_out, file_type):
                         stream_out.write(mv[:cursor_bytes])
                     else:
                         break
-
+        logger.debug('getmodel done')
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-i', '--file-in', help='names of the input file_path')
