@@ -7,6 +7,7 @@ import argparse
 import logging
 import numba as nb
 import numpy as np
+import pyarrow.parquet as pq
 import os
 import sys
 from contextlib import ExitStack
@@ -47,33 +48,34 @@ EventCSV =  nb.from_dtype(np.dtype([('event_id', np.int32),
                                     ('areaperil_id', areaperil_int),
                                     ('intensity_bin_id', np.int32),
                                     ('probability', oasis_float)
-                                  ]))
+                                    ]))
 
 Item = nb.from_dtype(np.dtype([('id', np.int32),
                                ('coverage_id', np.int32),
                                ('areaperil_id', areaperil_int),
                                ('vulnerability_id', np.int32),
                                ('group_id', np.int32)
-                              ]))
+                               ]))
 
 
 Vulnerability = nb.from_dtype(np.dtype([('vulnerability_id', np.int32),
                                         ('intensity_bin_id', np.int32),
                                         ('damage_bin_id', np.int32),
                                         ('probability', oasis_float)
-                                       ]))
+                                        ]))
 
 VulnerabilityIndex = nb.from_dtype(np.dtype([('vulnerability_id', np.int32),
                                              ('offset', np.int64),
                                              ('size', np.int64),
                                              ('original_size', np.int64)
-                                            ]))
+                                             ]))
 VulnerabilityRow = nb.from_dtype(np.dtype([('intensity_bin_id', np.int32),
                                            ('damage_bin_id', np.int64),
                                            ('probability', oasis_float)
                                           ]))
 
 vuln_offset = 4
+
 
 @nb.jit(cache=True)
 def load_areaperil_id_u4(int32_mv, cursor, areaperil_id):
@@ -162,7 +164,9 @@ def get_items(input_path, file_type):
         input_path: (str) the path pointing to the file
         file_type: (str) the type of file being loaded
 
-    Returns: (List[Item]) the Items loaded from the file
+    Returns: (Tuple[Dict[int, int], List[int], Dict[int, int], List[Tuple[int, int]], List[int]])
+             vulnerability dictionary, vulnerability IDs, areaperil to vulnerability index dictionary,
+             areaperil ID to vulnerability index array, areaperil ID to vulnerability array
     """
     input_files = set(os.listdir(input_path))
     if "items.bin" in input_files and file_type == "bin":
@@ -245,6 +249,19 @@ def get_vulns(static_path, vuln_dict, num_intensity_bins, file_type):
     Returns: (Tuple[List[List[float]], int]) vulnerability data, number of damage bins
     """
     input_files = set(os.listdir(static_path))
+    if "vulnerability.parquet" in input_files and file_type == "parquet":
+        parquet_handle = pq.ParquetDataset(os.path.join(static_path, "vulnerability.parquet"), use_legacy_dataset=False,
+                                           filters=[("vulnerability_id", "in", list(vuln_dict.keys()))])
+        vuln_table = parquet_handle.read()
+        vuln_meta = vuln_table.schema.metadata
+        number_of_vulnerability_ids = int(vuln_meta[b"num_vulnerability_id"].decode("utf-8"))
+        num_damage_bins = int(vuln_meta[b"num_damage_bins"].decode("utf-8"))
+        vuln_array = vuln_table[1].to_numpy()
+        buffer = []
+        for i in vuln_array:
+            buffer.append(np.reshape(i, (-1, number_of_vulnerability_ids)))
+        vuln_array = np.array(buffer)
+
     if "vulnerability.bin" in input_files and file_type == "bin":
         with open(os.path.join(static_path, "vulnerability.bin"), 'rb') as f:
             header = np.frombuffer(f.read(8), 'i4')
