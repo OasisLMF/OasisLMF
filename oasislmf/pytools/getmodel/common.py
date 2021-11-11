@@ -1,4 +1,8 @@
+"""
+This file defines the data types that are loaded from the data files.
+"""
 import os
+
 import numba as nb
 import numpy as np
 
@@ -25,19 +29,25 @@ EventCSV =  nb.from_dtype(np.dtype([('event_id', np.int32),
                                     ('areaperil_id', areaperil_int),
                                     ('intensity_bin_id', np.int32),
                                     ('probability', oasis_float)
-                                   ]))
+                                    ]))
 
 EventIndexBin = nb.from_dtype(np.dtype([('event_id', np.int32),
-                                   ('offset', np.int64),
-                                   ('size', np.int64)
-                                   ]))
+                                        ('offset', np.int64),
+                                        ('size', np.int64)
+                                        ]))
 
 EventIndexBinZ = nb.from_dtype(np.dtype([('event_id', np.int32),
-                                    ('offset', np.int64),
-                                    ('size', np.int64),
-                                    ('d_size', np.int64)
-                                    ]))
+                                         ('offset', np.int64),
+                                         ('size', np.int64),
+                                         ('d_size', np.int64)
+                                         ]))
 
 Index_type = nb.from_dtype(np.dtype([('start', np.int64),
                                      ('end', np.int64)
-                                      ]))
+                                     ]))
+
+Vulnerability = nb.from_dtype(np.dtype([('vulnerability_id', np.int32),
+                                        ('intensity_bin_id', np.int32),
+                                        ('damage_bin_id', np.int32),
+                                        ('probability', oasis_float)
+                                        ]))

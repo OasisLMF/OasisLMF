@@ -1,7 +1,11 @@
-from zlib import decompress
-from contextlib import ExitStack
-import os
+"""
+This file houses the classes that load the footprint data from files.
+"""
 import mmap
+import os
+from contextlib import ExitStack
+from zlib import decompress
+
 import numpy as np
 import pandas as pd
 
@@ -14,7 +18,20 @@ intensityMask = 1
 
 
 class Footprint:
-    def __init__(self, static_path):
+    """
+    This class is the base class for the footprint loaders.
+
+    Attributes:
+        static_path (str): the path to the static files directory
+        stack (ExitStack): the context manager that combines other context managers and cleanup functions
+    """
+    def __init__(self, static_path) -> None:
+        """
+        The constructor for the Footprint class.
+
+        Args:
+            static_path: (str) the path to the static files directory
+        """
         self.static_path = static_path
         self.stack = ExitStack()
 
@@ -23,6 +40,15 @@ class Footprint:
 
     @classmethod
     def load(cls, static_path):
+        """
+        Loads the loading classes defined in this file checking to see if the files are in the static path
+        whilst doing so.
+
+        Args:
+            static_path: (str) the path to the static files directory
+
+        Returns: (Union[FootprintBinZ, FootprintBin, FootprintCsv]) the loaded class
+        """
         priorities = [FootprintBinZ, FootprintBin, FootprintCsv]
         for footprint_class in priorities:
             for filename in footprint_class.footprint_filenames:
@@ -42,6 +68,15 @@ class Footprint:
 
 
 class FootprintCsv(Footprint):
+    """
+    This class is responsible for loading footprint data from CSV.
+
+    Attributes (when in context):
+        footprint (np.array[EventCSV]): event data loaded from the CSV file
+        num_intensity_bins (int): number of intensity bins in the data
+        has_intensity_uncertainty (bool): if the data has uncertainty
+        footprint_index (dict): map of footprint IDs with the index in the data
+    """
     footprint_filenames = [csvfootprint_filename]
 
     def __enter__(self):
@@ -59,6 +94,14 @@ class FootprintCsv(Footprint):
         return self
 
     def get_event(self, event_id):
+        """
+        Gets the event from self.footprint based off the event ID passed in.
+
+        Args:
+            event_id: (int) the ID belonging to the Event being extracted
+
+        Returns: (EventCSV) the event that was extracted
+        """
         event_info = self.footprint_index.get(event_id)
         if event_info is None:
             return
@@ -67,20 +110,48 @@ class FootprintCsv(Footprint):
 
 
 class FootprintBin(Footprint):
+    """
+    This class is responsible loading the event data from the footprint binary files.
+
+    Attributes (when in context):
+        footprint (mmap.mmap): loaded data from the binary file which has header and then Event data
+        num_intensity_bins (int): number of intensity bins in the data
+        has_intensity_uncertainty (bool): if the data has uncertainty
+        footprint_index (dict): map of footprint IDs with the index in the data
+    """
     footprint_filenames = [footprint_filename, footprint_index_filename]
 
     def __enter__(self):
-        self.footprint = self.stack.enter_context(mmap.mmap(os.open(os.path.join(self.static_path, footprint_filename), flags=os.O_RDONLY),
-                                                             length=0, access=mmap.ACCESS_READ))
+        self.footprint = self.stack.enter_context(
+            mmap.mmap(os.open(os.path.join(self.static_path, footprint_filename), flags=os.O_RDONLY),
+                      length=0, access=mmap.ACCESS_READ
+                      )
+        )
         footprint_header = np.frombuffer(bytearray(self.footprint[:FootprintHeader.size]), dtype=FootprintHeader)
         self.num_intensity_bins = int(footprint_header['num_intensity_bins'])
-        self.has_intensity_uncertainty  = int(footprint_header['has_intensity_uncertainty'] & intensityMask)
+        self.has_intensity_uncertainty = int(footprint_header['has_intensity_uncertainty'] & intensityMask)
 
-        footprint_mmap = np.memmap(os.path.join(self.static_path, footprint_index_filename), dtype=EventIndexBin, mode='r')
-        self.footprint_index = pd.DataFrame(footprint_mmap, columns=footprint_mmap.dtype.names).set_index('event_id').to_dict('index')
+        footprint_mmap = np.memmap(
+            os.path.join(self.static_path, footprint_index_filename),
+            dtype=EventIndexBin,
+            mode='r'
+        )
+
+        self.footprint_index = pd.DataFrame(
+            footprint_mmap,
+            columns=footprint_mmap.dtype.names
+        ).set_index('event_id').to_dict('index')
         return self
 
     def get_event(self, event_id):
+        """
+        Gets the event from self.footprint based off the event ID passed in.
+
+        Args:
+            event_id: (int) the ID belonging to the Event being extracted
+
+        Returns: (Event) the event that was extracted
+        """
         event_info = self.footprint_index.get(event_id)
         if event_info is None:
             return
@@ -89,6 +160,17 @@ class FootprintBin(Footprint):
 
 
 class FootprintBinZ(Footprint):
+    """
+    This class is responsible for loading event data from compressed event data.
+
+    Attributes (when in context):
+        zfootprint (mmap.mmap): loaded data from the compressed binary file which has header and then Event data
+        num_intensity_bins (int): number of intensity bins in the data
+        has_intensity_uncertainty (bool): if the data has uncertainty
+        uncompressed_size (int): the size in which the data is when it is decompressed
+        index_dtype (Union[EventIndexBinZ, EventIndexBin]) the data type 
+        footprint_index (dict): map of footprint IDs with the index in the data
+    """
     footprint_filenames = [zfootprint_filename, zfootprint_index_filename]
 
     def __enter__(self):
@@ -97,7 +179,7 @@ class FootprintBinZ(Footprint):
 
         footprint_header = np.frombuffer(bytearray(self.zfootprint[:FootprintHeader.size]), dtype=FootprintHeader)
         self.num_intensity_bins = int(footprint_header['num_intensity_bins'])
-        self.has_intensity_uncertainty  = int(footprint_header['has_intensity_uncertainty'] & intensityMask)
+        self.has_intensity_uncertainty = int(footprint_header['has_intensity_uncertainty'] & intensityMask)
         self.uncompressed_size = int((footprint_header['has_intensity_uncertainty'] & uncompressedMask) >> 1)
         if self.uncompressed_size:
             self.index_dtype = EventIndexBinZ
@@ -109,6 +191,14 @@ class FootprintBinZ(Footprint):
         return self
 
     def get_event(self, event_id):
+        """
+        Gets the event from self.zfootprint based off the event ID passed in.
+
+        Args:
+            event_id: (int) the ID belonging to the Event being extracted
+
+        Returns: (Event) the event that was extracted
+        """
         event_info = self.footprint_index.get(event_id)
         if event_info is None:
             return

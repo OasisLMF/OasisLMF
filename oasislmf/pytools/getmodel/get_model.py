@@ -1,5 +1,6 @@
 """
-TODO: check it works with csv input (get_mean_damage_bins need to have a csv option)
+This file is the entry point for the python get model command for the package
+
 TODO: use selector and select for output
 
 """
