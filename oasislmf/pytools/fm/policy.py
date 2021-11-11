@@ -226,6 +226,8 @@ def calcrule_28(policy, loss_out, loss_in):
     """
     % loss step payout
     """
+    if policy['step_id'] == 1:
+        loss_out.fill(0)
     for i in range(loss_in.shape[0]):
         if policy['trigger_start'] <= loss_in[i] < policy['trigger_end']:
             loss = max(policy['payout_start'] * loss_in[i] - policy['deductible_1'], 0)
@@ -237,6 +239,8 @@ def calcrule_281(policy, loss_out, loss_in):
     """
     conditional coverage
     """
+    if policy['step_id'] == 1:
+        loss_out.fill(0)
     for i in range(loss_in.shape[0]):
         if policy['trigger_start'] <= loss_in[i] < policy['trigger_end']:
             loss_out[i] += min(loss_out[i] * policy['scale_2'], policy['limit_2']) * policy['scale_1']
@@ -247,6 +251,8 @@ def calcrule_32(policy, loss_out, loss_in):
     """
     monetary amount trigger and % loss step payout with limit
     """
+    if policy['step_id'] == 1:
+        loss_out.fill(0)
     for i in range(loss_in.shape[0]):
         if policy['trigger_start'] <= loss_in[i]:
             loss = min(policy['payout_start'] * loss_in[i], policy['limit_1'])
