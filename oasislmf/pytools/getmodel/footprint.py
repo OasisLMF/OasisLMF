@@ -1,5 +1,5 @@
 """
-This file houses the classes that load the footprint data from files.
+This file houses the classes that load the footprint data from compressed, binary, and CSV files.
 """
 import mmap
 import os
