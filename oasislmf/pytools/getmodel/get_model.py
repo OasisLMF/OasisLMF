@@ -12,6 +12,7 @@ import os
 import sys
 from contextlib import ExitStack
 from numba.typed import Dict
+import pyarrow as pa
 
 from .common import areaperil_int, oasis_float, Index_type
 from .footprint import Footprint
@@ -236,6 +237,27 @@ def load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins):
     return vuln_array
 
 
+@nb.jit(cache=True, fastmath=True)
+def update_vulns_dictionary(vulns_dict, vulns_id_array):
+    """
+    Updates the indexes of the vulnerability IDs (usually used in loading vulnerability data from parquet file).
+
+    Args:
+        vulns_dict: (Dict[int, int]) vulnerability dict that maps the vulnerability IDs (key) with the index (value)
+        vulns_id_array: (List[int]) list of vulnerability IDs loaded from the parquet file
+
+    Returns: (Dict[int, int]) updated vulns_dict
+    """
+    index = 0
+    max_index = len(vulns_id_array)
+
+    while index < max_index:
+        vuln_id = vulns_id_array[index]
+        vulns_dict[vuln_id] = index
+        index += 1
+    return vulns_dict
+
+
 def get_vulns(static_path, vuln_dict, num_intensity_bins, file_type):
     """
     Loads the vulnerabilities from the file.
@@ -256,11 +278,12 @@ def get_vulns(static_path, vuln_dict, num_intensity_bins, file_type):
         vuln_meta = vuln_table.schema.metadata
         number_of_vulnerability_ids = int(vuln_meta[b"num_vulnerability_id"].decode("utf-8"))
         num_damage_bins = int(vuln_meta[b"num_damage_bins"].decode("utf-8"))
+        number_of_intensity_bins = int(vuln_meta[b"num_intensity_bins"].decode("utf-8"))
         vuln_array = vuln_table[1].to_numpy()
-        buffer = []
-        for i in vuln_array:
-            buffer.append(np.reshape(i, (-1, number_of_vulnerability_ids)))
-        vuln_array = np.array(buffer)
+        vuln_array = np.vstack(vuln_array).reshape(number_of_vulnerability_ids,
+                                                   num_damage_bins,
+                                                   number_of_intensity_bins)
+        vuln_dict = update_vulns_dictionary(vuln_dict, vuln_table[0].to_numpy())
 
     if "vulnerability.bin" in input_files and file_type == "bin":
         with open(os.path.join(static_path, "vulnerability.bin"), 'rb') as f:
