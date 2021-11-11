@@ -168,7 +168,7 @@ class FootprintBinZ(Footprint):
         num_intensity_bins (int): number of intensity bins in the data
         has_intensity_uncertainty (bool): if the data has uncertainty
         uncompressed_size (int): the size in which the data is when it is decompressed
-        index_dtype (Union[EventIndexBinZ, EventIndexBin]) the data type 
+        index_dtype (Union[EventIndexBinZ, EventIndexBin]) the data type
         footprint_index (dict): map of footprint IDs with the index in the data
     """
     footprint_filenames = [zfootprint_filename, zfootprint_index_filename]

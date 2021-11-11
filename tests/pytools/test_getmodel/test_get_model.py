@@ -1,6 +1,6 @@
 from unittest import main, TestCase
 
-from oasislmf.pytools.getmodel.get_model import get_items, get_vulns
+from oasislmf.pytools.getmodel.get_model import get_items, get_vulns, Footprint
 
 import numpy as np
 import numba as nb
@@ -38,6 +38,11 @@ class GetModelTests(TestCase):
     """
     def test_init(self):
         pass
+
+    # def test_load_footprint(self):
+    #     with Footprint.load(static_path="./static/") as test:
+    #         outcome = test
+    #     print(outcome)
 
     # def test_update(self):
     #     vulns_dict = get_items(input_path="./", file_type="bin")[0]

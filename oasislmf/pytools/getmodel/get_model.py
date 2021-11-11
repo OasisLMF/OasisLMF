@@ -514,7 +514,7 @@ def run(run_dir, file_in, file_out, file_type):
 
         logger.debug('init footprint')
         footprint_obj = stack.enter_context(Footprint.load(static_path))
-        num_intensity_bins =  footprint_obj.num_intensity_bins
+        num_intensity_bins = footprint_obj.num_intensity_bins
 
         logger.debug('init vulnerability')
         vuln_array, num_damage_bins = get_vulns(static_path, vuln_dict, num_intensity_bins, file_type)
