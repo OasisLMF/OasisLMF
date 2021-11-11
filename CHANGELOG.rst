@@ -1,6 +1,9 @@
 OasisLMF Changelog
 ==================
 
+* [#944](https://github.com/OasisLMF/OasisLMF/pull/947) - Loss is not init to 0 for step policy
+.. _`1.15.20`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.19...1.15.20
+
 `1.15.19`_
  ---------
 * [#936](https://github.com/OasisLMF/OasisLMF/pull/938) - Bash options overriden when running ktools in Subprrocess 
