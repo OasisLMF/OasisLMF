@@ -121,4 +121,8 @@ tests/model_execution/tmp_fc_kparse_output/
 .idea/
 data/
 
+<<<<<<< HEAD
 .DS_Store/
+=======
+DS_Store/
+>>>>>>> 67d6243fd4f05dd21c8a7fb9def1aa2755b02aa0

@@ -13,7 +13,6 @@ import os
 import sys
 from contextlib import ExitStack
 from numba.typed import Dict
-import pyarrow as pa
 
 from .common import areaperil_int, oasis_float, Index_type
 from .footprint import Footprint
@@ -266,7 +265,7 @@ def get_vulns(static_path, vuln_dict, num_intensity_bins, file_type):
     Args:
         static_path: (str) the path pointing to the static file where the data is
         vuln_dict: (Dict[int, int]) maps the vulnerability ID with the index in the vulnerability array
-        num_intensity_bins: (int) the number of intensity bins 
+        num_intensity_bins: (int) the number of intensity bins
         file_type: (str) the type of file being loaded
 
     Returns: (Tuple[List[List[float]], int]) vulnerability data, number of damage bins
@@ -575,6 +574,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-

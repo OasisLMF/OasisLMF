@@ -62,6 +62,8 @@ def stream_to_loss_table(event_agg, sidx_loss, valid_buf, cursor, event_id, agg_
             if sidx:
                 if sidx == -2:
                     continue
+                elif sidx < -3:
+                    continue
                 elif sidx == -3:
                     sidx = 0
                 losses[loss_index, sidx] = 0 if np.isnan(loss) else loss
