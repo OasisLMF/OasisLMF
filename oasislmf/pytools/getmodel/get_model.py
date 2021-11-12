@@ -502,6 +502,12 @@ def run(run_dir, file_in, file_out, file_type):
         else:
             stream_out = stack.enter_context(open(file_out, 'wb'))
 
+        # temp fix for now we flag to see if parquet is chosen as parquet is only supported for vulnerability for now
+        parquet_flag = False
+        if file_type == "parquet":
+            file_type = "bin"
+            parquet_flag = True
+
         static_path = os.path.join(run_dir, 'static')
         input_path = os.path.join(run_dir, 'input')
 
@@ -516,7 +522,11 @@ def run(run_dir, file_in, file_out, file_type):
         num_intensity_bins = footprint_obj.num_intensity_bins
 
         logger.debug('init vulnerability')
+        if parquet_flag is True:
+            file_type = "parquet"
         vuln_array, num_damage_bins = get_vulns(static_path, vuln_dict, num_intensity_bins, file_type)
+        if parquet_flag is True:
+            file_type = "bin"
 
         logger.debug('init mean_damage_bins')
         mean_damage_bins = get_mean_damage_bins(static_path, file_type)
