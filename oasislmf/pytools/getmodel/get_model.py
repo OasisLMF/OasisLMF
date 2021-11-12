@@ -271,7 +271,7 @@ def get_vulns(static_path, vuln_dict, num_intensity_bins, file_type):
     Returns: (Tuple[List[List[float]], int]) vulnerability data, number of damage bins
     """
     input_files = set(os.listdir(static_path))
-    if "vulnerability.parquet" in input_files and file_type == "parquet":
+    if "vulnerability.parquet" in input_files:
         parquet_handle = pq.ParquetDataset(os.path.join(static_path, "vulnerability.parquet"), use_legacy_dataset=False,
                                            filters=[("vulnerability_id", "in", list(vuln_dict.keys()))])
         vuln_table = parquet_handle.read()
@@ -283,9 +283,9 @@ def get_vulns(static_path, vuln_dict, num_intensity_bins, file_type):
         vuln_array = np.vstack(vuln_array).reshape(number_of_vulnerability_ids,
                                                    num_damage_bins,
                                                    number_of_intensity_bins)
-        vuln_dict = update_vulns_dictionary(vuln_dict, vuln_table[0].to_numpy())
+        # vuln_dict = update_vulns_dictionary(vuln_dict, vuln_table[0].to_numpy())
 
-    if "vulnerability.bin" in input_files and file_type == "bin":
+    elif "vulnerability.bin" in input_files and file_type == "bin":
         with open(os.path.join(static_path, "vulnerability.bin"), 'rb') as f:
             header = np.frombuffer(f.read(8), 'i4')
             num_damage_bins = header[0]
