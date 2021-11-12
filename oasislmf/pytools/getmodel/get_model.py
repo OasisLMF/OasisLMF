@@ -283,7 +283,8 @@ def get_vulns(static_path, vuln_dict, num_intensity_bins, file_type):
         vuln_array = np.vstack(vuln_array).reshape(number_of_vulnerability_ids,
                                                    num_damage_bins,
                                                    number_of_intensity_bins)
-        # vuln_dict = update_vulns_dictionary(vuln_dict, vuln_table[0].to_numpy())
+        vuln_dict = update_vulns_dictionary(vuln_dict, vuln_table[0].to_numpy())
+        return vuln_array, num_damage_bins, vuln_dict
 
     elif "vulnerability.bin" in input_files and file_type == "bin":
         with open(os.path.join(static_path, "vulnerability.bin"), 'rb') as f:
@@ -524,9 +525,10 @@ def run(run_dir, file_in, file_out, file_type):
         logger.debug('init vulnerability')
         if parquet_flag is True:
             file_type = "parquet"
-        vuln_array, num_damage_bins = get_vulns(static_path, vuln_dict, num_intensity_bins, file_type)
-        if parquet_flag is True:
+            vuln_array, num_damage_bins, vuln_dict = get_vulns(static_path, vuln_dict, num_intensity_bins, file_type)
             file_type = "bin"
+        else:
+            vuln_array, num_damage_bins = get_vulns(static_path, vuln_dict, num_intensity_bins, file_type)
 
         logger.debug('init mean_damage_bins')
         mean_damage_bins = get_mean_damage_bins(static_path, file_type)
