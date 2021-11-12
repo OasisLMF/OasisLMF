@@ -2,6 +2,7 @@
 This file houses the classes that load the footprint data from compressed, binary, and CSV files.
 """
 import mmap
+import logging
 import os
 from contextlib import ExitStack
 from zlib import decompress
@@ -12,6 +13,8 @@ import pandas as pd
 from .common import (FootprintHeader, EventIndexBin, EventIndexBinZ, Event, EventCSV,
                      footprint_filename, footprint_index_filename, zfootprint_filename, zfootprint_index_filename,
                      csvfootprint_filename)
+
+logger = logging.getLogger(__name__)
 
 uncompressedMask = 1 << 1
 intensityMask = 1
@@ -39,7 +42,7 @@ class Footprint:
         self.stack.__exit__(exc_type, exc_value, exc_traceback)
 
     @classmethod
-    def load(cls, static_path):
+    def load(cls, static_path, ignore_file_type=set()):
         """
         Loads the loading classes defined in this file checking to see if the files are in the static path
         whilst doing so.
@@ -52,13 +55,16 @@ class Footprint:
         priorities = [FootprintBinZ, FootprintBin, FootprintCsv]
         for footprint_class in priorities:
             for filename in footprint_class.footprint_filenames:
-                if not os.path.isfile(os.path.join(static_path, filename)):
+                if (not os.path.isfile(os.path.join(static_path, filename))
+                        or filename.rsplit('.', 1)[-1] in ignore_file_type):
                     valid = False
                     break
             else:
                 valid = True
 
             if valid:
+                for filename in footprint_class.footprint_filenames:
+                    logger.debug(f"loading {os.path.join(static_path, filename)}")
                 return footprint_class(static_path)
         else:
             raise Exception(f"no valid footprint in {static_path}")

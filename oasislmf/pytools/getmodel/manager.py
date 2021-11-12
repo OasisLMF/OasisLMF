@@ -4,7 +4,6 @@ This file is the entry point for the python get model command for the package
 TODO: use selector and select for output
 
 """
-import argparse
 import logging
 import numba as nb
 import numpy as np
@@ -17,9 +16,7 @@ from numba.typed import Dict
 from .common import areaperil_int, oasis_float, Index_type
 from .footprint import Footprint
 
-
 logger = logging.getLogger(__name__)
-logger.addHandler(logging.NullHandler())
 
 buff_size = 65536
 
@@ -119,7 +116,7 @@ def load_items(items):
 
         # insert the vulnerability index if not in there
         if item['vulnerability_id'] not in vuln_dict:
-            vuln_dict[item['vulnerability_id']] = vuln_idx
+            vuln_dict[item['vulnerability_id']] = np.int32(vuln_idx)
             vuln_idx += 1
 
         # insert an area dictionary into areaperil_dict under the key of areaperil ID
@@ -136,10 +133,6 @@ def load_items(items):
     areaperil_to_vulns_idx_dict = Dict()
     areaperil_to_vulns_idx_array = np.empty(len(areaperil_dict), dtype = Index_type)
     areaperil_to_vulns = np.empty(areaperil_to_vulns_size, dtype = np.int32)
-    vulns_id = np.empty(len(vuln_dict), dtype = np.int32)
-
-    for vuln_id, vuln_idx in vuln_dict.items():
-        vulns_id[vuln_idx] = vuln_id
 
     areaperil_i = 0
     vulnerability_i = 0
@@ -149,31 +142,35 @@ def load_items(items):
         areaperil_to_vulns_idx_array[areaperil_i]['start'] = vulnerability_i
 
         for vuln_id in sorted(vulns):  # sorted is not necessary but doesn't impede the perf and align with cpp getmodel
-            areaperil_to_vulns[vulnerability_i] = vuln_dict[vuln_id]
+            areaperil_to_vulns[vulnerability_i] = vuln_id
             vulnerability_i +=1
         areaperil_to_vulns_idx_array[areaperil_i]['end'] = vulnerability_i
         areaperil_i+=1
 
-    return vuln_dict, vulns_id, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns
+    return vuln_dict, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns
 
 
-def get_items(input_path, file_type):
+def get_items(input_path, ignore_file_type=set()):
     """
     Loads the items from the items file.
 
     Args:
         input_path: (str) the path pointing to the file
-        file_type: (str) the type of file being loaded
+        ignore_file_type: set(str) file extension to ignore when loading
 
     Returns: (Tuple[Dict[int, int], List[int], Dict[int, int], List[Tuple[int, int]], List[int]])
              vulnerability dictionary, vulnerability IDs, areaperil to vulnerability index dictionary,
              areaperil ID to vulnerability index array, areaperil ID to vulnerability array
     """
     input_files = set(os.listdir(input_path))
-    if "items.bin" in input_files and file_type == "bin":
+    if "items.bin" in input_files and "bin" not in ignore_file_type:
+        logger.debug(f"loading {os.path.join(input_path, 'items.csv')}")
         items = np.memmap(os.path.join(input_path, "items.bin"), dtype=Item, mode='r')
-    elif "items.csv" in input_files and file_type == "csv":
+    elif "items.csv" in input_files and "csv" not in ignore_file_type:
+        logger.debug(f"loading {os.path.join(input_path, 'items.csv')}")
         items = np.genfromtxt(os.path.join(input_path, "items.csv"), dtype=Item, delimiter=",")
+    else:
+        raise FileNotFoundError(f'items file not found at {input_path}')
 
     return load_items(items)
 
@@ -237,8 +234,8 @@ def load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins):
     return vuln_array
 
 
-@nb.jit(cache=True, fastmath=True)
-def update_vulns_dictionary(vulns_dict, vulns_id_array):
+@nb.jit()
+def update_vulns_dictionary(vuln_dict, vulns_id_array):
     """
     Updates the indexes of the vulnerability IDs (usually used in loading vulnerability data from parquet file).
 
@@ -246,19 +243,22 @@ def update_vulns_dictionary(vulns_dict, vulns_id_array):
         vulns_dict: (Dict[int, int]) vulnerability dict that maps the vulnerability IDs (key) with the index (value)
         vulns_id_array: (List[int]) list of vulnerability IDs loaded from the parquet file
 
-    Returns: (Dict[int, int]) updated vulns_dict
     """
-    index = 0
-    max_index = len(vulns_id_array)
-
-    while index < max_index:
-        vuln_id = vulns_id_array[index]
-        vulns_dict[vuln_id] = index
-        index += 1
-    return vulns_dict
+    for i in vulns_id_array:
+        vuln_dict[vulns_id_array[i]] = np.int32(i)
 
 
-def get_vulns(static_path, vuln_dict, num_intensity_bins, file_type):
+@nb.njit()
+def create_vulns_id(vuln_dict):
+    vulns_id = np.empty(len(vuln_dict), dtype=np.int32)
+
+    for vuln_id, vuln_idx in vuln_dict.items():
+        vulns_id[vuln_idx] = vuln_id
+
+    return vulns_id
+
+
+def get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type=set()):
     """
     Loads the vulnerabilities from the file.
 
@@ -266,61 +266,75 @@ def get_vulns(static_path, vuln_dict, num_intensity_bins, file_type):
         static_path: (str) the path pointing to the static file where the data is
         vuln_dict: (Dict[int, int]) maps the vulnerability ID with the index in the vulnerability array
         num_intensity_bins: (int) the number of intensity bins
-        file_type: (str) the type of file being loaded
+        ignore_file_type: set(str) file extension to ignore when loading
 
-    Returns: (Tuple[List[List[float]], int]) vulnerability data, number of damage bins
+    Returns: (Tuple[List[List[float]], int, np.array[int]) vulnerability data, vulnerabilities id, number of damage bins
     """
     input_files = set(os.listdir(static_path))
-    if "vulnerability.parquet" in input_files and file_type == "parquet":
-        parquet_handle = pq.ParquetDataset(os.path.join(static_path, "vulnerability.parquet"), use_legacy_dataset=False,
-                                           filters=[("vulnerability_id", "in", list(vuln_dict.keys()))])
+    if "vulnerability_dataset" in input_files and "parquet" not in ignore_file_type:
+        logger.debug(f"loading {os.path.join(static_path, 'vulnerability_dataset')}")
+        parquet_handle = pq.ParquetDataset(os.path.join(static_path, "vulnerability_dataset"), use_legacy_dataset=False,
+                                           filters=[("vulnerability_id", "in", list(vuln_dict))])
         vuln_table = parquet_handle.read()
         vuln_meta = vuln_table.schema.metadata
         number_of_vulnerability_ids = int(vuln_meta[b"num_vulnerability_id"].decode("utf-8"))
         num_damage_bins = int(vuln_meta[b"num_damage_bins"].decode("utf-8"))
         number_of_intensity_bins = int(vuln_meta[b"num_intensity_bins"].decode("utf-8"))
-        vuln_array = vuln_table[1].to_numpy()
-        vuln_array = np.vstack(vuln_array).reshape(number_of_vulnerability_ids,
-                                                   num_damage_bins,
-                                                   number_of_intensity_bins)
-        vuln_dict = update_vulns_dictionary(vuln_dict, vuln_table[0].to_numpy())
-        return vuln_array, num_damage_bins, vuln_dict
+        vuln_array = np.vstack(vuln_table['vuln_array'].to_numpy()).reshape(number_of_vulnerability_ids,
+                                                                            num_damage_bins,
+                                                                            number_of_intensity_bins)
+        vulns_id = vuln_table['vulnerability_id'].to_numpy()
+        update_vulns_dictionary(vuln_dict, vulns_id)
 
-    elif "vulnerability.bin" in input_files and file_type == "bin":
-        with open(os.path.join(static_path, "vulnerability.bin"), 'rb') as f:
-            header = np.frombuffer(f.read(8), 'i4')
-            num_damage_bins = header[0]
-        if "vulnerability.idx" in static_path:
-            vulns_bin = np.memmap(os.path.join(static_path, "vulnerability.bin"), dtype=VulnerabilityRow, offset=4, mode='r')
-            vulns_idx_bin = np.memmap(os.path.join(static_path, "vulnerability.idx"), dtype=VulnerabilityIndex, mode='r')
-            vuln_array = load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
-                                                      num_damage_bins, num_intensity_bins)
+    else:
+        if "vulnerability.bin" in input_files and 'bin' not in ignore_file_type:
+            logger.debug(f"loading {os.path.join(static_path, 'vulnerability.bin')}")
+            with open(os.path.join(static_path, "vulnerability.bin"), 'rb') as f:
+                header = np.frombuffer(f.read(8), 'i4')
+                num_damage_bins = header[0]
+            if "vulnerability.idx" in static_path:
+                logger.debug(f"loading {os.path.join(static_path, 'vulnerability.idx')}")
+                vulns_bin = np.memmap(os.path.join(static_path, "vulnerability.bin"), dtype=VulnerabilityRow, offset=4, mode='r')
+                vulns_idx_bin = np.memmap(os.path.join(static_path, "vulnerability.idx"), dtype=VulnerabilityIndex, mode='r')
+                vuln_array = load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
+                                                          num_damage_bins, num_intensity_bins)
+            else:
+                vulns_bin = np.memmap(os.path.join(static_path, "vulnerability.bin"), dtype=Vulnerability, offset=4, mode='r')
+                vuln_array = load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins)
+
+        elif "vulnerability.csv" in input_files and "csv" not in ignore_file_type:
+            logger.debug(f"loading {os.path.join(static_path, 'vulnerability.csv')}")
+            vuln_csv = np.genfromtxt(os.path.join(static_path, "vulnerability.csv"), dtype=Vulnerability, delimiter=",")
+            num_damage_bins = max(vuln_csv['damage_bin_id'])
+            vuln_array = load_vulns_bin(vuln_csv, vuln_dict, num_damage_bins, num_intensity_bins)
         else:
-            vulns_bin = np.memmap(os.path.join(static_path, "vulnerability.bin"), dtype=Vulnerability, offset=4, mode='r')
-            vuln_array = load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins)
+            raise FileNotFoundError(f'vulnerability file not found at {static_path}')
 
-    elif "vulnerability.csv" in input_files and file_type == "csv":
-        vuln_csv = np.genfromtxt(os.path.join(static_path, "vulnerability.csv"), dtype=Vulnerability, delimiter=",")
-        num_damage_bins = max(vuln_csv['damage_bin_id'])
-        vuln_array = load_vulns_bin(vuln_csv, vuln_dict, num_damage_bins, num_intensity_bins)
+        vulns_id = create_vulns_id(vuln_dict)
 
-    return vuln_array, num_damage_bins
+    return vuln_array, vulns_id, num_damage_bins
 
 
-def get_mean_damage_bins(static_path, file_type):
+def get_mean_damage_bins(static_path, ignore_file_type=set()):
     """
     Loads the mean damage bins from the damage_bin_dict file.
 
     Args:
         static_path: (str) the path pointing to the static file where the data is
-        file_type: (str) the file extension and thus the file type to be loaded
+        ignore_file_type: set(str) file extension to ignore when loading
 
     Returns: (List[Union[damagebindictionaryCsv, damagebindictionary]]) loaded data from the damage_bin_dict file
     """
-    file_path = os.path.join(static_path, "damage_bin_dict.bin")
-    if not os.path.isfile(str(file_path)) and file_type == "csv":
-        return np.genfromtxt(os.path.join(static_path, "damage_bin_dict.csv"), dtype=damagebindictionaryCsv)['interpolation']
-    return np.fromfile(os.path.join(static_path, "damage_bin_dict.bin"), dtype=damagebindictionary)['interpolation']
+    input_files = set(os.listdir(static_path))
+    if "damage_bin_dict.bin" in input_files and 'bin' not in ignore_file_type:
+        logger.debug(f"loading {os.path.join(static_path, 'damage_bin_dict.bin')}")
+        return np.fromfile(os.path.join(static_path, "damage_bin_dict.bin"), dtype=damagebindictionary)['interpolation']
+    elif "damage_bin_dict.csv" in input_files and 'csv' not in ignore_file_type:
+        logger.debug(f"loading {os.path.join(static_path, 'damage_bin_dict.csv')}")
+        return np.genfromtxt(os.path.join(static_path, "damage_bin_dict.csv"), dtype=damagebindictionaryCsv)[
+            'interpolation']
+    else:
+        raise FileNotFoundError(f'damage_bin_dict file not found at {static_path}')
 
 
 @nb.jit(cache=True, fastmath=True)
@@ -479,8 +493,13 @@ def doCdf(event_id,
 
     yield cursor * oasis_int_size
 
+@nb.njit()
+def convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns):
+    for i in range(areaperil_to_vulns.shape[0]):
+        areaperil_to_vulns[i] = vuln_dict[areaperil_to_vulns[i]]
 
-def run(run_dir, file_in, file_out, file_type):
+
+def run(run_dir, file_in, file_out, ignore_file_type):
     """
     Runs the main process of the getmodel process.
 
@@ -488,10 +507,11 @@ def run(run_dir, file_in, file_out, file_type):
         run_dir: (str) the directory of where the process is running
         file_in: (Optional[str]) the path to the input directory
         file_out: (Optional[str]) the path to the output directory
-        file_type: (str) the type of file being loaded
+        ignore_file_type: set(str) file extension to ignore when loading
 
     Returns: None
     """
+    ignore_file_type = set(ignore_file_type)
     with ExitStack() as stack:
         if file_in is None:
             streams_in = sys.stdin.buffer
@@ -503,12 +523,6 @@ def run(run_dir, file_in, file_out, file_type):
         else:
             stream_out = stack.enter_context(open(file_out, 'wb'))
 
-        # temp fix for now we flag to see if parquet is chosen as parquet is only supported for vulnerability for now
-        parquet_flag = False
-        if file_type == "parquet":
-            file_type = "bin"
-            parquet_flag = True
-
         static_path = os.path.join(run_dir, 'static')
         input_path = os.path.join(run_dir, 'input')
 
@@ -516,22 +530,18 @@ def run(run_dir, file_in, file_out, file_type):
         event_ids = np.ndarray(1, buffer=event_id_mv, dtype='i4')
 
         logger.debug('init items')
-        vuln_dict, vulns_id, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns = get_items(input_path, file_type)
+        vuln_dict, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns = get_items(input_path, ignore_file_type)
 
         logger.debug('init footprint')
-        footprint_obj = stack.enter_context(Footprint.load(static_path))
+        footprint_obj = stack.enter_context(Footprint.load(static_path, ignore_file_type))
         num_intensity_bins = footprint_obj.num_intensity_bins
 
         logger.debug('init vulnerability')
-        if parquet_flag is True:
-            file_type = "parquet"
-            vuln_array, num_damage_bins, vuln_dict = get_vulns(static_path, vuln_dict, num_intensity_bins, file_type)
-            file_type = "bin"
-        else:
-            vuln_array, num_damage_bins = get_vulns(static_path, vuln_dict, num_intensity_bins, file_type)
 
+        vuln_array, vulns_id, num_damage_bins = get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type)
+        convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns)
         logger.debug('init mean_damage_bins')
-        mean_damage_bins = get_mean_damage_bins(static_path, file_type)
+        mean_damage_bins = get_mean_damage_bins(static_path, ignore_file_type)
 
         # even_id, areaperil_id, vulnerability_id, num_result, [oasis_float] * num_result
         max_result_relative_size = 1 + + areaperil_int_relative_size + 1 + 1 + num_damage_bins * results_relative_size
@@ -543,6 +553,7 @@ def run(run_dir, file_in, file_out, file_type):
         # header
         stream_out.write(np.uint32(1).tobytes())
 
+        logger.debug('doCdf staring')
         while True:
             len_read = streams_in.readinto(event_id_mv)
             if len_read==0:
@@ -559,30 +570,7 @@ def run(run_dir, file_in, file_out, file_type):
                         stream_out.write(mv[:cursor_bytes])
                     else:
                         break
-        logger.debug('getmodel done')
-
-parser = argparse.ArgumentParser()
-parser.add_argument('-i', '--file-in', help='names of the input file_path')
-parser.add_argument('-o', '--file-out', help='names of the output file_path')
-parser.add_argument('-r', '--run-dir', help='path to the run directory', default='.')
-parser.add_argument('-f', '--file-type', help='the type of file to be loaded', default='bin')
-parser.add_argument('-v', '--logging-level', help='logging level (debug:10, info:20, warning:30, error:40, critical:50)',
-                    default=30, type=int)
+        logger.debug('doCdf done')
 
 
-def main():
-    kwargs = vars(parser.parse_args())
 
-    # add handler to fm logger
-    ch = logging.StreamHandler()
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    ch.setFormatter(formatter)
-    logger.addHandler(ch)
-    logging_level = kwargs.pop('logging_level')
-    logger.setLevel(logging_level)
-
-    run(**kwargs)
-
-
-if __name__ == "__main__":
-    main()
