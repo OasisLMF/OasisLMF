@@ -244,7 +244,7 @@ def update_vulns_dictionary(vuln_dict, vulns_id_array):
         vulns_id_array: (List[int]) list of vulnerability IDs loaded from the parquet file
 
     """
-    for i in vulns_id_array:
+    for i in range(vulns_id_array.shape[0]):
         vuln_dict[vulns_id_array[i]] = np.int32(i)
 
 
