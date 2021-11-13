@@ -277,10 +277,9 @@ def get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type=set()
                                            filters=[("vulnerability_id", "in", list(vuln_dict))])
         vuln_table = parquet_handle.read()
         vuln_meta = vuln_table.schema.metadata
-        number_of_vulnerability_ids = int(vuln_meta[b"num_vulnerability_id"].decode("utf-8"))
         num_damage_bins = int(vuln_meta[b"num_damage_bins"].decode("utf-8"))
         number_of_intensity_bins = int(vuln_meta[b"num_intensity_bins"].decode("utf-8"))
-        vuln_array = np.vstack(vuln_table['vuln_array'].to_numpy()).reshape(number_of_vulnerability_ids,
+        vuln_array = np.vstack(vuln_table['vuln_array'].to_numpy()).reshape(vuln_table['vuln_array'].length(),
                                                                             num_damage_bins,
                                                                             number_of_intensity_bins)
         vulns_id = vuln_table['vulnerability_id'].to_numpy()
