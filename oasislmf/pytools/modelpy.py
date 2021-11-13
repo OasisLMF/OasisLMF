@@ -1,7 +1,7 @@
 import argparse
 import logging
 
-from getmodel import manager, logger
+from .getmodel import manager, logger
 
 
 parser = argparse.ArgumentParser()
