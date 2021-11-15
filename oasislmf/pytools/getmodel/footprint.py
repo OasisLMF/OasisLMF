@@ -45,10 +45,18 @@ class Footprint:
     def load(cls, static_path, ignore_file_type=set()):
         """
         Loads the loading classes defined in this file checking to see if the files are in the static path
-        whilst doing so.
+        whilst doing so. The loading goes through the hierarchy with the following order:
+
+        -> compressed binary file
+        -> binary file
+        -> CSV file
+
+        If the compressed binary file is present, this will be loaded. If it is not, then the binary file will be loaded
+        and so on.
 
         Args:
             static_path: (str) the path to the static files directory
+            ignore_file_type: (Set[str]) type of file to be skipped in the hierarchy
 
         Returns: (Union[FootprintBinZ, FootprintBin, FootprintCsv]) the loaded class
         """

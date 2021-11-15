@@ -5,12 +5,13 @@ TODO: use selector and select for output
 
 """
 import logging
-import numba as nb
-import numpy as np
-import pyarrow.parquet as pq
 import os
 import sys
 from contextlib import ExitStack
+
+import numba as nb
+import numpy as np
+import pyarrow.parquet as pq
 from numba.typed import Dict
 
 from .common import areaperil_int, oasis_float, Index_type
@@ -179,7 +180,7 @@ def get_items(input_path, ignore_file_type=set()):
 def load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
                                  num_damage_bins, num_intensity_bins):
     """
-    Not firing when testing so not able to inspect yet
+    Loads the vulnerability binary index file.
 
     Args:
         vulns_bin:
@@ -210,7 +211,7 @@ def load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins):
     Loads the vulnerability data grouped by the intensity and damage bins.
 
     Args:
-        vulns_bin: (List[Vulnerability]) vulnerability data from the vulnerability file
+        vuln_bin: (List[Vulnerability]) vulnerability data from the vulnerability file
         vuln_dict: (Dict[int, int]) maps the vulnerability ID with the index in the vulnerability array
         num_damage_bins: (int) number of damage bins in the data
         num_intensity_bins: (int) the number of intensity bins
@@ -240,7 +241,7 @@ def update_vulns_dictionary(vuln_dict, vulns_id_array):
     Updates the indexes of the vulnerability IDs (usually used in loading vulnerability data from parquet file).
 
     Args:
-        vulns_dict: (Dict[int, int]) vulnerability dict that maps the vulnerability IDs (key) with the index (value)
+        vuln_dict: (Dict[int, int]) vulnerability dict that maps the vulnerability IDs (key) with the index (value)
         vulns_id_array: (List[int]) list of vulnerability IDs loaded from the parquet file
 
     """
@@ -250,6 +251,14 @@ def update_vulns_dictionary(vuln_dict, vulns_id_array):
 
 @nb.njit()
 def create_vulns_id(vuln_dict):
+    """
+    Creates a vulnerability array where the index of the array correlates with the index of the vulnerability.
+
+    Args:
+        vuln_dict: (Dict) maps the vulnerability of the id (key) with the vulnerability ID (value)
+
+    Returns: (List[int]) list of vulnerability IDs
+    """
     vulns_id = np.empty(len(vuln_dict), dtype=np.int32)
 
     for vuln_id, vuln_idx in vuln_dict.items():
@@ -491,6 +500,7 @@ def doCdf(event_id,
                       event_id, areaperil_id, vuln_i, cursor)
 
     yield cursor * oasis_int_size
+
 
 @nb.njit()
 def convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns):
