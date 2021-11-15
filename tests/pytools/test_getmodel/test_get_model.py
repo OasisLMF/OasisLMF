@@ -1,10 +1,10 @@
 from unittest import main, TestCase
 
-from oasislmf.pytools.getmodel.get_model import get_items, get_vulns, Footprint
+# from oasislmf.pytools.getmodel.get_model import get_items, get_vulns, Footprint
 
-import numpy as np
-import numba as nb
-import pyarrow.parquet as pq
+# import numpy as np
+# import numba as nb
+# import pyarrow.parquet as pq
 
 
 class GetModelTests(TestCase):
