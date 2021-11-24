@@ -555,14 +555,13 @@ def __merge_gul_and_account(gul_inputs_df, accounts_df, fm_terms, oed_hierarchy)
     cond_num = oed_hierarchy['condnum']['ProfileElementName'].lower()
     loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
 
-    policy_df = accounts_df[[portfolio_num, acc_num, policy_num, 'layer_id']].drop_duplicates()
+    policy_df = accounts_df.drop_duplicates(subset=[portfolio_num, acc_num, policy_num, 'layer_id']).drop(columns=cond_tag)
     cond_df = accounts_df[[portfolio_num, acc_num, cond_tag]].drop_duplicates()
-    all_cond_policy =  pd.merge(policy_df, cond_df)
+    all_cond_policy =  pd.merge(policy_df, cond_df, on=[portfolio_num, acc_num])
 
     missing_cond_policy_df = pd.merge(accounts_df[[portfolio_num, acc_num, policy_num, 'layer_id', cond_tag]],
                            all_cond_policy, how='right', indicator=True)
     missing_cond_policy_df = missing_cond_policy_df[missing_cond_policy_df['_merge'] == 'right_only'].drop(columns ='_merge')
-    missing_cond_policy_df = pd.merge(accounts_df[set(accounts_df.columns) - {policy_num, 'layer_id'}], missing_cond_policy_df)
 
     ###### prepare accounts_df #####
     # create account line without condition
@@ -1170,7 +1169,7 @@ def get_il_input_items(
                            'lim_code', 'lim_type']
     prev_level_df = column_base_il_df[set(present_cols + coverage_level_term)]
     prev_agg_key = [v['field'].lower() for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
-    
+
     prev_level_df.drop_duplicates(subset=prev_agg_key, inplace=True)
     prev_level_df['agg_id'] = prev_level_df['coverage_id']
     prev_level_df['level_id'] = 1
