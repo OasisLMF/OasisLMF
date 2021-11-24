@@ -555,15 +555,25 @@ def __merge_gul_and_account(gul_inputs_df, accounts_df, fm_terms, oed_hierarchy)
     cond_num = oed_hierarchy['condnum']['ProfileElementName'].lower()
     loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
 
+    policy_df = accounts_df[[portfolio_num, acc_num, policy_num, 'layer_id']].drop_duplicates()
+    cond_df = accounts_df[[portfolio_num, acc_num, cond_tag]].drop_duplicates()
+    all_cond_policy =  pd.merge(policy_df, cond_df)
+
+    missing_cond_policy_df = pd.merge(accounts_df[[portfolio_num, acc_num, policy_num, 'layer_id', cond_tag]],
+                           all_cond_policy, how='right', indicator=True)
+    missing_cond_policy_df = missing_cond_policy_df[missing_cond_policy_df['_merge'] == 'right_only'].drop(columns ='_merge')
+    missing_cond_policy_df = pd.merge(accounts_df[set(accounts_df.columns) - {policy_num, 'layer_id'}], missing_cond_policy_df)
+
     ###### prepare accounts_df #####
     # create account line without condition
     null_cond = accounts_df[accounts_df[cond_tag] != '0']
     null_cond[cond_tag] = '0'
+    null_cond = pd.concat([null_cond, missing_cond_policy_df])
     null_cond[cond_num] = ''
     level_id = SUPPORTED_FM_LEVELS['cond all']['id']
     level_term_cols = get_fm_terms_oed_columns(fm_terms, level_ids=[level_id])
     null_cond[level_term_cols] = 0
-    null_cond.drop_duplicates(subset=[portfolio_num, acc_num, 'layer_id'], inplace=True)
+    null_cond.drop_duplicates(subset=[portfolio_num, acc_num, cond_tag, 'layer_id'], inplace=True)
 
     accounts_df = pd.concat([accounts_df, null_cond])
 
@@ -636,13 +646,13 @@ def __extract_level_location_to_agg_cond_dict(account_groups, base_level, max_le
     agg_dict = {level_id: 1 for level_id in range(base_level, max_level + 1)}
 
     def set_agg_cond(main_key, group_id, group, level_id, layer_id, condition):
-        level_group_key = main_key + (group_id, level_id)
+        level_group_key = group_id + (level_id,)
         if level_group_key not in level_grouping:
             level_grouping[level_group_key] = agg_dict[level_id]
             agg_dict[level_id] += 1
         for loc_key in group['locations']:
             location = loc_key[-1]
-            level_location_to_agg_cond_dict[main_key + (level_id, layer_id, location)] = (level_grouping[level_group_key], condition)
+            level_location_to_agg_cond_dict[group_id + (level_id, layer_id, location)] = (level_grouping[level_group_key], condition)
 
     for main_key, groups in account_groups.items():
         #first we iter through groups to create agg
@@ -650,7 +660,7 @@ def __extract_level_location_to_agg_cond_dict(account_groups, base_level, max_le
         for group_id, group in groups.items():
             for layer_id, cond_num in group['layers'].items():
                 for level_id in range(base_level, group['level']):
-                    set_agg_cond(main_key, group_id, group, level_id, layer_id, 0)
+                    set_agg_cond(main_key, group_id, group, level_id, layer_id, '')
 
                 if group['level'] == max_level:
                     no_parent_not_top_groups.discard(group_id)
@@ -664,7 +674,7 @@ def __extract_level_location_to_agg_cond_dict(account_groups, base_level, max_le
             for level_id in range(group['level'] + 1, max_level + 1):
                 group = groups[group_id]
                 for layer_id in group['layers']:
-                    set_agg_cond(main_key, group_id, group, level_id, layer_id, 0)
+                    set_agg_cond(main_key, group_id, group, level_id, layer_id, '')
 
     return level_location_to_agg_cond_dict
 
@@ -731,7 +741,7 @@ def __get_cond_grouping_hierarchy(column_base_il_df, main_key, cond_tag, cond_nu
                      'tag': (cond_key, rec['condpriority']),
                      'layers': {layer_id: '' for layer_id in main_key_layers[group_key]},
                      'needed_loc': {},
-                     'level':base_level}
+                     'level': base_level}
             groups[cond_key] = group
         else:
             # cond key already exist, if the parent of the cond_tag is not the same as the parent found within the location parents
@@ -805,7 +815,7 @@ def __get_level_location_to_agg_cond(column_base_il_df, oed_hierarchy, main_key)
         [level_location + agg_cond
          for level_location, agg_cond
          in level_location_to_agg_cond_dict.items()],
-        columns=main_key + ['level_id', 'layer_id', loc_num, 'agg_id', cond_num]
+        columns=main_key + [cond_tag, 'level_id', 'layer_id', loc_num, 'agg_id', cond_num]
     )
 
     return level_location_to_agg_cond, max_level
@@ -951,18 +961,19 @@ def __process_condition_level_df(column_base_il_df,
 
             this_level_location_to_agg_cond_df = level_location_to_agg_cond_df[level_location_to_agg_cond_df['level_id'] == inter_level]
             this_level_location_to_agg_cond_df.drop(columns=['level_id'], inplace=True)
-            
+
             level_df = merge_dataframes(
                 level_df,
                 this_level_location_to_agg_cond_df,
-                on=main_key + [loc_num, 'layer_id'],
+                on=main_key + [cond_tag, 'layer_id', loc_num],
                 how='inner',
                 drop_duplicates=False
             )
+
             level_df.loc[level_df[cond_num] == '', set(level_terms.values())] = 0
 
             this_level_location_to_agg_cond_df.rename(columns={'agg_id': 'to_agg_id'}, inplace=True)
-            this_level_location_to_agg_cond_df.drop(columns=[cond_num], inplace=True)
+            this_level_location_to_agg_cond_df.drop(columns=[cond_tag, cond_num], inplace=True)
 
             prev_level_df = merge_dataframes(
                 prev_level_df,
@@ -979,6 +990,7 @@ def __process_condition_level_df(column_base_il_df,
             level_df = merge_dataframes(level_df, agg_tiv_df, on=agg_key, how='left')
 
             level_df = level_df[level_cols.union(set(level_terms.values()))]
+
             il_inputs_df_list.append(prev_level_df)
             prev_level_df = level_df
 
@@ -1158,6 +1170,7 @@ def get_il_input_items(
                            'lim_code', 'lim_type']
     prev_level_df = column_base_il_df[set(present_cols + coverage_level_term)]
     prev_agg_key = [v['field'].lower() for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
+    
     prev_level_df.drop_duplicates(subset=prev_agg_key, inplace=True)
     prev_level_df['agg_id'] = prev_level_df['coverage_id']
     prev_level_df['level_id'] = 1
