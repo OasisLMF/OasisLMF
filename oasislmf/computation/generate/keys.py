@@ -10,6 +10,7 @@ from ...lookup.factory import KeyServerFactory
 from ...utils.exceptions import OasisException
 from ...utils.coverages import SUPPORTED_COVERAGE_TYPES
 
+from ...utils.inputs import str2bool
 from ...utils.data import get_utctimestamp
 
 
@@ -60,10 +61,10 @@ class GenerateKeys(ComputationStep):
         {'name': 'lookup_num_chunks',          'type':int,  'default': -1,                       'help': 'Number of chunks to split the location file into for multiprocessing'},
         {'name': 'model_version_csv',          'flag':'-v', 'is_path': True, 'pre_exist': False, 'help': 'Model version CSV file path'},
         {'name': 'user_data_dir',              'flag':'-D', 'is_path': True, 'pre_exist': False, 'help': 'Directory containing additional model data files which varies between analysis runs'},
+        {'name': 'lookup_multiprocessing',     'type': str2bool, 'const':True, 'nargs':'?',  'default': True, 'help': 'Flag to enable/disable lookup multiprocessing'},
 
         # Manager only options
-        {'name': 'verbose',                'default': False},
-        {'name': 'lookup_multiprocessing', 'default': True},            # Enable/disable multiprocessing
+        {'name': 'verbose', 'default': False},
     ]
 
     def _get_output_dir(self):
