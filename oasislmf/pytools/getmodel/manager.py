@@ -283,7 +283,8 @@ def get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type=set()
     if "vulnerability_dataset" in input_files and "parquet" not in ignore_file_type:
         logger.debug(f"loading {os.path.join(static_path, 'vulnerability_dataset')}")
         parquet_handle = pq.ParquetDataset(os.path.join(static_path, "vulnerability_dataset"), use_legacy_dataset=False,
-                                           filters=[("vulnerability_id", "in", list(vuln_dict))])
+                                           filters=[("vulnerability_id", "in", list(vuln_dict))],
+                                           memory_map=True).memory_map
         vuln_table = parquet_handle.read()
         vuln_meta = vuln_table.schema.metadata
         num_damage_bins = int(vuln_meta[b"num_damage_bins"].decode("utf-8"))
