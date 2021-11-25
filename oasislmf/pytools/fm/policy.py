@@ -226,6 +226,8 @@ def calcrule_28(policy, loss_out, loss_in):
     """
     % loss step payout
     """
+    if policy['step_id'] == 1:
+        loss_out.fill(0)
     for i in range(loss_in.shape[0]):
         if policy['trigger_start'] <= loss_in[i] < policy['trigger_end']:
             loss = max(policy['payout_start'] * loss_in[i] - policy['deductible_1'], 0)
@@ -237,6 +239,8 @@ def calcrule_281(policy, loss_out, loss_in):
     """
     conditional coverage
     """
+    if policy['step_id'] == 1:
+        loss_out.fill(0)
     for i in range(loss_in.shape[0]):
         if policy['trigger_start'] <= loss_in[i] < policy['trigger_end']:
             loss_out[i] += min(loss_out[i] * policy['scale_2'], policy['limit_2']) * policy['scale_1']
@@ -247,6 +251,8 @@ def calcrule_32(policy, loss_out, loss_in):
     """
     monetary amount trigger and % loss step payout with limit
     """
+    if policy['step_id'] == 1:
+        loss_out.fill(0)
     for i in range(loss_in.shape[0]):
         if policy['trigger_start'] <= loss_in[i]:
             loss = min(policy['payout_start'] * loss_in[i], policy['limit_1'])
@@ -283,6 +289,31 @@ def calcrule_34(policy, loss_out, loss_in):
             loss_out[i] = 0
         else:
             loss_out[i] = (loss_in[i] - ded_att) * policy['share_1']
+
+
+@njit(cache=True, fastmath=True)
+def calcrule_37(policy, loss_out, loss_in):
+    """
+    % loss step payout
+    """
+    if policy['step_id'] == 1:
+        loss_out.fill(0)
+    for i in range(loss_in.shape[0]):
+        if policy['trigger_start'] <= loss_in[i] < policy['trigger_end']:
+            loss = min(max(policy['payout_start'] * loss_in[i] - policy['deductible_1'], 0), policy['limit_1'])
+            loss_out[i] = (loss + min(loss * policy['scale_2'], policy['limit_2'])) * policy['scale_1']
+
+
+@njit(cache=True, fastmath=True)
+def calcrule_38(policy, loss_out, loss_in):
+    """
+    conditional coverage
+    """
+    if policy['step_id'] == 1:
+        loss_out.fill(0)
+    for i in range(loss_in.shape[0]):
+        if policy['trigger_start'] <= loss_in[i] < policy['trigger_end']:
+            loss_out[i] = (loss_out[i] + min(loss_out[i] * policy['scale_2'], policy['limit_2'])) * (policy['scale_1'])
 
 
 @njit(cache=True)
@@ -329,10 +360,12 @@ def calc(policy, loss_out, loss_in, stepped):
     elif stepped is not None:
         if policy['calcrule_id'] == 28:
             calcrule_28(policy, loss_out, loss_in)
-        elif policy['calcrule_id'] == 281:
-            calcrule_281(policy, loss_out, loss_in)
         elif policy['calcrule_id'] == 32:
             calcrule_32(policy, loss_out, loss_in)
+        elif policy['calcrule_id'] == 37:
+            calcrule_37(policy, loss_out, loss_in)
+        elif policy['calcrule_id'] == 38:
+            calcrule_38(policy, loss_out, loss_in)
         else:
             raise UnknownCalcrule()
     else:
