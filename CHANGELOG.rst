@@ -1,6 +1,9 @@
 OasisLMF Changelog
 ==================
 
+* [#948](https://github.com/OasisLMF/OasisLMF/pull/948) - Fix/platform client error
+.. _`1.15.21`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.20...1.15.21
+
 * [#944](https://github.com/OasisLMF/OasisLMF/pull/947) - Loss is not init to 0 for step policy
 .. _`1.15.20`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.19...1.15.20
 
