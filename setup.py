@@ -353,7 +353,9 @@ setup(
             'complex_itemtocsv=oasislmf.execution.complex_items_to_csv:main',
             'load_balancer=oasislmf.execution.load_balancer:main',
             'fmpy=oasislmf.pytools.fmpy:main',
-            'getpymodel=oasislmf.pytools.getmodel.get_model:main'
+            'modelpy=oasislmf.pytools.modelpy:main',
+            'footprintconvpy=oasislmf.pytools.footprintconv:footprintconvpy',
+            'vulntoparquet=oasislmf.pytools.getmodel.vulnerability:main',
         ]
     },
     license='BSD 3-Clause',

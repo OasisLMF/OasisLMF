@@ -201,9 +201,17 @@ def process_range(max_process_id, process_number=None):
         return range(1, max_process_id + 1)
 
 
-def get_modelcmd(getmodelpy):
-    if getmodelpy:
-        return 'getpymodel'
+def get_modelcmd(getmodelpy: bool) -> str:
+    """
+    Gets the construct model command line argument for the bash script.
+
+    Args:
+        getmodelpy: (bool) if the getmodel Python setting is True or not
+
+    Returns: C++ getmodel if getmodelpy is False, Python getmodel if the getmodelpy if False
+    """
+    if getmodelpy is True:
+        return 'modelpy'
     else:
         return 'getmodel'
 

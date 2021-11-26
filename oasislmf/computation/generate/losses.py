@@ -265,7 +265,7 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'ktools_num_fm_per_lb',   'default': KTOOL_N_FM_PER_LB,        'type':int, 'help': 'Number of fm per load balancer (0 means no load balancer)'},
         {'name': 'ktools_disable_guard',   'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Disables error handling in the ktools run script (abort on non-zero exitcode or output on stderr)'},
         {'name': 'ktools_fifo_relative',   'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Create ktools fifo queues under the ./fifo dir'},
-        {'name': 'getmodelpy',             'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use getmodel python version instead of c++ version'},
+        {'name': 'modelpy',             'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use getmodel python version instead of c++ version'},
         {'name': 'fmpy',                   'default': True, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory',        'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output',       'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'order fmpy output by item_id'},
@@ -312,7 +312,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             event_shuffle=self.ktools_event_shuffle,
             process_number=self.process_number,
             max_process_id=self.max_process_id,
-            getmodelpy=self.getmodelpy,
+            getmodelpy=self.modelpy,
         )
         ## Workaround test -- needs adding into bash_params
         if self.ktools_fifo_queue_dir:
@@ -423,7 +423,7 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'ktools_num_fm_per_lb',   'default': KTOOL_N_FM_PER_LB,        'type':int, 'help': 'Number of fm per load balancer (0 means no load balancer)'},
         {'name': 'ktools_disable_guard',   'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Disables error handling in the ktools run script (abort on non-zero exitcode or output on stderr)'},
         {'name': 'ktools_fifo_relative',   'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Create ktools fifo queues under the ./fifo dir'},
-        {'name': 'getmodelpy',             'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use getmodel python version instead of c++ version'},
+        {'name': 'modelpy',             'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use getmodel python version instead of c++ version'},
         {'name': 'fmpy',                   'default': True, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory',        'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output',       'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'order fmpy output by item_id'},
@@ -461,7 +461,7 @@ class GenerateLosses(GenerateLossesDir):
                         fmpy_low_memory=self.fmpy_low_memory,
                         fmpy_sort_output=self.fmpy_sort_output,
                         event_shuffle=self.ktools_event_shuffle,
-                        getmodelpy=self.getmodelpy,
+                        getmodelpy=self.modelpy,
                     )
                 except TypeError:
                     warnings.simplefilter("always")
