@@ -102,11 +102,11 @@ class GenerateFiles(ComputationStep):
         {'name': 'oed_scope_csv',              'flag':'-s', 'is_path': True, 'pre_exist': True,  'help': 'Reinsurance scope CSV file path'},
         {'name': 'disable_summarise_exposure', 'flag':'-S', 'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Disables creation of an exposure summary report'},
         {'name': 'group_id_cols',              'flag':'-G', 'nargs':'+',                         'help': 'Columns from loc file to set group_id', 'default': GROUP_ID_COLS},
+        {'name': 'lookup_multiprocessing',     'type': str2bool, 'const':True, 'nargs':'?',  'default': True, 'help': 'Flag to enable/disable lookup multiprocessing'},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'lookup_config'},
         {'name': 'lookup_complex_config'},
-        {'name': 'lookup_multiprocessing',        'default': True},
         {'name': 'write_ri_tree',                 'default': False},
         {'name': 'verbose',                       'default': False},
         {'name': 'write_chunksize', 'type':int,   'default': WRITE_CHUNKSIZE},
