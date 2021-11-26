@@ -783,6 +783,13 @@
         "py_dtype": "str",
         "require_field": "CR"
     },
+    "CondClass": {
+        "data_type": "int",
+        "default_value": "0",
+        "desc": "class of condition",
+        "py_dtype": "int",
+        "require_field": "O"
+    },
     "CondPeril": {
         "data_type": "varchar(250)",
         "default_value": "n/a",

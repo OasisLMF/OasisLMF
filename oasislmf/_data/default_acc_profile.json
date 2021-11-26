@@ -24,6 +24,11 @@
         "OEDHierarchy": "SpecialCondition",
         "Key": "CondNum"
     },
+    "CondClass": {
+        "ProfileElementName": "CondClass",
+        "OEDHierarchy": "SpecialCondition",
+        "Key": "CondClass"
+    },
     "LayerNumber": {
 	"ProfileElementName": "LayerNumber",
 	"OEDHierarchy": "Policy",

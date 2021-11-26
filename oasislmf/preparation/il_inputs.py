@@ -380,6 +380,7 @@ def get_account_df(accounts_fp, accounts_profile):
     portfolio_num = accounts_profile['PortNumber']['ProfileElementName'].lower()
     cond_tag = accounts_profile['CondTag']['ProfileElementName'].lower()
     cond_num = accounts_profile['CondNumber']['ProfileElementName'].lower()
+    cond_class = accounts_profile['CondClass']['ProfileElementName'].lower()
     layer_num = accounts_profile['LayerNumber']['ProfileElementName'].lower()
 
     # Get the FM terms profile (this is a simplfied view of the main grouped
@@ -466,7 +467,7 @@ def get_account_df(accounts_fp, accounts_profile):
     # the source columns for the financial terms present in the accounts file
     # (the file should contain all financial terms relating to the cond. all
     # (# 6), policy all (# 9) and policy layer (# 10) FM levels)
-    usecols = [acc_num, portfolio_num, policy_num, cond_tag, cond_num, 'layer_id', SOURCE_IDX['acc'], 'condpriority'] + term_cols
+    usecols = [acc_num, portfolio_num, policy_num, cond_tag, cond_num, cond_class, 'layer_id', SOURCE_IDX['acc'], 'condpriority'] + term_cols
     # If step policies listed, keep step trigger type and columns associated
     # with those step trigger types that are present
     if step_policies_present:
@@ -553,6 +554,7 @@ def __merge_gul_and_account(gul_inputs_df, accounts_df, fm_terms, oed_hierarchy)
     policy_num = oed_hierarchy['polnum']['ProfileElementName'].lower()
     cond_tag = oed_hierarchy['condtag']['ProfileElementName'].lower()
     cond_num = oed_hierarchy['condnum']['ProfileElementName'].lower()
+    cond_class = oed_hierarchy['condclass']['ProfileElementName'].lower()
     loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
 
     policy_df = accounts_df.drop_duplicates(subset=[portfolio_num, acc_num, policy_num, 'layer_id']).drop(columns=cond_tag)
@@ -573,6 +575,10 @@ def __merge_gul_and_account(gul_inputs_df, accounts_df, fm_terms, oed_hierarchy)
     level_term_cols = get_fm_terms_oed_columns(fm_terms, level_ids=[level_id])
     null_cond[level_term_cols] = 0
     null_cond.drop_duplicates(subset=[portfolio_num, acc_num, cond_tag, 'layer_id'], inplace=True)
+    filter_cond = (null_cond[cond_class] == 1)
+    null_cond.loc[filter_cond, cond_num] = 'FullFilter'
+    null_cond.loc[filter_cond, 'condded6all'] = 1
+    null_cond.loc[filter_cond, 'conddedtype6all'] = 1
 
     accounts_df = pd.concat([accounts_df, null_cond])
 
@@ -940,12 +946,12 @@ def __process_condition_level_df(column_base_il_df,
     else:
         main_key = [portfolio_num, acc_num]
 
-    level_location_to_agg_cond_df, cond_inter_level = __get_level_location_to_agg_cond(column_base_il_df, oed_hierarchy, main_key)
-
     # identify fm columns for this level
     level_terms = __get_level_terms(column_base_il_df, level_column_mapper[level_id])
 
     if level_terms: # if there is fm terms we create a new level and complete the previous level info
+        level_location_to_agg_cond_df, cond_inter_level = __get_level_location_to_agg_cond(column_base_il_df,
+                                                                                           oed_hierarchy, main_key)
         agg_key = [v['field'].lower() for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
         sub_agg_key = [v['field'].lower() for v in fm_aggregation_profile[level_id].get('FMSubAggKey', {}).values()
                        if v['field'].lower() in column_base_il_df.columns]
