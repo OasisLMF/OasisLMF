@@ -1,8 +1,8 @@
 """
 This file houses the classes that load the footprint data from compressed, binary, and CSV files.
 """
-import mmap
 import logging
+import mmap
 import os
 from contextlib import ExitStack
 from zlib import decompress
