@@ -16,6 +16,7 @@ from numba.typed import Dict
 
 from .common import areaperil_int, oasis_float, Index_type
 from .footprint import Footprint
+from .custom_footprint import get_custom_footprint_loader
 
 logger = logging.getLogger(__name__)
 
@@ -509,7 +510,7 @@ def convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns):
         areaperil_to_vulns[i] = vuln_dict[areaperil_to_vulns[i]]
 
 
-def run(run_dir, file_in, file_out, ignore_file_type):
+def run(run_dir, file_in, file_out, ignore_file_type, custom_footprint):
     """
     Runs the main process of the getmodel process.
 
@@ -518,6 +519,7 @@ def run(run_dir, file_in, file_out, ignore_file_type):
         file_in: (Optional[str]) the path to the input directory
         file_out: (Optional[str]) the path to the output directory
         ignore_file_type: set(str) file extension to ignore when loading
+        custom_footprint: (Optional[str]) pointer to where the custom footprint loader object is defined
 
     Returns: None
     """
@@ -543,7 +545,11 @@ def run(run_dir, file_in, file_out, ignore_file_type):
         vuln_dict, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns = get_items(input_path, ignore_file_type)
 
         logger.debug('init footprint')
-        footprint_obj = stack.enter_context(Footprint.load(static_path, ignore_file_type))
+        if custom_footprint is None:
+            footprint_obj = stack.enter_context(Footprint.load(static_path, ignore_file_type))
+        else:
+            custom_object = get_custom_footprint_loader(file_path=custom_footprint)
+            footprint_obj = stack.enter_context(custom_object.load(static_path))
         num_intensity_bins = footprint_obj.num_intensity_bins
 
         logger.debug('init vulnerability')

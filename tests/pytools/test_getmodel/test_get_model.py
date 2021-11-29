@@ -8,123 +8,7 @@ import pyarrow.parquet as pq
 from pyarrow import memory_map
 from contextlib import ExitStack
 from typing import Any
-
-
-class FootprintReadDescriptor:
-
-    INTRO: str = "You've coded a custom footprint read function in your class and attached the FootprintAdapterMixin."
-
-    @staticmethod
-    def _check_output_data(instance: Any) -> Any:
-        footprint_index_check: str = "present"
-        footprint_check: str = "present"
-        num_intensity_bins_check: str = "present"
-
-        if hasattr(instance, 'num_intensity_bins') is False:
-            num_intensity_bins_check = "missing"
-        if hasattr(instance, 'footprint') is False:
-            footprint_check = "missing"
-        if hasattr(instance, 'footprint_index') is False:
-            footprint_index_check = "missing"
-
-        if "missing" in [footprint_check, footprint_index_check, num_intensity_bins_check]:
-            raise NotImplementedError(
-                f"""
-                \n{FootprintReadDescriptor.INTRO}
-                However, this read function does not result in creating all of the needed class attributes please check
-                below which attributes the custom read function hasn't created\n
-                num_intensity_bins: {num_intensity_bins_check}\n
-                footprint: {footprint_check}\n
-                footprint_index: {footprint_index_check}\n
-                """
-            )
-
-    @staticmethod
-    def _check_input_attributes(instance: Any) -> Any:
-        if hasattr(instance, "static_path") is False:
-            raise AttributeError(
-                f"""
-                \n{FootprintReadDescriptor.INTRO}
-                However, your class does not have an attribute called "static_path". Please add this attribute which is 
-                a string pointing to the path where the footprint data is. 
-                """
-            )
-        read_function = getattr(instance, "read", None)
-        if read_function is None:
-            raise AttributeError(
-                f"""
-                \n{FootprintReadDescriptor.INTRO}
-                However, your class does not have a function called "read". Please add this function and ensure that 
-                this function populates the attributes for your class below:
-                \nnum_intensity_bins
-                \nfootprint
-                \nfootprint_index\n
-                """
-            )
-        if not callable(read_function):
-            raise AttributeError(
-                f"""
-                \n{FootprintReadDescriptor.INTRO}
-                However, you have added an attribute called "read". But this has to be function. This function also 
-                has to populate the attributes for your class below:
-                num_intensity_bins
-                footprint
-                footprint_index
-                """
-            )
-        get_event_function = getattr(instance, "get_event", None)
-        if get_event_function is None:
-            raise AttributeError(
-                f"""
-                \n{FootprintReadDescriptor.INTRO}
-                However, your class does not have a function called "get_event". Please add this function and ensure 
-                that the function returns a specific event based off the input parameter "event_id".
-                """
-            )
-        if not callable(get_event_function):
-            raise AttributeError(
-                f"""
-                \n{FootprintReadDescriptor.INTRO}
-                However, you have added an attribute called "get_event". Please add this as a function and ensure 
-                that the function returns a specific event based off the input parameter "event_id".
-                """
-            )
-
-    @staticmethod
-    def _add_stack(instance: Any) -> None:
-        instance.stack = ExitStack()
-
-    def __get__(self, instance, owner):
-        self._add_stack(instance=instance)
-        self._check_input_attributes(instance=instance)
-        instance.read()
-        self._check_output_data(instance=instance)
-
-
-class SomeMixin:
-
-    READ_DESCRIPTOR = FootprintReadDescriptor()
-
-    def __enter__(self):
-        _ = self.READ_DESCRIPTOR
-        return self
-
-    def __exit__(self, exc_type, exc_value, exc_traceback):
-        self.stack.__exit__(exc_type, exc_value, exc_traceback)
-
-
-class SomeTestCase(SomeMixin):
-
-    def __init__(self):
-        self.static_path = "something"
-
-    def read(self):
-        self.num_intensity_bins = "something"
-        self.footprint = "something"
-        self.footprint_index = "something"
-
-    def get_event(self):
-        pass
+from oasislmf.pytools.getmodel.custom_footprint import get_custom_footprint_loader
 
 
 class GetModelTests(TestCase):
@@ -156,13 +40,9 @@ class GetModelTests(TestCase):
     bin => all files
     parquet => vulnerability only
     """
-    def test_init(self):
-        test = SomeTestCase()
-
-        with ExitStack() as stack:
-            print("starting the context")
-            outcome = stack.enter_context(test)
-            print("finishing the context")
+    # def test_init(self):
+    #     outcome = get_custom_footprint_loader(file_path="./copy_test:SomeObject")
+    #     print(outcome)
 
     def test_footprint(self):
         pass
