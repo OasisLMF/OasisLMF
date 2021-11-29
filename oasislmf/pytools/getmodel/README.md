@@ -89,6 +89,7 @@ the ```load``` function.
 - **footprint_index**: (dict) => map of footprint IDs with the index in the data
 
 ### Structs 
+The ```Event``` struct is defined in the ```oasislmf/pytools/getmodel/common.py```:
 ```python
 Event = nb.from_dtype(np.dtype([('areaperil_id', np.dtype('u4')),
                                 ('intensity_bin_id', np.int32),
