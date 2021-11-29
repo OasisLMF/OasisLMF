@@ -61,19 +61,19 @@ class FootprintReadDescriptor:
                 a string pointing to the path where the footprint data is. 
                 """
             )
-        read_function = getattr(instance, "read", None)
-        if read_function is None:
+        load_function = getattr(instance, "load", None)
+        if load_function is None:
             raise AttributeError(
                 f"""
                 \n{FootprintReadDescriptor.INTRO}
-                However, your class does not have a function called "read". Please add this function and ensure that 
+                However, your class does not have a function called "load". Please add this function and ensure that 
                 this function populates the attributes for your class below:
                 \nnum_intensity_bins
                 \nfootprint
                 \nfootprint_index\n
                 """
             )
-        if not callable(read_function):
+        if not callable(load_function):
             raise AttributeError(
                 f"""
                 \n{FootprintReadDescriptor.INTRO}
@@ -126,5 +126,5 @@ class FootprintReadDescriptor:
         """
         self._add_stack(instance=instance)
         self._check_input_attributes(instance=instance)
-        instance.read()
+        instance.load()
         self._check_output_data(instance=instance)
