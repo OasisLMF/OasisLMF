@@ -78,15 +78,11 @@ using this mixin your object needs the following attributes and methods:
 
 ### Methods
 - **load** => this is a method and loads the footprint data from the file. This load function should populate the 
-```self.num_intensity_bins```, ```self.footprint```, and ```self.footprint_index``` attributes of the object calling
-the ```load``` function.
-- **get_event** => This function has to take in a parameter ```event_id``` and returns an event from the 
-```self.footprint```.
+```self.num_intensity_bins``` attribute of the object calling the ```load``` function.
+- **get_event** => This function has to take in a parameter ```event_id``` and returns an event.
 
 ### Attributes
-- **num_intensity_bins**: (int) => this is the number of intensity bins that the footprint data has 
-- **footprint**: (np.array[EventCSV]) => the main data body of the footprint
-- **footprint_index**: (dict) => map of footprint IDs with the index in the data
+- **num_intensity_bins**: (int) => this is the number of intensity bins that the footprint data has
 
 ### Structs 
 The ```Event``` struct is defined in the ```oasislmf/pytools/getmodel/common.py```:
