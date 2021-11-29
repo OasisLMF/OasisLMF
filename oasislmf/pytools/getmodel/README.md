@@ -78,7 +78,8 @@ using this mixin your object needs the following attributes and methods:
 
 ### Methods
 - **load** => this is a method and loads the footprint data from the file. This load function should populate the 
-```self.num_intensity_bins``` attribute of the object calling the ```load``` function.
+```self.num_intensity_bins``` attribute of the object calling the ```load``` function. The parameter that this 
+function accepts is ```static_path``` which is a string pointing to where the footprint data file is.
 - **get_event** => This function has to take in a parameter ```event_id``` and returns an event.
 
 ### Attributes
@@ -92,3 +93,13 @@ Event = nb.from_dtype(np.dtype([('areaperil_id', np.dtype('u4')),
                                 ('probability', np.dtype('f4')))
                                 ]))
 ```
+
+## Running custom object
+You do no have to directly inherit the mixin when coding your own custom loading object. The get model process can 
+get the object that you defined and attach the mixin to this. This is done with the following parameter:
+```bash
+--custom-footprint /path/to/script/where/object/is/defined:SomeObject
+```
+With the example above denotes that there is a ```SomeObject``` class in the file 
+```/path/to/script/where/object/is/defined.py```. This is then passed into our getmodel run. This will then 
+automatically load, have the mixin attached, and then entered into the context and ran. 
