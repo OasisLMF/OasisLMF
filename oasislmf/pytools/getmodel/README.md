@@ -67,3 +67,31 @@ When running the Python get model command, we can parse in the following argumen
 - ```--file-in```: names of the input file_path
 - ```--file-out```: names of the output file_path
 - ```--run-dir```: path to the run directory
+
+
+## Writing custom Footprint Objects 
+Custom footprint loading objects can be built using the ```FootprintLoadMixin``` class. This mixin will manage the 
+context in which the whole get model process is run. It will also check your object to ensure that it has the 
+correct methods and attributes to load the footprint data and pass it onto other areas of the getmodel process. Feel 
+free to have any attributes and methods that help you obtain your goals however, when 
+using this mixin your object needs the following attributes and methods:
+
+### Methods
+- **load** => this is a method and loads the footprint data from the file. This load function should populate the 
+```self.num_intensity_bins```, ```self.footprint```, and ```self.footprint_index``` attributes of the object calling
+the ```load``` function.
+- **get_event** => This function has to take in a parameter ```event_id``` and returns an event from the 
+```self.footprint```.
+
+### Attributes
+- **num_intensity_bins**: (int) => this is the number of intensity bins that the footprint data has 
+- **footprint**: (np.array[EventCSV]) => the main data body of the footprint
+- **footprint_index**: (dict) => map of footprint IDs with the index in the data
+
+### Structs 
+```python
+Event = nb.from_dtype(np.dtype([('areaperil_id', np.dtype('u4')),
+                                ('intensity_bin_id', np.int32),
+                                ('probability', np.dtype('f4')))
+                                ]))
+```

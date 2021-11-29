@@ -1,7 +1,7 @@
-from .descriptors import FootprintReadDescriptor
+from .descriptors import FootprintLoadDescriptor
 
 
-class FootprintReadMixin:
+class FootprintLoadMixin:
     """
     This is a mixin for custom footprint reading classes.
     Please ensure that the class using this mixin has the following functions:
@@ -10,7 +10,7 @@ class FootprintReadMixin:
             your class
     get_event -> gets the event from the data based off the event_id parameter in the function
     """
-    READ_DESCRIPTOR = FootprintReadDescriptor()
+    READ_DESCRIPTOR = FootprintLoadDescriptor()
 
     def __enter__(self):
         _ = self.READ_DESCRIPTOR
