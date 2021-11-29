@@ -32,7 +32,7 @@ file and example functions are commented out to help with the development. The e
 ```python
 from unittest import main, TestCase
 
-from oasislmf.pytools.getmodel.get_model import get_items, get_vulns, Footprint
+from oasislmf.pytools.getmodel.manager import get_items, get_vulns, Footprint
 
 import numpy as np
 import numba as nb
