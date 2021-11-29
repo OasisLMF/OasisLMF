@@ -127,4 +127,6 @@ class FootprintLoadDescriptor:
         self._add_stack(instance=instance)
         self._check_input_attributes(instance=instance)
         instance.load()
-        self._check_output_data(instance=instance)
+        # This is commented out for now because we are not checking the output of the load data, as long as the
+        # self.get_event returns an event based off the event_id passed into the get_event function
+        # self._check_output_data(instance=instance)
