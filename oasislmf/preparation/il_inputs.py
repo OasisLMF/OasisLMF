@@ -575,10 +575,11 @@ def __merge_gul_and_account(gul_inputs_df, accounts_df, fm_terms, oed_hierarchy)
     level_term_cols = get_fm_terms_oed_columns(fm_terms, level_ids=[level_id])
     null_cond[level_term_cols] = 0
     null_cond.drop_duplicates(subset=[portfolio_num, acc_num, cond_tag, 'layer_id'], inplace=True)
-    filter_cond = (null_cond[cond_class] == 1)
-    null_cond.loc[filter_cond, cond_num] = 'FullFilter'
-    null_cond.loc[filter_cond, 'condded6all'] = 1
-    null_cond.loc[filter_cond, 'conddedtype6all'] = 1
+    if cond_class in null_cond.columns:
+        filter_cond = (null_cond[cond_class] == 1)
+        null_cond.loc[filter_cond, cond_num] = 'FullFilter'
+        null_cond.loc[filter_cond, 'condded6all'] = 1
+        null_cond.loc[filter_cond, 'conddedtype6all'] = 1
 
     accounts_df = pd.concat([accounts_df, null_cond])
 

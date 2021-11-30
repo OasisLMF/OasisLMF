@@ -18,10 +18,7 @@ class OedValidator(object):
         self.rules_ode_scope = ri_info_rules
         self.rules_ode_info = ri_scope_rules
 
-        self.ri_info_required_cols = [
-            'ReinsNumber', 'ReinsPeril', 'PlacedPercent',
-            'InuringPriority', 'ReinsType'
-        ]
+        self.ri_info_required_cols = list(RI_INFO_REQUIRED_COLS)
 
         self.ri_info_defaults = {
             'CededPercent': 1.0,
@@ -32,9 +29,7 @@ class OedValidator(object):
             'TreatyShare': 0.0
         }
 
-        self.ri_scope_required_cols = {
-            'ReinsNumber', 'RiskLevel'
-        }
+        self.ri_scope_required_cols = list(RI_SCOPE_REQUIRED_COLS)
 
         self.error_structure = {}
 
@@ -190,7 +185,7 @@ def load_oed_dfs(oed_ri_info_file, oed_ri_scope_file, show_all=False):
         # Treat empty Risk Level as portfolio level scope.
         # Also need nan, as this is produced when
         # a single row with empty Risk Level is loaded.
-        ri_scope_df.RiskLevel.fillna(REINS_RISK_LEVEL_PORTFOLIO, inplace=True)
+        ri_info_df.RiskLevel.fillna(REINS_RISK_LEVEL_PORTFOLIO, inplace=True)
     else:
         print("Both reinsurance files must exist: {} {}".format(
             oed_ri_info_file, oed_ri_scope_file))
@@ -303,7 +298,8 @@ RI_INFO_REQUIRED_COLS = [
     'ReinsNumber',
     'PlacedPercent',
     'InuringPriority',
-    'ReinsType'
+    'ReinsType',
+    'RiskLevel'
 ]
 
 RI_INFO_DEFAULTS = {
@@ -317,7 +313,6 @@ RI_INFO_DEFAULTS = {
 
 RI_SCOPE_REQUIRED_COLS = {
     'ReinsNumber',
-    'RiskLevel'
 }
 
 RI_SCOPE_DEFAULTS = {
@@ -343,6 +338,7 @@ RI_INFO_DTYPES = {
     'OccAttachment': "float",
     'InuringPriority': "int",
     'ReinsType': "str",
+    'RiskLevel': "str",
     'PlacedPercent': "float",
     'TreatyShare': "float"
 }
@@ -359,7 +355,6 @@ RI_SCOPE_DTYPES = {
     'LOB': "str",
     'CountryCode': "str",
     'ReinsTag': "str",
-    'RiskLevel': "str",
     'CededPercent': "float"
 }
 
@@ -440,6 +435,7 @@ OED_REINS_INFO_FIELDS = [
     'OccAttachment',
     'InuringPriority',
     'ReinsType',
+    'RiskLevel',
     'PlacedPercent',
     'TreatyShare'
 ]
@@ -456,7 +452,6 @@ OED_REINS_SCOPE_FIELDS = [
     'LOB',
     'CountryCode',
     'ReinsTag',
-    'RiskLevel',
     'CededPercent'
 ]
 
