@@ -4,6 +4,7 @@ import io
 import re
 import shutil
 import sys
+import platform
 import tarfile
 from contextlib import contextmanager
 from distutils.log import INFO, WARN, ERROR
@@ -23,7 +24,7 @@ except ImportError:
     from urllib2 import urlopen, URLError
 
 
-KTOOLS_VERSION = '3.7.0'
+KTOOLS_VERSION = '3.7.1'
 
 SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -77,7 +78,7 @@ class InstallKtoolsMixin(object):
                 self.install_ktools_bin(**bin_install_kwargs)
             except:
                 print('Fallback - building ktools from source')
-                self.install_ktools_source()
+                self.install_ktools_source(**bin_install_kwargs)
         else:
             self.install_ktools_source()
 
@@ -136,12 +137,16 @@ class InstallKtoolsMixin(object):
                 return False
         return True
 
-    def build_ktools(self, extract_location):
+    def build_ktools(self, extract_location, system_os):
         self.announce('Building ktools', INFO)
         print('Installing ktools from source')
+        print(f' :::::  system_os {system_os} :::::')
+
         build_dir = os.path.join(extract_location, 'ktools-{}'.format(KTOOLS_VERSION))
 
-        exit_code = os.system('cd {build_dir} && ./autogen.sh && ./configure && make && make check'.format(build_dir=build_dir))
+        system_os_flag = '--enable-osx ' if system_os == 'Darwin' else ''
+
+        exit_code = os.system(f'cd {build_dir} && ./autogen.sh && ./configure {system_os_flag} && make && make check')
         if(exit_code != 0):
             print('Ktools build failed.\n')
             sys.exit(1)
@@ -179,15 +184,16 @@ class InstallKtoolsMixin(object):
             PLATFORM = sys.argv[sys.argv.index('--plat-name') + 1]
             OS, ARCH = PLATFORM.split('_', 1)
         else:
-            ARCH = machine()
-            OS = system()
+            try:
+                ARCH = platform.machine()
+                OS = platform.system()
+            except Exception:
+                ARCH = None
+                OS = None
 
-        if ARCH in ['x86_64'] and OS in ['Linux', 'Darwin']:
-            return {"system_os": OS, "system_architecture": ARCH}
-        else:
-            return None
+        return {"system_os": OS, "system_architecture": ARCH}
 
-    def install_ktools_source(self):
+    def install_ktools_source(self, system_os=None, system_architecture=None):
         with temp_dir() as d:
             local_tar_path = os.path.join(d, 'ktools.tar.gz')
             local_extract_path = os.path.join(d, 'extracted')
@@ -195,7 +201,7 @@ class InstallKtoolsMixin(object):
 
             self.fetch_ktools_tar(local_tar_path, source_url)
             self.unpack_tar(local_tar_path, local_extract_path)
-            build_dir = self.build_ktools(local_extract_path)
+            build_dir = self.build_ktools(local_extract_path, system_os)
             self.ktools_components = list(self.add_ktools_build_to_path(build_dir))
 
     def install_ktools_bin(self, system_os, system_architecture):
@@ -347,7 +353,7 @@ setup(
             'complex_itemtocsv=oasislmf.execution.complex_items_to_csv:main',
             'load_balancer=oasislmf.execution.load_balancer:main',
             'fmpy=oasislmf.pytools.fmpy:main',
-            'getpymodel=oasislmf.pytools.get_model:main'
+            'getpymodel=oasislmf.pytools.getmodel.get_model:main'
         ]
     },
     license='BSD 3-Clause',

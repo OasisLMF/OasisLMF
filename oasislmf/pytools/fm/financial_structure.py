@@ -233,8 +233,8 @@ def prepare_profile_stepped(profile, tiv):
         else:
             profile['trigger_end'] *= tiv
         profile['scale_1'] += 1
-        # special case to calculate only the conditional coverage loss (extra expenses) based on full input loss
-        if profile['payout_start'] == 0:
+
+        if profile['payout_start'] == 0:  # backward compatibility v1.22.x
             profile['calcrule_id'] = 281
 
     elif profile['calcrule_id'] == 29:
@@ -272,6 +272,23 @@ def prepare_profile_stepped(profile, tiv):
 
     elif profile['calcrule_id'] == 32:
         profile['scale_1'] += 1
+
+    elif profile['calcrule_id'] == 37:
+        profile['trigger_start'] *= tiv
+        if profile['trigger_end'] == 1:
+            profile['trigger_end'] = np.inf
+        else:
+            profile['trigger_end'] *= tiv
+        profile['scale_1'] += 1
+
+    elif profile['calcrule_id'] == 38:
+        profile['trigger_start'] *= tiv
+        if profile['trigger_end'] == 1:
+            profile['trigger_end'] = np.inf
+        else:
+            profile['trigger_end'] *= tiv
+        profile['scale_1'] += 1
+
     else:
         prepare_profile_simple(profile, tiv)
 

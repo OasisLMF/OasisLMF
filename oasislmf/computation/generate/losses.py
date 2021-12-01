@@ -802,12 +802,11 @@ class GenerateLossesDummyModel(GenerateDummyOasisFiles):
                 self.analysis_settings['model_settings']['use_random_number_file'] = False
 
     def _prepare_run_directory(self):
-        self.input_dir = os.path.join(self.target_dir, 'input')
-        self.static_dir = os.path.join(self.target_dir, 'static')
+        super()._prepare_run_directory()
         self.output_dir = os.path.join(self.target_dir, 'output')
         self.work_dir = os.path.join(self.target_dir, 'work')
         directories = [
-            self.input_dir, self.static_dir, self.output_dir, self.work_dir
+            self.output_dir, self.work_dir
         ]
         for directory in directories:
             if not os.path.exists(directory):

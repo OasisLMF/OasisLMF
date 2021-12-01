@@ -461,12 +461,12 @@
         "default_value": "n/a",
         "py_dtype": "str"
     },
-    "CondNumber": {
-        "desc": "Condition Number to be able to link to relevant special condition",
-        "require_field": "CR",
-        "data_type": "int",
+    "CondTag": {
+        "data_type": "varchar(20)",
         "default_value": "n/a",
-        "py_dtype": "int"
+        "desc": "Identifies a group of locations which are subject to one or more conditions.",
+        "py_dtype": "str",
+        "require_field": "CR"
     },
     "CondPriority": {
         "desc": "Condition priority: specifies the order in which special conditions apply",

@@ -492,13 +492,16 @@ def get_dataframe(
     na_values = list(PANDAS_DEFAULT_NULL_VALUES.difference(['NA']))
 
     try:
+        # memory map causes encoding errors with non-standard formats
         use_encoding = encoding if encoding else 'utf-8'
+        memory_map = memory_map and (use_encoding == 'utf-8')
+
         if src_fp or src_buf:
             if src_type == 'csv':
                 # Find flexible fields in loc file and set their data types to that of
                 # FlexiLocZZZ
                 if 'FlexiLocZZZ' in col_dtypes.keys():
-                    headers = list(pd.read_csv(src_fp).head(0))
+                    headers = list(pd.read_csv(src_fp, encoding=use_encoding).head(0))
                     for flexiloc_col in filter(re.compile('^FlexiLoc').match, headers):
                         col_dtypes[flexiloc_col] = col_dtypes['FlexiLocZZZ']
                 df = pd.read_csv(
@@ -917,7 +920,7 @@ def get_location_df(
     if 'loc_id' not in exposure_df.columns:
         exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
 
-    # Add file Index column to extract OED columns for summary grouping 
+    # Add file Index column to extract OED columns for summary grouping
     exposure_df[SOURCE_IDX['loc']] = exposure_df.index
 
     return exposure_df

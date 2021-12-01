@@ -1,6 +1,45 @@
 OasisLMF Changelog
 ==================
 
+`1.22.0`_
+ ---------
+* [#914](https://github.com/OasisLMF/OasisLMF/pull/929) - numba and numpy version incompatibility
+* [#930](https://github.com/OasisLMF/OasisLMF/pull/930) - Fix/update dependencies
+* [#857](https://github.com/OasisLMF/OasisLMF/pull/899) - getmodel revamping
+* [#901](https://github.com/OasisLMF/OasisLMF/pull/900) - fmpy: areaperil_id 8 bytes support
+* [#931](https://github.com/OasisLMF/OasisLMF/pull/931) - Disable memory map for non-utf8 encoding
+* [#903](https://github.com/OasisLMF/OasisLMF/pull/903) - Generate Quantile Event Loss Table (QELT) and Quantile Period Loss Table (QPLT)
+* [#935](https://github.com/OasisLMF/OasisLMF/pull/935) - fmpy:ignore sidx < -3
+* [#936](https://github.com/OasisLMF/OasisLMF/pull/937) - Bash options overriden when running ktools in Subprrocess 
+* [#913](https://github.com/OasisLMF/OasisLMF/pull/913) - Update API platform client
+* [#858](https://github.com/OasisLMF/OasisLMF/pull/890) - support parquet for OED
+* [#916](https://github.com/OasisLMF/OasisLMF/pull/916) - stashing
+* [#917](https://github.com/OasisLMF/OasisLMF/pull/918) - High memory use in generating dummy model
+* [#829](https://github.com/OasisLMF/OasisLMF/pull/919) - Step policies: support files with both step and non-step policies
+* [#920](https://github.com/OasisLMF/OasisLMF/pull/921) - conditions for multi-layer accounts file generation 
+* [#884](https://github.com/OasisLMF/OasisLMF/pull/922) - OasisLMF install fails on OSX Catalina because of ktools installation
+* [#739, #740](https://github.com/OasisLMF/OasisLMF/pull/923) - Dummy model occurrence file generation supports repeated events over time and dummy model files are split into static and input directories
+* [#924](https://github.com/OasisLMF/OasisLMF/pull/926) - Non UTF-8 portfolio causes model run to crash
+.. _`1.22.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.21.0...1.22.0
+
+`1.22.0rc2`_
+ ---------
+* [#914](https://github.com/OasisLMF/OasisLMF/pull/929) - numba and numpy version incompatibility
+* [#930](https://github.com/OasisLMF/OasisLMF/pull/930) - Fix/update dependencies
+* [#857](https://github.com/OasisLMF/OasisLMF/pull/899) - getmodel revamping
+* [#901](https://github.com/OasisLMF/OasisLMF/pull/900) - fmpy: areaperil_id 8 bytes support
+* [#903](https://github.com/OasisLMF/OasisLMF/pull/903) - Generate Quantile Event Loss Table (QELT) and Quantile Period Loss Table (QPLT)
+* [#913](https://github.com/OasisLMF/OasisLMF/pull/913) - Update API platform client
+* [#858](https://github.com/OasisLMF/OasisLMF/pull/890) - support parquet for OED
+* [#916](https://github.com/OasisLMF/OasisLMF/pull/916) - stashing
+* [#917](https://github.com/OasisLMF/OasisLMF/pull/918) - High memory use in generating dummy model
+* [#829](https://github.com/OasisLMF/OasisLMF/pull/919) - Step policies: support files with both step and non-step policies
+* [#920](https://github.com/OasisLMF/OasisLMF/pull/921) - conditions for multi-layer accounts file generation 
+* [#884](https://github.com/OasisLMF/OasisLMF/pull/922) - OasisLMF install fails on OSX Catalina because of ktools installation
+* [#739, #740](https://github.com/OasisLMF/OasisLMF/pull/923) - Dummy model occurrence file generation supports repeated events over time and dummy model files are split into static and input directories
+* [#924](https://github.com/OasisLMF/OasisLMF/pull/926) - Non UTF-8 portfolio causes model run to crash
+.. _`1.22.0rc2`:  https://github.com/OasisLMF/OasisLMF/compare/1.21.0...1.22.0rc2
+
 `1.21.0`_
  ---------
 * [#897](https://github.com/OasisLMF/OasisLMF/pull/897) - added test cases with account terms
