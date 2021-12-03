@@ -56,7 +56,7 @@ def _get_ri_inputs(
     for inuring_priority in range(1, ri_info_df['InuringPriority'].max() + 1):
         # Filter the reinsNumbers by inuring_priority
         reins_numbers = ri_info_df[ri_info_df['InuringPriority'] == inuring_priority].ReinsNumber.tolist()
-        risk_level_set = set(ri_scope_df[ri_scope_df['ReinsNumber'].isin(reins_numbers)].RiskLevel)
+        risk_level_set = set(ri_info_df[ri_info_df['ReinsNumber'].isin(reins_numbers)].RiskLevel)
 
         for risk_level in oed.REINS_RISK_LEVELS:
             if risk_level not in risk_level_set:
@@ -149,9 +149,9 @@ def _generate_inputs_for_reinsurance_risk_level(
         ri_info_df['InuringPriority'] == inuring_priority].ReinsNumber
     if reins_numbers_1.empty:
         return None
-    reins_numbers_2 = ri_scope_df[
-        ri_scope_df.isin({"ReinsNumber": reins_numbers_1.tolist()}).ReinsNumber
-        & (ri_scope_df.RiskLevel == risk_level)
+    reins_numbers_2 = ri_info_df[
+        ri_info_df.isin({"ReinsNumber": reins_numbers_1.tolist()}).ReinsNumber
+        & (ri_info_df.RiskLevel == risk_level)
     ].ReinsNumber
     if reins_numbers_2.empty:
         return None
@@ -597,8 +597,8 @@ class ReinsuranceLayer(object):
             'Merging RI info and scope dataframes and assigning layers'
         )
         fields = self._get_reins_type_fields()
-        ri_df = self.ri_info_df.merge(
-            self.ri_scope_df[self.ri_scope_df['RiskLevel'] == self.risk_level],
+        ri_df = self.ri_info_df[self.ri_info_df['RiskLevel'] == self.risk_level].merge(
+            self.ri_scope_df,
             on='ReinsNumber', suffixes=['', '_scope']
         )
         ri_df['layer_id'] = 0

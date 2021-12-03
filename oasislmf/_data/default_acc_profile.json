@@ -14,10 +14,20 @@
         "OEDHierarchy": "Policy",
         "Key": "PolNum"
     },
+    "CondTag": {
+        "ProfileElementName": "CondTag",
+        "OEDHierarchy": "SpecialCondition",
+        "Key": "CondTag"
+    },
     "CondNumber": {
         "ProfileElementName": "CondNumber",
         "OEDHierarchy": "SpecialCondition",
         "Key": "CondNum"
+    },
+    "CondClass": {
+        "ProfileElementName": "CondClass",
+        "OEDHierarchy": "SpecialCondition",
+        "Key": "CondClass"
     },
     "LayerNumber": {
 	"ProfileElementName": "LayerNumber",

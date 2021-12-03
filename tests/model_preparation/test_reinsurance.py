@@ -102,6 +102,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment': [0.0],
             'InuringPriority': [1],
             'ReinsType': ['FAC'],
+            'RiskLevel': ['LOC'],
             'PlacedPercent': [1.0],
             'TreatyShare': [1.0]
         })
@@ -117,7 +118,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB': [''],
             'CountryCode': [''],
             'ReinsTag': [''],
-            'RiskLevel': ['LOC'],
             'CededPercent': [1.0]
         })
 
@@ -171,6 +171,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment': [0.0],
             'InuringPriority': [1],
             'ReinsType': ['FAC'],
+            'RiskLevel': ['POL'],
             'PlacedPercent': [1.0],
             'TreatyShare': [1.0]
         })
@@ -186,7 +187,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB': [''],
             'CountryCode': [''],
             'ReinsTag': [''],
-            'RiskLevel': ['POL'],
             'CededPercent': [1.0]
         })
 
@@ -240,6 +240,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment': [0.0],
             'InuringPriority': [1],
             'ReinsType': ['FAC'],
+            'RiskLevel': ['ACC'],
             'PlacedPercent': [1.0],
             'TreatyShare': [1.0]
         })
@@ -255,7 +256,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB': [''],
             'CountryCode': [''],
             'ReinsTag': [''],
-            'RiskLevel': ['ACC'],
             'CededPercent': [1.0]
         })
 
@@ -310,6 +310,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment': [0.0],
             'InuringPriority': [1],
             'ReinsType': ['FAC'],
+            'RiskLevel': ['LGR'],
             'PlacedPercent': [1.0],
             'TreatyShare': [1.0]
         })
@@ -325,7 +326,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB': [''],
             'CountryCode': [''],
             'ReinsTag': [''],
-            'RiskLevel': ['LGR'],
             'CededPercent': [1.0]
         })
 
@@ -379,6 +379,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   0.0,    0.0,    0.0,    0.0     ],
             'InuringPriority':  [   1,      1,      1,      1       ],
             'ReinsType':        [   'FAC',  'FAC',  'FAC',  'FAC'   ],
+            'RiskLevel':        [   'LOC',  'LOC',  'POL',  'ACC'   ],
             'PlacedPercent':    [   1.0,    1.0,    1.0,    1.0     ],
             'TreatyShare':      [   1.0,    1.0,    1.0,    1.0     ]
         })
@@ -394,7 +395,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   '',     '',     '',     ''      ],
             'CountryCode':  [   '',     '',     '',     ''      ],
             'ReinsTag':     [   '',     '',     '',     ''      ],
-            'RiskLevel':    [   'LOC',  'LOC',  'POL',  'ACC'   ],
             'CededPercent': [   1.0,    1.0,    1.0,    1.0     ]
         })
 
@@ -508,6 +508,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment': [0.0],
             'InuringPriority': [1],
             'ReinsType': ['PR'],
+            'RiskLevel': ['LOC'],
             'PlacedPercent': [1.0],
             'TreatyShare': [1.0]
         })
@@ -523,7 +524,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB': [''],
             'CountryCode': [''],
             'ReinsTag': [''],
-            'RiskLevel': ['LOC'],
             'CededPercent': [1.0]
         })
 
@@ -577,6 +577,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   0.0     ],
             'InuringPriority':  [   1       ],
             'ReinsType':        [   'PR'    ],
+            'RiskLevel':        [   'LGR'   ],
             'PlacedPercent':    [   1.0     ],
             'TreatyShare':      [   1.0     ]
         })
@@ -592,7 +593,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   ''      ],
             'CountryCode':  [   ''      ],
             'ReinsTag':     [   ''      ],
-            'RiskLevel':    [   'LGR'   ],
             'CededPercent': [   1.0     ]
         })
 
@@ -646,6 +646,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment': [0.0],
             'InuringPriority': [1],
             'ReinsType': ['PR'],
+            'RiskLevel': ['POL'],
             'PlacedPercent': [1.0],
             'TreatyShare': [1.0]
         })
@@ -661,7 +662,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB': [''],
             'CountryCode': [''],
             'ReinsTag': [''],
-            'RiskLevel': ['POL'],
             'CededPercent': [1.0]
         })
 
@@ -715,6 +715,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment': [0.0],
             'InuringPriority': [1],
             'ReinsType': ['PR'],
+            'RiskLevel': ['ACC'],
             'PlacedPercent': [1.0],
             'TreatyShare': [1.0]
         })
@@ -730,7 +731,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB': [''],
             'CountryCode': [''],
             'ReinsTag': [''],
-            'RiskLevel': ['ACC'],
             'CededPercent': [1.0]
         })
 
@@ -784,6 +784,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   0.0     ],
             'InuringPriority':  [   1       ],
             'ReinsType':        [   'SS'    ],
+            'RiskLevel':        [   'LOC'   ],
             'PlacedPercent':    [   1.0     ],
             'TreatyShare':      [   1.0     ]
         })
@@ -799,7 +800,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   '',     '',     '',     ''      ],
             'CountryCode':  [   '',     '',     '',     ''      ],
             'ReinsTag':     [   '',     '',     '',     ''      ],
-            'RiskLevel':    [   'LOC',  'LOC',  'LOC',  'LOC'   ],
             'CededPercent': [   0.1,    0.1,    0.1,    0.1     ]
         })
 
@@ -854,6 +854,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   0.0     ],
             'InuringPriority':  [   1       ],
             'ReinsType':        [   'SS'    ],
+            'RiskLevel':        [   'LOC'   ],
             'PlacedPercent':    [   1.0     ],
             'TreatyShare':      [   1.0     ]
         })
@@ -869,7 +870,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   '',     '',     '',     ''      ],
             'CountryCode':  [   '',     '',     '',     ''      ],
             'ReinsTag':     [   '',     '',     '',     ''      ],
-            'RiskLevel':    [   'LOC',  'LOC',  'LOC',  'LOC'   ],
             'CededPercent': [   0.1,    0.1,    0.1,    0.1     ]
         })
 
@@ -924,6 +924,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   0.0     ],
             'InuringPriority':  [   1       ],
             'ReinsType':        [   'SS'    ],
+            'RiskLevel':        [   'POL'   ],
             'PlacedPercent':    [   1.0     ],
             'TreatyShare':      [   1.0     ]
         })
@@ -939,7 +940,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   '',     ''      ],
             'CountryCode':  [   '',     ''      ],
             'ReinsTag':     [   '',     ''      ],
-            'RiskLevel':    [   'POL',  'POL'   ],
             'CededPercent': [   0.1,    0.1     ]
         })
 
@@ -994,6 +994,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   0.0     ],
             'InuringPriority':  [   1       ],
             'ReinsType':        [   'SS'    ],
+            'RiskLevel':        [   'ACC'   ],
             'PlacedPercent':    [   1.0     ],
             'TreatyShare':      [   1.0     ]
         })
@@ -1009,7 +1010,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   '',     ''      ],
             'CountryCode':  [   '',     ''      ],
             'ReinsTag':     [   '',     ''      ],
-            'RiskLevel':    [   'ACC',  'ACC'   ],
             'CededPercent': [   0.1,    0.1     ]
         })
 
@@ -1064,6 +1064,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   0.0     ],
             'InuringPriority':  [   1       ],
             'ReinsType':        [   'QS'    ],
+            'RiskLevel':        [   'ACC'   ],
             'PlacedPercent':    [   0.8     ],
             'TreatyShare':      [   1.0     ]
         })
@@ -1079,7 +1080,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   ''      ],
             'CountryCode':  [   ''      ],
             'ReinsTag':     [   ''      ],
-            'RiskLevel':    [   'ACC'   ],
             'CededPercent': [   1.0     ]
         })
 
@@ -1134,6 +1134,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   0.0     ],
             'InuringPriority':  [   1       ],
             'ReinsType':        [   'QS'    ],
+            'RiskLevel':        [   'ACC'   ],
             'PlacedPercent':    [   0.8     ],
             'TreatyShare':      [   1.0     ]
         })
@@ -1149,7 +1150,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   ''      ],
             'CountryCode':  [   ''      ],
             'ReinsTag':     [   ''      ],
-            'RiskLevel':    [   'ACC'   ],
             'CededPercent': [   1.0     ]
         })
 
@@ -1204,6 +1204,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   0.0     ],
             'InuringPriority':  [   1       ],
             'ReinsType':        [   'SS'    ],
+            'RiskLevel':        [   'LOC'   ],
             'PlacedPercent':    [   0.8     ],
             'TreatyShare':      [   1.0     ]
         })
@@ -1219,7 +1220,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   '',     '',     '',     ''      ],
             'CountryCode':  [   '',     '',     '',     ''      ],
             'ReinsTag':     [   '',     '',     '',     ''      ],
-            'RiskLevel':    [   'LOC',  'LOC',  'LOC',  'LOC'   ],
             'CededPercent': [   0.1,    0.2,    0.3,    0.4     ]
         })
 
@@ -1274,6 +1274,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   0.0     ],
             'InuringPriority':  [   1       ],
             'ReinsType':        [   'SS'    ],
+            'RiskLevel':        [   'POL'   ],
             'PlacedPercent':    [   0.8     ],
             'TreatyShare':      [   1.0     ]
         })
@@ -1289,7 +1290,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   '',     ''      ],
             'CountryCode':  [   '',     ''      ],
             'ReinsTag':     [   '',     ''      ],
-            'RiskLevel':    [   'POL',  'POL'   ],
             'CededPercent': [   0.1,    0.2     ]
         })
 
@@ -1344,6 +1344,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   0.0     ],
             'InuringPriority':  [   1       ],
             'ReinsType':        [   'QS'    ],
+            'RiskLevel':        [   'POL'   ],
             'PlacedPercent':    [   0.8     ],
             'TreatyShare':      [   1.0     ]
         })
@@ -1359,7 +1360,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   '',     ''      ],
             'CountryCode':  [   '',     ''      ],
             'ReinsTag':     [   '',     ''      ],
-            'RiskLevel':    [   'POL',  'POL'   ],
             'CededPercent': [   0.1,    0.2     ]
         })
 
@@ -1414,6 +1414,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   0.0     ],
             'InuringPriority':  [   1       ],
             'ReinsType':        [   'QS'    ],
+            'RiskLevel':        [   'ACC'   ],
             'PlacedPercent':    [   0.8     ],
             'TreatyShare':      [   1.0     ]
         })
@@ -1429,7 +1430,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   ''      ],
             'CountryCode':  [   ''      ],
             'ReinsTag':     [   ''      ],
-            'RiskLevel':    [   'ACC'   ],
             'CededPercent': [   1.0     ]
         })
 
@@ -1484,6 +1484,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   50.0    ],
             'InuringPriority':  [   1       ],
             'ReinsType':        [   'CXL'   ],
+            'RiskLevel':        [   'SEL'   ],
             'PlacedPercent':    [   0.8     ],
             'TreatyShare':      [   1.0     ]
         })
@@ -1499,7 +1500,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   ''      ],
             'CountryCode':  [   ''      ],
             'ReinsTag':     [   ''      ],
-            'RiskLevel':    [   'SEL'   ],
             'CededPercent': [   1.0     ]
         })
 
@@ -1554,6 +1554,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   50.0     ],
             'InuringPriority':  [   1       ],
             'ReinsType':        [   'CXL'   ],
+            'RiskLevel':        [   'SEL'   ],
             'PlacedPercent':    [   0.8     ],
             'TreatyShare':      [   1.0     ]
         })
@@ -1569,7 +1570,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   ''      ],
             'CountryCode':  [   ''      ],
             'ReinsTag':     [   ''      ],
-            'RiskLevel':    [   'SEL'   ],
             'CededPercent': [   1.0     ]
         })
 
@@ -1624,6 +1624,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   0.0     ],
             'InuringPriority':  [   1       ],
             'ReinsType':        [   'QS'    ],
+            'RiskLevel':        [   'POL'   ],
             'PlacedPercent':    [   1.0     ],
             'TreatyShare':      [   1.0     ]
         })
@@ -1639,7 +1640,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   ''      ],
             'CountryCode':  [   ''      ],
             'ReinsTag':     [   ''      ],
-            'RiskLevel':    [   'POL'   ],
             'CededPercent': [   1.0     ]
         })
 
@@ -1694,6 +1694,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   0.0     ],
             'InuringPriority':  [   1       ],
             'ReinsType':        [   'QS'    ],
+            'RiskLevel':        [   'LOC'   ],
             'PlacedPercent':    [   1.0     ],
             'TreatyShare':      [   1.0     ]
         })
@@ -1709,7 +1710,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   ''      ],
             'CountryCode':  [   ''      ],
             'ReinsTag':     [   ''      ],
-            'RiskLevel':    [   'LOC'   ],
             'CededPercent': [   1.0     ]
         })
 
@@ -1764,6 +1764,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   0.0     ],
             'InuringPriority':  [   1       ],
             'ReinsType':        [   'QS'    ],
+            'RiskLevel':        [   'ACC'   ],
             'PlacedPercent':    [   1.0     ],
             'TreatyShare':      [   1.0     ]
         })
@@ -1779,7 +1780,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   ''      ],
             'CountryCode':  [   ''      ],
             'ReinsTag':     [   ''      ],
-            'RiskLevel':    [   'ACC'   ],
             'CededPercent': [   1.0     ]
         })
 
@@ -1834,6 +1834,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   0.0     ],
             'InuringPriority':  [   1       ],
             'ReinsType':        [   'PR'    ],
+            'RiskLevel':        [   'LOC'   ],
             'PlacedPercent':    [   0.8     ],
             'TreatyShare':      [   1.0     ]
         })
@@ -1849,7 +1850,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   '',     ''      ],
             'CountryCode':  [   '',     ''      ],
             'ReinsTag':     [   '',     ''      ],
-            'RiskLevel':    [   'LOC',  'LOC'   ],
             'CededPercent': [   1.0,    1.0     ]
         })
 
@@ -1904,6 +1904,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   0.0     ],
             'InuringPriority':  [   1       ],
             'ReinsType':        [   'PR'    ],
+            'RiskLevel':        [   'LOC'   ],
             'PlacedPercent':    [   0.8     ],
             'TreatyShare':      [   1.0     ]
         })
@@ -1919,7 +1920,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   '',     ''      ],
             'CountryCode':  [   '',     ''      ],
             'ReinsTag':     [   '',     ''      ],
-            'RiskLevel':    [   'LOC',  'LOC'   ],
             'CededPercent': [   1.0,    1.0     ]
         })
 
@@ -1974,6 +1974,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   0.0     ],
             'InuringPriority':  [   1       ],
             'ReinsType':        [   'PR'    ],
+            'RiskLevel':        [   'LOC'   ],
             'PlacedPercent':    [   0.8     ],
             'TreatyShare':      [   1.0     ]
         })
@@ -1989,7 +1990,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   '',     ''      ],
             'CountryCode':  [   '',     ''      ],
             'ReinsTag':     [   '',     ''      ],
-            'RiskLevel':    [   'LOC',  'LOC'   ],
             'CededPercent': [   1.0,    1.0     ]
         })
 
@@ -2043,6 +2043,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   50.0    ],
             'InuringPriority':  [   1       ],
             'ReinsType':        [   'CXL'   ],
+            'RiskLevel':        [   'SEL'   ],
             'PlacedPercent':    [   0.8     ],
             'TreatyShare':      [   1.0     ]
         })
@@ -2058,7 +2059,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   ''      ],
             'CountryCode':  [   ''      ],
             'ReinsTag':     [   ''      ],
-            'RiskLevel':    [   'SEL'   ],
             'CededPercent': [   1.0     ]
         })
 
@@ -2112,6 +2112,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   50.0    ],
             'InuringPriority':  [   1       ],
             'ReinsType':        [   'CXL'   ],
+            'RiskLevel':        [   'SEL'   ],
             'PlacedPercent':    [   0.8     ],
             'TreatyShare':      [   1.0     ]
         })
@@ -2127,7 +2128,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   ''      ],
             'CountryCode':  [   ''      ],
             'ReinsTag':     [   ''      ],
-            'RiskLevel':    [   'SEL'   ],
             'CededPercent': [   1.0     ]
         })
 
@@ -2181,6 +2181,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   50.0    ],
             'InuringPriority':  [   1       ],
             'ReinsType':        [   'CXL'   ],
+            'RiskLevel':        [   'SEL'   ],
             'PlacedPercent':    [   0.8     ],
             'TreatyShare':      [   1.0     ]
         })
@@ -2196,7 +2197,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   ''      ],
             'CountryCode':  [   ''      ],
             'ReinsTag':     [   ''      ],
-            'RiskLevel':    [   'SEL'   ],
             'CededPercent': [   1.0     ]
         })
 
@@ -2250,6 +2250,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   50.0    ],
             'InuringPriority':  [   1       ],
             'ReinsType':        [   'CXL'   ],
+            'RiskLevel':        [   'SEL'   ],
             'PlacedPercent':    [   0.8     ],
             'TreatyShare':      [   1.0     ]
         })
@@ -2265,7 +2266,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   ''      ],
             'CountryCode':  [   ''      ],
             'ReinsTag':     [   ''      ],
-            'RiskLevel':    [   'SEL'   ],
             'CededPercent': [   1.0     ]
         })
 
@@ -2319,6 +2319,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   50.0    ],
             'InuringPriority':  [   1       ],
             'ReinsType':        [   'CXL'   ],
+            'RiskLevel':    [   'SEL'   ],
             'PlacedPercent':    [   0.8     ],
             'TreatyShare':      [   1.0     ]
         })
@@ -2334,7 +2335,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   ''      ],
             'CountryCode':  [   ''      ],
             'ReinsTag':     [   ''      ],
-            'RiskLevel':    [   'SEL'   ],
             'CededPercent': [   1.0     ]
         })
 
@@ -2388,6 +2388,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   50.0    ],
             'InuringPriority':  [   1       ],
             'ReinsType':        [   'CXL'   ],
+            'RiskLevel':        [   'SEL'   ],
             'PlacedPercent':    [   0.8     ],
             'TreatyShare':      [   1.0     ]
         })
@@ -2403,7 +2404,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   ''      ],
             'CountryCode':  [   ''      ],
             'ReinsTag':     [   ''      ],
-            'RiskLevel':    [   'SEL'   ],
             'CededPercent': [   1.0     ]
         })
 
@@ -2457,6 +2457,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   50.0    ],
             'InuringPriority':  [   1       ],
             'ReinsType':        [   'CXL'   ],
+            'RiskLevel':        [   'SEL'   ],
             'PlacedPercent':    [   0.8     ],
             'TreatyShare':      [   1.0     ]
         })
@@ -2472,7 +2473,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   ''      ],
             'CountryCode':  [   ''      ],
             'ReinsTag':     [   ''      ],
-            'RiskLevel':    [   'SEL'   ],
             'CededPercent': [   1.0     ]
         })
 
@@ -2526,6 +2526,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   0.0,    0.0     ],
             'InuringPriority':  [   1,      1       ],
             'ReinsType':        [   'SS',   'SS'    ],
+            'RiskLevel':        [   'LOC',  'LOC'   ],
             'PlacedPercent':    [   1.0,    1.0     ],
             'TreatyShare':      [   1.0,    1.0     ]
         })
@@ -2541,7 +2542,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   '',     '',     '',     ''      ],
             'CountryCode':  [   '',     '',     '',     ''      ],
             'ReinsTag':     [   '',     '',     '',     ''      ],
-            'RiskLevel':    [   'LOC',  'LOC',  'LOC',  'LOC'   ],
             'CededPercent': [   0.1,    0.1,    0.1,    0.1     ]
         })
 
@@ -2595,6 +2595,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   0.0,    0.0     ],
             'InuringPriority':  [   1,      2       ],
             'ReinsType':        [   'SS',   'SS'    ],
+            'RiskLevel':        [   'LOC',  'LOC'   ],
             'PlacedPercent':    [   1.0,    1.0     ],
             'TreatyShare':      [   1.0,    1.0     ]
         })
@@ -2610,7 +2611,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   '',     '',     '',     ''      ],
             'CountryCode':  [   '',     '',     '',     ''      ],
             'ReinsTag':     [   '',     '',     '',     ''      ],
-            'RiskLevel':    [   'LOC',  'LOC',  'LOC',  'LOC'   ],
             'CededPercent': [   0.1,    0.1,    0.1,    0.1     ]
         })
 
@@ -2693,6 +2693,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   0.0,    0.0     ],
             'InuringPriority':  [   1,      1       ],
             'ReinsType':        [   'QS',   'QS'    ],
+            'RiskLevel':        [   'SEL',  'SEL'   ],
             'PlacedPercent':    [   1.0,    1.0     ],
             'TreatyShare':      [   1.0,    1.0     ]
         })
@@ -2708,7 +2709,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   '',     ''      ],
             'CountryCode':  [   '',     ''      ],
             'ReinsTag':     [   '',     ''      ],
-            'RiskLevel':    [   'SEL',  'SEL'   ],
             'CededPercent': [   1.0,    1.0     ]
         })
 
@@ -2762,6 +2762,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   0.0,    0.0     ],
             'InuringPriority':  [   1,      2       ],
             'ReinsType':        [   'QS',   'QS'    ],
+            'RiskLevel':        [   'SEL',  'SEL'   ],
             'PlacedPercent':    [   1.0,    1.0     ],
             'TreatyShare':      [   1.0,    1.0     ]
         })
@@ -2777,7 +2778,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   '',     ''      ],
             'CountryCode':  [   '',     ''      ],
             'ReinsTag':     [   '',     ''      ],
-            'RiskLevel':    [   'SEL',  'SEL'   ],
             'CededPercent': [   1.0,    1.0     ]
         })
 
@@ -2860,6 +2860,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   20.0,   40.0    ],
             'InuringPriority':  [   1,      1       ],
             'ReinsType':        [   'CXL',  'CXL'   ],
+            'RiskLevel':        [   'SEL',  'SEL'   ],
             'PlacedPercent':    [   1.0,    1.0     ],
             'TreatyShare':      [   1.0,    1.0     ]
         })
@@ -2875,7 +2876,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   '',     ''      ],
             'CountryCode':  [   '',     ''      ],
             'ReinsTag':     [   '',     ''      ],
-            'RiskLevel':    [   'SEL',  'SEL'   ],
             'CededPercent': [   1.0,    1.0     ]
         })
 
@@ -2929,6 +2929,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   20.0,   40.0    ],
             'InuringPriority':  [   1,      2       ],
             'ReinsType':        [   'CXL',  'CXL'   ],
+            'RiskLevel':        [   'SEL',  'SEL'   ],
             'PlacedPercent':    [   1.0,    1.0     ],
             'TreatyShare':      [   1.0,    1.0     ]
         })
@@ -2944,7 +2945,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   '',     ''      ],
             'CountryCode':  [   '',     ''      ],
             'ReinsTag':     [   '',     ''      ],
-            'RiskLevel':    [   'SEL',  'SEL'   ],
             'CededPercent': [   1.0,    1.0     ]
         })
 
@@ -3061,6 +3061,7 @@ class TestReinsurance(unittest.TestCase):
             'OccAttachment':    [   0.0     ],
             'InuringPriority':  [   1       ],
             'ReinsType':        [   'FAC'    ],
+            'RiskLevel':        [   'LOC'   ],
             'PlacedPercent':    [   1.0     ],
             'TreatyShare':      [   1.0     ]
         })
@@ -3076,7 +3077,6 @@ class TestReinsurance(unittest.TestCase):
             'LOB':          [   ''      ],
             'CountryCode':  [   ''      ],
             'ReinsTag':     [   ''      ],
-            'RiskLevel':    [   'LOC'   ],
             'CededPercent': [   0.1     ]
         })
 

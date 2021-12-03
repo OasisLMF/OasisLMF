@@ -71,6 +71,11 @@
                 "field": "accnumber",
                 "name": "Account num."
             },
+            "CondTag":  {
+                "src": "FM",
+                "field": "condtag",
+                "name": "Cond tag."
+            },
             "CondNum":  {
                 "src": "FM",
                 "field": "condnumber",

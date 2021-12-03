@@ -1,2 +1,2 @@
-PortNumber,AccNumber,PolNumber,PolPerilsCovered,AccCurrency,LayerNumber,LayerParticipation,LayerLimit,LayerAttachment,PolPeril,PolDed6All,PolMinDed6All,PolMaxDed6All,PolLimit6All
-xxAcc3,11611,11611,OO1,CAD,1,1.0,0,0,OO1,0,0,0,0
+PortNumber,AccNumber,PolNumber,PolPerilsCovered,AccCurrency,LayerNumber,LayerParticipation,LayerLimit,LayerAttachment,PolPeril,PolDed6All,PolMinDed6All,PolMaxDed6All,PolLimit6All,OEDVersion
+xxAcc3,11611,11611,OO1,CAD,1,1.0,0,0,OO1,0,0,0,0,2.0.0

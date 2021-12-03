@@ -330,15 +330,15 @@ class RunFmTest(ComputationStep):
         return 'location.csv' and 'account.csv' and 'expected' in src_contents
 
     def run(self):
-        # Run test case given on CLI 
+        # Run test case given on CLI
         if self.test_case_name:
             return self.execute_test_case(self.test_case_name)
 
         # If 'test_case_dir' is a valid test run that dir directly
         if self._case_dir_is_valid_test():
-            return self.execute_test_case('')    
-            
-        # Search for valid cases in sub-dirs and run all found 
+            return self.execute_test_case('')
+
+        # Search for valid cases in sub-dirs and run all found
         case_names, case_num = self.search_test_cases()
 
         # If '--list-tests' is selected print found cases and exit
@@ -347,7 +347,7 @@ class RunFmTest(ComputationStep):
                 self.logger.info(name)
             exit(0)
 
-        if case_num < 1: 
+        if case_num < 1:
             raise OasisException(f'No vaild FM test cases found in "{self.test_case_dir}"')
         else:
             # If test_case not selected run all cases
@@ -412,13 +412,17 @@ class RunFmTest(ComputationStep):
         ).run()
 
         expected_data_dir = os.path.join(test_dir, self.expected_output_dir)
+
         if not os.path.exists(expected_data_dir):
-            raise OasisException(
-                'No subfolder named `expected` found in the input directory - '
-                'this subfolder should contain the expected set of GUL + IL '
-                'input files, optionally the RI input files, and the expected '
-                'set of GUL, IL and optionally the RI loss files'
-            )
+            if self.update_expected:
+                os.makedirs(expected_data_dir)
+            else:
+                raise OasisException(
+                    'No subfolder named `expected` found in the input directory - '
+                    'this subfolder should contain the expected set of GUL + IL '
+                    'input files, optionally the RI input files, and the expected '
+                    'set of GUL, IL and optionally the RI loss files'
+                )
 
         files = ['keys.csv', 'loc_summary.csv']
         files += [
@@ -461,7 +465,7 @@ class RunFmTest(ComputationStep):
                     raise OasisException(
                         f'\n FAIL: generated {generated} vs expected {expected}'
                     )
-                test_result = False
+                    test_result = False
         if tmp_dir:
             tmp_dir.cleanup()
         return test_result

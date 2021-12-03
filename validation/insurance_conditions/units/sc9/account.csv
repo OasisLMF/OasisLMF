@@ -1,0 +1,5 @@
+FlexiAccTestCase,PortNumber,AccNumber,PolNumber,PolPerilsCovered,AccCurrency,LayerParticipation,LayerLimit,LayerAttachment,PolPeril,PolDed6All,PolDedType6All,PolMinDed6All,PolMaxDed6All,PolLimit6All,PolLimitType6All,CondPeril,CondTag,CondNumber,CondDed6All,CondDedType6All,CondMinDed6All,CondMaxDed6All,CondLimit6All,CondLimitType6All,CondPriority,CondName,CondClass,OEDVersion
+sc9,sc9,1,1,AA1,USD,1.0,200000000,0,AA1,0,0,0,0,0,0,AA1,1,1,10000,0,0,0,0,0,1,child1,0,2.0.0
+sc9,sc9,1,1,AA1,USD,1.0,200000000,0,AA1,0,0,0,0,0,0,AA1,2,2,50000,0,0,0,0,0,1,child2,0,2.0.0
+sc9,sc9,1,1,AA1,USD,1.0,200000000,0,AA1,0,0,0,0,0,0,AA1,3,3,100000,0,0,0,0,0,1,child3,0,2.0.0
+sc9,sc9,1,1,AA1,USD,1.0,200000000,0,AA1,0,0,0,0,0,0,AA1,4,4,0,0,0,0,50000000,0,2,parent,0,2.0.0

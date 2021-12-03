@@ -770,11 +770,25 @@
         "require_field": "CR"
     },
     "CondNumber": {
-        "data_type": "int",
+        "data_type": "varchar(40)",
         "default_value": "n/a",
-        "desc": "Condition number",
-        "py_dtype": "int",
+        "desc": "Condition number identifies a unique set of condition financial terms applicable to one or more CondTag's.",
+        "py_dtype": "str",
         "require_field": "CR"
+    },
+    "CondTag": {
+        "data_type": "varchar(20)",
+        "default_value": "n/a",
+        "desc": "Identifies a group of locations which are subject to one or more conditions.",
+        "py_dtype": "str",
+        "require_field": "CR"
+    },
+    "CondClass": {
+        "data_type": "int",
+        "default_value": "0",
+        "desc": "class of condition",
+        "py_dtype": "int",
+        "require_field": "O"
     },
     "CondPeril": {
         "data_type": "varchar(250)",

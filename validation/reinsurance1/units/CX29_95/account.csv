@@ -1,3 +1,3 @@
-PortNumber,AccNumber,PolNumber,PolPerilsCovered,AccCurrency,LayerNumber,LayerParticipation,LayerLimit,LayerAttachment,PolPeril,PolDed6All,PolMinDed6All,PolMaxDed6All,PolLimit6All
-OEDTest,CX29_05,CX29_05_1,OO1,CAD,1,1.0,0,0,OO1,0,0,0,0
-OEDTest,CX29_06,CX29_06_1,OO1,CAD,1,0.2,0,0,OO1,0,0,0,0
+PortNumber,AccNumber,PolNumber,PolPerilsCovered,AccCurrency,LayerNumber,LayerParticipation,LayerLimit,LayerAttachment,PolPeril,PolDed6All,PolMinDed6All,PolMaxDed6All,PolLimit6All,OEDVersion
+OEDTest,CX29_05,CX29_05_1,OO1,CAD,1,1.0,0,0,OO1,0,0,0,0,2.0.0
+OEDTest,CX29_06,CX29_06_1,OO1,CAD,1,0.2,0,0,OO1,0,0,0,0,2.0.0
