@@ -595,7 +595,7 @@ def __merge_gul_and_account(gul_inputs_df, accounts_df, fm_terms, oed_hierarchy)
     # GUL inputs frame above, with the accounts frame, on portfolio no.,
     # account no. and condition no. (by default items in the GUL inputs frame
     # are set with a condition no. of 0)
-    column_base_il_df =  merge_dataframes(
+    column_base_il_df = merge_dataframes(
         gul_inputs_df,
         accounts_df,
         on=[portfolio_num, acc_num, cond_tag],
@@ -662,18 +662,18 @@ def __extract_level_location_to_agg_cond_dict(account_groups, base_level, max_le
 
     for main_key, groups in account_groups.items():
         #first we iter through groups to create agg
-        no_parent_not_top_groups = set(groups)
+        no_parent_not_top_groups = dict(groups)
         for group_id, group in groups.items():
             for layer_id, cond_num in group['layers'].items():
                 for level_id in range(base_level, group['level']):
                     set_agg_cond(main_key, group_id, group, level_id, layer_id, '')
 
                 if group['level'] == max_level:
-                    no_parent_not_top_groups.discard(group_id)
+                    no_parent_not_top_groups.pop(group_id, None)
                 set_agg_cond(main_key, group_id, group, group['level'], layer_id, cond_num)
 
                 for child_group_id in group.get('childs', []):
-                    no_parent_not_top_groups.discard(child_group_id)
+                    no_parent_not_top_groups.pop(child_group_id, None)
                     set_agg_cond(main_key, group_id, groups[child_group_id], group['level'], layer_id, cond_num)
 
         for group_id in no_parent_not_top_groups:
@@ -691,7 +691,7 @@ def __get_cond_grouping_hierarchy(column_base_il_df, main_key, cond_tag, cond_nu
     """
     def attach_cond(child_group, parent_group, cond_to_group):
         child_group['parent'] = parent_group['tag'][0]
-        parent_group.setdefault('childs', set()).add(child_group['tag'][0])
+        parent_group.setdefault('childs', {})[child_group['tag'][0]] = None
 
         cur_parent_cond = parent_group['tag'][0]
         min_level = child_group['level'] + 1
@@ -743,7 +743,7 @@ def __get_cond_grouping_hierarchy(column_base_il_df, main_key, cond_tag, cond_nu
 
         if cond_key not in groups:
             # new cond key we create a new group
-            group = {'locations': set(),
+            group = {'locations': {},
                      'tag': (cond_key, rec['condpriority']),
                      'layers': {layer_id: '' for layer_id in main_key_layers[group_key]},
                      'needed_loc': {},
@@ -761,17 +761,17 @@ def __get_cond_grouping_hierarchy(column_base_il_df, main_key, cond_tag, cond_nu
                     raise OasisException(f"condition of the same priority and policy {cond_parent_group['tag'][0]} {loc_parent_group['tag'][0]}")
                 elif cond_parent_group['tag'][1] > loc_parent_group['tag'][1]:
                     attach_cond(loc_parent_group, cond_parent_group, groups)
-                    cond_parent_group['childs'].discard(cond_key)
+                    cond_parent_group['childs'].pop(cond_key, None)
                 else:
                     attach_cond(cond_parent_group, loc_parent_group, groups)
-                    loc_parent_group['childs'].discard(child_cond)
+                    loc_parent_group['childs'].pop(child_cond, None)
                     parent_cond = group.get('parent')
 
         if child_cond:
             child_group = groups[child_cond]
             attach_cond(child_group, group, groups)
         else:
-            group['locations'].add(loc_key)
+            group['locations'][loc_key] = None
             loc_to_cond[loc_key] = cond_key
 
         group['needed_loc'][loc_key] = False
@@ -785,8 +785,8 @@ def __get_cond_grouping_hierarchy(column_base_il_df, main_key, cond_tag, cond_nu
 
         if parent_cond:
             parent_group = groups[parent_cond]
-            parent_group['locations'].discard(loc_key)
-            parent_group.get('childs', set()).discard(child_cond)
+            parent_group['locations'].pop(loc_key, None)
+            parent_group.get('childs', {}).pop(child_cond, None)
             attach_cond(group, parent_group, groups)
 
     missing_conditions = []
@@ -971,7 +971,7 @@ def __process_condition_level_df(column_base_il_df,
             level_df = merge_dataframes(
                 level_df,
                 this_level_location_to_agg_cond_df,
-                on=main_key + [cond_tag, 'layer_id', loc_num],
+                on=main_key + [loc_num, 'layer_id', cond_tag, ],
                 how='inner',
                 drop_duplicates=False
             )
