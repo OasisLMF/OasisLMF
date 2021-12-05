@@ -43,8 +43,8 @@ def run(analysis_settings,
     # Check if a custom binary `<supplier>_<model>_gulcalc` exists in PATH
     else:
         inferred_gulcalc_cmd = "{}_{}_gulcalc".format(
-            analysis_settings.get('module_supplier_id'),
-            analysis_settings.get('model_version_id'))
+            analysis_settings.get('model_supplier_id'),
+            analysis_settings.get('model_name_id'))
         if shutil.which(inferred_gulcalc_cmd):
             custom_gulcalc_cmd = inferred_gulcalc_cmd
 

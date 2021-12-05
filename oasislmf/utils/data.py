@@ -32,6 +32,7 @@ import json
 import jsonschema
 import re
 import warnings
+import logging
 
 from datetime import datetime
 from collections import OrderedDict
@@ -294,6 +295,51 @@ def validate_json(json_data, json_schema):
     return is_valid, exception_msgs
 
 
+def analysis_settings_compatibility(analysis_settings_data):
+    """
+    NOTE: when ready to depricate these older names this fucntion should be remoived
+
+    Check for an older version of the analysis_settings JSON
+
+    Warn the user of the schema change and update the following keys
+        * `module_supplier_id` -> `model_supplier_id`
+        * `model_version_id` -> `model_name_id`
+
+    :param analysis_settings_data: JSON data from an analysis_settings file
+    :type  analysis_settings_data: dict
+
+    :return: updated analysis_ settings
+    :rtype: dict
+    """
+    compatibility_profile = {
+        "module_supplier_id":{
+            "from_ver": "1.23.0",
+            "updated_to": "model_supplier_id"
+        },
+        "model_version_id":{
+            "from_ver": "1.23.0",
+            "updated_to": "model_name_id"
+        },
+    }
+    obsolete_keys = set(compatibility_profile) & set(analysis_settings_data)
+
+    if obsolete_keys:
+        logger = logging.getLogger()
+        logger.warning('WARNING: Deprecated key(s) in analysis_settings JSON')
+        for key in obsolete_keys:
+            # warn user
+            logger.warning('   {} : {}'.format(
+                key,
+                compatibility_profile[key],
+            ))
+            # Update settings
+            analysis_settings_data[compatibility_profile[key]['updated_to']] = analysis_settings_data[key]
+            del analysis_settings_data[key]
+
+        logger.warning('   These keys have been automatically updated, but should be fixed in the original file.\n')
+    return analysis_settings_data
+
+
 def get_analysis_settings(analysis_settings_fp, key=None, validate=True):
     """
     Get analysis settings from file.
@@ -312,7 +358,8 @@ def get_analysis_settings(analysis_settings_fp, key=None, validate=True):
     """
     try:
         with io.open(analysis_settings_fp) as f:
-            analysis_settings = json.load(f)
+            raw_settings_json = json.load(f)
+            analysis_settings = analysis_settings_compatibility(raw_settings_json)
 
             if validate:
                 schema = get_json(get_analysis_schema_fp())

@@ -343,8 +343,8 @@
         }
     },
     "required": [
-        "module_supplier_id",
-        "model_version_id",
+        "model_supplier_id",
+        "model_name_id",
         "number_of_samples",
         "model_settings",
         "gul_output",
