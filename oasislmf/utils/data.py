@@ -322,7 +322,6 @@ def analysis_settings_compatibility(analysis_settings_data):
         },
     }
     obsolete_keys = set(compatibility_profile) & set(analysis_settings_data)
-
     if obsolete_keys:
         logger = logging.getLogger()
         logger.warning('WARNING: Deprecated key(s) in analysis_settings JSON')
@@ -332,8 +331,10 @@ def analysis_settings_compatibility(analysis_settings_data):
                 key,
                 compatibility_profile[key],
             ))
-            # Update settings
-            analysis_settings_data[compatibility_profile[key]['updated_to']] = analysis_settings_data[key]
+            # Update settings, if newer key not found
+            updated_key = compatibility_profile[key]['updated_to']
+            if updated_key not in analysis_settings_data:
+                analysis_settings_data[updated_key] = analysis_settings_data[key]
             del analysis_settings_data[key]
 
         logger.warning('   These keys have been automatically updated, but should be fixed in the original file.\n')
