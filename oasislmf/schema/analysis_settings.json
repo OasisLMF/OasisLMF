@@ -243,15 +243,15 @@
             "title": "Analysis Tag",
             "description": "Labels the analysis with an identifier."
         },
-        "module_supplier_id": {
+        "model_supplier_id": {
             "type": "string",
-            "title": "Module supplier ID",
+            "title": "Model supplier ID",
             "description": "Identifier for the model vendor/module supplier."
         },
-        "model_version_id": {
+        "model_name_id": {
             "type": "string",
-            "title": "Model version ID",
-            "description": "Identifier for the model and version."
+            "title": "Model name ID",
+            "description": "Identifier for the model."
         },
         "number_of_samples": {
             "type": "integer",
