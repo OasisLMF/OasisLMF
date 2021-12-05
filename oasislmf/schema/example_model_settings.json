@@ -1,10 +1,11 @@
 {
    "name": "MyModelName",
    "description": "Longer model description",
-   "supplier_id": "OasisLMF",
-   "model_id": "piwind",
+   "model_supplier_id": "OasisLMF",
+   "model_name_id": "piwind",
    "model_version_id": "1",
    "model_configurable": true,
+   "model_default_samples": 10,
 
    "model_settings":{
       "event_set":{
@@ -15,6 +16,7 @@
             {
                "id":"P",
                "desc":"Probabilistic",
+               "number_of_events": 1001,
                "valid_occurrence_ids":["1"],
                "valid_perspectives": ["gul", "il"],
                "valid_metrics": ["plt", "elt"]
