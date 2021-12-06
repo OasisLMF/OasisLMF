@@ -1,6 +1,23 @@
 OasisLMF Changelog
 ==================
 
+`1.23.0`_
+ ---------
+* [#762, #915, #838, #839](https://github.com/OasisLMF/OasisLMF/pull/954) - Feature/oed2tests
+* [#901](https://github.com/OasisLMF/OasisLMF/pull/900) - fmpy: areaperil_id 8 bytes support
+* [#830](https://github.com/OasisLMF/OasisLMF/pull/933) - Step policies: add new calcrule (calcrule 28 + limit)
+* [#903](https://github.com/OasisLMF/OasisLMF/pull/903) - Generate Quantile Event Loss Table (QELT) and Quantile Period Loss Table (QPLT)
+* [#942](https://github.com/OasisLMF/OasisLMF/pull/943) - Option 'lookup_multiprocessing' not read from config file.
+* [#944](https://github.com/OasisLMF/OasisLMF/pull/945) - Loss is not init to 0 for step policy
+* [#946](https://github.com/OasisLMF/OasisLMF/pull/946) - Pymodel optimize
+* [#948](https://github.com/OasisLMF/OasisLMF/pull/948) - Fix/platform client error
+* [#916](https://github.com/OasisLMF/OasisLMF/pull/916) - stashing
+* [#953](https://github.com/OasisLMF/OasisLMF/pull/953) - removing memory map attribute
+* [#858](https://github.com/OasisLMF/OasisLMF/pull/890) - support parquet for OED
+* [#955](https://github.com/OasisLMF/OasisLMF/pull/957) - Update the model references for consistency 
+* [#959](https://github.com/OasisLMF/OasisLMF/pull/959) - Replace refs to getmodelpy with modelpy
+.. _`1.23.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.22.0...1.23.0
+
 `1.22.0`_
  ---------
 * [#914](https://github.com/OasisLMF/OasisLMF/pull/929) - numba and numpy version incompatibility
