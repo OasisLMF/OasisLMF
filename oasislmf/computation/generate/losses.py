@@ -289,7 +289,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             self.script_fp = os.path.join(os.path.abspath(model_run_fp), script_name)
 
         if os.path.isfile(self.script_fp):
-            os.remove(self.script_fp) 
+            os.remove(self.script_fp)
 
         bash_params = model_runner_module.bash_params(
             analysis_settings,
@@ -312,7 +312,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             event_shuffle=self.ktools_event_shuffle,
             process_number=self.process_number,
             max_process_id=self.max_process_id,
-            getmodelpy=self.modelpy,
+            modelpy=self.modelpy,
         )
         ## Workaround test -- needs adding into bash_params
         if self.ktools_fifo_queue_dir:
@@ -360,7 +360,7 @@ class GenerateLossesOutput(GenerateLossesDir):
             self.script_fp = os.path.join(os.path.abspath(model_run_fp), 'run_outputs.sh')
 
         if os.path.isfile(self.script_fp):
-            os.remove(self.script_fp) 
+            os.remove(self.script_fp)
 
         bash_params = model_runner_module.bash_params(
             analysis_settings,
@@ -461,7 +461,7 @@ class GenerateLosses(GenerateLossesDir):
                         fmpy_low_memory=self.fmpy_low_memory,
                         fmpy_sort_output=self.fmpy_sort_output,
                         event_shuffle=self.ktools_event_shuffle,
-                        getmodelpy=self.modelpy,
+                        modelpy=self.modelpy,
                     )
                 except TypeError:
                     warnings.simplefilter("always")
