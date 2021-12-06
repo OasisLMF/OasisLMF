@@ -201,16 +201,16 @@ def process_range(max_process_id, process_number=None):
         return range(1, max_process_id + 1)
 
 
-def get_modelcmd(getmodelpy: bool) -> str:
+def get_modelcmd(modelpy: bool) -> str:
     """
     Gets the construct model command line argument for the bash script.
 
     Args:
-        getmodelpy: (bool) if the getmodel Python setting is True or not
+        modelpy: (bool) if the getmodel Python setting is True or not
 
-    Returns: C++ getmodel if getmodelpy is False, Python getmodel if the getmodelpy if False
+    Returns: C++ getmodel if modelpy is False, Python getmodel if the modelpy if False
     """
-    if getmodelpy is True:
+    if modelpy is True:
         return 'modelpy'
     else:
         return 'getmodel'
@@ -1002,7 +1002,7 @@ def get_getmodel_itm_cmd(
         max_process_id,
         correlated_output,
         eve_shuffle_flag,
-        getmodelpy=False,
+        modelpy=False,
         **kwargs):
     """
     Gets the getmodel ktools command (3.1.0+) Gulcalc item stream
@@ -1020,7 +1020,7 @@ def get_getmodel_itm_cmd(
     :type eve_shuffle_flag: str
     :return: The generated getmodel command
     """
-    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(getmodelpy)} | gulcalc -S{number_of_samples} -L{gul_threshold}'
+    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy)} | gulcalc -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
         cmd = '{} -r'.format(cmd)
@@ -1039,7 +1039,7 @@ def get_getmodel_cov_cmd(
         process_id,
         max_process_id,
         eve_shuffle_flag,
-        getmodelpy=False,
+        modelpy=False,
         **kwargs):
     """
     Gets the getmodel ktools command (version < 3.0.8) gulcalc coverage stream
@@ -1058,7 +1058,7 @@ def get_getmodel_cov_cmd(
     :return: The generated getmodel command
     """
 
-    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(getmodelpy)} | gulcalc -S{number_of_samples} -L{gul_threshold}'
+    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy)} | gulcalc -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
         cmd = '{} -r'.format(cmd)
@@ -1305,7 +1305,7 @@ def bash_params(
     fmpy_low_memory=False,
     fmpy_sort_output=False,
     event_shuffle=None,
-    getmodelpy=False,
+    modelpy=False,
 
     ## new options
     process_number=None,
@@ -1324,7 +1324,7 @@ def bash_params(
     bash_params['bash_trace'] = bash_trace
     bash_params['filename'] = filename
     bash_params['custom_args'] = custom_args
-    bash_params['getmodelpy'] = getmodelpy
+    bash_params['modelpy'] = modelpy
     bash_params['fmpy'] = fmpy
     bash_params['fmpy_low_memory'] = fmpy_low_memory
     bash_params['fmpy_sort_output'] = fmpy_sort_output
@@ -1488,7 +1488,7 @@ def create_bash_analysis(
     ri_output,
     need_summary_fifo_for_gul,
     analysis_settings,
-    getmodelpy,
+    modelpy,
     **kwargs
 ):
 
@@ -1684,7 +1684,7 @@ def create_bash_analysis(
             'max_process_id': num_gul_output,
             'stderr_guard': stderr_guard,
             'eve_shuffle_flag': eve_shuffle_flag,
-            'getmodelpy': getmodelpy,
+            'modelpy': modelpy,
         }
 
         # GUL coverage & item stream (Older)
@@ -2003,7 +2003,7 @@ def genbash(
     fmpy_low_memory=False,
     fmpy_sort_output=False,
     event_shuffle=None,
-    getmodelpy=False,
+    modelpy=False,
 ):
     """
     Generates a bash script containing ktools calculation instructions for an
@@ -2065,7 +2065,7 @@ def genbash(
         fmpy_low_memory=fmpy_low_memory,
         fmpy_sort_output=fmpy_sort_output,
         event_shuffle=event_shuffle,
-        getmodelpy=getmodelpy,
+        modelpy=modelpy,
     )
 
     # remove the file if it already exists
