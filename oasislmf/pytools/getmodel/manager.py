@@ -12,7 +12,8 @@ from contextlib import ExitStack
 import numba as nb
 import numpy as np
 import pyarrow.parquet as pq
-from numba.typed import Dict
+from math import ceil
+# from numba.typed import Dict
 
 from .common import areaperil_int, oasis_float, Index_type
 from .footprint import Footprint
@@ -76,13 +77,13 @@ VulnerabilityRow = nb.from_dtype(np.dtype([('intensity_bin_id', np.int32),
 vuln_offset = 4
 
 
-@nb.jit(cache=True)
+@nb.njit(cache=True)
 def load_areaperil_id_u4(int32_mv, cursor, areaperil_id):
     int32_mv[cursor] = areaperil_id.view('i4')
     return cursor + 1
 
 
-@nb.jit(cache=True)
+@nb.njit(cache=True)
 def load_areaperil_id_u8(int32_mv, cursor, areaperil_id):
     int32_mv[cursor: cursor+1] = areaperil_id.view('i4')
     return cursor + 2
@@ -96,8 +97,23 @@ else:
     raise Exception(f"AREAPERIL_TYPE {areaperil_int} is not implemented chose u4 or u8")
 
 
-@nb.jit(cache=True)
-def load_items(items):
+@nb.njit(cache=True)
+def index_sorted(a, v):
+    l = 0
+    r = a.shape[0] - 1
+    while l <= r:
+        m = (l+r)//2
+        if a[m] < v:
+            l = m + 1
+        elif a[m] > v:
+            r = m - 1
+        else:
+            return m
+    return -1
+
+
+@nb.njit(cache=True)
+def load_items(areaperil_vulns):
     """
     Processes the Items loaded from the file extracting meta data around the vulnerability data.
 
@@ -108,47 +124,27 @@ def load_items(items):
              vulnerability dictionary, vulnerability IDs, areaperil to vulnerability index dictionary,
              areaperil ID to vulnerability index array, areaperil ID to vulnerability array
     """
-    areaperil_to_vulns_size = 0
-    areaperil_dict = Dict()
-    vuln_dict = Dict()
-    vuln_idx = 0
-    for i in range(items.shape[0]):
-        item = items[i]
+    areaperil_id_to_idx = np.sort(np.unique(areaperil_vulns['areaperil_id']))
+    vuln_id_to_idx = np.sort(np.unique(areaperil_vulns['vulnerability_id']))
 
-        # insert the vulnerability index if not in there
-        if item['vulnerability_id'] not in vuln_dict:
-            vuln_dict[item['vulnerability_id']] = np.int32(vuln_idx)
-            vuln_idx += 1
+    areaperil_to_vulns_ptr = np.empty(areaperil_id_to_idx.shape[0], dtype=Index_type)
+    vulns_ptr_to_idx = np.empty(areaperil_vulns.shape[0], dtype=np.int32)
 
-        # insert an area dictionary into areaperil_dict under the key of areaperil ID
-        if item['areaperil_id'] not in areaperil_dict:
-            area_vuln = Dict()
-            area_vuln[item['vulnerability_id']] = 0
-            areaperil_dict[item['areaperil_id']] = area_vuln
-            areaperil_to_vulns_size += 1
-        else:
-            if item['vulnerability_id'] not in areaperil_dict[item['areaperil_id']]:
-                areaperil_to_vulns_size += 1
-                areaperil_dict[item['areaperil_id']][item['vulnerability_id']] = 0
+    areaperil_index = 0
+    areaperil_id = areaperil_id_to_idx[areaperil_index]
+    areaperil_to_vulns_ptr[areaperil_index]['start'] = 0
+    for i in range(areaperil_vulns.shape[0]):
+        areaperil_vuln = areaperil_vulns[i]
+        if areaperil_vuln['areaperil_id'] != areaperil_id:
+            areaperil_to_vulns_ptr[areaperil_index]['end'] = i
+            areaperil_index += 1
+            areaperil_id = areaperil_vuln['areaperil_id']
+            areaperil_to_vulns_ptr[areaperil_index]['start'] = i
+        vuln_index = index_sorted(vuln_id_to_idx, areaperil_vuln['vulnerability_id'])
+        vulns_ptr_to_idx[i] = vuln_index
+    areaperil_to_vulns_ptr[areaperil_index]['end'] = i
 
-    areaperil_to_vulns_idx_dict = Dict()
-    areaperil_to_vulns_idx_array = np.empty(len(areaperil_dict), dtype = Index_type)
-    areaperil_to_vulns = np.empty(areaperil_to_vulns_size, dtype = np.int32)
-
-    areaperil_i = 0
-    vulnerability_i = 0
-
-    for areaperil_id, vulns in areaperil_dict.items():
-        areaperil_to_vulns_idx_dict[areaperil_id] = areaperil_i
-        areaperil_to_vulns_idx_array[areaperil_i]['start'] = vulnerability_i
-
-        for vuln_id in sorted(vulns):  # sorted is not necessary but doesn't impede the perf and align with cpp getmodel
-            areaperil_to_vulns[vulnerability_i] = vuln_id
-            vulnerability_i +=1
-        areaperil_to_vulns_idx_array[areaperil_i]['end'] = vulnerability_i
-        areaperil_i+=1
-
-    return vuln_dict, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns
+    return vuln_id_to_idx, areaperil_id_to_idx, areaperil_to_vulns_ptr, vulns_ptr_to_idx
 
 
 def get_items(input_path, ignore_file_type=set()):
@@ -166,18 +162,19 @@ def get_items(input_path, ignore_file_type=set()):
     input_files = set(os.listdir(input_path))
     if "items.bin" in input_files and "bin" not in ignore_file_type:
         logger.debug(f"loading {os.path.join(input_path, 'items.csv')}")
-        items = np.memmap(os.path.join(input_path, "items.bin"), dtype=Item, mode='r')
+        # items = np.memmap(os.path.join(input_path, "items.bin"), dtype=Item, mode='r')
+        items = np.fromfile(os.path.join(input_path, "items.bin"), dtype=Item)
     elif "items.csv" in input_files and "csv" not in ignore_file_type:
         logger.debug(f"loading {os.path.join(input_path, 'items.csv')}")
         items = np.genfromtxt(os.path.join(input_path, "items.csv"), dtype=Item, delimiter=",")
     else:
         raise FileNotFoundError(f'items file not found at {input_path}')
 
-    return load_items(items)
+    return load_items(np.sort(np.unique(items[['areaperil_id','vulnerability_id']], axis=0)))
 
 
 @nb.njit(cache=True)
-def load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
+def load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_id_to_idx,
                                  num_damage_bins, num_intensity_bins):
     """
     Loads the vulnerability binary index file.
@@ -191,13 +188,14 @@ def load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
 
     Returns:
     """
-    vuln_array = np.zeros((len(vuln_dict), num_damage_bins, num_intensity_bins), dtype=oasis_float)
+    vuln_array = np.zeros((vuln_id_to_idx.shape[0], num_damage_bins, num_intensity_bins), dtype=oasis_float)
     for idx_i in range(vulns_idx_bin.shape[0]):
-        vuln_idx = vulns_idx_bin[idx_i]
-        if vuln_idx['vulnerability_id'] in vuln_dict:
-            cur_vuln_array = vuln_array[vuln_dict[vuln_idx['vulnerability_id']]]
-            start = (vuln_idx['offset'] - vuln_offset) // VulnerabilityRow.itemsize
-            end = start + vuln_idx['size'] // VulnerabilityRow.itemsize
+        vuln_idx_in_bin = vulns_idx_bin[idx_i]
+        vuln_idx_in_array = index_sorted(vuln_id_to_idx, vuln_idx_in_bin['vulnerability_id'])
+        if vuln_idx_in_array != -1:
+            cur_vuln_array = vuln_array[vuln_idx_in_array]
+            start = (vuln_idx_in_bin['offset'] - vuln_offset) // VulnerabilityRow.itemsize
+            end = start + vuln_idx_in_bin['size'] // VulnerabilityRow.itemsize
             for vuln_i in range(start, end):
                 vuln = vulns_bin[vuln_i]
                 cur_vuln_array[vuln['damage_bin_id'] -1, vuln['intensity_bin_id'] - 1] = vuln['probability']
@@ -206,7 +204,7 @@ def load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
 
 
 @nb.njit(cache=True)
-def load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins):
+def load_vulns_bin(vulns_bin, vuln_id_to_idx, num_damage_bins, num_intensity_bins):
     """
     Loads the vulnerability data grouped by the intensity and damage bins.
 
@@ -218,15 +216,16 @@ def load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins):
 
     Returns: (List[List[List[floats]]]) vulnerability data grouped by intensity bin and damage bin
     """
-    vuln_array = np.zeros((len(vuln_dict), num_damage_bins, num_intensity_bins), dtype=oasis_float)
+    vuln_array = np.zeros((vuln_id_to_idx.shape[0], num_damage_bins, num_intensity_bins), dtype=oasis_float)
     cur_vulnerability_id = -1
 
     for vuln_i in range(vulns_bin.shape[0]):
         vuln = vulns_bin[vuln_i]
         if vuln['vulnerability_id'] != cur_vulnerability_id:
-            if vuln['vulnerability_id'] in vuln_dict:
+            vuln_idx = index_sorted(vuln_id_to_idx, vuln['vulnerability_id'])
+            if vuln_idx != -1:
                 cur_vulnerability_id = vuln['vulnerability_id']
-                cur_vuln_array = vuln_array[vuln_dict[cur_vulnerability_id]]
+                cur_vuln_array = vuln_array[vuln_idx]
             else:
                 cur_vulnerability_id = -1
         if cur_vulnerability_id != -1:
@@ -235,7 +234,7 @@ def load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins):
     return vuln_array
 
 
-@nb.jit()
+@nb.njit()
 def update_vulns_dictionary(vuln_dict, vulns_id_array):
     """
     Updates the indexes of the vulnerability IDs (usually used in loading vulnerability data from parquet file).
@@ -267,7 +266,7 @@ def create_vulns_id(vuln_dict):
     return vulns_id
 
 
-def get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type=set()):
+def get_vulns(static_path, vuln_id_to_idx, num_intensity_bins, ignore_file_type=set()):
     """
     Loads the vulnerabilities from the file.
 
@@ -281,9 +280,10 @@ def get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type=set()
     """
     input_files = set(os.listdir(static_path))
     if "vulnerability_dataset" in input_files and "parquet" not in ignore_file_type:
+        raise NotImplementedError('parquet option TODO make sure vulnerability_id are sorted')
         logger.debug(f"loading {os.path.join(static_path, 'vulnerability_dataset')}")
         parquet_handle = pq.ParquetDataset(os.path.join(static_path, "vulnerability_dataset"), use_legacy_dataset=False,
-                                           filters=[("vulnerability_id", "in", list(vuln_dict))],
+                                           filters=[("vulnerability_id", "in", vuln_id_to_idx)],
                                            memory_map=True)
         vuln_table = parquet_handle.read()
         vuln_meta = vuln_table.schema.metadata
@@ -305,23 +305,23 @@ def get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type=set()
                 logger.debug(f"loading {os.path.join(static_path, 'vulnerability.idx')}")
                 vulns_bin = np.memmap(os.path.join(static_path, "vulnerability.bin"), dtype=VulnerabilityRow, offset=4, mode='r')
                 vulns_idx_bin = np.memmap(os.path.join(static_path, "vulnerability.idx"), dtype=VulnerabilityIndex, mode='r')
-                vuln_array = load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_dict,
+                vuln_array = load_vulns_bin_idx(vulns_bin, vulns_idx_bin, vuln_id_to_idx,
                                                           num_damage_bins, num_intensity_bins)
             else:
                 vulns_bin = np.memmap(os.path.join(static_path, "vulnerability.bin"), dtype=Vulnerability, offset=4, mode='r')
-                vuln_array = load_vulns_bin(vulns_bin, vuln_dict, num_damage_bins, num_intensity_bins)
+                vuln_array = load_vulns_bin(vulns_bin, vuln_id_to_idx, num_damage_bins, num_intensity_bins)
 
         elif "vulnerability.csv" in input_files and "csv" not in ignore_file_type:
             logger.debug(f"loading {os.path.join(static_path, 'vulnerability.csv')}")
             vuln_csv = np.genfromtxt(os.path.join(static_path, "vulnerability.csv"), dtype=Vulnerability, delimiter=",")
             num_damage_bins = max(vuln_csv['damage_bin_id'])
-            vuln_array = load_vulns_bin(vuln_csv, vuln_dict, num_damage_bins, num_intensity_bins)
+            vuln_array = load_vulns_bin(vuln_csv, vuln_id_to_idx, num_damage_bins, num_intensity_bins)
         else:
             raise FileNotFoundError(f'vulnerability file not found at {static_path}')
 
-        vulns_id = create_vulns_id(vuln_dict)
+        # vulns_id = create_vulns_id(vuln_dict)
 
-    return vuln_array, vulns_id, num_damage_bins
+    return vuln_array, vuln_id_to_idx, num_damage_bins
 
 
 def get_mean_damage_bins(static_path, ignore_file_type=set()):
@@ -346,7 +346,7 @@ def get_mean_damage_bins(static_path, ignore_file_type=set()):
         raise FileNotFoundError(f'damage_bin_dict file not found at {static_path}')
 
 
-@nb.jit(cache=True, fastmath=True)
+@nb.njit(cache=True, fastmath=True)
 def damage_bin_prob(p, intensities_min, intensities_max, vulns, intensities):
     """
     Calculate the probability of an event happening and then causing damage.
@@ -367,7 +367,7 @@ def damage_bin_prob(p, intensities_min, intensities_max, vulns, intensities):
     return p
 
 
-@nb.jit(cache=True, fastmath=True)
+@nb.njit(cache=True, fastmath=True)
 def do_result(vulns_id, vuln_array, mean_damage_bins,
               int32_mv, num_damage_bins,
               intensities_min, intensities_max, intensities,
@@ -419,8 +419,8 @@ def do_result(vulns_id, vuln_array, mean_damage_bins,
 @nb.njit()
 def doCdf(event_id,
           num_intensity_bins, footprint,
-          areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns,
-          vuln_array, vulns_id, num_damage_bins, mean_damage_bins,
+          areaperil_id_to_idx, areaperil_to_vulns_ptr, vulns_ptr_to_idx,
+          vuln_array, vuln_id_to_idx, num_damage_bins, mean_damage_bins,
           int32_mv, max_result_relative_size):
     """
     Calculates the cumulative distribution function (cdf) for an event ID.
@@ -450,6 +450,7 @@ def doCdf(event_id,
     intensities = np.zeros(num_intensity_bins, dtype=oasis_float)
 
     areaperil_id = np.zeros(1, dtype=areaperil_int)
+    areaperil_idx = -1
     has_vuln = False
     cursor = 0
 
@@ -457,28 +458,29 @@ def doCdf(event_id,
         event_row = footprint[footprint_i]
         if areaperil_id[0] != event_row['areaperil_id']:
             if has_vuln and intensities_min <= intensities_max:
-                areaperil_to_vulns_idx = areaperil_to_vulns_idx_array[areaperil_to_vulns_idx_dict[areaperil_id[0]]]
+                vulns_ptr = areaperil_to_vulns_ptr[areaperil_idx]
                 intensities_max += 1
-                for vuln_idx in range(areaperil_to_vulns_idx['start'], areaperil_to_vulns_idx['end']):
-                    vuln_i = areaperil_to_vulns[vuln_idx]
+                for vuln_idx in range(vulns_ptr['start'], vulns_ptr['end']):
+                    vuln_i = vulns_ptr_to_idx[vuln_idx]
                     if cursor + max_result_relative_size > buff_int_size:
                         yield cursor * oasis_int_size
                         cursor = 0
 
-                    cursor = do_result(vulns_id, vuln_array, mean_damage_bins,
+                    cursor = do_result(vuln_id_to_idx, vuln_array, mean_damage_bins,
                               int32_mv, num_damage_bins,
                               intensities_min, intensities_max, intensities,
                               event_id, areaperil_id, vuln_i, cursor)
 
             areaperil_id[0] = event_row['areaperil_id']
-            has_vuln = areaperil_id[0] in areaperil_to_vulns_idx_dict
+            areaperil_idx = index_sorted(areaperil_id_to_idx, areaperil_id[0])
+            has_vuln = areaperil_idx != -1
 
             if has_vuln:
                 intensities[intensities_min: intensities_max] = 0
                 intensities_min = num_intensity_bins
                 intensities_max = 0
         if has_vuln:
-            if event_row['probability']>0:
+            if event_row['probability'] > 0:
                 intensity_bin_i = event_row['intensity_bin_id'] - 1
                 intensities[intensity_bin_i] = event_row['probability']
                 if intensity_bin_i > intensities_max:
@@ -487,15 +489,15 @@ def doCdf(event_id,
                     intensities_min = intensity_bin_i
 
     if has_vuln and intensities_min <= intensities_max:
-        areaperil_to_vulns_idx = areaperil_to_vulns_idx_array[areaperil_to_vulns_idx_dict[areaperil_id[0]]]
+        vulns_ptr = areaperil_to_vulns_ptr[areaperil_idx]
         intensities_max += 1
-        for vuln_idx in range(areaperil_to_vulns_idx['start'], areaperil_to_vulns_idx['end']):
-            vuln_i = areaperil_to_vulns[vuln_idx]
+        for vuln_idx in range(vulns_ptr['start'], vulns_ptr['end']):
+            vuln_i = vulns_ptr_to_idx[vuln_idx]
             if cursor + max_result_relative_size > buff_int_size:
                 yield cursor * oasis_int_size
                 cursor = 0
 
-            cursor = do_result(vulns_id, vuln_array, mean_damage_bins,
+            cursor = do_result(vuln_id_to_idx, vuln_array, mean_damage_bins,
                       int32_mv, num_damage_bins,
                       intensities_min, intensities_max, intensities,
                       event_id, areaperil_id, vuln_i, cursor)
@@ -540,16 +542,16 @@ def run(run_dir, file_in, file_out, ignore_file_type):
         event_ids = np.ndarray(1, buffer=event_id_mv, dtype='i4')
 
         logger.debug('init items')
-        vuln_dict, areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns = get_items(input_path, ignore_file_type)
+        vuln_id_to_idx, areaperil_id_to_idx, areaperil_to_vulns_ptr, vulns_ptr_to_idx = get_items(input_path, ignore_file_type)
 
         logger.debug('init footprint')
         footprint_obj = stack.enter_context(Footprint.load(static_path, ignore_file_type))
-        num_intensity_bins = footprint_obj.num_intensity_bins
+        num_intensity_bins = np.int32(footprint_obj.num_intensity_bins)
 
         logger.debug('init vulnerability')
 
-        vuln_array, vulns_id, num_damage_bins = get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type)
-        convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns)
+        vuln_array, vuln_id_to_idx, num_damage_bins = get_vulns(static_path, vuln_id_to_idx, num_intensity_bins, ignore_file_type)
+
         logger.debug('init mean_damage_bins')
         mean_damage_bins = get_mean_damage_bins(static_path, ignore_file_type)
 
@@ -572,8 +574,8 @@ def run(run_dir, file_in, file_out, ignore_file_type):
             if event_footprint is not None:
                 for cursor_bytes in doCdf(event_ids[0],
                       num_intensity_bins, event_footprint,
-                      areaperil_to_vulns_idx_dict, areaperil_to_vulns_idx_array, areaperil_to_vulns,
-                      vuln_array, vulns_id, num_damage_bins, mean_damage_bins,
+                      areaperil_id_to_idx, areaperil_to_vulns_ptr, vulns_ptr_to_idx,
+                      vuln_array, vuln_id_to_idx, num_damage_bins, mean_damage_bins,
                                           int32_mv, max_result_relative_size):
 
                     if cursor_bytes:
