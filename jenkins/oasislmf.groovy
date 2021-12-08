@@ -8,6 +8,9 @@ node {
     if (BRANCH_NAME.matches("master") || BRANCH_NAME.matches("hotfix/(.*)") || BRANCH_NAME.matches("release/(.*)")){
         set_piwind_branch='master'
     }
+    if (BRANCH_NAME.matches("backports/(.*)")) {
+        set_piwind_branch=BRANCH_NAME
+    }
 
     properties([
       parameters([
@@ -21,7 +24,7 @@ node {
         [$class: 'StringParameterDefinition',  description: "Jenkins credential for passphrase", name: 'GPG_PASSPHRASE', defaultValue: 'gpg-passphrase'],
         [$class: 'StringParameterDefinition',  description: "Jenkins credentials Twine",         name: 'TWINE_ACCOUNT', defaultValue: 'sams_twine_account'],
         [$class: 'BooleanParameterDefinition', description: "Create release if checked",         name: 'PUBLISH', defaultValue: Boolean.valueOf(false)],
-        [$class: 'BooleanParameterDefinition', description: "Mark as pre-released software",     name: 'PRE_RELEASE', defaultValue: Boolean.valueOf(true)],
+        [$class: 'BooleanParameterDefinition', description: "Mark as pre-released software",     name: 'PRE_RELEASE', defaultValue: Boolean.valueOf(false)],
         [$class: 'BooleanParameterDefinition', description: "Perform a gitflow merge",           name: 'AUTO_MERGE', defaultValue: Boolean.valueOf(true)],
         [$class: 'BooleanParameterDefinition', description: "Send build status to slack",        name: 'SLACK_MESSAGE', defaultValue: Boolean.valueOf(false)]
       ])
@@ -133,6 +136,13 @@ node {
                 sh ' ./scripts/runtests.sh'
             }
         }
+
+
+        // Access to stored GPG key
+        // https://jenkins.io/doc/pipeline/steps/credentials-binding/
+        //
+        // gpg_key  --> Jenkins credentialId  type 'Secret file', GPG key
+        // gpg_pass --> Jenkins credentialId  type 'Secret text', passphrase for the above key
 
         if (params.PUBLISH){
             // Build chanagelog image
