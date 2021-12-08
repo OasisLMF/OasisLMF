@@ -41,7 +41,7 @@ The following fields are required to contain a unique combination of values per 
 * OED location
   * PortNumber, AccNumber, LocNumber
 * OED account
-If StepNumber is provided and populated, the policy is a step policy and records must be unique in the fields
+  * If StepNumber is provided and populated, the policy is a step policy and records must be unique in the fields
   * PortNumber, AccNumber, PolNumber, LayerNumber, StepNumber, else 
 
   * PortNumber, AccNumber, PolNumber, LayerNumber, CondNumber
@@ -51,12 +51,10 @@ If StepNumber is provided and populated, the policy is a step policy and records
   * PortNumber, AccNumber, LocNumber, CondTag
 
 * OED account
-If StepNumber is provided and populated, the policy is a step policy and records must be unique in the fields
+  * If StepNumber is provided and populated, the policy is a step policy and records must be unique in the fields
   * PortNumber, AccNumber, PolNumber, LayerNumber, StepNumber, else 
 
   * PortNumber, AccNumber, PolNumber, LayerNumber, CondNumber, CondTag
-
-If StepNumber is provided and populated, the policy is a step policy and records must be unique in the fields PortNumber, AccNumber, PolNumber, LayerNumber, StepNumber.
 
 ## Special Conditions
 Special conditions may be used to represent extra policy conditions applying to one or more subsets of locations under a policy.
