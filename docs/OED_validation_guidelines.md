@@ -10,8 +10,8 @@ This document should be read alongside OED_Financial_Fields_supported.xlsx which
 Only the OED location file is required for running a ground up loss analysis.  The OED account file may be provided if there are direct insurance terms, and the OED Reinsurance info file and the OED Reinsurance scope file may be provided together if there are reinsurance terms. 
 
 ## OED Versions supported
- OasisLMF 1.15.21-LTS supports OED v1 format files
- OasisLMF 1.23-LTS and later releases support OED v2 format files
+* OasisLMF 1.15.21-LTS supports OED v1 format files
+* OasisLMF 1.23-LTS and later releases support OED v2 format files
 
 ## Minimum required fields
 The OED schema has a fixed set of required fields, but the required fields for loading exposures into the Oasis platform will vary depending on what model is being run.  This is because the main function of the Oasis platform is to run exposures against a catastrophe model and each model has a particular set of fields needed for exposure geo-location and vulnerability identification.
