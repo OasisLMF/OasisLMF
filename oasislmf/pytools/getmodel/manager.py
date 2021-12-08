@@ -523,12 +523,6 @@ def run(run_dir, file_in, file_out, ignore_file_type):
 
     Returns: None
     """
-    from screw_driver.emissary import EmissaryConnection
-    import psutil
-
-    emissary_connection = EmissaryConnection(key="get-model")
-    process = psutil.Process(os.getpid())
-
     ignore_file_type = set(ignore_file_type)
     with ExitStack() as stack:
         if file_in is None:
@@ -549,34 +543,18 @@ def run(run_dir, file_in, file_out, ignore_file_type):
 
         logger.debug('init items')
 
-        memory_message = "init items " + str(process.memory_info().rss) + " " + str(
-            process.memory_info().shared)
-        emissary_connection.send_message(message=memory_message)
-
         vuln_id_to_idx, areaperil_id_to_idx, areaperil_to_vulns_ptr, vulns_ptr_to_idx = get_items(input_path, ignore_file_type)
 
         logger.debug('init footprint')
-
-        memory_message = "init footprint " + str(process.memory_info().rss) + " " + str(
-            process.memory_info().shared)
-        emissary_connection.send_message(message=memory_message)
 
         footprint_obj = stack.enter_context(Footprint.load(static_path, ignore_file_type))
         num_intensity_bins = np.int32(footprint_obj.num_intensity_bins)
 
         logger.debug('init vulnerability')
 
-        memory_message = "init vulnerability " + str(process.memory_info().rss) + " " + str(
-            process.memory_info().shared)
-        emissary_connection.send_message(message=memory_message)
-
         vuln_array, vuln_id_to_idx, num_damage_bins = get_vulns(static_path, vuln_id_to_idx, num_intensity_bins, ignore_file_type)
 
         logger.debug('init mean_damage_bins')
-
-        memory_message = "init mean_damage_bins " + str(process.memory_info().rss) + " " + str(
-            process.memory_info().shared)
-        emissary_connection.send_message(message=memory_message)
 
         mean_damage_bins = get_mean_damage_bins(static_path, ignore_file_type)
 
@@ -591,10 +569,6 @@ def run(run_dir, file_in, file_out, ignore_file_type):
         stream_out.write(np.uint32(1).tobytes())
 
         logger.debug('doCdf staring')
-
-        memory_message = "doCdf starting " + str(process.memory_info().rss) + " " + str(
-            process.memory_info().shared)
-        emissary_connection.send_message(message=memory_message)
 
         while True:
             len_read = streams_in.readinto(event_id_mv)
