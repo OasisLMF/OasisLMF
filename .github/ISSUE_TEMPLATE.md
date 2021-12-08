@@ -1,4 +1,4 @@
-**IMPORTANT: Please apply the relevant labels, for example if this issue is needed as a backported fix add the label `LTS fix` (Long term support fix)
+<!--- IMPORTANT: Please apply the relevant labels, for example if this issue is needed as a backported fix add the label `LTS fix` (Long term support fix) -->
 
 ## Issue Description
 <!--- Describe the feature, enhancement or bug -->
@@ -12,7 +12,7 @@
 ## Version / Environment information
 <!--- OS / platform / environment used -->
 <!--- affected Oasis versions -->
-<!--- last working configuration --> 
+<!--- last working configuration -->
 
 ## Example data / logs
 <!--- zipped input files or code snippets -->

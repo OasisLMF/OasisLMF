@@ -1,2 +1,2 @@
-FlexiAccTestCase,PortNumber,AccNumber,PolNumber,PolPerilsCovered,AccCurrency,LayerParticipation,LayerLimit,LayerAttachment,PolPeril,PolDed6All,PolDedType6All,PolMinDed6All,PolMaxDed6All,PolLimit6All,PolLimitType6All,CondPeril,CondName,CondNumber,CondDed6All,CondDedType6All,CondMinDed6All,CondMaxDed6All,CondLimit6All,CondLimitType6All,CondPriority
-fm9,fm9,1,1,OO1,EUR,1.0,0.0,0.0,OO1,0.0,0,70000,0,100000.0,0,OO1,0,0,0,0,0,0,0.0,0,0
+FlexiAccTestCase,PortNumber,AccNumber,PolNumber,PolPerilsCovered,AccCurrency,LayerParticipation,LayerLimit,LayerAttachment,PolPeril,PolDed6All,PolDedType6All,PolMinDed6All,PolMaxDed6All,PolLimit6All,PolLimitType6All,CondPeril,CondTag,CondNumber,CondDed6All,CondDedType6All,CondMinDed6All,CondMaxDed6All,CondLimit6All,CondLimitType6All,CondPriority,CondName,OEDVersion
+fm9,fm9,1,1,OO1,EUR,1.0,0,0,OO1,0.0,0,70000,0,100000.0,0,OO1,0,0,0,0,0,0,0.0,0,0,0,2.0.0

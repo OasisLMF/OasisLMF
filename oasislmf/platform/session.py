@@ -68,7 +68,7 @@ class APISession(Session):
                 self.tkn_refresh = r.json()['refresh_token']
             self.headers['authorization'] = 'Bearer {}'.format(self.tkn_access)
             return r
-        except (TypeError, AttributeError, BytesWarning, HTTPError, ConnectionError, ReadTimeout) as e:    
+        except (TypeError, AttributeError, BytesWarning, HTTPError, ConnectionError, ReadTimeout) as e:
             err_msg = 'Authentication Error: {}'.format(r.text)
             raise OasisException(err_msg, e)
 
@@ -104,9 +104,10 @@ class APISession(Session):
                 error = "HTTP {}".format(http_err_code)
                 return True
             elif http_err_code in [401]:
-                self.logger.debug(f"requesting refresh token")
-                self._refresh_token()
-                return True
+                if self.tkn_refresh is not None:
+                    self.logger.debug(f"requesting refresh token")
+                    self._refresh_token()
+                    return True
         return False
 
     # @oasis_log

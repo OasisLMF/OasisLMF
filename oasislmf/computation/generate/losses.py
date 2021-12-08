@@ -190,10 +190,10 @@ class GenerateLossesDir(GenerateLossesBase):
         {'name': 'model_data_dir',         'flag':'-d', 'is_path': True, 'pre_exist': True,  'help': 'Model data directory path'},
         {'name': 'model_run_dir',          'flag':'-r', 'is_path': True, 'pre_exist': False, 'help': 'Model run directory path'},
         {'name': 'model_package_dir',      'flag':'-p', 'is_path': True, 'pre_exist': False, 'help': 'Path containing model specific package'},
+        {'name': 'ktools_legacy_stream',   'type': str2bool, 'const':True, 'nargs':'?', 'default': KTOOLS_GUL_LEGACY_STREAM, 'help': 'Run Ground up losses using the older stream type (Compatibility option)'},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'verbose',              'default': KTOOLS_DEBUG},
-        {'name': 'ktools_legacy_stream', 'default': KTOOLS_GUL_LEGACY_STREAM},
 
     ]
 
@@ -265,11 +265,11 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'ktools_num_fm_per_lb',   'default': KTOOL_N_FM_PER_LB,        'type':int, 'help': 'Number of fm per load balancer (0 means no load balancer)'},
         {'name': 'ktools_disable_guard',   'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Disables error handling in the ktools run script (abort on non-zero exitcode or output on stderr)'},
         {'name': 'ktools_fifo_relative',   'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Create ktools fifo queues under the ./fifo dir'},
-        {'name': 'getmodelpy',             'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use getmodel python version instead of c++ version'},
+        {'name': 'modelpy',             'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use getmodel python version instead of c++ version'},
         {'name': 'fmpy',                   'default': True, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory',        'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output',       'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'order fmpy output by item_id'},
-        {'name': 'model_custom_gulcalc',   'default': None},
+        {'name': 'model_custom_gulcalc',   'default': None,  'help': 'Custom gulcalc binary name to call in the model losses step'},
 
         # New vars for chunked loss generation
         {'name': 'script_fp', 'default': None},
@@ -289,7 +289,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             self.script_fp = os.path.join(os.path.abspath(model_run_fp), script_name)
 
         if os.path.isfile(self.script_fp):
-            os.remove(self.script_fp) 
+            os.remove(self.script_fp)
 
         bash_params = model_runner_module.bash_params(
             analysis_settings,
@@ -312,7 +312,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             event_shuffle=self.ktools_event_shuffle,
             process_number=self.process_number,
             max_process_id=self.max_process_id,
-            getmodelpy=self.getmodelpy,
+            modelpy=self.modelpy,
         )
         ## Workaround test -- needs adding into bash_params
         if self.ktools_fifo_queue_dir:
@@ -360,7 +360,7 @@ class GenerateLossesOutput(GenerateLossesDir):
             self.script_fp = os.path.join(os.path.abspath(model_run_fp), 'run_outputs.sh')
 
         if os.path.isfile(self.script_fp):
-            os.remove(self.script_fp) 
+            os.remove(self.script_fp)
 
         bash_params = model_runner_module.bash_params(
             analysis_settings,
@@ -423,12 +423,11 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'ktools_num_fm_per_lb',   'default': KTOOL_N_FM_PER_LB,        'type':int, 'help': 'Number of fm per load balancer (0 means no load balancer)'},
         {'name': 'ktools_disable_guard',   'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Disables error handling in the ktools run script (abort on non-zero exitcode or output on stderr)'},
         {'name': 'ktools_fifo_relative',   'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Create ktools fifo queues under the ./fifo dir'},
-        {'name': 'getmodelpy',             'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use getmodel python version instead of c++ version'},
+        {'name': 'modelpy',             'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use getmodel python version instead of c++ version'},
         {'name': 'fmpy',                   'default': True, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use fmcalc python version instead of c++ version'},
         {'name': 'fmpy_low_memory',        'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output',       'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'order fmpy output by item_id'},
-
-        {'name': 'model_custom_gulcalc', 'default': None},
+        {'name': 'model_custom_gulcalc',   'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
     ]
 
     def run(self):
@@ -462,7 +461,7 @@ class GenerateLosses(GenerateLossesDir):
                         fmpy_low_memory=self.fmpy_low_memory,
                         fmpy_sort_output=self.fmpy_sort_output,
                         event_shuffle=self.ktools_event_shuffle,
-                        getmodelpy=self.getmodelpy,
+                        modelpy=self.modelpy,
                     )
                 except TypeError:
                     warnings.simplefilter("always")
@@ -802,12 +801,11 @@ class GenerateLossesDummyModel(GenerateDummyOasisFiles):
                 self.analysis_settings['model_settings']['use_random_number_file'] = False
 
     def _prepare_run_directory(self):
-        self.input_dir = os.path.join(self.target_dir, 'input')
-        self.static_dir = os.path.join(self.target_dir, 'static')
+        super()._prepare_run_directory()
         self.output_dir = os.path.join(self.target_dir, 'output')
         self.work_dir = os.path.join(self.target_dir, 'work')
         directories = [
-            self.input_dir, self.static_dir, self.output_dir, self.work_dir
+            self.output_dir, self.work_dir
         ]
         for directory in directories:
             if not os.path.exists(directory):

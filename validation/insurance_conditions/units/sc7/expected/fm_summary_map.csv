@@ -1,0 +1,5 @@
+acc_idx,accnumber,agg_id,coverage_id,coverage_type_id,layer_id,loc_id,loc_idx,locnumber,peril_id,polnumber,portnumber,tiv,output_id
+0,10,1,1,1,1,1,0,11979,1,A,sc7,75000000.0,1
+1,10,1,1,1,2,1,0,11979,1,B,sc7,75000000.0,2
+0,10,2,2,1,1,2,1,11980,1,A,sc7,75000000.0,3
+1,10,2,2,1,2,2,1,11980,1,B,sc7,75000000.0,4

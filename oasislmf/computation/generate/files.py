@@ -7,6 +7,7 @@ __all__ = [
 import io
 import json
 import os
+from pathlib import Path
 
 from .keys import GenerateKeys, GenerateKeysDeterministic
 from ..base import ComputationStep
@@ -101,11 +102,11 @@ class GenerateFiles(ComputationStep):
         {'name': 'oed_scope_csv',              'flag':'-s', 'is_path': True, 'pre_exist': True,  'help': 'Reinsurance scope CSV file path'},
         {'name': 'disable_summarise_exposure', 'flag':'-S', 'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'Disables creation of an exposure summary report'},
         {'name': 'group_id_cols',              'flag':'-G', 'nargs':'+',                         'help': 'Columns from loc file to set group_id', 'default': GROUP_ID_COLS},
+        {'name': 'lookup_multiprocessing',     'type': str2bool, 'const':True, 'nargs':'?',  'default': True, 'help': 'Flag to enable/disable lookup multiprocessing'},
 
         # Manager only options (pass data directy instead of filepaths)
         {'name': 'lookup_config'},
         {'name': 'lookup_complex_config'},
-        {'name': 'lookup_multiprocessing',        'default': True},
         {'name': 'write_ri_tree',                 'default': False},
         {'name': 'verbose',                       'default': False},
         {'name': 'write_chunksize', 'type':int,   'default': WRITE_CHUNKSIZE},
@@ -347,6 +348,8 @@ class GenerateDummyModelFiles(ComputationStep):
         {'name': 'intensity_sparseness',     'flag': '-S', 'required': False, 'type': float,    'default': 1.0,         'help': 'Percentage of bins normalised to range [0,1] impacted for an event and areaperil'},
         {'name': 'no_intensity_uncertainty', 'flag': '-u', 'required': False, 'default': False, 'action': 'store_true', 'help': 'No intensity uncertainty flag'},
         {'name': 'num_periods',              'flag': '-p', 'required': True,  'type': int,                              'help': 'Number of periods'},
+        {'name': 'periods_per_event_mean',   'flag': '-P', 'required': False, 'type': int,      'default': 1,           'help': 'Mean of truncated normal distribution sampled to determine number of periods per event'},
+        {'name': 'periods_per_event_stddev', 'flag': '-Q', 'required': False, 'type': float,    'default': 0.0,         'help': 'Standard deviation of truncated normal distribution sampled to determine number of periods per event'},
         {'name': 'num_randoms',              'flag': '-r', 'required': False, 'type': int,      'default': 0,           'help': 'Number of random numbers'},
         {'name': 'random_seed',              'flag': '-R', 'required': False, 'type': int,      'default': -1,          'help': 'Random seed (-1 for 1234 (default), 0 for current system time'}
     ]
@@ -369,8 +372,16 @@ class GenerateDummyModelFiles(ComputationStep):
         self.target_dir = create_target_directory(
             target_dir, 'target test model files directory'
         )
-        self.input_dir = self.target_dir
-        self.static_dir = self.target_dir
+
+    def _prepare_run_directory(self):
+        self.input_dir = os.path.join(self.target_dir, 'input')
+        self.static_dir = os.path.join(self.target_dir, 'static')
+        directories = [
+            self.input_dir, self.static_dir
+        ]
+        for directory in directories:
+            if not os.path.exists(directory):
+                Path(directory).mkdir(parents=True, exist_ok=True)
 
     def _set_footprint_files_inputs(self):
         self.footprint_files_inputs = {
@@ -383,11 +394,18 @@ class GenerateDummyModelFiles(ComputationStep):
             'directory': self.static_dir
         }
 
+    def _set_periods_per_event_parameters(self):
+        self.periods_per_event_parameters = {
+            'mean': self.periods_per_event_mean,
+            'stddev': self.periods_per_event_stddev
+        }
+
     def _get_model_file_objects(self):
 
         # vulnerability.bin, events.bin, footprint.bin, footprint.idx,
         # damage_bin_dict.bin and occurrence.bin
         self._set_footprint_files_inputs()
+        self._set_periods_per_event_parameters()
         self.model_files = [
             VulnerabilityFile(
                 self.num_vulnerabilities, self.num_intensity_bins,
@@ -402,7 +420,7 @@ class GenerateDummyModelFiles(ComputationStep):
             DamageBinDictFile(self.num_damage_bins, self.static_dir),
             OccurrenceFile(
                 self.num_events, self.num_periods, self.random_seed,
-                self.input_dir
+                self.input_dir, **self.periods_per_event_parameters
             )
         ]
         if self.num_randoms > 0:
@@ -416,6 +434,7 @@ class GenerateDummyModelFiles(ComputationStep):
 
         self._validate_input_arguments()
         self._create_target_directory(label='files')
+        self._prepare_run_directory()
         self._get_model_file_objects()
 
         for model_file in self.model_files:
@@ -489,6 +508,7 @@ class GenerateDummyOasisFiles(GenerateDummyModelFiles):
 
         self._validate_input_arguments()
         self._create_target_directory(label='files')
+        self._prepare_run_directory()
         self._get_model_file_objects()
         self._get_gul_file_objects()
 

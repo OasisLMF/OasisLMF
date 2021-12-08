@@ -1,0 +1,2 @@
+FlexiAccTestCase,PortNumber,AccNumber,PolNumber,PolPerilsCovered,AccCurrency,LayerParticipation,LayerLimit,LayerAttachment,PolPeril,PolDed6All,PolDedType6All,PolMinDed6All,PolMaxDed6All,PolLimit6All,PolLimitType6All,CondPeril,CondTag,CondNumber,CondDed6All,CondDedType6All,CondMinDed6All,CondMaxDed6All,CondLimit6All,CondLimitType6All,CondPriority,CondName,CondClass,OEDVersion
+sc6,sc6,11,A,AA1,USD,1.0,2500000,0,AA1,0,0,0,0,0,0,AA1,366450,366450,0,0,0,0,0,0,0,EXCL NM LOCS,1,2.0.0

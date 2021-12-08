@@ -32,6 +32,7 @@ import json
 import jsonschema
 import re
 import warnings
+import logging
 
 from datetime import datetime
 from collections import OrderedDict
@@ -294,6 +295,52 @@ def validate_json(json_data, json_schema):
     return is_valid, exception_msgs
 
 
+def analysis_settings_compatibility(analysis_settings_data):
+    """
+    NOTE: when ready to depricate these older names this fucntion should be remoived
+
+    Check for an older version of the analysis_settings JSON
+
+    Warn the user of the schema change and update the following keys
+        * `module_supplier_id` -> `model_supplier_id`
+        * `model_version_id` -> `model_name_id`
+
+    :param analysis_settings_data: JSON data from an analysis_settings file
+    :type  analysis_settings_data: dict
+
+    :return: updated analysis_ settings
+    :rtype: dict
+    """
+    compatibility_profile = {
+        "module_supplier_id":{
+            "from_ver": "1.23.0",
+            "updated_to": "model_supplier_id"
+        },
+        "model_version_id":{
+            "from_ver": "1.23.0",
+            "updated_to": "model_name_id"
+        },
+    }
+    obsolete_keys = set(compatibility_profile) & set(analysis_settings_data)
+    if obsolete_keys:
+        logger = logging.getLogger()
+        logger.warning('WARNING: Deprecated key(s) in analysis_settings JSON')
+        for key in obsolete_keys:
+            # warn user
+            logger.warning('   {} : {}'.format(
+                key,
+                compatibility_profile[key],
+            ))
+            # Update settings, if newer key not found
+            updated_key = compatibility_profile[key]['updated_to']
+            if updated_key not in analysis_settings_data:
+                analysis_settings_data[updated_key] = analysis_settings_data[key]
+            del analysis_settings_data[key]
+
+        logger.warning('   These keys have been automatically updated, but should be fixed in the original file.\n')
+    return analysis_settings_data
+
+
 def get_analysis_settings(analysis_settings_fp, key=None, validate=True):
     """
     Get analysis settings from file.
@@ -312,7 +359,8 @@ def get_analysis_settings(analysis_settings_fp, key=None, validate=True):
     """
     try:
         with io.open(analysis_settings_fp) as f:
-            analysis_settings = json.load(f)
+            raw_settings_json = json.load(f)
+            analysis_settings = analysis_settings_compatibility(raw_settings_json)
 
             if validate:
                 schema = get_json(get_analysis_schema_fp())
@@ -492,13 +540,16 @@ def get_dataframe(
     na_values = list(PANDAS_DEFAULT_NULL_VALUES.difference(['NA']))
 
     try:
+        # memory map causes encoding errors with non-standard formats
         use_encoding = encoding if encoding else 'utf-8'
+        memory_map = memory_map and (use_encoding == 'utf-8')
+
         if src_fp or src_buf:
             if src_type == 'csv':
                 # Find flexible fields in loc file and set their data types to that of
                 # FlexiLocZZZ
                 if 'FlexiLocZZZ' in col_dtypes.keys():
-                    headers = list(pd.read_csv(src_fp).head(0))
+                    headers = list(pd.read_csv(src_fp, encoding=use_encoding).head(0))
                     for flexiloc_col in filter(re.compile('^FlexiLoc').match, headers):
                         col_dtypes[flexiloc_col] = col_dtypes['FlexiLocZZZ']
                 df = pd.read_csv(
@@ -917,7 +968,7 @@ def get_location_df(
     if 'loc_id' not in exposure_df.columns:
         exposure_df['loc_id'] = get_ids(exposure_df, [portfolio_num, acc_num, loc_num])
 
-    # Add file Index column to extract OED columns for summary grouping 
+    # Add file Index column to extract OED columns for summary grouping
     exposure_df[SOURCE_IDX['loc']] = exposure_df.index
 
     return exposure_df

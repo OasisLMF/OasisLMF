@@ -298,12 +298,12 @@ def get_gul_input_items(
 
     # Set the item IDs and coverage IDs, and defaults and data types for
     # layer IDs and agg. IDs
-    item_ids = gul_inputs_df.index + 1
+    gul_inputs_df['item_id'] = factorize_ndarray(
+        gul_inputs_df.loc[:, ['loc_id', 'peril_id', 'coverage_type_id']].values, col_idxs=range(3))[0]
     gul_inputs_df['coverage_id'] = factorize_ndarray(
         gul_inputs_df.loc[:, ['loc_id', 'coverage_type_id']].values, col_idxs=range(2))[0]
-    gul_inputs_df = gul_inputs_df.assign(
-        item_id=item_ids,
-    )
+
+    gul_inputs_df.drop_duplicates(subset='item_id', inplace=True)
     dtypes = {
         **{t: 'uint32' for t in ['item_id', 'coverage_id']},
         **{t: 'uint8' for t in terms_ints}

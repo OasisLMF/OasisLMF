@@ -16,21 +16,21 @@
          "description":"Short Description of the catastrophe model (optional)",
          "minLength":1
       },
-      "supplier_id": {
+      "model_supplier_id": {
          "type":"string",
-         "title":"Supplier ID",
+         "title":"Model Supplier ID",
          "description":"The supplier ID for the model. (optional)",
          "minLength":1
       },
-      "model_id": {
+      "model_name_id": {
          "type":"string",
-         "title":"Model ID",
+         "title":"Model Name ID",
          "description":"The model ID for the model. (optional)",
          "minLength":1
       },
       "model_version_id": {
          "type":"string",
-         "title":"Version ID",
+         "title":"Model Version ID",
          "description":"The version ID for the model. (optional)",
          "minLength":1
       },
@@ -38,6 +38,12 @@
          "type":"boolean",
          "title":"Model configurable",
          "description":"Marks this model as a 'complex model' with configuration options at the input file generation stage. (optional)"
+      },
+      "model_default_samples":{
+         "type":"integer",
+         "title":"Default number of samples",
+         "description":"The default number of samples generated per event. (optional)",
+         "minimum":0
       },
       "model_settings":{
          "type":"object",
@@ -69,6 +75,7 @@
                      "title":"Where the setting is applied",
                      "description":"Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
                      "enum":[
+                        "all",
                         "generation",
                         "losses"
                      ]
@@ -104,6 +111,12 @@
                               "title":"Event set description",
                               "description":"UI description for selection",
                               "minLength":1
+                           },
+                           "number_of_events":{
+                              "type":"integer",
+                              "title":"The number of events",
+                              "description":"The total number of events in the set. (optional)",
+                              "minimum":0
                            },
                            "valid_occurrence_ids":{
                               "type":"array",
@@ -214,6 +227,7 @@
                      "title":"Where the setting is applied",
                      "description":"Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
                      "enum":[
+                        "all",
                         "generation",
                         "losses"
                      ]
@@ -361,6 +375,7 @@
                         "title":"Where the setting is applied",
                         "description":"Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
                         "enum":[
+                           "all",
                            "generation",
                            "losses"
                         ]
@@ -411,6 +426,7 @@
                         "title":"Where the setting is applied",
                         "description":"Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
                         "enum":[
+                           "all",
                            "generation",
                            "losses"
                         ]
@@ -464,6 +480,7 @@
                         "title":"Where the setting is applied",
                         "description":"Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
                         "enum":[
+                           "all",
                            "generation",
                            "losses"
                         ]
@@ -514,6 +531,7 @@
                         "title":"Where the setting is applied",
                         "description":"Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
                         "enum":[
+                           "all",
                            "generation",
                            "losses"
                         ]
@@ -564,6 +582,7 @@
                         "title":"Where the setting is applied",
                         "description":"Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
                         "enum":[
+                           "all",
                            "generation",
                            "losses"
                         ]
@@ -587,6 +606,11 @@
                         "type":"number",
                         "title":"Minimum value",
                         "description":"Minimum Value for float variable"
+                     },
+                     "stepsize":{
+                        "type":"number",
+                        "title":"Interval step size",
+                        "description":"The slider widget's step interval for adjusting the float parameter."
                      }
                   },
                   "required":[
@@ -626,6 +650,7 @@
                         "title":"Where the setting is applied",
                         "description":"Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
                         "enum":[
+                           "all",
                            "generation",
                            "losses"
                         ]
@@ -676,6 +701,7 @@
                         "title":"Where the setting is applied",
                         "description":"Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
                         "enum":[
+                           "all",
                            "generation",
                            "losses"
                         ]
@@ -761,6 +787,7 @@
                         "title":"Where the setting is applied",
                         "description":"Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
                         "enum":[
+                           "all",
                            "generation",
                            "losses"
                         ]
@@ -811,6 +838,7 @@
                         "title":"Where the setting is applied",
                         "description":"Set if this parameter is ONLY used at input 'generation' or for output 'losses'",
                         "enum":[
+                           "all",
                            "generation",
                            "losses"
                         ]

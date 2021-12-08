@@ -52,8 +52,8 @@
             }
         ],
         "model_settings": {},
-        "model_version_id": null,
-        "module_supplier_id": null,
+        "model_name_id": null,
+        "model_supplier_id": null,
         "number_of_samples": 10,
         "prog_id": 12,
         "source_tag": "det_analysis"

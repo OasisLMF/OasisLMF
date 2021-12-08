@@ -123,11 +123,11 @@ node {
             }
         }
 
-        stage('Run MDK: PiWind 3.6') {
+        stage('Run MDK: PiWind 3.8') {
             dir(build_workspace) {
-                sh "sed -i 's/FROM.*/FROM python:3.6/g' docker/Dockerfile.mdk-tester"
-                sh 'docker build -f docker/Dockerfile.mdk-tester -t mdk-runner:3.6 .'
-                sh "docker run mdk-runner:3.6 --model-repo-branch ${model_branch} --mdk-repo-branch ${MDK_BRANCH} --model-run-mode ${MDK_RUN}"
+                sh "sed -i 's/FROM.*/FROM python:3.8/g' docker/Dockerfile.mdk-tester"
+                sh 'docker build -f docker/Dockerfile.mdk-tester -t mdk-runner:3.8 .'
+                sh "docker run mdk-runner:3.8 --model-repo-branch ${model_branch} --mdk-repo-branch ${MDK_BRANCH} --model-run-mode ${MDK_RUN}"
             }
         }
 
@@ -137,11 +137,13 @@ node {
             }
         }
 
+
         // Access to stored GPG key
         // https://jenkins.io/doc/pipeline/steps/credentials-binding/
         //
         // gpg_key  --> Jenkins credentialId  type 'Secret file', GPG key
         // gpg_pass --> Jenkins credentialId  type 'Secret text', passphrase for the above key
+
         if (params.PUBLISH){
             // Build chanagelog image
             stage("Create Changelog builder") {
@@ -159,6 +161,7 @@ node {
                     }
                 }
             }
+
             // Create release notes
             stage('Create Changelog'){
                 dir(source_workspace) {
@@ -175,6 +178,11 @@ node {
             }
 
             // GPG sign pip package
+            // Access to stored GPG key
+            // https://jenkins.io/doc/pipeline/steps/credentials-binding/
+            //
+            // gpg_key  --> Jenkins credentialId  type 'Secret file', GPG key
+            // gpg_pass --> Jenkins credentialId  type 'Secret text', passphrase for the above key
             stage('Sign Package: ' + source_func) {
                 String gpg_dir='/var/lib/jenkins/.gnupg/'
                 sh "if test -d ${gpg_dir}; then rm -r ${gpg_dir}; fi"

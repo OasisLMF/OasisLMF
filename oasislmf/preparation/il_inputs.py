@@ -39,6 +39,7 @@ from ..utils.data import (
     merge_dataframes,
     set_dataframe_column_dtypes,
     get_dtypes_and_required_cols,
+    fill_na_with_categoricals,
 )
 from ..utils.defaults import (
     assign_defaults_to_il_inputs,
@@ -377,7 +378,9 @@ def get_account_df(accounts_fp, accounts_profile):
     acc_num = accounts_profile['AccNumber']['ProfileElementName'].lower()
     policy_num = accounts_profile['PolNumber']['ProfileElementName'].lower()
     portfolio_num = accounts_profile['PortNumber']['ProfileElementName'].lower()
+    cond_tag = accounts_profile['CondTag']['ProfileElementName'].lower()
     cond_num = accounts_profile['CondNumber']['ProfileElementName'].lower()
+    cond_class = accounts_profile['CondClass']['ProfileElementName'].lower()
     layer_num = accounts_profile['LayerNumber']['ProfileElementName'].lower()
 
     # Get the FM terms profile (this is a simplfied view of the main grouped
@@ -408,14 +411,14 @@ def get_account_df(accounts_fp, accounts_profile):
     # Set defaults and data types for all the financial terms columns in the
     # accounts dataframe
     defaults = get_oed_default_values(terms=term_cols)
-    defaults[cond_num] = 0
+    defaults[cond_tag] = '0'
+    defaults[cond_num] = ''
     defaults[portfolio_num] = 1
     oed_acc_dtypes, _ = get_dtypes_and_required_cols(get_acc_dtypes)
     dtypes = {
-        **{t: 'str' for t in [acc_num, portfolio_num, policy_num]},
+        **{t: 'str' for t in [acc_num, portfolio_num, policy_num, cond_num, cond_tag]},
         **{t: 'float64' for t in term_cols_floats},
         **{t: 'uint8' for t in term_cols_ints},
-        **{t: 'uint16' for t in [cond_num]},
         **{t: 'uint32' for t in ['layer_id']},
         **oed_acc_dtypes
     }
@@ -452,6 +455,7 @@ def get_account_df(accounts_fp, accounts_profile):
     layers_cols = [portfolio_num, acc_num]
     if step_policies_present:
         layers_cols += ['stepnumber']
+        accounts_df['stepnumber'].fillna(0, inplace=True)
     id_df = accounts_df[layers_cols + [policy_num, layer_num]].drop_duplicates(keep='first')
     id_df['layer_id'] = get_ids(id_df,
         layers_cols + [policy_num, layer_num], group_by=layers_cols,
@@ -463,7 +467,7 @@ def get_account_df(accounts_fp, accounts_profile):
     # the source columns for the financial terms present in the accounts file
     # (the file should contain all financial terms relating to the cond. all
     # (# 6), policy all (# 9) and policy layer (# 10) FM levels)
-    usecols = [acc_num, portfolio_num, policy_num, cond_num, 'layer_id', SOURCE_IDX['acc'], 'condpriority'] + term_cols
+    usecols = [acc_num, portfolio_num, policy_num, cond_tag, cond_num, cond_class, 'layer_id', SOURCE_IDX['acc'], 'condpriority'] + term_cols
     # If step policies listed, keep step trigger type and columns associated
     # with those step trigger types that are present
     if step_policies_present:
@@ -504,7 +508,7 @@ def __merge_exposure_and_gul(exposure_df, gul_inputs_df, fm_terms, profile, oed_
 
 
     """
-    cond_num = oed_hierarchy['condnum']['ProfileElementName'].lower()
+    cond_tag = oed_hierarchy['condtag']['ProfileElementName'].lower()
 
     # get usefull term columns from exposure_df
     site_pd_and_site_all_term_cols = get_fm_terms_oed_columns(fm_terms, levels=['site pd', 'site all'])
@@ -521,13 +525,20 @@ def __merge_exposure_and_gul(exposure_df, gul_inputs_df, fm_terms, profile, oed_
     # Calculate sum of TIV columns
     exposure_df['tiv_sum'] = exposure_df[tiv_terms.values()].sum(axis=1)
 
+    # set default cond_tag
+    if cond_tag not in exposure_df.columns:
+        exposure_df[cond_tag] = '0'
+    else:
+        fill_na_with_categoricals(exposure_df, {cond_tag:'0'})
+        exposure_df.loc[exposure_df[cond_tag] == '', cond_tag] = '0'
+
     # Identify BI TIV column
     bi_tiv_col = __get_bi_tiv_col_name(profile)
 
     # merge exposure_df and gul_inputs_df #####
     return merge_dataframes(
         exposure_df.loc[:, exposure_usefull_fm_cols + [
-            'loc_id', 'tiv_sum', bi_tiv_col, cond_num
+            'loc_id', 'tiv_sum', bi_tiv_col, cond_tag
         ]],
         gul_inputs_df,
         join_on='loc_id',
@@ -536,37 +547,58 @@ def __merge_exposure_and_gul(exposure_df, gul_inputs_df, fm_terms, profile, oed_
 
 
 def __merge_gul_and_account(gul_inputs_df, accounts_df, fm_terms, oed_hierarchy):
-    """prepare gul and account df and merge them based on [portfolio_num, acc_num, cond_num]"""
+    """prepare gul and account df and merge them based on [portfolio_num, acc_num, cond_tag]"""
 
     acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
     portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
+    policy_num = oed_hierarchy['polnum']['ProfileElementName'].lower()
+    cond_tag = oed_hierarchy['condtag']['ProfileElementName'].lower()
     cond_num = oed_hierarchy['condnum']['ProfileElementName'].lower()
+    cond_class = oed_hierarchy['condclass']['ProfileElementName'].lower()
     loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
+
+    policy_df = accounts_df.drop_duplicates(subset=[portfolio_num, acc_num, policy_num, 'layer_id']).drop(columns=cond_tag)
+    cond_df = accounts_df[[portfolio_num, acc_num, cond_tag]].drop_duplicates()
+    all_cond_policy =  pd.merge(policy_df, cond_df, on=[portfolio_num, acc_num])
+
+    missing_cond_policy_df = pd.merge(accounts_df[[portfolio_num, acc_num, policy_num, 'layer_id', cond_tag]],
+                           all_cond_policy, how='right', indicator=True)
+    missing_cond_policy_df = missing_cond_policy_df[missing_cond_policy_df['_merge'] == 'right_only'].drop(columns ='_merge')
 
     ###### prepare accounts_df #####
     # create account line without condition
-    null_cond = accounts_df[accounts_df[cond_num] != 0]
-    null_cond[cond_num] = 0
+    null_cond = accounts_df[accounts_df[cond_tag] != '0']
+    null_cond[cond_tag] = '0'
+    null_cond = pd.concat([null_cond, missing_cond_policy_df])
+    null_cond[cond_num] = ''
     level_id = SUPPORTED_FM_LEVELS['cond all']['id']
     level_term_cols = get_fm_terms_oed_columns(fm_terms, level_ids=[level_id])
     null_cond[level_term_cols] = 0
+    null_cond.drop_duplicates(subset=[portfolio_num, acc_num, cond_tag, 'layer_id'], inplace=True)
+    if cond_class in null_cond.columns:
+        filter_cond = (null_cond[cond_class] == 1)
+        null_cond.loc[filter_cond, cond_num] = 'FullFilter'
+        null_cond.loc[filter_cond, 'condded6all'] = 1
+        null_cond.loc[filter_cond, 'conddedtype6all'] = 1
+
     accounts_df = pd.concat([accounts_df, null_cond])
 
     ##### merge accounts_df and gul_inputs_df #####
     # check for empty intersection between dfs
     merge_check(
-        gul_inputs_df[[portfolio_num, acc_num, cond_num]],
-        accounts_df[[portfolio_num, acc_num, cond_num]],
-        on=[portfolio_num, acc_num, cond_num]
+        gul_inputs_df[[portfolio_num, acc_num, cond_tag]],
+        accounts_df[[portfolio_num, acc_num, cond_tag]],
+        on=[portfolio_num, acc_num, cond_tag]
     )
+
     # Construct a basic IL inputs frame by merging the combined exposure +
     # GUL inputs frame above, with the accounts frame, on portfolio no.,
     # account no. and condition no. (by default items in the GUL inputs frame
     # are set with a condition no. of 0)
-    column_base_il_df =  merge_dataframes(
+    column_base_il_df = merge_dataframes(
         gul_inputs_df,
         accounts_df,
-        on=[portfolio_num, acc_num, cond_num],
+        on=[portfolio_num, acc_num, cond_tag],
         how='left',
         drop_duplicates=True
     )
@@ -574,7 +606,7 @@ def __merge_gul_and_account(gul_inputs_df, accounts_df, fm_terms, oed_hierarchy)
     missing_account_row = column_base_il_df.loc[column_base_il_df['layer_id'].isna()]
     if not missing_account_row.empty:
         raise OasisException("locations have policies, accounts combination not present in the account file \n" +
-                             missing_account_row[[loc_num, portfolio_num, acc_num, cond_num]].drop_duplicates().to_string(index=False))
+                             missing_account_row[[loc_num, portfolio_num, acc_num, cond_tag]].drop_duplicates().to_string(index=False))
 
     # If the merge is empty raise an exception - this will happen usually
     # if there are no common acc. numbers between the GUL input items and
@@ -619,207 +651,177 @@ def __extract_level_location_to_agg_cond_dict(account_groups, base_level, max_le
     level_grouping = {}
     agg_dict = {level_id: 1 for level_id in range(base_level, max_level + 1)}
 
-    def set_agg_cond(ptf, account, group_id, group, level_id, layer_id, condition):
-        level_group_key = (ptf, account, group_id, level_id)
+    def set_agg_cond(main_key, group_id, group, level_id, layer_id, condition):
+        level_group_key = group_id + (level_id,)
         if level_group_key not in level_grouping:
             level_grouping[level_group_key] = agg_dict[level_id]
             agg_dict[level_id] += 1
-        for _, _, location in group['locations']:
-            level_location_to_agg_cond_dict[(ptf, account, level_id, layer_id, location)] = (level_grouping[level_group_key], condition)
+        for loc_key in group['locations']:
+            location = loc_key[-1]
+            level_location_to_agg_cond_dict[group_id + (level_id, layer_id, location)] = (level_grouping[level_group_key], condition)
 
-    for (ptf, account), groups in account_groups.items():
+    for main_key, groups in account_groups.items():
         #first we iter through groups to create agg
-        no_parent_not_top_groups = set(groups)
+        no_parent_not_top_groups = dict(groups)
         for group_id, group in groups.items():
-            for layer_id, ((_, _, condition), _) in group['layers'].items():
+            for layer_id, cond_num in group['layers'].items():
                 for level_id in range(base_level, group['level']):
-                    set_agg_cond(ptf, account, group_id, group, level_id, layer_id, 0)
+                    set_agg_cond(main_key, group_id, group, level_id, layer_id, '')
 
                 if group['level'] == max_level:
-                    no_parent_not_top_groups.discard(group_id)
-                set_agg_cond(ptf, account, group_id, group, group['level'], layer_id, condition)
+                    no_parent_not_top_groups.pop(group_id, None)
+                set_agg_cond(main_key, group_id, group, group['level'], layer_id, cond_num)
 
                 for child_group_id in group.get('childs', []):
-                    no_parent_not_top_groups.discard(child_group_id)
-                    set_agg_cond(ptf, account, group_id, groups[child_group_id], group['level'], layer_id, condition)
+                    no_parent_not_top_groups.pop(child_group_id, None)
+                    set_agg_cond(main_key, group_id, groups[child_group_id], group['level'], layer_id, cond_num)
 
         for group_id in no_parent_not_top_groups:
             for level_id in range(group['level'] + 1, max_level + 1):
                 group = groups[group_id]
                 for layer_id in group['layers']:
-                    set_agg_cond(ptf, account, group_id, group, level_id, layer_id, 0)
+                    set_agg_cond(main_key, group_id, group, level_id, layer_id, '')
 
     return level_location_to_agg_cond_dict
 
 
-def __get_cond_grouping_hierarchy(column_base_il_df, portfolio_num, acc_num, cond_num, loc_num, base_level):
-    """create group of locations based on the condition number and condition hierarchy found in column_base_il_df
+def __get_cond_grouping_hierarchy(column_base_il_df, main_key, cond_tag, cond_num, loc_num, base_level):
+    """create group of locations based on the condition tag, condition number and condition hierarchy found in column_base_il_df
 
-    simplified logic
-    go through each record in column_base_il_df:
-    if location is new:
-        if condition is new:
-            create a new group at base level
-        if the condition group is already created:
-             add the location to the group
-    if the location is already part of a group:
-        if condition is new:
-            if layer is already in the location group:
-               if new condition priority is smaller:
-                   a new group is created and the location is move to it
-                   the old location group is set as parent of the new group
-            if new condition priority is bigger:
-                a new group is created with the location and the condition of the old group
-                the old group is set as parent of he new group
-        if the condition group is already created:
-            we add the condition if it correspond to a new layer
     """
+    def attach_cond(child_group, parent_group, cond_to_group):
+        child_group['parent'] = parent_group['tag'][0]
+        parent_group.setdefault('childs', {})[child_group['tag'][0]] = None
+
+        cur_parent_cond = parent_group['tag'][0]
+        min_level = child_group['level'] + 1
+        while cur_parent_cond:
+            cur_parent_group = cond_to_group[cur_parent_cond]
+            cur_parent_group['level'] = max(min_level, cur_parent_group['level'])
+            min_level = cur_parent_group['level'] + 1
+            for loc in child_group['needed_loc']:
+                if loc not in cur_parent_group['needed_loc']:
+                    cur_parent_group['needed_loc'][loc] = True
+            cur_parent_cond = cur_parent_group.get('parent')
+
     if 'condpriority' not in column_base_il_df.columns:
         column_base_il_df['condpriority'] = 0
     column_base_il_df['condpriority'].fillna(0)
 
-    cond_hierachy = {}
-    for rec in column_base_il_df[[portfolio_num, acc_num, 'layer_id', cond_num, 'condpriority']].to_dict(orient="records"):
-        cond_hierachy[(rec[portfolio_num], rec[acc_num], rec[cond_num])] = (rec['layer_id'], rec['condpriority'])
+    # determine the number of layers for each main_key
+    main_key_layers = {}
+    for rec in column_base_il_df[main_key + ['layer_id']].to_dict(orient="records"):
+        main_key_layers.setdefault(tuple(rec[name] for name in main_key), set()).add(rec['layer_id'])
 
-    loc_to_group = {}
-    cond_to_group = {}
+    loc_to_cond = {}
     account_groups = {}
-    last_group_id = 1
-    max_level = base_level
-    for rec in column_base_il_df[[portfolio_num, acc_num, cond_num, loc_num, 'layer_id', 'condpriority']].drop_duplicates().to_dict(orient="records"):
-        groups = account_groups.setdefault((rec[portfolio_num], rec[acc_num]), {})
-        cond_key = (rec[portfolio_num], rec[acc_num], rec[cond_num])
-        loc_key = (rec[portfolio_num], rec[acc_num], rec[loc_num])
-        if loc_key not in loc_to_group:
-            if cond_key not in cond_to_group:
-                # print("first time condition, first time location")
-                group = {'locations': {loc_key},
-                         'layers': {rec['layer_id']: (cond_key, rec['condpriority'])},
-                         'needed': {rec['layer_id']: set()},
-                         'level': base_level}
-                groups[last_group_id] = group
-                loc_to_group[loc_key] = last_group_id
-                cond_to_group[cond_key] = last_group_id
-                last_group_id += 1
 
-            else:
-                # print("first time location, already condition")
-                group_id = cond_to_group[cond_key]
-                group = groups[group_id]
-                group['locations'].add(loc_key)
-                loc_to_group[loc_key] = group_id
+    for rec in column_base_il_df[main_key + [cond_tag, cond_num, loc_num, 'layer_id', 'condpriority']].drop_duplicates().to_dict(orient="records"):
+        group_key = tuple(rec[name] for name in main_key)
+        groups = account_groups.setdefault(group_key, {})
+        cond_key = tuple(rec[name] for name in main_key + [cond_tag])
+        loc_key = tuple(rec[name] for name in main_key + [loc_num])
 
-                # update the location needed for correct condition logic
-                for layer, needed in group['needed'].items():
-                    if layer != rec['layer_id']:
-                        needed.add(loc_key)
-                parent_group_id = group.get("parent")
-                while parent_group_id:
-                    parent_group = groups[parent_group_id]
-                    for layer, needed in parent_group['needed'].items():
-                        needed.add(loc_key)
-                    parent_group_id = parent_group.get("parent")
+        parent_cond = None
+        child_cond = None
+
+        # if location already exist we determine where the record condition is inside the location parent groups
+        if loc_key in loc_to_cond:
+            cur_cond = loc_to_cond[loc_key]
+            while cur_cond:
+                cur_group = groups[cur_cond]
+                cur_condpriority = cur_group['tag'][1]
+                if rec['condpriority'] == cur_condpriority:
+                    if cur_cond != cond_key:
+                        raise OasisException(f'condition of the same priority and policy {cond_key} {cur_cond}')
+                elif rec['condpriority'] > cur_condpriority:
+                    child_cond = cur_cond
+                else:
+                    parent_cond = cur_cond
+                    break
+                cur_cond = cur_group.get('parent')
+
+        if cond_key not in groups:
+            # new cond key we create a new group
+            group = {'locations': {},
+                     'tag': (cond_key, rec['condpriority']),
+                     'layers': {layer_id: '' for layer_id in main_key_layers[group_key]},
+                     'needed_loc': {},
+                     'level': base_level}
+            groups[cond_key] = group
         else:
-            if cond_key not in cond_to_group:
-                # print("first time condition, already location")
-                prev_group_id = loc_to_group[loc_key]
-                prev_group = groups[prev_group_id]
-                if rec['layer_id'] in prev_group['layers']:
-                    prev_cond_key, prev_CondPriority = prev_group['layers'][rec['layer_id']]
-                    if rec['condpriority'] == prev_CondPriority:
-                        raise OasisException(f'condition of the same priority and policy {cond_key} {prev_cond_key}')
-                    elif rec['condpriority'] < prev_CondPriority:
-                        group = {'locations': {loc_key},
-                                 'layers': {rec['layer_id']: (cond_key, rec['condpriority'])},
-                                 'needed': {rec['layer_id']: set()},
-                                 'parent': prev_group_id,
-                                 'level': base_level}
-                        groups[last_group_id] = group
-                        prev_group.setdefault('childs', set()).add(last_group_id)
-                        prev_group['locations'].remove(loc_key)
-                        max_level = max(max_level, __update_level(prev_group, base_level + 1, groups))
-
-                        loc_to_group[loc_key] = last_group_id
-                        cond_to_group[cond_key] = last_group_id
-                        last_group_id += 1
-                    else: # CondPriority > prev_CondPriority
-                        group = {'locations': {loc_key},
-                                 'layers': {rec['layer_id']: (prev_cond_key, prev_CondPriority)},
-                                 'needed': {rec['layer_id']: set()},
-                                 'parent': prev_group_id,
-                                 'level': base_level}
-                        groups[last_group_id] = group
-                        loc_to_group[loc_key] = last_group_id
-                        cond_to_group[prev_cond_key] = last_group_id
-
-                        prev_group['layers'][rec['layer_id']] = (cond_key, rec['condpriority'])
-                        prev_group['locations'].remove(loc_key)
-                        cond_to_group[cond_key] = prev_group_id
-                        prev_group.setdefault('childs', set()).add(last_group_id)
-                        max_level = max(max_level, __update_level(prev_group, base_level + 1, groups))
-                        last_group_id += 1
+            # cond key already exist, if the parent of the cond_tag is not the same as the parent found within the location parents
+            # we rearrange the hierarchy based on priority
+            group = groups[cond_key]
+            cond_parent_cond = group.get('parent')
+            if cond_parent_cond and parent_cond and cond_parent_cond != parent_cond:
+                cond_parent_group = groups[cond_parent_cond]
+                loc_parent_group = groups[parent_cond]
+                if cond_parent_group['tag'][1] == loc_parent_group['tag'][1]:
+                    raise OasisException(f"condition of the same priority and policy {cond_parent_group['tag'][0]} {loc_parent_group['tag'][0]}")
+                elif cond_parent_group['tag'][1] > loc_parent_group['tag'][1]:
+                    attach_cond(loc_parent_group, cond_parent_group, groups)
+                    cond_parent_group['childs'].pop(cond_key, None)
                 else:
-                    group['layers'][rec['layer_id']] = (cond_key, rec['condpriority'])
-                    cond_to_group[cond_key] = prev_group_id
+                    attach_cond(cond_parent_group, loc_parent_group, groups)
+                    loc_parent_group['childs'].pop(child_cond, None)
+                    parent_cond = group.get('parent')
 
-                    # update the location needed for correct condition logic
-                    group['needed'][rec['layer_id']] = set(group['locations']) - set([loc_key])
-                    parent_group_id = group.get("parent")
-                    while parent_group_id:
-                        parent_group = groups[parent_group_id]
-                        if rec['layer_id'] not in parent_group['needed']:
-                            parent_group['needed'][rec['layer_id']] = set(parent_group['locations'])
-                        parent_group_id = group.get("parent")
-            else:
-                # print("already condition, already location")
-                group = groups[loc_to_group[loc_key]]
-                if rec['layer_id'] not in group['layers']:
-                    group['layers'][rec['layer_id']] = (cond_key, rec['condpriority'])
+        if child_cond:
+            child_group = groups[child_cond]
+            attach_cond(child_group, group, groups)
+        else:
+            group['locations'][loc_key] = None
+            loc_to_cond[loc_key] = cond_key
 
-                    # update the location needed for correct condition logic
-                    group['needed'][rec['layer_id']] = set(group['locations']) - set([loc_key])
-                    parent_group_id = group.get("parent")
-                    while parent_group_id:
-                        parent_group = groups[parent_group_id]
-                        if rec['layer_id'] not in prev_group['needed']:
-                            parent_group['needed'][rec['layer_id']] = set(parent_group['locations'])
-                        parent_group_id = group.get("parent")
+        group['needed_loc'][loc_key] = False
+        if group['layers'][rec['layer_id']]:
+            if rec[cond_num] != group['layers'][rec['layer_id']]:
+                raise ValueError(
+                    f"account {group_key} has multiple cond_number ({rec[cond_num]}, {group['layers'][rec['layer_id']]})"
+                    " for the same cond_tag and same layer_id")
+        else:
+            group['layers'][rec['layer_id']] = rec[cond_num]
 
-                else:
-                    group['needed'][rec['layer_id']].discard(loc_key)
+        if parent_cond:
+            parent_group = groups[parent_cond]
+            parent_group['locations'].pop(loc_key, None)
+            parent_group.get('childs', {}).pop(child_cond, None)
+            attach_cond(group, parent_group, groups)
 
     missing_conditions = []
+    max_level = base_level
     for account, groups in account_groups.items():
         for group_id, group in groups.items():
-            for layer_id, loc_keys in group['needed'].items():
-                for loc_key in loc_keys:
-                    missing_conditions.append(loc_key+(layer_id,))
+            if group['level'] > max_level:
+                max_level = group['level']
+            for loc_key, needed in group['needed_loc'].items():
+                if needed:
+                    missing_conditions.append(group['tag'][0]+('location', loc_key[-1],))
 
     if missing_conditions:
-        missing_conditions_df = pd.DataFrame(missing_conditions, columns=[portfolio_num, acc_num, loc_num, 'layer_id'])
+        missing_conditions_df = pd.DataFrame(missing_conditions, columns=main_key + [cond_tag, 'type', 'missing'])
         raise OasisException(f"missing conditions for :\n{missing_conditions_df.to_string(index=False)}")
 
     return account_groups, max_level
 
 
-def __get_level_location_to_agg_cond(column_base_il_df, oed_hierarchy):
+def __get_level_location_to_agg_cond(column_base_il_df, oed_hierarchy, main_key):
     """create a dataframe with the computed agg id base on the condition and condition priority
     """
-    acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
     loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
-    portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
     cond_num = oed_hierarchy['condnum']['ProfileElementName'].lower()
+    cond_tag = oed_hierarchy['condtag']['ProfileElementName'].lower()
 
     base_level = 0
-    account_groups, max_level = __get_cond_grouping_hierarchy(column_base_il_df, portfolio_num, acc_num, cond_num, loc_num, base_level)
+    account_groups, max_level = __get_cond_grouping_hierarchy(column_base_il_df, main_key, cond_tag, cond_num, loc_num, base_level)
     level_location_to_agg_cond_dict = __extract_level_location_to_agg_cond_dict(account_groups, base_level, max_level)
 
     level_location_to_agg_cond = pd.DataFrame.from_records(
-        [(ptf, account, level_id, layer_id, location, agg_id, condition)
-         for (ptf, account, level_id, layer_id, location), (agg_id, condition)
+        [level_location + agg_cond
+         for level_location, agg_cond
          in level_location_to_agg_cond_dict.items()],
-        columns=[portfolio_num, acc_num, 'level_id', 'layer_id', loc_num, 'agg_id', cond_num]
+        columns=main_key + [cond_tag, 'level_id', 'layer_id', loc_num, 'agg_id', cond_num]
     )
 
     return level_location_to_agg_cond, max_level
@@ -935,14 +937,22 @@ def __process_condition_level_df(column_base_il_df,
     # identify useful column name
     acc_num = oed_hierarchy['accnum']['ProfileElementName'].lower()
     portfolio_num = oed_hierarchy['portnum']['ProfileElementName'].lower()
+    policy_num = oed_hierarchy['polnum']['ProfileElementName'].lower()
+    cond_tag = oed_hierarchy['condtag']['ProfileElementName'].lower()
     cond_num = oed_hierarchy['condnum']['ProfileElementName'].lower()
     loc_num = oed_hierarchy['locnum']['ProfileElementName'].lower()
-    level_location_to_agg_cond_df, cond_inter_level = __get_level_location_to_agg_cond(column_base_il_df, oed_hierarchy)
+
+    if "cov_agg_id" in column_base_il_df.columns:
+        main_key = [portfolio_num, acc_num, "cov_agg_id"]
+    else:
+        main_key = [portfolio_num, acc_num]
 
     # identify fm columns for this level
     level_terms = __get_level_terms(column_base_il_df, level_column_mapper[level_id])
 
     if level_terms: # if there is fm terms we create a new level and complete the previous level info
+        level_location_to_agg_cond_df, cond_inter_level = __get_level_location_to_agg_cond(column_base_il_df,
+                                                                                           oed_hierarchy, main_key)
         agg_key = [v['field'].lower() for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
         sub_agg_key = [v['field'].lower() for v in fm_aggregation_profile[level_id].get('FMSubAggKey', {}).values()
                        if v['field'].lower() in column_base_il_df.columns]
@@ -957,22 +967,24 @@ def __process_condition_level_df(column_base_il_df,
 
             this_level_location_to_agg_cond_df = level_location_to_agg_cond_df[level_location_to_agg_cond_df['level_id'] == inter_level]
             this_level_location_to_agg_cond_df.drop(columns=['level_id'], inplace=True)
+
             level_df = merge_dataframes(
                 level_df,
                 this_level_location_to_agg_cond_df,
-                on=[portfolio_num, acc_num, 'layer_id', loc_num],
+                on=main_key + [loc_num, 'layer_id', cond_tag, ],
                 how='inner',
                 drop_duplicates=False
             )
-            level_df.loc[level_df[cond_num] == 0, set(level_terms.values())] = 0
+
+            level_df.loc[level_df[cond_num] == '', set(level_terms.values())] = 0
 
             this_level_location_to_agg_cond_df.rename(columns={'agg_id': 'to_agg_id'}, inplace=True)
-            this_level_location_to_agg_cond_df.drop(columns=[cond_num], inplace=True)
+            this_level_location_to_agg_cond_df.drop(columns=[cond_tag, cond_num], inplace=True)
 
             prev_level_df = merge_dataframes(
                 prev_level_df,
                 this_level_location_to_agg_cond_df,
-                on=[portfolio_num, acc_num, 'layer_id', loc_num],
+                on=main_key + ['layer_id', loc_num],
                 how='inner',
                 drop_duplicates=False
             )
@@ -984,6 +996,7 @@ def __process_condition_level_df(column_base_il_df,
             level_df = merge_dataframes(level_df, agg_tiv_df, on=agg_key, how='left')
 
             level_df = level_df[level_cols.union(set(level_terms.values()))]
+
             il_inputs_df_list.append(prev_level_df)
             prev_level_df = level_df
 
@@ -1054,7 +1067,6 @@ def get_il_input_items(
 
     # get column name to fm term
     fm_terms = get_grouped_fm_terms_by_level_and_term_group(grouped_profile_by_level_and_term_group=profile)
-
     gul_inputs_df = __merge_exposure_and_gul(exposure_df, gul_inputs_df, fm_terms, profile, oed_hierarchy)
     bi_tiv_col = 'bitiv'
 
@@ -1091,9 +1103,9 @@ def get_il_input_items(
 
     # Determine whether step policies are listed, are not full of nans and step
     # numbers are greater than zero
-    step_policies_present = ('steptriggertype' in accounts_df and 'stepnumber' in accounts_df
-                             and accounts_df['steptriggertype'].notnull().any()
-                             and accounts_df[accounts_df['steptriggertype'].notnull()]['stepnumber'].gt(0).any())
+    step_policies_present = ('steptriggertype' in column_base_il_df and 'stepnumber' in column_base_il_df
+                             and column_base_il_df['steptriggertype'].notnull().any()
+                             and column_base_il_df[column_base_il_df['steptriggertype'].notnull()]['stepnumber'].gt(0).any())
 
     # If step policies listed, keep step trigger type and columns associated
     # with those step trigger types that are present
@@ -1130,11 +1142,12 @@ def get_il_input_items(
 
         column_base_il_df['assign_step_calcrule'] = column_base_il_df.apply(lambda row: assign_calcrule_flag(row), axis=1)
 
-        fm_aggregation_profile[SUPPORTED_FM_LEVELS['policy layer']['id']]['FMAggKey']['cov_agg_id'] = {
-                "src": "FM",
-                "field": "cov_agg_id",
-                "name": "coverage aggregation id"
-            }
+        for level_info in list(SUPPORTED_FM_LEVELS.values())[1:]:
+            fm_aggregation_profile[level_info['id']]['FMAggKey']['cov_agg_id'] = {
+                    "src": "FM",
+                    "field": "cov_agg_id",
+                    "name": "coverage aggregation id"
+                }
 
         all_steps = column_base_il_df['steptriggertype'].unique()
 
@@ -1146,7 +1159,6 @@ def get_il_input_items(
                         & level_df['assign_step_calcrule'] > 0)
 
         fm_term_filters[SUPPORTED_FM_LEVELS['policy layer']['id']] = step_policy_term_filter
-
 
     agg_keys = set()
     for level_id in fm_aggregation_profile:
@@ -1164,6 +1176,7 @@ def get_il_input_items(
                            'lim_code', 'lim_type']
     prev_level_df = column_base_il_df[set(present_cols + coverage_level_term)]
     prev_agg_key = [v['field'].lower() for v in fm_aggregation_profile[level_id]['FMAggKey'].values()]
+
     prev_level_df.drop_duplicates(subset=prev_agg_key, inplace=True)
     prev_level_df['agg_id'] = prev_level_df['coverage_id']
     prev_level_df['level_id'] = 1

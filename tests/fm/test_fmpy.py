@@ -40,11 +40,19 @@ class FmAcceptanceTests(TestCase):
             )
         self.assertTrue(result)
 
-    def test_insurance(self):
-        self.run_test('insurance',fmpy=True)
+    # superceded by insurance_and_step
+    # def test_insurance(self):
+    #     self.run_test('insurance',fmpy=True)
 
-    def test_insurance_step(self):
-        self.run_test('insurance_step',fmpy=True)
+    def test_insurance_conditions(self):
+        self.run_test('insurance_conditions', fmpy=True)
+
+    # superceded by insurance_and_step    
+    # def test_insurance_step(self):
+    #     self.run_test('insurance_step',fmpy=True)
+
+    def test_insurance_and_step(self):
+        self.run_test('insurance_and_step',fmpy=True)
 
     def test_reinsurance1(self):
         self.run_test('reinsurance1',fmpy=True)
@@ -56,11 +64,19 @@ class FmAcceptanceTests(TestCase):
         self.run_test('issues',fmpy=True)
 
     # multiperil tests
-    def test_insurance_2_subperils(self):
-        self.run_test('insurance', fmpy=True, subperils=2, expected_dir="expected_subperils")
+    # superceded by insurance_and_step
+    # def test_insurance_2_subperils(self):
+    #     self.run_test('insurance', fmpy=True, subperils=2, expected_dir="expected_subperils")
 
-    def test_insurance_step_2_subperils(self):
-        self.run_test('insurance_step', fmpy=True, subperils=2, expected_dir="expected_subperils")
+    def test_insurance_conditions_2_subperils(self):
+        self.run_test('insurance_conditions', fmpy=True, subperils=2, expected_dir="expected_subperils")
+   
+   # superceded by insurance_and_step     
+    # def test_insurance_step_2_subperils(self):
+    #     self.run_test('insurance_step', fmpy=True, subperils=2, expected_dir="expected_subperils")
+
+    def test_insurance_and_step_2_subperils(self):
+        self.run_test('insurance_and_step', fmpy=True, subperils=2, expected_dir="expected_subperils")
 
     def test_reinsurance1_2_subperils(self):
         self.run_test('reinsurance1', fmpy=True, subperils=2, expected_dir="expected_subperils")
