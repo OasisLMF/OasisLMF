@@ -4,7 +4,7 @@ OED validation guidelines
 # Overview 
 This document contains some guidelines on what is a valid set of OED files to be imported into the OasisLMF platform. This is different to what is theoretically possible to import under the full OED schema because OasisLMF supports only a subset of the fields defined in the schema. Therefore the validation rules for importing exposures in Oasis are different and will also sometimes vary between versions of the OasisLMF software.
 
-This document should be read alongside OED_financial_tields_supported.xlsx which contains a detailed list of the OED fields supported by OasisLMF.
+This document should be read alongside OED_financial_terms_supported.xlsx which contains a detailed list of the OED fields supported by OasisLMF.
 
 ## Minimum file requirements
 Only the OED location file is required for running a ground up loss analysis.  The OED account file may be provided if there are direct insurance terms, and the OED Reinsurance info file and the OED Reinsurance scope file may be provided together if there are reinsurance terms. 
