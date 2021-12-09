@@ -26,7 +26,7 @@ def xorshift(n, i):
 @nb.njit([nb.int64(nb.uint64),
           ], cache=True)
 def custom_hash(n):
-    return (c*xorshift(p*xorshift(n,shift),shift)).astype(np.int64)
+    return np.int64(c*xorshift(p*xorshift(n,shift),shift))
 
 
 @nb.njit(cache=True)
@@ -43,7 +43,7 @@ def index_hash_table(items, key_name, value_name):
             distance = 0
             index = custom_hash(key) & mask[p2_size]
             while distance < p2_size:
-                it = hash_table[index]
+                it = hash_table[index + 1]
                 if it['distance'] == -1: # empty slot
                     it['distance'] = distance
                     it['key'] = key
@@ -60,6 +60,7 @@ def index_hash_table(items, key_name, value_name):
                 else:
                     distance += 1
                     index += 1
+
             else: # distance is more than p2_size
                 size_up += 1
                 p2_size += 1
