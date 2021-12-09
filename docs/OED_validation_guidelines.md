@@ -62,13 +62,17 @@ Special conditions may be used to represent extra policy conditions applying to 
 OasisLMF does not yet support special conditions that apply to particular perils as it does not read the financial terms peril codes (LocPeril, CondPeril, PolPeril, AccPeril) and assumes all financial terms apply to all locations regardless of peril. Therefore any locations that are not subject to a particular peril sublimit being modelled should be removed from the input files.
 
 ### OasisLMF 1.15.21-LTS
+The CondNumber field in the location file identifies the subset of locations to which a policy condition applies. There may not be any overlapping conditions on a location, i.e. no duplicates of PortNumber, AccNumber, LocNumber in the location file with different CondNumbers.  
 
-The CondNumber field in the location file identifies the subset of locations to which a policy condition applies. The account file contains the CondNumber field which represents both the location subset and a particular set of financial terms. Every condition must apply to all policies under an account if there is more than one policy. There may not be any overlapping conditions on a location, i.e. no duplicate locations in the location file. Only one priority of condition is supported, i.e. CondPriority = 1.
+The account file contains the CondNumber field which links to the CondNumber in the location file. Every CondNumber must apply to all policies under an account if there is more than one policy. More than one CondNumber per policy gives rise to valid duplicates of the policy record. The financial terms for a given CondNumber must match if repeated on multiple rows. Only one priority of condition is supported, i.e. CondPriority = 1 for all CondNumbers.
+
 
 ### OasisLMF 1.23-LTS and later
-The CondTag field in the location file identifies the subset of locations to which a policy condition applies. The account file contains the CondTag field and a CondNumber field which represents a particular set of financial terms for the condition. For each policy in the account file, one or more CondTags may be specified along with a CondNumber. More than one pair of CondTag, CondNumber values gives rise to valid duplicates of the policy record. Each CondNumber is assigned a CondPriority which is the order in which the fiancial terms apply.
+The CondTag field in the location file identifies the subset of locations to which a policy condition applies. 
 
-More than one condition with the same priority cannot apply to the same location i.e. there cannot be overlapping conditions at the same hierarchal level. If a location is assigned more than one CondTag in the location file, giving rise to valid duplicates, then the associated CondNumbers in the account file must have different CondPriorities. The terms are applied in order of priority in this special case.
+The account file contains the CondTag field, which links to the CongTag in the location file, and a CondNumber field which represents a particular set of financial terms for the condition. For each policy in the account file, one or more CondTags may be specified along with a CondNumber. More than one pair of CondTag, CondNumber values per policy gives rise to valid duplicates of the policy record. The financial terms for a given CondNumber must match if repeated on multiple rows. Each CondNumber is assigned a CondPriority which is the order in which the fiancial terms apply.
+
+If a location is assigned more than one CondTag in the location file, giving rise to duplicates, then the associated CondNumbers in the account file must have different CondPriorities. The terms are applied in order of CondPriority in this special case. There may not be multiple CondTags for a location in the location file which link to CondNumbers in the account file with the same CondPriority.
 
 ## Cross validation
 If both OED location and account file are provided, the list of unique values of PortNumber, AccNumber must match between the files
