@@ -17,6 +17,7 @@ from math import ceil
 
 from .common import areaperil_int, oasis_float, Index_type
 from .footprint import Footprint
+from .index_hash_map import index_hash_table, hash_table_get
 
 logger = logging.getLogger(__name__)
 
@@ -124,14 +125,19 @@ def load_items(areaperil_vulns):
              vulnerability dictionary, vulnerability IDs, areaperil to vulnerability index dictionary,
              areaperil ID to vulnerability index array, areaperil ID to vulnerability array
     """
-    areaperil_id_to_idx = np.sort(np.unique(areaperil_vulns['areaperil_id']))
+    areaperil_ids = np.sort(np.unique(areaperil_vulns['areaperil_id']))
+    areaperil_id_idx = np.empty((areaperil_ids.shape[0], 2), dtype=areaperil_int)
+    areaperil_id_idx[:, 0] = areaperil_ids
+    areaperil_id_idx[:, 1] = np.arange(areaperil_ids.shape[0], dtype=areaperil_int)
+    areaperil_id_to_idx_hash_table, areaperil_id_to_idx_p2size = index_hash_table(areaperil_id_idx, 0, 1)
+
     vuln_id_to_idx = np.sort(np.unique(areaperil_vulns['vulnerability_id']))
 
-    areaperil_to_vulns_ptr = np.empty(areaperil_id_to_idx.shape[0], dtype=Index_type)
+    areaperil_to_vulns_ptr = np.empty(areaperil_ids.shape[0], dtype=Index_type)
     vulns_ptr_to_idx = np.empty(areaperil_vulns.shape[0], dtype=np.int32)
 
     areaperil_index = 0
-    areaperil_id = areaperil_id_to_idx[areaperil_index]
+    areaperil_id = areaperil_ids[areaperil_index]
     areaperil_to_vulns_ptr[areaperil_index]['start'] = 0
     for i in range(areaperil_vulns.shape[0]):
         areaperil_vuln = areaperil_vulns[i]
@@ -144,7 +150,7 @@ def load_items(areaperil_vulns):
         vulns_ptr_to_idx[i] = vuln_index
     areaperil_to_vulns_ptr[areaperil_index]['end'] = i
 
-    return vuln_id_to_idx, areaperil_id_to_idx, areaperil_to_vulns_ptr, vulns_ptr_to_idx
+    return vuln_id_to_idx, areaperil_id_to_idx_hash_table, areaperil_id_to_idx_p2size, areaperil_to_vulns_ptr, vulns_ptr_to_idx
 
 
 def get_items(input_path, ignore_file_type=set()):
@@ -419,7 +425,7 @@ def do_result(vulns_id, vuln_array, mean_damage_bins,
 @nb.njit()
 def doCdf(event_id,
           num_intensity_bins, footprint,
-          areaperil_id_to_idx, areaperil_to_vulns_ptr, vulns_ptr_to_idx,
+          areaperil_id_to_idx_hash_table, areaperil_id_to_idx_p2size, areaperil_to_vulns_ptr, vulns_ptr_to_idx,
           vuln_array, vuln_id_to_idx, num_damage_bins, mean_damage_bins,
           int32_mv, max_result_relative_size):
     """
@@ -472,8 +478,7 @@ def doCdf(event_id,
                               event_id, areaperil_id, vuln_i, cursor)
 
             areaperil_id[0] = event_row['areaperil_id']
-            areaperil_idx = index_sorted(areaperil_id_to_idx, areaperil_id[0])
-            has_vuln = areaperil_idx != -1
+            has_vuln, areaperil_idx = hash_table_get(areaperil_id_to_idx_hash_table, areaperil_id_to_idx_p2size, areaperil_id[0])
 
             if has_vuln:
                 intensities[intensities_min: intensities_max] = 0
@@ -543,7 +548,7 @@ def run(run_dir, file_in, file_out, ignore_file_type):
 
         logger.debug('init items')
 
-        vuln_id_to_idx, areaperil_id_to_idx, areaperil_to_vulns_ptr, vulns_ptr_to_idx = get_items(input_path, ignore_file_type)
+        vuln_id_to_idx, areaperil_id_to_idx_hash_table, areaperil_id_to_idx_p2size, areaperil_to_vulns_ptr, vulns_ptr_to_idx = get_items(input_path, ignore_file_type)
 
         logger.debug('init footprint')
 
@@ -578,7 +583,7 @@ def run(run_dir, file_in, file_out, ignore_file_type):
             if event_footprint is not None:
                 for cursor_bytes in doCdf(event_ids[0],
                       num_intensity_bins, event_footprint,
-                      areaperil_id_to_idx, areaperil_to_vulns_ptr, vulns_ptr_to_idx,
+                      areaperil_id_to_idx_hash_table, areaperil_id_to_idx_p2size, areaperil_to_vulns_ptr, vulns_ptr_to_idx,
                       vuln_array, vuln_id_to_idx, num_damage_bins, mean_damage_bins,
                                           int32_mv, max_result_relative_size):
 
