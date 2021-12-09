@@ -10,7 +10,23 @@ hash_entry_dtype =  nb.from_dtype(np.dtype([('distance', np.int64),
 load_factor = 0.8
 size_up_attempt = 2
 
-mask = 2 ** np.arange(64) - 1
+mask = np.int64(2 ** np.arange(64) - 1)
+
+p = np.uint64(0x5555555555555555)  # pattern of alternating 0 and 1
+c = np.uint64(17316035218449499591)  # random uneven integer constant;
+shift = np.uint64(32)
+
+
+@nb.njit([nb.uint64(nb.uint64, nb.uint64),
+          ], cache=True)
+def xorshift(n, i):
+    return n^(n>>i)
+
+
+@nb.njit([nb.int64(nb.uint64),
+          ], cache=True)
+def custom_hash(n):
+    return (c*xorshift(p*xorshift(n,shift),shift)).astype(np.int64)
 
 
 @nb.njit(cache=True)
@@ -25,9 +41,9 @@ def index_hash_table(items, key_name, value_name):
             key = items[i][key_name]
             value = items[i][value_name]
             distance = 0
-            index = hash(key) & mask[p2_size]
+            index = custom_hash(key) & mask[p2_size]
             while distance < p2_size:
-                it = hash_table[index + distance]
+                it = hash_table[index]
                 if it['distance'] == -1: # empty slot
                     it['distance'] = distance
                     it['key'] = key
@@ -37,11 +53,13 @@ def index_hash_table(items, key_name, value_name):
                     it['key'], key = key, it['key']
                     it['value'], value = value, it['value']
                     it['distance'], distance = distance, it['distance'] + 1
+                    index += 1
 
                 elif it['key'] == key:
                     break
                 else:
                     distance += 1
+                    index += 1
             else: # distance is more than p2_size
                 size_up += 1
                 p2_size += 1
@@ -49,14 +67,14 @@ def index_hash_table(items, key_name, value_name):
         else:
             break
     else:
-        raise Exception("too many collisions found")
+        raise Exception("too many collisions found need a better hash function")
 
     return hash_table, p2_size
 
 
 @nb.njit(cache=True)
 def hash_table_get(hash_table, size, key):
-    index = hash(key) & mask[size]
+    index = custom_hash(key) & mask[size]
     for distance in range(size):
         it = hash_table[index + distance]
         if it['distance'] < distance:
