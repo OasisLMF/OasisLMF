@@ -43,7 +43,7 @@ def index_hash_table(items, key_name, value_name):
             distance = 0
             index = custom_hash(key) & mask[p2_size]
             while distance < p2_size:
-                it = hash_table[index + 1]
+                it = hash_table[index]
                 if it['distance'] == -1: # empty slot
                     it['distance'] = distance
                     it['key'] = key
