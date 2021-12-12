@@ -12,7 +12,6 @@ from contextlib import ExitStack
 import numba as nb
 import numpy as np
 import pyarrow.parquet as pq
-from math import ceil
 # from numba.typed import Dict
 
 from .common import areaperil_int, oasis_float, Index_type
@@ -148,7 +147,8 @@ def load_items(areaperil_vulns):
             areaperil_to_vulns_ptr[areaperil_index]['start'] = i
         vuln_index = index_sorted(vuln_id_to_idx, areaperil_vuln['vulnerability_id'])
         vulns_ptr_to_idx[i] = vuln_index
-    areaperil_to_vulns_ptr[areaperil_index]['end'] = i
+
+    areaperil_to_vulns_ptr[areaperil_index]['end'] = i + 1
 
     return vuln_id_to_idx, areaperil_id_to_idx_hash_table, areaperil_id_to_idx_p2size, areaperil_to_vulns_ptr, vulns_ptr_to_idx
 
