@@ -191,7 +191,7 @@ class FootprintLayerClient:
         """
         current_socket = cls._get_socket()
 
-        data: bytes = OperationEnum.GET_DATA.value + event_id.to_bytes(8, byteorder='big')
+        data: bytes = OperationEnum.GET_DATA.value + int(event_id).to_bytes(8, byteorder='big')
         current_socket.sendall(data)
 
         data_length_bytes = current_socket.recv(8)
