@@ -16,6 +16,8 @@ from numba.typed import Dict
 
 from .common import areaperil_int, oasis_float, Index_type
 from .footprint import Footprint
+from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
+import atexit
 
 logger = logging.getLogger(__name__)
 
@@ -521,7 +523,13 @@ def run(run_dir, file_in, file_out, ignore_file_type):
 
     Returns: None
     """
+    static_path = os.path.join(run_dir, 'static')
+    input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)
+
+    FootprintLayerClient.register(static_path=static_path)
+    atexit.register(FootprintLayerClient.unregister)
+
     with ExitStack() as stack:
         if file_in is None:
             streams_in = sys.stdin.buffer
@@ -533,9 +541,6 @@ def run(run_dir, file_in, file_out, ignore_file_type):
         else:
             stream_out = stack.enter_context(open(file_out, 'wb'))
 
-        static_path = os.path.join(run_dir, 'static')
-        input_path = os.path.join(run_dir, 'input')
-
         event_id_mv = memoryview(bytearray(4))
         event_ids = np.ndarray(1, buffer=event_id_mv, dtype='i4')
 
@@ -544,7 +549,8 @@ def run(run_dir, file_in, file_out, ignore_file_type):
 
         logger.debug('init footprint')
         footprint_obj = stack.enter_context(Footprint.load(static_path, ignore_file_type))
-        num_intensity_bins = footprint_obj.num_intensity_bins
+        # num_intensity_bins = footprint_obj.num_intensity_bins
+        num_intensity_bins: int = FootprintLayerClient.get_number_of_intensity_bins()
 
         logger.debug('init vulnerability')
 
@@ -568,7 +574,7 @@ def run(run_dir, file_in, file_out, ignore_file_type):
             len_read = streams_in.readinto(event_id_mv)
             if len_read==0:
                 break
-            event_footprint = footprint_obj.get_event(event_ids[0])
+            event_footprint = FootprintLayerClient.get_event(event_ids[0])
             if event_footprint is not None:
                 for cursor_bytes in doCdf(event_ids[0],
                       num_intensity_bins, event_footprint,
@@ -581,6 +587,3 @@ def run(run_dir, file_in, file_out, ignore_file_type):
                     else:
                         break
         logger.debug('doCdf done')
-
-
-
