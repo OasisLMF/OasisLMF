@@ -141,6 +141,7 @@ class FootprintLayerClient:
         """
         current_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         current_socket.connect((cls.TCP_IP, cls.TCP_PORT))
+        current_socket.settimeout(10)
         return current_socket
 
     @classmethod
@@ -148,6 +149,7 @@ class FootprintLayerClient:
         current_socket = cls._get_socket()
         data: bytes = OperationEnum.REGISTER.value
         current_socket.sendall(data)
+        current_socket.close()
 
     @classmethod
     def register(cls, static_path: str) -> None:
@@ -164,6 +166,7 @@ class FootprintLayerClient:
         current_socket = cls._get_socket()
         data: bytes = OperationEnum.UNREGISTER.value
         current_socket.sendall(data)
+        current_socket.close()
 
     @classmethod
     def get_number_of_intensity_bins(cls) -> int:
@@ -177,6 +180,7 @@ class FootprintLayerClient:
         data: bytes = OperationEnum.GET_NUM_INTENSITY_BINS.value
         current_socket.sendall(data)
         intensity_bins_data = current_socket.recv(8)
+        current_socket.close()
         return int.from_bytes(intensity_bins_data, 'big')
 
     @classmethod
