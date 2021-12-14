@@ -90,9 +90,12 @@ class FootprintLayer:
                                                                ignore_file_type=self.ignore_file_type))
             self.file_data = footprint_obj
 
-            connection, client_address = self.socket.accept()
+            # connection, client_address = self.socket.accept()
 
             while True:
+
+                connection, client_address = self.socket.accept()
+                connection.listen()
                 data = connection.recv(16)
 
                 if data:
