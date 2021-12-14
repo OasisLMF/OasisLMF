@@ -4,7 +4,7 @@ OED validation guidelines
 # Overview 
 This document contains some guidelines on what is a valid set of OED files to be imported into the OasisLMF platform. This is different to what is theoretically possible to import under the full OED schema because OasisLMF supports only a subset of the fields defined in the schema. Therefore the validation rules for importing exposures in Oasis are different and will also sometimes vary between versions of the OasisLMF software.
 
-This document should be read alongside OED_financial_terms_supported.xlsx which contains a detailed list of the OED fields supported by OasisLMF.
+This document should be read alongside [OED financial terms supported](OED_financial_terms_supported.xlsx) which contains a detailed list of the OED fields supported by OasisLMF.
 
 ## Minimum file requirements
 Only the OED location file is required for running a ground up loss analysis.  The OED account file may be provided if there are direct insurance terms, and the OED Reinsurance info file and the OED Reinsurance scope file may be provided together if there are reinsurance terms. 
@@ -77,8 +77,8 @@ If CondNumber is used in the location file for an account, each CondNumber value
 If CondTag is used in the location file for an account, each CondNumber value appearing in the location file must be specified for at least one PolNumber,LayerNumber under the same account in the account file.
 
 ## Step Policies
-A policy record in the account file is a step policy if data is populated in the StepNumber field and some the other step fields (see 'OED Input Fields' within the [Open Exposure Data spec](https://github.com/OasisLMF/OpenDataStandards/blob/master/OpenExposureData/Docs/OpenExposureData_Spec.xlsx) with BackEndTableName 'StepFunctions' and 'Steps' for a full list). It is common to have multiple records in the account file for a step policy, with each record corresponding to each defined step in the policy.
+A policy record in the account file is a step policy if data is populated in the StepNumber field and some of the other step fields (see 'OED Input Fields' within the [Open Exposure Data spec](https://github.com/OasisLMF/OpenDataStandards/blob/master/OpenExposureData/Docs/OpenExposureData_Spec.xlsx) with BackEndTableName 'StepFunctions' and 'Steps' for a full list). It is common to have multiple records in the account file for a step policy, with each record corresponding to each defined step in the policy.
 
 Step policies are incompatible with any other financial terms in OED account and location files in OasisLMF. Loc, Cond, Pol and Acc financial fields should not be populated for step policies. In particular, the CondNumber field must not be populated when StepNumber is populated, and vice versa StepNumber should not be populated where there are CondNumbers populated.
 
-Step policy financial terms operate on BuildingTIV and ContentsTIV only. OtherTIV and BITIV may be populated and used to generate ground up losses, but these coverages will not be used as inputs to the step policy terms.
+Step policy financial terms operate on modelled losses generated for BuildingTIV and ContentsTIV only. OtherTIV and BITIV may be populated and used to generate ground up losses, but losses for these coverages will not be used as inputs to the step policy terms.
