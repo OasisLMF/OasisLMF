@@ -205,6 +205,19 @@ def _create_return_period_bin(run_dir, return_periods):
     except subprocess.CalledProcessError as e:
         raise OasisException("Error while converting returnperiods.csv to ktools binary format: {}".format(e))
 
+def _create_events_bin(run_dir, event_ids):
+    csv_fp = os.path.join(run_dir, 'input', 'events.csv')
+    bin_fp = os.path.join(run_dir, 'input', 'events.bin')
+    pd.DataFrame(
+        event_ids,
+        columns =['event_id']).sort_values(ascending=True, by=['event_id']
+    ).to_csv(csv_fp, index=False)
+
+    try:
+        cmd_str = "evetobin < \"{}\" > \"{}\"".format(csv_fp, bin_fp)
+        subprocess.check_call(cmd_str, stderr=subprocess.STDOUT, shell=True)
+    except subprocess.CalledProcessError as e:
+        raise OasisException("Error while converting events.csv to ktools binary format: {}".format(e))
 
 def _prepare_input_bin(run_dir, bin_name, model_settings, setting_key=None, ri=False):
     bin_fp = os.path.join(run_dir, 'input', '{}.bin'.format(bin_name))
@@ -286,7 +299,12 @@ def prepare_run_inputs(analysis_settings, run_dir, ri=False):
     """
     try:
         model_settings = analysis_settings.get('model_settings', {})
-        _prepare_input_bin(run_dir, 'events', model_settings, setting_key='event_set', ri=ri)
+        if analysis_settings.get('event_ids'):
+            # Create events file from user input
+            _create_events_bin(run_dir, analysis_settings.get('event_ids'))
+        else:
+            # copy selected event set from static
+            _prepare_input_bin(run_dir, 'events', model_settings, setting_key='event_set', ri=ri)
 
         # Prepare occurrence / returnperiod depending on output calcs selected
         if _leccalc_selected(analysis_settings):
