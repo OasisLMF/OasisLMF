@@ -173,7 +173,17 @@
             },
             "title": "User set return periods",
             "description": "List of return periods as integers '[10, 100, 1000 .. etc]'"
-        },    
+        },
+        "event_ids": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "integer",
+                "minimum": 1
+            },
+            "title": "User set event ids",
+            "description": "List of event ids as integers '[1, 5, 123 .. etc]'"
+        },
         "model_settings": {
             "type": "object",
             "title": "Model settings",
