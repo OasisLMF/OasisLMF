@@ -4,6 +4,7 @@ from contextlib import ExitStack
 from enum import Enum
 from multiprocessing import Process
 from typing import Optional, Set, Tuple
+from socketserver import BaseRequestHandler, TCPServer
 
 import numpy as np
 
@@ -21,7 +22,7 @@ class OperationEnum(Enum):
     UNREGISTER = (4).to_bytes(4, byteorder='big')
 
 
-class FootprintLayer:
+class FootprintLayer(BaseRequestHandler):
     """
     This class is responsible for accessing the footprint data via TCP ports.
 
@@ -90,12 +91,10 @@ class FootprintLayer:
                                                                ignore_file_type=self.ignore_file_type))
             self.file_data = footprint_obj
 
-            # connection, client_address = self.socket.accept()
-
             while True:
 
                 connection, client_address = self.socket.accept()
-                connection.listen()
+                connection.listen(1)
                 data = connection.recv(16)
 
                 if data:
@@ -124,6 +123,7 @@ class FootprintLayer:
                         self.count -= 1
                         if self.count <= 0:
                             break
+                    connection.close()
 
 
 class FootprintLayerClient:
