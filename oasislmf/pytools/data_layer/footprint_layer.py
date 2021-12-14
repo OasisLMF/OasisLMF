@@ -90,8 +90,9 @@ class FootprintLayer:
                                                                ignore_file_type=self.ignore_file_type))
             self.file_data = footprint_obj
 
+            connection, client_address = self.socket.accept()
+
             while True:
-                connection, client_address = self.socket.accept()
                 data = connection.recv(16)
 
                 if data:
@@ -140,7 +141,7 @@ class FootprintLayerClient:
         Returns: (socket.socket) a connected socket
         """
         current_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        current_socket.connect((cls.TCP_IP, cls.TCP_PORT))
+        current_socket.connect((cls.TCP_IP, cls.TCP_PORT))  # this is where it could be hanging
         current_socket.settimeout(10)
         return current_socket
 
