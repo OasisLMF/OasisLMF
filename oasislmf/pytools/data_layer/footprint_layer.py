@@ -3,7 +3,8 @@ import socket
 from contextlib import ExitStack
 from enum import Enum
 from multiprocessing import Process
-from typing import Optional, Set, Tuple
+from typing import Optional, Set, Tuple, List
+import math
 
 import numpy as np
 
@@ -107,9 +108,13 @@ class FootprintLayer:
                             # TODO => log the key error
                             pass
                         raw_data = pickle.dumps(event_data)
-                        data_length = len(raw_data)
-                        connection.send(data_length.to_bytes(32, byteorder='big'))
-                        connection.send(raw_data)
+                        number_of_chunks: int = int(math.ceil(len(raw_data) / 500))
+                        raw_data_buffer = [raw_data[i:i + 500] for i in range(0, len(raw_data), 500)]
+
+                        connection.send(number_of_chunks.to_bytes(32, byteorder='big'))
+
+                        for chunk in raw_data_buffer:
+                            connection.send(chunk)
 
                     elif operation == OperationEnum.GET_NUM_INTENSITY_BINS:
                         number_of_intensity_bins = self.file_data.num_intensity_bins
@@ -202,11 +207,19 @@ class FootprintLayerClient:
         data: bytes = OperationEnum.GET_DATA.value + int(event_id).to_bytes(8, byteorder='big')
         current_socket.sendall(data)
 
-        data_length_bytes = current_socket.recv(32)
-        data_length = int.from_bytes(data_length_bytes, 'big')
-        raw_data = current_socket.recv(data_length)
-        current_socket.close()
-        return pickle.loads(raw_data)
+        number_of_chunks: bytes = current_socket.recv(32)
+        number_of_chunks: int = int.from_bytes(number_of_chunks, 'big')
+
+        raw_data_buffer: List[bytes] = []
+        for _ in range(number_of_chunks):
+            raw_data_buffer.append(current_socket.recv(500))
+
+        return pickle.loads(b"".join(raw_data_buffer))
+
+        # for _ in
+        # raw_data = current_socket.recv(data_length)
+        # current_socket.close()
+        # return pickle.loads(raw_data)
 
 
 def _shutdown_socket(running_socket: socket.socket):
