@@ -16,7 +16,12 @@ from oasislmf.pytools.getmodel.footprint import Footprint
 
 
 # configuring process meta data
-logging.basicConfig(filename='footprint_tcp_server.log', filemode='w', format='%(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    filename='footprint_tcp_server.log',
+    filemode='w',
+    format='%(name)s - %(levelname)s - %(message)s',
+    level=os.environ.get("LOGLEVEL", "INFO")
+)
 POINTER_PATH = str(os.path.dirname(os.path.realpath(__file__))) + "/pointer_flag.txt"
 TCP_IP = '127.0.0.1'
 TCP_PORT = 8080
@@ -58,10 +63,6 @@ class FootprintLayer:
         self.socket: Optional[socket.socket] = None
         self.count: int = 0
         self._define_socket()
-
-    @property
-    def pointer_present(self) -> bool:
-        return os.path.isfile(POINTER_PATH)
 
     @staticmethod
     def write_pointer() -> None:
@@ -147,7 +148,7 @@ class FootprintLayer:
 
         Returns: None
         """
-        if FootprintLayer.pointer_present is False:
+        if os.path.isfile(POINTER_PATH) is False:
 
             self._establish_shutdown_procedure()
 
