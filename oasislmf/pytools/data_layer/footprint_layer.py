@@ -111,14 +111,14 @@ class FootprintLayer:
                         number_of_chunks: int = int(math.ceil(len(raw_data) / 500))
                         raw_data_buffer = [raw_data[i:i + 500] for i in range(0, len(raw_data), 500)]
 
-                        connection.send(number_of_chunks.to_bytes(32, byteorder='big'))
+                        connection.sendall(number_of_chunks.to_bytes(32, byteorder='big'))
 
                         for chunk in raw_data_buffer:
-                            connection.send(chunk)
+                            connection.sendall(chunk)
 
                     elif operation == OperationEnum.GET_NUM_INTENSITY_BINS:
                         number_of_intensity_bins = self.file_data.num_intensity_bins
-                        connection.send(number_of_intensity_bins.to_bytes(8, byteorder='big'))
+                        connection.sendall(number_of_intensity_bins.to_bytes(8, byteorder='big'))
 
                     elif operation == OperationEnum.REGISTER:
                         self.count += 1
@@ -224,7 +224,7 @@ def _shutdown_socket(running_socket: socket.socket):
 
 def main():
     import atexit
-    test = FootprintLayer("/home/maxwellflitton/Documents/github/oasislmf-get-model-testing/data/100/static/")
+    test = FootprintLayer("/home/maxwellflitton/Documents/github/oasislmf-get-model-testing/data/500/static/")
     atexit.register(_shutdown_socket, test.socket)
     test.listen()
 
