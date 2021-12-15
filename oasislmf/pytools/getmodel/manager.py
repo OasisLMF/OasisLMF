@@ -527,8 +527,8 @@ def run(run_dir, file_in, file_out, ignore_file_type):
     input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)
 
-    # FootprintLayerClient.register(static_path=static_path)
-    # atexit.register(FootprintLayerClient.unregister)
+    FootprintLayerClient.register(static_path=static_path)
+    atexit.register(FootprintLayerClient.unregister)
 
     with ExitStack() as stack:
         if file_in is None:

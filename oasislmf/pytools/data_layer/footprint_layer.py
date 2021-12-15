@@ -1,14 +1,25 @@
+import atexit
+import datetime
+import logging
+import math
+import os
 import pickle
 import socket
 from contextlib import ExitStack
 from enum import Enum
 from multiprocessing import Process
 from typing import Optional, Set, Tuple, List
-import math
 
 import numpy as np
 
 from oasislmf.pytools.getmodel.footprint import Footprint
+
+
+# configuring process meta data
+logging.basicConfig(filename='footprint_tcp_server.log', filemode='w', format='%(name)s - %(levelname)s - %(message)s')
+POINTER_PATH = str(os.path.dirname(os.path.realpath(__file__))) + "/pointer_flag.txt"
+TCP_IP = '127.0.0.1'
+TCP_PORT = 8080
 
 
 class OperationEnum(Enum):
@@ -48,16 +59,65 @@ class FootprintLayer:
         self.count: int = 0
         self._define_socket()
 
+    @property
+    def pointer_present(self) -> bool:
+        return os.path.isfile(POINTER_PATH)
+
+    @staticmethod
+    def write_pointer() -> None:
+        logging.info(f"writing pointer: {datetime.datetime.now()}")
+        with open(POINTER_PATH, "w") as file:
+            file.write(f"STARTED {datetime.datetime.now()}")
+
+    @staticmethod
+    def delete_pointer() -> None:
+        logging.info(f"deleting pointer: {datetime.datetime.now()}")
+        os.remove(POINTER_PATH)
+
     def _define_socket(self) -> None:
         """
         Defines the self.socket attribute to the port and localhost.
 
         Returns: None
         """
+        logging.info(f"defining socket for TCP server: {datetime.datetime.now()}")
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_address = ('127.0.0.1', 8080)
+        server_address = (TCP_IP, TCP_PORT)
         self.socket.bind(server_address)
         self.socket.listen(1)
+
+    def _establish_shutdown_procedure(self) -> None:
+        """
+        Establishes the steps for shutdown, writing the pointer, and making sure that the pointer will be deleted
+        and the self.socket is shutdown once the process running the server is exited.
+
+        Returns: None
+        """
+        logging.info(f"establishing shutdown procedure: {datetime.datetime.now()}")
+        FootprintLayer.write_pointer()
+        atexit.register(FootprintLayer.delete_pointer)
+        atexit.register(self.socket.close)
+
+    @staticmethod
+    def _stream_footprint_data(event_data: np.array, connection: socket.socket) -> None:
+        """
+        Serialises data then splits it into chunks of 500 in turn streaming through a connection.
+
+        Args:
+            event_data: (np.array) the data to be serialised and streamed through a connection
+            connection: (socket.socket) the connection that the data is going to be streamed through
+
+        Returns: None
+        """
+        raw_data: bytes = pickle.dumps(event_data)
+        number_of_chunks: int = int(math.ceil(len(raw_data) / 500))
+
+        raw_data_buffer: List[bytes] = [raw_data[i:i + 500] for i in range(0, len(raw_data), 500)]
+
+        connection.sendall(number_of_chunks.to_bytes(32, byteorder='big'))
+
+        for chunk in raw_data_buffer:
+            connection.sendall(chunk)
 
     @staticmethod
     def _extract_header(header_data: bytes) -> Tuple[OperationEnum, Optional[int]]:
@@ -87,60 +147,50 @@ class FootprintLayer:
 
         Returns: None
         """
-        with ExitStack() as stack:
-            footprint_obj = stack.enter_context(Footprint.load(static_path=self.static_path,
-                                                               ignore_file_type=self.ignore_file_type))
-            self.file_data = footprint_obj
+        if FootprintLayer.pointer_present is False:
 
-            while True:
+            self._establish_shutdown_procedure()
 
-                connection, client_address = self.socket.accept()
-                data = connection.recv(16)
+            with ExitStack() as stack:
+                footprint_obj = stack.enter_context(Footprint.load(static_path=self.static_path,
+                                                                   ignore_file_type=self.ignore_file_type))
+                self.file_data = footprint_obj
 
-                if data:
-                    operation, event_id = self._extract_header(header_data=data)
+                while True:
+                    connection, client_address = self.socket.accept()
+                    data = connection.recv(16)
 
-                    if operation == OperationEnum.GET_DATA:
-                        event_data = self.file_data.get_event(event_id=event_id)
-                        try:
+                    if data:
+                        operation, event_id = self._extract_header(header_data=data)
+
+                        if operation == OperationEnum.GET_DATA:
+                            event_data = self.file_data.get_event(event_id=event_id)
+
                             del self.file_data.footprint_index[event_id]
-                        except KeyError:
-                            # TODO => log the key error
-                            pass
-                        raw_data = pickle.dumps(event_data)
-                        number_of_chunks: int = int(math.ceil(len(raw_data) / 500))
-                        raw_data_buffer = [raw_data[i:i + 500] for i in range(0, len(raw_data), 500)]
 
-                        connection.sendall(number_of_chunks.to_bytes(32, byteorder='big'))
+                            FootprintLayer._stream_footprint_data(event_data=event_data, connection=connection)
 
-                        for chunk in raw_data_buffer:
-                            connection.sendall(chunk)
+                        elif operation == OperationEnum.GET_NUM_INTENSITY_BINS:
+                            number_of_intensity_bins = self.file_data.num_intensity_bins
+                            connection.sendall(number_of_intensity_bins.to_bytes(8, byteorder='big'))
 
-                    elif operation == OperationEnum.GET_NUM_INTENSITY_BINS:
-                        number_of_intensity_bins = self.file_data.num_intensity_bins
-                        connection.sendall(number_of_intensity_bins.to_bytes(8, byteorder='big'))
+                        elif operation == OperationEnum.REGISTER:
+                            self.count += 1
+                            logging.info(f"connection registered: {self.count} for {client_address} {datetime.datetime.now()}")
 
-                    elif operation == OperationEnum.REGISTER:
-                        self.count += 1
-
-                    elif operation == OperationEnum.UNREGISTER:
-                        self.count -= 1
-                        if self.count <= 0:
-                            break
-                    connection.close()
-            connection.close()
+                        elif operation == OperationEnum.UNREGISTER:
+                            self.count -= 1
+                            logging.info(f"connection unregistered: {self.count} for {client_address} {datetime.datetime.now()}")
+                            if self.count <= 0:
+                                break
+                        connection.close()
+                connection.close()
 
 
 class FootprintLayerClient:
     """
     This class is responsible for connecting to the footprint server via TCP.
-    ClassAttributes:
-        TCP_IP (str): the host of the server
-        TCP_PORT (int): the port the server is on
     """
-    TCP_IP = '127.0.0.1'
-    TCP_PORT = 8080
-
     @classmethod
     def _get_socket(cls) -> socket.socket:
         """
@@ -149,7 +199,7 @@ class FootprintLayerClient:
         Returns: (socket.socket) a connected socket
         """
         current_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        current_socket.connect((cls.TCP_IP, cls.TCP_PORT))  # this is where it could be hanging
+        current_socket.connect((TCP_IP, TCP_PORT))
         current_socket.settimeout(10)
         return current_socket
 
@@ -217,15 +267,9 @@ class FootprintLayerClient:
         return pickle.loads(b"".join(raw_data_buffer))
 
 
-def _shutdown_socket(running_socket: socket.socket):
-    print("the shutdown function is firing")
-    running_socket.close()
-
-
 def main():
-    import atexit
+    print("test server is firing")
     test = FootprintLayer("/home/maxwellflitton/Documents/github/oasislmf-get-model-testing/data/500/static/")
-    atexit.register(_shutdown_socket, test.socket)
     test.listen()
 
 
