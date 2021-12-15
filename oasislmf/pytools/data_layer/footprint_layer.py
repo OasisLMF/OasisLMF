@@ -4,7 +4,6 @@ from contextlib import ExitStack
 from enum import Enum
 from multiprocessing import Process
 from typing import Optional, Set, Tuple
-from socketserver import BaseRequestHandler, TCPServer
 
 import numpy as np
 
@@ -20,9 +19,10 @@ class OperationEnum(Enum):
     GET_NUM_INTENSITY_BINS = (2).to_bytes(4, byteorder='big')
     REGISTER = (3).to_bytes(4, byteorder='big')
     UNREGISTER = (4).to_bytes(4, byteorder='big')
+    POLL_DATA = (5).to_bytes(4, byteorder='big')
 
 
-class FootprintLayer(BaseRequestHandler):
+class FootprintLayer:
     """
     This class is responsible for accessing the footprint data via TCP ports.
 
@@ -94,7 +94,6 @@ class FootprintLayer(BaseRequestHandler):
             while True:
 
                 connection, client_address = self.socket.accept()
-                connection.listen(1)
                 data = connection.recv(16)
 
                 if data:
@@ -124,6 +123,7 @@ class FootprintLayer(BaseRequestHandler):
                         if self.count <= 0:
                             break
                     connection.close()
+            connection.close()
 
 
 class FootprintLayerClient:
