@@ -216,11 +216,6 @@ class FootprintLayerClient:
 
         return pickle.loads(b"".join(raw_data_buffer))
 
-        # for _ in
-        # raw_data = current_socket.recv(data_length)
-        # current_socket.close()
-        # return pickle.loads(raw_data)
-
 
 def _shutdown_socket(running_socket: socket.socket):
     print("the shutdown function is firing")
