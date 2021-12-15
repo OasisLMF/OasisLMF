@@ -108,7 +108,7 @@ class FootprintLayer:
                             pass
                         raw_data = pickle.dumps(event_data)
                         data_length = len(raw_data)
-                        connection.send(data_length.to_bytes(8, byteorder='big'))
+                        connection.send(data_length.to_bytes(16, byteorder='big'))
                         connection.send(raw_data)
 
                     elif operation == OperationEnum.GET_NUM_INTENSITY_BINS:
@@ -202,7 +202,7 @@ class FootprintLayerClient:
         data: bytes = OperationEnum.GET_DATA.value + int(event_id).to_bytes(8, byteorder='big')
         current_socket.sendall(data)
 
-        data_length_bytes = current_socket.recv(8)
+        data_length_bytes = current_socket.recv(16)
         data_length = int.from_bytes(data_length_bytes, 'big')
         raw_data = current_socket.recv(data_length)
         current_socket.close()
