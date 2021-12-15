@@ -352,6 +352,9 @@ class API_analyses(ApiEndpoint):
     def storage_links(self, ID):
         return self.session.get('{}{}/storage_links'.format(self.url_endpoint, ID))
 
+    def sub_task_list(self, ID):
+        return self.session.get('{}{}/sub_task_list'.format(self.url_endpoint, ID))
+
 # --- API Main Client ------------------------------------------------------- #
 
 
@@ -500,15 +503,18 @@ class APIClient(object):
                         logged_running = True
                         self.logger.info('Input Generation: Executing (id={})'.format(analysis_id))
 
-                    if 'sub_task_statuses' in analysis:
-                        with tqdm(total=len(analysis['sub_task_statuses']),
+                    sub_tasks = self.analyses.sub_task_list(analysis_id)
+                    if 'sub_task_list' in analysis and sub_tasks.ok:
+                        sub_tasks_list = sub_tasks.json()
+                        with tqdm(total=len(sub_tasks_list),
                                   unit=' sub_task',
                                   desc='Input Generation') as pbar:
 
                             completed = []
-                            while len(completed) < len(analysis['sub_task_statuses']):
+                            while len(completed) < len(sub_tasks_list):
+                                sub_tasks_list = self.analyses.sub_task_list(analysis_id).json()
                                 analysis = self.analyses.get(analysis_id).json()
-                                completed = [tsk for tsk in analysis['sub_task_statuses'] if tsk['status'] == 'COMPLETED']
+                                completed = [tsk for tsk in sub_tasks_list if tsk['status'] == 'COMPLETED']
                                 pbar.update(len(completed) - pbar.n)
 
                                 # Exit conditions
@@ -579,15 +585,18 @@ class APIClient(object):
                         logged_running = True
                         self.logger.info('Analysis Run: Executing (id={})'.format(analysis_id))
 
-                    if 'sub_task_statuses' in analysis:
-                        with tqdm(total=len(analysis['sub_task_statuses']),
+                    sub_tasks = self.analyses.sub_task_list(analysis_id)
+                    if 'sub_task_list' in analysis and sub_tasks.ok:
+                        sub_tasks_list = sub_tasks.json()
+                        with tqdm(total=len(sub_tasks_list),
                                   unit=' sub_task',
                                   desc='Analysis Run') as pbar:
 
                             completed = []
-                            while len(completed) < len(analysis['sub_task_statuses']):
+                            while len(completed) < len(sub_tasks_list):
+                                sub_tasks_list = self.analyses.sub_task_list(analysis_id).json()
                                 analysis = self.analyses.get(analysis_id).json()
-                                completed = [tsk for tsk in analysis['sub_task_statuses'] if tsk['status'] == 'COMPLETED']
+                                completed = [tsk for tsk in sub_tasks_list if tsk['status'] == 'COMPLETED']
                                 pbar.update(len(completed) - pbar.n)
 
                                 # Exit conditions
