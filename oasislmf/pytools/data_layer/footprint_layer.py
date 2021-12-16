@@ -185,6 +185,7 @@ class FootprintLayer:
                             logging.info(f"connection unregistered: {self.count} for {client_address} {datetime.datetime.now()}")
                             if self.count <= 0:
                                 logging.info(f"breaking event loop: {datetime.datetime.now()}")
+                                self.socket.shutdown(socket.SHUT_RDWR)
                                 break
                         connection.close()
                 connection.close()
