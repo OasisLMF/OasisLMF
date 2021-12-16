@@ -237,6 +237,7 @@ class FootprintLayerClient:
         data: bytes = OperationEnum.UNREGISTER.value
         current_socket.sendall(data)
         current_socket.close()
+        atexit.unregister(cls.unregister)
 
     @classmethod
     def get_number_of_intensity_bins(cls) -> int:
