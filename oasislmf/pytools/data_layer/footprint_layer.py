@@ -252,21 +252,32 @@ class FootprintLayerClient:
 
     @classmethod
     def register(cls, static_path: str) -> None:
-        try:
-            _ = shared_memory.SharedMemory(name="DATA_SERVER_STATE")
-            time.sleep(2)
+        if os.path.isfile(path=POINTER_PATH):
+            time.sleep(3)
             cls._register()
-        except FileNotFoundError:
-            a = np.ones(shape=(1, 1), dtype=np.int64)  # Start with an existing NumPy array
-            shm = shared_memory.SharedMemory(create=True, size=a.nbytes)
-            # # Now create a NumPy array backed by shared memory
-            np_array = np.ndarray(a.shape, dtype=np.int64, buffer=shm.buf)
-            np_array[:] = a[:]  # Copy the original data into shared memory
-
+        else:
+            with open(POINTER_PATH, "w") as file:
+                file.write(f"STARTED {datetime.datetime.now()}")
             footprint_layer = FootprintLayer(static_path=static_path)
             server_process = Process(target=footprint_layer.listen)
             server_process.start()
+            time.sleep(1)
             cls._register()
+        # try:
+        #     _ = shared_memory.SharedMemory(name="DATA_SERVER_STATE")
+        #     time.sleep(2)
+        #     cls._register()
+        # except FileNotFoundError:
+        #     a = np.ones(shape=(1, 1), dtype=np.int64)  # Start with an existing NumPy array
+        #     shm = shared_memory.SharedMemory(create=True, size=a.nbytes)
+        #     # # Now create a NumPy array backed by shared memory
+        #     np_array = np.ndarray(a.shape, dtype=np.int64, buffer=shm.buf)
+        #     np_array[:] = a[:]  # Copy the original data into shared memory
+        #
+        #     footprint_layer = FootprintLayer(static_path=static_path)
+        #     server_process = Process(target=footprint_layer.listen)
+        #     server_process.start()
+        #     cls._register()
 
     @classmethod
     def unregister(cls) -> None:
