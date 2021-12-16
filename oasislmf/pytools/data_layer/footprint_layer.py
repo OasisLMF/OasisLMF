@@ -5,6 +5,7 @@ import math
 import os
 import pickle
 import socket
+import time
 from contextlib import ExitStack
 from enum import Enum
 from multiprocessing import Process
@@ -149,54 +150,69 @@ class FootprintLayer:
 
         Returns: None
         """
-        if os.path.isfile(POINTER_PATH) is False:
+        # if os.path.isfile(POINTER_PATH) is False:
 
-            self._establish_shutdown_procedure()
+        self._establish_shutdown_procedure()
 
-            with ExitStack() as stack:
-                footprint_obj = stack.enter_context(Footprint.load(static_path=self.static_path,
-                                                                   ignore_file_type=self.ignore_file_type))
-                self.file_data = footprint_obj
+        with ExitStack() as stack:
+            footprint_obj = stack.enter_context(Footprint.load(static_path=self.static_path,
+                                                               ignore_file_type=self.ignore_file_type))
+            self.file_data = footprint_obj
 
-                while True:
-                    connection, client_address = self.socket.accept()
-                    data = connection.recv(16)
+            while True:
+                connection, client_address = self.socket.accept()
+                data = connection.recv(16)
 
-                    if data:
-                        operation, event_id = self._extract_header(header_data=data)
+                if data:
+                    operation, event_id = self._extract_header(header_data=data)
 
-                        if operation == OperationEnum.GET_DATA:
-                            event_data = self.file_data.get_event(event_id=event_id)
+                    if operation == OperationEnum.GET_DATA:
+                        event_data = self.file_data.get_event(event_id=event_id)
 
-                            del self.file_data.footprint_index[event_id]
+                        del self.file_data.footprint_index[event_id]
 
-                            FootprintLayer._stream_footprint_data(event_data=event_data, connection=connection)
+                        FootprintLayer._stream_footprint_data(event_data=event_data, connection=connection)
 
-                        elif operation == OperationEnum.GET_NUM_INTENSITY_BINS:
-                            number_of_intensity_bins = self.file_data.num_intensity_bins
-                            connection.sendall(number_of_intensity_bins.to_bytes(8, byteorder='big'))
+                    elif operation == OperationEnum.GET_NUM_INTENSITY_BINS:
+                        number_of_intensity_bins = self.file_data.num_intensity_bins
+                        connection.sendall(number_of_intensity_bins.to_bytes(8, byteorder='big'))
 
-                        elif operation == OperationEnum.REGISTER:
-                            self.count += 1
-                            logging.info(f"connection registered: {self.count} for {client_address} {datetime.datetime.now()}")
+                    elif operation == OperationEnum.REGISTER:
+                        self.count += 1
+                        logging.info(f"connection registered: {self.count} for {client_address} {datetime.datetime.now()}")
 
-                        elif operation == OperationEnum.UNREGISTER:
-                            self.count -= 1
-                            logging.info(f"connection unregistered: {self.count} for {client_address} {datetime.datetime.now()}")
-                            if self.count <= 0:
-                                logging.info(f"breaking event loop: {datetime.datetime.now()}")
-                                self.socket.shutdown(socket.SHUT_RDWR)
-                                logging.info(f"deleting pointer file: {datetime.datetime.now()}")
-                                FootprintLayer.delete_pointer()
-                                break
-                        connection.close()
-                connection.close()
+                    elif operation == OperationEnum.UNREGISTER:
+                        self.count -= 1
+                        logging.info(f"connection unregistered: {self.count} for {client_address} {datetime.datetime.now()}")
+                        if self.count <= 0:
+                            logging.info(f"breaking event loop: {datetime.datetime.now()}")
+                            self.socket.shutdown(socket.SHUT_RDWR)
+                            FootprintLayer.delete_pointer()
+                            break
+                    connection.close()
+            connection.close()
 
 
 class FootprintLayerClient:
     """
     This class is responsible for connecting to the footprint server via TCP.
     """
+    @classmethod
+    def poll(cls) -> bool:
+        sleep_time = 0.1
+        if os.path.isfile(POINTER_PATH) is False:
+            with open(POINTER_PATH, "w") as file:
+                file.write(f"STARTED {datetime.datetime.now()}")
+            return False
+        while True:
+            try:
+                connection: socket.socket = cls._get_socket()
+                connection.close()
+                return True
+            except ConnectionRefusedError:
+                time.sleep(sleep_time)
+                sleep_time = sleep_time * 2
+
     @classmethod
     def _get_socket(cls) -> socket.socket:
         """
@@ -223,13 +239,23 @@ class FootprintLayerClient:
 
     @classmethod
     def register(cls, static_path: str) -> None:
-        try:
-            cls._register()
-        except ConnectionRefusedError:
+        ready: bool = cls.poll()
+        if ready is False:
             footprint_layer = FootprintLayer(static_path=static_path)
             server_process = Process(target=footprint_layer.listen)
             server_process.start()
+            _ = cls.poll()
             cls._register()
+        else:
+            cls._register()
+
+        # try:
+        #     cls._register()
+        # except ConnectionRefusedError:
+        #     footprint_layer = FootprintLayer(static_path=static_path)
+        #     server_process = Process(target=footprint_layer.listen)
+        #     server_process.start()
+        #     cls._register()
 
     @classmethod
     def unregister(cls) -> None:
