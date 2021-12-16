@@ -262,7 +262,7 @@ class FootprintLayerClient:
         number_of_chunks: int = int.from_bytes(number_of_chunks, 'big')
 
         raw_data_buffer: List[bytes] = []
-        for _ in range(number_of_chunks):
+        for _ in range(number_of_chunks + 1):
             raw_data_buffer.append(current_socket.recv(500))
 
         return pickle.loads(b"".join(raw_data_buffer))
