@@ -8,8 +8,10 @@ import socket
 import time
 from contextlib import ExitStack
 from enum import Enum
-from multiprocessing import Process
 from typing import Optional, Set, Tuple, List
+import argparse
+from multiprocessing import shared_memory, Process, Lock
+from multiprocessing import cpu_count, current_process
 
 import numpy as np
 
@@ -27,6 +29,7 @@ POINTER_PATH = str(os.path.dirname(os.path.realpath(__file__))) + "/pointer_flag
 TCP_IP = '127.0.0.1'
 TCP_PORT = 8080
 PROCESSES_SUPPORTED = 100
+# lock = Lock()
 
 
 class OperationEnum(Enum):
@@ -197,22 +200,31 @@ class FootprintLayerClient:
     """
     This class is responsible for connecting to the footprint server via TCP.
     """
-    @classmethod
-    def poll(cls) -> bool:
-        sleep_time = 0.1
-        if os.path.isfile(POINTER_PATH) is False:
-            with open(POINTER_PATH, "w") as file:
-                file.write(f"STARTED {datetime.datetime.now()}")
-            return False
-        while True:
-            try:
-                connection: socket.socket = cls._get_socket()
-                connection.close()
-                break
-            except ConnectionRefusedError:
-                time.sleep(sleep_time)
-                # sleep_time = sleep_time * 2
-        return True
+    # @classmethod
+    # def poll(cls, static_path: str) -> bool:
+    #     existing_shm = shared_memory.SharedMemory(name="DATA_SERVER_STATE")
+    #     np_array = np.ndarray((1, 1,), dtype=np.int64, buffer=existing_shm.buf)
+    #
+    #     if int(np_array[0]) == 0:
+    #         np_array[0] = 1
+    #         cls.register(static_path=static_path)
+    #     else:
+    #         time.sleep(1)
+    #         cls.register()
+        # sleep_time = 0.1
+        # if os.path.isfile(POINTER_PATH) is False:
+        #     with open(POINTER_PATH, "w") as file:
+        #         file.write(f"STARTED {datetime.datetime.now()}")
+        #     return False
+        # while True:
+        #     try:
+        #         connection: socket.socket = cls._get_socket()
+        #         connection.close()
+        #         break
+        #     except ConnectionRefusedError:
+        #         time.sleep(sleep_time)
+        #         # sleep_time = sleep_time * 2
+        # return True
 
     @classmethod
     def _get_socket(cls) -> socket.socket:
@@ -240,23 +252,17 @@ class FootprintLayerClient:
 
     @classmethod
     def register(cls, static_path: str) -> None:
-        ready: bool = cls.poll()
-        if ready is False:
+        existing_shm = shared_memory.SharedMemory(name="DATA_SERVER_STATE")
+        current_state = np.ndarray((1, 1,), dtype=np.int64, buffer=existing_shm.buf)
+        if int(current_state[0]) == 0:
+            current_state[0] = 1
             footprint_layer = FootprintLayer(static_path=static_path)
             server_process = Process(target=footprint_layer.listen)
             server_process.start()
-            _ = cls.poll()
             cls._register()
         else:
+            time.sleep(1)
             cls._register()
-
-        # try:
-        #     cls._register()
-        # except ConnectionRefusedError:
-        #     footprint_layer = FootprintLayer(static_path=static_path)
-        #     server_process = Process(target=footprint_layer.listen)
-        #     server_process.start()
-        #     cls._register()
 
     @classmethod
     def unregister(cls) -> None:
@@ -312,9 +318,11 @@ def _shutdown_port(connection: socket.socket) -> None:
 
 
 def main():
-    print("test server is firing")
-    test = FootprintLayer("/home/maxwellflitton/Documents/github/oasislmf-get-model-testing/data/500/static/")
-    test.listen()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("p", help="path to static file", type=str)
+    args = parser.parse_args()
+    server = FootprintLayer(args.p)
+    server.listen()
 
 
 if __name__ == "__main__":
