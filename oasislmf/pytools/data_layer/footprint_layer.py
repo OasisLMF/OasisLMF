@@ -98,7 +98,7 @@ class FootprintLayer:
         logging.info(f"establishing shutdown procedure: {datetime.datetime.now()}")
         FootprintLayer.write_pointer()
         atexit.register(FootprintLayer.delete_pointer)
-        atexit.register(self.socket.close)
+        atexit.register(_shutdown_port, self.socket)
 
     @staticmethod
     def _stream_footprint_data(event_data: np.array, connection: socket.socket) -> None:
@@ -267,6 +267,11 @@ class FootprintLayerClient:
             raw_data_buffer.append(current_socket.recv(500))
 
         return pickle.loads(b"".join(raw_data_buffer))
+
+
+def _shutdown_port(connection: socket.socket) -> None:
+    logging.info(f"socket is shutting down: {datetime.datetime.now()}")
+    connection.shutdown(socket.SHUT_RDWR)
 
 
 def main():
