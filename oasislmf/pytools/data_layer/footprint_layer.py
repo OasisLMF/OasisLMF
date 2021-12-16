@@ -186,6 +186,8 @@ class FootprintLayer:
                             if self.count <= 0:
                                 logging.info(f"breaking event loop: {datetime.datetime.now()}")
                                 self.socket.shutdown(socket.SHUT_RDWR)
+                                logging.info(f"deleting pointer file: {datetime.datetime.now()}")
+                                FootprintLayer.delete_pointer()
                                 break
                         connection.close()
                 connection.close()
@@ -208,11 +210,16 @@ class FootprintLayerClient:
         return current_socket
 
     @classmethod
+    def _define_shutdown_procedure(cls) -> None:
+        atexit.register(cls.unregister)
+
+    @classmethod
     def _register(cls) -> None:
         current_socket = cls._get_socket()
         data: bytes = OperationEnum.REGISTER.value
         current_socket.sendall(data)
         current_socket.close()
+        cls._define_shutdown_procedure()
 
     @classmethod
     def register(cls, static_path: str) -> None:
