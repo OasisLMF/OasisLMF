@@ -208,10 +208,11 @@ class FootprintLayerClient:
             try:
                 connection: socket.socket = cls._get_socket()
                 connection.close()
-                return True
+                break
             except ConnectionRefusedError:
                 time.sleep(sleep_time)
-                sleep_time = sleep_time * 2
+                # sleep_time = sleep_time * 2
+        return True
 
     @classmethod
     def _get_socket(cls) -> socket.socket:
