@@ -184,6 +184,7 @@ class FootprintLayer:
                             self.count -= 1
                             logging.info(f"connection unregistered: {self.count} for {client_address} {datetime.datetime.now()}")
                             if self.count <= 0:
+                                logging.info(f"breaking event loop: {datetime.datetime.now()}")
                                 break
                         connection.close()
                 connection.close()
