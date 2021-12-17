@@ -849,6 +849,8 @@ def ri(analysis_settings, max_process_id, filename, process_counter, num_reinsur
     for process_id in process_range(max_process_id, process_number):
         do_tees(RUNTYPE_REINSURANCE_LOSS, analysis_settings, process_id, filename, process_counter, fifo_dir, work_dir)
 
+    # TODO => insert server here
+
     for process_id in process_range(max_process_id, process_number):
         do_summarycalcs(
             runtype=RUNTYPE_REINSURANCE_LOSS,
@@ -1500,6 +1502,9 @@ def create_bash_analysis(
     if process_number is not None:
         num_gul_per_lb = 0
         num_fm_per_lb = 0
+
+    print_command(filename, '# --- running data servers ---')
+    print_command(filename, f'servedata {kwargs["static_path"]}')
 
     print_command(filename, '# --- Setup run dirs ---')
     print_command(filename, '')
