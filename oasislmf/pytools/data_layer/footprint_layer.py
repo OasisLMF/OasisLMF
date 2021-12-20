@@ -1,3 +1,4 @@
+import argparse
 import atexit
 import datetime
 import logging
@@ -5,18 +6,13 @@ import math
 import os
 import pickle
 import socket
-import time
 from contextlib import ExitStack
 from enum import Enum
 from typing import Optional, Set, Tuple, List
-import argparse
-from multiprocessing import shared_memory, Process, Lock
-from multiprocessing import cpu_count, current_process
 
 import numpy as np
 
 from oasislmf.pytools.getmodel.footprint import Footprint
-
 
 # configuring process meta data
 logging.basicConfig(
@@ -29,7 +25,6 @@ POINTER_PATH = str(os.path.dirname(os.path.realpath(__file__))) + "/pointer_flag
 TCP_IP = '127.0.0.1'
 TCP_PORT = 8080
 PROCESSES_SUPPORTED = 100
-# lock = Lock()
 
 
 class OperationEnum(Enum):
@@ -153,8 +148,6 @@ class FootprintLayer:
 
         Returns: None
         """
-        # if os.path.isfile(POINTER_PATH) is False:
-
         self._establish_shutdown_procedure()
 
         with ExitStack() as stack:
@@ -200,31 +193,13 @@ class FootprintLayerClient:
     """
     This class is responsible for connecting to the footprint server via TCP.
     """
-    # @classmethod
-    # def poll(cls, static_path: str) -> bool:
-    #     existing_shm = shared_memory.SharedMemory(name="DATA_SERVER_STATE")
-    #     np_array = np.ndarray((1, 1,), dtype=np.int64, buffer=existing_shm.buf)
-    #
-    #     if int(np_array[0]) == 0:
-    #         np_array[0] = 1
-    #         cls.register(static_path=static_path)
-    #     else:
-    #         time.sleep(1)
-    #         cls.register()
-        # sleep_time = 0.1
-        # if os.path.isfile(POINTER_PATH) is False:
-        #     with open(POINTER_PATH, "w") as file:
-        #         file.write(f"STARTED {datetime.datetime.now()}")
-        #     return False
-        # while True:
-        #     try:
-        #         connection: socket.socket = cls._get_socket()
-        #         connection.close()
-        #         break
-        #     except ConnectionRefusedError:
-        #         time.sleep(sleep_time)
-        #         # sleep_time = sleep_time * 2
-        # return True
+    @classmethod
+    def poll(cls) -> bool:
+        try:
+            _ = cls._get_socket()
+            return True
+        except ConnectionRefusedError:
+            return False
 
     @classmethod
     def _get_socket(cls) -> socket.socket:
@@ -251,33 +226,8 @@ class FootprintLayerClient:
         cls._define_shutdown_procedure()
 
     @classmethod
-    def register(cls, static_path: str) -> None:
-        if os.path.isfile(path=POINTER_PATH):
-            time.sleep(3)
-            cls._register()
-        else:
-            with open(POINTER_PATH, "w") as file:
-                file.write(f"STARTED {datetime.datetime.now()}")
-            footprint_layer = FootprintLayer(static_path=static_path)
-            server_process = Process(target=footprint_layer.listen)
-            server_process.start()
-            time.sleep(1)
-            cls._register()
-        # try:
-        #     _ = shared_memory.SharedMemory(name="DATA_SERVER_STATE")
-        #     time.sleep(2)
-        #     cls._register()
-        # except FileNotFoundError:
-        #     a = np.ones(shape=(1, 1), dtype=np.int64)  # Start with an existing NumPy array
-        #     shm = shared_memory.SharedMemory(create=True, size=a.nbytes)
-        #     # # Now create a NumPy array backed by shared memory
-        #     np_array = np.ndarray(a.shape, dtype=np.int64, buffer=shm.buf)
-        #     np_array[:] = a[:]  # Copy the original data into shared memory
-        #
-        #     footprint_layer = FootprintLayer(static_path=static_path)
-        #     server_process = Process(target=footprint_layer.listen)
-        #     server_process.start()
-        #     cls._register()
+    def register(cls) -> None:
+        cls._register()
 
     @classmethod
     def unregister(cls) -> None:

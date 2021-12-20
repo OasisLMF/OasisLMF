@@ -1313,6 +1313,7 @@ def bash_params(
     process_number=None,
     remove_working_files=True,
     model_run_dir='',
+    static_path="./static/",
     **kwargs
 ):
 
@@ -1335,6 +1336,7 @@ def bash_params(
     bash_params['model_run_dir'] = model_run_dir
     bash_params['gul_threshold'] = analysis_settings.get('gul_threshold', 0)
     bash_params['number_of_samples'] = analysis_settings.get('number_of_samples', 0)
+    bash_params["static_path"] = static_path
 
     # set complex model gulcalc command
     if not _get_getmodel_cmd and custom_gulcalc_cmd:
