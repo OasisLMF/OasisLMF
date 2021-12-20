@@ -1505,8 +1505,8 @@ def create_bash_analysis(
         num_gul_per_lb = 0
         num_fm_per_lb = 0
 
-    print_command(filename, '# --- running data servers ---')
-    print_command(filename, f'servedata {kwargs["static_path"]}')
+    # print_command(filename, '# --- running data servers ---')
+    # print_command(filename, f'servedata {kwargs["static_path"]}')
 
     print_command(filename, '# --- Setup run dirs ---')
     print_command(filename, '')
