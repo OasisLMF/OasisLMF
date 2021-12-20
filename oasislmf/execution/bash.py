@@ -1042,7 +1042,7 @@ def get_getmodel_cov_cmd(
         max_process_id,
         eve_shuffle_flag,
         modelpy=False,
-        **kwargs):
+        **kwargs) -> str:
     """
     Gets the getmodel ktools command (version < 3.0.8) gulcalc coverage stream
     :param number_of_samples: The number of samples to run
@@ -1057,7 +1057,7 @@ def get_getmodel_cov_cmd(
     :type item_output: str
     :param eve_shuffle_flag: The event shuffling rule
     :type  eve_shuffle_flag: str
-    :return: The generated getmodel command
+    :return: (str) The generated getmodel command
     """
 
     cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy)} | gulcalc -S{number_of_samples} -L{gul_threshold}'
@@ -1755,6 +1755,7 @@ def create_bash_analysis(
             main_cmd_gul_stream = get_main_cmd_gul_stream(
                 getmodel_cmd, gul_id, fifo_queue_dir, stderr_guard, RUNTYPE_LOAD_BALANCED_LOSS
             )
+            print_command(command_file=filename, cmd=f"servedata {kwargs['static_path']}")
             print_command(filename, main_cmd_gul_stream)
         else:
             get_gul_stream_cmds.setdefault(fifo_queue_dir, []).append((getmodel_cmd, False))
