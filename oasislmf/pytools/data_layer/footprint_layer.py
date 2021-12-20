@@ -195,6 +195,11 @@ class FootprintLayerClient:
     """
     @classmethod
     def poll(cls) -> bool:
+        """
+        Checks to see if data server is running.
+
+        Returns: (bool)
+        """
         try:
             _ = cls._get_socket()
             return True

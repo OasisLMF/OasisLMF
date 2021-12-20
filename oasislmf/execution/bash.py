@@ -1493,6 +1493,7 @@ def create_bash_analysis(
     need_summary_fifo_for_gul,
     analysis_settings,
     modelpy,
+    model_py_server,
     **kwargs
 ):
 
@@ -1504,9 +1505,6 @@ def create_bash_analysis(
     if process_number is not None:
         num_gul_per_lb = 0
         num_fm_per_lb = 0
-
-    # print_command(filename, '# --- running data servers ---')
-    # print_command(filename, f'servedata {kwargs["static_path"]}')
 
     print_command(filename, '# --- Setup run dirs ---')
     print_command(filename, '')
@@ -1528,6 +1526,9 @@ def create_bash_analysis(
             filename, 'mkdir {}'.format(work_full_correlation_kat_dir)
         )
     print_command(filename, '')
+
+    if model_py_server:
+        print_command(command_file=filename, cmd=f"servedata {kwargs['static_path']}&")
 
     if fmpy:
         if il_output or ri_output:
@@ -1755,7 +1756,6 @@ def create_bash_analysis(
             main_cmd_gul_stream = get_main_cmd_gul_stream(
                 getmodel_cmd, gul_id, fifo_queue_dir, stderr_guard, RUNTYPE_LOAD_BALANCED_LOSS
             )
-            print_command(command_file=filename, cmd=f"servedata {kwargs['static_path']}&")
             print_command(filename, main_cmd_gul_stream)
         else:
             get_gul_stream_cmds.setdefault(fifo_queue_dir, []).append((getmodel_cmd, False))
