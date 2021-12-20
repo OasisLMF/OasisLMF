@@ -1,6 +1,9 @@
 OasisLMF Changelog
 ==================
 
+* [#950](https://github.com/OasisLMF/OasisLMF/pull/964) - allow event subset to be passed in analysis settings
+.. _`1.15.22`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.21...1.15.22
+
 * [#948](https://github.com/OasisLMF/OasisLMF/pull/948) - Fix/platform client error
 .. _`1.15.21`:  https://github.com/OasisLMF/OasisLMF/compare/1.15.20...1.15.21
 
