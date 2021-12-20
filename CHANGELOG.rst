@@ -1,6 +1,9 @@
 OasisLMF Changelog
 ==================
 
+* [#962](https://github.com/OasisLMF/OasisLMF/pull/962) - Prepare 1.23.0 for LTS 
+.. _`1.23.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.23.0...1.23.1
+
 `1.22.0`_
  ---------
 * [#914](https://github.com/OasisLMF/OasisLMF/pull/929) - numba and numpy version incompatibility
