@@ -1755,7 +1755,7 @@ def create_bash_analysis(
             main_cmd_gul_stream = get_main_cmd_gul_stream(
                 getmodel_cmd, gul_id, fifo_queue_dir, stderr_guard, RUNTYPE_LOAD_BALANCED_LOSS
             )
-            print_command(command_file=filename, cmd=f"servedata {kwargs['static_path']}")
+            print_command(command_file=filename, cmd=f"servedata {kwargs['static_path']}&")
             print_command(filename, main_cmd_gul_stream)
         else:
             get_gul_stream_cmds.setdefault(fifo_queue_dir, []).append((getmodel_cmd, False))
