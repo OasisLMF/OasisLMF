@@ -350,6 +350,7 @@ class GenerateLossesOutput(GenerateLossesDir):
         {'name': 'script_fp', 'default': None},
         {'name': 'remove_working_file', 'default': False, 'help': 'Delete files in the "work/" dir onces outputs have completed'},
     ]
+
     def run(self):
         model_run_fp = GenerateLossesDir._get_output_dir(self)
         analysis_settings = GenerateLossesDir.run(self)
@@ -371,6 +372,7 @@ class GenerateLossesOutput(GenerateLossesDir):
             stderr_guard=not self.ktools_disable_guard,
             fifo_tmp_dir=not self.ktools_fifo_relative,
             remove_working_file=self.remove_working_file,
+            static_path="./static/"
         )
         with setcwd(model_run_fp):
             try:
