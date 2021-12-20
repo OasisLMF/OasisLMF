@@ -2012,6 +2012,7 @@ def genbash(
     fmpy_sort_output=False,
     event_shuffle=None,
     modelpy=False,
+    model_py_server=False
 ):
     """
     Generates a bash script containing ktools calculation instructions for an
@@ -2074,6 +2075,7 @@ def genbash(
         fmpy_sort_output=fmpy_sort_output,
         event_shuffle=event_shuffle,
         modelpy=modelpy,
+        model_py_server=model_py_server
     )
 
     # remove the file if it already exists
