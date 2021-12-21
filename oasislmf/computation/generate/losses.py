@@ -351,6 +351,8 @@ class GenerateLossesOutput(GenerateLossesDir):
         # New vars for chunked loss generation
         {'name': 'script_fp', 'default': None},
         {'name': 'remove_working_file', 'default': False, 'help': 'Delete files in the "work/" dir onces outputs have completed'},
+        {'name': 'model_py_server', 'default': True, 'help': 'running the data server for modelpy'},
+        {'name': 'static_path', 'default': "./static/", 'help': 'the path to the static data file'},
     ]
 
     def run(self):
@@ -374,7 +376,8 @@ class GenerateLossesOutput(GenerateLossesDir):
             stderr_guard=not self.ktools_disable_guard,
             fifo_tmp_dir=not self.ktools_fifo_relative,
             remove_working_file=self.remove_working_file,
-            static_path="./static/"
+            model_py_server=self.model_py_server,
+            static_path=self.static_path
         )
         with setcwd(model_run_fp):
             try:
