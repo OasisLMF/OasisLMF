@@ -1528,6 +1528,9 @@ def create_bash_analysis(
             filename, 'mkdir {}'.format(work_full_correlation_kat_dir)
         )
     print_command(filename, '')
+    print_command(filename, '# --- run data server ---')
+    print_command(filename, '# --- run data server ---')
+    print_command(filename, '# --- run data server ---')
 
     if model_py_server:
         print_command(command_file=filename, cmd=f"servedata {kwargs['static_path']}&")
