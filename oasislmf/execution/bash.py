@@ -1533,7 +1533,7 @@ def create_bash_analysis(
     print_command(filename, f'# here is the model_py_server => {model_py_server}')
 
     if not model_py_server:
-        print_command(command_file=filename, cmd=f"servedata {kwargs['static_path']}&")
+        print_command(command_file=filename, cmd=f"servedata {kwargs['static_path']} &")
 
     if fmpy:
         if il_output or ri_output:

@@ -511,7 +511,7 @@ def convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns):
         areaperil_to_vulns[i] = vuln_dict[areaperil_to_vulns[i]]
 
 
-def run(run_dir, file_in, file_out, ignore_file_type):
+def run(run_dir, file_in, file_out, ignore_file_type, data_server):
     """
     Runs the main process of the getmodel process.
 
@@ -520,6 +520,7 @@ def run(run_dir, file_in, file_out, ignore_file_type):
         file_in: (Optional[str]) the path to the input directory
         file_out: (Optional[str]) the path to the output directory
         ignore_file_type: set(str) file extension to ignore when loading
+        data_server: (bool) if set to True runs the data server
 
     Returns: None
     """
@@ -527,9 +528,7 @@ def run(run_dir, file_in, file_out, ignore_file_type):
     input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)
 
-    server_running: bool = FootprintLayerClient.poll()
-
-    if server_running:
+    if data_server:
         FootprintLayerClient.register(static_path=static_path)
         atexit.register(FootprintLayerClient.unregister)
 
@@ -553,7 +552,7 @@ def run(run_dir, file_in, file_out, ignore_file_type):
         logger.debug('init footprint')
         footprint_obj = stack.enter_context(Footprint.load(static_path, ignore_file_type))
 
-        if server_running:
+        if data_server:
             num_intensity_bins: int = FootprintLayerClient.get_number_of_intensity_bins()
         else:
             num_intensity_bins: int = footprint_obj.num_intensity_bins
@@ -581,7 +580,7 @@ def run(run_dir, file_in, file_out, ignore_file_type):
             if len_read==0:
                 break
 
-            if server_running:
+            if data_server:
                 event_footprint = FootprintLayerClient.get_event(event_ids[0])
             else:
                 event_footprint = footprint_obj.get_event(event_ids[0])

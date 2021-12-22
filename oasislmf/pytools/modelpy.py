@@ -11,6 +11,7 @@ parser.add_argument('-r', '--run-dir', help='path to the run directory', default
 parser.add_argument('--ignore-file-type', nargs='*', help='the type of file to be loaded', default=set())
 parser.add_argument('-v', '--logging-level', help='logging level (debug:10, info:20, warning:30, error:40, critical:50)',
                     default=30, type=int)
+parser.add_argument('-s', '--data-server', help='If True run the data server', default=False, type=bool)
 
 
 def main() -> None:
