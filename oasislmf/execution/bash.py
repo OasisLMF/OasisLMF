@@ -1318,6 +1318,8 @@ def bash_params(
     **kwargs
 ):
 
+
+    
     bash_params = {}
     bash_params['max_process_id'] = max_process_id if max_process_id > 0 else multiprocessing.cpu_count()
     bash_params['number_of_processes'] = number_of_processes if number_of_processes > 0 else multiprocessing.cpu_count()
@@ -1337,7 +1339,7 @@ def bash_params(
     bash_params['model_run_dir'] = model_run_dir
     bash_params['gul_threshold'] = analysis_settings.get('gul_threshold', 0)
     bash_params['number_of_samples'] = analysis_settings.get('number_of_samples', 0)
-    bash_params["static_path"] = static_path
+    bash_params["static_path"] = os.path.join(model_run_dir, "static/")
     bash_params["model_py_server"] = model_py_server
 
     # set complex model gulcalc command
