@@ -141,37 +141,43 @@ class FootprintLayer:
             footprint_obj = stack.enter_context(Footprint.load(static_path=self.static_path,
                                                                ignore_file_type=self.ignore_file_type))
             self.file_data = footprint_obj
-
             while True:
-                connection, client_address = self.socket.accept()
-                data = connection.recv(16)
+                try:
+                    connection, client_address = self.socket.accept()
+                    data = connection.recv(16)
 
-                if data:
-                    operation, event_id = self._extract_header(header_data=data)
+                    if data:
+                        operation, event_id = self._extract_header(header_data=data)
 
-                    if operation == OperationEnum.GET_DATA:
-                        event_data = self.file_data.get_event(event_id=event_id)
+                        if operation == OperationEnum.GET_DATA:
+                            event_data = self.file_data.get_event(event_id=event_id)
 
-                        del self.file_data.footprint_index[event_id]
+                            if event_id in self.file_data.footprint_index:
+                                logging.error(f'event_id "{event_id}" not in footprint_index')    
+                                del self.file_data.footprint_index[event_id]
+                            
 
-                        FootprintLayer._stream_footprint_data(event_data=event_data, connection=connection)
+                            FootprintLayer._stream_footprint_data(event_data=event_data, connection=connection)
 
-                    elif operation == OperationEnum.GET_NUM_INTENSITY_BINS:
-                        number_of_intensity_bins = self.file_data.num_intensity_bins
-                        connection.sendall(number_of_intensity_bins.to_bytes(8, byteorder='big'))
+                        elif operation == OperationEnum.GET_NUM_INTENSITY_BINS:
+                            number_of_intensity_bins = self.file_data.num_intensity_bins
+                            connection.sendall(number_of_intensity_bins.to_bytes(8, byteorder='big'))
 
-                    elif operation == OperationEnum.REGISTER:
-                        self.count += 1
-                        logging.info(f"connection registered: {self.count} for {client_address} {datetime.datetime.now()}")
+                        elif operation == OperationEnum.REGISTER:
+                            self.count += 1
+                            logging.info(f"connection registered: {self.count} for {client_address} {datetime.datetime.now()}")
 
-                    elif operation == OperationEnum.UNREGISTER:
-                        self.count -= 1
-                        logging.info(f"connection unregistered: {self.count} for {client_address} {datetime.datetime.now()}")
-                        if self.count <= 0:
-                            logging.info(f"breaking event loop: {datetime.datetime.now()}")
-                            self.socket.shutdown(socket.SHUT_RDWR)
-                            break
-                    connection.close()
+                        elif operation == OperationEnum.UNREGISTER:
+                            self.count -= 1
+                            logging.info(f"connection unregistered: {self.count} for {client_address} {datetime.datetime.now()}")
+                            if self.count <= 0:
+                                logging.info(f"breaking event loop: {datetime.datetime.now()}")
+                                self.socket.shutdown(socket.SHUT_RDWR)
+                                break
+                        connection.close()
+                # Catch all errors, send to logger and keep running        
+                except Exception as e:
+                    logging.error(e)                   
             connection.close()
 
 
@@ -189,7 +195,8 @@ class FootprintLayerClient:
         try:
             _ = cls._get_socket()
             return True
-        except ConnectionRefusedError:
+        except ConnectionRefusedError as e:
+            logging.error('Failed to find server: {}'.format(e))
             return False
 
     @classmethod
