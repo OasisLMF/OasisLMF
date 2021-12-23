@@ -1349,9 +1349,9 @@ def bash_params(
     bash_params['number_of_samples'] = analysis_settings.get('number_of_samples', 0)
     bash_params["static_path"] = os.path.join(model_run_dir, "static/")
 
-    # if 'model_py_server' is selected then so must 'modelpy'
+    bash_params["model_py_server"] = model_py_server
     if model_py_server: 
-        bash_params["model_py_server"] = model_py_server
+        # if 'model_py_server' is selected then so must 'modelpy'
         bash_params['modelpy'] = True
         
 
