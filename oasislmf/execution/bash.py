@@ -1530,8 +1530,9 @@ def create_bash_analysis(
         )
 
     print_command(filename, '')
-    print_command(filename, '# --- run data server ---')
+
     if model_py_server:
+        print_command(filename, '# --- run data server ---')
         print_command(command_file=filename, cmd=f"servedata {kwargs['static_path']} &")
     print_command(filename, '')
 
@@ -1847,7 +1848,10 @@ def create_bash_analysis(
 
     do_pwaits(filename, process_counter)
 
-    print_command(filename, "# ----> pointer")
+    if model_py_server:
+        print_command(filename, '# --- kill data server ---')
+        print_command(command_file=filename, cmd=f"fuser -k 8080/tcp")
+    print_command(filename, '')
 
     if ri_output:
         print_command(filename, '')
