@@ -64,16 +64,16 @@ class FootprintLayer:
         self.count: int = 0
         self._define_socket()
 
-    @staticmethod
-    def write_pointer() -> None:
-        logging.info(f"writing pointer: {datetime.datetime.now()}")
-        with open(POINTER_PATH, "w") as file:
-            file.write(f"STARTED {datetime.datetime.now()}")
-
-    @staticmethod
-    def delete_pointer() -> None:
-        logging.info(f"deleting pointer: {datetime.datetime.now()}")
-        os.remove(POINTER_PATH)
+    # @staticmethod
+    # def write_pointer() -> None:
+    #     logging.info(f"writing pointer: {datetime.datetime.now()}")
+    #     with open(POINTER_PATH, "w") as file:
+    #         file.write(f"STARTED {datetime.datetime.now()}")
+    #
+    # @staticmethod
+    # def delete_pointer() -> None:
+    #     logging.info(f"deleting pointer: {datetime.datetime.now()}")
+    #     os.remove(POINTER_PATH)
 
     def _define_socket(self) -> None:
         """
@@ -95,8 +95,6 @@ class FootprintLayer:
         Returns: None
         """
         logging.info(f"establishing shutdown procedure: {datetime.datetime.now()}")
-        FootprintLayer.write_pointer()
-        atexit.register(FootprintLayer.delete_pointer)
         atexit.register(_shutdown_port, self.socket)
 
     @staticmethod
@@ -183,7 +181,6 @@ class FootprintLayer:
                         if self.count <= 0:
                             logging.info(f"breaking event loop: {datetime.datetime.now()}")
                             self.socket.shutdown(socket.SHUT_RDWR)
-                            FootprintLayer.delete_pointer()
                             break
                     connection.close()
             connection.close()
