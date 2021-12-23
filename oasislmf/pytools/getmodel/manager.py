@@ -528,7 +528,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server):
     input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)
 
-    if data_server:
+    if not data_server:
         FootprintLayerClient.register()
         atexit.register(FootprintLayerClient.unregister)
 
@@ -580,7 +580,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server):
             if len_read==0:
                 break
 
-            if data_server:
+            if not data_server:
                 event_footprint = FootprintLayerClient.get_event(event_ids[0])
             else:
                 event_footprint = footprint_obj.get_event(event_ids[0])
