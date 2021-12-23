@@ -529,12 +529,12 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server):
     ignore_file_type = set(ignore_file_type)
 
     if data_server:
-        logger.info("data server active")
+        logger.debug("data server active")
         FootprintLayerClient.register()
-        logger.info("registered with data server")
+        logger.debug("registered with data server")
         atexit.register(FootprintLayerClient.unregister)
     else:
-        logger.info("data server not active")
+        logger.debug("data server not active")
 
     with ExitStack() as stack:
         if file_in is None:
