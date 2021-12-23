@@ -270,7 +270,6 @@ class GenerateLossesPartial(GenerateLossesDir):
         {'name': 'fmpy_low_memory',        'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output',       'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'order fmpy output by item_id'},
         {'name': 'model_custom_gulcalc',   'default': None,  'help': 'Custom gulcalc binary name to call in the model losses step'},
-        {'name': 'model_py_server',        'default': True, 'type': str2bool, 'help': 'running the data server for modelpy'},
 
         # New vars for chunked loss generation
         {'name': 'script_fp', 'default': None},
@@ -313,8 +312,7 @@ class GenerateLossesPartial(GenerateLossesDir):
             event_shuffle=self.ktools_event_shuffle,
             process_number=self.process_number,
             max_process_id=self.max_process_id,
-            modelpy=self.modelpy,
-            model_py_server=self.model_py_server
+            modelpy=self.modelpy
         )
         ## Workaround test -- needs adding into bash_params
         if self.ktools_fifo_queue_dir:
@@ -351,7 +349,6 @@ class GenerateLossesOutput(GenerateLossesDir):
         # New vars for chunked loss generation
         {'name': 'script_fp', 'default': None},
         {'name': 'remove_working_file', 'default': False, 'help': 'Delete files in the "work/" dir onces outputs have completed'},
-        {'name': 'static_path', 'default': "./static/", 'help': 'the path to the static data file'},
     ]
 
     def run(self):
@@ -374,8 +371,7 @@ class GenerateLossesOutput(GenerateLossesDir):
             run_debug=self.verbose,
             stderr_guard=not self.ktools_disable_guard,
             fifo_tmp_dir=not self.ktools_fifo_relative,
-            remove_working_file=self.remove_working_file,
-            static_path=self.static_path
+            remove_working_file=self.remove_working_file
         )
         with setcwd(model_run_fp):
             try:
@@ -433,7 +429,7 @@ class GenerateLosses(GenerateLossesDir):
         {'name': 'fmpy_low_memory',        'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'use memory map instead of RAM to store loss array (may decrease performance but reduce RAM usage drastically)'},
         {'name': 'fmpy_sort_output',       'default': False, 'type': str2bool, 'const':True, 'nargs':'?', 'help': 'order fmpy output by item_id'},
         {'name': 'model_custom_gulcalc',   'default': None, 'help': 'Custom gulcalc binary name to call in the model losses step'},
-        {'name': 'model_py_server',        'default': True, 'type': str2bool, 'help': 'running the data server for modelpy'},
+        {'name': 'model_py_server',        'default': False, 'type': str2bool, 'help': 'running the data server for modelpy'},
     ]
 
     def run(self):
