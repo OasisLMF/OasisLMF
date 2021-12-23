@@ -1765,6 +1765,8 @@ def create_bash_analysis(
         else:
             get_gul_stream_cmds.setdefault(fifo_queue_dir, []).append((getmodel_cmd, False))
 
+    print_command(filename, "# ----> pointer")
+
     if num_lb: # create load balancer cmds
         for fifo_dir in fifo_dirs:
             get_gul_stream_cmds[fifo_dir] = [
@@ -1844,6 +1846,7 @@ def create_bash_analysis(
                 print_command(filename, main_cmd)
 
     print_command(filename, '')
+    print_command(filename, "# ----> pointer")
 
     do_pwaits(filename, process_counter)
 
