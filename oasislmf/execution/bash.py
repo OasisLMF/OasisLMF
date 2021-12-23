@@ -1851,6 +1851,7 @@ def create_bash_analysis(
     if model_py_server:
         print_command(filename, '# --- kill data server ---')
         print_command(command_file=filename, cmd=f"fuser -k 8080/tcp")
+
     print_command(filename, '')
 
     if ri_output:

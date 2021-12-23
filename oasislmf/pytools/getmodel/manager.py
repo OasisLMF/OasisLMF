@@ -529,7 +529,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server):
     ignore_file_type = set(ignore_file_type)
 
     if data_server:
-        FootprintLayerClient.register(static_path=static_path)
+        FootprintLayerClient.register()
         atexit.register(FootprintLayerClient.unregister)
 
     with ExitStack() as stack:

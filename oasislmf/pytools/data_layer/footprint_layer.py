@@ -64,17 +64,6 @@ class FootprintLayer:
         self.count: int = 0
         self._define_socket()
 
-    # @staticmethod
-    # def write_pointer() -> None:
-    #     logging.info(f"writing pointer: {datetime.datetime.now()}")
-    #     with open(POINTER_PATH, "w") as file:
-    #         file.write(f"STARTED {datetime.datetime.now()}")
-    #
-    # @staticmethod
-    # def delete_pointer() -> None:
-    #     logging.info(f"deleting pointer: {datetime.datetime.now()}")
-    #     os.remove(POINTER_PATH)
-
     def _define_socket(self) -> None:
         """
         Defines the self.socket attribute to the port and localhost.
@@ -217,10 +206,20 @@ class FootprintLayerClient:
 
     @classmethod
     def _define_shutdown_procedure(cls) -> None:
+        """
+        Unregisters the client to the server on exit of the process.
+
+        Returns: None
+        """
         atexit.register(cls.unregister)
 
     @classmethod
-    def _register(cls) -> None:
+    def register(cls) -> None:
+        """
+        Registers the client with the server.
+
+        Returns: None
+        """
         current_socket = cls._get_socket()
         data: bytes = OperationEnum.REGISTER.value
         current_socket.sendall(data)
@@ -228,11 +227,12 @@ class FootprintLayerClient:
         cls._define_shutdown_procedure()
 
     @classmethod
-    def register(cls) -> None:
-        cls._register()
-
-    @classmethod
     def unregister(cls) -> None:
+        """
+        Unregisters the client with the data server.
+
+        Returns: None
+        """
         current_socket = cls._get_socket()
         data: bytes = OperationEnum.UNREGISTER.value
         current_socket.sendall(data)
