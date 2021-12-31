@@ -708,13 +708,11 @@ def do_tees(runtype, analysis_settings, process_id, filename, process_counter, f
                 aalcalc_out = f'{work_dir}{runtype}_S{summary_set}_summaryaalcalc/P{process_id}'
                 cmd = f'{cmd} {aalcalc_out}.bin'
                 cmd_idx = f'{cmd_idx} {aalcalc_out}.idx'
-#                cmd = '{} {}{}_S{}_summaryaalcalc/P{}.bin'.format(cmd, work_dir, runtype, summary_set, process_id)
 
             if summary.get('ord_output', {}).get('alt_period'):
                 aalcalc_ord_out = f'{work_dir}{runtype}_S{summary_set}_summary_palt/P{process_id}'
                 cmd = f'{cmd} {aalcalc_ord_out}.bin'
                 cmd_idx = f'{cmd_idx} {aalcalc_ord_out}.idx'
-#                cmd = '{} {}{}_S{}_summary_palt/P{}.bin'.format(cmd, work_dir, runtype, summary_set, process_id)
 
 
             # leccalc and ordleccalc share the same summarycalc binary data
