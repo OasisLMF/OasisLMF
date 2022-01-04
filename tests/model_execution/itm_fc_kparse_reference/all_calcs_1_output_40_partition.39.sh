@@ -70,7 +70,7 @@ eltcalc -s < fifo/il_S1_eltcalc_P40 > work/kat/il_S1_eltcalc_P40 & pid1=$!
 summarycalctocsv -s < fifo/il_S1_summarycalc_P40 > work/kat/il_S1_summarycalc_P40 & pid2=$!
 pltcalc -s < fifo/il_S1_pltcalc_P40 > work/kat/il_S1_pltcalc_P40 & pid3=$!
 tee < fifo/il_S1_summary_P40 fifo/il_S1_eltcalc_P40 fifo/il_S1_summarycalc_P40 fifo/il_S1_pltcalc_P40 work/il_S1_summaryaalcalc/P40.bin work/il_S1_summaryleccalc/P40.bin > /dev/null & pid4=$!
-tee < fifo/il_S1_summary_P40.idx work/il_S1_summaryleccalc/P40.idx > /dev/null & pid5=$!
+tee < fifo/il_S1_summary_P40.idx work/il_S1_summaryaalcalc/P40.idx work/il_S1_summaryleccalc/P40.idx > /dev/null & pid5=$!
 summarycalc -m -f  -1 fifo/il_S1_summary_P40 < fifo/il_P40 &
 
 # --- Do ground up loss computes ---
@@ -78,7 +78,7 @@ eltcalc -s < fifo/gul_S1_eltcalc_P40 > work/kat/gul_S1_eltcalc_P40 & pid6=$!
 summarycalctocsv -s < fifo/gul_S1_summarycalc_P40 > work/kat/gul_S1_summarycalc_P40 & pid7=$!
 pltcalc -s < fifo/gul_S1_pltcalc_P40 > work/kat/gul_S1_pltcalc_P40 & pid8=$!
 tee < fifo/gul_S1_summary_P40 fifo/gul_S1_eltcalc_P40 fifo/gul_S1_summarycalc_P40 fifo/gul_S1_pltcalc_P40 work/gul_S1_summaryaalcalc/P40.bin work/gul_S1_summaryleccalc/P40.bin > /dev/null & pid9=$!
-tee < fifo/gul_S1_summary_P40.idx work/gul_S1_summaryleccalc/P40.idx > /dev/null & pid10=$!
+tee < fifo/gul_S1_summary_P40.idx work/gul_S1_summaryaalcalc/P40.idx work/gul_S1_summaryleccalc/P40.idx > /dev/null & pid10=$!
 summarycalc -m -i  -1 fifo/gul_S1_summary_P40 < fifo/gul_P40 &
 
 # --- Do insured loss computes ---
@@ -86,7 +86,7 @@ eltcalc -s < fifo/full_correlation/il_S1_eltcalc_P40 > work/full_correlation/kat
 summarycalctocsv -s < fifo/full_correlation/il_S1_summarycalc_P40 > work/full_correlation/kat/il_S1_summarycalc_P40 & pid12=$!
 pltcalc -s < fifo/full_correlation/il_S1_pltcalc_P40 > work/full_correlation/kat/il_S1_pltcalc_P40 & pid13=$!
 tee < fifo/full_correlation/il_S1_summary_P40 fifo/full_correlation/il_S1_eltcalc_P40 fifo/full_correlation/il_S1_summarycalc_P40 fifo/full_correlation/il_S1_pltcalc_P40 work/full_correlation/il_S1_summaryaalcalc/P40.bin work/full_correlation/il_S1_summaryleccalc/P40.bin > /dev/null & pid14=$!
-tee < fifo/full_correlation/il_S1_summary_P40.idx work/full_correlation/il_S1_summaryleccalc/P40.idx > /dev/null & pid15=$!
+tee < fifo/full_correlation/il_S1_summary_P40.idx work/full_correlation/il_S1_summaryaalcalc/P40.idx work/full_correlation/il_S1_summaryleccalc/P40.idx > /dev/null & pid15=$!
 summarycalc -m -f  -1 fifo/full_correlation/il_S1_summary_P40 < fifo/full_correlation/il_P40 &
 
 # --- Do ground up loss computes ---
@@ -94,7 +94,7 @@ eltcalc -s < fifo/full_correlation/gul_S1_eltcalc_P40 > work/full_correlation/ka
 summarycalctocsv -s < fifo/full_correlation/gul_S1_summarycalc_P40 > work/full_correlation/kat/gul_S1_summarycalc_P40 & pid17=$!
 pltcalc -s < fifo/full_correlation/gul_S1_pltcalc_P40 > work/full_correlation/kat/gul_S1_pltcalc_P40 & pid18=$!
 tee < fifo/full_correlation/gul_S1_summary_P40 fifo/full_correlation/gul_S1_eltcalc_P40 fifo/full_correlation/gul_S1_summarycalc_P40 fifo/full_correlation/gul_S1_pltcalc_P40 work/full_correlation/gul_S1_summaryaalcalc/P40.bin work/full_correlation/gul_S1_summaryleccalc/P40.bin > /dev/null & pid19=$!
-tee < fifo/full_correlation/gul_S1_summary_P40.idx work/full_correlation/gul_S1_summaryleccalc/P40.idx > /dev/null & pid20=$!
+tee < fifo/full_correlation/gul_S1_summary_P40.idx work/full_correlation/gul_S1_summaryaalcalc/P40.idx work/full_correlation/gul_S1_summaryleccalc/P40.idx > /dev/null & pid20=$!
 summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P40 < fifo/full_correlation/gul_P40 &
 
 tee < fifo/full_correlation/gul_fc_P40 fifo/full_correlation/gul_P40  | fmcalc -a2 > fifo/full_correlation/il_P40  &
