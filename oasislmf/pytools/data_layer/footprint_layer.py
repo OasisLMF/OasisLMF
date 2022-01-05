@@ -84,7 +84,7 @@ class FootprintLayer:
         Returns: None
         """
         logging.info(f"establishing shutdown procedure: {datetime.datetime.now()}")
-        atexit.register(_shutdown_port, self.socket)
+        # atexit.register(_shutdown_port, self.socket)
 
     @staticmethod
     def _stream_footprint_data(event_data: np.array, connection: socket.socket) -> None:
