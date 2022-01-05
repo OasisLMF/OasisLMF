@@ -1549,12 +1549,12 @@ def create_bash_analysis(
         print_command(filename, '# --- run data server ---')
         print_command(command_file=filename, cmd=f"servedata {kwargs['static_path']} &")
         print_command(command_file=filename, cmd=
-                        """
-                        while ! nc -vz localhost 8080 < /dev/null > /dev/null 2>&1; do
-                          printf '.'
-                          sleep 2
-                        done
-                        """
+        """
+        while ! nc -vz localhost 8080 < /dev/null > /dev/null 2>&1; do
+          printf '.'
+          sleep 2
+        done
+        """
                       )
     print_command(filename, '')
 
