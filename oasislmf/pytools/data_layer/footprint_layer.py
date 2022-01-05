@@ -102,12 +102,12 @@ class FootprintLayer:
 
         raw_data_buffer: List[bytes] = [raw_data[i:i + 500] for i in range(0, len(raw_data), 500)]
 
-        logging.info(f"{number_of_chunks} bytes about to be sent: {datetime.datetime.now()}")
+        logging.info(f"{number_of_chunks} chunks about to be sent: {datetime.datetime.now()}")
         connection.sendall(number_of_chunks.to_bytes(32, byteorder='big'))
 
         for chunk in raw_data_buffer:
             connection.sendall(chunk)
-        logging.info(f"{number_of_chunks} bytes have been sent: {datetime.datetime.now()}")
+        logging.info(f"{number_of_chunks} chunks have been sent: {datetime.datetime.now()}")
 
     @staticmethod
     def _extract_header(header_data: bytes) -> Tuple[OperationEnum, Optional[int]]:
@@ -235,7 +235,7 @@ class FootprintLayerClient:
         data: bytes = OperationEnum.REGISTER.value
         current_socket.sendall(data)
         current_socket.close()
-        cls._define_shutdown_procedure()
+        # cls._define_shutdown_procedure()
 
     @classmethod
     def unregister(cls) -> None:
