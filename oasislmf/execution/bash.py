@@ -201,19 +201,26 @@ def process_range(max_process_id, process_number=None):
         return range(1, max_process_id + 1)
 
 
-def get_modelcmd(modelpy: bool) -> str:
+def get_modelcmd(modelpy: bool, server=False) -> str:
     """
     Gets the construct model command line argument for the bash script.
 
     Args:
         modelpy: (bool) if the getmodel Python setting is True or not
+        server: (bool) if set then enable 'TCP' ipc server/client mode
 
     Returns: C++ getmodel if modelpy is False, Python getmodel if the modelpy if False
     """
+    py_cmd = 'modelpy'
+    cpp_cmd = 'getmodel'
+    
+    if server is True:
+        py_cmd = '{} --data-server'.format(py_cmd)
+
     if modelpy is True:
-        return 'modelpy'
+        return py_cmd
     else:
-        return 'getmodel'
+        return cpp_cmd
 
 
 def get_fmcmd(fmpy, fmpy_low_memory=False, fmpy_sort_output=False):
@@ -1005,6 +1012,7 @@ def get_getmodel_itm_cmd(
         correlated_output,
         eve_shuffle_flag,
         modelpy=False,
+        modelpy_server=False,
         **kwargs):
     """
     Gets the getmodel ktools command (3.1.0+) Gulcalc item stream
@@ -1022,7 +1030,7 @@ def get_getmodel_itm_cmd(
     :type eve_shuffle_flag: str
     :return: The generated getmodel command
     """
-    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy)} | gulcalc -S{number_of_samples} -L{gul_threshold}'
+    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy, modelpy_server)} | gulcalc -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
         cmd = '{} -r'.format(cmd)
@@ -1042,6 +1050,7 @@ def get_getmodel_cov_cmd(
         max_process_id,
         eve_shuffle_flag,
         modelpy=False,
+        modelpy_server=False,
         **kwargs) -> str:
     """
     Gets the getmodel ktools command (version < 3.0.8) gulcalc coverage stream
@@ -1060,7 +1069,7 @@ def get_getmodel_cov_cmd(
     :return: (str) The generated getmodel command
     """
 
-    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy)} | gulcalc -S{number_of_samples} -L{gul_threshold}'
+    cmd = f'eve {eve_shuffle_flag}{process_id} {max_process_id} | {get_modelcmd(modelpy, modelpy_server)} | gulcalc -S{number_of_samples} -L{gul_threshold}'
 
     if use_random_number_file:
         cmd = '{} -r'.format(cmd)
@@ -1339,7 +1348,12 @@ def bash_params(
     bash_params['gul_threshold'] = analysis_settings.get('gul_threshold', 0)
     bash_params['number_of_samples'] = analysis_settings.get('number_of_samples', 0)
     bash_params["static_path"] = os.path.join(model_run_dir, "static/")
+
     bash_params["model_py_server"] = model_py_server
+    if model_py_server: 
+        # if 'model_py_server' is selected then so must 'modelpy'
+        bash_params['modelpy'] = True
+        
 
     # set complex model gulcalc command
     if not _get_getmodel_cmd and custom_gulcalc_cmd:
@@ -1707,6 +1721,7 @@ def create_bash_analysis(
             'stderr_guard': stderr_guard,
             'eve_shuffle_flag': eve_shuffle_flag,
             'modelpy': modelpy,
+            'modelpy_server': model_py_server,
         }
 
         # GUL coverage & item stream (Older)
