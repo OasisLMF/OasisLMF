@@ -558,6 +558,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server):
 
         if data_server:
             num_intensity_bins: int = FootprintLayerClient.get_number_of_intensity_bins()
+            logger.info(f"got {num_intensity_bins} intensity bins from server")
         else:
             num_intensity_bins: int = footprint_obj.num_intensity_bins
 
@@ -578,7 +579,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server):
         # header
         stream_out.write(np.uint32(1).tobytes())
 
-        logger.debug('doCdf staring')
+        logger.debug('doCdf starting')
         while True:
             len_read = streams_in.readinto(event_id_mv)
             if len_read==0:
@@ -586,6 +587,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server):
 
             if data_server:
                 event_footprint = FootprintLayerClient.get_event(event_ids[0])
+                logger.info(f"got {len(event_footprint)} footprint data from server")
             else:
                 event_footprint = footprint_obj.get_event(event_ids[0])
 
