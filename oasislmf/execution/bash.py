@@ -1350,8 +1350,7 @@ def bash_params(
     bash_params["static_path"] = os.path.join(model_run_dir, "static/")
 
     bash_params["model_py_server"] = model_py_server
-    if model_py_server: 
-        # if 'model_py_server' is selected then so must 'modelpy'
+    if model_py_server:
         bash_params['modelpy'] = True
         
 
@@ -1868,9 +1867,9 @@ def create_bash_analysis(
 
     do_pwaits(filename, process_counter)
 
-    # if model_py_server:
-    #     print_command(filename, '# --- kill data server ---')
-    #     print_command(command_file=filename, cmd=f"fuser -k 8080/tcp")
+    if model_py_server:
+        print_command(filename, '# --- kill data server ---')
+        print_command(command_file=filename, cmd=f"fuser -k 8080/tcp")
 
     print_command(filename, '')
 

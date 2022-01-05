@@ -153,9 +153,9 @@ class FootprintLayer:
                             event_data = self.file_data.get_event(event_id=event_id)
 
                             if event_id in self.file_data.footprint_index:
-                                logging.error(f'event_id "{event_id}" not in footprint_index')    
                                 del self.file_data.footprint_index[event_id]
-                            
+                            else:
+                                logging.error(f'event_id "{event_id}" not in footprint_index')
 
                             FootprintLayer._stream_footprint_data(event_data=event_data, connection=connection)
 
