@@ -1867,9 +1867,9 @@ def create_bash_analysis(
 
     do_pwaits(filename, process_counter)
 
-    if model_py_server:
-        print_command(filename, '# --- kill data server ---')
-        print_command(command_file=filename, cmd=f"fuser -k 8080/tcp")
+    # if model_py_server:
+    #     print_command(filename, '# --- kill data server ---')
+    #     print_command(command_file=filename, cmd=f"fuser -k 8080/tcp")
 
     print_command(filename, '')
 
