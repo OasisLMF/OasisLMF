@@ -1,6 +1,7 @@
 from unittest import main, TestCase
 
 from oasislmf.pytools.getmodel.manager import get_items, get_vulns, Footprint
+from oasislmf.pytools.data_layer.footprint_layer import FootprintLayer
 
 import numpy as np
 import numba as nb
@@ -37,8 +38,47 @@ class GetModelTests(TestCase):
     bin => all files
     parquet => vulnerability only
     """
-    def test_init(self):
-        pass
+    def test_outcome(self):
+        from multiprocessing.shared_memory import SharedMemory
+
+    def test_socket_communication(self):
+        from multiprocessing import Process
+        import time
+        import socket
+        import ctypes
+        import pickle
+        from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
+
+        # FootprintLayerClient.register(
+        #     static_path="/home/maxwellflitton/Documents/github/oasislmf-get-model-testing/data/600/static/"
+        # )
+        data = FootprintLayerClient.get_event(event_id=5)
+        number_of_intensity_bins = FootprintLayerClient.get_number_of_intensity_bins()
+        print("")
+        print(number_of_intensity_bins)
+        FootprintLayerClient.unregister()
+        # TCP_IP = '127.0.0.1'
+        # TCP_PORT = 8080
+        #
+        # # footprint_layer = FootprintLayer(static_path="./static/")
+        # # my_other_process = Process(target=footprint_layer.listen)
+        # # my_other_process.start()
+        #
+        # # time.sleep(5)
+        # print("something is happening")
+        # s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # s.connect((TCP_IP, TCP_PORT))
+        # s.sendall((5).to_bytes(8, byteorder='big'))
+        #
+        # # while True:
+        # data_length_bytes = s.recv(8)
+        #     # if data_id_data:
+        # data_length = int.from_bytes(data_length_bytes, 'big')
+        # raw_data = s.recv(data_length)
+        # data = pickle.loads(raw_data)
+        # s.close()
+        print(data)
+        # my_other_process.terminate()
 
     # def test_load_parquet(self):
     #     vulns_dict = get_items(input_path="./")[0]
