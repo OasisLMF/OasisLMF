@@ -44,7 +44,7 @@ eltcalc -s < /tmp/%FIFO_DIR%/fifo/il_S1_eltcalc_P25 > work/kat/il_S1_eltcalc_P25
 summarycalctocsv -s < /tmp/%FIFO_DIR%/fifo/il_S1_summarycalc_P25 > work/kat/il_S1_summarycalc_P25 & pid2=$!
 pltcalc -s < /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P25 > work/kat/il_S1_pltcalc_P25 & pid3=$!
 tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P25 /tmp/%FIFO_DIR%/fifo/il_S1_eltcalc_P25 /tmp/%FIFO_DIR%/fifo/il_S1_summarycalc_P25 /tmp/%FIFO_DIR%/fifo/il_S1_pltcalc_P25 work/il_S1_summaryaalcalc/P25.bin work/il_S1_summaryleccalc/P25.bin > /dev/null & pid4=$!
-tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P25.idx work/il_S1_summaryleccalc/P25.idx > /dev/null & pid5=$!
+tee < /tmp/%FIFO_DIR%/fifo/il_S1_summary_P25.idx work/il_S1_summaryaalcalc/P25.idx work/il_S1_summaryleccalc/P25.idx > /dev/null & pid5=$!
 summarycalc -m -f  -1 /tmp/%FIFO_DIR%/fifo/il_S1_summary_P25 < /tmp/%FIFO_DIR%/fifo/il_P25 &
 
 # --- Do ground up loss computes ---
@@ -52,7 +52,7 @@ eltcalc -s < /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P25 > work/kat/gul_S1_eltcalc_P
 summarycalctocsv -s < /tmp/%FIFO_DIR%/fifo/gul_S1_summarycalc_P25 > work/kat/gul_S1_summarycalc_P25 & pid7=$!
 pltcalc -s < /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P25 > work/kat/gul_S1_pltcalc_P25 & pid8=$!
 tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P25 /tmp/%FIFO_DIR%/fifo/gul_S1_eltcalc_P25 /tmp/%FIFO_DIR%/fifo/gul_S1_summarycalc_P25 /tmp/%FIFO_DIR%/fifo/gul_S1_pltcalc_P25 work/gul_S1_summaryaalcalc/P25.bin work/gul_S1_summaryleccalc/P25.bin > /dev/null & pid9=$!
-tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P25.idx work/gul_S1_summaryleccalc/P25.idx > /dev/null & pid10=$!
+tee < /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P25.idx work/gul_S1_summaryaalcalc/P25.idx work/gul_S1_summaryleccalc/P25.idx > /dev/null & pid10=$!
 summarycalc -m -i  -1 /tmp/%FIFO_DIR%/fifo/gul_S1_summary_P25 < /tmp/%FIFO_DIR%/fifo/gul_P25 &
 
 eve 25 40 | getmodel | gulcalc -S100 -L100 -r -a1 -i - | tee /tmp/%FIFO_DIR%/fifo/gul_P25 | fmcalc -a2 > /tmp/%FIFO_DIR%/fifo/il_P25  &

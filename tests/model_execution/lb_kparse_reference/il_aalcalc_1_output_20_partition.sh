@@ -31,24 +31,34 @@ mkfifo fifo/il_P9
 mkfifo fifo/il_P10
 
 mkfifo fifo/il_S1_summary_P1
+mkfifo fifo/il_S1_summary_P1.idx
 
 mkfifo fifo/il_S1_summary_P2
+mkfifo fifo/il_S1_summary_P2.idx
 
 mkfifo fifo/il_S1_summary_P3
+mkfifo fifo/il_S1_summary_P3.idx
 
 mkfifo fifo/il_S1_summary_P4
+mkfifo fifo/il_S1_summary_P4.idx
 
 mkfifo fifo/il_S1_summary_P5
+mkfifo fifo/il_S1_summary_P5.idx
 
 mkfifo fifo/il_S1_summary_P6
+mkfifo fifo/il_S1_summary_P6.idx
 
 mkfifo fifo/il_S1_summary_P7
+mkfifo fifo/il_S1_summary_P7.idx
 
 mkfifo fifo/il_S1_summary_P8
+mkfifo fifo/il_S1_summary_P8.idx
 
 mkfifo fifo/il_S1_summary_P9
+mkfifo fifo/il_S1_summary_P9.idx
 
 mkfifo fifo/il_S1_summary_P10
+mkfifo fifo/il_S1_summary_P10.idx
 
 mkfifo fifo/gul_lb_P1
 mkfifo fifo/gul_lb_P2
@@ -79,15 +89,25 @@ mkfifo fifo/lb_il_P10
 
 
 tee < fifo/il_S1_summary_P1 work/il_S1_summaryaalcalc/P1.bin > /dev/null & pid1=$!
-tee < fifo/il_S1_summary_P2 work/il_S1_summaryaalcalc/P2.bin > /dev/null & pid2=$!
-tee < fifo/il_S1_summary_P3 work/il_S1_summaryaalcalc/P3.bin > /dev/null & pid3=$!
-tee < fifo/il_S1_summary_P4 work/il_S1_summaryaalcalc/P4.bin > /dev/null & pid4=$!
-tee < fifo/il_S1_summary_P5 work/il_S1_summaryaalcalc/P5.bin > /dev/null & pid5=$!
-tee < fifo/il_S1_summary_P6 work/il_S1_summaryaalcalc/P6.bin > /dev/null & pid6=$!
-tee < fifo/il_S1_summary_P7 work/il_S1_summaryaalcalc/P7.bin > /dev/null & pid7=$!
-tee < fifo/il_S1_summary_P8 work/il_S1_summaryaalcalc/P8.bin > /dev/null & pid8=$!
-tee < fifo/il_S1_summary_P9 work/il_S1_summaryaalcalc/P9.bin > /dev/null & pid9=$!
-tee < fifo/il_S1_summary_P10 work/il_S1_summaryaalcalc/P10.bin > /dev/null & pid10=$!
+tee < fifo/il_S1_summary_P1.idx work/il_S1_summaryaalcalc/P1.idx > /dev/null & pid2=$!
+tee < fifo/il_S1_summary_P2 work/il_S1_summaryaalcalc/P2.bin > /dev/null & pid3=$!
+tee < fifo/il_S1_summary_P2.idx work/il_S1_summaryaalcalc/P2.idx > /dev/null & pid4=$!
+tee < fifo/il_S1_summary_P3 work/il_S1_summaryaalcalc/P3.bin > /dev/null & pid5=$!
+tee < fifo/il_S1_summary_P3.idx work/il_S1_summaryaalcalc/P3.idx > /dev/null & pid6=$!
+tee < fifo/il_S1_summary_P4 work/il_S1_summaryaalcalc/P4.bin > /dev/null & pid7=$!
+tee < fifo/il_S1_summary_P4.idx work/il_S1_summaryaalcalc/P4.idx > /dev/null & pid8=$!
+tee < fifo/il_S1_summary_P5 work/il_S1_summaryaalcalc/P5.bin > /dev/null & pid9=$!
+tee < fifo/il_S1_summary_P5.idx work/il_S1_summaryaalcalc/P5.idx > /dev/null & pid10=$!
+tee < fifo/il_S1_summary_P6 work/il_S1_summaryaalcalc/P6.bin > /dev/null & pid11=$!
+tee < fifo/il_S1_summary_P6.idx work/il_S1_summaryaalcalc/P6.idx > /dev/null & pid12=$!
+tee < fifo/il_S1_summary_P7 work/il_S1_summaryaalcalc/P7.bin > /dev/null & pid13=$!
+tee < fifo/il_S1_summary_P7.idx work/il_S1_summaryaalcalc/P7.idx > /dev/null & pid14=$!
+tee < fifo/il_S1_summary_P8 work/il_S1_summaryaalcalc/P8.bin > /dev/null & pid15=$!
+tee < fifo/il_S1_summary_P8.idx work/il_S1_summaryaalcalc/P8.idx > /dev/null & pid16=$!
+tee < fifo/il_S1_summary_P9 work/il_S1_summaryaalcalc/P9.bin > /dev/null & pid17=$!
+tee < fifo/il_S1_summary_P9.idx work/il_S1_summaryaalcalc/P9.idx > /dev/null & pid18=$!
+tee < fifo/il_S1_summary_P10 work/il_S1_summaryaalcalc/P10.bin > /dev/null & pid19=$!
+tee < fifo/il_S1_summary_P10.idx work/il_S1_summaryaalcalc/P10.idx > /dev/null & pid20=$!
 
 summarycalc -m -f  -1 fifo/il_S1_summary_P1 < fifo/il_P1 &
 summarycalc -m -f  -1 fifo/il_S1_summary_P2 < fifo/il_P2 &
@@ -126,7 +146,7 @@ fmpy -a2 < fifo/lb_il_P8 > fifo/il_P8 &
 fmpy -a2 < fifo/lb_il_P9 > fifo/il_P9 &
 fmpy -a2 < fifo/lb_il_P10 > fifo/il_P10 &
 
-wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10
+wait $pid1 $pid2 $pid3 $pid4 $pid5 $pid6 $pid7 $pid8 $pid9 $pid10 $pid11 $pid12 $pid13 $pid14 $pid15 $pid16 $pid17 $pid18 $pid19 $pid20
 
 
 # --- Do insured loss kats ---

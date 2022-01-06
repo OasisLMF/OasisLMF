@@ -21,6 +21,7 @@ mkdir work/gul_S1_summaryaalcalc
 mkfifo fifo/gul_P1
 
 mkfifo fifo/gul_S1_summary_P1
+mkfifo fifo/gul_S1_summary_P1.idx
 
 
 
@@ -29,12 +30,13 @@ mkfifo fifo/gul_S1_summary_P1
 
 
 tee < fifo/gul_S1_summary_P1 work/gul_S1_summaryaalcalc/P1.bin > /dev/null & pid1=$!
+tee < fifo/gul_S1_summary_P1.idx work/gul_S1_summaryaalcalc/P1.idx > /dev/null & pid2=$!
 
 summarycalc -m -i  -1 fifo/gul_S1_summary_P1 < fifo/gul_P1 &
 
 eve 1 1 | getmodel | gulcalc -S100 -L100 -r -a0 -i - > fifo/gul_P1  &
 
-wait $pid1
+wait $pid1 $pid2
 
 
 # --- Do ground up loss kats ---

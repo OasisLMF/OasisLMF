@@ -71,16 +71,18 @@ mkdir work/il_S1_summaryaalcalc
 mkfifo fifo/il_P12
 
 mkfifo fifo/il_S1_summary_P12
+mkfifo fifo/il_S1_summary_P12.idx
 
 
 
 # --- Do insured loss computes ---
 tee < fifo/il_S1_summary_P12 work/il_S1_summaryaalcalc/P12.bin > /dev/null & pid1=$!
+tee < fifo/il_S1_summary_P12.idx work/il_S1_summaryaalcalc/P12.idx > /dev/null & pid2=$!
 ( summarycalc -m -f  -1 fifo/il_S1_summary_P12 < fifo/il_P12 ) 2>> log/stderror.err  &
 
 ( eve 12 20 | getmodel | gulcalc -S100 -L100 -r -a1 -i - | fmcalc -a2 > fifo/il_P12  ) 2>> log/stderror.err &
 
-wait $pid1
+wait $pid1 $pid2
 
 
 # --- Do insured loss kats ---
