@@ -1,12 +1,12 @@
 from unittest import main, TestCase
 
-from oasislmf.pytools.getmodel.manager import get_items, get_vulns, Footprint
-from oasislmf.pytools.data_layer.footprint_layer import FootprintLayer
-
-import numpy as np
-import numba as nb
-import pyarrow.parquet as pq
-from pyarrow import memory_map
+# from oasislmf.pytools.getmodel.manager import get_items, get_vulns, Footprint
+# from oasislmf.pytools.data_layer.footprint_layer import FootprintLayer
+#
+# import numpy as np
+# import numba as nb
+# import pyarrow.parquet as pq
+# from pyarrow import memory_map
 
 
 class GetModelTests(TestCase):
@@ -38,25 +38,25 @@ class GetModelTests(TestCase):
     bin => all files
     parquet => vulnerability only
     """
-    def test_outcome(self):
-        from multiprocessing.shared_memory import SharedMemory
+    # def test_outcome(self):
+    #     from multiprocessing.shared_memory import SharedMemory
 
-    def test_socket_communication(self):
-        from multiprocessing import Process
-        import time
-        import socket
-        import ctypes
-        import pickle
-        from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
-
-        # FootprintLayerClient.register(
-        #     static_path="/home/maxwellflitton/Documents/github/oasislmf-get-model-testing/data/600/static/"
-        # )
-        data = FootprintLayerClient.get_event(event_id=5)
-        number_of_intensity_bins = FootprintLayerClient.get_number_of_intensity_bins()
-        print("")
-        print(number_of_intensity_bins)
-        FootprintLayerClient.unregister()
+    # def test_socket_communication(self):
+    #     from multiprocessing import Process
+    #     import time
+    #     import socket
+    #     import ctypes
+    #     import pickle
+    #     from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
+    #
+    #     # FootprintLayerClient.register(
+    #     #     static_path="/home/maxwellflitton/Documents/github/oasislmf-get-model-testing/data/600/static/"
+    #     # )
+    #     data = FootprintLayerClient.get_event(event_id=5)
+    #     number_of_intensity_bins = FootprintLayerClient.get_number_of_intensity_bins()
+    #     print("")
+    #     print(number_of_intensity_bins)
+    #     FootprintLayerClient.unregister()
         # TCP_IP = '127.0.0.1'
         # TCP_PORT = 8080
         #
@@ -77,7 +77,7 @@ class GetModelTests(TestCase):
         # raw_data = s.recv(data_length)
         # data = pickle.loads(raw_data)
         # s.close()
-        print(data)
+        # print(data)
         # my_other_process.terminate()
 
     # def test_load_parquet(self):
