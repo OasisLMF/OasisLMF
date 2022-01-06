@@ -213,7 +213,7 @@ def get_modelcmd(modelpy: bool, server=False) -> str:
     """
     py_cmd = 'modelpy'
     cpp_cmd = 'getmodel'
-    
+
     if server is True:
         py_cmd = '{} --data-server'.format(py_cmd)
 
@@ -1327,7 +1327,7 @@ def bash_params(
 ):
 
 
-    
+
     bash_params = {}
     bash_params['max_process_id'] = max_process_id if max_process_id > 0 else multiprocessing.cpu_count()
     bash_params['number_of_processes'] = number_of_processes if number_of_processes > 0 else multiprocessing.cpu_count()
@@ -1352,7 +1352,7 @@ def bash_params(
     bash_params["model_py_server"] = model_py_server
     if model_py_server:
         bash_params['modelpy'] = True
-        
+
 
     # set complex model gulcalc command
     if not _get_getmodel_cmd and custom_gulcalc_cmd:
@@ -1542,7 +1542,6 @@ def create_bash_analysis(
             filename, 'mkdir {}'.format(work_full_correlation_kat_dir)
         )
 
-    print_command(filename, '')
 
     if model_py_server:
         print_command(filename, '# --- run data server ---')
@@ -1867,7 +1866,6 @@ def create_bash_analysis(
 
     do_pwaits(filename, process_counter)
 
-    print_command(filename, '')
 
     if ri_output:
         print_command(filename, '')
