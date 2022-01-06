@@ -115,9 +115,9 @@ mkfifo fifo/full_correlation/gul_S2_pltcalc_P2
 ( summarycalctocsv -s < fifo/gul_S2_summarycalc_P2 > work/kat/gul_S2_summarycalc_P2 ) 2>> log/stderror.err & pid5=$!
 ( pltcalc -s < fifo/gul_S2_pltcalc_P2 > work/kat/gul_S2_pltcalc_P2 ) 2>> log/stderror.err & pid6=$!
 tee < fifo/gul_S1_summary_P2 fifo/gul_S1_eltcalc_P2 fifo/gul_S1_summarycalc_P2 fifo/gul_S1_pltcalc_P2 work/gul_S1_summaryaalcalc/P2.bin work/gul_S1_summaryleccalc/P2.bin > /dev/null & pid7=$!
-tee < fifo/gul_S1_summary_P2.idx work/gul_S1_summaryleccalc/P2.idx > /dev/null & pid8=$!
+tee < fifo/gul_S1_summary_P2.idx work/gul_S1_summaryaalcalc/P2.idx work/gul_S1_summaryleccalc/P2.idx > /dev/null & pid8=$!
 tee < fifo/gul_S2_summary_P2 fifo/gul_S2_eltcalc_P2 fifo/gul_S2_summarycalc_P2 fifo/gul_S2_pltcalc_P2 work/gul_S2_summaryaalcalc/P2.bin work/gul_S2_summaryleccalc/P2.bin > /dev/null & pid9=$!
-tee < fifo/gul_S2_summary_P2.idx work/gul_S2_summaryleccalc/P2.idx > /dev/null & pid10=$!
+tee < fifo/gul_S2_summary_P2.idx work/gul_S2_summaryaalcalc/P2.idx work/gul_S2_summaryleccalc/P2.idx > /dev/null & pid10=$!
 ( summarycalc -m -i  -1 fifo/gul_S1_summary_P2 -2 fifo/gul_S2_summary_P2 < fifo/gul_P2 ) 2>> log/stderror.err  &
 
 # --- Do ground up loss computes ---
@@ -128,9 +128,9 @@ tee < fifo/gul_S2_summary_P2.idx work/gul_S2_summaryleccalc/P2.idx > /dev/null &
 ( summarycalctocsv -s < fifo/full_correlation/gul_S2_summarycalc_P2 > work/full_correlation/kat/gul_S2_summarycalc_P2 ) 2>> log/stderror.err & pid15=$!
 ( pltcalc -s < fifo/full_correlation/gul_S2_pltcalc_P2 > work/full_correlation/kat/gul_S2_pltcalc_P2 ) 2>> log/stderror.err & pid16=$!
 tee < fifo/full_correlation/gul_S1_summary_P2 fifo/full_correlation/gul_S1_eltcalc_P2 fifo/full_correlation/gul_S1_summarycalc_P2 fifo/full_correlation/gul_S1_pltcalc_P2 work/full_correlation/gul_S1_summaryaalcalc/P2.bin work/full_correlation/gul_S1_summaryleccalc/P2.bin > /dev/null & pid17=$!
-tee < fifo/full_correlation/gul_S1_summary_P2.idx work/full_correlation/gul_S1_summaryleccalc/P2.idx > /dev/null & pid18=$!
+tee < fifo/full_correlation/gul_S1_summary_P2.idx work/full_correlation/gul_S1_summaryaalcalc/P2.idx work/full_correlation/gul_S1_summaryleccalc/P2.idx > /dev/null & pid18=$!
 tee < fifo/full_correlation/gul_S2_summary_P2 fifo/full_correlation/gul_S2_eltcalc_P2 fifo/full_correlation/gul_S2_summarycalc_P2 fifo/full_correlation/gul_S2_pltcalc_P2 work/full_correlation/gul_S2_summaryaalcalc/P2.bin work/full_correlation/gul_S2_summaryleccalc/P2.bin > /dev/null & pid19=$!
-tee < fifo/full_correlation/gul_S2_summary_P2.idx work/full_correlation/gul_S2_summaryleccalc/P2.idx > /dev/null & pid20=$!
+tee < fifo/full_correlation/gul_S2_summary_P2.idx work/full_correlation/gul_S2_summaryaalcalc/P2.idx work/full_correlation/gul_S2_summaryleccalc/P2.idx > /dev/null & pid20=$!
 ( summarycalc -m -i  -1 fifo/full_correlation/gul_S1_summary_P2 -2 fifo/full_correlation/gul_S2_summary_P2 < fifo/full_correlation/gul_P2 ) 2>> log/stderror.err  &
 
 ( eve 2 2 | getmodel | gulcalc -S0 -L0 -r -j fifo/full_correlation/gul_P2 -a1 -i - > fifo/gul_P2  ) 2>> log/stderror.err &

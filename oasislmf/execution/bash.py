@@ -496,7 +496,7 @@ def do_fifos_calc(runtype, analysis_settings, max_process_id, filename, fifo_dir
             if 'id' in summary:
                 summary_set = summary['id']
                 do_fifo_exec(runtype, process_id, filename, fifo_dir, action, f'S{summary_set}_summary')
-                if leccalc_enabled(summary) or ord_enabled(summary, ORD_LECCALC):
+                if leccalc_enabled(summary) or ord_enabled(summary, ORD_LECCALC) or summary.get('aalcalc') or ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
                     idx_fifo = get_fifo_name(fifo_dir, runtype, process_id, f'S{summary_set}_summary')
                     idx_fifo += '.idx'
                     print_command(filename, f'mkfifo {idx_fifo}')
@@ -698,7 +698,7 @@ def do_tees(runtype, analysis_settings, process_id, filename, process_counter, f
 
 
             cmd = f'tee < {get_fifo_name(fifo_dir, runtype, process_id, f"S{summary_set}_summary")}'
-            if leccalc_enabled(summary) or ord_enabled(summary, ORD_LECCALC):
+            if leccalc_enabled(summary) or ord_enabled(summary, ORD_LECCALC) or summary.get('aalcalc') or ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
                 cmd_idx = cmd + '.idx'
 
             for summary_type in SUMMARY_TYPES:
@@ -712,10 +712,14 @@ def do_tees(runtype, analysis_settings, process_id, filename, process_counter, f
                         break
 
             if summary.get('aalcalc'):
-                cmd = '{} {}{}_S{}_summaryaalcalc/P{}.bin'.format(cmd, work_dir, runtype, summary_set, process_id)
+                aalcalc_out = f'{work_dir}{runtype}_S{summary_set}_summaryaalcalc/P{process_id}'
+                cmd = f'{cmd} {aalcalc_out}.bin'
+                cmd_idx = f'{cmd_idx} {aalcalc_out}.idx'
 
             if summary.get('ord_output', {}).get('alt_period'):
-                cmd = '{} {}{}_S{}_summary_palt/P{}.bin'.format(cmd, work_dir, runtype, summary_set, process_id)
+                aalcalc_ord_out = f'{work_dir}{runtype}_S{summary_set}_summary_palt/P{process_id}'
+                cmd = f'{cmd} {aalcalc_ord_out}.bin'
+                cmd_idx = f'{cmd_idx} {aalcalc_ord_out}.idx'
 
 
             # leccalc and ordleccalc share the same summarycalc binary data
@@ -727,7 +731,7 @@ def do_tees(runtype, analysis_settings, process_id, filename, process_counter, f
 
             cmd = '{} > /dev/null & pid{}=$!'.format(cmd, process_counter['pid_monitor_count'])
             print_command(filename, cmd)
-            if leccalc_enabled(summary) or ord_enabled(summary, ORD_LECCALC):
+            if leccalc_enabled(summary) or ord_enabled(summary, ORD_LECCALC) or summary.get('aalcalc') or ord_enabled(summary, ORD_ALT_OUTPUT_SWITCHES):
                 process_counter['pid_monitor_count'] += 1
                 cmd_idx = '{} > /dev/null & pid{}=$!'.format(cmd_idx, process_counter['pid_monitor_count'])
                 print_command(filename, cmd_idx)
