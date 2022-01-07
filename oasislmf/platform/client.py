@@ -503,9 +503,8 @@ class APIClient(object):
                         logged_running = True
                         self.logger.info('Input Generation: Executing (id={})'.format(analysis_id))
 
-                    sub_tasks = self.analyses.sub_task_list(analysis_id)
-                    if 'sub_task_list' in analysis and sub_tasks.ok:
-                        sub_tasks_list = sub_tasks.json()
+                    if 'sub_task_list' in analysis:
+                        sub_tasks_list = self.analyses.sub_task_list(analysis_id).json()
                         with tqdm(total=len(sub_tasks_list),
                                   unit=' sub_task',
                                   desc='Input Generation') as pbar:
@@ -585,9 +584,8 @@ class APIClient(object):
                         logged_running = True
                         self.logger.info('Analysis Run: Executing (id={})'.format(analysis_id))
 
-                    sub_tasks = self.analyses.sub_task_list(analysis_id)
-                    if 'sub_task_list' in analysis and sub_tasks.ok:
-                        sub_tasks_list = sub_tasks.json()
+                    if 'sub_task_list' in analysis:
+                        sub_tasks_list = self.analyses.sub_task_list(analysis_id).json()
                         with tqdm(total=len(sub_tasks_list),
                                   unit=' sub_task',
                                   desc='Analysis Run') as pbar:
