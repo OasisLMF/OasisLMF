@@ -15,5 +15,3 @@ tabulate>=0.8.2
 tblib
 tqdm
 fastparquet>=0.3.1
-#WORKAROUND: needed for numba 0.54.1 requirements 
-numpy<1.21,>=1.17
