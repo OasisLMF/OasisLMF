@@ -1,6 +1,9 @@
 OasisLMF Changelog
 ==================
 
+* [#971](https://github.com/OasisLMF/OasisLMF/pull/972) - Numpy installation issues 
+.. _`1.24.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.24.0...1.24.1
+
 `1.24.0`_
  ---------
 * [#962](https://github.com/OasisLMF/OasisLMF/pull/962) - Prepare 1.23.0 for LTS 
