@@ -1,6 +1,18 @@
 OasisLMF Changelog
 ==================
 
+* [#971](https://github.com/OasisLMF/OasisLMF/pull/972) - Numpy installation issues 
+.. _`1.24.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.24.0...1.24.1
+
+`1.24.0`_
+ ---------
+* [#962](https://github.com/OasisLMF/OasisLMF/pull/962) - Prepare 1.23.0 for LTS 
+* [#950](https://github.com/OasisLMF/OasisLMF/pull/964) - allow event subset to be passed in analysis settings
+* [#965](https://github.com/OasisLMF/OasisLMF/pull/965) - Client Fix for update in platform 2.0
+* [#966](https://github.com/OasisLMF/OasisLMF/pull/966) - Footprint server
+* [#881](https://github.com/OasisLMF/OasisLMF/pull/970) - Enable the use of summary index files by ktools component aalcalc
+.. _`1.24.0`:  https://github.com/OasisLMF/OasisLMF/compare/1.23.0...1.24.0
+
 `1.23.0`_
  ---------
 * [#762, #915, #838, #839](https://github.com/OasisLMF/OasisLMF/pull/954) - Feature/oed2tests
