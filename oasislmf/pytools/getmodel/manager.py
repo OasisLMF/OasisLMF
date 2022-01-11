@@ -18,6 +18,8 @@ from .common import areaperil_int, oasis_float, Index_type
 from .footprint import Footprint
 from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
 import atexit
+import psutil
+
 
 logger = logging.getLogger(__name__)
 
@@ -537,6 +539,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server):
         logger.debug("data server not active")
 
     with ExitStack() as stack:
+        logger.info(f"start getmodel memory: {psutil.cpu_percent()}")
         if file_in is None:
             streams_in = sys.stdin.buffer
         else:
@@ -563,6 +566,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server):
             num_intensity_bins: int = footprint_obj.num_intensity_bins
 
         logger.debug('init vulnerability')
+        logger.info(f"middle getmodel memory: {psutil.cpu_percent()}")
 
         vuln_array, vulns_id, num_damage_bins = get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type)
         convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns)
@@ -578,6 +582,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server):
 
         # header
         stream_out.write(np.uint32(1).tobytes())
+        logger.info(f"start CDF getmodel memory: {psutil.cpu_percent()}")
 
         logger.debug('doCdf starting')
         while True:
@@ -603,3 +608,5 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server):
                     else:
                         break
         logger.debug('doCdf done')
+        logger.info(f"finish getmodel memory: {psutil.cpu_percent()}")
+
