@@ -239,6 +239,10 @@ class FootprintLayerClient:
 
         Returns: None
         """
+        connection_viable: bool = False
+        while connection_viable is False:
+            connection_viable = FootprintLayerClient.poll()
+
         current_socket = cls._get_socket()
         data: bytes = OperationEnum.REGISTER.value
         current_socket.sendall(data)
