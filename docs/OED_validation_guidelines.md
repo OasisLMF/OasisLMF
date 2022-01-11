@@ -63,7 +63,7 @@ The account file contains the CondNumber field which links to the CondNumber in 
 ### OasisLMF 1.23-LTS and later
 The CondTag field in the location file identifies the subset of locations to which a policy condition applies. 
 
-The account file contains the CondTag field, which links to the CongTag in the location file, and a CondNumber field which represents a particular set of financial terms for the condition. For each policy in the account file, one or more CondTags may be specified along with a CondNumber. More than one pair of CondTag, CondNumber values per policy gives rise to valid duplicates of the policy record. The financial terms for a given CondNumber must match if repeated on multiple rows. Each CondTag is assigned a CondPriority which is the order in which the fiancial terms apply. CondPriority must be the same a given CondTag if it occurs on multiple records within an account.
+The account file contains the CondTag field, which links to the CongTag in the location file, and a CondNumber field which represents a particular set of financial terms for the condition. For each policy in the account file, one or more CondTags may be specified along with a CondNumber. More than one pair of CondTag, CondNumber values per policy gives rise to valid duplicates of the policy record. The financial terms for a given CondNumber must match if repeated on multiple rows. Each CondTag is assigned a CondPriority which is the order in which the fiancial terms apply. CondPriority must be the same for a given CondTag if it occurs on multiple records within an account.
 
 #### More than one condition per location
 
