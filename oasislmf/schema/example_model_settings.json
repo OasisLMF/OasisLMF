@@ -148,6 +148,7 @@
       ]
    },
    "data_settings":{
+        "supported_oed_versions": ["1.5", "2.0"], 
         "model_data_version": "1.0.0",
         "keys_data_version": "1.0.0",
         "worker_image": "coreoasis/model_worker",
