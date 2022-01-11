@@ -94,7 +94,7 @@ class FootprintLayer:
         # atexit.register(_shutdown_port, self.socket)
 
     @staticmethod
-    def _stream_footprint_data(event_data: np.array, connection: socket.socket) -> None:
+    def _stream_footprint_data(event_data: np.array, connection: socket.socket, event_id: int) -> None:
         """
         Serialises data then splits it into chunks of 500 in turn streaming through a connection.
 
@@ -109,12 +109,12 @@ class FootprintLayer:
 
         raw_data_buffer: List[bytes] = [raw_data[i:i + 500] for i in range(0, len(raw_data), 500)]
 
-        logging.info(f"{number_of_chunks} chunks about to be sent: {datetime.datetime.now()}")
+        logging.info(f"{number_of_chunks} chunks for event id: {event_id} about to be sent: {datetime.datetime.now()}")
         connection.sendall(number_of_chunks.to_bytes(32, byteorder='big'))
 
         for chunk in raw_data_buffer:
             connection.sendall(chunk)
-        logging.info(f"{number_of_chunks} chunks have been sent: {datetime.datetime.now()}")
+        logging.info(f"{number_of_chunks} chunks for event id: {event_id} have been sent: {datetime.datetime.now()}")
 
     @staticmethod
     def _extract_header(header_data: bytes) -> Tuple[OperationEnum, Optional[int]]:
@@ -162,12 +162,12 @@ class FootprintLayer:
                             event_data = self.file_data.get_event(event_id=event_id)
 
                             if event_id in self.file_data.footprint_index:
-                                logging.error(f'event_id "{event_id}" retrieved from footprint index')
+                                logging.info(f'event_id "{event_id}" retrieved from footprint index')
                                 del self.file_data.footprint_index[event_id]
                             else:
                                 logging.error(f'event_id "{event_id}" not in footprint_index')
 
-                            FootprintLayer._stream_footprint_data(event_data=event_data, connection=connection)
+                            FootprintLayer._stream_footprint_data(event_data=event_data, connection=connection, event_id=event_id)
 
                         elif operation == OperationEnum.GET_NUM_INTENSITY_BINS:
 
