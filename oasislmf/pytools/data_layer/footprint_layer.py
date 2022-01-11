@@ -48,20 +48,27 @@ class FootprintLayer:
         ignore_file_type (Set[str]): collection of file types to ignore when loading
         file_data (Optional[Footprint]): footprint object to load
         socket (Optional[socket.socket]): the TCP socket in which data is sent
+        count (int): the number of processes currently relying on the server
+        total_expected (int): the total number of reliant processes expected
+        total_served (int): the total number of processes that have ever registered through the server's lifetime
     """
-    def __init__(self, static_path: str, ignore_file_type: Set[str] = set()) -> None:
+    def __init__(self, static_path: str, total_expected: int, ignore_file_type: Set[str] = set()) -> None:
         """
         The constructor for the FootprintLayer class.
 
         Args:
             static_path: (str) path to the static file to load the data
             ignore_file_type: (Set[str]) collection of file types to ignore when loading
+            total_expected: (int) the total number of reliant processes expected
+
         """
         self.static_path: str = static_path
         self.ignore_file_type: Set[str] = ignore_file_type
         self.file_data: Optional[Footprint] = None
         self.socket: Optional[socket.socket] = None
         self.count: int = 0
+        self.total_expected: int = total_expected
+        self.total_served: int = 0
         self._define_socket()
 
     def _define_socket(self) -> None:
@@ -169,12 +176,13 @@ class FootprintLayer:
 
                         elif operation == OperationEnum.REGISTER:
                             self.count += 1
+                            self.total_served += 1
                             logging.info(f"connection registered: {self.count} for {client_address} {datetime.datetime.now()}")
 
                         elif operation == OperationEnum.UNREGISTER:
                             self.count -= 1
                             logging.info(f"connection unregistered: {self.count} for {client_address} {datetime.datetime.now()}")
-                            if self.count <= 0:
+                            if self.count <= 0 and self.total_expected == self.total_served:
                                 logging.info(f"breaking event loop: {datetime.datetime.now()}")
                                 self.socket.shutdown(socket.SHUT_RDWR)
                                 break
@@ -295,11 +303,12 @@ def _shutdown_port(connection: socket.socket) -> None:
     connection.shutdown(socket.SHUT_RDWR)
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("p", help="path to static file", type=str)
+    parser.add_argument("n", help="number of processes expected to be reliant on server", type=int)
     args = parser.parse_args()
-    server = FootprintLayer(args.p)
+    server = FootprintLayer(static_path=args.p, total_expected=args.n)
     server.listen()
 
 
