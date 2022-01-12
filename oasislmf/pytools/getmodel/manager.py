@@ -80,6 +80,12 @@ VulnerabilityRow = nb.from_dtype(np.dtype([('intensity_bin_id', np.int32),
 vuln_offset = 4
 
 
+def get_process_memory():
+    process = psutil.Process(os.getpid())
+    mem_info = process.memory_info()
+    return mem_info.rss
+
+
 @nb.jit(cache=True)
 def load_areaperil_id_u4(int32_mv, cursor, areaperil_id):
     int32_mv[cursor] = areaperil_id.view('i4')
@@ -540,7 +546,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server):
         logger.debug("data server not active")
 
     with ExitStack() as stack:
-        memory_buffer.append(f"start getmodel memory: {psutil.cpu_percent()}")
+        memory_buffer.append(f"start getmodel memory: {get_process_memory()}")
         if file_in is None:
             streams_in = sys.stdin.buffer
         else:
@@ -567,7 +573,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server):
             num_intensity_bins: int = footprint_obj.num_intensity_bins
 
         logger.debug('init vulnerability')
-        memory_buffer.append(f"middle getmodel memory: {psutil.cpu_percent()}")
+        memory_buffer.append(f"middle getmodel memory: {get_process_memory()}")
 
         vuln_array, vulns_id, num_damage_bins = get_vulns(static_path, vuln_dict, num_intensity_bins, ignore_file_type)
         convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns)
@@ -583,7 +589,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server):
 
         # header
         stream_out.write(np.uint32(1).tobytes())
-        memory_buffer.append(f"start CDF getmodel memory: {psutil.cpu_percent()}")
+        memory_buffer.append(f"start CDF getmodel memory: {get_process_memory()}")
 
         logger.debug('doCdf starting')
         while True:
@@ -609,7 +615,7 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server):
                     else:
                         break
         logger.debug('doCdf done')
-        memory_buffer.append(f"finish getmodel memory: {psutil.cpu_percent()}")
+        memory_buffer.append(f"finish getmodel memory: {get_process_memory()}")
         from random import randint
 
         log_path = str(os.getcwd()) + f"/{randint(1,900)}_model_memory.txt"
