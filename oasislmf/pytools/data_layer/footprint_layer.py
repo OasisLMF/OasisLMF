@@ -305,13 +305,13 @@ class FootprintLayerClient:
             file.write(f"getting {number_of_chunks} chunks for ID {event_id}\n")
 
         raw_data_buffer: List[bytes] = []
-        for _ in range(number_of_chunks + 1):
+        for _ in range(number_of_chunks + 2):
             raw_data_buffer.append(current_socket.recv(60000))
 
         with open(MODEL_LOG_PATH, "a") as file:
             file.write(f"recieved {number_of_chunks} chunks for ID {event_id}\n")
 
-        return pickle.loads(b"".join(raw_data_buffer))
+        return pickle.loads(b"".join(b"".join(raw_data_buffer).split(b'\x00')))
 
 
 def _shutdown_port(connection: socket.socket) -> None:
