@@ -110,7 +110,7 @@ class FootprintLayer:
         Returns: None
         """
         raw_data: bytes = pickle.dumps(event_data)
-        number_of_chunks: int = int(math.ceil(len(raw_data) / 60000))
+        number_of_chunks: int = int(math.ceil(len(raw_data) / 60000)) + 1
 
         raw_data_buffer: List[bytes] = [raw_data[i:i + 60000] for i in range(0, len(raw_data), 60000)]
 
