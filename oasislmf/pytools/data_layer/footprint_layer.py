@@ -311,7 +311,7 @@ class FootprintLayerClient:
         with open(MODEL_LOG_PATH, "a") as file:
             file.write(f"recieved {number_of_chunks} chunks for ID {event_id}\n")
 
-        return pickle.loads(b"".join(b"".join(raw_data_buffer).split(b'\x00')))
+        return pickle.loads(b"".join(raw_data_buffer))
 
 
 def _shutdown_port(connection: socket.socket) -> None:
