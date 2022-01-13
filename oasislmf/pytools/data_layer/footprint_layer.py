@@ -27,6 +27,9 @@ TCP_IP = '127.0.0.1'
 TCP_PORT = 8080
 PROCESSES_SUPPORTED = 100
 
+from random import randint
+MODEL_LOG_PATH = str(os.getcwd()) + f"/{randint(1,900)}_model_log.txt"
+
 
 class OperationEnum(Enum):
     """
@@ -298,9 +301,15 @@ class FootprintLayerClient:
         number_of_chunks: bytes = current_socket.recv(32)
         number_of_chunks: int = int.from_bytes(number_of_chunks, 'big')
 
+        with open(MODEL_LOG_PATH, "a") as file:
+            file.write(f"getting {number_of_chunks} chunks for ID {event_id}")
+
         raw_data_buffer: List[bytes] = []
-        for _ in range(number_of_chunks + 5):
+        for _ in range(number_of_chunks + 1):
             raw_data_buffer.append(current_socket.recv(60000))
+
+        with open(MODEL_LOG_PATH, "a") as file:
+            file.write(f"recieved {number_of_chunks} chunks for ID {event_id}")
 
         return pickle.loads(b"".join(raw_data_buffer))
 
