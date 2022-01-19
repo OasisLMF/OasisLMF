@@ -1,6 +1,12 @@
 OasisLMF Changelog
 ==================
 
+`1.23.2`_
+ ---------
+* [#950](https://github.com/OasisLMF/OasisLMF/pull/964) - allow event subset to be passed in analysis settings
+* [#963](https://github.com/OasisLMF/OasisLMF/pull/974) - Add supported OED versions to model metadata (model_settings.json)
+.. _`1.23.2`:  https://github.com/OasisLMF/OasisLMF/compare/1.23.1...1.23.2
+
 * [#962](https://github.com/OasisLMF/OasisLMF/pull/962) - Prepare 1.23.0 for LTS 
 .. _`1.23.1`:  https://github.com/OasisLMF/OasisLMF/compare/1.23.0...1.23.1
 
