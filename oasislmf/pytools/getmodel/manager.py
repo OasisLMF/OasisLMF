@@ -598,8 +598,12 @@ def run(run_dir, file_in, file_out, ignore_file_type, data_server):
                 break
 
             if data_server:
-                event_footprint = FootprintLayerClient.get_event(event_ids[0])
-                logger.info(f"got {len(event_footprint)} footprint data from server")
+                try:
+                    event_footprint = FootprintLayerClient.get_event(event_ids[0])
+                    logger.info(f"got {len(event_footprint)} footprint data from server")
+                except:
+                    event_footprint = None
+                    logger.error(f"event ID {event_ids[0]} failed to be received")
             else:
                 event_footprint = footprint_obj.get_event(event_ids[0])
 
