@@ -305,8 +305,13 @@ class FootprintLayerClient:
             file.write(f"getting {number_of_chunks} chunks for ID {event_id}\n")
 
         raw_data_buffer: List[bytes] = []
-        for _ in range(number_of_chunks + 2):
-            raw_data_buffer.append(current_socket.recv(60000))
+        # for _ in range(number_of_chunks + 2):
+        #     raw_data_buffer.append(current_socket.recv(60000))
+        while True:
+            raw_data = current_socket.recv(6000)
+            if not raw_data:
+                break
+            raw_data_buffer.append(raw_data)
 
         with open(MODEL_LOG_PATH, "a") as file:
             file.write(f"recieved {number_of_chunks} chunks for ID {event_id}\n")
