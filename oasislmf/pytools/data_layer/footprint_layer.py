@@ -301,8 +301,8 @@ class FootprintLayerClient:
         number_of_chunks: bytes = current_socket.recv(32)
         number_of_chunks: int = int.from_bytes(number_of_chunks, 'big')
 
-        with open(MODEL_LOG_PATH, "a") as file:
-            file.write(f"getting {number_of_chunks} chunks for ID {event_id}\n")
+        # with open(MODEL_LOG_PATH, "a") as file:
+        #     file.write(f"getting {number_of_chunks} chunks for ID {event_id}\n")
 
         raw_data_buffer: List[bytes] = []
         # for _ in range(number_of_chunks + 2):
@@ -313,8 +313,8 @@ class FootprintLayerClient:
                 break
             raw_data_buffer.append(raw_data)
 
-        with open(MODEL_LOG_PATH, "a") as file:
-            file.write(f"recieved {number_of_chunks} chunks for ID {event_id}\n")
+        # with open(MODEL_LOG_PATH, "a") as file:
+        #     file.write(f"recieved {number_of_chunks} chunks for ID {event_id}\n")
 
         return pickle.loads(b"".join(raw_data_buffer))
 
