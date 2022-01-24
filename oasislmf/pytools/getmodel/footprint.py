@@ -6,13 +6,14 @@ import logging
 import os
 from contextlib import ExitStack
 from zlib import decompress
+from typing import Dict, List
 
 import numpy as np
 import pandas as pd
 
 from .common import (FootprintHeader, EventIndexBin, EventIndexBinZ, Event, EventCSV,
                      footprint_filename, footprint_index_filename, zfootprint_filename, zfootprint_index_filename,
-                     csvfootprint_filename)
+                     csvfootprint_filename, parquetfootprint_filename)
 
 logger = logging.getLogger(__name__)
 
@@ -80,8 +81,31 @@ class Footprint:
     def get_event(self, event_id):
         raise NotImplementedError()
 
-    def to_parquet(self):
-        pass
+    @staticmethod
+    def write_to_parquet(footprint_dict: Dict[int, Dict[str, int]], path: str) -> None:
+        """
+        Writes the footprint dictionary data to parquet file using pyarrow and pandas dataframe as a middle step.
+
+        dataframe columns => | offset | size | event_id |
+
+        Args:
+            footprint_dict: (Dict[int, Dict[str, int]]) footprint data to be written to parquet file
+            path: (str) the path where the parquet file is to be written
+
+        Returns: None
+        """
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        buffer: List[Dict[str, int]] = []
+        for key in footprint_dict.keys():
+            row: Dict[str, int] = footprint_dict[key]
+            row["event_id"] = key
+            buffer.append(row)
+
+        df = pd.DataFrame(buffer)
+        table = pa.Table.from_pandas(df)
+        pq.write_table(table, path)
 
 
 class FootprintCsv(Footprint):
@@ -227,5 +251,23 @@ class FootprintBinZ(Footprint):
 
 class FootprintParquet(Footprint):
 
-    pass
+    footprint_filenames: List[str] = [parquetfootprint_filename]
 
+    def __enter__(self):
+        self.pfootprint: Dict[int, Dict[str, int]] = self.read_parquet_file()
+
+
+    def read_parquet_file(self) -> Dict[int, Dict[str, int]]:
+        import pyarrow.parquet as pq
+
+        path: str = str(self.static_path) + self.footprint_filenames[0]
+        df = pq.read_table(path).to_pandas()
+
+        footprint_dict: Dict[int, Dict[str, int]] = dict()
+
+        for row in df.T.to_dict().values():
+            event_id: int = row["event_id"]
+            del row["event_id"]
+            footprint_dict[event_id] = row
+
+        return footprint_dict
