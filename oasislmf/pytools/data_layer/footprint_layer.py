@@ -11,7 +11,6 @@ from enum import Enum
 from typing import Optional, Set, Tuple, List
 
 import numpy as np
-import psutil
 
 from oasislmf.pytools.getmodel.footprint import Footprint
 
@@ -173,7 +172,6 @@ class FootprintLayer:
                                 logging.error(f'event_id "{event_id}" not in footprint_index')
 
                             FootprintLayer._stream_footprint_data(event_data=event_data, connection=connection, event_id=event_id)
-                            logging.info(f"server memory: {get_process_memory()}")
 
                         elif operation == OperationEnum.GET_NUM_INTENSITY_BINS:
 
@@ -299,22 +297,15 @@ class FootprintLayerClient:
         current_socket.sendall(data)
 
         number_of_chunks: bytes = current_socket.recv(32)
-        number_of_chunks: int = int.from_bytes(number_of_chunks, 'big')
-
-        # with open(MODEL_LOG_PATH, "a") as file:
-        #     file.write(f"getting {number_of_chunks} chunks for ID {event_id}\n")
+        _: int = int.from_bytes(number_of_chunks, 'big')
 
         raw_data_buffer: List[bytes] = []
-        # for _ in range(number_of_chunks + 2):
-        #     raw_data_buffer.append(current_socket.recv(60000))
+
         while True:
             raw_data = current_socket.recv(6000)
             if not raw_data:
                 break
             raw_data_buffer.append(raw_data)
-
-        # with open(MODEL_LOG_PATH, "a") as file:
-        #     file.write(f"recieved {number_of_chunks} chunks for ID {event_id}\n")
 
         return pickle.loads(b"".join(raw_data_buffer))
 
@@ -322,12 +313,6 @@ class FootprintLayerClient:
 def _shutdown_port(connection: socket.socket) -> None:
     logging.info(f"socket is shutting down: {datetime.datetime.now()}")
     connection.shutdown(socket.SHUT_RDWR)
-
-
-def get_process_memory():
-    process = psutil.Process(os.getpid())
-    mem_info = process.memory_info()
-    return mem_info.rss
 
 
 def main() -> None:

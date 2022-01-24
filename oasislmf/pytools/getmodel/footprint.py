@@ -80,6 +80,9 @@ class Footprint:
     def get_event(self, event_id):
         raise NotImplementedError()
 
+    def to_parquet(self):
+        pass
+
 
 class FootprintCsv(Footprint):
     """
@@ -220,3 +223,9 @@ class FootprintBinZ(Footprint):
             zdata = self.zfootprint[event_info['offset']: event_info['offset']+event_info['size']]
             data = decompress(zdata)
             return np.frombuffer(data, Event)
+
+
+class FootprintParquet(Footprint):
+
+    pass
+
