@@ -16,6 +16,8 @@ from numba.typed import Dict
 
 from .common import areaperil_int, oasis_float, Index_type
 from .footprint import Footprint
+from oasislmf.pytools.data_layer.footprint_layer import FootprintLayerClient
+import atexit
 
 logger = logging.getLogger(__name__)
 
@@ -509,7 +511,7 @@ def convert_vuln_id_to_index(vuln_dict, areaperil_to_vulns):
         areaperil_to_vulns[i] = vuln_dict[areaperil_to_vulns[i]]
 
 
-def run(run_dir, file_in, file_out, ignore_file_type):
+def run(run_dir, file_in, file_out, ignore_file_type, data_server):
     """
     Runs the main process of the getmodel process.
 
@@ -518,10 +520,22 @@ def run(run_dir, file_in, file_out, ignore_file_type):
         file_in: (Optional[str]) the path to the input directory
         file_out: (Optional[str]) the path to the output directory
         ignore_file_type: set(str) file extension to ignore when loading
+        data_server: (bool) if set to True runs the data server
 
     Returns: None
     """
+    static_path = os.path.join(run_dir, 'static')
+    input_path = os.path.join(run_dir, 'input')
     ignore_file_type = set(ignore_file_type)
+
+    if data_server:
+        logger.debug("data server active")
+        FootprintLayerClient.register()
+        logger.debug("registered with data server")
+        atexit.register(FootprintLayerClient.unregister)
+    else:
+        logger.debug("data server not active")
+
     with ExitStack() as stack:
         if file_in is None:
             streams_in = sys.stdin.buffer
@@ -533,9 +547,6 @@ def run(run_dir, file_in, file_out, ignore_file_type):
         else:
             stream_out = stack.enter_context(open(file_out, 'wb'))
 
-        static_path = os.path.join(run_dir, 'static')
-        input_path = os.path.join(run_dir, 'input')
-
         event_id_mv = memoryview(bytearray(4))
         event_ids = np.ndarray(1, buffer=event_id_mv, dtype='i4')
 
@@ -544,7 +555,12 @@ def run(run_dir, file_in, file_out, ignore_file_type):
 
         logger.debug('init footprint')
         footprint_obj = stack.enter_context(Footprint.load(static_path, ignore_file_type))
-        num_intensity_bins = footprint_obj.num_intensity_bins
+
+        if data_server:
+            num_intensity_bins: int = FootprintLayerClient.get_number_of_intensity_bins()
+            logger.info(f"got {num_intensity_bins} intensity bins from server")
+        else:
+            num_intensity_bins: int = footprint_obj.num_intensity_bins
 
         logger.debug('init vulnerability')
 
@@ -563,12 +579,18 @@ def run(run_dir, file_in, file_out, ignore_file_type):
         # header
         stream_out.write(np.uint32(1).tobytes())
 
-        logger.debug('doCdf staring')
+        logger.debug('doCdf starting')
         while True:
             len_read = streams_in.readinto(event_id_mv)
             if len_read==0:
                 break
-            event_footprint = footprint_obj.get_event(event_ids[0])
+
+            if data_server:
+                event_footprint = FootprintLayerClient.get_event(event_ids[0])
+                logger.info(f"got {len(event_footprint)} footprint data from server")
+            else:
+                event_footprint = footprint_obj.get_event(event_ids[0])
+
             if event_footprint is not None:
                 for cursor_bytes in doCdf(event_ids[0],
                       num_intensity_bins, event_footprint,
@@ -581,6 +603,3 @@ def run(run_dir, file_in, file_out, ignore_file_type):
                     else:
                         break
         logger.debug('doCdf done')
-
-
-

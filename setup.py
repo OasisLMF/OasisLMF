@@ -24,7 +24,7 @@ except ImportError:
     from urllib2 import urlopen, URLError
 
 
-KTOOLS_VERSION = '3.7.3'
+KTOOLS_VERSION = '3.7.4'
 
 SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -356,6 +356,7 @@ setup(
             'modelpy=oasislmf.pytools.modelpy:main',
             'footprintconvpy=oasislmf.pytools.footprintconv:footprintconvpy',
             'vulntoparquet=oasislmf.pytools.getmodel.vulnerability:main',
+            "servedata=oasislmf.pytools.data_layer.footprint_layer:main"
         ]
     },
     license='BSD 3-Clause',
