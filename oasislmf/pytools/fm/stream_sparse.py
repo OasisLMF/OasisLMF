@@ -43,9 +43,10 @@ def add_new_loss(sidx, loss, loss_index, sidx_indptr, sidx_val, loss_val):
     loss_val[insert_i] = loss
     sidx_indptr[loss_index] += 1
 
+
 @jit(cache=True)
 def stream_to_loss_sparse(event_agg, sidx_loss, valid_buf, cursor, event_id, agg_id, loss_index, nodes_array,
-                          sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val,
+                          sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, pass_through,
                           computes):
     """
     we use a slithly modified version of the CSR sparse matrix where
@@ -67,13 +68,18 @@ def stream_to_loss_sparse(event_agg, sidx_loss, valid_buf, cursor, event_id, agg
     last_event_id = event_id
 
     while cursor < valid_len:
-        if agg_id:# we set agg_id to 0 if we expect a new set of event and agg
+        if agg_id: # we set agg_id to 0 if we expect a new set of event and agg
             sidx, loss = sidx_loss[cursor]['sidx'], sidx_loss[cursor]['loss']
+            loss = 0 if np.isnan(loss) else loss
             cursor += 1
             if sidx:
-                loss = 0 if np.isnan(loss) else loss
-                if loss and sidx != -2 and sidx >= -3:
-                    add_new_loss(sidx, loss, loss_index, sidx_indptr, sidx_val, loss_val)
+                if loss != 0 and not np.isnan(loss):
+                    if sidx == -2:  # standard deviation
+                        pass
+                    elif sidx == -4:  # chance of loss
+                        pass_through[loss_index] = loss
+                    else:
+                        add_new_loss(sidx, loss, loss_index, sidx_indptr, sidx_val, loss_val)
             else:
                 loss_index = reset_empty_items(loss_index, sidx_indptr, sidx_val, loss_val, computes)
                 agg_id = 0
@@ -88,6 +94,7 @@ def stream_to_loss_sparse(event_agg, sidx_loss, valid_buf, cursor, event_id, agg
                 else:
                     last_event_id = event_id
             node = nodes_array[agg_id]
+
             sidx_indexes[node['node_id']] = loss_index
             loss_indptr[node['loss']: node['loss'] + node['layer_len']] = sidx_indptr[loss_index]
             sidx_indptr[loss_index + 1] = sidx_indptr[loss_index]
@@ -97,8 +104,8 @@ def stream_to_loss_sparse(event_agg, sidx_loss, valid_buf, cursor, event_id, agg
     return cursor, event_id, agg_id, loss_index, 0
 
 
-def read_event_sparse(stream, nodes_array, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, computes, main_selector,
-                      stream_selector, mv, event_agg, sidx_loss, cursor, valid_buf):
+def read_event_sparse(stream, nodes_array, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, pass_through,
+                      computes, main_selector, stream_selector, mv, event_agg, sidx_loss, cursor, valid_buf):
     event_id = 0
     agg_id = 0
     loss_index = 0
@@ -119,7 +126,8 @@ def read_event_sparse(stream, nodes_array, sidx_indexes, sidx_indptr, sidx_val, 
 
         cursor, event_id, agg_id, loss_index, yield_event = stream_to_loss_sparse(event_agg, sidx_loss, valid_buf, cursor,
                                                                                   event_id, agg_id, loss_index, nodes_array,
-                                                                                  sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, computes)
+                                                                                  sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val,
+                                                                                  pass_through, computes)
 
         if yield_event:
             if number_size * cursor == valid_buf:
@@ -133,7 +141,8 @@ def read_event_sparse(stream, nodes_array, sidx_indexes, sidx_indptr, sidx_val, 
             stream_selector.select()
 
 
-def read_streams_sparse(streams_in, nodes_array, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, len_array, computes):
+def read_streams_sparse(streams_in, nodes_array, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, pass_through,
+                        len_array, computes):
     try:
         main_selector, stream_data = register_streams_in(selectors.DefaultSelector, streams_in)
         logger.debug("Streams read with DefaultSelector")
@@ -143,7 +152,8 @@ def read_streams_sparse(streams_in, nodes_array, sidx_indexes, sidx_indptr, sidx
     try:
         while main_selector.get_map():
             for sKey, _ in main_selector.select():
-                event = read_event_sparse(sKey.fileobj, nodes_array, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, computes, main_selector, **sKey.data)
+                event = read_event_sparse(sKey.fileobj, nodes_array, sidx_indexes, sidx_indptr, sidx_val, loss_indptr,
+                                          loss_val, pass_through, computes, main_selector, **sKey.data)
 
                 if event:
                     event_id, loss_index, cursor, valid_buf = event
@@ -170,7 +180,7 @@ def read_streams_sparse(streams_in, nodes_array, sidx_indexes, sidx_indptr, sidx
                                                                                              0,
                                                                                              nodes_array,
                                                                                              sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val,
-                                                                                             computes)
+                                                                                             pass_through, computes)
 
                     if event_id:
                         loss_index = reset_empty_items(loss_index, sidx_indptr, sidx_val, loss_val, computes)
@@ -185,7 +195,7 @@ def read_streams_sparse(streams_in, nodes_array, sidx_indexes, sidx_indptr, sidx
 
 @jit(cache=True)
 def load_event(event_agg_view, sidx_loss_view, event_id, nodes_array,
-               sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val,
+               sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, pass_through,
                computes, output_array, compute_i, i_layer, i_index, nb_values):
     cursor = 0
     # sidx_indexes = financial_structure.sidx_indexes
@@ -198,18 +208,31 @@ def load_event(event_agg_view, sidx_loss_view, event_id, nodes_array,
         node_sidx_start = sidx_indptr[sidx_indexes[node['node_id']]]
         node_sidx_end = sidx_indptr[sidx_indexes[node['node_id']] + 1]
         node_val_len = node_sidx_end - node_sidx_start
+        pass_through_loss = pass_through[computes[compute_i]]
         for layer in range(i_layer, node['layer_len']):
-            output_id = output_array[node['output_ids']+layer]
+            output_id = output_array[node['output_ids'] + layer]
             node_loss_start = loss_indptr[node['ba'] + layer]
             if output_id and node_val_len:  # if output is not in xref output_id is 0
                 if i_index == -1:
-                    if nb_values - cursor < 3: # header + -3 and -1 sample
+                    if nb_values - cursor < 4: # header + -5, -3, -1 sample
                         return cursor * number_size, compute_i, layer, i_index
                     else:
                         # write the header
                         event_agg_view[cursor]['event_id'], event_agg_view[cursor]['agg_id'] = event_id, output_id
                         i_index += 1
                         cursor += 1
+
+                        if sidx_val[node_sidx_start + i_index] == -5:
+                            sidx_loss_view[cursor]['sidx'], sidx_loss_view[cursor]['loss'] = -5, loss_val[node_loss_start + i_index]
+                            i_index += 1
+                        else:
+                            sidx_loss_view[cursor]['sidx'], sidx_loss_view[cursor]['loss'] = -5, 0
+                        cursor += 1
+
+                        # write -4 sidx
+                        if pass_through_loss:
+                            sidx_loss_view[cursor]['sidx'], sidx_loss_view[cursor]['loss'] = -4, pass_through_loss
+                            cursor += 1
 
                         # write -3 sidx
                         if sidx_val[node_sidx_start + i_index] == -3:
@@ -249,7 +272,8 @@ def load_event(event_agg_view, sidx_loss_view, event_id, nodes_array,
 
 
 class EventWriterSparse(EventWriter):
-    def __init__(self, files_out, nodes_array, output_array, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, len_sample, computes):
+    def __init__(self, files_out, nodes_array, output_array, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val,
+                 pass_through, len_sample, computes):
         self.files_out = files_out
         self.nodes_array = nodes_array
         self.sidx_indexes = sidx_indexes
@@ -257,6 +281,7 @@ class EventWriterSparse(EventWriter):
         self.sidx_val = sidx_val
         self.loss_indptr = loss_indptr
         self.loss_val = loss_val
+        self.pass_through = pass_through
         self.len_sample = len_sample
         self.computes = computes
         self.output_array = output_array
@@ -276,6 +301,7 @@ class EventWriterSparse(EventWriter):
                                                              event_id,
                                                              self.nodes_array,
                                                              self.sidx_indexes, self.sidx_indptr, self.sidx_val, self.loss_indptr, self.loss_val,
+                                                             self.pass_through,
                                                              self.computes,
                                                              self.output_array,
                                                              compute_i,
