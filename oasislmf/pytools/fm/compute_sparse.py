@@ -254,9 +254,10 @@ def compute_event(compute_info,
 
     # create all sidx array
     all_sidx = np.empty(max_sidx_val + EXTRA_VALUES,  dtype=np_oasis_int)
-    all_sidx[0] = -3
-    all_sidx[1] = -1
-    all_sidx[2:] = np.arange(1, max_sidx_val + 1)
+    all_sidx[0] = -5
+    all_sidx[1] = -3
+    all_sidx[2] = -1
+    all_sidx[3:] = np.arange(1, max_sidx_val + 1)
 
     for level in range(compute_info['start_level'], compute_info['max_level'] + 1):#perform the bottom up loss computation
         # print(level, next_compute_i, compute_i, next_compute_i-compute_i, computes[compute_i:compute_i+2], computes[next_compute_i-2: next_compute_i+1])
@@ -506,8 +507,10 @@ def init_variable(compute_info, max_sidx_val, temp_dir, low_memory):
     children = np.zeros(compute_info['children_len'], dtype=np.uint32)
     computes = np.zeros(compute_info['compute_len'], dtype=np.uint32)
 
-    return (max_sidx_val, max_sidx_count, len_array, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val, extras_indptr, extras_val,
-            children, computes)
+    pass_through = np.zeros(compute_info['items_len']+1, dtype=np_oasis_float)
+
+    return (max_sidx_val, max_sidx_count, len_array, sidx_indexes, sidx_indptr, sidx_val, loss_indptr, loss_val,
+            pass_through, extras_indptr, extras_val, children, computes)
 
 
 @njit(cache=True)
