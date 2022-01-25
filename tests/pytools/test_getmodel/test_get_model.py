@@ -42,11 +42,43 @@ class GetModelTests(TestCase):
     #     from multiprocessing.shared_memory import SharedMemory
 
     def test_convert_footprint_to_parquet(self):
-        from oasislmf.pytools.getmodel.footprint import FootprintBin
+        from oasislmf.pytools.getmodel.footprint import Footprint
+        from contextlib import ExitStack
+        import json
+        import numpy as np
+        import pandas as pd
 
-        test = FootprintBin(static_path="./static")
+        static_path: str = "./conversions/"
 
-        print(test.load(static_path="./static/"))
+        with ExitStack() as stack:
+            footprint_obj = stack.enter_context(Footprint.load(static_path=static_path,
+                                                               ignore_file_type={
+                                                                   'footprint.bin.z',
+                                                                   'footprint.idx.z'
+                                                                   }
+                                                               )
+                                                )
+            # areaperil_id, intensity_bin_id, probability
+
+            buffer = []
+
+            for key in footprint_obj.footprint_index.keys():
+                buffer.append(footprint_obj.get_event(key))
+
+            data = np.concatenate(buffer)
+
+            meta_data = {
+                "num_intensity_bins": footprint_obj.num_intensity_bins,
+                "has_intensity_uncertainty": True if footprint_obj.has_intensity_uncertainty is 1 else False
+            }
+            print(meta_data)
+            print(data[0])
+            df = pd.DataFrame(data)
+            print(df.head())
+
+        #
+        # with open(f'{static_path}/footprint_parquet_meta.json', 'w') as outfile:
+        #     json.dump(meta_data, outfile)
 
     # def test_load_parquet(self):
     #     vulns_dict = get_items(input_path="./")[0]
@@ -78,26 +110,27 @@ class GetModelTests(TestCase):
     #     print(id(vuln_table))
     #     print(id(vuln_table_two))
 
-    def test_load_footprint(self):
-        from oasislmf.pytools.getmodel.footprint import Footprint
-        import pandas as pd
-        import pyarrow as pa
-        import pyarrow.parquet as pq
-
-        with Footprint.load(static_path="./static/") as test:
-            outcome = test
+    # def test_load_footprint(self):
+    #     from oasislmf.pytools.getmodel.footprint import Footprint
+    #     import pandas as pd
+    #     import pyarrow as pa
+    #     import pyarrow.parquet as pq
+    #
+    #     with Footprint.load(static_path="./conversions/") as test:
+    #         outcome = test
+    #         print(outcome)
             # print("here is the outcome: ", outcome.footprint_index)
 
-        buffer = []
-
-        for key in outcome.footprint_index.keys():
-            row = outcome.footprint_index[key]
-            row["event_id"] = key
-            buffer.append(row)
-        df = pd.DataFrame(buffer)
-        print(df.head())
-        table = pa.Table.from_pandas(df)
-        pq.write_table(table, "./footprint.parquet")
+        # buffer = []
+        #
+        # for key in outcome.footprint_index.keys():
+        #     row = outcome.footprint_index[key]
+        #     row["event_id"] = key
+        #     buffer.append(row)
+        # df = pd.DataFrame(buffer)
+        # print(df.head())
+        # table = pa.Table.from_pandas(df)
+        # pq.write_table(table, "./footprint.parquet")
 
             # print(outcome.footprint_index.head())
 

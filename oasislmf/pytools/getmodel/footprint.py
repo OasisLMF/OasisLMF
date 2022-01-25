@@ -81,32 +81,6 @@ class Footprint:
     def get_event(self, event_id):
         raise NotImplementedError()
 
-    @staticmethod
-    def write_to_parquet(footprint_dict: Dict[int, Dict[str, int]], path: str) -> None:
-        """
-        Writes the footprint dictionary data to parquet file using pyarrow and pandas dataframe as a middle step.
-
-        dataframe columns => | offset | size | event_id |
-
-        Args:
-            footprint_dict: (Dict[int, Dict[str, int]]) footprint data to be written to parquet file
-            path: (str) the path where the parquet file is to be written
-
-        Returns: None
-        """
-        import pyarrow as pa
-        import pyarrow.parquet as pq
-
-        buffer: List[Dict[str, int]] = []
-        for key in footprint_dict.keys():
-            row: Dict[str, int] = footprint_dict[key]
-            row["event_id"] = key
-            buffer.append(row)
-
-        df = pd.DataFrame(buffer)
-        table = pa.Table.from_pandas(df)
-        pq.write_table(table, path)
-
 
 class FootprintCsv(Footprint):
     """
@@ -191,7 +165,7 @@ class FootprintBin(Footprint):
         Args:
             event_id: (int) the ID belonging to the Event being extracted
 
-        Returns: (Event) the event that was extracted
+        Returns: (np.array(Event)) the event that was extracted
         """
         event_info = self.footprint_index.get(event_id)
         if event_info is None:
