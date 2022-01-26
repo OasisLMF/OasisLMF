@@ -81,7 +81,7 @@ def write_parquet(data, meta_data: Dict[str, int], static_path: str) -> None:
     table = pa.Table.from_pandas(df)
 
     pq.write_table(table, f"{static_path}/footprint.parquet")
-    with open(f'{static_path}/footprint_parquet_meta.json', 'r') as outfile:
+    with open(f'{static_path}/footprint_parquet_meta.json', 'w') as outfile:
         json.dump(meta_data, outfile)
 
 
