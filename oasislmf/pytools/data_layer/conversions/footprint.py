@@ -12,11 +12,20 @@ from oasislmf.pytools.getmodel.footprint import Footprint, Event, EventIndexBin
 
 
 # reading functions
-def read_zipped(static_path: str) -> Tuple[np.array[Event], Dict[str, Any], Dict[int, dict]]:
+def read_zipped(static_path: str):
+    """
+    all should return -> Tuple[np.array[Event], Dict[str, Any], Dict[int, dict]]
+
+    Args:
+        static_path:
+
+    Returns:
+
+    """
     pass
 
 
-def read_bin(static_path: str) -> Tuple[np.array[Event], Dict[str, Any], Dict[int, dict]]:
+def read_bin(static_path: str):
     with ExitStack() as stack:
         footprint_obj = stack.enter_context(Footprint.load(static_path=static_path,
                                                            ignore_file_type={
@@ -38,11 +47,11 @@ def read_bin(static_path: str) -> Tuple[np.array[Event], Dict[str, Any], Dict[in
     return data, meta_data, index_data
 
 
-def read_csv(static_path: str) -> Tuple[np.array[Event], Dict[str, Any], Dict[int, dict]]:
+def read_csv(static_path: str):
     pass
 
 
-def read_parquet(static_path: str) -> Tuple[np.array[Event], Dict[str, Any]]:
+def read_parquet(static_path: str):
     with open(f'{static_path}/footprint_parquet_meta.json', 'w') as outfile:
         meta_data: Dict[str, Union[int, bool]] = json.load(outfile)
 
@@ -67,7 +76,7 @@ def write_csv(data):
     pass
 
 
-def write_parquet(data: np.array[Event], meta_data: Dict[str, int], static_path: str) -> None:
+def write_parquet(data, meta_data: Dict[str, int], static_path: str) -> None:
     df = pd.DataFrame(data)
     table = pa.Table.from_pandas(df)
 
