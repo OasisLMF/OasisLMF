@@ -68,7 +68,7 @@ def write_zipped(data):
     pass
 
 
-def write_bin(data: np.array[Event], meta_data: Dict[str, Any], static_path: str) -> None:
+def write_bin(data, meta_data, static_path) -> None:
     pass
 
 
