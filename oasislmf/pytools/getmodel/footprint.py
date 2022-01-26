@@ -254,7 +254,7 @@ class FootprintParquet(Footprint):
         if event_info is None:
             return
         else:
-            return np.frombuffer(self.pfootprint[event_info['offset']: event_info['offset'] + event_info['size']], Event)
+            return self.pfootprint[event_info['offset']: event_info['offset'] + event_info['size']]
 
 
     def read_parquet_file(self) -> np.array:
