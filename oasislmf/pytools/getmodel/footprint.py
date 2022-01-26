@@ -231,7 +231,7 @@ class FootprintParquet(Footprint):
     def __enter__(self):
         self.pfootprint = self.read_parquet_file()
 
-        with open(f'{self.static_path}/{parquetfootprint_meta_filename}', 'w') as outfile:
+        with open(f'{self.static_path}/{parquetfootprint_meta_filename}', 'r') as outfile:
             meta_data: Dict[str, Union[int, bool]] = json.load(outfile)
 
         self.num_intensity_bins = int(meta_data['num_intensity_bins'])
