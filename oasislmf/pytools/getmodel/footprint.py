@@ -229,7 +229,7 @@ class FootprintParquet(Footprint):
     footprint_filenames: List[str] = [parquetfootprint_filename, parquetfootprint_meta_filename]
 
     def __enter__(self):
-        self.pfootprint = self.read_parquet_file()
+        self.pfootprint = self.stack.enter_context(self.read_parquet_file())
 
         with open(f'{self.static_path}/{parquetfootprint_meta_filename}', 'r') as outfile:
             meta_data: Dict[str, Union[int, bool]] = json.load(outfile)
