@@ -109,16 +109,11 @@ class FootprintLayer:
         Returns: None
         """
         raw_data: bytes = pickle.dumps(event_data)
-        number_of_chunks: int = int(math.ceil(len(raw_data) / 60000)) + 1
 
         raw_data_buffer: List[bytes] = [raw_data[i:i + 60000] for i in range(0, len(raw_data), 60000)]
 
-        logging.info(f"{number_of_chunks} chunks for event id: {event_id} about to be sent: {datetime.datetime.now()}")
-        connection.sendall(number_of_chunks.to_bytes(32, byteorder='big'))
-
         for chunk in raw_data_buffer:
             connection.sendall(chunk)
-        logging.info(f"{number_of_chunks} chunks for event id: {event_id} have been sent: {datetime.datetime.now()}")
 
     @staticmethod
     def _extract_header(header_data: bytes) -> Tuple[OperationEnum, Optional[int]]:
@@ -295,9 +290,6 @@ class FootprintLayerClient:
 
         data: bytes = OperationEnum.GET_DATA.value + int(event_id).to_bytes(8, byteorder='big')
         current_socket.sendall(data)
-
-        number_of_chunks: bytes = current_socket.recv(32)
-        _: int = int.from_bytes(number_of_chunks, 'big')
 
         raw_data_buffer: List[bytes] = []
 
