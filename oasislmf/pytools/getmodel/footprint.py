@@ -260,5 +260,5 @@ class FootprintParquet(Footprint):
     def read_parquet_file(self) -> np.array:
         import pyarrow.parquet as pq
 
-        path: str = str(self.static_path) + parquetfootprint_filename
+        path: str = str(self.static_path) + "/" + parquetfootprint_filename
         return pq.read_table(path).to_pandas().to_numpy(dtype=Event)
