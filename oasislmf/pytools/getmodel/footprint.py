@@ -6,14 +6,15 @@ import logging
 import os
 from contextlib import ExitStack
 from zlib import decompress
-from typing import Dict, List
+from typing import Dict, List, Union
 
 import numpy as np
 import pandas as pd
+import json
 
 from .common import (FootprintHeader, EventIndexBin, EventIndexBinZ, Event, EventCSV,
                      footprint_filename, footprint_index_filename, zfootprint_filename, zfootprint_index_filename,
-                     csvfootprint_filename, parquetfootprint_filename)
+                     csvfootprint_filename, parquetfootprint_filename, parquetfootprint_meta_filename)
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,7 @@ class Footprint:
 
         Returns: (Union[FootprintBinZ, FootprintBin, FootprintCsv]) the loaded class
         """
-        priorities = [FootprintBinZ, FootprintBin, FootprintCsv]
+        priorities = [FootprintParquet, FootprintBinZ, FootprintBin, FootprintCsv]
         for footprint_class in priorities:
             for filename in footprint_class.footprint_filenames:
                 if (not os.path.isfile(os.path.join(static_path, filename))
@@ -225,23 +226,39 @@ class FootprintBinZ(Footprint):
 
 class FootprintParquet(Footprint):
 
-    footprint_filenames: List[str] = [parquetfootprint_filename]
+    footprint_filenames: List[str] = [parquetfootprint_filename, parquetfootprint_meta_filename]
 
     def __enter__(self):
-        self.pfootprint: Dict[int, Dict[str, int]] = self.read_parquet_file()
+        self.pfootprint = self.read_parquet_file()
+
+        with open(f'{self.static_path}/{parquetfootprint_meta_filename}', 'w') as outfile:
+            meta_data: Dict[str, Union[int, bool]] = json.load(outfile)
+
+        self.num_intensity_bins = int(meta_data['num_intensity_bins'])
+        self.has_intensity_uncertainty = int(meta_data['has_intensity_uncertainty'] & intensityMask)
+
+        footprint_mmap = np.memmap(
+            os.path.join(self.static_path, footprint_index_filename),
+            dtype=EventIndexBin,
+            mode='r'
+        )
+
+        self.footprint_index = pd.DataFrame(
+            footprint_mmap,
+            columns=footprint_mmap.dtype.names
+        ).set_index('event_id').to_dict('index')
+        return self
+
+    def get_event(self, event_id: int):
+        event_info = self.footprint_index.get(event_id)
+        if event_info is None:
+            return
+        else:
+            return np.frombuffer(self.pfootprint[event_info['offset']: event_info['offset'] + event_info['size']], Event)
 
 
-    def read_parquet_file(self) -> Dict[int, Dict[str, int]]:
+    def read_parquet_file(self) -> np.array:
         import pyarrow.parquet as pq
 
-        path: str = str(self.static_path) + self.footprint_filenames[0]
-        df = pq.read_table(path).to_pandas()
-
-        footprint_dict: Dict[int, Dict[str, int]] = dict()
-
-        for row in df.T.to_dict().values():
-            event_id: int = row["event_id"]
-            del row["event_id"]
-            footprint_dict[event_id] = row
-
-        return footprint_dict
+        path: str = str(self.static_path) + parquetfootprint_filename
+        return pq.read_table(path).to_pandas().to_numpy(dtype=Event)
